@@ -26,6 +26,7 @@
 //! and punish them accordingly.
 
 use polkadot_node_network_protocol::PeerId;
+use polkadot_node_subsystem::messages::HypotheticalCandidate;
 use polkadot_primitives::vstaging::{
 	CandidateHash, CommittedCandidateReceipt, GroupIndex, Hash, Id as ParaId,
 	PersistedValidationData,
@@ -35,6 +36,7 @@ use std::collections::{
 	hash_map::{Entry, HashMap},
 	HashSet,
 };
+use std::sync::Arc;
 
 /// A tracker for all known candidates in the view.
 ///
@@ -133,7 +135,7 @@ impl Candidates {
 		let prev_state = self.candidates.insert(
 			candidate_hash,
 			CandidateState::Confirmed(ConfirmedCandidate {
-				receipt: candidate_receipt,
+				receipt: Arc::new(candidate_receipt),
 				persisted_validation_data,
 				assigned_group,
 				parent_hash,
@@ -194,6 +196,64 @@ impl Candidates {
 			Some(CandidateState::Confirmed(ref c)) => Some(c),
 			_ => None,
 		}
+	}
+
+	/// Whether statements from a candidate are importable.
+	///
+	/// This is only true when the candidate is known, confirmed,
+	/// and is importable in a fragment tree.
+	pub fn is_importable(&self, candidate_hash: &CandidateHash) -> bool {
+		self.get_confirmed(candidate_hash)
+			.map_or(false, |c| c.is_importable(None))
+	}
+
+	/// Get all hypothetical candidates which should be tested
+	/// for inclusion in the frontier.
+	///
+	/// Provide optional parent parablock information to filter hypotheticals to only
+	/// potential children of that parent.
+	pub fn frontier_hypotheticals(
+		&self,
+		parent: Option<(Hash, ParaId)>,
+	) -> Vec<HypotheticalCandidate> {
+		fn extend_hypotheticals<'a>(
+			v: &mut Vec<HypotheticalCandidate>,
+			i: impl IntoIterator<Item = (&'a CandidateHash, &'a CandidateState)>,
+			maybe_required_parent: Option<(Hash, ParaId)>,
+		) {
+			for (c_hash, candidate) in i {
+				match candidate {
+					CandidateState::Unconfirmed(u) => u.extend_hypotheticals(
+						*c_hash,
+						v,
+						maybe_required_parent,
+					),
+					CandidateState::Confirmed(c) => v.push(c.to_hypothetical(*c_hash)),
+				}
+			}
+		}
+
+		let mut v = Vec::new();
+		if let Some(parent) = parent {
+			let maybe_children = self.by_parent.get(&parent);
+			let i = maybe_children
+				.into_iter()
+				.flat_map(|c| c)
+				.filter_map(|c_hash| self.candidates.get_key_value(c_hash));
+
+			extend_hypotheticals(
+				&mut v,
+				i,
+				Some(parent),
+			);
+		} else {
+			extend_hypotheticals(
+				&mut v,
+				self.candidates.iter(),
+				None,
+			);
+		}
+		v
 	}
 
 	/// Prune all candidates according to the relay-parent predicate
@@ -293,7 +353,7 @@ struct UnconfirmedImportable {
 struct UnconfirmedCandidate {
 	claims: Vec<(PeerId, CandidateClaims)>,
 	// ref-counted
-	parent_claims: HashMap<(Hash, ParaId), usize>,
+	parent_claims: HashMap<(Hash, ParaId), Vec<(Hash, usize)>>,
 	unconfirmed_importable_under: HashSet<(Hash, UnconfirmedImportable)>,
 }
 
@@ -305,7 +365,11 @@ impl UnconfirmedCandidate {
 		// but in doing so it limits the amount of other candidates it can advertise. on balance,
 		// memory consumption is bounded in the same way.
 		if let Some(parent_claims) = claims.parent_hash_and_id {
-			*self.parent_claims.entry(parent_claims).or_default() += 1;
+			let sub_claims = self.parent_claims.entry(parent_claims).or_default();
+			match sub_claims.iter().position(|x| x.0 == claims.relay_parent) {
+				Some(p) => sub_claims[p].1 += 1,
+				None => sub_claims.push((claims.relay_parent, 1)),
+			}
 		}
 		self.claims.push((peer, claims));
 	}
@@ -330,8 +394,15 @@ impl UnconfirmedCandidate {
 			} else {
 				if let Some(parent_claims) = c.1.parent_hash_and_id {
 					if let Entry::Occupied(mut e) = self.parent_claims.entry(parent_claims) {
-						*e.get_mut() -= 1;
-						if *e.get() == 0 {
+						if let Some(p) = e.get().iter().position(|x| x.0 == c.1.relay_parent) {
+							let mut sub_claims = e.get_mut();
+							sub_claims[p].1 -= 1;
+							if sub_claims[p].1 == 0 {
+								sub_claims.remove(p);
+							}
+						};
+
+						if e.get().is_empty() {
 							remove_parent_index(parent_claims.0, parent_claims.1);
 							e.remove();
 						}
@@ -346,6 +417,43 @@ impl UnconfirmedCandidate {
 			.retain(|(l, props)| leaves.contains(l) && relay_parent_live(&props.relay_parent));
 	}
 
+	fn extend_hypotheticals(
+		&self,
+		candidate_hash: CandidateHash,
+		v: &mut Vec<HypotheticalCandidate>,
+		required_parent: Option<(Hash, ParaId)>
+	) {
+		fn extend_hypotheticals_inner<'a>(
+			candidate_hash: CandidateHash,
+			v: &mut Vec<HypotheticalCandidate>,
+			i: impl IntoIterator<Item = (&'a (Hash, ParaId), &'a Vec<(Hash, usize)>)>,
+		) {
+			for ((parent_head_hash, para_id), possible_relay_parents) in i {
+				for (relay_parent, _rc) in possible_relay_parents {
+					v.push(HypotheticalCandidate::Incomplete {
+						candidate_hash,
+						candidate_para: *para_id,
+						parent_head_data_hash: *parent_head_hash,
+						candidate_relay_parent: *relay_parent,
+					});
+				}
+			}
+		}
+
+		match required_parent {
+			Some(parent) => extend_hypotheticals_inner(
+				candidate_hash,
+				v,
+				self.parent_claims.get_key_value(&parent),
+			),
+			None => extend_hypotheticals_inner(
+				candidate_hash,
+				v,
+				self.parent_claims.iter(),
+			),
+		}
+	}
+
 	fn has_claims(&self) -> bool {
 		!self.claims.is_empty()
 	}
@@ -353,7 +461,7 @@ impl UnconfirmedCandidate {
 
 /// A confirmed candidate.
 pub struct ConfirmedCandidate {
-	receipt: CommittedCandidateReceipt,
+	receipt: Arc<CommittedCandidateReceipt>,
 	persisted_validation_data: PersistedValidationData,
 	assigned_group: GroupIndex,
 	parent_hash: Hash,
@@ -386,6 +494,14 @@ impl ConfirmedCandidate {
 
 	fn parent_hash(&self) -> Hash {
 		self.parent_hash
+	}
+
+	fn to_hypothetical(&self, candidate_hash: CandidateHash) -> HypotheticalCandidate {
+		HypotheticalCandidate::Complete {
+			candidate_hash,
+			receipt: self.receipt.clone(),
+			persisted_validation_data: self.persisted_validation_data.clone()
+		}
 	}
 }
 
