@@ -545,7 +545,7 @@ pub(crate) async fn share_local_statement<Context>(
 				pvd.clone(),
 				local_group,
 			) {
-				// TODO [now] apply the reckoning.
+				apply_post_confirmation_reckoning(ctx, reckoning).await;
 			}
 		};
 
@@ -1164,4 +1164,14 @@ async fn handle_cluster_newly_backed<Context>(
 	// TODO [now]
 	// 1. for confirmed & importable candidates only
 	// 2. send advertisements along the grid
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn apply_post_confirmation_reckoning<Context>(
+	ctx: &mut Context,
+	reckoning: candidates::PostConfirmationReckoning,
+) {
+	for peer in reckoning.incorrect {
+		report_peer(ctx.sender(), peer, COST_INACCURATE_ADVERTISEMENT).await;
+	}
 }
