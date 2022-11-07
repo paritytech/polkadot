@@ -238,11 +238,12 @@ where
 			return
 		}
 		let backers: Vec<ValidatorIndex> = backers.into_iter().collect();
+		let losers: BTreeSet<_> = losers.into_iter().collect();
+		if losers.is_empty() {
+			return
+		}
 		debug_assert!(
-			{
-				let losers_index: BTreeSet<_> = losers.into_iter().collect();
-				backers.iter().all(|i| losers_index.contains(i))
-			},
+			backers.iter().all(|i| losers.contains(i)),
 			"backers should be a subset of losing ForInvalid validators",
 		);
 		debug_assert_eq!(
