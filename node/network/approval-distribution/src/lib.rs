@@ -48,6 +48,7 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
+use polkadot_node_subsystem_util::metrics::prometheus;
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
@@ -219,6 +220,7 @@ struct PendingAssignmentCheck {
 	pub assignment: IndirectAssignmentCert,
 	pub claimed_candidate_index: CandidateIndex,
 	pub response: oneshot::Receiver<AssignmentCheckResult>,
+	pub timer: Option<prometheus::prometheus::HistogramTimer>,
 }
 
 struct PendingAssignmentCheckResult {
@@ -231,6 +233,8 @@ struct PendingAssignmentCheckResult {
 impl PendingAssignmentCheck {
 	async fn wait_for_result(&mut self) -> JfyiResult<PendingAssignmentCheckResult> {
 		let result = (&mut self.response).await.map_err(|_| JfyiError::PendingCheckCanceled)?;
+		drop(self.timer.take());
+
 		Ok(PendingAssignmentCheckResult {
 			peer_id: self.peer_id.clone(),
 			assignment: self.assignment.clone(),
@@ -254,6 +258,7 @@ struct PendingApprovalCheck {
 	pub response: oneshot::Receiver<ApprovalCheckResult>,
 	pub peer_id: Option<PeerId>,
 	pub vote: IndirectSignedApprovalVote,
+	pub timer: Option<prometheus::prometheus::HistogramTimer>,
 }
 
 struct PendingApprovalCheckResult {
@@ -265,6 +270,7 @@ struct PendingApprovalCheckResult {
 impl PendingApprovalCheck {
 	async fn wait_for_result(&mut self) -> JfyiResult<PendingApprovalCheckResult> {
 		let result = (&mut self.response).await.map_err(|_| JfyiError::PendingCheckCanceled)?;
+		drop(self.timer.take());
 		Ok(PendingApprovalCheckResult {
 			peer_id: self.peer_id.clone(),
 			vote: self.vote.clone(),
@@ -837,12 +843,7 @@ impl State {
 		let message_kind = MessageKind::Assignment;
 
 		let peer_id = source.peer_id();
-		gum::debug!(
-			target: LOG_TARGET,
-			?peer_id,
-			?message_subject,
-			"Starting assignment import",
-		);
+		gum::debug!(target: LOG_TARGET, ?peer_id, ?message_subject, "Starting assignment import",);
 
 		if let Some(peer_id) = source.peer_id() {
 			// check if our knowledge of the peer already contains this assignment
@@ -899,6 +900,7 @@ impl State {
 				claimed_candidate_index,
 				peer_id: Some(peer_id.clone()),
 				response: rx,
+				timer: metrics.time_awaiting_approval_voting(),
 			};
 
 			// Add the assignment to the peer queue.
@@ -911,16 +913,6 @@ impl State {
 			if *self.pending_work.entry(peer_id.clone()).or_default() == false {
 				self.start_pending_work(&peer_id);
 			}
-
-		// let timer = metrics.time_awaiting_approval_voting();
-		// let result = match rx.await {
-		// 	Ok(result) => result,
-		// 	Err(_) => {
-		// 		gum::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
-		// 		return
-		// 	},
-		// };
-		// drop(timer);
 		} else {
 			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
 				// if we already imported an assignment, there is no need to distribute it again
@@ -985,12 +977,7 @@ impl State {
 			"Checked assignment",
 		);
 
-		gum::debug!(
-			target: LOG_TARGET,
-			?peer_id,
-			?message_subject,
-			"Finishing assignment import",
-		);
+		gum::debug!(target: LOG_TARGET, ?peer_id, ?message_subject, "Finishing assignment import",);
 
 		if let Some(peer_id) = result.peer_id {
 			match result.result {
@@ -1239,21 +1226,11 @@ impl State {
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportApproval(vote.clone(), tx))
 				.await;
 
-			// TODO: move this into the `PendingApprovalCheck` struct.
-			// let timer = metrics.time_awaiting_approval_voting();
-			// let result = match rx.await {
-			// 	Ok(result) => result,
-			// 	Err(_) => {
-			// 		gum::debug!(target: LOG_TARGET, "The approval voting subsystem is down");
-			// 		return
-			// 	},
-			// };
-			// drop(timer);
-
 			let pending = PendingWork::Approval(PendingApprovalCheck {
 				response: rx,
 				peer_id: Some(peer_id.clone()),
 				vote: vote.clone(),
+				timer: metrics.time_awaiting_approval_voting(),
 			});
 
 			// Add the assignment to the peer queue.
@@ -1339,7 +1316,6 @@ impl State {
 				},
 				None => {},
 			};
-
 		}
 
 		gum::debug!(
@@ -1384,6 +1360,8 @@ impl State {
 					}) => {
 						// Approval has already been imported and distributed earlier, but it was from a different peer.
 						// No need to distribute it again.
+						// A `FuturesOrdered` also does the trick here, but if we do more parallelization in approval voting
+						// this case still might still need to be addressed as the ordering is screwed.
 						RequiredRouting::None
 					},
 					Some(_) => {
