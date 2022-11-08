@@ -62,7 +62,7 @@ const LOG_TARGET: &'static str = "parachain::candidate-validation";
 
 /// The amount of time to wait before retrying after an AmbiguousWorkerDeath validation error.
 #[cfg(not(test))]
-const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(1);
+const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(3);
 #[cfg(test)]
 const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(200);
 
