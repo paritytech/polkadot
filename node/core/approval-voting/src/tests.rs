@@ -118,7 +118,7 @@ pub mod test_constants {
 	pub(crate) const NUM_COLUMNS: u32 = 2;
 
 	pub(crate) const TEST_CONFIG: DatabaseConfig =
-		DatabaseConfig { col_data: DATA_COL, col_session_data: SESSION_DATA_COL };
+		DatabaseConfig { col_approval_data: DATA_COL, col_session_data: SESSION_DATA_COL };
 }
 
 struct MockSupportsParachains;
@@ -492,7 +492,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		context,
 		ApprovalVotingSubsystem::with_config(
 			Config {
-				col_data: test_constants::TEST_CONFIG.col_data,
+				col_approval_data: test_constants::TEST_CONFIG.col_approval_data,
 				slot_duration_millis: SLOT_DURATION_MILLIS,
 				col_session_data: TEST_CONFIG.col_session_data,
 			},

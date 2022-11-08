@@ -640,7 +640,7 @@ pub(crate) mod tests {
 	const NUM_COLUMNS: u32 = 2;
 
 	const TEST_CONFIG: DatabaseConfig =
-		DatabaseConfig { col_data: DATA_COL, col_session_data: SESSION_DATA_COL };
+		DatabaseConfig { col_approval_data: DATA_COL, col_session_data: SESSION_DATA_COL };
 	#[derive(Default)]
 	struct MockClock;
 
