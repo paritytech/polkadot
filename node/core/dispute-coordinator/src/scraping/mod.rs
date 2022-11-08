@@ -74,7 +74,19 @@ pub struct ChainScraper {
 	/// including block -> `CandidateHash`
 	///
 	/// We need this to clean up `included_candidates` on finalization.
-	candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
+	included_candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
+	/// Keeps at which block a `CandidateHash` was backed. If a candidate was backed and
+	/// included - it will be removed on finalization. However a candidate can be backed
+	/// and never included. To avoid leaking memory in such cases we keep track when a
+	/// candidate was backed. We removed backed (and not included) candidates when
+	/// `BACKED_AND_NOT_INCLUDED_LIFETIME_AFTER_FINALIZATION` more blocks were finalized
+	/// after the block they were initially backed in.
+	/// E.g. if `BACKED_AND_NOT_INCLUDED_LIFETIME_AFTER_FINALIZATION = 2` when block 4 is
+	/// finalized we will remove all candidates backed in block 2, which were not already
+	/// cleaned up on finalization.
+	/// Please note that if a candidate is backed AND incuded - it will be cleaned up on
+	/// finalization thanks to the tracking in `included_candidates_by_block_number`.
+	backed_candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
 	/// Latest relay blocks observed by the provider.
 	///
 	/// We assume that ancestors of cached blocks are already processed, i.e. we have saved
@@ -90,6 +102,10 @@ impl ChainScraper {
 	/// As long as we have `MAX_FINALITY_LAG` this makes sense as a value.
 	pub(crate) const ANCESTRY_SIZE_LIMIT: u32 = MAX_FINALITY_LAG;
 
+	/// How many blocks after finalization a backed and not included candidate should
+	/// be kept.
+	pub(crate) const BACKED_CANDIDATE_MAX_LIFETIME: BlockNumber = 2;
+
 	/// Create a properly initialized `OrderingProvider`.
 	///
 	/// Returns: `Self` and any scraped votes.
@@ -103,7 +119,8 @@ impl ChainScraper {
 		let mut s = Self {
 			included_candidates: candidates::RefCountedCandidates::new(),
 			backed_candidates: candidates::RefCountedCandidates::new(),
-			candidates_by_block_number: BTreeMap::new(),
+			included_candidates_by_block_number: BTreeMap::new(),
+			backed_candidates_by_block_number: BTreeMap::new(),
 			last_observed_blocks: LruCache::new(LRU_OBSERVED_BLOCKS_CAPACITY),
 		};
 		let update =
@@ -171,14 +188,43 @@ impl ChainScraper {
 	///
 	/// Once a candidate lives in a relay chain block that's behind the finalized chain/got
 	/// finalized, we can treat it as low priority.
-	pub fn process_finalized_block(&mut self, finalized: &BlockNumber) {
-		let not_finalized = self.candidates_by_block_number.split_off(finalized);
-		let finalized = std::mem::take(&mut self.candidates_by_block_number);
-		self.candidates_by_block_number = not_finalized;
-		// Clean up finalized:
+	pub fn process_finalized_block(&mut self, finalized_block_number: &BlockNumber) {
+		// Cleanup stale backed and unincluded blocks - do nothing
+		// if `finalized_block_number =< BACKED_AND_NOT_INCLUDED_LIFETIME_AFTER_FINALIZATION`
+		finalized_block_number.checked_sub(Self::BACKED_CANDIDATE_MAX_LIFETIME).map(
+			|key_to_clean| {
+				self.backed_candidates_by_block_number.get(&key_to_clean).map(|candidates| {
+					for c in candidates {
+						self.backed_candidates.remove(c);
+					}
+				});
+				self.backed_candidates_by_block_number.remove(&key_to_clean);
+			},
+		);
+
+		// Handle included candidates
+		let not_finalized =
+			self.included_candidates_by_block_number.split_off(finalized_block_number);
+		let finalized = std::mem::take(&mut self.included_candidates_by_block_number);
+		self.included_candidates_by_block_number = not_finalized;
+		// Clean up finalized
 		for finalized_candidate in finalized.into_values().flatten() {
 			self.included_candidates.remove(&finalized_candidate);
+			// also remove the candidate from backed
 			self.backed_candidates.remove(&finalized_candidate);
+			// and finally remove the candidate from `block number -> backed candidates` mapping
+			self.backed_candidates_by_block_number
+				.get_mut(finalized_block_number)
+				.map(|backed| backed.remove(&finalized_candidate));
+		}
+
+		// if all backed candidates at the block height were removed - do cleanup
+		if let Some(true) = self
+			.backed_candidates_by_block_number
+			.get(finalized_block_number)
+			.and_then(|candidates| Some(candidates.is_empty()))
+		{
+			self.backed_candidates_by_block_number.remove(finalized_block_number);
 		}
 	}
 
@@ -206,7 +252,7 @@ impl ChainScraper {
 						"Processing included event"
 					);
 					self.included_candidates.insert(candidate_hash);
-					self.candidates_by_block_number
+					self.included_candidates_by_block_number
 						.entry(block_number)
 						.or_default()
 						.insert(candidate_hash);
@@ -220,6 +266,10 @@ impl ChainScraper {
 						"Processing backed event"
 					);
 					self.backed_candidates.insert(candidate_hash);
+					self.backed_candidates_by_block_number
+						.entry(block_number)
+						.or_default()
+						.insert(candidate_hash);
 				},
 				_ => {
 					// skip the rest
