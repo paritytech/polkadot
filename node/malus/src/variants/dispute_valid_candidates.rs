@@ -41,18 +41,18 @@ use crate::{interceptor::*, variants::ReplaceValidationResult};
 use std::sync::Arc;
 
 #[derive(Debug, clap::Parser)]
-#[clap(rename_all = "kebab-case")]
+#[command(rename_all = "kebab-case")]
 #[allow(missing_docs)]
 pub struct DisputeAncestorOptions {
 	/// Malicious candidate validation subsystem configuration. When enabled, node PVF execution is skipped
 	/// during backing and/or approval and it's result can by specified by this option and `--fake-validation-error`
 	/// for invalid candidate outcomes.
-	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidation::BackingAndApprovalInvalid)]
+	#[arg(long, value_enum, ignore_case = true, default_value_t = FakeCandidateValidation::BackingAndApprovalInvalid)]
 	pub fake_validation: FakeCandidateValidation,
 
 	/// Applies only when `--fake-validation` is configured to reject candidates as invalid. It allows
 	/// to specify the exact error to return from the malicious candidate validation subsystem.
-	#[clap(long, arg_enum, ignore_case = true, default_value_t = FakeCandidateValidationError::InvalidOutputs)]
+	#[arg(long, value_enum, ignore_case = true, default_value_t = FakeCandidateValidationError::InvalidOutputs)]
 	pub fake_validation_error: FakeCandidateValidationError,
 
 	/// Determines the percentage of candidates that should be disputed. Allows for fine-tuning

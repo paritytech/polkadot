@@ -34,7 +34,7 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_overseer::HeadSupportsParachains;
 use polkadot_primitives::v2::{
-	CandidateCommitments, CandidateEvent, CoreIndex, GroupIndex, Header, Id as ParaId,
+	CandidateCommitments, CandidateEvent, CoreIndex, GroupIndex, Header, Id as ParaId, IndexedVec,
 	ValidationCode, ValidatorSignature,
 };
 use std::time::Duration;
@@ -745,7 +745,10 @@ fn session_info(keys: &[Sr25519Keyring]) -> SessionInfo {
 		validators: keys.iter().map(|v| v.public().into()).collect(),
 		discovery_keys: keys.iter().map(|v| v.public().into()).collect(),
 		assignment_keys: keys.iter().map(|v| v.public().into()).collect(),
-		validator_groups: vec![vec![ValidatorIndex(0)], vec![ValidatorIndex(1)]],
+		validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
+			vec![ValidatorIndex(0)],
+			vec![ValidatorIndex(1)],
+		]),
 		n_cores: keys.len() as _,
 		needed_approvals: 2,
 		zeroth_delay_tranche_width: 5,
@@ -1558,11 +1561,11 @@ fn subsystem_second_approval_import_only_schedules_wakeups() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validator_groups: vec![
+			validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
-			],
+			]),
 			needed_approvals: 1,
 			..session_info(&validators)
 		};
@@ -1895,11 +1898,11 @@ fn import_checked_approval_updates_entries_and_schedules() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validator_groups: vec![
+			validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
-			],
+			]),
 			..session_info(&validators)
 		};
 
@@ -2052,11 +2055,11 @@ fn subsystem_import_checked_approval_sets_one_block_bit_at_a_time() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validator_groups: vec![
+			validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
-			],
+			]),
 			..session_info(&validators)
 		};
 
@@ -2342,11 +2345,11 @@ fn subsystem_validate_approvals_cache() {
 			Sr25519Keyring::Eve,
 		];
 		let session_info = SessionInfo {
-			validator_groups: vec![
+			validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
-			],
+			]),
 			..session_info(&validators)
 		};
 
@@ -2554,11 +2557,11 @@ where
 			Sr25519Keyring::Ferdie,
 		];
 		let session_info = SessionInfo {
-			validator_groups: vec![
+			validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(3)],
 				vec![ValidatorIndex(4), ValidatorIndex(5)],
-			],
+			]),
 			relay_vrf_modulo_samples: 2,
 			no_show_slots,
 			..session_info(&validators)
@@ -2874,11 +2877,11 @@ fn pre_covers_dont_stall_approval() {
 			Sr25519Keyring::One,
 		];
 		let session_info = SessionInfo {
-			validator_groups: vec![
+			validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(5)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
-			],
+			]),
 			..session_info(&validators)
 		};
 
@@ -3051,11 +3054,11 @@ fn waits_until_approving_assignments_are_old_enough() {
 			Sr25519Keyring::One,
 		];
 		let session_info = SessionInfo {
-			validator_groups: vec![
+			validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 				vec![ValidatorIndex(0), ValidatorIndex(1)],
 				vec![ValidatorIndex(2), ValidatorIndex(5)],
 				vec![ValidatorIndex(3), ValidatorIndex(4)],
-			],
+			]),
 			..session_info(&validators)
 		};
 

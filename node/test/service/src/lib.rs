@@ -27,7 +27,7 @@ use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProt
 use polkadot_overseer::Handle;
 use polkadot_primitives::v2::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
 use polkadot_runtime_common::BlockHashCount;
-use polkadot_runtime_parachains::paras::ParaGenesisArgs;
+use polkadot_runtime_parachains::paras::{ParaGenesisArgs, ParaKind};
 use polkadot_service::{
 	ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull, PrometheusConfig,
 };
@@ -305,7 +305,7 @@ impl PolkadotTestNode {
 			genesis: ParaGenesisArgs {
 				genesis_head: genesis_head.into(),
 				validation_code: validation_code.into(),
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 			},
 		};
 

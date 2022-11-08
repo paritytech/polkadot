@@ -383,6 +383,25 @@ impl ApprovalVotingSubsystem {
 	}
 }
 
+// Checks and logs approval vote db state. It is perfectly normal to start with an
+// empty approval vote DB if we changed DB type or the node will sync from scratch.
+fn db_sanity_check(db: Arc<dyn Database>, config: DatabaseConfig) -> SubsystemResult<()> {
+	let backend = DbBackend::new(db, config);
+	let all_blocks = backend.load_all_blocks()?;
+
+	if all_blocks.is_empty() {
+		gum::info!(target: LOG_TARGET, "Starting with an empty approval vote DB.",);
+	} else {
+		gum::debug!(
+			target: LOG_TARGET,
+			"Starting with {} blocks in approval vote DB.",
+			all_blocks.len()
+		);
+	}
+
+	Ok(())
+}
+
 #[overseer::subsystem(ApprovalVoting, error = SubsystemError, prefix = self::overseer)]
 impl<Context: Send> ApprovalVotingSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -751,6 +770,10 @@ where
 {
 	let db = subsystem.db.clone();
 	let db_config = subsystem.db_config.clone();
+
+	if let Err(err) = db_sanity_check(subsystem.db, subsystem.db_config) {
+		gum::warn!(target: LOG_TARGET, ?err, "Could not run approval vote DB sanity check");
+	}
 
 	let mut state = State {
 		session_window: None,
@@ -1825,7 +1848,7 @@ fn check_and_import_approval<T>(
 		)),
 	};
 
-	let pubkey = match session_info.validators.get(approval.validator.0 as usize) {
+	let pubkey = match session_info.validators.get(approval.validator) {
 		Some(k) => k,
 		None => respond_early!(ApprovalCheckResult::Bad(
 			ApprovalCheckError::InvalidValidatorIndex(approval.validator),
@@ -2525,7 +2548,7 @@ async fn issue_approval<Context>(
 		},
 	};
 
-	let validator_pubkey = match session_info.validators.get(validator_index.0 as usize) {
+	let validator_pubkey = match session_info.validators.get(validator_index) {
 		Some(p) => p,
 		None => {
 			gum::warn!(

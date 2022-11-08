@@ -372,7 +372,7 @@ impl Initialized {
 				.filter_map(|(validator_index, attestation)| {
 					let validator_public: ValidatorId = session_info
 						.validators
-						.get(validator_index.0 as usize)
+						.get(validator_index)
 						.or_else(|| {
 							gum::error!(
 								target: LOG_TARGET,
@@ -473,7 +473,7 @@ impl Initialized {
 
 					let validator_public: ValidatorId = session_info
 						.validators
-						.get(validator_index.0 as usize)
+						.get(validator_index)
 						.or_else(|| {
 							gum::error!(
 								target: LOG_TARGET,
@@ -903,7 +903,7 @@ impl Initialized {
 			let no_votes = Vec::new();
 			let our_approval_votes = new_state.own_approval_votes().unwrap_or(&no_votes);
 			for (validator_index, sig) in our_approval_votes {
-				let pub_key = match env.validators().get(validator_index.0 as usize) {
+				let pub_key = match env.validators().get(*validator_index) {
 					None => {
 						gum::error!(
 							target: LOG_TARGET,
@@ -1097,7 +1097,10 @@ impl Initialized {
 				valid,
 				candidate_hash,
 				session,
-				env.validators()[index.0 as usize].clone(),
+				env.validators()
+					.get(*index)
+					.expect("`controlled_indices` are derived from `validators`; qed")
+					.clone(),
 			)
 			.await;
 
@@ -1238,7 +1241,7 @@ fn make_dispute_message(
 				our_vote.candidate_hash().clone(),
 				our_vote.session_index(),
 				validators
-					.get(validator_index.0 as usize)
+					.get(*validator_index)
 					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
 					.clone(),
 				validator_signature.clone(),
@@ -1253,7 +1256,7 @@ fn make_dispute_message(
 				our_vote.candidate_hash().clone(),
 				our_vote.session_index(),
 				validators
-					.get(validator_index.0 as usize)
+					.get(*validator_index)
 					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
 					.clone(),
 				validator_signature.clone(),

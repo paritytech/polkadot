@@ -84,7 +84,7 @@ pub static ref MOCK_SESSION_INFO: SessionInfo =
 			.map(|k| MOCK_VALIDATORS_DISCOVERY_KEYS.get(&k).unwrap().clone())
 			.collect(),
 		assignment_keys: vec![],
-		validator_groups: vec![],
+		validator_groups: Default::default(),
 		n_cores: 0,
 		zeroth_delay_tranche_width: 0,
 		relay_vrf_modulo_samples: 0,
@@ -104,9 +104,9 @@ pub static ref MOCK_NEXT_SESSION_INFO: SessionInfo =
 				.iter()
 				.map(|k| MOCK_VALIDATORS_DISCOVERY_KEYS.get(&k).unwrap().clone())
 				.collect(),
-		validators: vec![],
+		validators: Default::default(),
 		assignment_keys: vec![],
-		validator_groups: vec![],
+		validator_groups: Default::default(),
 		n_cores: 0,
 		zeroth_delay_tranche_width: 0,
 		relay_vrf_modulo_samples: 0,

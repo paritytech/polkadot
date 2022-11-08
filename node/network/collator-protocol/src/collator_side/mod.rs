@@ -448,10 +448,8 @@ async fn determine_our_validators<Context>(
 	let rotation_info = get_group_rotation_info(ctx.sender(), relay_parent).await?;
 
 	let current_group_index = rotation_info.group_for_core(core_index, cores);
-	let current_validators = groups
-		.get(current_group_index.0 as usize)
-		.map(|v| v.as_slice())
-		.unwrap_or_default();
+	let current_validators =
+		groups.get(current_group_index).map(|v| v.as_slice()).unwrap_or_default();
 
 	let validators = &info.discovery_keys;
 
