@@ -195,6 +195,8 @@ fn connected_validator_peer(
 
 struct PeerState {
 	view: View,
+	// TODO [now]: actually keep track of remote implicit views
+	// in a smooth manner
 	implicit_view: HashSet<Hash>,
 	discovery_ids: Option<HashSet<AuthorityDiscoveryId>>,
 }
@@ -217,6 +219,7 @@ impl PeerState {
 /// How many votes we need to consider a candidate backed.
 ///
 /// WARNING: This has to be kept in sync with the runtime check in the inclusion module.
+// TODO [now]: extract to shared primitives
 fn minimum_votes(n_validators: usize) -> usize {
 	std::cmp::min(2, n_validators)
 }
@@ -817,6 +820,20 @@ async fn report_peer(
 }
 
 /// Handle an incoming statement.
+///
+/// This checks whether the sender is allowed to send the statement,
+/// either via the cluster or the grid.
+///
+/// This also checks the signature of the statement.
+/// If the statement is fresh, this function guarantees that after completion
+///   - The statement is re-circulated to all relevant peers in both the cluster
+///     and the grid
+///   - If the candidate is out-of-cluster and is backable and importable,
+///     all statements about the candidate have been sent to backing
+///   - If the candidate is in-cluster and is importable,
+///     the statement has been sent to backing
+///   - If the candidate just became backable, appropriate announcements
+///     and acknowledgement along the topology have been made.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn handle_incoming_statement<Context>(
 	ctx: &mut Context,
@@ -887,8 +904,6 @@ async fn handle_incoming_statement<Context>(
 			.map(|(i, _)| i)
 			.next()
 	};
-
-	let was_backed = false; // TODO [now]
 
 	let checked_statement = if let Some(cluster_sender_index) = cluster_sender_index {
 		match handle_cluster_statement(
@@ -967,7 +982,8 @@ async fn handle_incoming_statement<Context>(
 		}
 	}
 
-	if !state.candidates.is_confirmed(&candidate_hash) {
+	let is_confirmed = state.candidates.is_confirmed(&candidate_hash);
+	if !is_confirmed {
 		// If the candidate is not confirmed, note that we should attempt
 		// to request it from the given peer.
 		let mut request_entry =
@@ -977,23 +993,26 @@ async fn handle_incoming_statement<Context>(
 
 		request_entry.get_mut().add_peer(peer);
 
-		// We only successfully accept statements from the grid on confirmed
+		// We only successfully accept statements from the grid on unconfirmed
 		// candidates, therefore this check only passes if the statement is from the cluster
 		request_entry.get_mut().set_cluster_priority();
 	}
 
+	let was_backable =
+		per_relay_parent.statement_store.is_backable(originator_group, candidate_hash);
+
 	let was_fresh = match per_relay_parent.statement_store.insert(
 		&per_session.groups,
-		checked_statement,
+		checked_statement.clone(),
 		StatementOrigin::Remote,
 	) {
-		Err(_) => {
+		Err(statement_store::ValidatorUnknown) => {
 			// sanity: should never happen.
 			gum::warn!(
 				target: LOG_TARGET,
 				?relay_parent,
 				validator_index = ?originator_index,
-				"Error - Cluster accepted message from unknown validator."
+				"Error - accepted message from unknown validator."
 			);
 
 			return
@@ -1001,10 +1020,32 @@ async fn handle_incoming_statement<Context>(
 		Ok(known) => known,
 	};
 
-	let is_backed = false; // TODO [now]
-
 	if was_fresh {
 		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT_FIRST).await;
+
+		let is_backable =
+			per_relay_parent.statement_store.is_backable(originator_group, candidate_hash);
+		let is_importable = state.candidates.is_importable(&candidate_hash);
+		if !was_backable && is_backable && is_importable {
+			handle_backable_and_importable_candidate(
+				ctx,
+				candidate_hash,
+				originator_group,
+				&relay_parent,
+				&mut *per_relay_parent,
+				&*per_session,
+				&state.authorities,
+				&state.peers,
+			)
+			.await;
+		} else if (is_backable || !is_confirmed) && is_importable {
+			// TODO [now]: this is either a grid statement on a candidate
+			// that was already backed _or_ a cluster statement.
+			// import statement into backing.
+		}
+
+		// We always circulate statements at this point.
+		circulate_statement(ctx, state, relay_parent, originator_group, checked_statement).await;
 
 	// both of the below probably in some shared function.
 	// TODO [now]: circulate the statement
@@ -1014,13 +1055,8 @@ async fn handle_incoming_statement<Context>(
 	//    a) it is a candidate from the cluster
 	//    b) it is a candidate from the grid and it is backed
 	//
-	// We always circulate statements at this point.
 	} else {
 		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
-	}
-
-	if is_backed && !was_backed {
-		// TODO [now]: handle a candidate being completely backed now.
 	}
 }
 
@@ -1111,6 +1147,88 @@ fn handle_grid_statement(
 	Ok(checked_statement)
 }
 
+// For a candidate that is both backable and importable, this
+// 1) imports all known statements into the backing subsystem
+// 2) dispatches backable candidate announcements or acknowledgements
+//    via the grid topology. If the session topology is not yet
+//    available, this will be a no-op
+//
+// It is expected
+async fn handle_backable_and_importable_candidate<Context>(
+	ctx: &mut Context,
+	candidate_hash: CandidateHash,
+	group_index: GroupIndex,
+	relay_parent: &Hash,
+	relay_parent_state: &mut PerRelayParentState,
+	per_session: &PerSessionState,
+	authorities: &HashMap<AuthorityDiscoveryId, PeerId>,
+	peers: &HashMap<PeerId, PeerState>,
+) {
+	let local_validator = match relay_parent_state.local_validator {
+		Some(ref mut v) => v,
+		None => return,
+	};
+
+	// TODO [now]: dispatch all unknown statements to backing
+
+	let grid_view = match per_session.grid_view {
+		Some(ref t) => t,
+		None => {
+			gum::trace!(
+				target: LOG_TARGET,
+				session = relay_parent_state.session,
+				"Cannot handle backable candidate due to lack of topology",
+			);
+
+			return
+		},
+	};
+
+	let group_size = match per_session.groups.get(group_index) {
+		None => {
+			gum::warn!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				?relay_parent,
+				?group_index,
+				session = relay_parent_state.session,
+				"Handled backed candidate with unknown group?",
+			);
+
+			return
+		},
+		Some(g) => g.len(),
+	};
+
+	let actions = local_validator.grid_tracker.add_backed_candidate(
+		grid_view,
+		candidate_hash,
+		group_index,
+		group_size,
+	);
+
+	for (v, action) in actions {
+		let p = match connected_validator_peer(authorities, per_session, v) {
+			None => continue,
+			Some(p) =>
+				if peers.get(&p).map_or(false, |d| d.knows_relay_parent(relay_parent)) {
+					p
+				} else {
+					continue
+				},
+		};
+
+		match action {
+			grid::PostBackingAction::Advertise => {
+				// TODO [now]: send inventory message and `note_advertised_to`.
+			},
+			grid::PostBackingAction::Acknowledge => {
+				// TODO [now]: send acknowledgement message and `note_local_acknowledged`.
+			},
+		}
+	}
+}
+
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn new_leaf_fragment_tree_updates<Context>(ctx: &mut Context, leaf_hash: Hash) {
 	// TODO [now]
@@ -1125,7 +1243,7 @@ async fn new_leaf_fragment_tree_updates<Context>(ctx: &mut Context, leaf_hash: H
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-async fn new_backed_fragment_tree_updates<Context>(
+async fn prospective_backed_notification_fragment_tree_updates<Context>(
 	ctx: &mut Context,
 	para_id: ParaId,
 	head_data_hash: Hash,
