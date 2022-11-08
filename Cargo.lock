@@ -6428,6 +6428,7 @@ dependencies = [
  "assert_matches",
  "async-trait",
  "futures",
+ "futures-timer",
  "parity-scale-codec",
  "polkadot-node-core-pvf",
  "polkadot-node-primitives",
