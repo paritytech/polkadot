@@ -15,10 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use frame_benchmarking::benchmarks;
+use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_system::RawOrigin;
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
+
+type RuntimeOrigin<T> = <T as frame_system::Config>::RuntimeOrigin;
 
 benchmarks! {
 	send {
@@ -26,7 +28,7 @@ benchmarks! {
 		let msg = Xcm(vec![ClearOrigin]);
 		let versioned_dest: VersionedMultiLocation = Parachain(2000).into();
 		let versioned_msg = VersionedXcm::from(msg);
-	}: _<<T as frame_system::Config>::RuntimeOrigin>(send_origin, Box::new(versioned_dest), Box::new(versioned_msg))
+	}: _<RuntimeOrigin<T>>(send_origin, Box::new(versioned_dest), Box::new(versioned_msg))
 
 	teleport_assets {
 		let recipient = [0u8; 32];
@@ -46,9 +48,13 @@ benchmarks! {
 
 	execute {
 		let execute_origin = T::ExecuteXcmOrigin::successful_origin();
+		let origin_location = T::ExecuteXcmOrigin::try_origin(execute_origin.clone()).map_err(|_| BenchmarkError::Skip)?;
 		let msg = Xcm(vec![ClearOrigin]);
+		if !T::XcmExecuteFilter::contains(&(origin_location, msg.clone())) {
+			return Err(BenchmarkError::Skip)
+		}
 		let versioned_msg = VersionedXcm::from(msg);
-	}: _<<T as frame_system::Config>::RuntimeOrigin>(execute_origin, Box::new(versioned_msg), Weight::zero())
+	}: _<RuntimeOrigin<T>>(execute_origin, Box::new(versioned_msg), Weight::zero())
 
 	force_xcm_version {
 		let loc = Parachain(2000).into_location();
