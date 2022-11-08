@@ -768,10 +768,7 @@ async fn run<B, Context>(
 where
 	B: Backend,
 {
-	let db = subsystem.db.clone();
-	let db_config = subsystem.db_config.clone();
-
-	if let Err(err) = db_sanity_check(subsystem.db, subsystem.db_config) {
+	if let Err(err) = db_sanity_check(subsystem.db.clone(), subsystem.db_config.clone()) {
 		gum::warn!(target: LOG_TARGET, ?err, "Could not run approval vote DB sanity check");
 	}
 
@@ -781,8 +778,8 @@ where
 		slot_duration_millis: subsystem.slot_duration_millis,
 		clock,
 		assignment_criteria,
-		db_config,
-		db,
+		db_config: subsystem.db_config,
+		db: subsystem.db,
 	};
 
 	let mut wakeups = Wakeups::default();
