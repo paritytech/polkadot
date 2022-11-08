@@ -23,6 +23,8 @@ mod upgrade;
 
 const LOG_TARGET: &str = "parachain::db";
 
+/// Column configuration per each version. Each module contains the additions or changes
+/// specific to that version.
 #[cfg(any(test, feature = "full-node"))]
 pub(crate) mod columns {
 	pub mod v0 {
