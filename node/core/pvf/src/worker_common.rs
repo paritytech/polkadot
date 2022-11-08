@@ -200,7 +200,7 @@ pub enum SpawnErr {
 /// This is a representation of a potentially running worker. Drop it and the process will be killed.
 ///
 /// A worker's handle is also a future that resolves when it's detected that the worker's process
-/// has been terminated. Since the worker is running in another process it is obviously not necessarily
+/// has been terminated. Since the worker is running in another process it is obviously not necessary
 ///  to poll this future to make the worker run, it's only for termination detection.
 ///
 /// This future relies on the fact that a child process's stdout `fd` is closed upon it's termination.
@@ -209,6 +209,7 @@ pub struct WorkerHandle {
 	child: async_process::Child,
 	#[pin]
 	stdout: async_process::ChildStdout,
+	program: PathBuf,
 	drop_box: Box<[u8]>,
 }
 
@@ -233,6 +234,7 @@ impl WorkerHandle {
 		Ok(WorkerHandle {
 			child,
 			stdout,
+			program: program.as_ref().to_path_buf(),
 			// We don't expect the bytes to be ever read. But in case we do, we should not use a buffer
 			// of a small size, because otherwise if the child process does return any data we will end up
 			// issuing a syscall for each byte. We also prefer not to do allocate that on the stack, since
@@ -267,9 +269,19 @@ impl futures::Future for WorkerHandle {
 				cx.waker().wake_by_ref();
 				Poll::Pending
 			},
-			Err(_) => {
+			Err(err) => {
 				// The implementation is guaranteed to not to return `WouldBlock` and Interrupted. This
-				// leaves us with a legit errors which we suppose were due to termination.
+				// leaves us with legit errors which we suppose were due to termination.
+
+				// Log the status code.
+				gum::debug!(
+					target: LOG_TARGET,
+					worker_pid = %me.child.id(),
+					status_code = ?me.child.try_status(),
+					"pvf worker ({}): {:?}",
+					me.program.display(),
+					err,
+				);
 				Poll::Ready(())
 			},
 		}

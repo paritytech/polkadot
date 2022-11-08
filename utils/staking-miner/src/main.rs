@@ -253,6 +253,7 @@ enum Error<T: EPM::Config> {
 	AlreadySubmitted,
 	VersionMismatch,
 	StrategyNotSatisfied,
+	QueueFull,
 	Other(String),
 }
 
@@ -425,6 +426,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 
 pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	rpc: &SharedRpcClient,
+	print: bool,
 ) -> Result<(), Error<T>> {
 	let linked_version = T::Version::get();
 	let on_chain_version = rpc
@@ -432,10 +434,31 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 		.await
 		.expect("runtime version RPC should always work; qed");
 
-	log::debug!(target: LOG_TARGET, "linked version {:?}", linked_version);
-	log::debug!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
+	let do_print = || {
+		log::info!(
+			target: LOG_TARGET,
+			"linked version {:?}",
+			(&linked_version.spec_name, &linked_version.spec_version)
+		);
+		log::info!(
+			target: LOG_TARGET,
+			"on-chain version {:?}",
+			(&on_chain_version.spec_name, &on_chain_version.spec_version)
+		);
+	};
 
-	if linked_version != on_chain_version {
+	if print {
+		do_print();
+	}
+
+	// we relax the checking here a bit, which should not cause any issues in production (a chain
+	// that messes up its spec name is highly unlikely), but it allows us to do easier testing.
+	if linked_version.spec_name != on_chain_version.spec_name ||
+		linked_version.spec_version != on_chain_version.spec_version
+	{
+		if !print {
+			do_print();
+		}
 		log::error!(
 			target: LOG_TARGET,
 			"VERSION MISMATCH: any transaction will fail with bad-proof"
@@ -563,7 +586,7 @@ async fn main() {
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
 	any_runtime_unit! {
-		check_versions::<Runtime>(&rpc).await
+		check_versions::<Runtime>(&rpc, true).await
 	};
 
 	let outcome = any_runtime! {

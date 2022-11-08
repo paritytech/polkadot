@@ -138,40 +138,6 @@ fn nominator_limit() {
 }
 
 #[test]
-fn compute_inflation_should_give_sensible_results() {
-	assert_eq!(
-		pallet_staking_reward_fn::compute_inflation(
-			Perquintill::from_percent(75),
-			Perquintill::from_percent(75),
-			Perquintill::from_percent(5),
-		),
-		Perquintill::one()
-	);
-	assert_eq!(
-		pallet_staking_reward_fn::compute_inflation(
-			Perquintill::from_percent(50),
-			Perquintill::from_percent(75),
-			Perquintill::from_percent(5),
-		),
-		Perquintill::from_rational(2u64, 3u64)
-	);
-	assert_eq!(
-		pallet_staking_reward_fn::compute_inflation(
-			Perquintill::from_percent(80),
-			Perquintill::from_percent(75),
-			Perquintill::from_percent(5),
-		),
-		Perquintill::from_rational(1u64, 2u64)
-	);
-}
-
-#[test]
-fn era_payout_should_give_sensible_results() {
-	assert_eq!(era_payout(75, 100, Perquintill::from_percent(10), Perquintill::one(), 0,), (10, 0));
-	assert_eq!(era_payout(80, 100, Perquintill::from_percent(10), Perquintill::one(), 0,), (6, 4));
-}
-
-#[test]
 fn call_size() {
 	RuntimeCall::assert_size_under(230);
 }
