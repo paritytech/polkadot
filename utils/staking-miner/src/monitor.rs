@@ -120,9 +120,8 @@ async fn ensure_strategy_met<T: EPM::Config, B: BlockT>(
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
 
-	// we check the queue here as well. Could be checked elsewhere.
-	if indices.len() as u32 >= max_submissions {
-		return Err(Error::<T>::QueueFull)
+	if indices.len() >= max_submissions as usize {
+		log::debug!(target: LOG_TARGET, "The submissions queue is full");
 	}
 
 	// default score is all zeros, any score is better than it.
