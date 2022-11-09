@@ -237,34 +237,23 @@ where
 			debug_assert!(false, "should only slash ForInvalid disputes");
 			return
 		}
-		let backers: Vec<ValidatorIndex> = backers.into_iter().collect();
 		let losers: BTreeSet<_> = losers.into_iter().collect();
 		if losers.is_empty() {
 			return
 		}
-		debug_assert!(
-			backers.iter().all(|i| losers.contains(i)),
-			"backers should be a subset of losing ForInvalid validators",
-		);
-		debug_assert_eq!(
-			{
-				let backers_dedup: BTreeSet<_> = backers.iter().collect();
-				backers_dedup.len()
-			},
-			backers.len(),
-			"backers should be deduplicated, this is ensured by disputes pallet",
-		);
-		debug_assert!(!backers.is_empty(), "backers should not be empty",);
-		if backers.is_empty() {
+		let backers: BTreeSet<_> = backers.into_iter().collect();
+		let to_punish: Vec<ValidatorIndex> = losers.intersection(&backers).cloned().collect();
+		if to_punish.is_empty() {
 			return
 		}
+
 		let session_info = crate::session_info::Pallet::<T>::session_info(session_index);
 		let session_info = match session_info.defensive_proof(DEFENSIVE_PROOF) {
 			Some(info) => info,
 			None => return,
 		};
 
-		let maybe = Self::maybe_identify_validators(session_index, backers.iter().cloned());
+		let maybe = Self::maybe_identify_validators(session_index, to_punish.iter().cloned());
 		if let Some(offenders) = maybe {
 			let validator_set_count = session_info.discovery_keys.len() as ValidatorSetCount;
 			let offence = SlashingOffence::new(
@@ -280,7 +269,7 @@ where
 			return
 		}
 
-		let keys = backers
+		let keys = to_punish
 			.into_iter()
 			.filter_map(|i| session_info.validators.get(i).cloned().map(|id| (i, id)))
 			.collect();
