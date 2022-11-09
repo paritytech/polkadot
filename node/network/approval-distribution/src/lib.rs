@@ -966,10 +966,14 @@ impl State {
 		let message_subject = MessageSubject(block_hash, claimed_candidate_index, validator_index);
 		let message_kind = MessageKind::Assignment;
 
-		let entry = self
-			.blocks
-			.get_mut(&block_hash)
-			.expect("completion routine is executed only if block exists; qed");
+		let entry = self.blocks.get_mut(&block_hash);
+
+		if entry.is_none() {
+			// Block got finalized, bail out
+			return
+		}
+
+		let entry = entry.expect("Entry is Some, we just checked above; qed");
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -1284,10 +1288,14 @@ impl State {
 		let message_subject = MessageSubject(block_hash, candidate_index, validator_index);
 		let message_kind = MessageKind::Approval;
 
-		let entry = self
-			.blocks
-			.get_mut(&block_hash)
-			.expect("completion routine is executed only if block exists; qed");
+		let entry = self.blocks.get_mut(&block_hash);
+
+		if entry.is_none() {
+			// Block got finalized, bail out
+			return
+		}
+
+		let entry = entry.expect("Entry is Some, we just checked above; qed");
 
 		gum::trace!(
 			target: LOG_TARGET,
