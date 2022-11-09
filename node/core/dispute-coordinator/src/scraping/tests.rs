@@ -456,6 +456,11 @@ fn scraper_cleans_finalized_candidates() {
 
 		assert!(!scraper.is_candidate_backed(&candidate.hash()));
 		assert!(!scraper.is_candidate_included(&candidate.hash()));
+
+		// this is undesired side effect - todo
+		finalized_block_number += 1;
+		process_finalized_block(&mut scraper, &finalized_block_number);
+		assert!(!scraper.backed_candidates_by_block_number_has_key(&TEST_TARGET_BLOCK_NUMBER));
 	});
 }
 
@@ -506,6 +511,7 @@ fn scraper_handles_backed_but_not_included_candidate() {
 
 		assert!(!scraper.is_candidate_included(&candidate.hash()));
 		assert!(!scraper.is_candidate_backed(&candidate.hash()));
+		assert!(scraper.backed_candidates_by_block_number_is_empty());
 	});
 }
 
@@ -551,5 +557,6 @@ fn scraper_handles_the_same_candidate_incuded_in_two_different_block_heights() {
 
 		assert!(!scraper.is_candidate_backed(&magic_candidate.hash()));
 		assert!(!scraper.is_candidate_included(&magic_candidate.hash()));
+		assert!(scraper.backed_candidates_by_block_number_is_empty());
 	});
 }

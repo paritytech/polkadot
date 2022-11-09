@@ -211,16 +211,29 @@ impl ChainScraper {
 	/// since the (finalized) block containing the corresponding `CandidateBacked` event.
 	/// Used in `process_finalized_block`.
 	fn remove_stale_backed_candidates(&mut self, finalized_block_number: &BlockNumber) {
-		// Cleanup stale backed and unincluded blocks - do nothing
-		// if `finalized_block_number =< BACKED_AND_NOT_INCLUDED_LIFETIME_AFTER_FINALIZATION`
-		finalized_block_number.checked_sub(Self::BACKED_CANDIDATE_MAX_LIFETIME).map(
+		// Cleanup stale backed and unincluded blocks. We want to keep the candidates backed in the last
+		// `BACKED_CANDIDATE_MAX_LIFETIME` finalzied blocks.
+		// We subtract `BACKED_CANDIDATE_MAX_LIFETIME - 1` from the finalzied block number to get the correct
+		// boundry for `split_off`.
+		//
+		// Example:
+		// finalized_block_number = 4; BACKED_CANDIDATE_MAX_LIFETIME = 2;
+		// boundry = 4 - (2 - 1) = 3
+		// After `split_off` at 3:
+		// 0, 1, 2 will be in stale
+		// 3, 4 will be in not stale
+		// => We keep backed candidates in the last two finalized blocks
+		finalized_block_number.checked_sub(Self::BACKED_CANDIDATE_MAX_LIFETIME - 1).map(
 			|key_to_clean| {
-				self.backed_candidates_by_block_number.get(&key_to_clean).map(|candidates| {
+				// let key_to_clean = key_to_clean + 1;
+				let not_stale = self.backed_candidates_by_block_number.split_off(&(key_to_clean));
+				let stale = std::mem::take(&mut self.backed_candidates_by_block_number);
+				self.backed_candidates_by_block_number = not_stale;
+				for candidates in stale.values() {
 					for c in candidates {
 						self.backed_candidates.remove(c);
 					}
-				});
-				self.backed_candidates_by_block_number.remove(&key_to_clean);
+				}
 			},
 		);
 	}
@@ -234,9 +247,9 @@ impl ChainScraper {
 		finalized_candidate: &CandidateHash,
 		finalized_block_number: &BlockNumber,
 	) {
-		// also remove the candidate from backed
+		// remove the candidate from backed
 		self.backed_candidates.remove(&finalized_candidate);
-		// and finally remove the candidate from `block number -> backed candidates` mapping
+		// and also remove the candidate from `block number -> backed candidates` mapping
 		self.backed_candidates_by_block_number
 			.get_mut(finalized_block_number)
 			.map(|backed| backed.remove(&finalized_candidate));
@@ -370,6 +383,18 @@ impl ChainScraper {
 			}
 		}
 		return Ok(ancestors)
+	}
+
+	// Used only for tests to verify the pruning doesn't leak data.
+	#[cfg(test)]
+	fn backed_candidates_by_block_number_is_empty(&self) -> bool {
+		println!("{:?}", self.backed_candidates_by_block_number);
+		self.backed_candidates_by_block_number.is_empty()
+	}
+
+	#[cfg(test)]
+	fn backed_candidates_by_block_number_has_key(&self, key: &BlockNumber) -> bool {
+		self.backed_candidates_by_block_number.contains_key(key)
 	}
 }
 
