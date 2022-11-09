@@ -104,4 +104,7 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(6 as u64))
 			.saturating_add(T::DbWeight::get().writes(5 as u64))
 	}
+	fn execute() -> Weights {
+		Weight::MAX
+	}
 }
