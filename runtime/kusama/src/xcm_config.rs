@@ -217,5 +217,5 @@ impl pallet_xcm::Config for Runtime {
 	type TrustedLockers = ();
 	type SovereignAccountOf = SovereignAccountOf;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
-	type WeightInfo = weights::pallet_xcm::WeightInfo<Runtime>;
+	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 }
