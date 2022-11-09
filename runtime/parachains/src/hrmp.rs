@@ -21,9 +21,12 @@ use crate::{
 use frame_support::{pallet_prelude::*, traits::ReservableCurrency};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{
-	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
-	SessionIndex,
+use primitives::{
+	v2::{
+		Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
+		SessionIndex,
+	},
+	vstaging::{InboundHrmpLimitations, OutboundHrmpChannelLimitations},
 };
 use scale_info::TypeInfo;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash as HashT, UniqueSaturatedInto};
@@ -888,6 +891,19 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	/// Returns constraints for incoming messages at the given block.
+	pub(crate) fn inbound_hrmp_constraints(
+		recipient: ParaId,
+	) -> InboundHrmpLimitations<T::BlockNumber> {
+		let valid: Vec<T::BlockNumber> = <Self as Store>::HrmpChannelDigests::get(&recipient)
+			.into_iter()
+			.map(|(block_no, _)| block_no)
+			.collect();
+		// Note that inclusion emulator already checks if the watermark is equal
+		// to the most recent relay parent.
+		InboundHrmpLimitations { valid_watermarks: valid }
+	}
+
 	pub(crate) fn check_outbound_hrmp(
 		config: &HostConfiguration<T::BlockNumber>,
 		sender: ParaId,
@@ -950,6 +966,30 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Ok(())
+	}
+
+	/// Returns limitations for outbound hrmp channels.
+	pub(crate) fn outbound_hrmp_constraints(
+		sender: ParaId,
+	) -> Vec<(ParaId, OutboundHrmpChannelLimitations)> {
+		let recipients = <Self as Store>::HrmpEgressChannelsIndex::get(&sender);
+		let mut constraints = Vec::with_capacity(recipients.len());
+
+		for recipient in recipients {
+			let Some(channel) =
+				<Self as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }) else {
+					continue
+				};
+			constraints.push((
+				recipient,
+				OutboundHrmpChannelLimitations {
+					bytes_remaining: channel.max_total_size - channel.total_size,
+					messages_remaining: channel.max_capacity - channel.msg_count,
+				},
+			));
+		}
+
+		constraints
 	}
 
 	pub(crate) fn prune_hrmp(recipient: ParaId, new_hrmp_watermark: T::BlockNumber) -> Weight {

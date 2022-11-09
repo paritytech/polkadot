@@ -108,6 +108,12 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 
 		Some((self.buffer[pos].1, number))
 	}
+
+	/// Returns block number of the earliest block in the buffer, if not empty.
+	pub(crate) fn earliest_block_number(&self) -> Option<BlockNumber> {
+		(!self.buffer.is_empty())
+			.then_some(self.latest_number - BlockNumber::from(self.buffer.len() as u32 - 1))
+	}
 }
 
 #[frame_support::pallet]
