@@ -94,7 +94,7 @@ pub struct ChainScraper {
 	/// blocks are finalized from its inclusion.
 	/// An alternative to fix this is to keep track of yet another mapping -
 	/// `BTreeMap<CandidateHash, HashSet<BlockNumber>>` so that we can lookup when a candidate
-	/// was backed and clean it up. It's better to have a few stale entries in one BTreeMap
+	/// was backed and clean it up. It's better to have a few stale entries in one `BTreeMap`
 	/// instead of keeping three copies of each candidate.
 	backed_candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
 	/// Latest relay blocks observed by the provider.
