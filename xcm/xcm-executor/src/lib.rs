@@ -66,7 +66,6 @@ pub struct XcmExecutor<Config: config::Config> {
 	appendix_weight: u64,
 	transact_status: MaybeErrorCode,
 	fees_mode: FeesMode,
-	topic: Option<[u8; 32]>,
 	_config: PhantomData<Config>,
 }
 
@@ -157,10 +156,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		self.fees_mode = v
 	}
 	pub fn topic(&self) -> &Option<[u8; 32]> {
-		&self.topic
+		&self.context.topic
 	}
 	pub fn set_topic(&mut self, v: Option<[u8; 32]>) {
-		self.topic = v;
+		self.context.topic = v;
 	}
 }
 
@@ -280,7 +279,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			appendix_weight: 0,
 			transact_status: Default::default(),
 			fees_mode: FeesMode { jit_withdraw: false },
-			topic: None,
 			_config: PhantomData,
 		}
 	}
@@ -865,11 +863,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			SetTopic(topic) => {
-				self.topic = Some(topic);
+				self.context.topic = Some(topic);
 				Ok(())
 			},
 			ClearTopic => {
-				self.topic = None;
+				self.context.topic = None;
 				Ok(())
 			},
 			AliasOrigin(_) => Err(XcmError::NoPermission),
