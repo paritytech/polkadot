@@ -319,7 +319,7 @@ zombienet-tests-async-backing:
     - echo "${ZOMBIENET_IMAGE_NAME}"
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${GH_DIR}"
-    - export DEBUG=zombie,zombie::network-node
+    - export DEBUG=zombie*,zombie::network-node
     - BUILD_RELEASE_VERSION="$(cat ./artifacts/BUILD_RELEASE_VERSION)"
     - export ZOMBIENET_INTEGRATION_TEST_IMAGE=${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}
     - export ZOMBIENET_INTEGRATION_TEST_SECONDARY_IMAGE="docker.io/parity/polkadot:${BUILD_RELEASE_VERSION}"
