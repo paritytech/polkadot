@@ -15,7 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use frame_benchmarking::{benchmarks, BenchmarkError};
+use frame_benchmarking::{benchmarks, BenchmarkError, BenchmarkResult};
+use frame_support::weights::Weight;
 use frame_system::RawOrigin;
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
