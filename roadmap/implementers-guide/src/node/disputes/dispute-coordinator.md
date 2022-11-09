@@ -323,7 +323,10 @@ participation at all on any _vote import_ if any of the following holds true:
 - We have seen the disputed candidate backed in some not yet finalized block on
   at least one fork of the chain. This ensures the candidate is at least not
   completely made up and there has been some effort already flown into that
-  candidate.
+  candidate. Generally speaking a dispute shouldn't be raised for a candidate
+  which is backed but is not yet included. Disputes are raised during approval
+  checking. We participate on such disputes as a precaution - maybe we haven't
+  seen the `CandidateIncluded` event yet?
 - The dispute is already confirmed: Meaning that 1/3+1 nodes already
   participated, as this suggests in our threat model that there was at least one
   honest node that already voted, so the dispute must be genuine.
