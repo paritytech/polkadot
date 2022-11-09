@@ -943,7 +943,8 @@ where
 	let parachains_db = open_database(&config.database)?;
 
 	let approval_voting_config = ApprovalVotingConfig {
-		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
+		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
+		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
@@ -966,7 +967,8 @@ where
 	};
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
-		col_data: parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
+		col_dispute_data: parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
+		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 	};
 
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
@@ -1537,7 +1539,8 @@ fn revert_chain_selection(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::R
 
 fn revert_approval_voting(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
 	let config = approval_voting_subsystem::Config {
-		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
+		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
+		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: Default::default(),
 	};
 

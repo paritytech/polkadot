@@ -58,6 +58,7 @@ use primitives::v2::{
 	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
 	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
 	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	LOWEST_PUBLIC_ID,
 };
 use sp_core::OpaqueMetadata;
 use sp_mmr_primitives as mmr;
@@ -525,7 +526,7 @@ parameter_types! {
 	pub const BondingDuration: sp_staking::EraIndex = 28;
 	pub const SlashDeferDuration: sp_staking::EraIndex = 27;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
-	pub const MaxNominatorRewardedPerValidator: u32 = 256;
+	pub const MaxNominatorRewardedPerValidator: u32 = 512;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 16
 	pub const MaxNominations: u32 = <NposCompactSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
@@ -535,6 +536,35 @@ type SlashCancelOrigin = EitherOfDiverse<
 	EnsureRoot<AccountId>,
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>,
 >;
+
+pub struct EraPayout;
+impl pallet_staking::EraPayout<Balance> for EraPayout {
+	fn era_payout(
+		total_staked: Balance,
+		total_issuance: Balance,
+		era_duration_millis: u64,
+	) -> (Balance, Balance) {
+		// all para-ids that are not active.
+		let auctioned_slots = Paras::parachains()
+			.into_iter()
+			// all active para-ids that do not belong to a system or common good chain is the number
+			// of parachains that we should take into account for inflation.
+			.filter(|i| *i >= LOWEST_PUBLIC_ID)
+			.count() as u64;
+
+		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
+		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
+
+		runtime_common::impls::era_payout(
+			total_staked,
+			// Polkadot has no notion of gilts, the entire issuance is non-guilt.
+			total_issuance,
+			MAX_ANNUAL_INFLATION,
+			Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR),
+			auctioned_slots,
+		)
+	}
+}
 
 impl pallet_staking::Config for Runtime {
 	type MaxNominations = MaxNominations;
@@ -552,7 +582,7 @@ impl pallet_staking::Config for Runtime {
 	// A super-majority of the council can cancel the slash.
 	type SlashCancelOrigin = SlashCancelOrigin;
 	type SessionInterface = Self;
-	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
+	type EraPayout = EraPayout;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
@@ -570,6 +600,7 @@ impl pallet_staking::Config for Runtime {
 impl pallet_fast_unstake::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
+	type BatchSize = frame_support::traits::ConstU32<64>;
 	type Deposit = frame_support::traits::ConstU128<{ UNITS }>;
 	type ControlOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
@@ -1566,6 +1597,7 @@ pub type Executive = frame_executive::Executive<
 		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
 		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
 		pallet_election_provider_multi_phase::migrations::v1::MigrateToV1<Runtime>,
+		pallet_fast_unstake::migrations::v1::MigrateToV1<Runtime>,
 	),
 >;
 

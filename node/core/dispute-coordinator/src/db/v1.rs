@@ -99,10 +99,10 @@ impl DbBackend {
 			encoded = ?candidate_votes_session_prefix(index),
 			"Cleaning votes for session index"
 			);
-			tx.delete_prefix(self.config.col_data, &candidate_votes_session_prefix(index));
+			tx.delete_prefix(self.config.col_dispute_data, &candidate_votes_session_prefix(index));
 		}
 		// New watermark:
-		tx.put_vec(self.config.col_data, CLEANED_VOTES_WATERMARK_KEY, clean_until.encode());
+		tx.put_vec(self.config.col_dispute_data, CLEANED_VOTES_WATERMARK_KEY, clean_until.encode());
 		Ok(())
 	}
 }
@@ -148,21 +148,32 @@ impl Backend for DbBackend {
 					self.add_vote_cleanup_tx(&mut tx, session)?;
 
 					// Actually write the earliest session.
-					tx.put_vec(self.config.col_data, EARLIEST_SESSION_KEY, session.encode());
+					tx.put_vec(
+						self.config.col_dispute_data,
+						EARLIEST_SESSION_KEY,
+						session.encode(),
+					);
 				},
 				BackendWriteOp::WriteRecentDisputes(recent_disputes) => {
-					tx.put_vec(self.config.col_data, RECENT_DISPUTES_KEY, recent_disputes.encode());
+					tx.put_vec(
+						self.config.col_dispute_data,
+						RECENT_DISPUTES_KEY,
+						recent_disputes.encode(),
+					);
 				},
 				BackendWriteOp::WriteCandidateVotes(session, candidate_hash, votes) => {
 					gum::trace!(target: LOG_TARGET, ?session, "Writing candidate votes");
 					tx.put_vec(
-						self.config.col_data,
+						self.config.col_dispute_data,
 						&candidate_votes_key(session, &candidate_hash),
 						votes.encode(),
 					);
 				},
 				BackendWriteOp::DeleteCandidateVotes(session, candidate_hash) => {
-					tx.delete(self.config.col_data, &candidate_votes_key(session, &candidate_hash));
+					tx.delete(
+						self.config.col_dispute_data,
+						&candidate_votes_key(session, &candidate_hash),
+					);
 				},
 			}
 		}
@@ -195,7 +206,9 @@ fn candidate_votes_session_prefix(session: SessionIndex) -> [u8; 15 + 4] {
 #[derive(Debug, Clone)]
 pub struct ColumnConfiguration {
 	/// The column in the key-value DB where data is stored.
-	pub col_data: u32,
+	pub col_dispute_data: u32,
+	/// The column in the key-value DB where session data is stored.
+	pub col_session_data: u32,
 }
 
 /// Tracked votes on candidates, for the purposes of dispute resolution.
@@ -257,8 +270,12 @@ impl From<Error> for crate::error::Error {
 /// Result alias for DB errors.
 pub type Result<T> = std::result::Result<T, Error>;
 
-fn load_decode<D: Decode>(db: &dyn Database, col_data: u32, key: &[u8]) -> Result<Option<D>> {
-	match db.get(col_data, key)? {
+fn load_decode<D: Decode>(
+	db: &dyn Database,
+	col_dispute_data: u32,
+	key: &[u8],
+) -> Result<Option<D>> {
+	match db.get(col_dispute_data, key)? {
 		None => Ok(None),
 		Some(raw) => D::decode(&mut &raw[..]).map(Some).map_err(Into::into),
 	}
@@ -271,7 +288,7 @@ pub(crate) fn load_candidate_votes(
 	session: SessionIndex,
 	candidate_hash: &CandidateHash,
 ) -> SubsystemResult<Option<CandidateVotes>> {
-	load_decode(db, config.col_data, &candidate_votes_key(session, candidate_hash))
+	load_decode(db, config.col_dispute_data, &candidate_votes_key(session, candidate_hash))
 		.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
 }
 
@@ -280,7 +297,7 @@ pub(crate) fn load_earliest_session(
 	db: &dyn Database,
 	config: &ColumnConfiguration,
 ) -> SubsystemResult<Option<SessionIndex>> {
-	load_decode(db, config.col_data, EARLIEST_SESSION_KEY)
+	load_decode(db, config.col_dispute_data, EARLIEST_SESSION_KEY)
 		.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
 }
 
@@ -289,7 +306,7 @@ pub(crate) fn load_recent_disputes(
 	db: &dyn Database,
 	config: &ColumnConfiguration,
 ) -> SubsystemResult<Option<RecentDisputes>> {
-	load_decode(db, config.col_data, RECENT_DISPUTES_KEY)
+	load_decode(db, config.col_dispute_data, RECENT_DISPUTES_KEY)
 		.map_err(|e| SubsystemError::with_origin("dispute-coordinator", e))
 }
 
@@ -347,7 +364,7 @@ fn load_cleaned_votes_watermark(
 	db: &dyn Database,
 	config: &ColumnConfiguration,
 ) -> FatalResult<Option<SessionIndex>> {
-	load_decode(db, config.col_data, CLEANED_VOTES_WATERMARK_KEY)
+	load_decode(db, config.col_dispute_data, CLEANED_VOTES_WATERMARK_KEY)
 		.map_err(|e| FatalError::DbReadFailed(e))
 }
 
@@ -362,7 +379,7 @@ mod tests {
 		let db = kvdb_memorydb::create(1);
 		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[0]);
 		let store = Arc::new(db);
-		let config = ColumnConfiguration { col_data: 0 };
+		let config = ColumnConfiguration { col_dispute_data: 0, col_session_data: 1 };
 		DbBackend::new(store, config, Metrics::default())
 	}
 
