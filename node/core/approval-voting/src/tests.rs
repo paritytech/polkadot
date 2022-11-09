@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::tests::test_constants::TEST_CONFIG;
+
 use super::*;
 use polkadot_node_primitives::{
 	approval::{
@@ -111,9 +113,12 @@ fn make_sync_oracle(val: bool) -> (Box<dyn SyncOracle + Send>, TestSyncOracleHan
 pub mod test_constants {
 	use crate::approval_db::v1::Config as DatabaseConfig;
 	const DATA_COL: u32 = 0;
-	pub(crate) const NUM_COLUMNS: u32 = 1;
+	const SESSION_DATA_COL: u32 = 1;
 
-	pub(crate) const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_data: DATA_COL };
+	pub(crate) const NUM_COLUMNS: u32 = 2;
+
+	pub(crate) const TEST_CONFIG: DatabaseConfig =
+		DatabaseConfig { col_approval_data: DATA_COL, col_session_data: SESSION_DATA_COL };
 }
 
 struct MockSupportsParachains;
@@ -487,8 +492,9 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		context,
 		ApprovalVotingSubsystem::with_config(
 			Config {
-				col_data: test_constants::TEST_CONFIG.col_data,
+				col_approval_data: test_constants::TEST_CONFIG.col_approval_data,
 				slot_duration_millis: SLOT_DURATION_MILLIS,
+				col_session_data: TEST_CONFIG.col_session_data,
 			},
 			Arc::new(db),
 			Arc::new(keystore),
@@ -810,38 +816,38 @@ async fn import_block(
 		}
 	);
 
-	assert_matches!(
-		overseer_recv(overseer).await,
-		AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
-			s_tx,
-		)) => {
-			let _ = s_tx.send(Ok(number));
-		}
-	);
-
-	assert_matches!(
-		overseer_recv(overseer).await,
-		AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
-			block_number,
-			s_tx,
-		)) => {
-			assert_eq!(block_number, number);
-			let _ = s_tx.send(Ok(Some(hashes[number as usize].0)));
-		}
-	);
-
-	assert_matches!(
-		overseer_recv(overseer).await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			h,
-			RuntimeApiRequest::SessionIndexForChild(s_tx),
-		)) => {
-			assert_eq!(h, hashes[number as usize].0);
-			let _ = s_tx.send(Ok(number.into()));
-		}
-	);
-
 	if !fork {
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+				s_tx,
+			)) => {
+				let _ = s_tx.send(Ok(number));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+				block_number,
+				s_tx,
+			)) => {
+				assert_eq!(block_number, number);
+				let _ = s_tx.send(Ok(Some(hashes[number as usize].0)));
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				h,
+				RuntimeApiRequest::SessionIndexForChild(s_tx),
+			)) => {
+				assert_eq!(h, hashes[number as usize].0);
+				let _ = s_tx.send(Ok(number.into()));
+			}
+		);
+
 		assert_matches!(
 			overseer_recv(overseer).await,
 			AllMessages::RuntimeApi(
