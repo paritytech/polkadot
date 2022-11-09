@@ -187,7 +187,7 @@ fn get_magic_candidate_hash() -> Hash {
 }
 /// Get a dummy event that corresponds to candidate inclusion for a hardcoded block number.
 /// Used to simulate candidates included multiple times at different block heights.
-fn get_backed_and_included_magic_candidate_event(
+fn get_backed_and_included_magic_candidate_events(
 	_block_number: BlockNumber,
 ) -> Vec<CandidateEvent> {
 	let candidate_receipt = make_candidate_receipt(get_magic_candidate_hash());
@@ -422,8 +422,8 @@ fn scraper_cleans_finalized_candidates() {
 	const TEST_TARGET_BLOCK_NUMBER: BlockNumber = 1;
 
 	// How many blocks should we skip before sending a leaf update.
-	// `3` because we need 1 ancestor after the finalized block (this is what the testing code expects).
-	// Check what `overseer_process_active_leaves_update` does if this doesn't make sense.
+	// `3` because we need 1 ancestor after the finalized block (this is what the testing code expects). `ActiveLeaf` updates are generated for
+	// blocks 1..3 => there will be 1 ancestor after the finalzied block.
 	const BLOCKS_TO_SKIP: usize = 3;
 
 	futures::executor::block_on(async {
@@ -450,7 +450,7 @@ fn scraper_cleans_finalized_candidates() {
 
 		// Finalize the next block and verify that candidate is neither backed nor included.
 		// Backed AND Included candidates should be cleaned on finalization.
-		// Check the next test for Backed and NOT Included handling
+		// `scraper_handles_backed_but_not_included_candidate` covers Backed and NOT Included candidates.
 		finalized_block_number += 1;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
@@ -531,7 +531,7 @@ fn scraper_handles_the_same_candidate_incuded_in_two_different_block_heights() {
 			&chain,
 			finalized_block_number,
 			expected_ancestry_len,
-			get_backed_and_included_magic_candidate_event,
+			get_backed_and_included_magic_candidate_events,
 		);
 		join(process_active_leaves_update(ctx.sender(), &mut scraper, next_update), overseer_fut)
 			.await;
