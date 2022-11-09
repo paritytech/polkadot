@@ -319,6 +319,9 @@ parameter_types! {
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	pub const MaxAuthorities: u32 = 100_000;
+	pub const OnChainMaxWinners: u32 = u32::MAX;
+	pub const MaxElectingVoters: u32 = u32::MAX;
+	pub const MaxElectableTargets: u16 = u16::MAX;
 }
 
 pub struct OnChainSeqPhragmen;
@@ -327,6 +330,9 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type Solver = SequentialPhragmen<AccountId, runtime_common::elections::OnChainAccuracy>;
 	type DataProvider = Staking;
 	type WeightInfo = ();
+	type MaxWinners = OnChainMaxWinners;
+	type VotersBound = MaxElectingVoters;
+	type TargetsBound = MaxElectableTargets;
 }
 
 impl pallet_staking::Config for Runtime {
@@ -349,8 +355,8 @@ impl pallet_staking::Config for Runtime {
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
-	type ElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
-	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
+	type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
 	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
 	// to bags-list is a no-op, but the storage version will be updated.
 	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Runtime>;
