@@ -25,7 +25,7 @@ use polkadot_primitives::v2::AuthorityDiscoveryId;
 
 use super::{v1, IsRequest, Protocol};
 
-/// All requests that can be sent to the network bridge via `NetworkBridgeMessage::SendRequest`.
+/// All requests that can be sent to the network bridge via `NetworkBridgeTxMessage::SendRequest`.
 #[derive(Debug)]
 pub enum Requests {
 	/// Request an availability chunk from a node.

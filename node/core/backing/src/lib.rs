@@ -31,8 +31,18 @@ use futures::{
 
 use error::{Error, FatalResult};
 use polkadot_node_primitives::{
-	AvailableData, InvalidCandidate, PoV, SignedDisputeStatement, SignedFullStatement, Statement,
-	ValidationResult, BACKING_EXECUTION_TIMEOUT,
+	AvailableData, InvalidCandidate, PoV, SignedFullStatement, Statement, ValidationResult,
+	BACKING_EXECUTION_TIMEOUT,
+};
+use polkadot_node_subsystem::{
+	jaeger,
+	messages::{
+		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
+		CandidateValidationMessage, CollatorProtocolMessage, ProvisionableData, ProvisionerMessage,
+		RuntimeApiRequest, StatementDistributionMessage,
+	},
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
+	Stage, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
 	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
@@ -40,19 +50,8 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SessionIndex,
-	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
-};
-use polkadot_subsystem::{
-	jaeger,
-	messages::{
-		AllMessages, AvailabilityDistributionMessage, AvailabilityStoreMessage,
-		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
-		DisputeCoordinatorMessage, ProvisionableData, ProvisionerMessage, RuntimeApiRequest,
-		StatementDistributionMessage,
-	},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
-	Stage, SubsystemContext, SubsystemError, SubsystemSender,
+	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SigningContext,
+	ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -131,10 +130,10 @@ impl CandidateBackingSubsystem {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for CandidateBackingSubsystem
+#[overseer::subsystem(CandidateBacking, error = SubsystemError, prefix = self::overseer)]
+impl<Context> CandidateBackingSubsystem
 where
-	Context: SubsystemContext<Message = CandidateBackingMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateBackingMessage>,
+	Context: Send + Sync,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async move {
@@ -148,15 +147,12 @@ where
 	}
 }
 
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
-) -> FatalResult<()>
-where
-	Context: SubsystemContext<Message = CandidateBackingMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateBackingMessage>,
-{
+) -> FatalResult<()> {
 	let (background_validation_tx, mut background_validation_rx) = mpsc::channel(16);
 	let mut jobs = HashMap::new();
 
@@ -180,6 +176,7 @@ where
 	Ok(())
 }
 
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn run_iteration<Context>(
 	ctx: &mut Context,
 	keystore: SyncCryptoStorePtr,
@@ -187,11 +184,7 @@ async fn run_iteration<Context>(
 	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
 	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	background_validation_rx: &mut mpsc::Receiver<(Hash, ValidatedCandidateCommand)>,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message = CandidateBackingMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateBackingMessage>,
-{
+) -> Result<(), Error> {
 	loop {
 		futures::select!(
 			validated_command = background_validation_rx.next().fuse() => {
@@ -208,7 +201,7 @@ where
 			}
 			from_overseer = ctx.recv().fuse() => {
 				match from_overseer? {
-					FromOverseer::Signal(OverseerSignal::ActiveLeaves(update)) => handle_active_leaves_update(
+					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => handle_active_leaves_update(
 						&mut *ctx,
 						update,
 						jobs,
@@ -216,25 +209,22 @@ where
 						&background_validation_tx,
 						&metrics,
 					).await?,
-					FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {}
-					FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-					FromOverseer::Communication { msg } => handle_communication(&mut *ctx, jobs, msg).await?,
+					FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {}
+					FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+					FromOrchestra::Communication { msg } => handle_communication(&mut *ctx, jobs, msg).await?,
 				}
 			}
 		)
 	}
 }
 
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_validated_candidate_command<Context>(
 	ctx: &mut Context,
 	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
 	relay_parent: Hash,
 	command: ValidatedCandidateCommand,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message = CandidateBackingMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateBackingMessage>,
-{
+) -> Result<(), Error> {
 	if let Some(job) = jobs.get_mut(&relay_parent) {
 		job.job.handle_validated_candidate_command(&job.span, ctx, command).await?;
 	} else {
@@ -245,15 +235,12 @@ where
 	Ok(())
 }
 
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_communication<Context>(
 	ctx: &mut Context,
 	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
 	message: CandidateBackingMessage,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message = CandidateBackingMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateBackingMessage>,
-{
+) -> Result<(), Error> {
 	match message {
 		CandidateBackingMessage::Second(relay_parent, candidate, pov) => {
 			if let Some(job) = jobs.get_mut(&relay_parent) {
@@ -274,6 +261,7 @@ where
 	Ok(())
 }
 
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
@@ -281,11 +269,7 @@ async fn handle_active_leaves_update<Context>(
 	keystore: &SyncCryptoStorePtr,
 	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	metrics: &Metrics,
-) -> Result<(), Error>
-where
-	Context: SubsystemContext<Message = CandidateBackingMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateBackingMessage>,
-{
+) -> Result<(), Error> {
 	for deactivated in update.deactivated {
 		jobs.remove(&deactivated);
 	}
@@ -396,7 +380,6 @@ where
 
 	let job = CandidateBackingJob {
 		parent,
-		session_index,
 		assignment,
 		required_collator,
 		issued_statements: HashSet::new(),
@@ -427,8 +410,6 @@ struct JobAndSpan<Context> {
 struct CandidateBackingJob<Context> {
 	/// The hash of the relay parent on top of which this job is doing it's work.
 	parent: Hash,
-	/// The session index this corresponds to.
-	session_index: SessionIndex,
 	/// The `ParaId` assigned to this validator
 	assignment: Option<ParaId>,
 	/// The collator required to author the candidate, if any.
@@ -578,22 +559,19 @@ fn table_attested_to_backed(
 }
 
 async fn store_available_data(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	n_validators: u32,
 	candidate_hash: CandidateHash,
 	available_data: AvailableData,
 ) -> Result<(), Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(
-			AvailabilityStoreMessage::StoreAvailableData {
-				candidate_hash,
-				n_validators,
-				available_data,
-				tx,
-			}
-			.into(),
-		)
+		.send_message(AvailabilityStoreMessage::StoreAvailableData {
+			candidate_hash,
+			n_validators,
+			available_data,
+			tx,
+		})
 		.await;
 
 	let _ = rx.await.map_err(Error::StoreAvailableData)?;
@@ -605,8 +583,9 @@ async fn store_available_data(
 //
 // This will compute the erasure root internally and compare it to the expected erasure root.
 // This returns `Err()` iff there is an internal error. Otherwise, it returns either `Ok(Ok(()))` or `Ok(Err(_))`.
+
 async fn make_pov_available(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
@@ -639,24 +618,23 @@ async fn make_pov_available(
 }
 
 async fn request_pov(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	relay_parent: Hash,
 	from_validator: ValidatorIndex,
+	para_id: ParaId,
 	candidate_hash: CandidateHash,
 	pov_hash: Hash,
 ) -> Result<Arc<PoV>, Error> {
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(
-			AvailabilityDistributionMessage::FetchPoV {
-				relay_parent,
-				from_validator,
-				candidate_hash,
-				pov_hash,
-				tx,
-			}
-			.into(),
-		)
+		.send_message(AvailabilityDistributionMessage::FetchPoV {
+			relay_parent,
+			from_validator,
+			para_id,
+			candidate_hash,
+			pov_hash,
+			tx,
+		})
 		.await;
 
 	let pov = rx.await.map_err(|_| Error::FetchPoV)?;
@@ -664,22 +642,19 @@ async fn request_pov(
 }
 
 async fn request_candidate_validation(
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
 	let (tx, rx) = oneshot::channel();
 
 	sender
-		.send_message(
-			CandidateValidationMessage::ValidateFromChainState(
-				candidate_receipt,
-				pov,
-				BACKING_EXECUTION_TIMEOUT,
-				tx,
-			)
-			.into(),
-		)
+		.send_message(CandidateValidationMessage::ValidateFromChainState(
+			candidate_receipt,
+			pov,
+			BACKING_EXECUTION_TIMEOUT,
+			tx,
+		))
 		.await;
 
 	match rx.await {
@@ -692,7 +667,7 @@ async fn request_candidate_validation(
 type BackgroundValidationResult =
 	Result<(CandidateReceipt, CandidateCommitments, Arc<PoV>), CandidateReceipt>;
 
-struct BackgroundValidationParams<S: overseer::SubsystemSender<AllMessages>, F> {
+struct BackgroundValidationParams<S: overseer::CandidateBackingSenderTrait, F> {
 	sender: S,
 	tx_command: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	candidate: CandidateReceipt,
@@ -705,7 +680,7 @@ struct BackgroundValidationParams<S: overseer::SubsystemSender<AllMessages>, F> 
 
 async fn validate_and_make_available(
 	params: BackgroundValidationParams<
-		impl SubsystemSender,
+		impl overseer::CandidateBackingSenderTrait,
 		impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Sync,
 	>,
 ) -> Result<(), Error> {
@@ -724,8 +699,15 @@ async fn validate_and_make_available(
 		PoVData::Ready(pov) => pov,
 		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } => {
 			let _span = span.as_ref().map(|s| s.child("request-pov"));
-			match request_pov(&mut sender, relay_parent, from_validator, candidate_hash, pov_hash)
-				.await
+			match request_pov(
+				&mut sender,
+				relay_parent,
+				from_validator,
+				candidate.descriptor.para_id,
+				candidate_hash,
+				pov_hash,
+			)
+			.await
 			{
 				Err(Error::FetchPoV) => {
 					tx_command
@@ -807,13 +789,8 @@ async fn validate_and_make_available(
 	tx_command.send((relay_parent, make_command(res))).await.map_err(Into::into)
 }
 
-struct ValidatorIndexOutOfBounds;
-
-impl<Context> CandidateBackingJob<Context>
-where
-	Context: SubsystemContext,
-	Context: overseer::SubsystemContext,
-{
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+impl<Context> CandidateBackingJob<Context> {
 	async fn handle_validated_candidate_command(
 		&mut self,
 		root_span: &jaeger::Span,
@@ -843,17 +820,22 @@ where
 								.sign_import_and_distribute_statement(ctx, statement, root_span)
 								.await?
 							{
-								ctx.send_message(CollatorProtocolMessage::Seconded(
+								// Break cycle - bounded as there is only one candidate to
+								// second per block.
+								ctx.send_unbounded_message(CollatorProtocolMessage::Seconded(
 									self.parent,
 									stmt,
-								))
-								.await;
+								));
 							}
 						}
 					},
 					Err(candidate) => {
-						ctx.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate))
-							.await;
+						// Break cycle - bounded as there is only one candidate to
+						// second per block.
+						ctx.send_unbounded_message(CollatorProtocolMessage::Invalid(
+							self.parent,
+							candidate,
+						));
 					},
 				}
 			},
@@ -896,7 +878,7 @@ where
 		&mut self,
 		ctx: &mut Context,
 		params: BackgroundValidationParams<
-			impl SubsystemSender,
+			impl overseer::CandidateBackingSenderTrait,
 			impl Fn(BackgroundValidationResult) -> ValidatedCandidateCommand + Send + 'static + Sync,
 		>,
 	) -> Result<(), Error> {
@@ -943,8 +925,12 @@ where
 			.as_ref()
 			.map_or(false, |c| c != &candidate.descriptor().collator)
 		{
-			ctx.send_message(CollatorProtocolMessage::Invalid(self.parent, candidate.clone()))
-				.await;
+			// Break cycle - bounded as there is only one candidate to
+			// second per block.
+			ctx.send_unbounded_message(CollatorProtocolMessage::Invalid(
+				self.parent,
+				candidate.clone(),
+			));
 			return Ok(())
 		}
 
@@ -1001,15 +987,19 @@ where
 	}
 
 	/// Check if there have happened any new misbehaviors and issue necessary messages.
-	async fn issue_new_misbehaviors(&mut self, ctx: &mut Context) {
+	fn issue_new_misbehaviors(&mut self, sender: &mut impl overseer::CandidateBackingSenderTrait) {
 		// collect the misbehaviors to avoid double mutable self borrow issues
 		let misbehaviors: Vec<_> = self.table.drain_misbehaviors().collect();
 		for (validator_id, report) in misbehaviors {
-			ctx.send_message(ProvisionerMessage::ProvisionableData(
+			// The provisioner waits on candidate-backing, which means
+			// that we need to send unbounded messages to avoid cycles.
+			//
+			// Misbehaviors are bounded by the number of validators and
+			// the block production protocol.
+			sender.send_unbounded_message(ProvisionerMessage::ProvisionableData(
 				self.parent,
 				ProvisionableData::MisbehaviorReport(self.parent, validator_id, report),
-			))
-			.await;
+			));
 		}
 	}
 
@@ -1037,21 +1027,6 @@ where
 			)
 		};
 
-		if let Err(ValidatorIndexOutOfBounds) = self
-			.dispatch_new_statement_to_dispute_coordinator(ctx, candidate_hash, &statement)
-			.await
-		{
-			gum::warn!(
-				target: LOG_TARGET,
-				session_index = ?self.session_index,
-				relay_parent = ?self.parent,
-				validator_index = statement.validator_index().0,
-				"Supposedly 'Signed' statement has validator index out of bounds."
-			);
-
-			return Ok(None)
-		}
-
 		let stmt = primitive_statement_to_table(statement);
 
 		let summary = self.table.import_statement(&self.table_context, stmt);
@@ -1074,11 +1049,16 @@ where
 						"Candidate backed",
 					);
 
+					// The provisioner waits on candidate-backing, which means
+					// that we need to send unbounded messages to avoid cycles.
+					//
+					// Backed candidates are bounded by the number of validators,
+					// parachains, and the block production rate of the relay chain.
 					let message = ProvisionerMessage::ProvisionableData(
 						self.parent,
 						ProvisionableData::BackedCandidate(backed.receipt()),
 					);
-					ctx.send_message(message).await;
+					ctx.send_unbounded_message(message);
 
 					span.as_ref().map(|s| s.child("backed"));
 					span
@@ -1092,73 +1072,13 @@ where
 			None
 		};
 
-		self.issue_new_misbehaviors(ctx).await;
+		self.issue_new_misbehaviors(ctx.sender());
 
 		// It is important that the child span is dropped before its parent span (`unbacked_span`)
 		drop(import_statement_span);
 		drop(unbacked_span);
 
 		Ok(summary)
-	}
-
-	/// The dispute coordinator keeps track of all statements by validators about every recent
-	/// candidate.
-	///
-	/// When importing a statement, this should be called access the candidate receipt either
-	/// from the statement itself or from the underlying statement table in order to craft
-	/// and dispatch the notification to the dispute coordinator.
-	///
-	/// This also does bounds-checking on the validator index and will return an error if the
-	/// validator index is out of bounds for the current validator set. It's expected that
-	/// this should never happen due to the interface of the candidate backing subsystem -
-	/// the networking component responsible for feeding statements to the backing subsystem
-	/// is meant to check the signature and provenance of all statements before submission.
-	async fn dispatch_new_statement_to_dispute_coordinator(
-		&mut self,
-		ctx: &mut Context,
-		candidate_hash: CandidateHash,
-		statement: &SignedFullStatement,
-	) -> Result<(), ValidatorIndexOutOfBounds> {
-		// Dispatch the statement to the dispute coordinator.
-		let validator_index = statement.validator_index();
-		let signing_context =
-			SigningContext { parent_hash: self.parent, session_index: self.session_index };
-
-		let validator_public = match self.table_context.validators.get(validator_index.0 as usize) {
-			None => return Err(ValidatorIndexOutOfBounds),
-			Some(v) => v,
-		};
-
-		let maybe_candidate_receipt = match statement.payload() {
-			Statement::Seconded(receipt) => Some(receipt.to_plain()),
-			Statement::Valid(candidate_hash) => {
-				// Valid statements are only supposed to be imported
-				// once we've seen at least one `Seconded` statement.
-				self.table.get_candidate(&candidate_hash).map(|c| c.to_plain())
-			},
-		};
-
-		let maybe_signed_dispute_statement = SignedDisputeStatement::from_backing_statement(
-			statement.as_unchecked(),
-			signing_context,
-			validator_public.clone(),
-		)
-		.ok();
-
-		if let (Some(candidate_receipt), Some(dispute_statement)) =
-			(maybe_candidate_receipt, maybe_signed_dispute_statement)
-		{
-			ctx.send_message(DisputeCoordinatorMessage::ImportStatements {
-				candidate_hash,
-				candidate_receipt,
-				session: self.session_index,
-				statements: vec![(dispute_statement, validator_index)],
-				pending_confirmation: None,
-			})
-			.await;
-		}
-
-		Ok(())
 	}
 
 	async fn handle_second_msg(

@@ -28,9 +28,12 @@ use std::{collections::HashMap, sync::Arc};
 use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};
 
 const DATA_COL: u32 = 0;
-const NUM_COLUMNS: u32 = 1;
+const SESSION_DATA_COL: u32 = 1;
 
-const TEST_CONFIG: Config = Config { col_data: DATA_COL };
+const NUM_COLUMNS: u32 = 2;
+
+const TEST_CONFIG: Config =
+	Config { col_approval_data: DATA_COL, col_session_data: SESSION_DATA_COL };
 
 fn make_db() -> (DbBackend, Arc<dyn Database>) {
 	let db = kvdb_memorydb::create(NUM_COLUMNS);
@@ -146,8 +149,8 @@ fn add_block_entry_works() {
 	let block_hash_a = Hash::repeat_byte(2);
 	let block_hash_b = Hash::repeat_byte(69);
 
-	let candidate_receipt_a = make_candidate(1.into(), parent_hash);
-	let candidate_receipt_b = make_candidate(2.into(), parent_hash);
+	let candidate_receipt_a = make_candidate(ParaId::from(1_u32), parent_hash);
+	let candidate_receipt_b = make_candidate(ParaId::from(2_u32), parent_hash);
 
 	let candidate_hash_a = candidate_receipt_a.hash();
 	let candidate_hash_b = candidate_receipt_b.hash();
@@ -284,11 +287,11 @@ fn canonicalize_works() {
 	let block_hash_d1 = Hash::repeat_byte(6);
 	let block_hash_d2 = Hash::repeat_byte(7);
 
-	let candidate_receipt_genesis = make_candidate(1.into(), genesis);
-	let candidate_receipt_a = make_candidate(2.into(), block_hash_a);
-	let candidate_receipt_b = make_candidate(3.into(), block_hash_a);
-	let candidate_receipt_b1 = make_candidate(4.into(), block_hash_b1);
-	let candidate_receipt_c1 = make_candidate(5.into(), block_hash_c1);
+	let candidate_receipt_genesis = make_candidate(ParaId::from(1_u32), genesis);
+	let candidate_receipt_a = make_candidate(ParaId::from(2_u32), block_hash_a);
+	let candidate_receipt_b = make_candidate(ParaId::from(3_u32), block_hash_a);
+	let candidate_receipt_b1 = make_candidate(ParaId::from(4_u32), block_hash_b1);
+	let candidate_receipt_c1 = make_candidate(ParaId::from(5_u32), block_hash_c1);
 
 	let cand_hash_1 = candidate_receipt_genesis.hash();
 	let cand_hash_2 = candidate_receipt_a.hash();
@@ -467,7 +470,7 @@ fn force_approve_works() {
 		candidate_info.insert(
 			candidate_hash,
 			NewCandidateInfo::new(
-				make_candidate(1.into(), Default::default()),
+				make_candidate(ParaId::from(1_u32), Default::default()),
 				GroupIndex(1),
 				None,
 			),

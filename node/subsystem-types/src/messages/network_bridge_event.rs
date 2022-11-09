@@ -14,35 +14,25 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{
-	collections::{HashMap, HashSet},
-	convert::TryFrom,
-};
+use std::{collections::HashSet, convert::TryFrom};
 
 pub use sc_network::{PeerId, ReputationChange};
 
-use polkadot_node_network_protocol::{ObservedRole, OurView, ProtocolVersion, View, WrongVariant};
+use polkadot_node_network_protocol::{
+	grid_topology::SessionGridTopology, peer_set::ProtocolVersion, ObservedRole, OurView, View,
+	WrongVariant,
+};
 use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
-
-/// Information about a peer in the gossip topology for a session.
-#[derive(Debug, Clone, PartialEq)]
-pub struct TopologyPeerInfo {
-	/// The validator's known peer IDs.
-	pub peer_ids: Vec<PeerId>,
-	/// The index of the validator in the discovery keys of the corresponding
-	/// `SessionInfo`. This can extend _beyond_ the set of active parachain validators.
-	pub validator_index: ValidatorIndex,
-}
 
 /// A struct indicating new gossip topology.
 #[derive(Debug, Clone, PartialEq)]
 pub struct NewGossipTopology {
 	/// The session index this topology corresponds to.
 	pub session: SessionIndex,
-	/// Neighbors in the 'X' dimension of the grid.
-	pub our_neighbors_x: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
-	/// Neighbors in the 'Y' dimension of the grid.
-	pub our_neighbors_y: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+	/// The topology itself.
+	pub topology: SessionGridTopology,
+	/// The local validator index, if any.
+	pub local_index: Option<ValidatorIndex>,
 }
 
 /// Events from network.

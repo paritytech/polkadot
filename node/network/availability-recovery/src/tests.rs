@@ -21,7 +21,7 @@ use futures::{executor, future};
 use futures_timer::Delay;
 
 use parity_scale_codec::Encode;
-use polkadot_node_network_protocol::request_response::IncomingRequest;
+use polkadot_node_network_protocol::request_response::{IncomingRequest, ReqProtocolNames};
 
 use super::*;
 
@@ -29,17 +29,22 @@ use sc_network::config::RequestResponseConfig;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
-use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, HeadData, PersistedValidationData};
-use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
-use polkadot_subsystem::{
+use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_primitives::v2::{
+	AuthorityDiscoveryId, Hash, HeadData, IndexedVec, PersistedValidationData, ValidatorId,
+};
+use polkadot_primitives_test_helpers::{dummy_candidate_receipt, dummy_hash};
 
 type VirtualOverseer = TestSubsystemContextHandle<AvailabilityRecoveryMessage>;
+
+// Deterministic genesis hash for protocol names
+const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
 
 fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseConfig)>>(
 	test: impl FnOnce(VirtualOverseer, RequestResponseConfig) -> T,
@@ -53,7 +58,8 @@ fn test_harness_fast_path<T: Future<Output = (VirtualOverseer, RequestResponseCo
 
 	let (context, virtual_overseer) = make_subsystem_context(pool.clone());
 
-	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_receiver, req_cfg) =
+		IncomingRequest::get_config_receiver(&ReqProtocolNames::new(&GENESIS_HASH, None));
 	let subsystem =
 		AvailabilityRecoverySubsystem::with_fast_path(collation_req_receiver, Metrics::new_dummy());
 	let subsystem = async {
@@ -87,7 +93,8 @@ fn test_harness_chunks_only<T: Future<Output = (VirtualOverseer, RequestResponse
 
 	let (context, virtual_overseer) = make_subsystem_context(pool.clone());
 
-	let (collation_req_receiver, req_cfg) = IncomingRequest::get_config_receiver();
+	let (collation_req_receiver, req_cfg) =
+		IncomingRequest::get_config_receiver(&ReqProtocolNames::new(&GENESIS_HASH, None));
 	let subsystem = AvailabilityRecoverySubsystem::with_chunks_only(
 		collation_req_receiver,
 		Metrics::new_dummy(),
@@ -124,7 +131,7 @@ async fn overseer_signal(
 ) {
 	delay!(50);
 	overseer
-		.send(FromOverseer::Signal(signal))
+		.send(FromOrchestra::Signal(signal))
 		.timeout(TIMEOUT)
 		.await
 		.expect("10ms is more than enough for sending signals.");
@@ -136,7 +143,7 @@ async fn overseer_send(
 ) {
 	gum::trace!(msg = ?msg, "sending message");
 	overseer
-		.send(FromOverseer::Communication { msg })
+		.send(FromOrchestra::Communication { msg })
 		.timeout(TIMEOUT)
 		.await
 		.expect("10ms is more than enough for sending messages.");
@@ -174,7 +181,7 @@ impl Has {
 #[derive(Clone)]
 struct TestState {
 	validators: Vec<Sr25519Keyring>,
-	validator_public: Vec<ValidatorId>,
+	validator_public: IndexedVec<ValidatorIndex, ValidatorId>,
 	validator_authority_id: Vec<AuthorityDiscoveryId>,
 	current: Hash,
 	candidate: CandidateReceipt,
@@ -184,6 +191,7 @@ struct TestState {
 
 	available_data: AvailableData,
 	chunks: Vec<ErasureChunk>,
+	invalid_chunks: Vec<ErasureChunk>,
 }
 
 impl TestState {
@@ -212,7 +220,7 @@ impl TestState {
 					validators: self.validator_public.clone(),
 					discovery_keys: self.validator_authority_id.clone(),
 					// all validators in the same group.
-					validator_groups: vec![(0..self.validators.len()).map(|i| ValidatorIndex(i as _)).collect()],
+					validator_groups: IndexedVec::<GroupIndex,Vec<ValidatorIndex>>::from(vec![(0..self.validators.len()).map(|i| ValidatorIndex(i as _)).collect()]),
 					assignment_keys: vec![],
 					n_cores: 0,
 					zeroth_delay_tranche_width: 0,
@@ -268,6 +276,26 @@ impl TestState {
 		)
 	}
 
+	async fn respond_to_query_all_request_invalid(
+		&self,
+		virtual_overseer: &mut VirtualOverseer,
+		send_chunk: impl Fn(usize) -> bool,
+	) {
+		assert_matches!(
+			overseer_recv(virtual_overseer).await,
+			AllMessages::AvailabilityStore(
+				AvailabilityStoreMessage::QueryAllChunks(_, tx)
+			) => {
+				let v = self.invalid_chunks.iter()
+					.filter(|c| send_chunk(c.index.0 as usize))
+					.cloned()
+					.collect();
+
+				let _ = tx.send(v);
+			}
+		)
+	}
+
 	async fn test_chunk_requests(
 		&self,
 		candidate_hash: CandidateHash,
@@ -282,10 +310,10 @@ impl TestState {
 			// Receive a request for a chunk.
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendRequests(
 						requests,
-						IfDisconnected::ImmediateError,
+						_if_disconnected,
 					)
 				) => {
 					for req in requests {
@@ -331,8 +359,8 @@ impl TestState {
 			// Receive a request for a chunk.
 			assert_matches!(
 				overseer_recv(virtual_overseer).await,
-				AllMessages::NetworkBridge(
-					NetworkBridgeMessage::SendRequests(
+				AllMessages::NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendRequests(
 						mut requests,
 						IfDisconnected::ImmediateError,
 					)
@@ -376,7 +404,7 @@ impl TestState {
 	}
 }
 
-fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
+fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> IndexedVec<ValidatorIndex, ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
 }
 
@@ -449,6 +477,22 @@ impl Default for TestState {
 			&available_data,
 			|_, _| {},
 		);
+		// Mess around:
+		let invalid_chunks = chunks
+			.iter()
+			.cloned()
+			.map(|mut chunk| {
+				if chunk.chunk.len() >= 2 && chunk.chunk[0] != chunk.chunk[1] {
+					chunk.chunk[0] = chunk.chunk[1];
+				} else if chunk.chunk.len() >= 1 {
+					chunk.chunk[0] = !chunk.chunk[0];
+				} else {
+					chunk.proof = Proof::dummy_proof();
+				}
+				chunk
+			})
+			.collect();
+		debug_assert_ne!(chunks, invalid_chunks);
 
 		candidate.descriptor.erasure_root = erasure_root;
 		candidate.descriptor.relay_parent = Hash::repeat_byte(10);
@@ -463,6 +507,7 @@ impl Default for TestState {
 			persisted_validation_data,
 			available_data,
 			chunks,
+			invalid_chunks,
 		}
 	}
 }
@@ -1265,6 +1310,57 @@ fn does_not_query_local_validator() {
 			.await;
 
 		// second round, make sure it uses the local chunk.
+		test_state
+			.test_chunk_requests(
+				candidate_hash,
+				&mut virtual_overseer,
+				test_state.threshold() - 1,
+				|i| if i == 0 { panic!("requested from local validator") } else { Has::Yes },
+			)
+			.await;
+
+		assert_eq!(rx.await.unwrap().unwrap(), test_state.available_data);
+		(virtual_overseer, req_cfg)
+	});
+}
+
+#[test]
+fn invalid_local_chunk_is_ignored() {
+	let test_state = TestState::default();
+
+	test_harness_chunks_only(|mut virtual_overseer, req_cfg| async move {
+		overseer_signal(
+			&mut virtual_overseer,
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: test_state.current.clone(),
+				number: 1,
+				status: LeafStatus::Fresh,
+				span: Arc::new(jaeger::Span::Disabled),
+			})),
+		)
+		.await;
+
+		let (tx, rx) = oneshot::channel();
+
+		overseer_send(
+			&mut virtual_overseer,
+			AvailabilityRecoveryMessage::RecoverAvailableData(
+				test_state.candidate.clone(),
+				test_state.session_index,
+				None,
+				tx,
+			),
+		)
+		.await;
+
+		test_state.test_runtime_api(&mut virtual_overseer).await;
+		test_state.respond_to_available_data_query(&mut virtual_overseer, false).await;
+		test_state
+			.respond_to_query_all_request_invalid(&mut virtual_overseer, |i| i == 0)
+			.await;
+
+		let candidate_hash = test_state.candidate.hash();
+
 		test_state
 			.test_chunk_requests(
 				candidate_hash,

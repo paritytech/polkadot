@@ -18,6 +18,8 @@
 
 use crate::NegativeImbalance;
 use frame_support::traits::{Currency, Imbalance, OnUnbalanced};
+use primitives::v2::Balance;
+use sp_runtime::Perquintill;
 
 /// Logic for the author to get a portion of fees.
 pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
@@ -26,7 +28,6 @@ where
 	R: pallet_balances::Config + pallet_authorship::Config,
 	<R as frame_system::Config>::AccountId: From<primitives::v2::AccountId>,
 	<R as frame_system::Config>::AccountId: Into<primitives::v2::AccountId>,
-	<R as frame_system::Config>::Event: From<pallet_balances::Event<R>>,
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		if let Some(author) = <pallet_authorship::Pallet<R>>::author() {
@@ -42,7 +43,6 @@ where
 	pallet_treasury::Pallet<R>: OnUnbalanced<NegativeImbalance<R>>,
 	<R as frame_system::Config>::AccountId: From<primitives::v2::AccountId>,
 	<R as frame_system::Config>::AccountId: Into<primitives::v2::AccountId>,
-	<R as frame_system::Config>::Event: From<pallet_balances::Event<R>>,
 {
 	fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance<R>>) {
 		if let Some(fees) = fees_then_tips.next() {
@@ -59,10 +59,51 @@ where
 	}
 }
 
+pub fn era_payout(
+	total_staked: Balance,
+	non_gilt_issuance: Balance,
+	max_annual_inflation: Perquintill,
+	period_fraction: Perquintill,
+	auctioned_slots: u64,
+) -> (Balance, Balance) {
+	use pallet_staking_reward_fn::compute_inflation;
+	use sp_runtime::traits::Saturating;
+
+	let min_annual_inflation = Perquintill::from_rational(25u64, 1000u64);
+	let delta_annual_inflation = max_annual_inflation.saturating_sub(min_annual_inflation);
+
+	// 30% reserved for up to 60 slots.
+	let auction_proportion = Perquintill::from_rational(auctioned_slots.min(60), 200u64);
+
+	// Therefore the ideal amount at stake (as a percentage of total issuance) is 75% less the
+	// amount that we expect to be taken up with auctions.
+	let ideal_stake = Perquintill::from_percent(75).saturating_sub(auction_proportion);
+
+	let stake = Perquintill::from_rational(total_staked, non_gilt_issuance);
+	let falloff = Perquintill::from_percent(5);
+	let adjustment = compute_inflation(stake, ideal_stake, falloff);
+	let staking_inflation =
+		min_annual_inflation.saturating_add(delta_annual_inflation * adjustment);
+
+	let max_payout = period_fraction * max_annual_inflation * non_gilt_issuance;
+	let staking_payout = (period_fraction * staking_inflation) * non_gilt_issuance;
+	let rest = max_payout.saturating_sub(staking_payout);
+
+	let other_issuance = non_gilt_issuance.saturating_sub(total_staked);
+	if total_staked > other_issuance {
+		let _cap_rest = Perquintill::from_rational(other_issuance, total_staked) * staking_payout;
+		// We don't do anything with this, but if we wanted to, we could introduce a cap on the
+		// treasury amount with: `rest = rest.min(cap_rest);`
+	}
+	(staking_payout, rest)
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use frame_support::{parameter_types, traits::FindAuthor, weights::DispatchClass, PalletId};
+	use frame_support::{
+		dispatch::DispatchClass, parameter_types, traits::FindAuthor, weights::Weight, PalletId,
+	};
 	use frame_system::limits;
 	use primitives::v2::AccountId;
 	use sp_core::H256;
@@ -92,12 +133,12 @@ mod tests {
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
 		pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
-			.base_block(10)
+			.base_block(Weight::from_ref_time(10))
 			.for_class(DispatchClass::all(), |weight| {
-				weight.base_extrinsic = 100;
+				weight.base_extrinsic = Weight::from_ref_time(100);
 			})
 			.for_class(DispatchClass::non_mandatory(), |weight| {
-				weight.max_total = Some(1024);
+				weight.max_total = Some(Weight::from_ref_time(1024).set_proof_size(u64::MAX));
 			})
 			.build_or_panic();
 		pub BlockLength: limits::BlockLength = limits::BlockLength::max(2 * 1024);
@@ -106,16 +147,16 @@ mod tests {
 
 	impl frame_system::Config for Test {
 		type BaseCallFilter = frame_support::traits::Everything;
-		type Origin = Origin;
+		type RuntimeOrigin = RuntimeOrigin;
 		type Index = u64;
 		type BlockNumber = u64;
-		type Call = Call;
+		type RuntimeCall = RuntimeCall;
 		type Hash = H256;
 		type Hashing = BlakeTwo256;
 		type AccountId = AccountId;
 		type Lookup = IdentityLookup<Self::AccountId>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type BlockLength = BlockLength;
 		type BlockWeights = BlockWeights;
@@ -133,7 +174,7 @@ mod tests {
 
 	impl pallet_balances::Config for Test {
 		type Balance = u64;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
 		type ExistentialDeposit = ();
 		type AccountStore = System;
@@ -152,7 +193,7 @@ mod tests {
 		type Currency = pallet_balances::Pallet<Test>;
 		type ApproveOrigin = frame_system::EnsureRoot<AccountId>;
 		type RejectOrigin = frame_system::EnsureRoot<AccountId>;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type OnSlash = ();
 		type ProposalBond = ();
 		type ProposalBondMinimum = ();
@@ -164,6 +205,7 @@ mod tests {
 		type SpendFunds = ();
 		type MaxApprovals = MaxApprovals;
 		type WeightInfo = ();
+		type SpendOrigin = frame_support::traits::NeverEnsureOrigin<u64>;
 	}
 
 	pub struct OneAuthor;
@@ -207,5 +249,45 @@ mod tests {
 			// Treasury gets 80% of fee
 			assert_eq!(Balances::free_balance(Treasury::account_id()), 8);
 		});
+	}
+
+	#[test]
+	fn compute_inflation_should_give_sensible_results() {
+		assert_eq!(
+			pallet_staking_reward_fn::compute_inflation(
+				Perquintill::from_percent(75),
+				Perquintill::from_percent(75),
+				Perquintill::from_percent(5),
+			),
+			Perquintill::one()
+		);
+		assert_eq!(
+			pallet_staking_reward_fn::compute_inflation(
+				Perquintill::from_percent(50),
+				Perquintill::from_percent(75),
+				Perquintill::from_percent(5),
+			),
+			Perquintill::from_rational(2u64, 3u64)
+		);
+		assert_eq!(
+			pallet_staking_reward_fn::compute_inflation(
+				Perquintill::from_percent(80),
+				Perquintill::from_percent(75),
+				Perquintill::from_percent(5),
+			),
+			Perquintill::from_rational(1u64, 2u64)
+		);
+	}
+
+	#[test]
+	fn era_payout_should_give_sensible_results() {
+		assert_eq!(
+			era_payout(75, 100, Perquintill::from_percent(10), Perquintill::one(), 0,),
+			(10, 0)
+		);
+		assert_eq!(
+			era_payout(80, 100, Perquintill::from_percent(10), Perquintill::one(), 0,),
+			(6, 4)
+		);
 	}
 }

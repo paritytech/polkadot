@@ -23,18 +23,20 @@ use crate::{
 
 use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{InvalidCandidate, ValidationResult};
-use polkadot_node_subsystem::messages::{CandidateValidationMessage, ValidationFailed};
+use polkadot_node_subsystem::{
+	messages::{CandidateValidationMessage, ValidationFailed},
+	overseer,
+};
 
 use polkadot_primitives::v2::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, PersistedValidationData,
 };
 
-use polkadot_cli::service::SpawnNamed;
-
 use futures::channel::oneshot;
+use rand::distributions::{Bernoulli, Distribution};
 
-#[derive(clap::ArgEnum, Clone, Copy, Debug, PartialEq)]
-#[clap(rename_all = "kebab-case")]
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
+#[value(rename_all = "kebab-case")]
 #[non_exhaustive]
 pub enum FakeCandidateValidation {
 	Disabled,
@@ -47,8 +49,8 @@ pub enum FakeCandidateValidation {
 }
 
 /// Candidate invalidity details
-#[derive(clap::ArgEnum, Clone, Copy, Debug, PartialEq)]
-#[clap(rename_all = "kebab-case")]
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq)]
+#[value(rename_all = "kebab-case")]
 pub enum FakeCandidateValidationError {
 	/// Validation outputs check doesn't pass.
 	InvalidOutputs,
@@ -108,19 +110,23 @@ impl Into<InvalidCandidate> for FakeCandidateValidationError {
 pub struct ReplaceValidationResult<Spawner> {
 	fake_validation: FakeCandidateValidation,
 	fake_validation_error: FakeCandidateValidationError,
+	distribution: Bernoulli,
 	spawner: Spawner,
 }
 
 impl<Spawner> ReplaceValidationResult<Spawner>
 where
-	Spawner: SpawnNamed,
+	Spawner: overseer::gen::Spawner,
 {
 	pub fn new(
 		fake_validation: FakeCandidateValidation,
 		fake_validation_error: FakeCandidateValidationError,
+		percentage: f64,
 		spawner: Spawner,
 	) -> Self {
-		Self { fake_validation, fake_validation_error, spawner }
+		let distribution = Bernoulli::new(percentage / 100.0)
+			.expect("Invalid probability! Percentage must be in range [0..=100].");
+		Self { fake_validation, fake_validation_error, distribution, spawner }
 	}
 
 	/// Creates and sends the validation response for a given candidate. Queries the runtime to obtain the validation data for the
@@ -131,11 +137,7 @@ where
 		subsystem_sender: Sender,
 		response_sender: oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	) where
-		Sender: overseer::SubsystemSender<AllMessages>
-			+ overseer::SubsystemSender<CandidateValidationMessage>
-			+ Clone
-			+ Send
-			+ 'static,
+		Sender: overseer::CandidateValidationSenderTrait + Clone + Send + 'static,
 	{
 		let _candidate_descriptor = candidate_descriptor.clone();
 		let mut subsystem_sender = subsystem_sender.clone();
@@ -200,23 +202,20 @@ fn create_validation_response(
 
 impl<Sender, Spawner> MessageInterceptor<Sender> for ReplaceValidationResult<Spawner>
 where
-	Sender: overseer::SubsystemSender<CandidateValidationMessage>
-		+ overseer::SubsystemSender<AllMessages>
-		+ Clone
-		+ Send
-		+ 'static,
-	Spawner: SpawnNamed + Clone + 'static,
+	Sender: overseer::CandidateValidationSenderTrait + Clone + Send + 'static,
+	Spawner: overseer::gen::Spawner + Clone + 'static,
 {
 	type Message = CandidateValidationMessage;
 
-	// Capture all candidate validation requests and depending on configuration fail them.
+	// Capture all (approval and backing) candidate validation requests and depending on configuration fail them.
 	fn intercept_incoming(
 		&self,
 		subsystem_sender: &mut Sender,
-		msg: FromOverseer<Self::Message>,
-	) -> Option<FromOverseer<Self::Message>> {
+		msg: FromOrchestra<Self::Message>,
+	) -> Option<FromOrchestra<Self::Message>> {
 		match msg {
-			FromOverseer::Communication {
+			// Message sent by the approval voting subsystem
+			FromOrchestra::Communication {
 				msg:
 					CandidateValidationMessage::ValidateFromExhaustive(
 						validation_data,
@@ -232,7 +231,7 @@ where
 					FakeCandidateValidation::BackingAndApprovalValid => {
 						// Behave normally if the `PoV` is not known to be malicious.
 						if pov.block_data.0.as_slice() != MALICIOUS_POV {
-							return Some(FromOverseer::Communication {
+							return Some(FromOrchestra::Communication {
 								msg: CandidateValidationMessage::ValidateFromExhaustive(
 									validation_data,
 									validation_code,
@@ -243,29 +242,85 @@ where
 								),
 							})
 						}
-						create_validation_response(
-							validation_data,
-							candidate_receipt.descriptor,
-							sender,
-						);
-						None
+						// Create the fake response with probability `p` if the `PoV` is malicious,
+						// where 'p' defaults to 100% for suggest-garbage-candidate variant.
+						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
+						match behave_maliciously {
+							true => {
+								gum::info!(
+									target: MALUS,
+									?behave_maliciously,
+									"😈 Creating malicious ValidationResult::Valid message with fake candidate commitments.",
+								);
+
+								create_validation_response(
+									validation_data,
+									candidate_receipt.descriptor,
+									sender,
+								);
+								None
+							},
+							false => {
+								// Behave normally with probability `(1-p)` for a malicious `PoV`.
+								gum::info!(
+									target: MALUS,
+									?behave_maliciously,
+									"😈 Passing CandidateValidationMessage::ValidateFromExhaustive to the candidate validation subsystem.",
+								);
+
+								Some(FromOrchestra::Communication {
+									msg: CandidateValidationMessage::ValidateFromExhaustive(
+										validation_data,
+										validation_code,
+										candidate_receipt,
+										pov,
+										timeout,
+										sender,
+									),
+								})
+							},
+						}
 					},
 					FakeCandidateValidation::ApprovalInvalid |
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
-						let validation_result =
-							ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
+						// Set the validation result to invalid with probability `p` and trigger a dispute
+						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
+						match behave_maliciously {
+							true => {
+								let validation_result =
+									ValidationResult::Invalid(InvalidCandidate::InvalidOutputs);
 
-						gum::debug!(
-							target: MALUS,
-							para_id = ?candidate_receipt.descriptor.para_id,
-							"ValidateFromExhaustive result: {:?}",
-							&validation_result
-						);
-						// We're not even checking the candidate, this makes us appear faster than honest validators.
-						sender.send(Ok(validation_result)).unwrap();
-						None
+								gum::info!(
+									target: MALUS,
+									?behave_maliciously,
+									para_id = ?candidate_receipt.descriptor.para_id,
+									"😈 Maliciously sending invalid validation result: {:?}.",
+									&validation_result,
+								);
+
+								// We're not even checking the candidate, this makes us appear faster than honest validators.
+								sender.send(Ok(validation_result)).unwrap();
+								None
+							},
+							false => {
+								// Behave normally with probability `(1-p)`
+								gum::info!(target: MALUS, "😈 'Decided' to not act maliciously.",);
+
+								Some(FromOrchestra::Communication {
+									msg: CandidateValidationMessage::ValidateFromExhaustive(
+										validation_data,
+										validation_code,
+										candidate_receipt,
+										pov,
+										timeout,
+										sender,
+									),
+								})
+							},
+						}
 					},
-					_ => Some(FromOverseer::Communication {
+					// Handle FakeCandidateValidation::Disabled
+					_ => Some(FromOrchestra::Communication {
 						msg: CandidateValidationMessage::ValidateFromExhaustive(
 							validation_data,
 							validation_code,
@@ -277,7 +332,8 @@ where
 					}),
 				}
 			},
-			FromOverseer::Communication {
+			// Behaviour related to the backing subsystem
+			FromOrchestra::Communication {
 				msg:
 					CandidateValidationMessage::ValidateFromChainState(
 						candidate_receipt,
@@ -291,7 +347,7 @@ where
 					FakeCandidateValidation::BackingAndApprovalValid => {
 						// Behave normally if the `PoV` is not known to be malicious.
 						if pov.block_data.0.as_slice() != MALICIOUS_POV {
-							return Some(FromOverseer::Communication {
+							return Some(FromOrchestra::Communication {
 								msg: CandidateValidationMessage::ValidateFromChainState(
 									candidate_receipt,
 									pov,
@@ -300,29 +356,70 @@ where
 								),
 							})
 						}
-						self.send_validation_response(
-							candidate_receipt.descriptor,
-							subsystem_sender.clone(),
-							response_sender,
-						);
-						None
+						// If the `PoV` is malicious, back the candidate with some probability `p`,
+						// where 'p' defaults to 100% for suggest-garbage-candidate variant.
+						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
+						match behave_maliciously {
+							true => {
+								gum::info!(
+									target: MALUS,
+									?behave_maliciously,
+									"😈 Backing candidate with malicious PoV.",
+								);
+
+								self.send_validation_response(
+									candidate_receipt.descriptor,
+									subsystem_sender.clone(),
+									response_sender,
+								);
+								None
+							},
+							// If the `PoV` is malicious, we behave normally with some probability `(1-p)`
+							false => Some(FromOrchestra::Communication {
+								msg: CandidateValidationMessage::ValidateFromChainState(
+									candidate_receipt,
+									pov,
+									timeout,
+									response_sender,
+								),
+							}),
+						}
 					},
 					FakeCandidateValidation::BackingInvalid |
 					FakeCandidateValidation::BackingAndApprovalInvalid => {
-						let validation_result =
-							ValidationResult::Invalid(self.fake_validation_error.clone().into());
-						gum::debug!(
-							target: MALUS,
-							para_id = ?candidate_receipt.descriptor.para_id,
-							"ValidateFromChainState result: {:?}",
-							&validation_result
-						);
+						// Maliciously set the validation result to invalid for a valid candidate with probability `p`
+						let behave_maliciously = self.distribution.sample(&mut rand::thread_rng());
+						match behave_maliciously {
+							true => {
+								let validation_result = ValidationResult::Invalid(
+									self.fake_validation_error.clone().into(),
+								);
+								gum::info!(
+									target: MALUS,
+									para_id = ?candidate_receipt.descriptor.para_id,
+									"😈 Maliciously sending invalid validation result: {:?}.",
+									&validation_result,
+								);
+								// We're not even checking the candidate, this makes us appear faster than honest validators.
+								response_sender.send(Ok(validation_result)).unwrap();
+								None
+							},
+							// With some probability `(1-p)` we behave normally
+							false => {
+								gum::info!(target: MALUS, "😈 'Decided' to not act maliciously.",);
 
-						// We're not even checking the candidate, this makes us appear faster than honest validators.
-						response_sender.send(Ok(validation_result)).unwrap();
-						None
+								Some(FromOrchestra::Communication {
+									msg: CandidateValidationMessage::ValidateFromChainState(
+										candidate_receipt,
+										pov,
+										timeout,
+										response_sender,
+									),
+								})
+							},
+						}
 					},
-					_ => Some(FromOverseer::Communication {
+					_ => Some(FromOrchestra::Communication {
 						msg: CandidateValidationMessage::ValidateFromChainState(
 							candidate_receipt,
 							pov,
@@ -336,7 +433,10 @@ where
 		}
 	}
 
-	fn intercept_outgoing(&self, msg: AllMessages) -> Option<AllMessages> {
+	fn intercept_outgoing(
+		&self,
+		msg: overseer::CandidateValidationOutgoingMessages,
+	) -> Option<overseer::CandidateValidationOutgoingMessages> {
 		Some(msg)
 	}
 }

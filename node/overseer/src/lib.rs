@@ -62,6 +62,7 @@
 use std::{
 	collections::{hash_map, HashMap},
 	fmt::{self, Debug},
+	num::NonZeroUsize,
 	pin::Pin,
 	sync::Arc,
 	time::Duration,
@@ -71,25 +72,21 @@ use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, St
 use lru::LruCache;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
-use polkadot_primitives::{
-	runtime_api::ParachainHost,
-	v2::{Block, BlockId, BlockNumber, Hash},
-};
-use sp_api::{ApiExt, ProvideRuntimeApi};
+use polkadot_primitives::v2::{Block, BlockNumber, Hash};
 
-use polkadot_node_network_protocol::VersionedValidationProtocol;
 use polkadot_node_subsystem_types::messages::{
 	ApprovalDistributionMessage, ApprovalVotingMessage, AvailabilityDistributionMessage,
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
 	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
 	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
 	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
-	NetworkBridgeEvent, NetworkBridgeMessage, ProvisionerMessage, PvfCheckerMessage,
+	NetworkBridgeRxMessage, NetworkBridgeTxMessage, ProvisionerMessage, PvfCheckerMessage,
 	RuntimeApiMessage, StatementDistributionMessage,
 };
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
+	RuntimeApiSubsystemClient,
 };
 
 pub mod metrics;
@@ -106,40 +103,75 @@ pub use polkadot_node_metrics::{
 
 use parity_util_mem::MemoryAllocationTracker;
 
-pub use polkadot_overseer_gen as gen;
-pub use polkadot_overseer_gen::{
-	overlord, FromOverseer, MapSubsystem, MessagePacket, SignalsReceived, SpawnNamed, Subsystem,
-	SubsystemContext, SubsystemIncomingMessages, SubsystemInstance, SubsystemMeterReadouts,
-	SubsystemMeters, SubsystemSender, TimeoutExt, ToOverseer,
+pub use orchestra as gen;
+pub use orchestra::{
+	contextbounds, orchestra, subsystem, FromOrchestra, MapSubsystem, MessagePacket,
+	OrchestraError as OverseerError, SignalsReceived, Spawner, Subsystem, SubsystemContext,
+	SubsystemIncomingMessages, SubsystemInstance, SubsystemMeterReadouts, SubsystemMeters,
+	SubsystemSender, TimeoutExt, ToOrchestra,
 };
 
 /// Store 2 days worth of blocks, not accounting for forks,
 /// in the LRU cache. Assumes a 6-second block time.
-pub const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
+pub const KNOWN_LEAVES_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(2 * 24 * 3600 / 6) {
+	Some(cap) => cap,
+	None => panic!("Known leaves cache size must be non-zero"),
+};
 
 #[cfg(test)]
 mod tests;
 
-/// Whether a header supports parachain consensus or not.
-pub trait HeadSupportsParachains {
-	/// Return true if the given header supports parachain consensus. Otherwise, false.
-	fn head_supports_parachains(&self, head: &Hash) -> bool;
+use sp_core::traits::SpawnNamed;
+
+/// Glue to connect `trait orchestra::Spawner` and `SpawnNamed` from `substrate`.
+pub struct SpawnGlue<S>(pub S);
+
+impl<S> AsRef<S> for SpawnGlue<S> {
+	fn as_ref(&self) -> &S {
+		&self.0
+	}
 }
 
+impl<S: Clone> Clone for SpawnGlue<S> {
+	fn clone(&self) -> Self {
+		Self(self.0.clone())
+	}
+}
+
+impl<S: SpawnNamed + Clone + Send + Sync> crate::gen::Spawner for SpawnGlue<S> {
+	fn spawn_blocking(
+		&self,
+		name: &'static str,
+		group: Option<&'static str>,
+		future: futures::future::BoxFuture<'static, ()>,
+	) {
+		SpawnNamed::spawn_blocking(&self.0, name, group, future)
+	}
+	fn spawn(
+		&self,
+		name: &'static str,
+		group: Option<&'static str>,
+		future: futures::future::BoxFuture<'static, ()>,
+	) {
+		SpawnNamed::spawn(&self.0, name, group, future)
+	}
+}
+
+/// Whether a header supports parachain consensus or not.
+#[async_trait::async_trait]
+pub trait HeadSupportsParachains {
+	/// Return true if the given header supports parachain consensus. Otherwise, false.
+	async fn head_supports_parachains(&self, head: &Hash) -> bool;
+}
+
+#[async_trait::async_trait]
 impl<Client> HeadSupportsParachains for Arc<Client>
 where
-	Client: ProvideRuntimeApi<Block>,
-	Client::Api: ParachainHost<Block>,
+	Client: RuntimeApiSubsystemClient + Sync + Send,
 {
-	fn head_supports_parachains(&self, head: &Hash) -> bool {
-		let id = BlockId::Hash(*head);
+	async fn head_supports_parachains(&self, head: &Hash) -> bool {
 		// Check that the `ParachainHost` runtime api is at least with version 1 present on chain.
-		self.runtime_api()
-			.api_version::<dyn ParachainHost<Block>>(&id)
-			.ok()
-			.flatten()
-			.unwrap_or(0) >=
-			1
+		self.api_version_parachain_host(*head).await.ok().flatten().unwrap_or(0) >= 1
 	}
 }
 
@@ -347,13 +379,13 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// # 	SubsystemError,
 /// # 	gen::{
 /// # 		SubsystemContext,
-/// # 		FromOverseer,
+/// # 		FromOrchestra,
 /// # 		SpawnedSubsystem,
 /// # 	},
 /// # };
 /// # use polkadot_node_subsystem_types::messages::{
 /// # 	CandidateValidationMessage, CandidateBackingMessage,
-/// # 	NetworkBridgeMessage,
+/// # 	NetworkBridgeTxMessage,
 /// # };
 ///
 /// struct ValidationSubsystem;
@@ -385,9 +417,12 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// # fn main() { executor::block_on(async move {
 ///
 /// struct AlwaysSupportsParachains;
+///
+/// #[async_trait::async_trait]
 /// impl HeadSupportsParachains for AlwaysSupportsParachains {
-///      fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
+///      async fn head_supports_parachains(&self, _head: &Hash) -> bool { true }
 /// }
+///
 /// let spawner = sp_core::testing::TaskExecutor::new();
 /// let (overseer, _handle) = dummy_overseer_builder(spawner, AlwaysSupportsParachains, None)
 ///		.unwrap()
@@ -409,75 +444,164 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// # 	});
 /// # }
 /// ```
-#[overlord(
+#[orchestra(
 	gen=AllMessages,
 	event=Event,
 	signal=OverseerSignal,
 	error=SubsystemError,
-	network=NetworkBridgeEvent<VersionedValidationProtocol>,
+	message_capacity=2048,
 )]
 pub struct Overseer<SupportsParachains> {
-	#[subsystem(no_dispatch, CandidateValidationMessage)]
+	#[subsystem(CandidateValidationMessage, sends: [
+		RuntimeApiMessage,
+	])]
 	candidate_validation: CandidateValidation,
 
-	#[subsystem(no_dispatch, PvfCheckerMessage)]
+	#[subsystem(PvfCheckerMessage, sends: [
+		CandidateValidationMessage,
+		RuntimeApiMessage,
+	])]
 	pvf_checker: PvfChecker,
 
-	#[subsystem(no_dispatch, CandidateBackingMessage)]
+	#[subsystem(CandidateBackingMessage, sends: [
+		CandidateValidationMessage,
+		CollatorProtocolMessage,
+		AvailabilityDistributionMessage,
+		AvailabilityStoreMessage,
+		StatementDistributionMessage,
+		ProvisionerMessage,
+		RuntimeApiMessage,
+	])]
 	candidate_backing: CandidateBacking,
 
-	#[subsystem(StatementDistributionMessage)]
+	#[subsystem(StatementDistributionMessage, sends: [
+		NetworkBridgeTxMessage,
+		CandidateBackingMessage,
+		RuntimeApiMessage,
+	])]
 	statement_distribution: StatementDistribution,
 
-	#[subsystem(no_dispatch, AvailabilityDistributionMessage)]
+	#[subsystem(AvailabilityDistributionMessage, sends: [
+		AvailabilityStoreMessage,
+		AvailabilityRecoveryMessage,
+		ChainApiMessage,
+		RuntimeApiMessage,
+		NetworkBridgeTxMessage,
+	])]
 	availability_distribution: AvailabilityDistribution,
 
-	#[subsystem(no_dispatch, AvailabilityRecoveryMessage)]
+	#[subsystem(AvailabilityRecoveryMessage, sends: [
+		NetworkBridgeTxMessage,
+		RuntimeApiMessage,
+		AvailabilityStoreMessage,
+	])]
 	availability_recovery: AvailabilityRecovery,
 
-	#[subsystem(blocking, no_dispatch, BitfieldSigningMessage)]
+	#[subsystem(blocking, BitfieldSigningMessage, sends: [
+		AvailabilityStoreMessage,
+		RuntimeApiMessage,
+		BitfieldDistributionMessage,
+	])]
 	bitfield_signing: BitfieldSigning,
 
-	#[subsystem(BitfieldDistributionMessage)]
+	#[subsystem(BitfieldDistributionMessage, sends: [
+		RuntimeApiMessage,
+		NetworkBridgeTxMessage,
+		ProvisionerMessage,
+	])]
 	bitfield_distribution: BitfieldDistribution,
 
-	#[subsystem(no_dispatch, ProvisionerMessage)]
+	#[subsystem(ProvisionerMessage, sends: [
+		RuntimeApiMessage,
+		CandidateBackingMessage,
+		ChainApiMessage,
+		DisputeCoordinatorMessage,
+	])]
 	provisioner: Provisioner,
 
-	#[subsystem(no_dispatch, blocking, RuntimeApiMessage)]
+	#[subsystem(blocking, RuntimeApiMessage, sends: [])]
 	runtime_api: RuntimeApi,
 
-	#[subsystem(no_dispatch, blocking, AvailabilityStoreMessage)]
+	#[subsystem(blocking, AvailabilityStoreMessage, sends: [
+		ChainApiMessage,
+		RuntimeApiMessage,
+	])]
 	availability_store: AvailabilityStore,
 
-	#[subsystem(no_dispatch, NetworkBridgeMessage)]
-	network_bridge: NetworkBridge,
+	#[subsystem(NetworkBridgeRxMessage, sends: [
+		BitfieldDistributionMessage,
+		StatementDistributionMessage,
+		ApprovalDistributionMessage,
+		GossipSupportMessage,
+		DisputeDistributionMessage,
+		CollationGenerationMessage,
+		CollatorProtocolMessage,
+	])]
+	network_bridge_rx: NetworkBridgeRx,
 
-	#[subsystem(no_dispatch, blocking, ChainApiMessage)]
+	#[subsystem(NetworkBridgeTxMessage, sends: [])]
+	network_bridge_tx: NetworkBridgeTx,
+
+	#[subsystem(blocking, ChainApiMessage, sends: [])]
 	chain_api: ChainApi,
 
-	#[subsystem(no_dispatch, CollationGenerationMessage)]
+	#[subsystem(CollationGenerationMessage, sends: [
+		RuntimeApiMessage,
+		CollatorProtocolMessage,
+	])]
 	collation_generation: CollationGeneration,
 
-	#[subsystem(no_dispatch, CollatorProtocolMessage)]
+	#[subsystem(CollatorProtocolMessage, sends: [
+		NetworkBridgeTxMessage,
+		RuntimeApiMessage,
+		CandidateBackingMessage,
+	])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(ApprovalDistributionMessage)]
+	#[subsystem(ApprovalDistributionMessage, sends: [
+		NetworkBridgeTxMessage,
+		ApprovalVotingMessage,
+	])]
 	approval_distribution: ApprovalDistribution,
 
-	#[subsystem(no_dispatch, blocking, ApprovalVotingMessage)]
+	#[subsystem(blocking, ApprovalVotingMessage, sends: [
+		ApprovalDistributionMessage,
+		AvailabilityRecoveryMessage,
+		CandidateValidationMessage,
+		ChainApiMessage,
+		ChainSelectionMessage,
+		DisputeCoordinatorMessage,
+		RuntimeApiMessage,
+	])]
 	approval_voting: ApprovalVoting,
 
-	#[subsystem(GossipSupportMessage)]
+	#[subsystem(GossipSupportMessage, sends: [
+		NetworkBridgeTxMessage,
+		NetworkBridgeRxMessage, // TODO <https://github.com/paritytech/polkadot/issues/5626>
+		RuntimeApiMessage,
+		ChainSelectionMessage,
+	])]
 	gossip_support: GossipSupport,
 
-	#[subsystem(no_dispatch, blocking, DisputeCoordinatorMessage)]
+	#[subsystem(blocking, DisputeCoordinatorMessage, sends: [
+		RuntimeApiMessage,
+		ChainApiMessage,
+		DisputeDistributionMessage,
+		CandidateValidationMessage,
+		ApprovalVotingMessage,
+		AvailabilityStoreMessage,
+		AvailabilityRecoveryMessage,
+	])]
 	dispute_coordinator: DisputeCoordinator,
 
-	#[subsystem(no_dispatch, DisputeDistributionMessage)]
+	#[subsystem(DisputeDistributionMessage, sends: [
+		RuntimeApiMessage,
+		DisputeCoordinatorMessage,
+		NetworkBridgeTxMessage,
+	])]
 	dispute_distribution: DisputeDistribution,
 
-	#[subsystem(no_dispatch, blocking, ChainSelectionMessage)]
+	#[subsystem(blocking, ChainSelectionMessage, sends: [ChainApiMessage])]
 	chain_selection: ChainSelection,
 
 	/// External listeners waiting for a hash to be in the active-leave set.
@@ -510,15 +634,15 @@ pub fn spawn_metronome_metrics<S, SupportsParachains>(
 	metronome_metrics: OverseerMetrics,
 ) -> Result<(), SubsystemError>
 where
-	S: SpawnNamed,
+	S: Spawner,
 	SupportsParachains: HeadSupportsParachains,
 {
 	struct ExtractNameAndMeters;
 
-	impl<'a, T: 'a> MapSubsystem<&'a OverseenSubsystem<T>> for ExtractNameAndMeters {
+	impl<'a, T: 'a> MapSubsystem<&'a OrchestratedSubsystem<T>> for ExtractNameAndMeters {
 		type Output = Option<(&'static str, SubsystemMeters)>;
 
-		fn map_subsystem(&self, subsystem: &'a OverseenSubsystem<T>) -> Self::Output {
+		fn map_subsystem(&self, subsystem: &'a OrchestratedSubsystem<T>) -> Self::Output {
 			subsystem
 				.instance
 				.as_ref()
@@ -578,7 +702,7 @@ where
 impl<S, SupportsParachains> Overseer<S, SupportsParachains>
 where
 	SupportsParachains: HeadSupportsParachains,
-	S: SpawnNamed,
+	S: Spawner,
 {
 	/// Stop the `Overseer`.
 	async fn stop(mut self) {
@@ -593,7 +717,7 @@ where
 		// Notify about active leaves on startup before starting the loop
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
-			if let Some((span, status)) = self.on_head_activated(&hash, None) {
+			if let Some((span, status)) = self.on_head_activated(&hash, None).await {
 				let update =
 					ActiveLeavesUpdate::start_work(ActivatedLeaf { hash, number, status, span });
 				self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
@@ -623,12 +747,12 @@ where
 						}
 					}
 				},
-				msg = self.to_overseer_rx.select_next_some() => {
+				msg = self.to_orchestra_rx.select_next_some() => {
 					match msg {
-						ToOverseer::SpawnJob { name, subsystem, s } => {
+						ToOrchestra::SpawnJob { name, subsystem, s } => {
 							self.spawn_job(name, subsystem, s);
 						}
-						ToOverseer::SpawnBlockingJob { name, subsystem, s } => {
+						ToOrchestra::SpawnBlockingJob { name, subsystem, s } => {
 							self.spawn_blocking_job(name, subsystem, s);
 						}
 					}
@@ -655,7 +779,7 @@ where
 			},
 		};
 
-		let mut update = match self.on_head_activated(&block.hash, Some(block.parent_hash)) {
+		let mut update = match self.on_head_activated(&block.hash, Some(block.parent_hash)).await {
 			Some((span, status)) => ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: block.hash,
 				number: block.number,
@@ -712,17 +836,22 @@ where
 
 	/// Handles a header activation. If the header's state doesn't support the parachains API,
 	/// this returns `None`.
-	fn on_head_activated(
+	async fn on_head_activated(
 		&mut self,
 		hash: &Hash,
 		parent_hash: Option<Hash>,
 	) -> Option<(Arc<jaeger::Span>, LeafStatus)> {
-		if !self.supports_parachains.head_supports_parachains(hash) {
+		if !self.supports_parachains.head_supports_parachains(hash).await {
 			return None
 		}
 
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
+			gum::trace!(
+				target: LOG_TARGET,
+				relay_parent = ?hash,
+				"Leaf got activated, notifying exterinal listeners"
+			);
 			for listener in listeners {
 				// it's fine if the listener is no longer interested
 				let _ = listener.send(Ok(()));
@@ -764,14 +893,20 @@ where
 	fn handle_external_request(&mut self, request: ExternalRequest) {
 		match request {
 			ExternalRequest::WaitForActivation { hash, response_channel } => {
-				// We use known leaves here because the `WaitForActivation` message
-				// is primarily concerned about leaves which subsystems have simply
-				// not been made aware of yet. Anything in the known leaves set,
-				// even if stale, has been activated in the past.
-				if self.known_leaves.peek(&hash).is_some() {
+				if self.active_leaves.get(&hash).is_some() {
+					gum::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?hash,
+						"Leaf was already ready - answering `WaitForActivation`"
+					);
 					// it's fine if the listener is no longer interested
 					let _ = response_channel.send(Ok(()));
 				} else {
+					gum::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?hash,
+						"Leaf not yet ready - queuing `WaitForActivation` sender"
+					);
 					self.activation_external_listeners
 						.entry(hash)
 						.or_default()

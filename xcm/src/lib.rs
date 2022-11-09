@@ -308,11 +308,11 @@ impl TryFrom<VersionedMultiAssets> for v1::MultiAssets {
 #[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
 #[codec(encode_bound())]
 #[codec(decode_bound())]
-#[scale_info(bounds(), skip_type_params(Call))]
-pub enum VersionedXcm<Call> {
-	V0(v0::Xcm<Call>),
-	V1(v1::Xcm<Call>),
-	V2(v2::Xcm<Call>),
+#[scale_info(bounds(), skip_type_params(RuntimeCall))]
+pub enum VersionedXcm<RuntimeCall> {
+	V0(v0::Xcm<RuntimeCall>),
+	V1(v1::Xcm<RuntimeCall>),
+	V2(v2::Xcm<RuntimeCall>),
 }
 
 impl<C> IntoVersion for VersionedXcm<C> {
@@ -326,27 +326,27 @@ impl<C> IntoVersion for VersionedXcm<C> {
 	}
 }
 
-impl<Call> From<v0::Xcm<Call>> for VersionedXcm<Call> {
-	fn from(x: v0::Xcm<Call>) -> Self {
+impl<RuntimeCall> From<v0::Xcm<RuntimeCall>> for VersionedXcm<RuntimeCall> {
+	fn from(x: v0::Xcm<RuntimeCall>) -> Self {
 		VersionedXcm::V0(x)
 	}
 }
 
-impl<Call> From<v1::Xcm<Call>> for VersionedXcm<Call> {
-	fn from(x: v1::Xcm<Call>) -> Self {
+impl<RuntimeCall> From<v1::Xcm<RuntimeCall>> for VersionedXcm<RuntimeCall> {
+	fn from(x: v1::Xcm<RuntimeCall>) -> Self {
 		VersionedXcm::V1(x)
 	}
 }
 
-impl<Call> From<v2::Xcm<Call>> for VersionedXcm<Call> {
-	fn from(x: v2::Xcm<Call>) -> Self {
+impl<RuntimeCall> From<v2::Xcm<RuntimeCall>> for VersionedXcm<RuntimeCall> {
+	fn from(x: v2::Xcm<RuntimeCall>) -> Self {
 		VersionedXcm::V2(x)
 	}
 }
 
-impl<Call> TryFrom<VersionedXcm<Call>> for v0::Xcm<Call> {
+impl<RuntimeCall> TryFrom<VersionedXcm<RuntimeCall>> for v0::Xcm<RuntimeCall> {
 	type Error = ();
-	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
+	fn try_from(x: VersionedXcm<RuntimeCall>) -> Result<Self, ()> {
 		use VersionedXcm::*;
 		match x {
 			V0(x) => Ok(x),
@@ -356,9 +356,9 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v0::Xcm<Call> {
 	}
 }
 
-impl<Call> TryFrom<VersionedXcm<Call>> for v1::Xcm<Call> {
+impl<RuntimeCall> TryFrom<VersionedXcm<RuntimeCall>> for v1::Xcm<RuntimeCall> {
 	type Error = ();
-	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
+	fn try_from(x: VersionedXcm<RuntimeCall>) -> Result<Self, ()> {
 		use VersionedXcm::*;
 		match x {
 			V0(x) => x.try_into(),
@@ -368,9 +368,9 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v1::Xcm<Call> {
 	}
 }
 
-impl<Call> TryFrom<VersionedXcm<Call>> for v2::Xcm<Call> {
+impl<RuntimeCall> TryFrom<VersionedXcm<RuntimeCall>> for v2::Xcm<RuntimeCall> {
 	type Error = ();
-	fn try_from(x: VersionedXcm<Call>) -> Result<Self, ()> {
+	fn try_from(x: VersionedXcm<RuntimeCall>) -> Result<Self, ()> {
 		use VersionedXcm::*;
 		match x {
 			V0(x) => V1(x.try_into()?).try_into(),
@@ -382,18 +382,18 @@ impl<Call> TryFrom<VersionedXcm<Call>> for v2::Xcm<Call> {
 
 /// Convert an `Xcm` datum into a `VersionedXcm`, based on a destination `MultiLocation` which will interpret it.
 pub trait WrapVersion {
-	fn wrap_version<Call>(
+	fn wrap_version<RuntimeCall>(
 		dest: &latest::MultiLocation,
-		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()>;
+		xcm: impl Into<VersionedXcm<RuntimeCall>>,
+	) -> Result<VersionedXcm<RuntimeCall>, ()>;
 }
 
 /// `()` implementation does nothing with the XCM, just sending with whatever version it was authored as.
 impl WrapVersion for () {
-	fn wrap_version<Call>(
+	fn wrap_version<RuntimeCall>(
 		_: &latest::MultiLocation,
-		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()> {
+		xcm: impl Into<VersionedXcm<RuntimeCall>>,
+	) -> Result<VersionedXcm<RuntimeCall>, ()> {
 		Ok(xcm.into())
 	}
 }
@@ -401,33 +401,33 @@ impl WrapVersion for () {
 /// `WrapVersion` implementation which attempts to always convert the XCM to version 0 before wrapping it.
 pub struct AlwaysV0;
 impl WrapVersion for AlwaysV0 {
-	fn wrap_version<Call>(
+	fn wrap_version<RuntimeCall>(
 		_: &latest::MultiLocation,
-		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()> {
-		Ok(VersionedXcm::<Call>::V0(xcm.into().try_into()?))
+		xcm: impl Into<VersionedXcm<RuntimeCall>>,
+	) -> Result<VersionedXcm<RuntimeCall>, ()> {
+		Ok(VersionedXcm::<RuntimeCall>::V0(xcm.into().try_into()?))
 	}
 }
 
 /// `WrapVersion` implementation which attempts to always convert the XCM to version 1 before wrapping it.
 pub struct AlwaysV1;
 impl WrapVersion for AlwaysV1 {
-	fn wrap_version<Call>(
+	fn wrap_version<RuntimeCall>(
 		_: &latest::MultiLocation,
-		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()> {
-		Ok(VersionedXcm::<Call>::V1(xcm.into().try_into()?))
+		xcm: impl Into<VersionedXcm<RuntimeCall>>,
+	) -> Result<VersionedXcm<RuntimeCall>, ()> {
+		Ok(VersionedXcm::<RuntimeCall>::V1(xcm.into().try_into()?))
 	}
 }
 
 /// `WrapVersion` implementation which attempts to always convert the XCM to version 2 before wrapping it.
 pub struct AlwaysV2;
 impl WrapVersion for AlwaysV2 {
-	fn wrap_version<Call>(
+	fn wrap_version<RuntimeCall>(
 		_: &latest::MultiLocation,
-		xcm: impl Into<VersionedXcm<Call>>,
-	) -> Result<VersionedXcm<Call>, ()> {
-		Ok(VersionedXcm::<Call>::V2(xcm.into().try_into()?))
+		xcm: impl Into<VersionedXcm<RuntimeCall>>,
+	) -> Result<VersionedXcm<RuntimeCall>, ()> {
+		Ok(VersionedXcm::<RuntimeCall>::V2(xcm.into().try_into()?))
 	}
 }
 

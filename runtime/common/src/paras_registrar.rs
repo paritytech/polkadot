@@ -35,6 +35,7 @@ use sp_std::{prelude::*, result};
 use crate::traits::{OnSwap, Registrar};
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
+use runtime_parachains::paras::ParaKind;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{CheckedSub, Saturating},
@@ -60,24 +61,32 @@ pub trait WeightInfo {
 	fn force_register() -> Weight;
 	fn deregister() -> Weight;
 	fn swap() -> Weight;
+	fn schedule_code_upgrade(b: u32) -> Weight;
+	fn set_current_head(b: u32) -> Weight;
 }
 
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn reserve() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn register() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn force_register() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn deregister() -> Weight {
-		0
+		Weight::zero()
 	}
 	fn swap() -> Weight {
-		0
+		Weight::zero()
+	}
+	fn schedule_code_upgrade(_b: u32) -> Weight {
+		Weight::zero()
+	}
+	fn set_current_head(_b: u32) -> Weight {
+		Weight::zero()
 	}
 }
 
@@ -96,14 +105,14 @@ pub mod pallet {
 	#[pallet::disable_frame_system_supertrait_check]
 	pub trait Config: configuration::Config + paras::Config {
 		/// The overarching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// The aggregated origin type must support the `parachains` origin. We require that we can
 		/// infallibly convert between this origin and the system origin, but in reality, they're the
 		/// same type, we just can't express that to the Rust type system without writing a `where`
 		/// clause everywhere.
-		type Origin: From<<Self as frame_system::Config>::Origin>
-			+ Into<result::Result<Origin, <Self as Config>::Origin>>;
+		type RuntimeOrigin: From<<Self as frame_system::Config>::RuntimeOrigin>
+			+ Into<result::Result<Origin, <Self as Config>::RuntimeOrigin>>;
 
 		/// The system's currency for parathread payment.
 		type Currency: ReservableCurrency<Self::AccountId>;
@@ -127,9 +136,9 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		Registered(ParaId, T::AccountId),
-		Deregistered(ParaId),
-		Reserved(ParaId, T::AccountId),
+		Registered { para_id: ParaId, manager: T::AccountId },
+		Deregistered { para_id: ParaId },
+		Reserved { para_id: ParaId, who: T::AccountId },
 	}
 
 	#[pallet::error]
@@ -318,11 +327,11 @@ pub mod pallet {
 		/// Remove a manager lock from a para. This will allow the manager of a
 		/// previously locked para to deregister or swap a para without using governance.
 		///
-		/// Can only be called by the Root origin.
+		/// Can only be called by the Root origin or the parachain.
 		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
-		pub fn force_remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::remove_lock(para);
+		pub fn remove_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
+			Self::ensure_root_or_para(origin, para)?;
+			<Self as Registrar>::remove_lock(para);
 			Ok(())
 		}
 
@@ -346,6 +355,45 @@ pub mod pallet {
 			let id = NextFreeParaId::<T>::get().max(LOWEST_PUBLIC_ID);
 			Self::do_reserve(who, None, id)?;
 			NextFreeParaId::<T>::set(id + 1);
+			Ok(())
+		}
+
+		/// Add a manager lock from a para. This will prevent the manager of a
+		/// para to deregister or swap a para.
+		///
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		#[pallet::weight(T::DbWeight::get().reads_writes(1, 1))]
+		pub fn add_lock(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
+			Self::ensure_root_para_or_owner(origin, para)?;
+			<Self as Registrar>::apply_lock(para);
+			Ok(())
+		}
+
+		/// Schedule a parachain upgrade.
+		///
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		#[pallet::weight(<T as Config>::WeightInfo::schedule_code_upgrade(new_code.0.len() as u32))]
+		pub fn schedule_code_upgrade(
+			origin: OriginFor<T>,
+			para: ParaId,
+			new_code: ValidationCode,
+		) -> DispatchResult {
+			Self::ensure_root_para_or_owner(origin, para)?;
+			runtime_parachains::schedule_code_upgrade::<T>(para, new_code)?;
+			Ok(())
+		}
+
+		/// Set the parachain's current head.
+		///
+		/// Can be called by Root, the parachain, or the parachain manager if the parachain is unlocked.
+		#[pallet::weight(<T as Config>::WeightInfo::set_current_head(new_head.0.len() as u32))]
+		pub fn set_current_head(
+			origin: OriginFor<T>,
+			para: ParaId,
+			new_head: HeadData,
+		) -> DispatchResult {
+			Self::ensure_root_para_or_owner(origin, para)?;
+			runtime_parachains::set_current_head::<T>(para, new_head);
 			Ok(())
 		}
 	}
@@ -379,7 +427,7 @@ impl<T: Config> Registrar for Pallet<T> {
 		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = true));
 	}
 
-	// Apply a lock to the parachain.
+	// Remove a lock from the parachain.
 	fn remove_lock(id: ParaId) {
 		Paras::<T>::mutate(id, |x| x.as_mut().map(|mut info| info.locked = false));
 	}
@@ -456,7 +504,7 @@ impl<T: Config> Pallet<T> {
 	/// Ensure the origin is one of Root, the `para` owner, or the `para` itself.
 	/// If the origin is the `para` owner, the `para` must be unlocked.
 	fn ensure_root_para_or_owner(
-		origin: <T as frame_system::Config>::Origin,
+		origin: <T as frame_system::Config>::RuntimeOrigin,
 		id: ParaId,
 	) -> DispatchResult {
 		ensure_signed(origin.clone())
@@ -467,16 +515,23 @@ impl<T: Config> Pallet<T> {
 				ensure!(para_info.manager == who, Error::<T>::NotOwner);
 				Ok(())
 			})
-			.or_else(|_| -> DispatchResult {
-				// Else check if para origin...
-				let caller_id = ensure_parachain(<T as Config>::Origin::from(origin.clone()))?;
-				ensure!(caller_id == id, Error::<T>::NotOwner);
-				Ok(())
-			})
-			.or_else(|_| -> DispatchResult {
-				// Check if root...
-				ensure_root(origin.clone()).map_err(|e| e.into())
-			})
+			.or_else(|_| -> DispatchResult { Self::ensure_root_or_para(origin, id) })
+	}
+
+	/// Ensure the origin is one of Root or the `para` itself.
+	fn ensure_root_or_para(
+		origin: <T as frame_system::Config>::RuntimeOrigin,
+		id: ParaId,
+	) -> DispatchResult {
+		if let Ok(caller_id) = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin.clone()))
+		{
+			// Check if matching para id...
+			ensure!(caller_id == id, Error::<T>::NotOwner);
+		} else {
+			// Check if root...
+			ensure_root(origin.clone())?;
+		}
+		Ok(())
 	}
 
 	fn do_reserve(
@@ -492,7 +547,7 @@ impl<T: Config> Pallet<T> {
 		let info = ParaInfo { manager: who.clone(), deposit, locked: false };
 
 		Paras::<T>::insert(id, info);
-		Self::deposit_event(Event::<T>::Reserved(id, who));
+		Self::deposit_event(Event::<T>::Reserved { para_id: id, who });
 		Ok(())
 	}
 
@@ -516,7 +571,7 @@ impl<T: Config> Pallet<T> {
 		};
 		ensure!(paras::Pallet::<T>::lifecycle(id).is_none(), Error::<T>::AlreadyRegistered);
 		let (genesis, deposit) =
-			Self::validate_onboarding_data(genesis_head, validation_code, false)?;
+			Self::validate_onboarding_data(genesis_head, validation_code, ParaKind::Parathread)?;
 		let deposit = deposit_override.unwrap_or(deposit);
 
 		if let Some(additional) = deposit.checked_sub(&deposited) {
@@ -530,7 +585,7 @@ impl<T: Config> Pallet<T> {
 		// We check above that para has no lifecycle, so this should not fail.
 		let res = runtime_parachains::schedule_para_initialize::<T>(id, genesis);
 		debug_assert!(res.is_ok());
-		Self::deposit_event(Event::<T>::Registered(id, who));
+		Self::deposit_event(Event::<T>::Registered { para_id: id, manager: who });
 		Ok(())
 	}
 
@@ -549,7 +604,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		PendingSwap::<T>::remove(id);
-		Self::deposit_event(Event::<T>::Deregistered(id));
+		Self::deposit_event(Event::<T>::Deregistered { para_id: id });
 		Ok(())
 	}
 
@@ -559,7 +614,7 @@ impl<T: Config> Pallet<T> {
 	fn validate_onboarding_data(
 		genesis_head: HeadData,
 		validation_code: ValidationCode,
-		parachain: bool,
+		para_kind: ParaKind,
 	) -> Result<(ParaGenesisArgs, BalanceOf<T>), sp_runtime::DispatchError> {
 		let config = configuration::Pallet::<T>::config();
 		ensure!(validation_code.0.len() > 0, Error::<T>::EmptyCode);
@@ -574,7 +629,7 @@ impl<T: Config> Pallet<T> {
 			.saturating_add(per_byte_fee.saturating_mul((genesis_head.0.len() as u32).into()))
 			.saturating_add(per_byte_fee.saturating_mul((validation_code.0.len() as u32).into()));
 
-		Ok((ParaGenesisArgs { genesis_head, validation_code, parachain }, deposit))
+		Ok((ParaGenesisArgs { genesis_head, validation_code, para_kind }, deposit))
 	}
 
 	/// Swap a parachain and parathread, which involves scheduling an appropriate lifecycle update.
@@ -631,25 +686,27 @@ mod tests {
 
 	impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
 	where
-		Call: From<C>,
+		RuntimeCall: From<C>,
 	{
 		type Extrinsic = UncheckedExtrinsic;
-		type OverarchingCall = Call;
+		type OverarchingCall = RuntimeCall;
 	}
 
 	const NORMAL_RATIO: Perbill = Perbill::from_percent(75);
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
 		pub BlockWeights: limits::BlockWeights =
-			frame_system::limits::BlockWeights::simple_max(1024);
+			frame_system::limits::BlockWeights::simple_max(
+				Weight::from_ref_time(1024).set_proof_size(u64::MAX),
+			);
 		pub BlockLength: limits::BlockLength =
 			limits::BlockLength::max_with_normal_ratio(4 * 1024 * 1024, NORMAL_RATIO);
 	}
 
 	impl frame_system::Config for Test {
 		type BaseCallFilter = frame_support::traits::Everything;
-		type Origin = Origin;
-		type Call = Call;
+		type RuntimeOrigin = RuntimeOrigin;
+		type RuntimeCall = RuntimeCall;
 		type Index = u64;
 		type BlockNumber = BlockNumber;
 		type Hash = H256;
@@ -657,7 +714,7 @@ mod tests {
 		type AccountId = u64;
 		type Lookup = IdentityLookup<u64>;
 		type Header = Header;
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type BlockHashCount = BlockHashCount;
 		type DbWeight = ();
 		type BlockWeights = BlockWeights;
@@ -680,7 +737,7 @@ mod tests {
 	impl pallet_balances::Config for Test {
 		type Balance = u128;
 		type DustRemoval = ();
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type ExistentialDeposit = ExistentialDeposit;
 		type AccountStore = System;
 		type MaxLocks = ();
@@ -698,7 +755,7 @@ mod tests {
 	}
 
 	impl paras::Config for Test {
-		type Event = Event;
+		type RuntimeEvent = RuntimeEvent;
 		type WeightInfo = paras::TestWeightInfo;
 		type UnsignedPriority = ParasUnsignedPriority;
 		type NextSessionRotation = crate::mock::TestNextSessionRotation;
@@ -715,8 +772,8 @@ mod tests {
 	}
 
 	impl Config for Test {
-		type Event = Event;
-		type Origin = Origin;
+		type RuntimeOrigin = RuntimeOrigin;
+		type RuntimeEvent = RuntimeEvent;
 		type Currency = Balances;
 		type OnSwap = MockSwap;
 		type ParaDeposit = ParaDeposit;
@@ -800,7 +857,7 @@ mod tests {
 		ValidationCode(validation_code)
 	}
 
-	fn para_origin(id: ParaId) -> Origin {
+	fn para_origin(id: ParaId) -> RuntimeOrigin {
 		runtime_parachains::Origin::Parachain(id).into()
 	}
 
@@ -828,9 +885,9 @@ mod tests {
 			// first para is not yet registered
 			assert!(!Parachains::is_parathread(para_id));
 			// We register the Para ID
-			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			assert_ok!(Registrar::register(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para_id,
 				test_genesis_head(32),
 				test_validation_code(32),
@@ -851,7 +908,7 @@ mod tests {
 			assert!(Parachains::is_parathread(para_id));
 			assert!(!Parachains::is_parachain(para_id));
 			// Deregister it
-			assert_ok!(Registrar::deregister(Origin::root(), para_id,));
+			assert_ok!(Registrar::deregister(RuntimeOrigin::root(), para_id,));
 			run_to_session(8);
 			// It is nothing
 			assert!(!Parachains::is_parathread(para_id));
@@ -865,10 +922,10 @@ mod tests {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
-			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			assert_eq!(Balances::reserved_balance(&1), <Test as Config>::ParaDeposit::get());
 			assert_ok!(Registrar::register(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para_id,
 				test_genesis_head(32),
 				test_validation_code(32),
@@ -890,7 +947,7 @@ mod tests {
 
 			assert_noop!(
 				Registrar::register(
-					Origin::signed(1),
+					RuntimeOrigin::signed(1),
 					para_id,
 					test_genesis_head(max_head_size() as usize),
 					test_validation_code(max_code_size() as usize),
@@ -899,11 +956,11 @@ mod tests {
 			);
 
 			// Successfully register para
-			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 
 			assert_noop!(
 				Registrar::register(
-					Origin::signed(2),
+					RuntimeOrigin::signed(2),
 					para_id,
 					test_genesis_head(max_head_size() as usize),
 					test_validation_code(max_code_size() as usize),
@@ -912,7 +969,7 @@ mod tests {
 			);
 
 			assert_ok!(Registrar::register(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para_id,
 				test_genesis_head(max_head_size() as usize),
 				test_validation_code(max_code_size() as usize),
@@ -920,12 +977,12 @@ mod tests {
 
 			run_to_session(2);
 
-			assert_ok!(Registrar::deregister(Origin::root(), para_id));
+			assert_ok!(Registrar::deregister(RuntimeOrigin::root(), para_id));
 
 			// Can't do it again
 			assert_noop!(
 				Registrar::register(
-					Origin::signed(1),
+					RuntimeOrigin::signed(1),
 					para_id,
 					test_genesis_head(max_head_size() as usize),
 					test_validation_code(max_code_size() as usize),
@@ -934,10 +991,10 @@ mod tests {
 			);
 
 			// Head Size Check
-			assert_ok!(Registrar::reserve(Origin::signed(2)));
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(2)));
 			assert_noop!(
 				Registrar::register(
-					Origin::signed(2),
+					RuntimeOrigin::signed(2),
 					para_id + 1,
 					test_genesis_head((max_head_size() + 1) as usize),
 					test_validation_code(max_code_size() as usize),
@@ -948,7 +1005,7 @@ mod tests {
 			// Code Size Check
 			assert_noop!(
 				Registrar::register(
-					Origin::signed(2),
+					RuntimeOrigin::signed(2),
 					para_id + 1,
 					test_genesis_head(max_head_size() as usize),
 					test_validation_code((max_code_size() + 1) as usize),
@@ -958,7 +1015,7 @@ mod tests {
 
 			// Needs enough funds for deposit
 			assert_noop!(
-				Registrar::reserve(Origin::signed(1337)),
+				Registrar::reserve(RuntimeOrigin::signed(1337)),
 				BalancesError::<Test, _>::InsufficientBalance
 			);
 		});
@@ -970,16 +1027,16 @@ mod tests {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
-			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			assert_ok!(Registrar::register(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para_id,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
 			run_to_session(2);
 			assert!(Parachains::is_parathread(para_id));
-			assert_ok!(Registrar::deregister(Origin::root(), para_id,));
+			assert_ok!(Registrar::deregister(RuntimeOrigin::root(), para_id,));
 			run_to_session(4);
 			assert!(paras::Pallet::<Test>::lifecycle(para_id).is_none());
 			assert_eq!(Balances::reserved_balance(&1), 0);
@@ -992,9 +1049,9 @@ mod tests {
 			run_to_block(1);
 			let para_id = LOWEST_PUBLIC_ID;
 			assert!(!Parachains::is_parathread(para_id));
-			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			assert_ok!(Registrar::register(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para_id,
 				test_genesis_head(32),
 				test_validation_code(32),
@@ -1002,12 +1059,12 @@ mod tests {
 			run_to_session(2);
 			assert!(Parachains::is_parathread(para_id));
 			// Owner check
-			assert_noop!(Registrar::deregister(Origin::signed(2), para_id,), BadOrigin);
+			assert_noop!(Registrar::deregister(RuntimeOrigin::signed(2), para_id,), BadOrigin);
 			assert_ok!(Registrar::make_parachain(para_id));
 			run_to_session(4);
 			// Cant directly deregister parachain
 			assert_noop!(
-				Registrar::deregister(Origin::root(), para_id,),
+				Registrar::deregister(RuntimeOrigin::root(), para_id,),
 				Error::<Test>::NotParathread
 			);
 		});
@@ -1019,16 +1076,16 @@ mod tests {
 			// Successfully register first two parachains
 			let para_1 = LOWEST_PUBLIC_ID;
 			let para_2 = LOWEST_PUBLIC_ID + 1;
-			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			assert_ok!(Registrar::register(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para_1,
 				test_genesis_head(max_head_size() as usize),
 				test_validation_code(max_code_size() as usize),
 			));
-			assert_ok!(Registrar::reserve(Origin::signed(2)));
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(2)));
 			assert_ok!(Registrar::register(
-				Origin::signed(2),
+				RuntimeOrigin::signed(2),
 				para_2,
 				test_genesis_head(max_head_size() as usize),
 				test_validation_code(max_code_size() as usize),
@@ -1075,27 +1132,29 @@ mod tests {
 		new_test_ext().execute_with(|| {
 			run_to_block(1);
 
-			assert_ok!(Registrar::reserve(Origin::signed(1)));
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
 			let para_id = LOWEST_PUBLIC_ID;
 			assert_ok!(Registrar::register(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para_id,
 				vec![1; 3].into(),
 				vec![1, 2, 3].into(),
 			));
 
-			// Owner can call swap
-			assert_ok!(Registrar::swap(Origin::signed(1), para_id, para_id + 1));
-
-			// 2 session changes to fully onboard.
-			run_to_session(2);
-			assert_eq!(Parachains::lifecycle(para_id), Some(ParaLifecycle::Parathread));
-
+			assert_noop!(Registrar::add_lock(RuntimeOrigin::signed(2), para_id), BadOrigin);
 			// Once they begin onboarding, we lock them in.
-			assert_ok!(Registrar::make_parachain(para_id));
-
-			// Owner cannot call swap anymore
-			assert_noop!(Registrar::swap(Origin::signed(1), para_id, para_id + 2), BadOrigin);
+			assert_ok!(Registrar::add_lock(RuntimeOrigin::signed(1), para_id));
+			// Owner cannot pass origin check when checking lock
+			assert_noop!(
+				Registrar::ensure_root_para_or_owner(RuntimeOrigin::signed(1), para_id),
+				BadOrigin
+			);
+			// Owner cannot remove lock.
+			assert_noop!(Registrar::remove_lock(RuntimeOrigin::signed(1), para_id), BadOrigin);
+			// Para can.
+			assert_ok!(Registrar::remove_lock(para_origin(para_id), para_id));
+			// Owner can pass origin check again
+			assert_ok!(Registrar::ensure_root_para_or_owner(RuntimeOrigin::signed(1), para_id));
 		});
 	}
 
@@ -1111,30 +1170,30 @@ mod tests {
 
 			// Cannot even start a swap
 			assert_noop!(
-				Registrar::swap(Origin::root(), para_1, para_2),
+				Registrar::swap(RuntimeOrigin::root(), para_1, para_2),
 				Error::<Test>::NotRegistered
 			);
 
 			// We register Paras 1 and 2
-			assert_ok!(Registrar::reserve(Origin::signed(1)));
-			assert_ok!(Registrar::reserve(Origin::signed(2)));
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(1)));
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(2)));
 			assert_ok!(Registrar::register(
-				Origin::signed(1),
+				RuntimeOrigin::signed(1),
 				para_1,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
 			assert_ok!(Registrar::register(
-				Origin::signed(2),
+				RuntimeOrigin::signed(2),
 				para_2,
 				test_genesis_head(32),
 				test_validation_code(32),
 			));
 
 			// Cannot swap
-			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
 			assert_noop!(
-				Registrar::swap(Origin::root(), para_2, para_1),
+				Registrar::swap(RuntimeOrigin::root(), para_2, para_1),
 				Error::<Test>::CannotSwap
 			);
 
@@ -1145,9 +1204,9 @@ mod tests {
 			assert!(Parachains::is_parathread(para_2));
 
 			// Cannot swap
-			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
 			assert_noop!(
-				Registrar::swap(Origin::root(), para_2, para_1),
+				Registrar::swap(RuntimeOrigin::root(), para_2, para_1),
 				Error::<Test>::CannotSwap
 			);
 
@@ -1155,18 +1214,18 @@ mod tests {
 			assert_ok!(Registrar::make_parachain(para_1));
 
 			// Cannot swap
-			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
 			assert_noop!(
-				Registrar::swap(Origin::root(), para_2, para_1),
+				Registrar::swap(RuntimeOrigin::root(), para_2, para_1),
 				Error::<Test>::CannotSwap
 			);
 
 			run_to_session(3);
 
 			// Cannot swap
-			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
 			assert_noop!(
-				Registrar::swap(Origin::root(), para_2, para_1),
+				Registrar::swap(RuntimeOrigin::root(), para_2, para_1),
 				Error::<Test>::CannotSwap
 			);
 
@@ -1177,15 +1236,15 @@ mod tests {
 			assert!(Parachains::is_parathread(para_2));
 
 			// Swap works here.
-			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
-			assert_ok!(Registrar::swap(Origin::root(), para_2, para_1));
+			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
+			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_2, para_1));
 
 			run_to_session(5);
 
 			// Cannot swap
-			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
 			assert_noop!(
-				Registrar::swap(Origin::root(), para_2, para_1),
+				Registrar::swap(RuntimeOrigin::root(), para_2, para_1),
 				Error::<Test>::CannotSwap
 			);
 
@@ -1201,9 +1260,9 @@ mod tests {
 			run_to_session(7);
 
 			// Cannot swap
-			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
+			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
 			assert_noop!(
-				Registrar::swap(Origin::root(), para_2, para_1),
+				Registrar::swap(RuntimeOrigin::root(), para_2, para_1),
 				Error::<Test>::CannotSwap
 			);
 
@@ -1221,14 +1280,15 @@ mod benchmarking {
 	use crate::traits::Registrar as RegistrarT;
 	use frame_support::assert_ok;
 	use frame_system::RawOrigin;
+	use primitives::v2::{MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
 	use sp_runtime::traits::Bounded;
 
 	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
 
-	fn assert_last_event<T: Config>(generic_event: <T as Config>::Event) {
+	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
-		let system_event: <T as frame_system::Config>::Event = generic_event.into();
+		let system_event: <T as frame_system::Config>::RuntimeEvent = generic_event.into();
 		// compare to the last event record
 		let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 		assert_eq!(event, &system_event);
@@ -1261,14 +1321,14 @@ mod benchmarking {
 	}
 
 	benchmarks! {
-		where_clause { where ParaOrigin: Into<<T as frame_system::Config>::Origin> }
+		where_clause { where ParaOrigin: Into<<T as frame_system::Config>::RuntimeOrigin> }
 
 		reserve {
 			let caller: T::AccountId = whitelisted_caller();
 			T::Currency::make_free_balance_be(&caller, BalanceOf::<T>::max_value());
 		}: _(RawOrigin::Signed(caller.clone()))
 		verify {
-			assert_last_event::<T>(Event::<T>::Reserved(LOWEST_PUBLIC_ID, caller).into());
+			assert_last_event::<T>(Event::<T>::Reserved { para_id: LOWEST_PUBLIC_ID, who: caller }.into());
 			assert!(Paras::<T>::get(LOWEST_PUBLIC_ID).is_some());
 			assert_eq!(paras::Pallet::<T>::lifecycle(LOWEST_PUBLIC_ID), None);
 		}
@@ -1282,7 +1342,7 @@ mod benchmarking {
 			assert_ok!(Registrar::<T>::reserve(RawOrigin::Signed(caller.clone()).into()));
 		}: _(RawOrigin::Signed(caller.clone()), para, genesis_head, validation_code)
 		verify {
-			assert_last_event::<T>(Event::<T>::Registered(para, caller).into());
+			assert_last_event::<T>(Event::<T>::Registered{ para_id: para, manager: caller }.into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
 			next_scheduled_session::<T>();
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
@@ -1296,7 +1356,7 @@ mod benchmarking {
 			let validation_code = Registrar::<T>::worst_validation_code();
 		}: _(RawOrigin::Root, manager.clone(), deposit, para, genesis_head, validation_code)
 		verify {
-			assert_last_event::<T>(Event::<T>::Registered(para, manager).into());
+			assert_last_event::<T>(Event::<T>::Registered { para_id: para, manager }.into());
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Onboarding));
 			next_scheduled_session::<T>();
 			assert_eq!(paras::Pallet::<T>::lifecycle(para), Some(ParaLifecycle::Parathread));
@@ -1308,7 +1368,7 @@ mod benchmarking {
 			let caller: T::AccountId = whitelisted_caller();
 		}: _(RawOrigin::Signed(caller), para)
 		verify {
-			assert_last_event::<T>(Event::<T>::Deregistered(para).into());
+			assert_last_event::<T>(Event::<T>::Deregistered { para_id: para }.into());
 		}
 
 		swap {
@@ -1336,6 +1396,18 @@ mod benchmarking {
 			assert_eq!(paras::Pallet::<T>::lifecycle(parachain), Some(ParaLifecycle::Parathread));
 			assert_eq!(paras::Pallet::<T>::lifecycle(parathread), Some(ParaLifecycle::Parachain));
 		}
+
+		schedule_code_upgrade {
+			let b in 1 .. MAX_CODE_SIZE;
+			let new_code = ValidationCode(vec![0; b as usize]);
+			let para_id = ParaId::from(1000);
+		}: _(RawOrigin::Root, para_id, new_code)
+
+		set_current_head {
+			let b in 1 .. MAX_HEAD_DATA_SIZE;
+			let new_head = HeadData(vec![0; b as usize]);
+			let para_id = ParaId::from(1000);
+		}: _(RawOrigin::Root, para_id, new_head)
 
 		impl_benchmark_test_suite!(
 			Registrar,

@@ -22,9 +22,9 @@ use futures::{channel::mpsc, future::FutureExt, join, select, sink::SinkExt, str
 use parity_scale_codec::Encode;
 use polkadot_node_primitives::{AvailableData, CollationGenerationConfig, PoV};
 use polkadot_node_subsystem::{
-	messages::{AllMessages, CollationGenerationMessage, CollatorProtocolMessage},
-	overseer, ActiveLeavesUpdate, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext,
-	SubsystemError, SubsystemResult, SubsystemSender,
+	messages::{CollationGenerationMessage, CollatorProtocolMessage},
+	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
+	SubsystemContext, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, request_validation_code,
@@ -54,6 +54,7 @@ pub struct CollationGenerationSubsystem {
 	metrics: Metrics,
 }
 
+#[overseer::contextbounds(CollationGeneration, prefix = self::overseer)]
 impl CollationGenerationSubsystem {
 	/// Create a new instance of the `CollationGenerationSubsystem`.
 	pub fn new(metrics: Metrics) -> Self {
@@ -71,11 +72,7 @@ impl CollationGenerationSubsystem {
 	///
 	/// If `err_tx` is not `None`, errors are forwarded onto that channel as they occur.
 	/// Otherwise, most are logged and then discarded.
-	async fn run<Context>(mut self, mut ctx: Context)
-	where
-		Context: SubsystemContext<Message = CollationGenerationMessage>,
-		Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
-	{
+	async fn run<Context>(mut self, mut ctx: Context) {
 		// when we activate new leaves, we spawn a bunch of sub-tasks, each of which is
 		// expected to generate precisely one message. We don't want to block the main loop
 		// at any point waiting for them all, so instead, we create a channel on which they can
@@ -106,16 +103,12 @@ impl CollationGenerationSubsystem {
 	// it should hopefully therefore be ok that it's an async function mutably borrowing self.
 	async fn handle_incoming<Context>(
 		&mut self,
-		incoming: SubsystemResult<FromOverseer<<Context as SubsystemContext>::Message>>,
+		incoming: SubsystemResult<FromOrchestra<<Context as SubsystemContext>::Message>>,
 		ctx: &mut Context,
-		sender: &mpsc::Sender<AllMessages>,
-	) -> bool
-	where
-		Context: SubsystemContext<Message = CollationGenerationMessage>,
-		Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
-	{
+		sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
+	) -> bool {
 		match incoming {
-			Ok(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+			Ok(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated,
 				..
 			}))) => {
@@ -137,8 +130,8 @@ impl CollationGenerationSubsystem {
 
 				false
 			},
-			Ok(FromOverseer::Signal(OverseerSignal::Conclude)) => true,
-			Ok(FromOverseer::Communication {
+			Ok(FromOrchestra::Signal(OverseerSignal::Conclude)) => true,
+			Ok(FromOrchestra::Communication {
 				msg: CollationGenerationMessage::Initialize(config),
 			}) => {
 				if self.config.is_some() {
@@ -148,7 +141,7 @@ impl CollationGenerationSubsystem {
 				}
 				false
 			},
-			Ok(FromOverseer::Signal(OverseerSignal::BlockFinalized(..))) => false,
+			Ok(FromOrchestra::Signal(OverseerSignal::BlockFinalized(..))) => false,
 			Err(err) => {
 				gum::error!(
 					target: LOG_TARGET,
@@ -162,11 +155,8 @@ impl CollationGenerationSubsystem {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for CollationGenerationSubsystem
-where
-	Context: SubsystemContext<Message = CollationGenerationMessage>,
-	Context: overseer::SubsystemContext<Message = CollationGenerationMessage>,
-{
+#[overseer::subsystem(CollationGeneration, error=SubsystemError, prefix=self::overseer)]
+impl<Context> CollationGenerationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async move {
 			self.run(ctx).await;
@@ -178,12 +168,13 @@ where
 	}
 }
 
-async fn handle_new_activations<Context: SubsystemContext>(
+#[overseer::contextbounds(CollationGeneration, prefix = self::overseer)]
+async fn handle_new_activations<Context>(
 	config: Arc<CollationGenerationConfig>,
 	activated: impl IntoIterator<Item = Hash>,
 	ctx: &mut Context,
 	metrics: Metrics,
-	sender: &mpsc::Sender<AllMessages>,
+	sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 ) -> crate::error::Result<()> {
 	// follow the procedure from the guide:
 	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
@@ -393,9 +384,10 @@ async fn handle_new_activations<Context: SubsystemContext>(
 					metrics.on_collation_generated();
 
 					if let Err(err) = task_sender
-						.send(AllMessages::CollatorProtocol(
-							CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender),
-						))
+						.send(
+							CollatorProtocolMessage::DistributeCollation(ccr, pov, result_sender)
+								.into(),
+						)
 						.await
 					{
 						gum::warn!(
@@ -417,7 +409,7 @@ async fn obtain_current_validation_code_hash(
 	relay_parent: Hash,
 	para_id: ParaId,
 	assumption: OccupiedCoreAssumption,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::CollationGenerationSenderTrait,
 ) -> Result<Option<ValidationCodeHash>, crate::error::Error> {
 	use polkadot_node_subsystem::RuntimeApiError;
 

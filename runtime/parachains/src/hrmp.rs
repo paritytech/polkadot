@@ -58,6 +58,7 @@ pub trait WeightInfo {
 	fn force_process_hrmp_close(c: u32) -> Weight;
 	fn hrmp_cancel_open_request(c: u32) -> Weight;
 	fn clean_open_channel_requests(c: u32) -> Weight;
+	fn force_open_hrmp_channel() -> Weight;
 }
 
 /// A weight info that is only suitable for testing.
@@ -86,6 +87,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn clean_open_channel_requests(_: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_open_hrmp_channel() -> Weight {
 		Weight::MAX
 	}
 }
@@ -239,11 +243,11 @@ pub mod pallet {
 		frame_system::Config + configuration::Config + paras::Config + dmp::Config
 	{
 		/// The outer event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
-		type Origin: From<crate::Origin>
-			+ From<<Self as frame_system::Config>::Origin>
-			+ Into<Result<crate::Origin, <Self as Config>::Origin>>;
+		type RuntimeOrigin: From<crate::Origin>
+			+ From<<Self as frame_system::Config>::RuntimeOrigin>
+			+ Into<Result<crate::Origin, <Self as Config>::RuntimeOrigin>>;
 
 		/// An interface for reserving deposits for opening channels.
 		///
@@ -269,6 +273,9 @@ pub mod pallet {
 		OpenChannelAccepted(ParaId, ParaId),
 		/// HRMP channel closed. `[by_parachain, channel_id]`
 		ChannelClosed(ParaId, HrmpChannelId),
+		/// An HRMP channel was opened via Root origin.
+		/// `[sender, recipient, proposed_max_capacity, proposed_max_message_size]`
+		HrmpChannelForceOpened(ParaId, ParaId, u32, u32),
 	}
 
 	#[pallet::error]
@@ -465,7 +472,7 @@ pub mod pallet {
 			proposed_max_capacity: u32,
 			proposed_max_message_size: u32,
 		) -> DispatchResult {
-			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin))?;
 			Self::init_open_channel(
 				origin,
 				recipient,
@@ -486,7 +493,7 @@ pub mod pallet {
 		/// The channel will be opened only on the next session boundary.
 		#[pallet::weight(<T as Config>::WeightInfo::hrmp_accept_open_channel())]
 		pub fn hrmp_accept_open_channel(origin: OriginFor<T>, sender: ParaId) -> DispatchResult {
-			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin))?;
 			Self::accept_open_channel(origin, sender)?;
 			Self::deposit_event(Event::OpenChannelAccepted(sender, origin));
 			Ok(())
@@ -501,7 +508,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			channel_id: HrmpChannelId,
 		) -> DispatchResult {
-			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin))?;
 			Self::close_channel(origin, channel_id.clone())?;
 			Self::deposit_event(Event::ChannelClosed(origin, channel_id));
 			Ok(())
@@ -567,7 +574,7 @@ pub mod pallet {
 			channel_id: HrmpChannelId,
 			open_requests: u32,
 		) -> DispatchResult {
-			let origin = ensure_parachain(<T as Config>::Origin::from(origin))?;
+			let origin = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin))?;
 			ensure!(
 				<Self as Store>::HrmpOpenChannelRequestsList::decode_len().unwrap_or_default()
 					as u32 <= open_requests,
@@ -575,6 +582,32 @@ pub mod pallet {
 			);
 			Self::cancel_open_request(origin, channel_id.clone())?;
 			Self::deposit_event(Event::OpenChannelCanceled(origin, channel_id));
+			Ok(())
+		}
+
+		/// Open a channel from a `sender` to a `recipient` `ParaId` using the Root origin. Although
+		/// opened by Root, the `max_capacity` and `max_message_size` are still subject to the Relay
+		/// Chain's configured limits.
+		///
+		/// Expected use is when one of the `ParaId`s involved in the channel is governed by the
+		/// Relay Chain, e.g. a common good parachain.
+		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel())]
+		pub fn force_open_hrmp_channel(
+			origin: OriginFor<T>,
+			sender: ParaId,
+			recipient: ParaId,
+			max_capacity: u32,
+			max_message_size: u32,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::init_open_channel(sender, recipient, max_capacity, max_message_size)?;
+			Self::accept_open_channel(recipient, sender)?;
+			Self::deposit_event(Event::HrmpChannelForceOpened(
+				sender,
+				recipient,
+				max_capacity,
+				max_message_size,
+			));
 			Ok(())
 		}
 	}
@@ -609,7 +642,7 @@ fn preopen_hrmp_channel<T: Config>(
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Block finalization logic, called by initializer.
@@ -687,7 +720,7 @@ impl<T: Config> Pallet<T> {
 			// Return the deposit of the sender, but only if it is not the para being offboarded.
 			if !outgoing.contains(&req_id.sender) {
 				T::Currency::unreserve(
-					&req_id.sender.into_account(),
+					&req_id.sender.into_account_truncating(),
 					req_data.sender_deposit.unique_saturated_into(),
 				);
 			}
@@ -700,7 +733,7 @@ impl<T: Config> Pallet<T> {
 			if req_data.confirmed {
 				if !outgoing.contains(&req_id.recipient) {
 					T::Currency::unreserve(
-						&req_id.recipient.into_account(),
+						&req_id.recipient.into_account_truncating(),
 						config.hrmp_recipient_deposit.unique_saturated_into(),
 					);
 				}
@@ -817,11 +850,11 @@ impl<T: Config> Pallet<T> {
 			<Self as Store>::HrmpChannels::take(channel_id)
 		{
 			T::Currency::unreserve(
-				&channel_id.sender.into_account(),
+				&channel_id.sender.into_account_truncating(),
 				sender_deposit.unique_saturated_into(),
 			);
 			T::Currency::unreserve(
-				&channel_id.recipient.into_account(),
+				&channel_id.recipient.into_account_truncating(),
 				recipient_deposit.unique_saturated_into(),
 			);
 		}
@@ -953,7 +986,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub(crate) fn prune_hrmp(recipient: ParaId, new_hrmp_watermark: T::BlockNumber) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::zero();
 
 		// sift through the incoming messages digest to collect the paras that sent at least one
 		// message to this parachain between the old and new watermarks.
@@ -1020,7 +1053,7 @@ impl<T: Config> Pallet<T> {
 		sender: ParaId,
 		out_hrmp_msgs: Vec<OutboundHrmpMessage<ParaId>>,
 	) -> Weight {
-		let mut weight = 0;
+		let mut weight = Weight::zero();
 		let now = <frame_system::Pallet<T>>::block_number();
 
 		for out_msg in out_hrmp_msgs {
@@ -1137,7 +1170,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		T::Currency::reserve(
-			&origin.into_account(),
+			&origin.into_account_truncating(),
 			config.hrmp_sender_deposit.unique_saturated_into(),
 		)?;
 
@@ -1210,7 +1243,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		T::Currency::reserve(
-			&origin.into_account(),
+			&origin.into_account_truncating(),
 			config.hrmp_recipient_deposit.unique_saturated_into(),
 		)?;
 
@@ -1264,7 +1297,7 @@ impl<T: Config> Pallet<T> {
 		// Unreserve the sender's deposit. The recipient could not have left their deposit because
 		// we ensured that the request is not confirmed.
 		T::Currency::unreserve(
-			&channel_id.sender.into_account(),
+			&channel_id.sender.into_account_truncating(),
 			open_channel_req.sender_deposit.unique_saturated_into(),
 		);
 

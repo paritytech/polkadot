@@ -15,9 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::{
-	new_test_ext, Configuration, Event as MockEvent, Hrmp, MockGenesisConfig, Paras, ParasShared,
-	System, Test,
+use crate::{
+	mock::{
+		new_test_ext, Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared,
+		RuntimeEvent as MockEvent, RuntimeOrigin, System, Test,
+	},
+	paras::ParaKind,
 };
 use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 use primitives::v2::BlockNumber;
@@ -130,12 +133,12 @@ fn register_parachain_with_balance(id: ParaId, balance: Balance) {
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
 		crate::paras::ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: vec![1].into(),
 			validation_code: vec![1].into(),
 		},
 	));
-	<Test as Config>::Currency::make_free_balance_be(&id.into_account(), balance);
+	<Test as Config>::Currency::make_free_balance_be(&id.into_account_truncating(), balance);
 }
 
 fn register_parachain(id: ParaId) {
@@ -181,6 +184,34 @@ fn open_channel_works() {
 			.iter()
 			.any(|record| record.event ==
 				MockEvent::Hrmp(Event::OpenChannelAccepted(para_a, para_b))));
+
+		// Advance to a block 6, but without session change. That means that the channel has
+		// not been created yet.
+		run_to_block(6, None);
+		assert!(!channel_exists(para_a, para_b));
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// Now let the session change happen and thus open the channel.
+		run_to_block(8, Some(vec![8]));
+		assert!(channel_exists(para_a, para_b));
+	});
+}
+
+#[test]
+fn force_open_channel_works() {
+	let para_a = 1.into();
+	let para_b = 3.into();
+
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		// We need both A & B to be registered and live parachains.
+		register_parachain(para_a);
+		register_parachain(para_b);
+
+		run_to_block(5, Some(vec![4, 5]));
+		Hrmp::force_open_hrmp_channel(RuntimeOrigin::root(), para_a, para_b, 2, 8).unwrap();
+		Hrmp::assert_storage_consistency_exhaustive();
+		assert!(System::events().iter().any(|record| record.event ==
+			MockEvent::Hrmp(Event::HrmpChannelForceOpened(para_a, para_b, 2, 8))));
 
 		// Advance to a block 6, but without session change. That means that the channel has
 		// not been created yet.
@@ -490,15 +521,21 @@ fn refund_deposit_on_normal_closure() {
 		run_to_block(5, Some(vec![4, 5]));
 		Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 		Hrmp::accept_open_channel(para_b, para_a).unwrap();
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account()), 80);
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account()), 95);
+		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()), 80);
+		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()), 95);
 		run_to_block(8, Some(vec![8]));
 
 		// Now, we close the channel and wait until the next session.
 		Hrmp::close_channel(para_b, HrmpChannelId { sender: para_a, recipient: para_b }).unwrap();
 		run_to_block(10, Some(vec![10]));
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account()), 100);
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account()), 110);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()),
+			100
+		);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()),
+			110
+		);
 	});
 }
 
@@ -517,8 +554,8 @@ fn refund_deposit_on_offboarding() {
 		run_to_block(5, Some(vec![4, 5]));
 		Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
 		Hrmp::accept_open_channel(para_b, para_a).unwrap();
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account()), 80);
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account()), 95);
+		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()), 80);
+		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()), 95);
 		run_to_block(8, Some(vec![8]));
 		assert!(channel_exists(para_a, para_b));
 
@@ -531,8 +568,14 @@ fn refund_deposit_on_offboarding() {
 		assert!(!channel_exists(para_a, para_b));
 		Hrmp::assert_storage_consistency_exhaustive();
 
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account()), 100);
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account()), 110);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()),
+			100
+		);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()),
+			110
+		);
 	});
 }
 
@@ -552,7 +595,7 @@ fn no_dangling_open_requests() {
 
 		// Start opening a channel a->b
 		Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account()), 80);
+		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()), 80);
 
 		// Then deregister one parachain, but don't wait two sessions until it takes effect.
 		// Instead, `para_b` will confirm the request, which will take place the same time
@@ -560,12 +603,15 @@ fn no_dangling_open_requests() {
 		deregister_parachain(para_a);
 		run_to_block(9, Some(vec![9]));
 		Hrmp::accept_open_channel(para_b, para_a).unwrap();
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account()), 95);
+		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()), 95);
 		assert!(!channel_exists(para_a, para_b));
 		run_to_block(10, Some(vec![10]));
 
 		// The outcome we expect is `para_b` should receive the refund.
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_b.into_account()), 110);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_b.into_account_truncating()),
+			110
+		);
 		assert!(!channel_exists(para_a, para_b));
 		Hrmp::assert_storage_consistency_exhaustive();
 	});
@@ -587,12 +633,15 @@ fn cancel_pending_open_channel_request() {
 
 		// Start opening a channel a->b
 		Hrmp::init_open_channel(para_a, para_b, 2, 8).unwrap();
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account()), 80);
+		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()), 80);
 
 		// Cancel opening the channel
 		Hrmp::cancel_open_request(para_a, HrmpChannelId { sender: para_a, recipient: para_b })
 			.unwrap();
-		assert_eq!(<Test as Config>::Currency::free_balance(&para_a.into_account()), 100);
+		assert_eq!(
+			<Test as Config>::Currency::free_balance(&para_a.into_account_truncating()),
+			100
+		);
 
 		run_to_block(10, Some(vec![10]));
 		assert!(!channel_exists(para_a, para_b));

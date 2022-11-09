@@ -18,7 +18,7 @@ use futures::{future, pin_mut, select, FutureExt};
 use polkadot_test_service::*;
 use sp_keyring::Sr25519Keyring;
 
-#[substrate_test_utils::test]
+#[substrate_test_utils::test(flavor = "multi_thread")]
 async fn ensure_test_service_build_blocks() {
 	let mut builder = sc_cli::LoggerBuilder::new("");
 	builder.with_colors(false);

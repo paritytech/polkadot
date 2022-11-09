@@ -17,7 +17,7 @@
 //! Middleware interface that leverages low-level database operations
 //! to provide a clean API for processing block and candidate imports.
 
-use polkadot_node_subsystem::SubsystemResult;
+use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 
 use bitvec::order::Lsb0 as BitOrderLsb0;
 use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, GroupIndex, Hash};
@@ -28,6 +28,7 @@ use super::{
 	approval_db::v1::{OurAssignment, StoredBlockRange},
 	backend::{Backend, OverlayedBackend},
 	persisted_entries::{ApprovalEntry, BlockEntry, CandidateEntry},
+	LOG_TARGET,
 };
 
 /// Information about a new candidate necessary to instantiate the requisite
@@ -280,20 +281,31 @@ pub fn force_approve(
 	chain_head: Hash,
 	up_to: BlockNumber,
 ) -> SubsystemResult<Vec<Hash>> {
+	#[derive(PartialEq, Eq)]
 	enum State {
 		WalkTo,
 		Approving,
 	}
-
 	let mut approved_hashes = Vec::new();
 
 	let mut cur_hash = chain_head;
 	let mut state = State::WalkTo;
+	let mut cur_block_number: BlockNumber = 0;
 
 	// iterate back to the `up_to` block, and then iterate backwards until all blocks
 	// are updated.
 	while let Some(mut entry) = store.load_block_entry(&cur_hash)? {
-		if entry.block_number() <= up_to {
+		cur_block_number = entry.block_number();
+		if cur_block_number <= up_to {
+			if state == State::WalkTo {
+				gum::debug!(
+					target: LOG_TARGET,
+					block_hash = ?chain_head,
+					?cur_hash,
+					?cur_block_number,
+					"Start forced approval from block",
+				);
+			}
 			state = State::Approving;
 		}
 
@@ -309,5 +321,105 @@ pub fn force_approve(
 		}
 	}
 
+	if state == State::WalkTo {
+		gum::warn!(
+			target: LOG_TARGET,
+			?chain_head,
+			?cur_hash,
+			?cur_block_number,
+			?up_to,
+			"Missing block in the chain, cannot start force approval"
+		);
+	}
+
 	Ok(approved_hashes)
+}
+
+/// Revert to the block corresponding to the specified `hash`.
+/// The operation is not allowed for blocks older than the last finalized one.
+pub fn revert_to(
+	overlay: &mut OverlayedBackend<'_, impl Backend>,
+	hash: Hash,
+) -> SubsystemResult<()> {
+	let mut stored_range = overlay.load_stored_blocks()?.ok_or_else(|| {
+		SubsystemError::Context("no available blocks to infer revert point height".to_string())
+	})?;
+
+	let (children, children_height) = match overlay.load_block_entry(&hash)? {
+		Some(mut entry) => {
+			let children_height = entry.block_number() + 1;
+			let children = std::mem::take(&mut entry.children);
+			// Write revert point block entry without the children.
+			overlay.write_block_entry(entry);
+			(children, children_height)
+		},
+		None => {
+			let children_height = stored_range.0;
+			let children = overlay.load_blocks_at_height(&children_height)?;
+
+			let child_entry = children
+				.first()
+				.and_then(|hash| overlay.load_block_entry(hash).ok())
+				.flatten()
+				.ok_or_else(|| {
+					SubsystemError::Context("lookup failure for first block".to_string())
+				})?;
+
+			// The parent is expected to be the revert point
+			if child_entry.parent_hash() != hash {
+				return Err(SubsystemError::Context(
+					"revert below last finalized block or corrupted storage".to_string(),
+				))
+			}
+
+			(children, children_height)
+		},
+	};
+
+	let mut stack: Vec<_> = children.into_iter().map(|h| (h, children_height)).collect();
+	let mut range_end = stored_range.1;
+
+	while let Some((hash, number)) = stack.pop() {
+		let mut blocks_at_height = overlay.load_blocks_at_height(&number)?;
+		blocks_at_height.retain(|h| h != &hash);
+
+		// Check if we need to update the range top
+		if blocks_at_height.is_empty() && number < range_end {
+			range_end = number;
+		}
+
+		overlay.write_blocks_at_height(number, blocks_at_height);
+
+		if let Some(entry) = overlay.load_block_entry(&hash)? {
+			overlay.delete_block_entry(&hash);
+
+			// Cleanup the candidate entries by removing any reference to the
+			// removed block. If for a candidate entry the block block_assignments
+			// drops to zero then we remove the entry.
+			for (_, candidate_hash) in entry.candidates() {
+				if let Some(mut candidate_entry) = overlay.load_candidate_entry(candidate_hash)? {
+					candidate_entry.block_assignments.remove(&hash);
+					if candidate_entry.block_assignments.is_empty() {
+						overlay.delete_candidate_entry(candidate_hash);
+					} else {
+						overlay.write_candidate_entry(candidate_entry);
+					}
+				}
+			}
+
+			stack.extend(entry.children.into_iter().map(|h| (h, number + 1)));
+		}
+	}
+
+	// Check if our modifications to the dag has reduced the range top
+	if range_end != stored_range.1 {
+		if stored_range.0 < range_end {
+			stored_range.1 = range_end;
+			overlay.write_stored_block_range(stored_range);
+		} else {
+			overlay.delete_stored_block_range();
+		}
+	}
+
+	Ok(())
 }

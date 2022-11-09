@@ -19,7 +19,7 @@ enum OverseerSignal {
 
 All subsystems have their own message types; all of them need to be able to listen for overseer signals as well. There are currently two proposals for how to handle that with unified communication channels:
 
-1. Retaining the `OverseerSignal` definition above, add `enum FromOverseer<T> {Signal(OverseerSignal), Message(T)}`.
+1. Retaining the `OverseerSignal` definition above, add `enum FromOrchestra<T> {Signal(OverseerSignal), Message(T)}`.
 1. Add a generic varint to `OverseerSignal`: `Message(T)`.
 
 Either way, there will be some top-level type encapsulating messages from the overseer to each subsystem.
@@ -555,14 +555,15 @@ enum NetworkBridgeMessage {
     /// Inform the distribution subsystems about the new
     /// gossip network topology formed.
     NewGossipTopology {
-        /// The session this topology corresponds to.
-        session: SessionIndex,
-        /// Ids of our neighbors in the X dimension of the new gossip topology.
-        /// We're not necessarily connected to all of them, but we should try to be.
-        our_neighbors_x: HashSet<AuthorityDiscoveryId>,
-        /// Ids of our neighbors in the Y dimension of the new gossip topology.
-        /// We're not necessarily connected to all of them, but we should try to be.
-        our_neighbors_y: HashSet<AuthorityDiscoveryId>,
+		/// The session info this gossip topology is concerned with.
+		session: SessionIndex,
+		/// Our validator index in the session, if any.
+		local_index: Option<ValidatorIndex>,
+		/// The canonical shuffling of validators for the session.
+		canonical_shuffling: Vec<(AuthorityDiscoveryId, ValidatorIndex)>,
+		/// The reverse mapping of `canonical_shuffling`: from validator index
+		/// to the index in `canonical_shuffling`
+		shuffled_indices: Vec<usize>,
     }
 }
 ```

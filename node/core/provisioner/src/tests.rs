@@ -195,23 +195,13 @@ mod select_availability_bitfields {
 	}
 }
 
-mod select_candidates {
-	use super::{super::*, build_occupied_core, default_bitvec, occupied_core, scheduled_core};
-	use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
-	use polkadot_node_subsystem::messages::{
-		AllMessages, RuntimeApiMessage,
-		RuntimeApiRequest::{
-			AvailabilityCores, PersistedValidationData as PersistedValidationDataReq,
-		},
-	};
+pub(crate) mod common {
+	use super::super::*;
+	use futures::channel::mpsc;
+	use polkadot_node_subsystem::messages::AllMessages;
 	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
-	use polkadot_primitives::v2::{
-		BlockNumber, CandidateCommitments, CommittedCandidateReceipt, PersistedValidationData,
-	};
 
-	const BLOCK_UNDER_PRODUCTION: BlockNumber = 128;
-
-	fn test_harness<OverseerFactory, Overseer, TestFactory, Test>(
+	pub fn test_harness<OverseerFactory, Overseer, TestFactory, Test>(
 		overseer_factory: OverseerFactory,
 		test_factory: TestFactory,
 	) where
@@ -228,6 +218,27 @@ mod select_candidates {
 
 		let _ = futures::executor::block_on(future::join(overseer, test));
 	}
+}
+
+mod select_candidates {
+	use super::{
+		super::*, build_occupied_core, common::test_harness, default_bitvec, occupied_core,
+		scheduled_core,
+	};
+	use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
+	use futures::channel::mpsc;
+	use polkadot_node_subsystem::messages::{
+		AllMessages, RuntimeApiMessage,
+		RuntimeApiRequest::{
+			AvailabilityCores, PersistedValidationData as PersistedValidationDataReq,
+		},
+	};
+	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
+	use polkadot_primitives::v2::{
+		BlockNumber, CandidateCommitments, CommittedCandidateReceipt, PersistedValidationData,
+	};
+
+	const BLOCK_UNDER_PRODUCTION: BlockNumber = 128;
 
 	// For test purposes, we always return this set of availability cores:
 	//

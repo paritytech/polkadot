@@ -70,7 +70,7 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		match location.borrow() {
 			MultiLocation { parents: 0, interior: X1(Parachain(id)) } =>
-				Ok(ParaId::from(*id).into_account()),
+				Ok(ParaId::from(*id).into_account_truncating()),
 			_ => Err(()),
 		}
 	}
@@ -91,7 +91,7 @@ impl<ParaId: From<u32> + Into<u32> + AccountIdConversion<AccountId>, AccountId: 
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		match location.borrow() {
 			MultiLocation { parents: 1, interior: X1(Parachain(id)) } =>
-				Ok(ParaId::from(*id).into_account()),
+				Ok(ParaId::from(*id).into_account_truncating()),
 			_ => Err(()),
 		}
 	}
