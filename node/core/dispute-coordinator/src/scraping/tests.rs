@@ -457,7 +457,8 @@ fn scraper_cleans_finalized_candidates() {
 		assert!(!scraper.is_candidate_backed(&candidate.hash()));
 		assert!(!scraper.is_candidate_included(&candidate.hash()));
 
-		// this is undesired side effect - todo
+		// this is undesired side effect - check the comments in `struct ChainScraper` and
+		// `process_finalized_block` for details
 		finalized_block_number += 1;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 		assert!(!scraper.backed_candidates_by_block_number_has_key(&TEST_TARGET_BLOCK_NUMBER));
