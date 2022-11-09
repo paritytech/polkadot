@@ -20,9 +20,10 @@ use polkadot_cli::{Error, Result};
 use polkadot_node_primitives::CollationGenerationConfig;
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_primitives::Id as ParaId;
+
 use sc_cli::{Error as SubstrateCliError, SubstrateCli};
 use sp_core::hexdisplay::HexDisplay;
-use test_parachain_undying_collator::Collator;
+use test_parachain_undying_collator::{relay_chain::RelayChainInterfaceBuilder, Collator};
 
 mod cli;
 use cli::Cli;
@@ -34,7 +35,8 @@ fn main() -> Result<()> {
 		Some(cli::Subcommand::ExportGenesisState(params)) => {
 			// `pov_size` and `pvf_complexity` need to match the ones that we start the collator
 			// with.
-			let collator = Collator::new(params.pov_size, params.pvf_complexity);
+			let collator =
+				Collator::new(params.pov_size, params.pvf_complexity, params.hrmp_params);
 			println!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
 
 			Ok::<_, Error>(())
@@ -54,7 +56,8 @@ fn main() -> Result<()> {
 			})?;
 
 			runner.run_node_until_exit(|config| async move {
-				let collator = Collator::new(cli.run.pov_size, cli.run.pvf_complexity);
+				let collator =
+					Collator::new(cli.run.pov_size, cli.run.pvf_complexity, cli.run.hrmp_params);
 
 				let full_node = polkadot_service::build_full(
 					config,
@@ -85,10 +88,14 @@ fn main() -> Result<()> {
 				log::info!("Genesis state: {}", genesis_head_hex);
 				log::info!("Validation code: {}", validation_code_hex);
 
+				let relay_chain_interface =
+					RelayChainInterfaceBuilder { polkadot_client: full_node.client }.build();
 				let config = CollationGenerationConfig {
 					key: collator.collator_key(),
-					collator: collator
-						.create_collation_function(full_node.task_manager.spawn_handle()),
+					collator: collator.create_collation_function(
+						full_node.task_manager.spawn_handle(),
+						relay_chain_interface,
+					),
 					para_id,
 				};
 				overseer_handle

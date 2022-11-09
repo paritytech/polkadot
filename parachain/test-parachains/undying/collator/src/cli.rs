@@ -18,6 +18,7 @@
 
 use clap::Parser;
 use sc_cli::{RuntimeVersion, SubstrateCli};
+use test_parachain_undying::HrmpChannelConfiguration;
 
 /// Sub-commands supported by the collator.
 #[derive(Debug, Parser)]
@@ -30,6 +31,9 @@ pub enum Subcommand {
 	#[command(name = "export-genesis-wasm")]
 	ExportGenesisWasm(ExportGenesisWasmCommand),
 }
+
+//#[derive(Debug, Parser)]
+//pub struct HrmpCliParams(pub(crate) HrmpChannelConfiguration);
 
 /// Command for exporting the genesis state of the parachain
 #[derive(Debug, Parser)]
@@ -46,6 +50,10 @@ pub struct ExportGenesisStateCommand {
 	/// we compute per block.
 	#[arg(long, default_value_t = 1)]
 	pub pvf_complexity: u32,
+
+	/// Configuration of the hrmp channels
+	#[clap(long)]
+	pub hrmp_params: Vec<HrmpChannelConfiguration>,
 }
 
 /// Command for exporting the genesis wasm file.
@@ -72,6 +80,10 @@ pub struct RunCmd {
 	/// we compute per block.
 	#[arg(long, default_value_t = 1)]
 	pub pvf_complexity: u32,
+
+	/// Configuration of the hrmp channels
+	#[clap(long)]
+	pub hrmp_params: Vec<HrmpChannelConfiguration>,
 }
 
 #[allow(missing_docs)]

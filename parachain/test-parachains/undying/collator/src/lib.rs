@@ -23,7 +23,7 @@ use polkadot_node_primitives::{
 	maybe_compress_pov, Collation, CollationResult, CollationSecondedSignal, CollatorFn,
 	MaybeCompressedPoV, PoV, Statement,
 };
-use polkadot_primitives::{CollatorId, CollatorPair, Hash};
+use polkadot_primitives::{CollatorId, CollatorPair, Hash, OutboundHrmpMessage};
 use sp_core::Pair;
 use std::{
 	collections::HashMap,
@@ -33,7 +33,12 @@ use std::{
 	},
 	time::Duration,
 };
-use test_parachain_undying::{execute, hash_state, BlockData, GraveyardState, HeadData};
+use test_parachain_undying::{
+	execute, hash_state, BlockData, GraveyardState, HeadData, HrmpChannelConfiguration,
+};
+
+pub mod relay_chain;
+use relay_chain::RelayChainInterface;
 
 /// Default PoV size which also drives state size.
 const DEFAULT_POV_SIZE: usize = 1000;
@@ -45,7 +50,8 @@ fn calculate_head_and_state_for_number(
 	number: u64,
 	graveyard_size: usize,
 	pvf_complexity: u32,
-) -> (HeadData, GraveyardState) {
+	hrmp_channels: Vec<HrmpChannelConfiguration>,
+) -> (HeadData, GraveyardState, Vec<OutboundHrmpMessage<ParaId>>) {
 	let index = 0u64;
 	let mut graveyard = vec![0u8; graveyard_size * graveyard_size];
 	let zombies = 0;
@@ -59,16 +65,23 @@ fn calculate_head_and_state_for_number(
 	let mut state = GraveyardState { index, graveyard, zombies, seal };
 	let mut head =
 		HeadData { number: 0, parent_hash: Hash::default().into(), post_state: hash_state(&state) };
+	let mut messages: Vec<OutboundHrmpMessage<ParaId>> = Vec::new();
 
 	while head.number < number {
-		let block = BlockData { state, tombstones: 1_000, iterations: pvf_complexity };
-		let (new_head, new_state) =
+		let block = BlockData {
+			state,
+			tombstones: 1_000,
+			iterations: pvf_complexity,
+			hrmp_channels: hrmp_channels.clone(),
+		};
+		let (new_head, new_state, new_messages) =
 			execute(head.hash(), head.clone(), block).expect("Produces valid block");
 		head = new_head;
 		state = new_state;
+		messages = new_messages;
 	}
 
-	(head, state)
+	(head, state, messages)
 }
 
 /// The state of the undying parachain.
@@ -89,11 +102,17 @@ struct State {
 	/// TODO: Implement a static state, and use `ballast` to inflate the PoV size. This way
 	/// we can just discard the `ballast` before processing the block.
 	graveyard_size: usize,
+	/// Configuration of the HRMP channels to be sent/received
+	hrmp_channels: Vec<HrmpChannelConfiguration>,
 }
 
 impl State {
 	/// Init the genesis state.
-	fn genesis(graveyard_size: usize, pvf_complexity: u32) -> Self {
+	fn genesis(
+		graveyard_size: usize,
+		pvf_complexity: u32,
+		hrmp_channels: Vec<HrmpChannelConfiguration>,
+	) -> Self {
 		let index = 0u64;
 		let mut graveyard = vec![0u8; graveyard_size * graveyard_size];
 		let zombies = 0;
@@ -116,13 +135,17 @@ impl State {
 			best_block: 0,
 			pvf_complexity,
 			graveyard_size,
+			hrmp_channels,
 		}
 	}
 
 	/// Advance the state and produce a new block based on the given `parent_head`.
 	///
-	/// Returns the new [`BlockData`] and the new [`HeadData`].
-	fn advance(&mut self, parent_head: HeadData) -> (BlockData, HeadData) {
+	/// Returns the new [`BlockData`] and the new [`HeadData`] along with a set of [`OutboundHrmpMessage`].
+	fn advance(
+		&mut self,
+		parent_head: HeadData,
+	) -> (BlockData, HeadData, Vec<OutboundHrmpMessage<ParaId>>) {
 		self.best_block = parent_head.number;
 
 		let state = if let Some(head_data) = self.number_to_head.get(&self.best_block) {
@@ -131,22 +154,29 @@ impl State {
 					parent_head.number,
 					self.graveyard_size,
 					self.pvf_complexity,
+					self.hrmp_channels.clone(),
 				)
 				.1
 			})
 		} else {
-			let (_, state) = calculate_head_and_state_for_number(
+			let (_, state, _) = calculate_head_and_state_for_number(
 				parent_head.number,
 				self.graveyard_size,
 				self.pvf_complexity,
+				self.hrmp_channels.clone(),
 			);
 			state
 		};
 
 		// Start with prev state and transaction to execute (place 1000 tombstones).
-		let block = BlockData { state, tombstones: 1000, iterations: self.pvf_complexity };
+		let block = BlockData {
+			state,
+			tombstones: 1000,
+			iterations: self.pvf_complexity,
+			hrmp_channels: self.hrmp_channels.clone(),
+		};
 
-		let (new_head, new_state) =
+		let (new_head, new_state, messages) =
 			execute(parent_head.hash(), parent_head, block.clone()).expect("Produces valid block");
 
 		let new_head_arc = Arc::new(new_head.clone());
@@ -154,7 +184,7 @@ impl State {
 		self.head_to_state.insert(new_head_arc.clone(), new_state);
 		self.number_to_head.insert(new_head.number, new_head_arc);
 
-		(block, new_head)
+		(block, new_head, messages)
 	}
 }
 
@@ -167,14 +197,18 @@ pub struct Collator {
 
 impl Default for Collator {
 	fn default() -> Self {
-		Self::new(DEFAULT_POV_SIZE, DEFAULT_PVF_COMPLEXITY)
+		Self::new(DEFAULT_POV_SIZE, DEFAULT_PVF_COMPLEXITY, Vec::new())
 	}
 }
 
 impl Collator {
 	/// Create a new collator instance with the state initialized from genesis and `pov_size`
 	/// parameter. The same parameter needs to be passed when exporting the genesis state.
-	pub fn new(pov_size: usize, pvf_complexity: u32) -> Self {
+	pub fn new(
+		pov_size: usize,
+		pvf_complexity: u32,
+		hrmp_channels: Vec<HrmpChannelConfiguration>,
+	) -> Self {
 		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt().ceil() as usize;
 
 		log::info!(
@@ -187,7 +221,11 @@ impl Collator {
 		log::info!("PVF time complexity: {}", pvf_complexity);
 
 		Self {
-			state: Arc::new(Mutex::new(State::genesis(graveyard_size, pvf_complexity))),
+			state: Arc::new(Mutex::new(State::genesis(
+				graveyard_size,
+				pvf_complexity,
+				hrmp_channels,
+			))),
 			key: CollatorPair::generate().0,
 			seconded_collations: Arc::new(AtomicU32::new(0)),
 		}
@@ -225,6 +263,7 @@ impl Collator {
 	pub fn create_collation_function(
 		&self,
 		spawner: impl SpawnNamed + Clone + 'static,
+		relay_chain_interface: Arc<dyn RelayChainInterface>,
 	) -> CollatorFn {
 		use futures::FutureExt as _;
 
@@ -235,7 +274,7 @@ impl Collator {
 			let parent = HeadData::decode(&mut &validation_data.parent_head.0[..])
 				.expect("Decodes parent head");
 
-			let (block_data, head_data) = state.lock().unwrap().advance(parent);
+			let (block_data, head_data, messages) = state.lock().unwrap().advance(parent);
 
 			log::info!(
 				"created a new collation on relay-parent({}): {:?}",
@@ -248,7 +287,7 @@ impl Collator {
 
 			let collation = Collation {
 				upward_messages: Default::default(),
-				horizontal_messages: Default::default(),
+				horizontal_messages: messages,
 				new_validation_code: None,
 				head_data: head_data.encode().into(),
 				proof_of_validity: MaybeCompressedPoV::Raw(pov.clone()),
@@ -302,7 +341,7 @@ impl Collator {
 			let current_block = self.state.lock().unwrap().best_block;
 
 			if start_block + blocks <= current_block {
-				return
+				return;
 			}
 		}
 	}
@@ -317,12 +356,13 @@ impl Collator {
 			Delay::new(Duration::from_secs(1)).await;
 
 			if seconded <= seconded_collations.load(Ordering::Relaxed) {
-				return
+				return;
 			}
 		}
 	}
 }
 
+use polkadot_service::ParaId;
 use sp_core::traits::SpawnNamed;
 
 #[cfg(test)]
@@ -335,7 +375,7 @@ mod tests {
 	#[test]
 	fn collator_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
-		let collator = Collator::new(1_000, 1);
+		let collator = Collator::new(1_000, 1, Vec::new());
 		let collation_function = collator.create_collation_function(spawner);
 
 		for i in 0..5 {
@@ -389,17 +429,17 @@ mod tests {
 
 	#[test]
 	fn advance_to_state_when_parent_head_is_missing() {
-		let collator = Collator::new(1_000, 1);
+		let collator = Collator::new(1_000, 1, Vec::new());
 		let graveyard_size = collator.state.lock().unwrap().graveyard_size;
 
-		let mut head = calculate_head_and_state_for_number(10, graveyard_size, 1).0;
+		let mut head = calculate_head_and_state_for_number(10, graveyard_size, 1, Vec::new()).0;
 
 		for i in 1..10 {
 			head = collator.state.lock().unwrap().advance(head).1;
 			assert_eq!(10 + i, head.number);
 		}
 
-		let collator = Collator::new(1_000, 1);
+		let collator = Collator::new(1_000, 1, Vec::new());
 		let mut second_head = collator
 			.state
 			.lock()

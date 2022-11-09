@@ -22,7 +22,11 @@
 	feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler)
 )]
 
+use core::num::ParseIntError;
+use core::str::FromStr;
+use parachain::primitives::Id as ParaId;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_core_primitives::OutboundHrmpMessage;
 use sp_std::vec::Vec;
 use tiny_keccak::{Hasher as _, Keccak};
 
@@ -90,6 +94,33 @@ pub struct GraveyardState {
 	pub seal: [u8; 32],
 }
 
+/// A structure that configures hrmp messages produced by undying collator
+#[derive(Default, Clone, Encode, Decode, Debug)]
+pub struct HrmpChannelConfiguration {
+	/// Where to send HRMP messages
+	pub destination_para_id: u32,
+	/// Message size
+	pub message_size: u32,
+}
+
+/// This implementation is used to parse HRMP channels configuration from a command
+/// line. This should be two numbers separated by `:`, where a first number is the
+/// target parachain id and the second number is the message size in bytes.
+/// For example, a configuration of `2:100` will send 100 bytes of data to the
+/// parachain id 2 on each block. The HRMP channel must be configured in the genesis
+/// block to be able to use this parameter.
+impl FromStr for HrmpChannelConfiguration {
+	type Err = ParseIntError;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		let split_str: Vec<&str> = s.split(':').collect();
+		let destination_para_id = split_str[0].parse::<u32>()?;
+		let message_size = split_str[1].parse::<u32>()?;
+
+		Ok(HrmpChannelConfiguration { destination_para_id, message_size })
+	}
+}
+
 /// Block data for this parachain.
 #[derive(Default, Clone, Encode, Decode, Debug)]
 pub struct BlockData {
@@ -100,6 +131,8 @@ pub struct BlockData {
 	pub tombstones: u64,
 	/// The number of iterations to perform.
 	pub iterations: u32,
+	/// Configured HRMP channels
+	pub hrmp_channels: Vec<HrmpChannelConfiguration>,
 }
 
 pub fn hash_state(state: &GraveyardState) -> [u8; 32] {
@@ -135,7 +168,7 @@ pub fn execute(
 	parent_hash: [u8; 32],
 	parent_head: HeadData,
 	block_data: BlockData,
-) -> Result<(HeadData, GraveyardState), StateMismatch> {
+) -> Result<(HeadData, GraveyardState, Vec<OutboundHrmpMessage<ParaId>>), StateMismatch> {
 	assert_eq!(parent_hash, parent_head.hash());
 
 	if hash_state(&block_data.state) != parent_head.post_state {
@@ -145,11 +178,20 @@ pub fn execute(
 			hash_state(&block_data.state),
 			parent_head.post_state,
 		);
-		return Err(StateMismatch)
+		return Err(StateMismatch);
 	}
 
 	// We need to clone the block data as the fn will mutate it's state.
 	let new_state = execute_transaction(block_data.clone());
+	let messages = block_data
+		.hrmp_channels
+		.iter()
+		.map(|channel| {
+			let mut data = sp_std::vec::Vec::with_capacity(channel.message_size as usize);
+			data.fill(0_u8);
+			OutboundHrmpMessage { recipient: channel.destination_para_id.into(), data }
+		})
+		.collect::<Vec<_>>();
 
 	Ok((
 		HeadData {
@@ -158,5 +200,6 @@ pub fn execute(
 			post_state: hash_state(&new_state),
 		},
 		new_state,
+		messages,
 	))
 }
