@@ -35,7 +35,8 @@ use polkadot_node_subsystem::{
 	overseer, ActivatedLeaf, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
-	database::Database, rolling_session_window::RollingSessionWindow,
+	database::Database,
+	rolling_session_window::{DatabaseParams, RollingSessionWindow},
 };
 use polkadot_primitives::v2::{ScrapedOnChainVotes, ValidatorIndex, ValidatorPair};
 
@@ -117,12 +118,17 @@ pub struct DisputeCoordinatorSubsystem {
 #[derive(Debug, Clone, Copy)]
 pub struct Config {
 	/// The data column in the store to use for dispute data.
-	pub col_data: u32,
+	pub col_dispute_data: u32,
+	/// The data column in the store to use for session data.
+	pub col_session_data: u32,
 }
 
 impl Config {
 	fn column_config(&self) -> db::v1::ColumnConfiguration {
-		db::v1::ColumnConfiguration { col_data: self.col_data }
+		db::v1::ColumnConfiguration {
+			col_dispute_data: self.col_dispute_data,
+			col_session_data: self.col_session_data,
+		}
 	}
 }
 
@@ -199,17 +205,21 @@ impl DisputeCoordinatorSubsystem {
 		B: Backend + 'static,
 	{
 		loop {
-			let (first_leaf, rolling_session_window) = match get_rolling_session_window(ctx).await {
-				Ok(Some(update)) => update,
-				Ok(None) => {
-					gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
-					return Ok(None)
-				},
-				Err(e) => {
-					e.split()?.log();
-					continue
-				},
-			};
+			let db_params =
+				DatabaseParams { db: self.store.clone(), db_column: self.config.col_session_data };
+
+			let (first_leaf, rolling_session_window) =
+				match get_rolling_session_window(ctx, db_params).await {
+					Ok(Some(update)) => update,
+					Ok(None) => {
+						gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
+						return Ok(None)
+					},
+					Err(e) => {
+						e.split()?.log();
+						continue
+					},
+				};
 
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
 			let (participations, votes, spam_slots, ordering_provider) = match self
@@ -352,12 +362,13 @@ impl DisputeCoordinatorSubsystem {
 #[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
 async fn get_rolling_session_window<Context>(
 	ctx: &mut Context,
+	db_params: DatabaseParams,
 ) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>> {
 	if let Some(leaf) = { wait_for_first_leaf(ctx) }.await? {
 		let sender = ctx.sender().clone();
 		Ok(Some((
 			leaf.clone(),
-			RollingSessionWindow::new(sender, DISPUTE_WINDOW, leaf.hash)
+			RollingSessionWindow::new(sender, leaf.hash, db_params)
 				.await
 				.map_err(JfyiError::RollingSessionWindow)?,
 		)))
