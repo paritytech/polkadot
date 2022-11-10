@@ -268,4 +268,25 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 			.saturating_add(T::DbWeight::get().reads(8 as u64))
 			.saturating_add(T::DbWeight::get().writes(5 as u64))
 	}
+	// Storage: NominationPools BondedPools (r:1 w:1)
+	fn set_commission() -> Weight {
+		// Minimum execution time: 23_000 nanoseconds.
+		Weight::from_ref_time(24_000_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
+	}
+	// Storage: NominationPools BondedPools (r:1 w:1)
+	fn set_commission_max() -> Weight {
+		// Minimum execution time: 22_000 nanoseconds.
+		Weight::from_ref_time(23_000_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
+	}
+	// Storage: NominationPools BondedPools (r:1 w:1)
+	fn set_commission_throttle() -> Weight {
+		// Minimum execution time: 13_000 nanoseconds.
+		Weight::from_ref_time(14_000_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(1 as u64))
+			.saturating_add(T::DbWeight::get().writes(1 as u64))
+	}
 }
