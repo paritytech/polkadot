@@ -403,24 +403,6 @@ where
 					Ok(v) => v,
 				};
 
-				let maybe_authority =
-					authority_discovery_service.get_authority_ids_by_peer_id(remote).await;
-				if let Some(authority) = maybe_authority {
-					dispatch_validation_events_to_all(
-						vec![NetworkBridgeEvent::UpdatedAuthorityIds(
-							remote.clone(),
-							authority.clone(),
-						)],
-						&mut sender,
-					)
-					.await;
-					dispatch_collation_events_to_all(
-						vec![NetworkBridgeEvent::UpdatedAuthorityIds(remote.clone(), authority)],
-						&mut sender,
-					)
-					.await;
-				}
-
 				if v_messages.is_empty() && c_messages.is_empty() {
 					continue
 				}

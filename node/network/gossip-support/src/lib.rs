@@ -36,6 +36,7 @@ use rand::{seq::SliceRandom as _, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
 use sc_network::Multiaddr;
+use sc_network_common::config::parse_addr;
 use sp_application_crypto::{AppKey, ByteArray};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
@@ -267,11 +268,13 @@ where
 					update_gossip_topology(
 						sender,
 						our_index,
-						session_info.discovery_keys,
+						session_info.discovery_keys.clone(),
 						relay_parent,
 						session_index,
 					)
 					.await?;
+
+					self.update_authority_ids(sender, session_info.discovery_keys).await;
 				}
 			}
 		}
@@ -383,6 +386,36 @@ where
 			self.last_failure = None;
 			self.failure_start = None;
 		};
+	}
+
+	async fn update_authority_ids<Sender>(
+		&mut self,
+		_sender: &mut Sender,
+		authorities: Vec<AuthorityDiscoveryId>,
+	) where
+		Sender: overseer::GossipSupportSenderTrait,
+	{
+		let mut authority_ids: HashMap<PeerId, HashSet<AuthorityDiscoveryId>> = HashMap::new();
+		for authority in authorities {
+			let peer_id = self
+				.authority_discovery
+				.get_addresses_by_authority_id(authority.clone())
+				.await
+				.into_iter()
+				.flat_map(|list| list.into_iter())
+				.find_map(|addr| parse_addr(addr).ok().map(|(p, _)| p));
+
+			if let Some(p) = peer_id {
+				authority_ids.entry(p).or_default().insert(authority);
+			}
+		}
+
+		let _ = authority_ids.into_iter().map(|(_peer_id, _authorities)| async {
+			// WIP
+			/*sender
+			.send_message(NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authorities))
+			.await;*/
+		});
 	}
 
 	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSupportNetworkMessage>) {
