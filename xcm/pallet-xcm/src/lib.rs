@@ -72,35 +72,35 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn send() -> Weight {
-		Weight::MAX
+		Weight::from_ref_time(100_000_000)
 	}
 
 	fn teleport_assets() -> Weight {
-		Weight::MAX
+		Weight::from_ref_time(100_000_000)
 	}
 
 	fn reserve_transfer_assets() -> Weight {
-		Weight::MAX
+		Weight::from_ref_time(100_000_000)
 	}
 
 	fn execute() -> Weight {
-		Weight::MAX
+		Weight::from_ref_time(100_000_000)
 	}
 
 	fn force_xcm_version() -> Weight {
-		Weight::MAX
+		Weight::from_ref_time(100_000_000)
 	}
 
 	fn force_default_xcm_version() -> Weight {
-		Weight::MAX
+		Weight::from_ref_time(100_000_000)
 	}
 
 	fn force_subscribe_version_notify() -> Weight {
-		Weight::MAX
+		Weight::from_ref_time(100_000_000)
 	}
 
 	fn force_unsubscribe_version_notify() -> Weight {
-		Weight::MAX
+		Weight::from_ref_time(100_000_000)
 	}
 }
 
