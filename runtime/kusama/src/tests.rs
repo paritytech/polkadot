@@ -23,6 +23,7 @@ use pallet_transaction_payment::Multiplier;
 use parity_scale_codec::Encode;
 use runtime_common::MinimumMultiplier;
 use separator::Separatable;
+use sp_core::crypto::AccountId32;
 use sp_runtime::FixedPointNumber;
 
 #[test]
@@ -141,3 +142,4 @@ fn nominator_limit() {
 fn call_size() {
 	RuntimeCall::assert_size_under(230);
 }
+

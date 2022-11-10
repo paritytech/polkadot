@@ -2163,8 +2163,12 @@ mod multiplier_tests {
 mod remote_tests {
 	use super::*;
 	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use sp_core::crypto::AccountId32;
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
+	};
+	use frame_support::{
+		assert_noop, assert_ok
 	};
 	use std::env::var;
 
@@ -2192,4 +2196,51 @@ mod remote_tests {
 			.unwrap();
 		ext.execute_with(|| Runtime::on_runtime_upgrade());
 	}
+
+	#[tokio::test]
+	async fn proposal_test() {
+		sp_tracing::try_init_simple();
+		// let transport: Transport =
+		// 	var("WS").unwrap_or("wss://kusama-rpc.polkadot.io:443".to_string()).into();
+		// let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
+		let mut ext = Builder::<Block>::new()
+			// .mode(if let Some(state_snapshot) = maybe_state_snapshot {
+			// 	Mode::OfflineOrElseOnline(
+			// 		OfflineConfig { state_snapshot: state_snapshot.clone() },
+			// 		OnlineConfig {
+			// 			transport,
+			// 			state_snapshot: Some(state_snapshot),
+			// 			pallets: vec!["Staking".to_owned()],
+			// 			..Default::default()
+			// 		},
+			// 	)
+			// } else {
+			// 	Mode::Online(OnlineConfig { transport, ..Default::default() })
+			// })
+			.mode(Mode::Online(OnlineConfig {
+				transport: "wss://kusama-rpc.polkadot.io:443".to_owned().into(),
+				pallets: vec!["Staking".to_owned()],
+				..Default::default()
+			}))
+			.build()
+			.await
+			.expect("remote inaccessible");
+
+		ext.execute_with(|| {
+			let stash: AccountId32 = hex_literal::hex!["d033ca16a330cf722e09b908a545818f8e2880a221d16d902923ada564b4b646"].into();
+			let storage_key: Vec<u8> = hex_literal::hex!["5f3e4907f716ac89b6347d15ececedca422adb579f1dbf4f3886c5cfa3bb8cc4d04e6bc335d06f34b31882c066041c2dd033ca16a330cf722e09b908a545818f8e2880a221d16d902923ada564b4b646"].to_vec();
+			// <Runtime as pallet_utility>::batch_all
+			println!("b4 blnc: {}", pallet_balances::Pallet::<Runtime>::free_balance(stash.clone()));
+			println!("b4 bonded: {}", pallet_staking::Pallet::<Runtime>::bonded(stash.clone()).unwrap());
+			// println!("b4 ledger: {}", pallet_staking::Pallet::<Runtime>::ledger(stash.clone()).unwrap());
+
+			assert_ok!(frame_system::Pallet::<Runtime>::kill_storage(frame_system::RawOrigin::Root.into(), vec![storage_key]));
+			assert_ok!(pallet_staking::Pallet::<Runtime>::force_unstake(frame_system::RawOrigin::Root.into(), stash.clone(), 0));
+
+			println!("after blnc: {}", pallet_balances::Pallet::<Runtime>::free_balance(stash.clone()));
+			println!("after bonded: {}", pallet_staking::Pallet::<Runtime>::bonded(stash.clone()).unwrap());
+			// println!("after ledger: {}", pallet_staking::Pallet::<Runtime>::ledger(stash.clone()).unwrap());
+		});
+	}
+
 }
