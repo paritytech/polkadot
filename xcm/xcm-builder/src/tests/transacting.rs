@@ -22,13 +22,13 @@ fn transacting_should_work() {
 
 	let message = Xcm::<TestCall>(vec![Transact {
 		origin_kind: OriginKind::Native,
-		require_weight_at_most: 50,
-		call: TestCall::Any(50, None).encode().into(),
+		require_weight_at_most: Weight::from_parts(50, 50),
+		call: TestCall::Any(Weight::from_parts(50, 50), None).encode().into(),
 	}]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 60;
+	let weight_limit = Weight::from_parts(60, 60);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(60));
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(60, 60)));
 }
 
 #[test]
@@ -37,13 +37,13 @@ fn transacting_should_respect_max_weight_requirement() {
 
 	let message = Xcm::<TestCall>(vec![Transact {
 		origin_kind: OriginKind::Native,
-		require_weight_at_most: 40,
-		call: TestCall::Any(50, None).encode().into(),
+		require_weight_at_most: Weight::from_parts(40, 40),
+		call: TestCall::Any(Weight::from_parts(50, 50), None).encode().into(),
 	}]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 60;
+	let weight_limit = Weight::from_parts(60, 60);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Incomplete(50, XcmError::MaxWeightInvalid));
+	assert_eq!(r, Outcome::Incomplete(Weight::from_parts(50, 50), XcmError::MaxWeightInvalid));
 }
 
 #[test]
@@ -52,13 +52,15 @@ fn transacting_should_refund_weight() {
 
 	let message = Xcm::<TestCall>(vec![Transact {
 		origin_kind: OriginKind::Native,
-		require_weight_at_most: 50,
-		call: TestCall::Any(50, Some(30)).encode().into(),
+		require_weight_at_most: Weight::from_parts(50, 50),
+		call: TestCall::Any(Weight::from_parts(50, 50), Some(Weight::from_parts(30, 30)))
+			.encode()
+			.into(),
 	}]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 60;
+	let weight_limit = Weight::from_parts(60, 60);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(40));
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(40, 40)));
 }
 
 #[test]
@@ -72,20 +74,22 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let fees = (Parent, 100u128).into();
 	let message = Xcm::<TestCall>(vec![
 		WithdrawAsset((Parent, 100u128).into()), // enough for 100 units of weight.
-		BuyExecution { fees, weight_limit: Limited(100) },
+		BuyExecution { fees, weight_limit: Limited(Weight::from_parts(100, 100)) },
 		Transact {
 			origin_kind: OriginKind::Native,
-			require_weight_at_most: 50,
+			require_weight_at_most: Weight::from_parts(50, 50),
 			// call estimated at 50 but only takes 10.
-			call: TestCall::Any(50, Some(10)).encode().into(),
+			call: TestCall::Any(Weight::from_parts(50, 50), Some(Weight::from_parts(10, 10)))
+				.encode()
+				.into(),
 		},
 		RefundSurplus,
 		DepositAsset { assets: AllCounted(1).into(), beneficiary: one.clone() },
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 100;
+	let weight_limit = Weight::from_parts(100, 100);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(origin, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(60));
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(60, 60)));
 	assert_eq!(
 		asset_list(AccountIndex64 { index: 1, network: None }),
 		vec![(Parent, 40u128).into()]
@@ -99,23 +103,23 @@ fn report_successful_transact_status_should_work() {
 	let message = Xcm::<TestCall>(vec![
 		Transact {
 			origin_kind: OriginKind::Native,
-			require_weight_at_most: 50,
-			call: TestCall::Any(50, None).encode().into(),
+			require_weight_at_most: Weight::from_parts(50, 50),
+			call: TestCall::Any(Weight::from_parts(50, 50), None).encode().into(),
 		},
 		ReportTransactStatus(QueryResponseInfo {
 			destination: Parent.into(),
 			query_id: 42,
-			max_weight: 5000,
+			max_weight: Weight::from_parts(5000, 5000),
 		}),
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 70;
+	let weight_limit = Weight::from_parts(70, 70);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(70));
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(70, 70)));
 	let expected_msg = Xcm(vec![QueryResponse {
 		response: Response::DispatchResult(MaybeErrorCode::Success),
 		query_id: 42,
-		max_weight: 5000,
+		max_weight: Weight::from_parts(5000, 5000),
 		querier: Some(Here.into()),
 	}]);
 	let expected_hash = fake_message_hash(&expected_msg);
@@ -129,23 +133,23 @@ fn report_failed_transact_status_should_work() {
 	let message = Xcm::<TestCall>(vec![
 		Transact {
 			origin_kind: OriginKind::Native,
-			require_weight_at_most: 50,
-			call: TestCall::OnlyRoot(50, None).encode().into(),
+			require_weight_at_most: Weight::from_parts(50, 50),
+			call: TestCall::OnlyRoot(Weight::from_parts(50, 50), None).encode().into(),
 		},
 		ReportTransactStatus(QueryResponseInfo {
 			destination: Parent.into(),
 			query_id: 42,
-			max_weight: 5000,
+			max_weight: Weight::from_parts(5000, 5000),
 		}),
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 70;
+	let weight_limit = Weight::from_parts(70, 70);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(70));
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(70, 70)));
 	let expected_msg = Xcm(vec![QueryResponse {
 		response: Response::DispatchResult(MaybeErrorCode::Error(vec![2])),
 		query_id: 42,
-		max_weight: 5000,
+		max_weight: Weight::from_parts(5000, 5000),
 		querier: Some(Here.into()),
 	}]);
 	let expected_hash = fake_message_hash(&expected_msg);
@@ -159,24 +163,24 @@ fn clear_transact_status_should_work() {
 	let message = Xcm::<TestCall>(vec![
 		Transact {
 			origin_kind: OriginKind::Native,
-			require_weight_at_most: 50,
-			call: TestCall::OnlyRoot(50, None).encode().into(),
+			require_weight_at_most: Weight::from_parts(50, 50),
+			call: TestCall::OnlyRoot(Weight::from_parts(50, 50), None).encode().into(),
 		},
 		ClearTransactStatus,
 		ReportTransactStatus(QueryResponseInfo {
 			destination: Parent.into(),
 			query_id: 42,
-			max_weight: 5000,
+			max_weight: Weight::from_parts(5000, 5000),
 		}),
 	]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 80;
+	let weight_limit = Weight::from_parts(80, 80);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(80));
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(80, 80)));
 	let expected_msg = Xcm(vec![QueryResponse {
 		response: Response::DispatchResult(MaybeErrorCode::Success),
 		query_id: 42,
-		max_weight: 5000,
+		max_weight: Weight::from_parts(5000, 5000),
 		querier: Some(Here.into()),
 	}]);
 	let expected_hash = fake_message_hash(&expected_msg);

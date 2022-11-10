@@ -187,7 +187,7 @@ pub type XcmOriginToCallOrigin = (
 );
 
 parameter_types! {
-	pub const UnitWeightCost: u64 = 1;
+	pub const UnitWeightCost: Weight = Weight::from_parts(1, 1);
 	pub KsmPerSecond: (AssetId, u128) = (Concrete(Parent.into()), 1);
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
@@ -318,19 +318,12 @@ pub mod mock_msg_queue {
 			let (result, event) = match Xcm::<T::RuntimeCall>::try_from(xcm) {
 				Ok(xcm) => {
 					let location = (Parent, Parachain(sender.into()));
-					match T::XcmExecutor::execute_xcm(
-						location,
-						xcm,
-						message_hash,
-						max_weight.ref_time(),
-					) {
+					match T::XcmExecutor::execute_xcm(location, xcm, message_hash, max_weight) {
 						Outcome::Error(e) => (Err(e.clone()), Event::Fail(Some(hash), e)),
-						Outcome::Complete(w) =>
-							(Ok(Weight::from_ref_time(w)), Event::Success(Some(hash))),
+						Outcome::Complete(w) => (Ok(w), Event::Success(Some(hash))),
 						// As far as the caller is concerned, this was dispatched without error, so
 						// we just report the weight used.
-						Outcome::Incomplete(w, e) =>
-							(Ok(Weight::from_ref_time(w)), Event::Fail(Some(hash), e)),
+						Outcome::Incomplete(w, e) => (Ok(w), Event::Fail(Some(hash), e)),
 					}
 				},
 				Err(()) => (Err(XcmError::UnhandledXcmVersion), Event::BadVersion(Some(hash))),
@@ -380,12 +373,7 @@ pub mod mock_msg_queue {
 					Ok(versioned) => match Xcm::try_from(versioned) {
 						Err(()) => Self::deposit_event(Event::UnsupportedVersion(id)),
 						Ok(x) => {
-							let outcome = T::XcmExecutor::execute_xcm(
-								Parent,
-								x.clone(),
-								id,
-								limit.ref_time(),
-							);
+							let outcome = T::XcmExecutor::execute_xcm(Parent, x.clone(), id, limit);
 							<ReceivedDmp<T>>::append(x);
 							Self::deposit_event(Event::ExecutedDownward(id, outcome));
 						},
@@ -424,6 +412,7 @@ impl pallet_xcm::Config for Runtime {
 	type TrustedLockers = ();
 	type SovereignAccountOf = LocationToAccountId;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type WeightInfo = pallet_xcm::TestWeightInfo;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;

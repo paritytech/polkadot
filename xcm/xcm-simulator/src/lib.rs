@@ -298,7 +298,7 @@ macro_rules! decl_test_network {
 							$crate::Weight::MAX,
 						);
 						if let Err((id, required)) = r {
-							return Err($crate::XcmError::WeightLimitReached(required.ref_time()));
+							return Err($crate::XcmError::WeightLimitReached(required));
 						}
 					},
 					$(

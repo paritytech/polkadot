@@ -133,8 +133,12 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		set_exporter_override(price::<RemoteExporter>, deliver::<RemoteExporter>);
 		// The we execute it:
 		let hash = fake_message_hash(&message);
-		let outcome =
-			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), hash, 2_000_000_000_000);
+		let outcome = XcmExecutor::<TestConfig>::execute_xcm(
+			origin,
+			message.into(),
+			hash,
+			Weight::from_parts(2_000_000_000_000, 2_000_000_000_000),
+		);
 		match outcome {
 			Outcome::Complete(..) => Ok(hash),
 			Outcome::Incomplete(..) => Err(Transport("Error executing")),
@@ -174,8 +178,12 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		set_exporter_override(price::<RemoteExporter>, deliver::<RemoteExporter>);
 		// The we execute it:
 		let hash = fake_message_hash(&message);
-		let outcome =
-			XcmExecutor::<TestConfig>::execute_xcm(origin, message.into(), hash, 2_000_000_000_000);
+		let outcome = XcmExecutor::<TestConfig>::execute_xcm(
+			origin,
+			message.into(),
+			hash,
+			Weight::from_parts(2_000_000_000_000, 2_000_000_000_000),
+		);
 		match outcome {
 			Outcome::Complete(..) => Ok(hash),
 			Outcome::Incomplete(..) => Err(Transport("Error executing")),

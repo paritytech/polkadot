@@ -16,7 +16,10 @@
 
 //! Version 3 of the Cross-Consensus Message format data structures.
 
-use super::v2::{Instruction as OldInstruction, Response as OldResponse, Xcm as OldXcm};
+use super::v2::{
+	Instruction as OldInstruction, Response as OldResponse, WeightLimit as OldWeightLimit,
+	Xcm as OldXcm,
+};
 use crate::{DoubleEncoded, GetWeight};
 use alloc::{vec, vec::Vec};
 use core::{
@@ -48,7 +51,7 @@ pub use traits::{
 	SendResult, SendXcm, Unwrappable, Weight, XcmHash,
 };
 // These parts of XCM v2 are unchanged in XCM v3, and are re-imported here.
-pub use super::v2::{OriginKind, WeightLimit};
+pub use super::v2::OriginKind;
 
 /// This module's XCM version.
 pub const VERSION: super::Version = 3;
@@ -325,8 +328,45 @@ pub struct QueryResponseInfo {
 	#[codec(compact)]
 	pub query_id: QueryId,
 	/// The `max_weight` field of the `QueryResponse` message.
-	#[codec(compact)]
 	pub max_weight: Weight,
+}
+
+/// An optional weight limit.
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
+pub enum WeightLimit {
+	/// No weight limit imposed.
+	Unlimited,
+	/// Weight limit imposed of the inner value.
+	Limited(Weight),
+}
+
+impl From<Option<Weight>> for WeightLimit {
+	fn from(x: Option<Weight>) -> Self {
+		match x {
+			Some(w) => WeightLimit::Limited(w),
+			None => WeightLimit::Unlimited,
+		}
+	}
+}
+
+impl From<WeightLimit> for Option<Weight> {
+	fn from(x: WeightLimit) -> Self {
+		match x {
+			WeightLimit::Limited(w) => Some(w),
+			WeightLimit::Unlimited => None,
+		}
+	}
+}
+
+impl TryFrom<OldWeightLimit> for WeightLimit {
+	type Error = ();
+	fn try_from(x: OldWeightLimit) -> result::Result<Self, ()> {
+		use OldWeightLimit::*;
+		match x {
+			Limited(w) => Ok(Self::Limited(Weight::from_parts(w, DEFAULT_PROOF_SIZE))),
+			Unlimited => Ok(Self::Unlimited),
+		}
+	}
 }
 
 /// Contextual data pertaining to a specific list of XCM instructions.
@@ -420,7 +460,6 @@ pub enum Instruction<Call> {
 		#[codec(compact)]
 		query_id: QueryId,
 		response: Response,
-		#[codec(compact)]
 		max_weight: Weight,
 		querier: Option<MultiLocation>,
 	},
@@ -473,12 +512,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*.
 	///
 	/// Errors:
-	Transact {
-		origin_kind: OriginKind,
-		#[codec(compact)]
-		require_weight_at_most: u64,
-		call: DoubleEncoded<Call>,
-	},
+	Transact { origin_kind: OriginKind, require_weight_at_most: Weight, call: DoubleEncoded<Call> },
 
 	/// A message to notify about a new incoming HRMP channel. This message is meant to be sent by the
 	/// relay-chain to a para.
@@ -751,7 +785,6 @@ pub enum Instruction<Call> {
 	SubscribeVersion {
 		#[codec(compact)]
 		query_id: QueryId,
-		#[codec(compact)]
 		max_response_weight: Weight,
 	},
 
@@ -1180,6 +1213,9 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 	}
 }
 
+/// Default value for the proof size weight component. Set at 64 KB.
+const DEFAULT_PROOF_SIZE: u64 = 64 * 1024;
+
 // Convert from a v2 instruction to a v3 instruction.
 impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 	type Error = ();
@@ -1192,7 +1228,7 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 			QueryResponse { query_id, response, max_weight } => Self::QueryResponse {
 				query_id,
 				response: response.try_into()?,
-				max_weight,
+				max_weight: Weight::from_parts(max_weight, DEFAULT_PROOF_SIZE),
 				querier: None,
 			},
 			TransferAsset { assets, beneficiary } => Self::TransferAsset {
@@ -1211,14 +1247,17 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				Self::HrmpChannelClosing { initiator, sender, recipient },
 			Transact { origin_type, require_weight_at_most, call } => Self::Transact {
 				origin_kind: origin_type,
-				require_weight_at_most,
+				require_weight_at_most: Weight::from_parts(
+					require_weight_at_most,
+					DEFAULT_PROOF_SIZE,
+				),
 				call: call.into(),
 			},
 			ReportError { query_id, dest, max_response_weight } => {
 				let response_info = QueryResponseInfo {
 					destination: dest.try_into()?,
 					query_id,
-					max_weight: max_response_weight,
+					max_weight: Weight::from_parts(max_response_weight, DEFAULT_PROOF_SIZE),
 				};
 				Self::ReportError(response_info)
 			},
@@ -1249,12 +1288,14 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				let response_info = QueryResponseInfo {
 					destination: dest.try_into()?,
 					query_id,
-					max_weight: max_response_weight,
+					max_weight: Weight::from_parts(max_response_weight, DEFAULT_PROOF_SIZE),
 				};
 				Self::ReportHolding { response_info, assets: assets.try_into()? }
 			},
-			BuyExecution { fees, weight_limit } =>
-				Self::BuyExecution { fees: fees.try_into()?, weight_limit },
+			BuyExecution { fees, weight_limit } => Self::BuyExecution {
+				fees: fees.try_into()?,
+				weight_limit: weight_limit.try_into()?,
+			},
 			ClearOrigin => Self::ClearOrigin,
 			DescendOrigin(who) => Self::DescendOrigin(who.try_into()?),
 			RefundSurplus => Self::RefundSurplus,
@@ -1267,8 +1308,10 @@ impl<Call> TryFrom<OldInstruction<Call>> for Instruction<Call> {
 				Self::ClaimAsset { assets, ticket }
 			},
 			Trap(code) => Self::Trap(code),
-			SubscribeVersion { query_id, max_response_weight } =>
-				Self::SubscribeVersion { query_id, max_response_weight },
+			SubscribeVersion { query_id, max_response_weight } => Self::SubscribeVersion {
+				query_id,
+				max_response_weight: Weight::from_parts(max_response_weight, DEFAULT_PROOF_SIZE),
+			},
 			UnsubscribeVersion => Self::UnsubscribeVersion,
 		})
 	}
@@ -1323,7 +1366,10 @@ mod tests {
 		let xcm = Xcm::<()>(vec![
 			ReserveAssetDeposited((Here, 1u128).into()),
 			ClearOrigin,
-			BuyExecution { fees: (Here, 1u128).into(), weight_limit: Some(1).into() },
+			BuyExecution {
+				fees: (Here, 1u128).into(),
+				weight_limit: Some(Weight::from_parts(1, DEFAULT_PROOF_SIZE)).into(),
+			},
 			DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Here.into() },
 		]);
 		let old_xcm = OldXcm::<()>(vec![

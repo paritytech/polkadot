@@ -17,6 +17,7 @@
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, Nothing},
+	weights::Weight,
 };
 use parity_scale_codec::Encode;
 use sp_core::H256;
@@ -152,7 +153,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: u64 = 1_000_000_000;
+	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000_000_000, 1_000_000_000);
 	pub KsmPerSecond: (AssetId, u128) = (KsmLocation::get().into(), 1);
 }
 
@@ -220,6 +221,7 @@ impl pallet_xcm::Config for Runtime {
 	type Currency = Balances;
 	type CurrencyMatcher = IsConcrete<KsmLocation>;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type WeightInfo = pallet_xcm::TestWeightInfo;
 }
 
 impl origin::Config for Runtime {}

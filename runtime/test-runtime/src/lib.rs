@@ -533,7 +533,7 @@ impl parachains_ump::Config for Runtime {
 }
 
 parameter_types! {
-	pub const BaseXcmWeight: xcm::latest::Weight = 1_000;
+	pub const BaseXcmWeight: xcm::latest::Weight = Weight::from_parts(1_000, 1_000);
 	pub const AnyNetwork: Option<xcm::latest::NetworkId> = None;
 	pub const MaxInstructions: u32 = 100;
 	pub const UniversalLocation: xcm::latest::InteriorMultiLocation = xcm::latest::Junctions::Here;
@@ -564,6 +564,7 @@ impl pallet_xcm::Config for Runtime {
 	type TrustedLockers = ();
 	type SovereignAccountOf = ();
 	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type WeightInfo = pallet_xcm::TestWeightInfo;
 }
 
 impl parachains_hrmp::Config for Runtime {

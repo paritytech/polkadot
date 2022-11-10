@@ -77,8 +77,7 @@ impl Dispatchable for TestCall {
 			TestCall::OnlyParachain(_, maybe_actual, _) |
 			TestCall::Any(_, maybe_actual) => maybe_actual,
 		};
-		post_info.actual_weight =
-			maybe_actual.map(|x| frame_support::weights::Weight::from_ref_time(x));
+		post_info.actual_weight = maybe_actual;
 		if match (&origin, &self) {
 			(TestOrigin::Parachain(i), TestCall::OnlyParachain(_, _, Some(j))) => i == j,
 			(TestOrigin::Signed(i), TestCall::OnlySigned(_, _, Some(j))) => i == j,
@@ -103,10 +102,7 @@ impl GetDispatchInfo for TestCall {
 			TestCall::OnlySigned(estimate, ..) |
 			TestCall::Any(estimate, ..) => estimate,
 		};
-		DispatchInfo {
-			weight: frame_support::weights::Weight::from_ref_time(weight),
-			..Default::default()
-		}
+		DispatchInfo { weight, ..Default::default() }
 	}
 }
 
@@ -390,7 +386,7 @@ impl OnResponse for TestResponseHandler {
 				}
 			});
 		});
-		10
+		Weight::from_parts(10, 10)
 	}
 }
 pub fn expect_response(query_id: u64, from: MultiLocation) {
@@ -408,7 +404,7 @@ pub fn response(query_id: u64) -> Option<Response> {
 parameter_types! {
 	pub static ExecutorUniversalLocation: InteriorMultiLocation
 		= (ByGenesis([0; 32]), Parachain(42)).into();
-	pub UnitWeightCost: u64 = 10;
+	pub UnitWeightCost: Weight = Weight::from_parts(10, 10);
 }
 parameter_types! {
 	// Nothing is allowed to be paid/unpaid by default.

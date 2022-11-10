@@ -26,16 +26,21 @@ fn pallet_query_should_work() {
 		response_info: QueryResponseInfo {
 			destination: Parachain(1).into(),
 			query_id: 1,
-			max_weight: 50,
+			max_weight: Weight::from_parts(50, 50),
 		},
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
-	assert_eq!(r, Outcome::Complete(10));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_parts(50, 50),
+	);
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(10, 10)));
 
 	let expected_msg = Xcm::<()>(vec![QueryResponse {
 		query_id: 1,
-		max_weight: 50,
+		max_weight: Weight::from_parts(50, 50),
 		response: Response::PalletsInfo(vec![].try_into().unwrap()),
 		querier: Some(Here.into()),
 	}]);
@@ -53,16 +58,21 @@ fn pallet_query_with_results_should_work() {
 		response_info: QueryResponseInfo {
 			destination: Parachain(1).into(),
 			query_id: 1,
-			max_weight: 50,
+			max_weight: Weight::from_parts(50, 50),
 		},
 	}]);
 	let hash = fake_message_hash(&message);
-	let r = XcmExecutor::<TestConfig>::execute_xcm(Parachain(1), message, hash, 50);
-	assert_eq!(r, Outcome::Complete(10));
+	let r = XcmExecutor::<TestConfig>::execute_xcm(
+		Parachain(1),
+		message,
+		hash,
+		Weight::from_parts(50, 50),
+	);
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(10, 10)));
 
 	let expected_msg = Xcm::<()>(vec![QueryResponse {
 		query_id: 1,
-		max_weight: 50,
+		max_weight: Weight::from_parts(50, 50),
 		response: Response::PalletsInfo(
 			vec![PalletInfo::new(
 				1,
@@ -92,15 +102,15 @@ fn prepaid_result_of_query_should_get_free_execution() {
 	let message = Xcm::<TestCall>(vec![QueryResponse {
 		query_id,
 		response: the_response.clone(),
-		max_weight: 10,
+		max_weight: Weight::from_parts(10, 10),
 		querier: Some(Here.into()),
 	}]);
 	let hash = fake_message_hash(&message);
-	let weight_limit = 10;
+	let weight_limit = Weight::from_parts(10, 10);
 
 	// First time the response gets through since we're expecting it...
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message.clone(), hash, weight_limit);
-	assert_eq!(r, Outcome::Complete(10));
+	assert_eq!(r, Outcome::Complete(Weight::from_parts(10, 10)));
 	assert_eq!(response(query_id).unwrap(), the_response);
 
 	// Second time it doesn't, since we're not.

@@ -23,8 +23,8 @@ use frame_support::{
 };
 use parity_scale_codec::{Decode, Encode};
 use sp_io::hashing::blake2_128;
-use sp_runtime::traits::Saturating;
 use sp_std::{marker::PhantomData, prelude::*};
+use sp_weights::Weight;
 use xcm::latest::prelude::*;
 
 pub mod traits;
@@ -58,12 +58,12 @@ pub struct XcmExecutor<Config: config::Config> {
 	/// an over-estimate of the actual weight consumed. We do it this way to avoid needing the
 	/// execution engine to keep track of all instructions' weights (it only needs to care about
 	/// the weight of dynamically determined instructions such as `Transact`).
-	total_surplus: u64,
-	total_refunded: u64,
+	total_surplus: Weight,
+	total_refunded: Weight,
 	error_handler: Xcm<Config::RuntimeCall>,
-	error_handler_weight: u64,
+	error_handler_weight: Weight,
 	appendix: Xcm<Config::RuntimeCall>,
-	appendix_weight: u64,
+	appendix_weight: Weight,
 	transact_status: MaybeErrorCode,
 	fees_mode: FeesMode,
 	topic: Option<[u8; 32]>,
@@ -108,16 +108,16 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	pub fn set_error(&mut self, v: Option<(u32, XcmError)>) {
 		self.error = v
 	}
-	pub fn total_surplus(&self) -> &u64 {
+	pub fn total_surplus(&self) -> &Weight {
 		&self.total_surplus
 	}
-	pub fn set_total_surplus(&mut self, v: u64) {
+	pub fn set_total_surplus(&mut self, v: Weight) {
 		self.total_surplus = v
 	}
-	pub fn total_refunded(&self) -> &u64 {
+	pub fn total_refunded(&self) -> &Weight {
 		&self.total_refunded
 	}
-	pub fn set_total_refunded(&mut self, v: u64) {
+	pub fn set_total_refunded(&mut self, v: Weight) {
 		self.total_refunded = v
 	}
 	pub fn error_handler(&self) -> &Xcm<Config::RuntimeCall> {
@@ -126,10 +126,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	pub fn set_error_handler(&mut self, v: Xcm<Config::RuntimeCall>) {
 		self.error_handler = v
 	}
-	pub fn error_handler_weight(&self) -> &u64 {
+	pub fn error_handler_weight(&self) -> &Weight {
 		&self.error_handler_weight
 	}
-	pub fn set_error_handler_weight(&mut self, v: u64) {
+	pub fn set_error_handler_weight(&mut self, v: Weight) {
 		self.error_handler_weight = v
 	}
 	pub fn appendix(&self) -> &Xcm<Config::RuntimeCall> {
@@ -138,10 +138,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	pub fn set_appendix(&mut self, v: Xcm<Config::RuntimeCall>) {
 		self.appendix = v
 	}
-	pub fn appendix_weight(&self) -> &u64 {
+	pub fn appendix_weight(&self) -> &Weight {
 		&self.appendix_weight
 	}
-	pub fn set_appendix_weight(&mut self, v: u64) {
+	pub fn set_appendix_weight(&mut self, v: Weight) {
 		self.appendix_weight = v
 	}
 	pub fn transact_status(&self) -> &MaybeErrorCode {
@@ -164,9 +164,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	}
 }
 
-pub struct WeighedMessage<Call>(u64, Xcm<Call>);
+pub struct WeighedMessage<Call>(Weight, Xcm<Call>);
 impl<C> PreparedMessage for WeighedMessage<C> {
-	fn weight_of(&self) -> u64 {
+	fn weight_of(&self) -> Weight {
 		self.0
 	}
 }
@@ -185,7 +185,7 @@ impl<Config: config::Config> ExecuteXcm<Config::RuntimeCall> for XcmExecutor<Con
 		origin: impl Into<MultiLocation>,
 		WeighedMessage(xcm_weight, mut message): WeighedMessage<Config::RuntimeCall>,
 		message_hash: XcmHash,
-		mut weight_credit: u64,
+		mut weight_credit: Weight,
 	) -> Outcome {
 		let origin = origin.into();
 		log::trace!(
@@ -246,7 +246,7 @@ impl<Config: config::Config> ExecuteXcm<Config::RuntimeCall> for XcmExecutor<Con
 pub struct ExecutorError {
 	pub index: u32,
 	pub xcm_error: XcmError,
-	pub weight: u64,
+	pub weight: Weight,
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -272,12 +272,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			original_origin: origin,
 			trader: Config::Trader::new(),
 			error: None,
-			total_surplus: 0,
-			total_refunded: 0,
+			total_surplus: Weight::zero(),
+			total_refunded: Weight::zero(),
 			error_handler: Xcm(vec![]),
-			error_handler_weight: 0,
+			error_handler_weight: Weight::zero(),
 			appendix: Xcm(vec![]),
-			appendix_weight: 0,
+			appendix_weight: Weight::zero(),
 			transact_status: Default::default(),
 			fees_mode: FeesMode { jit_withdraw: false },
 			topic: None,
@@ -305,7 +305,11 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				r @ Ok(()) =>
 					if let Err(e) = self.process_instruction(instr) {
 						log::trace!(target: "xcm::execute", "!!! ERROR: {:?}", e);
-						*r = Err(ExecutorError { index: i as u32, xcm_error: e, weight: 0 });
+						*r = Err(ExecutorError {
+							index: i as u32,
+							xcm_error: e,
+							weight: Weight::zero(),
+						});
 					},
 				Err(ref mut error) =>
 					if let Ok(x) = Config::Weigher::instr_weight(&instr) {
@@ -318,7 +322,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 	/// Execute any final operations after having executed the XCM message.
 	/// This includes refunding surplus weight, trapping extra holding funds, and returning any errors during execution.
-	pub fn post_process(mut self, xcm_weight: u64) -> Outcome {
+	pub fn post_process(mut self, xcm_weight: Weight) -> Outcome {
 		// We silently drop any error from our attempt to refund the surplus as it's a charitable
 		// thing so best-effort is all we will do.
 		let _ = self.refund_surplus();
@@ -376,7 +380,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	fn take_error_handler(&mut self) -> Xcm<Config::RuntimeCall> {
 		let mut r = Xcm::<Config::RuntimeCall>(vec![]);
 		sp_std::mem::swap(&mut self.error_handler, &mut r);
-		self.error_handler_weight = 0;
+		self.error_handler_weight = Weight::zero();
 		r
 	}
 
@@ -384,14 +388,14 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	fn drop_error_handler(&mut self) {
 		self.error_handler = Xcm::<Config::RuntimeCall>(vec![]);
 		self.total_surplus.saturating_accrue(self.error_handler_weight);
-		self.error_handler_weight = 0;
+		self.error_handler_weight = Weight::zero();
 	}
 
 	/// Remove the registered appendix and return it.
 	fn take_appendix(&mut self) -> Xcm<Config::RuntimeCall> {
 		let mut r = Xcm::<Config::RuntimeCall>(vec![]);
 		sp_std::mem::swap(&mut self.appendix, &mut r);
-		self.appendix_weight = 0;
+		self.appendix_weight = Weight::zero();
 		r
 	}
 
@@ -416,7 +420,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	/// Refund any unused weight.
 	fn refund_surplus(&mut self) -> Result<(), XcmError> {
 		let current_surplus = self.total_surplus.saturating_sub(self.total_refunded);
-		if current_surplus > 0 {
+		if current_surplus.any_gt(Weight::zero()) {
 			self.total_refunded.saturating_accrue(current_surplus);
 			if let Some(w) = self.trader.refund_weight(current_surplus) {
 				self.subsume_asset(w)?;
@@ -514,7 +518,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_kind)
 					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
-				ensure!(weight.ref_time() <= require_weight_at_most, XcmError::MaxWeightInvalid);
+				ensure!(weight.all_lte(require_weight_at_most), XcmError::MaxWeightInvalid);
 				let maybe_actual_weight =
 					match Config::CallDispatcher::dispatch(message_call, dispatch_origin) {
 						Ok(post_info) => {
@@ -536,7 +540,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// reported back to the caller and this ensures that they account for the total
 				// weight consumed correctly (potentially allowing them to do more operations in a
 				// block than they otherwise would).
-				self.total_surplus.saturating_accrue(surplus.ref_time());
+				self.total_surplus.saturating_accrue(surplus);
 				Ok(())
 			},
 			QueryResponse { query_id, response, max_weight, querier } => {
@@ -645,7 +649,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// would indicate that `AllowTopLevelPaidExecutionFrom` was unused for execution
 				// and thus there is some other reason why it has been determined that this XCM
 				// should be executed.
-				if let Some(weight) = Option::<u64>::from(weight_limit) {
+				if let Some(weight) = Option::<Weight>::from(weight_limit) {
 					// pay for `weight` using up to `fees` of the holding register.
 					let max_fee =
 						self.holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;

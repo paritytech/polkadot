@@ -5586,6 +5586,7 @@ dependencies = [
 name = "pallet-xcm"
 version = "0.9.31"
 dependencies = [
+ "frame-benchmarking",
  "frame-support",
  "frame-system",
  "log",
@@ -12592,8 +12593,9 @@ dependencies = [
  "parity-scale-codec",
  "scale-info",
  "serde",
+ "sp-core",
  "sp-io",
- "sp-runtime",
+ "sp-weights",
  "xcm-procedural",
 ]
 
@@ -12636,6 +12638,7 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
+ "sp-weights",
  "xcm",
 ]
 

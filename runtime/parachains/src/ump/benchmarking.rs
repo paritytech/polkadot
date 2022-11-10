@@ -43,7 +43,7 @@ fn create_message_min_size<T: Config>(size: u32) -> Vec<u8> {
 	// Create a message with an empty remark call to determine the encoding overhead
 	let msg_size_empty_transact = VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
 		origin_kind: OriginKind::SovereignAccount,
-		require_weight_at_most: Weight::MAX.ref_time(),
+		require_weight_at_most: Weight::MAX,
 		call: frame_system::Call::<T>::remark_with_event { remark: vec![] }.encode().into(),
 	}]))
 	.encode()
@@ -55,7 +55,7 @@ fn create_message_min_size<T: Config>(size: u32) -> Vec<u8> {
 	remark.resize(size, 0u8);
 	let msg = VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
 		origin_kind: OriginKind::SovereignAccount,
-		require_weight_at_most: Weight::MAX.ref_time(),
+		require_weight_at_most: Weight::MAX,
 		call: frame_system::Call::<T>::remark_with_event { remark }.encode().into(),
 	}]))
 	.encode();
@@ -70,7 +70,7 @@ fn create_message_overweight<T: Config>() -> Vec<u8> {
 	let call = frame_system::Call::<T>::set_code { code: vec![] };
 	VersionedXcm::<T>::from(Xcm::<T>(vec![Transact {
 		origin_kind: OriginKind::Superuser,
-		require_weight_at_most: max_block_weight.ref_time(),
+		require_weight_at_most: max_block_weight,
 		call: call.encode().into(),
 	}]))
 	.encode()
@@ -107,7 +107,6 @@ frame_benchmarking::benchmarks! {
 
 	service_overweight {
 		let host_conf = configuration::ActiveConfig::<T>::get();
-		let weight = host_conf.ump_max_individual_weight + host_conf.ump_max_individual_weight + Weight::from_ref_time(1000000);
 		let para = ParaId::from(1978);
 		// The message's weight does not really matter here, as we add service_overweight's
 		// max_weight parameter to the extrinsic's weight in the weight calculation.
@@ -117,7 +116,7 @@ frame_benchmarking::benchmarks! {
 		let msg = create_message_overweight::<T>();
 
 		// This just makes sure that 0 is not a valid index and we can use it later on.
-		let _ = Ump::<T>::service_overweight(RawOrigin::Root.into(), 0, Weight::from_ref_time(1000).set_proof_size(u64::MAX));
+		let _ = Ump::<T>::service_overweight(RawOrigin::Root.into(), 0, Weight::from_parts(1000, 1000));
 		// Start with the block number 1. This is needed because should an event be
 		// emitted during the genesis block they will be implicitly wiped.
 		frame_system::Pallet::<T>::set_block_number(1u32.into());

@@ -208,8 +208,8 @@ pvf_checking_enabled                     : pre.pvf_checking_enabled,
 pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 
-ump_service_total_weight: Weight::from_ref_time(pre.ump_service_total_weight.0).set_proof_size(MAX_POV_SIZE as u64),
-ump_max_individual_weight: Weight::from_ref_time(pre.ump_max_individual_weight.0).set_proof_size(MAX_POV_SIZE as u64),
+ump_service_total_weight: Weight::from_parts(pre.ump_service_total_weight.0, MAX_POV_SIZE as u64),
+ump_max_individual_weight: Weight::from_parts(pre.ump_max_individual_weight.0, MAX_POV_SIZE as u64),
 		}
 	};
 

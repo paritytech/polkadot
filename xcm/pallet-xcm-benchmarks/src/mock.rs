@@ -16,7 +16,7 @@
 
 use crate::*;
 use frame_support::{parameter_types, traits::ContainsPair};
-use xcm::latest::Weight as XCMWeight;
+use xcm::latest::Weight;
 
 // An xcm sender/receiver akin to > /dev/null
 pub struct DevNull;
@@ -39,10 +39,10 @@ impl xcm_executor::traits::OnResponse for DevNull {
 		_: u64,
 		_: Option<&MultiLocation>,
 		_: Response,
-		_: XCMWeight,
+		_: Weight,
 		_: &XcmContext,
-	) -> XCMWeight {
-		0
+	) -> Weight {
+		Weight::zero()
 	}
 }
 
@@ -63,7 +63,7 @@ impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 
 parameter_types! {
 	pub UniversalLocation: InteriorMultiLocation = Junction::Parachain(101).into();
-	pub UnitWeightCost: u64 = 10;
+	pub UnitWeightCost: Weight = Weight::from_parts(10, 10);
 	pub WeightPrice: (AssetId, u128) = (Concrete(Here.into()), 1_000_000);
 }
 

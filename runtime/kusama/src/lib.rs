@@ -1479,6 +1479,8 @@ pub type Executive = frame_executive::Executive<
 		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
 		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
 		pallet_election_provider_multi_phase::migrations::v1::MigrateToV1<Runtime>,
+		// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
+		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	),
 >;
 /// The payload being signed in the transactions.
@@ -1545,6 +1547,7 @@ mod benches {
 		[pallet_vesting, Vesting]
 		[pallet_whitelist, Whitelist]
 		// XCM
+		[pallet_xcm, XcmPallet]
 		[pallet_xcm_benchmarks::fungible, pallet_xcm_benchmarks::fungible::Pallet::<Runtime>]
 		[pallet_xcm_benchmarks::generic, pallet_xcm_benchmarks::generic::Pallet::<Runtime>]
 	);

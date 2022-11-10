@@ -18,6 +18,7 @@ use codec::Encode;
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, Nothing},
+	weights::Weight,
 };
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
@@ -34,7 +35,7 @@ use xcm_builder::{
 };
 use xcm_executor::XcmExecutor;
 
-use crate as pallet_xcm;
+use crate::{self as pallet_xcm, TestWeightInfo};
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
@@ -77,7 +78,7 @@ pub mod pallet_test_notifier {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(Weight::from_parts(1_000_000, 1_000_000))]
 		pub fn prepare_new_query(origin: OriginFor<T>, querier: MultiLocation) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			let id = who
@@ -92,7 +93,7 @@ pub mod pallet_test_notifier {
 			Ok(())
 		}
 
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(Weight::from_parts(1_000_000, 1_000_000))]
 		pub fn prepare_new_notify_query(
 			origin: OriginFor<T>,
 			querier: MultiLocation,
@@ -113,7 +114,7 @@ pub mod pallet_test_notifier {
 			Ok(())
 		}
 
-		#[pallet::weight(1_000_000)]
+		#[pallet::weight(Weight::from_parts(1_000_000, 1_000_000))]
 		pub fn notification_received(
 			origin: OriginFor<T>,
 			query_id: QueryId,
@@ -262,7 +263,7 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: u64 = 1_000;
+	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000, 1_000);
 	pub CurrencyPerSecond: (AssetId, u128) = (Concrete(RelayLocation::get()), 1);
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 	pub const MaxInstructions: u32 = 100;
@@ -328,6 +329,7 @@ impl pallet_xcm::Config for Test {
 	type Currency = Balances;
 	type CurrencyMatcher = IsConcrete<RelayLocation>;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type WeightInfo = TestWeightInfo;
 }
 
 impl origin::Config for Test {}
@@ -351,7 +353,10 @@ pub(crate) fn buy_execution<C>(fees: impl Into<MultiAsset>) -> Instruction<C> {
 	BuyExecution { fees: fees.into(), weight_limit: Unlimited }
 }
 
-pub(crate) fn buy_limited_execution<C>(fees: impl Into<MultiAsset>, weight: u64) -> Instruction<C> {
+pub(crate) fn buy_limited_execution<C>(
+	fees: impl Into<MultiAsset>,
+	weight: Weight,
+) -> Instruction<C> {
 	use xcm::latest::prelude::*;
 	BuyExecution { fees: fees.into(), weight_limit: Limited(weight) }
 }

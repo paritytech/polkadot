@@ -17,7 +17,6 @@
 use crate::Assets;
 use core::marker::PhantomData;
 use frame_support::traits::Contains;
-use sp_runtime::traits::Zero;
 use xcm::latest::{MultiAssets, MultiLocation, Weight, XcmContext};
 
 /// Define a handler for when some non-empty `Assets` value should be dropped.

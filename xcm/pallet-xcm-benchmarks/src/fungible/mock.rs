@@ -51,9 +51,7 @@ frame_support::construct_runtime!(
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(
-			Weight::from_ref_time(1024).set_proof_size(u64::MAX),
-		);
+		frame_system::limits::BlockWeights::simple_max(Weight::from_parts(1024, u64::MAX));
 }
 impl frame_system::Config for Test {
 	type BaseCallFilter = Everything;

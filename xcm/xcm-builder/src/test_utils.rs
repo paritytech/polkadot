@@ -31,7 +31,7 @@ pub use xcm_executor::{
 };
 
 parameter_types! {
-	pub static SubscriptionRequests: Vec<(MultiLocation, Option<(QueryId, u64)>)> = vec![];
+	pub static SubscriptionRequests: Vec<(MultiLocation, Option<(QueryId, Weight)>)> = vec![];
 	pub static MaxAssetsIntoHolding: u32 = 4;
 }
 
@@ -41,7 +41,7 @@ impl VersionChangeNotifier for TestSubscriptionService {
 	fn start(
 		location: &MultiLocation,
 		query_id: QueryId,
-		max_weight: u64,
+		max_weight: Weight,
 		_context: &XcmContext,
 	) -> XcmResult {
 		let mut r = SubscriptionRequests::get();
@@ -73,7 +73,7 @@ impl DropAssets for TestAssetTrap {
 		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
 		t.push((origin.clone(), assets.into()));
 		TrappedAssets::set(t);
-		5
+		Weight::from_parts(5, 5)
 	}
 }
 
