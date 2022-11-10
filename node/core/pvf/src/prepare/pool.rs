@@ -65,7 +65,7 @@ pub enum ToPool {
 		worker: Worker,
 		code: Arc<Vec<u8>>,
 		artifact_path: PathBuf,
-		compilation_timeout: Duration,
+		preparation_timeout: Duration,
 	},
 }
 
@@ -210,7 +210,7 @@ fn handle_to_pool(
 			metrics.prepare_worker().on_begin_spawn();
 			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
 		},
-		ToPool::StartWork { worker, code, artifact_path, compilation_timeout } => {
+		ToPool::StartWork { worker, code, artifact_path, preparation_timeout } => {
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
 					let preparation_timer = metrics.time_preparation();
@@ -221,7 +221,7 @@ fn handle_to_pool(
 							code,
 							cache_path.to_owned(),
 							artifact_path,
-							compilation_timeout,
+							preparation_timeout,
 							preparation_timer,
 						)
 						.boxed(),
@@ -269,11 +269,11 @@ async fn start_work_task<Timer>(
 	code: Arc<Vec<u8>>,
 	cache_path: PathBuf,
 	artifact_path: PathBuf,
-	compilation_timeout: Duration,
+	preparation_timeout: Duration,
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
 	let outcome =
-		worker::start_work(idle, code, &cache_path, artifact_path, compilation_timeout).await;
+		worker::start_work(idle, code, &cache_path, artifact_path, preparation_timeout).await;
 	PoolEvent::StartWork(worker, outcome)
 }
 

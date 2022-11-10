@@ -140,7 +140,7 @@ where
 				&mut parachains,
 				id,
 				&ParaGenesisArgs {
-					parachain: true,
+					para_kind: ParaKind::Parachain,
 					genesis_head: HeadData(vec![1, 2, 3, 4]),
 					validation_code: old_validation_code,
 				},
@@ -159,7 +159,7 @@ where
 			let r = Pallet::<T>::schedule_para_initialize(
 				id,
 				ParaGenesisArgs {
-					parachain: true,
+					para_kind: ParaKind::Parachain,
 					genesis_head: HeadData(vec![1, 2, 3, 4]),
 					validation_code: validation_code(),
 				},
