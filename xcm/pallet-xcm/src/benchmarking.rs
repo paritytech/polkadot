@@ -53,7 +53,7 @@ benchmarks! {
 			.map_err(|_| BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))?;
 		let msg = Xcm(vec![ClearOrigin]);
 		if !T::XcmExecuteFilter::contains(&(origin_location, msg.clone())) {
-			return Err(BenchmarkError::Skip)
+			return Err(BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))
 		}
 		let versioned_msg = VersionedXcm::from(msg);
 	}: _<RuntimeOrigin<T>>(execute_origin, Box::new(versioned_msg), Weight::zero())
