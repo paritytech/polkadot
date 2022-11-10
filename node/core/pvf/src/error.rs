@@ -17,8 +17,9 @@
 use parity_scale_codec::{Decode, Encode};
 use std::any::Any;
 
-/// Result of PVF preparation performed by the validation host.
-pub type PrepareResult = Result<(), PrepareError>;
+/// Result of PVF preparation performed by the validation host. Contains the elapsed CPU time if
+/// successful.
+pub type PrepareResult = Result<Duration, PrepareError>;
 
 /// An error that occurred during the prepare part of the PVF pipeline.
 #[derive(Debug, Clone, Encode, Decode)]

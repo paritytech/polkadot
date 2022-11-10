@@ -99,13 +99,36 @@ pub async fn start_work(
 			Deadline,
 		}
 
-		let selected =
-			match async_std::future::timeout(preparation_timeout, framed_recv(&mut stream)).await {
-				Ok(Ok(response_bytes)) => {
-					// Received bytes from worker within the time limit.
-					// By convention we expect encoded `PrepareResult`.
-					if let Ok(result) = PrepareResult::decode(&mut response_bytes.as_slice()) {
-						if result.is_ok() {
+		// We use a generous timeout here. We use a wall clock timeout here in the host, but a CPU
+		// timeout in the child. This is because CPU time can vary more under load, but more closely
+		// corresponds to the actual amount of work performed. The child should already terminate
+		// itself after `preparation_timeout` duration in CPU time, but we have this simple wall
+		// clock timeout in case the child stalls.
+		let timeout = preparation_timeout * PREPARATION_TIMEOUT_STALLED_FACTOR;
+		let result = async_std::future::timeout(timeout, framed_recv(&mut stream)).await;
+
+		let selected = match result {
+			// TODO: This case is really long, refactor.
+			Ok(Ok(response_bytes)) => {
+				// Received bytes from worker within the time limit.
+				// By convention we expect encoded `PrepareResult`.
+				if let Ok(result) = PrepareResult::decode(&mut response_bytes.as_slice()) {
+					if let Ok(cpu_time_elapsed) = result {
+						let given_cpu_time =
+							preparation_timeout + PREPARATION_TIMEOUT_MINIMUM_INTERVAL;
+						if cpu_time_elapsed > given_cpu_time {
+							// Sanity check: we expect the preparation to complete within the
+							// timeout, plus the minimum polling interval.
+							gum::debug!(
+								target: LOG_TARGET,
+								worker_pid = %pid,
+								"child took {} cpu_time, exceeding given time {}",
+								cpu_time_elapsed,
+								given_cpu_time
+							);
+
+							Selected::Deadline
+						} else {
 							gum::debug!(
 								target: LOG_TARGET,
 								worker_pid = %pid,
@@ -128,36 +151,46 @@ pub async fn start_work(
 									);
 									Selected::IoErr
 								})
-						} else {
-							Selected::Done(result)
 						}
 					} else {
-						// We received invalid bytes from the worker.
-						let bound_bytes = &response_bytes[..response_bytes.len().min(4)];
-						gum::warn!(
-							target: LOG_TARGET,
-							worker_pid = %pid,
-							"received unexpected response from the prepare worker: {}",
-							HexDisplay::from(&bound_bytes),
-						);
-						Selected::IoErr
+						Selected::Done(result)
 					}
-				},
-				Ok(Err(err)) => {
-					// Communication error within the time limit.
+				} else {
+					// We received invalid bytes from the worker.
+					let bound_bytes = &response_bytes[..response_bytes.len().min(4)];
 					gum::warn!(
 						target: LOG_TARGET,
 						worker_pid = %pid,
-						"failed to recv a prepare response: {:?}",
-						err,
+						"received unexpected response from the prepare worker: {}",
+						HexDisplay::from(&bound_bytes),
 					);
 					Selected::IoErr
-				},
-				Err(_) => {
-					// Timed out.
-					Selected::Deadline
-				},
-			};
+				}
+			},
+			Ok(Err(PrepareError::TimedOut)) => {
+				// Timed out. This should already be logged by the child.
+				Selected::Deadline
+			},
+			Ok(Err(err)) => {
+				// Communication error within the time limit.
+				gum::warn!(
+					target: LOG_TARGET,
+					worker_pid = %pid,
+					"failed to recv a prepare response: {:?}",
+					err,
+				);
+				Selected::IoErr
+			},
+			Err(_) => {
+				// Timed out.
+				gum::warn!(
+					target: LOG_TARGET,
+					worker_pid = %pid,
+					"did not recv a prepare response within the time limit",
+				);
+				Selected::Deadline
+			},
+		};
 
 		match selected {
 			Selected::Done(result) =>
@@ -218,13 +251,15 @@ async fn send_request(
 	stream: &mut UnixStream,
 	code: Arc<Vec<u8>>,
 	tmp_file: &Path,
+	preparation_timeout: Duration,
 ) -> io::Result<()> {
 	framed_send(stream, &*code).await?;
 	framed_send(stream, path_to_bytes(tmp_file)).await?;
+	framed_send(stream, duration_to_bytes(preparation_timeout)).await?;
 	Ok(())
 }
 
-async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf)> {
+async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, Duration)> {
 	let code = framed_recv(stream).await?;
 	let tmp_file = framed_recv(stream).await?;
 	let tmp_file = bytes_to_path(&tmp_file).ok_or_else(|| {
@@ -233,7 +268,14 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf)>
 			"prepare pvf recv_request: non utf-8 artifact path".to_string(),
 		)
 	})?;
-	Ok((code, tmp_file))
+	let preparation_timeout = framed_recv(stream).await?;
+	let preparation_timeout = bytes_to_duration(&preparation_timeout).ok_or_else(|| {
+		io::Error::new(
+			io::ErrorKind::Other,
+			"prepare pvf recv_request: invalid duration".to_string(),
+		)
+	})?;
+	Ok((code, tmp_file, preparation_timeout))
 }
 
 /// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
@@ -241,7 +283,7 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf)>
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("prepare", socket_path, |mut stream| async move {
 		loop {
-			let (code, dest) = recv_request(&mut stream).await?;
+			let (code, dest, timeout) = recv_request(&mut stream).await?;
 
 			gum::debug!(
 				target: LOG_TARGET,
@@ -249,30 +291,37 @@ pub fn worker_entrypoint(socket_path: &str) {
 				"worker: preparing artifact",
 			);
 
-			let result = match prepare_artifact(&code) {
-				Err(err) => {
-					// Serialized error will be written into the socket.
-					Err(err)
-				},
-				Ok(compiled_artifact) => {
-					// Write the serialized artifact into a temp file.
-					// PVF host only keeps artifacts statuses in its memory,
-					// successfully compiled code gets stored on the disk (and
-					// consequently deserialized by execute-workers). The prepare
-					// worker is only required to send an empty `Ok` to the pool
-					// to indicate the success.
+			// TODO: Spawn a new thread that wakes up periodically to check the elapsed CPU time.
+			// Terminates the process if we exceed the CPU timeout.
+			thread::spawn(|| {
+				// TODO: Treat the timeout as CPU time, which is less subject to variance due to load.
 
-					gum::debug!(
-						target: LOG_TARGET,
-						worker_pid = %std::process::id(),
-						"worker: writing artifact to {}",
-						dest.display(),
-					);
-					async_std::fs::write(&dest, &compiled_artifact).await?;
+				// TODO: Log if we exceed the timeout.
 
-					Ok(())
-				},
-			};
+				// TODO: Send back a PrepareError::TimedOut on timeout.
+			});
+
+			// Serialized error will be written into the socket.
+			let result = prepare_artifact(&code).map(|compiled_artifact| {
+				// Write the serialized artifact into a temp file.
+				// PVF host only keeps artifacts statuses in its memory,
+				// successfully compiled code gets stored on the disk (and
+				// consequently deserialized by execute-workers). The prepare
+				// worker is only required to send an empty `Ok` to the pool
+				// to indicate the success.
+
+				gum::debug!(
+					target: LOG_TARGET,
+					worker_pid = %std::process::id(),
+					"worker: writing artifact to {}",
+					dest.display(),
+				);
+				async_std::fs::write(&dest, &compiled_artifact).await?;
+
+				// TODO: We are now sending the CPU time back, changing the expected interface. Do
+				// we need to account for this breaking change in any way?
+				cpu_time_elapsed
+			});
 
 			framed_send(&mut stream, result.encode().as_slice()).await?;
 		}

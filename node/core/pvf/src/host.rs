@@ -443,7 +443,7 @@ async fn handle_to_host(
 
 /// Handles PVF prechecking requests.
 ///
-/// This tries to prepare the PVF by compiling the WASM blob within a given timeout ([`PRECHECK_COMPILATION_TIMEOUT`]).
+/// This tries to prepare the PVF by compiling the WASM blob within a given timeout ([`PRECHECK_PREPARATION_TIMEOUT`]).
 ///
 /// If the prepare job failed previously, we may retry it under certain conditions.
 async fn handle_precheck_pvf(
@@ -490,7 +490,7 @@ async fn handle_precheck_pvf(
 ///
 /// If the prepare job failed previously, we may retry it under certain conditions.
 ///
-/// When preparing for execution, we use a more lenient timeout ([`EXECUTE_COMPILATION_TIMEOUT`])
+/// When preparing for execution, we use a more lenient timeout ([`EXECUTE_PREPARATION_TIMEOUT`])
 /// than when prechecking.
 async fn handle_execute_pvf(
 	cache_path: &Path,
