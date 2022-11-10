@@ -22,8 +22,7 @@
 	feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler)
 )]
 
-use core::num::ParseIntError;
-use core::str::FromStr;
+use core::{num::ParseIntError, str::FromStr};
 use parachain::primitives::Id as ParaId;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives::OutboundHrmpMessage;
@@ -178,7 +177,7 @@ pub fn execute(
 			hash_state(&block_data.state),
 			parent_head.post_state,
 		);
-		return Err(StateMismatch);
+		return Err(StateMismatch)
 	}
 
 	// We need to clone the block data as the fn will mutate it's state.
