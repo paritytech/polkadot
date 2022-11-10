@@ -390,7 +390,7 @@ where
 
 	async fn update_authority_ids<Sender>(
 		&mut self,
-		_sender: &mut Sender,
+		sender: &mut Sender,
 		authorities: Vec<AuthorityDiscoveryId>,
 	) where
 		Sender: overseer::GossipSupportSenderTrait,
@@ -410,12 +410,14 @@ where
 			}
 		}
 
-		let _ = authority_ids.into_iter().map(|(_peer_id, _authorities)| async {
-			// WIP
-			/*sender
-			.send_message(NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authorities))
-			.await;*/
-		});
+		for (peer_id, auths) in authority_ids {
+			sender
+				.send_message(NetworkBridgeRxMessage::UpdatedAuthorityIds {
+					peer_id,
+					authority_ids: auths,
+				})
+				.await;
+		}
 	}
 
 	fn handle_connect_disconnect(&mut self, ev: NetworkBridgeEvent<GossipSupportNetworkMessage>) {

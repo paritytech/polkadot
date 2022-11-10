@@ -556,6 +556,23 @@ where
 					ctx.sender(),
 				);
 			},
+			FromOrchestra::Communication {
+				msg: NetworkBridgeRxMessage::UpdatedAuthorityIds { peer_id, authority_ids },
+			} => {
+				gum::debug!(
+					target: LOG_TARGET,
+					action = "UpdatedAuthorityIds",
+					?peer_id,
+					?authority_ids,
+					"Authority-ids have changed",
+				);
+
+				dispatch_validation_events_to_all(
+					vec![NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids)],
+					ctx.sender(),
+				)
+				.await;
+			},
 			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(active_leaves)) => {
 				let ActiveLeavesUpdate { activated, deactivated } = active_leaves;
