@@ -21,6 +21,7 @@ use crate::mock::{
 use primitives::v2::{HeadData, Id as ParaId};
 use test_helpers::dummy_validation_code;
 
+use crate::paras::ParaKind;
 use frame_support::{
 	assert_ok,
 	traits::{OnFinalize, OnInitialize},
@@ -90,7 +91,7 @@ fn scheduled_cleanup_performed() {
 	let c = ParaId::from(123);
 
 	let mock_genesis = crate::paras::ParaGenesisArgs {
-		parachain: true,
+		para_kind: ParaKind::Parachain,
 		genesis_head: HeadData(vec![4, 5, 6]),
 		validation_code: dummy_validation_code(),
 	};

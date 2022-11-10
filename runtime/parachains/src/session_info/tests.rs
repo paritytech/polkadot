@@ -201,7 +201,7 @@ fn session_info_active_subsets() {
 		});
 		let session = Sessions::<Test>::get(&1).unwrap();
 
-		assert_eq!(session.validators, validators);
+		assert_eq!(session.validators.to_vec(), validators);
 		assert_eq!(
 			session.discovery_keys,
 			take_active_subset_and_inactive(&active_set, &unscrambled_discovery),

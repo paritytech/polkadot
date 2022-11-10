@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Test kit to simulate cross-chain message passing and XCM execution
+//! Test kit to simulate cross-chain message passing and XCM execution.
 
 pub use codec::Encode;
 pub use paste;
@@ -62,6 +62,7 @@ pub enum MessageKind {
 	Xcmp,
 }
 
+/// Encodes the provided XCM message based on the `message_kind`.
 pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 	match message_kind {
 		MessageKind::Ump | MessageKind::Dmp => VersionedXcm::<()>::from(message).encode(),
@@ -76,6 +77,19 @@ pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 	}
 }
 
+/// The macro is implementing upward message passing(UMP) for the provided relay
+/// chain struct. The struct has to provide the XCM configuration for the relay
+/// chain.
+///
+/// ```ignore
+/// decl_test_relay_chain! {
+///	    pub struct Relay {
+///	        Runtime = relay_chain::Runtime,
+///	        XcmConfig = relay_chain::XcmConfig,
+///	        new_ext = relay_ext(),
+///	    }
+///	}
+/// ```
 #[macro_export]
 #[rustfmt::skip]
 macro_rules! decl_test_relay_chain {
@@ -108,6 +122,21 @@ macro_rules! decl_test_relay_chain {
 	};
 }
 
+/// The macro is implementing the `XcmMessageHandlerT` and `DmpMessageHandlerT`
+/// traits for the provided parachain struct. Expects the provided parachain
+/// struct to define the XcmpMessageHandler and DmpMessageHandler pallets that
+/// contain the message handling logic.
+///
+/// ```ignore
+/// decl_test_parachain! {
+///	    pub struct ParaA {
+///	        Runtime = parachain::Runtime,
+///	        XcmpMessageHandler = parachain::MsgQueue,
+///	        DmpMessageHandler = parachain::MsgQueue,
+///	        new_ext = para_ext(),
+///	    }
+/// }
+/// ```
 #[macro_export]
 macro_rules! decl_test_parachain {
 	(
@@ -153,6 +182,7 @@ macro_rules! decl_test_parachain {
 	};
 }
 
+/// Implements the `TestExt` trait for a specified struct.
 #[macro_export]
 macro_rules! __impl_ext {
 	// entry point: generate ext name
@@ -202,6 +232,23 @@ thread_local! {
 		= RefCell::new(VecDeque::new());
 }
 
+/// Declares a test network that consists of a relay chain and multiple
+/// parachains. Expects a network struct as an argument and implements testing
+/// functionality, `ParachainXcmRouter` and the `RelayChainXcmRouter`. The
+/// struct needs to contain the relay chain struct and an indexed list of
+/// parachains that are going to be in the network.
+///
+/// ```ignore
+/// decl_test_network! {
+///	    pub struct ExampleNet {
+///	        relay_chain = Relay,
+///	        parachains = vec![
+///	            (1, ParaA),
+///	            (2, ParaB),
+///	        ],
+///	    }
+/// }
+/// ```
 #[macro_export]
 macro_rules! decl_test_network {
 	(
@@ -215,16 +262,16 @@ macro_rules! decl_test_network {
 		impl $name {
 			pub fn reset() {
 				use $crate::{TestExt, VecDeque};
-				// Reset relay chain message bus
+				// Reset relay chain message bus.
 				$crate::RELAY_MESSAGE_BUS.with(|b| b.replace(VecDeque::new()));
-				// Reset parachain message bus
+				// Reset parachain message bus.
 				$crate::PARA_MESSAGE_BUS.with(|b| b.replace(VecDeque::new()));
 				<$relay_chain>::reset_ext();
 				$( <$parachain>::reset_ext(); )*
 			}
 		}
 
-		/// Check if any messages exist in either message bus
+		/// Check if any messages exist in either message bus.
 		fn exists_messages_in_any_bus() -> bool {
 			use $crate::{RELAY_MESSAGE_BUS, PARA_MESSAGE_BUS};
 			let no_relay_messages_left = RELAY_MESSAGE_BUS.with(|b| b.borrow().is_empty());

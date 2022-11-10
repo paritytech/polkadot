@@ -96,17 +96,29 @@ pub enum ArtifactState {
 	/// That means that the artifact should be accessible through the path obtained by the artifact
 	/// id (unless, it was removed externally).
 	Prepared {
-		/// The time when the artifact was the last time needed.
+		/// The time when the artifact was last needed.
 		///
 		/// This is updated when we get the heads up for this artifact or when we just discover
 		/// this file.
 		last_time_needed: SystemTime,
 	},
 	/// A task to prepare this artifact is scheduled.
-	Preparing { waiting_for_response: Vec<PrepareResultSender> },
+	Preparing {
+		/// List of result senders that are waiting for a response.
+		waiting_for_response: Vec<PrepareResultSender>,
+		/// The number of times this artifact has failed to prepare.
+		num_failures: u32,
+	},
 	/// The code couldn't be compiled due to an error. Such artifacts
 	/// never reach the executor and stay in the host's memory.
-	FailedToProcess(PrepareError),
+	FailedToProcess {
+		/// Keep track of the last time that processing this artifact failed.
+		last_time_failed: SystemTime,
+		/// The number of times this artifact has failed to prepare.
+		num_failures: u32,
+		/// The last error encountered for preparation.
+		error: PrepareError,
+	},
 }
 
 /// A container of all known artifact ids and their states.
@@ -120,7 +132,7 @@ impl Artifacts {
 	///
 	/// The recognized artifacts will be filled in the table and unrecognized will be removed.
 	pub async fn new(cache_path: &Path) -> Self {
-		// Make sure that the cache path directory and all it's parents are created.
+		// Make sure that the cache path directory and all its parents are created.
 		// First delete the entire cache. Nodes are long-running so this should populate shortly.
 		let _ = async_std::fs::remove_dir_all(cache_path).await;
 		let _ = async_std::fs::create_dir_all(cache_path).await;
@@ -150,7 +162,7 @@ impl Artifacts {
 		// See the precondition.
 		always!(self
 			.artifacts
-			.insert(artifact_id, ArtifactState::Preparing { waiting_for_response })
+			.insert(artifact_id, ArtifactState::Preparing { waiting_for_response, num_failures: 0 })
 			.is_none());
 	}
 
