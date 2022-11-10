@@ -303,10 +303,10 @@ zombienet-tests-beefy-and-mmr:
 
 zombienet-tests-async-backing:
   stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
     - .zombienet-refs
+  image:                           "docker.io/paritytech/zombienet:v1.3.16"
   needs:
     - job:                         publish-polkadot-debug-image
     - job:                         publish-test-collators-image

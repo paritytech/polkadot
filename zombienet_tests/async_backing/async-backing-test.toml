@@ -21,7 +21,6 @@ default_command = "polkadot"
 
 [[parachains]]
 id = 100
-cumulus_based = true
 
   [parachains.collator]
   name = "{{COL_IMAGE}}"
