@@ -50,14 +50,16 @@ pub fn validity_constraints<T: initializer::Config>(
 			Some(block_num).zip(<paras::Pallet<T>>::future_code_hash(para_id))
 		});
 
-	let dmp_remaining_messages = <dmp::Pallet<T>>::dmq_length(para_id);
+	let config = <configuration::Pallet<T>>::config();
+	let (ump_msg_count, ump_total_bytes) = <ump::Pallet<T>>::relay_dispatch_queue_size(para_id);
+	let ump_remaining = config.max_upward_queue_count - ump_msg_count;
+	let ump_remaining_bytes = config.max_upward_queue_size - ump_total_bytes;
 
-	let (ump_remaining, ump_remaining_bytes) = <ump::Pallet<T>>::relay_dispatch_queue_size(para_id);
+	let dmp_remaining_messages = <dmp::Pallet<T>>::dmq_length(para_id);
 
 	let hrmp_inbound = <hrmp::Pallet<T>>::inbound_hrmp_constraints(para_id);
 	let hrmp_channels_out = <hrmp::Pallet<T>>::outbound_hrmp_constraints(para_id);
 
-	let config = <configuration::Pallet<T>>::config();
 	Some(Constraints {
 		min_relay_parent_number,
 		max_pov_size: config.max_pov_size,
