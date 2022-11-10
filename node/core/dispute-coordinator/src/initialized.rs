@@ -919,7 +919,7 @@ impl Initialized {
 				"Will not queue participation for candidate"
 			);
 
-			if allow_participation {
+			if !allow_participation {
 				self.metrics.on_refrained_participation();
 			}
 		}
