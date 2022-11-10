@@ -1001,7 +1001,7 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Returns limitations for outbound hrmp channels.
+	/// Returns limitations for outbound HRMP channels.
 	pub(crate) fn outbound_hrmp_constraints(
 		sender: ParaId,
 	) -> Vec<(ParaId, OutboundHrmpChannelLimitations)> {
