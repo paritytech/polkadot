@@ -115,7 +115,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 15,
-	state_version: 1,
+	state_version: 0,
 };
 
 /// The BABE epoch configuration at genesis.
