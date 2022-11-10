@@ -548,10 +548,19 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub const SessionsPerEra: SessionIndex = prod_or_fast!(6, 1);
+
 	// 28 eras for unbonding (7 days).
-	pub const BondingDuration: sp_staking::EraIndex = 28;
+	pub BondingDuration: sp_staking::EraIndex = prod_or_fast!(
+		28,
+		28,
+		"DOT_BONDING_DURATION"
+	);
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
-	pub const SlashDeferDuration: sp_staking::EraIndex = 27;
+	pub SlashDeferDuration: sp_staking::EraIndex = prod_or_fast!(
+		27,
+		27,
+		"DOT_SLASH_DEFER_DURATION"
+	);
 	pub const MaxNominatorRewardedPerValidator: u32 = 512;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 24
