@@ -176,7 +176,7 @@ impl Default for TestState {
 		let db = kvdb_memorydb::create(1);
 		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
 		let db = Arc::new(db);
-		let config = Config { col_data: 0 };
+		let config = Config { col_dispute_data: 0, col_session_data: 1 };
 
 		let genesis_header = Header {
 			parent_hash: Hash::zero(),
@@ -251,6 +251,7 @@ impl TestState {
 		session: SessionIndex,
 	) {
 		// Order of messages is not fixed (different on initializing):
+		#[derive(Debug)]
 		struct FinishedSteps {
 			got_session_information: bool,
 			got_scraping_information: bool,
@@ -268,7 +269,8 @@ impl TestState {
 		let mut finished_steps = FinishedSteps::new();
 
 		while !finished_steps.is_done() {
-			match overseer_recv(virtual_overseer).await {
+			let recv = overseer_recv(virtual_overseer).await;
+			match recv {
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					h,
 					RuntimeApiRequest::SessionIndexForChild(tx),
@@ -282,36 +284,38 @@ impl TestState {
 					let _ = tx.send(Ok(session));
 
 					// Queries for fetching earliest unfinalized block session. See `RollingSessionWindow`.
-					assert_matches!(
-						overseer_recv(virtual_overseer).await,
-						AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
-							s_tx,
-						)) => {
-							let _ = s_tx.send(Ok(block_number));
-						}
-					);
+					if self.known_session.is_none() {
+						assert_matches!(
+							overseer_recv(virtual_overseer).await,
+							AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
+								s_tx,
+							)) => {
+								let _ = s_tx.send(Ok(block_number));
+							}
+						);
 
-					assert_matches!(
-						overseer_recv(virtual_overseer).await,
-						AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
-							number,
-							s_tx,
-						)) => {
-							assert_eq!(block_number, number);
-							let _ = s_tx.send(Ok(Some(block_hash)));
-						}
-					);
+						assert_matches!(
+							overseer_recv(virtual_overseer).await,
+							AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
+								number,
+								s_tx,
+							)) => {
+								assert_eq!(block_number, number);
+								let _ = s_tx.send(Ok(Some(block_hash)));
+							}
+						);
 
-					assert_matches!(
-						overseer_recv(virtual_overseer).await,
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							h,
-							RuntimeApiRequest::SessionIndexForChild(s_tx),
-						)) => {
-							assert_eq!(h, block_hash);
-							let _ = s_tx.send(Ok(session));
-						}
-					);
+						assert_matches!(
+							overseer_recv(virtual_overseer).await,
+							AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+								h,
+								RuntimeApiRequest::SessionIndexForChild(s_tx),
+							)) => {
+								assert_eq!(h, block_hash);
+								let _ = s_tx.send(Ok(session));
+							}
+						);
+					}
 
 					// No queries, if subsystem knows about this session already.
 					if self.known_session == Some(session) {
@@ -754,6 +758,7 @@ fn approval_vote_import_works() {
 			let approval_votes = [(ValidatorIndex(4), approval_vote.into_validator_signature())]
 				.into_iter()
 				.collect();
+
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash1, approval_votes)
 				.await;
 
@@ -2255,6 +2260,7 @@ fn resume_dispute_with_local_statement() {
 					},
 				})
 				.await;
+
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
@@ -2469,6 +2475,7 @@ fn resume_dispute_with_local_statement_without_local_key() {
 			test_state
 		})
 	});
+
 	// No keys:
 	test_state.subsystem_keystore =
 		make_keystore(vec![Sr25519Keyring::Two.to_seed()].into_iter()).into();

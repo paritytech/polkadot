@@ -61,7 +61,7 @@ fn basic_buy_fees_message_executes() {
 	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
 		.expect("imports the block");
 
-	client.state_at(&block_hash).expect("state should exist").inspect_state(|| {
+	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
 		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 			r.event,
 			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted(
@@ -102,7 +102,7 @@ fn query_response_fires() {
 		.expect("imports the block");
 
 	let mut query_id = None;
-	client.state_at(&block_hash).expect("state should exist").inspect_state(|| {
+	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
 		for r in polkadot_test_runtime::System::events().iter() {
 			match r.event {
 				TestNotifier(QueryPrepared(q)) => query_id = Some(q),
@@ -138,7 +138,7 @@ fn query_response_fires() {
 	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
 		.expect("imports the block");
 
-	client.state_at(&block_hash).expect("state should exist").inspect_state(|| {
+	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
 		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 			r.event,
 			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::ResponseReady(
@@ -186,7 +186,7 @@ fn query_response_elicits_handler() {
 		.expect("imports the block");
 
 	let mut query_id = None;
-	client.state_at(&block_hash).expect("state should exist").inspect_state(|| {
+	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
 		for r in polkadot_test_runtime::System::events().iter() {
 			match r.event {
 				TestNotifier(NotifyQueryPrepared(q)) => query_id = Some(q),
@@ -221,7 +221,7 @@ fn query_response_elicits_handler() {
 	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
 		.expect("imports the block");
 
-	client.state_at(&block_hash).expect("state should exist").inspect_state(|| {
+	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
 		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 			r.event,
 			TestNotifier(ResponseReceived(

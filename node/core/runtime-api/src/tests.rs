@@ -89,7 +89,7 @@ sp_api::mock_impl_runtime_apis! {
 		}
 
 		fn availability_cores(&self) -> Vec<CoreState> {
-			let _ = self.availability_cores_wait.lock().unwrap();
+			let _lock = self.availability_cores_wait.lock().unwrap();
 			self.availability_cores.clone()
 		}
 

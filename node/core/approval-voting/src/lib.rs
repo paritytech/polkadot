@@ -44,8 +44,7 @@ use polkadot_node_subsystem_util::{
 	database::Database,
 	metrics::{self, prometheus},
 	rolling_session_window::{
-		new_session_window_size, RollingSessionWindow, SessionWindowSize, SessionWindowUpdate,
-		SessionsUnavailable,
+		DatabaseParams, RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
 	},
 	TimeoutExt,
 };
@@ -97,8 +96,6 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-pub const APPROVAL_SESSIONS: SessionWindowSize = new_session_window_size!(6);
-
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 /// How long are we willing to wait for approval signatures?
 ///
@@ -118,7 +115,9 @@ const LOG_TARGET: &str = "parachain::approval-voting";
 #[derive(Debug, Clone)]
 pub struct Config {
 	/// The column family in the DB where approval-voting data is stored.
-	pub col_data: u32,
+	pub col_approval_data: u32,
+	/// The of the DB where rolling session info is stored.
+	pub col_session_data: u32,
 	/// The slot duration of the consensus algorithm, in milliseconds. Should be evenly
 	/// divisible by 500.
 	pub slot_duration_millis: u64,
@@ -358,7 +357,10 @@ impl ApprovalVotingSubsystem {
 			keystore,
 			slot_duration_millis: config.slot_duration_millis,
 			db,
-			db_config: DatabaseConfig { col_data: config.col_data },
+			db_config: DatabaseConfig {
+				col_approval_data: config.col_approval_data,
+				col_session_data: config.col_session_data,
+			},
 			mode: Mode::Syncing(sync_oracle),
 			metrics,
 		}
@@ -367,7 +369,10 @@ impl ApprovalVotingSubsystem {
 	/// Revert to the block corresponding to the specified `hash`.
 	/// The operation is not allowed for blocks older than the last finalized one.
 	pub fn revert_to(&self, hash: Hash) -> Result<(), SubsystemError> {
-		let config = approval_db::v1::Config { col_data: self.db_config.col_data };
+		let config = approval_db::v1::Config {
+			col_approval_data: self.db_config.col_approval_data,
+			col_session_data: self.db_config.col_session_data,
+		};
 		let mut backend = approval_db::v1::DbBackend::new(self.db.clone(), config);
 		let mut overlay = OverlayedBackend::new(&backend);
 
@@ -634,6 +639,9 @@ struct State {
 	slot_duration_millis: u64,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
+	// Require for `RollingSessionWindow`.
+	db_config: DatabaseConfig,
+	db: Arc<dyn Database>,
 }
 
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
@@ -655,8 +663,17 @@ impl State {
 		match session_window {
 			None => {
 				let sender = ctx.sender().clone();
-				self.session_window =
-					Some(RollingSessionWindow::new(sender, APPROVAL_SESSIONS, head).await?);
+				self.session_window = Some(
+					RollingSessionWindow::new(
+						sender,
+						head,
+						DatabaseParams {
+							db: self.db.clone(),
+							db_column: self.db_config.col_session_data,
+						},
+					)
+					.await?,
+				);
 				Ok(None)
 			},
 			Some(mut session_window) => {
@@ -751,7 +768,7 @@ async fn run<B, Context>(
 where
 	B: Backend,
 {
-	if let Err(err) = db_sanity_check(subsystem.db, subsystem.db_config) {
+	if let Err(err) = db_sanity_check(subsystem.db.clone(), subsystem.db_config.clone()) {
 		gum::warn!(target: LOG_TARGET, ?err, "Could not run approval vote DB sanity check");
 	}
 
@@ -761,6 +778,8 @@ where
 		slot_duration_millis: subsystem.slot_duration_millis,
 		clock,
 		assignment_criteria,
+		db_config: subsystem.db_config,
+		db: subsystem.db,
 	};
 
 	let mut wakeups = Wakeups::default();
