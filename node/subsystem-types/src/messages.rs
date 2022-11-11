@@ -340,7 +340,7 @@ pub enum NetworkBridgeRxMessage {
 	UpdatedAuthorityIds {
 		/// The `PeerId` of the peer that updated its `AuthorityDiscoveryId`s.
 		peer_id: PeerId,
-		/// The updated authority-ids of the peer.
+		/// The updated authority discovery keys of the peer.
 		authority_ids: HashSet<AuthorityDiscoveryId>,
 	},
 }
