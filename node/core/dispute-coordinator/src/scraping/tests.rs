@@ -451,7 +451,7 @@ fn scraper_cleans_finalized_candidates() {
 		// Finalize the next block and verify that candidate is neither backed nor included.
 		// Backed AND Included candidates should be cleaned on finalization.
 		// `scraper_handles_backed_but_not_included_candidate` covers Backed and NOT Included candidates.
-		finalized_block_number += 1;
+		finalized_block_number += ChainScraper::CANDIDATE_MAX_LIFETIME + 1;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		assert!(!scraper.is_candidate_backed(&candidate.hash()));
@@ -500,8 +500,7 @@ fn scraper_handles_backed_but_not_included_candidate() {
 
 		// Bump the finalized block outside `BACKED_CANDIDATE_MAX_LIFETIME`.
 		// The candidate should be removed.
-		finalized_block_number +=
-			FIRST_TEST_BLOCK + ChainScraper::BACKED_CANDIDATE_MAX_LIFETIME + 1;
+		finalized_block_number += FIRST_TEST_BLOCK + ChainScraper::CANDIDATE_MAX_LIFETIME + 1;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		assert!(!scraper.is_candidate_included(&candidate.hash()));
@@ -538,7 +537,7 @@ fn scraper_handles_the_same_candidate_incuded_in_two_different_block_heights() {
 
 		// Finalize blocks to enforce pruning of scraped events.
 		// The magic candidate was added twice, so it shouldn't be removed if we finalize two more blocks.
-		finalized_block_number += BLOCKS_TO_SKIP as u32 - finalized_block_number;
+		finalized_block_number += ChainScraper::CANDIDATE_MAX_LIFETIME + 1; //BLOCKS_TO_SKIP as u32 - finalized_block_number;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		let magic_candidate = make_candidate_receipt(get_magic_candidate_hash());
