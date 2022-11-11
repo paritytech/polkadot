@@ -1761,9 +1761,8 @@ async fn handle_network_update<Context, R>(
 			authority_ids.clone().into_iter().for_each(|a| {
 				authorities.insert(a, peer);
 			});
-			match peers.get_mut(&peer) {
-				Some(data) => data.maybe_authority = Some(authority_ids),
-				None => (),
+			if let Some(data) = peers.get_mut(&peer) {
+				data.maybe_authority = Some(authority_ids);
 			}
 		},
 	}
