@@ -564,7 +564,7 @@ where
 					action = "UpdatedAuthorityIds",
 					?peer_id,
 					?authority_ids,
-					"Authority-ids have changed",
+					"`AuthorityDiscoveryId`s have changed",
 				);
 
 				dispatch_validation_events_to_all(
