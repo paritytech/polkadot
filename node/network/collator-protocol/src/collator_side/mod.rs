@@ -894,9 +894,6 @@ async fn handle_network_msg<Context>(
 		},
 		UpdatedAuthorityIds(peer_id, authority_ids) => {
 			gum::trace!(target: LOG_TARGET, ?peer_id, ?authority_ids, "Updated authority ids");
-			// remove the outdated authority_ids
-			state.peer_ids.remove(&peer_id);
-
 			state.peer_ids.insert(peer_id, authority_ids);
 		},
 		NewGossipTopology { .. } => {
