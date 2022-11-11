@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// count if the value already exists.
 /// Each `remove` decreases the reference count for the corresponding `CandidateHash`.
 /// If the reference count reaches 0 - the value is removed.
-pub struct RefCountedCandidates {
+struct RefCountedCandidates {
 	candidates: HashMap<CandidateHash, usize>,
 }
 

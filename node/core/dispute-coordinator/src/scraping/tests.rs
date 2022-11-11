@@ -419,7 +419,7 @@ fn scraper_requests_candidates_of_non_finalized_ancestors() {
 
 #[test]
 fn scraper_cleans_finalized_candidates() {
-	const TEST_TARGET_BLOCK_NUMBER: BlockNumber = 1;
+	const TEST_TARGET_BLOCK_NUMBER: BlockNumber = 2;
 
 	// How many blocks should we skip before sending a leaf update.
 	// `3` because we need 1 ancestor after the finalized block (this is what the testing code expects). `ActiveLeaf` updates are generated for
@@ -434,24 +434,29 @@ fn scraper_cleans_finalized_candidates() {
 		// 1 because `TestState` starts at leaf 1.
 		let next_update = (1..BLOCKS_TO_SKIP).map(|_| next_leaf(&mut chain)).last().unwrap();
 
-		let mut finalized_block_number = TEST_TARGET_BLOCK_NUMBER;
+		let mut finalized_block_number = 1;
 		let expected_ancestry_len = BLOCKS_TO_SKIP - finalized_block_number as usize;
 		let overseer_fut = overseer_process_active_leaves_update(
 			&mut virtual_overseer,
 			&chain,
 			finalized_block_number,
 			expected_ancestry_len,
-			get_backed_and_included_candidate_events,
+			|block_num| {
+				if block_num == TEST_TARGET_BLOCK_NUMBER {
+					get_backed_and_included_candidate_events(block_num)
+				} else {
+					vec![]
+				}
+			},
 		);
 		join(process_active_leaves_update(ctx.sender(), &mut scraper, next_update), overseer_fut)
 			.await;
 
 		let candidate = make_candidate_receipt(get_block_number_hash(TEST_TARGET_BLOCK_NUMBER));
 
-		// Finalize the next block and verify that candidate is neither backed nor included.
-		// Backed AND Included candidates should be cleaned on finalization.
-		// `scraper_handles_backed_but_not_included_candidate` covers Backed and NOT Included candidates.
-		finalized_block_number += ChainScraper::CANDIDATE_LIFETIME_AFTER_FINALIZATION + 1;
+		// After `CANDIDATE_LIFETIME_AFTER_FINALIZATION` blocks the candidate should be removed
+		finalized_block_number =
+			TEST_TARGET_BLOCK_NUMBER + ChainScraper::CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		assert!(!scraper.is_candidate_backed(&candidate.hash()));
@@ -461,47 +466,58 @@ fn scraper_cleans_finalized_candidates() {
 
 #[test]
 fn scraper_handles_backed_but_not_included_candidate() {
-	const FIRST_TEST_BLOCK: BlockNumber = 1;
+	const TEST_TARGET_BLOCK_NUMBER: BlockNumber = 2;
 
 	// How many blocks should we skip before sending a leaf update.
-	const BLOCK_WITH_EVENTS: usize = FIRST_TEST_BLOCK as usize + 2;
+	const BLOCKS_TO_SKIP: usize = 3;
 
 	futures::executor::block_on(async {
 		let (state, mut virtual_overseer) = TestState::new().await;
 
 		let TestState { mut chain, mut scraper, mut ctx } = state;
 
-		let next_update = (FIRST_TEST_BLOCK..BLOCK_WITH_EVENTS as BlockNumber)
+		let next_update = (1..BLOCKS_TO_SKIP as BlockNumber)
 			.map(|_| next_leaf(&mut chain))
 			.last()
 			.unwrap();
 
 		// Add `ActiveLeavesUpdate` containing `CandidateBacked` event for block `BLOCK_WITH_EVENTS`
-		let mut finalized_block_number = FIRST_TEST_BLOCK;
-		let expected_ancestry_len = BLOCK_WITH_EVENTS - finalized_block_number as usize;
+		let mut finalized_block_number = 1;
+		let expected_ancestry_len = BLOCKS_TO_SKIP - finalized_block_number as usize;
 		let overseer_fut = overseer_process_active_leaves_update(
 			&mut virtual_overseer,
 			&chain,
 			finalized_block_number,
 			expected_ancestry_len,
-			get_backed_candidate_event,
+			|block_num| {
+				if block_num == TEST_TARGET_BLOCK_NUMBER {
+					get_backed_candidate_event(block_num)
+				} else {
+					vec![]
+				}
+			},
 		);
 		join(process_active_leaves_update(ctx.sender(), &mut scraper, next_update), overseer_fut)
 			.await;
 
 		// Finalize blocks to enforce pruning of scraped events
+		finalized_block_number += 1;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		// `FIRST_TEST_BLOCK` is finalized, which is within `BACKED_CANDIDATE_LIFETIME_AFTER_FINALIZATION` window.
 		// The candidate should still be backed.
-		let candidate = make_candidate_receipt(get_block_number_hash(BLOCK_WITH_EVENTS as u32));
+		let candidate = make_candidate_receipt(get_block_number_hash(TEST_TARGET_BLOCK_NUMBER));
 		assert!(!scraper.is_candidate_included(&candidate.hash()));
 		assert!(scraper.is_candidate_backed(&candidate.hash()));
 
 		// Bump the finalized block outside `BACKED_CANDIDATE_LIFETIME_AFTER_FINALIZATION`.
 		// The candidate should be removed.
+		assert!(
+			finalized_block_number <
+				TEST_TARGET_BLOCK_NUMBER + ChainScraper::CANDIDATE_LIFETIME_AFTER_FINALIZATION
+		);
 		finalized_block_number +=
-			FIRST_TEST_BLOCK + ChainScraper::CANDIDATE_LIFETIME_AFTER_FINALIZATION + 1;
+			TEST_TARGET_BLOCK_NUMBER + ChainScraper::CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		assert!(!scraper.is_candidate_included(&candidate.hash()));
@@ -511,6 +527,9 @@ fn scraper_handles_backed_but_not_included_candidate() {
 
 #[test]
 fn scraper_handles_the_same_candidate_incuded_in_two_different_block_heights() {
+	// Same candidate will be inclued in these two leaves
+	let test_targets = vec![2, 3];
+
 	// How many blocks should we skip before sending a leaf update.
 	const BLOCKS_TO_SKIP: usize = 3;
 
@@ -531,14 +550,21 @@ fn scraper_handles_the_same_candidate_incuded_in_two_different_block_heights() {
 			&chain,
 			finalized_block_number,
 			expected_ancestry_len,
-			get_backed_and_included_magic_candidate_events,
+			|block_num| {
+				if test_targets.contains(&block_num) {
+					get_backed_and_included_magic_candidate_events(block_num)
+				} else {
+					vec![]
+				}
+			},
 		);
 		join(process_active_leaves_update(ctx.sender(), &mut scraper, next_update), overseer_fut)
 			.await;
 
 		// Finalize blocks to enforce pruning of scraped events.
 		// The magic candidate was added twice, so it shouldn't be removed if we finalize two more blocks.
-		finalized_block_number += ChainScraper::CANDIDATE_LIFETIME_AFTER_FINALIZATION + 1; //BLOCKS_TO_SKIP as u32 - finalized_block_number;
+		finalized_block_number = test_targets.first().expect("there are two block nums") +
+			ChainScraper::CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		let magic_candidate = make_candidate_receipt(get_magic_candidate_hash());

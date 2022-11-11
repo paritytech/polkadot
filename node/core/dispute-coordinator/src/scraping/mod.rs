@@ -172,15 +172,8 @@ impl ChainScraper {
 	/// Once a candidate lives in a relay chain block that's behind `CANDIDATE_LIFETIME_AFTER_FINALIZATION`
 	/// blocks after finalization we can treat it as low priority.
 	pub fn process_finalized_block(&mut self, finalized_block_number: &BlockNumber) {
-		// `CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1` because `finalized_block_number`
-		// counts to the candidate lifetime.
-		// Example:
-		// finalized_block_number = 4; CANDIDATE_LIFETIME_AFTER_FINALIZATION = 2;
-		// key_to_clean = 4 - (2 - 1) = 3
-		// After `remove_all_at_block_height` at 3:
-		// 0, 1, 2 will be removed
-		// 3, 4 will be kept
-		// => We keep candidates in the last two finalized blocks
+		// `CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1` because `finalized_block_number`counts to the
+		// candidate lifetime.
 		finalized_block_number
 			.checked_sub(Self::CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1)
 			.map(|key_to_clean| {
