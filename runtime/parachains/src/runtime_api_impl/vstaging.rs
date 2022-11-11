@@ -66,6 +66,7 @@ pub fn validity_constraints<T: initializer::Config>(
 		max_code_size: config.max_code_size,
 		ump_remaining,
 		ump_remaining_bytes,
+		max_ump_num_per_candidate: config.max_upward_message_num_per_candidate,
 		dmp_remaining_messages,
 		hrmp_inbound,
 		hrmp_channels_out,
