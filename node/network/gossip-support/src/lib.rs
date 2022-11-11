@@ -411,12 +411,19 @@ where
 		}
 
 		for (peer_id, auths) in authority_ids {
-			sender
-				.send_message(NetworkBridgeRxMessage::UpdatedAuthorityIds {
-					peer_id,
-					authority_ids: auths,
-				})
-				.await;
+			if self.connected_authorities_by_peer_id.get(&peer_id) != Some(&auths) {
+				sender
+					.send_message(NetworkBridgeRxMessage::UpdatedAuthorityIds {
+						peer_id,
+						authority_ids: auths.clone(),
+					})
+					.await;
+
+				auths.iter().for_each(|a| {
+					self.connected_authorities.insert(a.clone(), peer_id);
+				});
+				self.connected_authorities_by_peer_id.insert(peer_id, auths);
+			}
 		}
 	}
 
