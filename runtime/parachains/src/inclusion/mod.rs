@@ -829,8 +829,11 @@ impl<T: Config> Pallet<T> {
 			receipt.descriptor.para_id,
 			commitments.processed_downward_messages,
 		);
-		weight +=
-			Self::receive_upward_messages(&config, receipt.descriptor.para_id, commitments.upward_messages);
+		weight += Self::receive_upward_messages(
+			&config,
+			receipt.descriptor.para_id,
+			commitments.upward_messages,
+		);
 		weight += <hrmp::Pallet<T>>::prune_hrmp(
 			receipt.descriptor.para_id,
 			T::BlockNumber::from(commitments.hrmp_watermark),
