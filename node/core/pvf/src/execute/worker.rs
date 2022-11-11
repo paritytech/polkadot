@@ -30,19 +30,30 @@ use async_std::{
 };
 use futures::FutureExt;
 use futures_timer::Delay;
-use parity_scale_codec::{alloc::collections::BTreeMap, Decode, Encode};
+use parity_scale_codec::{Decode, Encode};
+use polkadot_core_primitives::Hash;
 use polkadot_parachain::primitives::ValidationResult;
 use polkadot_primitives::vstaging::{ExecutorParams, ExecutorParamsHash};
-use std::time::{Duration, Instant};
+use std::{
+	str::FromStr,
+	time::{Duration, Instant},
+};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
-/// The program should be able to handle `<program-path> execute-worker <socket-path>` invocation.
+/// The program should be able to handle `<program-path> execute-worker <hash> <socket-path>` invocation.
 pub async fn spawn(
 	program_path: &Path,
+	exec_env_params_hash: ExecutorParamsHash,
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	spawn_with_program_path("execute", program_path, &["execute-worker"], spawn_timeout).await
+	spawn_with_program_path(
+		"execute",
+		program_path,
+		vec!["execute-worker".to_owned(), exec_env_params_hash.to_string()],
+		spawn_timeout,
+	)
+	.await
 }
 
 /// Outcome of PVF execution.
@@ -194,35 +205,39 @@ impl Response {
 }
 
 /// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host.
-pub fn worker_entrypoint(socket_path: &str) {
+/// the path to the socket used to communicate with the host. `exec_env_params_hash` specifies the
+/// set of execution environment parameters which is supposed to parametrize the `Executor`.
+/// Parameters themselves are coming along with the validation request and worker just performs a
+/// check that the executor is assigned a proper job by the queue.
+pub fn worker_entrypoint(socket_path: &str, exec_env_params_hash: &str) {
+	let hash: ExecutorParamsHash = Hash::from_str(exec_env_params_hash)
+		.expect("Correct hash must be provided by the worker process spawner; qed")
+		.into();
 	worker_event_loop("execute", socket_path, |mut stream| async move {
-		let mut executors: BTreeMap<ExecutorParamsHash, Executor> = BTreeMap::new();
+		let mut maybe_executor = None;
+
 		loop {
-			let (artifact_path, params, ee_params) = recv_request(&mut stream).await?;
-			let hash = ee_params.hash();
-
-			let executor = match executors.get(&hash) {
-				Some(exc) => exc,
-				None => {
-					let exc = Executor::new(ee_params).map_err(|e| {
-						io::Error::new(
-							io::ErrorKind::Other,
-							format!("cannot create executor: {}", e),
-						)
-					})?;
-					executors.insert(hash, exc);
-					executors.get(&hash).expect("just inserted above")
-				},
-			};
-
+			let (artifact_path, params, exec_env_params) = recv_request(&mut stream).await?;
+			debug_assert_eq!(exec_env_params.hash(), hash);
 			gum::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
 				"worker: validating artifact {}",
 				artifact_path.display(),
 			);
-			let response = validate_using_artifact(&artifact_path, &params, &executor).await;
+			let executor = match maybe_executor {
+				Some(ref exec) => exec,
+				None => {
+					maybe_executor = Some(Executor::new(exec_env_params).map_err(|e| {
+						io::Error::new(
+							io::ErrorKind::Other,
+							format!("cannot create executor: {}", e),
+						)
+					})?);
+					maybe_executor.as_ref().expect("Value just stored; qed")
+				},
+			};
+			let response = validate_using_artifact(&artifact_path, &params, executor).await;
 			send_response(&mut stream, response).await?;
 		}
 	});

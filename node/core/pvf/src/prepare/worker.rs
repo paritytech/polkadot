@@ -40,7 +40,13 @@ pub async fn spawn(
 	program_path: &Path,
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	spawn_with_program_path("prepare", program_path, &["prepare-worker"], spawn_timeout).await
+	spawn_with_program_path(
+		"prepare",
+		program_path,
+		vec!["prepare-worker".to_owned()],
+		spawn_timeout,
+	)
+	.await
 }
 
 pub enum Outcome {

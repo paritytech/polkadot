@@ -78,6 +78,9 @@ pub enum Subcommand {
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
 pub struct ValidationWorkerCommand {
+	/// Execution environment parameters hash.
+	pub exec_env_params_hash: String,
+
 	/// The path to the validation host's socket.
 	pub socket_path: String,
 }

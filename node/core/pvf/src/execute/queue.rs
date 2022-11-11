@@ -31,9 +31,15 @@ use futures::{
 	stream::{FuturesUnordered, StreamExt as _},
 	Future, FutureExt,
 };
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::vstaging::{ExecutorParams, ExecutorParamsHash};
 use slotmap::HopSlotMap;
-use std::{collections::VecDeque, fmt, time::Duration};
+use std::{
+	collections::VecDeque,
+	fmt,
+	time::{Duration, Instant},
+};
+
+const MAX_KEEP_WAITING: u128 = 60000u128; // FIXME: Needs to be evaluated
 
 slotmap::new_key_type! { struct Worker; }
 
@@ -54,11 +60,13 @@ struct ExecuteJob {
 	params: Vec<u8>,
 	ee_params: ExecutorParams,
 	result_tx: ResultSender,
+	waiting_since: Instant,
 }
 
 struct WorkerData {
 	idle: Option<IdleWorker>,
 	handle: WorkerHandle,
+	exec_env_params_hash: ExecutorParamsHash,
 }
 
 impl fmt::Debug for WorkerData {
@@ -83,7 +91,17 @@ impl Workers {
 		self.spawn_inflight + self.running.len() < self.capacity
 	}
 
-	fn find_available(&self) -> Option<Worker> {
+	fn find_available(&self, exec_env_params_hash: ExecutorParamsHash) -> Option<Worker> {
+		self.running.iter().find_map(|d| {
+			if d.1.idle.is_some() && d.1.exec_env_params_hash == exec_env_params_hash {
+				Some(d.0)
+			} else {
+				None
+			}
+		})
+	}
+
+	fn find_idle(&self) -> Option<Worker> {
 		self.running
 			.iter()
 			.find_map(|d| if d.1.idle.is_some() { Some(d.0) } else { None })
@@ -98,7 +116,7 @@ impl Workers {
 }
 
 enum QueueEvent {
-	Spawn(IdleWorker, WorkerHandle),
+	Spawn(IdleWorker, WorkerHandle, ExecuteJob),
 	StartWork(Worker, Outcome, ArtifactId, ResultSender),
 }
 
@@ -158,6 +176,55 @@ impl Queue {
 			purge_dead(&self.metrics, &mut self.workers).await;
 		}
 	}
+
+	fn next_job_index(&self, idle_worker: Option<Worker>) -> Option<usize> {
+		// New jobs are always pushed to the tail of the queue; the one at its head is always the eldest one.
+		// First check if we have a job that cannot wait any more even if we have to kill a worker to run it
+
+		let eldest = if let Some(eldest) = self.queue.get(0) { eldest } else { return None };
+
+		if eldest.waiting_since.elapsed().as_millis() > MAX_KEEP_WAITING {
+			return Some(0)
+		}
+
+		// No rush, let's try to find the most suitable job for the worker that's just become idle or dead
+
+		if let Some(idle_worker) = idle_worker {
+			if let Some(worker) = self.workers.running.get(idle_worker) {
+				for (i, job) in self.queue.iter().enumerate() {
+					if worker.exec_env_params_hash == job.ee_params.hash() {
+						return Some(i)
+					}
+				}
+
+				// There are some jobs but an idle worker cannot execute them. Let's instruct the caller to
+				// kill the useless worker and spawn a new one to execute the eldest job.
+				// FIXME: Worst case scenario should be carefully evaluated and this logic might require
+				// adjustment
+				return Some(0)
+			} else {
+				// Worker to which the job was supposed to be assigned is not there any more, just execute
+				// the eldest job
+				return Some(0)
+			}
+		} else {
+			// Old worker is dead anyway so let's just instruct caller to spawn a new one to
+			// execute the eldest job
+			return Some(0)
+		}
+	}
+
+	fn take_job(&mut self, index: usize) -> Option<ExecuteJob> {
+		self.queue.remove(index)
+	}
+
+	fn take_next_job(&mut self, idle_worker: Option<Worker>) -> Option<ExecuteJob> {
+		if let Some(index) = self.next_job_index(idle_worker) {
+			self.take_job(index)
+		} else {
+			None
+		}
+	}
 }
 
 async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
@@ -175,6 +242,29 @@ async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
 	}
 }
 
+fn try_assign_next_job(queue: &mut Queue) {
+	if let Some(ji) = queue.next_job_index(None) {
+		if let Some(available) = queue.workers.find_available(queue.queue[ji].ee_params.hash()) {
+			let job = queue.take_job(ji).expect("Job is just checked to be in queue; qed");
+			assign(queue, available, job);
+			return
+		} else {
+			if let Some(idle) = queue.workers.find_idle() {
+				// No available workers of required type but there are some idle ones of other types,
+				// have to kill one and re-spawn with the correct type
+				if queue.workers.running.remove(idle).is_some() {
+					queue.metrics.execute_worker().on_retired();
+				}
+			}
+		}
+
+		if queue.workers.can_afford_one_more() {
+			let job = queue.take_job(ji).expect("Job is just checked to be in queue; qed");
+			spawn_extra_worker(queue, job);
+		}
+	}
+}
+
 fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
 	let ToQueue::Enqueue { artifact, execution_timeout, params, ee_params, result_tx } = to_queue;
 	gum::debug!(
@@ -183,22 +273,22 @@ fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
 		"enqueueing an artifact for execution",
 	);
 	queue.metrics.execute_enqueued();
-	let job = ExecuteJob { artifact, execution_timeout, params, ee_params, result_tx };
-
-	if let Some(available) = queue.workers.find_available() {
-		assign(queue, available, job);
-	} else {
-		if queue.workers.can_afford_one_more() {
-			spawn_extra_worker(queue);
-		}
-		queue.queue.push_back(job);
-	}
+	let job = ExecuteJob {
+		artifact,
+		execution_timeout,
+		params,
+		ee_params,
+		result_tx,
+		waiting_since: Instant::now(),
+	};
+	queue.queue.push_back(job);
+	try_assign_next_job(queue);
 }
 
 async fn handle_mux(queue: &mut Queue, event: QueueEvent) {
 	match event {
-		QueueEvent::Spawn(idle, handle) => {
-			handle_worker_spawned(queue, idle, handle);
+		QueueEvent::Spawn(idle, handle, job) => {
+			handle_worker_spawned(queue, idle, handle, job);
 		},
 		QueueEvent::StartWork(worker, outcome, artifact_id, result_tx) => {
 			handle_job_finish(queue, worker, outcome, artifact_id, result_tx);
@@ -206,16 +296,23 @@ async fn handle_mux(queue: &mut Queue, event: QueueEvent) {
 	}
 }
 
-fn handle_worker_spawned(queue: &mut Queue, idle: IdleWorker, handle: WorkerHandle) {
+fn handle_worker_spawned(
+	queue: &mut Queue,
+	idle: IdleWorker,
+	handle: WorkerHandle,
+	job: ExecuteJob,
+) {
 	queue.metrics.execute_worker().on_spawned();
 	queue.workers.spawn_inflight -= 1;
-	let worker = queue.workers.running.insert(WorkerData { idle: Some(idle), handle });
+	let worker = queue.workers.running.insert(WorkerData {
+		idle: Some(idle),
+		handle,
+		exec_env_params_hash: job.ee_params.hash(),
+	});
 
 	gum::debug!(target: LOG_TARGET, ?worker, "execute worker spawned");
 
-	if let Some(job) = queue.queue.pop_front() {
-		assign(queue, worker, job);
-	}
+	assign(queue, worker, job);
 }
 
 /// If there are pending jobs in the queue, schedules the next of them onto the just freed up
@@ -269,42 +366,37 @@ fn handle_job_finish(
 	if let Some(idle_worker) = idle_worker {
 		if let Some(data) = queue.workers.running.get_mut(worker) {
 			data.idle = Some(idle_worker);
-
-			if let Some(job) = queue.queue.pop_front() {
-				assign(queue, worker, job);
-			}
 		}
 	} else {
 		// Note it's possible that the worker was purged already by `purge_dead`
 		if queue.workers.running.remove(worker).is_some() {
 			queue.metrics.execute_worker().on_retired();
 		}
-
-		if !queue.queue.is_empty() {
-			// The worker has died and we still have work we have to do. Request an extra worker.
-			//
-			// That can potentially overshoot, but that should be OK.
-			spawn_extra_worker(queue);
-		}
 	}
+
+	try_assign_next_job(queue);
 }
 
-fn spawn_extra_worker(queue: &mut Queue) {
+fn spawn_extra_worker(queue: &mut Queue, job: ExecuteJob) {
 	queue.metrics.execute_worker().on_begin_spawn();
 	gum::debug!(target: LOG_TARGET, "spawning an extra worker");
 
 	queue
 		.mux
-		.push(spawn_worker_task(queue.program_path.clone(), queue.spawn_timeout).boxed());
+		.push(spawn_worker_task(queue.program_path.clone(), job, queue.spawn_timeout).boxed());
 	queue.workers.spawn_inflight += 1;
 }
 
-async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> QueueEvent {
+async fn spawn_worker_task(
+	program_path: PathBuf,
+	job: ExecuteJob,
+	spawn_timeout: Duration,
+) -> QueueEvent {
 	use futures_timer::Delay;
 
 	loop {
-		match super::worker::spawn(&program_path, spawn_timeout).await {
-			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle),
+		match super::worker::spawn(&program_path, job.ee_params.hash(), spawn_timeout).await {
+			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle, job),
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn an execute worker: {:?}", err);
 
@@ -324,6 +416,16 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 		validation_code_hash = ?job.artifact.id,
 		?worker,
 		"assigning the execute worker",
+	);
+
+	debug_assert_eq!(
+		queue
+			.workers
+			.running
+			.get(worker)
+			.expect("caller must provide existing worker; qed")
+			.exec_env_params_hash,
+		job.ee_params.hash()
 	);
 
 	let idle = queue.workers.claim_idle(worker).expect(
