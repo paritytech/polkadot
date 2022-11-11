@@ -142,7 +142,7 @@ There are two potential caveats with this though:
    dispute concludes in all cases? The answer is nuanced, but in general we
    cannot rely on it. The problem is first, that finalization and
    approval-voting is an off-chain process so there is no global consensus: As
-   soon as at least f+1 honest (f= n/3, where n is the number of
+   soon as at least f+1 honest (f=n/3, where n is the number of
    validators/nodes) nodes have seen the dispute conclude, finalization will
    take place and approval votes will be cleared. This would still be fine, if
    we had some guarantees that those honest nodes will be able to include those
@@ -214,7 +214,7 @@ among nodes which includes current block producers (current authority set) which
 is an important property: If the dispute carries on across an era change, we
 need to ensure that the new validator set will learn about any disputes and
 their votes, so they can put that information on chain. Dispute-distribution
-luckily has this property and sends votes to the current authority set always.
+luckily has this property and always sends votes to the current authority set.
 The issue is, for dispute-distribution, nodes send only their own explicit (or
 in some cases their approval vote) in addition to some opposing vote. This
 guarantees that at least some backing or approval vote will be present at the
@@ -327,7 +327,10 @@ participation at all on any _vote import_ if any of the following holds true:
 - We have seen the disputed candidate backed in some not yet finalized block on
   at least one fork of the chain. This ensures the candidate is at least not
   completely made up and there has been some effort already flown into that
-  candidate.
+  candidate. Generally speaking a dispute shouldn't be raised for a candidate
+  which is backed but is not yet included. Disputes are raised during approval
+  checking. We participate on such disputes as a precaution - maybe we haven't
+  seen the `CandidateIncluded` event yet?
 - The dispute is already confirmed: Meaning that 1/3+1 nodes already
   participated, as this suggests in our threat model that there was at least one
   honest node that already voted, so the dispute must be genuine.
