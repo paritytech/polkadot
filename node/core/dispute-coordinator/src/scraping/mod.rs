@@ -87,8 +87,13 @@ impl ChainScraper {
 	/// As long as we have `MAX_FINALITY_LAG` this makes sense as a value.
 	pub(crate) const ANCESTRY_SIZE_LIMIT: u32 = MAX_FINALITY_LAG;
 
-	/// How many blocks after finalization a backed and not included candidate
-	/// should be kept.
+	/// How many blocks after finalization a backed/included candidate should be kept.
+	/// We don't want to remove scraped candidates on finalization because we want to
+	/// be sure that disputes will conclude on abandoned forks.
+	/// Removing the candidate on finalization creates a possibility for an attacker to
+	/// avoid slashing. If a bad fork is abandoned too quickly (e.g. because of inclusion
+	/// of another better fork) the corresponding dispute will not conclude and no one
+	/// will be slashed.
 	pub(crate) const CANDIDATE_LIFETIME_AFTER_FINALIZATION: BlockNumber = 2;
 
 	/// Create a properly initialized `OrderingProvider`.
@@ -174,12 +179,17 @@ impl ChainScraper {
 	pub fn process_finalized_block(&mut self, finalized_block_number: &BlockNumber) {
 		// `CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1` because `finalized_block_number`counts to the
 		// candidate lifetime.
-		finalized_block_number
-			.checked_sub(Self::CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1)
-			.map(|key_to_prune| {
+		match finalized_block_number.checked_sub(Self::CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1) {
+			Some(key_to_prune) => {
 				self.backed_candidates.remove_up_to_height(&key_to_prune);
 				self.included_candidates.remove_up_to_height(&key_to_prune);
-			});
+			},
+			None => {
+				// Nothing to prune. We are still in the beginning of the chain and there are not
+				// enough finalized blocks yet.
+			},
+		}
+		{}
 	}
 
 	/// Process candidate events of a block.

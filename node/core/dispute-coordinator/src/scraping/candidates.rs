@@ -85,7 +85,7 @@ pub struct ScrapedCandidates {
 	/// Main data structure which keeps the candidates we know about. `contains` does lookups only here.
 	candidates: RefCountedCandidates,
 	/// Keeps track at which block number a candidate was inserted. Used in `remove_up_to_height`.
-	/// Without this tracking we won't be able to 'remove all candidates inserted at block X and before'.
+	/// Without this tracking we won't be able to remove all candidates before block X.
 	candidates_by_block_number: BTreeMap<BlockNumber, HashSet<CandidateHash>>,
 }
 
