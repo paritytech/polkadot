@@ -66,7 +66,7 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 /// `process_active_leaves_update` any scraped votes.
 ///
 /// Scraped candidates are available `CANDIDATE_LIFETIME_AFTER_FINALIZATION` more blocks
-/// after finalization as a precaution not to clean them prematurely.
+/// after finalization as a precaution not to prune them prematurely.
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
 	included_candidates: candidates::ScrapedCandidates,
@@ -176,9 +176,9 @@ impl ChainScraper {
 		// candidate lifetime.
 		finalized_block_number
 			.checked_sub(Self::CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1)
-			.map(|key_to_clean| {
-				self.backed_candidates.remove_up_to_height(&key_to_clean);
-				self.included_candidates.remove_up_to_height(&key_to_clean);
+			.map(|key_to_prune| {
+				self.backed_candidates.remove_up_to_height(&key_to_prune);
+				self.included_candidates.remove_up_to_height(&key_to_prune);
 			});
 	}
 

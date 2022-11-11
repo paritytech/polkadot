@@ -418,7 +418,7 @@ fn scraper_requests_candidates_of_non_finalized_ancestors() {
 }
 
 #[test]
-fn scraper_cleans_finalized_candidates() {
+fn scraper_prunes_finalized_candidates() {
 	const TEST_TARGET_BLOCK_NUMBER: BlockNumber = 2;
 
 	// How many blocks should we skip before sending a leaf update.
