@@ -924,6 +924,7 @@ impl<T: Config> Pallet<T> {
 		// amount used. This is way more useful for the parachain.
 		// TODO: Consider doing this at the end of the block, after any messages might have been
 		// executed, to report more accurate numbers to the para.
+		#[allow(deprecated)]
 		let key = well_known_keys::relay_dispatch_queue_size(para);
 		(count, size).using_encoded(|d| sp_io::storage::set(&key, d));
 

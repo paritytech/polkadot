@@ -74,7 +74,7 @@ fn default_genesis_config() -> MockGenesisConfig {
 fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
 	let msgs = vec![msg];
 	assert!(ParaInclusion::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
-	let _ = ParaInclusion::receive_upward_messages(para, msgs);
+	let _ = ParaInclusion::receive_upward_messages(&Configuration::config(), para, msgs);
 }
 
 #[test]
@@ -192,6 +192,7 @@ fn verify_relay_dispatch_queue_size_is_externally_accessible() {
 	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 		queue_upward_msg(a, msg);
 
+		#[allow(deprecated)]
 		let raw_queue_size = sp_io::storage::get(&well_known_keys::relay_dispatch_queue_size(a))
 			.expect(
 				"enqueing a message should create the dispatch queue\
