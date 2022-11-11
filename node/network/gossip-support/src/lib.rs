@@ -446,26 +446,7 @@ where
 				}
 			},
 			NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids) => {
-				// get the outdated authority_ids stored for the specific peer_id.
-				let old_auth_ids: Vec<AuthorityDiscoveryId> = self
-					.connected_authorities
-					.clone()
-					.into_iter()
-					.filter(|(_, p)| *p == peer_id)
-					.map(|(auth, _)| auth.clone())
-					.collect();
-
-				// remove all of the outdated authority_ids.
-				for auth in old_auth_ids {
-					self.connected_authorities.remove(&auth);
-				}
-				self.connected_authorities_by_peer_id.remove(&peer_id);
-
-				// add the new updated data.
-				authority_ids.iter().for_each(|a| {
-					self.connected_authorities.insert(a.clone(), peer_id);
-				});
-				self.connected_authorities_by_peer_id.insert(peer_id, authority_ids);
+				// The `gossip-support` subsystem itself issues these messages.
 			},
 			NetworkBridgeEvent::OurViewChange(_) => {},
 			NetworkBridgeEvent::PeerViewChange(_, _) => {},
