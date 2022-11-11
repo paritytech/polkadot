@@ -1086,7 +1086,7 @@ async fn handle_network_msg<Context>(
 			process_incoming_peer_message(ctx, state, remote, msg).await;
 		},
 		UpdatedAuthorityIds { .. } => {
-			// The validator side doesn't deal with authority-ids
+			// The validator side doesn't deal with `AuthorityDiscoveryId`s.
 		},
 	}
 
