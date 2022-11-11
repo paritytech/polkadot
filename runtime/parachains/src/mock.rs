@@ -18,14 +18,15 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
-	scheduler, session_info, shared,
-	ump::{self, MessageId, UmpSink},
-	ParaId,
+	scheduler, session_info, shared, ParaId,
 };
 
 use frame_support::{
 	parameter_types,
-	traits::{GenesisBuild, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
+	traits::{
+		GenesisBuild, KeyOwnerProofSystem, ProcessMessage, ProcessMessageError, ValidatorSet,
+		ValidatorSetWithIdentification,
+	},
 	weights::Weight,
 };
 use frame_support_test::TestRandomness;
@@ -34,7 +35,7 @@ use primitives::v2::{
 	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
 	UpwardMessage, ValidatorIndex,
 };
-use sp_core::H256;
+use sp_core::{ConstU32, H256};
 use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
@@ -54,6 +55,7 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system,
 		Balances: pallet_balances,
+		MessageQueue: pallet_message_queue,
 		Paras: paras,
 		Configuration: configuration,
 		ParasShared: shared,
@@ -62,7 +64,6 @@ frame_support::construct_runtime!(
 		Scheduler: scheduler,
 		Initializer: initializer,
 		Dmp: dmp,
-		Ump: ump,
 		Hrmp: hrmp,
 		ParachainsOrigin: origin,
 		SessionInfo: session_info,
@@ -145,25 +146,18 @@ impl pallet_babe::Config for Test {
 
 	// session module is the trigger
 	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
-
 	type DisabledValidators = ();
-
 	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
 		pallet_babe::AuthorityId,
 	)>>::Proof;
-
 	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
 		KeyTypeId,
 		pallet_babe::AuthorityId,
 	)>>::IdentificationTuple;
-
 	type KeyOwnerProofSystem = ();
-
 	type HandleEquivocation = ();
-
 	type WeightInfo = ();
-
 	type MaxAuthorities = MaxAuthorities;
 }
 
@@ -227,14 +221,6 @@ parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;
 }
 
-impl crate::ump::Config for Test {
-	type RuntimeEvent = RuntimeEvent;
-	type UmpSink = TestUmpSink;
-	type FirstMessageFactorPercent = FirstMessageFactorPercent;
-	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
-	type WeightInfo = crate::ump::TestWeightInfo;
-}
-
 impl crate::hrmp::Config for Test {
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeEvent = RuntimeEvent;
@@ -293,10 +279,43 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 
 impl crate::scheduler::Config for Test {}
 
+pub struct TestWeightInfo;
+impl pallet_message_queue::WeightInfo for TestWeightInfo {
+	fn service_page_base() -> Weight {
+		Weight::zero()
+	}
+	fn service_queue_base() -> Weight {
+		Weight::zero()
+	}
+	fn service_page_process_message() -> Weight {
+		Weight::zero()
+	}
+	fn bump_service_head() -> Weight {
+		Weight::zero()
+	}
+	fn service_page_item() -> Weight {
+		Weight::zero()
+	}
+	fn ready_ring_unknit() -> Weight {
+		Weight::zero()
+	}
+}
+
+impl pallet_message_queue::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = TestWeightInfo;
+	type MessageProcessor = TestProcessMessage;
+	type Size = u32;
+	type HeapSize = ConstU32<65536>;
+	type MaxStale = ConstU32<8>;
+	type ServiceWeight = ();
+}
+
 impl crate::inclusion::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = Disputes;
 	type RewardValidators = TestRewardValidators;
+	type MessageQueue = MessageQueue;
 }
 
 impl crate::paras_inherent::Config for Test {
@@ -386,26 +405,26 @@ pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
 ///
 /// A message's weight is defined by the first 4 bytes of its data, which we decode into a
 /// `u32`.
-pub struct TestUmpSink;
-impl UmpSink for TestUmpSink {
-	fn process_upward_message(
-		actual_origin: ParaId,
-		actual_msg: &[u8],
-		max_weight: Weight,
-	) -> Result<Weight, (MessageId, Weight)> {
-		let weight = match u32::decode(&mut &actual_msg[..]) {
-			Ok(w) => Weight::from_ref_time(w as u64),
-			Err(_) => return Ok(Weight::zero()), // same as the real `UmpSink`
+pub struct TestProcessMessage;
+impl ProcessMessage for TestProcessMessage {
+	type Origin = ParaId;
+	fn process_message(
+		message: &[u8],
+		origin: ParaId,
+		weight_limit: Weight,
+	) -> Result<(bool, Weight), ProcessMessageError> {
+		let weight = match u32::decode(&mut &message[..]) {
+			Ok(w) => Weight::from_parts(w as u64, w as u64),
+			Err(_) => return Err(ProcessMessageError::Corrupt), // same as the real `ProcessMessage`
 		};
-		if weight.any_gt(max_weight) {
-			let id = sp_io::hashing::blake2_256(actual_msg);
-			return Err((id, weight))
+		if weight.any_gt(weight_limit) {
+			return Err(ProcessMessageError::Overweight(weight))
 		}
 
 		PROCESSED.with(|opt_hook| {
-			opt_hook.borrow_mut().push((actual_origin, actual_msg.to_owned()));
+			opt_hook.borrow_mut().push((origin, message.to_owned()));
 		});
-		Ok(weight)
+		Ok((true, weight))
 	}
 }
 
@@ -463,4 +482,20 @@ pub fn assert_last_event(generic_event: RuntimeEvent) {
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(event, &system_event);
+}
+
+pub fn assert_last_events<E>(generic_events: E)
+where
+	E: DoubleEndedIterator<Item = RuntimeEvent> + ExactSizeIterator,
+{
+	for (i, (got, want)) in frame_system::Pallet::<Test>::events()
+		.into_iter()
+		.rev()
+		.map(|e| e.event)
+		.zip(generic_events.rev().map(<Test as frame_system::Config>::RuntimeEvent::from))
+		.rev()
+		.enumerate()
+	{
+		assert_eq!((i, got), (i, want));
+	}
 }

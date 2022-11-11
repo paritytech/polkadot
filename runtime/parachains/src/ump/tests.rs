@@ -27,8 +27,6 @@ pub(super) struct GenesisConfigBuilder {
 	max_upward_message_num_per_candidate: u32,
 	max_upward_queue_count: u32,
 	max_upward_queue_size: u32,
-	ump_service_total_weight: Weight,
-	ump_max_individual_weight: Weight,
 }
 
 impl Default for GenesisConfigBuilder {
@@ -38,8 +36,6 @@ impl Default for GenesisConfigBuilder {
 			max_upward_message_num_per_candidate: 2,
 			max_upward_queue_count: 4,
 			max_upward_queue_size: 64,
-			ump_service_total_weight: Weight::from_ref_time(1000).set_proof_size(1000),
-			ump_max_individual_weight: Weight::from_ref_time(100).set_proof_size(100),
 		}
 	}
 }
@@ -53,8 +49,6 @@ impl GenesisConfigBuilder {
 		config.max_upward_message_num_per_candidate = self.max_upward_message_num_per_candidate;
 		config.max_upward_queue_count = self.max_upward_queue_count;
 		config.max_upward_queue_size = self.max_upward_queue_size;
-		config.ump_service_total_weight = self.ump_service_total_weight;
-		config.ump_max_individual_weight = self.ump_max_individual_weight;
 		genesis
 	}
 }
@@ -76,7 +70,7 @@ fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
 	assert!(Ump::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
 	let _ = Ump::receive_upward_messages(para, msgs);
 }
-
+/*
 fn assert_storage_consistency_exhaustive() {
 	// check that empty queues don't clutter the storage.
 	for (_para, queue) in <Ump as Store>::RelayDispatchQueues::iter() {
@@ -154,19 +148,13 @@ fn dispatch_resume_after_exceeding_dispatch_stage_weight() {
 	let c_msg_2 = (100u32, "c_msg_2").encode();
 	let q_msg = (500u32, "q_msg").encode();
 
-	new_test_ext(
-		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(500).set_proof_size(500),
-			..Default::default()
-		}
-		.build(),
-	)
-	.execute_with(|| {
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 		queue_upward_msg(q, q_msg.clone());
 		queue_upward_msg(c, c_msg_1.clone());
 		queue_upward_msg(a, a_msg_1.clone());
 		queue_upward_msg(a, a_msg_2.clone());
 
+		//ump_service_total_weight: Weight::from_ref_time(500).set_proof_size(500),
 		assert_storage_consistency_exhaustive();
 
 		// we expect only two first messages to fit in the first iteration.
@@ -194,171 +182,4 @@ fn dispatch_resume_after_exceeding_dispatch_stage_weight() {
 	});
 }
 
-#[test]
-fn dispatch_keeps_message_after_weight_exhausted() {
-	let a = ParaId::from(128);
-
-	let a_msg_1 = (300u32, "a_msg_1").encode();
-	let a_msg_2 = (300u32, "a_msg_2").encode();
-
-	new_test_ext(
-		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(500).set_proof_size(500),
-			ump_max_individual_weight: Weight::from_ref_time(300).set_proof_size(300),
-			..Default::default()
-		}
-		.build(),
-	)
-	.execute_with(|| {
-		queue_upward_msg(a, a_msg_1.clone());
-		queue_upward_msg(a, a_msg_2.clone());
-
-		assert_storage_consistency_exhaustive();
-
-		// we expect only one message to fit in the first iteration.
-		Ump::process_pending_upward_messages();
-		assert_eq!(take_processed(), vec![(a, a_msg_1)]);
-		assert_storage_consistency_exhaustive();
-
-		// second iteration should process the remaining message.
-		Ump::process_pending_upward_messages();
-		assert_eq!(take_processed(), vec![(a, a_msg_2)]);
-		assert_storage_consistency_exhaustive();
-
-		// finally, make sure that the queue is empty.
-		Ump::process_pending_upward_messages();
-		assert_eq!(take_processed(), vec![]);
-		assert_storage_consistency_exhaustive();
-	});
-}
-
-#[test]
-fn dispatch_correctly_handle_remove_of_latest() {
-	let a = ParaId::from(1991);
-	let b = ParaId::from(1999);
-
-	let a_msg_1 = (300u32, "a_msg_1").encode();
-	let a_msg_2 = (300u32, "a_msg_2").encode();
-	let b_msg_1 = (300u32, "b_msg_1").encode();
-
-	new_test_ext(
-		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(900).set_proof_size(900),
-			..Default::default()
-		}
-		.build(),
-	)
-	.execute_with(|| {
-		// We want to test here an edge case, where we remove the queue with the highest
-		// para id (i.e. last in the `needs_dispatch` order).
-		//
-		// If the last entry was removed we should proceed execution, assuming we still have
-		// weight available.
-
-		queue_upward_msg(a, a_msg_1.clone());
-		queue_upward_msg(a, a_msg_2.clone());
-		queue_upward_msg(b, b_msg_1.clone());
-		Ump::process_pending_upward_messages();
-		assert_eq!(take_processed(), vec![(a, a_msg_1), (b, b_msg_1), (a, a_msg_2)]);
-	});
-}
-
-#[test]
-fn verify_relay_dispatch_queue_size_is_externally_accessible() {
-	// Make sure that the relay dispatch queue size storage entry is accessible via well known
-	// keys and is decodable into a (u32, u32).
-
-	use parity_scale_codec::Decode as _;
-	use primitives::v2::well_known_keys;
-
-	let a = ParaId::from(228);
-	let msg = vec![1, 2, 3];
-
-	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
-		queue_upward_msg(a, msg);
-
-		let raw_queue_size = sp_io::storage::get(&well_known_keys::relay_dispatch_queue_size(a))
-			.expect(
-				"enqueing a message should create the dispatch queue\
-            and it should be accessible via the well known keys",
-			);
-		let (cnt, size) = <(u32, u32)>::decode(&mut &raw_queue_size[..])
-			.expect("the dispatch queue size should be decodable into (u32, u32)");
-
-		assert_eq!(cnt, 1);
-		assert_eq!(size, 3);
-	});
-}
-
-#[test]
-fn service_overweight_unknown() {
-	// This test just makes sure that 0 is not a valid index and we can use it not worrying in
-	// the next test.
-	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
-		assert_noop!(
-			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(1000)),
-			Error::<Test>::UnknownMessageIndex
-		);
-	});
-}
-
-#[test]
-fn overweight_queue_works() {
-	let para_a = ParaId::from(2021);
-
-	let a_msg_1 = (301u32, "a_msg_1").encode();
-	let a_msg_2 = (500u32, "a_msg_2").encode();
-	let a_msg_3 = (500u32, "a_msg_3").encode();
-
-	new_test_ext(
-		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(900).set_proof_size(900),
-			ump_max_individual_weight: Weight::from_ref_time(300).set_proof_size(300),
-			..Default::default()
-		}
-		.build(),
-	)
-	.execute_with(|| {
-		// HACK: Start with the block number 1. This is needed because should an event be
-		// emitted during the genesis block they will be implicitly wiped.
-		System::set_block_number(1);
-
-		// This one is overweight. However, the weight is plenty and we can afford to execute
-		// this message, thus expect it.
-		queue_upward_msg(para_a, a_msg_1.clone());
-		Ump::process_pending_upward_messages();
-		assert_eq!(take_processed(), vec![(para_a, a_msg_1)]);
-
-		// This is overweight and this message cannot fit into the total weight budget.
-		queue_upward_msg(para_a, a_msg_2.clone());
-		queue_upward_msg(para_a, a_msg_3.clone());
-		Ump::process_pending_upward_messages();
-		assert_last_event(
-			Event::OverweightEnqueued(
-				para_a,
-				upward_message_id(&a_msg_3[..]),
-				0,
-				Weight::from_ref_time(500),
-			)
-			.into(),
-		);
-
-		// Now verify that if we wanted to service this overweight message with less than enough
-		// weight it will fail.
-		assert_noop!(
-			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(499)),
-			Error::<Test>::WeightOverLimit
-		);
-
-		// ... and if we try to service it with just enough weight it will succeed as well.
-		assert_ok!(Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(500)));
-		assert_last_event(Event::OverweightServiced(0, Weight::from_ref_time(500)).into());
-
-		// ... and if we try to service a message with index that doesn't exist it will error
-		// out.
-		assert_noop!(
-			Ump::service_overweight(RuntimeOrigin::root(), 1, Weight::from_ref_time(1000)),
-			Error::<Test>::UnknownMessageIndex
-		);
-	});
-}
+*/

@@ -5067,6 +5067,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-message-queue"
+version = "0.9.29"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-weights",
+]
+
+[[package]]
 name = "pallet-mmr"
 version = "4.0.0-dev"
 dependencies = [
@@ -7053,6 +7071,7 @@ dependencies = [
  "pallet-authorship",
  "pallet-babe",
  "pallet-balances",
+ "pallet-message-queue",
  "pallet-session",
  "pallet-staking",
  "pallet-timestamp",
@@ -12838,10 +12857,6 @@ version = "3.0.0-dev"
 [[patch.unused]]
 name = "pallet-lottery"
 version = "4.0.0-dev"
-
-[[patch.unused]]
-name = "pallet-message-queue"
-version = "0.9.29"
 
 [[patch.unused]]
 name = "pallet-nicks"

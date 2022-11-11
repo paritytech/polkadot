@@ -21,26 +21,39 @@
 //! to included.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, paras, paras_inherent::DisputedBitfield,
-	scheduler::CoreAssignment, shared, ump,
+	configuration::{self, HostConfiguration},
+	disputes, dmp, hrmp, paras,
+	paras_inherent::DisputedBitfield,
+	scheduler::CoreAssignment,
+	shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_support::pallet_prelude::*;
+use frame_support::{
+	pallet_prelude::*,
+	traits::{EnqueueMessage, Footprint},
+	BoundedSlice,
+};
 use parity_scale_codec::{Decode, Encode};
 use primitives::v2::{
-	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
-	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
-	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
-	ValidatorIndex, ValidityAttestation,
+	well_known_keys, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
+	CandidateDescriptor, CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex,
+	GroupIndex, Hash, HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields,
+	UpwardMessage, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{traits::One, DispatchError};
-use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+use sp_std::{collections::btree_set::BTreeSet, fmt, prelude::*};
 
 pub use pallet::*;
 
 #[cfg(test)]
 pub(crate) mod tests;
+
+/// Maximum value that `config.max_upward_message_size` can be set to
+///
+/// This is used for benchmarking sanely bounding relevant storate items. It is expected from the `configurations`
+/// pallet to check these values before setting.
+pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 50 * 1024;
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.
@@ -194,13 +207,15 @@ pub mod pallet {
 		+ shared::Config
 		+ paras::Config
 		+ dmp::Config
-		+ ump::Config
 		+ hrmp::Config
 		+ configuration::Config
 	{
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
 		type RewardValidators: RewardValidators;
+
+		/// The system message queue.
+		type MessageQueue: EnqueueMessage<ParaId>;
 	}
 
 	#[pallet::event]
@@ -212,6 +227,8 @@ pub mod pallet {
 		CandidateIncluded(CandidateReceipt<T::Hash>, HeadData, CoreIndex, GroupIndex),
 		/// A candidate timed out. `[candidate, head_data]`
 		CandidateTimedOut(CandidateReceipt<T::Hash>, HeadData, CoreIndex),
+		/// Some upward messages have been received and will be processed.
+		UpwardMessagesReceived { from: ParaId, count: u32 },
 	}
 
 	#[pallet::error]
@@ -299,6 +316,53 @@ pub mod pallet {
 }
 
 const LOG_TARGET: &str = "runtime::inclusion";
+
+#[derive(derive_more::From, Debug)]
+enum AcceptanceCheckErr<BlockNumber> {
+	HeadDataTooLarge,
+	PrematureCodeUpgrade,
+	NewCodeTooLarge,
+	ProcessedDownwardMessages(dmp::ProcessedDownwardMessagesAcceptanceErr),
+	UpwardMessages(UmpAcceptanceCheckErr),
+	HrmpWatermark(hrmp::HrmpWatermarkAcceptanceErr<BlockNumber>),
+	OutboundHrmp(hrmp::OutboundHrmpAcceptanceErr),
+}
+
+/// An error returned by [`check_upward_messages`] that indicates a violation of one of acceptance
+/// criteria rules.
+pub enum UmpAcceptanceCheckErr {
+	MoreMessagesThanPermitted { sent: u32, permitted: u32 },
+	MessageSize { idx: u32, msg_size: u32, max_size: u32 },
+	CapacityExceeded { count: u32, limit: u32 },
+	TotalSizeExceeded { total_size: u32, limit: u32 },
+}
+
+impl fmt::Debug for UmpAcceptanceCheckErr {
+	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
+		match *self {
+			UmpAcceptanceCheckErr::MoreMessagesThanPermitted { sent, permitted } => write!(
+				fmt,
+				"more upward messages than permitted by config ({} > {})",
+				sent, permitted,
+			),
+			UmpAcceptanceCheckErr::MessageSize { idx, msg_size, max_size } => write!(
+				fmt,
+				"upward message idx {} larger than permitted by config ({} > {})",
+				idx, msg_size, max_size,
+			),
+			UmpAcceptanceCheckErr::CapacityExceeded { count, limit } => write!(
+				fmt,
+				"the ump queue would have more items than permitted by config ({} > {})",
+				count, limit,
+			),
+			UmpAcceptanceCheckErr::TotalSizeExceeded { total_size, limit } => write!(
+				fmt,
+				"the ump queue would have grown past the max size permitted by config ({} > {})",
+				total_size, limit,
+			),
+		}
+	}
+}
 
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
@@ -765,10 +829,8 @@ impl<T: Config> Pallet<T> {
 			receipt.descriptor.para_id,
 			commitments.processed_downward_messages,
 		);
-		weight += <ump::Pallet<T>>::receive_upward_messages(
-			receipt.descriptor.para_id,
-			commitments.upward_messages,
-		);
+		weight +=
+			Self::receive_upward_messages(receipt.descriptor.para_id, commitments.upward_messages);
 		weight += <hrmp::Pallet<T>>::prune_hrmp(
 			receipt.descriptor.para_id,
 			T::BlockNumber::from(commitments.hrmp_watermark),
@@ -791,6 +853,79 @@ impl<T: Config> Pallet<T> {
 				commitments.head_data,
 				relay_parent_number,
 			)
+	}
+
+	/// Check that all the upward messages sent by a candidate pass the acceptance criteria. Returns
+	/// false, if any of the messages doesn't pass.
+	pub(crate) fn check_upward_messages(
+		config: &HostConfiguration<T::BlockNumber>,
+		para: ParaId,
+		upward_messages: &[UpwardMessage],
+	) -> Result<(), UmpAcceptanceCheckErr> {
+		if upward_messages.len() as u32 > config.max_upward_message_num_per_candidate {
+			return Err(UmpAcceptanceCheckErr::MoreMessagesThanPermitted {
+				sent: upward_messages.len() as u32,
+				permitted: config.max_upward_message_num_per_candidate,
+			})
+		}
+
+		let fp = T::MessageQueue::footprint(para);
+		let (mut para_queue_count, mut para_queue_size) = (fp.count, fp.size);
+
+		for (idx, msg) in upward_messages.into_iter().enumerate() {
+			let msg_size = msg.len() as u32;
+			if msg_size > config.max_upward_message_size {
+				return Err(UmpAcceptanceCheckErr::MessageSize {
+					idx: idx as u32,
+					msg_size,
+					max_size: config.max_upward_message_size,
+				})
+			}
+			para_queue_count += 1;
+			para_queue_size += msg_size;
+		}
+
+		// make sure that the queue is not overfilled.
+		// we do it here only once since returning false invalidates the whole relay-chain block.
+		if para_queue_count > config.max_upward_queue_count {
+			return Err(UmpAcceptanceCheckErr::CapacityExceeded {
+				count: para_queue_count,
+				limit: config.max_upward_queue_count,
+			})
+		}
+		if para_queue_size > config.max_upward_queue_size {
+			return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {
+				total_size: para_queue_size,
+				limit: config.max_upward_queue_size,
+			})
+		}
+
+		Ok(())
+	}
+
+	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
+	pub(crate) fn receive_upward_messages(
+		para: ParaId,
+		upward_messages: Vec<UpwardMessage>,
+	) -> Weight {
+		if !upward_messages.is_empty() {
+			let count = upward_messages.len() as u32;
+			Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
+		}
+		let messages = upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
+		T::MessageQueue::enqueue_messages(messages, para);
+
+		let Footprint { count, size } = T::MessageQueue::footprint(para);
+		// TODO: Consider placing the remaining capacity into the well known key, rather than the
+		// amount used. This is way more useful for the parachain.
+		// TODO: Consider doing this at the end of the block, after any messages might have been
+		// executed, to report more accurate numbers to the para.
+		let key = well_known_keys::relay_dispatch_queue_size(para);
+		(count, size).using_encoded(|d| sp_io::storage::set(&key, d));
+
+		// TODO: calculate worst-case enqueue (largest possible message with the most recent page
+		// being almost full) and return.
+		Weight::zero()
 	}
 
 	/// Cleans up all paras pending availability that the predicate returns true for.
@@ -904,17 +1039,6 @@ const fn availability_threshold(n_validators: usize) -> usize {
 	let mut threshold = (n_validators * 2) / 3;
 	threshold += (n_validators * 2) % 3;
 	threshold
-}
-
-#[derive(derive_more::From, Debug)]
-enum AcceptanceCheckErr<BlockNumber> {
-	HeadDataTooLarge,
-	PrematureCodeUpgrade,
-	NewCodeTooLarge,
-	ProcessedDownwardMessages(dmp::ProcessedDownwardMessagesAcceptanceErr),
-	UpwardMessages(ump::AcceptanceCheckErr),
-	HrmpWatermark(hrmp::HrmpWatermarkAcceptanceErr<BlockNumber>),
-	OutboundHrmp(hrmp::OutboundHrmpAcceptanceErr),
 }
 
 impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
@@ -1063,7 +1187,7 @@ impl<T: Config> CandidateCheckContext<T> {
 
 		// check if the candidate passes the messaging acceptance criteria
 		<dmp::Pallet<T>>::check_processed_downward_messages(para_id, processed_downward_messages)?;
-		<ump::Pallet<T>>::check_upward_messages(&self.config, para_id, upward_messages)?;
+		Pallet::<T>::check_upward_messages(&self.config, para_id, upward_messages)?;
 		<hrmp::Pallet<T>>::check_hrmp_watermark(para_id, self.relay_parent_number, hrmp_watermark)?;
 		<hrmp::Pallet<T>>::check_outbound_hrmp(&self.config, para_id, horizontal_messages)?;
 

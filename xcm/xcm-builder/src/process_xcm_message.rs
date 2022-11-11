@@ -16,20 +16,26 @@
 
 //! Implementation of `ProcessMessage` for an `ExecuteXcm` implementation.
 
-use sp_std::{fmt::Debug, marker::PhantomData};
-use sp_io::hashing::blake2_256;
-use sp_weights::Weight;
+use frame_support::{
+	ensure,
+	traits::{ProcessMessage, ProcessMessageError},
+};
 use parity_scale_codec::{Decode, FullCodec, MaxEncodedLen};
 use scale_info::TypeInfo;
-use frame_support::{ensure, traits::{ProcessMessage, ProcessMessageError}};
+use sp_io::hashing::blake2_256;
+use sp_std::{fmt::Debug, marker::PhantomData};
+use sp_weights::Weight;
 use xcm::prelude::*;
 
-pub struct ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>(PhantomData<(MessageOrigin, XcmExecutor, Call)>);
+pub struct ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>(
+	PhantomData<(MessageOrigin, XcmExecutor, Call)>,
+);
 impl<
-	MessageOrigin: Into<MultiLocation> + FullCodec + MaxEncodedLen + Clone + Eq + PartialEq + TypeInfo + Debug,
-	XcmExecutor: ExecuteXcm<Call>,
-	Call,
-> ProcessMessage for ProcessXcmMessage<MessageOrigin, XcmExecutor, Call> {
+		MessageOrigin: Into<MultiLocation> + FullCodec + MaxEncodedLen + Clone + Eq + PartialEq + TypeInfo + Debug,
+		XcmExecutor: ExecuteXcm<Call>,
+		Call,
+	> ProcessMessage for ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>
+{
 	type Origin = MessageOrigin;
 
 	/// Process the given message, using no more than `weight_limit` in weight to do so.
@@ -47,15 +53,9 @@ impl<
 		let weight = Weight::from_ref_time(pre.weight_of());
 		ensure!(weight.all_lte(weight_limit), ProcessMessageError::Overweight(weight));
 		match XcmExecutor::execute(origin.into(), pre, hash, 0) {
-			Outcome::Complete(w) => {
-				Ok((true, Weight::from_ref_time(w)))
-			},
-			Outcome::Incomplete(w, _) => {
-				Ok((false, Weight::from_ref_time(w)))
-			},
-			Outcome::Error(_) => {
-				Err(ProcessMessageError::Unsupported)
-			}
+			Outcome::Complete(w) => Ok((true, Weight::from_ref_time(w))),
+			Outcome::Incomplete(w, _) => Ok((false, Weight::from_ref_time(w))),
+			Outcome::Error(_) => Err(ProcessMessageError::Unsupported),
 		}
 	}
 }
@@ -63,7 +63,5 @@ impl<
 #[cfg(test)]
 mod tests {
 	#[test]
-	fn process_message_works() {
-
-	}
+	fn process_message_works() {}
 }

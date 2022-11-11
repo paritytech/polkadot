@@ -19,7 +19,7 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use crate::shared;
-use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_PER_MILLIS};
+use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v2::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
@@ -126,11 +126,6 @@ pub struct HostConfiguration<BlockNumber> {
 	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
 	/// size.
 	pub max_downward_message_size: u32,
-	/// The amount of weight we wish to devote to the processing the dispatchable upward messages
-	/// stage.
-	///
-	/// NOTE that this is a soft limit and could be exceeded.
-	pub ump_service_total_weight: Weight,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
 	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
@@ -210,9 +205,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub needed_approvals: u32,
 	/// The number of samples to do of the `RelayVRFModulo` approval assignment criterion.
 	pub relay_vrf_modulo_samples: u32,
-	/// The maximum amount of weight any individual upward message may consume. Messages above this
-	/// weight go into the overweight queue and may only be serviced explicitly.
-	pub ump_max_individual_weight: Weight,
 	/// This flag controls whether PVF pre-checking is enabled.
 	///
 	/// If the flag is false, the behavior should be exactly the same as prior. Specifically, the
@@ -272,7 +264,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_upward_queue_count: Default::default(),
 			max_upward_queue_size: Default::default(),
 			max_downward_message_size: Default::default(),
-			ump_service_total_weight: Default::default(),
 			max_upward_message_size: Default::default(),
 			max_upward_message_num_per_candidate: Default::default(),
 			hrmp_sender_deposit: Default::default(),
@@ -285,8 +276,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
-			ump_max_individual_weight: (20u64 * WEIGHT_PER_MILLIS)
-				.set_proof_size(MAX_POV_SIZE as u64),
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
@@ -391,7 +380,7 @@ where
 			})
 		}
 
-		if self.max_upward_message_size > crate::ump::MAX_UPWARD_MESSAGE_SIZE_BOUND {
+		if self.max_upward_message_size > crate::inclusion::MAX_UPWARD_MESSAGE_SIZE_BOUND {
 			return Err(MaxUpwardMessageSizeExceeded {
 				max_message_size: self.max_upward_message_size,
 			})
@@ -858,18 +847,6 @@ pub mod pallet {
 			})
 		}
 
-		/// Sets the soft limit for the phase of dispatching dispatchable upward messages.
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_weight(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_ump_service_total_weight(origin: OriginFor<T>, new: Weight) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.ump_service_total_weight = new;
-			})
-		}
-
 		/// Sets the maximum size of an upward message that can be sent by a candidate.
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
@@ -1041,18 +1018,6 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.hrmp_max_message_num_per_candidate = new;
-			})
-		}
-
-		/// Sets the maximum amount of weight any individual upward message may consume.
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_weight(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_ump_max_individual_weight(origin: OriginFor<T>, new: Weight) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.ump_max_individual_weight = new;
 			})
 		}
 

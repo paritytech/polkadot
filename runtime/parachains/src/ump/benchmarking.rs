@@ -13,7 +13,7 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
-
+/*
 use super::{Pallet as Ump, *};
 use frame_system::RawOrigin;
 use xcm::prelude::*;
@@ -107,7 +107,7 @@ frame_benchmarking::benchmarks! {
 
 	service_overweight {
 		let host_conf = configuration::ActiveConfig::<T>::get();
-		let weight = host_conf.ump_max_individual_weight + host_conf.ump_max_individual_weight + Weight::from_ref_time(1000000);
+		let weight = Weight::from_ref_time(1000000);
 		let para = ParaId::from(1978);
 		// The message's weight does not really matter here, as we add service_overweight's
 		// max_weight parameter to the extrinsic's weight in the weight calculation.
@@ -137,3 +137,4 @@ frame_benchmarking::impl_benchmark_test_suite!(
 	crate::mock::new_test_ext(crate::ump::tests::GenesisConfigBuilder::default().build()),
 	crate::mock::Test
 );
+*/
