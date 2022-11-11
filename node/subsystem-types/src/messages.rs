@@ -338,7 +338,7 @@ pub enum NetworkBridgeRxMessage {
 	},
 	/// Inform the distribution subsystem about the updated authority-ids.
 	UpdatedAuthorityIds {
-		/// The `PeerId` of the peer that updated its authority_ids.
+		/// The `PeerId` of the peer that updated its `AuthorityDiscoveryId`s.
 		peer_id: PeerId,
 		/// The updated authority-ids of the peer.
 		authority_ids: HashSet<AuthorityDiscoveryId>,
