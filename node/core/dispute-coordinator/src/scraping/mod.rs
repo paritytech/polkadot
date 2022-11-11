@@ -57,24 +57,16 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 ///
 /// Concretely:
 ///
-/// - Monitors for `CandidateIncluded` events to keep track of candidates that have been included on chains.
+/// - Monitors for `CandidateIncluded` events to keep track of candidates that have been
+///   included on chains.
 /// - Monitors for `CandidateBacked` events to keep track of all backed candidates.
 /// - Calls `FetchOnChainVotes` for each block to gather potentially missed votes from chain.
 ///
 /// With this information it provides a `CandidateComparator` and as a return value of
 /// `process_active_leaves_update` any scraped votes.
 ///
-/// If a candidate was backed and included - it will be removed once the block at its height
-/// is finalized. However a candidate can be backed and never included. To avoid
-/// leaking memory in such cases we keep track at which block height the candidate was backed.
-/// We remove backed (and
-/// not included) candidates when `CANDIDATE_MAX_LIFETIME` more blocks are
-/// finalized after the block they were initially backed in.
-/// E.g. if `CANDIDATE_MAX_LIFETIME = 2` when block 4 is finalized we will remove
-/// all candidates backed in block 2 which were not already cleaned up on finalization.
-///
-/// Please note that if a candidate is backed AND included it will be cleaned up on
-/// finalization and won't be kept for `CANDIDATE_MAX_LIFETIME` blocks.
+/// Scraped candidates are available `CANDIDATE_LIFETIME_AFTER_FINALIZATION` more blocks
+/// after finalization as a precaution not to clean them prematurely.
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
 	included_candidates: candidates::ScrapedCandidates,
@@ -95,9 +87,9 @@ impl ChainScraper {
 	/// As long as we have `MAX_FINALITY_LAG` this makes sense as a value.
 	pub(crate) const ANCESTRY_SIZE_LIMIT: u32 = MAX_FINALITY_LAG;
 
-	/// How many blocks after finalization a backed and not included candidate should
-	/// be kept.
-	pub(crate) const CANDIDATE_MAX_LIFETIME: BlockNumber = 2;
+	/// How many blocks after finalization a backed and not included candidate
+	/// should be kept.
+	pub(crate) const CANDIDATE_LIFETIME_AFTER_FINALIZATION: BlockNumber = 2;
 
 	/// Create a properly initialized `OrderingProvider`.
 	///
@@ -177,19 +169,20 @@ impl ChainScraper {
 
 	/// Prune finalized candidates.
 	///
-	/// Once a candidate lives in a relay chain block that's behind `CANDIDATE_MAX_LIFETIME` blocks
-	/// after finalization we can treat it as low priority.
+	/// Once a candidate lives in a relay chain block that's behind `CANDIDATE_LIFETIME_AFTER_FINALIZATION`
+	/// blocks after finalization we can treat it as low priority.
 	pub fn process_finalized_block(&mut self, finalized_block_number: &BlockNumber) {
-		// `CANDIDATE_MAX_LIFETIME - 1` because `finalized_block_number` counts to the candidate lifetime.
+		// `CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1` because `finalized_block_number`
+		// counts to the candidate lifetime.
 		// Example:
-		// finalized_block_number = 4; CANDIDATE_MAX_LIFETIME = 2;
+		// finalized_block_number = 4; CANDIDATE_LIFETIME_AFTER_FINALIZATION = 2;
 		// key_to_clean = 4 - (2 - 1) = 3
 		// After `remove_all_at_block_height` at 3:
 		// 0, 1, 2 will be removed
 		// 3, 4 will be kept
 		// => We keep candidates in the last two finalized blocks
 		finalized_block_number
-			.checked_sub(Self::CANDIDATE_MAX_LIFETIME - 1)
+			.checked_sub(Self::CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1)
 			.map(|key_to_clean| {
 				self.backed_candidates.remove_up_to_height(&key_to_clean);
 				self.included_candidates.remove_up_to_height(&key_to_clean);
