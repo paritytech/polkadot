@@ -201,10 +201,10 @@ struct State {
 	pending_vote_checks: FuturesOrdered<PendingApprovalCheck>,
 
 	/// Per candidate/validator index work queues.
-	work_queues: HashMap<(ValidatorIndex, CandidateIndex), VecDeque<PendingWork>>,
+	work_queues: HashMap<MessageSubject, VecDeque<PendingWork>>,
 
 	/// A flag which tells us if a queue is idle.
-	pending_work: HashMap<(ValidatorIndex, CandidateIndex), bool>,
+	pending_work: HashMap<MessageSubject, bool>,
 }
 
 #[derive(Debug)]
@@ -216,6 +216,7 @@ enum PendingWork {
 /// A `PendingAssignmentCheck` becomes an `PendingAssignmentCheckResult` once done.
 #[derive(Debug)]
 struct PendingAssignmentCheck {
+	pub message_subject: MessageSubject,
 	pub peer_id: Option<PeerId>,
 	pub assignment: IndirectAssignmentCert,
 	pub claimed_candidate_index: CandidateIndex,
@@ -224,6 +225,7 @@ struct PendingAssignmentCheck {
 }
 
 struct PendingAssignmentCheckResult {
+	pub message_subject: MessageSubject,
 	pub peer_id: Option<PeerId>,
 	pub assignment: IndirectAssignmentCert,
 	pub claimed_candidate_index: CandidateIndex,
@@ -236,6 +238,7 @@ impl PendingAssignmentCheck {
 		drop(self.timer.take());
 
 		Ok(PendingAssignmentCheckResult {
+			message_subject: self.message_subject.clone(),
 			peer_id: self.peer_id.clone(),
 			assignment: self.assignment.clone(),
 			claimed_candidate_index: self.claimed_candidate_index,
@@ -255,6 +258,7 @@ impl Future for PendingAssignmentCheck {
 /// A `PendingApprovalCheck` becomes an `PendingApprovalCheckResult` once done.
 #[derive(Debug)]
 struct PendingApprovalCheck {
+	pub message_subject: MessageSubject,
 	pub response: oneshot::Receiver<ApprovalCheckResult>,
 	pub peer_id: Option<PeerId>,
 	pub vote: IndirectSignedApprovalVote,
@@ -262,6 +266,7 @@ struct PendingApprovalCheck {
 }
 
 struct PendingApprovalCheckResult {
+	pub message_subject: MessageSubject,
 	pub peer_id: Option<PeerId>,
 	pub vote: IndirectSignedApprovalVote,
 	pub result: Option<ApprovalCheckResult>,
@@ -272,6 +277,7 @@ impl PendingApprovalCheck {
 		let result = (&mut self.response).await.map_err(|_| JfyiError::PendingCheckCanceled)?;
 		drop(self.timer.take());
 		Ok(PendingApprovalCheckResult {
+			message_subject: self.message_subject.clone(),
 			peer_id: self.peer_id.clone(),
 			vote: self.vote.clone(),
 			result: Some(result),
@@ -896,6 +902,7 @@ impl State {
 			.await;
 
 			let pending = PendingAssignmentCheck {
+				message_subject: message_subject.clone(),
 				assignment: assignment.clone(),
 				claimed_candidate_index,
 				peer_id: Some(peer_id.clone()),
@@ -905,15 +912,13 @@ impl State {
 
 			// Add the assignment to the peer queue.
 			self.work_queues
-				.entry((validator_index, claimed_candidate_index))
+				.entry(message_subject.clone())
 				.or_default()
 				.push_back(PendingWork::Assignment(pending));
 
 			// If queue is idle we want to schedule work
-			if *self.pending_work.entry((validator_index, claimed_candidate_index)).or_default() ==
-				false
-			{
-				self.start_pending_work(validator_index, claimed_candidate_index);
+			if *self.pending_work.entry(message_subject.clone()).or_default() == false {
+				self.start_pending_work(message_subject);
 			}
 		} else {
 			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
@@ -935,6 +940,7 @@ impl State {
 			self.finish_assignment_import_and_circulate(
 				ctx,
 				PendingAssignmentCheckResult {
+					message_subject,
 					peer_id: source.peer_id(),
 					assignment,
 					claimed_candidate_index,
@@ -1233,6 +1239,7 @@ impl State {
 				.await;
 
 			let pending = PendingWork::Approval(PendingApprovalCheck {
+				message_subject: message_subject.clone(),
 				response: rx,
 				peer_id: Some(peer_id.clone()),
 				vote: vote.clone(),
@@ -1241,13 +1248,13 @@ impl State {
 
 			// Add the assignment to the peer queue.
 			self.work_queues
-				.entry((validator_index, candidate_index))
+				.entry(message_subject.clone())
 				.or_default()
 				.push_back(pending);
 
 			// If queue is idle we want to schedule work
-			if *self.pending_work.entry((validator_index, candidate_index)).or_default() == false {
-				self.start_pending_work(validator_index, candidate_index);
+			if *self.pending_work.entry(message_subject.clone()).or_default() == false {
+				self.start_pending_work(message_subject.clone());
 			}
 		} else {
 			if !entry.knowledge.insert(message_subject.clone(), message_kind) {
@@ -1267,7 +1274,7 @@ impl State {
 			}
 			self.finish_approval_import_and_circulate(
 				ctx,
-				PendingApprovalCheckResult { peer_id: None, vote, result: None },
+				PendingApprovalCheckResult { message_subject, peer_id: None, vote, result: None },
 				metrics,
 			)
 			.await;
@@ -1285,7 +1292,7 @@ impl State {
 		let block_hash = result.vote.block_hash.clone();
 		let validator_index = result.vote.validator;
 		let candidate_index = result.vote.candidate_index;
-		let message_subject = MessageSubject(block_hash, candidate_index, validator_index);
+		let message_subject = result.message_subject;
 		let message_kind = MessageKind::Approval;
 
 		let entry = self.blocks.get_mut(&block_hash);
@@ -1745,28 +1752,16 @@ impl State {
 	}
 
 	// Start processing the next approval or assignment check for a given peer.
-	fn start_pending_work(
-		&mut self,
-		validator_index: ValidatorIndex,
-		claimed_candidate_index: CandidateIndex,
-	) {
-		if let Some(pending_work) =
-			self.work_queues.get_mut(&(validator_index, claimed_candidate_index))
-		{
+	fn start_pending_work(&mut self, message_subject: MessageSubject) {
+		if let Some(pending_work) = self.work_queues.get_mut(&message_subject) {
 			// Per peer FIFO message processing.
 			match pending_work.pop_front() {
 				Some(PendingWork::Approval(pending)) => {
-					*self
-						.pending_work
-						.entry((validator_index, claimed_candidate_index))
-						.or_default() = true;
+					*self.pending_work.entry(message_subject.clone()).or_default() = true;
 					self.pending_vote_checks.push_back(pending);
 				},
 				Some(PendingWork::Assignment(pending)) => {
-					*self
-						.pending_work
-						.entry((validator_index, claimed_candidate_index))
-						.or_default() = true;
+					*self.pending_work.entry(message_subject.clone()).or_default() = true;
 					self.pending_assignment_checks.push_back(pending);
 				},
 				None => {},
@@ -1973,11 +1968,10 @@ impl ApprovalDistribution {
 						Ok(assignment_check_result) => {
 							// Pick next pending work item if any.
 							// Clear pending work.
-							let validator_index = assignment_check_result.assignment.validator;
-							let claimed_candidate_index = assignment_check_result.claimed_candidate_index;
-							*state.pending_work.entry((validator_index, claimed_candidate_index)).or_default() = false;
+							let message_subject = assignment_check_result.message_subject.clone();
+							*state.pending_work.entry(message_subject.clone()).or_default() = false;
 							state.finish_assignment_import_and_circulate(&mut ctx, assignment_check_result, &self.metrics, rng).await;
-							state.start_pending_work(validator_index, claimed_candidate_index);
+							state.start_pending_work(message_subject);
 						},
 						Err(_) => {}
 					}
@@ -1988,11 +1982,10 @@ impl ApprovalDistribution {
 						Ok(approval_check_result) => {
 							// Pick next pending work item if any.
 							// Clear pending work.
-							let validator_index = approval_check_result.vote.validator;
-							let claimed_candidate_index = approval_check_result.vote.candidate_index;
-							*state.pending_work.entry((validator_index, claimed_candidate_index)).or_default() = false;
+							let message_subject = approval_check_result.message_subject.clone();
+							*state.pending_work.entry(message_subject.clone()).or_default() = false;
 							state.finish_approval_import_and_circulate(&mut ctx, approval_check_result, &self.metrics).await;
-							state.start_pending_work(validator_index, claimed_candidate_index);
+							state.start_pending_work(message_subject);
 						},
 						Err(_) => {}
 					}
