@@ -91,9 +91,10 @@ impl ChainScraper {
 	/// We don't want to remove scraped candidates on finalization because we want to
 	/// be sure that disputes will conclude on abandoned forks.
 	/// Removing the candidate on finalization creates a possibility for an attacker to
-	/// avoid slashing. If a bad fork is abandoned too quickly (e.g. because of inclusion
-	/// of another better fork) the corresponding dispute will not conclude and no one
-	/// will be slashed.
+	/// avoid slashing. If a bad fork is abandoned too quickly because in the same another
+	/// better one gets finalized the entries for the bad fork will be pruned and we
+	/// will never participate in a dispite for it. We want such disputes to conclude
+	/// in a timely manner so that the offenders are slashed.
 	pub(crate) const CANDIDATE_LIFETIME_AFTER_FINALIZATION: BlockNumber = 2;
 
 	/// Create a properly initialized `OrderingProvider`.
