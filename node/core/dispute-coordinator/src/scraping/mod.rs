@@ -93,7 +93,7 @@ impl ChainScraper {
 	/// Removing the candidate on finalization creates a possibility for an attacker to
 	/// avoid slashing. If a bad fork is abandoned too quickly because in the same another
 	/// better one gets finalized the entries for the bad fork will be pruned and we
-	/// will never participate in a dispite for it. We want such disputes to conclude
+	/// will never participate in a dispute for it. We want such disputes to conclude
 	/// in a timely manner so that the offenders are slashed.
 	pub(crate) const CANDIDATE_LIFETIME_AFTER_FINALIZATION: BlockNumber = 2;
 
