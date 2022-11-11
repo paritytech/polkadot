@@ -5371,6 +5371,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-state-trie-migration"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=master#4a5a9dea00c9b4e4d34ff56368451aa4dac09d77"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-sudo"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#a6da808575fe403ab2bd7f6cd009896cdc6fd71a"
@@ -8137,6 +8154,7 @@ dependencies = [
  "pallet-session",
  "pallet-society",
  "pallet-staking",
+ "pallet-state-trie-migration",
  "pallet-sudo",
  "pallet-timestamp",
  "pallet-tips",
