@@ -830,7 +830,7 @@ impl<T: Config> Pallet<T> {
 			commitments.processed_downward_messages,
 		);
 		weight +=
-			Self::receive_upward_messages(receipt.descriptor.para_id, commitments.upward_messages);
+			Self::receive_upward_messages(&config, receipt.descriptor.para_id, commitments.upward_messages);
 		weight += <hrmp::Pallet<T>>::prune_hrmp(
 			receipt.descriptor.para_id,
 			T::BlockNumber::from(commitments.hrmp_watermark),
@@ -905,6 +905,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
 	pub(crate) fn receive_upward_messages(
+		config: &HostConfiguration<T::BlockNumber>,
 		para: ParaId,
 		upward_messages: Vec<UpwardMessage>,
 	) -> Weight {
@@ -922,6 +923,11 @@ impl<T: Config> Pallet<T> {
 		// executed, to report more accurate numbers to the para.
 		let key = well_known_keys::relay_dispatch_queue_size(para);
 		(count, size).using_encoded(|d| sp_io::storage::set(&key, d));
+
+		let key = well_known_keys::relay_dispatch_queue_remaining_capacity(para);
+		let remaining_count = config.max_upward_queue_count.saturating_sub(count);
+		let remaining_size = config.max_upward_queue_size.saturating_sub(size);
+		(remaining_count, remaining_size).using_encoded(|d| sp_io::storage::set(&key, d));
 
 		// TODO: calculate worst-case enqueue (largest possible message with the most recent page
 		// being almost full) and return.

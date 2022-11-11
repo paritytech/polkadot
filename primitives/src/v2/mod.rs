@@ -235,6 +235,7 @@ pub mod well_known_keys {
 	///
 	/// - `count: u32`, the number of messages currently in the queue for given para,
 	/// - `total_size: u32`, the total size of all messages in the queue.
+	#[deprecated = "Use `relay_dispatch_queue_remaining_capacity` instead"]
 	pub fn relay_dispatch_queue_size(para_id: Id) -> Vec<u8> {
 		let prefix = hex!["f5207f03cfdce586301014700e2c2593fad157e461d71fd4c1f936839a5f1f3e"];
 
@@ -247,6 +248,17 @@ pub mod well_known_keys {
 				.cloned()
 				.collect()
 		})
+	}
+
+	/// The upward message dispatch queue remaining capacity for the given para id.
+	///
+	/// The storage entry stores a tuple of two values:
+	///
+	/// - `count: u32`, the number of additional messages which may be enqueued for the given para,
+	/// - `total_size: u32`, the total size of additional messages which may be enqueued for the
+	/// given para.
+	pub fn relay_dispatch_queue_remaining_capacity(para_id: Id) -> Vec<u8> {
+		(b":relay_dispatch_queue_remaining_capacity", para_id).encode()
 	}
 
 	/// The HRMP channel for the given identifier.
