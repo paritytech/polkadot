@@ -422,8 +422,6 @@ fn scraper_cleans_finalized_candidates() {
 	const TEST_TARGET_BLOCK_NUMBER: BlockNumber = 2;
 
 	// How many blocks should we skip before sending a leaf update.
-	// `3` because we need 1 ancestor after the finalized block (this is what the testing code expects). `ActiveLeaf` updates are generated for
-	// blocks 1..3 => there will be 1 ancestor after the finalzied block.
 	const BLOCKS_TO_SKIP: usize = 3;
 
 	futures::executor::block_on(async {
