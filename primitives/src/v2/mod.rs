@@ -19,7 +19,12 @@
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_std::prelude::*;
+use sp_std::{
+	marker::PhantomData,
+	prelude::*,
+	slice::{Iter, IterMut},
+	vec::IntoIter,
+};
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
@@ -123,6 +128,12 @@ impl MallocSizeOf for ValidatorId {
 	}
 }
 
+/// Trait required for type specific indices e.g. `ValidatorIndex` and `GroupIndex`
+pub trait TypeIndex {
+	/// Returns the index associated to this value.
+	fn type_index(&self) -> usize;
+}
+
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
 #[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
@@ -132,6 +143,12 @@ pub struct ValidatorIndex(pub u32);
 impl From<u32> for ValidatorIndex {
 	fn from(n: u32) -> Self {
 		ValidatorIndex(n)
+	}
+}
+
+impl TypeIndex for ValidatorIndex {
+	fn type_index(&self) -> usize {
+		self.0 as usize
 	}
 }
 
@@ -779,6 +796,12 @@ impl From<u32> for CoreIndex {
 	}
 }
 
+impl TypeIndex for CoreIndex {
+	fn type_index(&self) -> usize {
+		self.0 as usize
+	}
+}
+
 /// The unique (during session) index of a validator group.
 #[derive(Encode, Decode, Default, Clone, Copy, Debug, PartialEq, Eq, TypeInfo)]
 #[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
@@ -787,6 +810,12 @@ pub struct GroupIndex(pub u32);
 impl From<u32> for GroupIndex {
 	fn from(i: u32) -> GroupIndex {
 		GroupIndex(i)
+	}
+}
+
+impl TypeIndex for GroupIndex {
+	fn type_index(&self) -> usize {
+		self.0 as usize
 	}
 }
 
@@ -1569,6 +1598,72 @@ impl CompactStatement {
 	}
 }
 
+/// `IndexedVec` struct indexed by type specific indices.
+#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
+pub struct IndexedVec<K, V>(Vec<V>, PhantomData<fn(K) -> K>);
+
+impl<K, V> Default for IndexedVec<K, V> {
+	fn default() -> Self {
+		Self(vec![], PhantomData)
+	}
+}
+
+impl<K, V> From<Vec<V>> for IndexedVec<K, V> {
+	fn from(validators: Vec<V>) -> Self {
+		Self(validators, PhantomData)
+	}
+}
+
+impl<K, V> FromIterator<V> for IndexedVec<K, V> {
+	fn from_iter<T: IntoIterator<Item = V>>(iter: T) -> Self {
+		Self(Vec::from_iter(iter), PhantomData)
+	}
+}
+
+impl<K, V> IndexedVec<K, V>
+where
+	V: Clone,
+{
+	/// Returns a reference to an element indexed using `K`.
+	pub fn get(&self, index: K) -> Option<&V>
+	where
+		K: TypeIndex,
+	{
+		self.0.get(index.type_index())
+	}
+
+	/// Returns number of elements in vector.
+	pub fn len(&self) -> usize {
+		self.0.len()
+	}
+
+	/// Returns contained vector.
+	pub fn to_vec(&self) -> Vec<V> {
+		self.0.clone()
+	}
+
+	/// Returns an iterator over the underlying vector.
+	pub fn iter(&self) -> Iter<'_, V> {
+		self.0.iter()
+	}
+
+	/// Returns a mutable iterator over the underlying vector.
+	pub fn iter_mut(&mut self) -> IterMut<'_, V> {
+		self.0.iter_mut()
+	}
+
+	/// Creates a consuming iterator.
+	pub fn into_iter(self) -> IntoIter<V> {
+		self.0.into_iter()
+	}
+
+	/// Returns true if the underlying container is empty.
+	pub fn is_empty(&self) -> bool {
+		self.0.is_empty()
+	}
+}
+
 /// The maximum number of validators `f` which may safely be faulty.
 ///
 /// The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
@@ -1603,7 +1698,7 @@ pub struct SessionInfo {
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
 	///
 	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
-	pub validators: Vec<ValidatorId>,
+	pub validators: IndexedVec<ValidatorIndex, ValidatorId>,
 	/// Validators' authority discovery keys for the session in canonical ordering.
 	///
 	/// NOTE: The first `validators.len()` entries will match the corresponding validators in
@@ -1626,7 +1721,7 @@ pub struct SessionInfo {
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
-	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	pub validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	pub n_cores: u32,
 	/// The zeroth delay tranche width.
@@ -1679,7 +1774,7 @@ pub struct OldV1SessionInfo {
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148).
 	///
 	/// `SessionInfo::validators` will be limited to to `max_validators` when set.
-	pub validators: Vec<ValidatorId>,
+	pub validators: IndexedVec<ValidatorIndex, ValidatorId>,
 	/// Validators' authority discovery keys for the session in canonical ordering.
 	///
 	/// NOTE: The first `validators.len()` entries will match the corresponding validators in
@@ -1702,7 +1797,7 @@ pub struct OldV1SessionInfo {
 	/// Validators in shuffled ordering - these are the validator groups as produced
 	/// by the `Scheduler` module for the session and are typically referred to by
 	/// `GroupIndex`.
-	pub validator_groups: Vec<Vec<ValidatorIndex>>,
+	pub validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	pub n_cores: u32,
 	/// The zeroth delay tranche width.

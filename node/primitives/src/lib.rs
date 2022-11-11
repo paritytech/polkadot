@@ -71,7 +71,7 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 ///
 /// This is deliberately much longer than the backing execution timeout to
 /// ensure that in the absence of extremely large disparities between hardware,
-/// blocks that pass backing are considerd executable by approval checkers or
+/// blocks that pass backing are considered executable by approval checkers or
 /// dispute participants.
 pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 
@@ -90,9 +90,7 @@ pub const MAX_FINALITY_LAG: u32 = 500;
 pub struct SessionWindowSize(SessionIndex);
 
 #[macro_export]
-/// Create a new checked `SessionWindowSize`
-///
-/// which cannot be 0.
+/// Create a new checked `SessionWindowSize` which cannot be 0.
 macro_rules! new_session_window_size {
 	(0) => {
 		compile_error!("Must be non zero");

@@ -80,7 +80,7 @@ where
 	let session_index = crate::shared::Pallet::<T>::session_index();
 	let session_info = crate::session_info::Pallet::<T>::session_info(session_index);
 	let session_info = session_info.unwrap();
-	let validator_id = session_info.validators[0].clone();
+	let validator_id = session_info.validators.get(ValidatorIndex::from(0)).unwrap().clone();
 	let key = (PARACHAIN_KEY_TYPE_ID, validator_id.clone());
 	let key_owner_proof = pallet_session::historical::Pallet::<T>::prove(key).unwrap();
 

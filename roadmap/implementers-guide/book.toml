@@ -9,8 +9,14 @@ title = "The Polkadot Parachain Host Implementers' Guide"
 command = "mdbook-graphviz"
 [preprocessor.mermaid]
 command = "mdbook-mermaid"
+[preprocessor.last-changed]
+command = "mdbook-last-changed"
+renderer = ["html"]
 
 [output.html]
+additional-css = ["last-changed.css"]
 additional-js = ["mermaid.min.js", "mermaid-init.js"]
+# Repository URL used in the last-changed link.
+git-repository-url = "https://github.com/paritytech/polkadot"
 
 [output.linkcheck]
