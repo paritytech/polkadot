@@ -566,16 +566,14 @@ where
 					?authority_ids,
 					"`AuthorityDiscoveryId`s have changed",
 				);
-
-suggestion
 				// using unbounded send to avoid cycles
 				// the messages are sent only once per session up to one per peer
-				dispatch_collation_events_to_all_unbounded(
-					vec![NetworkBridgeEvent::UpdatedAuthorityIds(peer_id.clone(), authority_ids.clone())],
+				dispatch_collation_event_to_all_unbounded(
+					NetworkBridgeEvent::UpdatedAuthorityIds(peer_id.clone(), authority_ids.clone()),
 					ctx.sender(),
 				);
-				dispatch_validation_events_to_all_unbounded(
-					vec![NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids)],
+				dispatch_validation_event_to_all_unbounded(
+					NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids),
 					ctx.sender(),
 				);
 			},

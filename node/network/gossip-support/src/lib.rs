@@ -445,7 +445,7 @@ where
 					});
 				}
 			},
-			NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids) => {
+			NetworkBridgeEvent::UpdatedAuthorityIds(_, _) => {
 				// The `gossip-support` subsystem itself issues these messages.
 			},
 			NetworkBridgeEvent::OurViewChange(_) => {},

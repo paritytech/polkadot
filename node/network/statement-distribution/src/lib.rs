@@ -1743,7 +1743,12 @@ async fn handle_network_update<Context, R>(
 			// handled by `ActiveLeavesUpdate`
 		},
 		NetworkBridgeEvent::UpdatedAuthorityIds(peer, authority_ids) => {
-			gum::trace!(target: LOG_TARGET, ?peer, ?authority_ids, "Updated `AuthorityDiscoveryId`s");
+			gum::trace!(
+				target: LOG_TARGET,
+				?peer,
+				?authority_ids,
+				"Updated `AuthorityDiscoveryId`s"
+			);
 
 			// get the outdated authority_ids stored for the specific peer_id.
 			let old_auth_ids: Vec<AuthorityDiscoveryId> = authorities
