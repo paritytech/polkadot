@@ -109,10 +109,16 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 		Some((self.buffer[pos].1, number))
 	}
 
-	/// Returns block number of the earliest block in the buffer, if not empty.
-	pub(crate) fn earliest_block_number(&self) -> Option<BlockNumber> {
-		(!self.buffer.is_empty())
-			.then_some(self.latest_number - BlockNumber::from(self.buffer.len() as u32 - 1))
+	/// Returns block number of the earliest block the buffer would contain if
+	/// `now` is pushed into it.
+	pub(crate) fn hypothetical_earliest_block_number(
+		&self,
+		now: BlockNumber,
+		max_len: usize,
+	) -> BlockNumber {
+		let allowed_ancestry_len = max_len.saturating_sub(1).min(self.buffer.len());
+
+		now - BlockNumber::from(allowed_ancestry_len as u32)
 	}
 }
 

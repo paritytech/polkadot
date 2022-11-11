@@ -38,8 +38,10 @@ pub fn validity_constraints<T: initializer::Config>(
 	// clears the buffer.
 	//
 	// Thus, minimum relay parent is ensured to have asynchronous backing enabled.
-	let min_relay_parent_number =
-		<shared::Pallet<T>>::allowed_relay_parents().earliest_block_number()?;
+	let now = <frame_system::Pallet<T>>::block_number();
+	let min_relay_parent_number = <shared::Pallet<T>>::allowed_relay_parents()
+		.hypothetical_earliest_block_number(now, shared::ALLOWED_RELAY_PARENT_LOOKBACK);
+
 	let required_parent = <paras::Pallet<T>>::para_head(para_id)?;
 	let validation_code_hash = <paras::Pallet<T>>::current_code_hash(para_id)?;
 
