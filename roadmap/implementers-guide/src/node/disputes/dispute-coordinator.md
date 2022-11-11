@@ -9,8 +9,8 @@ In particular the dispute-coordinator is responsible for:
 
 - Ensuring that the node is able to raise a dispute in case an invalid candidate
   is found during approval checking.
-- Ensuring lazy approval votes will be recorded, so nodes can get slashed
-  properly.
+- Ensuring lazy approval votes (votes given without running the parachain 
+  validation function) will be recorded, so lazy nodes can get slashed properly.
 - Coordinating actual participation in a dispute, ensuring that the node
   participates in any justified dispute in a way that ensures resolution of
   disputes on the network even in the case of many disputes raised (flood/DoS
@@ -205,8 +205,9 @@ While in the previous section we discussed means for nodes to ensure relevant
 votes are recorded so lazy approval checkers get slashed properly, it is crucial 
 to also discuss the actual chain import. Only if we guarantee that recorded votes 
 will also get imported on chain (on all potential chains really) we will succeed 
-in executing slashes. Again approval votes prove to be our weak spot here, but 
-also backing votes might get missed.
+in executing slashes. Particularly we need to make sure backing votes end up on 
+chain consistantly. In contrast recording and slashing lazy approval voters only 
+needs to be likely, not certain.
 
 Dispute distribution will make sure all explicit dispute votes get distributed
 among nodes which includes current block producers (current authority set) which
@@ -226,14 +227,14 @@ production in the current set - they might only exist on an already abandoned
 fork. This means a block producer that just joined the set, might not have seen
 any of them.
 
-For approvals it is even more tricky: Approval voting together with finalization
-is a completely off-chain process therefore those protocols don't care about
-block production at all. Approval votes only have a guarantee of being
-propagated between the nodes that are responsible for finalizing the concerned
-blocks. This implies that on an era change the current authority set, will not
-necessarily get informed about any approval votes for the previous era. Hence
-even if all validators of the previous era successfully recorded all approval
-votes in the dispute coordinator, they won't get a chance to put them on chain,
+For approvals it is even more tricky and less necessary: Approval voting together 
+with finalization is a completely off-chain process therefore those protocols 
+don't care about block production at all. Approval votes only have a guarantee of 
+being propagated between the nodes that are responsible for finalizing the 
+concerned blocks. This implies that on an era change the current authority set, 
+will not necessarily get informed about any approval votes for the previous era. 
+Hence even if all validators of the previous era successfully recorded all approval 
+votes in the dispute coordinator, they won't get a chance to put them on chain, 
 hence they won't be considered for slashing.
 
 It is important to note, that the essential properties of the system still hold:
