@@ -1126,12 +1126,12 @@ impl<T: Config> Pallet<T> {
 			<Self as Store>::HrmpChannels::insert(&channel_id, channel);
 			<Self as Store>::HrmpChannelContents::append(&channel_id, inbound);
 
-			// The digests are sorted in ascending by block number order. Assuming absence of
-			// contextual execution, there are only two possible scenarios here:
+			// The digests are sorted in ascending by block number order. There are only two possible
+			// scenarios here ("the current" is the block of candidate's inclusion):
 			//
 			// (a) It's the first time anybody sends a message to this recipient within this block.
 			//     In this case, the digest vector would be empty or the block number of the latest
-			//     entry  is smaller than the current.
+			//     entry is smaller than the current.
 			//
 			// (b) Somebody has already sent a message within the current block. That means that
 			//     the block number of the latest entry is equal to the current.
