@@ -567,11 +567,17 @@ where
 					"`AuthorityDiscoveryId`s have changed",
 				);
 
-				dispatch_validation_events_to_all(
+suggestion
+				// using unbounded send to avoid cycles
+				// the messages are sent only once per session up to one per peer
+				dispatch_collation_events_to_all_unbounded(
+					vec![NetworkBridgeEvent::UpdatedAuthorityIds(peer_id.clone(), authority_ids.clone())],
+					ctx.sender(),
+				);
+				dispatch_validation_events_to_all_unbounded(
 					vec![NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids)],
 					ctx.sender(),
-				)
-				.await;
+				);
 			},
 			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(active_leaves)) => {
