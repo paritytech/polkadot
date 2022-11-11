@@ -920,10 +920,10 @@ impl<T: Config> Pallet<T> {
 		T::MessageQueue::enqueue_messages(messages, para);
 
 		let Footprint { count, size } = T::MessageQueue::footprint(para);
-		// TODO: Consider placing the remaining capacity into the well known key, rather than the
-		// amount used. This is way more useful for the parachain.
-		// TODO: Consider doing this at the end of the block, after any messages might have been
+		// TODO: Do this at the end of the block, after any messages might have been
 		// executed, to report more accurate numbers to the para.
+
+		// TODO: Remove all usages of `relay_dispatch_queue_size`
 		#[allow(deprecated)]
 		let key = well_known_keys::relay_dispatch_queue_size(para);
 		(count, size).using_encoded(|d| sp_io::storage::set(&key, d));
@@ -933,7 +933,7 @@ impl<T: Config> Pallet<T> {
 		let remaining_size = config.max_upward_queue_size.saturating_sub(size);
 		(remaining_count, remaining_size).using_encoded(|d| sp_io::storage::set(&key, d));
 
-		// TODO: calculate worst-case enqueue (largest possible message with the most recent page
+		// TODO: Calculate worst-case enqueue (largest possible message with the most recent page
 		// being almost full) and return.
 		Weight::zero()
 	}
