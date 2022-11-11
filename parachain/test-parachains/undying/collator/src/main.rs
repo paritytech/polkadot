@@ -35,8 +35,12 @@ fn main() -> Result<()> {
 		Some(cli::Subcommand::ExportGenesisState(params)) => {
 			// `pov_size` and `pvf_complexity` need to match the ones that we start the collator
 			// with.
-			let collator =
-				Collator::new(params.pov_size, params.pvf_complexity, params.hrmp_params);
+			let collator = Collator::new(
+				params.pov_size,
+				params.pvf_complexity,
+				params.hrmp_params,
+				params.parachain_id,
+			);
 			println!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
 
 			Ok::<_, Error>(())
@@ -56,8 +60,12 @@ fn main() -> Result<()> {
 			})?;
 
 			runner.run_node_until_exit(|config| async move {
-				let collator =
-					Collator::new(cli.run.pov_size, cli.run.pvf_complexity, cli.run.hrmp_params);
+				let collator = Collator::new(
+					cli.run.pov_size,
+					cli.run.pvf_complexity,
+					cli.run.hrmp_params,
+					cli.run.parachain_id,
+				);
 
 				let full_node = polkadot_service::build_full(
 					config,
