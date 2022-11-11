@@ -79,7 +79,7 @@ mod ref_counted_candidates_tests {
 	}
 }
 
-/// Keeps track of scraoed candidates. Supports `insert`, `remove_up_to_height` and `contains`
+/// Keeps track of scraped candidates. Supports `insert`, `remove_up_to_height` and `contains`
 /// operations.
 pub struct ScrapedCandidates {
 	/// Main data structure which keeps the candidates we know about. `contains` does lookups only here.
