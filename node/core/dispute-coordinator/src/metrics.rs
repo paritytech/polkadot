@@ -30,6 +30,8 @@ struct MetricsInner {
 	queued_participations: prometheus::CounterVec<prometheus::U64>,
 	/// How long vote cleanup batches take.
 	vote_cleanup_time: prometheus::Histogram,
+	/// Number of refrained participations.
+	refrained_participations: prometheus::Counter<prometheus::U64>,
 }
 
 /// Candidate validation metrics.
@@ -88,6 +90,12 @@ impl Metrics {
 	pub(crate) fn time_vote_cleanup(&self) -> Option<prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.vote_cleanup_time.start_timer())
 	}
+
+	pub(crate) fn on_refrained_participation(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.refrained_participations.inc();
+		}
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -145,6 +153,14 @@ impl metrics::Metrics for Metrics {
 					)
 					.buckets([0.01, 0.1, 0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0].into()),
 				)?,
+				registry,
+			)?,
+			refrained_participations: prometheus::register(
+			prometheus::Counter::with_opts(
+				prometheus::Opts::new(
+					"polkadot_parachain_dispute_refrained_participations",
+					"Number of refrained participations. We refrain from participation if all of the following conditions are met: disputed candidate is not included, not backed and not confirmed.",
+				))?,
 				registry,
 			)?,
 		};
