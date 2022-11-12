@@ -75,9 +75,8 @@ macro_rules! decl_puppet_worker_main {
 					$crate::prepare_worker_entrypoint(socket_path);
 				},
 				"execute-worker" => {
-					let exec_env_params_hash = &args[2];
-					let socket_path = &args[3];
-					$crate::execute_worker_entrypoint(socket_path, exec_env_params_hash);
+					let socket_path = &args[2];
+					$crate::execute_worker_entrypoint(socket_path);
 				},
 				other => panic!("unknown subcommand: {}", other),
 			}

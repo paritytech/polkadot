@@ -108,10 +108,7 @@ impl MalusCli {
 
 				#[cfg(not(target_os = "android"))]
 				{
-					polkadot_node_core_pvf::execute_worker_entrypoint(
-						&cmd.socket_path,
-						&cmd.exec_env_params_hash,
-					);
+					polkadot_node_core_pvf::execute_worker_entrypoint(&cmd.socket_path);
 				}
 			},
 		}

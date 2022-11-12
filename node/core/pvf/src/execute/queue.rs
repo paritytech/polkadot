@@ -395,7 +395,7 @@ async fn spawn_worker_task(
 	use futures_timer::Delay;
 
 	loop {
-		match super::worker::spawn(&program_path, job.ee_params.hash(), spawn_timeout).await {
+		match super::worker::spawn(&program_path, job.ee_params.clone(), spawn_timeout).await {
 			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle, job),
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn an execute worker: {:?}", err);
@@ -442,7 +442,6 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 				job.artifact.clone(),
 				job.execution_timeout,
 				job.params,
-				job.ee_params,
 			)
 			.await;
 			QueueEvent::StartWork(worker, outcome, job.artifact.id, job.result_tx)

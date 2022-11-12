@@ -31,29 +31,27 @@ use async_std::{
 use futures::FutureExt;
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
-use polkadot_core_primitives::Hash;
+
 use polkadot_parachain::primitives::ValidationResult;
-use polkadot_primitives::vstaging::{ExecutorParams, ExecutorParamsHash};
-use std::{
-	str::FromStr,
-	time::{Duration, Instant},
-};
+use polkadot_primitives::vstaging::ExecutorParams;
+use std::time::{Duration, Instant};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
+/// Sends a handshake message to the worker as soon as it is spawned.
 ///
-/// The program should be able to handle `<program-path> execute-worker <hash> <socket-path>` invocation.
+/// The program should be able to handle `<program-path> execute-worker <socket-path>` invocation.
 pub async fn spawn(
 	program_path: &Path,
-	exec_env_params_hash: ExecutorParamsHash,
+	executor_params: ExecutorParams,
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	spawn_with_program_path(
-		"execute",
-		program_path,
-		vec!["execute-worker".to_owned(), exec_env_params_hash.to_string()],
-		spawn_timeout,
-	)
-	.await
+	let (mut idle_worker, worker_handle) =
+		spawn_with_program_path("execute", program_path, &["execute-worker"], spawn_timeout)
+			.await?;
+	send_handshake(&mut idle_worker.stream, Handshake { executor_params })
+		.await
+		.map_err(|_| SpawnErr::Handshake)?;
+	Ok((idle_worker, worker_handle))
 }
 
 /// Outcome of PVF execution.
@@ -81,7 +79,6 @@ pub async fn start_work(
 	artifact: ArtifactPathId,
 	execution_timeout: Duration,
 	validation_params: Vec<u8>,
-	ee_params: ExecutorParams,
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
 
@@ -93,9 +90,7 @@ pub async fn start_work(
 		artifact.path.display(),
 	);
 
-	if let Err(error) =
-		send_request(&mut stream, &artifact.path, &validation_params, &ee_params).await
-	{
+	if let Err(error) = send_request(&mut stream, &artifact.path, &validation_params).await {
 		gum::warn!(
 			target: LOG_TARGET,
 			worker_pid = %pid,
@@ -143,18 +138,31 @@ pub async fn start_work(
 	}
 }
 
+async fn send_handshake(stream: &mut UnixStream, handshake: Handshake) -> io::Result<()> {
+	framed_send(stream, &handshake.encode()).await
+}
+
+async fn recv_handshake(stream: &mut UnixStream) -> io::Result<Handshake> {
+	let handshake_enc = framed_recv(stream).await?;
+	let handshake = Handshake::decode(&mut &handshake_enc[..]).map_err(|_| {
+		io::Error::new(
+			io::ErrorKind::Other,
+			"execute pvf recv_handshake: failed to decode Handshake".to_owned(),
+		)
+	})?;
+	Ok(handshake)
+}
+
 async fn send_request(
 	stream: &mut UnixStream,
 	artifact_path: &Path,
 	validation_params: &[u8],
-	ee_params: &ExecutorParams,
 ) -> io::Result<()> {
 	framed_send(stream, path_to_bytes(artifact_path)).await?;
-	framed_send(stream, validation_params).await?;
-	framed_send(stream, &ee_params.encode()).await
+	framed_send(stream, validation_params).await
 }
 
-async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>, ExecutorParams)> {
+async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>)> {
 	let artifact_path = framed_recv(stream).await?;
 	let artifact_path = bytes_to_path(&artifact_path).ok_or_else(|| {
 		io::Error::new(
@@ -163,14 +171,7 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>, 
 		)
 	})?;
 	let params = framed_recv(stream).await?;
-	let ee_params_enc = framed_recv(stream).await?;
-	let ee_params = ExecutorParams::decode(&mut &ee_params_enc[..]).map_err(|_| {
-		io::Error::new(
-			io::ErrorKind::Other,
-			"execute pvf recv_request: failed to decode ExecutorParams".to_string(),
-		)
-	})?;
-	Ok((artifact_path, params, ee_params))
+	Ok((artifact_path, params))
 }
 
 async fn send_response(stream: &mut UnixStream, response: Response) -> io::Result<()> {
@@ -185,6 +186,11 @@ async fn recv_response(stream: &mut UnixStream) -> io::Result<Response> {
 			format!("execute pvf recv_response: decode error: {:?}", e),
 		)
 	})
+}
+
+#[derive(Encode, Decode)]
+struct Handshake {
+	executor_params: ExecutorParams,
 }
 
 #[derive(Encode, Decode)]
@@ -205,39 +211,24 @@ impl Response {
 }
 
 /// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host. `exec_env_params_hash` specifies the
-/// set of execution environment parameters which is supposed to parametrize the `Executor`.
-/// Parameters themselves are coming along with the validation request and worker just performs a
-/// check that the executor is assigned a proper job by the queue.
-pub fn worker_entrypoint(socket_path: &str, exec_env_params_hash: &str) {
-	let hash: ExecutorParamsHash = Hash::from_str(exec_env_params_hash)
-		.expect("Correct hash must be provided by the worker process spawner; qed")
-		.into();
+/// the path to the socket used to communicate with the host.
+pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("execute", socket_path, |mut stream| async move {
-		let mut maybe_executor = None;
+		let handshake = recv_handshake(&mut stream).await?;
+
+		let executor = Executor::new(handshake.executor_params).map_err(|e| {
+			io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
+		})?;
 
 		loop {
-			let (artifact_path, params, exec_env_params) = recv_request(&mut stream).await?;
-			debug_assert_eq!(exec_env_params.hash(), hash);
+			let (artifact_path, params) = recv_request(&mut stream).await?;
 			gum::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
 				"worker: validating artifact {}",
 				artifact_path.display(),
 			);
-			let executor = match maybe_executor {
-				Some(ref exec) => exec,
-				None => {
-					maybe_executor = Some(Executor::new(exec_env_params).map_err(|e| {
-						io::Error::new(
-							io::ErrorKind::Other,
-							format!("cannot create executor: {}", e),
-						)
-					})?);
-					maybe_executor.as_ref().expect("Value just stored; qed")
-				},
-			};
-			let response = validate_using_artifact(&artifact_path, &params, executor).await;
+			let response = validate_using_artifact(&artifact_path, &params, &executor).await;
 			send_response(&mut stream, response).await?;
 		}
 	});

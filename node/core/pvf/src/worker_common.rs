@@ -40,7 +40,7 @@ use std::{
 pub async fn spawn_with_program_path(
 	debug_id: &'static str,
 	program_path: impl Into<PathBuf>,
-	extra_args: Vec<String>,
+	extra_args: &'static [&'static str],
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
 	let program_path = program_path.into();
@@ -195,6 +195,8 @@ pub enum SpawnErr {
 	ProcessSpawn,
 	/// The deadline allotted for the worker spawning and connecting to the socket has elapsed.
 	AcceptTimeout,
+	/// Failed to send handshake after successful spawning was signaled
+	Handshake,
 }
 
 /// This is a representation of a potentially running worker. Drop it and the process will be killed.
@@ -216,7 +218,7 @@ pub struct WorkerHandle {
 impl WorkerHandle {
 	fn spawn(
 		program: impl AsRef<Path>,
-		extra_args: Vec<String>,
+		extra_args: &[&str],
 		socket_path: impl AsRef<Path>,
 	) -> io::Result<Self> {
 		let mut child = async_process::Command::new(program.as_ref())
