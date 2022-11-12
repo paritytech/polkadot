@@ -1517,6 +1517,18 @@ impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
 	}
 }
 
+/// Adapter to `Contains` trait to check the equality of an inner `MultiLocation` with an outer.
+///
+/// May reasonably be used with `EnsureXcm`.
+pub struct EqualMultiLocation<InnerLocation>(PhantomData<InnerLocation>);
+impl<InnerLocation: Get<MultiLocation>> Contains<MultiLocation>
+	for EqualMultiLocation<InnerLocation>
+{
+	fn contains(t: &MultiLocation) -> bool {
+		InnerLocation::get().eq(t)
+	}
+}
+
 /// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter the
 /// `Origin::Xcm` item.
 pub struct EnsureXcm<F>(PhantomData<F>);

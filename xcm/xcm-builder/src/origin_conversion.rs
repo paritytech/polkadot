@@ -321,3 +321,24 @@ where
 		})
 	}
 }
+
+/// `Convert` implementation to convert from some an origin which passes the check of of an `EnsureOrigin`
+/// into a given `MultiLocation`.
+pub struct EnsureOriginToLocation<RuntimeOrigin, EnsureLocationOrigin, OriginLocation>(
+	PhantomData<(RuntimeOrigin, EnsureLocationOrigin, OriginLocation)>,
+);
+
+impl<
+		RuntimeOrigin: Clone,
+		EnsureLocationOrigin: EnsureOrigin<RuntimeOrigin>,
+		OriginLocation: Get<MultiLocation>,
+	> Convert<RuntimeOrigin, MultiLocation>
+	for EnsureOriginToLocation<RuntimeOrigin, EnsureLocationOrigin, OriginLocation>
+{
+	fn convert(o: RuntimeOrigin) -> Result<MultiLocation, RuntimeOrigin> {
+		match EnsureLocationOrigin::try_origin(o) {
+			Ok(_) => Ok(OriginLocation::get()),
+			Err(o) => Err(o),
+		}
+	}
+}

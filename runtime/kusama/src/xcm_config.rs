@@ -18,18 +18,20 @@
 
 use super::{
 	parachains_origin, AccountId, Balances, CouncilCollective, ParaId, Runtime, RuntimeCall,
-	RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
+	RuntimeEvent, RuntimeOrigin, StakingAdmin, WeightToFee, XcmPallet,
 };
 use frame_support::{match_types, parameter_types, traits::Everything};
+use kusama_runtime_constants::xcm::{origins::STAKING_ADMIN_INDEX, ORIGIN_INDEX};
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, BackingToPlurality,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
-	LocationInverter, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
-	TakeWeightCredit, UsingComponents, WeightInfoBounds,
+	CurrencyAdapter as XcmCurrencyAdapter, EnsureOriginToLocation, FixedWeightBounds,
+	IsChildSystemParachain, IsConcrete, LocationInverter, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
+	WeightInfoBounds,
 };
 
 parameter_types! {
@@ -154,6 +156,10 @@ impl xcm_executor::Config for XcmConfig {
 
 parameter_types! {
 	pub const CouncilBodyId: BodyId = BodyId::Executive;
+	// StakingAdmin origin XCM location within the current context.
+	pub const StakingAdminLocation: MultiLocation = X2(
+		GeneralIndex(ORIGIN_INDEX as u128),
+		GeneralIndex(STAKING_ADMIN_INDEX as u128)).into();
 }
 
 /// Type to convert the council origin to a Plurality `MultiLocation` value.
@@ -172,13 +178,28 @@ pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<RuntimeOrigin, AccountId, KusamaNetwork>,
 );
+
+/// Type to convert the StakingAdmin origin to a `MultiLocation` value.
+pub type StakingAdminToLocation =
+	EnsureOriginToLocation<RuntimeOrigin, StakingAdmin, StakingAdminLocation>;
+
+/// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain for a destination chain.
+pub type LocalPalletOriginToLocation = (
+	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
+	// `Unit` body.
+	CouncilToPlurality,
+	// StakingAdmin origin to be used in XCM as a corresponding `MultiLocation`.
+	StakingAdminToLocation,
+);
+
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	// We only allow the council to send messages. This is basically safe to enable for everyone
-	// (safe the possibility of someone spamming the parachain if they're willing to pay the KSM to
-	// send from the Relay-chain), but it's useless until we bring in XCM v3 which will make
-	// `DescendOrigin` a bit more useful.
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, CouncilToPlurality>;
+	// We only allow the root, the council and the staking admin to send messages.
+	// This is basically safe to enable for everyone (safe the possibility of someone spamming the parachain
+	// if they're willing to pay the KSM to send from the Relay-chain), but it's useless until we bring in XCM v3
+	// which will make `DescendOrigin` a bit more useful.
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalPalletOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally.
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
@@ -195,4 +216,29 @@ impl pallet_xcm::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::governance::pallet_custom_origins::Origin as GovOrigin;
+	use xcm_executor::traits::Convert;
+
+	#[test]
+	fn staking_origin_to_location_works() {
+		let account_origin = RuntimeOrigin::signed(sp_runtime::AccountId32::new([7u8; 32]));
+		assert!(<StakingAdminToLocation as Convert<RuntimeOrigin, MultiLocation>>::convert(
+			account_origin
+		)
+		.is_err());
+
+		let staking_origin: RuntimeOrigin = GovOrigin::StakingAdmin.into();
+		assert_eq!(
+			<StakingAdminToLocation as Convert<RuntimeOrigin, MultiLocation>>::convert(
+				staking_origin
+			)
+			.unwrap(),
+			StakingAdminLocation::get(),
+		);
+	}
 }
