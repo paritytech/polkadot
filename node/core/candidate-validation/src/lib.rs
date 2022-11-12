@@ -467,11 +467,6 @@ where
 	.await;
 
 	if let Ok(ValidationResult::Valid(ref outputs, _)) = validation_result {
-		// If validation produces new commitments we consider the candidate invalid.
-		if candidate_receipt.commitments_hash != outputs.hash() {
-			return Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))
-		}
-
 		let (tx, rx) = oneshot::channel();
 		match runtime_api_request(
 			sender,
