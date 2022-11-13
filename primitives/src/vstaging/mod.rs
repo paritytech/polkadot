@@ -34,7 +34,10 @@ pub type ParaId = Id;
 #[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundHrmpLimitations<N = BlockNumber> {
-	/// An exhaustive set of all valid watermarks, sorted ascending
+	/// An exhaustive set of all valid watermarks, sorted ascending.
+	///
+	/// It's only expected to contain block numbers at which messages were
+	/// previously sent to a para, excluding most recent head.
 	pub valid_watermarks: Vec<N>,
 }
 

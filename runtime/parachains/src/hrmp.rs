@@ -21,12 +21,9 @@ use crate::{
 use frame_support::{pallet_prelude::*, traits::ReservableCurrency};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::{
-	v2::{
-		Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
-		SessionIndex,
-	},
-	vstaging::{InboundHrmpLimitations, OutboundHrmpChannelLimitations},
+use primitives::v2::{
+	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
+	SessionIndex,
 };
 use scale_info::TypeInfo;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash as HashT, UniqueSaturatedInto};
@@ -924,17 +921,12 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	/// Returns constraints for incoming messages at the given block.
-	pub(crate) fn inbound_hrmp_constraints(
-		recipient: ParaId,
-	) -> InboundHrmpLimitations<T::BlockNumber> {
-		let valid: Vec<T::BlockNumber> = <Self as Store>::HrmpChannelDigests::get(&recipient)
+	/// Returns HRMP watermarks of previously sent messages to a given para.
+	pub(crate) fn valid_watermarks(recipient: ParaId) -> Vec<T::BlockNumber> {
+		<Self as Store>::HrmpChannelDigests::get(&recipient)
 			.into_iter()
 			.map(|(block_no, _)| block_no)
-			.collect();
-		// Note that inclusion emulator already checks if the watermark is equal
-		// to the most recent relay parent.
-		InboundHrmpLimitations { valid_watermarks: valid }
+			.collect()
 	}
 
 	pub(crate) fn check_outbound_hrmp(
@@ -1001,28 +993,26 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
-	/// Returns limitations for outbound HRMP channels.
-	pub(crate) fn outbound_hrmp_constraints(
-		sender: ParaId,
-	) -> Vec<(ParaId, OutboundHrmpChannelLimitations)> {
+	/// Returns remaining outbound channels capacity in messages and in bytes per recipient para.
+	pub(crate) fn outbound_remaining_capacity(sender: ParaId) -> Vec<(ParaId, (u32, u32))> {
 		let recipients = <Self as Store>::HrmpEgressChannelsIndex::get(&sender);
-		let mut constraints = Vec::with_capacity(recipients.len());
+		let mut remaining = Vec::with_capacity(recipients.len());
 
 		for recipient in recipients {
 			let Some(channel) =
 				<Self as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }) else {
 					continue
 				};
-			constraints.push((
+			remaining.push((
 				recipient,
-				OutboundHrmpChannelLimitations {
-					bytes_remaining: channel.max_total_size - channel.total_size,
-					messages_remaining: channel.max_capacity - channel.msg_count,
-				},
+				(
+					channel.max_capacity - channel.msg_count,
+					channel.max_total_size - channel.total_size,
+				),
 			));
 		}
 
-		constraints
+		remaining
 	}
 
 	pub(crate) fn prune_hrmp(recipient: ParaId, new_hrmp_watermark: T::BlockNumber) -> Weight {

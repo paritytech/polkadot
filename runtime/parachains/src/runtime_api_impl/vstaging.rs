@@ -19,7 +19,7 @@
 use crate::{configuration, disputes, dmp, hrmp, initializer, paras, shared, ump};
 use primitives::{
 	v2::{CandidateHash, DisputeState, Id as ParaId, SessionIndex},
-	vstaging::Constraints,
+	vstaging::{Constraints, InboundHrmpLimitations, OutboundHrmpChannelLimitations},
 };
 use sp_std::prelude::*;
 
@@ -59,8 +59,14 @@ pub fn validity_constraints<T: initializer::Config>(
 
 	let dmp_remaining_messages = <dmp::Pallet<T>>::dmq_length(para_id);
 
-	let hrmp_inbound = <hrmp::Pallet<T>>::inbound_hrmp_constraints(para_id);
-	let hrmp_channels_out = <hrmp::Pallet<T>>::outbound_hrmp_constraints(para_id);
+	let valid_watermarks = <hrmp::Pallet<T>>::valid_watermarks(para_id);
+	let hrmp_inbound = InboundHrmpLimitations { valid_watermarks };
+	let hrmp_channels_out = <hrmp::Pallet<T>>::outbound_remaining_capacity(para_id)
+		.into_iter()
+		.map(|(para, (messages_remaining, bytes_remaining))| {
+			(para, OutboundHrmpChannelLimitations { messages_remaining, bytes_remaining })
+		})
+		.collect();
 
 	Some(Constraints {
 		min_relay_parent_number,
