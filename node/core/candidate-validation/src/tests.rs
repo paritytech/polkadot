@@ -361,7 +361,7 @@ impl ValidationBackend for MockValidateCandidateBackend {
 		_raw_validation_code: Vec<u8>,
 		_timeout: Duration,
 		_params: ValidationParams,
-		_ee_params: ExecutorParams,
+		_executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		self.result.clone()
 	}
@@ -369,7 +369,7 @@ impl ValidationBackend for MockValidateCandidateBackend {
 	async fn precheck_pvf(
 		&mut self,
 		_pvf: Pvf,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 	) -> Result<(), PrepareError> {
 		unreachable!()
 	}
@@ -795,7 +795,7 @@ impl ValidationBackend for MockPreCheckBackend {
 		_raw_validation_code: Vec<u8>,
 		_timeout: Duration,
 		_params: ValidationParams,
-		_ee_params: ExecutorParams,
+		_executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		unreachable!()
 	}
@@ -803,7 +803,7 @@ impl ValidationBackend for MockPreCheckBackend {
 	async fn precheck_pvf(
 		&mut self,
 		_pvf: Pvf,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 	) -> Result<(), PrepareError> {
 		self.result.clone()
 	}

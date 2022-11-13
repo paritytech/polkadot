@@ -101,9 +101,9 @@ pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error
 /// artifact which can then be used to pass into [`execute`] after writing it to the disk.
 pub fn prepare(
 	blob: RuntimeBlob,
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 ) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
-	let semantics = params_to_wasmtime_semantics(ee_params)
+	let semantics = params_to_wasmtime_semantics(executor_params)
 		.map_err(|e| sc_executor_common::error::WasmError::Other(e))?;
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &semantics)
 }

@@ -118,8 +118,8 @@ pub mod pallet {
 
 	/// Executor parameter set for a given session index
 	#[pallet::storage]
-	#[pallet::getter(fn session_ee_params)]
-	pub(crate) type SessionEeParams<T: Config> =
+	#[pallet::getter(fn session_executor_params)]
+	pub(crate) type SessionExecutorParams<T: Config> =
 		StorageMap<_, Identity, SessionIndex, ExecutorParams>;
 }
 
@@ -172,7 +172,7 @@ impl<T: Config> Pallet<T> {
 				// Idx will be missing for a few sessions after the runtime upgrade.
 				// But it shouldn'be be a problem.
 				AccountKeys::<T>::remove(&idx);
-				SessionEeParams::<T>::remove(&idx);
+				SessionExecutorParams::<T>::remove(&idx);
 			}
 			// update `EarliestStoredSession` based on `config.dispute_period`
 			EarliestStoredSession::<T>::set(new_earliest_stored_session);
@@ -204,7 +204,7 @@ impl<T: Config> Pallet<T> {
 			dispute_period,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
-		SessionEeParams::<T>::insert(
+		SessionExecutorParams::<T>::insert(
 			&new_session_index,
 			current_exec_params(),
 			// ExecutorParams::from(&EXECUTOR_PARAMS[..]),

@@ -132,8 +132,8 @@ where
 				.cache_candidate_pending_availability((relay_parent, para_id), candidate),
 			CandidateEvents(relay_parent, events) =>
 				self.requests_cache.cache_candidate_events(relay_parent, events),
-			SessionEeParamsByParentHash(relay_parent, index) =>
-				self.requests_cache.cache_session_ee_params_by_parent_hash(relay_parent, index),
+			SessionExecutorParams(relay_parent, index) =>
+				self.requests_cache.cache_session_executor_params(relay_parent, index),
 			SessionInfo(_relay_parent, session_index, info) =>
 				if let Some(info) = info {
 					self.requests_cache.cache_session_info(session_index, info);
@@ -231,9 +231,8 @@ where
 					.map(|sender| Request::CandidatePendingAvailability(para, sender)),
 			Request::CandidateEvents(sender) =>
 				query!(candidate_events(), sender).map(|sender| Request::CandidateEvents(sender)),
-			Request::SessionEeParamsByParentHash(sender) =>
-				query!(session_ee_params_by_parent_hash(), sender)
-					.map(|sender| Request::SessionEeParamsByParentHash(sender)),
+			Request::SessionExecutorParams(sender) => query!(session_executor_params(), sender)
+				.map(|sender| Request::SessionExecutorParams(sender)),
 			Request::SessionInfo(index, sender) => {
 				if let Some(info) = self.requests_cache.session_info(index) {
 					self.metrics.on_cached_request();
@@ -452,9 +451,9 @@ where
 		),
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
-		Request::SessionEeParamsByParentHash(sender) => query!(
-			SessionEeParamsByParentHash,
-			session_ee_params_by_parent_hash(),
+		Request::SessionExecutorParams(sender) => query!(
+			SessionExecutorParams,
+			session_executor_params(),
 			ver = Request::EXECUTOR_PARAMS_RUNTIME_REQUIREMENT,
 			sender
 		),

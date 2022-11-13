@@ -74,11 +74,11 @@ impl ValidationHost {
 	pub async fn precheck_pvf(
 		&mut self,
 		pvf: Pvf,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 		result_tx: PrepareResultSender,
 	) -> Result<(), String> {
 		self.to_host_tx
-			.send(ToHost::PrecheckPvf { pvf, result_tx, ee_params })
+			.send(ToHost::PrecheckPvf { pvf, result_tx, executor_params })
 			.await
 			.map_err(|_| "the inner loop hung up".to_string())
 	}
@@ -95,7 +95,7 @@ impl ValidationHost {
 		pvf: Pvf,
 		execution_timeout: Duration,
 		params: Vec<u8>,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 		priority: Priority,
 		result_tx: ResultSender,
 	) -> Result<(), String> {
@@ -104,7 +104,7 @@ impl ValidationHost {
 				pvf,
 				execution_timeout,
 				params,
-				ee_params,
+				executor_params,
 				priority,
 				result_tx,
 			})
@@ -132,14 +132,14 @@ impl ValidationHost {
 enum ToHost {
 	PrecheckPvf {
 		pvf: Pvf,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 		result_tx: PrepareResultSender,
 	},
 	ExecutePvf {
 		pvf: Pvf,
 		execution_timeout: Duration,
 		params: Vec<u8>,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 		priority: Priority,
 		result_tx: ResultSender,
 	},
@@ -266,7 +266,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 struct PendingExecutionRequest {
 	execution_timeout: Duration,
 	params: Vec<u8>,
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 	result_tx: ResultSender,
 }
 
@@ -281,13 +281,13 @@ impl AwaitingPrepare {
 		artifact_id: ArtifactId,
 		execution_timeout: Duration,
 		params: Vec<u8>,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 		result_tx: ResultSender,
 	) {
 		self.0.entry(artifact_id).or_default().push(PendingExecutionRequest {
 			execution_timeout,
 			params,
-			ee_params,
+			executor_params,
 			result_tx,
 		});
 	}
@@ -422,10 +422,17 @@ async fn handle_to_host(
 	to_host: ToHost,
 ) -> Result<(), Fatal> {
 	match to_host {
-		ToHost::PrecheckPvf { pvf, result_tx, ee_params } => {
-			handle_precheck_pvf(artifacts, prepare_queue, pvf, ee_params, result_tx).await?;
+		ToHost::PrecheckPvf { pvf, result_tx, executor_params } => {
+			handle_precheck_pvf(artifacts, prepare_queue, pvf, executor_params, result_tx).await?;
 		},
-		ToHost::ExecutePvf { pvf, execution_timeout, params, ee_params, priority, result_tx } => {
+		ToHost::ExecutePvf {
+			pvf,
+			execution_timeout,
+			params,
+			executor_params,
+			priority,
+			result_tx,
+		} => {
 			handle_execute_pvf(
 				cache_path,
 				artifacts,
@@ -435,7 +442,7 @@ async fn handle_to_host(
 				pvf,
 				execution_timeout,
 				params,
-				ee_params,
+				executor_params,
 				priority,
 				result_tx,
 			)
@@ -457,10 +464,10 @@ async fn handle_precheck_pvf(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
 	pvf: Pvf,
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 	result_sender: PrepareResultSender,
 ) -> Result<(), Fatal> {
-	let artifact_id = pvf.as_artifact_id(ee_params.hash());
+	let artifact_id = pvf.as_artifact_id(executor_params.hash());
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
@@ -481,7 +488,7 @@ async fn handle_precheck_pvf(
 			prepare::ToQueue::Enqueue {
 				priority: Priority::Normal,
 				pvf,
-				ee_params,
+				executor_params,
 				preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 			},
 		)
@@ -505,11 +512,11 @@ async fn handle_execute_pvf(
 	pvf: Pvf,
 	execution_timeout: Duration,
 	params: Vec<u8>,
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 	priority: Priority,
 	result_tx: ResultSender,
 ) -> Result<(), Fatal> {
-	let artifact_id = pvf.as_artifact_id(ee_params.hash());
+	let artifact_id = pvf.as_artifact_id(executor_params.hash());
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
@@ -522,14 +529,20 @@ async fn handle_execute_pvf(
 						artifact: ArtifactPathId::new(artifact_id, cache_path),
 						execution_timeout,
 						params,
-						ee_params,
+						executor_params,
 						result_tx,
 					},
 				)
 				.await?;
 			},
 			ArtifactState::Preparing { waiting_for_response: _ } => {
-				awaiting_prepare.add(artifact_id, execution_timeout, params, ee_params, result_tx);
+				awaiting_prepare.add(
+					artifact_id,
+					execution_timeout,
+					params,
+					executor_params,
+					result_tx,
+				);
 			},
 			ArtifactState::FailedToProcess(error) => {
 				let _ = result_tx.send(Err(ValidationError::from(error.clone())));
@@ -544,13 +557,13 @@ async fn handle_execute_pvf(
 			prepare::ToQueue::Enqueue {
 				priority,
 				pvf,
-				ee_params: ee_params.clone(),
+				executor_params: executor_params.clone(),
 				preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 			},
 		)
 		.await?;
 
-		awaiting_prepare.add(artifact_id, execution_timeout, params, ee_params, result_tx);
+		awaiting_prepare.add(artifact_id, execution_timeout, params, executor_params, result_tx);
 	}
 
 	return Ok(())
@@ -584,7 +597,7 @@ async fn handle_heads_up(
 				prepare::ToQueue::Enqueue {
 					priority: Priority::Normal,
 					pvf: active_pvf.0,
-					ee_params: active_pvf.1,
+					executor_params: active_pvf.1,
 					preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 				},
 			)
@@ -642,7 +655,7 @@ async fn handle_prepare_done(
 	// It's finally time to dispatch all the execution requests that were waiting for this artifact
 	// to be prepared.
 	let pending_requests = awaiting_prepare.take(&artifact_id);
-	for PendingExecutionRequest { execution_timeout, params, ee_params, result_tx } in
+	for PendingExecutionRequest { execution_timeout, params, executor_params, result_tx } in
 		pending_requests
 	{
 		if result_tx.is_canceled() {
@@ -663,7 +676,7 @@ async fn handle_prepare_done(
 				artifact: ArtifactPathId::new(artifact_id.clone(), cache_path),
 				execution_timeout,
 				params,
-				ee_params,
+				executor_params,
 				result_tx,
 			},
 		)
@@ -771,12 +784,12 @@ mod tests {
 	}
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
-	fn artifact_id(descriminator: u32, ee_params_hash: ExecutorParamsHash) -> ArtifactId {
-		Pvf::from_discriminator(descriminator).as_artifact_id(ee_params_hash)
+	fn artifact_id(descriminator: u32, executor_params_hash: ExecutorParamsHash) -> ArtifactId {
+		Pvf::from_discriminator(descriminator).as_artifact_id(executor_params_hash)
 	}
 
-	fn artifact_path(descriminator: u32, ee_params_hash: ExecutorParamsHash) -> PathBuf {
-		artifact_id(descriminator, ee_params_hash)
+	fn artifact_path(descriminator: u32, executor_params_hash: ExecutorParamsHash) -> PathBuf {
+		artifact_id(descriminator, executor_params_hash)
 			.path(&PathBuf::from(std::env::temp_dir()))
 			.to_owned()
 	}
@@ -944,24 +957,33 @@ mod tests {
 	#[async_std::test]
 	async fn pruning() {
 		let mock_now = SystemTime::now() - Duration::from_millis(1000);
-		let ee_params = ExecutorParams::default();
-		let ee_params_hash = ee_params.hash();
+		let executor_params = ExecutorParams::default();
+		let executor_params_hash = executor_params.hash();
 
 		let mut builder = Builder::default();
 		builder.cleanup_pulse_interval = Duration::from_millis(100);
 		builder.artifact_ttl = Duration::from_millis(500);
-		builder.artifacts.insert_prepared(artifact_id(1, ee_params_hash), mock_now);
-		builder.artifacts.insert_prepared(artifact_id(2, ee_params_hash), mock_now);
+		builder
+			.artifacts
+			.insert_prepared(artifact_id(1, executor_params_hash), mock_now);
+		builder
+			.artifacts
+			.insert_prepared(artifact_id(2, executor_params_hash), mock_now);
 		let mut test = builder.build();
 		let mut host = test.host_handle();
 
-		host.heads_up(vec![(Pvf::from_discriminator(1), ee_params)]).await.unwrap();
+		host.heads_up(vec![(Pvf::from_discriminator(1), executor_params)])
+			.await
+			.unwrap();
 
 		let to_sweeper_rx = &mut test.to_sweeper_rx;
 		run_until(
 			&mut test.run,
 			async {
-				assert_eq!(to_sweeper_rx.next().await.unwrap(), artifact_path(2, ee_params_hash));
+				assert_eq!(
+					to_sweeper_rx.next().await.unwrap(),
+					artifact_path(2, executor_params_hash)
+				);
 			}
 			.boxed(),
 		)
@@ -969,7 +991,9 @@ mod tests {
 
 		// Extend TTL for the first artifact and make sure we don't receive another file removal
 		// request.
-		host.heads_up(vec![(Pvf::from_discriminator(1), ee_params)]).await.unwrap();
+		host.heads_up(vec![(Pvf::from_discriminator(1), executor_params)])
+			.await
+			.unwrap();
 		test.poll_ensure_to_sweeper_is_empty().await;
 	}
 
@@ -977,15 +1001,15 @@ mod tests {
 	async fn execute_pvf_requests() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let ee_params = ExecutorParams::default();
-		let ee_params_hash = ee_params.hash();
+		let executor_params = ExecutorParams::default();
+		let executor_params_hash = executor_params.hash();
 
 		let (result_tx, result_rx_pvf_1_1) = oneshot::channel();
 		host.execute_pvf(
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
-			ee_params,
+			executor_params,
 			Priority::Normal,
 			result_tx,
 		)
@@ -997,7 +1021,7 @@ mod tests {
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
-			ee_params.clone(),
+			executor_params.clone(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1009,7 +1033,7 @@ mod tests {
 			Pvf::from_discriminator(2),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
-			ee_params.clone(),
+			executor_params.clone(),
 			Priority::Normal,
 			result_tx,
 		)
@@ -1027,7 +1051,7 @@ mod tests {
 
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, ee_params_hash),
+				artifact_id: artifact_id(1, executor_params_hash),
 				result: Ok(()),
 			})
 			.await
@@ -1043,7 +1067,7 @@ mod tests {
 
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(2, ee_params_hash),
+				artifact_id: artifact_id(2, executor_params_hash),
 				result: Ok(()),
 			})
 			.await
@@ -1082,12 +1106,12 @@ mod tests {
 	async fn precheck_pvf() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let ee_params = ExecutorParams::default();
-		let ee_params_hash = ee_params.hash();
+		let executor_params = ExecutorParams::default();
+		let executor_params_hash = executor_params.hash();
 
 		// First, test a simple precheck request.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), ee_params, result_tx)
+		host.precheck_pvf(Pvf::from_discriminator(1), executor_params, result_tx)
 			.await
 			.unwrap();
 
@@ -1099,7 +1123,7 @@ mod tests {
 		// Send `Ok` right away and poll the host.
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, ee_params_hash),
+				artifact_id: artifact_id(1, executor_params_hash),
 				result: Ok(()),
 			})
 			.await
@@ -1113,7 +1137,7 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::from_discriminator(2), ee_params, result_tx)
+			host.precheck_pvf(Pvf::from_discriminator(2), executor_params, result_tx)
 				.await
 				.unwrap();
 			precheck_receivers.push(result_rx);
@@ -1125,7 +1149,7 @@ mod tests {
 		);
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(2, ee_params_hash),
+				artifact_id: artifact_id(2, executor_params_hash),
 				result: Err(PrepareError::TimedOut),
 			})
 			.await
@@ -1143,8 +1167,8 @@ mod tests {
 	async fn test_prepare_done() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let ee_params = ExecutorParams::default();
-		let ee_params_hash = ee_params.hash();
+		let executor_params = ExecutorParams::default();
+		let executor_params_hash = executor_params.hash();
 
 		// Test mixed cases of receiving execute and precheck requests
 		// for the same PVF.
@@ -1155,7 +1179,7 @@ mod tests {
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
-			ee_params.clone(),
+			executor_params.clone(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1168,7 +1192,7 @@ mod tests {
 		);
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), ee_params, result_tx)
+		host.precheck_pvf(Pvf::from_discriminator(1), executor_params, result_tx)
 			.await
 			.unwrap();
 
@@ -1176,7 +1200,7 @@ mod tests {
 		// "clients" receive their results.
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, ee_params_hash),
+				artifact_id: artifact_id(1, executor_params_hash),
 				result: Err(PrepareError::TimedOut),
 			})
 			.await
@@ -1192,7 +1216,7 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::from_discriminator(2), ee_params, result_tx)
+			host.precheck_pvf(Pvf::from_discriminator(2), executor_params, result_tx)
 				.await
 				.unwrap();
 			precheck_receivers.push(result_rx);
@@ -1203,7 +1227,7 @@ mod tests {
 			Pvf::from_discriminator(2),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
-			ee_params.clone(),
+			executor_params.clone(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1216,7 +1240,7 @@ mod tests {
 		);
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(2, ee_params_hash),
+				artifact_id: artifact_id(2, executor_params_hash),
 				result: Ok(()),
 			})
 			.await
@@ -1236,15 +1260,15 @@ mod tests {
 	async fn cancellation() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let ee_params = ExecutorParams::default();
-		let ee_params_hash = ee_params.hash();
+		let executor_params = ExecutorParams::default();
+		let executor_params_hash = executor_params.hash();
 
 		let (result_tx, result_rx) = oneshot::channel();
 		host.execute_pvf(
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
-			ee_params,
+			executor_params,
 			Priority::Normal,
 			result_tx,
 		)
@@ -1258,7 +1282,7 @@ mod tests {
 
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, ee_params_hash),
+				artifact_id: artifact_id(1, executor_params_hash),
 				result: Ok(()),
 			})
 			.await

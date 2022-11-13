@@ -143,10 +143,7 @@ pub trait RuntimeApiSubsystemClient {
 	/***** Added in v2 *****/
 
 	/// Get the execution environment parameter set by parent hash, if stored
-	async fn session_ee_params_by_parent_hash(
-		&self,
-		at: Hash,
-	) -> Result<Option<ExecutorParams>, ApiError>;
+	async fn session_executor_params(&self, at: Hash) -> Result<Option<ExecutorParams>, ApiError>;
 
 	/// Get the session info for the given session, if stored.
 	///
@@ -326,11 +323,8 @@ where
 		self.runtime_api().on_chain_votes(&BlockId::Hash(at))
 	}
 
-	async fn session_ee_params_by_parent_hash(
-		&self,
-		at: Hash,
-	) -> Result<Option<ExecutorParams>, ApiError> {
-		self.runtime_api().session_ee_params_by_parent_hash(&BlockId::Hash(at))
+	async fn session_executor_params(&self, at: Hash) -> Result<Option<ExecutorParams>, ApiError> {
+		self.runtime_api().session_executor_params(&BlockId::Hash(at))
 	}
 
 	async fn session_info(

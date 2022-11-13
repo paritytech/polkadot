@@ -37,7 +37,7 @@ pub enum ToQueue {
 	Enqueue {
 		priority: Priority,
 		pvf: Pvf,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 		preparation_timeout: Duration,
 	},
 }
@@ -85,7 +85,7 @@ struct JobData {
 	/// The priority of this job. Can be bumped.
 	priority: Priority,
 	pvf: Pvf,
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 	/// The timeout for the preparation job.
 	preparation_timeout: Duration,
 	worker: Option<Worker>,
@@ -215,8 +215,8 @@ impl Queue {
 
 async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fatal> {
 	match to_queue {
-		ToQueue::Enqueue { priority, pvf, ee_params, preparation_timeout } => {
-			handle_enqueue(queue, priority, pvf, ee_params, preparation_timeout).await?;
+		ToQueue::Enqueue { priority, pvf, executor_params, preparation_timeout } => {
+			handle_enqueue(queue, priority, pvf, executor_params, preparation_timeout).await?;
 		},
 	}
 	Ok(())
@@ -226,7 +226,7 @@ async fn handle_enqueue(
 	queue: &mut Queue,
 	priority: Priority,
 	pvf: Pvf,
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 	preparation_timeout: Duration,
 ) -> Result<(), Fatal> {
 	gum::debug!(
@@ -238,7 +238,7 @@ async fn handle_enqueue(
 	);
 	queue.metrics.prepare_enqueued();
 
-	let artifact_id = pvf.as_artifact_id(ee_params.hash());
+	let artifact_id = pvf.as_artifact_id(executor_params.hash());
 	if never!(
 		queue.artifact_id_to_job.contains_key(&artifact_id),
 		"second Enqueue sent for a known artifact"
@@ -255,10 +255,13 @@ async fn handle_enqueue(
 		return Ok(())
 	}
 
-	let job =
-		queue
-			.jobs
-			.insert(JobData { priority, pvf, ee_params, preparation_timeout, worker: None });
+	let job = queue.jobs.insert(JobData {
+		priority,
+		pvf,
+		executor_params,
+		preparation_timeout,
+		worker: None,
+	});
 	queue.artifact_id_to_job.insert(artifact_id, job);
 
 	if let Some(available) = find_idle_worker(queue) {
@@ -349,7 +352,7 @@ async fn handle_worker_concluded(
 	// this can't be None;
 	// qed.
 	let job_data = never_none!(queue.jobs.remove(job));
-	let artifact_id = job_data.pvf.as_artifact_id(job_data.ee_params.hash());
+	let artifact_id = job_data.pvf.as_artifact_id(job_data.executor_params.hash());
 
 	queue.artifact_id_to_job.remove(&artifact_id);
 
@@ -437,7 +440,7 @@ async fn spawn_extra_worker(queue: &mut Queue, critical: bool) -> Result<(), Fat
 async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal> {
 	let job_data = &mut queue.jobs[job];
 
-	let artifact_id = job_data.pvf.as_artifact_id(job_data.ee_params.hash());
+	let artifact_id = job_data.pvf.as_artifact_id(job_data.executor_params.hash());
 	let artifact_path = artifact_id.path(&queue.cache_path);
 
 	job_data.worker = Some(worker);
@@ -450,7 +453,7 @@ async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal
 			worker,
 			code: job_data.pvf.code.clone(),
 			artifact_path,
-			ee_params: job_data.ee_params.clone(),
+			executor_params: job_data.executor_params.clone(),
 			preparation_timeout: job_data.preparation_timeout,
 		},
 	)
@@ -620,13 +623,13 @@ mod tests {
 	#[async_std::test]
 	async fn properly_concludes() {
 		let mut test = Test::new(2, 2);
-		let ee_params = ExecutorParams::default();
-		let ee_params_hash = ee_params.hash();
+		let executor_params = ExecutorParams::default();
+		let executor_params_hash = executor_params.hash();
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
-			ee_params,
+			executor_params,
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -637,7 +640,7 @@ mod tests {
 
 		assert_eq!(
 			test.poll_and_recv_from_queue().await.artifact_id,
-			pvf(1).as_artifact_id(ee_params_hash)
+			pvf(1).as_artifact_id(executor_params_hash)
 		);
 	}
 
@@ -649,19 +652,19 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
-			ee_params: ExecutorParams::default(),
+			executor_params: ExecutorParams::default(),
 			preparation_timeout,
 		});
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(2),
-			ee_params: ExecutorParams::default(),
+			executor_params: ExecutorParams::default(),
 			preparation_timeout,
 		});
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(3),
-			ee_params: ExecutorParams::default(),
+			executor_params: ExecutorParams::default(),
 			preparation_timeout,
 		});
 
@@ -687,7 +690,7 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Critical,
 			pvf: pvf(4),
-			ee_params: ExecutorParams::default(),
+			executor_params: ExecutorParams::default(),
 			preparation_timeout,
 		});
 
@@ -704,7 +707,7 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
-			ee_params: ExecutorParams::default(),
+			executor_params: ExecutorParams::default(),
 			preparation_timeout,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -716,7 +719,7 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Critical,
 			pvf: pvf(2),
-			ee_params: ExecutorParams::default(),
+			executor_params: ExecutorParams::default(),
 			preparation_timeout,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -735,25 +738,25 @@ mod tests {
 	#[async_std::test]
 	async fn worker_mass_die_out_doesnt_stall_queue() {
 		let mut test = Test::new(2, 2);
-		let ee_params = ExecutorParams::default();
-		let ee_params_hash = ee_params.hash();
+		let executor_params = ExecutorParams::default();
+		let executor_params_hash = executor_params.hash();
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
-			ee_params,
+			executor_params,
 			preparation_timeout,
 		});
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(2),
-			ee_params,
+			executor_params,
 			preparation_timeout,
 		});
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(3),
-			ee_params,
+			executor_params,
 			preparation_timeout,
 		});
 
@@ -777,7 +780,7 @@ mod tests {
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 		assert_eq!(
 			test.poll_and_recv_from_queue().await.artifact_id,
-			pvf(1).as_artifact_id(ee_params_hash)
+			pvf(1).as_artifact_id(executor_params_hash)
 		);
 	}
 
@@ -788,7 +791,7 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
-			ee_params: ExecutorParams::default(),
+			executor_params: ExecutorParams::default(),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 		});
 
@@ -814,7 +817,7 @@ mod tests {
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
-			ee_params: ExecutorParams::default(),
+			executor_params: ExecutorParams::default(),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 		});
 

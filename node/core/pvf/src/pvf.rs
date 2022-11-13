@@ -51,7 +51,7 @@ impl Pvf {
 	}
 
 	/// Returns the artifact ID that corresponds to this PVF.
-	pub(crate) fn as_artifact_id(&self, ee_params_hash: ExecutorParamsHash) -> ArtifactId {
-		ArtifactId::new(self.code_hash, ee_params_hash)
+	pub(crate) fn as_artifact_id(&self, executor_params_hash: ExecutorParamsHash) -> ArtifactId {
+		ArtifactId::new(self.code_hash, executor_params_hash)
 	}
 }

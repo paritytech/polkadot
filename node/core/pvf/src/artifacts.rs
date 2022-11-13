@@ -43,15 +43,15 @@ impl AsRef<[u8]> for CompiledArtifact {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ArtifactId {
 	pub(crate) code_hash: ValidationCodeHash,
-	pub(crate) ee_params_hash: ExecutorParamsHash,
+	pub(crate) executor_params_hash: ExecutorParamsHash,
 }
 
 impl ArtifactId {
 	const PREFIX: &'static str = "wasmtime_";
 
 	/// Creates a new artifact ID with the given hash.
-	pub fn new(code_hash: ValidationCodeHash, ee_params_hash: ExecutorParamsHash) -> Self {
-		Self { code_hash, ee_params_hash }
+	pub fn new(code_hash: ValidationCodeHash, executor_params_hash: ExecutorParamsHash) -> Self {
+		Self { code_hash, executor_params_hash }
 	}
 
 	/// Tries to recover the artifact id from the given file name.
@@ -61,16 +61,17 @@ impl ArtifactId {
 		use std::str::FromStr as _;
 
 		let file_name = file_name.strip_prefix(Self::PREFIX)?;
-		let (code_hash_str, ee_params_hash_str) = file_name.split_once('_')?;
+		let (code_hash_str, executor_params_hash_str) = file_name.split_once('_')?;
 		let code_hash = Hash::from_str(code_hash_str).ok()?.into();
-		let ee_params_hash = Hash::from_str(ee_params_hash_str).ok()?.into();
+		let executor_params_hash = Hash::from_str(executor_params_hash_str).ok()?.into();
 
-		Some(Self { code_hash, ee_params_hash })
+		Some(Self { code_hash, executor_params_hash })
 	}
 
 	/// Returns the expected path to this artifact given the root of the cache.
 	pub fn path(&self, cache_path: &Path) -> PathBuf {
-		let file_name = format!("{}{:#x}_{:#x}", Self::PREFIX, self.code_hash, self.ee_params_hash);
+		let file_name =
+			format!("{}{:#x}_{:#x}", Self::PREFIX, self.code_hash, self.executor_params_hash);
 		cache_path.join(file_name)
 	}
 }

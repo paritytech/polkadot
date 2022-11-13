@@ -42,7 +42,7 @@ const SESSION_INDEX_FOR_CHILD_CACHE_SIZE: usize = 64 * 1024;
 const VALIDATION_CODE_CACHE_SIZE: usize = 10 * 1024 * 1024;
 const CANDIDATE_PENDING_AVAILABILITY_CACHE_SIZE: usize = 64 * 1024;
 const CANDIDATE_EVENTS_CACHE_SIZE: usize = 64 * 1024;
-const SESSION_EE_PARAMS_BY_PARENT_HASH_CACHE_SIZE: usize = 64 * 1024;
+const SESSION_EXECUTOR_PARAMS_CACHE_SIZE: usize = 64 * 1024;
 const SESSION_INFO_CACHE_SIZE: usize = 64 * 1024;
 const DMQ_CONTENTS_CACHE_SIZE: usize = 64 * 1024;
 const INBOUND_HRMP_CHANNELS_CACHE_SIZE: usize = 64 * 1024;
@@ -105,7 +105,7 @@ pub(crate) struct RequestResultCache {
 	candidate_pending_availability:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<CommittedCandidateReceipt>>>,
 	candidate_events: MemoryLruCache<Hash, ResidentSizeOf<Vec<CandidateEvent>>>,
-	session_ee_params_by_parent_hash: MemoryLruCache<Hash, ResidentSizeOf<Option<ExecutorParams>>>,
+	session_executor_params: MemoryLruCache<Hash, ResidentSizeOf<Option<ExecutorParams>>>,
 	session_info: MemoryLruCache<SessionIndex, ResidentSizeOf<SessionInfo>>,
 	dmq_contents:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>>,
@@ -144,9 +144,7 @@ impl Default for RequestResultCache {
 				CANDIDATE_PENDING_AVAILABILITY_CACHE_SIZE,
 			),
 			candidate_events: MemoryLruCache::new(CANDIDATE_EVENTS_CACHE_SIZE),
-			session_ee_params_by_parent_hash: MemoryLruCache::new(
-				SESSION_EE_PARAMS_BY_PARENT_HASH_CACHE_SIZE,
-			),
+			session_executor_params: MemoryLruCache::new(SESSION_EXECUTOR_PARAMS_CACHE_SIZE),
 			session_info: MemoryLruCache::new(SESSION_INFO_CACHE_SIZE),
 			dmq_contents: MemoryLruCache::new(DMQ_CONTENTS_CACHE_SIZE),
 			inbound_hrmp_channels_contents: MemoryLruCache::new(INBOUND_HRMP_CHANNELS_CACHE_SIZE),
@@ -331,20 +329,19 @@ impl RequestResultCache {
 		self.session_info.insert(key, ResidentSizeOf(value));
 	}
 
-	pub(crate) fn session_ee_params_by_parent_hash(
+	pub(crate) fn session_executor_params(
 		&mut self,
 		relay_parent: &Hash,
 	) -> Option<&Option<ExecutorParams>> {
-		self.session_ee_params_by_parent_hash.get(relay_parent).map(|v| &v.0)
+		self.session_executor_params.get(relay_parent).map(|v| &v.0)
 	}
 
-	pub(crate) fn cache_session_ee_params_by_parent_hash(
+	pub(crate) fn cache_session_executor_params(
 		&mut self,
 		relay_parent: Hash,
 		value: Option<ExecutorParams>,
 	) {
-		self.session_ee_params_by_parent_hash
-			.insert(relay_parent, ResidentSizeOf(value));
+		self.session_executor_params.insert(relay_parent, ResidentSizeOf(value));
 	}
 
 	pub(crate) fn dmq_contents(
@@ -473,7 +470,7 @@ pub(crate) enum RequestResult {
 	ValidationCodeByHash(Hash, ValidationCodeHash, Option<ValidationCode>),
 	CandidatePendingAvailability(Hash, ParaId, Option<CommittedCandidateReceipt>),
 	CandidateEvents(Hash, Vec<CandidateEvent>),
-	SessionEeParamsByParentHash(Hash, Option<ExecutorParams>),
+	SessionExecutorParams(Hash, Option<ExecutorParams>),
 	SessionInfo(Hash, SessionIndex, Option<SessionInfo>),
 	DmqContents(Hash, ParaId, Vec<InboundDownwardMessage<BlockNumber>>),
 	InboundHrmpChannelsContents(

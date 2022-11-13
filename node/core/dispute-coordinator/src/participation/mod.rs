@@ -323,15 +323,15 @@ async fn participate(
 		},
 	};
 
-	let (ee_params_tx, ee_params_rx) = oneshot::channel();
+	let (executor_params_tx, executor_params_rx) = oneshot::channel();
 	sender
 		.send_message(RuntimeApiMessage::Request(
 			req.candidate_receipt().descriptor.relay_parent,
-			RuntimeApiRequest::SessionEeParamsByParentHash(ee_params_tx),
+			RuntimeApiRequest::SessionExecutorParams(executor_params_tx),
 		))
 		.await;
 
-	let ee_params = match ee_params_rx.await {
+	let executor_params = match executor_params_rx.await {
 		Err(_) | Ok(Err(_)) => ExecutorParams::default(), // Runtime API is not yet available
 		Ok(Ok(Some(eep))) => eep,
 		Ok(Ok(None)) => {
@@ -353,7 +353,7 @@ async fn participate(
 			validation_code,
 			req.candidate_receipt().clone(),
 			available_data.pov,
-			ee_params,
+			executor_params,
 			APPROVAL_EXECUTION_TIMEOUT,
 			validation_tx,
 		))

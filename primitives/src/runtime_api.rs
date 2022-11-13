@@ -223,6 +223,6 @@ sp_api::decl_runtime_apis! {
 
 		/// Returns execution environment parameter set for the session.
 		#[api_version(3)]
-		fn session_ee_params_by_parent_hash() -> Option<vstaging::ExecutorParams>;
+		fn session_executor_params() -> Option<vstaging::ExecutorParams>;
 	}
 }

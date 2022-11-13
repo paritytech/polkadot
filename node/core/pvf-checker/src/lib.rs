@@ -537,16 +537,16 @@ async fn initiate_precheck(
 ) {
 	gum::debug!(target: LOG_TARGET, ?validation_code_hash, ?relay_parent, "initiating a precheck",);
 
-	let (ee_params_tx, ee_params_rx) = oneshot::channel();
+	let (executor_params_tx, executor_params_rx) = oneshot::channel();
 	sender
 		.send_message(RuntimeApiMessage::Request(
 			relay_parent,
-			RuntimeApiRequest::SessionEeParamsByParentHash(ee_params_tx),
+			RuntimeApiRequest::SessionExecutorParams(executor_params_tx),
 		))
 		.await;
 
 	// FIXME: Error checking?
-	let ee_params = match ee_params_rx.await {
+	let executor_params = match executor_params_rx.await {
 		Err(_) => return,
 		Ok(Err(_)) => return,
 		Ok(Ok(Some(eep))) => eep,
@@ -558,7 +558,7 @@ async fn initiate_precheck(
 		.send_message(CandidateValidationMessage::PreCheck(
 			relay_parent,
 			validation_code_hash,
-			ee_params,
+			executor_params,
 			tx,
 		))
 		.await;

@@ -135,7 +135,7 @@ async fn run<Context>(
 				CandidateValidationMessage::ValidateFromChainState(
 					candidate_receipt,
 					pov,
-					ee_params,
+					executor_params,
 					timeout,
 					response_sender,
 				) => {
@@ -151,7 +151,7 @@ async fn run<Context>(
 								validation_host,
 								candidate_receipt,
 								pov,
-								ee_params,
+								executor_params,
 								timeout,
 								&metrics,
 							)
@@ -169,7 +169,7 @@ async fn run<Context>(
 					validation_code,
 					candidate_receipt,
 					pov,
-					ee_params,
+					executor_params,
 					timeout,
 					response_sender,
 				) => {
@@ -185,7 +185,7 @@ async fn run<Context>(
 								validation_code,
 								candidate_receipt,
 								pov,
-								ee_params,
+								executor_params,
 								timeout,
 								&metrics,
 							)
@@ -201,7 +201,7 @@ async fn run<Context>(
 				CandidateValidationMessage::PreCheck(
 					relay_parent,
 					validation_code_hash,
-					ee_params,
+					executor_params,
 					response_sender,
 				) => {
 					let bg = {
@@ -214,7 +214,7 @@ async fn run<Context>(
 								validation_host,
 								relay_parent,
 								validation_code_hash,
-								ee_params,
+								executor_params,
 							)
 							.await;
 
@@ -288,7 +288,7 @@ async fn precheck_pvf<Sender>(
 	mut validation_backend: impl ValidationBackend,
 	relay_parent: Hash,
 	validation_code_hash: ValidationCodeHash,
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 ) -> PreCheckOutcome
 where
 	Sender: SubsystemSender<RuntimeApiMessage>,
@@ -322,7 +322,7 @@ where
 		},
 	};
 
-	match validation_backend.precheck_pvf(validation_code, ee_params).await {
+	match validation_backend.precheck_pvf(validation_code, executor_params).await {
 		Ok(_) => PreCheckOutcome::Valid,
 		Err(prepare_err) => match prepare_err {
 			PrepareError::Prevalidation(_) |
@@ -446,7 +446,7 @@ async fn validate_from_chain_state<Sender>(
 	validation_host: ValidationHost,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 	timeout: Duration,
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed>
@@ -466,7 +466,7 @@ where
 		validation_code,
 		candidate_receipt.clone(),
 		pov,
-		ee_params,
+		executor_params,
 		timeout,
 		metrics,
 	)
@@ -507,7 +507,7 @@ async fn validate_candidate_exhaustive(
 	validation_code: ValidationCode,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 	timeout: Duration,
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed> {
@@ -564,7 +564,7 @@ async fn validate_candidate_exhaustive(
 	};
 
 	let result = validation_backend
-		.validate_candidate(raw_validation_code.to_vec(), timeout, params, ee_params)
+		.validate_candidate(raw_validation_code.to_vec(), timeout, params, executor_params)
 		.await;
 
 	if let Err(ref error) = result {
@@ -621,13 +621,13 @@ trait ValidationBackend {
 		raw_validation_code: Vec<u8>,
 		timeout: Duration,
 		params: ValidationParams,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError>;
 
 	async fn precheck_pvf(
 		&mut self,
 		pvf: Pvf,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 	) -> Result<(), PrepareError>;
 }
 
@@ -638,7 +638,7 @@ impl ValidationBackend for ValidationHost {
 		raw_validation_code: Vec<u8>,
 		timeout: Duration,
 		params: ValidationParams,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = self
@@ -646,7 +646,7 @@ impl ValidationBackend for ValidationHost {
 				Pvf::from_code(raw_validation_code),
 				timeout,
 				params.encode(),
-				ee_params,
+				executor_params,
 				polkadot_node_core_pvf::Priority::Normal,
 				tx,
 			)
@@ -668,10 +668,10 @@ impl ValidationBackend for ValidationHost {
 	async fn precheck_pvf(
 		&mut self,
 		pvf: Pvf,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 	) -> Result<(), PrepareError> {
 		let (tx, rx) = oneshot::channel();
-		if let Err(_) = self.precheck_pvf(pvf, ee_params, tx).await {
+		if let Err(_) = self.precheck_pvf(pvf, executor_params, tx).await {
 			return Err(PrepareError::DidNotMakeIt)
 		}
 

@@ -49,7 +49,7 @@ pub enum ToQueue {
 		artifact: ArtifactPathId,
 		execution_timeout: Duration,
 		params: Vec<u8>,
-		ee_params: ExecutorParams,
+		executor_params: ExecutorParams,
 		result_tx: ResultSender,
 	},
 }
@@ -58,7 +58,7 @@ struct ExecuteJob {
 	artifact: ArtifactPathId,
 	execution_timeout: Duration,
 	params: Vec<u8>,
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 	result_tx: ResultSender,
 	waiting_since: Instant,
 }
@@ -66,7 +66,7 @@ struct ExecuteJob {
 struct WorkerData {
 	idle: Option<IdleWorker>,
 	handle: WorkerHandle,
-	exec_env_params_hash: ExecutorParamsHash,
+	executor_params_hash: ExecutorParamsHash,
 }
 
 impl fmt::Debug for WorkerData {
@@ -91,9 +91,9 @@ impl Workers {
 		self.spawn_inflight + self.running.len() < self.capacity
 	}
 
-	fn find_available(&self, exec_env_params_hash: ExecutorParamsHash) -> Option<Worker> {
+	fn find_available(&self, executor_params_hash: ExecutorParamsHash) -> Option<Worker> {
 		self.running.iter().find_map(|d| {
-			if d.1.idle.is_some() && d.1.exec_env_params_hash == exec_env_params_hash {
+			if d.1.idle.is_some() && d.1.executor_params_hash == executor_params_hash {
 				Some(d.0)
 			} else {
 				None
@@ -192,7 +192,7 @@ impl Queue {
 		if let Some(idle_worker) = idle_worker {
 			if let Some(worker) = self.workers.running.get(idle_worker) {
 				for (i, job) in self.queue.iter().enumerate() {
-					if worker.exec_env_params_hash == job.ee_params.hash() {
+					if worker.executor_params_hash == job.executor_params.hash() {
 						return Some(i)
 					}
 				}
@@ -244,7 +244,9 @@ async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
 
 fn try_assign_next_job(queue: &mut Queue) {
 	if let Some(ji) = queue.next_job_index(None) {
-		if let Some(available) = queue.workers.find_available(queue.queue[ji].ee_params.hash()) {
+		if let Some(available) =
+			queue.workers.find_available(queue.queue[ji].executor_params.hash())
+		{
 			let job = queue.take_job(ji).expect("Job is just checked to be in queue; qed");
 			assign(queue, available, job);
 			return
@@ -266,7 +268,8 @@ fn try_assign_next_job(queue: &mut Queue) {
 }
 
 fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
-	let ToQueue::Enqueue { artifact, execution_timeout, params, ee_params, result_tx } = to_queue;
+	let ToQueue::Enqueue { artifact, execution_timeout, params, executor_params, result_tx } =
+		to_queue;
 	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact.id.code_hash,
@@ -277,7 +280,7 @@ fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
 		artifact,
 		execution_timeout,
 		params,
-		ee_params,
+		executor_params,
 		result_tx,
 		waiting_since: Instant::now(),
 	};
@@ -307,7 +310,7 @@ fn handle_worker_spawned(
 	let worker = queue.workers.running.insert(WorkerData {
 		idle: Some(idle),
 		handle,
-		exec_env_params_hash: job.ee_params.hash(),
+		executor_params_hash: job.executor_params.hash(),
 	});
 
 	gum::debug!(target: LOG_TARGET, ?worker, "execute worker spawned");
@@ -395,7 +398,8 @@ async fn spawn_worker_task(
 	use futures_timer::Delay;
 
 	loop {
-		match super::worker::spawn(&program_path, job.ee_params.clone(), spawn_timeout).await {
+		match super::worker::spawn(&program_path, job.executor_params.clone(), spawn_timeout).await
+		{
 			Ok((idle, handle)) => break QueueEvent::Spawn(idle, handle, job),
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn an execute worker: {:?}", err);
@@ -424,8 +428,8 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 			.running
 			.get(worker)
 			.expect("caller must provide existing worker; qed")
-			.exec_env_params_hash,
-		job.ee_params.hash()
+			.executor_params_hash,
+		job.executor_params.hash()
 	);
 
 	let idle = queue.workers.claim_idle(worker).expect(

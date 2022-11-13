@@ -1404,8 +1404,8 @@ sp_api::impl_runtime_apis! {
 			})
 		}
 
-		fn session_ee_params_by_parent_hash() -> Option<ExecutorParams> {
-			parachains_runtime_api_impl_staging::session_ee_params_by_parent_hash::<Runtime>()
+		fn session_executor_params() -> Option<ExecutorParams> {
+			parachains_runtime_api_impl_staging::session_executor_params::<Runtime>()
 		}
 
 		fn session_info(index: SessionIndex) -> Option<SessionInfo> {

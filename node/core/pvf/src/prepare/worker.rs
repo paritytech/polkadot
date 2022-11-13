@@ -66,7 +66,7 @@ pub async fn start_work(
 	code: Arc<Vec<u8>>,
 	cache_path: &Path,
 	artifact_path: PathBuf,
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 	preparation_timeout: Duration,
 ) -> Outcome {
 	let IdleWorker { mut stream, pid } = worker;
@@ -79,7 +79,7 @@ pub async fn start_work(
 	);
 
 	with_tmp_file(pid, cache_path, |tmp_file| async move {
-		if let Err(err) = send_request(&mut stream, code, &tmp_file, &ee_params).await {
+		if let Err(err) = send_request(&mut stream, code, &tmp_file, &executor_params).await {
 			gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
@@ -220,11 +220,11 @@ async fn send_request(
 	stream: &mut UnixStream,
 	code: Arc<Vec<u8>>,
 	tmp_file: &Path,
-	ee_params: &ExecutorParams,
+	executor_params: &ExecutorParams,
 ) -> io::Result<()> {
 	framed_send(stream, &*code).await?;
 	framed_send(stream, path_to_bytes(tmp_file)).await?;
-	framed_send(stream, &ee_params.encode()).await?;
+	framed_send(stream, &executor_params.encode()).await?;
 	Ok(())
 }
 
@@ -237,14 +237,14 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, 
 			"prepare pvf recv_request: non utf-8 artifact path".to_string(),
 		)
 	})?;
-	let ee_params_enc = framed_recv(stream).await?;
-	let ee_params = ExecutorParams::decode(&mut &ee_params_enc[..]).map_err(|_| {
+	let executor_params_enc = framed_recv(stream).await?;
+	let executor_params = ExecutorParams::decode(&mut &executor_params_enc[..]).map_err(|_| {
 		io::Error::new(
 			io::ErrorKind::Other,
 			"execute pvf recv_request: failed to decode ExecutorParams".to_string(),
 		)
 	})?;
-	Ok((code, tmp_file, ee_params))
+	Ok((code, tmp_file, executor_params))
 }
 
 /// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
@@ -252,7 +252,7 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, 
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("prepare", socket_path, |mut stream| async move {
 		loop {
-			let (code, dest, ee_params) = recv_request(&mut stream).await?;
+			let (code, dest, executor_params) = recv_request(&mut stream).await?;
 
 			gum::debug!(
 				target: LOG_TARGET,
@@ -260,7 +260,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 				"worker: preparing artifact",
 			);
 
-			let result = match prepare_artifact(&code, ee_params) {
+			let result = match prepare_artifact(&code, executor_params) {
 				Err(err) => {
 					// Serialized error will be written into the socket.
 					Err(err)
@@ -292,7 +292,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 
 fn prepare_artifact(
 	code: &[u8],
-	ee_params: ExecutorParams,
+	executor_params: ExecutorParams,
 ) -> Result<CompiledArtifact, PrepareError> {
 	panic::catch_unwind(|| {
 		let blob = match crate::executor_intf::prevalidate(code) {
@@ -300,7 +300,7 @@ fn prepare_artifact(
 			Ok(b) => b,
 		};
 
-		match crate::executor_intf::prepare(blob, ee_params) {
+		match crate::executor_intf::prepare(blob, executor_params) {
 			Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
 			Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
 		}

@@ -30,8 +30,7 @@ pub fn get_session_disputes<T: disputes::Config>(
 }
 
 /// Get session executor parameter set by parent hash
-pub fn session_ee_params_by_parent_hash<T: session_info::Config>(// parent_hash: T::Hash,
-) -> Option<ExecutorParams> {
+pub fn session_executor_params<T: session_info::Config>() -> Option<ExecutorParams> {
 	let session_index = <shared::Pallet<T>>::session_index();
-	<session_info::Pallet<T>>::session_ee_params(session_index)
+	<session_info::Pallet<T>>::session_executor_params(session_index)
 }
