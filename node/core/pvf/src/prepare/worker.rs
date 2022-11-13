@@ -132,9 +132,9 @@ pub async fn start_work(
 							gum::debug!(
 								target: LOG_TARGET,
 								worker_pid = %pid,
-								"child took {} cpu_time, exceeding allowed time {}",
-								cpu_time_elapsed,
-								allowed_cpu_time
+								"child took {}ms cpu_time, exceeding allowed time {}ms",
+								cpu_time_elapsed.as_millis(),
+								allowed_cpu_time.as_millis()
 							);
 
 							// TODO: If we ever hit this case the artifact probably exists, should
@@ -202,7 +202,7 @@ pub async fn start_work(
 
 		match selected {
 			// Timed out. This should already be logged by the child.
-			Selected::Done(PrepareError::TimedOut) => Outcome::TimedOut,
+			Selected::Done(Err(PrepareError::TimedOut)) => Outcome::TimedOut,
 			Selected::Done(result) =>
 				Outcome::Concluded { worker: IdleWorker { stream, pid }, result },
 			Selected::Deadline => Outcome::TimedOut,
@@ -265,7 +265,7 @@ async fn send_request(
 ) -> io::Result<()> {
 	framed_send(stream, &*code).await?;
 	framed_send(stream, path_to_bytes(tmp_file)).await?;
-	framed_send(stream, duration_to_bytes(preparation_timeout)).await?;
+	framed_send(stream, &preparation_timeout.encode()).await?;
 	Ok(())
 }
 
@@ -279,10 +279,10 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, 
 		)
 	})?;
 	let preparation_timeout = framed_recv(stream).await?;
-	let preparation_timeout = bytes_to_duration(&preparation_timeout).ok_or_else(|| {
+	let preparation_timeout = Duration::decode(&mut &preparation_timeout[..]).map_err(|_| {
 		io::Error::new(
 			io::ErrorKind::Other,
-			"prepare pvf recv_request: invalid duration".to_string(),
+			"prepare pvf recv_request: failed to decode duration".to_string(),
 		)
 	})?;
 	Ok((code, tmp_file, preparation_timeout))
@@ -310,17 +310,19 @@ pub fn worker_entrypoint(socket_path: &str) {
 			// sleeping and then either sleeps for the remaining CPU time, or kills the process if
 			// we exceed the CPU timeout.
 			// TODO: Use a threadpool?
-			std::thread::Builder::new().name("CPU time monitor".into()).spawn(|| {
+			let (stream_2, cpu_time_start_2, preparation_timeout_2, mutex_2) =
+				(stream.clone(), cpu_time_start, preparation_timeout, mutex.clone());
+			std::thread::Builder::new().name("CPU time monitor".into()).spawn(move || {
 				task::block_on(async {
 					cpu_time_monitor_loop(
-						&mut stream,
-						&cpu_time_start,
-						&preparation_timeout,
-						&mutex,
+						stream_2,
+						cpu_time_start_2,
+						preparation_timeout_2,
+						mutex_2,
 					)
 					.await;
 				})
-			});
+			})?;
 
 			// Prepares the artifact in a separate thread. On error, the serialized error will be
 			// written into the socket.
@@ -398,16 +400,16 @@ fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
 /// sleeping in the background. When it wakes, it will see that the mutex flag has been set and
 /// return.
 async fn cpu_time_monitor_loop(
-	mut stream: &mut UnixStream,
-	cpu_time_start: &ProcessTime,
-	preparation_timeout: &Duration,
-	mutex: &Arc<Mutex<bool>>,
+	mut stream: UnixStream,
+	cpu_time_start: ProcessTime,
+	preparation_timeout: Duration,
+	mutex: Arc<Mutex<bool>>,
 ) {
 	loop {
 		let cpu_time_elapsed = cpu_time_start.elapsed();
 
 		// Treat the timeout as CPU time, which is less subject to variance due to load.
-		if cpu_time_elapsed > *preparation_timeout {
+		if cpu_time_elapsed > preparation_timeout {
 			let mut lock = mutex.lock().await;
 			if *lock == true {
 				// Hit the preparation-completed case first, return from this thread.
@@ -419,7 +421,7 @@ async fn cpu_time_monitor_loop(
 
 			// Send back a PrepareError::TimedOut on timeout.
 			let result: Result<(), PrepareError> = Err(PrepareError::TimedOut);
-			// There is nothing we can do on error here, and we are killing the process,
+			// If we error there is nothing we can do here, and we are killing the process,
 			// anyway. The receiving side will just have to time out.
 			let _ = framed_send(&mut stream, result.encode().as_slice()).await;
 
@@ -427,10 +429,9 @@ async fn cpu_time_monitor_loop(
 			std::process::exit(1);
 		}
 
-		// Sleep for the remaining CPU time, plus a bit to account for overhead. Note
-		// that the sleep is wall clock time, but the wall clock cannot be faster than
-		// the CPU clock.
-		let sleep_interval = *preparation_timeout - cpu_time_elapsed + PREPARATION_TIMEOUT_OVERHEAD;
+		// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep
+		// is wall clock time. The CPU clock may be slower than the wall clock.
+		let sleep_interval = preparation_timeout - cpu_time_elapsed + PREPARATION_TIMEOUT_OVERHEAD;
 		std::thread::sleep(sleep_interval);
 	}
 }

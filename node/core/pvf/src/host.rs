@@ -456,9 +456,9 @@ async fn handle_precheck_pvf(
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
-			ArtifactState::Prepared { last_time_needed } => {
+			ArtifactState::Prepared { last_time_needed, cpu_time_elapsed } => {
 				*last_time_needed = SystemTime::now();
-				let _ = result_sender.send(Ok(()));
+				let _ = result_sender.send(Ok(*cpu_time_elapsed));
 			},
 			ArtifactState::Preparing { waiting_for_response, num_failures: _ } =>
 				waiting_for_response.push(result_sender),
@@ -505,7 +505,7 @@ async fn handle_execute_pvf(
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
-			ArtifactState::Prepared { last_time_needed } => {
+			ArtifactState::Prepared { last_time_needed, .. } => {
 				*last_time_needed = SystemTime::now();
 
 				// This artifact has already been prepared, send it to the execute queue.
@@ -701,7 +701,8 @@ async fn handle_prepare_done(
 	}
 
 	*state = match result {
-		Ok(()) => ArtifactState::Prepared { last_time_needed: SystemTime::now() },
+		Ok(cpu_time_elapsed) =>
+			ArtifactState::Prepared { last_time_needed: SystemTime::now(), cpu_time_elapsed },
 		Err(error) => ArtifactState::FailedToProcess {
 			last_time_failed: SystemTime::now(),
 			num_failures: *num_failures + 1,

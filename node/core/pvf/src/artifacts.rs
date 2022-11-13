@@ -101,6 +101,8 @@ pub enum ArtifactState {
 		/// This is updated when we get the heads up for this artifact or when we just discover
 		/// this file.
 		last_time_needed: SystemTime,
+		/// The CPU time that was taken preparing this artifact.
+		cpu_time_elapsed: Duration,
 	},
 	/// A task to prepare this artifact is scheduled.
 	Preparing {
