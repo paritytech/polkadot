@@ -61,6 +61,7 @@ use frame_support::{
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
+use frame_election_provider_support::{weights::SubstrateWeight, SequentialPhragmen};
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as session_historical;
@@ -478,13 +479,13 @@ parameter_types! {
 	pub const DesiredRunnersUp: u32 = 19;
 	pub const MaxVoters: u32 = 10 * 1000;
 	pub const MaxCandidates: u32 = 1000;
-	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
+	pub const ElectionsPalletId: LockIdentifier = *b"phrelect";
 }
 
 // Make sure that there are no more than MaxMembers members elected via phragmen.
 const_assert!(DesiredMembers::get() <= CouncilMaxMembers::get());
 
-impl pallet_elections_phragmen::Config for Runtime {
+impl pallet_elections::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type ChangeMembers = Council;
@@ -500,8 +501,10 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type TermDuration = TermDuration;
 	type MaxVoters = MaxVoters;
 	type MaxCandidates = MaxCandidates;
-	type PalletId = PhragmenElectionPalletId;
-	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
+	type PalletId = ElectionsPalletId;
+	type WeightInfo = weights::pallet_elections::WeightInfo<Runtime>;
+	type ElectionSolver = SequentialPhragmen<Self::AccountId, Perbill>;
+	type SolverWeightInfo = SubstrateWeight<Self>;
 }
 
 parameter_types! {
@@ -624,7 +627,7 @@ impl pallet_child_bounties::Config for Runtime {
 impl pallet_tips::Config for Runtime {
 	type MaximumReasonLength = MaximumReasonLength;
 	type DataDepositPerByte = DataDepositPerByte;
-	type Tippers = PhragmenElection;
+	type Tippers = Elections;
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
 	type TipReportDepositBase = TipReportDepositBase;
@@ -931,7 +934,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Democracy(..) |
 				RuntimeCall::Council(..) |
 				RuntimeCall::TechnicalCommittee(..) |
-				RuntimeCall::PhragmenElection(..) |
+				RuntimeCall::Elections(..) |
 				RuntimeCall::TechnicalMembership(..) |
 				RuntimeCall::Treasury(..) |
 				RuntimeCall::Bounties(..) |
@@ -968,7 +971,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					c,
 					RuntimeCall::Democracy(..) |
 						RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
-						RuntimeCall::PhragmenElection(..) |
+						RuntimeCall::Elections(..) |
 						RuntimeCall::Treasury(..) |
 						RuntimeCall::Bounties(..) |
 						RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
@@ -1334,7 +1337,7 @@ construct_runtime! {
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 13,
 		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 14,
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
-		PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 16,
+		Elections: pallet_elections::{Pallet, Call, Storage, Event<T>, Config<T>} = 16,
 		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 18,
 
@@ -1524,7 +1527,7 @@ mod benches {
 		[pallet_collective, Council]
 		[pallet_collective, TechnicalCommittee]
 		[pallet_democracy, Democracy]
-		[pallet_elections_phragmen, PhragmenElection]
+		[pallet_elections, Elections]
 		[pallet_gilt, Gilt]
 		[pallet_identity, Identity]
 		[pallet_im_online, ImOnline]

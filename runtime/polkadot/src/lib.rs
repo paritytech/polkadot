@@ -37,7 +37,9 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_election_provider_support::{generate_solution_type, onchain, SequentialPhragmen};
+use frame_election_provider_support::{
+	generate_solution_type, onchain, weights::SubstrateWeight, SequentialPhragmen,
+};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -762,14 +764,14 @@ parameter_types! {
 	pub const DesiredRunnersUp: u32 = 20;
 	pub const MaxVoters: u32 = 10 * 1000;
 	pub const MaxCandidates: u32 = 1000;
-	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
+	pub const ElectionsPalletId: LockIdentifier = *b"phrelect";
 }
 // Make sure that there are no more than `MaxMembers` members elected via phragmen.
 const_assert!(DesiredMembers::get() <= CouncilMaxMembers::get());
 
-impl pallet_elections_phragmen::Config for Runtime {
+impl pallet_elections::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type PalletId = PhragmenElectionPalletId;
+	type PalletId = ElectionsPalletId;
 	type Currency = Balances;
 	type ChangeMembers = Council;
 	type InitializeMembers = Council;
@@ -784,7 +786,9 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type TermDuration = TermDuration;
 	type MaxVoters = MaxVoters;
 	type MaxCandidates = MaxCandidates;
-	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_elections::WeightInfo<Runtime>;
+	type ElectionSolver = SequentialPhragmen<Self::AccountId, Perbill>;
+	type SolverWeightInfo = SubstrateWeight<Self>;
 }
 
 parameter_types! {
@@ -903,7 +907,7 @@ impl pallet_tips::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaximumReasonLength = MaximumReasonLength;
-	type Tippers = PhragmenElection;
+	type Tippers = Elections;
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
 	type TipReportDepositBase = TipReportDepositBase;
@@ -1179,7 +1183,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Democracy(..) |
 				RuntimeCall::Council(..) |
 				RuntimeCall::TechnicalCommittee(..) |
-				RuntimeCall::PhragmenElection(..) |
+				RuntimeCall::Elections(..) |
 				RuntimeCall::TechnicalMembership(..) |
 				RuntimeCall::Treasury(..) |
 				RuntimeCall::Bounties(..) |
@@ -1209,7 +1213,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					c,
 					RuntimeCall::Democracy(..) |
 						RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
-						RuntimeCall::PhragmenElection(..) |
+						RuntimeCall::Elections(..) |
 						RuntimeCall::Treasury(..) |
 						RuntimeCall::Bounties(..) |
 						RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
@@ -1503,7 +1507,7 @@ construct_runtime! {
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 14,
 		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 16,
-		PhragmenElection: pallet_elections_phragmen::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
+		Elections: pallet_elections::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
 		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 18,
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 19,
 
@@ -1656,7 +1660,7 @@ mod benches {
 		[pallet_collective, Council]
 		[pallet_collective, TechnicalCommittee]
 		[pallet_democracy, Democracy]
-		[pallet_elections_phragmen, PhragmenElection]
+		[pallet_elections, Elections]
 		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
 		[frame_election_provider_support, ElectionProviderBench::<Runtime>]
 		[pallet_fast_unstake, FastUnstake]
@@ -2213,20 +2217,15 @@ mod test_fees {
 	fn full_block_council_election_cost() {
 		// the number of voters needed to consume almost a full block in council election, and how
 		// much it is going to cost.
-		use pallet_elections_phragmen::WeightInfo;
+		use pallet_elections::WeightInfo;
 
 		// Loser candidate lose a lot of money; sybil attack by candidates is even more expensive,
 		// and we don't care about it here. For now, we assume no extra candidates, and only
 		// superfluous voters.
 		let candidates = DesiredMembers::get() + DesiredRunnersUp::get();
 		let mut voters = 1u32;
-		let weight_with = |v| {
-			<Runtime as pallet_elections_phragmen::Config>::WeightInfo::election_phragmen(
-				candidates,
-				v,
-				v * 16,
-			)
-		};
+		let weight_with =
+			|v| <Runtime as pallet_elections::Config>::WeightInfo::elections(candidates, v, v * 16);
 
 		while weight_with(voters).all_lte(BlockWeights::get().max_block) {
 			voters += 1;

@@ -18,6 +18,9 @@
 
 use crate::*;
 use frame_support::{parameter_types, traits::EitherOfDiverse};
+use frame_election_provider_support::{
+	weights::SubstrateWeight, SequentialPhragmen,
+};
 
 parameter_types! {
 	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
@@ -114,13 +117,13 @@ parameter_types! {
 	pub const DesiredRunnersUp: u32 = 19;
 	pub const MaxVoters: u32 = 10 * 1000;
 	pub const MaxCandidates: u32 = 1000;
-	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
+	pub const ElectionsPalletId: LockIdentifier = *b"phrelect";
 }
 
 // Make sure that there are no more than `MaxMembers` members elected via Phragmen.
 const_assert!(DesiredMembers::get() <= CouncilMaxMembers::get());
 
-impl pallet_elections_phragmen::Config for Runtime {
+impl pallet_elections::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type ChangeMembers = Council;
@@ -136,8 +139,10 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type TermDuration = TermDuration;
 	type MaxVoters = MaxVoters;
 	type MaxCandidates = MaxCandidates;
-	type PalletId = PhragmenElectionPalletId;
-	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
+	type PalletId = ElectionsPalletId;
+	type WeightInfo = weights::pallet_elections::WeightInfo<Runtime>;
+	type ElectionSolver = SequentialPhragmen<Self::AccountId, Perbill>;
+	type SolverWeightInfo = SubstrateWeight<Self>;
 }
 
 parameter_types! {

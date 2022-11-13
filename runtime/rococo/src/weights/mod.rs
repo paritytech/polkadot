@@ -22,7 +22,7 @@ pub mod pallet_child_bounties;
 pub mod pallet_collective_council;
 pub mod pallet_collective_technical_committee;
 pub mod pallet_democracy;
-pub mod pallet_elections_phragmen;
+pub mod pallet_elections;
 pub mod pallet_gilt;
 pub mod pallet_identity;
 pub mod pallet_im_online;

@@ -26,7 +26,7 @@ pub mod pallet_collective_technical_committee;
 pub mod pallet_conviction_voting;
 pub mod pallet_democracy;
 pub mod pallet_election_provider_multi_phase;
-pub mod pallet_elections_phragmen;
+pub mod pallet_elections;
 pub mod pallet_fast_unstake;
 pub mod pallet_gilt;
 pub mod pallet_identity;
