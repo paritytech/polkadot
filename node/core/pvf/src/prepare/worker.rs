@@ -27,10 +27,21 @@ use async_std::{
 	io,
 	os::unix::net::UnixStream,
 	path::{Path, PathBuf},
+	sync::Mutex,
+	task,
 };
+use cpu_time::ProcessTime;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
 use std::{panic, sync::Arc, time::Duration};
+
+/// A multiple of the preparation timeout (CPU time) for which we are willing to wait on the host
+/// (in wall clock time).
+const PREPARATION_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 3;
+
+/// Some allowed overhead that we add to the "CPU time monitor" thread's sleeps on the child
+/// process.
+const PREPARATION_TIMEOUT_OVERHEAD: Duration = Duration::from_millis(50);
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
@@ -77,7 +88,7 @@ pub async fn start_work(
 	);
 
 	with_tmp_file(pid, cache_path, |tmp_file| async move {
-		if let Err(err) = send_request(&mut stream, code, &tmp_file).await {
+		if let Err(err) = send_request(&mut stream, code, &tmp_file, preparation_timeout).await {
 			gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
@@ -104,7 +115,7 @@ pub async fn start_work(
 		// corresponds to the actual amount of work performed. The child should already terminate
 		// itself after `preparation_timeout` duration in CPU time, but we have this simple wall
 		// clock timeout in case the child stalls.
-		let timeout = preparation_timeout * PREPARATION_TIMEOUT_STALLED_FACTOR;
+		let timeout = preparation_timeout * PREPARATION_TIMEOUT_WALL_CLOCK_FACTOR;
 		let result = async_std::future::timeout(timeout, framed_recv(&mut stream)).await;
 
 		let selected = match result {
@@ -114,19 +125,20 @@ pub async fn start_work(
 				// By convention we expect encoded `PrepareResult`.
 				if let Ok(result) = PrepareResult::decode(&mut response_bytes.as_slice()) {
 					if let Ok(cpu_time_elapsed) = result {
-						let given_cpu_time =
-							preparation_timeout + PREPARATION_TIMEOUT_MINIMUM_INTERVAL;
-						if cpu_time_elapsed > given_cpu_time {
+						let allowed_cpu_time = preparation_timeout + PREPARATION_TIMEOUT_OVERHEAD;
+						if cpu_time_elapsed > allowed_cpu_time {
 							// Sanity check: we expect the preparation to complete within the
 							// timeout, plus the minimum polling interval.
 							gum::debug!(
 								target: LOG_TARGET,
 								worker_pid = %pid,
-								"child took {} cpu_time, exceeding given time {}",
+								"child took {} cpu_time, exceeding allowed time {}",
 								cpu_time_elapsed,
-								given_cpu_time
+								allowed_cpu_time
 							);
 
+							// TODO: If we ever hit this case the artifact probably exists, should
+							// we clear it?
 							Selected::Deadline
 						} else {
 							gum::debug!(
@@ -167,10 +179,6 @@ pub async fn start_work(
 					Selected::IoErr
 				}
 			},
-			Ok(Err(PrepareError::TimedOut)) => {
-				// Timed out. This should already be logged by the child.
-				Selected::Deadline
-			},
 			Ok(Err(err)) => {
 				// Communication error within the time limit.
 				gum::warn!(
@@ -193,6 +201,8 @@ pub async fn start_work(
 		};
 
 		match selected {
+			// Timed out. This should already be logged by the child.
+			Selected::Done(PrepareError::TimedOut) => Outcome::TimedOut,
 			Selected::Done(result) =>
 				Outcome::Concluded { worker: IdleWorker { stream, pid }, result },
 			Selected::Deadline => Outcome::TimedOut,
@@ -283,7 +293,7 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, 
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("prepare", socket_path, |mut stream| async move {
 		loop {
-			let (code, dest, timeout) = recv_request(&mut stream).await?;
+			let (code, dest, preparation_timeout) = recv_request(&mut stream).await?;
 
 			gum::debug!(
 				target: LOG_TARGET,
@@ -291,37 +301,70 @@ pub fn worker_entrypoint(socket_path: &str) {
 				"worker: preparing artifact",
 			);
 
-			// TODO: Spawn a new thread that wakes up periodically to check the elapsed CPU time.
-			// Terminates the process if we exceed the CPU timeout.
-			thread::spawn(|| {
-				// TODO: Treat the timeout as CPU time, which is less subject to variance due to load.
+			// Create a static Mutex. We lock it when either thread finishes and set a flag.
+			let mutex = Arc::new(Mutex::new(false));
 
-				// TODO: Log if we exceed the timeout.
+			let cpu_time_start = ProcessTime::now();
 
-				// TODO: Send back a PrepareError::TimedOut on timeout.
+			// Spawn a new thread that runs the CPU time monitor. Continuously wakes up from
+			// sleeping and then either sleeps for the remaining CPU time, or kills the process if
+			// we exceed the CPU timeout.
+			// TODO: Use a threadpool?
+			std::thread::Builder::new().name("CPU time monitor".into()).spawn(|| {
+				task::block_on(async {
+					cpu_time_monitor_loop(
+						&mut stream,
+						&cpu_time_start,
+						&preparation_timeout,
+						&mutex,
+					)
+					.await;
+				})
 			});
 
-			// Serialized error will be written into the socket.
-			let result = prepare_artifact(&code).map(|compiled_artifact| {
-				// Write the serialized artifact into a temp file.
-				// PVF host only keeps artifacts statuses in its memory,
-				// successfully compiled code gets stored on the disk (and
-				// consequently deserialized by execute-workers). The prepare
-				// worker is only required to send an empty `Ok` to the pool
-				// to indicate the success.
+			// Prepares the artifact in a separate thread. On error, the serialized error will be
+			// written into the socket.
+			let result = match prepare_artifact(&code) {
+				Err(err) => {
+					// Serialized error will be written into the socket.
+					Err(err)
+				},
+				Ok(compiled_artifact) => {
+					let cpu_time_elapsed = cpu_time_start.elapsed();
 
-				gum::debug!(
-					target: LOG_TARGET,
-					worker_pid = %std::process::id(),
-					"worker: writing artifact to {}",
-					dest.display(),
-				);
-				async_std::fs::write(&dest, &compiled_artifact).await?;
+					let mut lock = mutex.lock().await;
+					if *lock == true {
+						unreachable!(
+							"Hit the timed-out case first; \
+								  Set the mutex flag to true; \
+								  Called process::exit(); \
+								  process::exit: 'This function will never return and \
+								  will immediately terminate the current process.'; \
+								  This is unreachable; qed"
+						);
+					}
+					*lock = true;
 
-				// TODO: We are now sending the CPU time back, changing the expected interface. Do
-				// we need to account for this breaking change in any way?
-				cpu_time_elapsed
-			});
+					// Write the serialized artifact into a temp file.
+					// PVF host only keeps artifacts statuses in its memory,
+					// successfully compiled code gets stored on the disk (and
+					// consequently deserialized by execute-workers). The prepare
+					// worker is only required to send an empty `Ok` to the pool
+					// to indicate the success.
+
+					gum::debug!(
+						target: LOG_TARGET,
+						worker_pid = %std::process::id(),
+						"worker: writing artifact to {}",
+						dest.display(),
+					);
+					async_std::fs::write(&dest, &compiled_artifact).await?;
+
+					// TODO: We are now sending the CPU time back, changing the expected interface. Do
+					// we need to account for this breaking change in any way?
+					Ok(cpu_time_elapsed)
+				},
+			};
 
 			framed_send(&mut stream, result.encode().as_slice()).await?;
 		}
@@ -344,4 +387,50 @@ fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
 		PrepareError::Panic(crate::error::stringify_panic_payload(panic_payload))
 	})
 	.and_then(|inner_result| inner_result)
+}
+
+/// Loop that runs in the CPU time monitor thread. Continuously wakes up from sleeping and then
+/// either sleeps for the remaining CPU time, or kills the process if we exceed the CPU timeout.
+///
+/// NOTE: Killed processes are detected and cleaned up in `purge_dead`.
+///
+/// NOTE: If the artifact preparation completes and this thread is still sleeping, it will continue
+/// sleeping in the background. When it wakes, it will see that the mutex flag has been set and
+/// return.
+async fn cpu_time_monitor_loop(
+	mut stream: &mut UnixStream,
+	cpu_time_start: &ProcessTime,
+	preparation_timeout: &Duration,
+	mutex: &Arc<Mutex<bool>>,
+) {
+	loop {
+		let cpu_time_elapsed = cpu_time_start.elapsed();
+
+		// Treat the timeout as CPU time, which is less subject to variance due to load.
+		if cpu_time_elapsed > *preparation_timeout {
+			let mut lock = mutex.lock().await;
+			if *lock == true {
+				// Hit the preparation-completed case first, return from this thread.
+				return
+			}
+			*lock = true;
+
+			// TODO: Log if we exceed the timeout.
+
+			// Send back a PrepareError::TimedOut on timeout.
+			let result: Result<(), PrepareError> = Err(PrepareError::TimedOut);
+			// There is nothing we can do on error here, and we are killing the process,
+			// anyway. The receiving side will just have to time out.
+			let _ = framed_send(&mut stream, result.encode().as_slice()).await;
+
+			// Kill the process.
+			std::process::exit(1);
+		}
+
+		// Sleep for the remaining CPU time, plus a bit to account for overhead. Note
+		// that the sleep is wall clock time, but the wall clock cannot be faster than
+		// the CPU clock.
+		let sleep_interval = *preparation_timeout - cpu_time_elapsed + PREPARATION_TIMEOUT_OVERHEAD;
+		std::thread::sleep(sleep_interval);
+	}
 }

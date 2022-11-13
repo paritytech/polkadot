@@ -200,8 +200,8 @@ pub enum SpawnErr {
 /// This is a representation of a potentially running worker. Drop it and the process will be killed.
 ///
 /// A worker's handle is also a future that resolves when it's detected that the worker's process
-/// has been terminated. Since the worker is running in another process it is obviously not necessary
-///  to poll this future to make the worker run, it's only for termination detection.
+/// has been terminated. Since the worker is running in another process it is obviously not
+/// necessary to poll this future to make the worker run, it's only for termination detection.
 ///
 /// This future relies on the fact that a child process's stdout `fd` is closed upon it's termination.
 #[pin_project]
