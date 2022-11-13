@@ -921,6 +921,14 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	/// Returns HRMP watermarks of previously sent messages to a given para.
+	pub(crate) fn valid_watermarks(recipient: ParaId) -> Vec<T::BlockNumber> {
+		<Self as Store>::HrmpChannelDigests::get(&recipient)
+			.into_iter()
+			.map(|(block_no, _)| block_no)
+			.collect()
+	}
+
 	pub(crate) fn check_outbound_hrmp(
 		config: &HostConfiguration<T::BlockNumber>,
 		sender: ParaId,
@@ -983,6 +991,28 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Ok(())
+	}
+
+	/// Returns remaining outbound channels capacity in messages and in bytes per recipient para.
+	pub(crate) fn outbound_remaining_capacity(sender: ParaId) -> Vec<(ParaId, (u32, u32))> {
+		let recipients = <Self as Store>::HrmpEgressChannelsIndex::get(&sender);
+		let mut remaining = Vec::with_capacity(recipients.len());
+
+		for recipient in recipients {
+			let Some(channel) =
+				<Self as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }) else {
+					continue
+				};
+			remaining.push((
+				recipient,
+				(
+					channel.max_capacity - channel.msg_count,
+					channel.max_total_size - channel.total_size,
+				),
+			));
+		}
+
+		remaining
 	}
 
 	pub(crate) fn prune_hrmp(recipient: ParaId, new_hrmp_watermark: T::BlockNumber) -> Weight {
@@ -1086,12 +1116,12 @@ impl<T: Config> Pallet<T> {
 			<Self as Store>::HrmpChannels::insert(&channel_id, channel);
 			<Self as Store>::HrmpChannelContents::append(&channel_id, inbound);
 
-			// The digests are sorted in ascending by block number order. Assuming absence of
-			// contextual execution, there are only two possible scenarios here:
+			// The digests are sorted in ascending by block number order. There are only two possible
+			// scenarios here ("the current" is the block of candidate's inclusion):
 			//
 			// (a) It's the first time anybody sends a message to this recipient within this block.
 			//     In this case, the digest vector would be empty or the block number of the latest
-			//     entry  is smaller than the current.
+			//     entry is smaller than the current.
 			//
 			// (b) Somebody has already sent a message within the current block. That means that
 			//     the block number of the latest entry is equal to the current.

@@ -33,9 +33,12 @@ pub type ParaId = Id;
 /// Constraints on inbound HRMP channels.
 #[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
-pub struct InboundHrmpLimitations {
-	/// An exhaustive set of all valid watermarks, sorted ascending
-	pub valid_watermarks: Vec<BlockNumber>,
+pub struct InboundHrmpLimitations<N = BlockNumber> {
+	/// An exhaustive set of all valid watermarks, sorted ascending.
+	///
+	/// It's only expected to contain block numbers at which messages were
+	/// previously sent to a para, excluding most recent head.
+	pub valid_watermarks: Vec<N>,
 }
 
 /// Constraints on outbound HRMP channels.
@@ -53,9 +56,9 @@ pub struct OutboundHrmpChannelLimitations {
 /// parachain, which should be apparent from usage.
 #[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
-pub struct Constraints {
+pub struct Constraints<N = BlockNumber> {
 	/// The minimum relay-parent number accepted under these constraints.
-	pub min_relay_parent_number: BlockNumber,
+	pub min_relay_parent_number: N,
 	/// The maximum Proof-of-Validity size allowed, in bytes.
 	pub max_pov_size: u32,
 	/// The maximum new validation code size allowed, in bytes.
@@ -64,10 +67,12 @@ pub struct Constraints {
 	pub ump_remaining: u32,
 	/// The amount of UMP bytes remaining.
 	pub ump_remaining_bytes: u32,
+	/// The maximum number of UMP messages allowed per candidate.
+	pub max_ump_num_per_candidate: u32,
 	/// The amount of remaining DMP messages.
 	pub dmp_remaining_messages: u32,
 	/// The limitations of all registered inbound HRMP channels.
-	pub hrmp_inbound: InboundHrmpLimitations,
+	pub hrmp_inbound: InboundHrmpLimitations<N>,
 	/// The limitations of all registered outbound HRMP channels.
 	pub hrmp_channels_out: Vec<(ParaId, OutboundHrmpChannelLimitations)>,
 	/// The maximum number of HRMP messages allowed per candidate.
@@ -80,5 +85,5 @@ pub struct Constraints {
 	pub upgrade_restriction: Option<UpgradeRestriction>,
 	/// The future validation code hash, if any, and at what relay-parent
 	/// number the upgrade would be minimally applied.
-	pub future_validation_code: Option<(BlockNumber, ValidationCodeHash)>,
+	pub future_validation_code: Option<(N, ValidationCodeHash)>,
 }
