@@ -23,6 +23,7 @@ default_command = "polkadot"
 id = 100
 
   [parachains.collator]
-  name = "{{COL_IMAGE}}"
+  name = "collator01"
+  image = "{{COL_IMAGE}}"
   command = "undying-collator"
   args = ["-lparachain=debug"]
