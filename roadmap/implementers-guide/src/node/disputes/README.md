@@ -5,7 +5,7 @@ This section is for the node-side subsystems that lead to participation in dispu
     * Participation. Participate in active disputes. When a node becomes aware of a dispute, it should recover the data for the disputed block, check the validity of the parablock, and issue a statement regarding the validity of the parablock.
     * Distribution. Validators should notify each other of active disputes and relevant statements over the network.
     * Submission. When authoring a block, a validator should inspect the state of the parent block and provide any information about disputes that the chain needs as part of the `ParaInherent`. This should initialize new disputes on-chain as necessary.
-    * Fork-choice and Finality. When observing a block issuing a `DisputeRollback` digest in the header, that branch of the relay chain should be abandoned all the way back to the indicated block. When voting on chains in GRANDPA, no chains that contain blocks that are or have been disputed should be voted on.
+    * Fork-choice and Finality. When observing a block issuing a `DisputeRollback` digest in the header, that branch of the relay chain should be abandoned all the way back to the indicated block. When voting on chains in GRANDPA, no chains that contain blocks with active disputes or disputes that concluded invalid should be voted on.
 
 ## Components
 

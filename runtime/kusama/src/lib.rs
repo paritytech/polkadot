@@ -26,6 +26,7 @@ use primitives::v2::{
 	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
 	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
 	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	LOWEST_PUBLIC_ID,
 };
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
@@ -410,6 +411,9 @@ parameter_types! {
 	pub const MaxElectableTargets: u16 = u16::MAX;
 	pub NposSolutionPriority: TransactionPriority =
 		Perbill::from_percent(90) * TransactionPriority::max_value();
+	/// Setup election pallet to support maximum winners upto 2000. This will mean Staking Pallet
+	/// cannot have active validators higher than this count.
+	pub const MaxActiveValidators: u32 = 2000;
 }
 
 generate_solution_type!(
@@ -428,6 +432,9 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type Solver = SequentialPhragmen<AccountId, runtime_common::elections::OnChainAccuracy>;
 	type DataProvider = Staking;
 	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
+	type MaxWinners = MaxActiveValidators;
+	type VotersBound = MaxElectingVoters;
+	type TargetsBound = MaxElectableTargets;
 }
 
 impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
@@ -475,10 +482,15 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
 	#[cfg(feature = "fast-runtime")]
-	type Fallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
 	#[cfg(not(feature = "fast-runtime"))]
-	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
-	type GovernanceFallback = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type Fallback = frame_election_provider_support::NoElection<(
+		AccountId,
+		BlockNumber,
+		Staking,
+		MaxActiveValidators,
+	)>;
+	type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
 	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
@@ -489,6 +501,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
+	type MaxWinners = MaxActiveValidators;
 }
 
 parameter_types! {
@@ -504,45 +517,6 @@ impl pallet_bags_list::Config<VoterBagsListInstance> for Runtime {
 	type Score = sp_npos_elections::VoteWeight;
 }
 
-fn era_payout(
-	total_staked: Balance,
-	non_gilt_issuance: Balance,
-	max_annual_inflation: Perquintill,
-	period_fraction: Perquintill,
-	auctioned_slots: u64,
-) -> (Balance, Balance) {
-	use pallet_staking_reward_fn::compute_inflation;
-	use sp_arithmetic::traits::Saturating;
-
-	let min_annual_inflation = Perquintill::from_rational(25u64, 1000u64);
-	let delta_annual_inflation = max_annual_inflation.saturating_sub(min_annual_inflation);
-
-	// 30% reserved for up to 60 slots.
-	let auction_proportion = Perquintill::from_rational(auctioned_slots.min(60), 200u64);
-
-	// Therefore the ideal amount at stake (as a percentage of total issuance) is 75% less the amount that we expect
-	// to be taken up with auctions.
-	let ideal_stake = Perquintill::from_percent(75).saturating_sub(auction_proportion);
-
-	let stake = Perquintill::from_rational(total_staked, non_gilt_issuance);
-	let falloff = Perquintill::from_percent(5);
-	let adjustment = compute_inflation(stake, ideal_stake, falloff);
-	let staking_inflation =
-		min_annual_inflation.saturating_add(delta_annual_inflation * adjustment);
-
-	let max_payout = period_fraction * max_annual_inflation * non_gilt_issuance;
-	let staking_payout = (period_fraction * staking_inflation) * non_gilt_issuance;
-	let rest = max_payout.saturating_sub(staking_payout);
-
-	let other_issuance = non_gilt_issuance.saturating_sub(total_staked);
-	if total_staked > other_issuance {
-		let _cap_rest = Perquintill::from_rational(other_issuance, total_staked) * staking_payout;
-		// We don't do anything with this, but if we wanted to, we could introduce a cap on the treasury amount
-		// with: `rest = rest.min(cap_rest);`
-	}
-	(staking_payout, rest)
-}
-
 pub struct EraPayout;
 impl pallet_staking::EraPayout<Balance> for EraPayout {
 	fn era_payout(
@@ -550,13 +524,18 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 		_total_issuance: Balance,
 		era_duration_millis: u64,
 	) -> (Balance, Balance) {
-		// TODO: #3011 Update with proper auctioned slots tracking.
-		// This should be fine for the first year of parachains.
-		let auctioned_slots: u64 = auctions::Pallet::<Runtime>::auction_counter().into();
+		// all para-ids that are currently active.
+		let auctioned_slots = Paras::parachains()
+			.into_iter()
+			// all active para-ids that do not belong to a system or common good chain is the number
+			// of parachains that we should take into account for inflation.
+			.filter(|i| *i >= LOWEST_PUBLIC_ID)
+			.count() as u64;
+
 		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
 		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 
-		era_payout(
+		runtime_common::impls::era_payout(
 			total_staked,
 			Gilt::issuance().non_gilt,
 			MAX_ANNUAL_INFLATION,
@@ -569,11 +548,20 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub const SessionsPerEra: SessionIndex = prod_or_fast!(6, 1);
+
 	// 28 eras for unbonding (7 days).
-	pub const BondingDuration: sp_staking::EraIndex = 28;
+	pub BondingDuration: sp_staking::EraIndex = prod_or_fast!(
+		28,
+		28,
+		"DOT_BONDING_DURATION"
+	);
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
-	pub const SlashDeferDuration: sp_staking::EraIndex = 27;
-	pub const MaxNominatorRewardedPerValidator: u32 = 256;
+	pub SlashDeferDuration: sp_staking::EraIndex = prod_or_fast!(
+		27,
+		27,
+		"DOT_SLASH_DEFER_DURATION"
+	);
+	pub const MaxNominatorRewardedPerValidator: u32 = 512;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 24
 	pub const MaxNominations: u32 = <NposCompactSolution24 as NposSolution>::LIMIT as u32;
@@ -586,7 +574,7 @@ impl pallet_staking::Config for Runtime {
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
 	type RewardRemainder = Treasury;
 	type RuntimeEvent = RuntimeEvent;
 	type Slash = Treasury;
@@ -613,6 +601,7 @@ impl pallet_staking::Config for Runtime {
 impl pallet_fast_unstake::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
+	type BatchSize = frame_support::traits::ConstU32<64>;
 	type Deposit = frame_support::traits::ConstU128<{ CENTS * 100 }>;
 	type ControlOrigin = EitherOfDiverse<
 		EnsureRoot<AccountId>,
@@ -1465,12 +1454,6 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 	(
-		pallet_staking::migrations::v11::MigrateToV11<
-			Runtime,
-			VoterList,
-			StakingMigrationV11OldPallet,
-		>,
-		pallet_staking::migrations::v12::MigrateToV12<Runtime>,
 		// "Bound uses of call" <https://github.com/paritytech/polkadot/pull/5729>
 		pallet_preimage::migration::v1::Migration<Runtime>,
 		pallet_scheduler::migration::v3::MigrateToV4<Runtime>,
@@ -1479,6 +1462,7 @@ pub type Executive = frame_executive::Executive<
 		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
 		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
 		pallet_election_provider_multi_phase::migrations::v1::MigrateToV1<Runtime>,
+		pallet_fast_unstake::migrations::v1::MigrateToV1<Runtime>,
 	),
 >;
 /// The payload being signed in the transactions.
@@ -1716,13 +1700,18 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
-		fn generate_proof(_block_number: BlockNumber)
-			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
-		{
+		fn mmr_root() -> Result<Hash, mmr::Error> {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
-		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
+		fn generate_proof(
+			_block_numbers: Vec<BlockNumber>,
+			_best_known_block_number: Option<BlockNumber>,
+		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::Proof<Hash>), mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn verify_proof(_leaves: Vec<mmr::EncodableOpaqueLeaf>, _proof: mmr::Proof<Hash>)
 			-> Result<(), mmr::Error>
 		{
 			Err(mmr::Error::PalletNotIncluded)
@@ -1730,39 +1719,8 @@ sp_api::impl_runtime_apis! {
 
 		fn verify_proof_stateless(
 			_root: Hash,
-			_leaf: mmr::EncodableOpaqueLeaf,
-			_proof: mmr::Proof<Hash>
-		) -> Result<(), mmr::Error> {
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
-		fn mmr_root() -> Result<Hash, mmr::Error> {
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
-		fn generate_batch_proof(_block_numbers: Vec<BlockNumber>)
-			-> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error>
-		{
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
-		fn generate_historical_batch_proof(
-			_block_numbers: Vec<BlockNumber>,
-			_best_known_block_number: BlockNumber,
-		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error> {
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
-		fn verify_batch_proof(_leaves: Vec<mmr::EncodableOpaqueLeaf>, _proof: mmr::BatchProof<Hash>)
-			-> Result<(), mmr::Error>
-		{
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
-		fn verify_batch_proof_stateless(
-			_root: Hash,
 			_leaves: Vec<mmr::EncodableOpaqueLeaf>,
-			_proof: mmr::BatchProof<Hash>
+			_proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
 			Err(mmr::Error::PalletNotIncluded)
 		}
@@ -2088,7 +2046,7 @@ mod tests_fess {
 #[cfg(test)]
 mod multiplier_tests {
 	use super::*;
-	use frame_support::{dispatch::GetDispatchInfo, traits::OnFinalize};
+	use frame_support::{dispatch::DispatchInfo, traits::OnFinalize};
 	use runtime_common::{MinimumMultiplier, TargetBlockFullness};
 	use separator::Separatable;
 	use sp_runtime::traits::Convert;
@@ -2130,17 +2088,8 @@ mod multiplier_tests {
 		let mut blocks = 0;
 		let mut fees_paid = 0;
 
-		let call = frame_system::Call::<Runtime>::fill_block {
-			ratio: Perbill::from_rational(
-				block_weight.ref_time(),
-				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap().ref_time(),
-			),
-		};
-		println!("calling {:?}", call);
-		let info = call.get_dispatch_info();
-		// convert to outer call.
-		let call = RuntimeCall::System(call);
-		let len = call.using_encoded(|e| e.len()) as u32;
+		frame_system::Pallet::<Runtime>::set_block_consumed_resources(Weight::MAX, 0);
+		let info = DispatchInfo { weight: Weight::MAX, ..Default::default() };
 
 		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
 			.build_storage::<Runtime>()
@@ -2154,7 +2103,7 @@ mod multiplier_tests {
 		while multiplier <= Multiplier::from_u32(1) {
 			t.execute_with(|| {
 				// imagine this tx was called.
-				let fee = TransactionPayment::compute_fee(len, &info, 0);
+				let fee = TransactionPayment::compute_fee(0, &info, 0);
 				fees_paid += fee;
 
 				// this will update the multiplier.
