@@ -71,7 +71,7 @@ impl WeightInfo for () {
 
 /// Maximum value that `config.max_upward_message_size` can be set to
 ///
-/// This is used for benchmarking sanely bounding relevant storate items. It is expected from the `configurations`
+/// This is used for benchmarking sanely bounding relevant storage items. It is expected from the `configuration`
 /// pallet to check these values before setting.
 pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 50 * 1024;
 
