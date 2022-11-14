@@ -293,6 +293,10 @@ fn consistency_bypass_works() {
 fn setting_pending_config_members() {
 	new_test_ext(Default::default()).execute_with(|| {
 		let new_config = HostConfiguration {
+			async_backing_params: AsyncBackingParameters {
+				max_candidate_depth: 0,
+				allowed_ancestry_len: 0,
+			},
 			validation_upgrade_cooldown: 100,
 			validation_upgrade_delay: 10,
 			code_retention_period: 5,

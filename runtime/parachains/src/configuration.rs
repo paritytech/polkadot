@@ -22,7 +22,10 @@ use crate::shared;
 use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_PER_MILLIS};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
+use primitives::{
+	v2::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE},
+	vstaging::AsyncBackingParameters,
+};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
@@ -51,6 +54,8 @@ pub struct HostConfiguration<BlockNumber> {
 	/**
 	 * The parameters that are required for the parachains.
 	 */
+	// Asynchronous backing parameters.
+	pub async_backing_params: AsyncBackingParameters,
 
 	/// The maximum validation code size, in bytes.
 	pub max_code_size: u32,
@@ -246,6 +251,10 @@ pub struct HostConfiguration<BlockNumber> {
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
 	fn default() -> Self {
 		Self {
+			async_backing_params: AsyncBackingParameters {
+				max_candidate_depth: 0,
+				allowed_ancestry_len: 0,
+			},
 			group_rotation_frequency: 1u32.into(),
 			chain_availability_period: 1u32.into(),
 			thread_availability_period: 1u32.into(),
@@ -518,6 +527,23 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		/// Set the asynchronous backing parameters.
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			DispatchClass::Operational,
+		))]
+		pub fn set_async_backing_params(
+			origin: OriginFor<T>,
+			max_candidate_depth: u32,
+			allowed_ancestry_len: u32,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.async_backing_params =
+					AsyncBackingParameters { max_candidate_depth, allowed_ancestry_len };
+			})
+		}
+
 		/// Set the validation upgrade cooldown.
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
