@@ -10,11 +10,15 @@ cargo install honggfuzz
 
 ## Run the fuzzer
 
+In this directory, run this command:
+
 ```
 cargo hfuzz run xcm-fuzzer
 ```
 
 ## Run a single input
+
+In this directory, run this command:
 
 ```
 cargo hfuzz run-debug xcm-fuzzer hfuzz_workspace/xcm-fuzzer/fuzzer_input_file
