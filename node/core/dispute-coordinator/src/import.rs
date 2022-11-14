@@ -183,7 +183,7 @@ impl CandidateVoteState<CandidateVotes> {
 		let dispute_status = if is_disputed {
 			let mut status = DisputeStatus::active();
 			let byzantine_threshold = polkadot_primitives::v2::byzantine_threshold(n_validators);
-			let is_confirmed = votes.voted_indices().len() > byzantine_threshold && is_disputed;
+			let is_confirmed = votes.voted_indices().len() > byzantine_threshold;
 			if is_confirmed {
 				status = status.confirm();
 			};
