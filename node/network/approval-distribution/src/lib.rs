@@ -215,7 +215,6 @@ struct ImportPipeline {
 	pending_work: HashMap<MessageSubject, bool>,
 }
 
-
 // TODO: Implement Stream interface.
 
 // impl Stream for ImportPipeline {
@@ -906,7 +905,7 @@ impl State {
 				?message_subject,
 				"Queuing assignment message ",
 			);
-	
+
 			self.import_pipeline.queue_message(
 				source.peer_id().expect("just checked above; qed"),
 				PendingMessage::Assignment(assignment, claimed_candidate_index),
@@ -1242,13 +1241,8 @@ impl State {
 
 		// Do not start importing if we are already processing a message. Queue message for later.
 		if !self.import_pipeline.is_queue_idle(&message_subject) && source.peer_id().is_some() {
-			gum::trace!(
-				target: LOG_TARGET,
-				?source,
-				?message_subject,
-				"Queuing approval message ",
-			);
-	
+			gum::trace!(target: LOG_TARGET, ?source, ?message_subject, "Queuing approval message ",);
+
 			self.import_pipeline.queue_message(
 				source.peer_id().expect("just checked above; qed"),
 				PendingMessage::Approval(vote),
