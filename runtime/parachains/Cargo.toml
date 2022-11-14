@@ -57,6 +57,7 @@ test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../pri
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thousands = "0.2.0"
 assert_matches = "1"
+serde_json = "1.0.85"
 
 [features]
 default = ["std"]

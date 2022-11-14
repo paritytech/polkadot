@@ -44,8 +44,7 @@ use polkadot_node_subsystem_util::{
 	database::Database,
 	metrics::{self, prometheus},
 	rolling_session_window::{
-		new_session_window_size, RollingSessionWindow, SessionWindowSize, SessionWindowUpdate,
-		SessionsUnavailable,
+		DatabaseParams, RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
 	},
 	TimeoutExt,
 };
@@ -97,8 +96,6 @@ use crate::{
 #[cfg(test)]
 mod tests;
 
-pub const APPROVAL_SESSIONS: SessionWindowSize = new_session_window_size!(6);
-
 const APPROVAL_CHECKING_TIMEOUT: Duration = Duration::from_secs(120);
 /// How long are we willing to wait for approval signatures?
 ///
@@ -118,7 +115,9 @@ const LOG_TARGET: &str = "parachain::approval-voting";
 #[derive(Debug, Clone)]
 pub struct Config {
 	/// The column family in the DB where approval-voting data is stored.
-	pub col_data: u32,
+	pub col_approval_data: u32,
+	/// The of the DB where rolling session info is stored.
+	pub col_session_data: u32,
 	/// The slot duration of the consensus algorithm, in milliseconds. Should be evenly
 	/// divisible by 500.
 	pub slot_duration_millis: u64,
@@ -358,7 +357,10 @@ impl ApprovalVotingSubsystem {
 			keystore,
 			slot_duration_millis: config.slot_duration_millis,
 			db,
-			db_config: DatabaseConfig { col_data: config.col_data },
+			db_config: DatabaseConfig {
+				col_approval_data: config.col_approval_data,
+				col_session_data: config.col_session_data,
+			},
 			mode: Mode::Syncing(sync_oracle),
 			metrics,
 		}
@@ -367,7 +369,10 @@ impl ApprovalVotingSubsystem {
 	/// Revert to the block corresponding to the specified `hash`.
 	/// The operation is not allowed for blocks older than the last finalized one.
 	pub fn revert_to(&self, hash: Hash) -> Result<(), SubsystemError> {
-		let config = approval_db::v1::Config { col_data: self.db_config.col_data };
+		let config = approval_db::v1::Config {
+			col_approval_data: self.db_config.col_approval_data,
+			col_session_data: self.db_config.col_session_data,
+		};
 		let mut backend = approval_db::v1::DbBackend::new(self.db.clone(), config);
 		let mut overlay = OverlayedBackend::new(&backend);
 
@@ -376,6 +381,25 @@ impl ApprovalVotingSubsystem {
 		let ops = overlay.into_write_ops();
 		backend.write(ops)
 	}
+}
+
+// Checks and logs approval vote db state. It is perfectly normal to start with an
+// empty approval vote DB if we changed DB type or the node will sync from scratch.
+fn db_sanity_check(db: Arc<dyn Database>, config: DatabaseConfig) -> SubsystemResult<()> {
+	let backend = DbBackend::new(db, config);
+	let all_blocks = backend.load_all_blocks()?;
+
+	if all_blocks.is_empty() {
+		gum::info!(target: LOG_TARGET, "Starting with an empty approval vote DB.",);
+	} else {
+		gum::debug!(
+			target: LOG_TARGET,
+			"Starting with {} blocks in approval vote DB.",
+			all_blocks.len()
+		);
+	}
+
+	Ok(())
 }
 
 #[overseer::subsystem(ApprovalVoting, error = SubsystemError, prefix = self::overseer)]
@@ -615,6 +639,9 @@ struct State {
 	slot_duration_millis: u64,
 	clock: Box<dyn Clock + Send + Sync>,
 	assignment_criteria: Box<dyn AssignmentCriteria + Send + Sync>,
+	// Require for `RollingSessionWindow`.
+	db_config: DatabaseConfig,
+	db: Arc<dyn Database>,
 }
 
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
@@ -636,8 +663,17 @@ impl State {
 		match session_window {
 			None => {
 				let sender = ctx.sender().clone();
-				self.session_window =
-					Some(RollingSessionWindow::new(sender, APPROVAL_SESSIONS, head).await?);
+				self.session_window = Some(
+					RollingSessionWindow::new(
+						sender,
+						head,
+						DatabaseParams {
+							db: self.db.clone(),
+							db_column: self.db_config.col_session_data,
+						},
+					)
+					.await?,
+				);
 				Ok(None)
 			},
 			Some(mut session_window) => {
@@ -732,12 +768,18 @@ async fn run<B, Context>(
 where
 	B: Backend,
 {
+	if let Err(err) = db_sanity_check(subsystem.db.clone(), subsystem.db_config.clone()) {
+		gum::warn!(target: LOG_TARGET, ?err, "Could not run approval vote DB sanity check");
+	}
+
 	let mut state = State {
 		session_window: None,
 		keystore: subsystem.keystore,
 		slot_duration_millis: subsystem.slot_duration_millis,
 		clock,
 		assignment_criteria,
+		db_config: subsystem.db_config,
+		db: subsystem.db,
 	};
 
 	let mut wakeups = Wakeups::default();
@@ -2362,28 +2404,14 @@ async fn launch_approval<Context>(
 
 		match val_rx.await {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
-			Ok(Ok(ValidationResult::Valid(commitments, _))) => {
+			Ok(Ok(ValidationResult::Valid(_, _))) => {
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
 				gum::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Candidate Valid");
 
-				let expected_commitments_hash = candidate.commitments_hash;
-				if commitments.hash() == expected_commitments_hash {
-					let _ = metrics_guard.take();
-					return ApprovalState::approved(validator_index, candidate_hash)
-				} else {
-					// Commitments mismatch - issue a dispute.
-					issue_local_invalid_statement(
-						&mut sender,
-						session_index,
-						candidate_hash,
-						candidate.clone(),
-					);
-
-					metrics_guard.take().on_approval_invalid();
-					return ApprovalState::failed(validator_index, candidate_hash)
-				}
+				let _ = metrics_guard.take();
+				return ApprovalState::approved(validator_index, candidate_hash)
 			},
 			Ok(Ok(ValidationResult::Invalid(reason))) => {
 				gum::warn!(
