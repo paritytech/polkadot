@@ -150,10 +150,8 @@ impl Queues {
 		Ok(())
 	}
 
-	/// Get the next best request for dispute participation
-	///
-	/// if any.  Priority queue is always considered first, then the best effort queue based on
-	/// `added_count`.
+	/// Get the next best request for dispute participation if any.
+	/// First the priority queue is considered and then the best effort one.
 	pub fn dequeue(&mut self) -> Option<ParticipationRequest> {
 		if let Some(req) = self.pop_priority() {
 			// In case a candidate became best effort over time, we might have it also queued in
@@ -236,11 +234,11 @@ impl Queues {
 #[cfg_attr(test, derive(Debug))]
 struct CandidateComparator {
 	/// Block number of the relay parent. It's wrapped in an `Option<>` because there are cases when
-	/// it can't be obtained. For example the node is lagging behind and new leaves are received with
-	/// a slight delay. Candidates with unknown relay parent are treated with lowest priority.
+	/// it can't be obtained. For example when the node is lagging behind and new leaves are received
+	/// with a slight delay. Candidates with unknown relay parent are treated with the lowest priority.
 	///
-	/// The order enforced by `CandidateComparator` is important because we will be participating
-	/// in the oldest disputes first.
+	/// The order enforced by `CandidateComparator` is important because we want to participate in
+	/// the oldest disputes first.
 	///
 	/// Note: In theory it would make more sense to use the `BlockNumber` of the including
 	/// block, as inclusion time is the actual relevant event when it comes to ordering. The
@@ -267,9 +265,11 @@ impl CandidateComparator {
 	/// Create a candidate comparator for a given candidate.
 	///
 	/// Returns:
-	///		`Ok(CandidateComparator{Some(relay_parent_block_number), candidate_hash})` in the happy case.
-	/// 	`Ok(CandidateComparator{None, candidate_hash})` in case the we could not lookup the candidate's relay parent.
-	///		`FatalError` in case the chain API call fails with an unexpected error.
+	///	- `Ok(CandidateComparator{Some(relay_parent_block_number), candidate_hash})` when the
+	/// 	relay parent can be obtained. This is the happy case.
+	/// - `Ok(CandidateComparator{None, candidate_hash})` in case the candidate's relay parent
+	/// 	can't be obtained.
+	///	- `FatalError` in case the chain API call fails with an unexpected error.
 	pub async fn new(
 		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
 		candidate: &CandidateReceipt,
@@ -281,7 +281,8 @@ impl CandidateComparator {
 			gum::warn!(
 				target: LOG_TARGET,
 				candidate_hash = ?candidate_hash,
-				"Candidate's relay_parent could not be found via chain API - `CandidateComparator could not be provided!"
+				"Candidate's relay_parent could not be found via chain API - `CandidateComparator` \
+				with an empty relay parent block number will be provided!"
 			);
 		}
 
