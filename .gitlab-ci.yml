@@ -152,7 +152,7 @@ default:
 .build-push-image:
   extends:
     - .kubernetes-env
-  image:                           quay.io/buildah/stable
+  image:                           quay.io/buildah/stable:v1.27
   before_script:
     - test -s ./artifacts/VERSION || exit 1
     - test -s ./artifacts/EXTRATAG || exit 1
