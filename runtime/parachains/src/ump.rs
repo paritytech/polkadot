@@ -472,12 +472,12 @@ impl<T: Config> Pallet<T> {
 		let mut weight = Weight::zero();
 
 		if !upward_messages.is_empty() {
-			let (extra_count, extra_size) = upward_messages
+			let (extra_count, extra_size) = &upward_messages[..10] // Temporary 10 message limit
 				.iter()
 				.fold((0, 0), |(cnt, size), d| (cnt + 1, size + d.len() as u32));
 
 			<Self as Store>::RelayDispatchQueues::mutate(&para, |v| {
-				v.extend(upward_messages.into_iter())
+				v.extend(upward_messages.into_iter().take(10)) // Temporary 10 message limit
 			});
 
 			<Self as Store>::RelayDispatchQueueSize::mutate(
@@ -497,7 +497,7 @@ impl<T: Config> Pallet<T> {
 			// NOTE: The actual computation is not accounted for. It should be benchmarked.
 			weight += T::DbWeight::get().reads_writes(3, 3);
 
-			Self::deposit_event(Event::UpwardMessagesReceived(para, extra_count, extra_size));
+			Self::deposit_event(Event::UpwardMessagesReceived(para, *extra_count, *extra_size));
 		}
 
 		weight
