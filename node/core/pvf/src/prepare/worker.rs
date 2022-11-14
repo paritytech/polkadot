@@ -36,11 +36,12 @@ use sp_core::hexdisplay::HexDisplay;
 use std::{panic, sync::Arc, time::Duration};
 
 /// A multiple of the preparation timeout (CPU time) for which we are willing to wait on the host
-/// (in wall clock time).
-const PREPARATION_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 3;
+/// in wall clock time. This is lenient because the wall clock can slow down up to a factor of 4
+/// (tested on 32 threads of work on an 8-core machine).
+const PREPARATION_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
 
-/// Some allowed overhead that we add to the "CPU time monitor" thread's sleeps on the child
-/// process.
+/// Some allowed overhead that we account for in the "CPU time monitor" thread's sleeps, on the
+/// child process.
 const PREPARATION_TIMEOUT_OVERHEAD: Duration = Duration::from_millis(50);
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
