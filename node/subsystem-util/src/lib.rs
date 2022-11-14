@@ -40,12 +40,15 @@ pub use polkadot_node_metrics::{metrics, Metronome};
 use futures::channel::{mpsc, oneshot};
 use parity_scale_codec::Encode;
 
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
-	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed,
-	SigningContext, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+use polkadot_primitives::{
+	v2::{
+		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
+		GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+		PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed,
+		SigningContext, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+		ValidatorSignature,
+	},
+	vstaging as vstaging_primitives,
 };
 pub use rand;
 use sp_application_crypto::AppKey;
@@ -211,6 +214,7 @@ specialize_requests! {
 	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
 		-> Option<ValidationCodeHash>; ValidationCodeHash;
 	fn request_on_chain_votes() -> Option<ScrapedOnChainVotes>; FetchOnChainVotes;
+	fn request_staging_async_backing_params() -> vstaging_primitives::AsyncBackingParameters; StagingAsyncBackingParams;
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.

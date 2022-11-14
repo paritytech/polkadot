@@ -19,12 +19,16 @@
 use super::*;
 
 use polkadot_node_subsystem::messages::ChainApiMessage;
-use polkadot_primitives::v2::{
-	BlockNumber, CandidateCommitments, CommittedCandidateReceipt, Header, SigningContext,
-	ValidatorId,
+use polkadot_primitives::{
+	v2::{
+		BlockNumber, CandidateCommitments, CommittedCandidateReceipt, Header, SigningContext,
+		ValidatorId,
+	},
+	vstaging as vstaging_primitives,
 };
 
-const ALLOWED_ANCESTRY: u32 = 3;
+const ASYNC_BACKING_PARAMS: vstaging_primitives::AsyncBackingParameters =
+	vstaging_primitives::AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };
 
 fn get_parent_hash(hash: Hash) -> Hash {
 	Hash::from_low_u64_be(hash.to_low_u64_be() + 1)
@@ -96,9 +100,9 @@ async fn update_view(
 			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				parent,
-				RuntimeApiRequest::Version(tx),
+				RuntimeApiRequest::StagingAsyncBackingParams(tx),
 			)) => {
-				tx.send(Ok(RuntimeApiRequest::VALIDITY_CONSTRAINTS)).unwrap();
+				tx.send(Ok(ASYNC_BACKING_PARAMS)).unwrap();
 				(parent, new_view.get(&parent).copied().expect("Unknown parent requested"))
 			}
 		);
@@ -112,7 +116,7 @@ async fn update_view(
 		)
 		.await;
 
-		let min_number = leaf_number.saturating_sub(ALLOWED_ANCESTRY);
+		let min_number = leaf_number.saturating_sub(ASYNC_BACKING_PARAMS.allowed_ancestry_len);
 
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
@@ -416,7 +420,7 @@ fn second_multiple_candidates_per_relay_parent() {
 		)
 		.await;
 
-		for i in 0..(MAX_CANDIDATE_DEPTH + 1) {
+		for i in 0..(ASYNC_BACKING_PARAMS.max_candidate_depth + 1) {
 			let mut candidate = dummy_candidate_receipt_bad_sig(head_c, Some(Default::default()));
 			candidate.descriptor.para_id = test_state.chain_ids[0];
 			candidate.descriptor.relay_parent = head_c;
@@ -476,7 +480,10 @@ fn second_multiple_candidates_per_relay_parent() {
 				head_c,
 				test_state.chain_ids[0],
 				&pov,
-				ProspectiveParachainsMode::Enabled,
+				ProspectiveParachainsMode::Enabled {
+					max_candidate_depth: 4,
+					allowed_ancestry_len: 3,
+				},
 			)
 			.await;
 

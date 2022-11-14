@@ -37,6 +37,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem::{
+	errors::RuntimeApiError,
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
@@ -51,7 +52,8 @@ use polkadot_primitives_test_helpers::TestCandidateBuilder;
 
 mod prospective_parachains;
 
-const API_VERSION_PROSPECTIVE_DISABLED: u32 = 2;
+const ASYNC_BACKING_DISABLED_ERROR: RuntimeApiError =
+	RuntimeApiError::NotSupported { runtime_api_name: "test-runtime" };
 
 #[derive(Clone)]
 struct TestState {
@@ -193,10 +195,10 @@ impl TestState {
 			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				relay_parent,
-				RuntimeApiRequest::Version(tx)
+				RuntimeApiRequest::StagingAsyncBackingParams(tx)
 			)) => {
 				assert_eq!(relay_parent, self.relay_parent);
-				tx.send(Ok(API_VERSION_PROSPECTIVE_DISABLED)).unwrap();
+				tx.send(Err(ASYNC_BACKING_DISABLED_ERROR)).unwrap();
 			}
 		);
 	}
@@ -324,10 +326,10 @@ async fn setup_system(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 		overseer_recv(virtual_overseer).await,
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 			relay_parent,
-			RuntimeApiRequest::Version(tx)
+			RuntimeApiRequest::StagingAsyncBackingParams(tx)
 		)) => {
 			assert_eq!(relay_parent, test_state.relay_parent);
-			tx.send(Ok(API_VERSION_PROSPECTIVE_DISABLED)).unwrap();
+			tx.send(Err(ASYNC_BACKING_DISABLED_ERROR)).unwrap();
 		}
 	);
 }
