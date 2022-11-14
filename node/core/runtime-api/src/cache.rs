@@ -53,6 +53,7 @@ const VERSION_CACHE_SIZE: usize = 4 * 1024;
 const DISPUTES_CACHE_SIZE: usize = 64 * 1024;
 
 const STAGING_VALIDITY_CONSTRAINTS_CACHE_SIZE: usize = 10 * 1024;
+const STAGING_ASYNC_BACKING_PARAMS_CACHE_SIZE: usize = 10 * 1024;
 
 struct ResidentSizeOf<T>(T);
 
@@ -120,15 +121,16 @@ pub(crate) struct RequestResultCache {
 		(Hash, ParaId, OccupiedCoreAssumption),
 		ResidentSizeOf<Option<ValidationCodeHash>>,
 	>,
-
-	staging_validity_constraints:
-		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<vstaging_primitives::Constraints>>>,
-
 	version: MemoryLruCache<Hash, ResidentSizeOf<u32>>,
 	disputes: MemoryLruCache<
 		Hash,
 		ResidentSizeOf<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
 	>,
+
+	staging_validity_constraints:
+		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<vstaging_primitives::Constraints>>>,
+	staging_async_backing_params:
+		MemoryLruCache<Hash, ResidentSizeOf<vstaging_primitives::AsyncBackingParameters>>,
 }
 
 impl Default for RequestResultCache {
@@ -155,13 +157,15 @@ impl Default for RequestResultCache {
 			on_chain_votes: MemoryLruCache::new(ON_CHAIN_VOTES_CACHE_SIZE),
 			pvfs_require_precheck: MemoryLruCache::new(PVFS_REQUIRE_PRECHECK_SIZE),
 			validation_code_hash: MemoryLruCache::new(VALIDATION_CODE_HASH_CACHE_SIZE),
+			version: MemoryLruCache::new(VERSION_CACHE_SIZE),
+			disputes: MemoryLruCache::new(DISPUTES_CACHE_SIZE),
 
 			staging_validity_constraints: MemoryLruCache::new(
 				STAGING_VALIDITY_CONSTRAINTS_CACHE_SIZE,
 			),
-
-			version: MemoryLruCache::new(VERSION_CACHE_SIZE),
-			disputes: MemoryLruCache::new(DISPUTES_CACHE_SIZE),
+			staging_async_backing_params: MemoryLruCache::new(
+				STAGING_ASYNC_BACKING_PARAMS_CACHE_SIZE,
+			),
 		}
 	}
 }
@@ -420,21 +424,6 @@ impl RequestResultCache {
 		self.validation_code_hash.insert(key, ResidentSizeOf(value));
 	}
 
-	pub(crate) fn staging_validity_constraints(
-		&mut self,
-		key: (Hash, ParaId),
-	) -> Option<&Option<vstaging_primitives::Constraints>> {
-		self.staging_validity_constraints.get(&key).map(|v| &v.0)
-	}
-
-	pub(crate) fn cache_staging_validity_constraints(
-		&mut self,
-		key: (Hash, ParaId),
-		value: Option<vstaging_primitives::Constraints>,
-	) {
-		self.staging_validity_constraints.insert(key, ResidentSizeOf(value));
-	}
-
 	pub(crate) fn version(&mut self, relay_parent: &Hash) -> Option<&u32> {
 		self.version.get(&relay_parent).map(|v| &v.0)
 	}
@@ -456,6 +445,36 @@ impl RequestResultCache {
 		value: Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>,
 	) {
 		self.disputes.insert(relay_parent, ResidentSizeOf(value));
+	}
+
+	pub(crate) fn staging_validity_constraints(
+		&mut self,
+		key: (Hash, ParaId),
+	) -> Option<&Option<vstaging_primitives::Constraints>> {
+		self.staging_validity_constraints.get(&key).map(|v| &v.0)
+	}
+
+	pub(crate) fn cache_staging_validity_constraints(
+		&mut self,
+		key: (Hash, ParaId),
+		value: Option<vstaging_primitives::Constraints>,
+	) {
+		self.staging_validity_constraints.insert(key, ResidentSizeOf(value));
+	}
+
+	pub(crate) fn staging_async_backing_params(
+		&mut self,
+		key: &Hash,
+	) -> Option<&vstaging_primitives::AsyncBackingParameters> {
+		self.staging_async_backing_params.get(&key).map(|v| &v.0)
+	}
+
+	pub(crate) fn cache_staging_async_backing_params(
+		&mut self,
+		key: Hash,
+		value: vstaging_primitives::AsyncBackingParameters,
+	) {
+		self.staging_async_backing_params.insert(key, ResidentSizeOf(value));
 	}
 }
 
@@ -491,9 +510,9 @@ pub(crate) enum RequestResult {
 	// This is a request with side-effects and no result, hence ().
 	SubmitPvfCheckStatement(Hash, PvfCheckStatement, ValidatorSignature, ()),
 	ValidationCodeHash(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCodeHash>),
-
-	StagingValidityConstraints(Hash, ParaId, Option<vstaging_primitives::Constraints>),
-
 	Version(Hash, u32),
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
+
+	StagingValidityConstraints(Hash, ParaId, Option<vstaging_primitives::Constraints>),
+	StagingAsyncBackingParams(Hash, vstaging_primitives::AsyncBackingParameters),
 }

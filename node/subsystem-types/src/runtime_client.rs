@@ -199,6 +199,12 @@ pub trait RuntimeApiSubsystemClient {
 		para_id: Id,
 	) -> Result<Option<polkadot_primitives::vstaging::Constraints>, ApiError>;
 
+	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
+	async fn staging_async_backing_params(
+		&self,
+		at: Hash,
+	) -> Result<polkadot_primitives::vstaging::AsyncBackingParameters, ApiError>;
+
 	// === BABE API ===
 
 	/// Returns information regarding the current epoch.
@@ -396,5 +402,13 @@ where
 		para_id: Id,
 	) -> Result<Option<polkadot_primitives::vstaging::Constraints>, ApiError> {
 		self.runtime_api().staging_validity_constraints(&BlockId::Hash(at), para_id)
+	}
+
+	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
+	async fn staging_async_backing_params(
+		&self,
+		at: Hash,
+	) -> Result<polkadot_primitives::vstaging::AsyncBackingParameters, ApiError> {
+		self.runtime_api().staging_async_backing_params(&BlockId::Hash(at))
 	}
 }
