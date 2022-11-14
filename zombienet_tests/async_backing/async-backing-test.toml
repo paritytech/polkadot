@@ -27,3 +27,8 @@ id = 100
   image = "{{COL_IMAGE}}"
   command = "undying-collator"
   args = ["-lparachain=debug"]
+
+[types.Header]
+number = "u64"
+parent_hash = "Hash"
+post_state = "Hash"
