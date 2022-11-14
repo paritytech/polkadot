@@ -286,7 +286,7 @@ impl DisputeCoordinatorSubsystem {
 
 		let mut participation_requests = Vec::new();
 		let mut unconfirmed_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
-		let (mut scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
+		let (scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
 		for ((session, ref candidate_hash), status) in active_disputes {
 			let votes: CandidateVotes =
 				match overlay_db.load_candidate_votes(session, candidate_hash) {
