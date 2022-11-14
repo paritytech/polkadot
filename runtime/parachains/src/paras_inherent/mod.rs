@@ -30,8 +30,7 @@ use crate::{
 	metrics::METRICS,
 	paras,
 	scheduler::{self, CoreAssignment, FreedReason},
-	shared::{self, ALLOWED_RELAY_PARENT_LOOKBACK},
-	ump, ParaId,
+	shared, ump, ParaId,
 };
 use bitvec::prelude::BitVec;
 use frame_support::{
@@ -332,6 +331,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		let now = <frame_system::Pallet<T>>::block_number();
+		let config = <configuration::Pallet<T>>::config();
 
 		// Before anything else, update the allowed relay-parents.
 		{
@@ -343,7 +343,7 @@ impl<T: Config> Pallet<T> {
 					parent_hash,
 					parent_storage_root,
 					parent_number,
-					ALLOWED_RELAY_PARENT_LOOKBACK,
+					config.async_backing_params.allowed_ancestry_len,
 				);
 			});
 		}
@@ -364,8 +364,6 @@ impl<T: Config> Pallet<T> {
 			.map_err(|_e| Error::<T>::DisputeStatementsUnsortedOrDuplicates)?;
 
 		let (checked_disputes, total_consumed_weight) = {
-			// Obtain config params..
-			let config = <configuration::Pallet<T>>::config();
 			let max_spam_slots = config.dispute_max_spam_slots;
 			let post_conclusion_acceptance_period =
 				config.dispute_post_conclusion_acceptance_period;
@@ -586,6 +584,7 @@ impl<T: Config> Pallet<T> {
 			disputes.len()
 		);
 
+		let config = <configuration::Pallet<T>>::config();
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 		let now = <frame_system::Pallet<T>>::block_number();
 
@@ -615,7 +614,7 @@ impl<T: Config> Pallet<T> {
 				parent_hash,
 				parent_storage_root,
 				parent_number,
-				ALLOWED_RELAY_PARENT_LOOKBACK,
+				config.async_backing_params.allowed_ancestry_len,
 			);
 
 			tracker
@@ -626,7 +625,6 @@ impl<T: Config> Pallet<T> {
 			log::debug!(target: LOG_TARGET, "Found duplicate statement sets, retaining the first");
 		}
 
-		let config = <configuration::Pallet<T>>::config();
 		let max_spam_slots = config.dispute_max_spam_slots;
 		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
