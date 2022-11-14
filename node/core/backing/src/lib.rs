@@ -772,7 +772,7 @@ async fn handle_active_leaves_update<Context>(
 	state: &mut State,
 ) -> Result<(), Error> {
 	enum LeafHasProspectiveParachains {
-		Enabled(Result<Vec<ParaId>, ImplicitViewFetchError>),
+		Enabled(Result<ProspectiveParachainsMode, ImplicitViewFetchError>),
 		Disabled,
 	}
 
@@ -788,8 +788,8 @@ async fn handle_active_leaves_update<Context>(
 			leaf,
 			match mode {
 				ProspectiveParachainsMode::Disabled => LeafHasProspectiveParachains::Disabled,
-				ProspectiveParachainsMode::Enabled => LeafHasProspectiveParachains::Enabled(
-					state.implicit_view.activate_leaf(ctx.sender(), leaf_hash).await,
+				ProspectiveParachainsMode::Enabled { .. } => LeafHasProspectiveParachains::Enabled(
+					state.implicit_view.activate_leaf(ctx.sender(), leaf_hash).await.map(|_| mode),
 				),
 			},
 		))
@@ -824,7 +824,7 @@ async fn handle_active_leaves_update<Context>(
 
 	// Get relay parents which might be fresh but might be known already
 	// that are explicit or implicit from the new active leaf.
-	let fresh_relay_parents = match res {
+	let (fresh_relay_parents, leaf_mode) = match res {
 		None => return Ok(()),
 		Some((leaf, LeafHasProspectiveParachains::Disabled)) => {
 			// defensive in this case - for enabled, this manifests as an error.
@@ -844,9 +844,9 @@ async fn handle_active_leaves_update<Context>(
 				},
 			);
 
-			vec![leaf.hash]
+			(vec![leaf.hash], ProspectiveParachainsMode::Disabled)
 		},
-		Some((leaf, LeafHasProspectiveParachains::Enabled(Ok(_)))) => {
+		Some((leaf, LeafHasProspectiveParachains::Enabled(Ok(prospective_parachains_mode)))) => {
 			let fresh_relay_parents =
 				state.implicit_view.known_allowed_relay_parents_under(&leaf.hash, None);
 
@@ -907,13 +907,10 @@ async fn handle_active_leaves_update<Context>(
 
 			state.per_leaf.insert(
 				leaf.hash,
-				ActiveLeafState {
-					prospective_parachains_mode: ProspectiveParachainsMode::Enabled,
-					seconded_at_depth,
-				},
+				ActiveLeafState { prospective_parachains_mode, seconded_at_depth },
 			);
 
-			match fresh_relay_parents {
+			let fresh_relay_parent = match fresh_relay_parents {
 				Some(f) => f.to_vec(),
 				None => {
 					gum::warn!(
@@ -924,7 +921,8 @@ async fn handle_active_leaves_update<Context>(
 
 					vec![leaf.hash]
 				},
-			}
+			};
+			(fresh_relay_parent, prospective_parachains_mode)
 		},
 		Some((leaf, LeafHasProspectiveParachains::Enabled(Err(e)))) => {
 			gum::debug!(
@@ -951,7 +949,7 @@ async fn handle_active_leaves_update<Context>(
 				// subsystem that it is an ancestor of a leaf which
 				// has prospective parachains enabled and that the
 				// block itself did.
-				ProspectiveParachainsMode::Enabled
+				leaf_mode
 			},
 			Some(l) => l.prospective_parachains_mode,
 		};
@@ -1061,7 +1059,7 @@ async fn construct_per_relay_parent_state<Context>(
 	let table_context = TableContext { groups, validators, validator };
 	let table_config = TableConfig {
 		allow_multiple_seconded: match mode {
-			ProspectiveParachainsMode::Enabled => true,
+			ProspectiveParachainsMode::Enabled { .. } => true,
 			ProspectiveParachainsMode::Disabled => false,
 		},
 	};
