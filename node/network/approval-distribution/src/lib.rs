@@ -900,7 +900,7 @@ impl State {
 
 		// Do not start importing if we are alreay processing a message. Queue message for later.
 		if !self.import_pipeline.is_queue_idle(&message_subject) && source.peer_id().is_some() {
-			gum::debug!(
+			gum::trace!(
 				target: LOG_TARGET,
 				?source,
 				?message_subject,
@@ -1242,7 +1242,7 @@ impl State {
 
 		// Do not start importing if we are already processing a message. Queue message for later.
 		if !self.import_pipeline.is_queue_idle(&message_subject) && source.peer_id().is_some() {
-			gum::debug!(
+			gum::trace!(
 				target: LOG_TARGET,
 				?source,
 				?message_subject,
