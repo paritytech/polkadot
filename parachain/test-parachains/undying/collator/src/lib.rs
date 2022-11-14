@@ -23,11 +23,12 @@ use polkadot_node_primitives::{
 	maybe_compress_pov, Collation, CollationResult, CollationSecondedSignal, CollatorFn,
 	MaybeCompressedPoV, PoV, Statement,
 };
-use polkadot_primitives::{CollatorId, CollatorPair, Hash, OutboundHrmpMessage};
+use polkadot_primitives::{
+	CollatorId, CollatorPair, Hash, InboundHrmpMessage, OutboundHrmpMessage,
+};
 use sp_core::Pair;
-use std::collections::BTreeMap;
 use std::{
-	collections::HashMap,
+	collections::{BTreeMap, HashMap},
 	sync::{
 		atomic::{AtomicU32, Ordering},
 		Arc, Mutex,
@@ -146,6 +147,7 @@ impl State {
 	fn advance(
 		&mut self,
 		parent_head: HeadData,
+		_inbound_messages: BTreeMap<ParaId, Vec<InboundHrmpMessage>>,
 	) -> (BlockData, HeadData, Vec<OutboundHrmpMessage<ParaId>>) {
 		self.best_block = parent_head.number;
 
@@ -288,10 +290,10 @@ impl Collator {
 				let inbound_messages = relay_chain_interface
 					.retrieve_all_inbound_hrmp_channel_contents(para_id, relay_parent)
 					.await
-					.unwrap_or_else(|_| BTreeMap::new())
-					.values();
+					.unwrap_or_else(|_| BTreeMap::new());
 
-				let (block_data, head_data, messages) = state.lock().unwrap().advance(parent);
+				let (block_data, head_data, messages) =
+					state.lock().unwrap().advance(parent, inbound_messages);
 
 				log::info!(
 					"created a new collation on relay-parent({}): {:?}",
@@ -358,7 +360,7 @@ impl Collator {
 			let current_block = self.state.lock().unwrap().best_block;
 
 			if start_block + blocks <= current_block {
-				return;
+				return
 			}
 		}
 	}
@@ -373,7 +375,7 @@ impl Collator {
 			Delay::new(Duration::from_secs(1)).await;
 
 			if seconded <= seconded_collations.load(Ordering::Relaxed) {
-				return;
+				return
 			}
 		}
 	}
