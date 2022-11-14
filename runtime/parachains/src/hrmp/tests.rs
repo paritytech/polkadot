@@ -15,9 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::{
-	new_test_ext, Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared,
-	RuntimeEvent as MockEvent, RuntimeOrigin, System, Test,
+use crate::{
+	mock::{
+		new_test_ext, Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared,
+		RuntimeEvent as MockEvent, RuntimeOrigin, System, Test,
+	},
+	paras::ParaKind,
 };
 use frame_support::{assert_noop, assert_ok, traits::Currency as _};
 use primitives::v2::BlockNumber;
@@ -130,7 +133,7 @@ fn register_parachain_with_balance(id: ParaId, balance: Balance) {
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
 		crate::paras::ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: vec![1].into(),
 			validation_code: vec![1].into(),
 		},

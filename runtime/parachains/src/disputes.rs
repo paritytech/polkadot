@@ -985,8 +985,7 @@ impl<T: Config> Pallet<T> {
 			let mut importer = DisputeStateImporter::new(dispute_state, now);
 			for (i, (statement, validator_index, signature)) in set.statements.iter().enumerate() {
 				// assure the validator index and is present in the session info
-				let validator_public = match session_info.validators.get(validator_index.0 as usize)
-				{
+				let validator_public = match session_info.validators.get(*validator_index) {
 					None => {
 						filter.remove_index(i);
 						continue
