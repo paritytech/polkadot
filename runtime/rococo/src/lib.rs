@@ -1463,7 +1463,7 @@ pub type Executive = frame_executive::Executive<
 		pallet_democracy::migrations::v1::Migration<Runtime>,
 		pallet_multisig::migrations::v1::MigrateToV1<Runtime>,
 		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
-		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
+		parachains_configuration::migration::v4::MigrateToV4<Runtime>,
 	),
 >;
 /// The payload being signed in transactions.
@@ -1608,7 +1608,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	#[api_version(3)]
+	#[api_version(99)]
 	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()
@@ -1711,8 +1711,12 @@ sp_api::impl_runtime_apis! {
 			runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
 		}
 
-		fn staging_validity_constraints(_: ParaId) -> Option<primitives::vstaging::Constraints> {
-			unimplemented!("Staging API not implemented");
+		fn staging_validity_constraints(para_id: ParaId) -> Option<primitives::vstaging::Constraints> {
+			runtime_parachains::runtime_api_impl::vstaging::validity_constraints::<Runtime>(para_id)
+		}
+
+		fn staging_async_backing_params() -> primitives::vstaging::AsyncBackingParameters {
+			runtime_parachains::runtime_api_impl::vstaging::async_backing_params::<Runtime>()
 		}
 	}
 

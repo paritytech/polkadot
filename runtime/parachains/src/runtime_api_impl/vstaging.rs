@@ -19,7 +19,7 @@
 use crate::{configuration, disputes, dmp, hrmp, initializer, paras, shared, ump};
 use primitives::{
 	v2::{CandidateHash, DisputeState, Id as ParaId, SessionIndex},
-	vstaging::{Constraints, InboundHrmpLimitations, OutboundHrmpChannelLimitations},
+	vstaging::{Constraints, InboundHrmpLimitations, OutboundHrmpChannelLimitations, AsyncBackingParameters},
 };
 use sp_std::prelude::*;
 
@@ -84,4 +84,9 @@ pub fn validity_constraints<T: initializer::Config>(
 		upgrade_restriction,
 		future_validation_code,
 	})
+}
+
+/// Implementation for `StagingAsyncBackingParams` function from the runtime API
+pub fn async_backing_params<T: configuration::Config>() -> AsyncBackingParameters {
+	<configuration::Pallet<T>>::config().async_backing_params
 }

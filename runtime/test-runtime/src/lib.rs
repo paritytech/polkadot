@@ -916,10 +916,6 @@ sp_api::impl_runtime_apis! {
 		{
 			runtime_impl::validation_code_hash::<Runtime>(para_id, assumption)
 		}
-
-		fn staging_validity_constraints(_: ParaId) -> Option<primitives::vstaging::Constraints> {
-			unimplemented!("Staging API not implemented");
-		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
