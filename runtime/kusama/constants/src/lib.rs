@@ -123,6 +123,7 @@ pub mod xcm {
 		const ROOT_INDEX: u8 = 0;
 		/// StakingAdmin origin index in the context of the runtime. Used as `Junction::GeneralIndex`.
 		pub const STAKING_ADMIN_INDEX: u8 = 1;
+		pub const FELLOWS_INDEX: u8 = 2;
 	}
 }
 
