@@ -49,6 +49,26 @@ pub use pallet::*;
 #[cfg(test)]
 pub(crate) mod tests;
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
+
+pub trait WeightInfo {
+	fn receive_upward_messages(i: u32) -> Weight;
+}
+
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn receive_upward_messages(_: u32) -> Weight {
+		Weight::MAX
+	}
+}
+
+impl WeightInfo for () {
+	fn receive_upward_messages(_: u32) -> Weight {
+		Weight::zero()
+	}
+}
+
 /// Maximum value that `config.max_upward_message_size` can be set to
 ///
 /// This is used for benchmarking sanely bounding relevant storate items. It is expected from the `configurations`
@@ -371,7 +391,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Block finalization logic, called by initializer.
-	pub(crate) fn initializer_finalize() {}
+	pub(crate) fn initializer_finalize() {
+		Self::publish_ump_status();
+	}
 
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
@@ -915,15 +937,19 @@ impl<T: Config> Pallet<T> {
 		if !upward_messages.is_empty() {
 			let count = upward_messages.len() as u32;
 			Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
+			let messages = upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
+			T::MessageQueue::enqueue_messages(messages, para);
 		}
-		let messages = upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
-		T::MessageQueue::enqueue_messages(messages, para);
 
+		// TODO: Calculate worst-case enqueue (largest possible message with the most recent page
+		// being almost full) and return.
+		Weight::zero()
+	}
+
+	/// Places the current status of UMP queues into the well-known-keys for other chains to see.
+	fn publish_ump_status() {
 		let Footprint { count, size } = T::MessageQueue::footprint(para);
-		// TODO: Do this at the end of the block, after any messages might have been
-		// executed, to report more accurate numbers to the para.
-
-		// TODO: Remove all usages of `relay_dispatch_queue_size`
+		// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
 		#[allow(deprecated)]
 		let key = well_known_keys::relay_dispatch_queue_size(para);
 		(count, size).using_encoded(|d| sp_io::storage::set(&key, d));
@@ -932,10 +958,6 @@ impl<T: Config> Pallet<T> {
 		let remaining_count = config.max_upward_queue_count.saturating_sub(count);
 		let remaining_size = config.max_upward_queue_size.saturating_sub(size);
 		(remaining_count, remaining_size).using_encoded(|d| sp_io::storage::set(&key, d));
-
-		// TODO: Calculate worst-case enqueue (largest possible message with the most recent page
-		// being almost full) and return.
-		Weight::zero()
 	}
 
 	/// Cleans up all paras pending availability that the predicate returns true for.
