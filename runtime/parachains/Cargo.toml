@@ -58,7 +58,7 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 thousands = "0.2.0"
 assert_matches = "1"
 serde_json = "1.0.85"
-#pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-message-queue = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]

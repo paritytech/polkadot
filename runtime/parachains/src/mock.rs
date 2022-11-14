@@ -299,6 +299,15 @@ impl pallet_message_queue::WeightInfo for TestWeightInfo {
 	fn ready_ring_unknit() -> Weight {
 		Weight::zero()
 	}
+	fn reap_page() -> Weight {
+		Weight::zero()
+	}
+	fn execute_overweight() -> Weight {
+		Weight::zero()
+	}
+	fn process_message_payload(_: u32) -> Weight {
+		Weight::zero()
+	}
 }
 
 impl pallet_message_queue::Config for Test {
@@ -312,6 +321,7 @@ impl pallet_message_queue::Config for Test {
 }
 
 impl crate::inclusion::Config for Test {
+	type WeightInfo = ();
 	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = Disputes;
 	type RewardValidators = TestRewardValidators;

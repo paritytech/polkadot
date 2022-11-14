@@ -15,21 +15,17 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use frame_benchmarking::{benchmarks, BenchmarkError, BenchmarkResult};
-use frame_system::RawOrigin;
-use sp_runtime::traits::One;
+use frame_benchmarking::benchmarks;
 
 benchmarks! {
 	receive_upward_messages {
-		receive_upward_messages(config, para, vec![vec![0; MAX_UPWARD_MESSAGE_SIZE_BOUND]; 1])
+		let i in 1 .. 1000;
 
 		let config = configuration::ActiveConfig::<T>::get();
-		let para = 42;	// not especially important.
-
-		let i in 1..1000;
-
-		let upward_messages = vec![vec![0; MAX_UPWARD_MESSAGE_SIZE_BOUND]; i];
-	}: receive_upward_messages(config, para, upward_messages)
+		let para = 42u32.into();	// not especially important.
+		let upward_messages = vec![vec![0; MAX_UPWARD_MESSAGE_SIZE_BOUND as usize]; i as usize];
+		Pallet::<T>::receive_upward_messages(&config, para, vec![vec![0; MAX_UPWARD_MESSAGE_SIZE_BOUND as usize]; 1]);
+	}: { Pallet::<T>::receive_upward_messages(&config, para, upward_messages) }
 
 	impl_benchmark_test_suite!(
 		Pallet,

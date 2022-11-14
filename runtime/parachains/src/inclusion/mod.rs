@@ -230,6 +230,7 @@ pub mod pallet {
 		+ hrmp::Config
 		+ configuration::Config
 	{
+		type WeightInfo: WeightInfo;
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 		type DisputesHandler: disputes::DisputesHandler<Self::BlockNumber>;
 		type RewardValidators: RewardValidators;
@@ -391,9 +392,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Block finalization logic, called by initializer.
-	pub(crate) fn initializer_finalize() {
-		Self::publish_ump_status();
-	}
+	pub(crate) fn initializer_finalize() {}
 
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
@@ -937,9 +936,16 @@ impl<T: Config> Pallet<T> {
 		if !upward_messages.is_empty() {
 			let count = upward_messages.len() as u32;
 			Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
-			let messages = upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
+			let messages =
+				upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
 			T::MessageQueue::enqueue_messages(messages, para);
 		}
+
+		// TODO: This should be done by the message queue itself (as per a config item mapping
+		// origin to an optional well-known key and maximum size/items) after enqueuing and#
+		// servicing. This ensures that the WKKs are updated after both enqueuing and servicing
+		// unlike in here where it's only after enqueuing.
+		Self::publish_ump_status(config, para);
 
 		// TODO: Calculate worst-case enqueue (largest possible message with the most recent page
 		// being almost full) and return.
@@ -947,7 +953,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Places the current status of UMP queues into the well-known-keys for other chains to see.
-	fn publish_ump_status() {
+	fn publish_ump_status(config: &HostConfiguration<T::BlockNumber>, para: ParaId) {
 		let Footprint { count, size } = T::MessageQueue::footprint(para);
 		// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
 		#[allow(deprecated)]
