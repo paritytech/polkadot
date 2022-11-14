@@ -280,11 +280,22 @@ impl<M> TestSubsystemContextHandle<M> {
 	}
 }
 
-/// Make a test subsystem context.
+/// Make a test subsystem context with `buffer_size == 0`. This is used by most
+/// of the tests.
 pub fn make_subsystem_context<M, S>(
 	spawner: S,
 ) -> (TestSubsystemContext<M, SpawnGlue<S>>, TestSubsystemContextHandle<M>) {
-	let (overseer_tx, overseer_rx) = mpsc::channel(1);
+	make_buffered_subsystem_context(spawner, 0)
+}
+
+/// Make a test subsystem context with buffered overseer channel. Some tests (e.g.
+/// `dispute-coordinator`) create too many parallel operations and deadlock unless
+/// the channel is buffered. Usually `buffer_size=1` is enough.
+pub fn make_buffered_subsystem_context<M, S>(
+	spawner: S,
+	buffer_size: usize,
+) -> (TestSubsystemContext<M, SpawnGlue<S>>, TestSubsystemContextHandle<M>) {
+	let (overseer_tx, overseer_rx) = mpsc::channel(buffer_size);
 	let (all_messages_tx, all_messages_rx) = mpsc::unbounded();
 
 	(

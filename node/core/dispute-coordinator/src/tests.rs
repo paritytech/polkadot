@@ -55,7 +55,9 @@ use polkadot_node_subsystem::{
 	messages::{AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
-use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_test_helpers::{
+	make_buffered_subsystem_context, TestSubsystemContextHandle,
+};
 use polkadot_primitives::v2::{
 	ApprovalVote, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
 	CandidateReceipt, CoreIndex, DisputeStatement, GroupIndex, Hash, HeadData, Header, IndexedVec,
@@ -523,7 +525,7 @@ impl TestState {
 		F: FnOnce(TestState, VirtualOverseer) -> BoxFuture<'static, TestState>,
 	{
 		self.known_session = None;
-		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
+		let (ctx, ctx_handle) = make_buffered_subsystem_context(TaskExecutor::new(), 1);
 		let subsystem = DisputeCoordinatorSubsystem::new(
 			self.db.clone(),
 			self.config.clone(),
