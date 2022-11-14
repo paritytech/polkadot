@@ -215,6 +215,22 @@ struct ImportPipeline {
 	pending_work: HashMap<MessageSubject, bool>,
 }
 
+
+// TODO: Implement Stream interface.
+
+// impl Stream for ImportPipeline {
+// 	type Item = PendingWorkResult;
+
+// 	fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<Self::Item>> {
+// 		loop {
+// 			match Pin::new(&mut self.pending_assignment_checks).poll_next(ctx) {
+// 				Poll::Ready(None) => return Poll::Ready(None),
+// 				Poll::Pending => return Poll::Pending,
+// 			}
+// 		}
+// 	}
+// }
+
 impl ImportPipeline {
 	fn pop_next_message(
 		&mut self,
@@ -884,12 +900,20 @@ impl State {
 
 		// Do not start importing if we are alreay processing a message. Queue message for later.
 		if !self.import_pipeline.is_queue_idle(&message_subject) && source.peer_id().is_some() {
+			gum::debug!(
+				target: LOG_TARGET,
+				?source,
+				?message_subject,
+				"Queuing assignment message ",
+			);
+	
 			self.import_pipeline.queue_message(
 				source.peer_id().expect("just checked above; qed"),
 				PendingMessage::Assignment(assignment, claimed_candidate_index),
 			);
 			return
 		}
+
 		let entry = match self.blocks.get_mut(&block_hash) {
 			Some(entry) => entry,
 			None => {
@@ -910,7 +934,7 @@ impl State {
 		};
 
 		let peer_id = source.peer_id();
-		gum::debug!(target: LOG_TARGET, ?peer_id, ?message_subject, "Starting assignment import",);
+		gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Starting assignment import",);
 
 		if let Some(peer_id) = source.peer_id() {
 			// check if our knowledge of the peer already contains this assignment
@@ -1216,8 +1240,15 @@ impl State {
 		let message_subject = MessageSubject(block_hash, candidate_index, validator_index);
 		let message_kind = MessageKind::Approval;
 
-		// Do not start importing if we are alreay processing a message. Queue message for later.
+		// Do not start importing if we are already processing a message. Queue message for later.
 		if !self.import_pipeline.is_queue_idle(&message_subject) && source.peer_id().is_some() {
+			gum::debug!(
+				target: LOG_TARGET,
+				?source,
+				?message_subject,
+				"Queuing approval message ",
+			);
+	
 			self.import_pipeline.queue_message(
 				source.peer_id().expect("just checked above; qed"),
 				PendingMessage::Approval(vote),
@@ -1238,7 +1269,7 @@ impl State {
 		};
 
 		let peer_id = source.peer_id();
-		gum::debug!(
+		gum::trace!(
 			target: LOG_TARGET,
 			?peer_id,
 			?message_subject,
@@ -2001,10 +2032,10 @@ impl ApprovalDistribution {
 				maybe_assignment_check_result = state.import_pipeline.pending_assignment_checks.select_next_some() => {
 					match maybe_assignment_check_result {
 						Ok(assignment_check_result) => {
-							// Pick next pending work item if any.
 							let message_subject = assignment_check_result.message_subject.clone();
 							*state.import_pipeline.pending_work.entry(message_subject.clone()).or_default() = false;
 							state.finish_assignment_import_and_circulate(&mut ctx, assignment_check_result, &self.metrics, rng).await;
+							// Pick next pending message item if any.
 							if let Some((peer_id, message)) = state.import_pipeline.pop_next_message(message_subject.clone()) {
 								match message {
 									PendingMessage::Assignment(assignment, candidate_index) => {
