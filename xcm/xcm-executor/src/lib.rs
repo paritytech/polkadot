@@ -515,6 +515,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 				// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
 				let message_call = call.take_decoded().map_err(|_| XcmError::FailedToDecode)?;
+				ensure!(Config::SafeCallFilter::contains(&message_call), XcmError::NoPermission);
 				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_kind)
 					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;

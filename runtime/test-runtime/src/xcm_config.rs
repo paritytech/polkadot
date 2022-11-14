@@ -104,4 +104,5 @@ impl xcm_executor::Config for XcmConfig {
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 	type CallDispatcher = super::RuntimeCall;
+	type SafeCallFilter = Everything;
 }

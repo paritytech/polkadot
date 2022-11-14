@@ -19,7 +19,7 @@ pub use crate::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
 	AllowUnpaidExecutionFrom, FixedRateOfFungible, FixedWeightBounds, TakeWeightCredit,
 };
-use frame_support::traits::ContainsPair;
+use frame_support::traits::{ContainsPair, Everything};
 pub use frame_support::{
 	dispatch::{
 		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, GetDispatchInfo,
@@ -642,6 +642,7 @@ impl Config for TestConfig {
 	type UniversalAliases = TestUniversalAliases;
 	type MessageExporter = TestMessageExporter;
 	type CallDispatcher = TestCall;
+	type SafeCallFilter = Everything;
 }
 
 pub fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {
