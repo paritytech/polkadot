@@ -1723,6 +1723,10 @@ sp_api::impl_runtime_apis! {
 			Ok(Mmr::mmr_root())
 		}
 
+		fn num_mmr_blocks() -> Result<BlockNumber, mmr::Error> {
+			Mmr::num_mmr_blocks()
+		}
+
 		fn generate_proof(
 			block_numbers: Vec<BlockNumber>,
 			best_known_block_number: Option<BlockNumber>,

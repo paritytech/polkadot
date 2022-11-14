@@ -1704,6 +1704,10 @@ sp_api::impl_runtime_apis! {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
+		fn num_mmr_blocks() -> Result<BlockNumber, mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
 		fn generate_proof(
 			_block_numbers: Vec<BlockNumber>,
 			_best_known_block_number: Option<BlockNumber>,

@@ -1459,7 +1459,10 @@ sp_api::impl_runtime_apis! {
 
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
 		fn mmr_root() -> Result<Hash, mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
 
+		fn num_mmr_blocks() -> Result<BlockNumber, mmr::Error> {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
