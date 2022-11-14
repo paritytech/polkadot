@@ -213,7 +213,7 @@ async fn validate_using_artifact(
 		//         [`executor_intf::prepare`].
 		executor.execute(artifact_path.as_ref(), params)
 	} {
-		Err(err) => return Response::format_invalid("execute", &err.to_string()),
+		Err(err) => return Response::format_invalid("execute", &err),
 		Ok(d) => d,
 	};
 

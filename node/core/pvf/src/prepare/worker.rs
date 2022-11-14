@@ -264,7 +264,7 @@ async fn send_request(
 	tmp_file: &Path,
 	preparation_timeout: Duration,
 ) -> io::Result<()> {
-	framed_send(stream, &*code).await?;
+	framed_send(stream, &code).await?;
 	framed_send(stream, path_to_bytes(tmp_file)).await?;
 	framed_send(stream, &preparation_timeout.encode()).await?;
 	Ok(())
@@ -336,7 +336,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 					let cpu_time_elapsed = cpu_time_start.elapsed();
 
 					let mut lock = mutex.lock().await;
-					if *lock == true {
+					if *lock {
 						unreachable!(
 							"Hit the timed-out case first; \
 								  Set the mutex flag to true; \
@@ -412,7 +412,7 @@ async fn cpu_time_monitor_loop(
 		// Treat the timeout as CPU time, which is less subject to variance due to load.
 		if cpu_time_elapsed > preparation_timeout {
 			let mut lock = mutex.lock().await;
-			if *lock == true {
+			if *lock {
 				// Hit the preparation-completed case first, return from this thread.
 				return
 			}

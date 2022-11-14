@@ -364,16 +364,14 @@ async fn handle_worker_concluded(
 			// the pool up to the hard cap.
 			spawn_extra_worker(queue, false).await?;
 		}
+	} else if queue.limits.should_cull(queue.workers.len() + queue.spawn_inflight) {
+		// We no longer need services of this worker. Kill it.
+		queue.workers.remove(worker);
+		send_pool(&mut queue.to_pool_tx, pool::ToPool::Kill(worker)).await?;
 	} else {
-		if queue.limits.should_cull(queue.workers.len() + queue.spawn_inflight) {
-			// We no longer need services of this worker. Kill it.
-			queue.workers.remove(worker);
-			send_pool(&mut queue.to_pool_tx, pool::ToPool::Kill(worker)).await?;
-		} else {
-			// see if there are more work available and schedule it.
-			if let Some(job) = queue.unscheduled.next() {
-				assign(queue, worker, job).await?;
-			}
+		// see if there are more work available and schedule it.
+		if let Some(job) = queue.unscheduled.next() {
+			assign(queue, worker, job).await?;
 		}
 	}
 
