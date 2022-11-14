@@ -35,7 +35,9 @@ use polkadot_node_subsystem::{
 	PerLeafSpan, RuntimeApiError, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
-	request_availability_cores, request_persisted_validation_data, TimeoutExt,
+	request_availability_cores, request_persisted_validation_data,
+	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
+	TimeoutExt,
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, Hash, Id as ParaId,
@@ -75,20 +77,10 @@ impl ProvisionerSubsystem {
 	}
 }
 
-#[derive(Debug, Clone)]
-enum ProspectiveParachainsMode {
-	Enabled,
-	Disabled {
-		// Without prospective parachains it's necessary
-		// to track backed candidates to choose from when assembling
-		// a relay chain block.
-		backed_candidates: Vec<CandidateReceipt>,
-	},
-}
-
 /// A per-relay-parent state for the provisioning subsystem.
 pub struct PerRelayParent {
 	leaf: ActivatedLeaf,
+	backed_candidates: Vec<CandidateReceipt>,
 	prospective_parachains_mode: ProspectiveParachainsMode,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
 	is_inherent_ready: bool,
@@ -102,6 +94,7 @@ impl PerRelayParent {
 
 		Self {
 			leaf,
+			backed_candidates: Vec::new(),
 			prospective_parachains_mode,
 			signed_bitfields: Vec::new(),
 			is_inherent_ready: false,
@@ -185,36 +178,6 @@ async fn run_iteration<Context>(
 	}
 }
 
-async fn prospective_parachains_mode(
-	sender: &mut impl overseer::ProvisionerSenderTrait,
-	leaf_hash: Hash,
-) -> Result<ProspectiveParachainsMode, Error> {
-	// TODO: call a Runtime API once staging version is available
-	// https://github.com/paritytech/substrate/discussions/11338
-	//
-	// Implementation should probably be shared with backing.
-
-	let (tx, rx) = oneshot::channel();
-	sender
-		.send_message(RuntimeApiMessage::Request(leaf_hash, RuntimeApiRequest::Version(tx)))
-		.await;
-
-	let version = rx.await.map_err(Error::CanceledRuntimeApiVersion)?.map_err(Error::Runtime)?;
-
-	if version >= RuntimeApiRequest::VALIDITY_CONSTRAINTS {
-		Ok(ProspectiveParachainsMode::Enabled)
-	} else {
-		if version < 2 {
-			gum::warn!(
-				target: LOG_TARGET,
-				"Runtime API version is {}, it is expected to be at least 2. Prospective parachains are disabled",
-				version
-			);
-		}
-		Ok(ProspectiveParachainsMode::Disabled { backed_candidates: Vec::new() })
-	}
-}
-
 async fn handle_active_leaves_update(
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 	update: ActiveLeavesUpdate,
@@ -286,7 +249,8 @@ async fn send_inherent_data_bg<Context>(
 ) -> Result<(), Error> {
 	let leaf = per_relay_parent.leaf.clone();
 	let signed_bitfields = per_relay_parent.signed_bitfields.clone();
-	let prospective_parachains_mode = per_relay_parent.prospective_parachains_mode.clone();
+	let backed_candidates = per_relay_parent.backed_candidates.clone();
+	let mode = per_relay_parent.prospective_parachains_mode;
 	let span = per_relay_parent.span.child("req-inherent-data");
 
 	let mut sender = ctx.sender().clone();
@@ -304,7 +268,8 @@ async fn send_inherent_data_bg<Context>(
 		let send_result = send_inherent_data(
 			&leaf,
 			&signed_bitfields,
-			&prospective_parachains_mode,
+			&backed_candidates,
+			mode,
 			return_senders,
 			&mut sender,
 			&metrics,
@@ -367,11 +332,7 @@ fn note_provisionable_data(
 				.child("provisionable-backed")
 				.with_candidate(candidate_hash)
 				.with_para_id(backed_candidate.descriptor().para_id);
-			if let ProspectiveParachainsMode::Disabled { backed_candidates } =
-				&mut per_relay_parent.prospective_parachains_mode
-			{
-				backed_candidates.push(backed_candidate)
-			}
+			per_relay_parent.backed_candidates.push(backed_candidate);
 		},
 		_ => {},
 	}
@@ -399,7 +360,8 @@ type CoreAvailability = BitVec<u8, bitvec::order::Lsb0>;
 async fn send_inherent_data(
 	leaf: &ActivatedLeaf,
 	bitfields: &[SignedAvailabilityBitfield],
-	prospective_parachains_mode: &ProspectiveParachainsMode,
+	candidates: &[CandidateReceipt],
+	prospective_parachains_mode: ProspectiveParachainsMode,
 	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
 	from_job: &mut impl overseer::ProvisionerSenderTrait,
 	metrics: &Metrics,
@@ -454,6 +416,7 @@ async fn send_inherent_data(
 	let candidates = select_candidates(
 		&availability_cores,
 		&bitfields,
+		candidates,
 		prospective_parachains_mode,
 		leaf.hash,
 		from_job,
@@ -724,18 +687,19 @@ async fn request_backable_candidates(
 async fn select_candidates(
 	availability_cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
-	prospective_parachains_mode: &ProspectiveParachainsMode,
+	candidates: &[CandidateReceipt],
+	prospective_parachains_mode: ProspectiveParachainsMode,
 	relay_parent: Hash,
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 ) -> Result<Vec<BackedCandidate>, Error> {
 	let selected_candidates = match prospective_parachains_mode {
 		ProspectiveParachainsMode::Enabled =>
 			request_backable_candidates(availability_cores, bitfields, relay_parent, sender).await?,
-		ProspectiveParachainsMode::Disabled { backed_candidates } =>
+		ProspectiveParachainsMode::Disabled =>
 			select_candidate_hashes_from_tracked(
 				availability_cores,
 				bitfields,
-				&backed_candidates,
+				&candidates,
 				relay_parent,
 				sender,
 			)

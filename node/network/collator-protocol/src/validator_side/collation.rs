@@ -32,11 +32,12 @@ use std::collections::VecDeque;
 
 use polkadot_node_network_protocol::PeerId;
 use polkadot_node_primitives::PoV;
+use polkadot_node_subsystem_util::runtime::ProspectiveParachainsMode;
 use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CollatorId, Hash, Id as ParaId, PersistedValidationData,
 };
 
-use crate::{error::SecondingError, ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH};
+use crate::{error::SecondingError, LOG_TARGET, MAX_CANDIDATE_DEPTH};
 
 /// Candidate supplied with a para head it's built on top of.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -109,6 +110,21 @@ impl PendingCollation {
 			commitments_hash: None,
 		}
 	}
+}
+
+/// vstaging advertisement that was rejected by the backing
+/// subsystem. Validator may fetch it later if its fragment
+/// membership gets recognized before relay parent goes out of view.
+#[derive(Debug, Clone)]
+pub struct BlockedAdvertisement {
+	/// Peer that advertised the collation.
+	pub peer_id: PeerId,
+	/// Collator id.
+	pub collator_id: CollatorId,
+	/// The relay-parent of the candidate.
+	pub candidate_relay_parent: Hash,
+	/// Hash of the candidate.
+	pub candidate_hash: CandidateHash,
 }
 
 /// Performs a sanity check between advertised and fetched collations.

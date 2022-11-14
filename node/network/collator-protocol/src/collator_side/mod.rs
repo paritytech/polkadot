@@ -46,7 +46,10 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	backing_implicit_view::View as ImplicitView,
-	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
+	runtime::{
+		get_availability_cores, get_group_rotation_info, prospective_parachains_mode,
+		ProspectiveParachainsMode, RuntimeInfo,
+	},
 	TimeoutExt,
 };
 use polkadot_primitives::v2::{
@@ -54,9 +57,7 @@ use polkadot_primitives::v2::{
 	GroupIndex, Hash, Id as ParaId, SessionIndex,
 };
 
-use super::{
-	prospective_parachains_mode, ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH,
-};
+use super::{LOG_TARGET, MAX_CANDIDATE_DEPTH};
 use crate::{
 	error::{log_error, Error, FatalError, Result},
 	modify_reputation,
@@ -544,10 +545,8 @@ async fn determine_our_validators<Context>(
 	let rotation_info = get_group_rotation_info(ctx.sender(), relay_parent).await?;
 
 	let current_group_index = rotation_info.group_for_core(core_index, cores);
-	let current_validators = groups
-		.get(current_group_index.0 as usize)
-		.map(|v| v.as_slice())
-		.unwrap_or_default();
+	let current_validators =
+		groups.get(current_group_index).map(|v| v.as_slice()).unwrap_or_default();
 
 	let validators = &info.discovery_keys;
 
@@ -788,12 +787,6 @@ async fn process_msg<Context>(
 				},
 			}
 		},
-		ReportCollator(_) => {
-			gum::warn!(
-				target: LOG_TARGET,
-				"ReportCollator message is not expected on the collator side of the protocol",
-			);
-		},
 		NetworkBridgeUpdate(event) => {
 			// We should count only this shoulder in the histogram, as other shoulders are just introducing noise
 			let _ = state.metrics.time_process_msg();
@@ -806,7 +799,13 @@ async fn process_msg<Context>(
 				);
 			}
 		},
-		_ => {},
+		msg @ (ReportCollator(..) | Invalid(..) | Seconded(..) | Backed { .. }) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				"{:?} message is not expected on the collator side of the protocol",
+				msg,
+			);
+		},
 	}
 
 	Ok(())

@@ -34,12 +34,10 @@ use polkadot_node_network_protocol::{
 	request_response::{v1 as request_v1, vstaging as protocol_vstaging, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v2::{CollatorPair, Hash};
+use polkadot_primitives::v2::CollatorPair;
 
 use polkadot_node_subsystem::{
-	errors::SubsystemError,
-	messages::{NetworkBridgeTxMessage, RuntimeApiMessage, RuntimeApiRequest},
-	overseer, SpawnedSubsystem,
+	errors::SubsystemError, messages::NetworkBridgeTxMessage, overseer, SpawnedSubsystem,
 };
 
 mod error;
@@ -188,49 +186,4 @@ fn tick_stream(period: Duration) -> impl FusedStream<Item = ()> {
 		Some(((), wait_until_next_tick(next_check, period).await))
 	})
 	.fuse()
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum ProspectiveParachainsMode {
-	// v2 runtime API: no prospective parachains.
-	Disabled,
-	// vstaging runtime API: prospective parachains.
-	Enabled,
-}
-
-impl ProspectiveParachainsMode {
-	fn is_enabled(&self) -> bool {
-		matches!(self, Self::Enabled)
-	}
-}
-
-async fn prospective_parachains_mode<Sender>(
-	sender: &mut Sender,
-	leaf_hash: Hash,
-) -> Result<ProspectiveParachainsMode, error::Error>
-where
-	Sender: polkadot_node_subsystem::CollatorProtocolSenderTrait,
-{
-	let (tx, rx) = futures::channel::oneshot::channel();
-	sender
-		.send_message(RuntimeApiMessage::Request(leaf_hash, RuntimeApiRequest::Version(tx)))
-		.await;
-
-	let version = rx
-		.await
-		.map_err(error::Error::CancelledRuntimeApiVersion)?
-		.map_err(error::Error::RuntimeApi)?;
-
-	if version >= RuntimeApiRequest::VALIDITY_CONSTRAINTS {
-		Ok(ProspectiveParachainsMode::Enabled)
-	} else {
-		if version < 2 {
-			gum::warn!(
-				target: LOG_TARGET,
-				"Runtime API version is {}, it is expected to be at least 2. Prospective parachains are disabled",
-				version
-			);
-		}
-		Ok(ProspectiveParachainsMode::Disabled)
-	}
 }

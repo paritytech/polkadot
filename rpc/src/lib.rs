@@ -108,7 +108,11 @@ where
 		+ Sync
 		+ 'static,
 	C::Api: frame_rpc_system::AccountNonceApi<Block, AccountId, Nonce>,
-	C::Api: pallet_mmr_rpc::MmrRuntimeApi<Block, <Block as sp_runtime::traits::Block>::Hash>,
+	C::Api: pallet_mmr_rpc::MmrRuntimeApi<
+		Block,
+		<Block as sp_runtime::traits::Block>::Hash,
+		BlockNumber,
+	>,
 	C::Api: pallet_transaction_payment_rpc::TransactionPaymentRuntimeApi<Block, Balance>,
 	C::Api: BabeApi<Block>,
 	C::Api: BlockBuilder<Block>,

@@ -959,6 +959,7 @@ fn backing_works() {
 		.build();
 
 		let candidate_a_hash = candidate_a.hash();
+		let candidate_a_para_head = candidate_a.descriptor().para_head;
 
 		let public1 = CryptoStore::sr25519_generate_new(
 			&*test_state.keystore,
@@ -1034,7 +1035,7 @@ fn backing_works() {
 		)
 		.await;
 
-		// Prospective parachains are notified about candidate backed.
+		// Prospective parachains and collator protocol are notified about candidate backed.
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::ProspectiveParachains(
@@ -1043,17 +1044,12 @@ fn backing_works() {
 				),
 			) if candidate_a_hash == candidate_hash && candidate_para_id == para_id
 		);
-
 		assert_matches!(
 			virtual_overseer.recv().await,
-			AllMessages::Provisioner(
-				ProvisionerMessage::ProvisionableData(
-					_,
-					ProvisionableData::BackedCandidate(candidate_receipt)
-				)
-			) => {
-				assert_eq!(candidate_receipt, candidate_a.to_plain());
-			}
+			AllMessages::CollatorProtocol(CollatorProtocolMessage::Backed {
+				para_id: _para_id,
+				para_head,
+			}) if para_id == _para_id && candidate_a_para_head == para_head
 		);
 
 		assert_matches!(
@@ -1267,7 +1263,7 @@ fn concurrent_dependent_candidates() {
 				AllMessages::ProspectiveParachains(
 					ProspectiveParachainsMessage::CandidateBacked(..),
 				) => {},
-				AllMessages::Provisioner(ProvisionerMessage::ProvisionableData(..)) => {},
+				AllMessages::CollatorProtocol(CollatorProtocolMessage::Backed { .. }) => {},
 				AllMessages::StatementDistribution(StatementDistributionMessage::Share(
 					_,
 					statement,

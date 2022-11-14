@@ -304,6 +304,7 @@ pub mod pallet {
 	// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
 	// the format will require migration of parachains.
 	#[pallet::storage]
+	#[pallet::getter(fn relay_dispatch_queue_size)]
 	pub type RelayDispatchQueueSize<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, (u32, u32), ValueQuery>;
 

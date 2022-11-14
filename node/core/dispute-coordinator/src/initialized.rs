@@ -372,7 +372,7 @@ impl Initialized {
 				.filter_map(|(validator_index, attestation)| {
 					let validator_public: ValidatorId = session_info
 						.validators
-						.get(validator_index.0 as usize)
+						.get(validator_index)
 						.or_else(|| {
 							gum::error!(
 								target: LOG_TARGET,
@@ -473,7 +473,7 @@ impl Initialized {
 
 					let validator_public: ValidatorId = session_info
 						.validators
-						.get(validator_index.0 as usize)
+						.get(validator_index)
 						.or_else(|| {
 							gum::error!(
 								target: LOG_TARGET,
@@ -869,12 +869,21 @@ impl Initialized {
 			}
 		}
 
+		let has_own_vote = new_state.has_own_vote();
+		let is_disputed = new_state.is_disputed();
+		let has_controlled_indices = !env.controlled_indices().is_empty();
+		let is_backed = self.scraper.is_candidate_backed(&candidate_hash);
+		let is_confirmed = new_state.is_confirmed();
+		// We participate only in disputes which are included, backed or confirmed
+		let allow_participation = is_included || is_backed || is_confirmed;
+
 		// Participate in dispute if we did not cast a vote before and actually have keys to cast a
-		// local vote:
-		if !new_state.has_own_vote() &&
-			new_state.is_disputed() &&
-			!env.controlled_indices().is_empty()
-		{
+		// local vote. Disputes should fall in one of the categories below, otherwise we will refrain
+		// from participation:
+		// - `is_included` lands in prioritised queue
+		// - `is_confirmed` | `is_backed` lands in best effort queue
+		// We don't participate in disputes on finalized candidates.
+		if !has_own_vote && is_disputed && has_controlled_indices && allow_participation {
 			let priority = ParticipationPriority::with_priority_if(is_included);
 			gum::trace!(
 				target: LOG_TARGET,
@@ -896,6 +905,23 @@ impl Initialized {
 				)
 				.await;
 			log_error(r)?;
+		} else {
+			gum::trace!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				?is_confirmed,
+				?has_own_vote,
+				?is_disputed,
+				?has_controlled_indices,
+				?allow_participation,
+				?is_included,
+				?is_backed,
+				"Will not queue participation for candidate"
+			);
+
+			if !allow_participation {
+				self.metrics.on_refrained_participation();
+			}
 		}
 
 		// Also send any already existing approval vote on new disputes:
@@ -903,7 +929,7 @@ impl Initialized {
 			let no_votes = Vec::new();
 			let our_approval_votes = new_state.own_approval_votes().unwrap_or(&no_votes);
 			for (validator_index, sig) in our_approval_votes {
-				let pub_key = match env.validators().get(validator_index.0 as usize) {
+				let pub_key = match env.validators().get(*validator_index) {
 					None => {
 						gum::error!(
 							target: LOG_TARGET,
@@ -1097,7 +1123,10 @@ impl Initialized {
 				valid,
 				candidate_hash,
 				session,
-				env.validators()[index.0 as usize].clone(),
+				env.validators()
+					.get(*index)
+					.expect("`controlled_indices` are derived from `validators`; qed")
+					.clone(),
 			)
 			.await;
 
@@ -1238,7 +1267,7 @@ fn make_dispute_message(
 				our_vote.candidate_hash().clone(),
 				our_vote.session_index(),
 				validators
-					.get(validator_index.0 as usize)
+					.get(*validator_index)
 					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
 					.clone(),
 				validator_signature.clone(),
@@ -1253,7 +1282,7 @@ fn make_dispute_message(
 				our_vote.candidate_hash().clone(),
 				our_vote.session_index(),
 				validators
-					.get(validator_index.0 as usize)
+					.get(*validator_index)
 					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
 					.clone(),
 				validator_signature.clone(),

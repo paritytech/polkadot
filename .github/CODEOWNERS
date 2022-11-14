@@ -2,3 +2,5 @@
 /.github/ @paritytech/ci @chevdor
 /scripts/ci/ @paritytech/ci @chevdor
 /.gitlab-ci.yml @paritytech/ci
+# lingua.dic is not managed by CI team
+/scripts/ci/gitlab/lingua.dic

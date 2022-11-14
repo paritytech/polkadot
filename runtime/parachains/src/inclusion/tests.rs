@@ -22,7 +22,7 @@ use crate::{
 		new_test_ext, Configuration, MockGenesisConfig, ParaInclusion, Paras, ParasShared,
 		Scheduler, System, Test,
 	},
-	paras::ParaGenesisArgs,
+	paras::{ParaGenesisArgs, ParaKind},
 	paras_inherent::DisputedBitfield,
 	scheduler::AssignmentKind,
 	shared::AllowedRelayParentsTracker,
@@ -53,18 +53,18 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 	config
 }
 
-pub(crate) fn genesis_config(paras: Vec<(ParaId, bool)>) -> MockGenesisConfig {
+pub(crate) fn genesis_config(paras: Vec<(ParaId, ParaKind)>) -> MockGenesisConfig {
 	MockGenesisConfig {
 		paras: paras::GenesisConfig {
 			paras: paras
 				.into_iter()
-				.map(|(id, is_chain)| {
+				.map(|(id, para_kind)| {
 					(
 						id,
 						ParaGenesisArgs {
 							genesis_head: Vec::new().into(),
 							validation_code: dummy_validation_code(),
-							parachain: is_chain,
+							para_kind,
 						},
 					)
 				})
@@ -329,7 +329,11 @@ fn collect_pending_cleans_up_pending() {
 	let chain_b = ParaId::from(2_u32);
 	let thread_a = ParaId::from(3_u32);
 
-	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+	let paras = vec![
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
+	];
 	new_test_ext(genesis_config(paras)).execute_with(|| {
 		let default_candidate = TestCandidateBuilder::default().build();
 		<PendingAvailability<Test>>::insert(
@@ -387,7 +391,11 @@ fn bitfield_checks() {
 	let chain_b = ParaId::from(2_u32);
 	let thread_a = ParaId::from(3_u32);
 
-	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+	let paras = vec![
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
+	];
 	let validators = vec![
 		Sr25519Keyring::Alice,
 		Sr25519Keyring::Bob,
@@ -730,7 +738,11 @@ fn supermajority_bitfields_trigger_availability() {
 	let chain_b = ParaId::from(2_u32);
 	let thread_a = ParaId::from(3_u32);
 
-	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+	let paras = vec![
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
+	];
 	let validators = vec![
 		Sr25519Keyring::Alice,
 		Sr25519Keyring::Bob,
@@ -918,7 +930,11 @@ fn candidate_checks() {
 	// The block number of the relay-parent for testing.
 	const RELAY_PARENT_NUM: BlockNumber = 4;
 
-	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+	let paras = vec![
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
+	];
 	let validators = vec![
 		Sr25519Keyring::Alice,
 		Sr25519Keyring::Bob,
@@ -1490,7 +1506,11 @@ fn backing_works() {
 	// The block number of the relay-parent for testing.
 	const RELAY_PARENT_NUM: BlockNumber = 4;
 
-	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+	let paras = vec![
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
+	];
 	let validators = vec![
 		Sr25519Keyring::Alice,
 		Sr25519Keyring::Bob,
@@ -1777,7 +1797,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 	// The block number of the relay-parent for testing.
 	const RELAY_PARENT_NUM: BlockNumber = 4;
 
-	let paras = vec![(chain_a, true)];
+	let paras = vec![(chain_a, ParaKind::Parachain)];
 	let validators = vec![
 		Sr25519Keyring::Alice,
 		Sr25519Keyring::Bob,
@@ -1896,7 +1916,11 @@ fn check_allowed_relay_parents() {
 	// The block number of the relay-parent for testing.
 	const RELAY_PARENT_NUM: BlockNumber = 4;
 
-	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+	let paras = vec![
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
+	];
 	let validators = vec![
 		Sr25519Keyring::Alice,
 		Sr25519Keyring::Bob,
@@ -2080,7 +2104,11 @@ fn session_change_wipes() {
 	let chain_b = ParaId::from(2_u32);
 	let thread_a = ParaId::from(3_u32);
 
-	let paras = vec![(chain_a, true), (chain_b, true), (thread_a, false)];
+	let paras = vec![
+		(chain_a, ParaKind::Parachain),
+		(chain_b, ParaKind::Parachain),
+		(thread_a, ParaKind::Parathread),
+	];
 	let validators = vec![
 		Sr25519Keyring::Alice,
 		Sr25519Keyring::Bob,
