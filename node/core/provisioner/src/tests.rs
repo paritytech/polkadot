@@ -350,7 +350,7 @@ mod select_candidates {
 				AllMessages::ProspectiveParachains(
 					ProspectiveParachainsMessage::GetBackableCandidate(.., tx),
 				) => match prospective_parachains_mode {
-					ProspectiveParachainsMode::Enabled => {
+					ProspectiveParachainsMode::Enabled { .. } => {
 						let _ = tx.send(candidates.next());
 					},
 					ProspectiveParachainsMode::Disabled =>
@@ -572,7 +572,8 @@ mod select_candidates {
 		let expected_candidates: Vec<_> =
 			[1, 4, 7, 8, 10].iter().map(|&idx| candidates[idx].clone()).collect();
 		// Expect prospective parachains subsystem requests.
-		let prospective_parachains_mode = ProspectiveParachainsMode::Enabled;
+		let prospective_parachains_mode =
+			ProspectiveParachainsMode::Enabled { max_candidate_depth: 0, allowed_ancestry_len: 0 };
 
 		let expected_backed = expected_candidates
 			.iter()
@@ -587,7 +588,16 @@ mod select_candidates {
 			.collect();
 
 		test_harness(
-			|r| mock_overseer(r, expected_backed, ProspectiveParachainsMode::Enabled),
+			|r| {
+				mock_overseer(
+					r,
+					expected_backed,
+					ProspectiveParachainsMode::Enabled {
+						max_candidate_depth: 0,
+						allowed_ancestry_len: 0,
+					},
+				)
+			},
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,

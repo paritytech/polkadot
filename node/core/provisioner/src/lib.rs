@@ -693,7 +693,7 @@ async fn select_candidates(
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 ) -> Result<Vec<BackedCandidate>, Error> {
 	let selected_candidates = match prospective_parachains_mode {
-		ProspectiveParachainsMode::Enabled =>
+		ProspectiveParachainsMode::Enabled { .. } =>
 			request_backable_candidates(availability_cores, bitfields, relay_parent, sender).await?,
 		ProspectiveParachainsMode::Disabled =>
 			select_candidate_hashes_from_tracked(
