@@ -142,9 +142,6 @@ pub trait RuntimeApiSubsystemClient {
 
 	/***** Added in v2 *****/
 
-	/// Get the execution environment parameter set by parent hash, if stored
-	async fn session_executor_params(&self, at: Hash) -> Result<Option<ExecutorParams>, ApiError>;
-
 	/// Get the session info for the given session, if stored.
 	///
 	/// NOTE: This function is only available since parachain host version 2.
@@ -188,12 +185,17 @@ pub trait RuntimeApiSubsystemClient {
 		assumption: OccupiedCoreAssumption,
 	) -> Result<Option<ValidationCodeHash>, ApiError>;
 
+	/***** Added in v3 *****/
+
 	/// Returns all onchain disputes.
 	/// This is a staging method! Do not use on production runtimes!
 	async fn disputes(
 		&self,
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
+
+	/// Get the execution environment parameter set by parent hash, if stored
+	async fn session_executor_params(&self, at: Hash) -> Result<Option<ExecutorParams>, ApiError>;
 
 	// === BABE API ===
 

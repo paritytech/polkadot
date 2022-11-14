@@ -2392,9 +2392,6 @@ async fn launch_approval<Context>(
 					block_hash,
 				);
 
-				// FIXME: Is metrics_guard call needed?
-				// No dispute necessary, as this indicates that the chain is not behaving
-				// according to expectations.
 				metrics_guard.take().on_approval_unavailable();
 				return ApprovalState::failed(validator_index, candidate_hash)
 			},

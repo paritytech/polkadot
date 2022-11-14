@@ -23,6 +23,7 @@
 
 use crate::v2::{BlakeTwo256, HashT as _};
 use parity_scale_codec::{Decode, Encode};
+#[cfg(feature = "std")]
 use parity_util_mem::MallocSizeOf;
 use polkadot_core_primitives::Hash;
 use scale_info::TypeInfo;
@@ -79,7 +80,8 @@ impl From<[u8; 32]> for ExecutorParamsHash {
 }
 
 /// Deterministically serialized execution environment semantics
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, MallocSizeOf, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub struct ExecutorParams(Vec<(u32, Vec<u8>)>);
 
 impl ExecutorParams {

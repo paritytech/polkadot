@@ -27,7 +27,7 @@ trie = { package = "sp-trie", git = "https://github.com/paritytech/substrate", b
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 hex-literal = "0.3.4"
-parity-util-mem = { version = "0.12.0", default-features = false }
+parity-util-mem = { version = "0.12.0", default-features = false, optional = true }
 
 [features]
 default = ["std"]
@@ -49,6 +49,7 @@ std = [
 	"sp-arithmetic/std",
 	"runtime_primitives/std",
 	"serde",
+	"parity-util-mem",
 	"polkadot-parachain/std",
 	"polkadot-core-primitives/std",
 	"bitvec/std",
