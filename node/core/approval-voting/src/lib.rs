@@ -1144,7 +1144,7 @@ async fn handle_from_overseer<Context>(
 		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let mut actions = Vec::new();
 
-			for activated in update.activated {
+			if let Some(activated) = update.activated {
 				let head = activated.hash;
 				match import::handle_new_head(ctx, state, db, head, &*last_finalized_height).await {
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
