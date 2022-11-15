@@ -616,7 +616,11 @@ mod tests {
 
 		let w = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w));
-		test.send_from_pool(pool::FromPool::Concluded { worker: w, rip: false, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w,
+			rip: false,
+			result: Ok(Duration::default()),
+		});
 
 		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
 	}
@@ -645,7 +649,11 @@ mod tests {
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
-		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: false, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w1,
+			rip: false,
+			result: Ok(Duration::default()),
+		});
 
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
@@ -691,7 +699,11 @@ mod tests {
 		// That's a bit silly in this context, but in production there will be an entire pool up
 		// to the `soft_capacity` of workers and it doesn't matter which one to cull. Either way,
 		// we just check that edge case of an edge case works.
-		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: false, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w1,
+			rip: false,
+			result: Ok(Duration::default()),
+		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Kill(w1));
 	}
 
@@ -717,7 +729,11 @@ mod tests {
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		// Conclude worker 1 and rip it.
-		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: true, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w1,
+			rip: true,
+			result: Ok(Duration::default()),
+		});
 
 		// Since there is still work, the queue requested one extra worker to spawn to handle the
 		// remaining enqueued work items.

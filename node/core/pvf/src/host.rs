@@ -1017,8 +1017,8 @@ mod tests {
 		let mut builder = Builder::default();
 		builder.cleanup_pulse_interval = Duration::from_millis(100);
 		builder.artifact_ttl = Duration::from_millis(500);
-		builder.artifacts.insert_prepared(artifact_id(1), mock_now);
-		builder.artifacts.insert_prepared(artifact_id(2), mock_now);
+		builder.artifacts.insert_prepared(artifact_id(1), mock_now, Duration::default());
+		builder.artifacts.insert_prepared(artifact_id(2), mock_now, Duration::default());
 		let mut test = builder.build();
 		let mut host = test.host_handle();
 
@@ -1088,7 +1088,10 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		let result_tx_pvf_1_1 = assert_matches!(
@@ -1101,7 +1104,10 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(2), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(2),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		let result_tx_pvf_2 = assert_matches!(
@@ -1150,13 +1156,16 @@ mod tests {
 		);
 		// Send `Ok` right away and poll the host.
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		// No pending execute requests.
 		test.poll_ensure_to_execute_queue_is_empty().await;
 		// Received the precheck result.
-		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
+		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(_));
 
 		// Send multiple requests for the same PVF.
 		let mut precheck_receivers = Vec::new();
@@ -1254,7 +1263,10 @@ mod tests {
 			prepare::ToQueue::Enqueue { .. }
 		);
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(2), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(2),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		// The execute queue receives new request, preckecking is finished and we can
@@ -1264,7 +1276,7 @@ mod tests {
 			execute::ToQueue::Enqueue { .. }
 		);
 		for result_rx in precheck_receivers {
-			assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
+			assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(_));
 		}
 	}
 
@@ -1512,7 +1524,10 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 

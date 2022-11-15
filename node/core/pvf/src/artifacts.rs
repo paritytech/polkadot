@@ -173,11 +173,16 @@ impl Artifacts {
 	/// This function must be used only for brand-new artifacts and should never be used for
 	/// replacing existing ones.
 	#[cfg(test)]
-	pub fn insert_prepared(&mut self, artifact_id: ArtifactId, last_time_needed: SystemTime) {
+	pub fn insert_prepared(
+		&mut self,
+		artifact_id: ArtifactId,
+		last_time_needed: SystemTime,
+		cpu_time_elapsed: Duration,
+	) {
 		// See the precondition.
 		always!(self
 			.artifacts
-			.insert(artifact_id, ArtifactState::Prepared { last_time_needed })
+			.insert(artifact_id, ArtifactState::Prepared { last_time_needed, cpu_time_elapsed })
 			.is_none());
 	}
 

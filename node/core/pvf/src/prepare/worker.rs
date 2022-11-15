@@ -302,7 +302,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 				"worker: preparing artifact",
 			);
 
-			// Create a static Mutex. We lock it when either thread finishes and set a flag.
+			// Create a shared Mutex. We lock it when either thread finishes and set the flag.
 			let mutex = Arc::new(Mutex::new(false));
 
 			let cpu_time_start = ProcessTime::now();
