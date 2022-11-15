@@ -103,7 +103,7 @@
 //! The artifact is saved on disk and is also tracked by an in memory table. This in memory table
 //! doesn't contain the artifact contents though, only a flag that the given artifact is compiled.
 //!
-//! Each fixed interval of time a pruning task will run. This task will remove all artifacts that
+//! A pruning task will run at a fixed interval of time. This task will remove all artifacts that
 //! weren't used or received a heads up signal for a while.
 //!
 //!	## Execution
