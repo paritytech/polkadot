@@ -64,7 +64,7 @@ async fn request_disputes(
 			};
 			recent_disputes
 				.into_iter()
-				.map(|(sesion_idx, candodate_hash, _)| (sesion_idx, candodate_hash))
+				.map(|(session_idx, candidate_hash, _)| (session_idx, candidate_hash))
 				.collect::<Vec<_>>()
 		},
 		RequestType::Active => {
