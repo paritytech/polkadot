@@ -31,7 +31,9 @@ use futures::{
 
 use polkadot_node_subsystem_util::database::Database;
 
-use polkadot_node_primitives::{SignedDisputeStatement, SignedFullStatement, Statement};
+use polkadot_node_primitives::{
+	DisputeStatus, SignedDisputeStatement, SignedFullStatement, Statement,
+};
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalVotingMessage, ChainApiMessage, DisputeCoordinatorMessage,
@@ -682,7 +684,10 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -812,7 +817,10 @@ fn approval_vote_import_works() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -934,7 +942,10 @@ fn dispute_gets_confirmed_via_participation() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -1099,7 +1110,10 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Confirmed)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -1358,7 +1372,10 @@ fn conflicting_votes_lead_to_dispute_participation() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
