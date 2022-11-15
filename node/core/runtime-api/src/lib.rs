@@ -27,7 +27,7 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest as Request},
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
-use polkadot_node_subsystem_types::RuntimeApiSubsystemClient;
+use polkadot_node_subsystem_types::{ApiError, RuntimeApiSubsystemClient};
 use polkadot_primitives::Hash;
 
 use cache::{RequestResult, RequestResultCache};
@@ -355,33 +355,55 @@ where
 			let sender = $sender;
 			let version: u32 = $version;	// enforce type for the version expression
 			let runtime_version = client.api_version_parachain_host(relay_parent).await
-				.unwrap_or_else(|e| {
-					gum::warn!(
-						target: LOG_TARGET,
-						"cannot query the runtime API version: {}",
-						e,
-					);
-					Some(0)
+				.map_err(|e| {
+					if let ApiError::UnknownBlock(s) = e {
+						// We want a specific indication for this error. It generally indicates that the runtime api is
+						// called for a block which is already pruned. Legitimate reasons for this may be block restart.
+						// Separate value in `RuntimeApiError` enum allows the caller to handle it properly.
+						gum::warn!(
+							target: LOG_TARGET,
+							"cannot query the runtime API version due to UnknownBlock error: {}",
+							s,
+						);
+						RuntimeApiError::UnknownBlock{runtime_api_name: stringify!($api_name)}
+					} else {
+						gum::warn!(
+							target: LOG_TARGET,
+							"cannot query the runtime API version due to error: {}",
+							e,
+						);
+						RuntimeApiError::Execution{runtime_api_name: stringify!($api_name), source: std::sync::Arc::new(e)}
+					}
 				})
-				.unwrap_or_else(|| {
-					gum::warn!(
-						target: LOG_TARGET,
-						"no runtime version is reported"
-					);
-					0
+				.map(|v| {
+					match v {
+						Some(v) => v,
+						None => {
+							gum::warn!(
+								target: LOG_TARGET,
+								"no runtime version is reported"
+							);
+							0
+						}
+					}
 				});
 
-			let res = if runtime_version >= version {
-				client.$api_name(relay_parent $(, $param.clone() )*).await
+			let res = match runtime_version {
+				Ok(runtime_version) if runtime_version >= version => {
+					client.$api_name(relay_parent $(, $param.clone() )*).await
 					.map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: stringify!($api_name),
 						source: std::sync::Arc::new(e),
 					})
-			} else {
-				Err(RuntimeApiError::NotSupported {
-					runtime_api_name: stringify!($api_name),
-				})
+				},
+				Ok(_) => {
+					Err(RuntimeApiError::NotSupported {
+						runtime_api_name: stringify!($api_name),
+					})
+				}
+				Err(e) => Err(e)
 			};
+
 			metrics.on_request(res.is_ok());
 			let _ = sender.send(res.clone());
 

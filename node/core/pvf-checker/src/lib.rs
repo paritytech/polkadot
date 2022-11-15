@@ -518,7 +518,7 @@ async fn sign_and_submit_pvf_check_statement(
 				target: LOG_TARGET,
 				?relay_parent,
 				?validation_code_hash,
-				"error occured during submitting a vote: {:?}",
+				"error occurred during submitting a vote: {:?}",
 				e,
 			);
 		},

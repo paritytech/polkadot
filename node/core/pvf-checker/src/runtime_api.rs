@@ -70,6 +70,7 @@ pub(crate) enum RuntimeRequestError {
 	NotSupported,
 	ApiError,
 	CommunicationError,
+	UnknownBlock,
 }
 
 pub(crate) async fn runtime_api_request<T>(
@@ -102,6 +103,7 @@ pub(crate) async fn runtime_api_request<T>(
 						RuntimeRequestError::ApiError
 					},
 					NotSupported { .. } => RuntimeRequestError::NotSupported,
+					UnknownBlock { .. } => RuntimeRequestError::UnknownBlock,
 				}
 			})
 		})

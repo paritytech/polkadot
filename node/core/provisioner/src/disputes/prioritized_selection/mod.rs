@@ -477,6 +477,8 @@ where
 					GetOnchainDisputesError::Execution(e, relay_parent),
 				RuntimeApiError::NotSupported { .. } =>
 					GetOnchainDisputesError::NotSupported(e, relay_parent),
+				RuntimeApiError::UnknownBlock { .. } =>
+					GetOnchainDisputesError::UnknownBlock(e, relay_parent),
 			})
 		})
 		.map(|v| v.into_iter().map(|e| ((e.0, e.1), e.2)).collect())

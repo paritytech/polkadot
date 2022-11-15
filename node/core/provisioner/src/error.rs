@@ -90,6 +90,9 @@ pub enum GetOnchainDisputesError {
 
 	#[error("runtime doesn't support RuntimeApiRequest::Disputes for parent {1}")]
 	NotSupported(#[source] RuntimeApiError, Hash),
+
+	#[error("runtime api is called on unknown block {1}")]
+	UnknownBlock(#[source] RuntimeApiError, Hash),
 }
 
 pub fn log_error(result: Result<()>) -> std::result::Result<(), FatalError> {

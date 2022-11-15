@@ -39,6 +39,16 @@ pub enum RuntimeApiError {
 		/// The runtime API being called
 		runtime_api_name: &'static str,
 	},
+
+	/// The runtime API request can't be executed because the block at which the execution must
+	/// happen doesn't exist. This usually happens when the block is already pruned.
+	#[error(
+		"The runtime API {runtime_api_name} was called for an unknown (already pruned?) block"
+	)]
+	UnknownBlock {
+		/// The runtime API being called
+		runtime_api_name: &'static str,
+	},
 }
 
 /// A description of an error causing the chain API request to be unservable.

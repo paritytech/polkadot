@@ -431,6 +431,7 @@ async fn obtain_current_validation_code_hash(
 			}
 		},
 		Err(e @ RuntimeApiError::Execution { .. }) => Err(e.into()),
+		Err(e @ RuntimeApiError::UnknownBlock { .. }) => Err(e.into()),
 	}
 }
 

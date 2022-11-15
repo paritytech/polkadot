@@ -31,7 +31,7 @@ pub mod errors;
 pub mod messages;
 
 mod runtime_client;
-pub use runtime_client::RuntimeApiSubsystemClient;
+pub use runtime_client::{ApiError, RuntimeApiSubsystemClient};
 
 pub use jaeger::*;
 pub use polkadot_node_jaeger as jaeger;

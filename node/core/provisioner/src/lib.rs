@@ -739,6 +739,14 @@ async fn has_required_runtime(
 			);
 			false
 		},
+		Result::Ok(Err(RuntimeApiError::UnknownBlock { .. })) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"UnknownBlock error while fetching ParachainHost runtime api version"
+			);
+			false
+		},
 		Result::Err(_) => {
 			gum::trace!(
 				target: LOG_TARGET,
