@@ -1166,8 +1166,6 @@ impl State {
 
 		let message_state = match entry.candidates.get_mut(claimed_candidate_index as usize) {
 			Some(candidate_entry) => {
-				let peer_id = result.peer_id.clone();
-
 				// set the approval state for validator_index to Assigned
 				// unless the approval state is set already
 				candidate_entry.messages.entry(validator_index).or_insert_with(|| MessageState {
