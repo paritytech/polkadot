@@ -208,6 +208,7 @@ struct ImportPipeline {
 	/// Pending approval vote checks.
 	pub pending_vote_checks: FuturesOrdered<PendingApprovalCheck>,
 
+	/// TODO: clear keys for empty queues.
 	/// Queues for pending messages from peers.
 	pending_messages: HashMap<MessageSubject, VecDeque<(PeerId, PendingMessage)>>,
 
@@ -235,8 +236,16 @@ impl ImportPipeline {
 		&mut self,
 		message_subject: MessageSubject,
 	) -> Option<(PeerId, PendingMessage)> {
-		let queue = self.pending_messages.entry(message_subject).or_default();
-		queue.pop_front()
+		let message = {
+			let queue = self.pending_messages.entry(message_subject.clone()).or_default();
+			queue.pop_front()
+		};
+
+		if message.is_none() {
+			self.pending_messages.remove(&message_subject);
+		}
+
+		message
 	}
 
 	fn queue_message(&mut self, peer_id: PeerId, message: PendingMessage) {
@@ -251,9 +260,21 @@ impl ImportPipeline {
 		queue.push_back((peer_id, message));
 	}
 
+	pub fn set_queue_idle(&mut self, message_subject: MessageSubject, idle: bool) {
+		*self.pending_work.entry(message_subject.clone()).or_default() = idle;
+	}
+
 	pub fn is_queue_idle(&self, message_subject: &MessageSubject) -> bool {
-		if let Some(idle) = self.pending_work.get(message_subject) {
-			!*idle
+		if let Some(running) = self.pending_work.get(message_subject) {
+			!*running
+		} else {
+			true
+		}
+	}
+
+	pub fn is_queue_empty(&self, message_subject: &MessageSubject) -> bool {
+		if let Some(queue) = self.pending_messages.get(message_subject) {
+			queue.is_empty()
 		} else {
 			true
 		}
@@ -263,11 +284,11 @@ impl ImportPipeline {
 	pub fn start_check_work(&mut self, message_subject: MessageSubject, pending_work: PendingWork) {
 		match pending_work {
 			PendingWork::Approval(pending) => {
-				*self.pending_work.entry(message_subject.clone()).or_default() = true;
+				self.set_queue_idle(message_subject.clone(), true);
 				self.pending_vote_checks.push_back(pending);
 			},
 			PendingWork::Assignment(pending) => {
-				*self.pending_work.entry(message_subject.clone()).or_default() = true;
+				self.set_queue_idle(message_subject.clone(), true);
 				self.pending_assignment_checks.push_back(pending);
 			},
 		}
@@ -660,6 +681,7 @@ impl State {
 								assignment,
 								claimed_index,
 								rng,
+								false,
 							)
 							.await;
 						},
@@ -669,6 +691,7 @@ impl State {
 								metrics,
 								MessageSource::Peer(peer_id),
 								approval_vote,
+								false,
 							)
 							.await;
 						},
@@ -759,6 +782,7 @@ impl State {
 						assignment,
 						claimed_index,
 						rng,
+						false,
 					)
 					.await;
 				}
@@ -795,6 +819,7 @@ impl State {
 						metrics,
 						MessageSource::Peer(peer_id.clone()),
 						approval_vote,
+						false,
 					)
 					.await;
 				}
@@ -887,6 +912,7 @@ impl State {
 		assignment: IndirectAssignmentCert,
 		claimed_candidate_index: CandidateIndex,
 		rng: &mut R,
+		force_start: bool,
 	) where
 		R: CryptoRng + Rng,
 	{
@@ -898,7 +924,11 @@ impl State {
 		let message_kind = MessageKind::Assignment;
 
 		// Do not start importing if we are alreay processing a message. Queue message for later.
-		if !self.import_pipeline.is_queue_idle(&message_subject) && source.peer_id().is_some() {
+		if !force_start &&
+			(!self.import_pipeline.is_queue_idle(&message_subject) ||
+				!self.import_pipeline.is_queue_empty(&message_subject)) &&
+			source.peer_id().is_some()
+		{
 			gum::trace!(
 				target: LOG_TARGET,
 				?source,
@@ -941,7 +971,7 @@ impl State {
 				hash_map::Entry::Occupied(mut peer_knowledge) => {
 					let peer_knowledge = peer_knowledge.get_mut();
 					if peer_knowledge.contains(&message_subject, message_kind) {
-						// wasn't included before
+						// Check if we already received this message from this peer.
 						if !peer_knowledge.received.insert(message_subject.clone(), message_kind) {
 							gum::debug!(
 								target: LOG_TARGET,
@@ -1073,9 +1103,14 @@ impl State {
 				Some(AssignmentCheckResult::Accepted) => {
 					modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST)
 						.await;
-					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
+
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
+					}
+
+					// If we already sent our assignment, we don't want to distribute it again.
+					if !entry.knowledge.insert(message_subject.clone(), message_kind) {
+						return
 					}
 				},
 				Some(AssignmentCheckResult::AcceptedDuplicate) => {
@@ -1132,13 +1167,7 @@ impl State {
 		let message_state = match entry.candidates.get_mut(claimed_candidate_index as usize) {
 			Some(candidate_entry) => {
 				let peer_id = result.peer_id.clone();
-				gum::debug!(
-					target: LOG_TARGET,
-					?peer_id,
-					?message_subject,
-					?validator_index,
-					"Setting assignment",
-				);
+
 				// set the approval state for validator_index to Assigned
 				// unless the approval state is set already
 				candidate_entry.messages.entry(validator_index).or_insert_with(|| MessageState {
@@ -1195,27 +1224,34 @@ impl State {
 		};
 
 		let peers = entry.known_by.keys().filter(|p| peer_filter(p)).cloned().collect::<Vec<_>>();
+		// We are racing with peer view changes and new blocks which also will update knowledge and propagate via `unify_with_peer`.
+		// We need to check if the assignment has alreay been sent already to avoid duplicate messages.
+		let mut filtered_peers = Vec::new();
 
 		// Add the metadata of the assignment to the knowledge of each peer.
-		for peer in peers.iter() {
+		for peer in peers.into_iter() {
 			// we already filtered peers above, so this should always be Some
-			if let Some(peer_knowledge) = entry.known_by.get_mut(peer) {
-				peer_knowledge.sent.insert(message_subject.clone(), message_kind);
+			if let Some(peer_knowledge) = entry.known_by.get_mut(&peer) {
+				if !peer_knowledge.contains(&message_subject, message_kind) {
+					peer_knowledge.sent.insert(message_subject.clone(), message_kind);
+					filtered_peers.push(peer);
+				}
 			}
 		}
 
-		if !peers.is_empty() {
+		if !filtered_peers.is_empty() {
 			gum::trace!(
 				target: LOG_TARGET,
+				?message_subject,
 				?block_hash,
 				?claimed_candidate_index,
 				local = result.peer_id.is_none(),
-				num_peers = peers.len(),
+				num_peers = filtered_peers.len(),
 				"Sending an assignment to peers",
 			);
 
 			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-				peers,
+				filtered_peers,
 				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
 				)),
@@ -1230,6 +1266,7 @@ impl State {
 		metrics: &Metrics,
 		source: MessageSource,
 		vote: IndirectSignedApprovalVote,
+		force_start: bool,
 	) {
 		let block_hash = vote.block_hash.clone();
 		let validator_index = vote.validator;
@@ -1239,10 +1276,13 @@ impl State {
 		let message_subject = MessageSubject(block_hash, candidate_index, validator_index);
 		let message_kind = MessageKind::Approval;
 
-		// Do not start importing if we are already processing a message. Queue message for later.
-		if !self.import_pipeline.is_queue_idle(&message_subject) && source.peer_id().is_some() {
-			gum::trace!(target: LOG_TARGET, ?source, ?message_subject, "Queuing approval message ",);
-
+		// Do not start importing if we are already processing a message or have messages queued. Queue message for later.
+		if !force_start &&
+			(!self.import_pipeline.is_queue_idle(&message_subject) ||
+				!self.import_pipeline.is_queue_empty(&message_subject)) &&
+			source.peer_id().is_some()
+		{
+			gum::trace!(target: LOG_TARGET, ?source, ?message_subject, "Queuing approval message",);
 			self.import_pipeline.queue_message(
 				source.peer_id().expect("just checked above; qed"),
 				PendingMessage::Approval(vote),
@@ -1357,6 +1397,7 @@ impl State {
 				metrics,
 			)
 			.await;
+			return
 		}
 	}
 
@@ -1398,9 +1439,13 @@ impl State {
 					modify_reputation(ctx.sender(), peer_id.clone(), BENEFIT_VALID_MESSAGE_FIRST)
 						.await;
 
-					entry.knowledge.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
+					}
+
+					// If we already sent the approval, we don't want to distribute it again.
+					if !entry.knowledge.insert(message_subject.clone(), message_kind) {
+						return
 					}
 				},
 				Some(ApprovalCheckResult::Bad(error)) => {
@@ -1521,28 +1566,34 @@ impl State {
 			.map(|(p, _)| p)
 			.cloned()
 			.collect::<Vec<_>>();
+		// We are racing with peer view changes and new blocks which also will update knowledge and propagate via `unify_with_peer`.
+		// We need to check if the assignment has alreay been sent already to avoid duplicate messages.
+		let mut filtered_peers = Vec::new();
 
 		// Add the metadata of the assignment to the knowledge of each peer.
-		for peer in peers.iter() {
+		for peer in peers.into_iter() {
 			// we already filtered peers above, so this should always be Some
-			if let Some(entry) = entry.known_by.get_mut(peer) {
-				entry.sent.insert(message_subject.clone(), message_kind);
+			if let Some(peer_knowledge) = entry.known_by.get_mut(&peer) {
+				if !peer_knowledge.contains(&message_subject, message_kind) {
+					peer_knowledge.sent.insert(message_subject.clone(), message_kind);
+					filtered_peers.push(peer);
+				}
 			}
 		}
 
-		if !peers.is_empty() {
+		if !filtered_peers.is_empty() {
 			let approvals = vec![result.vote];
 			gum::trace!(
 				target: LOG_TARGET,
 				?block_hash,
 				?candidate_index,
 				local = peer_id.is_none(),
-				num_peers = peers.len(),
+				num_peers = filtered_peers.len(),
 				"Sending an approval to peers",
 			);
 
 			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-				peers,
+				filtered_peers,
 				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
 					protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
 				)),
@@ -2027,10 +2078,10 @@ impl ApprovalDistribution {
 					match maybe_assignment_check_result {
 						Ok(assignment_check_result) => {
 							let message_subject = assignment_check_result.message_subject.clone();
-							*state.import_pipeline.pending_work.entry(message_subject.clone()).or_default() = false;
 							state.finish_assignment_import_and_circulate(&mut ctx, assignment_check_result, &self.metrics, rng).await;
-							// Pick next pending message item if any.
-							if let Some((peer_id, message)) = state.import_pipeline.pop_next_message(message_subject.clone()) {
+							state.import_pipeline.set_queue_idle(message_subject.clone(), false);
+							// Process until we need to wait for approval voting again.
+							while let Some((peer_id, message)) = state.import_pipeline.pop_next_message(message_subject.clone()) {
 								match message {
 									PendingMessage::Assignment(assignment, candidate_index) => {
 										state.start_assignment_import(
@@ -2040,6 +2091,7 @@ impl ApprovalDistribution {
 											assignment,
 											candidate_index,
 											rng,
+											true,
 										).await;
 									}
 									PendingMessage::Approval(vote)=> {
@@ -2048,13 +2100,22 @@ impl ApprovalDistribution {
 											&self.metrics,
 											MessageSource::Peer(peer_id),
 											vote,
-										).await;
+											true,
+										).await
 									}
 								}
-
+								if !state.import_pipeline.is_queue_idle(&message_subject) {
+									break;
+								}
 							}
 						},
-						Err(_) => {}
+						Err(err) => {
+							gum::warn!(
+								target: LOG_TARGET,
+								?err,
+								"Error checking assignment",
+							);
+						}
 					}
 				},
 				maybe_approval_check_result = state.import_pipeline.pending_vote_checks.select_next_some() => {
@@ -2062,9 +2123,10 @@ impl ApprovalDistribution {
 					match maybe_approval_check_result {
 						Ok(approval_check_result) => {
 							let message_subject = approval_check_result.message_subject.clone();
-							*state.import_pipeline.pending_work.entry(message_subject.clone()).or_default() = false;
 							state.finish_approval_import_and_circulate(&mut ctx, approval_check_result, &self.metrics).await;
-							if let Some((peer_id, message)) = state.import_pipeline.pop_next_message(message_subject.clone()) {
+							state.import_pipeline.set_queue_idle(message_subject.clone(), false);
+							// Process until we need to wait for approval voting again.
+							while let Some((peer_id, message)) = state.import_pipeline.pop_next_message(message_subject.clone()) {
 								match message {
 									PendingMessage::Assignment(assignment, candidate_index) => {
 										state.start_assignment_import(
@@ -2074,6 +2136,7 @@ impl ApprovalDistribution {
 											assignment,
 											candidate_index,
 											rng,
+											true,
 										).await;
 									}
 									PendingMessage::Approval(vote)=> {
@@ -2082,13 +2145,22 @@ impl ApprovalDistribution {
 											&self.metrics,
 											MessageSource::Peer(peer_id),
 											vote,
+											true,
 										).await;
 									}
 								}
-
+								if !state.import_pipeline.is_queue_idle(&message_subject) {
+									break;
+								}
 							}
 						},
-						Err(_) => {}
+						Err(err) => {
+							gum::warn!(
+								target: LOG_TARGET,
+								?err,
+								"Error checking approval",
+							);
+						}
 					}
 				},
 			}
@@ -2125,6 +2197,7 @@ impl ApprovalDistribution {
 						cert,
 						candidate_index,
 						rng,
+						false,
 					)
 					.await;
 			},
@@ -2136,7 +2209,9 @@ impl ApprovalDistribution {
 					vote.candidate_index,
 				);
 
-				state.start_approval_import(ctx, metrics, MessageSource::Local, vote).await;
+				state
+					.start_approval_import(ctx, metrics, MessageSource::Local, vote, false)
+					.await;
 			},
 			ApprovalDistributionMessage::GetApprovalSignatures(indices, tx) => {
 				let sigs = state.get_approval_signatures(indices);
