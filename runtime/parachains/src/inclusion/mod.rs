@@ -28,11 +28,8 @@ use crate::{
 	shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_support::{
-	pallet_prelude::*,
-	traits::{EnqueueMessage, Footprint},
-	BoundedSlice,
-};
+use frame_support::{pallet_prelude::*, traits::EnqueueMessage, BoundedSlice};
+use pallet_message_queue::OnQueueChanged;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v2::{
 	well_known_keys, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
@@ -929,7 +926,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
 	pub(crate) fn receive_upward_messages(
-		config: &HostConfiguration<T::BlockNumber>,
+		_config: &HostConfiguration<T::BlockNumber>,
 		para: ParaId,
 		upward_messages: Vec<UpwardMessage>,
 	) -> Weight {
@@ -939,31 +936,10 @@ impl<T: Config> Pallet<T> {
 			let messages =
 				upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
 			T::MessageQueue::enqueue_messages(messages, para);
+			<T as Config>::WeightInfo::receive_upward_messages(count)
+		} else {
+			Weight::zero()
 		}
-
-		// TODO: This should be done by the message queue itself (as per a config item mapping
-		// origin to an optional well-known key and maximum size/items) after enqueuing and#
-		// servicing. This ensures that the WKKs are updated after both enqueuing and servicing
-		// unlike in here where it's only after enqueuing.
-		Self::publish_ump_status(config, para);
-
-		// TODO: Calculate worst-case enqueue (largest possible message with the most recent page
-		// being almost full) and return.
-		Weight::zero()
-	}
-
-	/// Places the current status of UMP queues into the well-known-keys for other chains to see.
-	fn publish_ump_status(config: &HostConfiguration<T::BlockNumber>, para: ParaId) {
-		let Footprint { count, size } = T::MessageQueue::footprint(para);
-		// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
-		#[allow(deprecated)]
-		let key = well_known_keys::relay_dispatch_queue_size(para);
-		(count, size).using_encoded(|d| sp_io::storage::set(&key, d));
-
-		let key = well_known_keys::relay_dispatch_queue_remaining_capacity(para);
-		let remaining_count = config.max_upward_queue_count.saturating_sub(count);
-		let remaining_size = config.max_upward_queue_size.saturating_sub(size);
-		(remaining_count, remaining_size).using_encoded(|d| sp_io::storage::set(&key, d));
 	}
 
 	/// Cleans up all paras pending availability that the predicate returns true for.
@@ -1093,6 +1069,21 @@ impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 			HrmpWatermark(_) => Error::<T>::HrmpWatermarkMishandling,
 			OutboundHrmp(_) => Error::<T>::InvalidOutboundHrmp,
 		}
+	}
+}
+
+impl<T: Config> OnQueueChanged<ParaId> for Pallet<T> {
+	fn on_queue_changed(para: ParaId, count: u32, size: u32) {
+		// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
+		#[allow(deprecated)]
+		let key = well_known_keys::relay_dispatch_queue_size(para);
+		(count, size).using_encoded(|d| sp_io::storage::set(&key, d));
+
+		let config = <configuration::Pallet<T>>::config();
+		let key = well_known_keys::relay_dispatch_queue_remaining_capacity(para);
+		let remaining_count = config.max_upward_queue_count.saturating_sub(count);
+		let remaining_size = config.max_upward_queue_size.saturating_sub(size);
+		(remaining_count, remaining_size).using_encoded(|d| sp_io::storage::set(&key, d));
 	}
 }
 
