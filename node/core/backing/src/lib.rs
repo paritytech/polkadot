@@ -18,7 +18,6 @@
 
 #![deny(unused_crate_dependencies)]
 
-use polkadot_node_subsystem::messages::RuntimeApiMessage;
 use std::{
 	collections::{HashMap, HashSet},
 	sync::Arc,
@@ -46,16 +45,13 @@ use polkadot_node_subsystem::{
 	Stage, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
-	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, Validator,
+	self as util, executor_params_at_relay_parent, request_from_runtime,
+	request_session_index_for_child, request_validator_groups, request_validators, Validator,
 };
-use polkadot_primitives::{
-	v2::{
-		BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-		CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SigningContext,
-		ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
-	},
-	vstaging::ExecutorParams,
+use polkadot_primitives::v2::{
+	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
+	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SigningContext,
+	ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -650,31 +646,14 @@ async fn request_candidate_validation(
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
-	let (executor_params_tx, executor_params_rx) = oneshot::channel();
-	sender
-		.send_message(RuntimeApiMessage::Request(
-			candidate_receipt.descriptor.relay_parent,
-			RuntimeApiRequest::SessionExecutorParams(executor_params_tx),
-		))
-		.await;
-
-	let executor_params = match executor_params_rx.await {
-		Err(_) | Ok(Err(_)) => ExecutorParams::default(), // Runtime API is not yet available
-		Ok(Ok(Some(eep))) => eep,
-		Ok(Ok(None)) => {
-			gum::warn!(
-				target: LOG_TARGET,
-				"Execution environment parameter set not available for block {:?}",
-				candidate_receipt.descriptor.relay_parent,
-			);
-
-			return Err(Error::ValidationFailed(
-				polkadot_node_subsystem::messages::ValidationFailed(
+	let executor_params =
+		executor_params_at_relay_parent(candidate_receipt.descriptor.relay_parent, sender)
+			.await
+			.map_err(|_| {
+				Error::ValidationFailed(polkadot_node_subsystem::messages::ValidationFailed(
 					"execution environment parameter set is not stored".to_string(),
-				),
-			))
-		},
-	};
+				))
+			})?;
 
 	let (tx, rx) = oneshot::channel();
 

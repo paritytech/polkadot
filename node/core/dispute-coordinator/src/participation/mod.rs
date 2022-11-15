@@ -14,7 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_node_subsystem_util::executor_params_at_relay_parent;
+
 use std::collections::HashSet;
 #[cfg(test)]
 use std::time::Duration;
@@ -28,10 +29,7 @@ use futures_timer::Delay;
 
 use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
-	messages::{
-		AvailabilityRecoveryMessage, CandidateValidationMessage, RuntimeApiMessage,
-		RuntimeApiRequest,
-	},
+	messages::{AvailabilityRecoveryMessage, CandidateValidationMessage},
 	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
@@ -323,21 +321,16 @@ async fn participate(
 		},
 	};
 
-	let (executor_params_tx, executor_params_rx) = oneshot::channel();
-	sender
-		.send_message(RuntimeApiMessage::Request(
-			req.candidate_receipt().descriptor.relay_parent,
-			RuntimeApiRequest::SessionExecutorParams(executor_params_tx),
-		))
-		.await;
-
-	let executor_params = match executor_params_rx.await {
-		Err(_) | Ok(Err(_)) => ExecutorParams::default(), // Runtime API is not yet available
-		Ok(Ok(Some(eep))) => eep,
-		Ok(Ok(None)) => {
-			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await; // FIXME: Use default?
-			return
-		},
+	let executor_params = if let Ok(executor_params) = executor_params_at_relay_parent(
+		req.candidate_receipt().descriptor.relay_parent,
+		&mut sender,
+	)
+	.await
+	{
+		executor_params
+	} else {
+		send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
+		return
 	};
 
 	// Issue a request to validate the candidate with the provided exhaustive

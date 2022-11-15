@@ -132,8 +132,8 @@ where
 				.cache_candidate_pending_availability((relay_parent, para_id), candidate),
 			CandidateEvents(relay_parent, events) =>
 				self.requests_cache.cache_candidate_events(relay_parent, events),
-			SessionExecutorParams(relay_parent, index) =>
-				self.requests_cache.cache_session_executor_params(relay_parent, index),
+			SessionExecutorParams(_relay_parent, session_index, index) =>
+				self.requests_cache.cache_session_executor_params(session_index, index),
 			SessionInfo(_relay_parent, session_index, info) =>
 				if let Some(info) = info {
 					self.requests_cache.cache_session_info(session_index, info);
@@ -231,8 +231,17 @@ where
 					.map(|sender| Request::CandidatePendingAvailability(para, sender)),
 			Request::CandidateEvents(sender) =>
 				query!(candidate_events(), sender).map(|sender| Request::CandidateEvents(sender)),
-			Request::SessionExecutorParams(sender) => query!(session_executor_params(), sender)
-				.map(|sender| Request::SessionExecutorParams(sender)),
+			Request::SessionExecutorParams(session_index, sender) => {
+				if let Some(executor_params) =
+					self.requests_cache.session_executor_params(session_index)
+				{
+					self.metrics.on_cached_request();
+					let _ = sender.send(Ok(executor_params.clone()));
+					None
+				} else {
+					Some(Request::SessionExecutorParams(session_index, sender))
+				}
+			},
 			Request::SessionInfo(index, sender) => {
 				if let Some(info) = self.requests_cache.session_info(index) {
 					self.metrics.on_cached_request();
@@ -451,12 +460,29 @@ where
 		),
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
-		Request::SessionExecutorParams(sender) => query!(
-			SessionExecutorParams,
-			session_executor_params(),
-			ver = Request::EXECUTOR_PARAMS_RUNTIME_REQUIREMENT,
-			sender
-		),
+		Request::SessionExecutorParams(session_index, sender) => {
+			let api_version = client
+				.api_version_parachain_host(relay_parent)
+				.await
+				.unwrap_or_default()
+				.unwrap_or_default();
+
+			let res = if api_version >= Request::EXECUTOR_PARAMS_RUNTIME_REQUIREMENT {
+				client.session_executor_params(relay_parent, session_index).await.map_err(|e| {
+					RuntimeApiError::Execution {
+						runtime_api_name: "SessionExecutorParams",
+						source: std::sync::Arc::new(e),
+					}
+				})
+			} else {
+				Err(RuntimeApiError::NotSupported { runtime_api_name: "SessionExecutorParams" })
+			};
+			metrics.on_request(res.is_ok());
+			let _ = sender.send(res.clone());
+
+			res.ok()
+				.map(|res| RequestResult::SessionExecutorParams(relay_parent, session_index, res))
+		},
 		Request::SessionInfo(index, sender) => {
 			let api_version = client
 				.api_version_parachain_host(relay_parent)

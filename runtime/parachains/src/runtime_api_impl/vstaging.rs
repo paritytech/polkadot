@@ -16,7 +16,7 @@
 
 //! Put implementations of functions from staging APIs here.
 
-use crate::{disputes, session_info, shared};
+use crate::{disputes, session_info};
 use primitives::{
 	v2::{CandidateHash, DisputeState, SessionIndex},
 	vstaging::ExecutorParams,
@@ -29,8 +29,9 @@ pub fn get_session_disputes<T: disputes::Config>(
 	<disputes::Pallet<T>>::disputes()
 }
 
-/// Get session executor parameter set by parent hash
-pub fn session_executor_params<T: session_info::Config>() -> Option<ExecutorParams> {
-	let session_index = <shared::Pallet<T>>::session_index();
+/// Get session executor parameter set
+pub fn session_executor_params<T: session_info::Config>(
+	session_index: SessionIndex,
+) -> Option<ExecutorParams> {
 	<session_info::Pallet<T>>::session_executor_params(session_index)
 }

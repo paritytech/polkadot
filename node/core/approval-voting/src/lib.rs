@@ -42,6 +42,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	database::Database,
+	executor_params_at_relay_parent,
 	metrics::{self, prometheus},
 	rolling_session_window::{
 		new_session_window_size, RollingSessionWindow, SessionWindowSize, SessionWindowUpdate,
@@ -49,13 +50,10 @@ use polkadot_node_subsystem_util::{
 	},
 	TimeoutExt,
 };
-use polkadot_primitives::{
-	v2::{
-		ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
-		DisputeStatement, GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind,
-		ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
-	},
-	vstaging::ExecutorParams,
+use polkadot_primitives::v2::{
+	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
+	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
+	ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -2373,28 +2371,13 @@ async fn launch_approval<Context>(
 			},
 		};
 
-		let (executor_params_tx, executor_params_rx) = oneshot::channel();
-		sender
-			.send_message(RuntimeApiMessage::Request(
-				candidate.descriptor.relay_parent,
-				RuntimeApiRequest::SessionExecutorParams(executor_params_tx),
-			))
-			.await;
-
-		let executor_params = match executor_params_rx.await {
-			Err(_) | Ok(Err(_)) => ExecutorParams::default(), // Runtime API is not yet available
-			Ok(Ok(Some(eep))) => eep,
-			Ok(Ok(None)) => {
-				gum::warn!(
-					target: LOG_TARGET,
-					"Execution environment parameter set not available for block {:?} in the state of block {:?} (a recent descendant)",
-					candidate.descriptor.relay_parent,
-					block_hash,
-				);
-
-				metrics_guard.take().on_approval_unavailable();
-				return ApprovalState::failed(validator_index, candidate_hash)
-			},
+		let executor_params = if let Ok(executor_params) =
+			executor_params_at_relay_parent(candidate.descriptor.relay_parent, &mut sender).await
+		{
+			executor_params
+		} else {
+			metrics_guard.take().on_approval_unavailable();
+			return ApprovalState::failed(validator_index, candidate_hash)
 		};
 
 		let (val_tx, val_rx) = oneshot::channel();

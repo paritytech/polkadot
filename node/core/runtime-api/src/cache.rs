@@ -105,7 +105,7 @@ pub(crate) struct RequestResultCache {
 	candidate_pending_availability:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<CommittedCandidateReceipt>>>,
 	candidate_events: MemoryLruCache<Hash, ResidentSizeOf<Vec<CandidateEvent>>>,
-	session_executor_params: MemoryLruCache<Hash, ResidentSizeOf<Option<ExecutorParams>>>,
+	session_executor_params: MemoryLruCache<SessionIndex, ResidentSizeOf<Option<ExecutorParams>>>,
 	session_info: MemoryLruCache<SessionIndex, ResidentSizeOf<SessionInfo>>,
 	dmq_contents:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Vec<InboundDownwardMessage<BlockNumber>>>>,
@@ -331,17 +331,17 @@ impl RequestResultCache {
 
 	pub(crate) fn session_executor_params(
 		&mut self,
-		relay_parent: &Hash,
+		session_index: SessionIndex,
 	) -> Option<&Option<ExecutorParams>> {
-		self.session_executor_params.get(relay_parent).map(|v| &v.0)
+		self.session_executor_params.get(&session_index).map(|v| &v.0)
 	}
 
 	pub(crate) fn cache_session_executor_params(
 		&mut self,
-		relay_parent: Hash,
+		session_index: SessionIndex,
 		value: Option<ExecutorParams>,
 	) {
-		self.session_executor_params.insert(relay_parent, ResidentSizeOf(value));
+		self.session_executor_params.insert(session_index, ResidentSizeOf(value));
 	}
 
 	pub(crate) fn dmq_contents(
@@ -470,7 +470,7 @@ pub(crate) enum RequestResult {
 	ValidationCodeByHash(Hash, ValidationCodeHash, Option<ValidationCode>),
 	CandidatePendingAvailability(Hash, ParaId, Option<CommittedCandidateReceipt>),
 	CandidateEvents(Hash, Vec<CandidateEvent>),
-	SessionExecutorParams(Hash, Option<ExecutorParams>),
+	SessionExecutorParams(Hash, SessionIndex, Option<ExecutorParams>),
 	SessionInfo(Hash, SessionIndex, Option<SessionInfo>),
 	DmqContents(Hash, ParaId, Vec<InboundDownwardMessage<BlockNumber>>),
 	InboundHrmpChannelsContents(
