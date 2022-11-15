@@ -472,12 +472,12 @@ impl<T: Config> Pallet<T> {
 		let mut weight = Weight::zero();
 
 		if !upward_messages.is_empty() {
-			let (extra_count, extra_size) = &upward_messages[..10] // Temporary 10 message limit
+			let (extra_count, extra_size) = upward_messages
 				.iter()
 				.fold((0, 0), |(cnt, size), d| (cnt + 1, size + d.len() as u32));
 
 			<Self as Store>::RelayDispatchQueues::mutate(&para, |v| {
-				v.extend(upward_messages.into_iter().take(10)) // Temporary 10 message limit
+				v.extend(upward_messages.into_iter())
 			});
 
 			<Self as Store>::RelayDispatchQueueSize::mutate(
@@ -497,7 +497,7 @@ impl<T: Config> Pallet<T> {
 			// NOTE: The actual computation is not accounted for. It should be benchmarked.
 			weight += T::DbWeight::get().reads_writes(3, 3);
 
-			Self::deposit_event(Event::UpwardMessagesReceived(para, *extra_count, *extra_size));
+			Self::deposit_event(Event::UpwardMessagesReceived(para, extra_count, extra_size));
 		}
 
 		weight
@@ -505,6 +505,8 @@ impl<T: Config> Pallet<T> {
 
 	/// Devote some time into dispatching pending upward messages.
 	pub(crate) fn process_pending_upward_messages() -> Weight {
+		const MAX_MESSAGES_PER_BLOCK: u8 = 10;
+		let mut messages_processed = 0;
 		let mut weight_used = Weight::zero();
 
 		let config = <configuration::Pallet<T>>::config();
@@ -512,7 +514,12 @@ impl<T: Config> Pallet<T> {
 		let mut queue_cache = QueueCache::new();
 
 		while let Some(dispatchee) = cursor.peek() {
-			if weight_used.any_gte(config.ump_service_total_weight) {
+			if weight_used.any_gte(config.ump_service_total_weight) ||
+				messages_processed >= MAX_MESSAGES_PER_BLOCK
+			{
+				// Temporarily allow for processing of a max of 10 messages per block, until we
+				// properly account for proof size weights.
+				//
 				// Then check whether we've reached or overshoot the
 				// preferred weight for the dispatching stage.
 				//
@@ -537,6 +544,7 @@ impl<T: Config> Pallet<T> {
 				match T::UmpSink::process_upward_message(dispatchee, upward_message, max_weight) {
 					Ok(used) => {
 						weight_used += used;
+						messages_processed += 1;
 						let _ = queue_cache.consume_front::<T>(dispatchee);
 					},
 					Err((id, required)) => {

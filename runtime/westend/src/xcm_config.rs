@@ -141,7 +141,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_staking::Call::reap_stash { .. } |
 				pallet_staking::Call::set_staking_configs { .. } |
 				pallet_staking::Call::chill_other { .. } |
-				pallet_staking::Call::force_apply_min_commission { .. }
+				pallet_staking::Call::force_apply_min_commission { .. },
 			) |
 			RuntimeCall::Session(pallet_session::Call::purge_keys { .. }) |
 			RuntimeCall::Grandpa(..) |
@@ -160,7 +160,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_identity::Call::add_sub { .. } |
 				pallet_identity::Call::rename_sub { .. } |
 				pallet_identity::Call::remove_sub { .. } |
-				pallet_identity::Call::quit_sub { .. }
+				pallet_identity::Call::quit_sub { .. },
 			) |
 			RuntimeCall::Recovery(..) |
 			RuntimeCall::Vesting(..) |
@@ -178,7 +178,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_nomination_pools::Call::set_state { .. } |
 				pallet_nomination_pools::Call::set_configs { .. } |
 				pallet_nomination_pools::Call::update_roles { .. } |
-				pallet_nomination_pools::Call::chill { .. }
+				pallet_nomination_pools::Call::chill { .. },
 			) => true,
 			_ => false,
 		}

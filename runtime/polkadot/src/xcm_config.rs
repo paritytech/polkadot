@@ -173,7 +173,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_staking::Call::reap_stash { .. } |
 				pallet_staking::Call::set_staking_configs { .. } |
 				pallet_staking::Call::chill_other { .. } |
-				pallet_staking::Call::force_apply_min_commission { .. }
+				pallet_staking::Call::force_apply_min_commission { .. },
 			) |
 			RuntimeCall::Session(pallet_session::Call::purge_keys { .. }) |
 			RuntimeCall::Grandpa(..) |
@@ -192,26 +192,26 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_democracy::Call::remove_vote { .. } |
 				pallet_democracy::Call::remove_other_vote { .. } |
 				pallet_democracy::Call::blacklist { .. } |
-				pallet_democracy::Call::cancel_proposal { .. }
+				pallet_democracy::Call::cancel_proposal { .. },
 			) |
 			RuntimeCall::Council(
 				pallet_collective::Call::vote { .. } |
 				pallet_collective::Call::close_old_weight { .. } |
 				pallet_collective::Call::disapprove_proposal { .. } |
-				pallet_collective::Call::close { .. }
+				pallet_collective::Call::close { .. },
 			) |
 			RuntimeCall::TechnicalCommittee(
 				pallet_collective::Call::vote { .. } |
 				pallet_collective::Call::close_old_weight { .. } |
 				pallet_collective::Call::disapprove_proposal { .. } |
-				pallet_collective::Call::close { .. }
+				pallet_collective::Call::close { .. },
 			) |
 			RuntimeCall::PhragmenElection(
 				pallet_elections_phragmen::Call::remove_voter { .. } |
 				pallet_elections_phragmen::Call::submit_candidacy { .. } |
 				pallet_elections_phragmen::Call::renounce_candidacy { .. } |
 				pallet_elections_phragmen::Call::remove_member { .. } |
-				pallet_elections_phragmen::Call::clean_defunct_voters { .. }
+				pallet_elections_phragmen::Call::clean_defunct_voters { .. },
 			) |
 			RuntimeCall::TechnicalMembership(
 				pallet_membership::Call::add_member { .. } |
@@ -219,13 +219,13 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_membership::Call::swap_member { .. } |
 				pallet_membership::Call::change_key { .. } |
 				pallet_membership::Call::set_prime { .. } |
-				pallet_membership::Call::clear_prime { .. }
+				pallet_membership::Call::clear_prime { .. },
 			) |
 			RuntimeCall::Treasury(..) |
 			RuntimeCall::Claims(
 				super::claims::Call::claim { .. } |
 				super::claims::Call::mint_claim { .. } |
-				super::claims::Call::move_claim { .. }
+				super::claims::Call::move_claim { .. },
 			) |
 			RuntimeCall::Identity(
 				pallet_identity::Call::add_registrar { .. } |
@@ -241,7 +241,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_identity::Call::add_sub { .. } |
 				pallet_identity::Call::rename_sub { .. } |
 				pallet_identity::Call::remove_sub { .. } |
-				pallet_identity::Call::quit_sub { .. }
+				pallet_identity::Call::quit_sub { .. },
 			) |
 			RuntimeCall::Vesting(..) |
 			RuntimeCall::Bounties(
@@ -252,7 +252,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_bounties::Call::accept_curator { .. } |
 				pallet_bounties::Call::award_bounty { .. } |
 				pallet_bounties::Call::claim_bounty { .. } |
-				pallet_bounties::Call::close_bounty { .. }
+				pallet_bounties::Call::close_bounty { .. },
 			) |
 			RuntimeCall::ChildBounties(..) |
 			RuntimeCall::ElectionProviderMultiPhase(..) |
@@ -269,7 +269,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_nomination_pools::Call::set_state { .. } |
 				pallet_nomination_pools::Call::set_configs { .. } |
 				pallet_nomination_pools::Call::update_roles { .. } |
-				pallet_nomination_pools::Call::chill { .. }
+				pallet_nomination_pools::Call::chill { .. },
 			) => true,
 			_ => false,
 		}
