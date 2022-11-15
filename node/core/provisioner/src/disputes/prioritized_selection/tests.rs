@@ -459,16 +459,13 @@ impl TestDisputes {
 		(session_idx, (local_votes_count - onchain_votes_count) * dispute_count)
 	}
 
-	pub fn add_unconfirmed_disputes_unknown_onchain(
-		&mut self,
-		dispute_count: usize,
-	) -> (u32, usize) {
+	pub fn add_confirmed_disputes_unknown_onchain(&mut self, dispute_count: usize) -> (u32, usize) {
 		let local_votes_count = self.validators_count * 90 / 100;
 		let session_idx = 2;
 		let lf = leaf();
 		let dummy_receipt = test_helpers::dummy_candidate_receipt(lf.hash.clone());
 		for _ in 0..dispute_count {
-			let d = (session_idx, CandidateHash(Hash::random()), DisputeStatus::Active);
+			let d = (session_idx, CandidateHash(Hash::random()), DisputeStatus::Confirmed);
 			self.add_offchain_dispute(d.clone(), local_votes_count, dummy_receipt.clone());
 		}
 		(session_idx, local_votes_count * dispute_count)
@@ -554,9 +551,9 @@ fn normal_flow() {
 	// concluded disputes known onchain - these should be ignored
 	let (_, _) = input.add_concluded_disputes_known_onchain(DISPUTES_PER_BATCH);
 
-	// active disputes unknown onchain
+	// confirmed disputes unknown onchain
 	let (second_idx, second_votes) =
-		input.add_unconfirmed_disputes_unknown_onchain(DISPUTES_PER_BATCH);
+		input.add_confirmed_disputes_unknown_onchain(DISPUTES_PER_BATCH);
 
 	let metrics = metrics::Metrics::new_dummy();
 	let mut vote_queries: usize = 0;
@@ -635,8 +632,8 @@ fn many_batches() {
 	// concluded disputes known onchain
 	input.add_concluded_disputes_known_onchain(DISPUTES_PER_PARTITION);
 
-	// active disputes unknown onchain
-	input.add_unconfirmed_disputes_unknown_onchain(DISPUTES_PER_PARTITION);
+	// confirmed disputes unknown onchain
+	input.add_confirmed_disputes_unknown_onchain(DISPUTES_PER_PARTITION);
 
 	let metrics = metrics::Metrics::new_dummy();
 	let mut vote_queries: usize = 0;
