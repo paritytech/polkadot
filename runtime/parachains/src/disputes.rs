@@ -537,8 +537,6 @@ pub mod pallet {
 		PotentialSpam,
 		/// A dispute where there are only votes on one side.
 		SingleSidedDispute,
-		/// No backing votes were provides along dispute statements.
-		MissingBackingVotes,
 	}
 
 	#[pallet::call]
@@ -1231,9 +1229,6 @@ impl<T: Config> Pallet<T> {
 				summary.state.validators_against.count_ones() > 0,
 			Error::<T>::SingleSidedDispute,
 		);
-
-		// Reject statements with no accompanying backing votes.
-		ensure!(!backers.is_empty(), Error::<T>::MissingBackingVotes,);
 
 		<BackersOnDisputes<T>>::insert(&set.session, &set.candidate_hash, backers.clone());
 
