@@ -566,7 +566,7 @@ where
 					num_deactivated = %deactivated.len(),
 				);
 
-				for activated in activated {
+				if let Some(activated) = activated {
 					let pos = live_heads
 						.binary_search_by(|probe| probe.number.cmp(&activated.number).reverse())
 						.unwrap_or_else(|i| i);
