@@ -190,7 +190,7 @@ impl Initialized {
 		if let Some(first_leaf) = first_leaf.take() {
 			// Also provide first leaf to participation for good measure.
 			self.participation
-				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf))
+				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf), Vec::new())
 				.await?;
 		}
 
@@ -269,9 +269,9 @@ impl Initialized {
 		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
-		let on_chain_votes =
+		let (on_chain_votes, candidate_events) =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
-		self.participation.process_active_leaves_update(ctx, &update).await?;
+		self.participation.process_active_leaves_update(ctx, &update, candidate_events).await?;
 
 		if let Some(new_leaf) = update.activated {
 			match self

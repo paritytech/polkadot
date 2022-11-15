@@ -101,6 +101,7 @@ async fn activate_leaf<Context>(
 				number: block_number,
 				status: LeafStatus::Fresh,
 			}),
+			Vec::new(),
 		)
 		.await
 }

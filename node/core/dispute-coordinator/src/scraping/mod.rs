@@ -114,7 +114,7 @@ impl ChainScraper {
 		};
 		let update =
 			ActiveLeavesUpdate { activated: Some(initial_head), deactivated: Default::default() };
-		let votes = s.process_active_leaves_update(sender, &update).await?;
+		let (votes, _) = s.process_active_leaves_update(sender, &update).await?;
 		Ok((s, votes))
 	}
 
@@ -137,13 +137,13 @@ impl ChainScraper {
 		&mut self,
 		sender: &mut Sender,
 		update: &ActiveLeavesUpdate,
-	) -> Result<Vec<ScrapedOnChainVotes>>
+	) -> Result<(Vec<ScrapedOnChainVotes>, Vec<(Vec<CandidateEvent>, BlockNumber)>)>
 	where
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
 		let activated = match update.activated.as_ref() {
 			Some(activated) => activated,
-			None => return Ok(Vec::new()),
+			None => return Ok((Vec::new(), Vec::new())),
 		};
 
 		// Fetch ancestry up to last finalized block.
@@ -157,11 +157,13 @@ impl ChainScraper {
 
 		let block_hashes = std::iter::once(activated.hash).chain(ancestors);
 
+		let mut candidate_events: Vec<(Vec<CandidateEvent>, BlockNumber)> = Vec::new();
 		let mut on_chain_votes = Vec::new();
 		for (block_number, block_hash) in block_numbers.zip(block_hashes) {
 			gum::trace!(?block_number, ?block_hash, "In ancestor processing.");
 
-			self.process_candidate_events(sender, block_number, block_hash).await?;
+			let events_for_block = self.process_candidate_events(sender, block_number, block_hash).await?;
+			candidate_events.push((events_for_block, block_number));
 
 			if let Some(votes) = get_on_chain_votes(sender, block_hash).await? {
 				on_chain_votes.push(votes);
@@ -170,7 +172,7 @@ impl ChainScraper {
 
 		self.last_observed_blocks.put(activated.hash, ());
 
-		Ok(on_chain_votes)
+		Ok((on_chain_votes, candidate_events))
 	}
 
 	/// Prune finalized candidates.
@@ -201,12 +203,13 @@ impl ChainScraper {
 		sender: &mut Sender,
 		block_number: BlockNumber,
 		block_hash: Hash,
-	) -> Result<()>
+	) -> Result<Vec<CandidateEvent>>
 	where
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
+		let events = get_candidate_events(sender, block_hash).await?;
 		// Get included and backed events:
-		for ev in get_candidate_events(sender, block_hash).await? {
+		for ev in &events {
 			match ev {
 				CandidateEvent::CandidateIncluded(receipt, _, _, _) => {
 					let candidate_hash = receipt.hash();
@@ -233,7 +236,7 @@ impl ChainScraper {
 				},
 			}
 		}
-		Ok(())
+		Ok(events)
 	}
 
 	/// Returns ancestors of `head` in the descending order, stopping
