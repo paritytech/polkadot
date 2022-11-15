@@ -18,16 +18,21 @@
 
 //! A crate that implements PVF validation host.
 //!
+//! # Entrypoint
+//!
 //! This crate provides a simple API. You first [`start`] the validation host, which gives you the
 //! [handle][`ValidationHost`] and the future you need to poll.
 //!
-//! Then using the handle the client can send two types of requests:
+//! Then using the handle the client can send three types of requests:
 //!
-//! (a) PVF execution. This accepts the PVF [`params`][`polkadot_parachain::primitives::ValidationParams`]
+//! (a) PVF pre-checking. This takes the PVF [code][`Pvf`] and tries to prepare it (verify and
+//! compile) in order to pre-check its validity.
+//!
+//! (b) PVF execution. This accepts the PVF [`params`][`polkadot_parachain::primitives::ValidationParams`]
 //!     and the PVF [code][`Pvf`], prepares (verifies and compiles) the code, and then executes PVF
 //!     with the `params`.
 //!
-//! (b) Heads up. This request allows to signal that the given PVF may be needed soon and that it
+//! (c) Heads up. This request allows to signal that the given PVF may be needed soon and that it
 //!     should be prepared for execution.
 //!
 //! The preparation results are cached for some time after they either used or was signaled in heads up.
@@ -39,14 +44,42 @@
 //! PVF execution requests can specify the [priority][`Priority`] with which the given request should
 //! be handled. Different priority levels have different effects. This is discussed below.
 //!
-//! Preparation started by a heads up signal always starts in with the background priority. If there
+//! Preparation started by a heads up signal always starts with the background priority. If there
 //! is already a request for that PVF preparation under way the priority is inherited. If after heads
 //! up, a new PVF execution request comes in with a higher priority, then the original task's priority
 //! will be adjusted to match the new one if it's larger.
 //!
 //! Priority can never go down, only up.
 //!
+//! # Mitigating disputes
+//!
+//! ## Retrying execution requests
+//!
+//! If the execution request fails during **preparation**, we will retry if it is possible that the
+//! preparation error was transient (i.e. it was of type [`PrepareError::Panic`],
+//! [`PrepareError::TimedOut`], or [`PrepareError::DidNotMakeIt`]). We will only retry preparation
+//! if another requests comes in after 15 minutes, to ensure any potential transient conditions had
+//! time to be resolved. We will retry up to 5 times. See `can_retry_prepare_after_failure`.
+//!
+//! If the actual **execution** of the artifact fails, we will retry once if it was an
+//! [`InvalidCandidate::AmbiguousWorkerDeath`] error, after a 1 second delay to allow any potential
+//! transient conditions to clear. This occurs outside this module, in the Candidate Validation
+//! subsystem.
+//!
+//! ## Preparation timeouts
+//!
+//! We use a timeout for preparation to limit the amount of time it can take. As the time for
+//! preparation can vary depending on the machine and load on the machine, this can potentially lead
+//! to disputes where some validators are able to execute a PVF and others aren't.
+//!
+//! One mitigation we have in place is a more lenient timeout for preparation during execution than
+//! during pre-checking. The rationale is that the PVF has already passed pre-checking, so we know
+//! it should be valid, and we allow it to take longer than expected as this is likely due to an
+//! issue with the machine and not the PVF.
+//!
 //! # Under the hood
+//!
+//! ## The flow
 //!
 //! Under the hood, the validation host is built using a bunch of communicating processes, not
 //! dissimilar to actors. Each of such "processes" is a future task that contains an event loop that
@@ -55,11 +88,13 @@
 //! Two of these processes are queues. The first one is for preparation jobs and the second one is for
 //! execution. Both of the queues are backed by separate pools of workers of different kind.
 //!
-//! Preparation workers handle preparation requests by preverifying and instrumenting PVF wasm code,
+//! Preparation workers handle preparation requests by prevalidating and instrumenting PVF wasm code,
 //! and then passing it into the compiler, to prepare the artifact.
 //!
-//! Artifact is a final product of preparation. If the preparation succeeded, then the artifact will
-//! contain the compiled code usable for quick execution by a worker later on.
+//! ## Artifacts
+//!
+//! An artifact is the final product of preparation. If the preparation succeeded, then the artifact
+//! will contain the compiled code usable for quick execution by a worker later on.
 //!
 //! If the preparation failed, then the worker will still write the artifact with the error message.
 //! We save the artifact with the error so that we don't try to prepare the artifacts that are broken
@@ -68,12 +103,14 @@
 //! The artifact is saved on disk and is also tracked by an in memory table. This in memory table
 //! doesn't contain the artifact contents though, only a flag that the given artifact is compiled.
 //!
+//! Each fixed interval of time a pruning task will run. This task will remove all artifacts that
+//! weren't used or received a heads up signal for a while.
+//!
+//!	## Execution
+//!
 //! The execute workers will be fed by the requests from the execution queue, which is basically a
 //! combination of a path to the compiled artifact and the
 //! [`params`][`polkadot_parachain::primitives::ValidationParams`].
-//!
-//! Each fixed interval of time a pruning task will run. This task will remove all artifacts that
-//! weren't used or received a heads up signal for a while.
 
 mod artifacts;
 mod error;
