@@ -31,7 +31,9 @@ use futures::{
 
 use polkadot_node_subsystem_util::database::Database;
 
-use polkadot_node_primitives::{SignedDisputeStatement, SignedFullStatement, Statement};
+use polkadot_node_primitives::{
+	DisputeStatus, SignedDisputeStatement, SignedFullStatement, Statement,
+};
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalVotingMessage, ChainApiMessage, DisputeCoordinatorMessage,
@@ -682,7 +684,10 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -812,7 +817,10 @@ fn approval_vote_import_works() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -934,7 +942,10 @@ fn dispute_gets_confirmed_via_participation() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -1099,7 +1110,10 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Confirmed)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -1358,7 +1372,10 @@ fn conflicting_votes_lead_to_dispute_participation() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -2910,6 +2927,68 @@ fn redundant_votes_ignored() {
 			assert_eq!(&votes.valid[0].2, valid_vote.validator_signature());
 
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+
+			test_state
+		})
+	});
+}
+
+#[test]
+/// Make sure no disputes are recorded when there are no opposing votes, even if we reached supermajority.
+fn no_onesided_disputes() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
+				.await;
+
+			let mut statements = Vec::new();
+			for index in 1..10 {
+				statements.push((
+					test_state
+						.issue_backing_statement_with_index(
+							ValidatorIndex(index),
+							candidate_hash,
+							session,
+						)
+						.await,
+					ValidatorIndex(index),
+				));
+			}
+
+			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements,
+						pending_confirmation: Some(pending_confirmation),
+					},
+				})
+				.await;
+			assert_matches!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
+
+			// We should not have any active disputes now.
+			let (tx, rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+				})
+				.await;
+
+			assert!(rx.await.unwrap().is_empty());
+
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+
+			// No more messages expected:
 			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
