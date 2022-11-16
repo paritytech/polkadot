@@ -321,7 +321,7 @@ impl Initialized {
 			}
 
 			// Decrement spam slots for freshly backed or included candidates
-			self.handle_backed_included_events(ctx, overlay_db, candidate_events).await;
+			self.handle_backed_included_events(ctx, overlay_db, now, candidate_events).await;
 		}
 
 		Ok(())
@@ -1203,7 +1203,8 @@ impl Initialized {
 		&mut self, 
 		ctx: &mut Context, 
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>, 
-		candidate_events: Vec<CandidateEvent>
+		now: u64,
+		candidate_events: Vec<CandidateEvent>,
 	)
 	{
 		let session = self.rolling_session_window.latest_session();
@@ -1250,7 +1251,7 @@ impl Initialized {
 				if let Some(votes) = 
 					maybe_votes.map(CandidateVotes::from)
 				{
-					let vote_state = CandidateVoteState::new(votes, &env);
+					let vote_state = CandidateVoteState::new(votes, &env, now);
 					let has_own_vote = vote_state.has_own_vote();
 					let is_disputed = vote_state.is_disputed();
 					let is_included = self.scraper.is_candidate_included(&receipt.hash());
