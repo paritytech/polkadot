@@ -378,34 +378,7 @@ impl MultiLocation {
 		log::error!("🔥 normalized-self                           ==> {:?}", self);
 		log::error!("🔥 normalized-target                         ==> {:?}", target);
 		self.parents = self.parent_count() + target.parent_count() + target.interior().len() as u8;
-		// log::error!("🔥 normalized-self                           ==> {:?}", self);
 
-		// Add the ancestry to the self.
-		// Where self = ../../p1000
-		//       ancestry = p2000/p50
-		// 		 self = p2000/p50/p1000
-		// log::error!("\n");
-		// log::error!("🔥 self                                      ==> {:?}", id);
-		// log::error!("🔥 ancestry                                  ==> {:?}", ancestry);
-		// log::error!("🔥 target                                    ==> {:?}", target);
-
-		// self.prepend_with_ancestry(ancestry.clone()).map_err(|_| ())?;
-		// log::error!("🔥 prependwith                               ==> {:?}", self);
-		// for _ in 0..target.parent_count() {
-		// 	let _ = self.take_first_interior();
-		// 	// nself = nselfO.unwrap(); // FIXME: don't unwrap
-		// }
-
-		// if target.interior().first() == self.interior().first() {
-		// 	target.take_first_interior();
-		// 	self.take_first_interior();
-		// 	// Do this in a loop
-		// }
-
-		// log::error!("🔥 pre=result                                ==> {:?}", self);
-		// self.parents = (self.parents.saturating_sub(target.parents))
-		// 	.saturating_add(target.interior().len() as u8);
-		// log::error!("🔥 target                                    ==> {:?}", self);
 		log::error!("🔥 result                                    ==> {:?}", self);
 
 		Ok(())
