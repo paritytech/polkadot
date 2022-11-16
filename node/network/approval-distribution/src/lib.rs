@@ -151,8 +151,9 @@ impl AggressionConfig {
 impl Default for AggressionConfig {
 	fn default() -> Self {
 		AggressionConfig {
-			l1_threshold: Some(13),
-			l2_threshold: Some(28),
+			// soft "disable" the aggresion for testing
+			l1_threshold: Some(9999),
+			l2_threshold: Some(99999),
 			resend_unfinalized_period: Some(8),
 		}
 	}
@@ -232,16 +233,19 @@ struct ImportPipeline {
 // }
 
 impl ImportPipeline {
+	// Pop the first message and cleanup hashmap if queue empty.
 	fn pop_next_message(
 		&mut self,
 		message_subject: MessageSubject,
 	) -> Option<(PeerId, PendingMessage)> {
-		let message = {
-			let queue = self.pending_messages.entry(message_subject.clone()).or_default();
+		let message = if let Some(queue) = self.pending_messages.get_mut(&message_subject) {
 			queue.pop_front()
+		} else {
+			None
 		};
 
 		if message.is_none() {
+			// Queue empty, delete key.
 			self.pending_messages.remove(&message_subject);
 		}
 
@@ -1096,7 +1100,7 @@ impl State {
 			"Checked assignment",
 		);
 
-		gum::debug!(target: LOG_TARGET, ?peer_id, ?message_subject, "Finishing assignment import",);
+		gum::trace!(target: LOG_TARGET, ?peer_id, ?message_subject, "Finishing assignment import",);
 
 		if let Some(peer_id) = result.peer_id {
 			match result.result {
@@ -2108,6 +2112,7 @@ impl ApprovalDistribution {
 							}
 						},
 						Err(err) => {
+							// TODO: handle this
 							gum::warn!(
 								target: LOG_TARGET,
 								?err,
