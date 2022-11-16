@@ -334,11 +334,8 @@ impl MultiLocation {
 		self.prepend_with(ancestry.clone()).map_err(|_| ())?;
 		target.prepend_with(ancestry.clone()).map_err(|_| ())?;
 
-		loop {
-			// Remove common parents between now normalized self and target
-			if target.interior().first() != self.interior().first() {
-				break
-			}
+		// Remove common parents between now normalized self and target
+		while target.interior().first() == self.interior().first() {
 			target.take_first_interior();
 			self.take_first_interior();
 		}
