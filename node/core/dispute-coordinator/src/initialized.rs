@@ -42,7 +42,7 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
 	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, CandidateEvent,
 };
 
 use crate::{
@@ -190,7 +190,7 @@ impl Initialized {
 		if let Some(first_leaf) = first_leaf.take() {
 			// Also provide first leaf to participation for good measure.
 			self.participation
-				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf), Vec::new())
+				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf))
 				.await?;
 		}
 
@@ -271,7 +271,7 @@ impl Initialized {
 	) -> Result<()> {
 		let (on_chain_votes, candidate_events) =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
-		self.participation.process_active_leaves_update(ctx, &update, candidate_events).await?;
+		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
 			match self
@@ -319,6 +319,9 @@ impl Initialized {
 					},
 				);
 			}
+
+			// Decrement spam slots for freshly backed or included candidates
+			self.handle_backed_included_events(ctx, overlay_db, candidate_events).await;
 		}
 
 		Ok(())
@@ -826,8 +829,10 @@ impl Initialized {
 		let new_state = import_result.new_state();
 
 		let is_included = self.scraper.is_candidate_included(&candidate_hash);
+		let is_backed = self.scraper.is_candidate_backed(&candidate_hash);
 
-		let potential_spam = !is_included && !new_state.is_confirmed() && !new_state.has_own_vote();
+		let potential_spam = !is_included && !is_backed 
+			&& !new_state.is_confirmed() && !new_state.has_own_vote();
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -1192,6 +1197,88 @@ impl Initialized {
 		}
 
 		Ok(())
+	}
+
+	/// Firstly decrements spam slots for validators who voted on potential spam
+	/// candidates that are newly backed or included, and therefore no longer
+	/// potential spam.
+	/// 
+	/// Secondly queues participation if needed for freshly backed or included 
+	/// candidates. Backed candidates are added to best_effort queue while 
+	/// included are added to priority queue.
+	async fn handle_backed_included_events<Context>(
+		&mut self, 
+		ctx: &mut Context, 
+		overlay_db: &mut OverlayedBackend<'_, impl Backend>, 
+		candidate_events: Vec<CandidateEvent>
+	)
+	{
+		let session = self.rolling_session_window.latest_session();
+		// Populate events contents, which allow us to queue participation without
+		// duplicated code
+		let mut events_contents: Vec<(CandidateReceipt, ParticipationPriority)> = Vec::new();
+		for event in candidate_events {
+			match event {
+				CandidateEvent::CandidateBacked(receipt, _, _, _) => {
+					events_contents.push((receipt, ParticipationPriority::BestEffort));
+				},
+				CandidateEvent::CandidateIncluded(receipt, _, _, _) => {
+					events_contents.push((receipt, ParticipationPriority::Priority));
+				}
+				_ => (),
+			}
+		}
+
+		for (receipt, priority) in events_contents {
+			// Clear spam slots
+			self.spam_slots.clear(&(session, receipt.hash()));
+
+			// Queue participation for freshly backed candidate. If dispute
+			// is already in priority queue don't try to queue participation
+			// in best_effort. Don't try to participate if candidate receipt
+			// can't be recovered from vote state, if we already voted, or
+			// if the candidate is not disputed.
+			let env =
+				match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
+			{
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						session,
+						"We are lacking a `SessionInfo` for handling import of statements."
+					);
+
+					continue // We skip queueing participation if not possible
+				},
+				Some(env) => env,
+			};
+			let votes_result = overlay_db.load_candidate_votes(session, &receipt.hash());
+			if let Ok(maybe_votes) = votes_result {
+				if let Some(votes) = 
+					maybe_votes.map(CandidateVotes::from)
+				{
+					let vote_state = CandidateVoteState::new(votes, &env);
+					let has_own_vote = vote_state.has_own_vote();
+					let is_disputed = vote_state.is_disputed();
+					let is_included = self.scraper.is_candidate_included(&receipt.hash());
+
+					if !has_own_vote && 
+						is_disputed && 
+						(priority == ParticipationPriority::Priority || !is_included) 
+					{
+						let r = self
+							.participation
+							.queue_participation(
+								ctx,
+								priority,
+								ParticipationRequest::new(receipt, session),
+							)
+							.await;
+							let _ = log_error(r);
+					}
+				}
+			}
+		}
 	}
 }
 

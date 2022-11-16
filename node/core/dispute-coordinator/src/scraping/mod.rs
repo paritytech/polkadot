@@ -137,7 +137,7 @@ impl ChainScraper {
 		&mut self,
 		sender: &mut Sender,
 		update: &ActiveLeavesUpdate,
-	) -> Result<(Vec<ScrapedOnChainVotes>, Vec<(Vec<CandidateEvent>, BlockNumber)>)>
+	) -> Result<(Vec<ScrapedOnChainVotes>, Vec<CandidateEvent>)>
 	where
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
@@ -157,13 +157,13 @@ impl ChainScraper {
 
 		let block_hashes = std::iter::once(activated.hash).chain(ancestors);
 
-		let mut candidate_events: Vec<(Vec<CandidateEvent>, BlockNumber)> = Vec::new();
+		let mut candidate_events: Vec<CandidateEvent> = Vec::new();
 		let mut on_chain_votes = Vec::new();
 		for (block_number, block_hash) in block_numbers.zip(block_hashes) {
 			gum::trace!(?block_number, ?block_hash, "In ancestor processing.");
 
 			let events_for_block = self.process_candidate_events(sender, block_number, block_hash).await?;
-			candidate_events.push((events_for_block, block_number));
+			candidate_events.extend(events_for_block);
 
 			if let Some(votes) = get_on_chain_votes(sender, block_hash).await? {
 				on_chain_votes.push(votes);

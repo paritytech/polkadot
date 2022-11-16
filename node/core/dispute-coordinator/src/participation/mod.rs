@@ -31,7 +31,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
-use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex, CandidateEvent};
+use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
 use crate::LOG_TARGET;
 
@@ -195,7 +195,6 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		update: &ActiveLeavesUpdate,
-		candidate_events: Vec<(Vec<CandidateEvent>, BlockNumber)>,
 	) -> FatalResult<()> {
 		if let Some(activated) = &update.activated {
 			match self.recent_block {
@@ -209,8 +208,6 @@ impl Participation {
 				},
 				Some(_) => {},
 			}
-
-			self.handle_candidate_events(candidate_events);
 		}
 		Ok(())
 	}
@@ -247,26 +244,6 @@ impl Participation {
 			.map_err(FatalError::SpawnFailed)?;
 		}
 		Ok(())
-	}
-
-	/// Update priority queue and best effort queue to account for
-	/// freshly backed or included disputed candidates
-	fn handle_candidate_events(&mut self, candidate_events : Vec<(Vec<CandidateEvent>, BlockNumber)>) {
-		for (events_for_block, block_number) in candidate_events {
-			for event in events_for_block {
-				match event {
-					CandidateEvent::CandidateIncluded(receipt, _, _, _) => {
-						let candidate_hash = receipt.hash();
-					},
-					CandidateEvent::CandidateBacked(receipt, _, _, _) => {
-						let candidate_hash = receipt.hash();
-					},
-					_ => {
-						// skip the rest
-					},
-				}
-			}
-		}
 	}
 }
 
