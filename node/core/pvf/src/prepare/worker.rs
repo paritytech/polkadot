@@ -35,9 +35,8 @@ use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
 use std::{panic, sync::Arc, time::Duration};
 
-/// A multiple of the preparation timeout (CPU time) for which we are willing to wait on the host
-/// in wall clock time. This is lenient because the wall clock can slow down up to a factor of 4
-/// (tested on 32 threads of work on an 8-core machine).
+/// A multiple of the preparation timeout (in CPU time) for which we are willing to wait on the host
+/// (in wall clock time). This is lenient because CPU time may go slower than wall clock time.
 const PREPARATION_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
 
 /// Some allowed overhead that we account for in the "CPU time monitor" thread's sleeps, on the
@@ -111,11 +110,11 @@ pub async fn start_work(
 			Deadline,
 		}
 
-		// We use a generous timeout here. We use a wall clock timeout here in the host, but a CPU
-		// timeout in the child. This is because CPU time can vary more under load, but more closely
-		// corresponds to the actual amount of work performed. The child should already terminate
-		// itself after `preparation_timeout` duration in CPU time, but we have this simple wall
-		// clock timeout in case the child stalls.
+		// We use a generous timeout here. This is in addition to the one in the child process, in
+		// case the child stalls. We have a wall clock timeout here in the host, but a CPU timeout
+		// in the child. We want to use CPU time because it varies less than wall clock time under
+		// load, but the CPU resources of the child can only be measured from the parent after the
+		// child process terminates.
 		let timeout = preparation_timeout * PREPARATION_TIMEOUT_WALL_CLOCK_FACTOR;
 		let result = async_std::future::timeout(timeout, framed_recv(&mut stream)).await;
 
@@ -126,20 +125,18 @@ pub async fn start_work(
 				// By convention we expect encoded `PrepareResult`.
 				if let Ok(result) = PrepareResult::decode(&mut response_bytes.as_slice()) {
 					if let Ok(cpu_time_elapsed) = result {
-						let allowed_cpu_time = preparation_timeout + PREPARATION_TIMEOUT_OVERHEAD;
-						if cpu_time_elapsed > allowed_cpu_time {
-							// Sanity check: we expect the preparation to complete within the
-							// timeout, plus the minimum polling interval.
+						if cpu_time_elapsed > preparation_timeout {
+							// The job didn't complete within the timeout.
 							gum::debug!(
 								target: LOG_TARGET,
 								worker_pid = %pid,
-								"child took {}ms cpu_time, exceeding allowed time {}ms",
+								"child took {}ms cpu_time, exceeded preparation timeout {}ms",
 								cpu_time_elapsed.as_millis(),
-								allowed_cpu_time.as_millis()
+								preparation_timeout.as_millis()
 							);
 
-							// TODO: If we ever hit this case the artifact probably exists, should
-							// we clear it?
+							// Return a timeout error. The artifact exists, but is located in a
+							// temporary file which will be cleared.
 							Selected::Deadline
 						} else {
 							gum::debug!(
