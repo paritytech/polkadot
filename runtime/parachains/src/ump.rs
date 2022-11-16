@@ -541,10 +541,10 @@ impl<T: Config> Pallet<T> {
 			// our remaining weight limit, then consume it.
 			let maybe_next = queue_cache.peek_front::<T>(dispatchee);
 			if let Some(upward_message) = maybe_next {
+				messages_processed += 1;
 				match T::UmpSink::process_upward_message(dispatchee, upward_message, max_weight) {
 					Ok(used) => {
 						weight_used += used;
-						messages_processed += 1;
 						let _ = queue_cache.consume_front::<T>(dispatchee);
 					},
 					Err((id, required)) => {
