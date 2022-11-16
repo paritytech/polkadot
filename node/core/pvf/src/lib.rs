@@ -16,7 +16,10 @@
 
 #![warn(missing_docs)]
 
-//! A crate that implements PVF validation host.
+//! A crate that implements the PVF (Parachain Validation Function) validation host.
+//!
+//! For more background to PVFs, refer to the [Implementer's Guide: PVF
+//! Pre-checking](https://paritytech.github.io/polkadot/book/pvf-prechecking.html).
 //!
 //! # Entrypoint
 //!
