@@ -173,6 +173,12 @@ impl Queues {
 			self.best_effort.remove(&comparator);
 			self.priority.insert(comparator, req);
 		} else {
+			if self.priority.contains_key(&comparator) {
+				// The candidate is already in priority queue - don't
+				// add in in best effort too.
+				return Ok(())
+			}
+
 			if self.best_effort.len() >= BEST_EFFORT_QUEUE_SIZE {
 				return Err(QueueError::BestEffortFull)
 			}
