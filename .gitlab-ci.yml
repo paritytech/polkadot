@@ -92,7 +92,7 @@ default:
       - api_failure
   interruptible:                   true
   tags:
-    - linux-docker
+    - linux-docker-vm
 
 .compiler-info:
   before_script:
