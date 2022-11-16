@@ -1456,6 +1456,7 @@ pub type Executive = frame_executive::Executive<
 		pallet_fast_unstake::migrations::v1::MigrateToV1<Runtime>,
 		// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
+		parachains_ump::migration::v1::MigrateToV1<Runtime>,
 	),
 >;
 /// The payload being signed in the transactions.
