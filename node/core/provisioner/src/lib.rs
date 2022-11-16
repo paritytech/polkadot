@@ -183,7 +183,7 @@ fn handle_active_leaves_update(
 		per_relay_parent.remove(deactivated);
 	}
 
-	for leaf in update.activated {
+	if let Some(leaf) = update.activated {
 		let delay_fut = Delay::new(PRE_PROPOSE_TIMEOUT).map(move |_| leaf.hash).boxed();
 		per_relay_parent.insert(leaf.hash, PerRelayParent::new(leaf));
 		inherent_delays.push(delay_fut);

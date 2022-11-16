@@ -2017,7 +2017,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					}
 				}
 
-				for activated in activated {
+				if let Some(activated) = activated {
 					let relay_parent = activated.hash;
 					let span = PerLeafSpan::new(activated.span, "statement-distribution");
 					gum::trace!(
