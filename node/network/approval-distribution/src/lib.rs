@@ -152,9 +152,9 @@ impl Default for AggressionConfig {
 	fn default() -> Self {
 		AggressionConfig {
 			// soft "disable" the aggresion for testing
-			l1_threshold: Some(9999),
-			l2_threshold: Some(99999),
-			resend_unfinalized_period: Some(8),
+			l1_threshold: Some(1000),
+			l2_threshold: Some(10000),
+			resend_unfinalized_period: None,
 		}
 	}
 }
