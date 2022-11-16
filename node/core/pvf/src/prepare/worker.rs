@@ -127,10 +127,10 @@ pub async fn start_work(
 					if let Ok(cpu_time_elapsed) = result {
 						if cpu_time_elapsed > preparation_timeout {
 							// The job didn't complete within the timeout.
-							gum::debug!(
+							gum::warn!(
 								target: LOG_TARGET,
 								worker_pid = %pid,
-								"child took {}ms cpu_time, exceeded preparation timeout {}ms",
+								"prepare job took {}ms cpu time, exceeded preparation timeout {}ms",
 								cpu_time_elapsed.as_millis(),
 								preparation_timeout.as_millis()
 							);
@@ -322,8 +322,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 				})
 			})?;
 
-			// Prepares the artifact in a separate thread. On error, the serialized error will be
-			// written into the socket.
+			// Prepares the artifact in a separate thread.
 			let result = match prepare_artifact(&code) {
 				Err(err) => {
 					// Serialized error will be written into the socket.
@@ -415,7 +414,14 @@ async fn cpu_time_monitor_loop(
 			}
 			*lock = true;
 
-			// TODO: Log if we exceed the timeout.
+			// Log if we exceed the timeout.
+			gum::warn!(
+				target: LOG_TARGET,
+				worker_pid = %std::process::id(),
+				"prepare job took {}ms cpu time, exceeded preparation timeout {}ms",
+				cpu_time_elapsed.as_millis(),
+				preparation_timeout.as_millis(),
+			);
 
 			// Send back a PrepareError::TimedOut on timeout.
 			let result: Result<(), PrepareError> = Err(PrepareError::TimedOut);
