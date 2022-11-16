@@ -135,7 +135,7 @@ impl Queues {
 	/// Will put message in queue, either priority or best effort depending on priority.
 	///
 	/// If the message was already previously present on best effort, it will be moved to priority
-	/// if it considered priority now.
+	/// if it is considered priority now.
 	///
 	/// Returns error in case a queue was found full already.
 	pub async fn queue(
@@ -248,8 +248,9 @@ struct CandidateComparator {
 	/// that is not stable. If a new fork appears after the fact, we would start ordering the same
 	/// candidate differently, which would result in the same candidate getting queued twice.
 	relay_parent_block_number: Option<BlockNumber>,
-	/// By adding the `CandidateHash`, we can guarantee a unique ordering across candidates.
-	/// Additionally if `BlockNumber` can't be obtained the `CandidateHash` is used for ordering.
+	/// By adding the `CandidateHash`, we can guarantee a unique ordering across candidates with the
+	/// same relay parent block number. Candidates without `relay_parent_block_number` are ordered by
+	/// the `candidate_hash` (and treated with the lowest priority, as already mentioned).
 	candidate_hash: CandidateHash,
 }
 
@@ -311,8 +312,8 @@ impl Ord for CandidateComparator {
 				// No relay parents for both -> compare hashes
 				self.candidate_hash.cmp(&other.candidate_hash)
 			},
-			(Some(_), Some(_)) => {
-				match self.relay_parent_block_number.cmp(&other.relay_parent_block_number) {
+			(Some(self_relay_parent_block_num), Some(other_relay_parent_block_num)) => {
+				match self_relay_parent_block_num.cmp(&other_relay_parent_block_num) {
 					Ordering::Equal => (),
 					o => return o,
 				}
