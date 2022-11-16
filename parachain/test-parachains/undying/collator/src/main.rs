@@ -35,12 +35,8 @@ fn main() -> Result<()> {
 		Some(cli::Subcommand::ExportGenesisState(params)) => {
 			// `pov_size` and `pvf_complexity` need to match the ones that we start the collator
 			// with.
-			let collator = Collator::new(
-				params.pov_size,
-				params.pvf_complexity,
-				params.hrmp_params,
-				params.parachain_id,
-			);
+			let collator =
+				Collator::new(params.pov_size, params.pvf_complexity, vec![], params.parachain_id);
 			println!("0x{:?}", HexDisplay::from(&collator.genesis_head()));
 
 			Ok::<_, Error>(())
@@ -63,7 +59,7 @@ fn main() -> Result<()> {
 				let collator = Collator::new(
 					cli.run.pov_size,
 					cli.run.pvf_complexity,
-					cli.run.hrmp_params,
+					cli.run.hrmp_params.into_iter().map(|cli_param| cli_param.0).collect(),
 					cli.run.parachain_id,
 				);
 

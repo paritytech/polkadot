@@ -18,7 +18,54 @@
 
 use clap::Parser;
 use sc_cli::{RuntimeVersion, SubstrateCli};
+use std::str::FromStr;
 use test_parachain_undying::HrmpChannelConfiguration;
+
+/// Utility enum for parse HRMP config from a string
+#[derive(Clone, Copy, Debug, strum::Display, thiserror::Error)]
+pub enum HrmpConfigParseError {
+	IntParseError,
+	MissingDestination,
+	MissingMessageSize,
+	MissingMessagesCount,
+	TooManyParams,
+}
+
+#[derive(Debug)]
+pub struct CliHrmpChannelConfiguration(pub HrmpChannelConfiguration);
+
+/// This implementation is used to parse HRMP channels configuration from a command
+/// line. This should be two numbers separated by `:`, where a first number is the
+/// target parachain id and the second number is the message size in bytes.
+/// For example, a configuration of `2:100` will send 100 bytes of data to the
+/// parachain id 2 on each block. The HRMP channel must be configured in the genesis
+/// block to be able to use this parameter.
+impl FromStr for CliHrmpChannelConfiguration {
+	type Err = HrmpConfigParseError;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		let split_str: Vec<&str> = s.split(':').collect();
+		match split_str.len() {
+			0 => return Err(HrmpConfigParseError::MissingDestination),
+			1 => return Err(HrmpConfigParseError::MissingMessageSize),
+			2 => return Err(HrmpConfigParseError::MissingMessagesCount),
+			3 => {},
+			_ => return Err(HrmpConfigParseError::TooManyParams),
+		}
+		let destination_para_id =
+			split_str[0].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
+		let message_size =
+			split_str[1].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
+		let messages_count =
+			split_str[2].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
+
+		Ok(CliHrmpChannelConfiguration(HrmpChannelConfiguration {
+			destination_para_id,
+			message_size,
+			messages_count,
+		}))
+	}
+}
 
 /// Sub-commands supported by the collator.
 #[derive(Debug, Parser)]
@@ -50,10 +97,6 @@ pub struct ExportGenesisStateCommand {
 	/// we compute per block.
 	#[arg(long, default_value_t = 1)]
 	pub pvf_complexity: u32,
-
-	/// Configuration of the hrmp channels
-	#[clap(long)]
-	pub hrmp_params: Vec<HrmpChannelConfiguration>,
 }
 
 /// Command for exporting the genesis wasm file.
@@ -83,7 +126,7 @@ pub struct RunCmd {
 
 	/// Configuration of the hrmp channels
 	#[clap(long)]
-	pub hrmp_params: Vec<HrmpChannelConfiguration>,
+	pub hrmp_params: Vec<CliHrmpChannelConfiguration>,
 }
 
 #[allow(missing_docs)]

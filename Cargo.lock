@@ -12045,8 +12045,10 @@ dependencies = [
  "sc-service",
  "sp-core",
  "sp-keyring",
+ "strum",
  "substrate-test-utils",
  "test-parachain-undying",
+ "thiserror",
  "tokio",
 ]
 

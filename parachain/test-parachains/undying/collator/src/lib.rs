@@ -36,7 +36,7 @@ use std::{
 	time::Duration,
 };
 use test_parachain_undying::{
-	execute, hash_state, BlockData, GraveyardState, HeadData, HrmpChannelConfiguration,
+	execute, hash_state, BlockData, GraveyardState, HeadData, HrmpChannelConfiguration, LOG_TARGET,
 };
 
 pub mod relay_chain;
@@ -65,7 +65,10 @@ fn calculate_head_and_state_for_number(
 		*grave = i as u8;
 	});
 
+	log::debug!(target: LOG_TARGET, "received messages from {} parachains", inbound_messages.len());
 	let inbound_messages = inbound_messages.values().flatten().cloned().collect::<Vec<_>>();
+	log::debug!(target: LOG_TARGET, "received {} messages in total", inbound_messages.len());
+
 	let mut state = GraveyardState { index, graveyard, zombies, seal, inbound_messages };
 	let mut head =
 		HeadData { number: 0, parent_hash: Hash::default().into(), post_state: hash_state(&state) };
@@ -95,8 +98,6 @@ struct State {
 	// want that state to collate on older relay chain heads.
 	head_to_state: HashMap<Arc<HeadData>, GraveyardState>,
 	number_to_head: HashMap<u64, Arc<HeadData>>,
-	/// Stored inbound messages for the current state
-	current_inbound_messages: BTreeMap<ParaId, Vec<InboundHrmpMessage>>,
 	/// Block number of the best block.
 	best_block: u64,
 	/// PVF time complexity.
@@ -142,7 +143,6 @@ impl State {
 			pvf_complexity,
 			graveyard_size,
 			hrmp_channels,
-			current_inbound_messages: BTreeMap::new(),
 		}
 	}
 
@@ -156,7 +156,7 @@ impl State {
 	) -> (BlockData, HeadData, Vec<OutboundHrmpMessage<ParaId>>) {
 		self.best_block = parent_head.number;
 
-		let state = if let Some(head_data) = self.number_to_head.get(&self.best_block) {
+		let mut state = if let Some(head_data) = self.number_to_head.get(&self.best_block) {
 			self.head_to_state.get(head_data).cloned().unwrap_or_else(|| {
 				calculate_head_and_state_for_number(
 					parent_head.number,
@@ -178,6 +178,14 @@ impl State {
 			state
 		};
 
+		log::debug!(
+			target: LOG_TARGET,
+			"received messages from {} parachains",
+			inbound_messages.len()
+		);
+		let inbound_messages = inbound_messages.values().flatten().cloned().collect::<Vec<_>>();
+		log::debug!(target: LOG_TARGET, "received {} messages in total", inbound_messages.len());
+		state.inbound_messages = inbound_messages;
 		// Start with prev state and transaction to execute (place 1000 tombstones).
 		let block = BlockData {
 			state,
@@ -299,13 +307,17 @@ impl Collator {
 					.await
 					.unwrap_or_else(|_| BTreeMap::new());
 
-				let (block_data, head_data, messages) =
-					state.lock().unwrap().advance(parent, inbound_messages);
+				let messages_count: usize =
+					inbound_messages.values().map(|msg_vec| msg_vec.len()).sum();
 
+				let (block_data, head_data, outbound_messages) =
+					state.lock().unwrap().advance(parent, inbound_messages);
 				log::info!(
-					"created a new collation on relay-parent({}): {:?}",
+					"created a new collation on relay-parent({}): {:?}; {} messages received, {} messages sent",
 					relay_parent,
 					head_data,
+					messages_count,
+					outbound_messages.len()
 				);
 
 				// The pov is the actually the initial state and the transactions.
@@ -313,11 +325,11 @@ impl Collator {
 
 				let collation = Collation {
 				  upward_messages: Default::default(),
-					horizontal_messages: messages,
+					horizontal_messages: outbound_messages.try_into().expect("bound for the vector must be higher than number of messages",
 					new_validation_code: None,
 					head_data: head_data.encode().into(),
 					proof_of_validity: MaybeCompressedPoV::Raw(pov.clone()),
-					processed_downward_messages: 0,
+					processed_downward_messages: messages_count as u32,
 					hrmp_watermark: relay_parent_number,
 				};
 
@@ -367,7 +379,7 @@ impl Collator {
 			let current_block = self.state.lock().unwrap().best_block;
 
 			if start_block + blocks <= current_block {
-				return;
+				return
 			}
 		}
 	}
@@ -382,7 +394,7 @@ impl Collator {
 			Delay::new(Duration::from_secs(1)).await;
 
 			if seconded <= seconded_collations.load(Ordering::Relaxed) {
-				return;
+				return
 			}
 		}
 	}

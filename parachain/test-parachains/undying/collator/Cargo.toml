@@ -20,6 +20,8 @@ clap = { version = "4.0.9", features = ["derive"] }
 futures = "0.3.19"
 futures-timer = "3.0.2"
 log = "0.4.17"
+thiserror = "1.0.31"
+strum = { version = "0.24", features = ["derive"] }
 
 test-parachain-undying = { path = ".." }
 polkadot-primitives = { path = "../../../../primitives" }

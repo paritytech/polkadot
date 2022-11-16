@@ -32,7 +32,7 @@ mod wasm_validation;
 #[cfg(not(feature = "std"))]
 #[global_allocator]
 static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
-const LOG_TARGET: &str = "runtime::undying";
+pub const LOG_TARGET: &str = "runtime::undying";
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -103,45 +103,6 @@ pub struct HrmpChannelConfiguration {
 	pub message_size: u32,
 	/// Messages count
 	pub messages_count: u32,
-}
-
-/// Utility enum for parse HRMP config from a string
-#[derive(Clone, Copy, Debug)]
-pub enum HrmpConfigParseError {
-	IntParseError,
-	MissingDestination,
-	MissingMessageSize,
-	MissingMessagesCount,
-	TooManyParams,
-}
-
-/// This implementation is used to parse HRMP channels configuration from a command
-/// line. This should be two numbers separated by `:`, where a first number is the
-/// target parachain id and the second number is the message size in bytes.
-/// For example, a configuration of `2:100` will send 100 bytes of data to the
-/// parachain id 2 on each block. The HRMP channel must be configured in the genesis
-/// block to be able to use this parameter.
-impl FromStr for HrmpChannelConfiguration {
-	type Err = HrmpConfigParseError;
-
-	fn from_str(s: &str) -> Result<Self, Self::Err> {
-		let split_str: Vec<&str> = s.split(':').collect();
-		match split_str.len() {
-			0 => return Err(HrmpConfigParseError::MissingDestination),
-			1 => return Err(HrmpConfigParseError::MissingMessageSize),
-			2 => return Err(HrmpConfigParseError::MissingMessagesCount),
-			3 => {},
-			_ => return Err(HrmpConfigParseError::TooManyParams),
-		}
-		let destination_para_id =
-			split_str[0].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
-		let message_size =
-			split_str[1].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
-		let messages_count =
-			split_str[2].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
-
-		Ok(HrmpChannelConfiguration { destination_para_id, message_size, messages_count })
-	}
 }
 
 /// Block data for this parachain.
