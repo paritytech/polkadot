@@ -154,9 +154,6 @@ impl Queues {
 	/// First the priority queue is considered and then the best effort one.
 	pub fn dequeue(&mut self) -> Option<ParticipationRequest> {
 		if let Some(req) = self.pop_priority() {
-			// In case a candidate became best effort over time, we might have it also queued in
-			// the best effort queue - get rid of any such entry:
-			self.best_effort.remove(&req.0);
 			return Some(req.1)
 		}
 		self.pop_best_effort().map(|d| d.1)
