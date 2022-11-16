@@ -53,6 +53,7 @@ fn calculate_head_and_state_for_number(
 	graveyard_size: usize,
 	pvf_complexity: u32,
 	hrmp_channels: Vec<HrmpChannelConfiguration>,
+	inbound_messages: &BTreeMap<ParaId, Vec<InboundHrmpMessage>>,
 ) -> (HeadData, GraveyardState, Vec<OutboundHrmpMessage<ParaId>>) {
 	let index = 0u64;
 	let mut graveyard = vec![0u8; graveyard_size * graveyard_size];
@@ -64,7 +65,8 @@ fn calculate_head_and_state_for_number(
 		*grave = i as u8;
 	});
 
-	let mut state = GraveyardState { index, graveyard, zombies, seal };
+	let inbound_messages = inbound_messages.values().flatten().cloned().collect::<Vec<_>>();
+	let mut state = GraveyardState { index, graveyard, zombies, seal, inbound_messages };
 	let mut head =
 		HeadData { number: 0, parent_hash: Hash::default().into(), post_state: hash_state(&state) };
 	let mut messages: Vec<OutboundHrmpMessage<ParaId>> = Vec::new();
@@ -93,6 +95,8 @@ struct State {
 	// want that state to collate on older relay chain heads.
 	head_to_state: HashMap<Arc<HeadData>, GraveyardState>,
 	number_to_head: HashMap<u64, Arc<HeadData>>,
+	/// Stored inbound messages for the current state
+	current_inbound_messages: BTreeMap<ParaId, Vec<InboundHrmpMessage>>,
 	/// Block number of the best block.
 	best_block: u64,
 	/// PVF time complexity.
@@ -125,7 +129,7 @@ impl State {
 			*grave = i as u8;
 		});
 
-		let state = GraveyardState { index, graveyard, zombies, seal };
+		let state = GraveyardState { index, graveyard, zombies, seal, inbound_messages: vec![] };
 
 		let head_data =
 			HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
@@ -138,6 +142,7 @@ impl State {
 			pvf_complexity,
 			graveyard_size,
 			hrmp_channels,
+			current_inbound_messages: BTreeMap::new(),
 		}
 	}
 
@@ -147,7 +152,7 @@ impl State {
 	fn advance(
 		&mut self,
 		parent_head: HeadData,
-		_inbound_messages: BTreeMap<ParaId, Vec<InboundHrmpMessage>>,
+		inbound_messages: BTreeMap<ParaId, Vec<InboundHrmpMessage>>,
 	) -> (BlockData, HeadData, Vec<OutboundHrmpMessage<ParaId>>) {
 		self.best_block = parent_head.number;
 
@@ -158,6 +163,7 @@ impl State {
 					self.graveyard_size,
 					self.pvf_complexity,
 					self.hrmp_channels.clone(),
+					&inbound_messages,
 				)
 				.1
 			})
@@ -167,6 +173,7 @@ impl State {
 				self.graveyard_size,
 				self.pvf_complexity,
 				self.hrmp_channels.clone(),
+				&inbound_messages,
 			);
 			state
 		};
@@ -360,7 +367,7 @@ impl Collator {
 			let current_block = self.state.lock().unwrap().best_block;
 
 			if start_block + blocks <= current_block {
-				return
+				return;
 			}
 		}
 	}
@@ -375,7 +382,7 @@ impl Collator {
 			Delay::new(Duration::from_secs(1)).await;
 
 			if seconded <= seconded_collations.load(Ordering::Relaxed) {
-				return
+				return;
 			}
 		}
 	}

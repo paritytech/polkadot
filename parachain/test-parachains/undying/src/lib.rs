@@ -17,15 +17,12 @@
 //! Basic parachain that adds a number as part of its state.
 
 #![no_std]
-#![cfg_attr(
-	not(feature = "std"),
-	feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler)
-)]
+#![cfg_attr(not(feature = "std"), feature(core_intrinsics, lang_items, alloc_error_handler))]
 
-use core::{num::ParseIntError, str::FromStr};
+use core::str::FromStr;
 use parachain::primitives::Id as ParaId;
 use parity_scale_codec::{Decode, Encode};
-use polkadot_core_primitives::OutboundHrmpMessage;
+use polkadot_core_primitives::{InboundHrmpMessage, OutboundHrmpMessage};
 use sp_std::vec::Vec;
 use tiny_keccak::{Hasher as _, Keccak};
 
@@ -84,6 +81,10 @@ pub struct GraveyardState {
 	/// The unsigned integer tracks the number of tombstones raised on
 	/// each grave.
 	pub graveyard: Vec<u8>,
+
+	/// Inbound messages processed
+	pub inbound_messages: Vec<InboundHrmpMessage>,
+
 	// TODO: Add zombies. All of the graves produce zombies at a regular interval
 	// defined in blocks. The number of zombies produced scales with the tombstones.
 	// This would allow us to have a configurable and reproducible PVF execution time.
@@ -100,6 +101,18 @@ pub struct HrmpChannelConfiguration {
 	pub destination_para_id: u32,
 	/// Message size
 	pub message_size: u32,
+	/// Messages count
+	pub messages_count: u32,
+}
+
+/// Utility enum for parse HRMP config from a string
+#[derive(Clone, Copy, Debug)]
+pub enum HrmpConfigParseError {
+	IntParseError,
+	MissingDestination,
+	MissingMessageSize,
+	MissingMessagesCount,
+	TooManyParams,
 }
 
 /// This implementation is used to parse HRMP channels configuration from a command
@@ -109,14 +122,25 @@ pub struct HrmpChannelConfiguration {
 /// parachain id 2 on each block. The HRMP channel must be configured in the genesis
 /// block to be able to use this parameter.
 impl FromStr for HrmpChannelConfiguration {
-	type Err = ParseIntError;
+	type Err = HrmpConfigParseError;
 
 	fn from_str(s: &str) -> Result<Self, Self::Err> {
 		let split_str: Vec<&str> = s.split(':').collect();
-		let destination_para_id = split_str[0].parse::<u32>()?;
-		let message_size = split_str[1].parse::<u32>()?;
+		match split_str.len() {
+			0 => return Err(HrmpConfigParseError::MissingDestination),
+			1 => return Err(HrmpConfigParseError::MissingMessageSize),
+			2 => return Err(HrmpConfigParseError::MissingMessagesCount),
+			3 => {},
+			_ => return Err(HrmpConfigParseError::TooManyParams),
+		}
+		let destination_para_id =
+			split_str[0].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
+		let message_size =
+			split_str[1].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
+		let messages_count =
+			split_str[2].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
 
-		Ok(HrmpChannelConfiguration { destination_para_id, message_size })
+		Ok(HrmpChannelConfiguration { destination_para_id, message_size, messages_count })
 	}
 }
 
@@ -139,7 +163,10 @@ pub fn hash_state(state: &GraveyardState) -> [u8; 32] {
 }
 
 /// Executes all graveyard transactions in the block.
-pub fn execute_transaction(mut block_data: BlockData) -> GraveyardState {
+pub fn execute_transaction(
+	mut block_data: BlockData,
+	inbound_messages: &Vec<InboundHrmpMessage>,
+) -> GraveyardState {
 	let graveyard_size = block_data.state.graveyard.len();
 
 	for _ in 0..block_data.iterations {
@@ -154,6 +181,7 @@ pub fn execute_transaction(mut block_data: BlockData) -> GraveyardState {
 		block_data.state.seal = hash_state(&block_data.state);
 	}
 
+	block_data.state.inbound_messages = inbound_messages.clone();
 	block_data.state
 }
 
@@ -181,7 +209,7 @@ pub fn execute(
 	}
 
 	// We need to clone the block data as the fn will mutate it's state.
-	let new_state = execute_transaction(block_data.clone());
+	let new_state = execute_transaction(block_data.clone(), &block_data.state.inbound_messages);
 	let messages = block_data
 		.hrmp_channels
 		.iter()
