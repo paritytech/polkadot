@@ -314,11 +314,11 @@ impl Ord for CandidateComparator {
 			},
 			(Some(self_relay_parent_block_num), Some(other_relay_parent_block_num)) => {
 				match self_relay_parent_block_num.cmp(&other_relay_parent_block_num) {
-					Ordering::Equal => (),
+					// if the relay parent is the same for both -> compare hashes
+					Ordering::Equal => self.candidate_hash.cmp(&other.candidate_hash),
+					// if not - return the result from comparing the relay parent block numbers
 					o => return o,
 				}
-				// if the relay parent is the same for both -> compare hashes
-				self.candidate_hash.cmp(&other.candidate_hash)
 			},
 			(Some(_), None) => {
 				// Candidates with known relay parents are always with priority
