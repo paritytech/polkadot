@@ -425,9 +425,16 @@ async fn cpu_time_monitor_loop(
 
 			// Send back a PrepareError::TimedOut on timeout.
 			let result: Result<(), PrepareError> = Err(PrepareError::TimedOut);
-			// If we error there is nothing we can do here, and we are killing the process,
+			// If we error there is nothing else we can do here, and we are killing the process,
 			// anyway. The receiving side will just have to time out.
-			let _ = framed_send(&mut stream, result.encode().as_slice()).await;
+			if let Err(err) = framed_send(&mut stream, result.encode().as_slice()).await {
+				gum::warn!(
+					target: LOG_TARGET,
+					worker_pid = %std::process::id(),
+					"prepare worker -> pvf host: error sending result over the socket: {:?}",
+					err
+				);
+			}
 
 			// Kill the process.
 			std::process::exit(1);
