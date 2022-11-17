@@ -17,7 +17,34 @@
 //! Integration test that ensures that we can build and include parachain
 //! blocks of the `Undying` parachain.
 
+use async_trait::async_trait;
+use polkadot_primitives::v2::{Hash, InboundDownwardMessage, InboundHrmpMessage};
+use polkadot_service::ParaId;
+use sp_api::ApiError;
+use std::{collections::BTreeMap, sync::Arc};
+use test_parachain_undying_collator::relay_chain::RelayChainInterface;
+
 const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_undying_collator_puppet_worker");
+
+struct FakeRuntime;
+#[async_trait]
+impl RelayChainInterface for FakeRuntime {
+	async fn retrieve_dmq_contents(
+		&self,
+		_para_id: ParaId,
+		_relay_parent: Hash,
+	) -> Result<Vec<InboundDownwardMessage>, ApiError> {
+		Ok(Vec::new())
+	}
+
+	async fn retrieve_all_inbound_hrmp_channel_contents(
+		&self,
+		_para_id: ParaId,
+		_relay_parent: Hash,
+	) -> Result<BTreeMap<ParaId, Vec<InboundHrmpMessage>>, ApiError> {
+		Ok(BTreeMap::new())
+	}
+}
 
 // If this test is failing, make sure to run all tests with the `real-overseer` feature being enabled.
 #[substrate_test_utils::test(flavor = "multi_thread")]
@@ -53,7 +80,7 @@ async fn collating_using_undying_collator() {
 	// start bob
 	let bob = polkadot_test_service::run_validator_node(bob_config, Some(PUPPET_EXE.into()));
 
-	let collator = test_parachain_undying_collator::Collator::new(1_000, 1);
+	let collator = test_parachain_undying_collator::Collator::new(1_000, 1, Vec::new(), 1001);
 
 	// register parachain
 	alice
@@ -74,7 +101,10 @@ async fn collating_using_undying_collator() {
 		.register_collator(
 			collator.collator_key(),
 			para_id,
-			collator.create_collation_function(charlie.task_manager.spawn_handle()),
+			collator.create_collation_function(
+				charlie.task_manager.spawn_handle(),
+				Arc::new(FakeRuntime {}),
+			),
 		)
 		.await;
 

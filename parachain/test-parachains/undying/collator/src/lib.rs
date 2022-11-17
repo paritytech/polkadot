@@ -181,11 +181,6 @@ impl State {
 			state
 		};
 
-		log::debug!(
-			target: LOG_TARGET,
-			"received messages from {} parachains",
-			inbound_messages.len()
-		);
 		let inbound_hrmp_messages =
 			inbound_messages.values().flatten().cloned().collect::<Vec<_>>();
 		log::debug!(target: LOG_TARGET, "received {} messages in total", inbound_messages.len());
@@ -316,16 +311,6 @@ impl Collator {
 					.retrieve_dmq_contents(para_id, relay_parent)
 					.await
 					.unwrap_or_else(|_| vec![]);
-				log::debug!(
-					target: LOG_TARGET,
-					"raw inbound messages tree keys: {:?}",
-					inbound_messages.keys().map(|para_id| u32::from(*para_id)).collect::<Vec<_>>()
-				);
-				log::debug!(
-					target: LOG_TARGET,
-					"raw dmq messages: {:?}",
-					dmq_messages.iter().map(|msg| msg.msg.clone()).collect::<Vec<_>>()
-				);
 				let hrmp_messages_count: usize =
 					inbound_messages.values().map(|msg_vec| msg_vec.len()).sum();
 				let dmq_messages_count = dmq_messages.len();
@@ -427,15 +412,38 @@ use sp_core::traits::SpawnNamed;
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use async_trait::async_trait;
 	use futures::executor::block_on;
 	use polkadot_parachain::primitives::{ValidationParams, ValidationResult};
 	use polkadot_primitives::{Hash, PersistedValidationData};
+	use sp_api::ApiError;
+
+	struct FakeRuntime;
+	#[async_trait]
+	impl RelayChainInterface for FakeRuntime {
+		async fn retrieve_dmq_contents(
+			&self,
+			_para_id: ParaId,
+			_relay_parent: Hash,
+		) -> Result<Vec<InboundDownwardMessage>, ApiError> {
+			Ok(Vec::new())
+		}
+
+		async fn retrieve_all_inbound_hrmp_channel_contents(
+			&self,
+			_para_id: ParaId,
+			_relay_parent: Hash,
+		) -> Result<BTreeMap<ParaId, Vec<InboundHrmpMessage>>, ApiError> {
+			Ok(BTreeMap::new())
+		}
+	}
 
 	#[test]
 	fn collator_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
-		let collator = Collator::new(1_000, 1, Vec::new());
-		let collation_function = collator.create_collation_function(spawner);
+		let collator = Collator::new(1_000, 1, Vec::new(), 1001);
+		let collation_function =
+			collator.create_collation_function(spawner, Arc::new(FakeRuntime {}));
 
 		for i in 0..5 {
 			let parent_head =
@@ -488,17 +496,24 @@ mod tests {
 
 	#[test]
 	fn advance_to_state_when_parent_head_is_missing() {
-		let collator = Collator::new(1_000, 1, Vec::new());
+		let collator = Collator::new(1_000, 1, Vec::new(), 1001);
 		let graveyard_size = collator.state.lock().unwrap().graveyard_size;
 
-		let mut head = calculate_head_and_state_for_number(10, graveyard_size, 1, Vec::new()).0;
+		let mut head = calculate_head_and_state_for_number(
+			10,
+			graveyard_size,
+			1,
+			Vec::new(),
+			&BTreeMap::new(),
+		)
+		.0;
 
 		for i in 1..10 {
-			head = collator.state.lock().unwrap().advance(head).1;
+			head = collator.state.lock().unwrap().advance(head, BTreeMap::new(), Vec::new()).1;
 			assert_eq!(10 + i, head.number);
 		}
 
-		let collator = Collator::new(1_000, 1, Vec::new());
+		let collator = Collator::new(1_000, 1, Vec::new(), 1001);
 		let mut second_head = collator
 			.state
 			.lock()
@@ -511,7 +526,12 @@ mod tests {
 			.clone();
 
 		for _ in 1..20 {
-			second_head = collator.state.lock().unwrap().advance(second_head.clone()).1;
+			second_head = collator
+				.state
+				.lock()
+				.unwrap()
+				.advance(second_head.clone(), BTreeMap::new(), Vec::new())
+				.1;
 		}
 
 		assert_eq!(second_head, head);

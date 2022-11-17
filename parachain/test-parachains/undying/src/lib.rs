@@ -166,7 +166,7 @@ pub fn execute(
 			hash_state(&block_data.state),
 			parent_head.post_state,
 		);
-		return Err(StateMismatch);
+		return Err(StateMismatch)
 	}
 
 	// We need to clone the block data as the fn will mutate it's state.
