@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-availability-bitfield-distribution"
-version = "0.9.31"
+version = "0.9.32"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -16,11 +16,11 @@ rand = "0.8"
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
 maplit = "1.0.2"
 log = "0.4.17"
 env_logger = "0.9.0"

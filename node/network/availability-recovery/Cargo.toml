@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-availability-recovery"
-version = "0.9.31"
+version = "0.9.32"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -19,7 +19,7 @@ polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
 
 [dev-dependencies]
 assert_matches = "1.4.0"
@@ -27,10 +27,10 @@ env_logger = "0.9.0"
 futures-timer = "3.0.2"
 log = "0.4.17"
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

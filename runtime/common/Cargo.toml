@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.9.31"
+version = "0.9.32"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
@@ -15,34 +15,34 @@ serde = { version = "1.0.137", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 
-beefy-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
 
-pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
-pallet-bags-list = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.31" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+pallet-bags-list = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.31" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.31" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.32" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "polkadot-v0.9.32" }
 
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 libsecp256k1 = { version = "0.7.0", default-features = false }
@@ -53,10 +53,10 @@ xcm = { path = "../../xcm", default-features = false }
 
 [dev-dependencies]
 hex-literal = "0.3.4"
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
 serde_json = "1.0.81"
 libsecp256k1 = "0.7.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }

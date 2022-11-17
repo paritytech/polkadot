@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-node-subsystem-test-helpers"
-version = "0.9.31"
+version = "0.9.32"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 description = "Subsystem traits and message definitions"
@@ -12,11 +12,11 @@ parking_lot = "0.12.0"
 polkadot-node-subsystem = { path = "../subsystem" }
 polkadot-node-subsystem-util = { path = "../subsystem-util" }
 polkadot-primitives = { path = "../../primitives" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.31" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
 
 [dev-dependencies]
 polkadot-overseer = { path = "../overseer" }
