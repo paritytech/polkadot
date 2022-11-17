@@ -168,6 +168,8 @@ build-implementers-guide:
     - .docker-env
     - .test-refs
     - .collect-artifacts-short
+  variables:
+    GIT_DEPTH:                     0
   script:
     - apt-get -y update; apt-get install -y graphviz
     - cargo install mdbook mdbook-mermaid mdbook-linkcheck mdbook-graphviz mdbook-last-changed

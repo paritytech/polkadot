@@ -154,7 +154,7 @@ publish-rustdoc:
     - .kubernetes-env
   image:                           paritytech/tools:latest
   variables:
-    GIT_DEPTH:                     100
+    GIT_DEPTH:                     0
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
