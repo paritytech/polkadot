@@ -987,6 +987,18 @@ mod tests {
 	}
 
 	#[test]
+	fn reanchor_overflow_handled() {
+		let mut id = MultiLocation::new(255, X1(Parachain(255)));
+		let original_id = id.clone();
+		let ancestry = (Parachain(500)).into();
+		let target = (Parachain(500), Parachain(501)).into();
+		// returns error
+		id.reanchor(&target, &ancestry).err().unwrap();
+		// id is not mutated
+		assert_eq!(id, original_id);
+	}
+
+	#[test]
 	fn encode_and_decode_works() {
 		let m = MultiLocation {
 			parents: 1,
