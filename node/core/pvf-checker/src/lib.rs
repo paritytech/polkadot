@@ -20,7 +20,7 @@
 //! as well as submitting statements regarding them passing or not the PVF pre-checking.
 
 use futures::{channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUnordered};
-use polkadot_node_subsystem_util::executor_params_at_relay_parent;
+use polkadot_node_subsystem_util::{executor_params_at_relay_parent, Error};
 
 use polkadot_node_subsystem::{
 	messages::{CandidateValidationMessage, PreCheckOutcome, PvfCheckerMessage, RuntimeApiMessage},
@@ -537,13 +537,23 @@ async fn initiate_precheck(
 ) {
 	gum::debug!(target: LOG_TARGET, ?validation_code_hash, ?relay_parent, "initiating a precheck",);
 
-	// FIXME: Error checking?
-	let executor_params =
-		if let Ok(executor_params) = executor_params_at_relay_parent(relay_parent, sender).await {
-			executor_params
-		} else {
+	let executor_params = match executor_params_at_relay_parent(relay_parent, sender).await {
+		Ok(executor_params) => executor_params,
+		Err(err) => {
+			// Error::Oneshot indicates a failure to communicate with the runtime (probably
+			// being shut down). Error::RuntimeApi is a failure to acquire either session
+			// index or executor params for the session which indicates a permanent failure to
+			// run pre-checking on the code provided.
+			state.currently_checking.push(Box::pin(async move {
+				match err {
+					Error::RuntimeApi(_) => Some((PreCheckOutcome::Failed, validation_code_hash)),
+					Error::Oneshot(_) => None,
+					_ => unreachable!(), // The callee never generates other error types
+				}
+			}));
 			return
-		};
+		},
+	};
 
 	let (tx, rx) = oneshot::channel();
 	sender
