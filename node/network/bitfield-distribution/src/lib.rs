@@ -233,7 +233,7 @@ impl BitfieldDistribution {
 				})) => {
 					let _timer = self.metrics.time_active_leaves_update();
 
-					for activated in activated {
+					if let Some(activated) = activated {
 						let relay_parent = activated.hash;
 
 						gum::trace!(target: LOG_TARGET, ?relay_parent, "activated");
