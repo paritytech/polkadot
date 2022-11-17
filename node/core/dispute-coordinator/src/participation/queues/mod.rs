@@ -181,7 +181,7 @@ impl Queues {
 			if self.best_effort.len() >= BEST_EFFORT_QUEUE_SIZE {
 				return Err(QueueError::BestEffortFull)
 			}
-			self.best_effort.entry(comparator).or_insert(req);
+			self.best_effort.insert(comparator, req);
 		}
 		Ok(())
 	}
