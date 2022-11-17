@@ -2,6 +2,8 @@
 
 Types pertaining to the relay-chain - events, structures, etc.
 
+TODO: These no longer exist.
+
 ## Block Import Event
 
 ```rust

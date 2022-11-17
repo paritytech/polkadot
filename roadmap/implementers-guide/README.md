@@ -22,7 +22,6 @@ Then install and build the book:
 ```sh
 cargo install mdbook mdbook-linkcheck mdbook-graphviz mdbook-mermaid mdbook-last-changed
 mdbook serve roadmap/implementers-guide
-open http://localhost:3000
 ```
 
 ## Specification

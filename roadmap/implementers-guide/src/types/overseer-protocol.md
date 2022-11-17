@@ -681,7 +681,7 @@ enum ProvisionerMessage {
 
 The Runtime API subsystem is responsible for providing an interface to the state of the chain's runtime.
 
-This is fueled by an auxiliary type encapsulating all request types defined in the [Runtime API section](../../runtime-api) of the guide.
+This is fueled by an auxiliary type encapsulating all request types defined in the [Runtime API section](../runtime-api) of the guide.
 
 ```rust
 enum RuntimeApiRequest {
