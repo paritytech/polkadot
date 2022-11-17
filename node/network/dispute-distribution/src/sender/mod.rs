@@ -430,7 +430,9 @@ async fn get_active_disputes<Context>(
 
 	// Caller scope is in `update_leaves` and this is bounded by fork count.
 	ctx.send_unbounded_message(DisputeCoordinatorMessage::ActiveDisputes(tx));
-	rx.await.map_err(|_| JfyiError::AskActiveDisputesCanceled)
+	rx.await
+		.map_err(|_| JfyiError::AskActiveDisputesCanceled)
+		.map(|disputes| disputes.into_iter().map(|d| (d.0, d.1)).collect())
 }
 
 /// Get all locally available dispute votes for a given dispute.
