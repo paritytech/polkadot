@@ -19,10 +19,9 @@
 #![no_std]
 #![cfg_attr(not(feature = "std"), feature(core_intrinsics, lang_items, alloc_error_handler))]
 
-use core::str::FromStr;
 use parachain::primitives::Id as ParaId;
 use parity_scale_codec::{Decode, Encode};
-use polkadot_core_primitives::{InboundHrmpMessage, OutboundHrmpMessage};
+use polkadot_core_primitives::{InboundDownwardMessage, InboundHrmpMessage, OutboundHrmpMessage};
 use sp_std::vec::Vec;
 use tiny_keccak::{Hasher as _, Keccak};
 
@@ -82,9 +81,6 @@ pub struct GraveyardState {
 	/// each grave.
 	pub graveyard: Vec<u8>,
 
-	/// Inbound messages processed
-	pub inbound_messages: Vec<InboundHrmpMessage>,
-
 	// TODO: Add zombies. All of the graves produce zombies at a regular interval
 	// defined in blocks. The number of zombies produced scales with the tombstones.
 	// This would allow us to have a configurable and reproducible PVF execution time.
@@ -110,6 +106,10 @@ pub struct HrmpChannelConfiguration {
 pub struct BlockData {
 	/// The state
 	pub state: GraveyardState,
+	/// Inbound messages processed
+	pub inbound_hrmp_messages: Vec<InboundHrmpMessage>,
+	/// DMQ messages
+	pub dmq_messages: Vec<InboundDownwardMessage>,
 	/// The number of tombstones to erect per iteration. For each tombstone placed
 	/// a hash operation is performed as CPU burn.
 	pub tombstones: u64,
@@ -142,7 +142,7 @@ pub fn execute_transaction(
 		block_data.state.seal = hash_state(&block_data.state);
 	}
 
-	block_data.state.inbound_messages = inbound_messages.clone();
+	block_data.inbound_hrmp_messages = inbound_messages.clone();
 	block_data.state
 }
 
@@ -166,17 +166,19 @@ pub fn execute(
 			hash_state(&block_data.state),
 			parent_head.post_state,
 		);
-		return Err(StateMismatch)
+		return Err(StateMismatch);
 	}
 
 	// We need to clone the block data as the fn will mutate it's state.
-	let new_state = execute_transaction(block_data.clone(), &block_data.state.inbound_messages);
+	let new_state = execute_transaction(block_data.clone(), &block_data.inbound_hrmp_messages);
 	let messages = block_data
 		.hrmp_channels
 		.iter()
 		.map(|channel| {
 			let mut data = sp_std::vec::Vec::with_capacity(channel.message_size as usize);
-			data.fill(0_u8);
+			for _ in 0..channel.message_size {
+				data.push(0_u8);
+			}
 			OutboundHrmpMessage { recipient: channel.destination_para_id.into(), data }
 		})
 		.collect::<Vec<_>>();

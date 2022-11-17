@@ -24,7 +24,7 @@ use polkadot_node_primitives::{
 	MaybeCompressedPoV, PoV, Statement,
 };
 use polkadot_primitives::{
-	CollatorId, CollatorPair, Hash, InboundHrmpMessage, OutboundHrmpMessage,
+	CollatorId, CollatorPair, Hash, InboundDownwardMessage, InboundHrmpMessage, OutboundHrmpMessage,
 };
 use sp_core::Pair;
 use std::{
@@ -66,10 +66,10 @@ fn calculate_head_and_state_for_number(
 	});
 
 	log::debug!(target: LOG_TARGET, "received messages from {} parachains", inbound_messages.len());
-	let inbound_messages = inbound_messages.values().flatten().cloned().collect::<Vec<_>>();
+	let inbound_hrmp_messages = inbound_messages.values().flatten().cloned().collect::<Vec<_>>();
 	log::debug!(target: LOG_TARGET, "received {} messages in total", inbound_messages.len());
 
-	let mut state = GraveyardState { index, graveyard, zombies, seal, inbound_messages };
+	let mut state = GraveyardState { index, graveyard, zombies, seal };
 	let mut head =
 		HeadData { number: 0, parent_hash: Hash::default().into(), post_state: hash_state(&state) };
 	let mut messages: Vec<OutboundHrmpMessage<ParaId>> = Vec::new();
@@ -80,6 +80,8 @@ fn calculate_head_and_state_for_number(
 			tombstones: 1_000,
 			iterations: pvf_complexity,
 			hrmp_channels: hrmp_channels.clone(),
+			inbound_hrmp_messages: inbound_hrmp_messages.clone(),
+			dmq_messages: vec![],
 		};
 		let (new_head, new_state, new_messages) =
 			execute(head.hash(), head.clone(), block).expect("Produces valid block");
@@ -130,7 +132,7 @@ impl State {
 			*grave = i as u8;
 		});
 
-		let state = GraveyardState { index, graveyard, zombies, seal, inbound_messages: vec![] };
+		let state = GraveyardState { index, graveyard, zombies, seal };
 
 		let head_data =
 			HeadData { number: 0, parent_hash: Default::default(), post_state: hash_state(&state) };
@@ -153,10 +155,11 @@ impl State {
 		&mut self,
 		parent_head: HeadData,
 		inbound_messages: BTreeMap<ParaId, Vec<InboundHrmpMessage>>,
+		dmq_messages: Vec<InboundDownwardMessage>,
 	) -> (BlockData, HeadData, Vec<OutboundHrmpMessage<ParaId>>) {
 		self.best_block = parent_head.number;
 
-		let mut state = if let Some(head_data) = self.number_to_head.get(&self.best_block) {
+		let state = if let Some(head_data) = self.number_to_head.get(&self.best_block) {
 			self.head_to_state.get(head_data).cloned().unwrap_or_else(|| {
 				calculate_head_and_state_for_number(
 					parent_head.number,
@@ -183,15 +186,18 @@ impl State {
 			"received messages from {} parachains",
 			inbound_messages.len()
 		);
-		let inbound_messages = inbound_messages.values().flatten().cloned().collect::<Vec<_>>();
+		let inbound_hrmp_messages =
+			inbound_messages.values().flatten().cloned().collect::<Vec<_>>();
 		log::debug!(target: LOG_TARGET, "received {} messages in total", inbound_messages.len());
-		state.inbound_messages = inbound_messages;
+
 		// Start with prev state and transaction to execute (place 1000 tombstones).
 		let block = BlockData {
 			state,
 			tombstones: 1000,
 			iterations: self.pvf_complexity,
 			hrmp_channels: self.hrmp_channels.clone(),
+			dmq_messages,
+			inbound_hrmp_messages,
 		};
 
 		let (new_head, new_state, messages) =
@@ -306,17 +312,32 @@ impl Collator {
 					.retrieve_all_inbound_hrmp_channel_contents(para_id, relay_parent)
 					.await
 					.unwrap_or_else(|_| BTreeMap::new());
-
-				let messages_count: usize =
+				let dmq_messages = relay_chain_interface
+					.retrieve_dmq_contents(para_id, relay_parent)
+					.await
+					.unwrap_or_else(|_| vec![]);
+				log::debug!(
+					target: LOG_TARGET,
+					"raw inbound messages tree keys: {:?}",
+					inbound_messages.keys().map(|para_id| u32::from(*para_id)).collect::<Vec<_>>()
+				);
+				log::debug!(
+					target: LOG_TARGET,
+					"raw dmq messages: {:?}",
+					dmq_messages.iter().map(|msg| msg.msg.clone()).collect::<Vec<_>>()
+				);
+				let hrmp_messages_count: usize =
 					inbound_messages.values().map(|msg_vec| msg_vec.len()).sum();
+				let dmq_messages_count = dmq_messages.len();
 
 				let (block_data, head_data, outbound_messages) =
-					state.lock().unwrap().advance(parent, inbound_messages);
+					state.lock().unwrap().advance(parent, inbound_messages, dmq_messages);
 				log::info!(
-					"created a new collation on relay-parent({}): {:?}; {} messages received, {} messages sent",
+					"created a new collation on relay-parent({}): {:?}; {} hrmp messages received, {} dmq messages discarded, {} messages sent",
 					relay_parent,
 					head_data,
-					messages_count,
+					hrmp_messages_count,
+					dmq_messages_count,
 					outbound_messages.len()
 				);
 
@@ -329,7 +350,7 @@ impl Collator {
 					new_validation_code: None,
 					head_data: head_data.encode().into(),
 					proof_of_validity: MaybeCompressedPoV::Raw(pov.clone()),
-					processed_downward_messages: messages_count as u32,
+					processed_downward_messages: dmq_messages_count as u32,
 					hrmp_watermark: relay_parent_number,
 				};
 
