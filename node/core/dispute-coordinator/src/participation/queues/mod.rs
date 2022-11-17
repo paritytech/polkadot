@@ -178,12 +178,9 @@ impl Queues {
 				// add in in best effort too.
 				return Ok(())
 			}
-
 			if self.best_effort.len() >= BEST_EFFORT_QUEUE_SIZE {
 				return Err(QueueError::BestEffortFull)
 			}
-			// Note: The request might have been added to priority in a previous call already, we
-			// take care of that case in `dequeue` (more efficient).
 			self.best_effort.entry(comparator).or_insert(req);
 		}
 		Ok(())
