@@ -153,9 +153,6 @@ publish-rustdoc:
   extends:
     - .kubernetes-env
   image:                           paritytech/tools:latest
-  variables:
-    # git depth is set on purpose: https://github.com/paritytech/polkadot/issues/6284
-    GIT_DEPTH:                     0
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
