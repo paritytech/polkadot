@@ -23,7 +23,7 @@ use frame_support::{
 };
 use parity_scale_codec::{Decode, Encode};
 use sp_io::hashing::blake2_128;
-use sp_std::{marker::PhantomData, prelude::*};
+use sp_std::{cell::Cell, marker::PhantomData, prelude::*};
 use sp_weights::Weight;
 use xcm::latest::prelude::*;
 
@@ -42,6 +42,12 @@ pub use config::Config;
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct FeesMode {
 	pub jit_withdraw: bool,
+}
+
+const RECURSION_LIMIT: u8 = 10;
+
+thread_local! {
+	static RECURSION_COUNT: Cell<u8> = Cell::new(0);
 }
 
 /// The XCM executor.
@@ -510,6 +516,15 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			Transact { origin_kind, require_weight_at_most, mut call } => {
+				// Check whether we've exhausted the recursion limit
+				RECURSION_COUNT.with(|count| {
+					if count.get() > RECURSION_LIMIT {
+						return Err(XcmError::ExceedsStackLimit)
+					}
+					count.set(count.get().saturating_add(1));
+					Ok(())
+				})?;
+
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?.clone();
 
