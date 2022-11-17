@@ -72,6 +72,7 @@
     - [PVF Pre-Checking](node/utility/pvf-prechecker.md)
 - [Data Structures and Types](types/README.md)
     - [Candidate](types/candidate.md)
+      - [PVF](types/pvf.md)
     - [Backing](types/backing.md)
     - [Availability](types/availability.md)
     - [Overseer and Subsystem Protocol](types/overseer-protocol.md)

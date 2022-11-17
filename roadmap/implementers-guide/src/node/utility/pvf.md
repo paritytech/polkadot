@@ -5,17 +5,16 @@ for PVF code blobs.
 
 ## Entrypoint
 
-This crate provides a simple API. You first [`start`] the validation host, which
-gives you the [handle][`ValidationHost`] and the future you need to poll.
+This crate provides a simple API. You first `start` the validation host, which
+gives you the [handle][ValidationHost] and the future you need to poll.
 
 Then using the handle the client can send three types of requests:
 
-(a) PVF pre-checking. This takes the PVF [code][`Pvf`] and tries to prepare it
+(a) PVF pre-checking. This takes the PVF [code][Pvf] and tries to prepare it
 (verify and compile) in order to pre-check its validity.
 
-(b) PVF execution. This accepts the PVF
-[`params`][`polkadot_parachain::primitives::ValidationParams`] and the PVF
-[code][`Pvf`], prepares (verifies and compiles) the code, and then executes PVF
+(b) PVF execution. This accepts the PVF [`params`][ValidationParams] and the PVF
+[code][Pvf], prepares (verifies and compiles) the code, and then executes PVF
 with the `params`.
 
 (c) Heads up. This request allows to signal that the given PVF may be needed
@@ -27,7 +26,7 @@ are bundled together and will be executed as soon as the artifact is prepared.
 
 ## Priority
 
-PVF execution requests can specify the [priority][`Priority`] with which the
+PVF execution requests can specify the [priority][Priority] with which the
 given request should be handled. Different priority levels have different
 effects. This is discussed below.
 
@@ -45,14 +44,14 @@ Priority can never go down, only up.
 
 If the execution request fails during **preparation**, we will retry if it is
 possible that the preparation error was transient (i.e. it was of type
-[`PrepareError::Panic`], [`PrepareError::TimedOut`], or
-[`PrepareError::DidNotMakeIt`]). We will only retry preparation if another
+`PrepareError::Panic`, `PrepareError::TimedOut`, or
+`PrepareError::DidNotMakeIt`). We will only retry preparation if another
 requests comes in after 15 minutes, to ensure any potential transient conditions
 had time to be resolved. We will retry up to 5 times. See
 `can_retry_prepare_after_failure`.
 
 If the actual **execution** of the artifact fails, we will retry once if it was
-an [`InvalidCandidate::AmbiguousWorkerDeath`] error, after a 1 second delay to
+an `InvalidCandidate::AmbiguousWorkerDeath` error, after a 1 second delay to
 allow any potential transient conditions to clear. This occurs outside this
 module, in the Candidate Validation subsystem.
 
@@ -107,4 +106,9 @@ artifacts that weren't used or received a heads up signal for a while.
 
 The execute workers will be fed by the requests from the execution queue, which
 is basically a combination of a path to the compiled artifact and the
-[`params`][`polkadot_parachain::primitives::ValidationParams`].
+[`params`][ValidationParams].
+
+[ValidationHost]: ../../types/pvf.md#validationhost
+[Pvf]: ../../types/pvf.md#pvf
+[ValidationParams]: ../../types/candidate.md#validationparams
+[Priority]: ../../types/pvf.md#priority
