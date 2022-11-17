@@ -330,17 +330,22 @@ impl MultiLocation {
 	/// Does not modify `self` in case of overflow.
 	pub fn reanchor(&mut self, target: &MultiLocation, ancestry: &MultiLocation) -> Result<(), ()> {
 		let mut target = target.clone();
+		let mut id = self.clone();
 
-		self.prepend_with(ancestry.clone()).map_err(|_| ())?;
+		id.prepend_with(ancestry.clone()).map_err(|_| ())?;
 		target.prepend_with(ancestry.clone()).map_err(|_| ())?;
 
-		// Remove common parents between now normalized self and target
-		while target.interior().first() == self.interior().first() {
+		// Remove common parents between now normalized id and target
+		while target.interior().first() == id.interior().first() {
 			target.take_first_interior();
-			self.take_first_interior();
+			id.take_first_interior();
 		}
 
-		self.parents = self.parent_count() + target.parent_count() + target.interior().len() as u8;
+		id.parents = id
+			.parent_count()
+			.saturating_add(target.parent_count().saturating_add(target.interior().len() as u8));
+
+		*self = id;
 		Ok(())
 	}
 
@@ -984,6 +989,18 @@ mod tests {
 		let expected = (Parent, Parent, Parachain(4000), GeneralIndex(42)).into();
 		id.reanchor(&target, &ancestry).unwrap();
 		assert_eq!(id, expected);
+	}
+
+	#[test]
+	fn reanchor_overflow_handled() {
+		let mut id = MultiLocation::new(255, X1(Parachain(255)));
+		let original_id = id.clone();
+		let ancestry = (Parachain(500)).into();
+		let target = (Parachain(500), Parachain(501)).into();
+		// Does not overflow
+		id.reanchor(&target, &ancestry).unwrap();
+		// id is not mutated since reanchor failed.
+		assert_eq!(id, original_id);
 	}
 
 	#[test]
