@@ -344,20 +344,6 @@ impl MultiLocation {
 		Ok(())
 	}
 
-	/// Treating `self` as a context, determine how it would be referenced by a `target` location.
-	pub fn inverted(&self, target: &MultiLocation) -> Result<MultiLocation, ()> {
-		use Junction::OnlyChild;
-		let mut ancestry = self.clone();
-		let mut junctions = Junctions::Here;
-		for _ in 0..target.parent_count() {
-			junctions = junctions
-				.pushed_front_with(ancestry.interior.take_last().unwrap_or(OnlyChild))
-				.map_err(|_| ())?;
-		}
-		let parents = target.interior().len() as u8;
-		Ok(MultiLocation::new(parents, junctions))
-	}
-
 	/// Remove any unneeded parents/junctions in `self` based on the given context it will be
 	/// interpreted in.
 	pub fn simplify(&mut self, context: &Junctions) {
@@ -828,21 +814,6 @@ mod tests {
 	use super::{Ancestor, AncestorThen, Junctions::*, MultiLocation, Parent, ParentThen};
 	use crate::opaque::v1::{Junction::*, NetworkId::*};
 	use parity_scale_codec::{Decode, Encode};
-
-	#[test]
-	fn inverted_works() {
-		let ancestry: MultiLocation = (Parachain(1000), PalletInstance(42)).into();
-		let target = (Parent, PalletInstance(69)).into();
-		let expected = (Parent, PalletInstance(42)).into();
-		let inverted = ancestry.inverted(&target).unwrap();
-		assert_eq!(inverted, expected);
-
-		let ancestry: MultiLocation = (Parachain(1000), PalletInstance(42), GeneralIndex(1)).into();
-		let target = (Parent, Parent, PalletInstance(69), GeneralIndex(2)).into();
-		let expected = (Parent, Parent, PalletInstance(42), GeneralIndex(1)).into();
-		let inverted = ancestry.inverted(&target).unwrap();
-		assert_eq!(inverted, expected);
-	}
 
 	#[test]
 	fn simplify_basic_works() {
