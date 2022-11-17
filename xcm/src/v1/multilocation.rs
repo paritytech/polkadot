@@ -992,9 +992,9 @@ mod tests {
 		let original_id = id.clone();
 		let ancestry = (Parachain(500)).into();
 		let target = (Parachain(500), Parachain(501)).into();
-		// returns error
+		// returns an error because of an overflow.
 		id.reanchor(&target, &ancestry).err().unwrap();
-		// id is not mutated
+		// id is not mutated since reanchor is failed.
 		assert_eq!(id, original_id);
 	}
 
