@@ -1228,7 +1228,7 @@ pub type Executive = frame_executive::Executive<
 		pallet_multisig::migrations::v1::MigrateToV1<Runtime>,
 		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
 		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
-		parachains_session_info::migration::v3::MigrateToV3<Runtime>,
+		parachains_session_info::migration::v2::MigrateToV2<Runtime>,
 		pallet_election_provider_multi_phase::migrations::v1::MigrateToV1<Runtime>,
 	),
 >;
