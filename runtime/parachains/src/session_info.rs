@@ -202,10 +202,7 @@ impl<T: Config> Pallet<T> {
 			dispute_period,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
-		SessionExecutorParams::<T>::insert(
-			&new_session_index,
-			current_exec_params(),
-		);
+		SessionExecutorParams::<T>::insert(&new_session_index, current_exec_params());
 	}
 
 	/// Called by the initializer to initialize the session info pallet.
