@@ -63,6 +63,12 @@ mod tests;
 
 const LOG_TARGET: &'static str = "parachain::candidate-validation";
 
+/// The amount of time to wait before retrying after an AmbiguousWorkerDeath validation error.
+#[cfg(not(test))]
+const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(3);
+#[cfg(test)]
+const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(200);
+
 /// Configuration for the candidate validation subsystem
 #[derive(Clone)]
 pub struct Config {
@@ -473,11 +479,6 @@ where
 	.await;
 
 	if let Ok(ValidationResult::Valid(ref outputs, _)) = validation_result {
-		// If validation produces new commitments we consider the candidate invalid.
-		if candidate_receipt.commitments_hash != outputs.hash() {
-			return Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))
-		}
-
 		let (tx, rx) = oneshot::channel();
 		match runtime_api_request(
 			sender,
@@ -502,7 +503,7 @@ where
 }
 
 async fn validate_candidate_exhaustive(
-	mut validation_backend: impl ValidationBackend,
+	mut validation_backend: impl ValidationBackend + Send,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
 	candidate_receipt: CandidateReceipt,
@@ -564,7 +565,12 @@ async fn validate_candidate_exhaustive(
 	};
 
 	let result = validation_backend
-		.validate_candidate(raw_validation_code.to_vec(), timeout, params, executor_params)
+		.validate_candidate_with_retry(
+			raw_validation_code.to_vec(),
+			timeout,
+			params,
+			executor_params,
+		)
 		.await;
 
 	if let Err(ref error) = result {
@@ -618,11 +624,40 @@ async fn validate_candidate_exhaustive(
 trait ValidationBackend {
 	async fn validate_candidate(
 		&mut self,
+		pvf: Pvf,
+		timeout: Duration,
+		encoded_params: Vec<u8>,
+		executor_params: ExecutorParams,
+	) -> Result<WasmValidationResult, ValidationError>;
+
+	async fn validate_candidate_with_retry(
+		&mut self,
 		raw_validation_code: Vec<u8>,
 		timeout: Duration,
 		params: ValidationParams,
 		executor_params: ExecutorParams,
-	) -> Result<WasmValidationResult, ValidationError>;
+	) -> Result<WasmValidationResult, ValidationError> {
+		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
+		let pvf = Pvf::from_code(raw_validation_code);
+
+		let validation_result = self
+			.validate_candidate(pvf.clone(), timeout, params.encode(), executor_params.clone())
+			.await;
+
+		// If we get an AmbiguousWorkerDeath error, retry once after a brief delay, on the
+		// assumption that the conditions that caused this error may have been transient.
+		if let Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)) =
+			validation_result
+		{
+			// Wait a brief delay before retrying.
+			futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
+			// Encode the params again when re-trying. We expect the retry case to be relatively
+			// rare, and we want to avoid unconditionally cloning data.
+			self.validate_candidate(pvf, timeout, params.encode(), executor_params).await
+		} else {
+			validation_result
+		}
+	}
 
 	async fn precheck_pvf(
 		&mut self,
@@ -633,23 +668,19 @@ trait ValidationBackend {
 
 #[async_trait]
 impl ValidationBackend for ValidationHost {
+	/// Tries executing a PVF a single time (no retries).
 	async fn validate_candidate(
 		&mut self,
-		raw_validation_code: Vec<u8>,
+		pvf: Pvf,
 		timeout: Duration,
-		params: ValidationParams,
+		encoded_params: Vec<u8>,
 		executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
+		let priority = polkadot_node_core_pvf::Priority::Normal;
+
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = self
-			.execute_pvf(
-				Pvf::from_code(raw_validation_code),
-				timeout,
-				params.encode(),
-				executor_params,
-				polkadot_node_core_pvf::Priority::Normal,
-				tx,
-			)
+			.execute_pvf(pvf, timeout, encoded_params, executor_params, priority, tx)
 			.await
 		{
 			return Err(ValidationError::InternalError(format!(
@@ -658,11 +689,8 @@ impl ValidationBackend for ValidationHost {
 			)))
 		}
 
-		let validation_result = rx
-			.await
-			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?;
-
-		validation_result
+		rx.await
+			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
 	}
 
 	async fn precheck_pvf(

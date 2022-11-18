@@ -36,21 +36,23 @@ macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
 
-			let mut ready_solution = EPM::Pallet::<Runtime>::feasibility_check(raw_solution, EPM::ElectionCompute::Signed)?;
-
+			let ready_solution = EPM::Pallet::<Runtime>::feasibility_check(raw_solution, EPM::ElectionCompute::Signed)?;
+			let encoded_size = ready_solution.encoded_size();
+			let score = ready_solution.score;
+			let mut supports = ready_solution.supports.into_inner();
 			// maybe truncate.
 			if let Some(take) = config.take {
-				log::info!(target: LOG_TARGET, "truncating {} winners to {}", ready_solution.supports.len(), take);
-				ready_solution.supports.sort_unstable_by_key(|(_, s)| s.total);
-				ready_solution.supports.truncate(take);
+				log::info!(target: LOG_TARGET, "truncating {} winners to {}", supports.len(), take);
+				supports.sort_unstable_by_key(|(_, s)| s.total);
+				supports.truncate(take);
 			}
 
 			// write to file and stdout.
-			let encoded_support = ready_solution.supports.encode();
+			let encoded_support = supports.encode();
 			let mut supports_file = std::fs::File::create("solution.supports.bin")?;
 			supports_file.write_all(&encoded_support)?;
 
-			log::info!(target: LOG_TARGET, "ReadySolution: size {:?} / score = {:?}", ready_solution.encoded_size(), ready_solution.score);
+			log::info!(target: LOG_TARGET, "ReadySolution: size {:?} / score = {:?}", encoded_size, score);
 			log::trace!(target: LOG_TARGET, "Supports: {}", sp_core::hexdisplay::HexDisplay::from(&encoded_support));
 
 			Ok(())

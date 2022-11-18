@@ -632,14 +632,15 @@ pub(crate) mod tests {
 	pub(crate) use sp_runtime::{Digest, DigestItem};
 	use std::{pin::Pin, sync::Arc};
 
-	use crate::{
-		approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry, APPROVAL_SESSIONS,
-	};
+	use crate::{approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry};
 
 	const DATA_COL: u32 = 0;
-	const NUM_COLUMNS: u32 = 1;
+	const SESSION_DATA_COL: u32 = 1;
 
-	const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_data: DATA_COL };
+	const NUM_COLUMNS: u32 = 2;
+
+	const TEST_CONFIG: DatabaseConfig =
+		DatabaseConfig { col_approval_data: DATA_COL, col_session_data: SESSION_DATA_COL };
 	#[derive(Default)]
 	struct MockClock;
 
@@ -654,22 +655,23 @@ pub(crate) mod tests {
 	}
 
 	fn blank_state() -> State {
+		let db = kvdb_memorydb::create(NUM_COLUMNS);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db: Arc<dyn Database> = Arc::new(db);
 		State {
 			session_window: None,
 			keystore: Arc::new(LocalKeystore::in_memory()),
 			slot_duration_millis: 6_000,
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
+			db,
+			db_config: TEST_CONFIG,
 		}
 	}
 
 	fn single_session_state(index: SessionIndex, info: SessionInfo) -> State {
 		State {
-			session_window: Some(RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				index,
-				vec![info],
-			)),
+			session_window: Some(RollingSessionWindow::with_session_info(index, vec![info])),
 			..blank_state()
 		}
 	}
@@ -782,11 +784,8 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window = RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				session,
-				vec![session_info],
-			);
+			let session_window =
+				RollingSessionWindow::with_session_info(session, vec![session_info]);
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -891,11 +890,8 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let session_window = RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				session,
-				vec![session_info],
-			);
+			let session_window =
+				RollingSessionWindow::with_session_info(session, vec![session_info]);
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1089,11 +1085,8 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window = Some(RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				session,
-				vec![session_info],
-			));
+			let session_window =
+				Some(RollingSessionWindow::with_session_info(session, vec![session_info]));
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1301,38 +1294,6 @@ pub(crate) mod tests {
 				)) => {
 					assert_eq!(h, hash);
 					let _ = c_tx.send(Ok(session));
-				}
-			);
-
-			// Caching of sesssions needs sessoion of first unfinalied block.
-			assert_matches!(
-				handle.recv().await,
-				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
-					s_tx,
-				)) => {
-					let _ = s_tx.send(Ok(header.number));
-				}
-			);
-
-			assert_matches!(
-				handle.recv().await,
-				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
-					block_number,
-					s_tx,
-				)) => {
-					assert_eq!(block_number, header.number);
-					let _ = s_tx.send(Ok(Some(header.hash())));
-				}
-			);
-
-			assert_matches!(
-				handle.recv().await,
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					h,
-					RuntimeApiRequest::SessionIndexForChild(s_tx),
-				)) => {
-					assert_eq!(h, header.hash());
-					let _ = s_tx.send(Ok(session));
 				}
 			);
 
