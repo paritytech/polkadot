@@ -168,6 +168,9 @@ build-implementers-guide:
     - .docker-env
     - .test-refs
     - .collect-artifacts-short
+  # git depth is set on purpose: https://github.com/paritytech/polkadot/issues/6284
+  variables:
+    GIT_DEPTH:                     0
   script:
     - apt-get -y update; apt-get install -y graphviz
     - cargo install mdbook mdbook-mermaid mdbook-linkcheck mdbook-graphviz mdbook-last-changed
