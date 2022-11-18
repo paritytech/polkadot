@@ -1208,67 +1208,65 @@ impl Initialized {
 	)
 	{
 		let session = self.rolling_session_window.latest_session();
-		// Populate events contents, which allow us to queue participation without
-		// duplicated code
-		let mut events_contents: Vec<(CandidateReceipt, ParticipationPriority)> = Vec::new();
 		for event in candidate_events {
-			match event {
+			// Filter out events we don't care about and repackage information
+			let maybe_event_contents = match event {
 				CandidateEvent::CandidateBacked(receipt, _, _, _) => {
-					events_contents.push((receipt, ParticipationPriority::BestEffort));
-				},
-				CandidateEvent::CandidateIncluded(receipt, _, _, _) => {
-					events_contents.push((receipt, ParticipationPriority::Priority));
+					Some((receipt, false))
 				}
-				_ => (),
-			}
-		}
-
-		for (receipt, priority) in events_contents {
-			// Clear spam slots
-			self.spam_slots.clear(&(session, receipt.hash()));
-
-			// Queue participation for freshly backed candidate. If dispute
-			// is already in priority queue don't try to queue participation
-			// in best_effort. Don't try to participate if candidate receipt
-			// can't be recovered from vote state, if we already voted, or
-			// if the candidate is not disputed.
-			let env =
-				match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
-			{
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						session,
-						"We are lacking a `SessionInfo` for handling import of statements."
-					);
-
-					continue // We skip queueing participation if not possible
-				},
-				Some(env) => env,
+				CandidateEvent::CandidateIncluded(receipt, _, _, _) => {
+					Some((receipt, true))
+				}
+				_ => None
 			};
-			let votes_result = overlay_db.load_candidate_votes(session, &receipt.hash());
-			if let Ok(maybe_votes) = votes_result {
-				if let Some(votes) = 
-					maybe_votes.map(CandidateVotes::from)
-				{
-					let vote_state = CandidateVoteState::new(votes, &env, now);
-					let has_own_vote = vote_state.has_own_vote();
-					let is_disputed = vote_state.is_disputed();
-					let is_included = self.scraper.is_candidate_included(&receipt.hash());
 
-					if !has_own_vote && 
-						is_disputed && 
-						(priority == ParticipationPriority::Priority || !is_included) 
+			if let Some((receipt, queue_participation)) = maybe_event_contents {
+				// Clear spam slots
+				self.spam_slots.clear(&(session, receipt.hash()));
+
+				// End after clearing spam slots for backing event. Participation
+				// is handled in process_on_chain_votes.
+				if !queue_participation { continue; }
+
+				// Queue participation for freshly included candidate. Don't 
+				// try to participate if candidate receipt can't be recovered 
+				// from vote state, if we already voted, or if the candidate 
+				// is not disputed.
+				let env =
+					match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
+				{
+					None => {
+						gum::warn!(
+							target: LOG_TARGET,
+							session,
+							"We are lacking a `SessionInfo` for handling import of statements."
+						);
+
+						continue // We skip queueing participation if not possible
+					},
+					Some(env) => env,
+				};
+				let votes_result = overlay_db.load_candidate_votes(session, &receipt.hash());
+				if let Ok(maybe_votes) = votes_result {
+					if let Some(votes) = 
+						maybe_votes.map(CandidateVotes::from)
 					{
-						let r = self
-							.participation
-							.queue_participation(
-								ctx,
-								priority,
-								ParticipationRequest::new(receipt, session),
-							)
-							.await;
-							let _ = log_error(r);
+						let vote_state = CandidateVoteState::new(votes, &env, now);
+						let has_own_vote = vote_state.has_own_vote();
+						let is_disputed = vote_state.is_disputed();
+
+						if !has_own_vote && is_disputed
+						{
+							let r = self
+								.participation
+								.queue_participation(
+									ctx,
+									ParticipationPriority::Priority,
+									ParticipationRequest::new(receipt, session),
+								)
+								.await;
+								let _ = log_error(r);
+						}
 					}
 				}
 			}
