@@ -38,8 +38,7 @@ impl AsRef<[u8]> for CompiledArtifact {
 	}
 }
 
-/// Identifier of an artifact. Right now it only encodes a code hash of the PVF. But if we get to
-/// multiple engine implementations the artifact ID should include the engine type as well.
+/// Identifier of an artifact. Encodes a code hash of the PVF and a hash of executor parameter set.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ArtifactId {
 	pub(crate) code_hash: ValidationCodeHash,
