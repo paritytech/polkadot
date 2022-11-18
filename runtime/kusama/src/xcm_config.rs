@@ -221,28 +221,3 @@ impl pallet_xcm::Config for Runtime {
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::governance::pallet_custom_origins::Origin as GovOrigin;
-	use xcm_executor::traits::Convert;
-
-	#[test]
-	fn staking_origin_to_location_works() {
-		let account_origin = RuntimeOrigin::signed(sp_runtime::AccountId32::new([7u8; 32]));
-		assert!(<StakingAdminToLocation as Convert<RuntimeOrigin, MultiLocation>>::convert(
-			account_origin
-		)
-		.is_err());
-
-		let staking_origin: RuntimeOrigin = GovOrigin::StakingAdmin.into();
-		assert_eq!(
-			<StakingAdminToLocation as Convert<RuntimeOrigin, MultiLocation>>::convert(
-				staking_origin
-			)
-			.unwrap(),
-			StakingAdminLocation::get(),
-		);
-	}
-}
