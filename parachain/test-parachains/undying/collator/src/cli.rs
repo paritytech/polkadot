@@ -27,7 +27,6 @@ pub enum HrmpConfigParseError {
 	IntParseError,
 	MissingDestination,
 	MissingMessageSize,
-	MissingMessagesCount,
 	TooManyParams,
 }
 
@@ -48,21 +47,17 @@ impl FromStr for CliHrmpChannelConfiguration {
 		match split_str.len() {
 			0 => return Err(HrmpConfigParseError::MissingDestination),
 			1 => return Err(HrmpConfigParseError::MissingMessageSize),
-			2 => return Err(HrmpConfigParseError::MissingMessagesCount),
-			3 => {},
+			2 => {},
 			_ => return Err(HrmpConfigParseError::TooManyParams),
 		}
 		let destination_para_id =
 			split_str[0].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
 		let message_size =
 			split_str[1].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
-		let messages_count =
-			split_str[2].parse::<u32>().map_err(|_| HrmpConfigParseError::IntParseError)?;
 
 		Ok(CliHrmpChannelConfiguration(HrmpChannelConfiguration {
 			destination_para_id,
 			message_size,
-			messages_count,
 		}))
 	}
 }
