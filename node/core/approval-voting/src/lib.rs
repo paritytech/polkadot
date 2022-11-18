@@ -1144,7 +1144,7 @@ async fn handle_from_overseer<Context>(
 		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let mut actions = Vec::new();
 
-			for activated in update.activated {
+			if let Some(activated) = update.activated {
 				let head = activated.hash;
 				match import::handle_new_head(ctx, state, db, head, &*last_finalized_height).await {
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
@@ -2404,28 +2404,14 @@ async fn launch_approval<Context>(
 
 		match val_rx.await {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
-			Ok(Ok(ValidationResult::Valid(commitments, _))) => {
+			Ok(Ok(ValidationResult::Valid(_, _))) => {
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
 				gum::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Candidate Valid");
 
-				let expected_commitments_hash = candidate.commitments_hash;
-				if commitments.hash() == expected_commitments_hash {
-					let _ = metrics_guard.take();
-					return ApprovalState::approved(validator_index, candidate_hash)
-				} else {
-					// Commitments mismatch - issue a dispute.
-					issue_local_invalid_statement(
-						&mut sender,
-						session_index,
-						candidate_hash,
-						candidate.clone(),
-					);
-
-					metrics_guard.take().on_approval_invalid();
-					return ApprovalState::failed(validator_index, candidate_hash)
-				}
+				let _ = metrics_guard.take();
+				return ApprovalState::approved(validator_index, candidate_hash)
 			},
 			Ok(Ok(ValidationResult::Invalid(reason))) => {
 				gum::warn!(

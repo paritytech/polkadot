@@ -28,7 +28,7 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use polkadot_node_primitives::{CandidateVotes, SignedDisputeStatement};
+use polkadot_node_primitives::{CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp};
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::v2::{
 	CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex, SessionInfo,
@@ -154,22 +154,8 @@ pub struct CandidateVoteState<Votes> {
 	/// Information about own votes:
 	own_vote: OwnVoteState,
 
-	/// Whether or not the dispute concluded invalid.
-	concluded_invalid: bool,
-
-	/// Whether or not the dispute concluded valid.
-	///
-	/// Note: Due to equivocations it is technically possible for a dispute to conclude both valid
-	/// and invalid. In that case the invalid result takes precedence.
-	concluded_valid: bool,
-
-	/// There is an ongoing dispute and we reached f+1 votes -> the dispute is confirmed
-	///
-	/// as at least one honest validator cast a vote for the candidate.
-	is_confirmed: bool,
-
-	/// Whether or not we have an ongoing dispute.
-	is_disputed: bool,
+	/// Current dispute status, if there is any.
+	dispute_status: Option<DisputeStatus>,
 }
 
 impl CandidateVoteState<CandidateVotes> {
@@ -179,18 +165,11 @@ impl CandidateVoteState<CandidateVotes> {
 	pub fn new_from_receipt(candidate_receipt: CandidateReceipt) -> Self {
 		let votes =
 			CandidateVotes { candidate_receipt, valid: BTreeMap::new(), invalid: BTreeMap::new() };
-		Self {
-			votes,
-			own_vote: OwnVoteState::NoVote,
-			concluded_invalid: false,
-			concluded_valid: false,
-			is_confirmed: false,
-			is_disputed: false,
-		}
+		Self { votes, own_vote: OwnVoteState::NoVote, dispute_status: None }
 	}
 
 	/// Create a new `CandidateVoteState` from already existing votes.
-	pub fn new<'a>(votes: CandidateVotes, env: &CandidateEnvironment<'a>) -> Self {
+	pub fn new<'a>(votes: CandidateVotes, env: &CandidateEnvironment<'a>, now: Timestamp) -> Self {
 		let own_vote = OwnVoteState::new(&votes, env);
 
 		let n_validators = env.validators().len();
@@ -198,16 +177,31 @@ impl CandidateVoteState<CandidateVotes> {
 		let supermajority_threshold =
 			polkadot_primitives::v2::supermajority_threshold(n_validators);
 
-		let concluded_invalid = votes.invalid.len() >= supermajority_threshold;
-		let concluded_valid = votes.valid.len() >= supermajority_threshold;
-
 		// We have a dispute, if we have votes on both sides:
 		let is_disputed = !votes.invalid.is_empty() && !votes.valid.is_empty();
 
-		let byzantine_threshold = polkadot_primitives::v2::byzantine_threshold(n_validators);
-		let is_confirmed = votes.voted_indices().len() > byzantine_threshold && is_disputed;
+		let dispute_status = if is_disputed {
+			let mut status = DisputeStatus::active();
+			let byzantine_threshold = polkadot_primitives::v2::byzantine_threshold(n_validators);
+			let is_confirmed = votes.voted_indices().len() > byzantine_threshold;
+			if is_confirmed {
+				status = status.confirm();
+			};
+			let concluded_for = votes.valid.len() >= supermajority_threshold;
+			if concluded_for {
+				status = status.conclude_for(now);
+			};
 
-		Self { votes, own_vote, concluded_invalid, concluded_valid, is_confirmed, is_disputed }
+			let concluded_against = votes.invalid.len() >= supermajority_threshold;
+			if concluded_against {
+				status = status.conclude_against(now);
+			};
+			Some(status)
+		} else {
+			None
+		};
+
+		Self { votes, own_vote, dispute_status }
 	}
 
 	/// Import fresh statements.
@@ -217,6 +211,7 @@ impl CandidateVoteState<CandidateVotes> {
 		self,
 		env: &CandidateEnvironment,
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
+		now: Timestamp,
 	) -> ImportResult {
 		let (mut votes, old_state) = self.into_old_state();
 
@@ -294,7 +289,7 @@ impl CandidateVoteState<CandidateVotes> {
 			}
 		}
 
-		let new_state = Self::new(votes, env);
+		let new_state = Self::new(votes, env, now);
 
 		ImportResult {
 			old_state,
@@ -313,32 +308,15 @@ impl CandidateVoteState<CandidateVotes> {
 
 	/// Extract `CandidateVotes` for handling import of new statements.
 	fn into_old_state(self) -> (CandidateVotes, CandidateVoteState<()>) {
-		let CandidateVoteState {
-			votes,
-			own_vote,
-			concluded_invalid,
-			concluded_valid,
-			is_confirmed,
-			is_disputed,
-		} = self;
-		(
-			votes,
-			CandidateVoteState {
-				votes: (),
-				own_vote,
-				concluded_invalid,
-				concluded_valid,
-				is_confirmed,
-				is_disputed,
-			},
-		)
+		let CandidateVoteState { votes, own_vote, dispute_status } = self;
+		(votes, CandidateVoteState { votes: (), own_vote, dispute_status })
 	}
 }
 
 impl<V> CandidateVoteState<V> {
 	/// Whether or not we have an ongoing dispute.
 	pub fn is_disputed(&self) -> bool {
-		self.is_disputed
+		self.dispute_status.is_some()
 	}
 
 	/// Whether there is an ongoing confirmed dispute.
@@ -346,7 +324,7 @@ impl<V> CandidateVoteState<V> {
 	/// This checks whether there is a dispute ongoing and we have more than byzantine threshold
 	/// votes.
 	pub fn is_confirmed(&self) -> bool {
-		self.is_confirmed
+		self.dispute_status.map_or(false, |s| s.is_confirmed_concluded())
 	}
 
 	/// This machine already cast some vote in that dispute/for that candidate.
@@ -359,14 +337,19 @@ impl<V> CandidateVoteState<V> {
 		self.own_vote.approval_votes()
 	}
 
-	/// Whether or not this dispute has already enough valid votes to conclude.
-	pub fn is_concluded_valid(&self) -> bool {
-		self.concluded_valid
+	/// Whether or not there is a dispute and it has already enough valid votes to conclude.
+	pub fn has_concluded_for(&self) -> bool {
+		self.dispute_status.map_or(false, |s| s.has_concluded_for())
 	}
 
-	/// Whether or not this dispute has already enough invalid votes to conclude.
-	pub fn is_concluded_invalid(&self) -> bool {
-		self.concluded_invalid
+	/// Whether or not there is a dispute and it has already enough invalid votes to conclude.
+	pub fn has_concluded_against(&self) -> bool {
+		self.dispute_status.map_or(false, |s| s.has_concluded_against())
+	}
+
+	/// Get access to the dispute status, in case there is one.
+	pub fn dispute_status(&self) -> &Option<DisputeStatus> {
+		&self.dispute_status
 	}
 
 	/// Access to underlying votes.
@@ -451,18 +434,18 @@ impl ImportResult {
 	}
 
 	/// Whether or not any dispute just concluded valid due to the import.
-	pub fn is_freshly_concluded_valid(&self) -> bool {
-		!self.old_state().is_concluded_valid() && self.new_state().is_concluded_valid()
+	pub fn is_freshly_concluded_for(&self) -> bool {
+		!self.old_state().has_concluded_for() && self.new_state().has_concluded_for()
 	}
 
 	/// Whether or not any dispute just concluded invalid due to the import.
-	pub fn is_freshly_concluded_invalid(&self) -> bool {
-		!self.old_state().is_concluded_invalid() && self.new_state().is_concluded_invalid()
+	pub fn is_freshly_concluded_against(&self) -> bool {
+		!self.old_state().has_concluded_against() && self.new_state().has_concluded_against()
 	}
 
 	/// Whether or not any dispute just concluded either invalid or valid due to the import.
 	pub fn is_freshly_concluded(&self) -> bool {
-		self.is_freshly_concluded_invalid() || self.is_freshly_concluded_valid()
+		self.is_freshly_concluded_against() || self.is_freshly_concluded_for()
 	}
 
 	/// Modify this `ImportResult`s, by importing additional approval votes.
@@ -473,6 +456,7 @@ impl ImportResult {
 		self,
 		env: &CandidateEnvironment,
 		approval_votes: HashMap<ValidatorIndex, ValidatorSignature>,
+		now: Timestamp,
 	) -> Self {
 		let Self {
 			old_state,
@@ -508,7 +492,7 @@ impl ImportResult {
 			}
 		}
 
-		let new_state = CandidateVoteState::new(votes, env);
+		let new_state = CandidateVoteState::new(votes, env, now);
 
 		Self {
 			old_state,
