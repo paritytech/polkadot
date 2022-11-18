@@ -36,10 +36,10 @@ pub use location_conversion::{
 
 mod origin_conversion;
 pub use origin_conversion::{
-	BackingToPlurality, ChildParachainAsNative, ChildSystemParachainAsSuperuser,
-	EnsureOriginToLocation, EnsureXcmOrigin, ParentAsSuperuser, RelayChainAsNative,
-	SiblingParachainAsNative, SiblingSystemParachainAsSuperuser, SignedAccountId32AsNative,
-	SignedAccountKey20AsNative, SignedToAccountId32, SovereignSignedViaLocation,
+	BackingToPlurality, ChildParachainAsNative, ChildSystemParachainAsSuperuser, EnsureXcmOrigin,
+	OriginToPluralityVoice, ParentAsSuperuser, RelayChainAsNative, SiblingParachainAsNative,
+	SiblingSystemParachainAsSuperuser, SignedAccountId32AsNative, SignedAccountKey20AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation,
 };
 
 mod barriers;

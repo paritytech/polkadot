@@ -99,31 +99,14 @@ pub mod fee {
 
 /// XCM protocol related constants.
 pub mod xcm {
-	/// Origin item index in the context of the runtime. Used as `Junction::GeneralIndex`.
-	///
-	/// # Examples:
-	///
-	/// ```rust
-	/// use xcm::latest::prelude::*;
-	/// // MultiLocation of the StakingAdmin origin within the current context.
-	/// let o = MultiLocation {
-	/// 	parent: 0,
-	/// 	interior: X2(
-	/// 		GeneralIndex(ORIGIN_INDEX),
-	/// 		GeneralIndex(STAKING_ADMIN_INDEX)
-	/// 	)
-	/// };
-	/// ```
-	pub const ORIGIN_INDEX: u8 = 0;
-
-	/// XCM origins.
-	pub mod origins {
-		/// Root origin index. Use `Junctions::Here` instead.
+	/// Pluralistic bodies existing within the consensus.
+	pub mod body {
+		// Preallocated for the Root body.
 		#[allow(dead_code)]
-		const ROOT_INDEX: u8 = 0;
-		/// StakingAdmin origin index in the context of the runtime. Used as `Junction::GeneralIndex`.
-		pub const STAKING_ADMIN_INDEX: u8 = 1;
-		pub const FELLOWS_INDEX: u8 = 2;
+		const ROOT_INDEX: u32 = 0;
+		// The bodies corresponding to the runtime origins representing a plurality voice given via a referendum.
+		pub const STAKING_ADMIN_INDEX: u32 = 1;
+		pub const FELLOWS_INDEX: u32 = 2;
 	}
 }
 

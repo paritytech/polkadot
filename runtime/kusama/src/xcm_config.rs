@@ -21,17 +21,16 @@ use super::{
 	RuntimeEvent, RuntimeOrigin, StakingAdmin, WeightToFee, XcmPallet,
 };
 use frame_support::{match_types, parameter_types, traits::Everything};
-use kusama_runtime_constants::xcm::{origins::STAKING_ADMIN_INDEX, ORIGIN_INDEX};
+use kusama_runtime_constants::xcm::body::{FELLOWS_INDEX, STAKING_ADMIN_INDEX};
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
 	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, BackingToPlurality,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, EnsureOriginToLocation, FixedWeightBounds,
-	IsChildSystemParachain, IsConcrete, LocationInverter, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
-	WeightInfoBounds,
+	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
+	LocationInverter, OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
+	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WeightInfoBounds,
 };
 
 parameter_types! {
@@ -156,10 +155,10 @@ impl xcm_executor::Config for XcmConfig {
 
 parameter_types! {
 	pub const CouncilBodyId: BodyId = BodyId::Executive;
-	// StakingAdmin origin XCM location within the current context.
-	pub const StakingAdminLocation: MultiLocation = X2(
-		GeneralIndex(ORIGIN_INDEX as u128),
-		GeneralIndex(STAKING_ADMIN_INDEX as u128)).into();
+	// StakingAdmin pluralistic body.
+	pub const StakingAdminBodyId: BodyId = BodyId::Index(STAKING_ADMIN_INDEX);
+	// Fellows pluralistic body.
+	pub const FellowsBodyId: BodyId = BodyId::Index(FELLOWS_INDEX);
 }
 
 /// Type to convert the council origin to a Plurality `MultiLocation` value.
@@ -179,9 +178,12 @@ pub type LocalOriginToLocation = (
 	SignedToAccountId32<RuntimeOrigin, AccountId, KusamaNetwork>,
 );
 
-/// Type to convert the StakingAdmin origin to a `MultiLocation` value.
-pub type StakingAdminToLocation =
-	EnsureOriginToLocation<RuntimeOrigin, StakingAdmin, StakingAdminLocation>;
+/// Type to convert the StakingAdmin origin to a Plurality `MultiLocation` value.
+pub type StakingAdminToPlurality =
+	OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, StakingAdminBodyId>;
+
+/// Type to convert the Fellows origin to a Plurality `MultiLocation` value.
+pub type FellowsToPlurality = OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, FellowsBodyId>;
 
 /// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain for a destination chain.
@@ -189,13 +191,15 @@ pub type LocalPalletOriginToLocation = (
 	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
 	// `Unit` body.
 	CouncilToPlurality,
-	// StakingAdmin origin to be used in XCM as a corresponding `MultiLocation`.
-	StakingAdminToLocation,
+	// StakingAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	StakingAdminToPlurality,
+	// Fellows origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	FellowsToPlurality,
 );
 
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	// We only allow the root, the council and the staking admin to send messages.
+	// We only allow the root, the council, fellows and the staking admin to send messages.
 	// This is basically safe to enable for everyone (safe the possibility of someone spamming the parachain
 	// if they're willing to pay the KSM to send from the Relay-chain), but it's useless until we bring in XCM v3
 	// which will make `DescendOrigin` a bit more useful.
