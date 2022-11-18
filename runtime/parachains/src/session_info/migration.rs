@@ -19,4 +19,39 @@
 use frame_support::traits::StorageVersion;
 
 /// The current storage version.
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+
+pub mod v2 {
+	use crate::{session_info, session_info::Pallet, shared};
+	use frame_support::{
+		pallet_prelude::Weight,
+		traits::{OnRuntimeUpgrade, StorageVersion},
+	};
+	use frame_system::Config;
+	use primitives::vstaging::ExecutorParams;
+	use sp_core::Get;
+
+	pub struct MigrateToV2<T>(sp_std::marker::PhantomData<T>);
+	impl<T: Config + session_info::pallet::Config> OnRuntimeUpgrade for MigrateToV2<T> {
+		fn on_runtime_upgrade() -> Weight {
+			// Bootstrap session executor params with the default ones if no parameters for the
+			// current session are in storage. `ExecutorParams::default()` is supposed to generate
+			// EXACTLY the same set of parameters the previous implementation used in a hard-coded
+			// form. This supposed to only run once, when upgrading from pre-parametrized executor
+			// code.
+			let mut weight = T::DbWeight::get().reads(1);
+			if StorageVersion::get::<Pallet<T>>() == 1 {
+				weight += T::DbWeight::get().reads(2);
+				let session_index = <shared::Pallet<T>>::session_index();
+				if <session_info::Pallet<T>>::session_executor_params(session_index).is_none() {
+					session_info::pallet::SessionExecutorParams::<T>::insert(
+						&session_index,
+						ExecutorParams::default(),
+					);
+					weight += T::DbWeight::get().writes(1);
+				}
+			}
+			weight
+		}
+	}
+}

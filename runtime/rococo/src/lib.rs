@@ -21,12 +21,15 @@
 #![recursion_limit = "256"]
 
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use primitives::v2::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+use primitives::{
+	v2::{
+		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
+		InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
+		PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode,
+		ValidationCodeHash, ValidatorId, ValidatorIndex,
+	},
+	vstaging::ExecutorParams,
 };
 use runtime_common::{
 	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights, impls::ToAuthor,
@@ -37,12 +40,15 @@ use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
-	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
-	inclusion as parachains_inclusion, initializer as parachains_initializer,
-	origin as parachains_origin, paras as parachains_paras,
+	disputes::slashing as parachains_slashing,
+	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
+	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
-	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+	runtime_api_impl::{
+		v2 as parachains_runtime_api_impl, vstaging as parachains_runtime_api_impl_staging,
+	},
+	scheduler as parachains_scheduler, session_info as parachains_session_info,
+	shared as parachains_shared, ump as parachains_ump,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -1464,6 +1470,7 @@ pub type Executive = frame_executive::Executive<
 		pallet_multisig::migrations::v1::MigrateToV1<Runtime>,
 		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
 		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
+		parachains_session_info::migration::v2::MigrateToV2<Runtime>,
 	),
 >;
 /// The payload being signed in transactions.
@@ -1666,6 +1673,10 @@ sp_api::impl_runtime_apis! {
 					_ => None,
 				}
 			})
+		}
+
+		fn session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams> {
+			parachains_runtime_api_impl_staging::session_executor_params::<Runtime>(session_index)
 		}
 
 		fn session_info(index: SessionIndex) -> Option<SessionInfo> {

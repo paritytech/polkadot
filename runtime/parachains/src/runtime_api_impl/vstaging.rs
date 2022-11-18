@@ -16,12 +16,22 @@
 
 //! Put implementations of functions from staging APIs here.
 
-use crate::disputes;
-use primitives::v2::{CandidateHash, DisputeState, SessionIndex};
+use crate::{disputes, session_info};
+use primitives::{
+	v2::{CandidateHash, DisputeState, SessionIndex},
+	vstaging::ExecutorParams,
+};
 use sp_std::prelude::*;
 
 /// Implementation for `get_session_disputes` function from the runtime API
 pub fn get_session_disputes<T: disputes::Config>(
 ) -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
 	<disputes::Pallet<T>>::disputes()
+}
+
+/// Get session executor parameter set
+pub fn session_executor_params<T: session_info::Config>(
+	session_index: SessionIndex,
+) -> Option<ExecutorParams> {
+	<session_info::Pallet<T>>::session_executor_params(session_index)
 }

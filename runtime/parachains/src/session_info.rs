@@ -27,7 +27,10 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
 };
-use primitives::v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
+use primitives::{
+	v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo},
+	vstaging::{executor_params as Ep, ExecutorParams},
+};
 use sp_std::vec::Vec;
 
 pub use pallet::*;
@@ -36,6 +39,14 @@ pub mod migration;
 
 #[cfg(test)]
 mod tests;
+
+fn current_exec_params() -> ExecutorParams {
+	let mut exec_params = ExecutorParams::new();
+	// Elements must be added in the ascending order of tags to ensure determinism;
+	// see comments to `ExecutorParams` implementation.
+	exec_params.add(Ep::EEPAR_01_ENVIRONMENT, Ep::EXEC_ENV_TYPE_WASMTIME_GENERIC);
+	exec_params
+}
 
 /// A type for representing the validator account id in a session.
 pub type AccountId<T> = <<T as Config>::ValidatorSet as ValidatorSet<
@@ -102,6 +113,12 @@ pub mod pallet {
 	#[pallet::getter(fn account_keys)]
 	pub(crate) type AccountKeys<T: Config> =
 		StorageMap<_, Identity, SessionIndex, Vec<AccountId<T>>>;
+
+	/// Executor parameter set for a given session index
+	#[pallet::storage]
+	#[pallet::getter(fn session_executor_params)]
+	pub(crate) type SessionExecutorParams<T: Config> =
+		StorageMap<_, Identity, SessionIndex, ExecutorParams>;
 }
 
 /// An abstraction for the authority discovery pallet
@@ -153,6 +170,7 @@ impl<T: Config> Pallet<T> {
 				// Idx will be missing for a few sessions after the runtime upgrade.
 				// But it shouldn'be be a problem.
 				AccountKeys::<T>::remove(&idx);
+				SessionExecutorParams::<T>::remove(&idx);
 			}
 			// update `EarliestStoredSession` based on `config.dispute_period`
 			EarliestStoredSession::<T>::set(new_earliest_stored_session);
@@ -184,6 +202,7 @@ impl<T: Config> Pallet<T> {
 			dispute_period,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
+		SessionExecutorParams::<T>::insert(&new_session_index, current_exec_params());
 	}
 
 	/// Called by the initializer to initialize the session info pallet.
