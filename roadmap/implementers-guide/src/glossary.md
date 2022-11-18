@@ -2,7 +2,7 @@
 
 Here you can find definitions of a bunch of jargon, usually specific to the Polkadot project.
 
-- **Approval Checker:** A validator who has been randomly selected to perform validity checks on a parablock which is pending approval.
+- **Approval Checker:** A validator who randomly self-selects so to perform validity checks on a parablock which is pending approval.
 - **BABE:** (Blind Assignment for Blockchain Extension). The algorithm validators use to safely extend the Relay Chain. See [the Polkadot wiki][0] for more information.
 - **Backable Candidate:** A Parachain Candidate which is backed by a majority of validators assigned to a given parachain.
 - **Backed Candidate:** A Backable Candidate noted in a relay-chain block
