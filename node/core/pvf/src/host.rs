@@ -120,7 +120,7 @@ impl ValidationHost {
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn heads_up(
 		&mut self,
-		active_pvfs: Vec<(Pvf, ExecutorParams)>,
+		active_pvfs: Vec<PvfWithExecutorParams>,
 	) -> Result<(), String> {
 		self.to_host_tx
 			.send(ToHost::HeadsUp { active_pvfs })
@@ -144,7 +144,7 @@ enum ToHost {
 		result_tx: ResultSender,
 	},
 	HeadsUp {
-		active_pvfs: Vec<(Pvf, ExecutorParams)>,
+		active_pvfs: Vec<PvfWithExecutorParams>,
 	},
 }
 
@@ -186,6 +186,19 @@ impl Config {
 			execute_worker_spawn_timeout: Duration::from_secs(3),
 			execute_workers_max_num: 2,
 		}
+	}
+}
+
+/// Coupling PVF code with executor params
+pub struct PvfWithExecutorParams {
+	pvf: Pvf,
+	executor_params: ExecutorParams,
+}
+
+impl PvfWithExecutorParams {
+	/// Returns artifact ID that corresponds to the PVF with given executor params
+	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
+		ArtifactId::new(self.pvf.code_hash, self.executor_params.hash())
 	}
 }
 
@@ -572,12 +585,12 @@ async fn handle_execute_pvf(
 async fn handle_heads_up(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	active_pvfs: Vec<(Pvf, ExecutorParams)>,
+	active_pvfs: Vec<PvfWithExecutorParams>,
 ) -> Result<(), Fatal> {
 	let now = SystemTime::now();
 
 	for active_pvf in active_pvfs {
-		let artifact_id = active_pvf.0.as_artifact_id(active_pvf.1.hash());
+		let artifact_id = active_pvf.as_artifact_id();
 		if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 			match state {
 				ArtifactState::Prepared { last_time_needed, .. } => {
@@ -596,8 +609,8 @@ async fn handle_heads_up(
 				prepare_queue,
 				prepare::ToQueue::Enqueue {
 					priority: Priority::Normal,
-					pvf: active_pvf.0,
-					executor_params: active_pvf.1,
+					pvf: active_pvf.pvf,
+					executor_params: active_pvf.executor_params,
 					preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 				},
 			)
@@ -972,9 +985,12 @@ mod tests {
 		let mut test = builder.build();
 		let mut host = test.host_handle();
 
-		host.heads_up(vec![(Pvf::from_discriminator(1), executor_params)])
-			.await
-			.unwrap();
+		host.heads_up(vec![PvfWithExecutorParams {
+			pvf: Pvf::from_discriminator(1),
+			executor_params,
+		}])
+		.await
+		.unwrap();
 
 		let to_sweeper_rx = &mut test.to_sweeper_rx;
 		run_until(
@@ -991,9 +1007,12 @@ mod tests {
 
 		// Extend TTL for the first artifact and make sure we don't receive another file removal
 		// request.
-		host.heads_up(vec![(Pvf::from_discriminator(1), executor_params)])
-			.await
-			.unwrap();
+		host.heads_up(vec![PvfWithExecutorParams {
+			pvf: Pvf::from_discriminator(1),
+			executor_params,
+		}])
+		.await
+		.unwrap();
 		test.poll_ensure_to_sweeper_is_empty().await;
 	}
 
