@@ -218,12 +218,12 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 			),
 			TotalSizeExceeded { idx, total_size, limit } => write!(
 				fmt,
-				"sending the HRMP message at index {} would exceed the neogitiated channel total size  ({} > {})",
+				"sending the HRMP message at index {} would exceed the negotiated channel total size  ({} > {})",
 				idx, total_size, limit,
 			),
 			CapacityExceeded { idx, count, limit } => write!(
 				fmt,
-				"sending the HRMP message at index {} would exceed the neogitiated channel capacity  ({} > {})",
+				"sending the HRMP message at index {} would exceed the negotiated channel capacity  ({} > {})",
 				idx, count, limit,
 			),
 		}
@@ -721,7 +721,7 @@ impl<T: Config> Pallet<T> {
 				Some(req_data) => req_data,
 				None => {
 					// Can't normally happen but no need to panic.
-					continue
+					continue;
 				},
 			};
 
@@ -779,7 +779,7 @@ impl<T: Config> Pallet<T> {
 	fn process_hrmp_open_channel_requests(config: &HostConfiguration<T::BlockNumber>) {
 		let mut open_req_channels = HrmpOpenChannelRequestsList::<T>::get();
 		if open_req_channels.is_empty() {
-			return
+			return;
 		}
 
 		// iterate the vector starting from the end making our way to the beginning. This way we
@@ -788,7 +788,7 @@ impl<T: Config> Pallet<T> {
 		loop {
 			// bail if we've iterated over all items.
 			if idx == 0 {
-				break
+				break;
 			}
 
 			idx -= 1;
@@ -798,8 +798,8 @@ impl<T: Config> Pallet<T> {
 			);
 
 			if request.confirmed {
-				if <paras::Pallet<T>>::is_valid_para(channel_id.sender) &&
-					<paras::Pallet<T>>::is_valid_para(channel_id.recipient)
+				if <paras::Pallet<T>>::is_valid_para(channel_id.sender)
+					&& <paras::Pallet<T>>::is_valid_para(channel_id.recipient)
 				{
 					HrmpChannels::<T>::insert(
 						&channel_id,
@@ -899,14 +899,14 @@ impl<T: Config> Pallet<T> {
 				return Err(HrmpWatermarkAcceptanceErr::AdvancementRule {
 					new_watermark: new_hrmp_watermark,
 					last_watermark,
-				})
+				});
 			}
 		}
 		if new_hrmp_watermark > relay_chain_parent_number {
 			return Err(HrmpWatermarkAcceptanceErr::AheadRelayParent {
 				new_watermark: new_hrmp_watermark,
 				relay_chain_parent_number,
-			})
+			});
 		}
 
 		// Second, check where the watermark CAN land. It's one of the following:
@@ -923,7 +923,7 @@ impl<T: Config> Pallet<T> {
 			{
 				return Err(HrmpWatermarkAcceptanceErr::LandsOnBlockWithNoMessages {
 					new_watermark: new_hrmp_watermark,
-				})
+				});
 			}
 			Ok(())
 		}
@@ -938,7 +938,7 @@ impl<T: Config> Pallet<T> {
 			return Err(OutboundHrmpAcceptanceErr::MoreMessagesThanPermitted {
 				sent: out_hrmp_msgs.len() as u32,
 				permitted: config.hrmp_max_message_num_per_candidate,
-			})
+			});
 		}
 
 		let mut last_recipient = None::<ParaId>;
@@ -950,8 +950,9 @@ impl<T: Config> Pallet<T> {
 				// the messages must be sorted in ascending order and there must be no two messages sent
 				// to the same recipient. Thus we can check that every recipient is strictly greater than
 				// the previous one.
-				Some(last_recipient) if out_msg.recipient <= last_recipient =>
-					return Err(OutboundHrmpAcceptanceErr::NotSorted { idx }),
+				Some(last_recipient) if out_msg.recipient <= last_recipient => {
+					return Err(OutboundHrmpAcceptanceErr::NotSorted { idx })
+				},
 				_ => last_recipient = Some(out_msg.recipient),
 			}
 
@@ -968,7 +969,7 @@ impl<T: Config> Pallet<T> {
 					idx,
 					msg_size,
 					max_size: channel.max_message_size,
-				})
+				});
 			}
 
 			let new_total_size = channel.total_size + out_msg.data.len() as u32;
@@ -977,7 +978,7 @@ impl<T: Config> Pallet<T> {
 					idx,
 					total_size: new_total_size,
 					limit: channel.max_total_size,
-				})
+				});
 			}
 
 			let new_msg_count = channel.msg_count + 1;
@@ -986,7 +987,7 @@ impl<T: Config> Pallet<T> {
 					idx,
 					count: new_msg_count,
 					limit: channel.max_capacity,
-				})
+				});
 			}
 		}
 
@@ -1069,7 +1070,7 @@ impl<T: Config> Pallet<T> {
 				None => {
 					// apparently, that since acceptance of this candidate the recipient was
 					// offboarded and the channel no longer exists.
-					continue
+					continue;
 				},
 			};
 
