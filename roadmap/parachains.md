@@ -20,11 +20,11 @@ This section contains various sub-projects and the features that make them up.
 
 Category: Networking
 
-Validators assigned to a parachain need a way to discover and connect to collators in order to get fresh parachain blocks to validate.
+Validators assigned to a parachain (backing group) need a way to discover and connect to collators in order to get fresh parachain blocks to validate.
 
 Collators need to discover and connect to validators in order to submit parachain blocks.
 
-Fishermen need to talk to validators and collators to fetch available data and circulate reports.
+Approval checkers need to talk to validators and collators to fetch available data and circulate reports.
 
 Some connections are long-lived, some are just for a single request.
 
@@ -74,7 +74,7 @@ For each potential, considered parachain block, perform an erasure-coding of the
 
 Category: Networking
 
-A black-box networking component for validators or fishermen on a parachain to obtain the PoV block referenced by hash in an attestation, for the purpose of validating. When fetching "current" PoV blocks (close to the head of the chain, or relating to the block currently being built), this should be fast. When fetching "old" PoV blocks, it should be possible and fall back on recovering from the availability erasure-coding.
+A black-box networking component for validators on a parachain to obtain the PoV block referenced by hash in an attestation, for the purpose of validating. When fetching "current" PoV blocks (close to the head of the chain, or relating to the block currently being built), this should be fast. When fetching "old" PoV blocks, it should be possible and fall back on recovering from the availability erasure-coding.
 
 #### *Parathread Auction Voting*
 
@@ -155,7 +155,7 @@ Runtime logic for paras to open and close channels by putting down a deposit. Th
 
 Category: Runtime
 
-In Polkadot, a bad parachain group can force inclusion of an invalid or unavailable parachain block. It is the job of fishermen to detect those blocks and report them to the runtime. This item is about the report handler
+In Polkadot, a bad parachain group can force inclusion of an invalid or unavailable parachain block. It is the job of approval checkers to detect those blocks and report them to the runtime. This item is about the report handler
 
 The W3F-research writeup on availability/validity provides a high-level view of the dispute resolution process: [Availability and Validity — Research at W3F](https://research.web3.foundation/en/latest/polkadot/Availability_and_Validity.html)
 
@@ -173,7 +173,7 @@ Runtime handlers that take two conflicting votes as arguments and slash the offe
 
 Category: Node
 
-This code-path is also taken by validators who self-select based on VRF [Availability and Validity — Research at W3F](https://research.web3.foundation/en/latest/polkadot/Availability_and_Validity.html). Validators and fishermen will select parachain blocks to re-validate. In these steps:
+This code-path is also taken by validators who self-select based on VRF [Availability and Validity — Research at W3F](https://research.web3.foundation/en/latest/polkadot/Availability_and_Validity.html). Validators will select parachain blocks to re-validate. In these steps:
 * Attempt to recover the PoV block, falling back on the erasure-coding. If not available, issue report.
 * Attempt to validate the PoV block. If invalid, issue report.
 
