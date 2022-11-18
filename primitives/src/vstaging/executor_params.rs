@@ -79,7 +79,14 @@ impl From<[u8; 32]> for ExecutorParamsHash {
 	}
 }
 
-/// Deterministically serialized execution environment semantics
+/// # Deterministically serialized execution environment semantics
+/// Represents an arbitrary semantics of an arbitrary execution environment, so should be kept as
+/// abstract as possible. Mapping from `u32` constant tags to SCALE-encoded values was chosen
+/// over an idiomatic `enum` representation as the latter would require caller to rely on
+/// deserialization errors when decoding a structure of newer version not yet known to the node
+/// software, which is undesirable.
+/// As this one goes on-chain, it requires full serialization determinism. That is ensured by
+/// enforcing constant tags to be in ascending order and using deterministic SCALE-codec for values.
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub struct ExecutorParams(Vec<(u32, Vec<u8>)>);
@@ -104,7 +111,13 @@ impl ExecutorParams {
 
 	/// Adds an execution parameter to the set
 	pub fn add(&mut self, tag: u32, value: impl Encode) {
-		// TODO: Check for determinictic order of tags
+		// Ensure deterministic order of tags
+		#[cfg(debug_assertions)]
+		if self.0.len() > 0 {
+			let (last_tag, _) = self.0[self.0.len() - 1];
+			debug_assert!(tag > last_tag);
+		}
+
 		self.0.push((tag, value.encode()));
 	}
 
