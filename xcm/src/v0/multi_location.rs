@@ -356,15 +356,28 @@ impl MultiLocation {
 	/// # }
 	/// ```
 	pub fn match_and_split(&self, prefix: &MultiLocation) -> Option<&Junction> {
-		if prefix.len() + 1 != self.len() {
+		if prefix.len() + 1 != self.len() || !self.starts_with(prefix) {
 			return None
 		}
-		for i in 0..prefix.len() {
-			if prefix.at(i) != self.at(i) {
-				return None
-			}
-		}
 		return self.at(prefix.len())
+	}
+
+	/// Returns whether `self` begins with or is equal to `prefix`.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v0::{Junction::*, MultiLocation::*};
+	/// let m = X4(Parent, PalletInstance(3), OnlyChild, OnlyChild);
+	/// assert!(m.starts_with(&X2(Parent, PalletInstance(3))));
+	/// assert!(m.starts_with(&m));
+	/// assert!(!m.starts_with(&X2(Parent, GeneralIndex(99))));
+	/// assert!(!m.starts_with(&X1(PalletInstance(3))));
+	/// ```
+	pub fn starts_with(&self, prefix: &MultiLocation) -> bool {
+		if self.len() < prefix.len() {
+			return false
+		}
+		prefix.iter().zip(self.iter()).all(|(l, r)| l == r)
 	}
 
 	/// Mutates `self`, suffixing it with `new`. Returns `Err` in case of overflow.
