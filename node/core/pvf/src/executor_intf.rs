@@ -117,13 +117,13 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 	};
 	for (tag, val_enc) in par.iter() {
 		match *tag {
-			Ep::EEPAR_STACK_LOGICAL_MAX =>
+			Ep::EEPAR_17_STACK_LOGICAL_MAX =>
 				if let Ok(slm) = u32::decode(&mut &val_enc[..]) {
 					stack_limit.logical_max = slm;
 				} else {
 					return Err("Cannot decode stack logical limit".to_string())
 				},
-			Ep::EEPAR_STACK_NATIVE_MAX =>
+			Ep::EEPAR_18_STACK_NATIVE_MAX =>
 				if let Ok(snm) = u32::decode(&mut &val_enc[..]) {
 					stack_limit.native_stack_max = snm;
 				} else {

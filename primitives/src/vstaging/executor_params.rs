@@ -33,11 +33,11 @@ use sp_std::{ops::Deref, vec::Vec};
 /// Values from 1 to 16 are reserved for system-wide parameters not related to any concrete
 /// execution environment.
 /// Environment type
-pub const EEPAR_ENVIRONMENT: u32 = 1;
+pub const EEPAR_01_ENVIRONMENT: u32 = 1;
 /// Logical stack limit, in stack items
-pub const EEPAR_STACK_LOGICAL_MAX: u32 = 17;
+pub const EEPAR_17_STACK_LOGICAL_MAX: u32 = 17;
 /// Native stack limit, in bytes
-pub const EEPAR_STACK_NATIVE_MAX: u32 = 18;
+pub const EEPAR_18_STACK_NATIVE_MAX: u32 = 18;
 
 /// # Execution enviroment types
 /// Generic Wasmtime environment
@@ -99,7 +99,7 @@ impl ExecutorParams {
 
 	/// Returns execution environment type identifier
 	pub fn environment(&self) -> u32 {
-		if self.0.len() < 1 || self.0[0].0 != EEPAR_ENVIRONMENT {
+		if self.0.len() < 1 || self.0[0].0 != EEPAR_01_ENVIRONMENT {
 			return EXEC_ENV_TYPE_WASMTIME_GENERIC
 		}
 		let env_enc = self.0[0].1.clone();
