@@ -963,11 +963,13 @@ mod tests {
 
 	#[test]
 	fn starts_with_works() {
-		let full: MultiLocation = (Parent, Parachain(1000), AccountId32 { network: Any, id: [0; 32] }).into();
+		let full: MultiLocation =
+			(Parent, Parachain(1000), AccountId32 { network: Any, id: [0; 32] }).into();
 		let identity: MultiLocation = full.clone();
 		let prefix: MultiLocation = (Parent, Parachain(1000)).into();
 		let wrong_parachain: MultiLocation = (Parent, Parachain(1001)).into();
-		let wrong_account: MultiLocation = (Parent, Parachain(1000), AccountId32 { network: Any, id: [1; 32] }).into();
+		let wrong_account: MultiLocation =
+			(Parent, Parachain(1000), AccountId32 { network: Any, id: [1; 32] }).into();
 		let no_parents: MultiLocation = (Parachain(1000)).into();
 		let too_many_parents: MultiLocation = (Parent, Parent, Parachain(1000)).into();
 
