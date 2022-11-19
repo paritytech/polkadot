@@ -108,8 +108,6 @@ impl DisputeSender {
 		runtime: &mut RuntimeInfo,
 		msg: DisputeMessage,
 	) -> Result<()> {
-		self.rate_limit.limit().await;
-
 		let req: DisputeRequest = msg.into();
 		let candidate_hash = req.0.candidate_receipt.hash();
 		match self.disputes.entry(candidate_hash) {
@@ -118,6 +116,8 @@ impl DisputeSender {
 				return Ok(())
 			},
 			Entry::Vacant(vacant) => {
+				self.rate_limit.limit().await;
+
 				let send_task = SendTask::new(
 					ctx,
 					runtime,
