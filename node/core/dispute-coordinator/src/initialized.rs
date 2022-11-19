@@ -271,6 +271,7 @@ impl Initialized {
 	) -> Result<()> {
 		let (on_chain_votes, candidate_events) =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
+		self.participation.prioritize_newly_included(ctx, &candidate_events).await;
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
@@ -321,7 +322,7 @@ impl Initialized {
 			}
 
 			// Decrement spam slots for freshly backed or included candidates
-			self.handle_backed_included_events(ctx, overlay_db, now, candidate_events).await;
+			self.reduce_spam_on_backed_included(candidate_events);
 		}
 
 		Ok(())
@@ -1189,83 +1190,29 @@ impl Initialized {
 		Ok(())
 	}
 
-	/// Firstly decrements spam slots for validators who voted on potential spam
+	/// Decrements spam slots for validators who voted on potential spam
 	/// candidates that are newly backed or included, and therefore no longer
 	/// potential spam.
-	/// 
-	/// Secondly queues participation if needed for freshly backed or included 
-	/// candidates. Backed candidates are added to best_effort queue while 
-	/// included are added to priority queue.
-	async fn handle_backed_included_events<Context>(
+	fn reduce_spam_on_backed_included(
 		&mut self, 
-		ctx: &mut Context, 
-		overlay_db: &mut OverlayedBackend<'_, impl Backend>, 
-		now: u64,
 		candidate_events: Vec<CandidateEvent>,
 	)
 	{
-		let session = self.rolling_session_window.latest_session();
 		for event in candidate_events {
 			// Filter out events we don't care about and repackage information
 			let maybe_event_contents = match event {
 				CandidateEvent::CandidateBacked(receipt, _, _, _) => {
-					Some((receipt, false))
+					Some(receipt)
 				}
 				CandidateEvent::CandidateIncluded(receipt, _, _, _) => {
-					Some((receipt, true))
+					Some(receipt)
 				}
 				_ => None
 			};
 
-			if let Some((receipt, queue_participation)) = maybe_event_contents {
+			if let Some(receipt) = maybe_event_contents {
 				// Clear spam slots
 				self.spam_slots.clear(&receipt.hash());
-
-				// End after clearing spam slots for backing event. Participation
-				// is handled in process_on_chain_votes.
-				if !queue_participation { continue; }
-
-				// Queue participation for freshly included candidate. Don't 
-				// try to participate if candidate receipt can't be recovered 
-				// from vote state, if we already voted, or if the candidate 
-				// is not disputed.
-				let env =
-					match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
-				{
-					None => {
-						gum::warn!(
-							target: LOG_TARGET,
-							session,
-							"We are lacking a `SessionInfo` for handling import of statements."
-						);
-
-						continue // We skip queueing participation if not possible
-					},
-					Some(env) => env,
-				};
-				let votes_result = overlay_db.load_candidate_votes(session, &receipt.hash());
-				if let Ok(maybe_votes) = votes_result {
-					if let Some(votes) = 
-						maybe_votes.map(CandidateVotes::from)
-					{
-						let vote_state = CandidateVoteState::new(votes, &env, now);
-						let has_own_vote = vote_state.has_own_vote();
-						let is_disputed = vote_state.is_disputed();
-
-						if !has_own_vote && is_disputed
-						{
-							let r = self
-								.participation
-								.queue_participation(
-									ctx,
-									ParticipationPriority::Priority,
-									ParticipationRequest::new(receipt, session),
-								)
-								.await;
-								let _ = log_error(r);
-						}
-					}
-				}
 			}
 		}
 	}

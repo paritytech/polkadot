@@ -31,7 +31,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
-use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
+use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex, CandidateEvent};
 
 use crate::LOG_TARGET;
 
@@ -210,6 +210,29 @@ impl Participation {
 			}
 		}
 		Ok(())
+	}
+
+	/// Reprioritizes participation requests for disputes that are freshly included
+	pub async fn prioritize_newly_included<Context>(&mut self, ctx: &mut Context, events: &Vec<CandidateEvent>) {
+		for event in events {
+			// Filter the incoming events list for candidate inclusions
+			let maybe_event_contents = match event {
+				CandidateEvent::CandidateIncluded(receipt, _, _, _) => {
+					Some(receipt)
+				}
+				_ => None
+			};
+
+			if let Some(receipt) = maybe_event_contents {
+				let r = self.queue.prioritize_if_present(ctx.sender(), receipt).await;
+				if let Err(queue_error) = r {
+					match queue_error {
+						QueueError::PriorityFull => return, // Avoid working through the rest of the vec
+						_ => (),
+					}
+				}
+			}
+		}
 	}
 
 	/// Dequeue until `MAX_PARALLEL_PARTICIPATIONS` is reached.

@@ -103,6 +103,8 @@ pub enum QueueError {
 	BestEffortFull,
 	#[error("Request could not be queued, because priority queue was already full.")]
 	PriorityFull,
+	#[error("A comparator could not be generated for the given request.")]
+	CouldNotGenerateComparator,
 }
 
 impl ParticipationRequest {
@@ -157,6 +159,24 @@ impl Queues {
 			return Some(req.1)
 		}
 		self.pop_best_effort().map(|d| d.1)
+	}
+
+	/// Reprioritizes any participation requests pertaining to the
+	/// passed candidates from best effort to priority.
+	pub async fn prioritize_if_present(
+		&mut self, 
+		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
+		receipt: &CandidateReceipt,
+	) -> std::result::Result<(), QueueError>{
+		if self.priority.len() >= PRIORITY_QUEUE_SIZE {
+			return Err(QueueError::PriorityFull)
+		}
+
+		let comparator = CandidateComparator::new(sender, receipt).await.map_err(|_e| QueueError::CouldNotGenerateComparator)?;
+		if let Some(request) = self.best_effort.remove(&comparator){
+			self.priority.insert(comparator, request);
+		}
+		Ok(())
 	}
 
 	fn queue_with_comparator(
