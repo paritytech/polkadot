@@ -832,9 +832,14 @@ impl Initialized {
 
 		let is_included = self.scraper.is_candidate_included(&candidate_hash);
 		let is_backed = self.scraper.is_candidate_backed(&candidate_hash);
-
+		let has_own_vote = new_state.has_own_vote();
+		let is_disputed = new_state.is_disputed();
+		let has_controlled_indices = !env.controlled_indices().is_empty();
+		let is_confirmed = new_state.is_confirmed();
 		let potential_spam = !is_included && !is_backed 
 			&& !new_state.is_confirmed() && !new_state.has_own_vote();
+		// We participate only in disputes which are included, backed or confirmed
+		let allow_participation = is_included || is_backed || is_confirmed;
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -875,14 +880,6 @@ impl Initialized {
 				return Ok(ImportStatementsResult::InvalidImport)
 			}
 		}
-
-		let has_own_vote = new_state.has_own_vote();
-		let is_disputed = new_state.is_disputed();
-		let has_controlled_indices = !env.controlled_indices().is_empty();
-		let is_backed = self.scraper.is_candidate_backed(&candidate_hash);
-		let is_confirmed = new_state.is_confirmed();
-		// We participate only in disputes which are included, backed or confirmed
-		let allow_participation = is_included || is_backed || is_confirmed;
 
 		// Participate in dispute if we did not cast a vote before and actually have keys to cast a
 		// local vote. Disputes should fall in one of the categories below, otherwise we will refrain
