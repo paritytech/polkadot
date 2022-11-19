@@ -615,6 +615,24 @@ mod tests {
 	}
 
 	#[test]
+	fn starts_with_works() {
+		let full = X3(Parent, Parachain(1000), AccountIndex64 { network: Any, index: 23 });
+		let identity = full.clone();
+		let prefix = X2(Parent, Parachain(1000));
+		let wrong_parachain = X2(Parent, Parachain(1001));
+		let wrong_account = X3(Parent, Parachain(1000), AccountIndex64 { network: Any, index: 24 });
+		let no_parents = X1(Parachain(1000));
+		let too_many_parents = X3(Parent, Parent, Parachain(1000));
+
+		assert!(full.starts_with(&identity));
+		assert!(full.starts_with(&prefix));
+		assert!(!full.starts_with(&wrong_parachain));
+		assert!(!full.starts_with(&wrong_account));
+		assert!(!full.starts_with(&no_parents));
+		assert!(!full.starts_with(&too_many_parents));
+	}
+
+	#[test]
 	fn append_with_works() {
 		let acc = AccountIndex64 { network: Any, index: 23 };
 		let mut m = X2(Parent, Parachain(42));

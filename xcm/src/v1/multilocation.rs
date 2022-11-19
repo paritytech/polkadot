@@ -962,6 +962,24 @@ mod tests {
 	}
 
 	#[test]
+	fn starts_with_works() {
+		let full: MultiLocation = (Parent, Parachain(1000), AccountId32 { network: Any, id: [0; 32] }).into();
+		let identity: MultiLocation = full.clone();
+		let prefix: MultiLocation = (Parent, Parachain(1000)).into();
+		let wrong_parachain: MultiLocation = (Parent, Parachain(1001)).into();
+		let wrong_account: MultiLocation = (Parent, Parachain(1000), AccountId32 { network: Any, id: [1; 32] }).into();
+		let no_parents: MultiLocation = (Parachain(1000)).into();
+		let too_many_parents: MultiLocation = (Parent, Parent, Parachain(1000)).into();
+
+		assert!(full.starts_with(&identity));
+		assert!(full.starts_with(&prefix));
+		assert!(!full.starts_with(&wrong_parachain));
+		assert!(!full.starts_with(&wrong_account));
+		assert!(!full.starts_with(&no_parents));
+		assert!(!full.starts_with(&too_many_parents));
+	}
+
+	#[test]
 	fn append_with_works() {
 		let acc = AccountIndex64 { network: Any, index: 23 };
 		let mut m = MultiLocation { parents: 1, interior: X1(Parachain(42)) };
