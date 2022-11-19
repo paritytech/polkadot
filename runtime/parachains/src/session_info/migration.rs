@@ -41,15 +41,13 @@ pub mod v2 {
 			// code.
 			let mut weight = T::DbWeight::get().reads(1);
 			if StorageVersion::get::<Pallet<T>>() == 1 {
-				weight += T::DbWeight::get().reads(2);
 				let session_index = <shared::Pallet<T>>::session_index();
-				if <session_info::Pallet<T>>::session_executor_params(session_index).is_none() {
-					session_info::pallet::SessionExecutorParams::<T>::insert(
-						&session_index,
-						ExecutorParams::default(),
-					);
-					weight += T::DbWeight::get().writes(1);
-				}
+				session_info::pallet::SessionExecutorParams::<T>::insert(
+					&session_index,
+					ExecutorParams::default(),
+				);
+				STORAGE_VERSION.put::<Pallet<T>>();
+				weight += T::DbWeight::get().reads(1).writes(2);
 			}
 			weight
 		}
