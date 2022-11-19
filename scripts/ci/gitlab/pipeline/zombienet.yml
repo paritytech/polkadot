@@ -3,7 +3,7 @@
 
 zombienet-tests-parachains-smoke-test:
   stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
+  image:                           "docker.io/paritytech/zombienet:v1.3.16"
   extends:
     - .kubernetes-env
     - .zombienet-refs
