@@ -22,6 +22,7 @@ use frame_support::traits::StorageVersion;
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
 
 pub mod v2 {
+	use super::STORAGE_VERSION;
 	use crate::{session_info, session_info::Pallet, shared};
 	use frame_support::{
 		pallet_prelude::Weight,
@@ -39,7 +40,8 @@ pub mod v2 {
 			// EXACTLY the same set of parameters the previous implementation used in a hard-coded
 			// form. This supposed to only run once, when upgrading from pre-parametrized executor
 			// code.
-			let mut weight = T::DbWeight::get().reads(1);
+			let db_weight = T::DbWeight::get();
+			let mut weight = db_weight.reads(1);
 			if StorageVersion::get::<Pallet<T>>() == 1 {
 				let session_index = <shared::Pallet<T>>::session_index();
 				session_info::pallet::SessionExecutorParams::<T>::insert(
@@ -47,7 +49,7 @@ pub mod v2 {
 					ExecutorParams::default(),
 				);
 				STORAGE_VERSION.put::<Pallet<T>>();
-				weight += T::DbWeight::get().reads(1).writes(2);
+				weight += db_weight.reads(1) + db_weight.writes(2);
 			}
 			weight
 		}
@@ -55,12 +57,17 @@ pub mod v2 {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
 			assert_eq!(Pallet::<T>::on_chain_storage_version(), 1);
+			let session_index = <shared::Pallet<T>>::session_index();
+			assert!(Pallet::<T>::session_executor_params(session_index).is_none());
 			Ok(Default::default())
 		}
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade(_: Vec<u8>) -> Result<(), &'static str> {
 			assert_eq!(Pallet::<T>::on_chain_storage_version(), 2);
+			let session_index = <shared::Pallet<T>>::session_index();
+			let executor_params = Pallet::<T>::session_executor_params(session_index);
+			assert_eq!(executor_params, Some(ExecutorParams::default()));
 			Ok(())
 		}
 	}
