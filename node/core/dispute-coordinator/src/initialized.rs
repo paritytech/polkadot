@@ -849,7 +849,7 @@ impl Initialized {
 
 		if !potential_spam {
 			// Former spammers have not been spammers after all:
-			self.spam_slots.clear(&(session, candidate_hash));
+			self.spam_slots.clear(&candidate_hash);
 
 		// Potential spam:
 		} else if !import_result.new_invalid_voters().is_empty() {
@@ -1222,7 +1222,7 @@ impl Initialized {
 
 			if let Some((receipt, queue_participation)) = maybe_event_contents {
 				// Clear spam slots
-				self.spam_slots.clear(&(session, receipt.hash()));
+				self.spam_slots.clear(&receipt.hash());
 
 				// End after clearing spam slots for backing event. Participation
 				// is handled in process_on_chain_votes.

@@ -336,7 +336,7 @@ impl DisputeCoordinatorSubsystem {
 			let is_included = scraper.is_candidate_included(&votes.candidate_receipt.hash());
 
 			if !status.is_confirmed_concluded() && !is_included {
-				unconfirmed_disputes.insert((session, *candidate_hash), voted_indices);
+				unconfirmed_disputes.insert(*candidate_hash, (session, voted_indices));
 			}
 
 			// Participate for all non-concluded disputes which do not have a
