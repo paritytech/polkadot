@@ -305,7 +305,7 @@ zombienet-tests-async-backing:
   extends:
     - .kubernetes-env
     - .zombienet-refs
-  image:                           "${ZOMBIENET_IMAGE"
+  image:                           "${ZOMBIENET_IMAGE}"
   needs:
     - job:                         publish-polkadot-debug-image
     - job:                         publish-test-collators-image
