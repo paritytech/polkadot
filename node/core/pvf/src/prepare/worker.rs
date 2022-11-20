@@ -378,7 +378,7 @@ async fn prepare_artifact(
 
 	let cpu_time_elapsed = cpu_time_start.elapsed();
 
-	let lock_result = lock.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
+	let lock_result = lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
 	if lock_result.is_err() {
 		// The other thread is still sending an error response over the socket. Wait on it and
 		// return.
