@@ -18,8 +18,9 @@ use crate::{
 	artifacts::CompiledArtifact,
 	error::{PrepareError, PrepareResult},
 	worker_common::{
-		bytes_to_path, framed_recv, framed_send, path_to_bytes, spawn_with_program_path,
-		tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
+		bytes_to_path, cpu_time_monitor_loop, framed_recv, framed_send, path_to_bytes,
+		spawn_with_program_path, tmpfile_in, worker_event_loop, IdleWorker, JobKind, SpawnErr,
+		WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 	},
 	LOG_TARGET,
 };
@@ -40,14 +41,6 @@ use std::{
 	},
 	time::Duration,
 };
-
-/// A multiple of the preparation timeout (in CPU time) for which we are willing to wait on the host
-/// (in wall clock time). This is lenient because CPU time may go slower than wall clock time.
-const PREPARATION_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
-
-/// Some allowed overhead that we account for in the "CPU time monitor" thread's sleeps, on the
-/// child process.
-const PREPARATION_TIMEOUT_OVERHEAD: Duration = Duration::from_millis(50);
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
@@ -120,7 +113,7 @@ pub async fn start_work(
 		// in the child. We want to use CPU time because it varies less than wall clock time under
 		// load, but the CPU resources of the child can only be measured from the parent after the
 		// child process terminates.
-		let timeout = preparation_timeout * PREPARATION_TIMEOUT_WALL_CLOCK_FACTOR;
+		let timeout = preparation_timeout * JOB_TIMEOUT_WALL_CLOCK_FACTOR;
 		let result = async_std::future::timeout(timeout, framed_recv(&mut stream)).await;
 
 		let selected = match result {
@@ -328,7 +321,6 @@ pub fn worker_entrypoint(socket_path: &str) {
 
 			// Create a lock flag. We set it when either thread finishes.
 			let lock = Arc::new(AtomicBool::new(false));
-
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor. Continuously wakes up from
@@ -339,6 +331,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 			std::thread::Builder::new().name("CPU time monitor".into()).spawn(move || {
 				task::block_on(async {
 					cpu_time_monitor_loop(
+						JobKind::Prepare,
 						stream_2,
 						cpu_time_start_2,
 						preparation_timeout_2,
@@ -357,16 +350,16 @@ pub fn worker_entrypoint(socket_path: &str) {
 				Ok(compiled_artifact) => {
 					let cpu_time_elapsed = cpu_time_start.elapsed();
 
-					let result =
+					let lock_result =
 						lock.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
-					if result.is_err() {
+					if lock_result.is_err() {
 						unreachable!(
 							"Hit the timed-out case first; \
-								  Set the flag to true; \
-								  Called process::exit(); \
-								  process::exit: 'This function will never return and \
-								  will immediately terminate the current process.'; \
-								  This is unreachable; qed"
+							 Set the flag to true; \
+							 Called process::exit(); \
+							 process::exit: 'This function will never return and \
+							 will immediately terminate the current process.'; \
+							 This is unreachable; qed"
 						);
 					}
 
@@ -410,61 +403,4 @@ fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
 		PrepareError::Panic(crate::error::stringify_panic_payload(panic_payload))
 	})
 	.and_then(|inner_result| inner_result)
-}
-
-/// Loop that runs in the CPU time monitor thread. Continuously wakes up from sleeping and then
-/// either sleeps for the remaining CPU time, or kills the process if we exceed the CPU timeout.
-///
-/// NOTE: Killed processes are detected and cleaned up in `purge_dead`.
-///
-/// NOTE: If the artifact preparation completes and this thread is still sleeping, it will continue
-/// sleeping in the background. When it wakes, it will see that the flag has been set and return.
-async fn cpu_time_monitor_loop(
-	mut stream: UnixStream,
-	cpu_time_start: ProcessTime,
-	preparation_timeout: Duration,
-	lock: Arc<AtomicBool>,
-) {
-	loop {
-		let cpu_time_elapsed = cpu_time_start.elapsed();
-
-		// Treat the timeout as CPU time, which is less subject to variance due to load.
-		if cpu_time_elapsed > preparation_timeout {
-			let result = lock.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
-			if result.is_err() {
-				// Hit the preparation-completed case first, return from this thread.
-				return
-			}
-
-			// Log if we exceed the timeout.
-			gum::warn!(
-				target: LOG_TARGET,
-				worker_pid = %std::process::id(),
-				"prepare job took {}ms cpu time, exceeded preparation timeout {}ms",
-				cpu_time_elapsed.as_millis(),
-				preparation_timeout.as_millis(),
-			);
-
-			// Send back a PrepareError::TimedOut on timeout.
-			let result: Result<(), PrepareError> = Err(PrepareError::TimedOut);
-			// If we error there is nothing else we can do here, and we are killing the process,
-			// anyway. The receiving side will just have to time out.
-			if let Err(err) = framed_send(&mut stream, result.encode().as_slice()).await {
-				gum::warn!(
-					target: LOG_TARGET,
-					worker_pid = %std::process::id(),
-					"prepare worker -> pvf host: error sending result over the socket: {:?}",
-					err
-				);
-			}
-
-			// Kill the process.
-			std::process::exit(1);
-		}
-
-		// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep
-		// is wall clock time. The CPU clock may be slower than the wall clock.
-		let sleep_interval = preparation_timeout - cpu_time_elapsed + PREPARATION_TIMEOUT_OVERHEAD;
-		std::thread::sleep(sleep_interval);
-	}
 }
