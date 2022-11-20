@@ -33,6 +33,9 @@ use polkadot_primitives::v2::{
 ///
 /// And most likely has been constructed correctly. This is used with
 /// `DisputeDistributionMessage::SendDispute` for sending out votes.
+///
+/// NOTE: This is sent over the wire, any changes are a change in protocol and need to be
+/// versioned.
 #[derive(Debug, Clone)]
 pub struct DisputeMessage(UncheckedDisputeMessage);
 
