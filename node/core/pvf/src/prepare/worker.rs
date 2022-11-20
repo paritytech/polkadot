@@ -39,6 +39,7 @@ use std::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
 	},
+	thread::{self, JoinHandle},
 	time::Duration,
 };
 
@@ -117,6 +118,7 @@ pub async fn start_work(
 		let result = async_std::future::timeout(timeout, framed_recv(&mut stream)).await;
 
 		let selected = match result {
+			// Received bytes from worker within the time limit.
 			Ok(Ok(response_bytes)) =>
 				handle_response_bytes(
 					response_bytes,
@@ -159,7 +161,7 @@ pub async fn start_work(
 	.await
 }
 
-/// Handles receiving response bytes on the host from the child.
+/// Handles the case where we successfully received response bytes on the host from the child.
 async fn handle_response_bytes(
 	response_bytes: Vec<u8>,
 	pid: u32,
@@ -167,7 +169,6 @@ async fn handle_response_bytes(
 	artifact_path: PathBuf,
 	preparation_timeout: Duration,
 ) -> Selected {
-	// Received bytes from worker within the time limit.
 	// By convention we expect encoded `PrepareResult`.
 	let result = match PrepareResult::decode(&mut response_bytes.as_slice()) {
 		Ok(result) => result,
@@ -328,67 +329,38 @@ pub fn worker_entrypoint(socket_path: &str) {
 			// we exceed the CPU timeout.
 			let (stream_2, cpu_time_start_2, preparation_timeout_2, lock_2) =
 				(stream.clone(), cpu_time_start, preparation_timeout, lock.clone());
-			std::thread::Builder::new().name("CPU time monitor".into()).spawn(move || {
-				task::block_on(async {
-					cpu_time_monitor_loop(
-						JobKind::Prepare,
-						stream_2,
-						cpu_time_start_2,
-						preparation_timeout_2,
-						lock_2,
-					)
-					.await;
-				})
-			})?;
+			let handle =
+				thread::Builder::new().name("CPU time monitor".into()).spawn(move || {
+					task::block_on(async {
+						cpu_time_monitor_loop(
+							JobKind::Prepare,
+							stream_2,
+							cpu_time_start_2,
+							preparation_timeout_2,
+							lock_2,
+						)
+						.await;
+					})
+				})?;
 
 			// Prepares the artifact in a separate thread.
-			let result = match prepare_artifact(&code) {
-				Err(err) => {
-					// Serialized error will be written into the socket.
-					Err(err)
-				},
-				Ok(compiled_artifact) => {
-					let cpu_time_elapsed = cpu_time_start.elapsed();
-
-					let lock_result =
-						lock.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
-					if lock_result.is_err() {
-						unreachable!(
-							"Hit the timed-out case first; \
-							 Set the flag to true; \
-							 Called process::exit(); \
-							 process::exit: 'This function will never return and \
-							 will immediately terminate the current process.'; \
-							 This is unreachable; qed"
-						);
-					}
-
-					// Write the serialized artifact into a temp file.
-					//
-					// PVF host only keeps artifacts statuses in its memory, successfully compiled
-					// code gets stored on the disk (and consequently deserialized by
-					// execute-workers). The prepare worker is only required to send `Ok` to the
-					// pool to indicate the success.
-
-					gum::debug!(
-						target: LOG_TARGET,
-						worker_pid = %std::process::id(),
-						"worker: writing artifact to {}",
-						dest.display(),
-					);
-					async_std::fs::write(&dest, &compiled_artifact).await?;
-
-					Ok(cpu_time_elapsed)
-				},
-			};
+			//
+			// Serialized error will be written into the socket.
+			let result = prepare_artifact(&code, &dest, cpu_time_start, lock, handle).await;
 
 			framed_send(&mut stream, result.encode().as_slice()).await?;
 		}
 	});
 }
 
-fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
-	panic::catch_unwind(|| {
+async fn prepare_artifact(
+	code: &[u8],
+	dest: &Path,
+	cpu_time_start: ProcessTime,
+	lock: Arc<AtomicBool>,
+	handle: JoinHandle<()>,
+) -> Result<Duration, PrepareError> {
+	let compiled_artifact = panic::catch_unwind(|| {
 		let blob = match crate::executor_intf::prevalidate(code) {
 			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
 			Ok(b) => b,
@@ -402,5 +374,50 @@ fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
 	.map_err(|panic_payload| {
 		PrepareError::Panic(crate::error::stringify_panic_payload(panic_payload))
 	})
-	.and_then(|inner_result| inner_result)
+	.and_then(|inner_result| inner_result)?;
+
+	let cpu_time_elapsed = cpu_time_start.elapsed();
+
+	let lock_result = lock.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
+	if lock_result.is_err() {
+		// The other thread is still sending an error response over the socket. Wait on it and
+		// return.
+		match handle.join() {
+			Ok(()) => {
+				unreachable!(
+					"Hit the timed-out case first; \
+					 We joined on the other thread's handle; \
+					 join: 'all operations performed by that thread happen \
+					     before all operations that happen after join returns.' \
+					 That thread sent the response and called process::exit(); \
+					 process::exit: 'This function will never return and \
+					     will immediately terminate the current process.'; \
+					 This is unreachable; qed"
+				);
+			},
+			// The other thread panicked.
+			Err(panic_payload) =>
+				return Err(PrepareError::Panic(crate::error::stringify_panic_payload(
+					panic_payload,
+				))),
+		}
+	}
+
+	// Write the serialized artifact into a temp file.
+	//
+	// PVF host only keeps artifacts statuses in its memory, successfully compiled code gets stored
+	// on the disk (and consequently deserialized by execute-workers). The prepare worker is only
+	// required to send `Ok` to the pool to indicate the success.
+
+	gum::debug!(
+		target: LOG_TARGET,
+		worker_pid = %std::process::id(),
+		"worker: writing artifact to {}",
+		dest.display(),
+	);
+	async_std::fs::write(&dest, &compiled_artifact)
+		.await
+		.map_err(|io_err| PrepareError::IoError(io_err.to_string()))?;
+
+	Ok(cpu_time_elapsed)
 }
