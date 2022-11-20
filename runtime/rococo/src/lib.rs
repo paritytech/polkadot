@@ -51,6 +51,7 @@ use beefy_primitives::{
 	mmr::{BeefyDataProvider, MmrLeafVersion},
 };
 
+use frame_election_provider_support::{weights::SubstrateWeight, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -61,7 +62,6 @@ use frame_support::{
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
-use frame_election_provider_support::{weights::SubstrateWeight, SequentialPhragmen};
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as session_historical;
@@ -479,6 +479,9 @@ parameter_types! {
 	pub const DesiredRunnersUp: u32 = 19;
 	pub const MaxVoters: u32 = 10 * 1000;
 	pub const MaxCandidates: u32 = 1000;
+	// The ElectionsPalletId parameter name was changed along with the renaming of the elections
+	// pallet, but we keep the same lock ID to prevent runtime migrations. Related to
+	// https://github.com/paritytech/substrate/issues/8250
 	pub const ElectionsPalletId: LockIdentifier = *b"phrelect";
 }
 

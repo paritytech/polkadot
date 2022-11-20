@@ -17,10 +17,8 @@
 //! Old governance configurations for the Kusama runtime.
 
 use crate::*;
+use frame_election_provider_support::{weights::SubstrateWeight, SequentialPhragmen};
 use frame_support::{parameter_types, traits::EitherOfDiverse};
-use frame_election_provider_support::{
-	weights::SubstrateWeight, SequentialPhragmen,
-};
 
 parameter_types! {
 	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
@@ -117,6 +115,9 @@ parameter_types! {
 	pub const DesiredRunnersUp: u32 = 19;
 	pub const MaxVoters: u32 = 10 * 1000;
 	pub const MaxCandidates: u32 = 1000;
+	// The ElectionsPalletId parameter name was changed along with the renaming of the elections
+	// pallet, but we keep the same lock ID to prevent runtime migrations. Related to
+	// https://github.com/paritytech/substrate/issues/8250
 	pub const ElectionsPalletId: LockIdentifier = *b"phrelect";
 }
 

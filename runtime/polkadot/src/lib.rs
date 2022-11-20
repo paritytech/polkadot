@@ -764,6 +764,9 @@ parameter_types! {
 	pub const DesiredRunnersUp: u32 = 20;
 	pub const MaxVoters: u32 = 10 * 1000;
 	pub const MaxCandidates: u32 = 1000;
+	// The ElectionsPalletId parameter name was changed along with the renaming of the elections
+	// pallet, but we keep the same lock ID to prevent runtime migrations. Related to
+	// https://github.com/paritytech/substrate/issues/8250
 	pub const ElectionsPalletId: LockIdentifier = *b"phrelect";
 }
 // Make sure that there are no more than `MaxMembers` members elected via phragmen.
