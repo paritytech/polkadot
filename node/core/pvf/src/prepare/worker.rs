@@ -27,13 +27,19 @@ use async_std::{
 	io,
 	os::unix::net::UnixStream,
 	path::{Path, PathBuf},
-	sync::Mutex,
 	task,
 };
 use cpu_time::ProcessTime;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
-use std::{panic, sync::Arc, time::Duration};
+use std::{
+	panic,
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
+	time::Duration,
+};
 
 /// A multiple of the preparation timeout (in CPU time) for which we are willing to wait on the host
 /// (in wall clock time). This is lenient because CPU time may go slower than wall clock time.
@@ -136,7 +142,7 @@ pub async fn start_work(
 							);
 
 							// Return a timeout error. The artifact exists, but is located in a
-							// temporary file which will be cleared.
+							// temporary file which will be cleared by `with_tmp_file`.
 							Selected::Deadline
 						} else {
 							gum::debug!(
@@ -299,24 +305,23 @@ pub fn worker_entrypoint(socket_path: &str) {
 				"worker: preparing artifact",
 			);
 
-			// Create a shared Mutex. We lock it when either thread finishes and set the flag.
-			let mutex = Arc::new(Mutex::new(false));
+			// Create a lock flag. We set it when either thread finishes.
+			let lock = Arc::new(AtomicBool::new(false));
 
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor. Continuously wakes up from
 			// sleeping and then either sleeps for the remaining CPU time, or kills the process if
 			// we exceed the CPU timeout.
-			// TODO: Use a threadpool?
-			let (stream_2, cpu_time_start_2, preparation_timeout_2, mutex_2) =
-				(stream.clone(), cpu_time_start, preparation_timeout, mutex.clone());
+			let (stream_2, cpu_time_start_2, preparation_timeout_2, lock_2) =
+				(stream.clone(), cpu_time_start, preparation_timeout, lock.clone());
 			std::thread::Builder::new().name("CPU time monitor".into()).spawn(move || {
 				task::block_on(async {
 					cpu_time_monitor_loop(
 						stream_2,
 						cpu_time_start_2,
 						preparation_timeout_2,
-						mutex_2,
+						lock_2,
 					)
 					.await;
 				})
@@ -331,25 +336,25 @@ pub fn worker_entrypoint(socket_path: &str) {
 				Ok(compiled_artifact) => {
 					let cpu_time_elapsed = cpu_time_start.elapsed();
 
-					let mut lock = mutex.lock().await;
-					if *lock {
+					let result =
+						lock.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
+					if result.is_err() {
 						unreachable!(
 							"Hit the timed-out case first; \
-								  Set the mutex flag to true; \
+								  Set the flag to true; \
 								  Called process::exit(); \
 								  process::exit: 'This function will never return and \
 								  will immediately terminate the current process.'; \
 								  This is unreachable; qed"
 						);
 					}
-					*lock = true;
 
 					// Write the serialized artifact into a temp file.
-					// PVF host only keeps artifacts statuses in its memory,
-					// successfully compiled code gets stored on the disk (and
-					// consequently deserialized by execute-workers). The prepare
-					// worker is only required to send an empty `Ok` to the pool
-					// to indicate the success.
+					//
+					// PVF host only keeps artifacts statuses in its memory, successfully compiled
+					// code gets stored on the disk (and consequently deserialized by
+					// execute-workers). The prepare worker is only required to send `Ok` to the
+					// pool to indicate the success.
 
 					gum::debug!(
 						target: LOG_TARGET,
@@ -359,8 +364,6 @@ pub fn worker_entrypoint(socket_path: &str) {
 					);
 					async_std::fs::write(&dest, &compiled_artifact).await?;
 
-					// TODO: We are now sending the CPU time back, changing the expected interface. Do
-					// we need to account for this breaking change in any way?
 					Ok(cpu_time_elapsed)
 				},
 			};
@@ -394,25 +397,23 @@ fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
 /// NOTE: Killed processes are detected and cleaned up in `purge_dead`.
 ///
 /// NOTE: If the artifact preparation completes and this thread is still sleeping, it will continue
-/// sleeping in the background. When it wakes, it will see that the mutex flag has been set and
-/// return.
+/// sleeping in the background. When it wakes, it will see that the flag has been set and return.
 async fn cpu_time_monitor_loop(
 	mut stream: UnixStream,
 	cpu_time_start: ProcessTime,
 	preparation_timeout: Duration,
-	mutex: Arc<Mutex<bool>>,
+	lock: Arc<AtomicBool>,
 ) {
 	loop {
 		let cpu_time_elapsed = cpu_time_start.elapsed();
 
 		// Treat the timeout as CPU time, which is less subject to variance due to load.
 		if cpu_time_elapsed > preparation_timeout {
-			let mut lock = mutex.lock().await;
-			if *lock {
+			let result = lock.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
+			if result.is_err() {
 				// Hit the preparation-completed case first, return from this thread.
 				return
 			}
-			*lock = true;
 
 			// Log if we exceed the timeout.
 			gum::warn!(
