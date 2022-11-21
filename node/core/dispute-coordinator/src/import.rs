@@ -178,32 +178,6 @@ impl CandidateVoteState<CandidateVotes> {
 		let supermajority_threshold =
 			polkadot_primitives::v2::supermajority_threshold(n_validators);
 
-		let concluded_invalid = votes.invalid.len() >= supermajority_threshold;
-		let concluded_valid = votes.valid.len() >= supermajority_threshold;
-
-		let mut our_invalid_votes =
-			env.controlled_indices.iter().filter_map(|i| votes.invalid.get_key_value(i));
-
-		let has_invalid_votes = our_invalid_votes.next().is_some();
-
-		match own_vote {
-			OwnVoteState::Voted =>
-				if concluded_valid && has_invalid_votes {
-					gum::warn!(
-						target: LOG_TARGET,
-						"Voted against a candidate that was concluded valid.",
-					);
-				},
-			OwnVoteState::VotedApproval(_) =>
-				if concluded_invalid {
-					gum::warn!(
-						target: LOG_TARGET,
-						"Voted approval for a candidate that was concluded invalid.",
-					);
-				},
-			OwnVoteState::NoVote => {},
-		}
-
 		// We have a dispute, if we have votes on both sides:
 		let is_disputed = !votes.invalid.is_empty() && !votes.valid.is_empty();
 
@@ -214,15 +188,40 @@ impl CandidateVoteState<CandidateVotes> {
 			if is_confirmed {
 				status = status.confirm();
 			};
+
+			let concluded_against = votes.invalid.len() >= supermajority_threshold;
 			let concluded_for = votes.valid.len() >= supermajority_threshold;
+
+			let mut our_against_votes =
+				env.controlled_indices.iter().filter_map(|i| votes.invalid.get_key_value(i));
+			let has_against_votes = our_against_votes.next().is_some();
+
 			if concluded_for {
 				status = status.conclude_for(now);
 			};
 
-			let concluded_against = votes.invalid.len() >= supermajority_threshold;
 			if concluded_against {
 				status = status.conclude_against(now);
 			};
+
+			match own_vote {
+				OwnVoteState::Voted =>
+					if concluded_for && has_against_votes {
+						gum::warn!(
+							target: LOG_TARGET,
+							"Voted against a candidate that was concluded valid.",
+						);
+					},
+				OwnVoteState::VotedApproval(_) =>
+					if concluded_against {
+						gum::warn!(
+							target: LOG_TARGET,
+							"Voted approval for a candidate that was concluded invalid.",
+						);
+					},
+				OwnVoteState::NoVote => {},
+			}
+
 			Some(status)
 		} else {
 			None
