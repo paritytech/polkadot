@@ -17,16 +17,17 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg(test)]
 
-use frame_support::weights::Weight;
+use frame_support::{codec::Encode, weights::Weight, dispatch::GetDispatchInfo};
 use polkadot_test_client::{
 	BlockBuilderExt, ClientBlockImportExt, DefaultTestClientBuilderExt, ExecutionStrategy,
 	InitPolkadotBlockBuilder, TestClientBuilder, TestClientBuilderExt,
 };
-use polkadot_test_runtime::pallet_test_notifier;
+use polkadot_test_runtime::{pallet_test_notifier, xcm_config::XcmConfig};
 use polkadot_test_service::construct_extrinsic;
 use sp_runtime::traits::Block;
 use sp_state_machine::InspectState;
 use xcm::{latest::prelude::*, VersionedResponse, VersionedXcm};
+use xcm_executor::traits::WeightBounds;
 
 #[test]
 fn basic_buy_fees_message_executes() {
@@ -66,6 +67,62 @@ fn basic_buy_fees_message_executes() {
 			r.event,
 			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted(
 				Outcome::Complete(_)
+			)),
+		)));
+	});
+}
+
+#[test]
+fn transact_recursion_limit_works() {
+	sp_tracing::try_init_simple();
+	let mut client = TestClientBuilder::new()
+		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
+		.build();
+
+	let mut msg = Xcm(vec![ClearOrigin]);
+	let mut max_weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut msg).unwrap();
+	let mut call = polkadot_test_runtime::RuntimeCall::Xcm(
+		pallet_xcm::Call::execute { message: Box::new(VersionedXcm::from(msg)), max_weight },
+	);
+
+	for _ in 0..10 {
+		msg = Xcm(vec![
+			WithdrawAsset((Parent, 1_000_000_000).into()),
+			BuyExecution { fees: (Parent, 1_000_000_000).into(), weight_limit: Unlimited },
+			Transact {
+				origin_kind: OriginKind::Xcm,
+				require_weight_at_most: call.get_dispatch_info().weight,
+				call: call.encode().into(),
+			},
+		]);
+		max_weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut msg).unwrap();
+		call = polkadot_test_runtime::RuntimeCall::Xcm(
+			pallet_xcm::Call::execute { message: Box::new(VersionedXcm::from(msg)), max_weight }
+		);
+	}
+
+	let mut block_builder = client.init_polkadot_block_builder();
+
+	let execute = construct_extrinsic(
+		&client,
+		call,
+		sp_keyring::Sr25519Keyring::Alice,
+		0,
+	);
+
+	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
+
+	let block = block_builder.build().expect("Finalizes the block").block;
+	let block_hash = block.hash();
+
+	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
+		.expect("imports the block");
+
+	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
+		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
+			r.event,
+			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted(
+				Outcome::Incomplete(_, XcmError::ExceedsStackLimit)
 			)),
 		)));
 	});

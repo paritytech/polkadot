@@ -20,13 +20,16 @@ use frame_support::{
 	weights::Weight,
 };
 use xcm::latest::prelude::*;
-use xcm_builder::{AllowUnpaidExecutionFrom, FixedWeightBounds, SignedToAccountId32};
+use xcm_builder::{
+	AllowUnpaidExecutionFrom, EnsureXcmOrigin, FixedWeightBounds, SignedToAccountId32,
+};
 use xcm_executor::{
 	traits::{TransactAsset, WeightTrader},
 	Assets,
 };
 
 parameter_types! {
+	pub const BaseXcmWeight: xcm::latest::Weight = Weight::from_parts(1_000, 1_000);
 	pub const OurNetwork: NetworkId = NetworkId::Polkadot;
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 16;
@@ -90,7 +93,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = ();
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<super::BaseXcmWeight, super::RuntimeCall, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, super::RuntimeCall, MaxInstructions>;
 	type Trader = DummyWeightTrader;
 	type ResponseHandler = super::Xcm;
 	type AssetTrap = super::Xcm;
@@ -104,4 +107,29 @@ impl xcm_executor::Config for XcmConfig {
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 	type CallDispatcher = super::RuntimeCall;
+}
+
+impl pallet_xcm::Config for crate::Runtime {
+	// The config types here are entirely configurable, since the only one that is sorely needed
+	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
+	type RuntimeEvent = crate::RuntimeEvent;
+	type ExecuteXcmOrigin = EnsureXcmOrigin<crate::RuntimeOrigin, LocalOriginToLocation>;
+	type UniversalLocation = UniversalLocation;
+	type SendXcmOrigin = EnsureXcmOrigin<crate::RuntimeOrigin, LocalOriginToLocation>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, crate::RuntimeCall, MaxInstructions>;
+	type XcmRouter = DoNothingRouter;
+	type XcmExecuteFilter = Everything;
+	type XcmExecutor = xcm_executor::XcmExecutor<XcmConfig>;
+	type XcmTeleportFilter = Everything;
+	type XcmReserveTransferFilter = Everything;
+	type RuntimeOrigin = crate::RuntimeOrigin;
+	type RuntimeCall = crate::RuntimeCall;
+	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
+	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+	type Currency = crate::Balances;
+	type CurrencyMatcher = ();
+	type TrustedLockers = ();
+	type SovereignAccountOf = ();
+	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type WeightInfo = pallet_xcm::TestWeightInfo;
 }

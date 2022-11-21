@@ -46,8 +46,8 @@ pub struct FeesMode {
 
 const RECURSION_LIMIT: u8 = 10;
 
-thread_local! {
-	static RECURSION_COUNT: Cell<u8> = Cell::new(0);
+environmental::thread_local_impl! {
+	static RECURSION_COUNT: Cell<u8> = Cell::new(0)
 }
 
 /// The XCM executor.
@@ -556,6 +556,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// weight consumed correctly (potentially allowing them to do more operations in a
 				// block than they otherwise would).
 				self.total_surplus.saturating_accrue(surplus);
+				RECURSION_COUNT.with(|count| count.set(count.get().saturating_sub(1)));
 				Ok(())
 			},
 			QueryResponse { query_id, response, max_weight, querier } => {
