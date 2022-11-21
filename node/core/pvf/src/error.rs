@@ -28,8 +28,6 @@ pub enum PrepareError {
 	Prevalidation(String),
 	/// Compilation failed for the given PVF.
 	Preparation(String),
-	/// Some error occurred while interacting with the filesystem.
-	IoError(String),
 	/// An unexpected panic has occured in the preparation worker.
 	Panic(String),
 	/// Failed to prepare the PVF due to the time limit.
@@ -102,9 +100,6 @@ impl From<PrepareError> for ValidationError {
 			),
 			PrepareError::Preparation(err) => ValidationError::InvalidCandidate(
 				InvalidCandidate::PrepareError(format!("preparation: {}", err)),
-			),
-			PrepareError::IoError(err) => ValidationError::InvalidCandidate(
-				InvalidCandidate::PrepareError(format!("io: {}", err)),
 			),
 			PrepareError::Panic(err) => ValidationError::InvalidCandidate(
 				InvalidCandidate::PrepareError(format!("panic: {}", err)),

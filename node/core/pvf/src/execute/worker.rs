@@ -40,7 +40,7 @@ use std::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
 	},
-	thread::{self, JoinHandle},
+	thread,
 	time::Duration,
 };
 
@@ -271,10 +271,18 @@ pub fn worker_entrypoint(socket_path: &str) {
 				&params,
 				&executor,
 				cpu_time_start,
-				lock,
-				handle,
 			)
 			.await;
+
+			let lock_result = lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
+			if lock_result.is_err() {
+				// The other thread is still sending an error response over the socket. Wait on it
+				// and return.
+				let _ = handle.join();
+				// Monitor thread detected timeout and likely already terminated the process,
+				// nothing to do.
+				continue
+			}
 
 			send_response(&mut stream, response).await?;
 		}
@@ -286,8 +294,6 @@ async fn validate_using_artifact(
 	params: &[u8],
 	executor: &Executor,
 	cpu_time_start: ProcessTime,
-	lock: Arc<AtomicBool>,
-	handle: JoinHandle<()>,
 ) -> Response {
 	let descriptor_bytes = match unsafe {
 		// SAFETY: this should be safe since the compiled artifact passed here comes from the
@@ -300,29 +306,6 @@ async fn validate_using_artifact(
 	};
 
 	let duration = cpu_time_start.elapsed();
-
-	let lock_result = lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
-	if lock_result.is_err() {
-		// The other thread is still sending an error response over the socket. Wait on it and
-		// return.
-		match handle.join() {
-			Ok(()) => {
-				unreachable!(
-					"Hit the timed-out case first; \
-					 We joined on the other thread's handle; \
-					 join: 'all operations performed by that thread happen \
-					     before all operations that happen after join returns.' \
-					 That thread sent the response and called process::exit(); \
-					 process::exit: 'This function will never return and \
-					     will immediately terminate the current process.'; \
-					 This is unreachable; qed"
-				);
-			},
-			// The other thread panicked.
-			Err(panic_payload) =>
-				return Response::InternalError(crate::error::stringify_panic_payload(panic_payload)),
-		}
-	}
 
 	let result_descriptor = match ValidationResult::decode(&mut &descriptor_bytes[..]) {
 		Err(err) =>

@@ -782,7 +782,7 @@ fn can_retry_prepare_after_failure(
 		Prevalidation(_) | Preparation(_) => false,
 		// Retry if the retry cooldown has elapsed and if we have already retried less than
 		// `NUM_PREPARE_RETRIES` times. IO errors may resolve themselves.
-		IoError(_) | Panic(_) | TimedOut | DidNotMakeIt =>
+		Panic(_) | TimedOut | DidNotMakeIt =>
 			SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
 				num_failures <= NUM_PREPARE_RETRIES,
 	}

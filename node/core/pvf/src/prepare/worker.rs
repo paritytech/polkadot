@@ -39,7 +39,7 @@ use std::{
 		atomic::{AtomicBool, Ordering},
 		Arc,
 	},
-	thread::{self, JoinHandle},
+	thread,
 	time::Duration,
 };
 
@@ -344,23 +344,51 @@ pub fn worker_entrypoint(socket_path: &str) {
 				})?;
 
 			// Prepares the artifact in a separate thread.
-			//
-			// Serialized error will be written into the socket.
-			let result = prepare_artifact(&code, &dest, cpu_time_start, lock, handle).await;
+			let result = match prepare_artifact(&code).await {
+				Err(err) => {
+					// Serialized error will be written into the socket.
+					Err(err)
+				},
+				Ok(compiled_artifact) => {
+					let cpu_time_elapsed = cpu_time_start.elapsed();
+
+					let lock_result =
+						lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
+					if lock_result.is_err() {
+						// The other thread is still sending an error response over the socket. Wait on it and
+						// return.
+						let _ = handle.join();
+						// Monitor thread detected timeout and likely already terminated the
+						// process, nothing to do.
+						continue
+					}
+
+					// Write the serialized artifact into a temp file.
+					//
+					// PVF host only keeps artifacts statuses in its memory, successfully compiled code gets stored
+					// on the disk (and consequently deserialized by execute-workers). The prepare worker is only
+					// required to send `Ok` to the pool to indicate the success.
+
+					gum::debug!(
+						target: LOG_TARGET,
+						worker_pid = %std::process::id(),
+						"worker: writing artifact to {}",
+						dest.display(),
+					);
+					async_std::fs::write(&dest, &compiled_artifact)
+						.await?;
+
+					Ok(cpu_time_elapsed)
+				},
+			};
 
 			framed_send(&mut stream, result.encode().as_slice()).await?;
 		}
 	});
 }
 
-async fn prepare_artifact(
-	code: &[u8],
-	dest: &Path,
-	cpu_time_start: ProcessTime,
-	lock: Arc<AtomicBool>,
-	handle: JoinHandle<()>,
-) -> Result<Duration, PrepareError> {
-	let compiled_artifact = panic::catch_unwind(|| {
+async fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
+	panic::catch_unwind(|| {
 		let blob = match crate::executor_intf::prevalidate(code) {
 			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
 			Ok(b) => b,
@@ -374,50 +402,5 @@ async fn prepare_artifact(
 	.map_err(|panic_payload| {
 		PrepareError::Panic(crate::error::stringify_panic_payload(panic_payload))
 	})
-	.and_then(|inner_result| inner_result)?;
-
-	let cpu_time_elapsed = cpu_time_start.elapsed();
-
-	let lock_result = lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
-	if lock_result.is_err() {
-		// The other thread is still sending an error response over the socket. Wait on it and
-		// return.
-		match handle.join() {
-			Ok(()) => {
-				unreachable!(
-					"Hit the timed-out case first; \
-					 We joined on the other thread's handle; \
-					 join: 'all operations performed by that thread happen \
-					     before all operations that happen after join returns.' \
-					 That thread sent the response and called process::exit(); \
-					 process::exit: 'This function will never return and \
-					     will immediately terminate the current process.'; \
-					 This is unreachable; qed"
-				);
-			},
-			// The other thread panicked.
-			Err(panic_payload) =>
-				return Err(PrepareError::Panic(crate::error::stringify_panic_payload(
-					panic_payload,
-				))),
-		}
-	}
-
-	// Write the serialized artifact into a temp file.
-	//
-	// PVF host only keeps artifacts statuses in its memory, successfully compiled code gets stored
-	// on the disk (and consequently deserialized by execute-workers). The prepare worker is only
-	// required to send `Ok` to the pool to indicate the success.
-
-	gum::debug!(
-		target: LOG_TARGET,
-		worker_pid = %std::process::id(),
-		"worker: writing artifact to {}",
-		dest.display(),
-	);
-	async_std::fs::write(&dest, &compiled_artifact)
-		.await
-		.map_err(|io_err| PrepareError::IoError(io_err.to_string()))?;
-
-	Ok(cpu_time_elapsed)
+	.and_then(|inner_result| inner_result)
 }
