@@ -42,7 +42,7 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 use polkadot_primitives::v2::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
 	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, CandidateEvent,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
 };
 
 use crate::{
@@ -320,9 +320,6 @@ impl Initialized {
 					},
 				);
 			}
-
-			// Decrement spam slots for freshly backed or included candidates
-			self.reduce_spam_from_included(&included_receipts);
 		}
 
 		Ok(())
@@ -1188,21 +1185,6 @@ impl Initialized {
 		}
 
 		Ok(())
-	}
-
-	/// Decrements spam slots for validators who voted on potential spam
-	/// candidates that are newly included, and therefore no longer
-	/// potential spam.
-	fn reduce_spam_from_included(
-		&mut self, 
-		included_receipts: &Vec<CandidateReceipt>,
-	)
-	{
-		included_receipts
-			.iter()
-			.for_each(|receipt| {
-				self.spam_slots.clear(&receipt.hash());
-			});
 	}
 }
 

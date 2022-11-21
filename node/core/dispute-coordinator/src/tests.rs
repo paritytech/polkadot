@@ -1287,7 +1287,7 @@ fn backing_statements_import_works_and_no_spam() {
 				})
 				.await;
 
-			// Result should be valid, because our node participated, so spam slots are cleared:
+			// Import should be valid, as spam slots were not filled
 			assert_matches!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
