@@ -182,12 +182,13 @@ impl CandidateVoteState<CandidateVotes> {
 		let concluded_valid = votes.valid.len() >= supermajority_threshold;
 
 		match own_vote {
-			OwnVoteState::Voted => {
-				gum::warn!(
-					target: LOG_TARGET,
-					"Voted against a candidate that was concluded valid.",
-				);
-			},
+			OwnVoteState::Voted =>
+				if concluded_valid {
+					gum::warn!(
+						target: LOG_TARGET,
+						"Voted against a candidate that was concluded valid.",
+					);
+				},
 			OwnVoteState::VotedApproval(_) =>
 				if concluded_invalid {
 					gum::warn!(
