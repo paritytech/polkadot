@@ -269,9 +269,9 @@ impl Initialized {
 		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
-		let (on_chain_votes, candidate_events) =
+		let (on_chain_votes, included_receipts) =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
-		self.participation.prioritize_newly_included(ctx, &candidate_events).await;
+		self.participation.prioritize_newly_included(ctx, &included_receipts).await;
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
@@ -322,7 +322,7 @@ impl Initialized {
 			}
 
 			// Decrement spam slots for freshly backed or included candidates
-			self.reduce_spam_on_backed_included(candidate_events);
+			self.reduce_spam_from_included(&included_receipts);
 		}
 
 		Ok(())
@@ -1191,30 +1191,18 @@ impl Initialized {
 	}
 
 	/// Decrements spam slots for validators who voted on potential spam
-	/// candidates that are newly backed or included, and therefore no longer
+	/// candidates that are newly included, and therefore no longer
 	/// potential spam.
-	fn reduce_spam_on_backed_included(
+	fn reduce_spam_from_included(
 		&mut self, 
-		candidate_events: Vec<CandidateEvent>,
+		included_receipts: &Vec<CandidateReceipt>,
 	)
 	{
-		for event in candidate_events {
-			// Filter out events we don't care about and repackage information
-			let maybe_event_contents = match event {
-				CandidateEvent::CandidateBacked(receipt, _, _, _) => {
-					Some(receipt)
-				}
-				CandidateEvent::CandidateIncluded(receipt, _, _, _) => {
-					Some(receipt)
-				}
-				_ => None
-			};
-
-			if let Some(receipt) = maybe_event_contents {
-				// Clear spam slots
+		included_receipts
+			.iter()
+			.for_each(|receipt| {
 				self.spam_slots.clear(&receipt.hash());
-			}
-		}
+			});
 	}
 }
 

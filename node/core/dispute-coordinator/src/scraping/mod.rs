@@ -26,7 +26,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::runtime::{get_candidate_events, get_on_chain_votes};
 use polkadot_primitives::v2::{
-	BlockNumber, CandidateEvent, CandidateHash, Hash, ScrapedOnChainVotes,
+	BlockNumber, CandidateEvent, CandidateHash, Hash, ScrapedOnChainVotes, CandidateReceipt,
 };
 
 use crate::{
@@ -137,7 +137,7 @@ impl ChainScraper {
 		&mut self,
 		sender: &mut Sender,
 		update: &ActiveLeavesUpdate,
-	) -> Result<(Vec<ScrapedOnChainVotes>, Vec<CandidateEvent>)>
+	) -> Result<(Vec<ScrapedOnChainVotes>, Vec<CandidateReceipt>)>
 	where
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
@@ -157,13 +157,13 @@ impl ChainScraper {
 
 		let block_hashes = std::iter::once(activated.hash).chain(ancestors);
 
-		let mut candidate_events: Vec<CandidateEvent> = Vec::new();
+		let mut included_receipts: Vec<CandidateReceipt> = Vec::new();
 		let mut on_chain_votes = Vec::new();
 		for (block_number, block_hash) in block_numbers.zip(block_hashes) {
 			gum::trace!(?block_number, ?block_hash, "In ancestor processing.");
 
 			let events_for_block = self.process_candidate_events(sender, block_number, block_hash).await?;
-			candidate_events.extend(events_for_block);
+			included_receipts.extend(events_for_block);
 
 			if let Some(votes) = get_on_chain_votes(sender, block_hash).await? {
 				on_chain_votes.push(votes);
@@ -172,7 +172,7 @@ impl ChainScraper {
 
 		self.last_observed_blocks.put(activated.hash, ());
 
-		Ok((on_chain_votes, candidate_events))
+		Ok((on_chain_votes, included_receipts))
 	}
 
 	/// Prune finalized candidates.
@@ -203,13 +203,14 @@ impl ChainScraper {
 		sender: &mut Sender,
 		block_number: BlockNumber,
 		block_hash: Hash,
-	) -> Result<Vec<CandidateEvent>>
+	) -> Result<Vec<CandidateReceipt>>
 	where
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
 		let events = get_candidate_events(sender, block_hash).await?;
+		let mut included_receipts: Vec<CandidateReceipt> = Vec::new();
 		// Get included and backed events:
-		for ev in &events {
+		for ev in events {
 			match ev {
 				CandidateEvent::CandidateIncluded(receipt, _, _, _) => {
 					let candidate_hash = receipt.hash();
@@ -220,6 +221,7 @@ impl ChainScraper {
 						"Processing included event"
 					);
 					self.included_candidates.insert(block_number, candidate_hash);
+					included_receipts.push(receipt);
 				},
 				CandidateEvent::CandidateBacked(receipt, _, _, _) => {
 					let candidate_hash = receipt.hash();
@@ -236,7 +238,7 @@ impl ChainScraper {
 				},
 			}
 		}
-		Ok(events)
+		Ok(included_receipts)
 	}
 
 	/// Returns ancestors of `head` in the descending order, stopping
