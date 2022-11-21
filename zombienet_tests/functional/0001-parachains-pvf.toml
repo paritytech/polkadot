@@ -117,7 +117,7 @@ genesis_state_generator = "undying-collator export-genesis-state --pov-size=1000
   name = "collator07"
   image = "{{COL_IMAGE}}"
   command = "undying-collator"
-  args = ["-lparachain=debug", "--pov-size=100000",  "--pvf-complexity=300", "--parachain-id=2006"]
+  args = ["-lparachain=debug", "--pov-size=100000",  "--pvf-complexity=300", "--parachain-id=2006", "--hrmp-params=2007:4096", "-lruntime::undying=debug"]
 
 [[parachains]]
 id = 2007
@@ -128,7 +128,18 @@ genesis_state_generator = "undying-collator export-genesis-state --pov-size=1000
   name = "collator08"
   image = "{{COL_IMAGE}}"
   command = "undying-collator"
-  args = ["-lparachain=debug", "--pov-size=100000",  "--pvf-complexity=300", "--parachain-id=2007"]
+  args = ["-lparachain=debug", "--pov-size=100000",  "--pvf-complexity=300", "--parachain-id=2007", "--hrmp-params=2006:4096", "-lruntime::undying=debug"]
+
+[[hrmp_channels]]
+  sender = 2007
+  recipient = 2006
+  max_capacity = 2
+  max_message_size = 8192
+[[hrmp_channels]]
+  sender = 2006
+  recipient = 2007
+  max_capacity = 2
+  max_message_size = 8192
 
 [types.Header]
 number = "u64"
