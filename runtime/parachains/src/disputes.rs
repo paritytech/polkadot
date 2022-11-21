@@ -521,6 +521,8 @@ pub mod pallet {
 		PotentialSpam,
 		/// A dispute where there are only votes on one side.
 		SingleSidedDispute,
+		/// Unconfirmed dispute statement sets provided
+		UnconfirmedDispute,
 	}
 
 	#[pallet::call]
@@ -938,6 +940,7 @@ impl<T: Config> Pallet<T> {
 	//
 	// Votes which are duplicate or already known by the chain are filtered out.
 	// The entire set is removed if the dispute is both, ancient and concluded.
+	// Disputes without enough votes to get confirmed are also filtered out.
 	fn filter_dispute_data(
 		set: &DisputeStatementSet,
 		post_conclusion_acceptance_period: <T as frame_system::Config>::BlockNumber,
@@ -1035,6 +1038,13 @@ impl<T: Config> Pallet<T> {
 		// Reject disputes which don't have at least one vote on each side.
 		if summary.state.validators_for.count_ones() == 0 ||
 			summary.state.validators_against.count_ones() == 0
+		{
+			return StatementSetFilter::RemoveAll
+		}
+
+		// Reject disputes containing less votes than needed for confirmation.
+		if (summary.state.validators_for.clone() | &summary.state.validators_against).count_ones() <=
+			byzantine_threshold(summary.state.validators_for.len())
 		{
 			return StatementSetFilter::RemoveAll
 		}
@@ -1199,6 +1209,13 @@ impl<T: Config> Pallet<T> {
 			summary.state.validators_for.count_ones() > 0 &&
 				summary.state.validators_against.count_ones() > 0,
 			Error::<T>::SingleSidedDispute,
+		);
+
+		// Reject disputes containing less votes than needed for confirmation.
+		ensure!(
+			(summary.state.validators_for.clone() | &summary.state.validators_against).count_ones() >
+				byzantine_threshold(summary.state.validators_for.len()),
+			Error::<T>::UnconfirmedDispute,
 		);
 
 		let DisputeStatementSet { ref session, ref candidate_hash, .. } = set;
