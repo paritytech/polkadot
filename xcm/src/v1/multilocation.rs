@@ -340,10 +340,12 @@ impl MultiLocation {
 			target.take_first_interior();
 			id.take_first_interior();
 		}
-
 		id.parents = id
 			.parent_count()
-			.saturating_add(target.parent_count().saturating_add(target.interior().len() as u8));
+			.checked_add(target.parent_count())
+			.ok_or(())?
+			.checked_add(target.interior().len() as u8)
+			.ok_or(())?;
 
 		*self = id;
 		Ok(())
@@ -993,12 +995,12 @@ mod tests {
 
 	#[test]
 	fn reanchor_overflow_handled() {
-		let mut id = MultiLocation::new(255, X1(Parachain(255)));
+		let mut id = MultiLocation::new(254, X1(Parachain(255)));
 		let original_id = id.clone();
 		let ancestry = (Parachain(500)).into();
 		let target = (Parachain(500), Parachain(501)).into();
 		// Does not overflow
-		id.reanchor(&target, &ancestry).unwrap();
+		id.reanchor(&target, &ancestry).err().unwrap();
 		// id is not mutated since reanchor failed.
 		assert_eq!(id, original_id);
 	}
