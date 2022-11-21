@@ -90,7 +90,7 @@ pub struct GraveyardState {
 	pub seal: [u8; 32],
 }
 
-/// A structure that configures hrmp messages produced by undying collator
+/// A structure that configures HRMP messages produced by undying collator
 #[derive(Default, Clone, Encode, Decode, Debug)]
 pub struct HrmpChannelConfiguration {
 	/// Where to send HRMP messages
@@ -164,7 +164,7 @@ pub fn execute(
 			hash_state(&block_data.state),
 			parent_head.post_state,
 		);
-		return Err(StateMismatch)
+		return Err(StateMismatch);
 	}
 
 	// We need to clone the block data as the fn will mutate it's state.
