@@ -27,7 +27,7 @@ use parity_scale_codec::{Decode, Encode};
 use parity_util_mem::MallocSizeOf;
 use polkadot_core_primitives::Hash;
 use scale_info::TypeInfo;
-use sp_std::{ops::Deref, vec::Vec};
+use sp_std::{ops::Deref, vec, vec::Vec};
 
 /// # Execution environment parameter tags
 /// Values from 1 to 16 are reserved for system-wide parameters not related to any concrete
@@ -67,25 +67,13 @@ impl sp_std::fmt::LowerHex for ExecutorParamsHash {
 	}
 }
 
-impl From<Hash> for ExecutorParamsHash {
-	fn from(hash: Hash) -> Self {
-		Self(hash)
-	}
-}
-
-impl From<[u8; 32]> for ExecutorParamsHash {
-	fn from(hash: [u8; 32]) -> Self {
-		Self(hash.into())
-	}
-}
-
 /// # Deterministically serialized execution environment semantics
 /// Represents an arbitrary semantics of an arbitrary execution environment, so should be kept as
 /// abstract as possible. Mapping from `u32` constant tags to SCALE-encoded values was chosen
 /// over an idiomatic `enum` representation as the latter would require caller to rely on
 /// deserialization errors when decoding a structure of newer version not yet known to the node
 /// software, which is undesirable.
-/// As this one goes on-chain, it requires full serialization determinism. That is ensured by
+/// As this one goes on-chain, it requires full serialization determinism. That is achieved by
 /// enforcing constant tags to be in ascending order and using deterministic SCALE-codec for values.
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
@@ -93,8 +81,8 @@ pub struct ExecutorParams(Vec<(u32, Vec<u8>)>);
 
 impl ExecutorParams {
 	/// Creates a new, empty executor parameter set
-	pub fn new() -> Self {
-		ExecutorParams(Vec::new())
+	pub fn new(environment: u32) -> Self {
+		ExecutorParams(vec![(EEPAR_01_ENVIRONMENT, environment.encode())])
 	}
 
 	/// Returns execution environment type identifier
@@ -137,6 +125,6 @@ impl Deref for ExecutorParams {
 
 impl Default for ExecutorParams {
 	fn default() -> Self {
-		ExecutorParams(Vec::new())
+		ExecutorParams(vec![(EEPAR_01_ENVIRONMENT, EXEC_ENV_TYPE_WASMTIME_GENERIC.encode())])
 	}
 }
