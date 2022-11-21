@@ -181,9 +181,14 @@ impl CandidateVoteState<CandidateVotes> {
 		let concluded_invalid = votes.invalid.len() >= supermajority_threshold;
 		let concluded_valid = votes.valid.len() >= supermajority_threshold;
 
+		let mut our_invalid_votes =
+			env.controlled_indices.iter().filter_map(|i| votes.invalid.get_key_value(i));
+
+		let has_invalid_votes = our_invalid_votes.next().is_some();
+
 		match own_vote {
 			OwnVoteState::Voted =>
-				if concluded_valid {
+				if concluded_valid && has_invalid_votes {
 					gum::warn!(
 						target: LOG_TARGET,
 						"Voted against a candidate that was concluded valid.",
