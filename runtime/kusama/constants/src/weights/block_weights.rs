@@ -1,28 +1,26 @@
-// This file is part of Substrate.
+// Copyright 2017-2022 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
 
-// Copyright (C) 2022 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
 
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-08-19 (Y/M/D)
-//! HOSTNAME: `bm4`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
+//! DATE: 2022-11-16 (Y/M/D)
+//! HOSTNAME: `bm5`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
 //!
 //! SHORT-NAME: `block`, LONG-NAME: `BlockExecution`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
 //! WEIGHT-PATH: `runtime/kusama/constants/src/weights/`
-//! WEIGHT-METRIC: `Average`, WEIGHT-MUL: `1`, WEIGHT-ADD: `0`
+//! WEIGHT-METRIC: `Average`, WEIGHT-MUL: `1.0`, WEIGHT-ADD: `0`
 
 // Executed Command:
 //   ./target/production/polkadot
@@ -34,32 +32,31 @@
 //   --weight-path=runtime/kusama/constants/src/weights/
 //   --warmup=10
 //   --repeat=100
+//   --header=./file_header.txt
 
-use frame_support::{
-	parameter_types,
-	weights::{constants::WEIGHT_PER_NANOS, Weight},
-};
+use sp_core::parameter_types;
+use sp_weights::{constants::WEIGHT_PER_NANOS, Weight};
 
 parameter_types! {
 	/// Time to execute an empty block.
-	/// Calculated by multiplying the *Average* with `1` and adding `0`.
+	/// Calculated by multiplying the *Average* with `1.0` and adding `0`.
 	///
 	/// Stats nanoseconds:
-	///   Min, Max: 6_094_385, 6_351_993
-	///   Average:  6_192_341
-	///   Median:   6_193_838
-	///   Std-Dev:  63893.84
+	///   Min, Max: 6_665_440, 6_986_371
+	///   Average:  6_731_894
+	///   Median:   6_723_700
+	///   Std-Dev:  49280.83
 	///
 	/// Percentiles nanoseconds:
-	///   99th: 6_332_047
-	///   95th: 6_308_225
-	///   75th: 6_236_204
-	pub const BlockExecutionWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(6_192_341);
+	///   99th: 6_876_251
+	///   95th: 6_811_463
+	///   75th: 6_751_221
+	pub const BlockExecutionWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(6_731_894);
 }
 
 #[cfg(test)]
 mod test_weights {
-	use frame_support::weights::constants;
+	use sp_weights::constants;
 
 	/// Checks that the weight exists and is sane.
 	// NOTE: If this test fails but you are sure that the generated values are fine,

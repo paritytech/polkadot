@@ -10,10 +10,14 @@ smallvec = "1.8.0"
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../../primitives", default-features = false }
 runtime-common = { package = "polkadot-runtime-common", path = "../../common", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
 
 [features]
 default = ["std"]
 std = [
-	"sp-runtime/std"
+	"sp-core/std",
+	"sp-runtime/std",
+	"sp-weights/std"
 ]
