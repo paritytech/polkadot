@@ -30,7 +30,8 @@ pub enum HrmpConfigParseError {
 	TooManyParams,
 }
 
-#[derive(Debug)]
+/// Utility structure to process HRMP channels configuration from CLI
+#[derive(Debug, Clone)]
 pub struct CliHrmpChannelConfiguration(pub HrmpChannelConfiguration);
 
 /// This implementation is used to parse HRMP channels configuration from a command
