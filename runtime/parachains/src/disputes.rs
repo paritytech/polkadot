@@ -521,6 +521,8 @@ pub mod pallet {
 		PotentialSpam,
 		/// A dispute where there are only votes on one side.
 		SingleSidedDispute,
+		/// Unconfirmed dispute statement sets provided
+		UnconfirmedDispute,
 	}
 
 	#[pallet::call]
@@ -1038,6 +1040,13 @@ impl<T: Config> Pallet<T> {
 			return StatementSetFilter::RemoveAll
 		}
 
+		// Reject disputes containing less votes than needed for confirmation.
+		if summary.state.validators_for.count_ones() + summary.state.validators_against.count_ones() <
+			supermajority_threshold(summary.state.validators_for.len())
+		{
+			return StatementSetFilter::RemoveAll
+		}
+
 		// Apply spam slot changes. Bail early if too many occupied.
 		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
 		if !is_local {
@@ -1198,6 +1207,14 @@ impl<T: Config> Pallet<T> {
 			summary.state.validators_for.count_ones() > 0 &&
 				summary.state.validators_against.count_ones() > 0,
 			Error::<T>::SingleSidedDispute,
+		);
+
+		// Reject disputes containing less votes than needed for confirmation.
+		ensure!(
+			summary.state.validators_for.count_ones() +
+				summary.state.validators_against.count_ones() >=
+				supermajority_threshold(summary.state.validators_for.len()),
+			Error::<T>::UnconfirmedDispute,
 		);
 
 		let DisputeStatementSet { ref session, ref candidate_hash, .. } = set;
