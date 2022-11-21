@@ -154,4 +154,19 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 			.saturating_add(T::DbWeight::get().writes((1 as u64).saturating_mul(c as u64)))
 	}
+	// Storage: Paras ParaLifecycles (r:2 w:0)
+	// Storage: Hrmp HrmpOpenChannelRequests (r:1 w:1)
+	// Storage: Hrmp HrmpChannels (r:1 w:0)
+	// Storage: Hrmp HrmpEgressChannelsIndex (r:1 w:0)
+	// Storage: Hrmp HrmpOpenChannelRequestCount (r:1 w:1)
+	// Storage: Hrmp HrmpOpenChannelRequestsList (r:1 w:1)
+	// Storage: Dmp DownwardMessageQueueHeads (r:2 w:2)
+	// Storage: Dmp DownwardMessageQueues (r:2 w:2)
+	// Storage: Hrmp HrmpIngressChannelsIndex (r:1 w:0)
+	// Storage: Hrmp HrmpAcceptedChannelRequestCount (r:1 w:1)
+	fn force_open_hrmp_channel() -> Weight {
+		Weight::from_ref_time(104_771_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(13 as u64))
+			.saturating_add(T::DbWeight::get().writes(8 as u64))
+	}
 }

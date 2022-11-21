@@ -6,7 +6,7 @@ Creds: config
 alice: is up
 bob: is up
 charlie: is up
-david is up
+dave: is up
 alice: reports node_roles is 4
 bob: reports node_roles is 4
 alice: reports sub_libp2p_is_major_syncing is 0

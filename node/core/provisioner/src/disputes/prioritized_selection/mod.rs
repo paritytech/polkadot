@@ -139,6 +139,13 @@ where
 		onchain.len(),
 	);
 
+	// Filter out unconfirmed disputes. However if the dispute is already onchain - don't skip it.
+	// In this case we'd better push as much fresh votes as possible to bring it to conclusion faster.
+	let recent_disputes = recent_disputes
+		.into_iter()
+		.filter(|d| d.2.is_confirmed_concluded() || onchain.contains_key(&(d.0, d.1)))
+		.collect::<Vec<_>>();
+
 	let partitioned = partition_recent_disputes(recent_disputes, &onchain);
 	metrics.on_partition_recent_disputes(&partitioned);
 
