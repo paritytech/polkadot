@@ -41,10 +41,12 @@ pub mod migration;
 mod tests;
 
 fn current_exec_params() -> ExecutorParams {
-	let mut exec_params = ExecutorParams::new();
+	let exec_params = ExecutorParams::new(Ep::EXEC_ENV_TYPE_WASMTIME_GENERIC);
 	// Elements must be added in the ascending order of tags to ensure determinism;
 	// see comments to `ExecutorParams` implementation.
-	exec_params.add(Ep::EEPAR_01_ENVIRONMENT, Ep::EXEC_ENV_TYPE_WASMTIME_GENERIC);
+	// e.g.:
+	// exec_params.add(Ep::EEPAR_17_STACK_LOGICAL_MAX, 65536);
+	// exec_params.add(Ep::EEPAR_18_STACK_NATIVE_MAX, 256 * 1024 * 1024);
 	exec_params
 }
 
