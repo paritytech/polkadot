@@ -124,11 +124,14 @@ async fn parallel_execution() {
 	let start = std::time::Instant::now();
 	let (_, _) = futures::join!(execute_pvf_future_1, execute_pvf_future_2);
 
-	// total time should be < 2 x EXECUTION_TIMEOUT_SEC
-	const EXECUTION_TIMEOUT_SEC: u64 = 3;
+	// total time should be < 2 x TEST_EXECUTION_TIMEOUT
+	let duration = std::time::Instant::now().duration_since(start);
+	let expected_duration = TEST_EXECUTION_TIMEOUT * 2;
 	assert!(
-		std::time::Instant::now().duration_since(start) <
-			std::time::Duration::from_secs(EXECUTION_TIMEOUT_SEC * 2)
+		duration < expected_duration,
+		"Expected duration {}s to be less than {}s",
+		duration.as_secs(),
+		expected_duration.as_secs()
 	);
 }
 

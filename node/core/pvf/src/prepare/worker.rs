@@ -375,8 +375,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 						"worker: writing artifact to {}",
 						dest.display(),
 					);
-					async_std::fs::write(&dest, &compiled_artifact)
-						.await?;
+					async_std::fs::write(&dest, &compiled_artifact).await?;
 
 					Ok(cpu_time_elapsed)
 				},

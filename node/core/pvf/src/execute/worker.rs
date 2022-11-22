@@ -90,7 +90,9 @@ pub async fn start_work(
 		artifact.path.display(),
 	);
 
-	if let Err(error) = send_request(&mut stream, &artifact.path, &validation_params).await {
+	if let Err(error) =
+		send_request(&mut stream, &artifact.path, &validation_params, execution_timeout).await
+	{
 		gum::warn!(
 			target: LOG_TARGET,
 			worker_pid = %pid,
@@ -170,9 +172,11 @@ async fn send_request(
 	stream: &mut UnixStream,
 	artifact_path: &Path,
 	validation_params: &[u8],
+	execution_timeout: Duration,
 ) -> io::Result<()> {
 	framed_send(stream, path_to_bytes(artifact_path)).await?;
-	framed_send(stream, validation_params).await
+	framed_send(stream, validation_params).await?;
+	framed_send(stream, &execution_timeout.encode()).await
 }
 
 async fn recv_request(stream: &mut UnixStream) -> io::Result<(PathBuf, Vec<u8>, Duration)> {
@@ -266,15 +270,12 @@ pub fn worker_entrypoint(socket_path: &str) {
 					})
 				})?;
 
-			let response = validate_using_artifact(
-				&artifact_path,
-				&params,
-				&executor,
-				cpu_time_start,
-			)
-			.await;
 
-			let lock_result = lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
+			let response =
+				validate_using_artifact(&artifact_path, &params, &executor, cpu_time_start).await;
+
+			let lock_result =
+				lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
 			if lock_result.is_err() {
 				// The other thread is still sending an error response over the socket. Wait on it
 				// and return.
