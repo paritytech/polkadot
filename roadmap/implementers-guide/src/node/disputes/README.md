@@ -8,7 +8,7 @@ subsystems are concerned with the following:
 3. Votes get recorded as necessary
 3. Nodes will participate in disputes in a sensible fashion
 4. Finality is stopped while a candidate is being disputed on chain
-5. Chains can be reverted in case a dispute concluded invalid
+5. Chains can be reverted in case a dispute concludes invalid
 6. Votes are provided to the provisioner so losing validators can be slashed on chain
 
 The dispute-coordinator subsystem interfaces with the provisioner and chain
