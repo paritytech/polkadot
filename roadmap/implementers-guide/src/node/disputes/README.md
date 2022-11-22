@@ -1,7 +1,7 @@
 # Disputes Subsystems
 
 If approval voting finds an invalid candidate, a dispute is raised. The disputes
-subsystems make that possible:
+subsystems are concerned with the following:
 
 1. Disputes can be raised
 2. Disputes (votes) get propagated to all other validators
