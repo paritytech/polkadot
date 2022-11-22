@@ -11,6 +11,7 @@ pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", 
 pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+futures = { version = "0.3.21", features = ["thread-pool"] }
 
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
