@@ -24,6 +24,12 @@ cargo install mdbook mdbook-linkcheck mdbook-graphviz mdbook-mermaid mdbook-last
 mdbook serve roadmap/implementers-guide
 ```
 
+and in a second terminal window run:
+
+```sh
+open http://localhost:3000
+```
+
 ## Specification
 
 See also the Polkadot specification [hosted](https://spec.polkadot.network/), and its [source](https://github.com/w3f/polkadot-spec).
