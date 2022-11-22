@@ -103,10 +103,22 @@ pub enum ArtifactState {
 		last_time_needed: SystemTime,
 	},
 	/// A task to prepare this artifact is scheduled.
-	Preparing { waiting_for_response: Vec<PrepareResultSender> },
+	Preparing {
+		/// List of result senders that are waiting for a response.
+		waiting_for_response: Vec<PrepareResultSender>,
+		/// The number of times this artifact has failed to prepare.
+		num_failures: u32,
+	},
 	/// The code couldn't be compiled due to an error. Such artifacts
 	/// never reach the executor and stay in the host's memory.
-	FailedToProcess(PrepareError),
+	FailedToProcess {
+		/// Keep track of the last time that processing this artifact failed.
+		last_time_failed: SystemTime,
+		/// The number of times this artifact has failed to prepare.
+		num_failures: u32,
+		/// The last error encountered for preparation.
+		error: PrepareError,
+	},
 }
 
 /// A container of all known artifact ids and their states.
@@ -150,7 +162,7 @@ impl Artifacts {
 		// See the precondition.
 		always!(self
 			.artifacts
-			.insert(artifact_id, ArtifactState::Preparing { waiting_for_response })
+			.insert(artifact_id, ArtifactState::Preparing { waiting_for_response, num_failures: 0 })
 			.is_none());
 	}
 
