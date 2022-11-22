@@ -7,8 +7,8 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.0.9", features = ["derive"] }
 
-generate-bags = { git = "https://github.com/paritytech/substrate", " branch" = "alexg/reduce_provisioner_work_v2" }
-sp-io = { git = "https://github.com/paritytech/substrate", " branch" = "alexg/reduce_provisioner_work_v2" }
+generate-bags = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 westend-runtime = { path = "../../runtime/westend" }
 kusama-runtime = { path = "../../runtime/kusama" }
