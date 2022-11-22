@@ -162,6 +162,9 @@ struct MetricsInner {
 	time_db_transaction: prometheus::Histogram,
 	time_recover_and_approve: prometheus::Histogram,
 	candidate_signatures_requests_total: prometheus::Counter<prometheus::U64>,
+
+	/// Breakdown time spent per loop (overseer messages, wakeup handling)
+	time_main_loop_iteration: prometheus::HistogramVec,
 }
 
 /// Approval Voting metrics.
@@ -245,6 +248,15 @@ impl Metrics {
 		self.0.as_ref().map(|metrics| metrics.time_db_transaction.start_timer())
 	}
 
+	fn time_main_loop_iteration(
+		&self,
+		category: &'static str,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| {
+			metrics.time_main_loop_iteration.with_label_values(&[category]).start_timer()
+		})
+	}
+
 	fn time_recover_and_approve(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.time_recover_and_approve.start_timer())
 	}
@@ -255,6 +267,15 @@ impl metrics::Metrics for Metrics {
 		registry: &prometheus::Registry,
 	) -> std::result::Result<Self, prometheus::PrometheusError> {
 		let metrics = MetricsInner {
+			time_main_loop_iteration: prometheus::register(
+				prometheus::HistogramVec::new(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_approval_voting_time_main_loop_iteration",
+						"Breakdown of time spent in different activies of main loop",
+					), &["category"]
+				)?,
+				registry,
+			)?,
 			imported_candidates_total: prometheus::register(
 				prometheus::Counter::new(
 					"polkadot_parachain_imported_candidates_total",
@@ -799,9 +820,12 @@ where
 	};
 
 	loop {
+		// TODO: Keep the overlay cache after converting into ops. We'll refresh on new session boundary, or every
+		// N blocks to bound memory usage. This should reduce the amount of queries to read to inner.
 		let mut overlayed_db = OverlayedBackend::new(&backend);
 		let actions = futures::select! {
 			(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
+				let _timer = subsystem.metrics.time_main_loop_iteration("wakeup");
 				subsystem.metrics.on_wakeup();
 				process_wakeup(
 					&mut state,
@@ -833,6 +857,8 @@ where
 				actions
 			}
 			approval_state = currently_checking_set.next(&mut approvals_cache).fuse() => {
+				let _timer = subsystem.metrics.time_main_loop_iteration("currently_checking_set");
+
 				let mut actions = Vec::new();
 				let (
 					relay_block_hashes,
@@ -922,6 +948,8 @@ async fn handle_actions<Context>(
 	actions: Vec<Action>,
 ) -> SubsystemResult<bool> {
 	let mut conclude = false;
+
+	let _ = metrics.time_main_loop_iteration("handle_actions");
 
 	let mut actions_iter = actions.into_iter();
 	while let Some(action) = actions_iter.next() {
@@ -1143,6 +1171,7 @@ async fn handle_from_overseer<Context>(
 	let actions = match x {
 		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let mut actions = Vec::new();
+			let _timer = metrics.time_main_loop_iteration("active_leaves");
 
 			if let Some(activated) = update.activated {
 				let head = activated.hash;
@@ -1196,6 +1225,7 @@ async fn handle_from_overseer<Context>(
 			actions
 		},
 		FromOrchestra::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
+			let _timer = metrics.time_main_loop_iteration("block_finalized");
 			gum::debug!(target: LOG_TARGET, ?block_hash, ?block_number, "Block finalized");
 			*last_finalized_height = Some(block_number);
 
@@ -1211,18 +1241,25 @@ async fn handle_from_overseer<Context>(
 		},
 		FromOrchestra::Communication { msg } => match msg {
 			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
+				let _timer = metrics.time_main_loop_iteration("import_assignment");
+
 				let (check_outcome, actions) =
 					check_and_import_assignment(state, db, a, claimed_core)?;
 				let _ = res.send(check_outcome);
 
 				actions
 			},
-			ApprovalVotingMessage::CheckAndImportApproval(a, res) =>
+			ApprovalVotingMessage::CheckAndImportApproval(a, res) => {
+				let _timer = metrics.time_main_loop_iteration("import_approval");
+
 				check_and_import_approval(state, db, metrics, a, |r| {
 					let _ = res.send(r);
 				})?
-				.0,
+				.0
+			},
 			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res) => {
+				let _timer = metrics.time_main_loop_iteration("approved_ancestor");
+
 				match handle_approved_ancestor(ctx, db, target, lower_bound, wakeups).await {
 					Ok(v) => {
 						let _ = res.send(v);
@@ -1236,6 +1273,8 @@ async fn handle_from_overseer<Context>(
 				Vec::new()
 			},
 			ApprovalVotingMessage::GetApprovalSignaturesForCandidate(candidate_hash, tx) => {
+				let _timer = metrics.time_main_loop_iteration("get_approval_signatures");
+
 				metrics.on_candidate_signatures_request();
 				get_approval_signatures_for_candidate(ctx, db, candidate_hash, tx).await?;
 				Vec::new()
