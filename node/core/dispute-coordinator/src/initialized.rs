@@ -852,7 +852,7 @@ impl Initialized {
 
 		if !potential_spam {
 			// Former spammers have not been spammers after all:
-			self.spam_slots.clear(&candidate_hash);
+			self.spam_slots.clear(&(session, candidate_hash));
 
 		// Potential spam:
 		} else if !import_result.new_invalid_voters().is_empty() {
