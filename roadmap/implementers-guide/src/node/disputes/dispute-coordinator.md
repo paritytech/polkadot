@@ -399,8 +399,8 @@ To keep spam slots from filling up unnecessarily we want to clear spam slots
 whenever a candidate is seen to be backed or included. Fortunately this behavior
 is acheived by clearing slots on vote import as described above. Because on chain
 backing votes are processed when a block backing the disputed candidate is discovered, spam slots are cleared for every backed candidate. Included 
-candidates have typically also been seen as backed, so decrementing spam slots is
-handled in that case as well.
+candidates have also been seen as backed on the same fork, so decrementing spam
+slots is handled in that case as well.
 
 The reason this works is because we only need to worry about actual dispute
 votes. Import of backing votes are already rate limited and concern only real

@@ -417,6 +417,8 @@ impl Initialized {
 				})
 				.collect();
 
+			// Importantly, handling import statements for backing votes also 
+			// clears spam slots for any newly backed candidates
 			let import_result = self
 				.handle_import_statements(
 					ctx,
@@ -850,8 +852,11 @@ impl Initialized {
 			"Is spam?"
 		);
 
+		// This check is responsible for all clearing of spam slots. It runs 
+		// whenever a vote is imported from on or off chain, and decrements 
+		// slots whenever a candidate is newly backed, confirmed, or has our
+		// own vote.
 		if !potential_spam {
-			// Former spammers have not been spammers after all:
 			self.spam_slots.clear(&(session, candidate_hash));
 
 		// Potential spam:
