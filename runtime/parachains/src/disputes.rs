@@ -1041,8 +1041,8 @@ impl<T: Config> Pallet<T> {
 		}
 
 		// Reject disputes containing less votes than needed for confirmation.
-		if summary.state.validators_for.count_ones() + summary.state.validators_against.count_ones() <
-			supermajority_threshold(summary.state.validators_for.len())
+		if (summary.state.validators_for.clone() | &summary.state.validators_against).count_ones() <=
+			byzantine_threshold(summary.state.validators_for.len())
 		{
 			return StatementSetFilter::RemoveAll
 		}
@@ -1211,9 +1211,8 @@ impl<T: Config> Pallet<T> {
 
 		// Reject disputes containing less votes than needed for confirmation.
 		ensure!(
-			summary.state.validators_for.count_ones() +
-				summary.state.validators_against.count_ones() >=
-				supermajority_threshold(summary.state.validators_for.len()),
+			(summary.state.validators_for.clone() | &summary.state.validators_against).count_ones() >
+				byzantine_threshold(summary.state.validators_for.len()),
 			Error::<T>::UnconfirmedDispute,
 		);
 
