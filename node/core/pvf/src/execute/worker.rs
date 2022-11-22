@@ -270,7 +270,6 @@ pub fn worker_entrypoint(socket_path: &str) {
 					})
 				})?;
 
-
 			let response =
 				validate_using_artifact(&artifact_path, &params, &executor, cpu_time_start).await;
 
