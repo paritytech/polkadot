@@ -65,6 +65,12 @@ const APP_WHITELISTED_CALLER: Curve =
 const SUP_WHITELISTED_CALLER: Curve =
 	Curve::make_reciprocal(1, 28, percent(20), percent(10), percent(50));
 
+#[test]
+fn curve_info_print() {
+	// 28 days and some name as a string
+	APP_STAKING_ADMIN.info(28, "staking_admin_bla_bla");
+}
+
 const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15] = [
 	(
 		0,
