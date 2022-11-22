@@ -31,7 +31,7 @@ use polkadot_node_subsystem::{
 use polkadot_primitives::v2::{Block, Hash, InherentData as ParachainsInherentData};
 use sp_blockchain::HeaderBackend;
 use sp_runtime::generic::BlockId;
-use std::time;
+use std::{sync::Arc, time};
 
 pub(crate) const LOG_TARGET: &str = "parachain::parachains-inherent";
 
@@ -51,7 +51,7 @@ impl ParachainsInherentDataProvider {
 
 	/// Create a new instance of the [`ParachainsInherentDataProvider`].
 	pub async fn create<C: HeaderBackend<Block>>(
-		client: &C,
+		client: Arc<C>,
 		mut overseer: Handle,
 		parent: Hash,
 	) -> Result<Self, Error> {
@@ -146,13 +146,13 @@ impl sp_inherents::InherentDataProvider for ParachainsInherentDataProvider {
 /// Parachains inherent-data provider
 //#[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct InherentDataProvider<C: sp_blockchain::HeaderBackend<Block>> {
-	pub client: C,
+	pub client: Arc<C>,
 	pub overseer: polkadot_overseer::Handle,
 	pub parent: Hash,
 }
 
 impl<C: sp_blockchain::HeaderBackend<Block>> InherentDataProvider<C> {
-	pub fn new(client: C, overseer: polkadot_overseer::Handle, parent: Hash) -> Self {
+	pub fn new(client: Arc<C>, overseer: polkadot_overseer::Handle, parent: Hash) -> Self {
 		InherentDataProvider { client, overseer, parent }
 	}
 }
@@ -166,7 +166,7 @@ impl<C: sp_blockchain::HeaderBackend<Block>> sp_inherents::InherentDataProvider
 		dst_inherent_data: &mut sp_inherents::InherentData,
 	) -> Result<(), sp_inherents::Error> {
 		let parachain = ParachainsInherentDataProvider::create(
-			&self.client,
+			self.client.clone(),
 			self.overseer.clone(),
 			self.parent,
 		)
