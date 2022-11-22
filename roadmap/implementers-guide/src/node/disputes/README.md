@@ -7,7 +7,7 @@ subsystems are concerned with the following:
 2. Disputes (votes) get propagated to all other validators
 3. Votes get recorded as necessary
 3. Nodes will participate in disputes in a sensible fashion
-4. Finality is halted if a candidate on the chain is disputed
+4. Finality is stopped while a candidate is being disputed on chain
 5. Chains can be reverted in case a dispute concluded invalid
 6. Votes are provided to the provisioner so losing validators can be slashed on chain
 
