@@ -34,7 +34,7 @@ sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 
 kvdb = "0.12.0"
 parity-util-mem = { version = "0.12.0", default-features = false }
-parity-db = { version = "0.3.13" }
+parity-db = { version = "0.4.2"}
 
 [dev-dependencies]
 assert_matches = "1.4.0"
@@ -46,3 +46,4 @@ lazy_static = "1.4.0"
 polkadot-primitives-test-helpers = { path = "../../primitives/test-helpers" }
 kvdb-shared-tests = "0.10.0"
 tempfile = "3.1.0"
+kvdb-memorydb = "0.12.0"

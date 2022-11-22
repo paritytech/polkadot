@@ -1,8 +1,9 @@
 [package]
+name = "pallet-xcm"
 authors.workspace = true
 edition.workspace = true
 version.workspace = true
-name = "pallet-xcm"
+
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }

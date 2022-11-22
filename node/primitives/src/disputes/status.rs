@@ -19,8 +19,12 @@ use parity_scale_codec::{Decode, Encode};
 /// Timestamp based on the 1 Jan 1970 UNIX base, which is persistent across node restarts and OS reboots.
 pub type Timestamp = u64;
 
-/// The status of dispute. This is a state machine which can be altered by the
-/// helper methods.
+/// The status of dispute.
+///
+/// As managed by the dispute coordinator.
+///
+/// NOTE: This status is persisted to the database, any changes have to be versioned and a db
+/// migration will be needed.
 #[derive(Debug, Clone, Copy, Encode, Decode, PartialEq)]
 pub enum DisputeStatus {
 	/// The dispute is active and unconcluded.
@@ -69,9 +73,24 @@ impl DisputeStatus {
 		}
 	}
 
+	/// Concluded valid?
+	pub fn has_concluded_for(&self) -> bool {
+		match self {
+			&DisputeStatus::ConcludedFor(_) => true,
+			_ => false,
+		}
+	}
+	/// Concluded invalid?
+	pub fn has_concluded_against(&self) -> bool {
+		match self {
+			&DisputeStatus::ConcludedAgainst(_) => true,
+			_ => false,
+		}
+	}
+
 	/// Transition the status to a new status after observing the dispute has concluded for the candidate.
 	/// This may be a no-op if the status was already concluded.
-	pub fn concluded_for(self, now: Timestamp) -> DisputeStatus {
+	pub fn conclude_for(self, now: Timestamp) -> DisputeStatus {
 		match self {
 			DisputeStatus::Active | DisputeStatus::Confirmed => DisputeStatus::ConcludedFor(now),
 			DisputeStatus::ConcludedFor(at) => DisputeStatus::ConcludedFor(std::cmp::min(at, now)),
@@ -81,7 +100,7 @@ impl DisputeStatus {
 
 	/// Transition the status to a new status after observing the dispute has concluded against the candidate.
 	/// This may be a no-op if the status was already concluded.
-	pub fn concluded_against(self, now: Timestamp) -> DisputeStatus {
+	pub fn conclude_against(self, now: Timestamp) -> DisputeStatus {
 		match self {
 			DisputeStatus::Active | DisputeStatus::Confirmed =>
 				DisputeStatus::ConcludedAgainst(now),

@@ -43,8 +43,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", 
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = ["wasmtime", "db", "cli", "hostperfcheck", "full-node", "trie-memory-tracker", "polkadot-native"]
-wasmtime = ["sc-cli/wasmtime"]
+default = ["db", "cli", "hostperfcheck", "full-node", "trie-memory-tracker", "polkadot-native"]
 db = ["service/db"]
 cli = [
 	"clap",

@@ -299,7 +299,7 @@ impl DisputeSender {
 		let valid_public = info
 			.session_info
 			.validators
-			.get(valid_index.0 as usize)
+			.get(*valid_index)
 			.ok_or(JfyiError::InvalidStatementFromCoordinator)?;
 		let valid_signed = SignedDisputeStatement::new_checked(
 			DisputeStatement::Valid(kind.clone()),
@@ -314,7 +314,7 @@ impl DisputeSender {
 		let invalid_public = info
 			.session_info
 			.validators
-			.get(invalid_index.0 as usize)
+			.get(*invalid_index)
 			.ok_or(JfyiError::InvalidValidatorIndexFromCoordinator)?;
 		let invalid_signed = SignedDisputeStatement::new_checked(
 			DisputeStatement::Invalid(kind.clone()),
@@ -430,7 +430,9 @@ async fn get_active_disputes<Context>(
 
 	// Caller scope is in `update_leaves` and this is bounded by fork count.
 	ctx.send_unbounded_message(DisputeCoordinatorMessage::ActiveDisputes(tx));
-	rx.await.map_err(|_| JfyiError::AskActiveDisputesCanceled)
+	rx.await
+		.map_err(|_| JfyiError::AskActiveDisputesCanceled)
+		.map(|disputes| disputes.into_iter().map(|d| (d.0, d.1)).collect())
 }
 
 /// Get all locally available dispute votes for a given dispute.

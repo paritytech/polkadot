@@ -125,7 +125,7 @@ where
 		let future = run_network_in(self, ctx, network_stream)
 			.map_err(|e| SubsystemError::with_origin("network-bridge", e))
 			.boxed();
-		SpawnedSubsystem { name: "network-bridge-subsystem", future }
+		SpawnedSubsystem { name: "network-bridge-rx-subsystem", future }
 	}
 }
 
@@ -566,7 +566,7 @@ where
 					num_deactivated = %deactivated.len(),
 				);
 
-				for activated in activated {
+				if let Some(activated) = activated {
 					let pos = live_heads
 						.binary_search_by(|probe| probe.number.cmp(&activated.number).reverse())
 						.unwrap_or_else(|i| i);

@@ -253,7 +253,6 @@ enum Error<T: EPM::Config> {
 	AlreadySubmitted,
 	VersionMismatch,
 	StrategyNotSatisfied,
-	QueueFull,
 	Other(String),
 }
 

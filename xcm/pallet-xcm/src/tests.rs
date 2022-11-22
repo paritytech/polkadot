@@ -270,7 +270,7 @@ fn teleport_assets_works() {
 /// Asserts that the sender's balance is decreased as a result of execution of
 /// local effects.
 #[test]
-fn limmited_teleport_assets_works() {
+fn limited_teleport_assets_works() {
 	let balances = vec![
 		(ALICE, INITIAL_BALANCE),
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
@@ -314,7 +314,7 @@ fn limmited_teleport_assets_works() {
 /// Asserts that the sender's balance is decreased as a result of execution of
 /// local effects.
 #[test]
-fn unlimmited_teleport_assets_works() {
+fn unlimited_teleport_assets_works() {
 	let balances = vec![
 		(ALICE, INITIAL_BALANCE),
 		(ParaId::from(PARA_ID).into_account_truncating(), INITIAL_BALANCE),
