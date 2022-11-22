@@ -12,6 +12,6 @@ subsystems make that possible:
 6. Votes are provided to the provisioner so losing validators can be slashed on chain
 
 The dispute-coordinator subsystem interfaces with the provisioner and chain
-selection to make the bulk of this possible. dispute-distribution is concerned
+selection to make the bulk of this possible. `dispute-distribution` is concerned
 with getting votes out to other validators and receiving them in a spam
 resilient way.
