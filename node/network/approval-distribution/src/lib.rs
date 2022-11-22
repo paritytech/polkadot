@@ -1464,7 +1464,7 @@ impl State {
 			};
 		}
 
-		gum::debug!(
+		gum::trace!(
 			target: LOG_TARGET,
 			?peer_id,
 			?message_subject,
