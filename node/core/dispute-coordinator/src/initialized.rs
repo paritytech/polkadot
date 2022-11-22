@@ -1036,6 +1036,13 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'valid' result",
 			);
+			if new_state.has_concluded_against() {
+				gum::warn!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					"Voted against a candidate that was concluded valid.",
+				);
+			}
 			self.metrics.on_concluded_valid();
 		}
 		if import_result.is_freshly_concluded_against() {
@@ -1045,6 +1052,13 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'invalid' result",
 			);
+			if new_state.has_concluded_for() {
+				gum::warn!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					"Voted approval for a candidate that was concluded invalid.",
+				);
+			}
 			self.metrics.on_concluded_invalid();
 		}
 

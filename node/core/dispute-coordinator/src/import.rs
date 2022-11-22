@@ -84,7 +84,6 @@ impl<'a> CandidateEnvironment<'a> {
 }
 
 /// Whether or not we already issued some statement about a candidate.
-#[derive(PartialEq)]
 pub enum OwnVoteState {
 	/// We already voted/issued a statement for the candidate.
 	Voted,
@@ -188,40 +187,15 @@ impl CandidateVoteState<CandidateVotes> {
 			if is_confirmed {
 				status = status.confirm();
 			};
-
-			let concluded_against = votes.invalid.len() >= supermajority_threshold;
 			let concluded_for = votes.valid.len() >= supermajority_threshold;
-
-			let mut our_against_votes =
-				env.controlled_indices.iter().filter_map(|i| votes.invalid.get_key_value(i));
-			let has_against_votes = our_against_votes.next().is_some();
-
 			if concluded_for {
 				status = status.conclude_for(now);
 			};
 
+			let concluded_against = votes.invalid.len() >= supermajority_threshold;
 			if concluded_against {
 				status = status.conclude_against(now);
 			};
-
-			match own_vote {
-				OwnVoteState::Voted =>
-					if concluded_for && has_against_votes {
-						gum::warn!(
-							target: LOG_TARGET,
-							"Voted against a candidate that was concluded valid.",
-						);
-					},
-				OwnVoteState::VotedApproval(_) =>
-					if concluded_against {
-						gum::warn!(
-							target: LOG_TARGET,
-							"Voted approval for a candidate that was concluded invalid.",
-						);
-					},
-				OwnVoteState::NoVote => {},
-			}
-
 			Some(status)
 		} else {
 			None
