@@ -575,7 +575,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Fill cores `start..last` with dispute statement sets. The statement sets will have 3/4th of
 	/// votes be valid, and 1/4th of votes be invalid.
-	fn create_disputes_with_no_spam(
+	fn create_disputes(
 		&self,
 		start: u32,
 		last: u32,
@@ -664,7 +664,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let backed_candidates = builder
 			.create_backed_candidates(&builder.backed_and_concluding_cores, builder.code_upgrade);
 
-		let disputes = builder.create_disputes_with_no_spam(
+		let disputes = builder.create_disputes(
 			builder.backed_and_concluding_cores.len() as u32,
 			used_cores,
 			builder.dispute_sessions.as_slice(),
