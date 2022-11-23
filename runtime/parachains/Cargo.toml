@@ -14,29 +14,29 @@ serde = { version = "1.0.137", features = [ "derive" ], optional = true }
 derive_more = "0.99.17"
 bitflags = "1.3.2"
 
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "at/substrate" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "at/substrate" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "at/substrate" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "at/debug" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "at/debug" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "at/debug" }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "at/substrate" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "at/debug" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
 
 xcm = { package = "xcm", path = "../../xcm", default-features = false }
 xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
@@ -50,11 +50,11 @@ polkadot-runtime-metrics = { path = "../metrics", default-features = false}
 [dev-dependencies]
 futures = "0.3.21"
 hex-literal = "0.3.4"
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers"}
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 thousands = "0.2.0"
 assert_matches = "1"
 

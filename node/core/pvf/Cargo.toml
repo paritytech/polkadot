@@ -25,15 +25,15 @@ parity-scale-codec = { version = "3.1.5", default-features = false, features = [
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-metrics = { path = "../../metrics"}
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }

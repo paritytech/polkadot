@@ -9,8 +9,8 @@ edition = "2021"
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
 polkadot-primitives = { path = "../../../primitives" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
@@ -24,13 +24,13 @@ fatality = "0.0.6"
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 futures-timer = "3.0.2"
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }

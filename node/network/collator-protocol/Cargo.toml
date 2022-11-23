@@ -11,9 +11,9 @@ futures = "0.3.21"
 futures-timer = "3"
 gum = { package = "tracing-gum", path = "../../gum" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
@@ -28,9 +28,9 @@ log = "0.4.17"
 env_logger = "0.9.0"
 assert_matches = "1.4.0"
 
-sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "at/substrate" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+sp-core = { git = "https://github.com/paritytech/substrate", features = ["std"] , branch = "at/debug" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 parity-scale-codec = { version = "3.1.5", features = ["std"] }
 
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }

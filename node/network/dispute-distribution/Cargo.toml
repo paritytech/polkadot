@@ -16,9 +16,9 @@ polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-node-network-protocol = { path = "../../network/protocol" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-node-primitives = { path = "../../primitives" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 thiserror = "1.0.31"
 fatality = "0.0.6"
 lru = "0.8.0"
@@ -27,9 +27,9 @@ indexmap = "1.9.1"
 [dev-dependencies]
 async-trait = "0.1.57"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 futures-timer = "3.0.2"
 assert_matches = "1.4.0"
 lazy_static = "1.4.0"

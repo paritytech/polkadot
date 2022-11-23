@@ -10,19 +10,19 @@ scale-info = { version = "2.1.2", default-features = false, features = ["derive"
 serde = { version = "1.0.137", optional = true, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "at/substrate" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "at/substrate" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "at/substrate" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "at/substrate" }
-frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "at/substrate" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "at/debug" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "at/debug" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "at/debug" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "at/debug" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "at/debug" }
 
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/debug" }
 xcm-builder = { path = "../xcm-builder" }
 polkadot-parachain = { path = "../../parachain" }
 

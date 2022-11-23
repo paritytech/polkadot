@@ -5,8 +5,8 @@ authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 
 [dependencies]
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 futures = "0.3.21"
 futures-timer = "3.0.2"
 parking_lot = "0.12.0"
@@ -19,13 +19,13 @@ orchestra = "0.0.2"
 gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.8"
 parity-util-mem = { version = "0.12.0", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 async-trait = "0.1.57"
 
 [dev-dependencies]
 metered = { package = "prioritized-metered-channel", version = "0.2.0" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 femme = "2.2.1"
 assert_matches = "1.4.0"

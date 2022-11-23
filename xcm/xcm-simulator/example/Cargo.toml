@@ -9,13 +9,13 @@ edition = "2021"
 codec = { package = "parity-scale-codec", version = "3.0.0" }
 scale-info = { version = "2.1.2", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "at/debug" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }
