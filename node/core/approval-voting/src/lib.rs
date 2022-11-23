@@ -1855,7 +1855,6 @@ fn check_and_import_approval<T>(
 	metrics: &Metrics,
 	approval: IndirectSignedApprovalVote,
 	with_response: impl FnOnce(ApprovalCheckResult) -> T,
-	metrics: &Metrics,
 ) -> SubsystemResult<(Vec<Action>, T)> {
 	macro_rules! respond_early {
 		($e: expr) => {{
