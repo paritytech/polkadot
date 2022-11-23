@@ -7,8 +7,8 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.0.9", features = ["derive"] }
 
-generate-bags = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32" }
+generate-bags = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "at/substrate" }
 
 westend-runtime = { path = "../../runtime/westend" }
 kusama-runtime = { path = "../../runtime/kusama" }

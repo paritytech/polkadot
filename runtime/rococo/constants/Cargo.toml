@@ -7,12 +7,12 @@ edition = "2021"
 [dependencies]
 smallvec = "1.8.0"
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.32" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
 primitives = { package = "polkadot-primitives", path = "../../../primitives", default-features = false }
 runtime-common = { package = "polkadot-runtime-common", path = "../../common", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32", default-features = false }
-sp-weights = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.32", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
+sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "at/substrate" }
 
 [features]
 default = ["std"]
