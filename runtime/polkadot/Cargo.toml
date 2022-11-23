@@ -65,6 +65,7 @@ pallet-session = { git = "https://github.com/paritytech/substrate", branch = "ma
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-state-trie-migration = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-runtime-constants = { package = "polkadot-runtime-constants", path = "./constants", default-features = false }
@@ -83,7 +84,7 @@ pallet-election-provider-support-benchmarking = { git = "https://github.com/pari
 pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-nomination-pools-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
-hex-literal = { version = "0.3.4", optional = true }
+hex-literal = { version = "0.3.4" }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
@@ -94,7 +95,6 @@ xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", defa
 xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
 
 [dev-dependencies]
-hex-literal = "0.3.4"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -155,6 +155,7 @@ std = [
 	"pallet-scheduler/std",
 	"pallet-session/std",
 	"pallet-staking/std",
+	"pallet-state-trie-migration/std",
 	"pallet-timestamp/std",
 	"pallet-treasury/std",
 	"pallet-tips/std",
@@ -220,7 +221,6 @@ runtime-benchmarks = [
 	"pallet-offences-benchmarking/runtime-benchmarks",
 	"pallet-session-benchmarking/runtime-benchmarks",
 	"frame-system-benchmarking/runtime-benchmarks",
-	"hex-literal",
 	"xcm-builder/runtime-benchmarks",
 	"frame-election-provider-support/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
@@ -255,6 +255,7 @@ try-runtime = [
 	"pallet-scheduler/try-runtime",
 	"pallet-session/try-runtime",
 	"pallet-staking/try-runtime",
+	"pallet-state-trie-migration/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-treasury/try-runtime",
 	"pallet-tips/try-runtime",

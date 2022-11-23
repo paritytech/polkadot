@@ -121,7 +121,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 16,
-	state_version: 0,
+	state_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -1468,6 +1468,31 @@ impl frame_support::traits::OnRuntimeUpgrade for InitiateNominationPools {
 	}
 }
 
+parameter_types! {
+	// The deposit configuration for the singed migration. Specially if you want to allow any signed account to do the migration (see `SignedFilter`, these deposits should be high)
+	pub const MigrationSignedDepositPerItem: Balance = 1 * CENTS;
+	pub const MigrationSignedDepositBase: Balance = 20 * CENTS * 100;
+	pub const MigrationMaxKeyLen: u32 = 512;
+}
+
+impl pallet_state_trie_migration::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type SignedDepositPerItem = MigrationSignedDepositPerItem;
+	type SignedDepositBase = MigrationSignedDepositBase;
+	type ControlOrigin = EnsureRoot<AccountId>;
+	// specific account for the migration, can trigger the signed migrations.
+	type SignedFilter = frame_system::EnsureSignedBy<MigController, AccountId>;
+
+	// Use same weights as substrate ones.
+	type WeightInfo = pallet_state_trie_migration::weights::SubstrateWeight<Runtime>;
+	type MaxKeyLen = MigrationMaxKeyLen;
+}
+
+frame_support::ord_parameter_types! {
+	pub const MigController: AccountId = AccountId::from(hex_literal::hex!("8888888888888888888888888888888888888888888888888888888888888888"));
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1564,6 +1589,9 @@ construct_runtime! {
 		Auctions: auctions::{Pallet, Call, Storage, Event<T>} = 72,
 		Crowdloan: crowdloan::{Pallet, Call, Storage, Event<T>} = 73,
 
+		// State trie migration pallet, only temporary.
+		StateTrieMigration: pallet_state_trie_migration = 98,
+	
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
 	}
