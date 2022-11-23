@@ -1462,7 +1462,7 @@ sp_api::impl_runtime_apis! {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
-		fn num_mmr_blocks() -> Result<BlockNumber, mmr::Error> {
+		fn mmr_leaves_count() -> Result<mmr::LeafIndex, mmr::Error> {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
