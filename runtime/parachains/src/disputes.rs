@@ -939,6 +939,7 @@ impl<T: Config> Pallet<T> {
 	//
 	// Votes which are duplicate or already known by the chain are filtered out.
 	// The entire set is removed if the dispute is both, ancient and concluded.
+	// Disputes without enough votes to get confirmed are also filtered out.
 	fn filter_dispute_data(
 		set: &DisputeStatementSet,
 		post_conclusion_acceptance_period: <T as frame_system::Config>::BlockNumber,
