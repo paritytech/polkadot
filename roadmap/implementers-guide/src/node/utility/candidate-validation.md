@@ -77,10 +77,18 @@ time they can take. As the time for a job can vary depending on the machine and
 load on the machine, this can potentially lead to disputes where some validators
 successfuly execute a PVF and others don't.
 
-One mitigation we have in place is a more lenient timeout for preparation during
-execution than during pre-checking. The rationale is that the PVF has already
-passed pre-checking, so we know it should be valid, and we allow it to take
-longer than expected, as this is likely due to an issue with the machine and not
-the PVF.
+One dispute mitigation we have in place is a more lenient timeout for
+preparation during execution than during pre-checking. The rationale is that the
+PVF has already passed pre-checking, so we know it should be valid, and we allow
+it to take longer than expected, as this is likely due to an issue with the
+machine and not the PVF.
+
+#### CPU clock timeouts
+
+Another timeout-related mitigation we employ is to measure the time taken by
+jobs using CPU time, rather than wall clock time. This is because the CPU time
+of a process is less variable under different system conditions. When the
+overall system is under heavy load, the wall clock time of a job is affected
+more than the CPU time.
 
 [CVM]: ../../types/overseer-protocol.md#validationrequesttype
