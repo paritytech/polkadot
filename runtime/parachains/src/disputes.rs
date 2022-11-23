@@ -505,8 +505,6 @@ pub mod pallet {
 		InvalidSignature,
 		/// Validator vote submitted more than once to dispute.
 		DuplicateStatement,
-		/// Too many spam slots used by some specific validator.
-		PotentialSpam,
 		/// A dispute where there are only votes on one side.
 		SingleSidedDispute,
 		/// Unconfirmed dispute statement sets provided
@@ -781,8 +779,6 @@ impl<T: Config> Pallet<T> {
 				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
 
 				if <Included<T>>::contains_key(&session_index, &candidate_hash) {
-					// Local disputes don't count towards spam.
-
 					weight += T::DbWeight::get().reads_writes(1, 1);
 					continue
 				}
@@ -976,7 +972,6 @@ impl<T: Config> Pallet<T> {
 			return StatementSetFilter::RemoveAll
 		}
 
-		// Apply spam slot changes. Bail early if too many occupied.
 		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
 		if !is_local {
 			// This is only relevant in cases where it's the first vote and the state
@@ -994,8 +989,7 @@ impl<T: Config> Pallet<T> {
 						match statement {
 							// `summary.new_flags` contains the spam free votes.
 							// Note that this does not distinguish between pro or con votes,
-							// since allowing both of them, even if the spam threshold would be reached
-							// is a good thing.
+							// since allowing both of them.
 							// Overflow of the counters is no concern, disputes are limited by weight.
 							DisputeStatement::Valid(_) => vote_for_count += 1,
 							DisputeStatement::Invalid(_) => vote_against_count += 1,
@@ -1082,9 +1076,6 @@ impl<T: Config> Pallet<T> {
 		let DisputeStatementSet { ref session, ref candidate_hash, .. } = set;
 		let session = *session;
 		let candidate_hash = *candidate_hash;
-
-		// we can omit spam slot checks, `fn filter_disputes_data` is
-		// always called before calling this `fn`.
 
 		if fresh {
 			let is_local = <Included<T>>::contains_key(&session, &candidate_hash);
