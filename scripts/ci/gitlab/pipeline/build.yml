@@ -171,12 +171,12 @@ build-implementers-guide:
   # git depth is set on purpose: https://github.com/paritytech/polkadot/issues/6284
   variables:
     GIT_DEPTH:                     0
-    CI_IMAGE:                      paritytech/mdbook-utils:aec374ea-20221123
+    CI_IMAGE:                      paritytech/mdbook-utils:e14aae4a-20221123
   script:
     - mdbook build ./roadmap/implementers-guide
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
-    - chown -R nonroot:nonroot artifacts/
+    - ls -la artifacts/
 
 build-short-benchmark:
   stage:                           build
