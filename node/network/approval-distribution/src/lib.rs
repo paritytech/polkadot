@@ -2015,14 +2015,20 @@ async fn modify_reputation(
 	peer_id: PeerId,
 	rep: Rep,
 ) {
-	gum::trace!(
-		target: LOG_TARGET,
-		reputation = ?rep,
-		?peer_id,
-		"Reputation change for peer",
-	);
+	// Temporarily disable some rep changes, to workaround a possible issue with parallel import.
+	match rep {
+		COST_UNEXPECTED_MESSAGE | COST_DUPLICATE_MESSAGE => {},
+		_ => {
+			gum::trace!(
+				target: LOG_TARGET,
+				reputation = ?rep,
+				?peer_id,
+				"Reputation change for peer",
+			);
 
-	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer_id, rep)).await;
+			sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer_id, rep)).await;
+		},
+	}
 }
 
 #[overseer::contextbounds(ApprovalDistribution, prefix = self::overseer)]
