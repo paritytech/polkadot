@@ -467,14 +467,6 @@ pub mod pallet {
 		T::BlockNumber,
 	>;
 
-	/// Maps session indices to a vector indicating the number of potentially-spam disputes
-	/// each validator is participating in. Potentially-spam disputes are remote disputes which have
-	/// fewer than `byzantine_threshold + 1` validators.
-	///
-	/// The i'th entry of the vector corresponds to the i'th validator in the session.
-	#[pallet::storage]
-	pub(super) type SpamSlots<T> = StorageMap<_, Twox64Concat, SessionIndex, Vec<u32>>;
-
 	/// Whether the chain is frozen. Starts as `None`. When this is `Some`,
 	/// the chain will not accept any new parachain blocks for backing or inclusion,
 	/// and its value indicates the last valid block number in the chain.
@@ -836,24 +828,6 @@ impl<T: Config> Pallet<T> {
 					continue
 				}
 
-				// mildly punish all validators involved. they've failed to make
-				// data available to others, so this is most likely spam.
-				SpamSlots::<T>::mutate(session_index, |spam_slots| {
-					let spam_slots = match spam_slots {
-						Some(ref mut s) => s,
-						None => return,
-					};
-
-					// also reduce spam slots for all validators involved, if the dispute was unconfirmed.
-					// this does open us up to more spam, but only for validators who are willing
-					// to be punished more.
-					//
-					// it would be unexpected for any change here to occur when the dispute has not concluded
-					// in time, as a dispute guaranteed to have at least one honest participant should
-					// conclude quickly.
-					let _participating = decrement_spam(spam_slots, &dispute);
-				});
-
 				weight += T::DbWeight::get().reads_writes(2, 2);
 			}
 		}
@@ -892,7 +866,6 @@ impl<T: Config> Pallet<T> {
 				// TODO: https://github.com/paritytech/polkadot/issues/3469
 				#[allow(deprecated)]
 				<Included<T>>::remove_prefix(to_prune, None);
-				SpamSlots::<T>::remove(to_prune);
 			}
 
 			*last_pruned = Some(pruning_target);
@@ -980,7 +953,7 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// Check and import all votes.
-		let mut summary = {
+		let summary = {
 			let mut importer = DisputeStateImporter::new(dispute_state, now);
 			for (i, (statement, validator_index, signature)) in set.statements.iter().enumerate() {
 				// assure the validator index and is present in the session info
@@ -1047,71 +1020,10 @@ impl<T: Config> Pallet<T> {
 		// Apply spam slot changes. Bail early if too many occupied.
 		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
 		if !is_local {
-			let mut spam_slots: Vec<u32> =
-				SpamSlots::<T>::get(&set.session).unwrap_or_else(|| vec![0; n_validators]);
-			let mut spam_filter_struck = false;
-			for (validator_index, spam_slot_change) in summary.spam_slot_changes {
-				let spam_slot = spam_slots
-					.get_mut(validator_index.0 as usize)
-					.expect("index is in-bounds, as checked above; qed");
-
-				if let SpamSlotChange::Inc = spam_slot_change {
-					if *spam_slot >= max_spam_slots {
-						spam_filter_struck = true;
-
-						// Find the vote by this validator and filter it out.
-						let first_index_in_set = set
-							.statements
-							.iter()
-							.position(|(_statement, v_i, _signature)| &validator_index == v_i)
-							.expect(
-								"spam slots are only incremented when a new statement \
-									from a validator is included; qed",
-							);
-
-						// Note that there may be many votes by the validator in the statement
-						// set. There are not supposed to be, but the purpose of this function
-						// is to filter out invalid submissions, after all.
-						//
-						// This is fine - we only need to handle the first one, because all
-						// subsequent votes' indices have been added to the filter already
-						// by the duplicate checks above. It's only the first one which
-						// may not already have been filtered out.
-						filter.remove_index(first_index_in_set);
-
-						// Removing individual statments can cause the dispute to become onesided.
-						// Checking that (again) is done after the loop. Remove the bit indices.
-						summary.new_participants.set(validator_index.0 as _, false);
-					}
-
-					// It's also worth noting that the `DisputeStateImporter`
-					// which produces these spam slot updates only produces
-					// one spam slot update per validator because it rejects
-					// duplicate votes.
-					//
-					// So we don't need to worry about spam slots being
-					// updated incorrectly after receiving duplicates.
-					*spam_slot += 1;
-				} else {
-					*spam_slot = spam_slot.saturating_sub(1);
-				}
-			}
-
-			// We write the spam slots here because sequential calls to
-			// `filter_dispute_data` have a dependency on each other.
-			//
-			// For example, if a validator V occupies 1 spam slot and
-			// max is 2, then 2 sequential calls incrementing spam slot
-			// cannot be allowed.
-			//
-			// However, 3 sequential calls, where the first increments,
-			// the second decrements, and the third increments would be allowed.
-			SpamSlots::<T>::insert(&set.session, spam_slots);
-
 			// This is only relevant in cases where it's the first vote and the state
 			// would hence hold a onesided dispute. If a onesided dispute can never be
 			// started, by induction, we can never enter a state of a one sided dispute.
-			if spam_filter_struck && first_votes {
+			if first_votes {
 				let mut vote_for_count = 0_u64;
 				let mut vote_against_count = 0_u64;
 				// Since this is the first set of statements for the dispute,
@@ -1131,11 +1043,6 @@ impl<T: Config> Pallet<T> {
 						}
 					}
 				});
-				if vote_for_count.is_zero() || vote_against_count.is_zero() {
-					// It wasn't one-sided before the spam filters, but now it is,
-					// so we need to be thorough and not import that dispute.
-					return StatementSetFilter::RemoveAll
-				}
 			}
 		}
 
@@ -1295,15 +1202,7 @@ impl<T: Config> Pallet<T> {
 
 		<Included<T>>::insert(&session, &candidate_hash, revert_to);
 
-		// If we just included a block locally which has a live dispute, decrement spam slots
-		// for any involved validators, if the dispute is not already confirmed by f + 1.
 		if let Some(state) = <Disputes<T>>::get(&session, candidate_hash) {
-			SpamSlots::<T>::mutate(&session, |spam_slots| {
-				if let Some(ref mut spam_slots) = *spam_slots {
-					decrement_spam(spam_slots, &state);
-				}
-			});
-
 			if has_supermajority_against(&state) {
 				Self::revert_and_freeze(revert_to);
 			}
