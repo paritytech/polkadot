@@ -1036,7 +1036,7 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'valid' result",
 			);
-			if new_state.has_concluded_against() {
+			if new_state.has_own_vote() && new_state.own_approval_votes().is_none() {
 				gum::warn!(
 					target: LOG_TARGET,
 					?candidate_hash,
@@ -1052,7 +1052,7 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'invalid' result",
 			);
-			if new_state.has_concluded_for() {
+			if new_state.own_approval_votes().is_some() {
 				gum::warn!(
 					target: LOG_TARGET,
 					?candidate_hash,
