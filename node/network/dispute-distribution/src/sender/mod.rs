@@ -173,7 +173,7 @@ impl DisputeSender {
 			if have_new_sessions || dispute.has_failed_sends() {
 				if should_rate_limit {
 					self.rate_limit
-						.limit("in going through new sessions/failed sends", *candidate_hash)
+						.limit("while going through new sessions/failed sends", *candidate_hash)
 						.await;
 				}
 				let sends_happened = dispute
