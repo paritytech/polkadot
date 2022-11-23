@@ -2056,32 +2056,6 @@ impl ApprovalDistribution {
 	) {
 		loop {
 			futures::select_biased! {
-				message = ctx.recv().fuse() => {
-					let message = match message {
-						Ok(message) => message,
-						Err(e) => {
-							gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
-							return
-						},
-					};
-					match message {
-						FromOrchestra::Communication { msg } =>
-							Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
-						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-							..
-						})) => {
-							gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
-							// the relay chain blocks relevant to the approval subsystems
-							// are those that are available, but not finalized yet
-							// actived and deactivated heads hence are irrelevant to this subsystem
-						},
-						FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
-							gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
-							state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
-						},
-						FromOrchestra::Signal(OverseerSignal::Conclude) => return,
-					}
-				},
 				maybe_assignment_check_result = state.import_pipeline.pending_assignment_checks.select_next_some() => {
 					match maybe_assignment_check_result {
 						Ok(assignment_check_result) => {
@@ -2172,6 +2146,33 @@ impl ApprovalDistribution {
 						}
 					}
 				},
+				message = ctx.recv().fuse() => {
+					let message = match message {
+						Ok(message) => message,
+						Err(e) => {
+							gum::debug!(target: LOG_TARGET, err = ?e, "Failed to receive a message from Overseer, exiting");
+							return
+						},
+					};
+					match message {
+						FromOrchestra::Communication { msg } =>
+							Self::handle_incoming(&mut ctx, state, msg, &self.metrics, rng).await,
+						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+							..
+						})) => {
+							gum::trace!(target: LOG_TARGET, "active leaves signal (ignored)");
+							// the relay chain blocks relevant to the approval subsystems
+							// are those that are available, but not finalized yet
+							// actived and deactivated heads hence are irrelevant to this subsystem
+						},
+						FromOrchestra::Signal(OverseerSignal::BlockFinalized(_hash, number)) => {
+							gum::trace!(target: LOG_TARGET, number = %number, "finalized signal");
+							state.handle_block_finalized(&mut ctx, &self.metrics, number).await;
+						},
+						FromOrchestra::Signal(OverseerSignal::Conclude) => return,
+					}
+				},
+
 			}
 		}
 	}
