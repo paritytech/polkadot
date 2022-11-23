@@ -272,7 +272,7 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_parachain_approval_voting_time_main_loop_iteration",
 						"Breakdown of time spent in different activies of main loop",
-					).buckets(vec![0.0, 0.0001, 0.0005, 0,001, 0.005, 0.01, 0.05, 0.1, 0.5, 0.75, 1])
+					).buckets(vec![0.0, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 0.75, 1.0])
 					, &["category"]
 				)?,
 				registry,
@@ -1245,7 +1245,7 @@ async fn handle_from_overseer<Context>(
 				let _timer = metrics.time_main_loop_iteration("import_assignment");
 
 				let (check_outcome, actions) =
-					check_and_import_assignment(state, db, a, claimed_core)?;
+					check_and_import_assignment(state, db, a, claimed_core, &metrics)?;
 				let _ = res.send(check_outcome);
 
 				actions
@@ -1712,6 +1712,7 @@ fn check_and_import_assignment(
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	assignment: IndirectAssignmentCert,
 	candidate_index: CandidateIndex,
+	metrics: &Metrics,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
 	let tick_now = state.clock.tick_now();
 
@@ -1775,6 +1776,7 @@ fn check_and_import_assignment(
 				)),
 		};
 
+		let timer = metrics.time_main_loop_iteration("check_assignment_cert");
 		let res = state.assignment_criteria.check_assignment_cert(
 			claimed_core_index,
 			assignment.validator,
@@ -1783,6 +1785,7 @@ fn check_and_import_assignment(
 			&assignment.cert,
 			approval_entry.backing_group(),
 		);
+		drop(timer);
 
 		let tranche = match res {
 			Err(crate::criteria::InvalidAssignment(reason)) =>
@@ -1852,6 +1855,7 @@ fn check_and_import_approval<T>(
 	metrics: &Metrics,
 	approval: IndirectSignedApprovalVote,
 	with_response: impl FnOnce(ApprovalCheckResult) -> T,
+	metrics: &Metrics,
 ) -> SubsystemResult<(Vec<Action>, T)> {
 	macro_rules! respond_early {
 		($e: expr) => {{
@@ -1892,6 +1896,8 @@ fn check_and_import_approval<T>(
 		)),
 	};
 
+	let timer = metrics.time_main_loop_iteration("check_signature");
+
 	// Signature check:
 	match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking).check_signature(
 		&pubkey,
@@ -1904,6 +1910,8 @@ fn check_and_import_approval<T>(
 		),)),
 		Ok(()) => {},
 	};
+
+	drop(timer);
 
 	let candidate_entry = match db.load_candidate_entry(&approved_candidate_hash)? {
 		Some(c) => c,
