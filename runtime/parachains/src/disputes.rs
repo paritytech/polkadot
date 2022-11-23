@@ -564,19 +564,9 @@ impl DisputeStateFlags {
 	}
 }
 
-#[derive(PartialEq, RuntimeDebug)]
-enum SpamSlotChange {
-	/// Add a `+1` to the spam slot for a particular validator index in this session.
-	Inc,
-	/// Subtract `-1` ...
-	Dec,
-}
-
 struct ImportSummary<BlockNumber> {
 	/// The new state, with all votes imported.
 	state: DisputeState<BlockNumber>,
-	/// Changes to spam slots. Validator index paired with directional change.
-	spam_slot_changes: Vec<(ValidatorIndex, SpamSlotChange)>,
 	/// Validators to slash for being (wrongly) on the AGAINST side.
 	slash_against: Vec<ValidatorIndex>,
 	/// Validators to slash for being (wrongly) on the FOR side.
@@ -689,37 +679,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 
 		let pre_post_contains = |flags| (pre_flags.contains(flags), post_flags.contains(flags));
 
-		// 1. Act on confirmed flag state to inform spam slots changes.
-		let spam_slot_changes: Vec<_> = match pre_post_contains(DisputeStateFlags::CONFIRMED) {
-			(false, false) => {
-				// increment spam slots for all new participants.
-				self.new_participants
-					.iter_ones()
-					.map(|i| (ValidatorIndex(i as _), SpamSlotChange::Inc))
-					.collect()
-			},
-			(false, true) => {
-				// all participants, which are not new participants
-				let prev_participants = (self.state.validators_for.clone() |
-					self.state.validators_against.clone()) &
-					!self.new_participants.clone();
-
-				prev_participants
-					.iter_ones()
-					.map(|i| (ValidatorIndex(i as _), SpamSlotChange::Dec))
-					.collect()
-			},
-			(true, false) => {
-				log::error!("Dispute statements are never removed. This is a bug");
-				Vec::new()
-			},
-			(true, true) => {
-				// No change, nothing to do.
-				Vec::new()
-			},
-		};
-
-		// 2. Check for fresh FOR supermajority. Only if not already concluded.
+		// 1. Check for fresh FOR supermajority. Only if not already concluded.
 		let slash_against =
 			if let (false, true) = pre_post_contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
 				if self.state.concluded_at.is_none() {
@@ -736,7 +696,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 				Vec::new()
 			};
 
-		// 3. Check for fresh AGAINST supermajority.
+		// 2. Check for fresh AGAINST supermajority.
 		let slash_for =
 			if let (false, true) = pre_post_contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
 				if self.state.concluded_at.is_none() {
@@ -751,7 +711,6 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 
 		ImportSummary {
 			state: self.state,
-			spam_slot_changes,
 			slash_against,
 			slash_for,
 			new_participants: self.new_participants,
@@ -1246,29 +1205,6 @@ impl<T: Config> Pallet<T> {
 fn has_supermajority_against<BlockNumber>(dispute: &DisputeState<BlockNumber>) -> bool {
 	let supermajority_threshold = supermajority_threshold(dispute.validators_against.len());
 	dispute.validators_against.count_ones() >= supermajority_threshold
-}
-
-// If the dispute had not enough validators to confirm, decrement spam slots for all the participating
-// validators.
-//
-// Returns the set of participating validators as a bitvec.
-fn decrement_spam<BlockNumber>(
-	spam_slots: &mut [u32],
-	dispute: &DisputeState<BlockNumber>,
-) -> bitvec::vec::BitVec<u8, BitOrderLsb0> {
-	let byzantine_threshold = byzantine_threshold(spam_slots.len());
-
-	let participating = dispute.validators_for.clone() | dispute.validators_against.clone();
-	let decrement_spam = participating.count_ones() <= byzantine_threshold;
-	for validator_index in participating.iter_ones() {
-		if decrement_spam {
-			if let Some(occupied) = spam_slots.get_mut(validator_index as usize) {
-				*occupied = occupied.saturating_sub(1);
-			}
-		}
-	}
-
-	participating
 }
 
 fn check_signature(
