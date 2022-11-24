@@ -183,7 +183,7 @@ pub type StakingAdminToPlurality =
 	OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, StakingAdminBodyId>;
 
 /// Type to convert the Fellows origin to a Plurality `MultiLocation` value.
-pub type FellowsToPlurality = OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, FellowsBodyId>;
+pub type FellowsToPlurality = OriginToPluralityVoice<RuntimeOrigin, Fellows, FellowsBodyId>;
 
 /// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain for a destination chain.
