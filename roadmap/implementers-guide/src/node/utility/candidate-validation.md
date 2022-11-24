@@ -67,7 +67,7 @@ or time out). We will only retry preparation if another request comes in after
 resolved. We will retry up to 5 times.
 
 If the actual **execution** of the artifact fails, we will retry once if it was
-an ambiguous error after a 1 second delay, to allow any potential transient
+an ambiguous error after a brief delay, to allow any potential transient
 conditions to clear.
 
 #### Preparation timeouts
