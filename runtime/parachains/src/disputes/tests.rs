@@ -31,15 +31,13 @@ use frame_support::{
 use primitives::v2::BlockNumber;
 use sp_core::{crypto::CryptoType, Pair};
 
-/// Filtering updates the spam slots, as such update them.
-fn update_spam_slots(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeStatementSet {
+fn filter_dispute_set(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeStatementSet {
 	let config = <configuration::Pallet<Test>>::config();
 	let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
 	stmts
 		.into_iter()
 		.filter_map(|set| {
-			// updates spam slots implicitly
 			let filter = Pallet::<Test>::filter_dispute_data(
 				&set,
 				post_conclusion_acceptance_period,
@@ -508,7 +506,7 @@ fn test_dispute_timeout() {
 	};
 
 	new_test_ext(mock_genesis_config).execute_with(|| {
-		// We need 6 validators for the byzantine threshold to be 2
+		// We need 7 validators for the byzantine threshold to be 2
 		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
 		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
 		let v2 = <ValidatorId as CryptoType>::Pair::generate().0;
@@ -545,15 +543,29 @@ fn test_dispute_timeout() {
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
 
-		// v0 votes for 3, v6 against.
+		// v0 and v1 vote for 3, v2 against. We need f+1 votes (3) so that the dispute is
+		// confirmed. Otherwise It will be filtered out.
+		let session = start - 1;
 		let stmts = vec![DisputeStatementSet {
 			candidate_hash: candidate_hash.clone(),
-			session: start - 1,
+			session,
 			statements: vec![
 				(
 					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
 					ValidatorIndex(0),
 					v0.sign(
+						&ExplicitDisputeStatement {
+							valid: true,
+							candidate_hash: candidate_hash.clone(),
+							session: start - 1,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					ValidatorIndex(1),
+					v1.sign(
 						&ExplicitDisputeStatement {
 							valid: true,
 							candidate_hash: candidate_hash.clone(),
@@ -577,8 +589,7 @@ fn test_dispute_timeout() {
 			],
 		}];
 
-		let stmts = update_spam_slots(stmts);
-		// TODO: assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![1, 0, 0, 0, 0, 0, 1]));
+		let stmts = filter_dispute_set(stmts);
 
 		assert_ok!(
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
@@ -587,11 +598,20 @@ fn test_dispute_timeout() {
 
 		// Run to timeout period
 		run_to_block(start + dispute_conclusion_by_time_out_period, |_| None);
-		// TODO: assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![1, 0, 0, 0, 0, 0, 1]));
+		assert!(<Disputes<Test>>::get(&session, &candidate_hash)
+			.expect("dispute should exist")
+			.concluded_at
+			.is_none());
 
 		// Run to timeout + 1 in order to executive on_finalize(timeout)
 		run_to_block(start + dispute_conclusion_by_time_out_period + 1, |_| None);
-		// TODO: assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![0, 0, 0, 0, 0, 0, 0]));
+		assert_eq!(
+			<Disputes<Test>>::get(&session, &candidate_hash)
+				.expect("dispute should exist")
+				.concluded_at
+				.expect("dispute should have concluded"),
+			start + dispute_conclusion_by_time_out_period + 1
+		);
 	});
 }
 
@@ -966,7 +986,7 @@ fn test_provide_multi_dispute_success_and_other() {
 			],
 		}];
 
-		let stmts = update_spam_slots(stmts);
+		let stmts = filter_dispute_set(stmts);
 		// TODO: assert_eq!(SpamSlots::<Test>::get(3), Some(vec![1, 0, 1, 0, 0, 0, 0]));
 
 		assert_ok!(
@@ -1024,7 +1044,7 @@ fn test_provide_multi_dispute_success_and_other() {
 			},
 		];
 
-		let stmts = update_spam_slots(stmts);
+		let stmts = filter_dispute_set(stmts);
 
 		assert_ok!(
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
@@ -1083,7 +1103,7 @@ fn test_provide_multi_dispute_success_and_other() {
 			},
 		];
 
-		let stmts = update_spam_slots(stmts);
+		let stmts = filter_dispute_set(stmts);
 		assert_ok!(
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
 			vec![(5, candidate_hash.clone())],
@@ -1127,7 +1147,7 @@ fn test_provide_multi_dispute_success_and_other() {
 				)],
 			},
 		];
-		let stmts = update_spam_slots(stmts);
+		let stmts = filter_dispute_set(stmts);
 		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![]);
 		// TODO: assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0]));
 		// TODO: assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
@@ -1209,7 +1229,7 @@ fn test_provide_multi_dispute_success_and_other() {
 				],
 			},
 		];
-		let stmts = update_spam_slots(stmts);
+		let stmts = filter_dispute_set(stmts);
 		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![]);
 
 		assert_eq!(
