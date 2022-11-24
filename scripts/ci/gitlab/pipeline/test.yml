@@ -85,9 +85,9 @@ cargo-fmt:
     - .docker-env
     - .test-refs
   script:
-    - rusty-cachier snapshot create
+    # - rusty-cachier snapshot create
     - cargo +nightly fmt --all -- --check
-    - rusty-cachier cache upload
+    # - rusty-cachier cache upload
 
 cargo-clippy:
   stage:                           test
@@ -101,6 +101,6 @@ cargo-clippy:
     - .docker-env
     - .test-refs
   script:
-    - rusty-cachier snapshot create
+    # - rusty-cachier snapshot create
     - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo +nightly clippy --all-targets
-    - rusty-cachier cache upload
+    # - rusty-cachier cache upload
