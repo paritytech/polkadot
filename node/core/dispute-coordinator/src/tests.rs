@@ -31,7 +31,9 @@ use futures::{
 
 use polkadot_node_subsystem_util::database::Database;
 
-use polkadot_node_primitives::{SignedDisputeStatement, SignedFullStatement, Statement};
+use polkadot_node_primitives::{
+	DisputeStatus, SignedDisputeStatement, SignedFullStatement, Statement,
+};
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalVotingMessage, ChainApiMessage, DisputeCoordinatorMessage,
@@ -55,7 +57,9 @@ use polkadot_node_subsystem::{
 	messages::{AllMessages, BlockDescription, RuntimeApiMessage, RuntimeApiRequest},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
-use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_test_helpers::{
+	make_buffered_subsystem_context, TestSubsystemContextHandle,
+};
 use polkadot_primitives::v2::{
 	ApprovalVote, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
 	CandidateReceipt, CoreIndex, DisputeStatement, GroupIndex, Hash, HeadData, Header, IndexedVec,
@@ -380,6 +384,10 @@ impl TestState {
 					);
 					gum::trace!("After answering runtime API request (votes)");
 				},
+				AllMessages::ChainApi(ChainApiMessage::BlockNumber(hash, tx)) => {
+					let block_num = self.headers.get(&hash).map(|header| header.number);
+					tx.send(Ok(block_num)).unwrap();
+				},
 				msg => {
 					panic!("Received unexpected message in `handle_sync_queries`: {:?}", msg);
 				},
@@ -519,7 +527,7 @@ impl TestState {
 		F: FnOnce(TestState, VirtualOverseer) -> BoxFuture<'static, TestState>,
 	{
 		self.known_session = None;
-		let (ctx, ctx_handle) = make_subsystem_context(TaskExecutor::new());
+		let (ctx, ctx_handle) = make_buffered_subsystem_context(TaskExecutor::new(), 1);
 		let subsystem = DisputeCoordinatorSubsystem::new(
 			self.db.clone(),
 			self.config.clone(),
@@ -682,7 +690,10 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -812,7 +823,10 @@ fn approval_vote_import_works() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -934,7 +948,10 @@ fn dispute_gets_confirmed_via_participation() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -1099,7 +1116,10 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash1)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash1, DisputeStatus::Confirmed)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -1358,7 +1378,10 @@ fn conflicting_votes_lead_to_dispute_participation() {
 					})
 					.await;
 
-				assert_eq!(rx.await.unwrap(), vec![(session, candidate_hash)]);
+				assert_eq!(
+					rx.await.unwrap(),
+					vec![(session, candidate_hash, DisputeStatus::Active)]
+				);
 
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
@@ -2821,6 +2844,12 @@ fn negative_issue_local_statement_only_triggers_import() {
 				})
 				.await;
 
+			// Assert that subsystem is not participating.
+			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
+
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+			assert!(virtual_overseer.try_recv().await.is_none());
+
 			let backend = DbBackend::new(
 				test_state.db.clone(),
 				test_state.config.column_config(),
@@ -2833,12 +2862,6 @@ fn negative_issue_local_statement_only_triggers_import() {
 
 			let disputes = backend.load_recent_disputes().unwrap();
 			assert_eq!(disputes, None);
-
-			// Assert that subsystem is not participating.
-			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
-
-			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
-			assert!(virtual_overseer.try_recv().await.is_none());
 
 			test_state
 		})
