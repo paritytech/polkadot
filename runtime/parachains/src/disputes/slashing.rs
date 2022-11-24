@@ -274,7 +274,15 @@ where
 			.filter_map(|i| session_info.validators.get(i).cloned().map(|id| (i, id)))
 			.collect();
 		let unapplied = PendingSlashes { keys, kind };
-		<UnappliedSlashes<T>>::insert(session_index, candidate_hash, unapplied);
+
+		let append = |old: &mut Option<PendingSlashes>| {
+			let old = old
+				.get_or_insert(PendingSlashes { keys: Default::default(), kind: unapplied.kind });
+			debug_assert_eq!(old.kind, unapplied.kind);
+
+			old.keys.extend(unapplied.keys)
+		};
+		<UnappliedSlashes<T>>::mutate(session_index, candidate_hash, append);
 	}
 }
 
