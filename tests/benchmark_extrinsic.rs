@@ -19,8 +19,7 @@ use std::{process::Command, result::Result};
 
 static RUNTIMES: [&str; 4] = ["polkadot", "kusama", "westend", "rococo"];
 
-static EXTRINSICS: [(&str, &str); 2] =
-	[("system", "remark"), ("balances", "transfer_keep_alive")];
+static EXTRINSICS: [(&str, &str); 2] = [("system", "remark"), ("balances", "transfer_keep_alive")];
 
 /// `benchmark extrinsic` works for all dev runtimes and some extrinsics.
 #[test]

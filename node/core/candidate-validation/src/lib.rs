@@ -502,7 +502,7 @@ async fn validate_candidate_exhaustive(
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
 	let validation_code_hash = validation_code.hash();
-	let para_id = candidate_receipt.descriptor.para_id.clone();
+	let para_id = candidate_receipt.descriptor.para_id;
 	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
@@ -513,7 +513,7 @@ async fn validate_candidate_exhaustive(
 	if let Err(e) = perform_basic_checks(
 		&candidate_receipt.descriptor,
 		persisted_validation_data.max_pov_size,
-		&*pov,
+		&pov,
 		&validation_code_hash,
 	) {
 		gum::info!(target: LOG_TARGET, ?para_id, "Invalid candidate (basic checks)");

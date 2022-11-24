@@ -219,7 +219,7 @@ async fn send_request(
 	code: Arc<Vec<u8>>,
 	tmp_file: &Path,
 ) -> io::Result<()> {
-	framed_send(stream, &*code).await?;
+	framed_send(stream, &code).await?;
 	framed_send(stream, path_to_bytes(tmp_file)).await?;
 	Ok(())
 }

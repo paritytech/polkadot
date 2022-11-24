@@ -713,20 +713,22 @@ impl Initialized {
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
-		let env =
-			match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
-			{
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						session,
-						"We are lacking a `SessionInfo` for handling import of statements."
-					);
+		let env = match CandidateEnvironment::new(
+			&self.keystore,
+			&self.rolling_session_window,
+			session,
+		) {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					session,
+					"We are lacking a `SessionInfo` for handling import of statements."
+				);
 
-					return Ok(ImportStatementsResult::InvalidImport)
-				},
-				Some(env) => env,
-			};
+				return Ok(ImportStatementsResult::InvalidImport)
+			},
+			Some(env) => env,
+		};
 
 		let candidate_hash = candidate_receipt.hash();
 
@@ -1075,20 +1077,22 @@ impl Initialized {
 			"Issuing local statement for candidate!"
 		);
 		// Load environment:
-		let env =
-			match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
-			{
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						session,
-						"Missing info for session which has an active dispute",
-					);
+		let env = match CandidateEnvironment::new(
+			&self.keystore,
+			&self.rolling_session_window,
+			session,
+		) {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					session,
+					"Missing info for session which has an active dispute",
+				);
 
-					return Ok(())
-				},
-				Some(env) => env,
-			};
+				return Ok(())
+			},
+			Some(env) => env,
+		};
 
 		let votes = overlay_db
 			.load_candidate_votes(session, &candidate_hash)?
@@ -1257,7 +1261,7 @@ fn make_dispute_message(
 				votes.invalid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
 			let other_vote = SignedDisputeStatement::new_checked(
 				DisputeStatement::Invalid(*statement_kind),
-				our_vote.candidate_hash().clone(),
+				*our_vote.candidate_hash(),
 				our_vote.session_index(),
 				validators
 					.get(*validator_index)
@@ -1272,7 +1276,7 @@ fn make_dispute_message(
 				votes.valid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
 			let other_vote = SignedDisputeStatement::new_checked(
 				DisputeStatement::Valid(*statement_kind),
-				our_vote.candidate_hash().clone(),
+				*our_vote.candidate_hash(),
 				our_vote.session_index(),
 				validators
 					.get(*validator_index)

@@ -268,7 +268,7 @@ where
 		let (sender, receiver) = oneshot::channel();
 
 		// TODO: make the cache great again https://github.com/paritytech/polkadot/issues/5546
-		let request = match self.query_cache(relay_parent.clone(), request) {
+		let request = match self.query_cache(relay_parent, request) {
 			Some(request) => request,
 			None => return,
 		};
