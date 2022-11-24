@@ -1231,6 +1231,7 @@ pub type Executive = frame_executive::Executive<
 		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
 		pallet_election_provider_multi_phase::migrations::v1::MigrateToV1<Runtime>,
 		pallet_fast_unstake::migrations::v1::MigrateToV1<Runtime>,
+		pallet_staking::migrations::v13::MigrateToV13<Runtime>,
 	),
 >;
 /// The payload being signed in transactions.
