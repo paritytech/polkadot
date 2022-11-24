@@ -34,7 +34,6 @@ use sp_core::{crypto::CryptoType, Pair};
 /// Filtering updates the spam slots, as such update them.
 fn update_spam_slots(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeStatementSet {
 	let config = <configuration::Pallet<Test>>::config();
-	let max_spam_slots = config.dispute_max_spam_slots;
 	let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
 	stmts
@@ -44,7 +43,6 @@ fn update_spam_slots(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeStat
 			let filter = Pallet::<Test>::filter_dispute_data(
 				&set,
 				post_conclusion_acceptance_period,
-				max_spam_slots,
 				VerifyDisputeSignatures::Skip,
 			);
 			filter.filter_statement_set(set)
@@ -171,7 +169,7 @@ fn test_import_new_participant_spam_inc() {
 			concluded_at: None,
 		},
 	);
-	assert_eq!(summary.spam_slot_changes, vec![(ValidatorIndex(2), SpamSlotChange::Inc)]);
+	// TODO: assert_eq!(summary.spam_slot_changes, vec![(ValidatorIndex(2), SpamSlotChange::Inc)]);
 	assert!(summary.slash_for.is_empty());
 	assert!(summary.slash_against.is_empty());
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0, 0]);
@@ -201,10 +199,10 @@ fn test_import_prev_participant_spam_dec_confirmed() {
 			concluded_at: None,
 		},
 	);
-	assert_eq!(
-		summary.spam_slot_changes,
-		vec![(ValidatorIndex(0), SpamSlotChange::Dec), (ValidatorIndex(1), SpamSlotChange::Dec),],
-	);
+	// TODO assert_eq!(
+	// 	summary.spam_slot_changes,
+	// 	vec![(ValidatorIndex(0), SpamSlotChange::Dec), (ValidatorIndex(1), SpamSlotChange::Dec),],
+	// );
 	assert!(summary.slash_for.is_empty());
 	assert!(summary.slash_against.is_empty());
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0, 0]);
@@ -240,10 +238,10 @@ fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
 			concluded_at: Some(0),
 		},
 	);
-	assert_eq!(
-		summary.spam_slot_changes,
-		vec![(ValidatorIndex(0), SpamSlotChange::Dec), (ValidatorIndex(1), SpamSlotChange::Dec),],
-	);
+	// TODO: assert_eq!(
+	// 	summary.spam_slot_changes,
+	// 	vec![(ValidatorIndex(0), SpamSlotChange::Dec), (ValidatorIndex(1), SpamSlotChange::Dec),],
+	// );
 	assert_eq!(summary.slash_for, vec![ValidatorIndex(0), ValidatorIndex(2)]);
 	assert!(summary.slash_against.is_empty());
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 1, 1, 1, 1, 0]);
@@ -281,7 +279,7 @@ fn test_import_slash_against() {
 			concluded_at: Some(0),
 		},
 	);
-	assert!(summary.spam_slot_changes.is_empty());
+	// TODO: assert!(summary.spam_slot_changes.is_empty());
 	assert!(summary.slash_for.is_empty());
 	assert_eq!(summary.slash_against, vec![ValidatorIndex(1), ValidatorIndex(5)]);
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 0, 1, 1, 1, 1, 1]);
@@ -331,14 +329,12 @@ fn dispute_statement_becoming_onesided_due_to_spamslots_is_accepted() {
 	let dispute_conclusion_by_time_out_period = 3;
 	let start = 10;
 	let session = start - 1;
-	let dispute_max_spam_slots = 2;
 	let post_conclusion_acceptance_period = 3;
 
 	let mock_genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: HostConfiguration {
 				dispute_conclusion_by_time_out_period,
-				dispute_max_spam_slots,
 				..Default::default()
 			},
 			..Default::default()
@@ -426,14 +422,13 @@ fn dispute_statement_becoming_onesided_due_to_spamslots_is_accepted() {
 		let filter = Pallet::<Test>::filter_dispute_data(
 			&set,
 			post_conclusion_acceptance_period,
-			dispute_max_spam_slots,
 			VerifyDisputeSignatures::Skip,
 		);
 		assert_matches!(&filter, StatementSetFilter::RemoveIndices(v) if v.is_empty());
 		assert_matches!(filter.filter_statement_set(set.clone()), Some(modified) => {
 			assert_eq!(&set, modified.as_ref());
 		});
-		assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 0, 0, 1, 0, 0, 1]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 0, 0, 1, 0, 0, 1]));
 
 		// <----->
 
@@ -442,14 +437,13 @@ fn dispute_statement_becoming_onesided_due_to_spamslots_is_accepted() {
 		let filter = Pallet::<Test>::filter_dispute_data(
 			&set,
 			post_conclusion_acceptance_period,
-			dispute_max_spam_slots,
 			VerifyDisputeSignatures::Skip,
 		);
 		assert_matches!(&filter, StatementSetFilter::RemoveIndices(v) if v.is_empty());
 		assert_matches!(filter.filter_statement_set(set.clone()), Some(modified) => {
 			assert_eq!(&set, modified.as_ref());
 		});
-		assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 1, 0, 1, 0, 0, 2]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 1, 0, 1, 0, 0, 2]));
 
 		// <----->
 
@@ -458,7 +452,6 @@ fn dispute_statement_becoming_onesided_due_to_spamslots_is_accepted() {
 		let filter = Pallet::<Test>::filter_dispute_data(
 			&set,
 			post_conclusion_acceptance_period,
-			dispute_max_spam_slots,
 			VerifyDisputeSignatures::Skip,
 		);
 		assert_matches!(&filter, StatementSetFilter::RemoveAll);
@@ -475,7 +468,6 @@ fn dispute_statement_becoming_onesided_due_to_spamslots_is_accepted() {
 		let filter = Pallet::<Test>::filter_dispute_data(
 			&set,
 			post_conclusion_acceptance_period,
-			dispute_max_spam_slots,
 			VerifyDisputeSignatures::Skip,
 		);
 		assert_matches!(&filter, StatementSetFilter::RemoveIndices(v) if v.is_empty());
@@ -489,13 +481,12 @@ fn dispute_statement_becoming_onesided_due_to_spamslots_is_accepted() {
 		let filter = Pallet::<Test>::filter_dispute_data(
 			&set,
 			post_conclusion_acceptance_period,
-			dispute_max_spam_slots,
 			VerifyDisputeSignatures::Skip,
 		);
 		assert_matches!(&filter, StatementSetFilter::RemoveAll);
 		assert_matches!(filter.filter_statement_set(set.clone()), None);
 
-		assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 1, 1, 1, 1, 1, 3]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 1, 1, 1, 1, 1, 3]));
 	});
 }
 
@@ -587,7 +578,7 @@ fn test_dispute_timeout() {
 		}];
 
 		let stmts = update_spam_slots(stmts);
-		assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![1, 0, 0, 0, 0, 0, 1]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![1, 0, 0, 0, 0, 0, 1]));
 
 		assert_ok!(
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
@@ -596,11 +587,11 @@ fn test_dispute_timeout() {
 
 		// Run to timeout period
 		run_to_block(start + dispute_conclusion_by_time_out_period, |_| None);
-		assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![1, 0, 0, 0, 0, 0, 1]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![1, 0, 0, 0, 0, 0, 1]));
 
 		// Run to timeout + 1 in order to executive on_finalize(timeout)
 		run_to_block(start + dispute_conclusion_by_time_out_period + 1, |_| None);
-		assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![0, 0, 0, 0, 0, 0, 0]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![0, 0, 0, 0, 0, 0, 0]));
 	});
 }
 
@@ -976,7 +967,7 @@ fn test_provide_multi_dispute_success_and_other() {
 		}];
 
 		let stmts = update_spam_slots(stmts);
-		assert_eq!(SpamSlots::<Test>::get(3), Some(vec![1, 0, 1, 0, 0, 0, 0]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(3), Some(vec![1, 0, 1, 0, 0, 0, 0]));
 
 		assert_ok!(
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
@@ -1039,8 +1030,8 @@ fn test_provide_multi_dispute_success_and_other() {
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
 			vec![(4, candidate_hash.clone())],
 		);
-		assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0])); // Confirmed as no longer spam
-		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0])); // Confirmed as no longer spam
+		// TODO: assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
 
 		// v3 votes against 3 and for 5, v6 votes against 5.
 		let stmts = vec![
@@ -1097,9 +1088,9 @@ fn test_provide_multi_dispute_success_and_other() {
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
 			vec![(5, candidate_hash.clone())],
 		);
-		assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0]));
-		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
-		assert_eq!(SpamSlots::<Test>::get(5), Some(vec![0, 0, 1, 0, 0, 1, 0]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(5), Some(vec![0, 0, 1, 0, 0, 1, 0]));
 
 		// v2 votes for 3 and against 5
 		let stmts = vec![
@@ -1138,9 +1129,9 @@ fn test_provide_multi_dispute_success_and_other() {
 		];
 		let stmts = update_spam_slots(stmts);
 		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![]);
-		assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0]));
-		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
-		assert_eq!(SpamSlots::<Test>::get(5), Some(vec![0, 0, 0, 0, 0, 0, 0]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(5), Some(vec![0, 0, 0, 0, 0, 0, 0]));
 
 		let stmts = vec![
 			// 0, 4, and 5 vote against 5
@@ -1262,9 +1253,9 @@ fn test_provide_multi_dispute_success_and_other() {
 		assert!(Pallet::<Test>::concluded_invalid(5, candidate_hash.clone()));
 
 		// Ensure inclusion removes spam slots
-		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
 		Pallet::<Test>::note_included(4, candidate_hash.clone(), 4);
-		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 0, 0, 0, 0, 0]));
+		// TODO: assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 0, 0, 0, 0, 0]));
 
 		// Ensure the `reward_validator` function was correctly called
 		assert_eq!(
@@ -1382,10 +1373,10 @@ fn test_has_supermajority_against() {
 
 #[test]
 fn test_decrement_spam() {
-	let original_spam_slots = vec![0, 1, 2, 3, 4, 5, 6, 7];
+	// TODO: let original_spam_slots = vec![0, 1, 2, 3, 4, 5, 6, 7];
 
 	// Test confirm is no-op
-	let mut spam_slots = original_spam_slots.clone();
+	// TODO: let mut spam_slots = original_spam_slots.clone();
 	let dispute_state_confirm = DisputeState {
 		validators_for: bitvec![u8, BitOrderLsb0; 1, 1, 0, 0, 0, 0, 0, 0],
 		validators_against: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
@@ -1393,14 +1384,14 @@ fn test_decrement_spam() {
 		concluded_at: None,
 	};
 	assert_eq!(DisputeStateFlags::from_state(&dispute_state_confirm), DisputeStateFlags::CONFIRMED);
-	assert_eq!(
-		decrement_spam(spam_slots.as_mut(), &dispute_state_confirm),
-		bitvec![u8, BitOrderLsb0; 1, 1, 1, 0, 0, 0, 0, 0],
-	);
-	assert_eq!(spam_slots, original_spam_slots);
+	// TODO: assert_eq!(
+	// 	decrement_spam(spam_slots.as_mut(), &dispute_state_confirm),
+	// 	bitvec![u8, BitOrderLsb0; 1, 1, 1, 0, 0, 0, 0, 0],
+	// );
+	// assert_eq!(spam_slots, original_spam_slots);
 
 	// Test not confirm is decreasing spam
-	let mut spam_slots = original_spam_slots.clone();
+	// TODO: let mut spam_slots = original_spam_slots.clone();
 	let dispute_state_no_confirm = DisputeState {
 		validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
 		validators_against: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
@@ -1411,11 +1402,11 @@ fn test_decrement_spam() {
 		DisputeStateFlags::from_state(&dispute_state_no_confirm),
 		DisputeStateFlags::default()
 	);
-	assert_eq!(
-		decrement_spam(spam_slots.as_mut(), &dispute_state_no_confirm),
-		bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
-	);
-	assert_eq!(spam_slots, vec![0, 1, 1, 3, 4, 5, 6, 7]);
+	// TODO: assert_eq!(
+	// 	decrement_spam(spam_slots.as_mut(), &dispute_state_no_confirm),
+	// 	bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
+	// );
+	// TODO: assert_eq!(spam_slots, vec![0, 1, 1, 3, 4, 5, 6, 7]);
 }
 
 #[test]
@@ -1912,14 +1903,12 @@ fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
 	sets: I,
 ) -> Vec<CheckedDisputeStatementSet> {
 	let config = <configuration::Pallet<T>>::config();
-	let max_spam_slots = config.dispute_max_spam_slots;
 	let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
 	let mut acc = Vec::<CheckedDisputeStatementSet>::new();
 	for dispute_statement in sets {
 		if let Some(checked) = <Pallet<T> as DisputesHandler<<T>::BlockNumber>>::filter_dispute_data(
 			dispute_statement,
-			max_spam_slots,
 			post_conclusion_acceptance_period,
 			VerifyDisputeSignatures::Yes,
 		) {
@@ -1993,13 +1982,11 @@ fn filter_removes_duplicates_within_set() {
 			],
 		};
 
-		let max_spam_slots = 10;
 		let post_conclusion_acceptance_period = 10;
 		let statements = <Pallet<Test> as DisputesHandler<
 			<Test as frame_system::Config>::BlockNumber,
 		>>::filter_dispute_data(
 			statements,
-			max_spam_slots,
 			post_conclusion_acceptance_period,
 			VerifyDisputeSignatures::Yes,
 		);
@@ -2087,15 +2074,7 @@ fn filter_bad_signatures_correctly_detects_single_sided() {
 
 #[test]
 fn filter_correctly_accounts_spam_slots() {
-	let dispute_max_spam_slots = 2;
-
-	let mock_genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { dispute_max_spam_slots, ..Default::default() },
-			..Default::default()
-		},
-		..Default::default()
-	};
+	let mock_genesis_config = MockGenesisConfig::default();
 
 	new_test_ext(mock_genesis_config).execute_with(|| {
 		// We need 7 validators for the byzantine threshold to be 2

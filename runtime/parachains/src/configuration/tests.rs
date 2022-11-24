@@ -402,11 +402,6 @@ fn setting_pending_config_members() {
 			new_config.dispute_post_conclusion_acceptance_period,
 		)
 		.unwrap();
-		Configuration::set_dispute_max_spam_slots(
-			RuntimeOrigin::root(),
-			new_config.dispute_max_spam_slots,
-		)
-		.unwrap();
 		Configuration::set_dispute_conclusion_by_time_out_period(
 			RuntimeOrigin::root(),
 			new_config.dispute_conclusion_by_time_out_period,
