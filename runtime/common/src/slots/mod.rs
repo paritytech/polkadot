@@ -1039,8 +1039,8 @@ mod benchmarking {
 		// Worst case scenario, T parathreads onboard, and C parachains offboard.
 		manage_lease_period_start {
 			// Assume reasonable maximum of 100 paras at any time
-			let c in 1 .. 100;
-			let t in 1 .. 100;
+			let c in 0 .. 100;
+			let t in 0 .. 100;
 
 			let period_begin = 1u32.into();
 			let period_count = 4u32.into();
