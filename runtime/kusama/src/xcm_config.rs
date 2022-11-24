@@ -17,8 +17,8 @@
 //! XCM configurations for the Kusama runtime.
 
 use super::{
-	parachains_origin, AccountId, Balances, CouncilCollective, ParaId, Runtime, RuntimeCall,
-	RuntimeEvent, RuntimeOrigin, StakingAdmin, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, Balances, CouncilCollective, Fellows, ParaId, Runtime,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin, WeightToFee, XcmPallet,
 };
 use frame_support::{match_types, parameter_types, traits::Everything};
 use kusama_runtime_constants::xcm::body::{FELLOWS_INDEX, STAKING_ADMIN_INDEX};
