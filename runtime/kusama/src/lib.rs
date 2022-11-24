@@ -106,7 +106,7 @@ pub mod xcm_config;
 pub mod governance;
 use governance::{
 	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, GeneralAdmin, LeaseAdmin,
-	StakingAdmin, TreasurySpender,
+	StakingAdmin, TreasurySpender, Treasurer,
 };
 
 #[cfg(test)]
@@ -633,7 +633,7 @@ parameter_types! {
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
-	type ApproveOrigin = EnsureRoot<AccountId>;
+	type ApproveOrigin = EitherOf<EnsureRoot<AccountId>, Treasurer>;
 	type RejectOrigin = EnsureRoot<AccountId>;
 	type RuntimeEvent = RuntimeEvent;
 	type OnSlash = Treasury;
