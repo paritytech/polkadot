@@ -26,6 +26,10 @@ test-linux-stable:
 
 .check-dependent-project:          &check-dependent-project
   stage:                           test
+  needs:
+    - job:                         cargo-clippy
+      artifacts:                   false
+
   extends:
     - .docker-env
     - .test-pr-refs
@@ -72,3 +76,31 @@ test-deterministic-wasm:
     - .compiler-info
   script:
     - ./scripts/ci/gitlab/test_deterministic_wasm.sh
+
+cargo-fmt:
+  stage:                           test
+  variables:
+    RUSTY_CACHIER_TOOLCHAIN: nightly
+  extends:
+    - .docker-env
+    - .test-refs
+  script:
+    - rusty-cachier snapshot create
+    - cargo +nightly fmt --all -- --check
+    - rusty-cachier cache upload
+
+cargo-clippy:
+  stage:                           test
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  needs:
+    - job:                         cargo-fmt
+      artifacts:                   false
+  variables:
+    RUSTY_CACHIER_TOOLCHAIN: nightly
+  extends:
+    - .docker-env
+    - .test-refs
+  script:
+    - rusty-cachier snapshot create
+    - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo +nightly clippy --all-targets
+    - rusty-cachier cache upload
