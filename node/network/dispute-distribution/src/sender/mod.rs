@@ -108,8 +108,6 @@ impl DisputeSender {
 		runtime: &mut RuntimeInfo,
 		msg: DisputeMessage,
 	) -> Result<()> {
-		self.rate_limit.limit().await;
-
 		let req: DisputeRequest = msg.into();
 		let candidate_hash = req.0.candidate_receipt.hash();
 		match self.disputes.entry(candidate_hash) {
@@ -118,6 +116,8 @@ impl DisputeSender {
 				return Ok(())
 			},
 			Entry::Vacant(vacant) => {
+				self.rate_limit.limit("in start_sender", candidate_hash).await;
+
 				let send_task = SendTask::new(
 					ctx,
 					runtime,
@@ -169,10 +169,12 @@ impl DisputeSender {
 
 		// Iterates in order of insertion:
 		let mut should_rate_limit = true;
-		for dispute in self.disputes.values_mut() {
+		for (candidate_hash, dispute) in self.disputes.iter_mut() {
 			if have_new_sessions || dispute.has_failed_sends() {
 				if should_rate_limit {
-					self.rate_limit.limit().await;
+					self.rate_limit
+						.limit("while going through new sessions/failed sends", *candidate_hash)
+						.await;
 				}
 				let sends_happened = dispute
 					.refresh_sends(ctx, runtime, &self.active_sessions, &self.metrics)
@@ -193,7 +195,7 @@ impl DisputeSender {
 		// recovered at startup will be relatively "old" anyway and we assume that no more than a
 		// third of the validators will go offline at any point in time anyway.
 		for dispute in unknown_disputes {
-			self.rate_limit.limit().await;
+			self.rate_limit.limit("while going through unknown disputes", dispute.1).await;
 			self.start_send_for_dispute(ctx, runtime, dispute).await?;
 		}
 		Ok(())
@@ -383,7 +385,9 @@ impl RateLimit {
 	}
 
 	/// Wait until ready and prepare for next call.
-	async fn limit(&mut self) {
+	///
+	/// String given as occasion and candidate hash are logged in case the rate limit hit.
+	async fn limit(&mut self, occasion: &'static str, candidate_hash: CandidateHash) {
 		// Wait for rate limit and add some logging:
 		poll_fn(|cx| {
 			let old_limit = Pin::new(&mut self.limit);
@@ -391,6 +395,8 @@ impl RateLimit {
 				Poll::Pending => {
 					gum::debug!(
 						target: LOG_TARGET,
+						?occasion,
+						?candidate_hash,
 						"Sending rate limit hit, slowing down requests"
 					);
 					Poll::Pending
