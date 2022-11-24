@@ -193,6 +193,7 @@ pub struct HostConfiguration<BlockNumber> {
 	/// How long after dispute conclusion to accept statements.
 	pub dispute_post_conclusion_acceptance_period: BlockNumber,
 	/// The maximum number of dispute spam slots
+	/// TODO: Should be removed in next version
 	pub dispute_max_spam_slots: u32,
 	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
 	pub dispute_conclusion_by_time_out_period: BlockNumber,
@@ -749,19 +750,6 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.dispute_post_conclusion_acceptance_period = new;
-			})
-		}
-
-		/// Set the maximum number of dispute spam slots.
-		#[pallet::call_index(16)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_u32(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_dispute_max_spam_slots(origin: OriginFor<T>, new: u32) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.dispute_max_spam_slots = new;
 			})
 		}
 

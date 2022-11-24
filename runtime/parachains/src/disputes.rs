@@ -262,7 +262,6 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 	/// accounting for maximum block weight.
 	fn filter_dispute_data(
 		statement_set: DisputeStatementSet,
-		max_spam_slots: u32,
 		post_conclusion_acceptance_period: BlockNumber,
 		verify_sigs: VerifyDisputeSignatures,
 	) -> Option<CheckedDisputeStatementSet>;
@@ -311,7 +310,6 @@ impl<BlockNumber: Ord> DisputesHandler<BlockNumber> for () {
 
 	fn filter_dispute_data(
 		_set: DisputeStatementSet,
-		_max_spam_slots: u32,
 		_post_conclusion_acceptance_period: BlockNumber,
 		_verify_sigs: VerifyDisputeSignatures,
 	) -> Option<CheckedDisputeStatementSet> {
@@ -361,14 +359,12 @@ where
 
 	fn filter_dispute_data(
 		set: DisputeStatementSet,
-		max_spam_slots: u32,
 		post_conclusion_acceptance_period: T::BlockNumber,
 		verify_sigs: VerifyDisputeSignatures,
 	) -> Option<CheckedDisputeStatementSet> {
 		pallet::Pallet::<T>::filter_dispute_data(
 			&set,
 			post_conclusion_acceptance_period,
-			max_spam_slots,
 			verify_sigs,
 		)
 		.filter_statement_set(set)
@@ -944,7 +940,6 @@ impl<T: Config> Pallet<T> {
 	fn filter_dispute_data(
 		set: &DisputeStatementSet,
 		post_conclusion_acceptance_period: <T as frame_system::Config>::BlockNumber,
-		max_spam_slots: u32,
 		verify_sigs: VerifyDisputeSignatures,
 	) -> StatementSetFilter {
 		let mut filter = StatementSetFilter::RemoveIndices(Vec::new());
