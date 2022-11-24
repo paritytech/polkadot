@@ -1884,7 +1884,7 @@ sp_api::impl_runtime_apis! {
 				state_root_check,
 				select,
 			);
-			Executive::try_execute_block(block, state_root_check, select).expect("try_execute_block failed")
+			Executive::try_execute_block(block, state_root_check, false, select).expect("try_execute_block failed")
 		}
 	}
 
