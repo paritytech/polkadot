@@ -1299,25 +1299,11 @@ impl pallet_state_trie_migration::Config for Runtime {
 	type SignedDepositPerItem = MigrationSignedDepositPerItem;
 	type SignedDepositBase = MigrationSignedDepositBase;
 	type ControlOrigin = EnsureRoot<AccountId>;
-	type SignedFilter = Disable<Runtime>;
+	type SignedFilter = frame_support::traits::NeverEnsureOrigin<AccountId>;
 
 	// Use same weights as substrate ones.
 	type WeightInfo = pallet_state_trie_migration::weights::SubstrateWeight<Runtime>;
 	type MaxKeyLen = MigrationMaxKeyLen;
-}
-
-pub struct Disable<T>(sp_std::marker::PhantomData<T>);
-impl<T: frame_system::Config> frame_support::traits::EnsureOrigin<T::RuntimeOrigin> for Disable<T> {
-	type Success = T::AccountId;
-	fn try_origin(o: T::RuntimeOrigin) -> Result<Self::Success, T::RuntimeOrigin> {
-		Err(o)
-	}
-
-	#[cfg(feature = "runtime-benchmarks")]
-	fn try_successful_origin() -> Result<T::RuntimeOrigin, ()> {
-		// Not correct but this should only cost more.
-		Ok(T::RuntimeOrigin::root())
-	}
 }
 
 construct_runtime! {
