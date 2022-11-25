@@ -278,6 +278,7 @@ impl TestState {
 			AllMessages::CandidateValidation(CandidateValidationMessage::PreCheck(
 				relay_parent,
 				validation_code_hash,
+				_,
 				tx,
 			)) => ExpectCandidatePrecheck { relay_parent, validation_code_hash, tx },
 			msg => panic!("Unexpected message was received: {:#?}", msg),
