@@ -31,6 +31,10 @@ use frame_support::{
 use primitives::v2::BlockNumber;
 use sp_core::{crypto::CryptoType, Pair};
 
+const VOTE_FOR: VoteKind = VoteKind::ExplicitValid;
+const VOTE_AGAINST: VoteKind = VoteKind::Invalid;
+// const VOTE_BACKING: VoteKind = VoteKind::Backing;
+
 /// Filtering updates the spam slots, as such update them.
 fn update_spam_slots(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeStatementSet {
 	let config = <configuration::Pallet<Test>>::config();
@@ -143,22 +147,26 @@ fn test_import_new_participant_spam_inc() {
 			start: 0,
 			concluded_at: None,
 		},
+		BTreeSet::new(),
 		0,
 	);
 
 	assert_err!(
-		importer.import(ValidatorIndex(9), true),
+		importer.import(ValidatorIndex(9), VOTE_FOR),
 		VoteImportError::ValidatorIndexOutOfBounds,
 	);
 
-	assert_err!(importer.import(ValidatorIndex(0), true), VoteImportError::DuplicateStatement);
-	assert_ok!(importer.import(ValidatorIndex(0), false));
+	assert_err!(importer.import(ValidatorIndex(0), VOTE_FOR), VoteImportError::DuplicateStatement);
+	assert_ok!(importer.import(ValidatorIndex(0), VOTE_AGAINST));
 
-	assert_ok!(importer.import(ValidatorIndex(2), true));
-	assert_err!(importer.import(ValidatorIndex(2), true), VoteImportError::DuplicateStatement);
+	assert_ok!(importer.import(ValidatorIndex(2), VOTE_FOR));
+	assert_err!(importer.import(ValidatorIndex(2), VOTE_FOR), VoteImportError::DuplicateStatement);
 
-	assert_ok!(importer.import(ValidatorIndex(2), false));
-	assert_err!(importer.import(ValidatorIndex(2), false), VoteImportError::DuplicateStatement);
+	assert_ok!(importer.import(ValidatorIndex(2), VOTE_AGAINST));
+	assert_err!(
+		importer.import(ValidatorIndex(2), VOTE_AGAINST),
+		VoteImportError::DuplicateStatement
+	);
 
 	let summary = importer.finish();
 	assert_eq!(summary.new_flags, DisputeStateFlags::default());
@@ -186,10 +194,11 @@ fn test_import_prev_participant_spam_dec_confirmed() {
 			start: 0,
 			concluded_at: None,
 		},
+		BTreeSet::new(),
 		0,
 	);
 
-	assert_ok!(importer.import(ValidatorIndex(2), true));
+	assert_ok!(importer.import(ValidatorIndex(2), VOTE_FOR));
 
 	let summary = importer.finish();
 	assert_eq!(
@@ -220,15 +229,16 @@ fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
 			start: 0,
 			concluded_at: None,
 		},
+		BTreeSet::new(),
 		0,
 	);
 
-	assert_ok!(importer.import(ValidatorIndex(2), true));
-	assert_ok!(importer.import(ValidatorIndex(2), false));
-	assert_ok!(importer.import(ValidatorIndex(3), false));
-	assert_ok!(importer.import(ValidatorIndex(4), false));
-	assert_ok!(importer.import(ValidatorIndex(5), false));
-	assert_ok!(importer.import(ValidatorIndex(6), false));
+	assert_ok!(importer.import(ValidatorIndex(2), VOTE_FOR));
+	assert_ok!(importer.import(ValidatorIndex(2), VOTE_AGAINST));
+	assert_ok!(importer.import(ValidatorIndex(3), VOTE_AGAINST));
+	assert_ok!(importer.import(ValidatorIndex(4), VOTE_AGAINST));
+	assert_ok!(importer.import(ValidatorIndex(5), VOTE_AGAINST));
+	assert_ok!(importer.import(ValidatorIndex(6), VOTE_AGAINST));
 
 	let summary = importer.finish();
 	assert_eq!(
@@ -262,14 +272,15 @@ fn test_import_slash_against() {
 			start: 0,
 			concluded_at: None,
 		},
+		BTreeSet::new(),
 		0,
 	);
 
-	assert_ok!(importer.import(ValidatorIndex(3), true));
-	assert_ok!(importer.import(ValidatorIndex(4), true));
-	assert_ok!(importer.import(ValidatorIndex(5), false));
-	assert_ok!(importer.import(ValidatorIndex(6), true));
-	assert_ok!(importer.import(ValidatorIndex(7), true));
+	assert_ok!(importer.import(ValidatorIndex(3), VOTE_FOR));
+	assert_ok!(importer.import(ValidatorIndex(4), VOTE_FOR));
+	assert_ok!(importer.import(ValidatorIndex(5), VOTE_AGAINST));
+	assert_ok!(importer.import(ValidatorIndex(6), VOTE_FOR));
+	assert_ok!(importer.import(ValidatorIndex(7), VOTE_FOR));
 
 	let summary = importer.finish();
 	assert_eq!(
