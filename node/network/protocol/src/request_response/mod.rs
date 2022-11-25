@@ -128,7 +128,8 @@ pub const DISPUTE_REQUEST_TIMEOUT: Duration = Duration::from_secs(12);
 impl Protocol {
 	/// Get a configuration for a given Request response protocol.
 	///
-	/// Returns only a `ProtocolConfig` for this protocol.
+	/// Returns a `ProtocolConfig` for this protocol.
+	/// Use this if you plan only to send requests for this protocol.
 	pub fn get_outbound_only_config(
 		self,
 		req_protocol_names: &ReqProtocolNames,
