@@ -131,7 +131,7 @@ fn test_dispute_state_flag_from_state() {
 }
 
 #[test]
-fn test_import_new_participant_spam_inc() {
+fn test_import_new_participant() {
 	let mut importer = DisputeStateImporter::new(
 		DisputeState {
 			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
@@ -167,14 +167,13 @@ fn test_import_new_participant_spam_inc() {
 			concluded_at: None,
 		},
 	);
-	// TODO: assert_eq!(summary.spam_slot_changes, vec![(ValidatorIndex(2), SpamSlotChange::Inc)]);
 	assert!(summary.slash_for.is_empty());
 	assert!(summary.slash_against.is_empty());
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0, 0]);
 }
 
 #[test]
-fn test_import_prev_participant_spam_dec_confirmed() {
+fn test_import_prev_participant_confirmed() {
 	let mut importer = DisputeStateImporter::new(
 		DisputeState {
 			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
@@ -197,10 +196,7 @@ fn test_import_prev_participant_spam_dec_confirmed() {
 			concluded_at: None,
 		},
 	);
-	// TODO assert_eq!(
-	// 	summary.spam_slot_changes,
-	// 	vec![(ValidatorIndex(0), SpamSlotChange::Dec), (ValidatorIndex(1), SpamSlotChange::Dec),],
-	// );
+
 	assert!(summary.slash_for.is_empty());
 	assert!(summary.slash_against.is_empty());
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0, 0]);
@@ -208,7 +204,7 @@ fn test_import_prev_participant_spam_dec_confirmed() {
 }
 
 #[test]
-fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
+fn test_import_prev_participant_confirmed_slash_for() {
 	let mut importer = DisputeStateImporter::new(
 		DisputeState {
 			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
@@ -236,10 +232,7 @@ fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
 			concluded_at: Some(0),
 		},
 	);
-	// TODO: assert_eq!(
-	// 	summary.spam_slot_changes,
-	// 	vec![(ValidatorIndex(0), SpamSlotChange::Dec), (ValidatorIndex(1), SpamSlotChange::Dec),],
-	// );
+
 	assert_eq!(summary.slash_for, vec![ValidatorIndex(0), ValidatorIndex(2)]);
 	assert!(summary.slash_against.is_empty());
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 1, 1, 1, 1, 0]);
@@ -277,7 +270,6 @@ fn test_import_slash_against() {
 			concluded_at: Some(0),
 		},
 	);
-	// TODO: assert!(summary.spam_slot_changes.is_empty());
 	assert!(summary.slash_for.is_empty());
 	assert_eq!(summary.slash_against, vec![ValidatorIndex(1), ValidatorIndex(5)]);
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 0, 1, 1, 1, 1, 1]);
