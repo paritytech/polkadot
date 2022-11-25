@@ -24,7 +24,6 @@
 
 #![warn(missing_docs)]
 
-use crate::runtime::Error as SubsysUtilError;
 use polkadot_node_subsystem::{
 	errors::{RuntimeApiError, SubsystemError},
 	messages::{RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
@@ -220,21 +219,21 @@ specialize_requests! {
 pub async fn executor_params_at_relay_parent(
 	relay_parent: Hash,
 	sender: &mut impl overseer::SubsystemSender<RuntimeApiMessage>,
-) -> Result<ExecutorParams, SubsysUtilError> {
+) -> Result<ExecutorParams, Error> {
 	match request_session_index_for_child(relay_parent, sender).await.await {
 		Err(err) => {
 			// Failed to communicate with the runtime
-			Err(SubsysUtilError::RuntimeRequestCanceled(err))
+			Err(Error::Oneshot(err))
 		},
 		Ok(Err(err)) => {
 			// Runtime has failed to obtain a session index at the relay-parent; should never happen
-			Err(SubsysUtilError::RuntimeRequest(err))
+			Err(Error::RuntimeApi(err))
 		},
 		Ok(Ok(session_index)) => {
 			match request_session_executor_params(relay_parent, session_index, sender).await.await {
 				Err(err) => {
 					// Failed to communicate with the runtime
-					Err(SubsysUtilError::RuntimeRequestCanceled(err))
+					Err(Error::Oneshot(err))
 				},
 				Ok(Err(_)) => {
 					// Runtime doesn't yet support the api requested, should execute anyway
@@ -244,7 +243,7 @@ pub async fn executor_params_at_relay_parent(
 				Ok(Ok(None)) => {
 					// Storage doesn't contain a parameter set for the given session; should
 					// never happen
-					Err(SubsysUtilError::RuntimeRequest(RuntimeApiError::NotSupported {
+					Err(Error::RuntimeApi(RuntimeApiError::NotSupported {
 						runtime_api_name: "SessionExecutorParams",
 					}))
 				},
