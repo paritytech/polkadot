@@ -39,8 +39,9 @@ use polkadot_primitives::{
 
 use crate::{
 	request_availability_cores, request_candidate_events, request_on_chain_votes,
-	request_session_index_for_child, request_session_info, request_staging_async_backing_params,
-	request_validation_code_by_hash, request_validator_groups,
+	request_session_index_for_child, request_session_info,
+	request_staging_async_backing_parameters, request_validation_code_by_hash,
+	request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.
@@ -388,7 +389,7 @@ where
 	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let result =
-		recv_runtime(request_staging_async_backing_params(relay_parent, sender).await).await;
+		recv_runtime(request_staging_async_backing_parameters(relay_parent, sender).await).await;
 
 	if let Err(error::Error::RuntimeRequest(RuntimeApiError::NotSupported { runtime_api_name })) =
 		&result

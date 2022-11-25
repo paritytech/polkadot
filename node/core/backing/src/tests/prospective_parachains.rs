@@ -24,7 +24,7 @@ use polkadot_primitives::{
 
 use super::*;
 
-const ASYNC_BACKING_PARAMS: vstaging_primitives::AsyncBackingParameters =
+const ASYNC_BACKING_PARAMETERS: vstaging_primitives::AsyncBackingParameters =
 	vstaging_primitives::AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };
 
 struct TestLeaf {
@@ -56,9 +56,9 @@ async fn activate_leaf(
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParams(tx))
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
 		) if parent == leaf_hash => {
-			tx.send(Ok(ASYNC_BACKING_PARAMS)).unwrap();
+			tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
 		}
 	);
 

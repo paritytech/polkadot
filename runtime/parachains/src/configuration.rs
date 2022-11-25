@@ -121,7 +121,7 @@ pub struct HostConfiguration<BlockNumber> {
 	 */
 
 	/// Asynchronous backing parameters.
-	pub async_backing_params: AsyncBackingParameters,
+	pub async_backing_parameters: AsyncBackingParameters,
 	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
@@ -251,7 +251,7 @@ pub struct HostConfiguration<BlockNumber> {
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
 	fn default() -> Self {
 		Self {
-			async_backing_params: AsyncBackingParameters {
+			async_backing_parameters: AsyncBackingParameters {
 				max_candidate_depth: 0,
 				allowed_ancestry_len: 0,
 			},
@@ -532,14 +532,14 @@ pub mod pallet {
 			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
 			DispatchClass::Operational,
 		))]
-		pub fn set_async_backing_params(
+		pub fn set_async_backing_parameters(
 			origin: OriginFor<T>,
 			max_candidate_depth: u32,
 			allowed_ancestry_len: u32,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.async_backing_params =
+				config.async_backing_parameters =
 					AsyncBackingParameters { max_candidate_depth, allowed_ancestry_len };
 			})
 		}

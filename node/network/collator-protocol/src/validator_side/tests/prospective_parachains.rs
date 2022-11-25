@@ -27,7 +27,7 @@ use polkadot_primitives::{
 	vstaging as vstaging_primitives,
 };
 
-const ASYNC_BACKING_PARAMS: vstaging_primitives::AsyncBackingParameters =
+const ASYNC_BACKING_PARAMETERS: vstaging_primitives::AsyncBackingParameters =
 	vstaging_primitives::AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };
 
 fn get_parent_hash(hash: Hash) -> Hash {
@@ -100,9 +100,9 @@ async fn update_view(
 			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				parent,
-				RuntimeApiRequest::StagingAsyncBackingParams(tx),
+				RuntimeApiRequest::StagingAsyncBackingParameters(tx),
 			)) => {
-				tx.send(Ok(ASYNC_BACKING_PARAMS)).unwrap();
+				tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
 				(parent, new_view.get(&parent).copied().expect("Unknown parent requested"))
 			}
 		);
@@ -116,7 +116,7 @@ async fn update_view(
 		)
 		.await;
 
-		let min_number = leaf_number.saturating_sub(ASYNC_BACKING_PARAMS.allowed_ancestry_len);
+		let min_number = leaf_number.saturating_sub(ASYNC_BACKING_PARAMETERS.allowed_ancestry_len);
 
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
@@ -420,7 +420,7 @@ fn second_multiple_candidates_per_relay_parent() {
 		)
 		.await;
 
-		for i in 0..(ASYNC_BACKING_PARAMS.max_candidate_depth + 1) {
+		for i in 0..(ASYNC_BACKING_PARAMETERS.max_candidate_depth + 1) {
 			let mut candidate = dummy_candidate_receipt_bad_sig(head_c, Some(Default::default()));
 			candidate.descriptor.para_id = test_state.chain_ids[0];
 			candidate.descriptor.relay_parent = head_c;

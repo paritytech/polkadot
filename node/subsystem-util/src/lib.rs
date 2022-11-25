@@ -214,7 +214,7 @@ specialize_requests! {
 	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
 		-> Option<ValidationCodeHash>; ValidationCodeHash;
 	fn request_on_chain_votes() -> Option<ScrapedOnChainVotes>; FetchOnChainVotes;
-	fn request_staging_async_backing_params() -> vstaging_primitives::AsyncBackingParameters; StagingAsyncBackingParams;
+	fn request_staging_async_backing_parameters() -> vstaging_primitives::AsyncBackingParameters; StagingAsyncBackingParameters;
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.

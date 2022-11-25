@@ -159,8 +159,8 @@ where
 			StagingValidityConstraints(relay_parent, para_id, constraints) => self
 				.requests_cache
 				.cache_staging_validity_constraints((relay_parent, para_id), constraints),
-			StagingAsyncBackingParams(relay_parent, params) =>
-				self.requests_cache.cache_staging_async_backing_params(relay_parent, params),
+			StagingAsyncBackingParameters(relay_parent, params) =>
+				self.requests_cache.cache_staging_async_backing_parameters(relay_parent, params),
 		}
 	}
 
@@ -267,9 +267,9 @@ where
 			Request::StagingValidityConstraints(para, sender) =>
 				query!(staging_validity_constraints(para), sender)
 					.map(|sender| Request::StagingValidityConstraints(para, sender)),
-			Request::StagingAsyncBackingParams(sender) =>
-				query!(staging_async_backing_params(), sender)
-					.map(|sender| Request::StagingAsyncBackingParams(sender)),
+			Request::StagingAsyncBackingParameters(sender) =>
+				query!(staging_async_backing_parameters(), sender)
+					.map(|sender| Request::StagingAsyncBackingParameters(sender)),
 		}
 	}
 
@@ -522,10 +522,10 @@ where
 				sender
 			)
 		},
-		Request::StagingAsyncBackingParams(sender) => {
+		Request::StagingAsyncBackingParameters(sender) => {
 			query!(
-				StagingAsyncBackingParams,
-				staging_async_backing_params(),
+				StagingAsyncBackingParameters,
+				staging_async_backing_parameters(),
 				ver = Request::VALIDITY_CONSTRAINTS,
 				sender
 			)

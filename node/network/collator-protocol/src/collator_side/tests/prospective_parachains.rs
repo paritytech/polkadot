@@ -24,7 +24,7 @@ use polkadot_primitives::{
 	vstaging as vstaging_primitives,
 };
 
-const ASYNC_BACKING_PARAMS: vstaging_primitives::AsyncBackingParameters =
+const ASYNC_BACKING_PARAMETERS: vstaging_primitives::AsyncBackingParameters =
 	vstaging_primitives::AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };
 
 fn get_parent_hash(hash: Hash) -> Hash {
@@ -55,14 +55,14 @@ async fn update_view(
 			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				parent,
-				RuntimeApiRequest::StagingAsyncBackingParams(tx),
+				RuntimeApiRequest::StagingAsyncBackingParameters(tx),
 			)) => {
-				tx.send(Ok(ASYNC_BACKING_PARAMS)).unwrap();
+				tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
 				(parent, new_view.get(&parent).copied().expect("Unknown parent requested"))
 			}
 		);
 
-		let min_number = leaf_number.saturating_sub(ASYNC_BACKING_PARAMS.allowed_ancestry_len);
+		let min_number = leaf_number.saturating_sub(ASYNC_BACKING_PARAMETERS.allowed_ancestry_len);
 
 		assert_matches!(
 			overseer_recv(virtual_overseer).await,
@@ -322,7 +322,7 @@ fn distribute_collation_up_to_limit() {
 		// Activated leaf is `a`, but the collation will be based on `b`.
 		update_view(virtual_overseer, &test_state, vec![(head_a, head_a_num)], 1).await;
 
-		for i in 0..(ASYNC_BACKING_PARAMS.max_candidate_depth + 1) {
+		for i in 0..(ASYNC_BACKING_PARAMETERS.max_candidate_depth + 1) {
 			let pov = PoV { block_data: BlockData(vec![i as u8]) };
 			let parent_head_data_hash = Hash::repeat_byte(0xAA);
 			let candidate = TestCandidateBuilder {

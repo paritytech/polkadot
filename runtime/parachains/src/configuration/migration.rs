@@ -163,7 +163,7 @@ configuration::HostConfiguration<BlockNumberFor<T>>
 	{
 		super::HostConfiguration {
 // Default values are zeroes, thus it's ensured allowed ancestry never crosses the upgrade block.
-async_backing_params                     : AsyncBackingParameters { max_candidate_depth: 0, allowed_ancestry_len: 0 },
+async_backing_parameters                 : AsyncBackingParameters { max_candidate_depth: 0, allowed_ancestry_len: 0 },
 
 max_code_size                            : pre.max_code_size,
 max_head_data_size                       : pre.max_head_data_size,

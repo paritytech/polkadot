@@ -1715,8 +1715,8 @@ sp_api::impl_runtime_apis! {
 			runtime_parachains::runtime_api_impl::vstaging::validity_constraints::<Runtime>(para_id)
 		}
 
-		fn staging_async_backing_params() -> primitives::vstaging::AsyncBackingParameters {
-			runtime_parachains::runtime_api_impl::vstaging::async_backing_params::<Runtime>()
+		fn staging_async_backing_parameters() -> primitives::vstaging::AsyncBackingParameters {
+			runtime_parachains::runtime_api_impl::vstaging::async_backing_parameters::<Runtime>()
 		}
 	}
 

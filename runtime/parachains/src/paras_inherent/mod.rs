@@ -343,7 +343,7 @@ impl<T: Config> Pallet<T> {
 					parent_hash,
 					parent_storage_root,
 					parent_number,
-					config.async_backing_params.allowed_ancestry_len,
+					config.async_backing_parameters.allowed_ancestry_len,
 				);
 			});
 		}
@@ -614,7 +614,7 @@ impl<T: Config> Pallet<T> {
 				parent_hash,
 				parent_storage_root,
 				parent_number,
-				config.async_backing_params.allowed_ancestry_len,
+				config.async_backing_parameters.allowed_ancestry_len,
 			);
 
 			tracker

@@ -229,6 +229,6 @@ sp_api::decl_runtime_apis! {
 
 		/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
 		#[api_version(99)]
-		fn staging_async_backing_params() -> vstaging::AsyncBackingParameters;
+		fn staging_async_backing_parameters() -> vstaging::AsyncBackingParameters;
 	}
 }

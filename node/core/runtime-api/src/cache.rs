@@ -53,7 +53,7 @@ const VERSION_CACHE_SIZE: usize = 4 * 1024;
 const DISPUTES_CACHE_SIZE: usize = 64 * 1024;
 
 const STAGING_VALIDITY_CONSTRAINTS_CACHE_SIZE: usize = 10 * 1024;
-const STAGING_ASYNC_BACKING_PARAMS_CACHE_SIZE: usize = 10 * 1024;
+const STAGING_ASYNC_BACKING_PARAMETERS_CACHE_SIZE: usize = 10 * 1024;
 
 struct ResidentSizeOf<T>(T);
 
@@ -129,7 +129,7 @@ pub(crate) struct RequestResultCache {
 
 	staging_validity_constraints:
 		MemoryLruCache<(Hash, ParaId), ResidentSizeOf<Option<vstaging_primitives::Constraints>>>,
-	staging_async_backing_params:
+	staging_async_backing_parameters:
 		MemoryLruCache<Hash, ResidentSizeOf<vstaging_primitives::AsyncBackingParameters>>,
 }
 
@@ -163,8 +163,8 @@ impl Default for RequestResultCache {
 			staging_validity_constraints: MemoryLruCache::new(
 				STAGING_VALIDITY_CONSTRAINTS_CACHE_SIZE,
 			),
-			staging_async_backing_params: MemoryLruCache::new(
-				STAGING_ASYNC_BACKING_PARAMS_CACHE_SIZE,
+			staging_async_backing_parameters: MemoryLruCache::new(
+				STAGING_ASYNC_BACKING_PARAMETERS_CACHE_SIZE,
 			),
 		}
 	}
@@ -462,19 +462,19 @@ impl RequestResultCache {
 		self.staging_validity_constraints.insert(key, ResidentSizeOf(value));
 	}
 
-	pub(crate) fn staging_async_backing_params(
+	pub(crate) fn staging_async_backing_parameters(
 		&mut self,
 		key: &Hash,
 	) -> Option<&vstaging_primitives::AsyncBackingParameters> {
-		self.staging_async_backing_params.get(&key).map(|v| &v.0)
+		self.staging_async_backing_parameters.get(&key).map(|v| &v.0)
 	}
 
-	pub(crate) fn cache_staging_async_backing_params(
+	pub(crate) fn cache_staging_async_backing_parameters(
 		&mut self,
 		key: Hash,
 		value: vstaging_primitives::AsyncBackingParameters,
 	) {
-		self.staging_async_backing_params.insert(key, ResidentSizeOf(value));
+		self.staging_async_backing_parameters.insert(key, ResidentSizeOf(value));
 	}
 }
 
@@ -514,5 +514,5 @@ pub(crate) enum RequestResult {
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
 
 	StagingValidityConstraints(Hash, ParaId, Option<vstaging_primitives::Constraints>),
-	StagingAsyncBackingParams(Hash, vstaging_primitives::AsyncBackingParameters),
+	StagingAsyncBackingParameters(Hash, vstaging_primitives::AsyncBackingParameters),
 }

@@ -715,7 +715,7 @@ pub enum RuntimeApiRequest {
 	/// Get candidate's acceptance limitations for asynchronous backing for a relay parent.
 	///
 	/// If it's not supported by the Runtime, the async backing is said to be disabled.
-	StagingAsyncBackingParams(RuntimeApiSender<vstaging_primitives::AsyncBackingParameters>),
+	StagingAsyncBackingParameters(RuntimeApiSender<vstaging_primitives::AsyncBackingParameters>),
 }
 
 impl RuntimeApiRequest {
