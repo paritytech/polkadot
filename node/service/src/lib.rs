@@ -1226,7 +1226,11 @@ where
 			task_manager.spawn_handle().spawn_blocking(
 				"mmr-gadget",
 				None,
-				MmrGadget::start(client.clone(), backend.clone(), b"mmr".to_vec()),
+				MmrGadget::start(
+					client.clone(),
+					backend.clone(),
+					sp_mmr_primitives::INDEXING_PREFIX.to_vec(),
+				),
 			);
 		}
 	}

@@ -1224,7 +1224,7 @@ impl pallet_beefy::Config for Runtime {
 type MmrHash = <Keccak256 as sp_runtime::traits::Hash>::Output;
 
 impl pallet_mmr::Config for Runtime {
-	const INDEXING_PREFIX: &'static [u8] = b"mmr";
+	const INDEXING_PREFIX: &'static [u8] = mmr::INDEXING_PREFIX;
 	type Hashing = Keccak256;
 	type Hash = MmrHash;
 	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
@@ -1723,7 +1723,7 @@ sp_api::impl_runtime_apis! {
 			Ok(Mmr::mmr_root())
 		}
 
-		fn mmr_leaves_count() -> Result<mmr::LeafIndex, mmr::Error> {
+		fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
 			Ok(Mmr::mmr_leaves())
 		}
 
