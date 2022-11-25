@@ -3193,3 +3193,134 @@ fn participation_for_included_candidates() {
 		})
 	});
 }
+
+/// Shows that importing backing votes when a backing event is being processed
+/// results in participation.
+#[test]
+fn local_participation_in_dispute_for_backed_candidate() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+
+			// Step 1: Show that we don't participate when not backed, confirmed, or included
+			
+			// activate leaf - without candidate backed event
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					1,
+					vec![],
+				)
+				.await;
+
+			// generate two votes
+			let valid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					candidate_hash,
+					session,
+					true,
+				)
+				.await;
+
+			let invalid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					false,
+				)
+				.await;
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(valid_vote, ValidatorIndex(1)),
+							(invalid_vote, ValidatorIndex(2)),
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
+
+			assert_matches!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await, None);
+
+			// Step 2: Show that once backing votes are processed we participate
+
+			// Activate leaf: With candidate backed event
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					1,
+					vec![make_candidate_backed_event(candidate_receipt.clone())],
+				)
+				.await;
+
+			let backing_valid = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session).await;
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(backing_valid, ValidatorIndex(3))
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+			
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
+
+			// Check for our 1 active dispute
+			let (tx, rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+				})
+				.await;
+
+			assert_eq!(rx.await.unwrap().len(), 1);
+
+			// check if we have participated (casted a vote)
+			let (tx, rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::QueryCandidateVotes(
+						vec![(session, candidate_hash)],
+						tx,
+					),
+				})
+				.await;
+
+			let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
+			assert_eq!(votes.valid.len(), 3); // 3 => 1 initial vote, 1 backing vote, and our vote
+			assert_eq!(votes.invalid.len(), 1);
+
+			// Wrap up
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+
+			test_state
+		})
+	});
+}
