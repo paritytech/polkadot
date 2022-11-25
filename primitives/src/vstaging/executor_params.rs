@@ -94,21 +94,19 @@ impl ExecutorParams {
 
 	/// Returns execution environment type identifier
 	pub fn environment(&self) -> u32 {
-		if self.0.len() < 1 || self.0[0].0 != EEPAR_01_ENVIRONMENT {
-			return EXEC_ENV_TYPE_WASMTIME_GENERIC
-		}
+		debug_assert!(self.0.len() > 0);
+		debug_assert_eq!(self.0[0].0, EEPAR_01_ENVIRONMENT);
 		let env_enc = self.0[0].1.clone();
-		match u32::decode(&mut &env_enc[..]) {
-			Ok(env) => env,
-			_ => EXEC_ENV_TYPE_WASMTIME_GENERIC,
-		}
+		u32::decode(&mut &env_enc[..])
+			.expect("ExecutorParams is always constructed with a valid environment type; qed")
 	}
 
 	/// Adds an execution parameter to the set
 	pub fn add(&mut self, tag: u32, value: impl Encode) {
 		// Ensure deterministic order of tags
 		#[cfg(debug_assertions)]
-		if self.0.len() > 0 {
+		{
+			debug_assert!(self.0.len() > 0);
 			let (last_tag, _) = self.0[self.0.len() - 1];
 			debug_assert!(tag > last_tag);
 		}
