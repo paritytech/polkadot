@@ -200,6 +200,12 @@ impl Metrics {
 		}
 	}
 
+	fn on_approval_no_executor_params(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.approvals_produced_total.with_label_values(&["no executor params"]).inc()
+		}
+	}
+
 	fn on_approval_error(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.approvals_produced_total.with_label_values(&["internal error"]).inc()
@@ -2395,7 +2401,7 @@ async fn launch_approval<Context>(
 		{
 			executor_params
 		} else {
-			metrics_guard.take().on_approval_unavailable();
+			metrics_guard.take().on_approval_no_executor_params();
 			return ApprovalState::failed(validator_index, candidate_hash)
 		};
 
