@@ -1171,44 +1171,6 @@ fn test_has_supermajority_against() {
 }
 
 #[test]
-fn test_decrement_spam() {
-	// TODO: let original_spam_slots = vec![0, 1, 2, 3, 4, 5, 6, 7];
-
-	// Test confirm is no-op
-	// TODO: let mut spam_slots = original_spam_slots.clone();
-	let dispute_state_confirm = DisputeState {
-		validators_for: bitvec![u8, BitOrderLsb0; 1, 1, 0, 0, 0, 0, 0, 0],
-		validators_against: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
-		start: 0,
-		concluded_at: None,
-	};
-	assert_eq!(DisputeStateFlags::from_state(&dispute_state_confirm), DisputeStateFlags::CONFIRMED);
-	// TODO: assert_eq!(
-	// 	decrement_spam(spam_slots.as_mut(), &dispute_state_confirm),
-	// 	bitvec![u8, BitOrderLsb0; 1, 1, 1, 0, 0, 0, 0, 0],
-	// );
-	// assert_eq!(spam_slots, original_spam_slots);
-
-	// Test not confirm is decreasing spam
-	// TODO: let mut spam_slots = original_spam_slots.clone();
-	let dispute_state_no_confirm = DisputeState {
-		validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
-		validators_against: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
-		start: 0,
-		concluded_at: None,
-	};
-	assert_eq!(
-		DisputeStateFlags::from_state(&dispute_state_no_confirm),
-		DisputeStateFlags::default()
-	);
-	// TODO: assert_eq!(
-	// 	decrement_spam(spam_slots.as_mut(), &dispute_state_no_confirm),
-	// 	bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
-	// );
-	// TODO: assert_eq!(spam_slots, vec![0, 1, 1, 3, 4, 5, 6, 7]);
-}
-
-#[test]
 fn test_check_signature() {
 	let validator_id = <ValidatorId as CryptoType>::Pair::generate().0;
 	let wrong_validator_id = <ValidatorId as CryptoType>::Pair::generate().0;
