@@ -356,15 +356,28 @@ impl MultiLocation {
 	/// # }
 	/// ```
 	pub fn match_and_split(&self, prefix: &MultiLocation) -> Option<&Junction> {
-		if prefix.len() + 1 != self.len() {
+		if prefix.len() + 1 != self.len() || !self.starts_with(prefix) {
 			return None
 		}
-		for i in 0..prefix.len() {
-			if prefix.at(i) != self.at(i) {
-				return None
-			}
-		}
 		return self.at(prefix.len())
+	}
+
+	/// Returns whether `self` begins with or is equal to `prefix`.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v0::{Junction::*, MultiLocation::*};
+	/// let m = X4(Parent, PalletInstance(3), OnlyChild, OnlyChild);
+	/// assert!(m.starts_with(&X2(Parent, PalletInstance(3))));
+	/// assert!(m.starts_with(&m));
+	/// assert!(!m.starts_with(&X2(Parent, GeneralIndex(99))));
+	/// assert!(!m.starts_with(&X1(PalletInstance(3))));
+	/// ```
+	pub fn starts_with(&self, prefix: &MultiLocation) -> bool {
+		if self.len() < prefix.len() {
+			return false
+		}
+		prefix.iter().zip(self.iter()).all(|(l, r)| l == r)
 	}
 
 	/// Mutates `self`, suffixing it with `new`. Returns `Err` in case of overflow.
@@ -599,6 +612,24 @@ mod tests {
 			Some(&AccountIndex64 { network: Any, index: 23 })
 		);
 		assert_eq!(m.match_and_split(&m), None);
+	}
+
+	#[test]
+	fn starts_with_works() {
+		let full = X3(Parent, Parachain(1000), AccountIndex64 { network: Any, index: 23 });
+		let identity = full.clone();
+		let prefix = X2(Parent, Parachain(1000));
+		let wrong_parachain = X2(Parent, Parachain(1001));
+		let wrong_account = X3(Parent, Parachain(1000), AccountIndex64 { network: Any, index: 24 });
+		let no_parents = X1(Parachain(1000));
+		let too_many_parents = X3(Parent, Parent, Parachain(1000));
+
+		assert!(full.starts_with(&identity));
+		assert!(full.starts_with(&prefix));
+		assert!(!full.starts_with(&wrong_parachain));
+		assert!(!full.starts_with(&wrong_account));
+		assert!(!full.starts_with(&no_parents));
+		assert!(!full.starts_with(&too_many_parents));
 	}
 
 	#[test]
