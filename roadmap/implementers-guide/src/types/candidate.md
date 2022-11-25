@@ -92,6 +92,22 @@ struct CandidateDescriptor {
 }
 ```
 
+## `ValidationParams`
+
+```rust
+/// Validation parameters for evaluating the parachain validity function.
+pub struct ValidationParams {
+	/// Previous head-data.
+	pub parent_head: HeadData,
+	/// The collation body.
+	pub block_data: BlockData,
+	/// The current relay-chain block number.
+	pub relay_parent_number: RelayChainBlockNumber,
+	/// The relay-chain block's storage root.
+	pub relay_parent_storage_root: Hash,
+}
+```
+
 ## `PersistedValidationData`
 
 The validation data provides information about how to create the inputs for validation of a candidate. This information is derived from the chain state and will vary from para to para, although some of the fields may be the same for every para.
