@@ -1259,6 +1259,7 @@ pub type Executive = frame_executive::Executive<
 		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
 		pallet_election_provider_multi_phase::migrations::v1::MigrateToV1<Runtime>,
 		pallet_fast_unstake::migrations::v1::MigrateToV1<Runtime>,
+		init_state_migration::InitMigrate,
 	),
 >;
 /// The payload being signed in transactions.
@@ -1862,5 +1863,42 @@ mod remote_tests {
 			.await
 			.unwrap();
 		ext.execute_with(|| Runtime::on_runtime_upgrade());
+	}
+}
+
+mod init_state_migration {
+	use super::Runtime;
+	use frame_support::traits::OnRuntimeUpgrade;
+	use pallet_state_trie_migration::{AutoLimits, MigrationLimits, MigrationProcess};
+
+	/// Initialize an automatic migration process.
+	pub struct InitMigrate;
+	impl OnRuntimeUpgrade for InitMigrate {
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+			Ok(Default::default())
+		}
+
+		fn on_runtime_upgrade() -> frame_support::weights::Weight {
+			if MigrationProcess::<Runtime>::get() == Default::default() &&
+				AutoLimits::<Runtime>::get().is_none()
+			{
+				AutoLimits::<Runtime>::put(Some(MigrationLimits { item: 160, size: 204800 }));
+				log::info!("Automatic trie migration started.");
+				<Runtime as frame_system::Config>::DbWeight::get().reads_writes(2, 1)
+			} else {
+				log::info!("Automatic trie migration not started.");
+				<Runtime as frame_system::Config>::DbWeight::get().reads(2)
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+			frame_support::ensure!(
+				AutoLimits::<Runtime>::get().is_some(),
+				"Automigration started."
+			);
+			Ok(())
+		}
 	}
 }
