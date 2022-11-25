@@ -62,7 +62,8 @@ impl ArtifactId {
 		let file_name = file_name.strip_prefix(Self::PREFIX)?;
 		let (code_hash_str, executor_params_hash_str) = file_name.split_once('_')?;
 		let code_hash = Hash::from_str(code_hash_str).ok()?.into();
-		let executor_params_hash = Hash::from_str(executor_params_hash_str).ok()?.into();
+		let executor_params_hash =
+			ExecutorParamsHash::from_hash(Hash::from_str(executor_params_hash_str).ok()?);
 
 		Some(Self { code_hash, executor_params_hash })
 	}
@@ -212,6 +213,7 @@ impl Artifacts {
 mod tests {
 	use super::{ArtifactId, Artifacts};
 	use async_std::path::Path;
+	use polkadot_primitives::vstaging::ExecutorParamsHash;
 	use sp_core::H256;
 	use std::str::FromStr;
 
@@ -229,10 +231,9 @@ mod tests {
 					"0022800000000000000000000000000000000000000000000000000000000000"
 				]
 				.into(),
-				hex_literal::hex![
+				ExecutorParamsHash::from_hash(sp_core::H256(hex_literal::hex![
 					"0033900000000000000000000000000000000000000000000000000000000000"
-				]
-				.into(),
+				])),
 			)),
 		);
 	}
@@ -245,7 +246,7 @@ mod tests {
 				.unwrap();
 
 		assert_eq!(
-			ArtifactId::new(hash.into(), hash.into()).path(path).to_str(),
+			ArtifactId::new(hash.into(), ExecutorParamsHash::from_hash(hash)).path(path).to_str(),
 			Some(
 				"/test/wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234_0x1234567890123456789012345678901234567890123456789012345678901234"
 			),

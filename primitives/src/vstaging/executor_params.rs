@@ -49,6 +49,13 @@ pub const EXEC_ENV_TYPE_WASMTIME_GENERIC: u32 = 0;
 #[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, PartialOrd, Ord, TypeInfo)]
 pub struct ExecutorParamsHash(Hash);
 
+impl ExecutorParamsHash {
+	/// Create a new executor parameter hash from `H256` hash
+	pub fn from_hash(hash: Hash) -> Self {
+		Self(hash)
+	}
+}
+
 impl sp_std::fmt::Display for ExecutorParamsHash {
 	fn fmt(&self, f: &mut sp_std::fmt::Formatter<'_>) -> sp_std::fmt::Result {
 		self.0.fmt(f)
