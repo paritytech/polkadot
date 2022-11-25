@@ -75,6 +75,11 @@ test-deterministic-wasm:
 
 cargo-clippy:
   stage:                           test
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job:                         job-starter
+      artifacts:                   false
   variables:
     RUSTY_CACHIER_TOOLCHAIN: nightly
   extends:
