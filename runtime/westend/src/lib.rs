@@ -1870,6 +1870,7 @@ mod init_state_migration {
 	use super::Runtime;
 	use frame_support::traits::OnRuntimeUpgrade;
 	use pallet_state_trie_migration::{AutoLimits, MigrationLimits, MigrationProcess};
+	#[cfg(feature = "no_std")]
 	use sp_std::prelude::*;
 
 	/// Initialize an automatic migration process.
