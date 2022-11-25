@@ -218,7 +218,7 @@ pub async fn cpu_time_monitor_loop(
 
 		// Treat the timeout as CPU time, which is less subject to variance due to load.
 		if cpu_time_elapsed > timeout {
-			let result = lock.compare_exchange(false, true, Ordering::SeqCst, Ordering::SeqCst);
+			let result = lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
 			if result.is_err() {
 				// Hit the job-completed case first, return from this thread.
 				return
