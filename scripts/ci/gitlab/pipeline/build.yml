@@ -136,8 +136,6 @@ build-rustdoc:
   needs:
     - job:                         test-deterministic-wasm
       artifacts:                   false
-    - job:                         cargo-clippy
-      artifacts:                   false
   extends:
     - .docker-env
     - .test-refs
