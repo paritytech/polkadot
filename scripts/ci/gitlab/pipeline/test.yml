@@ -26,10 +26,6 @@ test-linux-stable:
 
 .check-dependent-project:          &check-dependent-project
   stage:                           test
-  needs:
-    - job:                         cargo-clippy
-      artifacts:                   false
-
   extends:
     - .docker-env
     - .test-pr-refs
