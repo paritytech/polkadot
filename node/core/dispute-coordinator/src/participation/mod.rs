@@ -329,7 +329,7 @@ async fn participate(
 	{
 		executor_params
 	} else {
-		send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
+		send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
 		return
 	};
 

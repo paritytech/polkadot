@@ -651,7 +651,7 @@ async fn request_candidate_validation(
 			.await
 			.map_err(|_| {
 				Error::ValidationFailed(polkadot_node_subsystem::messages::ValidationFailed(
-					"execution environment parameter set is not stored".to_string(),
+					"cannot acquire execution parameter set for the candidate".to_owned(),
 				))
 			})?;
 
