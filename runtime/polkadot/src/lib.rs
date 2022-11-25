@@ -1482,15 +1482,25 @@ impl pallet_state_trie_migration::Config for Runtime {
 	type SignedDepositBase = MigrationSignedDepositBase;
 	type ControlOrigin = EnsureRoot<AccountId>;
 	// specific account for the migration, can trigger the signed migrations.
-	type SignedFilter = frame_system::EnsureSignedBy<MigController, AccountId>;
+	type SignedFilter = Disable<Runtime>;
 
 	// Use same weights as substrate ones.
 	type WeightInfo = pallet_state_trie_migration::weights::SubstrateWeight<Runtime>;
 	type MaxKeyLen = MigrationMaxKeyLen;
 }
 
-frame_support::ord_parameter_types! {
-	pub const MigController: AccountId = AccountId::from(hex_literal::hex!("8888888888888888888888888888888888888888888888888888888888888888"));
+pub struct Disable<T>(sp_std::marker::PhantomData<T>);
+impl<T: frame_system::Config> frame_support::traits::EnsureOrigin<T::RuntimeOrigin> for Disable<T> {
+	type Success = T::AccountId;
+	fn try_origin(o: T::RuntimeOrigin) -> Result<Self::Success, T::RuntimeOrigin> {
+		Err(o)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn try_successful_origin() -> Result<T::RuntimeOrigin, ()> {
+		// Not correct but this should only cost more.
+		Ok(T::RuntimeOrigin::root())
+	}
 }
 
 construct_runtime! {
@@ -1591,7 +1601,7 @@ construct_runtime! {
 
 		// State trie migration pallet, only temporary.
 		StateTrieMigration: pallet_state_trie_migration = 98,
-	
+
 		// Pallet for sending XCM.
 		XcmPallet: pallet_xcm::{Pallet, Call, Storage, Event<T>, Origin, Config} = 99,
 	}
