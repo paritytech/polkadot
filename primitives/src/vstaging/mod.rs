@@ -47,41 +47,6 @@ pub struct AsyncBackingParameters {
 	pub allowed_ancestry_len: u32,
 }
 
-/// Abridged version of `HostConfiguration` (from the `Configuration` parachains host runtime module)
-/// meant to be used by a parachain or PDK such as cumulus.
-#[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
-pub struct AbridgedHostConfiguration {
-	/// Asynchronous backing parameters.
-	pub async_backing_params: AsyncBackingParameters,
-	/// The maximum validation code size, in bytes.
-	pub max_code_size: u32,
-	/// The maximum head-data size, in bytes.
-	pub max_head_data_size: u32,
-	/// Total number of individual messages allowed in the parachain -> relay-chain message queue.
-	pub max_upward_queue_count: u32,
-	/// Total size of messages allowed in the parachain -> relay-chain message queue before which
-	/// no further messages may be added to it. If it exceeds this then the queue may contain only
-	/// a single message.
-	pub max_upward_queue_size: u32,
-	/// The maximum size of an upward message that can be sent by a candidate.
-	///
-	/// This parameter affects the size upper bound of the `CandidateCommitments`.
-	pub max_upward_message_size: u32,
-	/// The maximum number of messages that a candidate can contain.
-	///
-	/// This parameter affects the size upper bound of the `CandidateCommitments`.
-	pub max_upward_message_num_per_candidate: u32,
-	/// The maximum number of outbound HRMP messages can be sent by a candidate.
-	///
-	/// This parameter affects the upper bound of size of `CandidateCommitments`.
-	pub hrmp_max_message_num_per_candidate: u32,
-	/// The minimum period, in blocks, between which parachains can update their validation code.
-	pub validation_upgrade_cooldown: BlockNumber,
-	/// The delay, in blocks, before a validation upgrade is applied.
-	pub validation_upgrade_delay: BlockNumber,
-}
-
 /// Constraints on inbound HRMP channels.
 #[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]

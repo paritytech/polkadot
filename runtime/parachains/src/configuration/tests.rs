@@ -543,7 +543,7 @@ fn verify_externally_accessible() {
 	// This test verifies that the value can be accessed through the well known keys and the
 	// host configuration decodes into the abridged version.
 
-	use primitives::{v2::well_known_keys, vstaging::AbridgedHostConfiguration};
+	use primitives::v2::{well_known_keys, AbridgedHostConfiguration};
 
 	new_test_ext(Default::default()).execute_with(|| {
 		let ground_truth = HostConfiguration::default();
@@ -560,10 +560,6 @@ fn verify_externally_accessible() {
 		assert_eq!(
 			abridged_config,
 			AbridgedHostConfiguration {
-				async_backing_params: AsyncBackingParameters {
-					max_candidate_depth: 0,
-					allowed_ancestry_len: 0,
-				},
 				max_code_size: ground_truth.max_code_size,
 				max_head_data_size: ground_truth.max_head_data_size,
 				max_upward_queue_count: ground_truth.max_upward_queue_count,

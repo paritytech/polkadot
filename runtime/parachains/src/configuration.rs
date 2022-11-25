@@ -55,8 +55,6 @@ pub struct HostConfiguration<BlockNumber> {
 	 * The parameters that are required for the parachains.
 	 */
 
-	/// Asynchronous backing parameters.
-	pub async_backing_params: AsyncBackingParameters,
 	/// The maximum validation code size, in bytes.
 	pub max_code_size: u32,
 	/// The maximum head-data size, in bytes.
@@ -122,6 +120,8 @@ pub struct HostConfiguration<BlockNumber> {
 	 * The parameters that are not essential, but still may be of interest for parachains.
 	 */
 
+	/// Asynchronous backing parameters.
+	pub async_backing_params: AsyncBackingParameters,
 	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
