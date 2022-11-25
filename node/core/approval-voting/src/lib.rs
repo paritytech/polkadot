@@ -202,7 +202,10 @@ impl Metrics {
 
 	fn on_approval_no_executor_params(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics.approvals_produced_total.with_label_values(&["no executor params"]).inc()
+			metrics
+				.approvals_produced_total
+				.with_label_values(&["no executor params"])
+				.inc()
 		}
 	}
 
