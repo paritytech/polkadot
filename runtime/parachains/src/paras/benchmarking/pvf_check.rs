@@ -32,6 +32,13 @@ fn old_validation_code() -> ValidationCode {
 	ValidationCode(vec![1])
 }
 
+/// Enables pvf-checking in the configuration pallet.
+pub fn enable_pvf_checking<T: Config>() {
+	let mut config = configuration::Pallet::<T>::config();
+	config.pvf_checking_enabled = true;
+	configuration::Pallet::<T>::force_set_active_config(config);
+}
+
 /// Prepares the PVF check statement and the validator signature to pass into
 /// `include_pvf_check_statement` during benchmarking phase.
 ///
@@ -109,9 +116,7 @@ where
 		.collect::<Vec<_>>();
 
 	// 1. Make sure PVF pre-checking is enabled in the config.
-	let mut config = configuration::Pallet::<T>::config();
-	config.pvf_checking_enabled = true;
-	configuration::Pallet::<T>::force_set_active_config(config.clone());
+	enable_pvf_checking::<T>();
 
 	// 2. initialize a new session with deterministic validator set.
 	ParasShared::<T>::set_active_validators_ascending(validators.clone());
@@ -122,7 +127,7 @@ where
 ///
 /// The subject of the vote (i.e. validation code) and the cause (upgrade/onboarding) is specified
 /// by the test setup.
-fn initialize_pvf_active_vote<T>(vote_cause: VoteCause)
+pub fn initialize_pvf_active_vote<T>(vote_cause: VoteCause)
 where
 	T: Config + shared::Config,
 {

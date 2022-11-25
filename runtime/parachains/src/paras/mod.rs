@@ -467,9 +467,12 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 pub trait WeightInfo {
 	fn force_set_current_code(c: u32) -> Weight;
 	fn force_set_current_head(s: u32) -> Weight;
-	fn force_schedule_code_upgrade(c: u32) -> Weight;
 	fn force_note_new_head(s: u32) -> Weight;
 	fn force_queue_action() -> Weight;
+
+	fn force_schedule_code_upgrade(c: u32) -> Weight;
+	fn force_schedule_code_upgrade_pvf_checking_enabled(c: u32) -> Weight;
+
 	fn add_trusted_validation_code(c: u32) -> Weight;
 	fn poke_unused_validation_code() -> Weight;
 
@@ -489,6 +492,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn force_schedule_code_upgrade(_c: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_schedule_code_upgrade_pvf_checking_enabled(_c: u32) -> Weight {
 		Weight::MAX
 	}
 	fn force_note_new_head(_s: u32) -> Weight {
@@ -827,18 +833,33 @@ pub mod pallet {
 		}
 
 		/// Schedule an upgrade as if it was scheduled in the given relay parent block.
-		#[pallet::weight(<T as Config>::WeightInfo::force_schedule_code_upgrade(new_code.0.len() as u32))]
+		#[pallet::weight(
+			<T as Config>::WeightInfo::force_schedule_code_upgrade(new_code.0.len() as u32).max(
+				<T as Config>::WeightInfo::force_schedule_code_upgrade_pvf_checking_enabled(
+					new_code.0.len() as u32
+				)
+			)
+		)]
 		pub fn force_schedule_code_upgrade(
 			origin: OriginFor<T>,
 			para: ParaId,
 			new_code: ValidationCode,
 			relay_parent_number: T::BlockNumber,
-		) -> DispatchResult {
+		) -> DispatchResultWithPostInfo {
 			ensure_root(origin)?;
 			let config = configuration::Pallet::<T>::config();
+			let new_code_len = new_code.0.len() as u32;
 			Self::schedule_code_upgrade(para, new_code, relay_parent_number, &config);
 			Self::deposit_event(Event::CodeUpgradeScheduled(para));
-			Ok(())
+
+			let actual_weight = if config.pvf_checking_enabled {
+				<T as Config>::WeightInfo::force_schedule_code_upgrade_pvf_checking_enabled(
+					new_code_len,
+				)
+			} else {
+				<T as Config>::WeightInfo::force_schedule_code_upgrade(new_code_len)
+			};
+			Ok(Some(actual_weight).into())
 		}
 
 		/// Note a new block head for para within the context of the current block.

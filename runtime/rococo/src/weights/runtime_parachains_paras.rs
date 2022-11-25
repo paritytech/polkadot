@@ -182,4 +182,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 			.saturating_add(T::DbWeight::get().reads(6 as u64))
 			.saturating_add(T::DbWeight::get().writes(304 as u64))
 	}
+	fn force_schedule_code_upgrade_pvf_checking_enabled(_c: u32) -> Weight {
+		Weight::MAX
+	}
 }

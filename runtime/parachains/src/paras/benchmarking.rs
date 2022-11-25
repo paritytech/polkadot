@@ -23,7 +23,7 @@ use sp_runtime::traits::{One, Saturating};
 
 mod pvf_check;
 
-use self::pvf_check::{VoteCause, VoteOutcome};
+use self::pvf_check::{enable_pvf_checking, VoteCause, VoteOutcome};
 
 // 2 ^ 10, because binary search time complexity is O(log(2, n)) and n = 1024 gives us a big and
 // round number.
@@ -104,6 +104,18 @@ benchmarks! {
 		let new_code = ValidationCode(vec![0; c as usize]);
 		let para_id = ParaId::from(c as u32);
 		let block = T::BlockNumber::from(c);
+		generate_disordered_upgrades::<T>();
+	}: _(RawOrigin::Root, para_id, new_code, block)
+	verify {
+		assert_last_event::<T>(Event::CodeUpgradeScheduled(para_id).into());
+	}
+	force_schedule_code_upgrade_pvf_checking_enabled {
+		let c in 1 .. MAX_CODE_SIZE;
+		let new_code = ValidationCode(vec![0; c as usize]);
+		let para_id = ParaId::from(c as u32);
+		let block = T::BlockNumber::from(c);
+
+		enable_pvf_checking::<T>();
 		generate_disordered_upgrades::<T>();
 	}: _(RawOrigin::Root, para_id, new_code, block)
 	verify {
