@@ -987,7 +987,6 @@ impl<T: Config> Pallet<T> {
 						summary.new_participants.get(v_i.0 as usize).map(|b| *b.as_ref())
 					{
 						match statement {
-							// `summary.new_flags` contains the spam free votes.
 							// Note that this does not distinguish between pro or con votes,
 							// since allowing both of them.
 							// Overflow of the counters is no concern, disputes are limited by weight.
