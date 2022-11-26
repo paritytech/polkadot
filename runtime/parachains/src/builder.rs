@@ -616,7 +616,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						let dispute_statement = if validator_index % 4 == 0 {
 							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
 						} else if validator_index < 3 {
-							// Set two votes as backing for the dispute set to be accepted
+							// Pass a couple of backing votes in this dispute set
 							DisputeStatement::Valid(
 								ValidDisputeStatementKind::BackingValid(relay_parent)
 							)
