@@ -85,7 +85,7 @@ fn transact_recursion_limit_works() {
 		pallet_xcm::Call::execute { message: Box::new(VersionedXcm::from(msg)), max_weight },
 	);
 
-	for _ in 0..10 {
+	for _ in 0..11 {
 		let mut msg = Xcm(vec![
 			WithdrawAsset((Parent, 1_000_000_000).into()),
 			BuyExecution { fees: (Parent, 1_000_000_000).into(), weight_limit: Unlimited },
@@ -119,7 +119,6 @@ fn transact_recursion_limit_works() {
 		.expect("imports the block");
 
 	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
-		panic!("{:?}", polkadot_test_runtime::System::events());
 		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
 			r.event,
 			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted(
