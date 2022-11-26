@@ -368,11 +368,27 @@ pub fn benchmark_inherent_data(
 		parent_header: header,
 	};
 
+	struct BenchmarkProvider(polkadot_primitives::v2::InherentData);
+	#[async_trait::async_trait]
+	impl sp_inherents::InherentDataProvider for BenchmarkProvider {
+		async fn provide_inherent_data(
+			&self,
+			dst_inherent_data: &mut sp_inherents::InherentData,
+		) -> Result<(), sp_inherents::Error> {
+			dst_inherent_data.put_data(*b"BENCH_PR", &self.0)
+		}
+
+		async fn try_handle_error(
+			&self,
+			_identifier: &sp_inherents::InherentIdentifier,
+			_error: &[u8],
+		) -> Option<Result<(), sp_inherents::Error>> {
+			None
+		}
+	}
+
 	futures::executor::block_on(
-		polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::from_data(
-			para_data,
-		)
-		.provide_inherent_data(&mut inherent_data),
+		BenchmarkProvider(para_data).provide_inherent_data(&mut inherent_data),
 	)?;
 
 	Ok(inherent_data)

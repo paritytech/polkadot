@@ -1153,7 +1153,7 @@ where
 
 				async move {
 					let parachain =
-						polkadot_node_core_parachains_inherent::InherentDataProvider::new(
+						polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::new(
 							client_clone,
 							overseer_handle,
 							parent,

@@ -6034,6 +6034,7 @@ dependencies = [
 name = "polkadot-client"
 version = "0.9.31"
 dependencies = [
+ "async-trait",
  "beefy-primitives",
  "frame-benchmarking",
  "frame-benchmarking-cli",
