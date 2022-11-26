@@ -33,7 +33,7 @@ use sp_core::{crypto::CryptoType, Pair};
 
 const VOTE_FOR: VoteKind = VoteKind::ExplicitValid;
 const VOTE_AGAINST: VoteKind = VoteKind::Invalid;
-// const VOTE_BACKING: VoteKind = VoteKind::Backing;
+const VOTE_BACKING: VoteKind = VoteKind::Backing;
 
 /// Filtering updates the spam slots, as such update them.
 fn update_spam_slots(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeStatementSet {
@@ -297,6 +297,48 @@ fn test_import_slash_against() {
 	assert_eq!(summary.slash_against, vec![ValidatorIndex(1), ValidatorIndex(5)]);
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 0, 1, 1, 1, 1, 1]);
 	assert_eq!(summary.new_flags, DisputeStateFlags::FOR_SUPERMAJORITY);
+}
+
+#[test]
+fn test_import_backing_votes() {
+	let mut importer = DisputeStateImporter::new(
+		DisputeState {
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
+			validators_against: bitvec![u8, BitOrderLsb0; 0, 1, 0, 0, 0, 0, 0, 0],
+			start: 0,
+			concluded_at: None,
+		},
+		BTreeSet::from_iter([ValidatorIndex(0)]),
+		0,
+	);
+
+	assert_ok!(importer.import(ValidatorIndex(3), VOTE_FOR));
+	assert_ok!(importer.import(ValidatorIndex(3), VOTE_BACKING));
+	assert_ok!(importer.import(ValidatorIndex(3), VOTE_AGAINST));
+	assert_ok!(importer.import(ValidatorIndex(6), VOTE_FOR));
+	assert_ok!(importer.import(ValidatorIndex(7), VOTE_BACKING));
+	// Don't import backing vote twice
+	assert_err!(
+		importer.import(ValidatorIndex(0), VOTE_BACKING),
+		VoteImportError::DuplicateStatement,
+	);
+	// Don't import explicit votes after backing
+	assert_err!(importer.import(ValidatorIndex(7), VOTE_FOR), VoteImportError::MaliciousBacker,);
+
+	let summary = importer.finish();
+	assert_eq!(
+		summary.state,
+		DisputeState {
+			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 1, 1, 0, 0, 1, 1],
+			validators_against: bitvec![u8, BitOrderLsb0; 0, 1, 0, 1, 0, 0, 0, 0],
+			start: 0,
+			concluded_at: None,
+		},
+	);
+	assert_eq!(
+		summary.backers,
+		BTreeSet::from_iter([ValidatorIndex(0), ValidatorIndex(3), ValidatorIndex(7),]),
+	);
 }
 
 fn generate_dispute_statement_set_entry(

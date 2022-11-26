@@ -537,6 +537,8 @@ pub mod pallet {
 		PotentialSpam,
 		/// A dispute where there are only votes on one side.
 		SingleSidedDispute,
+		/// A dispute vote from a malicious backer.
+		MaliciousBacker,
 	}
 
 	#[pallet::call]
@@ -620,6 +622,10 @@ enum VoteImportError {
 	ValidatorIndexOutOfBounds,
 	/// Found a duplicate statement in the dispute statement set.
 	DuplicateStatement,
+	/// Found an explicit valid statement after backing statement.
+	/// Backers should not participate in explicit voting so this is
+	/// only possible on malicious backers.
+	MaliciousBacker,
 }
 
 #[derive(RuntimeDebug, Copy, Clone, PartialEq, Eq)]
@@ -665,6 +671,7 @@ impl<T: Config> From<VoteImportError> for Error<T> {
 		match e {
 			VoteImportError::ValidatorIndexOutOfBounds => Error::<T>::ValidatorIndexOutOfBounds,
 			VoteImportError::DuplicateStatement => Error::<T>::DuplicateStatement,
+			VoteImportError::MaliciousBacker => Error::<T>::MaliciousBacker,
 		}
 	}
 }
@@ -722,8 +729,11 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 			Some(true) => {
 				// We allow backing statements to be imported after an
 				// explicit "for" vote, but not the other way around.
-				if !kind.is_backing() || self.backers.contains(&validator) {
-					return Err(VoteImportError::DuplicateStatement)
+				match (kind.is_backing(), self.backers.contains(&validator)) {
+					(true, true) | (false, false) =>
+						return Err(VoteImportError::DuplicateStatement),
+					(false, true) => return Err(VoteImportError::MaliciousBacker),
+					(true, false) => {},
 				}
 			},
 			Some(false) => {},
