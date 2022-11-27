@@ -8871,6 +8871,7 @@ name = "sc-network-sync"
 version = "0.10.0-dev"
 dependencies = [
  "array-bytes",
+ "async-trait",
  "fork-tree",
  "futures",
  "libp2p",
@@ -10037,6 +10038,7 @@ name = "sp-io"
 version = "7.0.0"
 dependencies = [
  "bytes",
+ "ed25519-dalek",
  "futures",
  "hash-db",
  "libsecp256k1",
