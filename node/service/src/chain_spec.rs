@@ -770,6 +770,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		nis_counterpart_balances: Default::default(),
 	}
 }
 
@@ -1076,6 +1077,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
+		nis_counterpart_balances: Default::default(),
 	}
 }
 
@@ -1467,6 +1469,7 @@ pub fn kusama_testnet_genesis(
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		nis_counterpart_balances: Default::default(),
 	}
 }
 
@@ -1631,6 +1634,7 @@ pub fn rococo_testnet_genesis(
 			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
+		nis_counterpart_balances: Default::default(),
 	}
 }
 
