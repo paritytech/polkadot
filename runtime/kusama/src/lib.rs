@@ -54,7 +54,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		ConstU32, Contains, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem,
-		LockIdentifier, PrivilegeCmp, WithdrawReasons, StorageMapShim,
+		LockIdentifier, PrivilegeCmp, StorageMapShim, WithdrawReasons,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -64,7 +64,7 @@ use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
-use sp_core::{OpaqueMetadata, ConstU128};
+use sp_core::{ConstU128, OpaqueMetadata};
 use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -1242,7 +1242,7 @@ impl pallet_balances::Config<NisCounterpartInstance> for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
 	type RuntimeEvent = RuntimeEvent;
-	type ExistentialDeposit = ConstU128<10_000_000_000>;	// One KTC cent
+	type ExistentialDeposit = ConstU128<10_000_000_000>; // One KTC cent
 	type AccountStore = StorageMapShim<
 		pallet_balances::Account<Runtime, NisCounterpartInstance>,
 		frame_system::Provider<Runtime>,
@@ -1275,13 +1275,13 @@ impl pallet_nis::Config for Runtime {
 	type FundOrigin = frame_system::EnsureSigned<AccountId>;
 	type Counterpart = NisCounterpartBalances;
 	type CounterpartAmount = WithMaximumOf<ConstU128<21_000_000_000_000_000_000u128>>;
-	type Deficit = ();	// Mint
+	type Deficit = (); // Mint
 	type IgnoredIssuance = IgnoredIssuance;
 	type Target = NisTarget;
 	type PalletId = NisPalletId;
 	type QueueCount = ConstU32<300>;
 	type MaxQueueLen = ConstU32<1000>;
-	type FifoQueueLen =  ConstU32<250>;
+	type FifoQueueLen = ConstU32<250>;
 	type BasePeriod = NisBasePeriod;
 	type MinBid = MinBid;
 	type MinReceipt = MinReceipt;
