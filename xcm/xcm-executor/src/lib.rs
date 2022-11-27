@@ -22,8 +22,9 @@ use frame_support::{
 	traits::{Contains, ContainsPair, Get, PalletsInfoAccess},
 };
 use parity_scale_codec::{Decode, Encode};
+use sp_core::defer;
 use sp_io::hashing::blake2_128;
-use sp_std::{cell::Cell, marker::PhantomData, prelude::*};
+use sp_std::{marker::PhantomData, prelude::*};
 use sp_weights::Weight;
 use xcm::latest::prelude::*;
 
@@ -46,9 +47,7 @@ pub struct FeesMode {
 
 const RECURSION_LIMIT: u8 = 10;
 
-environmental::thread_local_impl! {
-	static RECURSION_COUNT: Cell<u8> = Cell::new(0)
-}
+environmental::environmental!(recursion_count: u8);
 
 /// The XCM executor.
 pub struct XcmExecutor<Config: config::Config> {
@@ -517,13 +516,27 @@ impl<Config: config::Config> XcmExecutor<Config> {
 			},
 			Transact { origin_kind, require_weight_at_most, mut call } => {
 				// Check whether we've exhausted the recursion limit
-				RECURSION_COUNT.with(|count| {
-					if count.get() > RECURSION_LIMIT {
-						return Err(XcmError::ExceedsStackLimit)
-					}
-					count.set(count.get().saturating_add(1));
-					Ok(())
+				recursion_count::using(&mut 0, || {
+					recursion_count::with(|count| {
+						if *count > RECURSION_LIMIT {
+							return Err(XcmError::ExceedsStackLimit)
+						}
+						*count = count.saturating_add(1);
+						Ok(())
+					})
+					.expect("`with` is being used within a `using` block; qed")
 				})?;
+
+				// Ensure that we always decrement the counter whenever we finish executing
+				// `Transact`
+				defer! {
+					recursion_count::using(&mut 0, || {
+						recursion_count::with(|count| {
+							*count = count.saturating_sub(1);
+						})
+						.expect("`with` is being used within a `using` block; qed");
+					});
+				}
 
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?.clone();
@@ -556,7 +569,6 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				// weight consumed correctly (potentially allowing them to do more operations in a
 				// block than they otherwise would).
 				self.total_surplus.saturating_accrue(surplus);
-				RECURSION_COUNT.with(|count| count.set(count.get().saturating_sub(1)));
 				Ok(())
 			},
 			QueryResponse { query_id, response, max_weight, querier } => {

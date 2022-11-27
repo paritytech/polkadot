@@ -85,7 +85,7 @@ fn transact_recursion_limit_works() {
 		pallet_xcm::Call::execute { message: Box::new(VersionedXcm::from(msg)), max_weight },
 	);
 
-	for _ in 0..11 {
+	for _ in 0..10 {
 		let mut msg = Xcm(vec![
 			WithdrawAsset((Parent, 1_000_000_000).into()),
 			BuyExecution { fees: (Parent, 1_000_000_000).into(), weight_limit: Unlimited },
