@@ -578,7 +578,6 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 
 		runtime_common::impls::era_payout(
 			total_staked,
-			// Polkadot has no notion of gilts, the entire issuance is non-guilt.
 			total_issuance,
 			MAX_ANNUAL_INFLATION,
 			Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR),
