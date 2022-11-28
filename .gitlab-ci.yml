@@ -199,7 +199,7 @@ default:
 build-implementers-guide:
   stage:                           build
   extends:
-    - .docker-env
+    - .kubernetes-env
     - .test-refs
     - .collect-artifacts-short
   # git depth is set on purpose: https://github.com/paritytech/polkadot/issues/6284
