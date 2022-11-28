@@ -709,7 +709,7 @@ impl Initialized {
 	) -> Result<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
 		if !self.rolling_session_window.contains(session) {
-			// It is not valid to participate in an ancient dispute (spam?).
+			// It is not valid to participate in an ancient dispute (spam?) or too new.
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
