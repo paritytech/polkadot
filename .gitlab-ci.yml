@@ -190,7 +190,7 @@ include:
 
 #### stage:                        .post
 
-.deploy-parity-testnet:
+deploy-parity-testnet:
   stage:                           .post
   extends:
     - .deploy-testnet-refs
