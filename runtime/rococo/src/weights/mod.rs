@@ -17,6 +17,7 @@
 
 pub mod frame_system;
 pub mod pallet_balances;
+pub mod pallet_balances_nis_counterpart_balances;
 pub mod pallet_bounties;
 pub mod pallet_child_bounties;
 pub mod pallet_collective_council;
