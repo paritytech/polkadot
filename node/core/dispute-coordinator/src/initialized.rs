@@ -27,7 +27,7 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
-	SignedDisputeStatement, Timestamp, DISPUTE_WINDOW,
+	SignedDisputeStatement, Timestamp,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -299,7 +299,7 @@ impl Initialized {
 
 						self.highest_session = session;
 
-						db::v1::note_current_session(overlay_db, session)?;
+						db::v1::note_earliest_session(overlay_db, new_window_start)?;
 						self.spam_slots.prune_old(new_window_start);
 					}
 				},
@@ -617,7 +617,9 @@ impl Initialized {
 
 				let _ = tx.send(
 					get_active_with_status(recent_disputes.into_iter(), now)
-						.map(|(k, _)| k)
+						.map(|((session_idx, candidate_hash), dispute_status)| {
+							(session_idx, candidate_hash, dispute_status)
+						})
 						.collect(),
 				);
 			},
@@ -706,8 +708,8 @@ impl Initialized {
 		now: Timestamp,
 	) -> Result<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
-		if session + DISPUTE_WINDOW.get() < self.highest_session {
-			// It is not valid to participate in an ancient dispute (spam?).
+		if !self.rolling_session_window.contains(session) {
+			// It is not valid to participate in an ancient dispute (spam?) or too new.
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
@@ -748,7 +750,7 @@ impl Initialized {
 			.load_candidate_votes(session, &candidate_hash)?
 			.map(CandidateVotes::from)
 		{
-			Some(votes) => CandidateVoteState::new(votes, &env),
+			Some(votes) => CandidateVoteState::new(votes, &env, now),
 			None =>
 				if let MaybeCandidateReceipt::Provides(candidate_receipt) = candidate_receipt {
 					CandidateVoteState::new_from_receipt(candidate_receipt)
@@ -766,7 +768,7 @@ impl Initialized {
 		gum::trace!(target: LOG_TARGET, ?candidate_hash, ?session, "Loaded votes");
 
 		let import_result = {
-			let intermediate_result = old_state.import_statements(&env, statements);
+			let intermediate_result = old_state.import_statements(&env, statements, now);
 
 			// Handle approval vote import:
 			//
@@ -803,7 +805,7 @@ impl Initialized {
 						);
 						intermediate_result
 					},
-					Ok(votes) => intermediate_result.import_approval_votes(&env, votes),
+					Ok(votes) => intermediate_result.import_approval_votes(&env, votes, now),
 				}
 			} else {
 				gum::trace!(
@@ -977,43 +979,34 @@ impl Initialized {
 		}
 
 		// All good, update recent disputes if state has changed:
-		if import_result.dispute_state_changed() {
-			let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
+		if let Some(new_status) = new_state.dispute_status() {
+			// Only bother with db access, if there was an actual change.
+			if import_result.dispute_state_changed() {
+				let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
 
-			let status = recent_disputes.entry((session, candidate_hash)).or_insert_with(|| {
-				gum::info!(
+				let status =
+					recent_disputes.entry((session, candidate_hash)).or_insert_with(|| {
+						gum::info!(
+							target: LOG_TARGET,
+							?candidate_hash,
+							session,
+							"New dispute initiated for candidate.",
+						);
+						DisputeStatus::active()
+					});
+
+				*status = *new_status;
+
+				gum::trace!(
 					target: LOG_TARGET,
 					?candidate_hash,
-					session,
-					"New dispute initiated for candidate.",
+					?status,
+					has_concluded_for = ?new_state.has_concluded_for(),
+					has_concluded_against = ?new_state.has_concluded_against(),
+					"Writing recent disputes with updates for candidate"
 				);
-				DisputeStatus::active()
-			});
-
-			if new_state.is_confirmed() {
-				*status = status.confirm();
+				overlay_db.write_recent_disputes(recent_disputes);
 			}
-
-			// Note: concluded-invalid overwrites concluded-valid,
-			// so we do this check first. Dispute state machine is
-			// non-commutative.
-			if new_state.is_concluded_valid() {
-				*status = status.concluded_for(now);
-			}
-
-			if new_state.is_concluded_invalid() {
-				*status = status.concluded_against(now);
-			}
-
-			gum::trace!(
-				target: LOG_TARGET,
-				?candidate_hash,
-				?status,
-				is_concluded_valid = ?new_state.is_concluded_valid(),
-				is_concluded_invalid = ?new_state.is_concluded_invalid(),
-				"Writing recent disputes with updates for candidate"
-			);
-			overlay_db.write_recent_disputes(recent_disputes);
 		}
 
 		// Update metrics:
@@ -1036,7 +1029,7 @@ impl Initialized {
 		);
 
 		self.metrics.on_approval_votes(import_result.imported_approval_votes());
-		if import_result.is_freshly_concluded_valid() {
+		if import_result.is_freshly_concluded_for() {
 			gum::info!(
 				target: LOG_TARGET,
 				?candidate_hash,
@@ -1045,7 +1038,7 @@ impl Initialized {
 			);
 			self.metrics.on_concluded_valid();
 		}
-		if import_result.is_freshly_concluded_invalid() {
+		if import_result.is_freshly_concluded_against() {
 			gum::info!(
 				target: LOG_TARGET,
 				?candidate_hash,

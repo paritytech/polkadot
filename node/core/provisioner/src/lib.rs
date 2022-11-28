@@ -188,9 +188,8 @@ async fn handle_active_leaves_update(
 		per_relay_parent.remove(deactivated);
 	}
 
-	for leaf in update.activated {
+	if let Some(leaf) = update.activated {
 		let prospective_parachains_mode = prospective_parachains_mode(sender, leaf.hash).await?;
-
 		let delay_fut = Delay::new(PRE_PROPOSE_TIMEOUT).map(move |_| leaf.hash).boxed();
 		per_relay_parent.insert(leaf.hash, PerRelayParent::new(leaf, prospective_parachains_mode));
 		inherent_delays.push(delay_fut);
