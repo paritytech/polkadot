@@ -10181,6 +10181,7 @@ version = "7.0.0"
 source = "git+https://github.com/paritytech/substrate?branch=master#d833e152475372a433ba63102a7c6c5a91dbafde"
 dependencies = [
  "bytes",
+ "ed25519-dalek",
  "futures",
  "hash-db",
  "libsecp256k1",
