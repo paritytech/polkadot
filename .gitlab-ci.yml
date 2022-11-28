@@ -181,7 +181,7 @@ default:
 
 include:
   # weights jobs
-  - scripts/ci/gitlab/pipeline/weights.yml
+  # - scripts/ci/gitlab/pipeline/weights.yml
   # check jobs
   - scripts/ci/gitlab/pipeline/check.yml
   # test jobs
