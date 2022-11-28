@@ -101,8 +101,6 @@ pub use polkadot_node_metrics::{
 	Metronome,
 };
 
-use parity_util_mem::MemoryAllocationTracker;
-
 pub use orchestra as gen;
 pub use orchestra::{
 	contextbounds, orchestra, subsystem, FromOrchestra, MapSubsystem, MessagePacket,
@@ -651,34 +649,7 @@ where
 	}
 	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
 
-	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> =
-		match MemoryAllocationTracker::new() {
-			Ok(memory_stats) =>
-				Box::new(move |metrics: &OverseerMetrics| match memory_stats.snapshot() {
-					Ok(memory_stats_snapshot) => {
-						gum::trace!(
-							target: LOG_TARGET,
-							"memory_stats: {:?}",
-							&memory_stats_snapshot
-						);
-						metrics.memory_stats_snapshot(memory_stats_snapshot);
-					},
-					Err(e) =>
-						gum::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
-				}),
-			Err(_) => {
-				gum::debug!(
-					target: LOG_TARGET,
-					"Memory allocation tracking is not supported by the allocator.",
-				);
-
-				Box::new(|_| {})
-			},
-		};
-
 	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
-		collect_memory_stats(&metronome_metrics);
-
 		// We combine the amount of messages from subsystems to the overseer
 		// as well as the amount of messages from external sources to the overseer
 		// into one `to_overseer` value.

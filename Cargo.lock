@@ -2074,7 +2074,7 @@ dependencies = [
  "handlebars",
  "hash-db",
  "itertools",
- "kvdb",
+ "kvdb 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazy_static",
  "linked-hash-map",
  "log",
@@ -3334,6 +3334,13 @@ dependencies = [
 [[package]]
 name = "kvdb"
 version = "0.12.0"
+dependencies = [
+ "smallvec",
+]
+
+[[package]]
+name = "kvdb"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "585089ceadba0197ffe9af6740ab350b325e3c1f5fccfbc3522e0250c750409b"
 dependencies = [
@@ -3347,7 +3354,7 @@ version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40d109c87bfb7759edd2a49b2649c1afe25af785d930ad6a38479b4dc70dd873"
 dependencies = [
- "kvdb",
+ "kvdb 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parity-util-mem",
  "parking_lot 0.12.1",
 ]
@@ -3358,7 +3365,7 @@ version = "0.16.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c076cc2cdbac89b9910c853a36c957d3862a779f31c2661174222cefb49ee597"
 dependencies = [
- "kvdb",
+ "kvdb 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "log",
  "num_cpus",
  "parity-util-mem",
@@ -3374,7 +3381,7 @@ version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de82a1adb7ade192c0090dd56d059a626191c0638c795eb68aff4b0bd2c1f9be"
 dependencies = [
- "kvdb",
+ "kvdb 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -5657,8 +5664,6 @@ dependencies = [
  "parking_lot 0.12.1",
  "primitive-types",
  "smallvec",
- "tikv-jemalloc-ctl",
- "tikv-jemallocator",
  "winapi",
 ]
 
@@ -5889,7 +5894,6 @@ dependencies = [
  "assert_cmd",
  "color-eyre",
  "nix 0.24.1",
- "parity-util-mem",
  "polkadot-cli",
  "polkadot-core-primitives",
  "substrate-rpc-client",
@@ -6106,7 +6110,6 @@ name = "polkadot-core-primitives"
 version = "0.9.31"
 dependencies = [
  "parity-scale-codec",
- "parity-util-mem",
  "scale-info",
  "sp-core",
  "sp-runtime",
@@ -6243,7 +6246,7 @@ dependencies = [
  "derive_more",
  "futures",
  "futures-timer",
- "kvdb",
+ "kvdb 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb",
  "lru",
  "merlin",
@@ -6281,7 +6284,7 @@ dependencies = [
  "env_logger 0.9.0",
  "futures",
  "futures-timer",
- "kvdb",
+ "kvdb 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb",
  "log",
  "parity-scale-codec",
@@ -6391,7 +6394,7 @@ dependencies = [
  "assert_matches",
  "futures",
  "futures-timer",
- "kvdb",
+ "kvdb 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb",
  "parity-scale-codec",
  "parking_lot 0.12.1",
@@ -6413,7 +6416,7 @@ dependencies = [
  "fatality",
  "futures",
  "futures-timer",
- "kvdb",
+ "kvdb 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb",
  "lru",
  "parity-scale-codec",
@@ -6532,7 +6535,6 @@ version = "0.9.31"
 dependencies = [
  "futures",
  "memory-lru",
- "parity-util-mem",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
@@ -6698,7 +6700,7 @@ dependencies = [
  "fatality",
  "futures",
  "itertools",
- "kvdb",
+ "kvdb 0.12.0",
  "kvdb-memorydb",
  "kvdb-shared-tests",
  "lazy_static",
@@ -6706,7 +6708,6 @@ dependencies = [
  "lru",
  "parity-db",
  "parity-scale-codec",
- "parity-util-mem",
  "parking_lot 0.11.2",
  "pin-project",
  "polkadot-node-jaeger",
@@ -6739,7 +6740,6 @@ dependencies = [
  "futures-timer",
  "lru",
  "orchestra",
- "parity-util-mem",
  "parking_lot 0.12.1",
  "polkadot-node-metrics",
  "polkadot-node-network-protocol",
@@ -6761,7 +6761,6 @@ dependencies = [
  "derive_more",
  "frame-support",
  "parity-scale-codec",
- "parity-util-mem",
  "polkadot-core-primitives",
  "scale-info",
  "serde",
@@ -6791,7 +6790,6 @@ dependencies = [
  "bitvec",
  "hex-literal",
  "parity-scale-codec",
- "parity-util-mem",
  "polkadot-core-primitives",
  "polkadot-parachain",
  "scale-info",
@@ -7090,7 +7088,7 @@ dependencies = [
  "hex-literal",
  "kusama-runtime",
  "kusama-runtime-constants",
- "kvdb",
+ "kvdb 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-rocksdb",
  "log",
  "lru",
@@ -7263,7 +7261,6 @@ dependencies = [
  "color-eyre",
  "futures",
  "futures-timer",
- "parity-util-mem",
  "polkadot-cli",
  "polkadot-erasure-coding",
  "polkadot-node-core-backing",
@@ -8523,7 +8520,7 @@ version = "0.10.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#6cb4b6799de6f784f4c42eb01a76a8fa67039a67"
 dependencies = [
  "hash-db",
- "kvdb",
+ "kvdb 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "kvdb-memorydb",
  "kvdb-rocksdb",
  "linked-hash-map",
@@ -10118,7 +10115,7 @@ name = "sp-database"
 version = "4.0.0-dev"
 source = "git+https://github.com/paritytech/substrate?branch=master#6cb4b6799de6f784f4c42eb01a76a8fa67039a67"
 dependencies = [
- "kvdb",
+ "kvdb 0.12.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "parking_lot 0.12.1",
 ]
 
@@ -11192,17 +11189,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tikv-jemalloc-ctl"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e37706572f4b151dff7a0146e040804e9c26fe3a3118591112f05cf12a4216c1"
-dependencies = [
- "libc",
- "paste",
- "tikv-jemalloc-sys",
-]
-
-[[package]]
 name = "tikv-jemalloc-sys"
 version = "0.5.2+5.3.0-patched"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11211,16 +11197,6 @@ dependencies = [
  "cc",
  "fs_extra",
  "libc",
-]
-
-[[package]]
-name = "tikv-jemallocator"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "20612db8a13a6c06d57ec83953694185a367e16945f66565e8028d2c0bd76979"
-dependencies = [
- "libc",
- "tikv-jemalloc-sys",
 ]
 
 [[package]]
