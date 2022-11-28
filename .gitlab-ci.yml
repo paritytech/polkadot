@@ -40,6 +40,13 @@ variables:
 
 default:
   cache:                           {}
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - unknown_failure
+      - api_failure
+  interruptible:                   true
 
 .collect-artifacts:
   artifacts:
@@ -72,25 +79,12 @@ default:
        dotenv: pipeline-stopper.env
 
 .kubernetes-env:
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - unknown_failure
-      - api_failure
-  interruptible:                   true
+  image:                           "${CI_IMAGE}"
   tags:
     - kubernetes-parity-build
 
 .docker-env:
   image:                           "${CI_IMAGE}"
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - unknown_failure
-      - api_failure
-  interruptible:                   true
   tags:
     - linux-docker
 
