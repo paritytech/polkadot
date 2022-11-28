@@ -205,7 +205,7 @@ build-implementers-guide:
     - mdbook build ./roadmap/implementers-guide
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
-    - cat roadmap/implementers-guide/book/html/runtime/shared.html | grep "Last change:"
+    - cat artifacts/html/runtime/shared.html | grep "Last change:"
     - echo "Should be 0a633cd4df5"
 
 #### stage:                        .post
