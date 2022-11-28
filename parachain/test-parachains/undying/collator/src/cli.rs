@@ -99,9 +99,6 @@ pub enum Subcommand {
 	ExportGenesisWasm(ExportGenesisWasmCommand),
 }
 
-//#[derive(Debug, Parser)]
-//pub struct HrmpCliParams(pub(crate) HrmpChannelConfiguration);
-
 /// Command for exporting the genesis state of the parachain
 #[derive(Debug, Parser)]
 pub struct ExportGenesisStateCommand {
