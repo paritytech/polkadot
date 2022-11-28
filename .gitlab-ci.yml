@@ -202,11 +202,11 @@ build-implementers-guide:
     GIT_DEPTH:                     0
     CI_IMAGE:                      paritytech/mdbook-utils:e14aae4a-20221123
   script:
-    - git log --pretty=oneline --reverse | head -1
     - mdbook build ./roadmap/implementers-guide
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
-    - ls -la artifacts/
+    - cat roadmap/implementers-guide/book/html/runtime/shared.html | grep "Last change:"
+    - echo "Should be 0a633cd4df5"
 
 #### stage:                        .post
 
