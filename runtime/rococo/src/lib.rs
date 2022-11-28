@@ -1202,7 +1202,7 @@ impl pallet_balances::Config<NisCounterpartInstance> for Runtime {
 	type MaxLocks = ConstU32<4>;
 	type MaxReserves = ConstU32<4>;
 	type ReserveIdentifier = [u8; 8];
-	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
+	type WeightInfo = weights::pallet_balances_nis_counterpart_balances::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1218,7 +1218,7 @@ parameter_types! {
 }
 
 impl pallet_nis::Config for Runtime {
-	type WeightInfo = pallet_nis::weights::SubstrateWeight<Runtime>;
+	type WeightInfo = weights::pallet_nis::WeightInfo<Runtime>;
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
