@@ -61,7 +61,6 @@ check-runtime-migration:
   variables:
     WS:                            wss://polkadot-try-runtime-node.parity-chains.parity.io:433
   script:
-    - 
     - |
       export has_runtimemigration_label=$(curl -sS -H "Accept: application/vnd.github+json" \
         -H "Authorization: token $GITHUB_PR_TOKEN" \
