@@ -205,6 +205,7 @@ build-implementers-guide:
   # git depth is set on purpose: https://github.com/paritytech/polkadot/issues/6284
   variables:
     GIT_STRATEGY:                  clone
+    GIT_DEPTH:                     0
     CI_IMAGE:                      paritytech/mdbook-utils:e14aae4a-20221123
   script:
     - git log --pretty=oneline --reverse | head -1
