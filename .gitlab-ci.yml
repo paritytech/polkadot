@@ -180,27 +180,42 @@ default:
   after_script:
     - buildah logout --all
 
-include:
-  # weights jobs
-  - scripts/ci/gitlab/pipeline/weights.yml
-  # check jobs
-  - scripts/ci/gitlab/pipeline/check.yml
-  # test jobs
-  - scripts/ci/gitlab/pipeline/test.yml
-  # build jobs
-  - scripts/ci/gitlab/pipeline/build.yml
-  # short-benchmarks jobs
-  - scripts/ci/gitlab/pipeline/short-benchmarks.yml
-  # publish jobs
-  - scripts/ci/gitlab/pipeline/publish.yml
-  # zombienet jobs
-  - scripts/ci/gitlab/pipeline/zombienet.yml
+# include:
+#   # weights jobs
+#   - scripts/ci/gitlab/pipeline/weights.yml
+#   # check jobs
+#   - scripts/ci/gitlab/pipeline/check.yml
+#   # test jobs
+#   - scripts/ci/gitlab/pipeline/test.yml
+#   # build jobs
+#   - scripts/ci/gitlab/pipeline/build.yml
+#   # short-benchmarks jobs
+#   - scripts/ci/gitlab/pipeline/short-benchmarks.yml
+#   # publish jobs
+#   - scripts/ci/gitlab/pipeline/publish.yml
+#   # zombienet jobs
+#   - scripts/ci/gitlab/pipeline/zombienet.yml
 
-
+build-implementers-guide:
+  stage:                           build
+  extends:
+    - .docker-env
+    - .test-refs
+    - .collect-artifacts-short
+  # git depth is set on purpose: https://github.com/paritytech/polkadot/issues/6284
+  variables:
+    GIT_DEPTH:                     0
+    CI_IMAGE:                      paritytech/mdbook-utils:e14aae4a-20221123
+  script:
+    - git log --pretty=oneline --reverse | head -1
+    - mdbook build ./roadmap/implementers-guide
+    - mkdir -p artifacts
+    - mv roadmap/implementers-guide/book artifacts/
+    - ls -la artifacts/
 
 #### stage:                        .post
 
-deploy-parity-testnet:
+.deploy-parity-testnet:
   stage:                           .post
   extends:
     - .deploy-testnet-refs
@@ -229,7 +244,7 @@ deploy-parity-testnet:
     project:                       "parity/infrastructure/ci_cd/pipeline-stopper"
     branch:                        "as-improve"
 
-remove-cancel-pipeline-message:
+.remove-cancel-pipeline-message:
   stage: .post
   rules:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
@@ -244,7 +259,7 @@ remove-cancel-pipeline-message:
     project:                       "parity/infrastructure/ci_cd/pipeline-stopper"
     branch:                        "as-improve"
 
-cancel-pipeline-test-linux-stable:
+.cancel-pipeline-test-linux-stable:
   extends:                         .cancel-pipeline-template
   needs:
     - job:                         test-linux-stable
