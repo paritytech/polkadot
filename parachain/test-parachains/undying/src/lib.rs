@@ -91,12 +91,22 @@ pub struct GraveyardState {
 }
 
 /// A structure that configures HRMP messages produced by undying collator
-#[derive(Default, Clone, Encode, Decode, Debug)]
+#[derive(Clone, Encode, Decode, Debug)]
 pub struct HrmpChannelConfiguration {
 	/// Where to send HRMP messages
 	pub destination_para_id: u32,
 	/// Message size
 	pub message_size: u32,
+	/// Probability to send message on each iteration in percents (0..100), default = 100
+	pub send_probability: u8,
+	/// Stop on reaching specific block (do not stop if `None`)
+	pub stop_on_block: Option<u64>,
+}
+
+impl Default for HrmpChannelConfiguration {
+	fn default() -> Self {
+		Self { destination_para_id: 0, message_size: 0, send_probability: 100, stop_on_block: None }
+	}
 }
 
 /// Block data for this parachain.
@@ -172,12 +182,23 @@ pub fn execute(
 	let messages = block_data
 		.hrmp_channels
 		.iter()
-		.map(|channel| {
-			let mut data = sp_std::vec::Vec::with_capacity(channel.message_size as usize);
-			for _ in 0..channel.message_size {
-				data.push(0_u8);
+		.filter_map(|channel| {
+			// Skip on stop
+			if matches!(channel.stop_on_block, Some(last_block) if last_block <= parent_head.number)
+			{
+				return None
 			}
-			OutboundHrmpMessage { recipient: channel.destination_para_id.into(), data }
+			// Skip by probability
+			let prob = prob_from_hash(&parent_hash);
+			if prob > channel.send_probability as f32 / 100.0 {
+				None
+			} else {
+				let mut data = sp_std::vec::Vec::with_capacity(channel.message_size as usize);
+				for _ in 0..channel.message_size {
+					data.push(0_u8);
+				}
+				Some(OutboundHrmpMessage { recipient: channel.destination_para_id.into(), data })
+			}
 		})
 		.collect::<Vec<_>>();
 
@@ -190,4 +211,9 @@ pub fn execute(
 		new_state,
 		messages,
 	))
+}
+
+// Returns coin probability based on hash (assuming that the hash value is indistinguishable from random)
+fn prob_from_hash(hash: &[u8; 32]) -> f32 {
+	hash[0] as f32 / u8::MAX as f32
 }
