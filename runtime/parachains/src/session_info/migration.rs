@@ -32,6 +32,9 @@ pub mod v2 {
 	use primitives::vstaging::ExecutorParams;
 	use sp_core::Get;
 
+	#[cfg(feature = "try-runtime")]
+	use crate::session_info::Vec;
+
 	pub struct MigrateToV2<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config + session_info::pallet::Config> OnRuntimeUpgrade for MigrateToV2<T> {
 		fn on_runtime_upgrade() -> Weight {
@@ -56,7 +59,7 @@ pub mod v2 {
 
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-			assert_eq!(Pallet::<T>::on_chain_storage_version(), 1);
+			assert_eq!(StorageVersion::get::<Pallet<T>>(), 1);
 			let session_index = <shared::Pallet<T>>::session_index();
 			assert!(Pallet::<T>::session_executor_params(session_index).is_none());
 			Ok(Default::default())
@@ -64,7 +67,7 @@ pub mod v2 {
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade(_: Vec<u8>) -> Result<(), &'static str> {
-			assert_eq!(Pallet::<T>::on_chain_storage_version(), 2);
+			assert_eq!(StorageVersion::get::<Pallet<T>>(), 2);
 			let session_index = <shared::Pallet<T>>::session_index();
 			let executor_params = Pallet::<T>::session_executor_params(session_index);
 			assert_eq!(executor_params, Some(ExecutorParams::default()));
