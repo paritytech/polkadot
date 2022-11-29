@@ -181,19 +181,19 @@ default:
 
 include:
   # weights jobs
-  # - scripts/ci/gitlab/pipeline/weights.yml
+  - scripts/ci/gitlab/pipeline/weights.yml
   # check jobs
   - scripts/ci/gitlab/pipeline/check.yml
   # test jobs
-  # - scripts/ci/gitlab/pipeline/test.yml
+  - scripts/ci/gitlab/pipeline/test.yml
   # # build jobs
-  # - scripts/ci/gitlab/pipeline/build.yml
+  - scripts/ci/gitlab/pipeline/build.yml
   # # short-benchmarks jobs
-  # - scripts/ci/gitlab/pipeline/short-benchmarks.yml
+  - scripts/ci/gitlab/pipeline/short-benchmarks.yml
   # # publish jobs
-  # - scripts/ci/gitlab/pipeline/publish.yml
+  - scripts/ci/gitlab/pipeline/publish.yml
   # # zombienet jobs
-  # - scripts/ci/gitlab/pipeline/zombienet.yml
+  - scripts/ci/gitlab/pipeline/zombienet.yml
 
 
 
@@ -228,7 +228,7 @@ deploy-parity-testnet:
     project:                       "parity/infrastructure/ci_cd/pipeline-stopper"
     branch:                        "as-improve"
 
-.remove-cancel-pipeline-message:
+remove-cancel-pipeline-message:
   stage: .post
   rules:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
@@ -243,7 +243,7 @@ deploy-parity-testnet:
     project:                       "parity/infrastructure/ci_cd/pipeline-stopper"
     branch:                        "as-improve"
 
-.cancel-pipeline-test-linux-stable:
+cancel-pipeline-test-linux-stable:
   extends:                         .cancel-pipeline-template
   needs:
     - job:                         test-linux-stable

@@ -1,7 +1,7 @@
 # This file is part of .gitlab-ci.yml
 # Here are all jobs that are executed during "check" stage
 
-.check-runtime:
+check-runtime:
   stage:                           check
   image:                           paritytech/tools:latest
   extends:
@@ -15,7 +15,7 @@
     - ./scripts/ci/gitlab/check_runtime.sh
   allow_failure:                   true
 
-.cargo-fmt:
+cargo-fmt:
   stage:                           check
   extends:
     - .docker-env
@@ -25,7 +25,7 @@
     - cargo +nightly fmt --all -- --check
   allow_failure:                   true
 
-.spellcheck:
+spellcheck:
   stage:                           check
   extends:
     - .docker-env
@@ -40,7 +40,7 @@
         $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
   allow_failure:                   true
 
-.check-try-runtime:
+check-try-runtime:
   stage:                           check
   extends:
     - .docker-env
@@ -58,8 +58,6 @@ check-runtime-migration:
     - .docker-env
     - .test-pr-refs
     - .compiler-info
-  variables:
-    WS:                            wss://polkadot-try-runtime-node.parity-chains.parity.io:433
   script:
     - |
       export has_runtimemigration_label=$(curl -sS -H "Accept: application/vnd.github+json" \
@@ -69,11 +67,11 @@ check-runtime-migration:
       if [[ $has_runtimemigration_label != 0 ]]; then
         echo "Found label runtimemigration. Running tests"
         export RUST_LOG=remote-ext=debug,runtime=debug
-        echo ""---------- Running try-runtime for polkadot "----------"
+        echo "---------- Running try-runtime for polkadot ----------"
         time cargo run --release --features=try-runtime try-runtime --chain=polkadot-dev --execution=Wasm --no-spec-check-panic on-runtime-upgrade live --uri wss://polkadot-try-runtime-node.parity-chains.parity.io:443
-        echo "---------- Running try-runtime for kusama "----------
+        echo "---------- Running try-runtime for kusama ----------"
         time cargo run --release --features=try-runtime try-runtime --chain=kusama-dev --execution=Wasm --no-spec-check-panic on-runtime-upgrade live --uri wss://kusama-try-runtime-node.parity-chains.parity.io:443
-        echo ""---------- Running try-runtime for westend "----------"
+        echo "---------- Running try-runtime for westend ----------"
         time cargo run --release --features=try-runtime try-runtime --chain=westend-dev --execution=Wasm --no-spec-check-panic on-runtime-upgrade live --uri wss://westend-try-runtime-node.parity-chains.parity.io:443
       else
         echo "runtimemigration label not found. Skipping"
@@ -81,7 +79,7 @@ check-runtime-migration:
   allow_failure:                   true
 
 # is broken, need to fix
-.check-no-default-features:
+check-no-default-features:
   stage:                           check
   extends:
     - .docker-env
@@ -94,7 +92,7 @@ check-runtime-migration:
     - exit 0
 
 # this is artificial job to run some build and tests using DAG
-.job-starter:
+job-starter:
   stage:                           check
   image:                           paritytech/tools:latest
   extends:
