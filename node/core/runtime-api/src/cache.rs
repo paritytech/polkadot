@@ -54,7 +54,7 @@ pub(crate) struct RequestResultCache {
 	validation_code_by_hash: LruCache<ValidationCodeHash, Option<ValidationCode>>,
 	candidate_pending_availability: LruCache<(Hash, ParaId), Option<CommittedCandidateReceipt>>,
 	candidate_events: LruCache<Hash, Vec<CandidateEvent>>,
-	session_executor_params: MemoryLruCache<SessionIndex, Option<ExecutorParams>>,
+	session_executor_params: LruCache<SessionIndex, Option<ExecutorParams>>,
 	session_info: LruCache<SessionIndex, SessionInfo>,
 	dmq_contents: LruCache<(Hash, ParaId), Vec<InboundDownwardMessage<BlockNumber>>>,
 	inbound_hrmp_channels_contents:
@@ -272,7 +272,7 @@ impl RequestResultCache {
 		&mut self,
 		session_index: SessionIndex,
 	) -> Option<&Option<ExecutorParams>> {
-		self.session_executor_params.get(&session_index).map(|v| &v.0)
+		self.session_executor_params.get(&session_index)
 	}
 
 	pub(crate) fn cache_session_executor_params(
@@ -280,7 +280,7 @@ impl RequestResultCache {
 		session_index: SessionIndex,
 		value: Option<ExecutorParams>,
 	) {
-		self.session_executor_params.insert(session_index, ResidentSizeOf(value));
+		self.session_executor_params.put(session_index, value);
 	}
 
 	pub(crate) fn dmq_contents(
