@@ -27,26 +27,14 @@ use polkadot_primitives::v2::{
 	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
-const AUTHORITIES_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const VALIDATORS_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const VALIDATOR_GROUPS_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const AVAILABILITY_CORES_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const PERSISTED_VALIDATION_DATA_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const ASSUMED_VALIDATION_DATA_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const CHECK_VALIDATION_OUTPUTS_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const SESSION_INDEX_FOR_CHILD_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const VALIDATION_CODE_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const CANDIDATE_PENDING_AVAILABILITY_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const CANDIDATE_EVENTS_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const SESSION_INFO_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(128);
-const DMQ_CONTENTS_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const INBOUND_HRMP_CHANNELS_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const CURRENT_BABE_EPOCH_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const ON_CHAIN_VOTES_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const PVFS_REQUIRE_PRECHECK_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const VALIDATION_CODE_HASH_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const VERSION_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
-const DISPUTES_CACHE_CAP: Option<NonZeroUsize> = NonZeroUsize::new(1024);
+/// For consistency we have the same capacity for all caches. We use 128 as we'll only need that
+/// much if finality stalls (we only query state for unfinalized blocks + maybe latest finalized).
+/// In any case, a cache is an optimization. We should avoid a situation where having a large cache
+/// leads to OOM or puts pressure on other important stuff like PVF execution/preparation.
+const DEFAULT_CACHE_CAP: NonZeroUsize = match NonZeroUsize::new(128) {
+	Some(cap) => cap,
+	None => panic!("lru capacity must be non-zero"),
+};
 
 pub(crate) struct RequestResultCache {
 	authorities: LruCache<Hash, Vec<AuthorityDiscoveryId>>,
@@ -79,39 +67,27 @@ pub(crate) struct RequestResultCache {
 impl Default for RequestResultCache {
 	fn default() -> Self {
 		Self {
-			authorities: LruCache::new(AUTHORITIES_CACHE_CAP.expect("!= 0; qed")),
-			validators: LruCache::new(VALIDATORS_CACHE_CAP.expect("!= 0; qed")),
-			validator_groups: LruCache::new(VALIDATOR_GROUPS_CACHE_CAP.expect("!= 0; qed")),
-			availability_cores: LruCache::new(AVAILABILITY_CORES_CACHE_CAP.expect("!= 0; qed")),
-			persisted_validation_data: LruCache::new(
-				PERSISTED_VALIDATION_DATA_CACHE_CAP.expect("!= 0; qed"),
-			),
-			assumed_validation_data: LruCache::new(
-				ASSUMED_VALIDATION_DATA_CACHE_CAP.expect("!= 0; qed"),
-			),
-			check_validation_outputs: LruCache::new(
-				CHECK_VALIDATION_OUTPUTS_CACHE_CAP.expect("!= 0; qed"),
-			),
-			session_index_for_child: LruCache::new(
-				SESSION_INDEX_FOR_CHILD_CACHE_CAP.expect("!= 0; qed"),
-			),
-			validation_code: LruCache::new(VALIDATION_CODE_CACHE_CAP.expect("!= 0; qed")),
-			validation_code_by_hash: LruCache::new(VALIDATION_CODE_CACHE_CAP.expect("!= 0; qed")),
-			candidate_pending_availability: LruCache::new(
-				CANDIDATE_PENDING_AVAILABILITY_CACHE_CAP.expect("!= 0; qed"),
-			),
-			candidate_events: LruCache::new(CANDIDATE_EVENTS_CACHE_CAP.expect("!= 0; qed")),
-			session_info: LruCache::new(SESSION_INFO_CACHE_CAP.expect("!= 0; qed")),
-			dmq_contents: LruCache::new(DMQ_CONTENTS_CACHE_CAP.expect("!= 0; qed")),
-			inbound_hrmp_channels_contents: LruCache::new(
-				INBOUND_HRMP_CHANNELS_CACHE_CAP.expect("!= 0; qed"),
-			),
-			current_babe_epoch: LruCache::new(CURRENT_BABE_EPOCH_CACHE_CAP.expect("!= 0; qed")),
-			on_chain_votes: LruCache::new(ON_CHAIN_VOTES_CACHE_CAP.expect("!= 0; qed")),
-			pvfs_require_precheck: LruCache::new(PVFS_REQUIRE_PRECHECK_CAP.expect("!= 0; qed")),
-			validation_code_hash: LruCache::new(VALIDATION_CODE_HASH_CACHE_CAP.expect("!= 0; qed")),
-			version: LruCache::new(VERSION_CACHE_CAP.expect("!= 0; qed")),
-			disputes: LruCache::new(DISPUTES_CACHE_CAP.expect("!= 0; qed")),
+			authorities: LruCache::new(DEFAULT_CACHE_CAP),
+			validators: LruCache::new(DEFAULT_CACHE_CAP),
+			validator_groups: LruCache::new(DEFAULT_CACHE_CAP),
+			availability_cores: LruCache::new(DEFAULT_CACHE_CAP),
+			persisted_validation_data: LruCache::new(DEFAULT_CACHE_CAP),
+			assumed_validation_data: LruCache::new(DEFAULT_CACHE_CAP),
+			check_validation_outputs: LruCache::new(DEFAULT_CACHE_CAP),
+			session_index_for_child: LruCache::new(DEFAULT_CACHE_CAP),
+			validation_code: LruCache::new(DEFAULT_CACHE_CAP),
+			validation_code_by_hash: LruCache::new(DEFAULT_CACHE_CAP),
+			candidate_pending_availability: LruCache::new(DEFAULT_CACHE_CAP),
+			candidate_events: LruCache::new(DEFAULT_CACHE_CAP),
+			session_info: LruCache::new(DEFAULT_CACHE_CAP),
+			dmq_contents: LruCache::new(DEFAULT_CACHE_CAP),
+			inbound_hrmp_channels_contents: LruCache::new(DEFAULT_CACHE_CAP),
+			current_babe_epoch: LruCache::new(DEFAULT_CACHE_CAP),
+			on_chain_votes: LruCache::new(DEFAULT_CACHE_CAP),
+			pvfs_require_precheck: LruCache::new(DEFAULT_CACHE_CAP),
+			validation_code_hash: LruCache::new(DEFAULT_CACHE_CAP),
+			version: LruCache::new(DEFAULT_CACHE_CAP),
+			disputes: LruCache::new(DEFAULT_CACHE_CAP),
 		}
 	}
 }
