@@ -69,8 +69,8 @@ pub struct Constraints<N = BlockNumber> {
 	pub ump_remaining_bytes: u32,
 	/// The maximum number of UMP messages allowed per candidate.
 	pub max_ump_num_per_candidate: u32,
-	/// The amount of remaining DMP messages.
-	pub dmp_remaining_messages: u32,
+	/// Remaining DMP queue. Only includes sent-at block numbers.
+	pub dmp_remaining_messages: Vec<N>,
 	/// The limitations of all registered inbound HRMP channels.
 	pub hrmp_inbound: InboundHrmpLimitations<N>,
 	/// The limitations of all registered outbound HRMP channels.
