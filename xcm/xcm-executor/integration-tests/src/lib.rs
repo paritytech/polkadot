@@ -17,7 +17,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg(test)]
 
-use frame_support::{codec::Encode, weights::Weight, dispatch::GetDispatchInfo};
+use frame_support::{codec::Encode, dispatch::GetDispatchInfo, weights::Weight};
 use polkadot_test_client::{
 	BlockBuilderExt, ClientBlockImportExt, DefaultTestClientBuilderExt, ExecutionStrategy,
 	InitPolkadotBlockBuilder, TestClientBuilder, TestClientBuilderExt,
@@ -81,34 +81,31 @@ fn transact_recursion_limit_works() {
 
 	let mut msg = Xcm(vec![ClearOrigin]);
 	let max_weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut msg).unwrap();
-	let mut call = polkadot_test_runtime::RuntimeCall::Xcm(
-		pallet_xcm::Call::execute { message: Box::new(VersionedXcm::from(msg)), max_weight },
-	);
+	let mut call = polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
+		message: Box::new(VersionedXcm::from(msg)),
+		max_weight,
+	});
 
-	for _ in 0..10 {
+	for _ in 0..11 {
 		let mut msg = Xcm(vec![
-			WithdrawAsset((Parent, 1_000_000_000).into()),
-			BuyExecution { fees: (Parent, 1_000_000_000).into(), weight_limit: Unlimited },
+			WithdrawAsset((Parent, 1_000).into()),
+			BuyExecution { fees: (Parent, 1).into(), weight_limit: Unlimited },
 			Transact {
-				origin_kind: OriginKind::Xcm,
+				origin_kind: OriginKind::Native,
 				require_weight_at_most: call.get_dispatch_info().weight,
 				call: call.encode().into(),
 			},
 		]);
 		let max_weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut msg).unwrap();
-		call = polkadot_test_runtime::RuntimeCall::Xcm(
-			pallet_xcm::Call::execute { message: Box::new(VersionedXcm::from(msg)), max_weight }
-		);
+		call = polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
+			message: Box::new(VersionedXcm::from(msg)),
+			max_weight,
+		});
 	}
 
 	let mut block_builder = client.init_polkadot_block_builder();
 
-	let execute = construct_extrinsic(
-		&client,
-		call,
-		sp_keyring::Sr25519Keyring::Alice,
-		0,
-	);
+	let execute = construct_extrinsic(&client, call, sp_keyring::Sr25519Keyring::Alice, 0);
 
 	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
 

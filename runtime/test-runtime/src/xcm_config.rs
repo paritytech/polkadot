@@ -21,7 +21,8 @@ use frame_support::{
 };
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AllowUnpaidExecutionFrom, EnsureXcmOrigin, FixedWeightBounds, SignedToAccountId32,
+	AllowUnpaidExecutionFrom, EnsureXcmOrigin, FixedWeightBounds, SignedAccountId32AsNative,
+	SignedToAccountId32,
 };
 use xcm_executor::{
 	traits::{TransactAsset, WeightTrader},
@@ -30,7 +31,7 @@ use xcm_executor::{
 
 parameter_types! {
 	pub const BaseXcmWeight: xcm::latest::Weight = Weight::from_parts(1_000, 1_000);
-	pub const OurNetwork: NetworkId = NetworkId::Polkadot;
+	pub const ThisNetwork: NetworkId = NetworkId::Polkadot;
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 16;
 	pub const UniversalLocation: xcm::latest::InteriorMultiLocation = xcm::latest::Junctions::Here;
@@ -40,7 +41,7 @@ parameter_types! {
 /// of this chain.
 pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<crate::RuntimeOrigin, crate::AccountId, OurNetwork>,
+	SignedToAccountId32<crate::RuntimeOrigin, crate::AccountId, ThisNetwork>,
 );
 
 pub struct DoNothingRouter;
@@ -83,12 +84,17 @@ impl WeightTrader for DummyWeightTrader {
 	}
 }
 
+type OriginConverter = (
+	pallet_xcm::XcmPassthrough<super::RuntimeOrigin>,
+	SignedAccountId32AsNative<ThisNetwork, super::RuntimeOrigin>,
+);
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type RuntimeCall = super::RuntimeCall;
 	type XcmSender = DoNothingRouter;
 	type AssetTransactor = DummyAssetTransactor;
-	type OriginConverter = pallet_xcm::XcmPassthrough<super::RuntimeOrigin>;
+	type OriginConverter = OriginConverter;
 	type IsReserve = ();
 	type IsTeleporter = ();
 	type UniversalLocation = UniversalLocation;
