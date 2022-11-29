@@ -4122,6 +4122,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "mmr-rpc"
+version = "4.0.0-dev"
+source = "git+https://github.com/paritytech/substrate?branch=master#9ce75afde9ada98a69e4ab3abbbfb7fa8202d72b"
+dependencies = [
+ "anyhow",
+ "jsonrpsee",
+ "parity-scale-codec",
+ "serde",
+ "sp-api",
+ "sp-blockchain",
+ "sp-core",
+ "sp-mmr-primitives",
+ "sp-runtime",
+]
+
+[[package]]
 name = "mockall"
 version = "0.11.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5066,22 +5082,6 @@ dependencies = [
  "sp-mmr-primitives",
  "sp-runtime",
  "sp-std",
-]
-
-[[package]]
-name = "pallet-mmr-rpc"
-version = "3.0.0"
-source = "git+https://github.com/paritytech/substrate?branch=master#9ce75afde9ada98a69e4ab3abbbfb7fa8202d72b"
-dependencies = [
- "anyhow",
- "jsonrpsee",
- "parity-scale-codec",
- "serde",
- "sp-api",
- "sp-blockchain",
- "sp-core",
- "sp-mmr-primitives",
- "sp-runtime",
 ]
 
 [[package]]
@@ -6838,7 +6838,7 @@ dependencies = [
  "beefy-gadget",
  "beefy-gadget-rpc",
  "jsonrpsee",
- "pallet-mmr-rpc",
+ "mmr-rpc",
  "pallet-transaction-payment-rpc",
  "polkadot-primitives",
  "sc-chain-spec",
