@@ -294,6 +294,11 @@ impl RollingSessionWindow {
 		self.earliest_session + (self.session_info.len() as SessionIndex).saturating_sub(1)
 	}
 
+	/// Returns `true` if `session_index` is contained in the window.
+	pub fn contains(&self, session_index: SessionIndex) -> bool {
+		session_index >= self.earliest_session() && session_index <= self.latest_session()
+	}
+
 	async fn earliest_non_finalized_block_session<Sender>(
 		sender: &mut Sender,
 	) -> Result<u32, SessionsUnavailable>
@@ -781,6 +786,21 @@ mod tests {
 		};
 
 		cache_session_info_test(1, 2, Some(window), 2, None);
+	}
+
+	#[test]
+	fn cache_session_window_contains() {
+		let window = RollingSessionWindow {
+			earliest_session: 10,
+			session_info: vec![dummy_session_info(1)],
+			window_size: SESSION_WINDOW_SIZE,
+			db_params: Some(dummy_db_params()),
+		};
+
+		assert!(!window.contains(0));
+		assert!(!window.contains(10 + SESSION_WINDOW_SIZE.get()));
+		assert!(!window.contains(11));
+		assert!(!window.contains(10 + SESSION_WINDOW_SIZE.get() - 1));
 	}
 
 	#[test]
