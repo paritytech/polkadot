@@ -1230,7 +1230,7 @@ impl pallet_beefy::Config for Runtime {
 type MmrHash = <Keccak256 as sp_runtime::traits::Hash>::Output;
 
 impl pallet_mmr::Config for Runtime {
-	const INDEXING_PREFIX: &'static [u8] = b"mmr";
+	const INDEXING_PREFIX: &'static [u8] = mmr::INDEXING_PREFIX;
 	type Hashing = Keccak256;
 	type Hash = MmrHash;
 	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
@@ -1463,13 +1463,6 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 	(
-		// "Bound uses of call" <https://github.com/paritytech/polkadot/pull/5729>
-		pallet_preimage::migration::v1::Migration<Runtime>,
-		pallet_scheduler::migration::v3::MigrateToV4<Runtime>,
-		pallet_democracy::migrations::v1::Migration<Runtime>,
-		pallet_multisig::migrations::v1::MigrateToV1<Runtime>,
-		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
-		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
 		parachains_session_info::migration::v2::MigrateToV2<Runtime>,
 	),
 >;
@@ -1732,6 +1725,10 @@ sp_api::impl_runtime_apis! {
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
 		fn mmr_root() -> Result<Hash, mmr::Error> {
 			Ok(Mmr::mmr_root())
+		}
+
+		fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
+			Ok(Mmr::mmr_leaves())
 		}
 
 		fn generate_proof(

@@ -98,7 +98,7 @@ pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error
 }
 
 /// Runs preparation on the given runtime blob. If successful, it returns a serialized compiled
-/// artifact which can then be used to pass into [`execute`] after writing it to the disk.
+/// artifact which can then be used to pass into `Executor::execute` after writing it to the disk.
 pub fn prepare(
 	blob: RuntimeBlob,
 	executor_params: ExecutorParams,
