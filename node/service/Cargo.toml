@@ -13,6 +13,8 @@ beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "
 beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+mmr-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master"}
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }

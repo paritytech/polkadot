@@ -27,7 +27,7 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
-	SignedDisputeStatement, Timestamp, DISPUTE_WINDOW,
+	SignedDisputeStatement, Timestamp,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -299,7 +299,7 @@ impl Initialized {
 
 						self.highest_session = session;
 
-						db::v1::note_current_session(overlay_db, session)?;
+						db::v1::note_earliest_session(overlay_db, new_window_start)?;
 						self.spam_slots.prune_old(new_window_start);
 					}
 				},
@@ -708,8 +708,8 @@ impl Initialized {
 		now: Timestamp,
 	) -> Result<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
-		if session + DISPUTE_WINDOW.get() < self.highest_session {
-			// It is not valid to participate in an ancient dispute (spam?).
+		if !self.rolling_session_window.contains(session) {
+			// It is not valid to participate in an ancient dispute (spam?) or too new.
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 

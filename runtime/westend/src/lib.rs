@@ -1223,14 +1223,6 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 	(
-		// "Bound uses of call" <https://github.com/paritytech/polkadot/pull/5729>
-		pallet_preimage::migration::v1::Migration<Runtime>,
-		pallet_scheduler::migration::v3::MigrateToV4<Runtime>,
-		pallet_multisig::migrations::v1::MigrateToV1<Runtime>,
-		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
-		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
-		pallet_election_provider_multi_phase::migrations::v1::MigrateToV1<Runtime>,
-		pallet_fast_unstake::migrations::v1::MigrateToV1<Runtime>,
 		// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	),
@@ -1462,7 +1454,10 @@ sp_api::impl_runtime_apis! {
 
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
 		fn mmr_root() -> Result<Hash, mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
 
+		fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
