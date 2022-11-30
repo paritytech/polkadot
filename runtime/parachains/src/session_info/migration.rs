@@ -35,6 +35,9 @@ pub mod v2 {
 	#[cfg(feature = "try-runtime")]
 	use crate::session_info::Vec;
 
+	/// The log target.
+	const TARGET: &'static str = "runtime::session_info::migration::v2";
+
 	pub struct MigrateToV2<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config + session_info::pallet::Config> OnRuntimeUpgrade for MigrateToV2<T> {
 		fn on_runtime_upgrade() -> Weight {
@@ -46,6 +49,7 @@ pub mod v2 {
 			let db_weight = T::DbWeight::get();
 			let mut weight = db_weight.reads(1);
 			if StorageVersion::get::<Pallet<T>>() == 1 {
+				log::info!(target: TARGET, "Upgrading storage v1 -> v2");
 				let session_index = <shared::Pallet<T>>::session_index();
 				session_info::pallet::SessionExecutorParams::<T>::insert(
 					&session_index,
@@ -53,12 +57,15 @@ pub mod v2 {
 				);
 				STORAGE_VERSION.put::<Pallet<T>>();
 				weight += db_weight.reads(1) + db_weight.writes(2);
+			} else {
+				log::warn!(target: TARGET, "Can only upgrade from version 1");
 			}
 			weight
 		}
 
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+			log::info!(target: TARGET, "Performing pre-upgrade checks");
 			assert_eq!(StorageVersion::get::<Pallet<T>>(), 1);
 			let session_index = <shared::Pallet<T>>::session_index();
 			assert!(Pallet::<T>::session_executor_params(session_index).is_none());
@@ -67,6 +74,7 @@ pub mod v2 {
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade(_: Vec<u8>) -> Result<(), &'static str> {
+			log::info!(target: TARGET, "Performing post-upgrade checks");
 			assert_eq!(StorageVersion::get::<Pallet<T>>(), 2);
 			let session_index = <shared::Pallet<T>>::session_index();
 			let executor_params = Pallet::<T>::session_executor_params(session_index);

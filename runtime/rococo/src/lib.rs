@@ -1462,9 +1462,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(
-		parachains_session_info::migration::v2::MigrateToV2<Runtime>,
-	),
+	(parachains_session_info::migration::v2::MigrateToV2<Runtime>,),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
