@@ -651,20 +651,21 @@ mod tests {
 		let mut test = Test::new(2, 3);
 		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
 
+		let priority = Priority::Normal;
 		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
+			priority,
 			pvf: pvf(1),
 			executor_params: ExecutorParams::default(),
 			preparation_timeout,
 		});
 		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
+			priority,
 			pvf: pvf(2),
 			executor_params: ExecutorParams::default(),
 			preparation_timeout,
 		});
 		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
+			priority,
 			pvf: pvf(3),
 			executor_params: ExecutorParams::default(),
 			preparation_timeout,
