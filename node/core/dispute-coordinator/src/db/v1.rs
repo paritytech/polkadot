@@ -32,7 +32,7 @@ use crate::{
 	backend::{Backend, BackendWriteOp, OverlayedBackend},
 	error::{FatalError, FatalResult},
 	metrics::Metrics,
-	DISPUTE_WINDOW, LOG_TARGET,
+	LOG_TARGET,
 };
 
 const RECENT_DISPUTES_KEY: &[u8; 15] = b"recent-disputes";
@@ -318,25 +318,24 @@ pub(crate) fn load_recent_disputes(
 ///
 /// If one or more ancient sessions are pruned, all metadata on candidates within the ancient
 /// session will be deleted.
-pub(crate) fn note_current_session(
+pub(crate) fn note_earliest_session(
 	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
-	current_session: SessionIndex,
+	new_earliest_session: SessionIndex,
 ) -> SubsystemResult<()> {
-	let new_earliest = current_session.saturating_sub(DISPUTE_WINDOW.get());
 	match overlay_db.load_earliest_session()? {
 		None => {
 			// First launch - write new-earliest.
-			overlay_db.write_earliest_session(new_earliest);
+			overlay_db.write_earliest_session(new_earliest_session);
 		},
-		Some(prev_earliest) if new_earliest > prev_earliest => {
+		Some(prev_earliest) if new_earliest_session > prev_earliest => {
 			// Prune all data in the outdated sessions.
-			overlay_db.write_earliest_session(new_earliest);
+			overlay_db.write_earliest_session(new_earliest_session);
 
 			// Clear recent disputes metadata.
 			{
 				let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
 
-				let lower_bound = (new_earliest, CandidateHash(Hash::repeat_byte(0x00)));
+				let lower_bound = (new_earliest_session, CandidateHash(Hash::repeat_byte(0x00)));
 
 				let new_recent_disputes = recent_disputes.split_off(&lower_bound);
 				// Any remanining disputes are considered ancient and must be pruned.
@@ -373,6 +372,7 @@ mod tests {
 
 	use super::*;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
+	use polkadot_node_primitives::DISPUTE_WINDOW;
 	use polkadot_primitives::v2::{Hash, Id as ParaId};
 
 	fn make_db() -> DbBackend {
@@ -422,7 +422,7 @@ mod tests {
 		let mut overlay_db = OverlayedBackend::new(&backend);
 
 		gum::trace!(target: LOG_TARGET, ?current_session, "Noting current session");
-		note_current_session(&mut overlay_db, current_session).unwrap();
+		note_earliest_session(&mut overlay_db, earliest_session).unwrap();
 
 		let write_ops = overlay_db.into_write_ops();
 		backend.write(write_ops).unwrap();
@@ -442,7 +442,7 @@ mod tests {
 		let current_session = current_session + 1;
 		let earliest_session = earliest_session + 1;
 
-		note_current_session(&mut overlay_db, current_session).unwrap();
+		note_earliest_session(&mut overlay_db, earliest_session).unwrap();
 
 		let write_ops = overlay_db.into_write_ops();
 		backend.write(write_ops).unwrap();
@@ -599,7 +599,7 @@ mod tests {
 	}
 
 	#[test]
-	fn note_current_session_prunes_old() {
+	fn note_earliest_session_prunes_old() {
 		let mut backend = make_db();
 
 		let hash_a = CandidateHash(Hash::repeat_byte(0x0a));
@@ -648,7 +648,7 @@ mod tests {
 		backend.write(write_ops).unwrap();
 
 		let mut overlay_db = OverlayedBackend::new(&backend);
-		note_current_session(&mut overlay_db, current_session).unwrap();
+		note_earliest_session(&mut overlay_db, new_earliest_session).unwrap();
 
 		assert_eq!(overlay_db.load_earliest_session().unwrap(), Some(new_earliest_session));
 

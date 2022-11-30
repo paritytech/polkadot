@@ -287,7 +287,7 @@ impl PeerData {
 			PeerState::Collating(ref mut state) =>
 				if state.advertisements.insert(on_relay_parent) {
 					state.last_active = Instant::now();
-					Ok((state.collator_id.clone(), state.para_id.clone()))
+					Ok((state.collator_id.clone(), state.para_id))
 				} else {
 					Err(AdvertisementError::Duplicate)
 				},
@@ -375,22 +375,19 @@ impl ActiveParas {
 				.await
 				.await
 				.ok()
-				.map(|x| x.ok())
-				.flatten();
+				.and_then(|x| x.ok());
 
 			let mg = polkadot_node_subsystem_util::request_validator_groups(relay_parent, sender)
 				.await
 				.await
 				.ok()
-				.map(|x| x.ok())
-				.flatten();
+				.and_then(|x| x.ok());
 
 			let mc = polkadot_node_subsystem_util::request_availability_cores(relay_parent, sender)
 				.await
 				.await
 				.ok()
-				.map(|x| x.ok())
-				.flatten();
+				.and_then(|x| x.ok());
 
 			let (validators, groups, rotation_info, cores) = match (mv, mg, mc) {
 				(Some(v), Some((g, r)), Some(c)) => (v, g, r, c),
@@ -486,12 +483,7 @@ struct PendingCollation {
 
 impl PendingCollation {
 	fn new(relay_parent: Hash, para_id: &ParaId, peer_id: &PeerId) -> Self {
-		Self {
-			relay_parent,
-			para_id: para_id.clone(),
-			peer_id: peer_id.clone(),
-			commitments_hash: None,
-		}
+		Self { relay_parent, para_id: *para_id, peer_id: *peer_id, commitments_hash: None }
 	}
 }
 
@@ -629,9 +621,9 @@ fn collator_peer_id(
 	peer_data: &HashMap<PeerId, PeerData>,
 	collator_id: &CollatorId,
 ) -> Option<PeerId> {
-	peer_data.iter().find_map(|(peer, data)| {
-		data.collator_id().filter(|c| c == &collator_id).map(|_| peer.clone())
-	})
+	peer_data
+		.iter()
+		.find_map(|(peer, data)| data.collator_id().filter(|c| c == &collator_id).map(|_| *peer))
 }
 
 async fn disconnect_peer(sender: &mut impl overseer::CollatorProtocolSenderTrait, peer_id: PeerId) {
@@ -655,9 +647,7 @@ async fn fetch_collation(
 		Delay::new(MAX_UNSHARED_DOWNLOAD_TIME).await;
 		(collator_id, relay_parent)
 	};
-	state
-		.collation_fetch_timeouts
-		.push(timeout(id.clone(), relay_parent.clone()).boxed());
+	state.collation_fetch_timeouts.push(timeout(id.clone(), relay_parent).boxed());
 
 	if let Some(peer_data) = state.peer_data.get(&peer_id) {
 		if peer_data.has_advertised(&relay_parent) {
@@ -729,7 +719,7 @@ async fn notify_collation_seconded(
 ///  - Ongoing collation requests have to be canceled.
 ///  - Advertisements by this peer that are no longer relevant have to be removed.
 async fn handle_peer_view_change(state: &mut State, peer_id: PeerId, view: View) -> Result<()> {
-	let peer_data = state.peer_data.entry(peer_id.clone()).or_default();
+	let peer_data = state.peer_data.entry(peer_id).or_default();
 
 	peer_data.update_view(view);
 	state
@@ -883,7 +873,7 @@ async fn process_incoming_peer_message<Context>(
 					"Declared as collator for unneeded para",
 				);
 
-				modify_reputation(ctx.sender(), origin.clone(), COST_UNNEEDED_COLLATOR).await;
+				modify_reputation(ctx.sender(), origin, COST_UNNEEDED_COLLATOR).await;
 				gum::trace!(target: LOG_TARGET, "Disconnecting unneeded collator");
 				disconnect_peer(ctx.sender(), origin).await;
 			}
@@ -1013,7 +1003,7 @@ async fn handle_our_view_change<Context>(
 		.span_per_head()
 		.iter()
 		.filter(|v| !old_view.contains(&v.0))
-		.map(|v| (v.0.clone(), v.1.clone()))
+		.map(|v| (*v.0, v.1.clone()))
 		.collect();
 
 	added.into_iter().for_each(|(h, s)| {
@@ -1046,7 +1036,7 @@ async fn handle_our_view_change<Context>(
 					?para_id,
 					"Disconnecting peer on view change (not current parachain id)"
 				);
-				disconnect_peer(ctx.sender(), peer_id.clone()).await;
+				disconnect_peer(ctx.sender(), *peer_id).await;
 			}
 		}
 	}
@@ -1254,7 +1244,7 @@ async fn poll_requests(
 			retained_requested.insert(pending_collation.clone());
 		}
 		if let CollationFetchResult::Error(Some(rep)) = result {
-			reputation_changes.push((pending_collation.peer_id.clone(), rep));
+			reputation_changes.push((pending_collation.peer_id, rep));
 		}
 	}
 	requested_collations.retain(|k, _| retained_requested.contains(k));
@@ -1337,11 +1327,7 @@ async fn handle_collation_fetched_result<Context>(
 	if let Entry::Vacant(entry) = state.pending_candidates.entry(relay_parent) {
 		collation_event.1.commitments_hash = Some(candidate_receipt.commitments_hash);
 		ctx.sender()
-			.send_message(CandidateBackingMessage::Second(
-				relay_parent.clone(),
-				candidate_receipt,
-				pov,
-			))
+			.send_message(CandidateBackingMessage::Second(relay_parent, candidate_receipt, pov))
 			.await;
 
 		entry.insert(collation_event);
@@ -1366,7 +1352,7 @@ async fn disconnect_inactive_peers(
 	for (peer, peer_data) in peers {
 		if peer_data.is_inactive(&eviction_policy) {
 			gum::trace!(target: LOG_TARGET, "Disconnecting inactive peer");
-			disconnect_peer(sender, peer.clone()).await;
+			disconnect_peer(sender, *peer).await;
 		}
 	}
 }

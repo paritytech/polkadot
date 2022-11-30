@@ -381,6 +381,7 @@ async fn run<Context, B>(
 ) where
 	B: Backend,
 {
+	#![allow(clippy::all)]
 	loop {
 		let res = run_until_error(
 			&mut ctx,
@@ -430,7 +431,7 @@ where
 						return Ok(())
 					}
 					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
-						for leaf in update.activated {
+						if let Some(leaf) = update.activated {
 							let write_ops = handle_active_leaf(
 								ctx.sender(),
 								&*backend,

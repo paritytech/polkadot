@@ -30,7 +30,7 @@ use futures::FutureExt;
 
 use sc_keystore::LocalKeystore;
 
-use polkadot_node_primitives::{CandidateVotes, DISPUTE_WINDOW};
+use polkadot_node_primitives::CandidateVotes;
 use polkadot_node_subsystem::{
 	overseer, ActivatedLeaf, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -272,7 +272,7 @@ impl DisputeCoordinatorSubsystem {
 		ChainScraper,
 	)> {
 		// Prune obsolete disputes:
-		db::v1::note_current_session(overlay_db, rolling_session_window.latest_session())?;
+		db::v1::note_earliest_session(overlay_db, rolling_session_window.earliest_session())?;
 
 		let active_disputes = match overlay_db.load_recent_disputes() {
 			Ok(Some(disputes)) =>
@@ -286,7 +286,7 @@ impl DisputeCoordinatorSubsystem {
 
 		let mut participation_requests = Vec::new();
 		let mut unconfirmed_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
-		let (mut scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
+		let (scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
 		for ((session, ref candidate_hash), status) in active_disputes {
 			let votes: CandidateVotes =
 				match overlay_db.load_candidate_votes(session, candidate_hash) {

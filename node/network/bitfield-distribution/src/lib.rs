@@ -233,7 +233,7 @@ impl BitfieldDistribution {
 				})) => {
 					let _timer = self.metrics.time_active_leaves_update();
 
-					for activated in activated {
+					if let Some(activated) = activated {
 						let relay_parent = activated.hash;
 
 						gum::trace!(target: LOG_TARGET, ?relay_parent, "activated");
@@ -319,7 +319,7 @@ async fn handle_bitfield_distribution<Context>(
 	}
 
 	let validator_index = signed_availability.validator_index();
-	let validator = if let Some(validator) = validator_set.get(*&validator_index.0 as usize) {
+	let validator = if let Some(validator) = validator_set.get(validator_index.0 as usize) {
 		validator.clone()
 	} else {
 		gum::debug!(target: LOG_TARGET, validator_index = ?validator_index.0, "Could not find a validator for index");
@@ -395,7 +395,7 @@ async fn relay_message<Context>(
 					};
 
 					if need_routing {
-						Some(peer.clone())
+						Some(*peer)
 					} else {
 						None
 					}
@@ -412,7 +412,7 @@ async fn relay_message<Context>(
 		// track the message as sent for this peer
 		job_data
 			.message_sent_to_peer
-			.entry(peer.clone())
+			.entry(*peer)
 			.or_default()
 			.insert(validator.clone());
 	});
@@ -497,7 +497,7 @@ async fn process_incoming_peer_message<Context>(
 	// Check if the peer already sent us a message for the validator denoted in the message earlier.
 	// Must be done after validator index verification, in order to avoid storing an unbounded
 	// number of set entries.
-	let received_set = job_data.message_received_from_peer.entry(origin.clone()).or_default();
+	let received_set = job_data.message_received_from_peer.entry(origin).or_default();
 
 	if !received_set.contains(&validator) {
 		received_set.insert(validator.clone());
@@ -656,7 +656,7 @@ async fn handle_peer_view_change<Context>(
 ) {
 	let added = state
 		.peer_views
-		.entry(origin.clone())
+		.entry(origin)
 		.or_default()
 		.replace_difference(view)
 		.cloned()
@@ -681,11 +681,10 @@ async fn handle_peer_view_change<Context>(
 	let delta_set: Vec<(ValidatorId, BitfieldGossipMessage)> = added
 		.into_iter()
 		.filter_map(|new_relay_parent_interest| {
-			if let Some(job_data) = (&*state).per_relay_parent.get(&new_relay_parent_interest) {
+			if let Some(job_data) = state.per_relay_parent.get(&new_relay_parent_interest) {
 				// Send all jointly known messages for a validator (given the current relay parent)
 				// to the peer `origin`...
 				let one_per_validator = job_data.one_per_validator.clone();
-				let origin = origin.clone();
 				Some(one_per_validator.into_iter().filter(move |(validator, _message)| {
 					// ..except for the ones the peer already has.
 					job_data.message_from_validator_needed_by_peer(&origin, validator)
@@ -699,7 +698,7 @@ async fn handle_peer_view_change<Context>(
 		.collect();
 
 	for (validator, message) in delta_set.into_iter() {
-		send_tracked_gossip_message(ctx, state, origin.clone(), validator, message).await;
+		send_tracked_gossip_message(ctx, state, origin, validator, message).await;
 	}
 }
 
@@ -727,11 +726,7 @@ async fn send_tracked_gossip_message<Context>(
 		"Sending gossip message"
 	);
 
-	job_data
-		.message_sent_to_peer
-		.entry(dest.clone())
-		.or_default()
-		.insert(validator.clone());
+	job_data.message_sent_to_peer.entry(dest).or_default().insert(validator.clone());
 
 	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 		vec![dest],
@@ -760,14 +755,14 @@ async fn query_basics<Context>(
 
 	// query validators
 	ctx.send_message(RuntimeApiMessage::Request(
-		relay_parent.clone(),
+		relay_parent,
 		RuntimeApiRequest::Validators(validators_tx),
 	))
 	.await;
 
 	// query signing context
 	ctx.send_message(RuntimeApiMessage::Request(
-		relay_parent.clone(),
+		relay_parent,
 		RuntimeApiRequest::SessionIndexForChild(session_tx),
 	))
 	.await;

@@ -56,10 +56,10 @@ where
 /// Create an overseer with all subsystem being `Sub`.
 ///
 /// Preferred way of initializing a dummy overseer for subsystem tests.
-pub fn dummy_overseer_builder<'a, Spawner, SupportsParachains>(
+pub fn dummy_overseer_builder<Spawner, SupportsParachains>(
 	spawner: Spawner,
 	supports_parachains: SupportsParachains,
-	registry: Option<&'a Registry>,
+	registry: Option<&Registry>,
 ) -> Result<
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
@@ -97,11 +97,11 @@ where
 }
 
 /// Create an overseer with all subsystem being `Sub`.
-pub fn one_for_all_overseer_builder<'a, Spawner, SupportsParachains, Sub>(
+pub fn one_for_all_overseer_builder<Spawner, SupportsParachains, Sub>(
 	spawner: Spawner,
 	supports_parachains: SupportsParachains,
 	subsystem: Sub,
-	registry: Option<&'a Registry>,
+	registry: Option<&Registry>,
 ) -> Result<
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
