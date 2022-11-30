@@ -204,7 +204,7 @@ impl Queues {
 		// Once https://github.com/rust-lang/rust/issues/62924 is there, we can use a simple:
 		// target.pop_first().
 		if let Some((comparator, _)) = target.iter().next() {
-			let comparator = comparator.clone();
+			let comparator = *comparator;
 			target
 				.remove(&comparator)
 				.map(|participation_request| (comparator, participation_request))

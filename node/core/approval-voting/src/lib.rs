@@ -621,10 +621,7 @@ impl CurrentlyCheckingSet {
 					.candidate_hash_map
 					.remove(&approval_state.candidate_hash)
 					.unwrap_or_default();
-				approvals_cache.put(
-					approval_state.candidate_hash.clone(),
-					approval_state.approval_outcome.clone(),
-				);
+				approvals_cache.put(approval_state.candidate_hash, approval_state.approval_outcome);
 				return (out, approval_state)
 			}
 		}
@@ -768,7 +765,7 @@ async fn run<B, Context>(
 where
 	B: Backend,
 {
-	if let Err(err) = db_sanity_check(subsystem.db.clone(), subsystem.db_config.clone()) {
+	if let Err(err) = db_sanity_check(subsystem.db.clone(), subsystem.db_config) {
 		gum::warn!(target: LOG_TARGET, ?err, "Could not run approval vote DB sanity check");
 	}
 
@@ -1278,7 +1275,7 @@ async fn get_approval_signatures_for_candidate<Context>(
 		Some(e) => e,
 	};
 
-	let relay_hashes = entry.block_assignments.iter().map(|(relay_hash, _)| relay_hash);
+	let relay_hashes = entry.block_assignments.keys();
 
 	let mut candidate_indices = HashSet::new();
 	// Retrieve `CoreIndices`/`CandidateIndices` as required by approval-distribution:
@@ -2502,7 +2499,7 @@ async fn issue_approval<Context>(
 	};
 
 	let candidate_hash = match block_entry.candidate(candidate_index as usize) {
-		Some((_, h)) => h.clone(),
+		Some((_, h)) => *h,
 		None => {
 			gum::warn!(
 				target: LOG_TARGET,
