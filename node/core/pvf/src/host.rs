@@ -1078,7 +1078,7 @@ mod tests {
 
 		host.heads_up(vec![PvfWithExecutorParams {
 			pvf: Pvf::from_discriminator(1),
-			executor_params,
+			executor_params: executor_params.clone(),
 		}])
 		.await
 		.unwrap();
@@ -1119,7 +1119,7 @@ mod tests {
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
-			executor_params,
+			executor_params.clone(),
 			Priority::Normal,
 			result_tx,
 		)
@@ -1221,7 +1221,7 @@ mod tests {
 
 		// First, test a simple precheck request.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), executor_params, result_tx)
+		host.precheck_pvf(Pvf::from_discriminator(1), executor_params.clone(), result_tx)
 			.await
 			.unwrap();
 
@@ -1247,7 +1247,7 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::from_discriminator(2), executor_params, result_tx)
+			host.precheck_pvf(Pvf::from_discriminator(2), executor_params.clone(), result_tx)
 				.await
 				.unwrap();
 			precheck_receivers.push(result_rx);
@@ -1302,7 +1302,7 @@ mod tests {
 		);
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), executor_params, result_tx)
+		host.precheck_pvf(Pvf::from_discriminator(1), executor_params.clone(), result_tx)
 			.await
 			.unwrap();
 
@@ -1326,7 +1326,7 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::from_discriminator(2), executor_params, result_tx)
+			host.precheck_pvf(Pvf::from_discriminator(2), executor_params.clone(), result_tx)
 				.await
 				.unwrap();
 			precheck_receivers.push(result_rx);
@@ -1377,7 +1377,7 @@ mod tests {
 
 		// Submit a precheck request that fails.
 		let (result_tx, _result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), executor_params, result_tx)
+		host.precheck_pvf(Pvf::from_discriminator(1), executor_params.clone(), result_tx)
 			.await
 			.unwrap();
 
@@ -1397,7 +1397,7 @@ mod tests {
 
 		// Submit another precheck request.
 		let (result_tx_2, _result_rx_2) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), executor_params, result_tx_2)
+		host.precheck_pvf(Pvf::from_discriminator(1), executor_params.clone(), result_tx_2)
 			.await
 			.unwrap();
 
@@ -1432,7 +1432,7 @@ mod tests {
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf".to_vec(),
-			executor_params,
+			executor_params.clone(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1459,7 +1459,7 @@ mod tests {
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf".to_vec(),
-			executor_params,
+			executor_params.clone(),
 			Priority::Critical,
 			result_tx_2,
 		)
@@ -1507,7 +1507,7 @@ mod tests {
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf".to_vec(),
-			executor_params,
+			executor_params.clone(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1534,7 +1534,7 @@ mod tests {
 			Pvf::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf".to_vec(),
-			executor_params,
+			executor_params.clone(),
 			Priority::Critical,
 			result_tx_2,
 		)
@@ -1575,7 +1575,7 @@ mod tests {
 		// Submit a heads-up request that fails.
 		host.heads_up(vec![PvfWithExecutorParams {
 			pvf: Pvf::from_discriminator(1),
-			executor_params,
+			executor_params: executor_params.clone(),
 		}])
 		.await
 		.unwrap();
@@ -1597,7 +1597,7 @@ mod tests {
 		// Submit another heads-up request.
 		host.heads_up(vec![PvfWithExecutorParams {
 			pvf: Pvf::from_discriminator(1),
-			executor_params,
+			executor_params: executor_params.clone(),
 		}])
 		.await
 		.unwrap();

@@ -751,20 +751,21 @@ mod tests {
 		let executor_params = ExecutorParams::default();
 		let executor_params_hash = executor_params.hash();
 
+		let (priority, preparation_timeout) = (Priority::Normal, PRECHECK_PREPARATION_TIMEOUT);
 		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
+			priority,
 			pvf: pvf(1),
-			executor_params,
+			executor_params: executor_params.clone(),
 			preparation_timeout,
 		});
 		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
+			priority,
 			pvf: pvf(2),
-			executor_params,
+			executor_params: executor_params.clone(),
 			preparation_timeout,
 		});
 		test.send_queue(ToQueue::Enqueue {
-			priority: Priority::Normal,
+			priority,
 			pvf: pvf(3),
 			executor_params,
 			preparation_timeout,
