@@ -766,7 +766,7 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 		.zip(backed.validity_votes.iter())
 	{
 		let validator_id = validator_lookup(val_in_group_idx).ok_or(())?;
-		let payload = attestation.signed_payload(hash.clone(), signing_context);
+		let payload = attestation.signed_payload(hash, signing_context);
 		let sig = attestation.signature();
 
 		if sig.verify(&payload[..], &validator_id) {

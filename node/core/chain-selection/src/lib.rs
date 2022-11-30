@@ -381,6 +381,7 @@ async fn run<Context, B>(
 ) where
 	B: Backend,
 {
+	#![allow(clippy::all)]
 	loop {
 		let res = run_until_error(
 			&mut ctx,
