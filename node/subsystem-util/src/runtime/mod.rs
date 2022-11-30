@@ -397,7 +397,7 @@ where
 		gum::trace!(
 			target: LOG_TARGET,
 			?relay_parent,
-			"Runtime API version is {}. Prospective parachains are disabled",
+			"Prospective parachains are disabled, {} is not supported by the current Runtime API",
 			runtime_api_name,
 		);
 

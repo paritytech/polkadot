@@ -481,8 +481,8 @@ fn second_multiple_candidates_per_relay_parent() {
 				test_state.chain_ids[0],
 				&pov,
 				ProspectiveParachainsMode::Enabled {
-					max_candidate_depth: 4,
-					allowed_ancestry_len: 3,
+					max_candidate_depth: ASYNC_BACKING_PARAMETERS.max_candidate_depth as _,
+					allowed_ancestry_len: ASYNC_BACKING_PARAMETERS.allowed_ancestry_len as _,
 				},
 			)
 			.await;
