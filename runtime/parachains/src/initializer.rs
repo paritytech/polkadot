@@ -247,7 +247,7 @@ impl<T: Config> Pallet<T> {
 
 		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,
-			random_seed.clone(),
+			random_seed,
 			&new_config,
 			all_validators,
 		);
