@@ -186,13 +186,13 @@ include:
   - scripts/ci/gitlab/pipeline/check.yml
   # test jobs
   - scripts/ci/gitlab/pipeline/test.yml
-  # # build jobs
+  # build jobs
   - scripts/ci/gitlab/pipeline/build.yml
-  # # short-benchmarks jobs
+  # short-benchmarks jobs
   - scripts/ci/gitlab/pipeline/short-benchmarks.yml
-  # # publish jobs
+  # publish jobs
   - scripts/ci/gitlab/pipeline/publish.yml
-  # # zombienet jobs
+  # zombienet jobs
   - scripts/ci/gitlab/pipeline/zombienet.yml
 
 
