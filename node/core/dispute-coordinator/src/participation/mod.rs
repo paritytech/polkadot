@@ -235,7 +235,7 @@ impl Participation {
 		req: ParticipationRequest,
 		recent_head: Hash,
 	) -> FatalResult<()> {
-		if self.running_participations.insert(req.candidate_hash().clone()) {
+		if self.running_participations.insert(*req.candidate_hash()) {
 			let sender = ctx.sender().clone();
 			ctx.spawn(
 				"participation-worker",

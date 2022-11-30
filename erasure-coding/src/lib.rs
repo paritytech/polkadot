@@ -216,7 +216,7 @@ pub struct Branches<'a, I> {
 impl<'a, I: AsRef<[u8]>> Branches<'a, I> {
 	/// Get the trie root.
 	pub fn root(&self) -> H256 {
-		self.root.clone()
+		self.root
 	}
 }
 
