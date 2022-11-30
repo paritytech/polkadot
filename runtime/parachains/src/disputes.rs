@@ -539,6 +539,8 @@ pub mod pallet {
 		SingleSidedDispute,
 		/// A dispute vote from a malicious backer.
 		MaliciousBacker,
+		/// No backing votes were provides along dispute statements.
+		MissingBackingVotes,
 	}
 
 	#[pallet::call]
@@ -1299,9 +1301,9 @@ impl<T: Config> Pallet<T> {
 		);
 
 		let backers = summary.backers;
-		if !backers.is_empty() {
-			<BackersOnDisputes<T>>::insert(&set.session, &set.candidate_hash, backers.clone());
-		}
+		// Reject statements with no accompanying backing votes.
+		ensure!(!backers.is_empty(), Error::<T>::MissingBackingVotes);
+		<BackersOnDisputes<T>>::insert(&set.session, &set.candidate_hash, backers.clone());
 
 		let DisputeStatementSet { ref session, ref candidate_hash, .. } = set;
 		let session = *session;
