@@ -2,6 +2,7 @@
 
 Here you can find definitions of a bunch of jargon, usually specific to the Polkadot project.
 
+- **Approval Checker:** A validator who randomly self-selects so to perform validity checks on a parablock which is pending approval.
 - **BABE:** (Blind Assignment for Blockchain Extension). The algorithm validators use to safely extend the Relay Chain. See [the Polkadot wiki][0] for more information.
 - **Backable Candidate:** A Parachain Candidate which is backed by a majority of validators assigned to a given parachain.
 - **Backed Candidate:** A Backable Candidate noted in a relay-chain block
@@ -31,11 +32,9 @@ exactly one downward message queue.
 - **PVF Prechecking:** This is the process of initially checking the PVF when it is first added. We attempt preparation of the PVF and make sure it succeeds within a given timeout.
 - **PVF Preparation:** This is the process of preparing the WASM blob and includes both prevalidation and compilation. As prevalidation is pretty minimal right now, preparation mostly consists of compilation.
 - **Relay Parent:** A block in the relay chain, referred to in a context where work is being done in the context of the state at this block.
-- **Router:** The router module is a meta module that consists of three runtime modules responsible for routing messages between paras and the relay chain. The three separate runtime modules are: Dmp, Ump, Hrmp, each responsible for the respective part of message routing.
 - **Runtime:** The relay-chain state machine.
 - **Runtime Module:** See Module.
 - **Runtime API:** A means for the node-side behavior to access structured information based on the state of a fork of the blockchain.
-- **Secondary Checker:** A validator who has been randomly selected to perform secondary approval checks on a parablock which is pending approval.
 - **Subsystem:** A long-running task which is responsible for carrying out a particular category of work.
 - **UMP:** (Upward Message Passing) A vertical message passing mechanism from a parachain to the relay chain.
 - **Validator:** Specially-selected node in the network who is responsible for validating parachain blocks and issuing attestations about their validity.
@@ -48,4 +47,3 @@ exactly one downward message queue.
 Also of use is the [Substrate Glossary](https://substrate.dev/docs/en/knowledgebase/getting-started/glossary).
 
 [0]: https://wiki.polkadot.network/docs/learn-consensus
-[1]: #pvf

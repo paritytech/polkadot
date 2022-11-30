@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-cli"
-version = "0.9.31"
+version = "0.9.33"
 authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
 edition = "2021"
@@ -43,8 +43,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", 
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = ["wasmtime", "db", "cli", "hostperfcheck", "full-node", "trie-memory-tracker", "polkadot-native"]
-wasmtime = ["sc-cli/wasmtime"]
+default = ["db", "cli", "hostperfcheck", "full-node", "trie-memory-tracker", "polkadot-native"]
 db = ["service/db"]
 cli = [
 	"clap",
