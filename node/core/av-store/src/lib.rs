@@ -61,7 +61,7 @@ const PRUNE_BY_TIME_PREFIX: &[u8; 13] = b"prune_by_time";
 
 // We have some keys we want to map to empty values because existence of the key is enough. We use this because
 // rocksdb doesn't support empty values.
-const TOMBSTONE_VALUE: &[u8] = &*b" ";
+const TOMBSTONE_VALUE: &[u8] = b" ";
 
 /// Unavailable blocks are kept for 1 hour.
 const KEEP_UNAVAILABLE_FOR: Duration = Duration::from_secs(60 * 60);
