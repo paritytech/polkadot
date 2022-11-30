@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::traits::Get;
+use frame_support::{
+	ensure,
+	traits::{Contains, Get},
+};
 use parity_scale_codec::{Decode, Encode};
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
@@ -22,12 +25,33 @@ use sp_std::{borrow::Borrow, marker::PhantomData};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::Convert;
 
-pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
-impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
-	Convert<MultiLocation, AccountId> for Account32Hash<Network, AccountId>
+/// Accepts a location iff descended with a general index and
+/// the index is less than u8
+/// This limits the amount of addresses a chain can use, besides
+/// the main sovereign account
+pub struct SovereignDescendedIndices;
+impl Contains<MultiLocation> for SovereignDescendedIndices {
+	fn contains(location: &MultiLocation) -> bool {
+		match location {
+			MultiLocation { parents: 0, interior: X2(Parachain(_), GeneralIndex(index)) }
+				if *index <= u8::MAX.into() =>
+				true,
+			_ => false,
+		}
+	}
+}
+
+pub struct Account32Hash<T, Network, AccountId>(PhantomData<(T, Network, AccountId)>);
+impl<
+		Network: Get<Option<NetworkId>>,
+		AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone,
+		T: Contains<MultiLocation>,
+	> Convert<MultiLocation, AccountId> for Account32Hash<T, Network, AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		Ok(("multiloc", location.borrow()).using_encoded(blake2_256).into())
+		let location = location.borrow();
+		ensure!(T::contains(location), ());
+		Ok(("multiloc", location).using_encoded(blake2_256).into())
 	}
 
 	fn reverse_ref(_: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
