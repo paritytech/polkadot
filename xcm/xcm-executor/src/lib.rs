@@ -515,16 +515,9 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			Transact { origin_kind, require_weight_at_most, mut call } => {
-				fn with_recursion<R>(fn_: impl FnOnce() -> R) -> R {
-					// We should make this better in upstream.
-					if recursion_count::with(|_| ()).is_none() {
-						recursion_count::using(&mut 1, fn_)
-					} else {
-						(fn_)()
-					}
-				}
-
-				with_recursion(|| {
+				// Initialize the recursion count only the first time we hit this code in our
+				// potential recursive execution.
+				recursion_count::using_once(&mut 1, || {
 					recursion_count::with(|count| {
 						if *count > RECURSION_LIMIT {
 							return Err(XcmError::ExceedsStackLimit)
