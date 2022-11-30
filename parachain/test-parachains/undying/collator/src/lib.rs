@@ -459,7 +459,7 @@ mod tests {
 	#[test]
 	fn collator_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
-		let collator = Collator::new(1_000, 1, Vec::new(), 1001);
+		let collator = Collator::new(1_000, 1, Vec::new(), 1001, Default::default());
 		let collation_function =
 			collator.create_collation_function(spawner, Arc::new(FakeRuntime {}));
 
@@ -514,7 +514,7 @@ mod tests {
 
 	#[test]
 	fn advance_to_state_when_parent_head_is_missing() {
-		let collator = Collator::new(1_000, 1, Vec::new(), 1001);
+		let collator = Collator::new(1_000, 1, Vec::new(), 1001, Default::default());
 		let graveyard_size = collator.state.lock().unwrap().graveyard_size;
 
 		let mut head = calculate_head_and_state_for_number(
@@ -531,7 +531,7 @@ mod tests {
 			assert_eq!(10 + i, head.number);
 		}
 
-		let collator = Collator::new(1_000, 1, Vec::new(), 1001);
+		let collator = Collator::new(1_000, 1, Vec::new(), 1001, Default::default());
 		let mut second_head = collator
 			.state
 			.lock()

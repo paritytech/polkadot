@@ -80,7 +80,13 @@ async fn collating_using_undying_collator() {
 	// start bob
 	let bob = polkadot_test_service::run_validator_node(bob_config, Some(PUPPET_EXE.into()));
 
-	let collator = test_parachain_undying_collator::Collator::new(1_000, 1, Vec::new(), 1001);
+	let collator = test_parachain_undying_collator::Collator::new(
+		1_000,
+		1,
+		Vec::new(),
+		1001,
+		Default::default(),
+	);
 
 	// register parachain
 	alice
