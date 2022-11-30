@@ -707,11 +707,15 @@ pub enum RuntimeApiRequest {
 		OccupiedCoreAssumption,
 		RuntimeApiSender<Option<ValidationCodeHash>>,
 	),
+	/// Returns all on-chain disputes at given block number. Available in `v3`.
+	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
 	/// Get the validity constraints of the given para.
 	/// This is a staging API that will not be available on production runtimes.
 	StagingValidityConstraints(ParaId, RuntimeApiSender<Option<vstaging_primitives::Constraints>>),
-	/// Returns all on-chain disputes at given block number. Available in `v3`.
-	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
+	/// Get candidate's acceptance limitations for asynchronous backing for a relay parent.
+	///
+	/// If it's not supported by the Runtime, the async backing is said to be disabled.
+	StagingAsyncBackingParameters(RuntimeApiSender<vstaging_primitives::AsyncBackingParameters>),
 }
 
 impl RuntimeApiRequest {

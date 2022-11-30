@@ -30,6 +30,23 @@ use parity_util_mem::MallocSizeOf;
 /// Useful type alias for Para IDs.
 pub type ParaId = Id;
 
+/// Candidate's acceptance limitations for asynchronous backing per relay parent.
+#[derive(RuntimeDebug, Copy, Clone, PartialEq, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf, serde::Serialize, serde::Deserialize))]
+pub struct AsyncBackingParameters {
+	/// The maximum number of para blocks between the para head in a relay parent
+	/// and a new candidate. Restricts nodes from building arbitrary long chains
+	/// and spamming other validators.
+	///
+	/// When async backing is disabled, the only valid value is 0.
+	pub max_candidate_depth: u32,
+	/// How many ancestors of a relay parent are allowed to build candidates on top
+	/// of.
+	///
+	/// When async backing is disabled, the only valid value is 0.
+	pub allowed_ancestry_len: u32,
+}
+
 /// Constraints on inbound HRMP channels.
 #[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]

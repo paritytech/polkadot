@@ -1913,9 +1913,6 @@ fn check_allowed_relay_parents() {
 	let chain_b = ParaId::from(2);
 	let thread_a = ParaId::from(3);
 
-	// The block number of the relay-parent for testing.
-	const RELAY_PARENT_NUM: BlockNumber = 4;
-
 	let paras = vec![
 		(chain_a, ParaKind::Parachain),
 		(chain_b, ParaKind::Parachain),
@@ -1984,10 +1981,25 @@ fn check_allowed_relay_parents() {
 		let relay_parent_c = (3, Hash::repeat_byte(0x3));
 
 		let mut allowed_relay_parents = AllowedRelayParentsTracker::default();
-		let max_len = RELAY_PARENT_NUM as usize;
-		allowed_relay_parents.update(relay_parent_a.1, Hash::zero(), relay_parent_a.0, max_len);
-		allowed_relay_parents.update(relay_parent_b.1, Hash::zero(), relay_parent_b.0, max_len);
-		allowed_relay_parents.update(relay_parent_c.1, Hash::zero(), relay_parent_c.0, max_len);
+		let max_ancestry_len = 3;
+		allowed_relay_parents.update(
+			relay_parent_a.1,
+			Hash::zero(),
+			relay_parent_a.0,
+			max_ancestry_len,
+		);
+		allowed_relay_parents.update(
+			relay_parent_b.1,
+			Hash::zero(),
+			relay_parent_b.0,
+			max_ancestry_len,
+		);
+		allowed_relay_parents.update(
+			relay_parent_c.1,
+			Hash::zero(),
+			relay_parent_c.0,
+			max_ancestry_len,
+		);
 
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),

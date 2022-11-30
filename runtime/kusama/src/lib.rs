@@ -1460,7 +1460,7 @@ pub type Executive = frame_executive::Executive<
 		pallet_democracy::migrations::v1::Migration<Runtime>,
 		pallet_multisig::migrations::v1::MigrateToV1<Runtime>,
 		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
-		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
+		parachains_configuration::migration::v4::MigrateToV4<Runtime>,
 		pallet_election_provider_multi_phase::migrations::v1::MigrateToV1<Runtime>,
 		pallet_fast_unstake::migrations::v1::MigrateToV1<Runtime>,
 	),
@@ -1689,10 +1689,6 @@ sp_api::impl_runtime_apis! {
 			-> Option<ValidationCodeHash>
 		{
 			parachains_runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
-		}
-
-		fn staging_validity_constraints(_: ParaId) -> Option<primitives::vstaging::Constraints> {
-			unimplemented!("Staging API not implemented");
 		}
 	}
 

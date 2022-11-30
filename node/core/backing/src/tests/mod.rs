@@ -23,6 +23,7 @@ use assert_matches::assert_matches;
 use futures::{future, Future};
 use polkadot_node_primitives::{BlockData, InvalidCandidate, SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
+	errors::RuntimeApiError,
 	jaeger,
 	messages::{
 		AllMessages, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
@@ -44,7 +45,8 @@ use std::collections::HashMap;
 
 mod prospective_parachains;
 
-const API_VERSION_PROSPECTIVE_DISABLED: u32 = 2;
+const ASYNC_BACKING_DISABLED_ERROR: RuntimeApiError =
+	RuntimeApiError::NotSupported { runtime_api_name: "test-runtime" };
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
@@ -242,14 +244,12 @@ async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 		))))
 		.await;
 
-	// Prospective parachains mode is temporarily defined by the Runtime API version.
-	// Disable it for the test leaf.
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(parent, RuntimeApiRequest::Version(tx))
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
 		) if parent == test_state.relay_parent => {
-			tx.send(Ok(API_VERSION_PROSPECTIVE_DISABLED)).unwrap();
+			tx.send(Err(ASYNC_BACKING_DISABLED_ERROR)).unwrap();
 		}
 	);
 
