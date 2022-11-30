@@ -169,7 +169,7 @@ impl CandidateVoteState<CandidateVotes> {
 	}
 
 	/// Create a new `CandidateVoteState` from already existing votes.
-	pub fn new<'a>(votes: CandidateVotes, env: &CandidateEnvironment<'a>, now: Timestamp) -> Self {
+	pub fn new(votes: CandidateVotes, env: &CandidateEnvironment, now: Timestamp) -> Self {
 		let own_vote = OwnVoteState::new(&votes, env);
 
 		let n_validators = env.validators().len();

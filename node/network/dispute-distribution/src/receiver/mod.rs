@@ -430,7 +430,7 @@ where
 				);
 				return
 			},
-			Some(vote) => (vote.0.session_index(), vote.0.candidate_hash().clone()),
+			Some(vote) => (vote.0.session_index(), *vote.0.candidate_hash()),
 		};
 
 		let (pending_confirmation, confirmation_rx) = oneshot::channel();

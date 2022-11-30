@@ -38,7 +38,7 @@ fn benchmark_storage_works() {
 /// Invoke the `benchmark storage` sub-command.
 fn benchmark_storage(db: &str, base_path: &Path) -> ExitStatus {
 	Command::new(cargo_bin("polkadot"))
-		.args(&["benchmark", "storage", "--dev"])
+		.args(["benchmark", "storage", "--dev"])
 		.arg("--db")
 		.arg(db)
 		.arg("--weight-path")
