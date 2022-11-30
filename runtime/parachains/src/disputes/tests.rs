@@ -1421,6 +1421,195 @@ fn test_provide_multi_dispute_success_and_other() {
 	})
 }
 
+/// In this setup we have only one dispute concluding AGAINST.
+/// There are some votes imported post dispute conclusion.
+/// We make sure these votes are accounted for in punishment.
+#[test]
+fn test_punish_post_conclusion() {
+	new_test_ext(Default::default()).execute_with(|| {
+		// supermajority threshold is 5
+		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v2 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v3 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v4 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v5 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v6 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+		run_to_block(6, |b| {
+			// a new session at each block
+			Some((
+				true,
+				b,
+				vec![
+					(&0, v0.public()),
+					(&1, v1.public()),
+					(&2, v2.public()),
+					(&3, v3.public()),
+					(&4, v4.public()),
+					(&5, v5.public()),
+					(&6, v6.public()),
+				],
+				Some(vec![
+					(&0, v0.public()),
+					(&1, v1.public()),
+					(&2, v2.public()),
+					(&3, v3.public()),
+					(&4, v4.public()),
+					(&5, v5.public()),
+					(&6, v6.public()),
+				]),
+			))
+		});
+
+		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+		let inclusion_parent = sp_core::H256::repeat_byte(0xff);
+		let session = 3;
+
+		// v0 votes backing, v1 votes against
+		let stmts = vec![DisputeStatementSet {
+			candidate_hash: candidate_hash.clone(),
+			session,
+			statements: vec![
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
+						inclusion_parent,
+					)),
+					ValidatorIndex(0),
+					v0.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
+						&SigningContext { session_index: session, parent_hash: inclusion_parent },
+					)),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(1),
+					v1.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+			],
+		}];
+
+		let stmts = update_spam_slots(stmts);
+		assert_ok!(
+			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
+			vec![(3, candidate_hash)],
+		);
+
+		// v2, v3, v4, v5 vote against, dispute concludes AGAINST.
+		let stmts = vec![DisputeStatementSet {
+			candidate_hash: candidate_hash.clone(),
+			session,
+			statements: vec![
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(2),
+					v2.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(3),
+					v3.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(4),
+					v4.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(5),
+					v5.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+			],
+		}];
+
+		let stmts = update_spam_slots(stmts);
+		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![],);
+
+		assert_eq!(
+			PUNISH_VALIDATORS_FOR.with(|r| r.borrow().clone()),
+			vec![(3, vec![]), (3, vec![ValidatorIndex(0)]),],
+		);
+
+		// someone reveals v3 backing vote, v6 votes against
+		let stmts = vec![DisputeStatementSet {
+			candidate_hash: candidate_hash.clone(),
+			session,
+			statements: vec![
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::BackingValid(
+						inclusion_parent,
+					)),
+					ValidatorIndex(3),
+					v3.sign(&CompactStatement::Valid(candidate_hash).signing_payload(
+						&SigningContext { session_index: session, parent_hash: inclusion_parent },
+					)),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(6),
+					v6.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session,
+						}
+						.signing_payload(),
+					),
+				),
+			],
+		}];
+
+		let stmts = update_spam_slots(stmts);
+		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![],);
+
+		// Ensure punishment for is called
+		assert_eq!(
+			PUNISH_VALIDATORS_FOR.with(|r| r.borrow().clone()),
+			vec![(3, vec![]), (3, vec![ValidatorIndex(0)]), (3, vec![ValidatorIndex(3)]),],
+		);
+
+		assert_eq!(
+			PUNISH_VALIDATORS_AGAINST.with(|r| r.borrow().clone()),
+			vec![(3, vec![]), (3, vec![]), (3, vec![]),],
+		);
+	})
+}
+
 #[test]
 fn test_revert_and_freeze() {
 	new_test_ext(Default::default()).execute_with(|| {

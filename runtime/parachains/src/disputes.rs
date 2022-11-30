@@ -696,6 +696,7 @@ struct DisputeStateImporter<BlockNumber> {
 	now: BlockNumber,
 	new_participants: bitvec::vec::BitVec<u8, BitOrderLsb0>,
 	pre_flags: DisputeStateFlags,
+	pre_state: DisputeState<BlockNumber>,
 }
 
 impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
@@ -710,8 +711,9 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 		for i in backers.iter() {
 			debug_assert_eq!(state.validators_for.get(i.0 as usize).map(|b| *b), Some(true));
 		}
+		let pre_state = state.clone();
 
-		DisputeStateImporter { state, backers, now, new_participants, pre_flags }
+		DisputeStateImporter { state, backers, now, new_participants, pre_flags, pre_state }
 	}
 
 	fn import(
@@ -818,9 +820,9 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 			},
 		};
 
-		// 2. Check for fresh FOR supermajority. Only if not already concluded.
-		let slash_against =
-			if let (false, true) = pre_post_contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
+		// 2. Check for FOR supermajority.
+		let slash_against = match pre_post_contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
+			(false, true) => {
 				if self.state.concluded_at.is_none() {
 					self.state.concluded_at = Some(self.now.clone());
 				}
@@ -831,22 +833,48 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 					.iter_ones()
 					.map(|i| ValidatorIndex(i as _))
 					.collect()
-			} else {
+			},
+			(true, true) => {
+				// provide new AGAINST voters to slash.
+				self.state
+					.validators_against
+					.iter_ones()
+					.filter(|i| self.pre_state.validators_against.get(*i).map_or(false, |b| !*b))
+					.map(|i| ValidatorIndex(i as _))
+					.collect()
+			},
+			(true, false) => {
+				log::error!("Dispute statements are never removed. This is a bug");
 				Vec::new()
-			};
+			},
+			(false, false) => Vec::new(),
+		};
 
-		// 3. Check for fresh AGAINST supermajority.
-		let slash_for =
-			if let (false, true) = pre_post_contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+		// 3. Check for AGAINST supermajority.
+		let slash_for = match pre_post_contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+			(false, true) => {
 				if self.state.concluded_at.is_none() {
 					self.state.concluded_at = Some(self.now.clone());
 				}
 
 				// provide FOR voters to slash.
 				self.state.validators_for.iter_ones().map(|i| ValidatorIndex(i as _)).collect()
-			} else {
+			},
+			(true, true) => {
+				// provide new FOR voters to slash.
+				self.state
+					.validators_for
+					.iter_ones()
+					.filter(|i| self.pre_state.validators_for.get(*i).map_or(false, |b| !*b))
+					.map(|i| ValidatorIndex(i as _))
+					.collect()
+			},
+			(true, false) => {
+				log::error!("Dispute statements are never removed. This is a bug");
 				Vec::new()
-			};
+			},
+			(false, false) => Vec::new(),
+		};
 
 		ImportSummary {
 			state: self.state,
