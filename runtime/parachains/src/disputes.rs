@@ -1112,7 +1112,7 @@ impl<T: Config> Pallet<T> {
 				// it's sufficient to count the votes in the statement set after they
 				set.statements.iter().for_each(|(statement, v_i, _signature)| {
 					if Some(true) ==
-						summary.new_participants.get(v_i.0 as usize).map(|b| b.as_ref().clone())
+						summary.new_participants.get(v_i.0 as usize).map(|b| *b.as_ref())
 					{
 						match statement {
 							// `summary.new_flags` contains the spam free votes.

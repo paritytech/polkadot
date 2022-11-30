@@ -124,13 +124,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9310,
+	spec_version: 9330,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 15,
+	transaction_version: 16,
 	state_version: 0,
 };
 
@@ -548,10 +548,19 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 parameter_types! {
 	// Six sessions in an era (6 hours).
 	pub const SessionsPerEra: SessionIndex = prod_or_fast!(6, 1);
+
 	// 28 eras for unbonding (7 days).
-	pub const BondingDuration: sp_staking::EraIndex = 28;
+	pub BondingDuration: sp_staking::EraIndex = prod_or_fast!(
+		28,
+		28,
+		"DOT_BONDING_DURATION"
+	);
 	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
-	pub const SlashDeferDuration: sp_staking::EraIndex = 27;
+	pub SlashDeferDuration: sp_staking::EraIndex = prod_or_fast!(
+		27,
+		27,
+		"DOT_SLASH_DEFER_DURATION"
+	);
 	pub const MaxNominatorRewardedPerValidator: u32 = 512;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	// 24
@@ -1445,15 +1454,6 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 	(
-		// "Bound uses of call" <https://github.com/paritytech/polkadot/pull/5729>
-		pallet_preimage::migration::v1::Migration<Runtime>,
-		pallet_scheduler::migration::v3::MigrateToV4<Runtime>,
-		pallet_democracy::migrations::v1::Migration<Runtime>,
-		pallet_multisig::migrations::v1::MigrateToV1<Runtime>,
-		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
-		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
-		pallet_election_provider_multi_phase::migrations::v1::MigrateToV1<Runtime>,
-		pallet_fast_unstake::migrations::v1::MigrateToV1<Runtime>,
 		// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	),
@@ -1695,6 +1695,10 @@ sp_api::impl_runtime_apis! {
 
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
 		fn mmr_root() -> Result<Hash, mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
@@ -2050,7 +2054,7 @@ mod tests_fess {
 #[cfg(test)]
 mod multiplier_tests {
 	use super::*;
-	use frame_support::{dispatch::GetDispatchInfo, traits::OnFinalize};
+	use frame_support::{dispatch::DispatchInfo, traits::OnFinalize};
 	use runtime_common::{MinimumMultiplier, TargetBlockFullness};
 	use separator::Separatable;
 	use sp_runtime::traits::Convert;
@@ -2092,17 +2096,8 @@ mod multiplier_tests {
 		let mut blocks = 0;
 		let mut fees_paid = 0;
 
-		let call = frame_system::Call::<Runtime>::fill_block {
-			ratio: Perbill::from_rational(
-				block_weight.ref_time(),
-				BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap().ref_time(),
-			),
-		};
-		println!("calling {:?}", call);
-		let info = call.get_dispatch_info();
-		// convert to outer call.
-		let call = RuntimeCall::System(call);
-		let len = call.using_encoded(|e| e.len()) as u32;
+		frame_system::Pallet::<Runtime>::set_block_consumed_resources(Weight::MAX, 0);
+		let info = DispatchInfo { weight: Weight::MAX, ..Default::default() };
 
 		let mut t: sp_io::TestExternalities = frame_system::GenesisConfig::default()
 			.build_storage::<Runtime>()
@@ -2116,7 +2111,7 @@ mod multiplier_tests {
 		while multiplier <= Multiplier::from_u32(1) {
 			t.execute_with(|| {
 				// imagine this tx was called.
-				let fee = TransactionPayment::compute_fee(len, &info, 0);
+				let fee = TransactionPayment::compute_fee(0, &info, 0);
 				fees_paid += fee;
 
 				// this will update the multiplier.

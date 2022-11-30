@@ -621,10 +621,7 @@ impl CurrentlyCheckingSet {
 					.candidate_hash_map
 					.remove(&approval_state.candidate_hash)
 					.unwrap_or_default();
-				approvals_cache.put(
-					approval_state.candidate_hash.clone(),
-					approval_state.approval_outcome.clone(),
-				);
+				approvals_cache.put(approval_state.candidate_hash, approval_state.approval_outcome);
 				return (out, approval_state)
 			}
 		}
@@ -768,7 +765,7 @@ async fn run<B, Context>(
 where
 	B: Backend,
 {
-	if let Err(err) = db_sanity_check(subsystem.db.clone(), subsystem.db_config.clone()) {
+	if let Err(err) = db_sanity_check(subsystem.db.clone(), subsystem.db_config) {
 		gum::warn!(target: LOG_TARGET, ?err, "Could not run approval vote DB sanity check");
 	}
 
@@ -1144,7 +1141,7 @@ async fn handle_from_overseer<Context>(
 		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let mut actions = Vec::new();
 
-			for activated in update.activated {
+			if let Some(activated) = update.activated {
 				let head = activated.hash;
 				match import::handle_new_head(ctx, state, db, head, &*last_finalized_height).await {
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
@@ -1278,7 +1275,7 @@ async fn get_approval_signatures_for_candidate<Context>(
 		Some(e) => e,
 	};
 
-	let relay_hashes = entry.block_assignments.iter().map(|(relay_hash, _)| relay_hash);
+	let relay_hashes = entry.block_assignments.keys();
 
 	let mut candidate_indices = HashSet::new();
 	// Retrieve `CoreIndices`/`CandidateIndices` as required by approval-distribution:
@@ -2404,28 +2401,14 @@ async fn launch_approval<Context>(
 
 		match val_rx.await {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
-			Ok(Ok(ValidationResult::Valid(commitments, _))) => {
+			Ok(Ok(ValidationResult::Valid(_, _))) => {
 				// Validation checked out. Issue an approval command. If the underlying service is unreachable,
 				// then there isn't anything we can do.
 
 				gum::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Candidate Valid");
 
-				let expected_commitments_hash = candidate.commitments_hash;
-				if commitments.hash() == expected_commitments_hash {
-					let _ = metrics_guard.take();
-					return ApprovalState::approved(validator_index, candidate_hash)
-				} else {
-					// Commitments mismatch - issue a dispute.
-					issue_local_invalid_statement(
-						&mut sender,
-						session_index,
-						candidate_hash,
-						candidate.clone(),
-					);
-
-					metrics_guard.take().on_approval_invalid();
-					return ApprovalState::failed(validator_index, candidate_hash)
-				}
+				let _ = metrics_guard.take();
+				return ApprovalState::approved(validator_index, candidate_hash)
 			},
 			Ok(Ok(ValidationResult::Invalid(reason))) => {
 				gum::warn!(
@@ -2516,7 +2499,7 @@ async fn issue_approval<Context>(
 	};
 
 	let candidate_hash = match block_entry.candidate(candidate_index as usize) {
-		Some((_, h)) => h.clone(),
+		Some((_, h)) => *h,
 		None => {
 			gum::warn!(
 				target: LOG_TARGET,

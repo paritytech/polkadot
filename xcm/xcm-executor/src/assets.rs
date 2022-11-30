@@ -100,14 +100,14 @@ impl Assets {
 	}
 
 	/// A borrowing iterator over the fungible assets.
-	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
+	pub fn fungible_assets_iter(&self) -> impl Iterator<Item = MultiAsset> + '_ {
 		self.fungible
 			.iter()
 			.map(|(id, &amount)| MultiAsset { fun: Fungible(amount), id: id.clone() })
 	}
 
 	/// A borrowing iterator over the non-fungible assets.
-	pub fn non_fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
+	pub fn non_fungible_assets_iter(&self) -> impl Iterator<Item = MultiAsset> + '_ {
 		self.non_fungible
 			.iter()
 			.map(|(id, instance)| MultiAsset { fun: NonFungible(instance.clone()), id: id.clone() })
@@ -126,7 +126,7 @@ impl Assets {
 	}
 
 	/// A borrowing iterator over all assets.
-	pub fn assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
+	pub fn assets_iter(&self) -> impl Iterator<Item = MultiAsset> + '_ {
 		self.fungible_assets_iter().chain(self.non_fungible_assets_iter())
 	}
 

@@ -108,14 +108,14 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9310,
+	spec_version: 9330,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
 	transaction_version: 15,
-	state_version: 0,
+	state_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -1224,7 +1224,7 @@ impl pallet_beefy::Config for Runtime {
 type MmrHash = <Keccak256 as sp_runtime::traits::Hash>::Output;
 
 impl pallet_mmr::Config for Runtime {
-	const INDEXING_PREFIX: &'static [u8] = b"mmr";
+	const INDEXING_PREFIX: &'static [u8] = mmr::INDEXING_PREFIX;
 	type Hashing = Keccak256;
 	type Hash = MmrHash;
 	type OnNewRoot = pallet_beefy_mmr::DepositBeefyDigest<Runtime>;
@@ -1416,6 +1416,9 @@ construct_runtime! {
 		// Validator Manager pallet.
 		ValidatorManager: validator_manager::{Pallet, Call, Storage, Event<T>} = 252,
 
+		// State trie migration pallet, only temporary.
+		StateTrieMigration: pallet_state_trie_migration = 254,
+
 		// Sudo.
 		Sudo: pallet_sudo::{Pallet, Call, Storage, Event<T>, Config<T>} = 255,
 	}
@@ -1454,19 +1457,37 @@ pub type Executive = frame_executive::Executive<
 	Runtime,
 	AllPalletsWithSystem,
 	(
-		// "Bound uses of call" <https://github.com/paritytech/polkadot/pull/5729>
-		pallet_preimage::migration::v1::Migration<Runtime>,
-		pallet_scheduler::migration::v3::MigrateToV4<Runtime>,
-		pallet_democracy::migrations::v1::Migration<Runtime>,
-		pallet_multisig::migrations::v1::MigrateToV1<Runtime>,
-		// "Properly migrate weights to v2" <https://github.com/paritytech/polkadot/pull/6091>
-		parachains_configuration::migration::v3::MigrateToV3<Runtime>,
 		// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 		pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	),
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
+
+parameter_types! {
+	// The deposit configuration for the singed migration. Specially if you want to allow any signed account to do the migration (see `SignedFilter`, these deposits should be high)
+	pub const MigrationSignedDepositPerItem: Balance = 1 * CENTS;
+	pub const MigrationSignedDepositBase: Balance = 20 * CENTS * 100;
+	pub const MigrationMaxKeyLen: u32 = 512;
+}
+
+impl pallet_state_trie_migration::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type SignedDepositPerItem = MigrationSignedDepositPerItem;
+	type SignedDepositBase = MigrationSignedDepositBase;
+	type ControlOrigin = EnsureRoot<AccountId>;
+	// specific account for the migration, can trigger the signed migrations.
+	type SignedFilter = frame_system::EnsureSignedBy<MigController, AccountId>;
+
+	// Use same weights as substrate ones.
+	type WeightInfo = pallet_state_trie_migration::weights::SubstrateWeight<Runtime>;
+	type MaxKeyLen = MigrationMaxKeyLen;
+}
+
+frame_support::ord_parameter_types! {
+	pub const MigController: AccountId = AccountId::from(hex_literal::hex!("52bc71c1eca5353749542dfdf0af97bf764f9c2f44e860cd485f1cd86400f649"));
+}
 
 #[cfg(feature = "runtime-benchmarks")]
 #[macro_use]
@@ -1696,6 +1717,10 @@ sp_api::impl_runtime_apis! {
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
 		fn mmr_root() -> Result<Hash, mmr::Error> {
 			Ok(Mmr::mmr_root())
+		}
+
+		fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
+			Ok(Mmr::mmr_leaves())
 		}
 
 		fn generate_proof(

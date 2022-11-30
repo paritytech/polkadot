@@ -51,7 +51,7 @@ pub enum NetworkId {
 	Rococo,
 	/// The Wococo testnet Relay-chain.
 	Wococo,
-	/// The Ethereum network, including hard-forks supported by the Etheruem Foundation.
+	/// The Ethereum network, including hard-forks supported by the Ethereum Foundation.
 	EthereumFoundation,
 	/// The Ethereum network, including hard-forks supported by Ethereum Classic developers.
 	EthereumClassic,

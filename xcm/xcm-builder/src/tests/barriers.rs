@@ -174,6 +174,30 @@ fn allow_explicit_unpaid_should_work() {
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Ok(()));
+
+	let mut message_with_different_weight_parts = Xcm::<()>(vec![
+		UnpaidExecution {
+			weight_limit: Limited(Weight::from_parts(20, 10)),
+			check_origin: Some(Parent.into()),
+		},
+		TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() },
+	]);
+
+	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
+		&Parent.into(),
+		message_with_different_weight_parts.inner_mut(),
+		Weight::from_parts(20, 20),
+		&mut Weight::zero(),
+	);
+	assert_eq!(r, Err(()));
+
+	let r = AllowExplicitUnpaidExecutionFrom::<IsInVec<AllowExplicitUnpaidFrom>>::should_execute(
+		&Parent.into(),
+		message_with_different_weight_parts.inner_mut(),
+		Weight::from_parts(10, 10),
+		&mut Weight::zero(),
+	);
+	assert_eq!(r, Ok(()));
 }
 
 #[test]
@@ -228,4 +252,27 @@ fn allow_paid_should_work() {
 		&mut Weight::zero(),
 	);
 	assert_eq!(r, Ok(()));
+
+	let fees = (Parent, 1).into();
+	let mut paying_message_with_different_weight_parts = Xcm::<()>(vec![
+		WithdrawAsset((Parent, 100).into()),
+		BuyExecution { fees, weight_limit: Limited(Weight::from_parts(20, 10)) },
+		DepositAsset { assets: AllCounted(1).into(), beneficiary: Here.into() },
+	]);
+
+	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
+		&Parent.into(),
+		paying_message_with_different_weight_parts.inner_mut(),
+		Weight::from_parts(20, 20),
+		&mut Weight::zero(),
+	);
+	assert_eq!(r, Err(()));
+
+	let r = AllowTopLevelPaidExecutionFrom::<IsInVec<AllowPaidFrom>>::should_execute(
+		&Parent.into(),
+		paying_message_with_different_weight_parts.inner_mut(),
+		Weight::from_parts(10, 10),
+		&mut Weight::zero(),
+	);
+	assert_eq!(r, Ok(()))
 }
