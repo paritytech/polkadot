@@ -26,7 +26,8 @@ use polkadot_node_primitives::{
 use polkadot_primitives::{
 	CollatorId, CollatorPair, Hash, InboundDownwardMessage, InboundHrmpMessage, OutboundHrmpMessage,
 };
-use sp_core::Pair;
+use polkadot_service::ParaId;
+use sp_core::{traits::SpawnNamed, Pair};
 use std::{
 	collections::{BTreeMap, HashMap},
 	sync::{
@@ -39,7 +40,11 @@ use test_parachain_undying::{
 	execute, hash_state, BlockData, GraveyardState, HeadData, HrmpChannelConfiguration, LOG_TARGET,
 };
 
+pub mod metrics;
 pub mod relay_chain;
+
+use metrics::Metrics;
+
 use relay_chain::RelayChainInterface;
 
 /// Default PoV size which also drives state size.
@@ -213,11 +218,12 @@ pub struct Collator {
 	key: CollatorPair,
 	seconded_collations: Arc<AtomicU32>,
 	para_id: ParaId,
+	metrics: Metrics,
 }
 
 impl Default for Collator {
 	fn default() -> Self {
-		Self::new(DEFAULT_POV_SIZE, DEFAULT_PVF_COMPLEXITY, Vec::new(), 0)
+		Self::new(DEFAULT_POV_SIZE, DEFAULT_PVF_COMPLEXITY, Vec::new(), 0, Default::default())
 	}
 }
 
@@ -229,6 +235,7 @@ impl Collator {
 		pvf_complexity: u32,
 		hrmp_channels: Vec<HrmpChannelConfiguration>,
 		para_id: u32,
+		metrics: Metrics,
 	) -> Self {
 		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt().ceil() as usize;
 
@@ -250,6 +257,7 @@ impl Collator {
 			key: CollatorPair::generate().0,
 			seconded_collations: Arc::new(AtomicU32::new(0)),
 			para_id: para_id.into(),
+			metrics,
 		}
 	}
 
@@ -292,12 +300,14 @@ impl Collator {
 		let state = self.state.clone();
 		let seconded_collations = self.seconded_collations.clone();
 		let para_id = self.para_id;
+		let metrics = self.metrics.clone();
 
 		Box::new(move |relay_parent, validation_data| {
 			let relay_chain_interface = relay_chain_interface.clone();
 			let state = state.clone();
 			let seconded_collations = seconded_collations.clone();
 			let spawner = spawner.clone();
+			let metrics = metrics.clone();
 			let relay_parent_number = validation_data.relay_parent_number;
 			let parent = HeadData::decode(&mut &validation_data.parent_head.0[..])
 				.expect("Decodes parent head");
@@ -313,10 +323,21 @@ impl Collator {
 					.unwrap_or_else(|_| vec![]);
 				let hrmp_messages_count: usize =
 					inbound_messages.values().map(|msg_vec| msg_vec.len()).sum();
+				for (source, messages) in inbound_messages.iter() {
+					for msg in messages.iter().filter(|msg| !msg.data.is_empty()) {
+						metrics.on_hrmp_inbound(u32::from(*source), msg.data.len());
+					}
+				}
+
 				let dmq_messages_count = dmq_messages.len();
 
 				let (block_data, head_data, outbound_messages) =
 					state.lock().unwrap().advance(parent, inbound_messages, dmq_messages);
+
+				for outbound_msg in outbound_messages.iter() {
+					metrics.on_hrmp_outbound(u32::from(outbound_msg.recipient), outbound_msg.data.len());
+				}
+
 				log::info!(
 					"created a new collation on relay-parent({}): {:?}; {} hrmp messages received, {} dmq messages discarded, {} messages sent",
 					relay_parent,
@@ -405,9 +426,6 @@ impl Collator {
 		}
 	}
 }
-
-use polkadot_service::ParaId;
-use sp_core::traits::SpawnNamed;
 
 #[cfg(test)]
 mod tests {
