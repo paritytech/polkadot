@@ -217,14 +217,6 @@ impl Queue {
 	fn take_job(&mut self, index: usize) -> Option<ExecuteJob> {
 		self.queue.remove(index)
 	}
-
-	fn take_next_job(&mut self, idle_worker: Option<Worker>) -> Option<ExecuteJob> {
-		if let Some(index) = self.next_job_index(idle_worker) {
-			self.take_job(index)
-		} else {
-			None
-		}
-	}
 }
 
 async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
