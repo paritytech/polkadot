@@ -174,7 +174,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 						Ok(v) => v,
 						Err(_) => continue,
 					};
-					NetworkService::add_known_address(&*self, peer_id.clone(), addr);
+					NetworkService::add_known_address(self, peer_id, addr);
 					found_peer_id = Some(peer_id);
 				}
 				found_peer_id
@@ -197,7 +197,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		};
 
 		NetworkService::start_request(
-			&*self,
+			self,
 			peer_id,
 			req_protocol_names.get_name(protocol),
 			payload,
