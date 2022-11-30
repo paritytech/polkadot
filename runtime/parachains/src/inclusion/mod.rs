@@ -102,7 +102,7 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 
 	/// Get the core index.
 	pub(crate) fn core_occupied(&self) -> CoreIndex {
-		self.core.clone()
+		self.core
 	}
 
 	/// Get the candidate hash.
@@ -383,7 +383,7 @@ impl<T: Config> Pallet<T> {
 		let mut freed_cores = Vec::with_capacity(expected_bits);
 		for (para_id, pending_availability) in assigned_paras_record
 			.into_iter()
-			.filter_map(|x| x)
+			.flatten()
 			.filter_map(|(id, p)| p.map(|p| (id, p)))
 		{
 			if pending_availability.availability_votes.count_ones() >= threshold {
@@ -644,8 +644,7 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// one more sweep for actually writing to storage.
-		let core_indices =
-			core_indices_and_backers.iter().map(|&(ref c, _, _)| c.clone()).collect();
+		let core_indices = core_indices_and_backers.iter().map(|&(ref c, _, _)| *c).collect();
 		for (candidate, (core, backers, group)) in
 			candidates.into_iter().zip(core_indices_and_backers)
 		{
