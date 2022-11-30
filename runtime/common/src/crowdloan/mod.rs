@@ -490,6 +490,7 @@ pub mod pallet {
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
+			CurrencyOf::<T>::reactivate(balance);
 
 			Self::contribution_kill(fund.fund_index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
@@ -529,6 +530,7 @@ pub mod pallet {
 					break
 				}
 				CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
+				CurrencyOf::<T>::reactivate(balance);
 				Self::contribution_kill(fund.fund_index, &who);
 				fund.raised = fund.raised.saturating_sub(balance);
 				refund_count += 1;
@@ -779,6 +781,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		CurrencyOf::<T>::transfer(&who, &fund_account, value, existence)?;
+		CurrencyOf::<T>::deactivate(balance);
 
 		let balance = old_balance.saturating_add(value);
 		Self::contribution_put(fund.fund_index, &who, &balance, &memo);
