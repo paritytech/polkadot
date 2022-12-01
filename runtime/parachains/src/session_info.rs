@@ -29,7 +29,7 @@ use frame_support::{
 };
 use primitives::{
 	v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo},
-	vstaging::{executor_params as Ep, ExecutorParams},
+	vstaging::{ExecutionEnvironment, ExecutorParam, ExecutorParams},
 };
 use sp_std::vec::Vec;
 
@@ -40,15 +40,11 @@ pub mod migration;
 #[cfg(test)]
 mod tests;
 
-fn current_exec_params() -> ExecutorParams {
-	let exec_params = ExecutorParams::new(Ep::EXEC_ENV_TYPE_WASMTIME_GENERIC);
-	// Elements must be added in the ascending order of tags to ensure determinism;
-	// see comments to `ExecutorParams` implementation.
-	// e.g.:
-	// exec_params.add(Ep::EEPAR_17_STACK_LOGICAL_MAX, 65536);
-	// exec_params.add(Ep::EEPAR_18_STACK_NATIVE_MAX, 256 * 1024 * 1024);
-	exec_params
-}
+// The order of tags should be deterministic, that is, one should not reorder them when changing
+// the array contents to avoid creating excessive pressure to PVF execution subsys.
+// `Environment` must always be present and must be the first one, that is asserted.
+const EXECUTOR_PARAMS: [ExecutorParam; 1] =
+	[ExecutorParam::Environment(ExecutionEnvironment::WasmtimeGeneric)];
 
 /// A type for representing the validator account id in a session.
 pub type AccountId<T> = <<T as Config>::ValidatorSet as ValidatorSet<
@@ -204,7 +200,10 @@ impl<T: Config> Pallet<T> {
 			dispute_period,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
-		SessionExecutorParams::<T>::insert(&new_session_index, current_exec_params());
+		SessionExecutorParams::<T>::insert(
+			&new_session_index,
+			ExecutorParams::from(&EXECUTOR_PARAMS[..]),
+		);
 	}
 
 	/// Called by the initializer to initialize the session info pallet.
