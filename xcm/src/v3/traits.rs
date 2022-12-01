@@ -150,6 +150,8 @@ pub enum Error {
 	Barrier,
 	/// The weight of an XCM message is not computable ahead of execution.
 	WeightNotComputable,
+	/// Recursion stack limit reached
+	ExceedsStackLimit,
 }
 
 impl MaxEncodedLen for Error {

@@ -22,6 +22,7 @@ use frame_support::{
 	traits::{Contains, ContainsPair, Get, PalletsInfoAccess},
 };
 use parity_scale_codec::{Decode, Encode};
+use sp_core::defer;
 use sp_io::hashing::blake2_128;
 use sp_std::{marker::PhantomData, prelude::*};
 use sp_weights::Weight;
@@ -43,6 +44,10 @@ pub use config::Config;
 pub struct FeesMode {
 	pub jit_withdraw: bool,
 }
+
+const RECURSION_LIMIT: u8 = 10;
+
+environmental::environmental!(recursion_count: u8);
 
 /// The XCM executor.
 pub struct XcmExecutor<Config: config::Config> {
@@ -302,15 +307,39 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let mut result = Ok(());
 		for (i, instr) in xcm.0.into_iter().enumerate() {
 			match &mut result {
-				r @ Ok(()) =>
-					if let Err(e) = self.process_instruction(instr) {
+				r @ Ok(()) => {
+					// Initialize the recursion count only the first time we hit this code in our
+					// potential recursive execution.
+					let inst_res = recursion_count::using_once(&mut 1, || {
+						recursion_count::with(|count| {
+							if *count > RECURSION_LIMIT {
+								return Err(XcmError::ExceedsStackLimit)
+							}
+							*count = count.saturating_add(1);
+							Ok(())
+						})
+						// This should always return `Some`, but let's play it safe.
+						.unwrap_or(Ok(()))?;
+
+						// Ensure that we always decrement the counter whenever we finish processing
+						// the instruction.
+						defer! {
+							recursion_count::with(|count| {
+								*count = count.saturating_sub(1);
+							});
+						}
+
+						self.process_instruction(instr)
+					});
+					if let Err(e) = inst_res {
 						log::trace!(target: "xcm::execute", "!!! ERROR: {:?}", e);
 						*r = Err(ExecutorError {
 							index: i as u32,
 							xcm_error: e,
 							weight: Weight::zero(),
 						});
-					},
+					}
+				},
 				Err(ref mut error) =>
 					if let Ok(x) = Config::Weigher::instr_weight(&instr) {
 						error.weight.saturating_accrue(x)
