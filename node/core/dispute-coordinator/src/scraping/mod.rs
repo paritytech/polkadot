@@ -132,7 +132,8 @@ impl ChainScraper {
 	///
 	/// and updates current heads, so we can query candidates for all non finalized blocks.
 	///
-	/// Returns: On chain vote for the leaf and any ancestors we might not yet have seen.
+	/// Returns: On chain votes and included candidate receipts for the leaf and any 
+	/// ancestors we might not yet have seen.
 	pub async fn process_active_leaves_update<Sender>(
 		&mut self,
 		sender: &mut Sender,

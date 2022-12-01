@@ -331,7 +331,7 @@ impl TestState {
 
 					// No queries, if subsystem knows about this session already.
 					if self.known_session == Some(session) {
-						continue
+						continue;
 					}
 					self.known_session = Some(session);
 
@@ -3208,15 +3208,10 @@ fn local_participation_in_dispute_for_backed_candidate() {
 			let candidate_hash = candidate_receipt.hash();
 
 			// Step 1: Show that we don't participate when not backed, confirmed, or included
-			
+
 			// activate leaf - without candidate backed event
 			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![],
-				)
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, vec![])
 				.await;
 
 			// generate two votes
@@ -3270,21 +3265,20 @@ fn local_participation_in_dispute_for_backed_candidate() {
 				.await;
 
 			let backing_valid = test_state
-				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session).await;
+				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
+				.await;
 
 			virtual_overseer
 				.send(FromOrchestra::Communication {
 					msg: DisputeCoordinatorMessage::ImportStatements {
 						candidate_receipt: candidate_receipt.clone(),
 						session,
-						statements: vec![
-							(backing_valid, ValidatorIndex(3))
-						],
+						statements: vec![(backing_valid, ValidatorIndex(3))],
 						pending_confirmation: None,
 					},
 				})
 				.await;
-			
+
 			participation_with_distribution(
 				&mut virtual_overseer,
 				&candidate_hash,

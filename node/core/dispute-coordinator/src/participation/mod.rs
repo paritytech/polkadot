@@ -216,11 +216,9 @@ impl Participation {
 	pub async fn prioritize_newly_included<Context>(&mut self, ctx: &mut Context, included_receipts: &Vec<CandidateReceipt>) {
 		for receipt in included_receipts {
 			let r = self.queue.prioritize_if_present(ctx.sender(), receipt).await;
-			if let Err(queue_error) = r {
-				match queue_error {
-					QueueError::PriorityFull => return, // Avoid working through the rest of the vec
-					_ => (),
-				}
+			if let Err(QueueError::PriorityFull) = r 
+			{ 
+				return; // Avoid working through the rest of the vec
 			}
 		}
 	}

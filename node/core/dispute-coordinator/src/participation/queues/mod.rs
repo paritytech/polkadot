@@ -67,7 +67,7 @@ pub struct ParticipationRequest {
 }
 
 /// Whether a `ParticipationRequest` should be put on best-effort or the priority queue.
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum ParticipationPriority {
 	BestEffort,
 	Priority,
