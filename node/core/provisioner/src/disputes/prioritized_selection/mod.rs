@@ -99,7 +99,7 @@ where
 	);
 
 	// Fetch the onchain disputes. We'll do a prioritization based on them.
-	let onchain = match get_onchain_disputes(sender, leaf.hash.clone()).await {
+	let onchain = match get_onchain_disputes(sender, leaf.hash).await {
 		Ok(r) => r,
 		Err(GetOnchainDisputesError::NotSupported(runtime_api_err, relay_parent)) => {
 			// Runtime version is checked before calling this method, so the error below should never happen!

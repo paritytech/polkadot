@@ -67,12 +67,10 @@ pub mod crowdloan_index_migration {
 
 			let leases = Leases::<T>::get(para_id).unwrap_or_default();
 			let mut found_lease_deposit = false;
-			for maybe_deposit in leases.iter() {
-				if let Some((who, _amount)) = maybe_deposit {
-					if *who == old_fund_account {
-						found_lease_deposit = true;
-						break
-					}
+			for (who, _amount) in leases.iter().flatten() {
+				if *who == old_fund_account {
+					found_lease_deposit = true;
+					break
 				}
 			}
 			if found_lease_deposit {
@@ -112,11 +110,9 @@ pub mod crowdloan_index_migration {
 			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 2));
 
 			let mut leases = Leases::<T>::get(para_id).unwrap_or_default();
-			for maybe_deposit in leases.iter_mut() {
-				if let Some((who, _amount)) = maybe_deposit {
-					if *who == old_fund_account {
-						*who = new_fund_account.clone();
-					}
+			for (who, _amount) in leases.iter_mut().flatten() {
+				if *who == old_fund_account {
+					*who = new_fund_account.clone();
 				}
 			}
 
@@ -162,13 +158,11 @@ pub mod crowdloan_index_migration {
 
 			let leases = Leases::<T>::get(para_id).unwrap_or_default();
 			let mut new_account_found = false;
-			for maybe_deposit in leases.iter() {
-				if let Some((who, _amount)) = maybe_deposit {
-					if *who == old_fund_account {
-						panic!("Old fund account found after migration!");
-					} else if *who == new_fund_account {
-						new_account_found = true;
-					}
+			for (who, _amount) in leases.iter().flatten() {
+				if *who == old_fund_account {
+					panic!("Old fund account found after migration!");
+				} else if *who == new_fund_account {
+					new_account_found = true;
 				}
 			}
 			if new_account_found {

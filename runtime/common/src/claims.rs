@@ -247,12 +247,9 @@ pub mod pallet {
 	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
 			// build `Claims`
-			self.claims
-				.iter()
-				.map(|(a, b, _, _)| (a.clone(), b.clone()))
-				.for_each(|(a, b)| {
-					Claims::<T>::insert(a, b);
-				});
+			self.claims.iter().map(|(a, b, _, _)| (*a, *b)).for_each(|(a, b)| {
+				Claims::<T>::insert(a, b);
+			});
 			// build `Total`
 			Total::<T>::put(
 				self.claims
@@ -266,17 +263,16 @@ pub mod pallet {
 			// build `Signing`
 			self.claims
 				.iter()
-				.filter_map(|(a, _, _, s)| Some((a.clone(), s.clone()?)))
+				.filter_map(|(a, _, _, s)| Some((*a, (*s)?)))
 				.for_each(|(a, s)| {
 					Signing::<T>::insert(a, s);
 				});
 			// build `Preclaims`
-			self.claims
-				.iter()
-				.filter_map(|(a, _, i, _)| Some((i.clone()?, a.clone())))
-				.for_each(|(i, a)| {
+			self.claims.iter().filter_map(|(a, _, i, _)| Some((i.clone()?, *a))).for_each(
+				|(i, a)| {
 					Preclaims::<T>::insert(i, a);
-				});
+				},
+			);
 		}
 	}
 
@@ -538,7 +534,7 @@ impl<T: Config> Pallet<T> {
 		}
 		let mut v = b"\x19Ethereum Signed Message:\n".to_vec();
 		v.extend(rev.into_iter().rev());
-		v.extend_from_slice(&prefix[..]);
+		v.extend_from_slice(prefix);
 		v.extend_from_slice(what);
 		v.extend_from_slice(extra);
 		v
@@ -645,7 +641,7 @@ where
 		info: &DispatchInfoOf<Self::Call>,
 		len: usize,
 	) -> Result<Self::Pre, TransactionValidityError> {
-		Ok(self.validate(who, call, info, len).map(|_| ())?)
+		self.validate(who, call, info, len).map(|_| ())
 	}
 
 	// <weight>
