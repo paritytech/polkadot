@@ -12,9 +12,9 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-jaeger = { path = "../../jaeger" }
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
 strum = { version = "0.24", features = ["derive"] }
 futures = "0.3.21"
 thiserror = "1.0.31"

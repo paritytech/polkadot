@@ -26,41 +26,41 @@ test-runtime-constants = { path = "../../../runtime/test-runtime/constants" }
 polkadot-runtime-parachains = { path = "../../../runtime/parachains" }
 
 # Substrate dependencies
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-service = { git = "https://github.com/paritytech/substrate", default-features = false, features = [ "wasmtime" ] , branch = "polkadot-v0.9.33" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-service = { git = "https://github.com/paritytech/substrate", default-features = false, features = [ "wasmtime" ] , branch = "polkadot-v0.9.33-asset-destroy" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.33" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.33-asset-destroy" }
 serde_json = "1.0.81"
-substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
 tokio = { version = "1.19.2", features = ["macros"] }
 
 [features]

@@ -14,20 +14,20 @@ polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 
 # Substrate dependencies
-substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+substrate-test-client = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
 
 [dev-dependencies]
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
 futures = "0.3.21"

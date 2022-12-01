@@ -25,15 +25,15 @@ parity-scale-codec = { version = "3.1.5", default-features = false, features = [
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-metrics = { path = "../../metrics"}
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.33-asset-destroy" }
 
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }

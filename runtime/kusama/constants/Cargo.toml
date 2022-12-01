@@ -7,12 +7,12 @@ edition = "2021"
 [dependencies]
 smallvec = "1.8.0"
 
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.33" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.33-asset-destroy" }
 primitives = { package = "polkadot-primitives", path = "../../../primitives", default-features = false }
 runtime-common = { package = "polkadot-runtime-common", path = "../../common", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.33" }
-sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.33" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.33" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.33-asset-destroy" }
+sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.33-asset-destroy" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.33-asset-destroy" }
 
 [features]
 default = ["std"]

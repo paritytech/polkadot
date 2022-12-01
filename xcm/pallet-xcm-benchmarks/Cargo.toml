@@ -10,21 +10,21 @@ targets = ["x86_64-unknown-linux-gnu"]
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-frame-support = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33" }
-frame-system = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33" }
-sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33" }
-sp-std = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33" }
+frame-support = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33-asset-destroy" }
+frame-system = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33-asset-destroy" }
+sp-runtime = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33-asset-destroy" }
+sp-std = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33-asset-destroy" }
 xcm-executor = { path = "../xcm-executor", default-features = false }
-frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33" }
+frame-benchmarking = { default-features = false, git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33-asset-destroy" }
 xcm = { path = "..", default-features = false }
 log = "0.4.17"
 
 [dev-dependencies]
-pallet-balances = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33" }
-pallet-assets = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33" }
-sp-core = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33" }
-sp-io = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33" }
-sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33" }
+pallet-balances = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33-asset-destroy" }
+pallet-assets = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33-asset-destroy" }
+sp-core = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33-asset-destroy" }
+sp-io = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33-asset-destroy" }
+sp-tracing = { git = "https://github.com/paritytech/substrate" , branch = "polkadot-v0.9.33-asset-destroy" }
 xcm-builder = { path = "../xcm-builder" }
 xcm = { path = ".." }
 # temp
