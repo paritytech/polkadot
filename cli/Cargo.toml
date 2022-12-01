@@ -35,15 +35,11 @@ polkadot-node-metrics = { path = "../node/metrics" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-# this crate is used only to enable `trie-memory-tracker` feature
-# see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = ["db", "cli", "hostperfcheck", "full-node", "trie-memory-tracker", "polkadot-native"]
+default = ["db", "cli", "hostperfcheck", "full-node", "polkadot-native"]
 db = ["service/db"]
 cli = [
 	"clap",
@@ -60,7 +56,6 @@ runtime-benchmarks = [
 	"polkadot-node-metrics/runtime-benchmarks",
 	"polkadot-performance-test?/runtime-benchmarks"
 ]
-trie-memory-tracker = ["sp-trie/memory-tracker"]
 full-node = ["service/full-node"]
 try-runtime = ["service/try-runtime", "try-runtime-cli/try-runtime"]
 fast-runtime = ["service/fast-runtime"]
