@@ -118,12 +118,7 @@ impl sp_std::fmt::LowerHex for ExecutorParamsHash {
 
 /// # Deterministically serialized execution environment semantics
 /// Represents an arbitrary semantics of an arbitrary execution environment, so should be kept as
-/// abstract as possible. Mapping from `u32` constant tags to SCALE-encoded values was chosen
-/// over an idiomatic `enum` representation as the latter would require caller to rely on
-/// deserialization errors when decoding a structure of newer version not yet known to the node
-/// software, which is undesirable.
-/// As this one goes on-chain, it requires full serialization determinism. That is achieved by
-/// enforcing constant tags to be in ascending order and using deterministic SCALE-codec for values.
+/// abstract as possible.
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub struct ExecutorParams(Vec<ExecutorParam>);
