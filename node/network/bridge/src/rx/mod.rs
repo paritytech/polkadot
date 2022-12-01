@@ -145,14 +145,13 @@ where
 	loop {
 		match network_stream.next().await {
 			None => return Err(Error::EventStreamConcluded),
-			Some(NetworkEvent::Dht(_)) |
-			Some(NetworkEvent::SyncConnected { .. }) |
-			Some(NetworkEvent::SyncDisconnected { .. }) => {},
+			Some(NetworkEvent::Dht(_)) => {},
 			Some(NetworkEvent::NotificationStreamOpened {
 				remote: peer,
 				protocol,
 				role,
 				negotiated_fallback,
+				received_handshake: _,
 			}) => {
 				let role = ObservedRole::from(role);
 				let (peer_set, version) = {

@@ -91,6 +91,8 @@ where
 	pub parachains_db: Arc<dyn polkadot_node_subsystem_util::database::Database>,
 	/// Underlying network service implementation.
 	pub network_service: Arc<sc_network::NetworkService<Block, Hash>>,
+	/// Underlying syncing service implementation.
+	pub sync_service: Arc<sc_network_sync::SyncingService<Block>>,
 	/// Underlying authority discovery service.
 	pub authority_discovery_service: AuthorityDiscoveryService,
 	/// POV request receiver
@@ -136,6 +138,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		runtime_client,
 		parachains_db,
 		network_service,
+		sync_service,
 		authority_discovery_service,
 		pov_req_receiver,
 		chunk_req_receiver,
@@ -215,7 +218,7 @@ where
 		.network_bridge_rx(NetworkBridgeRxSubsystem::new(
 			network_service.clone(),
 			authority_discovery_service.clone(),
-			Box::new(network_service.clone()),
+			Box::new(sync_service.clone()),
 			network_bridge_metrics,
 			peerset_protocol_names,
 		))
@@ -287,7 +290,7 @@ where
 			approval_voting_config,
 			parachains_db.clone(),
 			keystore.clone(),
-			Box::new(network_service.clone()),
+			Box::new(sync_service.clone()),
 			Metrics::register(registry)?,
 		))
 		.gossip_support(GossipSupportSubsystem::new(
