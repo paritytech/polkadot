@@ -5944,6 +5944,7 @@ dependencies = [
  "polkadot-core-primitives",
  "substrate-rpc-client",
  "tempfile",
+ "tikv-jemallocator",
  "tokio",
 ]
 
@@ -6797,6 +6798,7 @@ dependencies = [
  "sc-client-api",
  "sp-api",
  "sp-core",
+ "tikv-jemalloc-ctl",
  "tracing-gum",
 ]
 
@@ -11239,6 +11241,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "tikv-jemalloc-ctl"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e37706572f4b151dff7a0146e040804e9c26fe3a3118591112f05cf12a4216c1"
+dependencies = [
+ "libc",
+ "paste",
+ "tikv-jemalloc-sys",
+]
+
+[[package]]
 name = "tikv-jemalloc-sys"
 version = "0.5.2+5.3.0-patched"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11247,6 +11260,16 @@ dependencies = [
  "cc",
  "fs_extra",
  "libc",
+]
+
+[[package]]
+name = "tikv-jemallocator"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "20612db8a13a6c06d57ec83953694185a367e16945f66565e8028d2c0bd76979"
+dependencies = [
+ "libc",
+ "tikv-jemalloc-sys",
 ]
 
 [[package]]

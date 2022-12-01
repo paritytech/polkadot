@@ -116,10 +116,13 @@ pub const KNOWN_LEAVES_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(2 * 24
 	None => panic!("Known leaves cache size must be non-zero"),
 };
 
+mod memory_stats;
 #[cfg(test)]
 mod tests;
 
 use sp_core::traits::SpawnNamed;
+
+use memory_stats::MemoryAllocationTracker;
 
 /// Glue to connect `trait orchestra::Spawner` and `SpawnNamed` from `substrate`.
 pub struct SpawnGlue<S>(pub S);
@@ -649,7 +652,34 @@ where
 	}
 	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
 
+	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> =
+		match MemoryAllocationTracker::new() {
+			Ok(memory_stats) =>
+				Box::new(move |metrics: &OverseerMetrics| match memory_stats.snapshot() {
+					Ok(memory_stats_snapshot) => {
+						gum::trace!(
+							target: LOG_TARGET,
+							"memory_stats: {:?}",
+							&memory_stats_snapshot
+						);
+						metrics.memory_stats_snapshot(memory_stats_snapshot);
+					},
+					Err(e) =>
+						gum::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
+				}),
+			Err(_) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Memory allocation tracking is not supported by the allocator.",
+				);
+
+				Box::new(|_| {})
+			},
+		};
+
 	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
+		collect_memory_stats(&metronome_metrics);
+
 		// We combine the amount of messages from subsystems to the overseer
 		// as well as the amount of messages from external sources to the overseer
 		// into one `to_overseer` value.

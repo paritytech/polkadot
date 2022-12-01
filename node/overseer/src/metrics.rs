@@ -19,6 +19,8 @@
 use super::*;
 pub use polkadot_node_metrics::metrics::{self, prometheus, Metrics as MetricsTrait};
 
+use memory_stats::MemoryAllocationSnapshot;
+
 /// Overseer Prometheus metrics.
 #[derive(Clone)]
 struct MetricsInner {
@@ -62,6 +64,13 @@ impl Metrics {
 	pub(crate) fn on_message_relayed(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.messages_relayed_total.inc();
+		}
+	}
+
+	pub(crate) fn memory_stats_snapshot(&self, memory_stats: MemoryAllocationSnapshot) {
+		if let Some(metrics) = &self.0 {
+			metrics.memory_stats_allocated.set(memory_stats.allocated);
+			metrics.memory_stats_resident.set(memory_stats.resident);
 		}
 	}
 
