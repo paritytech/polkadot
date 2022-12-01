@@ -320,7 +320,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						})
 						// This should always return `Some`, but let's play it safe.
 						.unwrap_or(Ok(()))?;
-	
+
 						// Ensure that we always decrement the counter whenever we finish executing
 						// `Transact`
 						defer! {
@@ -339,7 +339,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 							weight: Weight::zero(),
 						});
 					}
-				}
+				},
 				Err(ref mut error) =>
 					if let Ok(x) = Config::Weigher::instr_weight(&instr) {
 						error.weight.saturating_accrue(x)
@@ -544,9 +544,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 
 				// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
 				let message_call = call.take_decoded().map_err(|_| XcmError::FailedToDecode)?;
-				let dispatch_origin =
-					Config::OriginConverter::convert_origin(origin, origin_kind)
-						.map_err(|_| XcmError::BadOrigin)?;
+				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_kind)
+					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
 				ensure!(weight.all_lte(require_weight_at_most), XcmError::MaxWeightInvalid);
 				let maybe_actual_weight =
