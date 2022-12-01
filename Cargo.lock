@@ -6074,7 +6074,6 @@ dependencies = [
  "sc-tracing",
  "sp-core",
  "sp-keyring",
- "sp-trie",
  "substrate-build-script-utils",
  "thiserror",
  "try-runtime-cli",
