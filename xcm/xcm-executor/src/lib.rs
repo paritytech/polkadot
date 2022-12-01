@@ -321,8 +321,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						// This should always return `Some`, but let's play it safe.
 						.unwrap_or(Ok(()))?;
 
-						// Ensure that we always decrement the counter whenever we finish executing
-						// `Transact`
+						// Ensure that we always decrement the counter whenever we finish processing
+						// the instruction.
 						defer! {
 							recursion_count::with(|count| {
 								*count = count.saturating_sub(1);
