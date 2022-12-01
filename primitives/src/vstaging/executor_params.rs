@@ -29,19 +29,61 @@ use polkadot_core_primitives::Hash;
 use scale_info::TypeInfo;
 use sp_std::{ops::Deref, vec, vec::Vec};
 
-/// # Execution environment parameter tags
-/// Values from 1 to 16 are reserved for system-wide parameters not related to any concrete
-/// execution environment.
-/// Environment type
-pub const EEPAR_01_ENVIRONMENT: u32 = 1;
-/// Logical stack limit, in stack items
-pub const EEPAR_17_STACK_LOGICAL_MAX: u32 = 17;
-/// Native stack limit, in bytes
-pub const EEPAR_18_STACK_NATIVE_MAX: u32 = 18;
+/// Execution environment type
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
+pub enum ExecutionEnvironment {
+	/// Generic Wasmtime executor
+	WasmtimeGeneric = 0,
+}
 
-/// # Execution enviroment types
-/// Generic Wasmtime environment
-pub const EXEC_ENV_TYPE_WASMTIME_GENERIC: u32 = 0;
+/// Executor instantiation strategy
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
+pub enum ExecInstantiationStrategy {
+	/// Pooling copy-on-write
+	PoolingCoW,
+	/// Recreate instance copy-on-write
+	RecreateCoW,
+	/// Pooling
+	Pooling,
+	/// Recreate instance
+	Recreate,
+}
+
+/// A single executor parameter
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
+pub enum ExecutorParam {
+	/// ## General parameters:
+	/// Execution environment type
+	Environment(ExecutionEnvironment),
+
+	/// ## Parameters setting the executuion environment semantics:
+	/// Number of extra heap pages
+	ExtraHeapPages(u64),
+	/// Max. memory size
+	MaxMemorySize(u32),
+	/// Wasm logical stack size limit, in units
+	StackLogicalMax(u32),
+	/// Executor machine stack size limit, in bytes
+	StackNativeMax(u32),
+	/// Executor instantiation strategy
+	InstantiationStrategy(ExecInstantiationStrategy),
+	/// `true` if compiler should perform NaNs canonicalization
+	CanonicalizeNaNs(bool),
+	/// `true` if parallel compilation is allowed, single thread is used otherwise
+	ParallelCompilation(bool),
+}
+
+impl ExecutorParam {
+	fn is_environment(&self) -> bool {
+		match self {
+			ExecutorParam::Environment(_) => true,
+			_ => false,
+		}
+	}
+}
 
 /// Unit type wrapper around [`type@Hash`] that represents an execution parameter set hash.
 ///
@@ -84,34 +126,22 @@ impl sp_std::fmt::LowerHex for ExecutorParamsHash {
 /// enforcing constant tags to be in ascending order and using deterministic SCALE-codec for values.
 #[cfg_attr(feature = "std", derive(MallocSizeOf))]
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
-pub struct ExecutorParams(Vec<(u32, Vec<u8>)>);
+pub struct ExecutorParams(Vec<ExecutorParam>);
 
 impl ExecutorParams {
 	/// Creates a new, empty executor parameter set
-	pub fn new(environment: u32) -> Self {
-		ExecutorParams(vec![(EEPAR_01_ENVIRONMENT, environment.encode())])
+	pub fn new(environment: ExecutionEnvironment) -> Self {
+		ExecutorParams(vec![ExecutorParam::Environment(environment)])
 	}
 
-	/// Returns execution environment type identifier
-	pub fn environment(&self) -> u32 {
+	/// Returns execution environment type
+	pub fn environment(&self) -> ExecutionEnvironment {
 		debug_assert!(self.0.len() > 0);
-		debug_assert_eq!(self.0[0].0, EEPAR_01_ENVIRONMENT);
-		let env_enc = self.0[0].1.clone();
-		u32::decode(&mut &env_enc[..])
-			.expect("ExecutorParams is always constructed with a valid environment type; qed")
-	}
-
-	/// Adds an execution parameter to the set
-	pub fn add(&mut self, tag: u32, value: impl Encode) {
-		// Ensure deterministic order of tags
-		#[cfg(debug_assertions)]
-		{
-			debug_assert!(self.0.len() > 0);
-			let (last_tag, _) = self.0[self.0.len() - 1];
-			debug_assert!(tag > last_tag);
+		if let ExecutorParam::Environment(environment) = self.0[0] {
+			environment
+		} else {
+			unreachable!();
 		}
-
-		self.0.push((tag, value.encode()));
 	}
 
 	/// Returns hash of the set of execution environment parameters
@@ -121,15 +151,24 @@ impl ExecutorParams {
 }
 
 impl Deref for ExecutorParams {
-	type Target = Vec<(u32, Vec<u8>)>;
+	type Target = Vec<ExecutorParam>;
 
 	fn deref(&self) -> &Self::Target {
 		&self.0
 	}
 }
 
+impl From<&[ExecutorParam]> for ExecutorParams {
+	fn from(arr: &[ExecutorParam]) -> Self {
+		let vec = arr.to_vec();
+		debug_assert!(vec.len() > 0);
+		debug_assert!(vec[0].is_environment());
+		ExecutorParams(vec)
+	}
+}
+
 impl Default for ExecutorParams {
 	fn default() -> Self {
-		ExecutorParams(vec![(EEPAR_01_ENVIRONMENT, EXEC_ENV_TYPE_WASMTIME_GENERIC.encode())])
+		ExecutorParams(vec![ExecutorParam::Environment(ExecutionEnvironment::WasmtimeGeneric)])
 	}
 }
