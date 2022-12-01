@@ -684,7 +684,7 @@ struct ImportUndo {
 	/// The validator index to which to associate the statement import.
 	validator_index: ValidatorIndex,
 	/// The kind and direction of the vote.
-	kind: VoteKind,
+	vote_kind: VoteKind,
 	/// Has the validator participated before, i.e. in backing or
 	/// with an opposing vote.
 	new_participant: bool,
@@ -697,6 +697,7 @@ struct DisputeStateImporter<BlockNumber> {
 	new_participants: bitvec::vec::BitVec<u8, BitOrderLsb0>,
 	pre_flags: DisputeStateFlags,
 	pre_state: DisputeState<BlockNumber>,
+	pre_backers: BTreeSet<ValidatorIndex>,
 }
 
 impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
@@ -712,8 +713,17 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 			debug_assert_eq!(state.validators_for.get(i.0 as usize).map(|b| *b), Some(true));
 		}
 		let pre_state = state.clone();
+		let pre_backers = backers.clone();
 
-		DisputeStateImporter { state, backers, now, new_participants, pre_flags, pre_state }
+		DisputeStateImporter {
+			state,
+			backers,
+			now,
+			new_participants,
+			pre_flags,
+			pre_state,
+			pre_backers,
+		}
 	}
 
 	fn import(
@@ -746,7 +756,8 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 		// consistency check
 		debug_assert!((validator.0 as usize) < self.new_participants.len());
 
-		let mut undo = ImportUndo { validator_index: validator, kind, new_participant: false };
+		let mut undo =
+			ImportUndo { validator_index: validator, vote_kind: kind, new_participant: false };
 
 		bits.set(validator.0 as usize, true);
 		if kind.is_backing() {
@@ -768,13 +779,13 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 
 	/// Revert a done transaction.
 	fn undo(&mut self, undo: ImportUndo) {
-		if undo.kind.is_valid() {
+		if undo.vote_kind.is_valid() {
 			self.state.validators_for.set(undo.validator_index.0 as usize, false);
 		} else {
 			self.state.validators_against.set(undo.validator_index.0 as usize, false);
 		}
 
-		if undo.kind.is_backing() {
+		if undo.vote_kind.is_backing() {
 			self.backers.remove(&undo.validator_index);
 		}
 
@@ -861,11 +872,18 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 				self.state.validators_for.iter_ones().map(|i| ValidatorIndex(i as _)).collect()
 			},
 			(true, true) => {
-				// provide new FOR voters to slash.
+				// provide new FOR voters to slash including new backers
+				// who might have voted FOR before
+				let new_backing_vote = |i: &ValidatorIndex| -> bool {
+					!self.pre_backers.contains(i) && self.backers.contains(i)
+				};
 				self.state
 					.validators_for
 					.iter_ones()
-					.filter(|i| self.pre_state.validators_for.get(*i).map_or(false, |b| !*b))
+					.filter(|i| {
+						self.pre_state.validators_for.get(*i).map_or(false, |b| !*b) ||
+							new_backing_vote(&ValidatorIndex(*i as _))
+					})
 					.map(|i| ValidatorIndex(i as _))
 					.collect()
 			},

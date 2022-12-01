@@ -20,7 +20,8 @@ use crate::{
 	disputes::DisputesHandler,
 	mock::{
 		new_test_ext, AccountId, AllPalletsWithSystem, Initializer, MockGenesisConfig, System,
-		Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, REWARD_VALIDATORS,
+		Test, PUNISH_BACKERS_FOR, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR,
+		REWARD_VALIDATORS,
 	},
 };
 use assert_matches::assert_matches;
@@ -1501,7 +1502,8 @@ fn test_punish_post_conclusion() {
 			vec![(3, candidate_hash)],
 		);
 
-		// v2, v3, v4, v5 vote against, dispute concludes AGAINST.
+		// v2, v6, v4, v5 vote against, dispute concludes AGAINST.
+		// v3 votes FOR
 		let stmts = vec![DisputeStatementSet {
 			candidate_hash: candidate_hash.clone(),
 			session,
@@ -1520,8 +1522,8 @@ fn test_punish_post_conclusion() {
 				),
 				(
 					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-					ValidatorIndex(3),
-					v3.sign(
+					ValidatorIndex(6),
+					v6.sign(
 						&ExplicitDisputeStatement {
 							valid: false,
 							candidate_hash: candidate_hash.clone(),
@@ -1554,6 +1556,11 @@ fn test_punish_post_conclusion() {
 						.signing_payload(),
 					),
 				),
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
+					ValidatorIndex(3),
+					v3.sign(&ApprovalVote(candidate_hash).signing_payload(session)),
+				),
 			],
 		}];
 
@@ -1562,7 +1569,11 @@ fn test_punish_post_conclusion() {
 
 		assert_eq!(
 			PUNISH_VALIDATORS_FOR.with(|r| r.borrow().clone()),
-			vec![(3, vec![]), (3, vec![ValidatorIndex(0)]),],
+			vec![(3, vec![]), (3, vec![ValidatorIndex(0), ValidatorIndex(3)]),],
+		);
+		assert_eq!(
+			PUNISH_BACKERS_FOR.with(|r| r.borrow().clone()),
+			vec![(3, vec![ValidatorIndex(0)]), (3, vec![ValidatorIndex(0)]),],
 		);
 
 		// someone reveals v3 backing vote, v6 votes against
@@ -1600,7 +1611,20 @@ fn test_punish_post_conclusion() {
 		// Ensure punishment for is called
 		assert_eq!(
 			PUNISH_VALIDATORS_FOR.with(|r| r.borrow().clone()),
-			vec![(3, vec![]), (3, vec![ValidatorIndex(0)]), (3, vec![ValidatorIndex(3)]),],
+			vec![
+				(3, vec![]),
+				(3, vec![ValidatorIndex(0), ValidatorIndex(3)]),
+				(3, vec![ValidatorIndex(3)]),
+			],
+		);
+
+		assert_eq!(
+			PUNISH_BACKERS_FOR.with(|r| r.borrow().clone()),
+			vec![
+				(3, vec![ValidatorIndex(0)]),
+				(3, vec![ValidatorIndex(0)]),
+				(3, vec![ValidatorIndex(0), ValidatorIndex(3)])
+			],
 		);
 
 		assert_eq!(
