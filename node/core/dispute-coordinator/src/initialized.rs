@@ -417,7 +417,7 @@ impl Initialized {
 				})
 				.collect();
 
-			// Importantly, handling import statements for backing votes also 
+			// Importantly, handling import statements for backing votes also
 			// clears spam slots for any newly backed candidates
 			let import_result = self
 				.handle_import_statements(
@@ -836,8 +836,8 @@ impl Initialized {
 		let is_disputed = new_state.is_disputed();
 		let has_controlled_indices = !env.controlled_indices().is_empty();
 		let is_confirmed = new_state.is_confirmed();
-		let potential_spam = !is_included && !is_backed 
-			&& !new_state.is_confirmed() && !new_state.has_own_vote();
+		let potential_spam =
+			!is_included && !is_backed && !new_state.is_confirmed() && !new_state.has_own_vote();
 		// We participate only in disputes which are included, backed or confirmed
 		let allow_participation = is_included || is_backed || is_confirmed;
 
@@ -852,8 +852,8 @@ impl Initialized {
 			"Is spam?"
 		);
 
-		// This check is responsible for all clearing of spam slots. It runs 
-		// whenever a vote is imported from on or off chain, and decrements 
+		// This check is responsible for all clearing of spam slots. It runs
+		// whenever a vote is imported from on or off chain, and decrements
 		// slots whenever a candidate is newly backed, confirmed, or has our
 		// own vote.
 		if !potential_spam {

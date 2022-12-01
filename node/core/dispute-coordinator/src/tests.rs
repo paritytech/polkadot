@@ -331,7 +331,7 @@ impl TestState {
 
 					// No queries, if subsystem knows about this session already.
 					if self.known_session == Some(session) {
-						continue;
+						continue
 					}
 					self.known_session = Some(session);
 

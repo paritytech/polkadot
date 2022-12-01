@@ -26,7 +26,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::runtime::{get_candidate_events, get_on_chain_votes};
 use polkadot_primitives::v2::{
-	BlockNumber, CandidateEvent, CandidateHash, Hash, ScrapedOnChainVotes, CandidateReceipt,
+	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, ScrapedOnChainVotes,
 };
 
 use crate::{
@@ -132,7 +132,7 @@ impl ChainScraper {
 	///
 	/// and updates current heads, so we can query candidates for all non finalized blocks.
 	///
-	/// Returns: On chain votes and included candidate receipts for the leaf and any 
+	/// Returns: On chain votes and included candidate receipts for the leaf and any
 	/// ancestors we might not yet have seen.
 	pub async fn process_active_leaves_update<Sender>(
 		&mut self,
@@ -163,7 +163,8 @@ impl ChainScraper {
 		for (block_number, block_hash) in block_numbers.zip(block_hashes) {
 			gum::trace!(?block_number, ?block_hash, "In ancestor processing.");
 
-			let events_for_block = self.process_candidate_events(sender, block_number, block_hash).await?;
+			let events_for_block =
+				self.process_candidate_events(sender, block_number, block_hash).await?;
 			included_receipts.extend(events_for_block);
 
 			if let Some(votes) = get_on_chain_votes(sender, block_hash).await? {

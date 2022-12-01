@@ -213,12 +213,15 @@ impl Participation {
 	}
 
 	/// Reprioritizes participation requests for disputes that are freshly included
-	pub async fn prioritize_newly_included<Context>(&mut self, ctx: &mut Context, included_receipts: &Vec<CandidateReceipt>) {
+	pub async fn prioritize_newly_included<Context>(
+		&mut self,
+		ctx: &mut Context,
+		included_receipts: &Vec<CandidateReceipt>,
+	) {
 		for receipt in included_receipts {
 			let r = self.queue.prioritize_if_present(ctx.sender(), receipt).await;
-			if let Err(QueueError::PriorityFull) = r 
-			{ 
-				return; // Avoid working through the rest of the vec
+			if let Err(QueueError::PriorityFull) = r {
+					return // Avoid working through the rest of the vec
 			}
 		}
 	}
