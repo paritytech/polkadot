@@ -23,7 +23,6 @@ use crate::{
 		Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, REWARD_VALIDATORS,
 	},
 };
-use assert_matches::assert_matches;
 use frame_support::{
 	assert_err, assert_noop, assert_ok,
 	traits::{OnFinalize, OnInitialize},
@@ -274,44 +273,6 @@ fn test_import_slash_against() {
 	assert_eq!(summary.slash_against, vec![ValidatorIndex(1), ValidatorIndex(5)]);
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 0, 1, 1, 1, 1, 1]);
 	assert_eq!(summary.new_flags, DisputeStateFlags::FOR_SUPERMAJORITY);
-}
-
-fn generate_dispute_statement_set_entry(
-	session: u32,
-	candidate_hash: CandidateHash,
-	statement: DisputeStatement,
-	validator: &<ValidatorId as CryptoType>::Pair,
-) -> (DisputeStatement, ValidatorSignature) {
-	let valid = match &statement {
-		DisputeStatement::Valid(_) => true,
-		_ => false,
-	};
-	let signature_bytes = validator
-		.sign(&ExplicitDisputeStatement { valid, candidate_hash, session }.signing_payload());
-	let signature = ValidatorSignature::try_from(signature_bytes).unwrap();
-	(statement, signature)
-}
-
-fn generate_dispute_statement_set(
-	session: SessionIndex,
-	candidate_hash: CandidateHash,
-	validators: &[<ValidatorId as CryptoType>::Pair],
-	vidxs: Vec<(usize, DisputeStatement)>,
-) -> DisputeStatementSet {
-	let statements = vidxs
-		.into_iter()
-		.map(|(v_i, statement)| {
-			let validator_index = ValidatorIndex(v_i as u32);
-			let (statement, signature) = generate_dispute_statement_set_entry(
-				session,
-				candidate_hash.clone(),
-				statement,
-				&validators[v_i],
-			);
-			(statement, validator_index, signature)
-		})
-		.collect::<Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>>();
-	DisputeStatementSet { candidate_hash: candidate_hash.clone(), session, statements }
 }
 
 // Test that dispute timeout is handled correctly.
