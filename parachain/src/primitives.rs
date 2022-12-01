@@ -130,10 +130,7 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec
 	RuntimeDebug,
 	TypeInfo,
 )]
-#[cfg_attr(
-	feature = "std",
-	derive(serde::Serialize, serde::Deserialize, derive_more::Display)
-)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, derive_more::Display))]
 pub struct Id(u32);
 
 impl TypeId for Id {
