@@ -725,11 +725,72 @@ fn test_freeze_provided_against_supermajority_for_included() {
 	});
 }
 
+#[test]
+fn test_unconfirmed_are_ignored() {
+	new_test_ext(Default::default()).execute_with(|| {
+		// 7 validators needed for byzantine threshold of 2.
+		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+		// Mapping between key pair and `ValidatorIndex`
+		// v0 -> 0
+		// v1 -> 3
+
+		run_to_block(6, |b| {
+			// a new session at each block
+			Some((
+				true,
+				b,
+				vec![(&0, v0.public()), (&1, v1.public())],
+				Some(vec![(&0, v0.public()), (&1, v1.public())]),
+			))
+		});
+
+		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+
+		// v0 votes for 4, v1 votes against 4.
+		let stmts = vec![DisputeStatementSet {
+			candidate_hash: candidate_hash.clone(),
+			session: 4,
+			statements: vec![
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					ValidatorIndex(0),
+					v0.sign(
+						&ExplicitDisputeStatement {
+							valid: true,
+							candidate_hash: candidate_hash.clone(),
+							session: 4,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(3),
+					v1.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session: 4,
+						}
+						.signing_payload(),
+					),
+				),
+			],
+		}];
+
+		let stmts = filter_dispute_set(stmts);
+
+		// Not confirmed => should be filtered out
+		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![],);
+	});
+}
+
 // tests for:
 // * provide_multi_dispute: with success scenario
 // * disputes: correctness of datas
 // * could_be_invalid: correctness of datas
-// * unconfirmed disputes are filtered out
 // * ensure rewards and punishment are correctly called.
 #[test]
 fn test_provide_multi_dispute_success_and_other() {
@@ -830,43 +891,6 @@ fn test_provide_multi_dispute_success_and_other() {
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
 			vec![(3, candidate_hash.clone())],
 		);
-
-		// v1 votes for 4, v6 votes against 4.
-		let stmts = vec![DisputeStatementSet {
-			candidate_hash: candidate_hash.clone(),
-			session: 4,
-			statements: vec![
-				(
-					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-					ValidatorIndex(3),
-					v1.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash.clone(),
-							session: 4,
-						}
-						.signing_payload(),
-					),
-				),
-				(
-					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-					ValidatorIndex(2),
-					v6.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash.clone(),
-							session: 4,
-						}
-						.signing_payload(),
-					),
-				),
-			],
-		}];
-
-		let stmts = filter_dispute_set(stmts);
-
-		// Not confirmed => should be filtered out
-		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![],);
 
 		// v3 votes against 3 and for 5, v2 and v6 vote against 5.
 		let stmts = vec![
