@@ -31,7 +31,7 @@ use xcm_executor::{
 
 parameter_types! {
 	pub const BaseXcmWeight: xcm::latest::Weight = Weight::from_parts(1_000, 1_000);
-	pub const ThisNetwork: NetworkId = NetworkId::Polkadot;
+	pub const AnyNetwork: Option<NetworkId> = None;
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 16;
 	pub const UniversalLocation: xcm::latest::InteriorMultiLocation = xcm::latest::Junctions::Here;
@@ -41,7 +41,7 @@ parameter_types! {
 /// of this chain.
 pub type LocalOriginToLocation = (
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<crate::RuntimeOrigin, crate::AccountId, ThisNetwork>,
+	SignedToAccountId32<crate::RuntimeOrigin, crate::AccountId, AnyNetwork>,
 );
 
 pub struct DoNothingRouter;
@@ -86,7 +86,7 @@ impl WeightTrader for DummyWeightTrader {
 
 type OriginConverter = (
 	pallet_xcm::XcmPassthrough<super::RuntimeOrigin>,
-	SignedAccountId32AsNative<ThisNetwork, super::RuntimeOrigin>,
+	SignedAccountId32AsNative<AnyNetwork, super::RuntimeOrigin>,
 );
 
 pub struct XcmConfig;
