@@ -107,7 +107,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 			VersionedXcm,
 		};
 
-		let id = upward_message_id(&data[..]);
+		let id = upward_message_id(data);
 		let maybe_msg_and_weight = VersionedXcm::<C::RuntimeCall>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut data,

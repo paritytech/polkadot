@@ -33,6 +33,7 @@ variables:
   GIT_DEPTH:                       100
   CI_SERVER_NAME:                  "GitLab CI"
   CI_IMAGE:                        "paritytech/ci-linux:production"
+  BUILDAH_IMAGE:                   "quay.io/buildah/stable:v1.27"
   DOCKER_OS:                       "debian:stretch"
   ARCH:                            "x86_64"
   ZOMBIENET_IMAGE:                 "docker.io/paritytech/zombienet:v1.2.78"
@@ -40,6 +41,13 @@ variables:
 
 default:
   cache:                           {}
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - unknown_failure
+      - api_failure
+  interruptible:                   true
 
 .collect-artifacts:
   artifacts:
@@ -72,25 +80,12 @@ default:
        dotenv: pipeline-stopper.env
 
 .kubernetes-env:
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - unknown_failure
-      - api_failure
-  interruptible:                   true
+  image:                           "${CI_IMAGE}"
   tags:
     - kubernetes-parity-build
 
 .docker-env:
   image:                           "${CI_IMAGE}"
-  retry:
-    max: 2
-    when:
-      - runner_system_failure
-      - unknown_failure
-      - api_failure
-  interruptible:                   true
   tags:
     - linux-docker
 
@@ -150,9 +145,6 @@ default:
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
 
 .build-push-image:
-  extends:
-    - .kubernetes-env
-  image:                           quay.io/buildah/stable:v1.27
   before_script:
     - test -s ./artifacts/VERSION || exit 1
     - test -s ./artifacts/EXTRATAG || exit 1
@@ -195,8 +187,6 @@ include:
   - scripts/ci/gitlab/pipeline/publish.yml
   # zombienet jobs
   - scripts/ci/gitlab/pipeline/zombienet.yml
-
-
 
 #### stage:                        .post
 
