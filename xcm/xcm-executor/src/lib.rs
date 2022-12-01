@@ -307,15 +307,39 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		let mut result = Ok(());
 		for (i, instr) in xcm.0.into_iter().enumerate() {
 			match &mut result {
-				r @ Ok(()) =>
-					if let Err(e) = self.process_instruction(instr) {
+				r @ Ok(()) => {
+					// Initialize the recursion count only the first time we hit this code in our
+					// potential recursive execution.
+					let inst_res = recursion_count::using_once(&mut 1, || {
+						recursion_count::with(|count| {
+							if *count > RECURSION_LIMIT {
+								return Err(XcmError::ExceedsStackLimit)
+							}
+							*count = count.saturating_add(1);
+							Ok(())
+						})
+						// This should always return `Some`, but let's play it safe.
+						.unwrap_or(Ok(()))?;
+	
+						// Ensure that we always decrement the counter whenever we finish executing
+						// `Transact`
+						defer! {
+							recursion_count::with(|count| {
+								*count = count.saturating_sub(1);
+							});
+						}
+
+						self.process_instruction(instr)
+					});
+					if let Err(e) = inst_res {
 						log::trace!(target: "xcm::execute", "!!! ERROR: {:?}", e);
 						*r = Err(ExecutorError {
 							index: i as u32,
 							xcm_error: e,
 							weight: Weight::zero(),
 						});
-					},
+					}
+				}
 				Err(ref mut error) =>
 					if let Ok(x) = Config::Weigher::instr_weight(&instr) {
 						error.weight.saturating_accrue(x)
@@ -515,61 +539,39 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			Transact { origin_kind, require_weight_at_most, mut call } => {
-				// Initialize the recursion count only the first time we hit this code in our
-				// potential recursive execution.
-				recursion_count::using_once(&mut 1, || {
-					recursion_count::with(|count| {
-						if *count > RECURSION_LIMIT {
-							return Err(XcmError::ExceedsStackLimit)
-						}
-						*count = count.saturating_add(1);
-						Ok(())
-					})
-					// This should always return `Some`, but let's play it safe.
-					.unwrap_or(Ok(()))?;
+				// We assume that the Relay-chain is allowed to use transact on this parachain.
+				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?.clone();
 
-					// Ensure that we always decrement the counter whenever we finish executing
-					// `Transact`
-					defer! {
-						recursion_count::with(|count| {
-							*count = count.saturating_sub(1);
-						});
-					}
-
-					// We assume that the Relay-chain is allowed to use transact on this parachain.
-					let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?.clone();
-
-					// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
-					let message_call = call.take_decoded().map_err(|_| XcmError::FailedToDecode)?;
-					let dispatch_origin =
-						Config::OriginConverter::convert_origin(origin, origin_kind)
-							.map_err(|_| XcmError::BadOrigin)?;
-					let weight = message_call.get_dispatch_info().weight;
-					ensure!(weight.all_lte(require_weight_at_most), XcmError::MaxWeightInvalid);
-					let maybe_actual_weight =
-						match Config::CallDispatcher::dispatch(message_call, dispatch_origin) {
-							Ok(post_info) => {
-								self.transact_status = MaybeErrorCode::Success;
-								post_info.actual_weight
-							},
-							Err(error_and_info) => {
-								self.transact_status = error_and_info.error.encode().into();
-								error_and_info.post_info.actual_weight
-							},
-						};
-					let actual_weight = maybe_actual_weight.unwrap_or(weight);
-					let surplus = weight.saturating_sub(actual_weight);
-					// We assume that the `Config::Weigher` will counts the `require_weight_at_most`
-					// for the estimate of how much weight this instruction will take. Now that we know
-					// that it's less, we credit it.
-					//
-					// We make the adjustment for the total surplus, which is used eventually
-					// reported back to the caller and this ensures that they account for the total
-					// weight consumed correctly (potentially allowing them to do more operations in a
-					// block than they otherwise would).
-					self.total_surplus.saturating_accrue(surplus);
-					Ok(())
-				})
+				// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
+				let message_call = call.take_decoded().map_err(|_| XcmError::FailedToDecode)?;
+				let dispatch_origin =
+					Config::OriginConverter::convert_origin(origin, origin_kind)
+						.map_err(|_| XcmError::BadOrigin)?;
+				let weight = message_call.get_dispatch_info().weight;
+				ensure!(weight.all_lte(require_weight_at_most), XcmError::MaxWeightInvalid);
+				let maybe_actual_weight =
+					match Config::CallDispatcher::dispatch(message_call, dispatch_origin) {
+						Ok(post_info) => {
+							self.transact_status = MaybeErrorCode::Success;
+							post_info.actual_weight
+						},
+						Err(error_and_info) => {
+							self.transact_status = error_and_info.error.encode().into();
+							error_and_info.post_info.actual_weight
+						},
+					};
+				let actual_weight = maybe_actual_weight.unwrap_or(weight);
+				let surplus = weight.saturating_sub(actual_weight);
+				// We assume that the `Config::Weigher` will counts the `require_weight_at_most`
+				// for the estimate of how much weight this instruction will take. Now that we know
+				// that it's less, we credit it.
+				//
+				// We make the adjustment for the total surplus, which is used eventually
+				// reported back to the caller and this ensures that they account for the total
+				// weight consumed correctly (potentially allowing them to do more operations in a
+				// block than they otherwise would).
+				self.total_surplus.saturating_accrue(surplus);
+				Ok(())
 			},
 			QueryResponse { query_id, response, max_weight, querier } => {
 				let origin = self.origin_ref().ok_or(XcmError::BadOrigin)?;
