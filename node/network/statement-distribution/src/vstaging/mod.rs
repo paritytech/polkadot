@@ -1046,15 +1046,6 @@ async fn handle_incoming_statement<Context>(
 
 		// We always circulate statements at this point.
 		circulate_statement(ctx, state, relay_parent, originator_group, checked_statement).await;
-
-	// both of the below probably in some shared function.
-	// TODO [now]: circulate the statement
-	// TODO [now]: import the statement into backing if we can.
-	// If the candidate is confirmed and statements are importable,
-	// we send the statement to backing either if
-	//    a) it is a candidate from the cluster
-	//    b) it is a candidate from the grid and it is backed
-	//
 	} else {
 		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
 	}
@@ -1152,8 +1143,6 @@ fn handle_grid_statement(
 // 2) dispatches backable candidate announcements or acknowledgements
 //    via the grid topology. If the session topology is not yet
 //    available, this will be a no-op
-//
-// It is expected
 async fn handle_backable_and_importable_candidate<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,
