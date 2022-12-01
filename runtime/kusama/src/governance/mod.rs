@@ -30,7 +30,7 @@ mod origins;
 pub use origins::{
 	pallet_custom_origins, AuctionAdmin, Fellows, FellowshipAdmin, FellowshipExperts,
 	FellowshipInitiates, FellowshipMasters, GeneralAdmin, LeaseAdmin, ReferendumCanceller,
-	ReferendumKiller, Spender, StakingAdmin, WhitelistedCaller,
+	ReferendumKiller, Spender, StakingAdmin, Treasurer, WhitelistedCaller,
 };
 mod tracks;
 pub use tracks::TracksInfo;

@@ -120,6 +120,7 @@ pub mod pallet_custom_origins {
 	}
 	decl_unit_ensures!(
 		StakingAdmin,
+		Treasurer,
 		FellowshipAdmin,
 		GeneralAdmin,
 		AuctionAdmin,

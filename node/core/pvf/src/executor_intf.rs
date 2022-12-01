@@ -424,7 +424,7 @@ impl sp_core::traits::ReadRuntimeVersion for ReadRuntimeVersion {
 				use parity_scale_codec::Encode;
 				Ok(version.encode())
 			},
-			None => Err(format!("runtime version section is not found")),
+			None => Err("runtime version section is not found".to_string()),
 		}
 	}
 }

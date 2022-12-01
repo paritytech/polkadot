@@ -106,7 +106,7 @@ pub mod xcm_config;
 pub mod governance;
 use governance::{
 	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, GeneralAdmin, LeaseAdmin,
-	StakingAdmin, TreasurySpender,
+	StakingAdmin, Treasurer, TreasurySpender,
 };
 
 #[cfg(test)]
@@ -124,13 +124,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9310,
+	spec_version: 9330,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 15,
+	transaction_version: 16,
 	state_version: 0,
 };
 
@@ -633,8 +633,8 @@ parameter_types! {
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
 	type Currency = Balances;
-	type ApproveOrigin = EnsureRoot<AccountId>;
-	type RejectOrigin = EnsureRoot<AccountId>;
+	type ApproveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
+	type RejectOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
 	type RuntimeEvent = RuntimeEvent;
 	type OnSlash = Treasury;
 	type ProposalBond = ProposalBond;
@@ -1005,6 +1005,11 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Bounties(..) |
 				RuntimeCall::ChildBounties(..) |
 				RuntimeCall::Tips(..) |
+				RuntimeCall::ConvictionVoting(..) |
+				RuntimeCall::Referenda(..) |
+				RuntimeCall::FellowshipCollective(..) |
+				RuntimeCall::FellowshipReferenda(..) |
+				RuntimeCall::Whitelist(..) |
 				RuntimeCall::Claims(..) |
 				RuntimeCall::Utility(..) |
 				RuntimeCall::Identity(..) |
@@ -1034,17 +1039,22 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::NominationPools(..) |
 				RuntimeCall::FastUnstake(..)
 			),
-			ProxyType::Governance =>
-				matches!(
-					c,
-					RuntimeCall::Democracy(..) |
-						RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
-						RuntimeCall::PhragmenElection(..) |
-						RuntimeCall::Treasury(..) |
-						RuntimeCall::Bounties(..) |
-						RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
-						RuntimeCall::ChildBounties(..)
-				),
+			ProxyType::Governance => matches!(
+				c,
+				RuntimeCall::Democracy(..) |
+					RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
+					RuntimeCall::PhragmenElection(..) |
+					RuntimeCall::Treasury(..) |
+					RuntimeCall::Bounties(..) |
+					RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
+					RuntimeCall::ChildBounties(..) |
+					// OpenGov calls
+					RuntimeCall::ConvictionVoting(..) |
+					RuntimeCall::Referenda(..) |
+					RuntimeCall::FellowshipCollective(..) |
+					RuntimeCall::FellowshipReferenda(..) |
+					RuntimeCall::Whitelist(..)
+			),
 			ProxyType::Staking => {
 				matches!(
 					c,
