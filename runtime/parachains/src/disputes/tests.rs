@@ -692,18 +692,44 @@ fn test_unconfirmed_are_ignored() {
 		// 7 validators needed for byzantine threshold of 2.
 		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
 		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v2 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v3 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v4 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v5 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v6 = <ValidatorId as CryptoType>::Pair::generate().0;
 
 		// Mapping between key pair and `ValidatorIndex`
 		// v0 -> 0
 		// v1 -> 3
+		// v2 -> 6
+		// v3 -> 5
+		// v4 -> 1
+		// v5 -> 4
+		// v6 -> 2
 
 		run_to_block(6, |b| {
 			// a new session at each block
 			Some((
 				true,
 				b,
-				vec![(&0, v0.public()), (&1, v1.public())],
-				Some(vec![(&0, v0.public()), (&1, v1.public())]),
+				vec![
+					(&0, v0.public()),
+					(&1, v1.public()),
+					(&2, v2.public()),
+					(&3, v3.public()),
+					(&4, v4.public()),
+					(&5, v5.public()),
+					(&6, v6.public()),
+				],
+				Some(vec![
+					(&0, v0.public()),
+					(&1, v1.public()),
+					(&2, v2.public()),
+					(&3, v3.public()),
+					(&4, v4.public()),
+					(&5, v5.public()),
+					(&6, v6.public()),
+				]),
 			))
 		});
 
