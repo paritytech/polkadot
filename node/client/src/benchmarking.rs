@@ -368,8 +368,7 @@ pub fn benchmark_inherent_data(
 		parent_header: header,
 	};
 
-	inherent_data
-		.put_data(polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER, &para_data)?;
+	inherent_data.put_data(polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER, &para_data)?;
 
 	Ok(inherent_data)
 }
