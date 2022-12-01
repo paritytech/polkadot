@@ -51,10 +51,7 @@ impl<C: sp_blockchain::HeaderBackend<Block>> ParachainsInherentDataProvider<C> {
 	}
 
 	/// Create a new instance of the [`ParachainsInherentDataProvider`].
-	pub async fn create(
-		client: Arc<C>,
-		mut overseer: Handle,
-		parent: Hash,
+	async fn create(&self
 	) -> Result<ParachainsInherentData, Error> {
 		let pid = async {
 			let (sender, receiver) = futures::channel::oneshot::channel();
