@@ -383,7 +383,7 @@ impl std::fmt::Debug for CollationGenerationConfig {
 pub struct AvailableData {
 	/// The Proof-of-Validation of the candidate.
 	pub pov: std::sync::Arc<PoV>,
-	/// The persisted validation data needed for secondary checks.
+	/// The persisted validation data needed for approval checks.
 	pub validation_data: PersistedValidationData,
 }
 
