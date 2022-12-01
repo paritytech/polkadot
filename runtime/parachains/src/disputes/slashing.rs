@@ -569,7 +569,6 @@ impl<T: Config> Pallet<T> {
 	fn initializer_on_new_session(session_index: SessionIndex) {
 		// This should be small, as disputes are limited by spam slots, so no limit is
 		// fine.
-		// TODO: without spam slots is this still valid?
 		const REMOVE_LIMIT: u32 = u32::MAX;
 
 		let config = <crate::configuration::Pallet<T>>::config();

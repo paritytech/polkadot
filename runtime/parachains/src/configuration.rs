@@ -193,7 +193,7 @@ pub struct HostConfiguration<BlockNumber> {
 	/// How long after dispute conclusion to accept statements.
 	pub dispute_post_conclusion_acceptance_period: BlockNumber,
 	/// The maximum number of dispute spam slots
-	/// TODO: Should be removed in next version
+	/// TODO: This will be removed once https://github.com/paritytech/polkadot/pull/6271 is merged
 	pub dispute_max_spam_slots: u32,
 	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
 	pub dispute_conclusion_by_time_out_period: BlockNumber,
