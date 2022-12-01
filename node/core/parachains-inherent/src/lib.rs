@@ -129,11 +129,7 @@ impl<C: sp_blockchain::HeaderBackend<Block>> sp_inherents::InherentDataProvider
 		&self,
 		dst_inherent_data: &mut sp_inherents::InherentData,
 	) -> Result<(), sp_inherents::Error> {
-		let inherent_data = ParachainsInherentDataProvider::create(
-			self.client.clone(),
-			self.overseer.clone(),
-			self.parent,
-		)
+		let inherent_data = self.create()
 		.await
 		.map_err(|e| sp_inherents::Error::Application(Box::new(e)))?;
 
