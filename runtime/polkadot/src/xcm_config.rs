@@ -227,9 +227,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				super::claims::Call::mint_claim { .. } |
 				super::claims::Call::move_claim { .. },
 			) |
-			RuntimeCall::Utility(
-				pallet_utility::Call::as_derivative { .. }
-			) |
+			RuntimeCall::Utility(pallet_utility::Call::as_derivative { .. }) |
 			RuntimeCall::Identity(
 				pallet_identity::Call::add_registrar { .. } |
 				pallet_identity::Call::set_identity { .. } |

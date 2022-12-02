@@ -146,9 +146,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			RuntimeCall::Session(pallet_session::Call::purge_keys { .. }) |
 			RuntimeCall::Grandpa(..) |
 			RuntimeCall::ImOnline(..) |
-			RuntimeCall::Utility(
-				pallet_utility::Call::as_derivative { .. }
-			) |
+			RuntimeCall::Utility(pallet_utility::Call::as_derivative { .. }) |
 			RuntimeCall::Identity(
 				pallet_identity::Call::add_registrar { .. } |
 				pallet_identity::Call::set_identity { .. } |
