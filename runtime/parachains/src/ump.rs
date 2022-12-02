@@ -509,6 +509,8 @@ impl<T: Config> Pallet<T> {
 
 	/// Devote some time into dispatching pending upward messages.
 	pub(crate) fn process_pending_upward_messages() -> Weight {
+		const MAX_MESSAGES_PER_BLOCK: u8 = 10;
+		let mut messages_processed = 0;
 		let mut weight_used = Weight::zero();
 
 		let config = <configuration::Pallet<T>>::config();
@@ -516,7 +518,12 @@ impl<T: Config> Pallet<T> {
 		let mut queue_cache = QueueCache::new();
 
 		while let Some(dispatchee) = cursor.peek() {
-			if weight_used.any_gte(config.ump_service_total_weight) {
+			if weight_used.any_gte(config.ump_service_total_weight) ||
+				messages_processed >= MAX_MESSAGES_PER_BLOCK
+			{
+				// Temporarily allow for processing of a max of 10 messages per block, until we
+				// properly account for proof size weights.
+				//
 				// Then check whether we've reached or overshoot the
 				// preferred weight for the dispatching stage.
 				//
@@ -538,6 +545,7 @@ impl<T: Config> Pallet<T> {
 			// our remaining weight limit, then consume it.
 			let maybe_next = queue_cache.peek_front::<T>(dispatchee);
 			if let Some(upward_message) = maybe_next {
+				messages_processed += 1;
 				match T::UmpSink::process_upward_message(dispatchee, upward_message, max_weight) {
 					Ok(used) => {
 						weight_used += used;

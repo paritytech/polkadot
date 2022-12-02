@@ -22,7 +22,7 @@ use super::{
 };
 use frame_support::{
 	match_types, parameter_types,
-	traits::{Everything, Nothing},
+	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
 use runtime_common::{xcm_sender, ToAuthor};
@@ -133,6 +133,127 @@ pub type Barrier = (
 	AllowSubscriptionsFrom<OnlyParachains>,
 );
 
+/// A call filter for the XCM Transact instruction. This is a temporary measure until we properly
+/// account for proof size weights.
+///
+/// Calls that are allowed through this filter must:
+/// 1. Have a fixed weight;
+/// 2. Cannot lead to another call being made;
+/// 3. Have a defined proof size weight, e.g. no unbounded vecs in call parameters.
+pub struct SafeCallFilter;
+impl Contains<RuntimeCall> for SafeCallFilter {
+	fn contains(t: &RuntimeCall) -> bool {
+		match t {
+			RuntimeCall::System(
+				frame_system::Call::fill_block { .. } |
+				frame_system::Call::kill_prefix { .. } |
+				frame_system::Call::set_heap_pages { .. },
+			) |
+			RuntimeCall::Babe(..) |
+			RuntimeCall::Timestamp(..) |
+			RuntimeCall::Indices(..) |
+			RuntimeCall::Balances(..) |
+			RuntimeCall::Session(pallet_session::Call::purge_keys { .. }) |
+			RuntimeCall::Grandpa(..) |
+			RuntimeCall::ImOnline(..) |
+			RuntimeCall::Democracy(
+				pallet_democracy::Call::second { .. } |
+				pallet_democracy::Call::vote { .. } |
+				pallet_democracy::Call::emergency_cancel { .. } |
+				pallet_democracy::Call::fast_track { .. } |
+				pallet_democracy::Call::veto_external { .. } |
+				pallet_democracy::Call::cancel_referendum { .. } |
+				pallet_democracy::Call::delegate { .. } |
+				pallet_democracy::Call::undelegate { .. } |
+				pallet_democracy::Call::clear_public_proposals { .. } |
+				pallet_democracy::Call::unlock { .. } |
+				pallet_democracy::Call::remove_vote { .. } |
+				pallet_democracy::Call::remove_other_vote { .. } |
+				pallet_democracy::Call::blacklist { .. } |
+				pallet_democracy::Call::cancel_proposal { .. },
+			) |
+			RuntimeCall::Council(
+				pallet_collective::Call::vote { .. } |
+				pallet_collective::Call::close_old_weight { .. } |
+				pallet_collective::Call::disapprove_proposal { .. } |
+				pallet_collective::Call::close { .. },
+			) |
+			RuntimeCall::TechnicalCommittee(
+				pallet_collective::Call::vote { .. } |
+				pallet_collective::Call::close_old_weight { .. } |
+				pallet_collective::Call::disapprove_proposal { .. } |
+				pallet_collective::Call::close { .. },
+			) |
+			RuntimeCall::PhragmenElection(
+				pallet_elections_phragmen::Call::remove_voter { .. } |
+				pallet_elections_phragmen::Call::submit_candidacy { .. } |
+				pallet_elections_phragmen::Call::renounce_candidacy { .. } |
+				pallet_elections_phragmen::Call::remove_member { .. } |
+				pallet_elections_phragmen::Call::clean_defunct_voters { .. },
+			) |
+			RuntimeCall::TechnicalMembership(
+				pallet_membership::Call::add_member { .. } |
+				pallet_membership::Call::remove_member { .. } |
+				pallet_membership::Call::swap_member { .. } |
+				pallet_membership::Call::change_key { .. } |
+				pallet_membership::Call::set_prime { .. } |
+				pallet_membership::Call::clear_prime { .. },
+			) |
+			RuntimeCall::Treasury(..) |
+			RuntimeCall::Claims(
+				super::claims::Call::claim { .. } |
+				super::claims::Call::mint_claim { .. } |
+				super::claims::Call::move_claim { .. },
+			) |
+			RuntimeCall::Utility(pallet_utility::Call::as_derivative { .. }) |
+			RuntimeCall::Identity(
+				pallet_identity::Call::add_registrar { .. } |
+				pallet_identity::Call::set_identity { .. } |
+				pallet_identity::Call::clear_identity { .. } |
+				pallet_identity::Call::request_judgement { .. } |
+				pallet_identity::Call::cancel_request { .. } |
+				pallet_identity::Call::set_fee { .. } |
+				pallet_identity::Call::set_account_id { .. } |
+				pallet_identity::Call::set_fields { .. } |
+				pallet_identity::Call::provide_judgement { .. } |
+				pallet_identity::Call::kill_identity { .. } |
+				pallet_identity::Call::add_sub { .. } |
+				pallet_identity::Call::rename_sub { .. } |
+				pallet_identity::Call::remove_sub { .. } |
+				pallet_identity::Call::quit_sub { .. },
+			) |
+			RuntimeCall::Society(
+				pallet_society::Call::bid { .. } |
+				pallet_society::Call::unbid { .. } |
+				pallet_society::Call::vouch { .. } |
+				pallet_society::Call::unvouch { .. } |
+				pallet_society::Call::vote { .. } |
+				pallet_society::Call::defender_vote { .. } |
+				pallet_society::Call::payout { .. } |
+				pallet_society::Call::unfound { .. } |
+				pallet_society::Call::judge_suspended_member { .. } |
+				pallet_society::Call::judge_suspended_candidate { .. } |
+				pallet_society::Call::set_max_members { .. },
+			) |
+			RuntimeCall::Recovery(..) |
+			RuntimeCall::Vesting(..) |
+			RuntimeCall::Bounties(
+				pallet_bounties::Call::propose_bounty { .. } |
+				pallet_bounties::Call::approve_bounty { .. } |
+				pallet_bounties::Call::propose_curator { .. } |
+				pallet_bounties::Call::unassign_curator { .. } |
+				pallet_bounties::Call::accept_curator { .. } |
+				pallet_bounties::Call::award_bounty { .. } |
+				pallet_bounties::Call::claim_bounty { .. } |
+				pallet_bounties::Call::close_bounty { .. },
+			) |
+			RuntimeCall::ChildBounties(..) |
+			RuntimeCall::Gilt(..) => true,
+			_ => false,
+		}
+	}
+}
+
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type RuntimeCall = RuntimeCall;
@@ -162,6 +283,7 @@ impl xcm_executor::Config for XcmConfig {
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 	type CallDispatcher = RuntimeCall;
+	type SafeCallFilter = SafeCallFilter;
 }
 
 parameter_types! {
