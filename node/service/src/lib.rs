@@ -1154,11 +1154,12 @@ where
 				let overseer_handle = overseer_handle.clone();
 
 				async move {
-					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
-						&*client_clone,
-						overseer_handle,
-						parent,
-					).await.map_err(|e| Box::new(e))?;
+					let parachain =
+						polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::new(
+							client_clone,
+							overseer_handle,
+							parent,
+						);
 
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
