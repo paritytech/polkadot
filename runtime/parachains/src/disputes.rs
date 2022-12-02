@@ -886,24 +886,21 @@ impl<T: Config> Pallet<T> {
 		let n_validators = session_info.validators.len();
 
 		// Check for ancient.
-		let (first_votes, dispute_state) = {
+		let dispute_state = {
 			if let Some(dispute_state) = <Disputes<T>>::get(&set.session, &set.candidate_hash) {
 				if dispute_state.concluded_at.as_ref().map_or(false, |c| c < &oldest_accepted) {
 					return StatementSetFilter::RemoveAll
 				}
 
-				(false, dispute_state)
+				dispute_state
 			} else {
 				// No state in storage, this indicates it's the first dispute statement set as well.
-				(
-					true,
-					DisputeState {
-						validators_for: bitvec![u8, BitOrderLsb0; 0; n_validators],
-						validators_against: bitvec![u8, BitOrderLsb0; 0; n_validators],
-						start: now,
-						concluded_at: None,
-					},
-				)
+				DisputeState {
+					validators_for: bitvec![u8, BitOrderLsb0; 0; n_validators],
+					validators_against: bitvec![u8, BitOrderLsb0; 0; n_validators],
+					start: now,
+					concluded_at: None,
+				}
 			}
 		};
 
@@ -970,32 +967,6 @@ impl<T: Config> Pallet<T> {
 			byzantine_threshold(summary.state.validators_for.len())
 		{
 			return StatementSetFilter::RemoveAll
-		}
-
-		let is_local = <Included<T>>::contains_key(&set.session, &set.candidate_hash);
-		if !is_local {
-			// This is only relevant in cases where it's the first vote and the state
-			// would hence hold a onesided dispute. If a onesided dispute can never be
-			// started, by induction, we can never enter a state of a one sided dispute.
-			if first_votes {
-				let mut vote_for_count = 0_u64;
-				let mut vote_against_count = 0_u64;
-				// Since this is the first set of statements for the dispute,
-				// it's sufficient to count the votes in the statement set after they
-				set.statements.iter().for_each(|(statement, v_i, _signature)| {
-					if Some(true) ==
-						summary.new_participants.get(v_i.0 as usize).map(|b| *b.as_ref())
-					{
-						match statement {
-							// Note that this does not distinguish between pro or con votes,
-							// since allowing both of them.
-							// Overflow of the counters is no concern, disputes are limited by weight.
-							DisputeStatement::Valid(_) => vote_for_count += 1,
-							DisputeStatement::Invalid(_) => vote_against_count += 1,
-						}
-					}
-				});
-			}
 		}
 
 		filter
