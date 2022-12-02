@@ -768,7 +768,7 @@ impl Initialized {
 		gum::trace!(target: LOG_TARGET, ?candidate_hash, ?session, "Loaded votes");
 
 		let import_result = {
-			let intermediate_result = old_state.import_statements(&env, statements, now);
+			let intermediate_result = old_state.import_statements(&env, statements.clone(), now);
 
 			// Handle approval vote import:
 			//
@@ -1028,6 +1028,8 @@ impl Initialized {
 			"Import summary"
 		);
 
+		let controlled_indices = env.controlled_indices();
+
 		self.metrics.on_approval_votes(import_result.imported_approval_votes());
 		if import_result.is_freshly_concluded_for() {
 			gum::info!(
@@ -1036,13 +1038,22 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'valid' result",
 			);
-			if new_state.has_own_vote() && new_state.own_approval_votes().is_none() {
-				gum::warn!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					"Voted against a candidate that was concluded valid.",
-				);
+
+			for statement in statements.clone() {
+				let (dispute_statement, validator_index) = statement;
+
+				if controlled_indices.contains(&validator_index) &&
+					dispute_statement.statement().indicates_invalidity()
+				{
+					gum::warn!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?validator_index,
+						"Voted against a candidate that was concluded valid.",
+					);
+				}
 			}
+
 			self.metrics.on_concluded_valid();
 		}
 		if import_result.is_freshly_concluded_against() {
@@ -1052,13 +1063,22 @@ impl Initialized {
 				session,
 				"Dispute on candidate concluded with 'invalid' result",
 			);
-			if new_state.own_approval_votes().is_some() {
-				gum::warn!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					"Voted approval for a candidate that was concluded invalid.",
-				);
+
+			for statement in statements {
+				let (dispute_statement, validator_index) = statement;
+
+				if controlled_indices.contains(&validator_index) &&
+					dispute_statement.statement().indicates_validity()
+				{
+					gum::warn!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?validator_index,
+						"Voted approval for a candidate that was concluded invalid.",
+					);
+				}
 			}
+
 			self.metrics.on_concluded_invalid();
 		}
 
