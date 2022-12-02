@@ -19,7 +19,7 @@ use std::num::NonZeroUsize;
 use futures::channel::oneshot;
 use lru::LruCache;
 
-use polkadot_node_primitives::MAX_FINALITY_LAG;
+use polkadot_node_primitives::{DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION, MAX_FINALITY_LAG};
 use polkadot_node_subsystem::{
 	messages::ChainApiMessage, overseer, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError,
 	SubsystemSender,
@@ -86,16 +86,6 @@ impl ChainScraper {
 	///
 	/// As long as we have `MAX_FINALITY_LAG` this makes sense as a value.
 	pub(crate) const ANCESTRY_SIZE_LIMIT: u32 = MAX_FINALITY_LAG;
-
-	/// How many blocks after finalization a backed/included candidate should be kept.
-	/// We don't want to remove scraped candidates on finalization because we want to
-	/// be sure that disputes will conclude on abandoned forks.
-	/// Removing the candidate on finalization creates a possibility for an attacker to
-	/// avoid slashing. If a bad fork is abandoned too quickly because in the same another
-	/// better one gets finalized the entries for the bad fork will be pruned and we
-	/// will never participate in a dispute for it. We want such disputes to conclude
-	/// in a timely manner so that the offenders are slashed.
-	pub(crate) const CANDIDATE_LIFETIME_AFTER_FINALIZATION: BlockNumber = 2;
 
 	/// Create a properly initialized `OrderingProvider`.
 	///
@@ -180,7 +170,8 @@ impl ChainScraper {
 	pub fn process_finalized_block(&mut self, finalized_block_number: &BlockNumber) {
 		// `CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1` because `finalized_block_number`counts to the
 		// candidate lifetime.
-		match finalized_block_number.checked_sub(Self::CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1) {
+		match finalized_block_number.checked_sub(DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1)
+		{
 			Some(key_to_prune) => {
 				self.backed_candidates.remove_up_to_height(&key_to_prune);
 				self.included_candidates.remove_up_to_height(&key_to_prune);
