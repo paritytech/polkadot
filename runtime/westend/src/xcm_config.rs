@@ -22,7 +22,7 @@ use super::{
 };
 use frame_support::{
 	parameter_types,
-	traits::{Everything, Nothing},
+	traits::{Contains, Everything, Nothing},
 };
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
