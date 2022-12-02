@@ -390,8 +390,7 @@ async fn run(
 			from_prepare_queue = from_prepare_queue_rx.next() => {
 				let from_queue = break_if_fatal!(from_prepare_queue.ok_or(Fatal));
 
-				// Note that unless the worker dies, the preparation outcome is always reported as
-				// concluded.
+				// Note that the preparation outcome is always reported as concluded.
 				//
 				// That's because the error conditions are written into the artifact and will be
 				// reported at the time of the execution. It potentially, but not necessarily, can
