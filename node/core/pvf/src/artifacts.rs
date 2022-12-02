@@ -101,6 +101,8 @@ pub enum ArtifactState {
 		/// This is updated when we get the heads up for this artifact or when we just discover
 		/// this file.
 		last_time_needed: SystemTime,
+		/// The CPU time that was taken preparing this artifact.
+		cpu_time_elapsed: Duration,
 	},
 	/// A task to prepare this artifact is scheduled.
 	Preparing {
@@ -171,11 +173,16 @@ impl Artifacts {
 	/// This function must be used only for brand-new artifacts and should never be used for
 	/// replacing existing ones.
 	#[cfg(test)]
-	pub fn insert_prepared(&mut self, artifact_id: ArtifactId, last_time_needed: SystemTime) {
+	pub fn insert_prepared(
+		&mut self,
+		artifact_id: ArtifactId,
+		last_time_needed: SystemTime,
+		cpu_time_elapsed: Duration,
+	) {
 		// See the precondition.
 		always!(self
 			.artifacts
-			.insert(artifact_id, ArtifactState::Prepared { last_time_needed })
+			.insert(artifact_id, ArtifactState::Prepared { last_time_needed, cpu_time_elapsed })
 			.is_none());
 	}
 
