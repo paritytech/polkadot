@@ -76,7 +76,7 @@ struct CandidateDescriptor {
 	collator: CollatorId,
 	/// The blake2-256 hash of the persisted validation data. These are extra parameters
 	/// derived from relay-chain state that influence the validity of the block which
-	/// must also be kept available for secondary checkers.
+	/// must also be kept available for approval checkers.
 	persisted_validation_data_hash: Hash,
 	/// The blake2-256 hash of the `pov-block`.
 	pov_hash: Hash,
@@ -116,7 +116,7 @@ Since this data is used to form inputs to the validation function, it needs to b
 
 Furthermore, the validation data acts as a way to authorize the additional data the collator needs to pass to the validation function. For example, the validation function can check whether the incoming messages (e.g. downward messages) were actually sent by using the data provided in the validation data using so called MQC heads.
 
-Since the commitments of the validation function are checked by the relay-chain, secondary checkers can rely on the invariant that the relay-chain only includes para-blocks for which these checks have already been done. As such, there is no need for the validation data used to inform validators and collators about the checks the relay-chain will perform to be persisted by the availability system.
+Since the commitments of the validation function are checked by the relay-chain, approval checkers can rely on the invariant that the relay-chain only includes para-blocks for which these checks have already been done. As such, there is no need for the validation data used to inform validators and collators about the checks the relay-chain will perform to be persisted by the availability system.
 
 The `PersistedValidationData` should be relatively lightweight primarily because it is constructed during inclusion for each candidate and therefore lies on the critical path of inclusion.
 

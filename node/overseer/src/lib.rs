@@ -686,7 +686,7 @@ where
 			subsystem_meters
 				.iter()
 				.cloned()
-				.filter_map(|x| x)
+				.flatten()
 				.map(|(name, ref meters)| (name, meters.read())),
 		);
 
@@ -861,7 +861,7 @@ where
 		let mut span = jaeger::Span::new(*hash, "leaf-activated");
 
 		if let Some(parent_span) = parent_hash.and_then(|h| self.span_per_active_leaf.get(&h)) {
-			span.add_follows_from(&*parent_span);
+			span.add_follows_from(parent_span);
 		}
 
 		let span = Arc::new(span);
