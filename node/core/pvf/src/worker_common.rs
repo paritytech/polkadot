@@ -233,7 +233,11 @@ pub async fn cpu_time_monitor_loop(
 				timeout.as_millis(),
 			);
 
-			// Send back a TimedOut error on timeout.
+			// Send back a `TimedOut` error.
+			//
+			// NOTE: This will cause the worker, whether preparation or execution, to be killed by
+			// the host. We do not kill the process here because it would interfere with the proper
+			// handling of this error.
 			let encoded_result = match job_kind {
 				JobKind::Prepare => {
 					let result: Result<(), PrepareError> = Err(PrepareError::TimedOut);
@@ -244,8 +248,8 @@ pub async fn cpu_time_monitor_loop(
 					result.encode()
 				},
 			};
-			// If we error there is nothing else we can do here, and we are killing the process,
-			// anyway. The receiving side will just have to time out.
+			// If we error here there is nothing we can do apart from log it. The receiving side
+			// will just have to time out.
 			if let Err(err) = framed_send(&mut stream, encoded_result.as_slice()).await {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -254,9 +258,6 @@ pub async fn cpu_time_monitor_loop(
 					err
 				);
 			}
-
-			// Kill the process.
-			std::process::exit(1);
 		}
 
 		// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep

@@ -299,7 +299,8 @@ fn handle_mux(
 					let data = match spawned.get_mut(worker) {
 						None => {
 							// Perhaps the worker was killed meanwhile and the result is no longer
-							// relevant.
+							// relevant. We already send `Rip` when purging if we detect that the
+							// worker is dead.
 							return Ok(())
 						},
 						Some(data) => data,
@@ -321,6 +322,7 @@ fn handle_mux(
 
 					Ok(())
 				},
+				// Sending `rip: true` triggers killing the worker.
 				Outcome::DidNotMakeIt => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(
@@ -335,6 +337,7 @@ fn handle_mux(
 
 					Ok(())
 				},
+				// Sending `rip: true` triggers killing the worker.
 				Outcome::TimedOut => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(
