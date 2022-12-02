@@ -258,6 +258,8 @@ pub async fn cpu_time_monitor_loop(
 					err
 				);
 			}
+
+			return
 		}
 
 		// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep

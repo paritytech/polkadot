@@ -294,6 +294,8 @@ fn handle_mux(
 			Ok(())
 		},
 		PoolEvent::StartWork(worker, outcome) => {
+			// If we receive any outcome other than `Concluded`, we attempt to kill the worker
+			// process.
 			match outcome {
 				Outcome::Concluded { worker: idle, result } => {
 					let data = match spawned.get_mut(worker) {
@@ -322,7 +324,6 @@ fn handle_mux(
 
 					Ok(())
 				},
-				// Sending `rip: true` triggers killing the worker.
 				Outcome::DidNotMakeIt => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(
@@ -337,7 +338,6 @@ fn handle_mux(
 
 					Ok(())
 				},
-				// Sending `rip: true` triggers killing the worker.
 				Outcome::TimedOut => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(
