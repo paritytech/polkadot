@@ -100,13 +100,13 @@ pub type Barrier = (
 );
 
 match_types! {
-	/// A call filter for the XCM Transact instruction. This is a temporary measure until we
-	/// properly account for proof size weights.
-	///
-	/// Calls that are allowed through this filter must:
-	/// 1. Have a fixed weight;
-	/// 2. Cannot lead to another call being made;
-	/// 3. Have a defined proof size weight, e.g. no unbounded vecs in call parameters.
+	// A call filter for the XCM Transact instruction. This is a temporary measure until we
+	// properly account for proof size weights.
+	//
+	// Calls that are allowed through this filter must:
+	// 1. Have a fixed weight;
+	// 2. Cannot lead to another call being made;
+	// 3. Have a defined proof size weight, e.g. no unbounded vecs in call parameters.
 	pub type SafeCallFilter: impl Contains<RuntimeCall> = {
 		RuntimeCall::System(
 			frame_system::Call::kill_prefix { .. } | frame_system::Call::set_heap_pages { .. },
