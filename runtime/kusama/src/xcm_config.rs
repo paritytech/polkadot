@@ -35,6 +35,7 @@ use xcm_builder::{
 	MintLocation, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
 	TakeWeightCredit, UsingComponents, WeightInfoBounds,
 };
+use xcm_executor::traits::WithOriginFilter;
 
 parameter_types! {
 	/// The location of the KSM token, from the context of this chain. Since this token is native to this
@@ -157,6 +158,7 @@ match_types! {
 			pallet_staking::Call::unbond { .. } |
 			pallet_staking::Call::withdraw_unbonded { .. } |
 			pallet_staking::Call::validate { .. } |
+			pallet_staking::Call::nominate { .. } |
 			pallet_staking::Call::chill { .. } |
 			pallet_staking::Call::set_payee { .. } |
 			pallet_staking::Call::set_controller { .. } |
@@ -169,6 +171,7 @@ match_types! {
 			pallet_staking::Call::force_unstake { .. } |
 			pallet_staking::Call::force_new_era_always { .. } |
 			pallet_staking::Call::payout_stakers { .. } |
+			pallet_staking::Call::rebond { .. } |
 			pallet_staking::Call::reap_stash { .. } |
 			pallet_staking::Call::set_staking_configs { .. } |
 			pallet_staking::Call::chill_other { .. } |
@@ -303,7 +306,8 @@ match_types! {
 			pallet_nomination_pools::Call::set_configs { .. } |
 			pallet_nomination_pools::Call::update_roles { .. } |
 			pallet_nomination_pools::Call::chill { .. },
-		)
+		) |
+		RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets { .. })
 	};
 }
 
@@ -337,7 +341,7 @@ impl xcm_executor::Config for XcmConfig {
 	// No bridges yet...
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
-	type CallDispatcher = RuntimeCall;
+	type CallDispatcher = WithOriginFilter<SafeCallFilter>;
 	type SafeCallFilter = SafeCallFilter;
 }
 

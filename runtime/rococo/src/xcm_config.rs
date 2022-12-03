@@ -35,7 +35,7 @@ use xcm_builder::{
 	MintLocation, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
 	TakeWeightCredit, UsingComponents, WeightInfoBounds,
 };
-use xcm_executor::XcmExecutor;
+use xcm_executor::{traits::WithOriginFilter, XcmExecutor};
 
 parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();
@@ -244,7 +244,8 @@ match_types! {
 			pallet_bounties::Call::close_bounty { .. },
 		) |
 		RuntimeCall::ChildBounties(..) |
-		RuntimeCall::Gilt(..)
+		RuntimeCall::Gilt(..) |
+		RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets { .. })
 	};
 }
 
@@ -276,7 +277,7 @@ impl xcm_executor::Config for XcmConfig {
 	type FeeManager = ();
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
-	type CallDispatcher = RuntimeCall;
+	type CallDispatcher = WithOriginFilter<SafeCallFilter>;
 	type SafeCallFilter = SafeCallFilter;
 }
 
