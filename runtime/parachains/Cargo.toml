@@ -1,6 +1,6 @@
 [package]
 name = "polkadot-runtime-parachains"
-version = "0.9.31"
+version = "0.9.33"
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 

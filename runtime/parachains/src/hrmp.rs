@@ -751,10 +751,10 @@ impl<T: Config> Pallet<T> {
 
 		let ingress = <Self as Store>::HrmpIngressChannelsIndex::take(outgoing_para)
 			.into_iter()
-			.map(|sender| HrmpChannelId { sender, recipient: outgoing_para.clone() });
+			.map(|sender| HrmpChannelId { sender, recipient: *outgoing_para });
 		let egress = <Self as Store>::HrmpEgressChannelsIndex::take(outgoing_para)
 			.into_iter()
-			.map(|recipient| HrmpChannelId { sender: outgoing_para.clone(), recipient });
+			.map(|recipient| HrmpChannelId { sender: *outgoing_para, recipient });
 		let mut to_close = ingress.chain(egress).collect::<Vec<_>>();
 		to_close.sort();
 		to_close.dedup();
@@ -1075,7 +1075,7 @@ impl<T: Config> Pallet<T> {
 			channel.total_size += inbound.data.len() as u32;
 
 			// compute the new MQC head of the channel
-			let prev_head = channel.mqc_head.clone().unwrap_or(Default::default());
+			let prev_head = channel.mqc_head.unwrap_or(Default::default());
 			let new_head = BlakeTwo256::hash_of(&(
 				prev_head,
 				inbound.sent_at,
