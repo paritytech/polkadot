@@ -44,7 +44,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactive<T> {
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
 		let total = Funds::<T>::iter_keys()
-			.map(|index| CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(index)))
+			.map(|index| {
+				CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(index.into()))
+			})
 			.sum();
 		Ok((total.encode(), CurrencyOf::<T>::active_issuance()))
 	}
