@@ -135,7 +135,6 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_staking::Call::force_unstake { .. } |
 				pallet_staking::Call::force_new_era_always { .. } |
 				pallet_staking::Call::payout_stakers { .. } |
-				pallet_staking::Call::unbond { .. } |
 				pallet_staking::Call::reap_stash { .. } |
 				pallet_staking::Call::set_staking_configs { .. } |
 				pallet_staking::Call::chill_other { .. } |
