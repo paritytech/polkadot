@@ -80,6 +80,6 @@ pub use filter_asset_location::{Case, NativeAsset};
 mod universal_exports;
 pub use universal_exports::{
 	BridgeBlobDispatcher, BridgeMessage, DispatchBlob, DispatchBlobError, ExporterFor, HaulBlob,
-	HaulBlobExporter, UnpaidLocalExporter, NetworkExportTable, SovereignPaidRemoteExporter,
+	HaulBlobExporter, NetworkExportTable, SovereignPaidRemoteExporter, UnpaidLocalExporter,
 	UnpaidRemoteExporter,
 };

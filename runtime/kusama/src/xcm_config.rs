@@ -147,8 +147,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 	fn contains(t: &RuntimeCall) -> bool {
 		match t {
 			RuntimeCall::System(
-				frame_system::Call::kill_prefix { .. } |
-				frame_system::Call::set_heap_pages { .. },
+				frame_system::Call::kill_prefix { .. } | frame_system::Call::set_heap_pages { .. },
 			) |
 			RuntimeCall::Babe(..) |
 			RuntimeCall::Timestamp(..) |
