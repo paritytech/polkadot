@@ -47,8 +47,8 @@ impl pallet_conviction_voting::Config for Runtime {
 	type Currency = Balances;
 	type VoteLockingPeriod = VoteLockingPeriod;
 	type MaxVotes = ConstU32<512>;
-	// TODO: Should be `total_issuance` minus funds trapped in system pots/checked
-	type MaxTurnout = frame_support::traits::ActiveIssuanceOf<Balances, Self::AccountId>;
+	type MaxTurnout =
+		frame_support::traits::tokens::currency::ActiveIssuanceOf<Balances, Self::AccountId>;
 	type Polls = Referenda;
 }
 

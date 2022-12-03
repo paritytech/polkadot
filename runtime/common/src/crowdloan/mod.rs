@@ -781,7 +781,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		CurrencyOf::<T>::transfer(&who, &fund_account, value, existence)?;
-		CurrencyOf::<T>::deactivate(balance);
+		CurrencyOf::<T>::deactivate(value);
 
 		let balance = old_balance.saturating_add(value);
 		Self::contribution_put(fund.fund_index, &who, &balance, &memo);
