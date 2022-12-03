@@ -252,6 +252,7 @@ pub struct BridgeMessage {
 	message: VersionedXcm<()>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DispatchBlobError {
 	Unbridgable,
 	InvalidEncoding,
