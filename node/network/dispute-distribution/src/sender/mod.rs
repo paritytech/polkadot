@@ -304,7 +304,7 @@ impl DisputeSender {
 			.get(*valid_index)
 			.ok_or(JfyiError::InvalidStatementFromCoordinator)?;
 		let valid_signed = SignedDisputeStatement::new_checked(
-			DisputeStatement::Valid(kind.clone()),
+			DisputeStatement::Valid(*kind),
 			candidate_hash,
 			session_index,
 			valid_public.clone(),
@@ -319,7 +319,7 @@ impl DisputeSender {
 			.get(*invalid_index)
 			.ok_or(JfyiError::InvalidValidatorIndexFromCoordinator)?;
 		let invalid_signed = SignedDisputeStatement::new_checked(
-			DisputeStatement::Invalid(kind.clone()),
+			DisputeStatement::Invalid(*kind),
 			candidate_hash,
 			session_index,
 			invalid_public.clone(),

@@ -91,11 +91,13 @@ pub fn find_ws_url_from_output(read: impl Read + Send) -> (String, String) {
 			// does the line contain our port (we expect this specific output from substrate).
 			let sock_addr = match line.split_once("Running JSON-RPC WS server: addr=") {
 				None => return None,
-				Some((_, after)) => after.split_once(",").unwrap().0,
+				Some((_, after)) => after.split_once(',').unwrap().0,
 			};
 
 			Some(format!("ws://{}", sock_addr))
 		})
-		.expect(&format!("Could not find WebSocket address in process output:\n{}", &data));
+		.unwrap_or_else(|| {
+			panic!("Could not find WebSocket address in process output:\n{}", &data)
+		});
 	(ws_url, data)
 }

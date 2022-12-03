@@ -343,12 +343,11 @@ where
 		// The Chain Selection subsystem is supposed to treat the finalized
 		// block as the best leaf in the case that there are no viable
 		// leaves, so this should not happen in practice.
-		let best_leaf = self
+		let best_leaf = *self
 			.leaves()
 			.await?
 			.first()
-			.ok_or_else(|| ConsensusError::Other(Box::new(Error::EmptyLeaves)))?
-			.clone();
+			.ok_or_else(|| ConsensusError::Other(Box::new(Error::EmptyLeaves)))?;
 
 		gum::trace!(target: LOG_TARGET, ?best_leaf, "Best chain");
 
