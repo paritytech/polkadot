@@ -269,9 +269,12 @@ impl Initialized {
 		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
-		let (on_chain_votes, included_receipts) =
+		let scraped_updates =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
-		self.participation.prioritize_newly_included(ctx, &included_receipts).await;
+		let errors = self.participation.prioritize_newly_included(ctx, &scraped_updates.included_receipts).await;
+		for error in errors {
+			log_error(error)?;
+		}
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
@@ -309,7 +312,7 @@ impl Initialized {
 
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
 			// so there is no point in running these in parallel.
-			for votes in on_chain_votes {
+			for votes in scraped_updates.on_chain_votes {
 				let _ = self.process_on_chain_votes(ctx, overlay_db, votes, now).await.map_err(
 					|error| {
 						gum::warn!(

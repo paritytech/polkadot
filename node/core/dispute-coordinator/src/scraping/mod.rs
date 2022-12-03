@@ -51,6 +51,27 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 	None => panic!("Observed blocks cache size must be non-zero"),
 };
 
+/// ScrapedUpdates
+/// 
+/// Updates to on_chain_votes and included receipts for new active leaf and its unprocessed 
+/// ancestors.
+/// 
+/// on_chain_votes: New votes as seen on chain
+/// included_receipts: Newly included parachain block candidate receipts as seen on chain
+pub struct ScrapedUpdates {
+	pub on_chain_votes: Vec<ScrapedOnChainVotes>,
+	pub included_receipts: Vec<CandidateReceipt>,
+}
+
+impl ScrapedUpdates {
+	pub fn new() -> Self {
+		Self {
+			on_chain_votes: Vec::new(),
+			included_receipts: Vec::new(),
+		}
+	}
+}
+
 /// Chain scraper
 ///
 /// Scrapes unfinalized chain in order to collect information from blocks.
@@ -114,8 +135,8 @@ impl ChainScraper {
 		};
 		let update =
 			ActiveLeavesUpdate { activated: Some(initial_head), deactivated: Default::default() };
-		let (votes, _) = s.process_active_leaves_update(sender, &update).await?;
-		Ok((s, votes))
+		let updates = s.process_active_leaves_update(sender, &update).await?;
+		Ok((s, updates.on_chain_votes))
 	}
 
 	/// Check whether we have seen a candidate included on any chain.
@@ -138,13 +159,13 @@ impl ChainScraper {
 		&mut self,
 		sender: &mut Sender,
 		update: &ActiveLeavesUpdate,
-	) -> Result<(Vec<ScrapedOnChainVotes>, Vec<CandidateReceipt>)>
+	) -> Result<ScrapedUpdates>
 	where
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
 		let activated = match update.activated.as_ref() {
 			Some(activated) => activated,
-			None => return Ok((Vec::new(), Vec::new())),
+			None => return Ok(ScrapedUpdates::new()),
 		};
 
 		// Fetch ancestry up to last finalized block.
@@ -158,23 +179,22 @@ impl ChainScraper {
 
 		let block_hashes = std::iter::once(activated.hash).chain(ancestors);
 
-		let mut included_receipts: Vec<CandidateReceipt> = Vec::new();
-		let mut on_chain_votes = Vec::new();
+		let mut scraped_updates = ScrapedUpdates::new();
 		for (block_number, block_hash) in block_numbers.zip(block_hashes) {
 			gum::trace!(?block_number, ?block_hash, "In ancestor processing.");
 
-			let events_for_block =
+			let receipts_for_block =
 				self.process_candidate_events(sender, block_number, block_hash).await?;
-			included_receipts.extend(events_for_block);
+			scraped_updates.included_receipts.extend(receipts_for_block);
 
 			if let Some(votes) = get_on_chain_votes(sender, block_hash).await? {
-				on_chain_votes.push(votes);
+				scraped_updates.on_chain_votes.push(votes);
 			}
 		}
 
 		self.last_observed_blocks.put(activated.hash, ());
 
-		Ok((on_chain_votes, included_receipts))
+		Ok(scraped_updates)
 	}
 
 	/// Prune finalized candidates.
@@ -200,6 +220,8 @@ impl ChainScraper {
 	/// Process candidate events of a block.
 	///
 	/// Keep track of all included and backed candidates.
+	/// 
+	/// Returns freshly included candidate receipts 
 	async fn process_candidate_events<Sender>(
 		&mut self,
 		sender: &mut Sender,
