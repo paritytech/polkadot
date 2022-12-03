@@ -175,7 +175,7 @@ match_types! {
 			pallet_nomination_pools::Call::set_configs { .. } |
 			pallet_nomination_pools::Call::update_roles { .. } |
 			pallet_nomination_pools::Call::chill { .. },
-		),
+		)
 	};
 }
 

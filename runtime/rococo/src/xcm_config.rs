@@ -244,7 +244,7 @@ match_types! {
 			pallet_bounties::Call::close_bounty { .. },
 		) |
 		RuntimeCall::ChildBounties(..) |
-		RuntimeCall::Gilt(..),
+		RuntimeCall::Gilt(..)
 	};
 }
 
