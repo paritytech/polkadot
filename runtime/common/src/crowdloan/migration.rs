@@ -48,7 +48,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactive<T> {
 				CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(index.into()))
 			})
 			.fold(BalanceOf::<T>::zero(), |a, i| a.saturating_add(i));
-		Ok((total.encode(), CurrencyOf::<T>::active_issuance()))
+		Ok((total, CurrencyOf::<T>::active_issuance()).encode())
 	}
 
 	#[cfg(feature = "try-runtime")]
