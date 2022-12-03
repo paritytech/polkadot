@@ -56,7 +56,7 @@ pub struct UnpaidLocalExporter<Exporter, UniversalLocation>(
 	PhantomData<(Exporter, UniversalLocation)>,
 );
 impl<Exporter: ExportXcm, UniversalLocation: Get<InteriorMultiLocation>> SendXcm
-	for LocalUnpaidExporter<Exporter, UniversalLocation>
+	for UnpaidLocalExporter<Exporter, UniversalLocation>
 {
 	type Ticket = Exporter::Ticket;
 
