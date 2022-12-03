@@ -298,21 +298,22 @@ fn handle_mux(
 				Outcome::Concluded { worker: idle, result } =>
 					handle_concluded_no_rip(from_pool, spawned, worker, idle, result),
 				// Return `Concluded`, but do not kill the worker since the error was on the host side.
-				Outcome::CreateTmpFileErr { worker: idle } => handle_concluded_no_rip(
+				Outcome::CreateTmpFileErr { worker: idle, err } => handle_concluded_no_rip(
 					from_pool,
 					spawned,
 					worker,
 					idle,
-					Err(PrepareError::CreateTmpFileErr),
+					Err(PrepareError::CreateTmpFileErr(err)),
 				),
 				// Return `Concluded`, but do not kill the worker since the error was on the host side.
-				Outcome::RenameTmpFileErr { worker: idle, result: _ } => handle_concluded_no_rip(
-					from_pool,
-					spawned,
-					worker,
-					idle,
-					Err(PrepareError::RenameTmpFileErr),
-				),
+				Outcome::RenameTmpFileErr { worker: idle, result: _, err } =>
+					handle_concluded_no_rip(
+						from_pool,
+						spawned,
+						worker,
+						idle,
+						Err(PrepareError::RenameTmpFileErr(err)),
+					),
 				Outcome::Unreachable => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(from_pool, FromPool::Rip(worker))?;

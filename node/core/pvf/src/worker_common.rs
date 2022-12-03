@@ -189,6 +189,8 @@ where
 	})
 	.unwrap_err(); // it's never `Ok` because it's `Ok(Never)`
 
+	// TODO: should we call `shutdown` on the stream so that the host is notified?
+
 	gum::debug!(
 		target: LOG_TARGET,
 		worker_pid = %std::process::id(),

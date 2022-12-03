@@ -60,10 +60,10 @@ pub enum Outcome {
 	/// killed by the system.
 	Unreachable,
 	/// The temporary file for the artifact could not be created at the given cache path.
-	CreateTmpFileErr { worker: IdleWorker },
+	CreateTmpFileErr { worker: IdleWorker, err: String },
 	/// The response from the worker is received, but the file cannot be renamed (moved) to the
 	/// final destination location.
-	RenameTmpFileErr { worker: IdleWorker, result: PrepareResult },
+	RenameTmpFileErr { worker: IdleWorker, result: PrepareResult, err: String },
 	/// The worker failed to finish the job until the given deadline.
 	///
 	/// The worker is no longer usable and should be killed.
@@ -219,7 +219,7 @@ async fn handle_response_bytes(
 				artifact_path.display(),
 				err,
 			);
-			Outcome::RenameTmpFileErr { worker, result }
+			Outcome::RenameTmpFileErr { worker, result, err: format!("{:?}", err) }
 		},
 	}
 }
@@ -242,7 +242,10 @@ where
 				"failed to create a temp file for the artifact: {:?}",
 				err,
 			);
-			return Outcome::CreateTmpFileErr { worker: IdleWorker { stream, pid } }
+			return Outcome::CreateTmpFileErr {
+				worker: IdleWorker { stream, pid },
+				err: format!("{:?}", err),
+			}
 		},
 	};
 

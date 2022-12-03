@@ -35,22 +35,26 @@ pub enum PrepareError {
 	/// An IO error occurred while receiving the result from the worker process. This state is reported by the
 	/// validation host (not by the worker).
 	IoErr,
-	/// TODO: Keep handle to actual underlying error.
 	/// The temporary file for the artifact could not be created at the given cache path. This state is reported by the
 	/// validation host (not by the worker).
-	CreateTmpFileErr,
-	/// TODO: Keep handle to actual underlying error.
+	CreateTmpFileErr(String),
 	/// The response from the worker is received, but the file cannot be renamed (moved) to the final destination
 	/// location. This state is reported by the validation host (not by the worker).
-	RenameTmpFileErr,
+	RenameTmpFileErr(String),
 }
 
 impl PrepareError {
+	/// Returns whether this is a deterministic error, i.e. one that should trigger reliably. Those
+	/// errors depend on the PVF itself and the sc-executor/wasmtime logic.
+	///
+	/// Non-deterministic errors can happen spuriously. Typically, they occur due to resource
+	/// starvation, e.g. under heavy load or memory pressure. Those errors are typically transient
+	/// but may persist e.g. if the node is run by overwhelmingly underpowered machine.
 	pub fn is_deterministic(&self) -> bool {
 		use PrepareError::*;
 		match self {
 			Prevalidation(_) | Preparation(_) | Panic(_) => true,
-			TimedOut | IoErr | CreateTmpFileErr | RenameTmpFileErr => false,
+			TimedOut | IoErr | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
 		}
 	}
 }
@@ -64,8 +68,8 @@ impl fmt::Display for PrepareError {
 			Panic(err) => write!(f, "panic: {}", err),
 			TimedOut => write!(f, "prepare: timeout"),
 			IoErr => write!(f, "prepare: io error while receiving response"),
-			CreateTmpFileErr => write!(f, "prepare: error creating tmp file"),
-			RenameTmpFileErr => write!(f, "prepare: error renaming tmp file"),
+			CreateTmpFileErr(err) => write!(f, "prepare: error creating tmp file: {}", err),
+			RenameTmpFileErr(err) => write!(f, "prepare: error renaming tmp file: {}", err),
 		}
 	}
 }
@@ -114,13 +118,7 @@ pub enum InvalidCandidate {
 impl From<PrepareError> for ValidationError {
 	fn from(error: PrepareError) -> Self {
 		// Here we need to classify the errors into two errors: deterministic and non-deterministic.
-		//
-		// Non-deterministic errors can happen spuriously. Typically, they occur due to resource
-		// starvation, e.g. under heavy load or memory pressure. Those errors are typically transient
-		// but may persist e.g. if the node is run by overwhelmingly underpowered machine.
-		//
-		// Deterministic errors should trigger reliably. Those errors depend on the PVF itself and
-		// the sc-executor/wasmtime logic.
+		// See [`PrepareError::is_deterministic`].
 		//
 		// We treat the deterministic errors as `InvalidCandidate`. Should those occur they could
 		// potentially trigger disputes.
