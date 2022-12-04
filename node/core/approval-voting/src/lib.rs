@@ -42,17 +42,19 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	database::Database,
-	executor_params_at_relay_parent,
 	metrics::{self, prometheus},
 	rolling_session_window::{
 		DatabaseParams, RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
 	},
-	TimeoutExt,
+	session_info_at_relay_parent, TimeoutExt,
 };
-use polkadot_primitives::v2::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
-	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorPair, ValidatorSignature,
+use polkadot_primitives::{
+	v2::{
+		ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
+		DisputeStatement, GroupIndex, Hash, SessionIndex, ValidDisputeStatementKind, ValidatorId,
+		ValidatorIndex, ValidatorPair, ValidatorSignature,
+	},
+	vstaging::SessionInfo,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -200,12 +202,9 @@ impl Metrics {
 		}
 	}
 
-	fn on_approval_no_executor_params(&self) {
+	fn on_approval_no_session_info(&self) {
 		if let Some(metrics) = &self.0 {
-			metrics
-				.approvals_produced_total
-				.with_label_values(&["no executor params"])
-				.inc()
+			metrics.approvals_produced_total.with_label_values(&["no session info"]).inc()
 		}
 	}
 
@@ -2396,12 +2395,12 @@ async fn launch_approval<Context>(
 			},
 		};
 
-		let executor_params = if let Ok(executor_params) =
-			executor_params_at_relay_parent(candidate.descriptor.relay_parent, &mut sender).await
+		let session_info = if let Ok(session_info) =
+			session_info_at_relay_parent(candidate.descriptor.relay_parent, &mut sender).await
 		{
-			executor_params
+			session_info
 		} else {
-			metrics_guard.take().on_approval_no_executor_params();
+			metrics_guard.take().on_approval_no_session_info();
 			return ApprovalState::failed(validator_index, candidate_hash)
 		};
 
@@ -2413,7 +2412,7 @@ async fn launch_approval<Context>(
 				validation_code,
 				candidate.clone(),
 				available_data.pov,
-				executor_params,
+				session_info.executor_params,
 				APPROVAL_EXECUTION_TIMEOUT,
 				val_tx,
 			))

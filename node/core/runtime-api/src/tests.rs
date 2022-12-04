@@ -23,12 +23,13 @@ use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{
-		AuthorityDiscoveryId, Block, CandidateEvent, CommittedCandidateReceipt, CoreState,
+		self, AuthorityDiscoveryId, Block, CandidateEvent, CommittedCandidateReceipt, CoreState,
 		GroupRotationInfo, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
 		OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
-		SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+		SessionIndex, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 		ValidatorSignature,
 	},
+	vstaging::SessionInfo,
 };
 use sp_api::ProvideRuntimeApi;
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -129,8 +130,8 @@ sp_api::mock_impl_runtime_apis! {
 			self.session_index_for_child.clone()
 		}
 
-		fn session_info(&self, index: SessionIndex) -> Option<SessionInfo> {
-			self.session_info.get(&index).cloned()
+		fn session_info(&self, index: SessionIndex) -> Option<v2::SessionInfo> {
+			self.session_info.get(&index).map(|s| v2::SessionInfo::from(s.clone()))
 		}
 
 		fn validation_code(
@@ -522,6 +523,7 @@ fn requests_session_index_for_child() {
 
 fn dummy_session_info() -> SessionInfo {
 	SessionInfo {
+		executor_params: Default::default(),
 		validators: Default::default(),
 		discovery_keys: vec![],
 		assignment_keys: vec![],

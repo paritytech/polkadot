@@ -45,8 +45,8 @@ use polkadot_node_subsystem::{
 	Stage, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
-	self as util, executor_params_at_relay_parent, request_from_runtime,
-	request_session_index_for_child, request_validator_groups, request_validators, Validator,
+	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
+	request_validators, session_info_at_relay_parent, Validator,
 };
 use polkadot_primitives::v2::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
@@ -644,12 +644,12 @@ async fn request_candidate_validation(
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 ) -> Result<ValidationResult, Error> {
-	let executor_params =
-		executor_params_at_relay_parent(candidate_receipt.descriptor.relay_parent, sender)
+	let session_info =
+		session_info_at_relay_parent(candidate_receipt.descriptor.relay_parent, sender)
 			.await
 			.map_err(|_| {
 				Error::ValidationFailed(polkadot_node_subsystem::messages::ValidationFailed(
-					"cannot acquire execution parameter set for the candidate".to_owned(),
+					"cannot acquire session info for the candidate".to_owned(),
 				))
 			})?;
 
@@ -659,7 +659,7 @@ async fn request_candidate_validation(
 		.send_message(CandidateValidationMessage::ValidateFromChainState(
 			candidate_receipt,
 			pov,
-			executor_params,
+			session_info.executor_params,
 			BACKING_EXECUTION_TIMEOUT,
 			tx,
 		))

@@ -30,9 +30,12 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 use polkadot_node_primitives::{CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp};
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
-use polkadot_primitives::v2::{
-	CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex, SessionInfo,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+use polkadot_primitives::{
+	v2::{
+		CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex, ValidDisputeStatementKind,
+		ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	},
+	vstaging::SessionInfo,
 };
 use sc_keystore::LocalKeystore;
 

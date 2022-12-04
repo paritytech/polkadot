@@ -24,7 +24,10 @@ use kvdb::{DBKey, DBOp};
 
 use parity_scale_codec::{Decode, Encode};
 pub use polkadot_node_primitives::{new_session_window_size, SessionWindowSize};
-use polkadot_primitives::v2::{BlockNumber, Hash, SessionIndex, SessionInfo};
+use polkadot_primitives::{
+	v2::{BlockNumber, Hash, SessionIndex},
+	vstaging::SessionInfo,
+};
 use std::sync::Arc;
 
 use futures::channel::oneshot;
@@ -610,6 +613,7 @@ mod tests {
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
 		SessionInfo {
+			executor_params: Default::default(),
 			validators: Default::default(),
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),

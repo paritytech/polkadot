@@ -39,10 +39,13 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
 };
-use polkadot_primitives::v2::{
-	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
-	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
+use polkadot_primitives::{
+	v2::{
+		BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
+		DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, ValidDisputeStatementKind,
+		ValidatorId, ValidatorIndex,
+	},
+	vstaging::SessionInfo,
 };
 
 use crate::{

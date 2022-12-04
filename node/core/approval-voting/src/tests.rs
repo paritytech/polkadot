@@ -742,6 +742,7 @@ impl ChainBuilder {
 
 fn session_info(keys: &[Sr25519Keyring]) -> SessionInfo {
 	SessionInfo {
+		executor_params: Default::default(),
 		validators: keys.iter().map(|v| v.public().into()).collect(),
 		discovery_keys: keys.iter().map(|v| v.public().into()).collect(),
 		assignment_keys: keys.iter().map(|v| v.public().into()).collect(),
@@ -2429,7 +2430,7 @@ pub async fn handle_double_assignment_import(
 				assert_eq!(candidate_index, c_index);
 			},
 			AllMessages::CandidateValidation(
-				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx),
+				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, _, timeout, tx),
 			) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
 				tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default())))
 					.unwrap();

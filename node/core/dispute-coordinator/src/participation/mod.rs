@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem_util::executor_params_at_relay_parent;
+use polkadot_node_subsystem_util::session_info_at_relay_parent;
 
 use std::collections::HashSet;
 #[cfg(test)]
@@ -321,13 +321,11 @@ async fn participate(
 		},
 	};
 
-	let executor_params = if let Ok(executor_params) = executor_params_at_relay_parent(
-		req.candidate_receipt().descriptor.relay_parent,
-		&mut sender,
-	)
-	.await
+	let session_info = if let Ok(session_info) =
+		session_info_at_relay_parent(req.candidate_receipt().descriptor.relay_parent, &mut sender)
+			.await
 	{
-		executor_params
+		session_info
 	} else {
 		send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
 		return
@@ -346,7 +344,7 @@ async fn participate(
 			validation_code,
 			req.candidate_receipt().clone(),
 			available_data.pov,
-			executor_params,
+			session_info.executor_params,
 			APPROVAL_EXECUTION_TIMEOUT,
 			validation_tx,
 		))

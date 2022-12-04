@@ -60,11 +60,14 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{
 	make_buffered_subsystem_context, TestSubsystemContextHandle,
 };
-use polkadot_primitives::v2::{
-	ApprovalVote, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-	CandidateReceipt, CoreIndex, DisputeStatement, GroupIndex, Hash, HeadData, Header, IndexedVec,
-	MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo, SigningContext,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
+use polkadot_primitives::{
+	v2::{
+		ApprovalVote, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+		CandidateReceipt, CoreIndex, DisputeStatement, GroupIndex, Hash, HeadData, Header,
+		IndexedVec, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SigningContext,
+		ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
+	},
+	vstaging::SessionInfo,
 };
 
 use crate::{
@@ -434,6 +437,7 @@ impl TestState {
 		let assignment_keys = self.validators.iter().map(|k| <_>::from(k.public())).collect();
 
 		SessionInfo {
+			executor_params: Default::default(),
 			validators: self.validator_public.clone(),
 			discovery_keys,
 			assignment_keys,

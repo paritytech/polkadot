@@ -45,10 +45,10 @@ use polkadot_primitives::{
 		DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
 		InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
 		OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex,
-		SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
+		SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
 		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	vstaging::ExecutorParams,
+	vstaging::{ExecutorParams, SessionInfo},
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
@@ -677,8 +677,6 @@ pub enum RuntimeApiRequest {
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
-	/// Get the execution environment parameter set by session index
-	SessionExecutorParams(SessionIndex, RuntimeApiSender<Option<ExecutorParams>>),
 	/// Get the session info for the given session, if stored.
 	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
 	/// Get all the pending inbound messages in the downward message queue for a para.
