@@ -23,13 +23,13 @@
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
 	v2::{
-		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+		self, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
 		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
 		InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
-		PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature, ValidationCode,
+		PersistedValidationData, ScrapedOnChainVotes, Signature, ValidationCode,
 		ValidationCodeHash, ValidatorId, ValidatorIndex,
 	},
-	vstaging::ExecutorParams,
+	vstaging,
 };
 use runtime_common::{
 	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights, impls::ToAuthor,
@@ -1666,12 +1666,12 @@ sp_api::impl_runtime_apis! {
 			})
 		}
 
-		fn session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams> {
-			parachains_runtime_api_impl_staging::session_executor_params::<Runtime>(session_index)
+		fn session_info(index: SessionIndex) -> Option<v2::SessionInfo> {
+			parachains_runtime_api_impl::session_info::<Runtime>(index)
 		}
 
-		fn session_info(index: SessionIndex) -> Option<SessionInfo> {
-			parachains_runtime_api_impl::session_info::<Runtime>(index)
+		fn session_info_staging(index: SessionIndex) -> Option<vstaging::SessionInfo> {
+			parachains_runtime_api_impl_staging::session_info_staging::<Runtime>(index)
 		}
 
 		fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumber>> {

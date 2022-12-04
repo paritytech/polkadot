@@ -22,11 +22,11 @@ use crate::{
 	session_info, shared,
 };
 use primitives::v2::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
+	self, AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -343,8 +343,8 @@ where
 }
 
 /// Get the session info for the given session, if stored.
-pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<SessionInfo> {
-	<session_info::Pallet<T>>::session_info(index)
+pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<v2::SessionInfo> {
+	<session_info::Pallet<T>>::session_info(index).map(|s| s.into())
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.

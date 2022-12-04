@@ -19,7 +19,7 @@
 use crate::{disputes, session_info};
 use primitives::{
 	v2::{CandidateHash, DisputeState, SessionIndex},
-	vstaging::ExecutorParams,
+	vstaging,
 };
 use sp_std::prelude::*;
 
@@ -29,9 +29,9 @@ pub fn get_session_disputes<T: disputes::Config>(
 	<disputes::Pallet<T>>::disputes()
 }
 
-/// Get session executor parameter set
-pub fn session_executor_params<T: session_info::Config>(
-	session_index: SessionIndex,
-) -> Option<ExecutorParams> {
-	<session_info::Pallet<T>>::session_executor_params(session_index)
+/// Get the session info for the given session, if stored.
+pub fn session_info_staging<T: session_info::Config>(
+	index: SessionIndex,
+) -> Option<vstaging::SessionInfo> {
+	<session_info::Pallet<T>>::session_info(index)
 }
