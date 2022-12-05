@@ -377,45 +377,46 @@ impl<T: Config> Pallet<T> {
 		let config = <configuration::Pallet<T>>::config();
 
 		AvailabilityCores::<T>::mutate(|cores| {
-			for (freed_index, freed_reason) in just_freed_cores {
-				if let Some(entry) = Self::take_parathread_entry(cores, &freed_index) {
-					match freed_reason {
-						FreedReason::Concluded => {
-							// After a parathread candidate has successfully been included,
-							// open it up for further claims!
-							ParathreadClaimIndex::<T>::mutate(|index| {
-								if let Ok(i) = index.binary_search(&entry.claim.0) {
-									index.remove(i);
-								}
-							})
-						},
-						FreedReason::TimedOut => {
-							// If a parathread candidate times out, it's not the collator's fault,
-							// so we don't increment retries.
-							ParathreadQueue::<T>::mutate(|queue| {
-								queue.enqueue_entry(entry, config.parathread_cores);
-							})
-						},
-					}
+			for (entry, freed_reason) in just_freed_cores.into_iter().filter_map(|(idx, reason)| {
+				Self::extract_parathread_entry(cores, &idx).map(|x| (x, reason))
+			}) {
+				match freed_reason {
+					FreedReason::Concluded => {
+						// After a parathread candidate has successfully been included,
+						// open it up for further claims!
+						ParathreadClaimIndex::<T>::mutate(|index| {
+							if let Ok(i) = index.binary_search(&entry.claim.0) {
+								index.remove(i);
+							}
+						})
+					},
+					FreedReason::TimedOut => {
+						// If a parathread candidate times out, it's not the collator's fault,
+						// so we don't increment retries.
+						ParathreadQueue::<T>::mutate(|queue| {
+							queue.enqueue_entry(entry.clone(), config.parathread_cores);
+						})
+					},
 				}
 			}
+
+			// Mark all cores as available
+			cores.iter_mut().for_each(|core| *core = None);
 		})
 	}
 
-	fn take_parathread_entry(
-		cores: &mut Vec<Option<CoreOccupied>>,
+	fn extract_parathread_entry<'a>(
+		cores: &'a Vec<Option<CoreOccupied>>,
 		freed_idx: &CoreIndex,
-	) -> Option<ParathreadEntry> {
+	) -> Option<&'a ParathreadEntry> {
 		let idx = freed_idx.0 as usize;
-		if idx < cores.len() {
-			return None
-		}
-
-		match cores[idx].take() {
-			None | Some(CoreOccupied::Parachain) => None,
-			Some(CoreOccupied::Parathread(entry)) => Some(entry),
+		match cores.get(idx) {
+			// if only there was a get that takes ownership
+			None | Some(None) | Some(Some(CoreOccupied::Parachain)) => None,
+			Some(Some(CoreOccupied::Parathread(entry))) => Some(entry),
 		}
 	}
+
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
 	/// newly-freed along with the reason for them being freed. The list is assumed to be sorted in
 	/// ascending order by core index.
