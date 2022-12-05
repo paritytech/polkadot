@@ -271,10 +271,11 @@ impl Initialized {
 	) -> Result<()> {
 		let scraped_updates =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
-		let errors = self.participation.prioritize_newly_included(ctx, &scraped_updates.included_receipts).await;
-		for error in errors {
-			log_error(error)?;
-		}
+		log_error(
+			self.participation
+				.prioritize_newly_included(ctx, &scraped_updates.included_receipts)
+				.await,
+		)?;
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {

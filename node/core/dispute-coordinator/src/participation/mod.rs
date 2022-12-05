@@ -217,22 +217,11 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		included_receipts: &Vec<CandidateReceipt>,
-	) -> Vec<Result<()>> {
-		let mut errors: Vec<Result<()>> = Vec::new();
+	) -> Result<()> {
 		for receipt in included_receipts {
-			let r = self.queue.prioritize_if_present(ctx.sender(), receipt).await;
-			match r {
-				Ok(priority_full) => {
-					if priority_full == true {
-						return errors // Avoid working through the rest of the vec
-					}
-				},
-				Err(error) => {
-					errors.push(Err(error)); // Don't want to stop reprioritizing included receipts if just one fails
-				}
-			}
+			self.queue.prioritize_if_present(ctx.sender(), receipt).await?;
 		}
-		errors
+		Ok(())
 	}
 
 	/// Dequeue until `MAX_PARALLEL_PARTICIPATIONS` is reached.

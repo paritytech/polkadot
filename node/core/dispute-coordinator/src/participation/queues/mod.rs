@@ -161,23 +161,30 @@ impl Queues {
 
 	/// Reprioritizes any participation requests pertaining to the
 	/// passed candidates from best effort to priority.
-	/// 
+	///
 	/// Returns: Either a bool telling the caller whether the priority queue is now full
 	/// or an error resulting from the failed creation of a comparator.
 	pub async fn prioritize_if_present(
 		&mut self,
 		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
 		receipt: &CandidateReceipt,
-	) -> Result<bool> {
+	) -> Result<()> {
+		let comparator = CandidateComparator::new(sender, receipt).await?;
+		self.prioritize_with_comparator(comparator)?;
+		Ok(())
+	}
+
+	fn prioritize_with_comparator(
+		&mut self,
+		comparator: CandidateComparator,
+	) -> std::result::Result<(), QueueError> {
 		if self.priority.len() >= PRIORITY_QUEUE_SIZE {
-			return Ok(true)
+			return Err(QueueError::PriorityFull)
 		}
-		let comparator = CandidateComparator::new(sender, receipt)
-			.await?;
 		if let Some(request) = self.best_effort.remove(&comparator) {
 			self.priority.insert(comparator, request);
 		}
-		Ok(false)
+		Ok(())
 	}
 
 	fn queue_with_comparator(
