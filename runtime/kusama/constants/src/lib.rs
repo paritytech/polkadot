@@ -23,7 +23,7 @@ pub mod currency {
 	use primitives::v2::Balance;
 
 	/// The existential deposit.
-	pub const EXISTENTIAL_DEPOSIT: Balance = 1 * CENTS;
+	pub const EXISTENTIAL_DEPOSIT: Balance = 100 * MILLICENTS;
 
 	pub const UNITS: Balance = 1_000_000_000_000;
 	pub const QUID: Balance = UNITS / 30;
@@ -32,7 +32,7 @@ pub mod currency {
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 
 	pub const fn deposit(items: u32, bytes: u32) -> Balance {
-		items as Balance * 2_000 * CENTS + (bytes as Balance) * 100 * MILLICENTS
+		items as Balance * 200 * CENTS + (bytes as Balance) * 10 * MILLICENTS
 	}
 }
 
@@ -84,9 +84,9 @@ pub mod fee {
 	impl WeightToFeePolynomial for WeightToFee {
 		type Balance = Balance;
 		fn polynomial() -> WeightToFeeCoefficients<Self::Balance> {
-			// in Kusama, extrinsic base weight (smallest non-zero weight) is mapped to 1/10 CENT:
+			// in Kusama, extrinsic base weight (smallest non-zero weight) is mapped to 1/100 CENT:
 			let p = super::currency::CENTS;
-			let q = 10 * Balance::from(ExtrinsicBaseWeight::get().ref_time());
+			let q = 100 * Balance::from(ExtrinsicBaseWeight::get().ref_time());
 			smallvec![WeightToFeeCoefficient {
 				degree: 1,
 				negative: false,
@@ -110,19 +110,19 @@ mod tests {
 	#[test]
 	// Test that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight has sane bounds.
 	fn full_block_fee_is_correct() {
-		// A full block should cost between 1,000 and 10,000 CENTS.
+		// A full block should cost between 100 and 1,000 CENTS.
 		let full_block = WeightToFee::weight_to_fee(&MAXIMUM_BLOCK_WEIGHT);
-		assert!(full_block >= 1_000 * CENTS);
-		assert!(full_block <= 10_000 * CENTS);
+		assert!(full_block >= 100 * CENTS);
+		assert!(full_block <= 1_000 * CENTS);
 	}
 
 	#[test]
 	// This function tests that the fee for `ExtrinsicBaseWeight` of weight is correct
 	fn extrinsic_base_fee_is_correct() {
-		// `ExtrinsicBaseWeight` should cost 1/10 of a CENT
+		// `ExtrinsicBaseWeight` should cost 1/100 of a CENT
 		println!("Base: {}", ExtrinsicBaseWeight::get());
 		let x = WeightToFee::weight_to_fee(&ExtrinsicBaseWeight::get());
-		let y = CENTS / 10;
-		assert!(x.max(y) - x.min(y) < MILLICENTS);
+		let y = CENTS / 100;
+		assert!(x.max(y) - x.min(y) < MILLICENTS / 10);
 	}
 }

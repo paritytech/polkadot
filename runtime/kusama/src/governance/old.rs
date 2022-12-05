@@ -23,7 +23,7 @@ parameter_types! {
 	pub LaunchPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1, "KSM_LAUNCH_PERIOD");
 	pub VotingPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES, "KSM_VOTING_PERIOD");
 	pub FastTrackVotingPeriod: BlockNumber = prod_or_fast!(3 * HOURS, 1 * MINUTES, "KSM_FAST_TRACK_VOTING_PERIOD");
-	pub const MinimumDeposit: Balance = 100 * CENTS;
+	pub const MinimumDeposit: Balance = 10 * CENTS;
 	pub EnactmentPeriod: BlockNumber = prod_or_fast!(8 * DAYS, 1, "KSM_ENACTMENT_PERIOD");
 	pub CooloffPeriod: BlockNumber = prod_or_fast!(7 * DAYS, 1 * MINUTES, "KSM_COOLOFF_PERIOD");
 	pub const InstantAllowed: bool = true;
@@ -103,7 +103,7 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 }
 
 parameter_types! {
-	pub const CandidacyBond: Balance = 100 * CENTS;
+	pub const CandidacyBond: Balance = 10 * CENTS;
 	// 1 storage item created, key size is 32 bytes, value size is 16+16.
 	pub const VotingBondBase: Balance = deposit(1, 64);
 	// additional data per vote is 32 bytes (account id).
