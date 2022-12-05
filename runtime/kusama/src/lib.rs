@@ -1267,7 +1267,7 @@ impl pallet_balances::Config<NisCounterpartInstance> for Runtime {
 
 parameter_types! {
 	pub IgnoredIssuance: Balance = Treasury::pot();
-	pub const NisBasePeriod: BlockNumber = 14 * DAYS;
+	pub const NisBasePeriod: BlockNumber = 7 * DAYS;
 	pub const MinBid: Balance = 100 * QUID;
 	pub MinReceipt: Perquintill = Perquintill::from_rational(1u64, 10_000_000u64);
 	pub const IntakePeriod: BlockNumber = 5 * MINUTES;
@@ -1289,7 +1289,7 @@ impl pallet_nis::Config for Runtime {
 	type IgnoredIssuance = IgnoredIssuance;
 	type Target = NisTarget;
 	type PalletId = NisPalletId;
-	type QueueCount = ConstU32<300>;
+	type QueueCount = ConstU32<500>;
 	type MaxQueueLen = ConstU32<1000>;
 	type FifoQueueLen = ConstU32<250>;
 	type BasePeriod = NisBasePeriod;
