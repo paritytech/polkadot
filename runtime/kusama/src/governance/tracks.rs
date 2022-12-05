@@ -63,7 +63,7 @@ const SUP_BIG_SPENDER: Curve = Curve::make_reciprocal(20, 28, percent(1), percen
 const APP_WHITELISTED_CALLER: Curve =
 	Curve::make_reciprocal(16, 28 * 24, percent(96), percent(50), percent(100));
 const SUP_WHITELISTED_CALLER: Curve =
-	Curve::make_reciprocal(1, 28, percent(20), percent(10), percent(50));
+	Curve::make_reciprocal(1, 28, percent(20), percent(5), percent(50));
 
 const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15] = [
 	(
