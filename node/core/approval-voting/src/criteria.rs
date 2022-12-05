@@ -155,10 +155,10 @@ impl<'a> From<&'a SessionInfo> for Config {
 		Config {
 			assignment_keys: s.assignment_keys.clone(),
 			validator_groups: s.validator_groups.clone(),
-			n_cores: s.n_cores.clone(),
-			zeroth_delay_tranche_width: s.zeroth_delay_tranche_width.clone(),
-			relay_vrf_modulo_samples: s.relay_vrf_modulo_samples.clone(),
-			n_delay_tranches: s.n_delay_tranches.clone(),
+			n_cores: s.n_cores,
+			zeroth_delay_tranche_width: s.zeroth_delay_tranche_width,
+			relay_vrf_modulo_samples: s.relay_vrf_modulo_samples,
+			n_delay_tranches: s.n_delay_tranches,
 		}
 	}
 }
