@@ -378,7 +378,7 @@ impl<T: Config> Pallet<T> {
 
 		AvailabilityCores::<T>::mutate(|cores| {
 			for (freed_index, freed_reason) in just_freed_cores {
-				if let Some(entry) = take_parathread_entry(cores, &freed_index) {
+				if let Some(entry) = Self::take_parathread_entry(cores, &freed_index) {
 					match freed_reason {
 						FreedReason::Concluded => {
 							// After a parathread candidate has successfully been included,
@@ -405,13 +405,17 @@ impl<T: Config> Pallet<T> {
 	fn take_parathread_entry(
 		cores: &mut Vec<Option<CoreOccupied>>,
 		freed_idx: &CoreIndex,
-	) -> Some(ParathreadEntry) {
-		match cores.get(freed_idx.0 as usize).take().flatten() {
+	) -> Option<ParathreadEntry> {
+		let idx = freed_idx.0 as usize;
+		if idx < cores.len() {
+			return None
+		}
+
+		match cores[idx].take() {
 			None | Some(CoreOccupied::Parachain) => None,
 			Some(CoreOccupied::Parathread(entry)) => Some(entry),
 		}
 	}
-
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
 	/// newly-freed along with the reason for them being freed. The list is assumed to be sorted in
 	/// ascending order by core index.
