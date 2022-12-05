@@ -20,6 +20,7 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
+use pallet_nis::WithMaximumOf;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::v2::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
@@ -55,7 +56,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		PrivilegeCmp, WithdrawReasons,
+		PrivilegeCmp, StorageMapShim, WithdrawReasons,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -65,7 +66,7 @@ use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
-use sp_core::{OpaqueMetadata, H256};
+use sp_core::{ConstU128, OpaqueMetadata, H256};
 use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
@@ -954,7 +955,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Scheduler(..) |
 				RuntimeCall::Proxy(..) |
 				RuntimeCall::Multisig(..) |
-				RuntimeCall::Gilt(..) |
+				RuntimeCall::Nis(..) |
 				RuntimeCall::Registrar(paras_registrar::Call::register {..}) |
 				RuntimeCall::Registrar(paras_registrar::Call::deregister {..}) |
 				// Specifically omitting Registrar `swap`
@@ -1186,33 +1187,57 @@ impl auctions::Config for Runtime {
 	type WeightInfo = weights::runtime_common_auctions::WeightInfo<Runtime>;
 }
 
-parameter_types! {
-	pub IgnoredIssuance: Balance = Treasury::pot();
-	pub const QueueCount: u32 = 300;
-	pub const MaxQueueLen: u32 = 1000;
-	pub const FifoQueueLen: u32 = 250;
-	pub const GiltPeriod: BlockNumber = 30 * DAYS;
-	pub const MinFreeze: Balance = 10_000 * CENTS;
-	pub const IntakePeriod: BlockNumber = 5 * MINUTES;
-	pub const MaxIntakeBids: u32 = 100;
+type NisCounterpartInstance = pallet_balances::Instance2;
+impl pallet_balances::Config<NisCounterpartInstance> for Runtime {
+	type Balance = Balance;
+	type DustRemoval = ();
+	type RuntimeEvent = RuntimeEvent;
+	type ExistentialDeposit = ConstU128<10_000_000_000>; // One RTC cent
+	type AccountStore = StorageMapShim<
+		pallet_balances::Account<Runtime, NisCounterpartInstance>,
+		frame_system::Provider<Runtime>,
+		AccountId,
+		pallet_balances::AccountData<u128>,
+	>;
+	type MaxLocks = ConstU32<4>;
+	type MaxReserves = ConstU32<4>;
+	type ReserveIdentifier = [u8; 8];
+	type WeightInfo = weights::pallet_balances_nis_counterpart_balances::WeightInfo<Runtime>;
 }
 
-impl pallet_gilt::Config for Runtime {
+parameter_types! {
+	pub IgnoredIssuance: Balance = Treasury::pot();
+	pub const NisBasePeriod: BlockNumber = 30 * DAYS;
+	pub const MinBid: Balance = 100 * UNITS;
+	pub MinReceipt: Perquintill = Perquintill::from_rational(1u64, 10_000_000u64);
+	pub const IntakePeriod: BlockNumber = 5 * MINUTES;
+	pub MaxIntakeWeight: Weight = MAXIMUM_BLOCK_WEIGHT / 10;
+	pub const ThawThrottle: (Perquintill, BlockNumber) = (Perquintill::from_percent(25), 5);
+	pub storage NisTarget: Perquintill = Perquintill::zero();
+	pub const NisPalletId: PalletId = PalletId(*b"py/nis  ");
+}
+
+impl pallet_nis::Config for Runtime {
+	type WeightInfo = weights::pallet_nis::WeightInfo<Runtime>;
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
-	type AdminOrigin = MoreThanHalfCouncil;
+	type FundOrigin = frame_system::EnsureSigned<AccountId>;
+	type Counterpart = NisCounterpartBalances;
+	type CounterpartAmount = WithMaximumOf<ConstU128<21_000_000_000_000_000_000u128>>;
 	type Deficit = (); // Mint
-	type Surplus = (); // Burn
 	type IgnoredIssuance = IgnoredIssuance;
-	type QueueCount = QueueCount;
-	type MaxQueueLen = MaxQueueLen;
-	type FifoQueueLen = FifoQueueLen;
-	type Period = GiltPeriod;
-	type MinFreeze = MinFreeze;
+	type Target = NisTarget;
+	type PalletId = NisPalletId;
+	type QueueCount = ConstU32<300>;
+	type MaxQueueLen = ConstU32<1000>;
+	type FifoQueueLen = ConstU32<250>;
+	type BasePeriod = NisBasePeriod;
+	type MinBid = MinBid;
+	type MinReceipt = MinReceipt;
 	type IntakePeriod = IntakePeriod;
-	type MaxIntakeBids = MaxIntakeBids;
-	type WeightInfo = weights::pallet_gilt::WeightInfo<Runtime>;
+	type MaxIntakeWeight = MaxIntakeWeight;
+	type ThawThrottle = ThawThrottle;
 }
 
 impl pallet_beefy::Config for Runtime {
@@ -1375,8 +1400,10 @@ construct_runtime! {
 		// Tips module.
 		Tips: pallet_tips::{Pallet, Call, Storage, Event<T>} = 36,
 
-		// Gilts pallet.
-		Gilt: pallet_gilt::{Pallet, Call, Storage, Event<T>, Config} = 38,
+		// NIS pallet.
+		Nis: pallet_nis::{Pallet, Call, Storage, Event<T>} = 38,
+//		pub type NisCounterpartInstance = pallet_balances::Instance2;
+		NisCounterpartBalances: pallet_balances::<Instance2> = 45,
 
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
@@ -1510,6 +1537,7 @@ mod benches {
 		[runtime_parachains::ump, Ump]
 		// Substrate
 		[pallet_balances, Balances]
+		[pallet_balances, NisCounterpartBalances]
 		[frame_benchmarking::baseline, Baseline::<Runtime>]
 		[pallet_bounties, Bounties]
 		[pallet_child_bounties, ChildBounties]
@@ -1517,7 +1545,7 @@ mod benches {
 		[pallet_collective, TechnicalCommittee]
 		[pallet_democracy, Democracy]
 		[pallet_elections_phragmen, PhragmenElection]
-		[pallet_gilt, Gilt]
+		[pallet_nis, Nis]
 		[pallet_identity, Identity]
 		[pallet_im_online, ImOnline]
 		[pallet_indices, Indices]
