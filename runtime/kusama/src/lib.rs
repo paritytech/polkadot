@@ -109,6 +109,7 @@ use governance::{
 	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, GeneralAdmin, LeaseAdmin,
 	StakingAdmin, Treasurer, TreasurySpender,
 };
+use xcm_config::CheckAccount;
 
 #[cfg(test)]
 mod tests;
@@ -1480,6 +1481,11 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 	}
 }
 
+pub type Migrations = (
+	pallet_balances::migration::MigrateToTrackInactive<Runtime, CheckAccount>,
+	crowdloan::migration::MigrateToTrackInactive<Runtime>,
+);
+
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =
 	generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
@@ -1490,7 +1496,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(),
+	Migrations,
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
@@ -2071,7 +2077,7 @@ mod tests_fess {
 		// ensure this number does not change, or that it is checked after each change.
 		// a 1 MB solution should need around 0.16 KSM deposit
 		let deposit = SignedDepositBase::get() + (SignedDepositByte::get() * 1024 * 1024);
-		assert_eq_error_rate!(deposit, UNITS * 16 / 100, UNITS / 100);
+		assert_eq_error_rate!(deposit, UNITS * 167 / 100, UNITS / 100);
 	}
 }
 
