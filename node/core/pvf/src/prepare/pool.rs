@@ -22,7 +22,6 @@ use crate::{
 	LOG_TARGET,
 };
 use always_assert::never;
-use assert_matches::assert_matches;
 use async_std::path::{Path, PathBuf};
 use futures::{
 	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
