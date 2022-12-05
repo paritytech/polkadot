@@ -394,7 +394,7 @@ impl<T: Config> Pallet<T> {
 						// If a parathread candidate times out, it's not the collator's fault,
 						// so we don't increment retries.
 						ParathreadQueue::<T>::mutate(|queue| {
-							queue.enqueue_entry(entry.clone(), config.parathread_cores);
+							queue.enqueue_entry(entry, config.parathread_cores);
 						})
 					},
 				}
@@ -405,15 +405,15 @@ impl<T: Config> Pallet<T> {
 		})
 	}
 
-	fn extract_parathread_entry<'a>(
-		cores: &'a Vec<Option<CoreOccupied>>,
+	fn extract_parathread_entry(
+		cores: &Vec<Option<CoreOccupied>>,
 		freed_idx: &CoreIndex,
-	) -> Option<&'a ParathreadEntry> {
+	) -> Option<ParathreadEntry> {
 		let idx = freed_idx.0 as usize;
-		match cores.get(idx) {
+		match cores.get(idx).cloned().flatten() {
 			// if only there was a get that takes ownership
-			None | Some(None) | Some(Some(CoreOccupied::Parachain)) => None,
-			Some(Some(CoreOccupied::Parathread(entry))) => Some(entry),
+			None | Some(CoreOccupied::Parachain) => None,
+			Some(CoreOccupied::Parathread(entry)) => Some(entry),
 		}
 	}
 
