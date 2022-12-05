@@ -361,19 +361,10 @@ impl<T: Config> Pallet<T> {
 			}
 
 			let para_id = claim.0;
-
-			let competes_with_another =
-				ParathreadClaimIndex::<T>::mutate(|index| match index.binary_search(&para_id) {
-					Ok(_) => true,
-					Err(i) => {
-						index.insert(i, para_id);
-						false
-					},
-				});
-
-			if competes_with_another {
-				return
-			}
+			ParathreadClaimIndex::<T>::mutate(|index| match index.binary_search(&para_id) {
+				Ok(_) => return,
+				Err(i) => index.insert(i, para_id),
+			});
 
 			let entry = ParathreadEntry { claim, retries: 0 };
 			queue.enqueue_entry(entry, config.parathread_cores);
@@ -387,34 +378,38 @@ impl<T: Config> Pallet<T> {
 
 		AvailabilityCores::<T>::mutate(|cores| {
 			for (freed_index, freed_reason) in just_freed_cores {
-				if (freed_index.0 as usize) < cores.len() {
-					match cores[freed_index.0 as usize].take() {
-						None => continue,
-						Some(CoreOccupied::Parachain) => {},
-						Some(CoreOccupied::Parathread(entry)) => {
-							match freed_reason {
-								FreedReason::Concluded => {
-									// After a parathread candidate has successfully been included,
-									// open it up for further claims!
-									ParathreadClaimIndex::<T>::mutate(|index| {
-										if let Ok(i) = index.binary_search(&entry.claim.0) {
-											index.remove(i);
-										}
-									})
-								},
-								FreedReason::TimedOut => {
-									// If a parathread candidate times out, it's not the collator's fault,
-									// so we don't increment retries.
-									ParathreadQueue::<T>::mutate(|queue| {
-										queue.enqueue_entry(entry, config.parathread_cores);
-									})
-								},
-							}
+				if let Some(entry) = take_parathread_entry(cores, &freed_index) {
+					match freed_reason {
+						FreedReason::Concluded => {
+							// After a parathread candidate has successfully been included,
+							// open it up for further claims!
+							ParathreadClaimIndex::<T>::mutate(|index| {
+								if let Ok(i) = index.binary_search(&entry.claim.0) {
+									index.remove(i);
+								}
+							})
+						},
+						FreedReason::TimedOut => {
+							// If a parathread candidate times out, it's not the collator's fault,
+							// so we don't increment retries.
+							ParathreadQueue::<T>::mutate(|queue| {
+								queue.enqueue_entry(entry, config.parathread_cores);
+							})
 						},
 					}
 				}
 			}
 		})
+	}
+
+	fn take_parathread_entry(
+		cores: &mut Vec<Option<CoreOccupied>>,
+		freed_idx: &CoreIndex,
+	) -> Some(ParathreadEntry) {
+		match cores.get(freed_idx.0 as usize).take().flatten() {
+			None | Some(CoreOccupied::Parachain) => None,
+			Some(CoreOccupied::Parathread(entry)) => Some(entry),
+		}
 	}
 
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
