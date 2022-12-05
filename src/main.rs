@@ -20,7 +20,8 @@
 
 use color_eyre::eyre;
 
-/// Global allocator
+/// Global allocator. Changing it to another allocator will require changing
+/// `memory_stats::MemoryAllocationTracker`.
 #[global_allocator]
 pub static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
