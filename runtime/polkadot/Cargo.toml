@@ -101,7 +101,7 @@ sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 serde_json = "1.0.81"
 separator = "0.4.1"
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tokio = { version = "1.19.2", features = ["macros"] }
+tokio = { version = "1.22.0", features = ["macros"] }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [build-dependencies]
