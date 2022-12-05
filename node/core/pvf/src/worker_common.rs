@@ -199,10 +199,8 @@ where
 }
 
 /// Loop that runs in the CPU time monitor thread on prepare and execute jobs. Continuously wakes up
-/// from sleeping and then either sleeps for the remaining CPU time, or kills the process if we
-/// exceed the CPU timeout.
-///
-/// NOTE: Killed processes are detected and cleaned up in `purge_dead`.
+/// from sleeping and then either sleeps for the remaining CPU time, or sends back a timeout error
+/// if we exceed the CPU timeout.
 ///
 /// NOTE: If the job completes and this thread is still sleeping, it will continue sleeping in the
 /// background. When it wakes, it will see that the flag has been set and return.
