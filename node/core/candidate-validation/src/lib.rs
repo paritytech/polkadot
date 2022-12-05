@@ -666,7 +666,10 @@ impl ValidationBackend for ValidationHost {
 
 	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError> {
 		let (tx, rx) = oneshot::channel();
-		self.precheck_pvf(pvf, tx).await?;
+		if let Err(_) = self.precheck_pvf(pvf, tx).await {
+			// Return an IO error if there was an error communicating with the host.
+			return Err(PrepareError::IoErr)
+		}
 
 		let precheck_result = rx.await.or(Err(PrepareError::IoErr))?;
 
