@@ -401,7 +401,10 @@ fn handle_concluded_no_rip(
 	// We just replace the idle worker that was loaned from this option during
 	// the work starting.
 	let old = data.idle.replace(idle);
-	assert_matches!(old, None, "attempt to overwrite an idle worker");
+	never!(
+		old.is_some(),
+		"old idle worker was taken out when starting work; we only replace it here; qed"
+	);
 
 	reply(from_pool, FromPool::Concluded { worker, rip: false, result })?;
 

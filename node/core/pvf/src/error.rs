@@ -123,7 +123,6 @@ impl From<PrepareError> for ValidationError {
 		// We treat the deterministic errors as `InvalidCandidate`. Should those occur they could
 		// potentially trigger disputes.
 		//
-		// TODO: Is this up-to-date?
 		// All non-deterministic errors are qualified as `InternalError`s and will not trigger
 		// disputes.
 		if error.is_deterministic() {

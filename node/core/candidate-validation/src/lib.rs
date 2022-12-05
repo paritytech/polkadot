@@ -666,12 +666,7 @@ impl ValidationBackend for ValidationHost {
 
 	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError> {
 		let (tx, rx) = oneshot::channel();
-		// TODO: Why are we always returning a non-deterministic error? This causes the pre-check
-		// outcome to always be `Failed`, never `Invalid`, thus never triggering disputes according
-		// to comments in pvf/src/error.rs. Can we change this to return the actual error?
-		if let Err(_) = self.precheck_pvf(pvf, tx).await {
-			return Err(PrepareError::IoErr)
-		}
+		self.precheck_pvf(pvf, tx).await?;
 
 		let precheck_result = rx.await.or(Err(PrepareError::IoErr))?;
 
