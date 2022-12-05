@@ -359,7 +359,7 @@ pub fn benchmark_inherent_data(
 	// Assume that all runtimes have the `timestamp` pallet.
 	let d = std::time::Duration::from_millis(0);
 	let timestamp = sp_timestamp::InherentDataProvider::new(d.into());
-	timestamp.provide_inherent_data(&mut inherent_data)?;
+	futures::executor::block_on(timestamp.provide_inherent_data(&mut inherent_data))?;
 
 	let para_data = polkadot_primitives::v2::InherentData {
 		bitfields: Vec::new(),
@@ -368,8 +368,7 @@ pub fn benchmark_inherent_data(
 		parent_header: header,
 	};
 
-	polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::from_data(para_data)
-		.provide_inherent_data(&mut inherent_data)?;
+	inherent_data.put_data(polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER, &para_data)?;
 
 	Ok(inherent_data)
 }
