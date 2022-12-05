@@ -106,10 +106,6 @@ async fn overseer_recv(virtual_overseer: &mut VirtualOverseer) -> AllMessages {
 
 /// Helper to condense repeated code that creates vote pairs, one valid and one
 /// invalid. Optionally the valid vote of the pair can be made a backing vote.
-///
-/// Parameters valid_voter_idx, invalid_voter_idx, candidate_hash, session,
-/// test_state, valid_is_backing
-/// Returns tuple containing valid then invalid vote
 async fn generate_vote_pair(
 	test_state: &TestState,
 	valid_voter_idx: ValidatorIndex,
