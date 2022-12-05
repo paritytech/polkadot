@@ -3318,3 +3318,78 @@ fn local_participation_in_dispute_for_backed_candidate() {
 		})
 	});
 }
+
+/// Shows that when a candidate_included event is scraped from the chain we
+/// reprioritize any participation requests pertaining to that candidate.
+/// This involves moving the request for this candidate from the best effort
+/// queue to the priority queue.
+#[test]
+fn participation_requests_reprioritized_for_newly_included() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			// Making our two candidates. Since participation is secondarily ordered
+			// by candidate hash, we take advantage of this to produce two candidates
+			// for which the initial participation order is known. But our plan is to
+			// upset this ordering by marking last_candidate as included. This should
+			// place last candidate in the priority queue, resulting in a different
+			// order of participation.
+			let first_candidate_receipt = make_valid_candidate_receipt();
+			let first_candidate_hash = first_candidate_receipt.hash();
+			let last_candidate_receipt = make_invalid_candidate_receipt();
+			let last_candidate_hash = last_candidate_receipt.hash();
+
+			// We participate in least hash first. Make sure our hashes have the correct ordering
+			assert!(first_candidate_hash < last_candidate_hash);
+
+			// activate leaf - without candidate included event
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, vec![])
+				.await;
+
+			// generate two votes per candidate
+			let first_valid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					first_candidate_hash,
+					session,
+					true,
+				)
+				.await;
+
+			let first_invalid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					first_candidate_hash,
+					session,
+					false,
+				)
+				.await;
+
+			let last_valid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(1),
+					last_candidate_hash,
+					session,
+					true,
+				)
+				.await;
+
+			let last_invalid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(2),
+					last_candidate_hash,
+					session,
+					false,
+				)
+				.await;
+
+			// Wrap up
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+
+			test_state
+		})
+	});
+}
