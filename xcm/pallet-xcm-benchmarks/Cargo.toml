@@ -1,8 +1,8 @@
 [package]
 name = "pallet-xcm-benchmarks"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
-version = "0.9.33"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
 
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
