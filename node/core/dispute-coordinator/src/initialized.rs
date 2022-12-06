@@ -273,7 +273,7 @@ impl Initialized {
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
 		log_error(
 			self.participation
-				.prioritize_newly_included(ctx, &scraped_updates.included_receipts)
+				.bump_to_priority_for_candidates(ctx, &scraped_updates.included_receipts)
 				.await,
 		)?;
 		self.participation.process_active_leaves_update(ctx, &update).await?;

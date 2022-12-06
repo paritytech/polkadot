@@ -212,8 +212,9 @@ impl Participation {
 		Ok(())
 	}
 
-	/// Reprioritizes participation requests for disputes that are freshly included
-	pub async fn prioritize_newly_included<Context>(
+	/// Moving any request concerning the given candidates from best-effort to
+	/// priority, ignoring any candidates that don't have any queued participation requests.
+	pub async fn bump_to_priority_for_candidates<Context>(
 		&mut self,
 		ctx: &mut Context,
 		included_receipts: &Vec<CandidateReceipt>,
