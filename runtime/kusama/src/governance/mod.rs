@@ -72,7 +72,7 @@ impl pallet_whitelist::Config for Runtime {
 	type WhitelistOrigin =
 		EitherOf<EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>, Fellows>;
 	type DispatchWhitelistedOrigin = EitherOf<EnsureRoot<Self::AccountId>, WhitelistedCaller>;
-	type PreimageProvider = Preimage;
+	type Preimages = Preimage;
 }
 
 impl pallet_referenda::Config for Runtime {
