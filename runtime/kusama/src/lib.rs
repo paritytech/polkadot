@@ -1485,7 +1485,10 @@ pub type Migrations = (
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, CheckAccount>,
 	crowdloan::migration::MigrateToTrackInactive<Runtime>,
 	pallet_referenda::migration::v1::MigrateV0ToV1<Runtime>,
-	pallet_referenda::migration::v1::MigrateV0ToV1<Runtime, governance::FellowshipReferendaInstance>,
+	pallet_referenda::migration::v1::MigrateV0ToV1<
+		Runtime,
+		governance::FellowshipReferendaInstance,
+	>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
