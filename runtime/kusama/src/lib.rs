@@ -1482,6 +1482,10 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 }
 
 pub type Migrations = (
+	//9330
+	pallet_election_provider_multi_phase::migrations::v1::MigrateToV1<Runtime>,
+	pallet_fast_unstake::migrations::v1::MigrateToV1<Runtime>,
+	//9340
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, CheckAccount>,
 	crowdloan::migration::MigrateToTrackInactive<Runtime>,
 );
