@@ -45,14 +45,14 @@ impl VersionChangeNotifier for TestSubscriptionService {
 		_context: &XcmContext,
 	) -> XcmResult {
 		let mut r = SubscriptionRequests::get();
-		r.push((location.clone(), Some((query_id, max_weight))));
+		r.push((*location, Some((query_id, max_weight))));
 		SubscriptionRequests::set(r);
 		Ok(())
 	}
 	fn stop(location: &MultiLocation, _context: &XcmContext) -> XcmResult {
 		let mut r = SubscriptionRequests::get();
 		r.retain(|(l, _q)| l != location);
-		r.push((location.clone(), None));
+		r.push((*location, None));
 		SubscriptionRequests::set(r);
 		Ok(())
 	}
@@ -71,7 +71,7 @@ pub struct TestAssetTrap;
 impl DropAssets for TestAssetTrap {
 	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: &XcmContext) -> Weight {
 		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
-		t.push((origin.clone(), assets.into()));
+		t.push((*origin, assets.into()));
 		TrappedAssets::set(t);
 		Weight::from_parts(5, 5)
 	}

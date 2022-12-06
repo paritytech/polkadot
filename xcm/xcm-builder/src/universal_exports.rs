@@ -35,7 +35,7 @@ fn ensure_is_remote(
 	};
 	let universal_destination: InteriorMultiLocation = universal_local
 		.into_location()
-		.appended_with(dest.clone())
+		.appended_with(dest)
 		.map_err(|x| x.1)?
 		.try_into()?;
 	let (remote_dest, remote_net) = match universal_destination.split_first() {
@@ -147,7 +147,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		dest: &mut Option<MultiLocation>,
 		xcm: &mut Option<Xcm<()>>,
 	) -> SendResult<Router::Ticket> {
-		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
+		let d = dest.ok_or(MissingArgument)?;
 		let devolved = ensure_is_remote(UniversalLocation::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location) = devolved;
 		let xcm = xcm.take().ok_or(MissingArgument)?;
@@ -189,7 +189,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		dest: &mut Option<MultiLocation>,
 		xcm: &mut Option<Xcm<()>>,
 	) -> SendResult<Router::Ticket> {
-		let d = dest.as_ref().ok_or(MissingArgument)?.clone();
+		let d = *dest.as_ref().ok_or(MissingArgument)?;
 		let devolved = ensure_is_remote(UniversalLocation::get(), d).map_err(|_| NotApplicable)?;
 		let (remote_network, remote_location) = devolved;
 

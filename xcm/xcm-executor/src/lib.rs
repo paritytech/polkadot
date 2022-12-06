@@ -817,7 +817,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				//
 				// This only works because the remote chain empowers the bridge
 				// to speak for the local network.
-				let origin = *self.context.origin.as_ref().ok_or(XcmError::BadOrigin)?;
+				let origin = self.context.origin.ok_or(XcmError::BadOrigin)?;
 				let universal_source = Config::UniversalLocation::get()
 					.within_global(origin)
 					.map_err(|()| XcmError::Unanchored)?;

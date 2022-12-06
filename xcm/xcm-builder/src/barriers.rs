@@ -171,7 +171,7 @@ impl<
 			"WithComputedOrigin origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, max_weight, weight_credit,
 		);
-		let mut actual_origin = origin.clone();
+		let mut actual_origin = *origin;
 		let mut skipped = 0;
 		// NOTE: We do not check the validity of `UniversalOrigin` here, meaning that a malicious
 		// origin could place a `UniversalOrigin` in order to spoof some location which gets free
@@ -183,10 +183,10 @@ impl<
 				Some(UniversalOrigin(new_global)) => {
 					// Note the origin is *relative to local consensus*! So we need to escape local
 					// consensus with the `parents` before diving in into the `universal_location`.
-					actual_origin = X1(new_global.clone()).relative_to(&LocalUniversal::get());
+					actual_origin = X1(*new_global).relative_to(&LocalUniversal::get());
 				},
 				Some(DescendOrigin(j)) => {
-					actual_origin.append_with(j.clone()).map_err(|_| ())?;
+					actual_origin.append_with(*j).map_err(|_| ())?;
 				},
 				_ => break,
 			}
