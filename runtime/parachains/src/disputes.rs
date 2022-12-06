@@ -640,8 +640,8 @@ enum VoteKind {
 	Invalid,
 }
 
-impl<'a> From<&'a DisputeStatement> for VoteKind {
-	fn from(statement: &'a DisputeStatement) -> Self {
+impl From<&DisputeStatement> for VoteKind {
+	fn from(statement: &DisputeStatement) -> Self {
 		if statement.is_backing() {
 			Self::Backing
 		} else if statement.indicates_validity() {
