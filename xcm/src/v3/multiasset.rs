@@ -345,7 +345,7 @@ impl AssetId {
 	/// Prepend a `MultiLocation` to a concrete asset, giving it a new root location.
 	pub fn prepend_with(&mut self, prepend: &MultiLocation) -> Result<(), ()> {
 		if let AssetId::Concrete(ref mut l) = self {
-			l.prepend_with(prepend.clone()).map_err(|_| ())?;
+			l.prepend_with(*prepend).map_err(|_| ())?;
 		}
 		Ok(())
 	}
@@ -640,7 +640,7 @@ impl MultiAssets {
 		target: &MultiLocation,
 		context: InteriorMultiLocation,
 	) -> Result<(), ()> {
-		self.0.iter_mut().try_for_each(|i| i.reanchor(target, context.clone()))
+		self.0.iter_mut().try_for_each(|i| i.reanchor(target, context))
 	}
 
 	/// Return a reference to an item at a specific index or `None` if it doesn't exist.

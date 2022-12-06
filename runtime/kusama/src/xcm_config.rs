@@ -291,7 +291,6 @@ match_types! {
 		) |
 		RuntimeCall::ChildBounties(..) |
 		RuntimeCall::ElectionProviderMultiPhase(..) |
-		RuntimeCall::Gilt(..) |
 		RuntimeCall::VoterList(..) |
 		RuntimeCall::NominationPools(
 			pallet_nomination_pools::Call::join { .. } |
