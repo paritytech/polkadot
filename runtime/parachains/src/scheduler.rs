@@ -363,11 +363,12 @@ impl<T: Config> Pallet<T> {
 			let para_id = claim.0;
 			ParathreadClaimIndex::<T>::mutate(|index| match index.binary_search(&para_id) {
 				Ok(_) => return,
-				Err(i) => index.insert(i, para_id),
+				Err(i) => {
+					index.insert(i, para_id);
+					let entry = ParathreadEntry { claim, retries: 0 };
+					queue.enqueue_entry(entry, config.parathread_cores);
+				},
 			});
-
-			let entry = ParathreadEntry { claim, retries: 0 };
-			queue.enqueue_entry(entry, config.parathread_cores);
 		})
 	}
 
@@ -403,15 +404,17 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn extract_parathread_entry(
-		cores: &Vec<Option<CoreOccupied>>,
+		cores: &mut Vec<Option<CoreOccupied>>,
 		freed_idx: &CoreIndex,
 	) -> Option<ParathreadEntry> {
 		let idx = freed_idx.0 as usize;
-		match cores.get(idx).take().cloned().flatten() {
-			// take sets src to None
-			// if only there was a get that takes ownership
-			None | Some(CoreOccupied::Parachain) => None,
-			Some(CoreOccupied::Parathread(entry)) => Some(entry),
+		if idx < cores.len() {
+			match cores[idx].take() {
+				None | Some(CoreOccupied::Parachain) => None,
+				Some(CoreOccupied::Parathread(entry)) => Some(entry),
+			}
+		} else {
+			None
 		}
 	}
 
