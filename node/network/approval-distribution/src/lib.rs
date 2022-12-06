@@ -1744,7 +1744,7 @@ pub const MAX_BATCH_SIZE: usize = MAX_NOTIFICATION_SIZE as usize /
 
 /// Send assignments while honoring the `max_notification_size` of the protocol.
 ///
-/// Spliting the messages into multiple notifications allows more granular processing at the
+/// Splitting the messages into multiple notifications allows more granular processing at the
 /// destination, such that the subsystem doesn't get stuck for long processing a batch
 /// of assignments and can `select!` other tasks.
 pub(crate) async fn send_assignments_batched(
