@@ -218,7 +218,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 	);
 
 	let (to_execute_queue_tx, run_execute_queue) = execute::start(
-		metrics.clone(),
+		metrics,
 		config.execute_worker_program_path.to_owned(),
 		config.execute_workers_max_num,
 		config.execute_worker_spawn_timeout,
@@ -443,7 +443,7 @@ async fn handle_to_host(
 
 /// Handles PVF prechecking requests.
 ///
-/// This tries to prepare the PVF by compiling the WASM blob within a given timeout ([`PRECHECK_COMPILATION_TIMEOUT`]).
+/// This tries to prepare the PVF by compiling the WASM blob within a given timeout ([`PRECHECK_PREPARATION_TIMEOUT`]).
 ///
 /// If the prepare job failed previously, we may retry it under certain conditions.
 async fn handle_precheck_pvf(
@@ -456,9 +456,9 @@ async fn handle_precheck_pvf(
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
-			ArtifactState::Prepared { last_time_needed } => {
+			ArtifactState::Prepared { last_time_needed, cpu_time_elapsed } => {
 				*last_time_needed = SystemTime::now();
-				let _ = result_sender.send(Ok(()));
+				let _ = result_sender.send(Ok(*cpu_time_elapsed));
 			},
 			ArtifactState::Preparing { waiting_for_response, num_failures: _ } =>
 				waiting_for_response.push(result_sender),
@@ -490,7 +490,7 @@ async fn handle_precheck_pvf(
 ///
 /// If the prepare job failed previously, we may retry it under certain conditions.
 ///
-/// When preparing for execution, we use a more lenient timeout ([`EXECUTE_COMPILATION_TIMEOUT`])
+/// When preparing for execution, we use a more lenient timeout ([`EXECUTE_PREPARATION_TIMEOUT`])
 /// than when prechecking.
 async fn handle_execute_pvf(
 	cache_path: &Path,
@@ -505,7 +505,7 @@ async fn handle_execute_pvf(
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
-			ArtifactState::Prepared { last_time_needed } => {
+			ArtifactState::Prepared { last_time_needed, .. } => {
 				*last_time_needed = SystemTime::now();
 
 				// This artifact has already been prepared, send it to the execute queue.
@@ -563,7 +563,7 @@ async fn handle_execute_pvf(
 		awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 	}
 
-	return Ok(())
+	Ok(())
 }
 
 async fn handle_heads_up(
@@ -701,11 +701,12 @@ async fn handle_prepare_done(
 	}
 
 	*state = match result {
-		Ok(()) => ArtifactState::Prepared { last_time_needed: SystemTime::now() },
+		Ok(cpu_time_elapsed) =>
+			ArtifactState::Prepared { last_time_needed: SystemTime::now(), cpu_time_elapsed },
 		Err(error) => ArtifactState::FailedToProcess {
 			last_time_failed: SystemTime::now(),
 			num_failures: *num_failures + 1,
-			error: error.clone(),
+			error,
 		},
 	};
 
@@ -780,7 +781,7 @@ fn can_retry_prepare_after_failure(
 		// Gracefully returned an error, so it will probably be reproducible. Don't retry.
 		Prevalidation(_) | Preparation(_) => false,
 		// Retry if the retry cooldown has elapsed and if we have already retried less than
-		// `NUM_PREPARE_RETRIES` times.
+		// `NUM_PREPARE_RETRIES` times. IO errors may resolve themselves.
 		Panic(_) | TimedOut | DidNotMakeIt =>
 			SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
 				num_failures <= NUM_PREPARE_RETRIES,
@@ -1016,8 +1017,8 @@ mod tests {
 		let mut builder = Builder::default();
 		builder.cleanup_pulse_interval = Duration::from_millis(100);
 		builder.artifact_ttl = Duration::from_millis(500);
-		builder.artifacts.insert_prepared(artifact_id(1), mock_now);
-		builder.artifacts.insert_prepared(artifact_id(2), mock_now);
+		builder.artifacts.insert_prepared(artifact_id(1), mock_now, Duration::default());
+		builder.artifacts.insert_prepared(artifact_id(2), mock_now, Duration::default());
 		let mut test = builder.build();
 		let mut host = test.host_handle();
 
@@ -1087,7 +1088,10 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		let result_tx_pvf_1_1 = assert_matches!(
@@ -1100,7 +1104,10 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(2), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(2),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		let result_tx_pvf_2 = assert_matches!(
@@ -1149,13 +1156,16 @@ mod tests {
 		);
 		// Send `Ok` right away and poll the host.
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		// No pending execute requests.
 		test.poll_ensure_to_execute_queue_is_empty().await;
 		// Received the precheck result.
-		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
+		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(_));
 
 		// Send multiple requests for the same PVF.
 		let mut precheck_receivers = Vec::new();
@@ -1253,7 +1263,10 @@ mod tests {
 			prepare::ToQueue::Enqueue { .. }
 		);
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(2), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(2),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		// The execute queue receives new request, preckecking is finished and we can
@@ -1263,7 +1276,7 @@ mod tests {
 			execute::ToQueue::Enqueue { .. }
 		);
 		for result_rx in precheck_receivers {
-			assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
+			assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(_));
 		}
 	}
 
@@ -1511,7 +1524,10 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 

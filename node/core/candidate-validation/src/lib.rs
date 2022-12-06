@@ -638,7 +638,7 @@ trait ValidationBackend {
 		}
 	}
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError>;
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError>;
 }
 
 #[async_trait]
@@ -664,7 +664,7 @@ impl ValidationBackend for ValidationHost {
 			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
 	}
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError> {
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError> {
 		let (tx, rx) = oneshot::channel();
 		if let Err(_) = self.precheck_pvf(pvf, tx).await {
 			return Err(PrepareError::DidNotMakeIt)
