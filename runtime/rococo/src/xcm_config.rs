@@ -245,7 +245,6 @@ match_types! {
 			pallet_bounties::Call::close_bounty { .. },
 		) |
 		RuntimeCall::ChildBounties(..) |
-		RuntimeCall::Gilt(..) |
 		RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets { .. })
 	};
 }
