@@ -1768,7 +1768,7 @@ pub(crate) async fn send_assignments_batched(
 	}
 }
 
-/// Send approvals while honouring the `max_notification_size` of the protocol.
+/// Send approvals while honoring the `max_notification_size` of the protocol.
 pub(crate) async fn send_approvals_batched(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
 	approvals: Vec<IndirectSignedApprovalVote>,
