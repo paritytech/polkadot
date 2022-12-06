@@ -1,9 +1,9 @@
 [package]
 name = "polkadot-cli"
-version = "0.9.33"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [package.metadata.wasm-pack.profile.release]
 # `wasm-opt` has some problems on Linux, see

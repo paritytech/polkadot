@@ -10,7 +10,7 @@ updates:
       - dependency-name: "sp-*"
       - dependency-name: "frame-*"
       - dependency-name: "fork-tree"
-      - dependency-name: "remote-externalities"
+      - dependency-name: "frame-remote-externalities"
       - dependency-name: "pallet-*"
       - dependency-name: "beefy-*"
       - dependency-name: "try-runtime-*"

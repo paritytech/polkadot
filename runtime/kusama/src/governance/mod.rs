@@ -47,13 +47,14 @@ impl pallet_conviction_voting::Config for Runtime {
 	type Currency = Balances;
 	type VoteLockingPeriod = VoteLockingPeriod;
 	type MaxVotes = ConstU32<512>;
-	type MaxTurnout = frame_support::traits::TotalIssuanceOf<Balances, Self::AccountId>;
+	type MaxTurnout =
+		frame_support::traits::tokens::currency::ActiveIssuanceOf<Balances, Self::AccountId>;
 	type Polls = Referenda;
 }
 
 parameter_types! {
 	pub const AlarmInterval: BlockNumber = 1;
-	pub const SubmissionDeposit: Balance = 100 * UNITS;
+	pub const SubmissionDeposit: Balance = 1 * QUID;
 	pub const UndecidingTimeout: BlockNumber = 28 * DAYS;
 }
 

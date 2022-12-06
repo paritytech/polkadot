@@ -6,11 +6,17 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.33"
+rust-version = "1.64.0" # workspace properties
+readme = "README.md"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
+
+[workspace.package]
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-rust-version = "1.57.0" # custom profiles
-readme = "README.md"
+repository = "https://github.com/paritytech/polkadot.git"
+version = "0.9.33"
 
 [dependencies]
 polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
@@ -24,7 +30,7 @@ tempfile = "3.2.0"
 tokio = "1.22.0"
 substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
-
+ 
 [workspace]
 members = [
 	"cli",
