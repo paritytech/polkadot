@@ -1,9 +1,9 @@
 [package]
 name = "polkadot-service"
-version = "0.9.33"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 rust-version = "1.60"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 # Substrate Client
