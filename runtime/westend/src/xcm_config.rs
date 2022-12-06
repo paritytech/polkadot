@@ -40,7 +40,8 @@ parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();
 	pub const ThisNetwork: NetworkId = Westend;
 	pub UniversalLocation: InteriorMultiLocation = ThisNetwork::get().into();
-	pub CheckAccount: (AccountId, MintLocation) = (XcmPallet::check_account(), MintLocation::Local);
+	pub CheckAccount: AccountId = XcmPallet::check_account();
+	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
 }
 
 pub type LocationConverter =
@@ -56,7 +57,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
 	AccountId,
 	// It's a native asset so we keep track of the teleports to maintain total issuance.
-	CheckAccount,
+	LocalCheckAccount,
 >;
 
 type LocalOriginConverter = (

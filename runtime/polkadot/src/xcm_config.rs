@@ -46,7 +46,9 @@ parameter_types! {
 	/// Our location in the universe of consensus systems.
 	pub const UniversalLocation: InteriorMultiLocation = X1(GlobalConsensus(ThisNetwork::get()));
 	/// The check account, which holds any native assets that have been teleported out and not back in (yet).
-	pub CheckAccount: (AccountId, MintLocation) = (XcmPallet::check_account(), MintLocation::Local);
+	pub CheckAccount: AccountId = XcmPallet::check_account();
+	/// The check account that is allowed to mint assets locally.
+	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
 }
 
 /// The canonical means of converting a `MultiLocation` into an `AccountId`, used when we want to determine
@@ -72,7 +74,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
 	AccountId,
 	// We track our teleports in/out to keep total issuance correct.
-	CheckAccount,
+	LocalCheckAccount,
 >;
 
 /// The means that we convert an XCM origin `MultiLocation` into the runtime's `Origin` type for

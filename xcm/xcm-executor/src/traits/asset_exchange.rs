@@ -48,7 +48,7 @@ impl AssetExchange for Tuple {
 		maximal: bool,
 	) -> Result<Assets, Assets> {
 		for_tuples!( #(
-			let give = match Tuple::exchange_asset(origin.clone(), give, want, maximal) {
+			let give = match Tuple::exchange_asset(origin, give, want, maximal) {
 				Ok(r) => return Ok(r),
 				Err(a) => a,
 			};

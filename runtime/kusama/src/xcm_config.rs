@@ -49,7 +49,9 @@ parameter_types! {
 	/// Since Kusama is a top-level relay-chain with its own consensus, it's just our network ID.
 	pub UniversalLocation: InteriorMultiLocation = ThisNetwork::get().into();
 	/// The check account, which holds any native assets that have been teleported out and not back in (yet).
-	pub CheckAccount: (AccountId, MintLocation) = (XcmPallet::check_account(), MintLocation::Local);
+	pub CheckAccount: AccountId = XcmPallet::check_account();
+	/// The check account that is allowed to mint assets locally.
+	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
 }
 
 /// The canonical means of converting a `MultiLocation` into an `AccountId`, used when we want to determine
@@ -75,7 +77,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
 	AccountId,
 	// We track our teleports in/out to keep total issuance correct.
-	CheckAccount,
+	LocalCheckAccount,
 >;
 
 /// The means that we convert the XCM message origin location into a local dispatch origin.

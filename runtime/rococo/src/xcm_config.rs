@@ -41,7 +41,8 @@ parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();
 	pub const ThisNetwork: NetworkId = NetworkId::Rococo;
 	pub UniversalLocation: InteriorMultiLocation = ThisNetwork::get().into();
-	pub CheckAccount: (AccountId, MintLocation) = (XcmPallet::check_account(), MintLocation::Local);
+	pub CheckAccount: AccountId = XcmPallet::check_account();
+	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
 }
 
 pub type LocationConverter =
@@ -61,7 +62,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
 	AccountId,
 	// We track our teleports in/out to keep total issuance correct.
-	CheckAccount,
+	LocalCheckAccount,
 >;
 
 /// The means that we convert an the XCM message origin location into a local dispatch origin.
