@@ -16,24 +16,27 @@
 
 use super::*;
 use frame_support::{
-	dispatch::GetStorageVersion, storage_alias, traits::OnRuntimeUpgrade, Twox64Concat,
+	dispatch::GetStorageVersion,
+	storage_alias,
+	traits::{OnRuntimeUpgrade, StorageVersion},
+	Twox64Concat,
 };
 
 pub struct MigrateToTrackInactive<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactive<T> {
 	fn on_runtime_upgrade() -> Weight {
-		let current_version = Pallet::<T>::current_storage_version();
 		let onchain_version = Pallet::<T>::on_chain_storage_version();
 
-		if onchain_version == 0 && current_version == 1 {
+		if onchain_version == 0 {
 			let mut translated = 0u64;
 			for index in Funds::<T>::iter_keys() {
 				let b = CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(index.into()));
 				CurrencyOf::<T>::deactivate(b);
 				translated.saturating_inc();
 			}
-			current_version.put::<Pallet<T>>();
-			log::info!(target: "runtime::crowdloan", "Summed {} funds, storage to version {:?}", translated, current_version);
+
+			StorageVersion::new(1).put::<Pallet<T>>();
+			log::info!(target: "runtime::crowdloan", "Summed {} funds, storage to version 1", translated);
 			T::DbWeight::get().reads_writes(translated * 2 + 1, translated * 2 + 1)
 		} else {
 			log::info!(target: "runtime::crowdloan",  "Migration did not execute. This probably should be removed");
