@@ -399,9 +399,6 @@ impl<T: Config> Pallet<T> {
 					},
 				}
 			}
-
-			// Mark all cores as available
-			cores.iter_mut().for_each(|core| *core = None);
 		})
 	}
 
@@ -410,7 +407,8 @@ impl<T: Config> Pallet<T> {
 		freed_idx: &CoreIndex,
 	) -> Option<ParathreadEntry> {
 		let idx = freed_idx.0 as usize;
-		match cores.get(idx).cloned().flatten() {
+		match cores.get(idx).take().cloned().flatten() {
+			// take sets src to None
 			// if only there was a get that takes ownership
 			None | Some(CoreOccupied::Parachain) => None,
 			Some(CoreOccupied::Parathread(entry)) => Some(entry),
