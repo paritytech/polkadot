@@ -1969,7 +1969,9 @@ sp_api::impl_runtime_apis! {
 			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 			use xcm::latest::prelude::*;
-			use xcm_config::{CheckAccount, SovereignAccountOf, Statemine, TokenLocation, XcmConfig};
+			use xcm_config::{
+				LocalCheckAccount, SovereignAccountOf, Statemine, TokenLocation, XcmConfig,
+			};
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
@@ -2003,7 +2005,7 @@ sp_api::impl_runtime_apis! {
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
 				type TransactAsset = Balances;
 
-				type CheckedAccount = CheckAccount;
+				type CheckedAccount = LocalCheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
 
 				fn get_multi_asset() -> MultiAsset {
