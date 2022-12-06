@@ -17,18 +17,19 @@
 
 pub mod frame_system;
 pub mod pallet_balances;
+pub mod pallet_balances_nis_counterpart_balances;
 pub mod pallet_bounties;
 pub mod pallet_child_bounties;
 pub mod pallet_collective_council;
 pub mod pallet_collective_technical_committee;
 pub mod pallet_democracy;
 pub mod pallet_elections_phragmen;
-pub mod pallet_gilt;
 pub mod pallet_identity;
 pub mod pallet_im_online;
 pub mod pallet_indices;
 pub mod pallet_membership;
 pub mod pallet_multisig;
+pub mod pallet_nis;
 pub mod pallet_preimage;
 pub mod pallet_proxy;
 pub mod pallet_scheduler;
