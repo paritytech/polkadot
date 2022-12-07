@@ -1484,6 +1484,11 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 pub type Migrations = (
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, CheckAccount>,
 	crowdloan::migration::MigrateToTrackInactive<Runtime>,
+	pallet_referenda::migration::v1::MigrateV0ToV1<Runtime>,
+	pallet_referenda::migration::v1::MigrateV0ToV1<
+		Runtime,
+		governance::FellowshipReferendaInstance,
+	>,
 	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	parachains_ump::migration::v1::MigrateToV1<Runtime>,
