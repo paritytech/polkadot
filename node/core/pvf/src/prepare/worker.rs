@@ -76,6 +76,9 @@ pub enum Outcome {
 
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
 /// returns the outcome.
+///
+/// NOTE: Returning the `TimedOut` or `DidNotMakeIt` errors will trigger the child process being
+/// killed.
 pub async fn start_work(
 	worker: IdleWorker,
 	code: Arc<Vec<u8>>,
@@ -152,6 +155,9 @@ pub async fn start_work(
 }
 
 /// Handles the case where we successfully received response bytes on the host from the child.
+///
+/// NOTE: Here we know the artifact exists, but is still located in a temporary file which will be
+/// cleared by `with_tmp_file`.
 async fn handle_response_bytes(
 	worker: IdleWorker,
 	response_bytes: Vec<u8>,

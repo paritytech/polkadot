@@ -293,6 +293,8 @@ fn handle_mux(
 			Ok(())
 		},
 		PoolEvent::StartWork(worker, outcome) => {
+			// If we receive any outcome other than `Concluded`, we attempt to kill the worker
+			// process.
 			match outcome {
 				Outcome::Concluded { worker: idle, result } =>
 					handle_concluded_no_rip(from_pool, spawned, worker, idle, result),
@@ -390,8 +392,8 @@ fn handle_concluded_no_rip(
 ) -> Result<(), Fatal> {
 	let data = match spawned.get_mut(worker) {
 		None => {
-			// Perhaps the worker was killed meanwhile and the result is no longer
-			// relevant.
+			// Perhaps the worker was killed meanwhile and the result is no longer relevant. We
+			// already send `Rip` when purging if we detect that the worker is dead.
 			return Ok(())
 		},
 		Some(data) => data,
