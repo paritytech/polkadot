@@ -37,7 +37,7 @@
 
 use frame_support::{
 	parameter_types,
-	weights::{constants::WEIGHT_PER_NANOS, Weight},
+	weights::{constants::WEIGHT_REF_TIME_PER_NANOS, Weight},
 };
 
 parameter_types! {
@@ -54,7 +54,8 @@ parameter_types! {
 	///   99th: 4_189_094
 	///   95th: 4_152_261
 	///   75th: 4_098_529
-	pub const BlockExecutionWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(4_084_738);
+	pub const BlockExecutionWeight: Weight =
+		Weight::from_ref_time(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(4_084_738));
 }
 
 #[cfg(test)]
@@ -70,12 +71,12 @@ mod test_weights {
 
 		// At least 100 µs.
 		assert!(
-			w.ref_time() >= 100u64 * constants::WEIGHT_PER_MICROS.ref_time(),
+			w.ref_time() >= 100u64 * constants::WEIGHT_REF_TIME_PER_MICROS,
 			"Weight should be at least 100 µs."
 		);
 		// At most 50 ms.
 		assert!(
-			w.ref_time() <= 50u64 * constants::WEIGHT_PER_MILLIS.ref_time(),
+			w.ref_time() <= 50u64 * constants::WEIGHT_REF_TIME_PER_MILLIS,
 			"Weight should be at most 50 ms."
 		);
 	}
