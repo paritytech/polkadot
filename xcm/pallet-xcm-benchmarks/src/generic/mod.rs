@@ -12,7 +12,10 @@ pub mod pallet {
 		dispatch::{Dispatchable, GetDispatchInfo},
 		pallet_prelude::Encode,
 	};
-	use xcm::latest::{Junction, MultiAsset, MultiAssets, MultiLocation, Response};
+	use xcm::latest::{
+		InteriorMultiLocation, Junction, MultiAsset, MultiAssets, MultiLocation, NetworkId,
+		Response,
+	};
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
@@ -30,22 +33,22 @@ pub mod pallet {
 		/// The first element in the returned tuple represents the assets that are being exchanged
 		/// from, whereas the second element represents the assets that are being exchanged to.
 		///
-		/// If set to `None`, benchmarks which rely on an `exchange_asset` will be skipped.
+		/// If set to `Err`, benchmarks which rely on an `exchange_asset` will be skipped.
 		fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError>;
 
 		/// A `Junction` that is one of the `UniversalAliases` configured by the XCM executor.
 		///
-		/// If set to `None`, benchmarks which rely on a universal alias will be skipped.
+		/// If set to `Err`, benchmarks which rely on a universal alias will be skipped.
 		fn universal_alias() -> Result<Junction, BenchmarkError>;
 
 		/// The `MultiLocation` used for successful transaction XCMs.
 		///
-		/// If set to `None`, benchmarks which rely on a `transact_origin` will be skipped.
+		/// If set to `Err`, benchmarks which rely on a `transact_origin` will be skipped.
 		fn transact_origin() -> Result<MultiLocation, BenchmarkError>;
 
 		/// A valid `MultiLocation` we can successfully subscribe to.
 		///
-		/// If set to `None`, benchmarks which rely on a `subscribe_origin` will be skipped.
+		/// If set to `Err`, benchmarks which rely on a `subscribe_origin` will be skipped.
 		fn subscribe_origin() -> Result<MultiLocation, BenchmarkError>;
 
 		/// Return an origin, ticket, and assets that can be trapped and claimed.
@@ -53,6 +56,11 @@ pub mod pallet {
 
 		/// Return an unlocker, owner and assets that can be locked and unlocked.
 		fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError>;
+
+		/// The pair of `NewtorkId/InteriorMultiLocation` used as remote destination for `ExportMessage`.
+		///
+		/// If set to `Err`, benchmarks which rely on a `export_message_destination` will be skipped.
+		fn export_message_destination() -> Result<(NetworkId, InteriorMultiLocation), BenchmarkError>;
 	}
 
 	#[pallet::pallet]

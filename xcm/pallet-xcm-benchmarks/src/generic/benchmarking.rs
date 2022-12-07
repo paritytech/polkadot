@@ -500,11 +500,13 @@ benchmarks! {
 	}
 
 	export_message {
+		let (network, destination) = T::export_message_destination().map_err(|_| BenchmarkError::Skip)?;
+
 		let mut executor = new_executor::<T>(Default::default());
 
 		let instruction = Instruction::ExportMessage {
-			network: Polkadot,
-			destination: Here,
+			network,
+			destination,
 			xcm: Xcm(vec![Instruction::Trap(10)]),
 		};
 		let xcm = Xcm(vec![instruction]);
