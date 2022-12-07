@@ -127,7 +127,7 @@ impl MetricsTrait for Metrics {
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_time_unify_with_peer",
 					"Time spent within fn `unify_with_peer`.",
-				))?,
+				).buckets(vec![0.000625, 0.00125,0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,]))?,
 				registry,
 			)?,
 			time_import_pending_now_known: prometheus::register(

@@ -129,7 +129,7 @@ where
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
 /// with all default values.
-pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
+pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 	OverseerGenArgs {
 		leaves,
 		keystore,
@@ -155,7 +155,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		overseer_message_channel_capacity_override,
 		req_protocol_names,
 		peerset_protocol_names,
-	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+	}: OverseerGenArgs<Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
@@ -257,7 +257,7 @@ where
 		.collator_protocol({
 			let side = match is_collator {
 				IsCollator::Yes(collator_pair) => ProtocolSide::Collator(
-					network_service.local_peer_id().clone(),
+					network_service.local_peer_id(),
 					collator_pair,
 					collation_req_receiver,
 					Metrics::register(registry)?,
@@ -334,10 +334,10 @@ where
 /// would do.
 pub trait OverseerGen {
 	/// Overwrite the full generation of the overseer, including the subsystems.
-	fn generate<'a, Spawner, RuntimeClient>(
+	fn generate<Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
-		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+		args: OverseerGenArgs<Spawner, RuntimeClient>,
 	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
@@ -358,10 +358,10 @@ use polkadot_overseer::KNOWN_LEAVES_CACHE_SIZE;
 pub struct RealOverseerGen;
 
 impl OverseerGen for RealOverseerGen {
-	fn generate<'a, Spawner, RuntimeClient>(
+	fn generate<Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
-		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+		args: OverseerGenArgs<Spawner, RuntimeClient>,
 	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,

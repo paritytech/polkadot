@@ -225,9 +225,8 @@ fn handle_job_finish(
 	result_tx: ResultSender,
 ) {
 	let (idle_worker, result) = match outcome {
-		Outcome::Ok { result_descriptor, duration_ms, idle_worker } => {
+		Outcome::Ok { result_descriptor, duration: _, idle_worker } => {
 			// TODO: propagate the soft timeout
-			drop(duration_ms);
 
 			(Some(idle_worker), Ok(result_descriptor))
 		},

@@ -45,7 +45,7 @@ use polkadot_node_network_protocol::{
 	request_response::{v1::DisputeResponse, Recipient, Requests},
 	IfDisconnected,
 };
-use polkadot_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
+use polkadot_node_primitives::{CandidateVotes, DisputeStatus, UncheckedDisputeMessage};
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, DisputeCoordinatorMessage, DisputeDistributionMessage, ImportStatementsResult,
@@ -658,7 +658,7 @@ fn dispute_retries_and_works_across_session_boundaries() {
 			Some(old_head),
 			MOCK_SESSION_INDEX,
 			None,
-			vec![(MOCK_SESSION_INDEX, candidate.hash())],
+			vec![(MOCK_SESSION_INDEX, candidate.hash(), DisputeStatus::Active)],
 		)
 		.await;
 
@@ -673,7 +673,7 @@ fn dispute_retries_and_works_across_session_boundaries() {
 			Some(old_head2),
 			MOCK_NEXT_SESSION_INDEX,
 			Some(MOCK_NEXT_SESSION_INFO.clone()),
-			vec![(MOCK_SESSION_INDEX, candidate.hash())],
+			vec![(MOCK_SESSION_INDEX, candidate.hash(), DisputeStatus::Active)],
 		)
 		.await;
 
@@ -832,7 +832,7 @@ async fn activate_leaf(
 	// New session if we expect the subsystem to request it.
 	new_session: Option<SessionInfo>,
 	// Currently active disputes to send to the subsystem.
-	active_disputes: Vec<(SessionIndex, CandidateHash)>,
+	active_disputes: Vec<(SessionIndex, CandidateHash, DisputeStatus)>,
 ) {
 	let has_active_disputes = !active_disputes.is_empty();
 	handle
@@ -934,7 +934,10 @@ async fn handle_subsystem_startup(
 		None,
 		MOCK_SESSION_INDEX,
 		Some(MOCK_SESSION_INFO.clone()),
-		ongoing_dispute.into_iter().map(|c| (MOCK_SESSION_INDEX, c)).collect(),
+		ongoing_dispute
+			.into_iter()
+			.map(|c| (MOCK_SESSION_INDEX, c, DisputeStatus::Active))
+			.collect(),
 	)
 	.await;
 	relay_parent

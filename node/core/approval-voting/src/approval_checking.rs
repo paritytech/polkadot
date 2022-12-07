@@ -282,8 +282,8 @@ impl State {
 
 /// Constructs an infinite iterator from an array of `TrancheEntry` values. Any missing tranches
 /// are filled with empty assignments, as they are needed to compute the approved tranches.
-fn filled_tranche_iterator<'a>(
-	tranches: &'a [TrancheEntry],
+fn filled_tranche_iterator(
+	tranches: &[TrancheEntry],
 ) -> impl Iterator<Item = (DelayTranche, &[(ValidatorIndex, Tick)])> {
 	let mut gap_end = None;
 

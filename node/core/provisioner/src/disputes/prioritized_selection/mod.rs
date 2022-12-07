@@ -99,7 +99,7 @@ where
 	);
 
 	// Fetch the onchain disputes. We'll do a prioritization based on them.
-	let onchain = match get_onchain_disputes(sender, leaf.hash.clone()).await {
+	let onchain = match get_onchain_disputes(sender, leaf.hash).await {
 		Ok(r) => r,
 		Err(GetOnchainDisputesError::NotSupported(runtime_api_err, relay_parent)) => {
 			// Runtime version is checked before calling this method, so the error below should never happen!
@@ -138,6 +138,13 @@ where
 		recent_disputes.len(),
 		onchain.len(),
 	);
+
+	// Filter out unconfirmed disputes. However if the dispute is already onchain - don't skip it.
+	// In this case we'd better push as much fresh votes as possible to bring it to conclusion faster.
+	let recent_disputes = recent_disputes
+		.into_iter()
+		.filter(|d| d.2.is_confirmed_concluded() || onchain.contains_key(&(d.0, d.1)))
+		.collect::<Vec<_>>();
 
 	let partitioned = partition_recent_disputes(recent_disputes, &onchain);
 	metrics.on_partition_recent_disputes(&partitioned);
