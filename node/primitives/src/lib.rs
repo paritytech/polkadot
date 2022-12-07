@@ -78,7 +78,7 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 /// candidates longer into finalization: `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION`.
 pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 
-/// How many blocks after finalization a information about backed/included candidate should be
+/// How many blocks after finalization an information about backed/included candidate should be
 /// kept.
 ///
 /// We don't want to remove scraped candidates on finalization because we want to
