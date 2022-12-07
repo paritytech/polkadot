@@ -51,6 +51,8 @@
 
 pub mod migration;
 
+// TODO: Expose the total amount held.
+
 use crate::{
 	slot_range::SlotRange,
 	traits::{Auctioneer, Registrar},
@@ -182,9 +184,13 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::{ensure_root, ensure_signed, pallet_prelude::*};
 
+	/// The current storage version.
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -488,6 +494,7 @@ pub mod pallet {
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
+			CurrencyOf::<T>::reactivate(balance);
 
 			Self::contribution_kill(fund.fund_index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
@@ -527,6 +534,7 @@ pub mod pallet {
 					break
 				}
 				CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
+				CurrencyOf::<T>::reactivate(balance);
 				Self::contribution_kill(fund.fund_index, &who);
 				fund.raised = fund.raised.saturating_sub(balance);
 				refund_count += 1;
@@ -777,6 +785,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		CurrencyOf::<T>::transfer(&who, &fund_account, value, existence)?;
+		CurrencyOf::<T>::deactivate(value);
 
 		let balance = old_balance.saturating_add(value);
 		Self::contribution_put(fund.fund_index, &who, &balance, &memo);

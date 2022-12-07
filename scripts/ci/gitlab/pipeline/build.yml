@@ -22,7 +22,6 @@ build-linux-stable:
     RUN_UI_TESTS: 1
   script:
     - time cargo build --profile testnet --features pyroscope --verbose --bin polkadot
-    - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
@@ -98,7 +97,6 @@ build-malus:
     - .collect-artifacts
   script:
     - time cargo build --profile testnet --verbose -p polkadot-test-malus
-    - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/malus ./artifacts/.
@@ -165,17 +163,18 @@ build-implementers-guide:
     - job:                         test-deterministic-wasm
       artifacts:                   false
   extends:
-    - .docker-env
+    - .kubernetes-env
     - .test-refs
     - .collect-artifacts-short
+  # git depth is set on purpose: https://github.com/paritytech/polkadot/issues/6284
+  variables:
+    GIT_STRATEGY:                  clone
+    GIT_DEPTH:                     0
+    CI_IMAGE:                      paritytech/mdbook-utils:e14aae4a-20221123
   script:
-    - apt-get -y update; apt-get install -y graphviz
-    - cargo install mdbook mdbook-mermaid mdbook-linkcheck mdbook-graphviz mdbook-last-changed
     - mdbook build ./roadmap/implementers-guide
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
-    # FIXME: remove me after CI image gets nonroot
-    - chown -R nonroot:nonroot artifacts/
 
 build-short-benchmark:
   stage:                           build

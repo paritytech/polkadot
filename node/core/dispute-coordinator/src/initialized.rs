@@ -27,7 +27,7 @@ use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
-	SignedDisputeStatement, Timestamp, DISPUTE_WINDOW,
+	SignedDisputeStatement, Timestamp,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -299,7 +299,7 @@ impl Initialized {
 
 						self.highest_session = session;
 
-						db::v1::note_current_session(overlay_db, session)?;
+						db::v1::note_earliest_session(overlay_db, new_window_start)?;
 						self.spam_slots.prune_old(new_window_start);
 					}
 				},
@@ -617,7 +617,9 @@ impl Initialized {
 
 				let _ = tx.send(
 					get_active_with_status(recent_disputes.into_iter(), now)
-						.map(|(k, _)| k)
+						.map(|((session_idx, candidate_hash), dispute_status)| {
+							(session_idx, candidate_hash, dispute_status)
+						})
 						.collect(),
 				);
 			},
@@ -706,25 +708,27 @@ impl Initialized {
 		now: Timestamp,
 	) -> Result<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
-		if session + DISPUTE_WINDOW.get() < self.highest_session {
-			// It is not valid to participate in an ancient dispute (spam?).
+		if !self.rolling_session_window.contains(session) {
+			// It is not valid to participate in an ancient dispute (spam?) or too new.
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
-		let env =
-			match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
-			{
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						session,
-						"We are lacking a `SessionInfo` for handling import of statements."
-					);
+		let env = match CandidateEnvironment::new(
+			&self.keystore,
+			&self.rolling_session_window,
+			session,
+		) {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					session,
+					"We are lacking a `SessionInfo` for handling import of statements."
+				);
 
-					return Ok(ImportStatementsResult::InvalidImport)
-				},
-				Some(env) => env,
-			};
+				return Ok(ImportStatementsResult::InvalidImport)
+			},
+			Some(env) => env,
+		};
 
 		let candidate_hash = candidate_receipt.hash();
 
@@ -1073,20 +1077,22 @@ impl Initialized {
 			"Issuing local statement for candidate!"
 		);
 		// Load environment:
-		let env =
-			match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
-			{
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						session,
-						"Missing info for session which has an active dispute",
-					);
+		let env = match CandidateEnvironment::new(
+			&self.keystore,
+			&self.rolling_session_window,
+			session,
+		) {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					session,
+					"Missing info for session which has an active dispute",
+				);
 
-					return Ok(())
-				},
-				Some(env) => env,
-			};
+				return Ok(())
+			},
+			Some(env) => env,
+		};
 
 		let votes = overlay_db
 			.load_candidate_votes(session, &candidate_hash)?
@@ -1255,7 +1261,7 @@ fn make_dispute_message(
 				votes.invalid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
 			let other_vote = SignedDisputeStatement::new_checked(
 				DisputeStatement::Invalid(*statement_kind),
-				our_vote.candidate_hash().clone(),
+				*our_vote.candidate_hash(),
 				our_vote.session_index(),
 				validators
 					.get(*validator_index)
@@ -1270,7 +1276,7 @@ fn make_dispute_message(
 				votes.valid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
 			let other_vote = SignedDisputeStatement::new_checked(
 				DisputeStatement::Valid(*statement_kind),
-				our_vote.candidate_hash().clone(),
+				*our_vote.candidate_hash(),
 				our_vote.session_index(),
 				validators
 					.get(*validator_index)
