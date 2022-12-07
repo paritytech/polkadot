@@ -65,7 +65,7 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 /// With this information it provides a `CandidateComparator` and as a return value of
 /// `process_active_leaves_update` any scraped votes.
 ///
-/// Scraped candidates are available `CANDIDATE_LIFETIME_AFTER_FINALIZATION` more blocks
+/// Scraped candidates are available `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` more blocks
 /// after finalization as a precaution not to prune them prematurely.
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
@@ -165,10 +165,10 @@ impl ChainScraper {
 
 	/// Prune finalized candidates.
 	///
-	/// We keep each candidate for `CANDIDATE_LIFETIME_AFTER_FINALIZATION` blocks after finalization.
+	/// We keep each candidate for `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` blocks after finalization.
 	/// After that we treat it as low priority.
 	pub fn process_finalized_block(&mut self, finalized_block_number: &BlockNumber) {
-		// `CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1` because `finalized_block_number`counts to the
+		// `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1` because `finalized_block_number`counts to the
 		// candidate lifetime.
 		match finalized_block_number.checked_sub(DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION - 1)
 		{

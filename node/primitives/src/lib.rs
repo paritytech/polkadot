@@ -91,7 +91,7 @@ pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 /// This value should consider the timeout we allow for participation in approval-voting. In
 /// particular, the following condition should hold:
 ///
-/// slot time * `CANDIDATE_LIFETIME_AFTER_FINALIZATION` > `APPROVAL_EXECUTION_TIMEOUT`
+/// slot time * `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` > `APPROVAL_EXECUTION_TIMEOUT`
 /// + slot time
 pub const DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION: BlockNumber = 10;
 
