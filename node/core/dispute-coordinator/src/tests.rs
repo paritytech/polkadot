@@ -120,12 +120,14 @@ async fn generate_opposing_votes_pair(
 	valid_vote_type: VoteType,
 ) -> (SignedDisputeStatement, SignedDisputeStatement) {
 	let valid_vote = match valid_vote_type {
-		VoteType::Backing => test_state
-					.issue_backing_statement_with_index(valid_voter_idx, candidate_hash, session)
-					.await,
-		VoteType::Explicit => test_state
-					.issue_explicit_statement_with_index(valid_voter_idx, candidate_hash, session, true)
-					.await,
+		VoteType::Backing =>
+			test_state
+				.issue_backing_statement_with_index(valid_voter_idx, candidate_hash, session)
+				.await,
+		VoteType::Explicit =>
+			test_state
+				.issue_explicit_statement_with_index(valid_voter_idx, candidate_hash, session, true)
+				.await,
 	};
 	let invalid_vote = test_state
 		.issue_explicit_statement_with_index(invalid_voter_idx, candidate_hash, session, false)
