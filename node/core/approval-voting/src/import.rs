@@ -415,11 +415,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				Err(error) => {
 					// It's possible that we've lost a race with finality.
 					let (tx, rx) = oneshot::channel();
-					ctx.send_message(ChainApiMessage::FinalizedBlockHash(
-						block_header.number.clone(),
-						tx,
-					))
-					.await;
+					ctx.send_message(ChainApiMessage::FinalizedBlockHash(block_header.number, tx))
+						.await;
 
 					let lost_to_finality = match rx.await {
 						Ok(Ok(Some(h))) if h != block_hash => true,
