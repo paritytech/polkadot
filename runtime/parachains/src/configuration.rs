@@ -285,8 +285,10 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
-			ump_max_individual_weight:
-				Weight::from_parts(20u64 * WEIGHT_REF_TIME_PER_MILLIS, MAX_POV_SIZE as u64),
+			ump_max_individual_weight: Weight::from_parts(
+				20u64 * WEIGHT_REF_TIME_PER_MILLIS,
+				MAX_POV_SIZE as u64,
+			),
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
