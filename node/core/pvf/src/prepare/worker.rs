@@ -77,8 +77,8 @@ pub enum Outcome {
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
 /// returns the outcome.
 ///
-/// NOTE: Returning the `TimedOut` or `DidNotMakeIt` errors will trigger the child process being
-/// killed.
+/// NOTE: Returning the `TimedOut`, `IoErr` or `Unreachable` outcomes will trigger the child process
+/// being killed.
 pub async fn start_work(
 	worker: IdleWorker,
 	code: Arc<Vec<u8>>,

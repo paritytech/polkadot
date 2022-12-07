@@ -293,8 +293,8 @@ fn handle_mux(
 			Ok(())
 		},
 		PoolEvent::StartWork(worker, outcome) => {
-			// If we receive any outcome other than `Concluded`, we attempt to kill the worker
-			// process.
+			// If we receive an outcome that the worker is unreachable or that an error occurred on
+			// the worker, we attempt to kill the worker process.
 			match outcome {
 				Outcome::Concluded { worker: idle, result } =>
 					handle_concluded_no_rip(from_pool, spawned, worker, idle, result),
