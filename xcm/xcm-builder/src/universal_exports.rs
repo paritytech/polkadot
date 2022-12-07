@@ -219,8 +219,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		});
 
 		// We then send a normal message to the bridge asking it to export the prepended
-		// message to the remote chain. This will only work if the bridge will do the message
-		// export for free. Common-good chains will typically be afforded this.
+		// message to the remote chain.
 		let (v, mut cost) = validate_send::<Router>(bridge, message)?;
 		if let Some(bridge_payment) = maybe_payment {
 			cost.push(bridge_payment);
