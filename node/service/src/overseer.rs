@@ -70,6 +70,7 @@ pub use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 pub use polkadot_node_core_chain_api::ChainApiSubsystem;
 pub use polkadot_node_core_chain_selection::ChainSelectionSubsystem;
 pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
+pub use polkadot_node_core_prospective_parachains::ProspectiveParachainsSubsystem;
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
@@ -199,7 +200,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		DisputeCoordinatorSubsystem,
 		DisputeDistributionSubsystem<AuthorityDiscoveryService>,
 		ChainSelectionSubsystem,
-		polkadot_overseer::DummySubsystem, // TODO [now]: use real prospective parachains
+		ProspectiveParachainsSubsystem,
 	>,
 	Error,
 >
@@ -321,7 +322,7 @@ where
 			Metrics::register(registry)?,
 		))
 		.chain_selection(ChainSelectionSubsystem::new(chain_selection_config, parachains_db))
-		.prospective_parachains(polkadot_overseer::DummySubsystem)
+		.prospective_parachains(ProspectiveParachainsSubsystem::new())
 		.leaves(Vec::from_iter(
 			leaves
 				.into_iter()
