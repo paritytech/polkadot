@@ -706,7 +706,7 @@ fn too_many_unconfirmed_statements_are_considered_spam() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 1);
+				assert_eq!(votes.valid.raw().len(), 1);
 				assert_eq!(votes.invalid.len(), 1);
 			}
 
@@ -839,8 +839,11 @@ fn approval_vote_import_works() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 2);
-				assert!(votes.valid.get(&ValidatorIndex(4)).is_some(), "Approval vote is missing!");
+				assert_eq!(votes.valid.raw().len(), 2);
+				assert!(
+					votes.valid.raw().get(&ValidatorIndex(4)).is_some(),
+					"Approval vote is missing!"
+				);
 				assert_eq!(votes.invalid.len(), 1);
 			}
 
@@ -964,7 +967,7 @@ fn dispute_gets_confirmed_via_participation() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 2);
+				assert_eq!(votes.valid.raw().len(), 2);
 				assert_eq!(votes.invalid.len(), 1);
 			}
 
@@ -999,7 +1002,7 @@ fn dispute_gets_confirmed_via_participation() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 1);
+				assert_eq!(votes.valid.raw().len(), 1);
 				assert_eq!(votes.invalid.len(), 1);
 			}
 
@@ -1132,7 +1135,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 2);
+				assert_eq!(votes.valid.raw().len(), 2);
 				assert_eq!(votes.invalid.len(), 2);
 			}
 
@@ -1167,7 +1170,7 @@ fn dispute_gets_confirmed_at_byzantine_threshold() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 1);
+				assert_eq!(votes.valid.raw().len(), 1);
 				assert_eq!(votes.invalid.len(), 1);
 			}
 
@@ -1246,7 +1249,7 @@ fn backing_statements_import_works_and_no_spam() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 2);
+				assert_eq!(votes.valid.raw().len(), 2);
 				assert_eq!(votes.invalid.len(), 0);
 			}
 
@@ -1394,7 +1397,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 2);
+				assert_eq!(votes.valid.raw().len(), 2);
 				assert_eq!(votes.invalid.len(), 1);
 			}
 
@@ -1421,7 +1424,7 @@ fn conflicting_votes_lead_to_dispute_participation() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 2);
+				assert_eq!(votes.valid.raw().len(), 2);
 				assert_eq!(votes.invalid.len(), 2);
 			}
 
@@ -1505,7 +1508,7 @@ fn positive_votes_dont_trigger_participation() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 1);
+				assert_eq!(votes.valid.raw().len(), 1);
 				assert!(votes.invalid.is_empty());
 			}
 
@@ -1541,7 +1544,7 @@ fn positive_votes_dont_trigger_participation() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 2);
+				assert_eq!(votes.valid.raw().len(), 2);
 				assert!(votes.invalid.is_empty());
 			}
 
@@ -3075,7 +3078,7 @@ fn refrain_from_participation() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 1);
+				assert_eq!(votes.valid.raw().len(), 1);
 				assert_eq!(votes.invalid.len(), 1);
 			}
 
@@ -3183,7 +3186,7 @@ fn participation_for_included_candidates() {
 					.await;
 
 				let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-				assert_eq!(votes.valid.len(), 2); // 2 => we have participated
+				assert_eq!(votes.valid.raw().len(), 2); // 2 => we have participated
 				assert_eq!(votes.invalid.len(), 1);
 			}
 
