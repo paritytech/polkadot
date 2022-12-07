@@ -151,6 +151,13 @@ impl<T: Config> Pallet<T> {
 		if serialized_len > config.max_downward_message_size {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
+
+		if <Self as Store>::DownwardMessageQueues::decode_len(para).unwrap_or(0) >
+			MAX_MESSAGE_QUEUE_SIZE
+		{
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+		}
+
 		Ok(())
 	}
 
