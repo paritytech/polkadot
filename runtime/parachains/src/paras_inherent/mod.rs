@@ -513,7 +513,7 @@ impl<T: Config> Pallet<T> {
 		METRICS.on_candidates_sanitized(backed_candidates.len() as u64);
 
 		// Process backed candidates according to scheduled cores.
-		let parent_storage_root = parent_header.state_root().clone();
+		let parent_storage_root = *parent_header.state_root();
 		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
 			core_indices: occupied,
 			candidate_receipt_with_backing_validator_indices,
@@ -711,7 +711,7 @@ impl<T: Config> Pallet<T> {
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
 
 			let relay_parent_number = now - One::one();
-			let parent_storage_root = parent_header.state_root().clone();
+			let parent_storage_root = *parent_header.state_root();
 
 			let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 			let backed_candidates = sanitize_backed_candidates::<T, _>(
@@ -1201,7 +1201,7 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	// known 2 epochs ago. it is marginally better than using the parent block
 	// hash since it's harder to influence the VRF output than the block hash.
 	let vrf_random = ParentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
-	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT.clone();
+	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT;
 	if let Some(vrf_random) = vrf_random {
 		entropy.as_mut().copy_from_slice(vrf_random.as_ref());
 	} else {

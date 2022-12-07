@@ -79,7 +79,12 @@ pub enum RecoveryError {
 
 impl std::fmt::Display for RecoveryError {
 	fn fmt(&self, f: &mut core::fmt::Formatter) -> Result<(), core::fmt::Error> {
-		write!(f, "{}", self)
+		let msg = match self {
+			RecoveryError::Invalid => "Invalid",
+			RecoveryError::Unavailable => "Unavailable",
+		};
+
+		write!(f, "{}", msg)
 	}
 }
 
