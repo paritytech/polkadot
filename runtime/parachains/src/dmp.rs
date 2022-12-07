@@ -144,7 +144,7 @@ impl<T: Config> Pallet<T> {
 	/// `queue_downward_message` with the same parameters will be successful.
 	pub fn can_queue_downward_message(
 		config: &HostConfiguration<T::BlockNumber>,
-		_para: &ParaId,
+		para: &ParaId,
 		msg: &DownwardMessage,
 	) -> Result<(), QueueDownwardMessageError> {
 		let serialized_len = msg.len() as u32;
