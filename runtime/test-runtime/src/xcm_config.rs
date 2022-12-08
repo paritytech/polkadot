@@ -116,7 +116,6 @@ impl xcm_executor::Config for XcmConfig {
 	type SafeCallFilter = Everything;
 }
 
-#[cfg(feature = "runtime-benchmarks")]
 parameter_types! {
 	pub ReachableDest: Option<MultiLocation> = Some(xcm::latest::Junctions::Here.into());
 }
@@ -144,6 +143,5 @@ impl pallet_xcm::Config for crate::Runtime {
 	type SovereignAccountOf = ();
 	type MaxLockers = frame_support::traits::ConstU32<8>;
 	type WeightInfo = pallet_xcm::TestWeightInfo;
-	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
 }
