@@ -585,6 +585,20 @@ benchmarks! {
 		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
 	}
 
+	unpaid_execution {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.set_origin(Some(Here.into()));
+
+		let instruction = Instruction::<XcmCallOf<T>>::UnpaidExecution {
+			weight_limit: WeightLimit::Unlimited,
+			check_origin: Some(Here.into()),
+		};
+
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
+	}
+
 	impl_benchmark_test_suite!(
 		Pallet,
 		crate::generic::mock::new_test_ext(),
