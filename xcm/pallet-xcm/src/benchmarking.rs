@@ -27,7 +27,7 @@ benchmarks! {
 	send {
 		let send_origin = T::SendXcmOrigin::successful_origin();
 		if T::SendXcmOrigin::try_origin(send_origin.clone()).is_err() {
-			return BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX))
+			return Err(BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))
 		}
 		let msg = Xcm(vec![ClearOrigin]);
 		let versioned_dest: VersionedMultiLocation = Parachain(2000).into();
