@@ -302,7 +302,7 @@ async fn create_election_ext<T, B>(
 ) -> Result<Ext, Error<T>>
 where
 	T: EPM::Config,
-	B: BlockT,
+	B: BlockT + DeserializeOwned,
 	B::Header: DeserializeOwned,
 {
 	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
@@ -317,13 +317,14 @@ where
 			transport: client.into_inner().into(),
 			at,
 			pallets,
+			hashed_prefixes: vec![<frame_system::BlockHash<T>>::prefix_hash()],
+			hashed_keys: vec![[twox_128(b"System"), twox_128(b"Number")].concat()],
 			..Default::default()
 		}))
-		.inject_hashed_prefix(&<frame_system::BlockHash<T>>::prefix_hash())
-		.inject_hashed_key(&[twox_128(b"System"), twox_128(b"Number")].concat())
 		.build()
 		.await
 		.map_err(|why| Error::RemoteExternalities(why))
+		.map(|rx| rx.inner_ext)
 }
 
 /// Compute the election. It expects to NOT be `Phase::Off`. In other words, the snapshot must
