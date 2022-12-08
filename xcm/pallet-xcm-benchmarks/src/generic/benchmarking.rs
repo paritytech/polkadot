@@ -105,9 +105,7 @@ benchmarks! {
 	}: {
 		executor.bench_process(xcm)?;
 	} verify {
-		// TODO make better assertion? #4426
-		let num_events2 = frame_system::Pallet::<T>::events().len();
-		assert_eq!(num_events + 1, num_events2);
+		// TODO Make the assertion configurable?
 	}
 
 	refund_surplus {
