@@ -12,10 +12,7 @@ pub mod pallet {
 		dispatch::{Dispatchable, GetDispatchInfo},
 		pallet_prelude::Encode,
 	};
-	use xcm::latest::{
-		InteriorMultiLocation, Junction, MultiAsset, MultiAssets, MultiLocation, NetworkId,
-		Response,
-	};
+	use xcm::latest::{Junction, MultiAsset, MultiAssets, MultiLocation, Response};
 
 	#[pallet::config]
 	pub trait Config<I: 'static = ()>: frame_system::Config + crate::Config {
@@ -58,11 +55,6 @@ pub mod pallet {
 
 		/// Return an unlocker, owner and assets that can be locked and unlocked.
 		fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError>;
-
-		/// The pair of `NewtorkId/InteriorMultiLocation` used as remote destination for `ExportMessage`.
-		///
-		/// If set to `Err`, benchmarks which rely on a `export_message_destination` will be skipped.
-		fn export_message_destination() -> Result<(NetworkId, InteriorMultiLocation), BenchmarkError>;
 	}
 
 	#[pallet::pallet]

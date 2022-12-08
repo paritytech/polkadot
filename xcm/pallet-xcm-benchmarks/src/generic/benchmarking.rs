@@ -496,23 +496,6 @@ benchmarks! {
 		assert_eq!(executor.fees_mode(), &FeesMode { jit_withdraw: true });
 	}
 
-	export_message {
-		let (network, destination) = T::export_message_destination().map_err(|_| BenchmarkError::Skip)?;
-
-		let mut executor = new_executor::<T>(Default::default());
-
-		let instruction = Instruction::ExportMessage {
-			network,
-			destination,
-			xcm: Xcm(vec![Instruction::Trap(10)]),
-		};
-		let xcm = Xcm(vec![instruction]);
-	}: {
-		executor.bench_process(xcm)?;
-	} verify {
-		// TODO: Figure out a way to verify that the XCM has been exported
-	}
-
 	lock_asset {
 		let (unlocker, owner, asset) = T::unlockable_asset()?;
 

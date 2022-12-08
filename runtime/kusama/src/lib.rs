@@ -2057,11 +2057,6 @@ sp_api::impl_runtime_apis! {
 					// Kusama doesn't support asset locking
 					Err(BenchmarkError::Skip)
 				}
-
-				fn export_message_destination() -> Result<(NetworkId, InteriorMultiLocation), BenchmarkError> {
-					// Kusama doesn't support `ExportMessage`
-					Err(BenchmarkError::Skip)
-				}
 			}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![
