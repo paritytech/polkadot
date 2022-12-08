@@ -308,6 +308,10 @@ pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, A
 
 parameter_types! {
 	pub static AdvertisedXcmVersion: pallet_xcm::XcmVersion = 3;
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+parameter_types! {
 	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
 }
 
