@@ -308,6 +308,7 @@ pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, A
 
 parameter_types! {
 	pub static AdvertisedXcmVersion: pallet_xcm::XcmVersion = 3;
+	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
 }
 
 impl pallet_xcm::Config for Test {
@@ -331,6 +332,8 @@ impl pallet_xcm::Config for Test {
 	type CurrencyMatcher = IsConcrete<RelayLocation>;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
 	type WeightInfo = TestWeightInfo;
+	#[cfg(feature = "runtime-benchmarks")]
+	type ReachableDest = ReachableDest;
 }
 
 impl origin::Config for Test {}
