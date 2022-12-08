@@ -71,7 +71,9 @@ benchmarks! {
 	}: _<RuntimeOrigin<T>>(execute_origin, Box::new(versioned_msg), Weight::zero())
 
 	force_xcm_version {
-		let loc = Parachain(2000).into_location();
+		let loc = T::ReachableDest::get().ok_or(
+			BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)),
+		)?;
 		let xcm_version = 2;
 	}: _(RawOrigin::Root, Box::new(loc), xcm_version)
 
