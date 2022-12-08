@@ -101,6 +101,7 @@ async fn terminates_on_timeout() {
 
 #[async_std::test]
 async fn parallel_execution() {
+	// Run some jobs that do not complete, thus timing out.
 	let host = TestHost::new();
 	let execute_pvf_future_1 = host.validate_candidate(
 		halt::wasm_binary_unwrap(),
@@ -124,11 +125,14 @@ async fn parallel_execution() {
 	let start = std::time::Instant::now();
 	let (_, _) = futures::join!(execute_pvf_future_1, execute_pvf_future_2);
 
-	// total time should be < 2 x EXECUTION_TIMEOUT_SEC
-	const EXECUTION_TIMEOUT_SEC: u64 = 3;
+	// Total time should be < 2 x TEST_EXECUTION_TIMEOUT (two workers run in parallel).
+	let duration = std::time::Instant::now().duration_since(start);
+	let max_duration = 2 * TEST_EXECUTION_TIMEOUT;
 	assert!(
-		std::time::Instant::now().duration_since(start) <
-			std::time::Duration::from_secs(EXECUTION_TIMEOUT_SEC * 2)
+		duration < max_duration,
+		"Expected duration {}ms to be less than {}ms",
+		duration.as_millis(),
+		max_duration.as_millis()
 	);
 }
 
@@ -141,6 +145,7 @@ async fn execute_queue_doesnt_stall_if_workers_died() {
 	// Here we spawn 8 validation jobs for the `halt` PVF and share those between 5 workers. The
 	// first five jobs should timeout and the workers killed. For the next 3 jobs a new batch of
 	// workers should be spun up.
+	let start = std::time::Instant::now();
 	futures::future::join_all((0u8..=8).map(|_| {
 		host.validate_candidate(
 			halt::wasm_binary_unwrap(),
@@ -153,4 +158,15 @@ async fn execute_queue_doesnt_stall_if_workers_died() {
 		)
 	}))
 	.await;
+
+	// Total time should be >= 2 x TEST_EXECUTION_TIMEOUT (two separate sets of workers that should
+	// both timeout).
+	let duration = std::time::Instant::now().duration_since(start);
+	let max_duration = 2 * TEST_EXECUTION_TIMEOUT;
+	assert!(
+		duration >= max_duration,
+		"Expected duration {}ms to be greater than or equal to {}ms",
+		duration.as_millis(),
+		max_duration.as_millis()
+	);
 }

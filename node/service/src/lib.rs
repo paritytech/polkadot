@@ -95,6 +95,7 @@ pub use polkadot_client::PolkadotExecutorDispatch;
 
 pub use chain_spec::{KusamaChainSpec, PolkadotChainSpec, RococoChainSpec, WestendChainSpec};
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
+use mmr_gadget::MmrGadget;
 #[cfg(feature = "full-node")]
 pub use polkadot_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
@@ -758,6 +759,7 @@ where
 {
 	use polkadot_node_network_protocol::request_response::IncomingRequest;
 
+	let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks = {
@@ -1152,11 +1154,12 @@ where
 				let overseer_handle = overseer_handle.clone();
 
 				async move {
-					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
-						&*client_clone,
-						overseer_handle,
-						parent,
-					).await.map_err(|e| Box::new(e))?;
+					let parachain =
+						polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::new(
+							client_clone,
+							overseer_handle,
+							parent,
+						);
 
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
@@ -1219,24 +1222,25 @@ where
 		} else {
 			task_manager.spawn_handle().spawn_blocking("beefy-gadget", None, gadget);
 		}
-	}
 
-	// Reduce grandpa load on Kusama and test networks. This will slow down finality by
-	// approximately one slot duration, but will reduce load. We would like to see the impact on
-	// Kusama, see: https://github.com/paritytech/polkadot/issues/5464
-	let gossip_duration = if chain_spec.is_versi() ||
-		chain_spec.is_wococo() ||
-		chain_spec.is_rococo() ||
-		chain_spec.is_kusama()
-	{
-		Duration::from_millis(2000)
-	} else {
-		Duration::from_millis(1000)
-	};
+		if is_offchain_indexing_enabled {
+			task_manager.spawn_handle().spawn_blocking(
+				"mmr-gadget",
+				None,
+				MmrGadget::start(
+					client.clone(),
+					backend.clone(),
+					sp_mmr_primitives::INDEXING_PREFIX.to_vec(),
+				),
+			);
+		}
+	}
 
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
-		gossip_duration,
+		// Grandpa performance can be improved a bit by tuning this parameter, see:
+		// https://github.com/paritytech/polkadot/issues/5464
+		gossip_duration: Duration::from_millis(1000),
 		justification_period: 512,
 		name: Some(name),
 		observer_enabled: false,

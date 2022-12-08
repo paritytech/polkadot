@@ -75,7 +75,6 @@
     - [Availability](types/availability.md)
     - [Overseer and Subsystem Protocol](types/overseer-protocol.md)
     - [Runtime](types/runtime.md)
-    - [Chain](types/chain.md)
     - [Messages](types/messages.md)
     - [Network](types/network.md)
     - [Approvals](types/approval.md)

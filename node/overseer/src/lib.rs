@@ -101,8 +101,6 @@ pub use polkadot_node_metrics::{
 	Metronome,
 };
 
-use parity_util_mem::MemoryAllocationTracker;
-
 pub use orchestra as gen;
 pub use orchestra::{
 	contextbounds, orchestra, subsystem, FromOrchestra, MapSubsystem, MessagePacket,
@@ -118,10 +116,13 @@ pub const KNOWN_LEAVES_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(2 * 24
 	None => panic!("Known leaves cache size must be non-zero"),
 };
 
+mod memory_stats;
 #[cfg(test)]
 mod tests;
 
 use sp_core::traits::SpawnNamed;
+
+use memory_stats::MemoryAllocationTracker;
 
 /// Glue to connect `trait orchestra::Spawner` and `SpawnNamed` from `substrate`.
 pub struct SpawnGlue<S>(pub S);
@@ -686,7 +687,7 @@ where
 			subsystem_meters
 				.iter()
 				.cloned()
-				.filter_map(|x| x)
+				.flatten()
 				.map(|(name, ref meters)| (name, meters.read())),
 		);
 
@@ -861,7 +862,7 @@ where
 		let mut span = jaeger::Span::new(*hash, "leaf-activated");
 
 		if let Some(parent_span) = parent_hash.and_then(|h| self.span_per_active_leaf.get(&h)) {
-			span.add_follows_from(&*parent_span);
+			span.add_follows_from(parent_span);
 		}
 
 		let span = Arc::new(span);

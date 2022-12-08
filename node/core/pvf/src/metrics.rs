@@ -183,6 +183,9 @@ impl metrics::Metrics for Metrics {
 					).buckets(vec![
 						// This is synchronized with `APPROVAL_EXECUTION_TIMEOUT`  and
 						// `BACKING_EXECUTION_TIMEOUT` constants in `node/primitives/src/lib.rs`
+						0.01,
+						0.025,
+						0.05,
 						0.1,
 						0.25,
 						0.5,
@@ -192,6 +195,9 @@ impl metrics::Metrics for Metrics {
 						4.0,
 						5.0,
 						6.0,
+						8.0,
+						10.0,
+						12.0,
 					]),
 				)?,
 				registry,

@@ -33,6 +33,9 @@ use polkadot_primitives::v2::{
 ///
 /// And most likely has been constructed correctly. This is used with
 /// `DisputeDistributionMessage::SendDispute` for sending out votes.
+///
+/// NOTE: This is sent over the wire, any changes are a change in protocol and need to be
+/// versioned.
 #[derive(Debug, Clone)]
 pub struct DisputeMessage(UncheckedDisputeMessage);
 
@@ -167,13 +170,13 @@ impl DisputeMessage {
 		let valid_vote = ValidDisputeVote {
 			validator_index: valid_index,
 			signature: valid_statement.validator_signature().clone(),
-			kind: valid_kind.clone(),
+			kind: *valid_kind,
 		};
 
 		let invalid_vote = InvalidDisputeVote {
 			validator_index: invalid_index,
 			signature: invalid_statement.validator_signature().clone(),
-			kind: invalid_kind.clone(),
+			kind: *invalid_kind,
 		};
 
 		Ok(DisputeMessage(UncheckedDisputeMessage {

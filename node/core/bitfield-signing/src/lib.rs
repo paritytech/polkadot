@@ -225,7 +225,7 @@ async fn run<Context>(
 					}
 				}
 
-				for leaf in update.activated {
+				if let Some(leaf) = update.activated {
 					let sender = ctx.sender().clone();
 					let leaf_hash = leaf.hash;
 
