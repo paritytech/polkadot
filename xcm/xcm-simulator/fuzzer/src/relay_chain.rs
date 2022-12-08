@@ -152,6 +152,10 @@ impl Config for XcmConfig {
 
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>;
 
+parameter_types! {
+	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1).into());
+}
+
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
@@ -174,6 +178,7 @@ impl pallet_xcm::Config for Runtime {
 	type SovereignAccountOf = SovereignAccountOf;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
 	type WeightInfo = pallet_xcm::TestWeightInfo;
+	type ReachableDest = ReachableDest;
 }
 
 parameter_types! {

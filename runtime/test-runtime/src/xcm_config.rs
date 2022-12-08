@@ -37,11 +37,6 @@ parameter_types! {
 	pub const UniversalLocation: xcm::latest::InteriorMultiLocation = xcm::latest::Junctions::Here;
 }
 
-#[cfg(feature = "runtime-benchmarks")]
-parameter_types! {
-	pub ReachableDest: Option<MultiLocation> = Some(xcm::latest::Junctions::Here.into());
-}
-
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
 pub type LocalOriginToLocation = (
@@ -121,6 +116,10 @@ impl xcm_executor::Config for XcmConfig {
 	type SafeCallFilter = Everything;
 }
 
+parameter_types! {
+	pub ReachableDest: Option<MultiLocation> = Some(xcm::latest::Junctions::Here.into());
+}
+
 impl pallet_xcm::Config for crate::Runtime {
 	// The config types here are entirely configurable, since the only one that is sorely needed
 	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
@@ -144,6 +143,5 @@ impl pallet_xcm::Config for crate::Runtime {
 	type SovereignAccountOf = ();
 	type MaxLockers = frame_support::traits::ConstU32<8>;
 	type WeightInfo = pallet_xcm::TestWeightInfo;
-	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
 }
