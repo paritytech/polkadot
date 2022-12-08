@@ -261,7 +261,7 @@ benchmarks! {
 	unsubscribe_version {
 		use xcm_executor::traits::VersionChangeNotifier;
 		// First we need to subscribe to notifications.
-		let origin = T::transact_origin()?;
+		let (origin, _) = T::transact_origin_and_runtime_call()?;
 		let query_id = Default::default();
 		let max_response_weight = Default::default();
 		<T::XcmConfig as xcm_executor::Config>::SubscriptionService::start(
