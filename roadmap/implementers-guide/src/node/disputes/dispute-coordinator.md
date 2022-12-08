@@ -9,12 +9,14 @@ In particular the dispute-coordinator is responsible for:
 
 - Ensuring that the node is able to raise a dispute in case an invalid candidate
   is found during approval checking.
-- Ensuring lazy approval votes (votes given without running the parachain
-  validation function) will be recorded, so lazy nodes can get slashed properly.
+- Ensuring approval votes will be recorded.
 - Coordinating actual participation in a dispute, ensuring that the node
   participates in any justified dispute in a way that ensures resolution of
   disputes on the network even in the case of many disputes raised (flood/DoS
   scenario).
+- Ensuring disputes resolve, even for candidates on abandoned forks as much as
+  reasonably possible, to rule out "free tries" and thus guarantee our gambler's
+  ruin property.
 - Provide an API for chain selection, so we can prevent finalization of any
   chain which has included candidates for which a dispute is either ongoing or
   concluded invalid and avoid building on chains with an included invalid
@@ -22,6 +24,8 @@ In particular the dispute-coordinator is responsible for:
 - Provide an API for retrieving (resolved) disputes, including all votes, both
   implicit (approval, backing) and explicit dispute votes. So validators can get
   rewarded/slashed accordingly.
+- Ensure backing votes are recorded and will never get overridden by explicit
+  votes.
 
 ## Ensuring That Disputes Can Be Raised
 
@@ -76,32 +80,38 @@ inefficient process. (Quadratic complexity adds up, with 35 votes in total per c
 Approval votes are very relevant nonetheless as we are going to see in the next
 section.
 
-## Ensuring Lazy Approval Votes Will Be Recorded
+## Ensuring approval votes will be recorded
 
 ### Ensuring Recording
 
-While there is no need to record approval votes in the dispute coordinator
-preemptively, we do need to make sure they are recorded when a dispute
-actually happens. This is because only votes recorded by the dispute
-coordinator will be considered for slashing. It is sufficient for our
-threat model that malicious backers are slashed as opposed to both backers and
-approval checkers. However, we still must import approval votes from the approvals
-process into the disputes process to ensure that lazy approval checkers
-actually run the parachain validation function. Slashing lazy approval checkers is necessary, else we risk a useless approvals process where every approval
-checker blindly votes valid for every candidate. If we did not import approval
-votes, lazy nodes would likely cast a properly checked explicit vote as part
-of the dispute in addition to their blind approval vote and thus avoid a slash.
-With the 2/3rd honest assumption it seems unrealistic that lazy approval voters
-will keep sending unchecked approval votes once they became aware of a raised
-dispute. Hence the most crucial approval votes to import are the early ones
-(tranche 0), to take into account network latencies and such we still want to
-import approval votes at a later point in time as well (in particular we need
-to make sure the dispute can conclude, but more on that later).
+Only votes recorded by the dispute coordinator will be considered for slashing.
 
-As mentioned already previously, importing votes is most efficient when batched.
-At the same time approval voting and disputes are running concurrently so
-approval votes are expected to trickle in still, when a dispute is already
-ongoing.
+While there is no need to record approval votes in the dispute coordinator
+preemptively, we make some effort to have any in approval-voting received
+approval votes recorded when a dispute actually happens:
+
+This is not required for concluding the dispute, as nodes send their own vote
+anyway (either explicit valid or their existing approval-vote). What nodes can
+do though, is participating in approval-voting, casting a vote, but later when a
+dispute is raised reconsider their vote and send an explicit invalid vote. If
+they managed to only have that one recorded, then they could avoid a slash.
+
+This is not a problem for our basic security assumptions: The backers are the
+ones to be supposed to have skin in the game, so we are not too woried about
+colluding approval voters getting away slash free as the gambler's ruin property
+is maintained anyway. There is however a separate problem, from colluding
+approval-voters, that is "lazy" approval voters. If it were easy and reliable
+for approval-voters to reconsider their vote, in case of an actual dispute, then
+they don't have a direct incentive (apart from playing a part in securing the
+network) to properly run the validation function at all - they could just always
+vote "valid" totally risk free. (While they would alwasy risk a slash by voting
+invalid.)
+
+
+So we do want to fetch approval votes from approval-voting. Importing votes is
+most efficient when batched. At the same time approval voting and disputes are
+running concurrently so approval votes are expected to trickle in still, when a
+dispute is already ongoing.
 
 Hence, we have the following requirements for importing approval votes:
 
@@ -112,12 +122,12 @@ Hence, we have the following requirements for importing approval votes:
    already running.
 
 With a design where approval voting sends votes to the dispute-coordinator by
-itself, we would need to make approval voting aware of ongoing disputes and
-once it is aware it could start sending all already existing votes batched and
+itself, we would need to make approval voting aware of ongoing disputes and once
+it is aware it could start sending all already existing votes batched and
 trickling in votes as they come. The problem with this is, that it adds some
 unnecessary complexity to approval-voting and also we might still import most of
-the votes unbatched, but one-by-one, depending on what point in time the dispute
-was raised.
+the votes unbatched one-by-one, depending on what point in time the dispute was
+raised.
 
 Instead of the dispute coordinator informing approval-voting of an ongoing
 dispute for it to begin forwarding votes to the dispute coordinator, it makes
@@ -126,14 +136,11 @@ candidates in dispute. This way, the dispute coordinator can also pick the best
 time for maximizing the number of votes in the batch.
 
 Now the question remains, when should the dispute coordinator ask
-approval-voting for votes? As argued above already, querying approval votes at
-the beginning of the dispute, will likely already take care of most malicious
-votes. Still we would like to have a record of all, if possible. So what are
-other points in time we might query approval votes?
+approval-voting for votes?
 
 In fact for slashing it is only relevant to have them once the dispute
 concluded, so we can query approval voting the moment the dispute concludes!
-There are two potential caveats with this though:
+Two concerns that come to mind, are easily addressed:
 
 1. Timing: We would like to rely as little as possible on implementation details
    of approval voting. In particular, if the dispute is ongoing for a long time,
@@ -153,31 +160,12 @@ There are two potential caveats with this though:
    chain can no longer be finalized (some other/better fork already has been).
    This second problem can somehow be mitigated by also importing votes as soon
    as a dispute is detected, but not fully resolved. It is still inherently
-   racy. The problem can be solved in at least two ways: Either go back to full
-   eager import of approval votes into the dispute-coordinator in some more
-   efficient manner or by changing requirements on approval-voting, making it
-   hold on votes longer than necessary for approval-voting itself. Conceptually
-   both solutions are equivalent, as we make sure votes are available even
-   without an ongoing dispute. For now, in the interest of time we punt on this
-   issue: If nodes import votes as soon as a dispute is raised in addition to
-   when it concludes, we have a good chance of getting relevant votes and even
-   if not, the fundamental security properties will still hold: Backers are
-   getting slashed, therefore gambler's ruin is maintained. We would still like
-   to fix this at [some
-   point](https://github.com/paritytech/polkadot/issues/5864).
-2. There could be a chicken and egg problem: If we wait for approval vote import
-   for the dispute to conclude, we would run into a problem if we needed those
-   approval votes to get enough votes to conclude the dispute. Luckily it turns
-   out that this is not quite true or at least can be made not true easily: As
-   already mentioned, approval voting and disputes are running concurrently, but
-   not only that, they race with each other! A node might simultaneously start
-   participating in a dispute via the dispute coordinator, due to learning about
-   a dispute via dispute-distribution, while also participating in approval
-   voting. By distributing our own approval vote we make sure the dispute can
-   conclude regardless how the race ended (we either participate explicitly
-   anyway or we sent our already present approval vote). By importing all
-   approval votes we make it possible to slash lazy approval voters, even
-   if they also cast an invalid explicit vote.
+   racy. The good thing is, this should be good enough: We are worried about
+   lazy approval checkers, the system does not need to be perfect. It should be
+   enough if there is some risk of getting caught.
+2. We are not worried about the dispute not concluding, as nodes will always
+   send their own vote, regardless of it being an explict or an already existing
+   approval-vote.
 
 Conclusion: As long as we make sure, if our own approval vote gets imported
 (which would prevent dispute participation) to also distribute it via
@@ -186,28 +174,27 @@ approval-voting deleting votes we will import approval votes twice during a
 dispute: Once when it is raised, to make as sure as possible to see approval
 votes also for abandoned forks and second when the dispute concludes, to
 maximize the amount of potentially malicious approval votes to be recorded. The
-raciness obviously is not fully resolved by this, [a
-ticket](https://github.com/paritytech/polkadot/issues/5864) exists.
+raciness obviously is not fully resolved by this, but this is fine as argued
+above.
 
 Ensuring vote import on chain is covered in the next section.
 
-As already touched: Honest nodes
-will likely validate twice, once in approval voting and once via
-dispute-participation. Avoiding that does not really seem worthwhile though, as
-disputes are for one exceptional, so a little wasted effort won't affect
-everyday performance - second, even with eager importing of approval votes,
-those doubled work is still present as disputes and approvals are racing. Every
-time participation is faster than approval, a node would do double work.
+What we don't care about is that honest approval-voters will likely validate
+twice, once in approval voting and once via dispute-participation. Avoiding that
+does not really seem worthwhile though, as disputes are for one exceptional, so
+a little wasted effort won't affect everyday performance - second, even with
+eager importing of approval votes, those doubled work is still present as
+disputes and approvals are racing. Every time participation is faster than
+approval, a node would do double work.
 
 ### Ensuring Chain Import
 
 While in the previous section we discussed means for nodes to ensure relevant
 votes are recorded so lazy approval checkers get slashed properly, it is crucial
 to also discuss the actual chain import. Only if we guarantee that recorded votes
-will also get imported on chain (on all potential chains really) we will succeed
+will get imported on chain (on all potential chains really) we will succeed
 in executing slashes. Particularly we need to make sure backing votes end up on
-chain consistantly. In contrast recording and slashing lazy approval voters only
-needs to be likely, not certain.
+chain consistently.
 
 Dispute distribution will make sure all explicit dispute votes get distributed
 among nodes which includes current block producers (current authority set) which
@@ -309,7 +296,7 @@ to send out a thousand tiny network messages by just sending out a single
 garbage message, is still a significant amplification and is nothing to ignore -
 this could absolutely be used to cause harm!
 
-#### Participation
+### Participation
 
 As explained, just blindly participating in any "dispute" that comes along is
 not a good idea. First we would like to make sure the dispute is actually
@@ -336,7 +323,7 @@ participation at all on any _vote import_ if any of the following holds true:
   honest node that already voted, so the dispute must be genuine.
 
 Note: A node might be out of sync with the chain and we might only learn about a
-block including a candidate, after we learned about the dispute. This means, we
+block, including a candidate, after we learned about the dispute. This means, we
 have to re-evaluate participation decisions on block import!
 
 With this, nodes won't waste significant resources on completely made up
@@ -348,7 +335,7 @@ obviously only need to worry about order if participations start queuing up.
 
 We treat participation for candidates that we have seen included with priority
 and put them on a priority queue which sorts participation based on the block
-number of the relay parent of that candidate and for candidates with the same
+number of the relay parent of the candidate and for candidates with the same
 relay parent height further by the `CandidateHash`. This ordering is globally
 unique and also prioritizes older candidates.
 
@@ -359,38 +346,57 @@ times instead of just once to the oldest offender. This is obviously a good
 idea, in particular it makes it impossible for an attacker to prevent rolling
 back a very old candidate, by keeping raising disputes for newer candidates.
 
-For candidates we have not seen included, but we know are backed (thanks to chain
-scraping) or we have seen a dispute with 1/3+1 participation (confirmed dispute)
-on them - we put participation on a best-effort queue. It has got the same
-ordering as the priority one - by block heights of the relay parent, older blocks
-are with priority. There is a possibility not to be able to obtain the block number
-of the parent when we are inserting the dispute in the queue. The reason for this
-is either the dispute is completely made up or we are out of sync with the other
-nodes in terms of last finalized block. The former is very unlikely. If we are
-adding a dispute in best-effort it should already be either confirmed or the
-candidate is backed. In the latter case we will promote the dispute to the
-priority queue once we learn about the new block. NOTE: this is still work in
-progress and is tracked by [this issue]
-(https://github.com/paritytech/polkadot/issues/5875).
+For candidates we have not seen included, but we know are backed (thanks to
+chain scraping) or we have seen a dispute with 1/3+1 participation (confirmed
+dispute) on them - we put participation on a best-effort queue. It has got the
+same ordering as the priority one - by block heights of the relay parent, older
+blocks are with priority. There is a possibility not to be able to obtain the
+block number of the parent when we are inserting the dispute in the queue. To
+account for races, we will promote any existing participation request to the
+priority queue once we learn about an including block. NOTE: this is still work
+in progress and is tracked by [this
+issue](https://github.com/paritytech/polkadot/issues/5875).
 
-#### Import
+### Abandoned Forks
 
-In the last section we looked at how to treat queuing participations to handle
-heavy dispute load well. This already ensures, that honest nodes won't amplify
-cheap DoS attacks. There is one minor issue remaining: Even if we delay
+Finalization: As mentioned we care about included and backed candidates on any
+non-finalized chain, given that any disputed chain will not get finalized, we
+don't need to care about finalized blocks, but what about forks that fall behind
+the finalized chain in terms of block number? For those we would still like to
+be able to participate in any raised disputes, otherwise attackers might be able
+to avoid a slash if they manage to create a better fork after they learned about
+the approval checkers. Therefore we do care about those forks even after they
+have fallen behind the finalized chain.
+
+For simplicity we also care about the actual finalized chain (not just forks) up
+to a certain depth. We do have to limit the depth, because otherwise we open a
+DoS vector again. The depth (into the finalized chain) should be oriented on the
+approval-voting execution timeout, in particular it should be significantly
+larger. Otherwise by the time the execution is allowed to finish, we already
+dropped information about those candidates and the dispute could not conclude.
+
+## Import
+
+### Spam Considerations
+
+In the last section we looked at how to treat queuing participations to
+handle heavy dispute load well. This already ensures, that honest nodes won't
+amplify cheap DoS attacks. There is one minor issue remaining: Even if we delay
 participation until we have some confirmation of the authenticity of the
-dispute, we should also not blindly import all votes arriving into the
-database as this might be used to just slowly fill up disk space, until the node
-is no longer functional. This leads to our last protection mechanism at the
-dispute coordinator level (dispute-distribution also has its own), which is spam
-slots. For each import, where we don't know whether it might be spam or not we
-increment a counter for each signing participant of explicit `invalid` votes.
+dispute, we should also not blindly import all votes arriving into the database
+as this might be used to just slowly fill up disk space, until the node is no
+longer functional. This leads to our last protection mechanism at the dispute
+coordinator level (dispute-distribution also has its own), which is spam slots.
+For each import containing an invalid vote, where we don't know whether it might
+be spam or not we increment a counter for each signing participant of explicit
+`invalid` votes.
 
 What votes do we treat as a potential spam? A vote will increase a spam slot if
-and only if all of the following condidions are satisfied:
-* the candidate under dispute is not included on any chain
+and only if all of the following conditions are satisfied:
+
+* the candidate under dispute was not seen included nor backed on any chain
 * the dispute is not confirmed
-* we haven't casted a vote for the dispute
+* we haven't cast a vote for the dispute
 
 The reason this works is because we only need to worry about actual dispute
 votes. Import of backing votes are already rate limited and concern only real
@@ -400,6 +406,17 @@ concluded. For actual dispute votes, we need two opposing votes, so there must b
 an explicit `invalid` vote in the import. Only a third of the validators can be
 malicious, so spam disk usage is limited to `2*vote_size*n/3*NUM_SPAM_SLOTS`, with
 `n` being the number of validators.
+
+### Backing Votes
+
+Backing votes are in some way special. For starters they are the only valid
+votes that are guaranteed to exist for any valid dispute to be raised. Second
+they are the only votes that commit to a shorter execution timeout
+`BACKING_EXECUTION_TIMEOUT`, compared to a more lenient timeout used in approval
+voting. To account properly for execution time variance across machines,
+slashing might treat backing votes differently (more aggressively) than other
+voting `valid` votes. Hence in import we shall never override a backing vote
+with another valid vote. They can not be assumed to be interchangeable.
 
 ## Attacks & Considerations
 

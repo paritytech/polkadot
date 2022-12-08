@@ -279,7 +279,7 @@ impl DisputeSender {
 			Some(votes) => votes,
 		};
 
-		let our_valid_vote = votes.valid.get(&our_index);
+		let our_valid_vote = votes.valid.raw().get(&our_index);
 
 		let our_invalid_vote = votes.invalid.get(&our_index);
 
@@ -291,7 +291,7 @@ impl DisputeSender {
 		} else if let Some(our_invalid_vote) = our_invalid_vote {
 			// Get some valid vote as well:
 			let valid_vote =
-				votes.valid.iter().next().ok_or(JfyiError::MissingVotesFromCoordinator)?;
+				votes.valid.raw().iter().next().ok_or(JfyiError::MissingVotesFromCoordinator)?;
 			(valid_vote, (&our_index, our_invalid_vote))
 		} else {
 			// There is no vote from us yet - nothing to do.
