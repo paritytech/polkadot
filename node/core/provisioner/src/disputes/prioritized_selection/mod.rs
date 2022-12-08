@@ -216,7 +216,7 @@ where
 
 		// Check if votes are within the limit
 		for (session_index, candidate_hash, selected_votes) in votes {
-			let votes_len = selected_votes.valid.len() + selected_votes.invalid.len();
+			let votes_len = selected_votes.valid.raw().len() + selected_votes.invalid.len();
 			if votes_len + total_votes_len > MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME {
 				// we are done - no more votes can be added
 				return result
