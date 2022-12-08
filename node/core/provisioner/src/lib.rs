@@ -373,7 +373,7 @@ async fn send_inherent_data(
 
 	let disputes = match has_required_runtime(
 		from_job,
-		leaf.hash.clone(),
+		leaf.hash,
 		PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT,
 	)
 	.await
@@ -506,7 +506,7 @@ fn select_availability_bitfields(
 		bitfields.len()
 	);
 
-	selected.into_iter().map(|(_, b)| b).collect()
+	selected.into_values().collect()
 }
 
 /// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.

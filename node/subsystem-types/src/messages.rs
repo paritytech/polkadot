@@ -541,9 +541,7 @@ pub enum AvailabilityStoreMessage {
 impl AvailabilityStoreMessage {
 	/// In fact, none of the `AvailabilityStore` messages assume a particular relay parent.
 	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			_ => None,
-		}
+		None
 	}
 }
 
