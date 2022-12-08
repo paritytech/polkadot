@@ -26,8 +26,8 @@ pub mod currency {
 	pub const EXISTENTIAL_DEPOSIT: Balance = 1 * CENTS;
 
 	pub const UNITS: Balance = 1_000_000_000_000;
-	pub const CENTS: Balance = UNITS / 30_000;
-	pub const QUID: Balance = CENTS * 100;
+	pub const QUID: Balance = UNITS / 30;
+	pub const CENTS: Balance = QUID / 100;
 	pub const GRAND: Balance = QUID * 1_000;
 	pub const MILLICENTS: Balance = CENTS / 1_000;
 

@@ -78,6 +78,9 @@ enum Selected {
 
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
 /// returns the outcome.
+///
+/// NOTE: Returning the `TimedOut` or `DidNotMakeIt` errors will trigger the child process being
+/// killed.
 pub async fn start_work(
 	worker: IdleWorker,
 	code: Arc<Vec<u8>>,
@@ -149,6 +152,7 @@ pub async fn start_work(
 			},
 		};
 
+		// NOTE: A `TimedOut` or `DidNotMakeIt` error triggers the child process being killed.
 		match selected {
 			// Timed out on the child. This should already be logged by the child.
 			Selected::Done(Err(PrepareError::TimedOut)) => Outcome::TimedOut,
@@ -162,6 +166,9 @@ pub async fn start_work(
 }
 
 /// Handles the case where we successfully received response bytes on the host from the child.
+///
+/// NOTE: Here we know the artifact exists, but is still located in a temporary file which will be
+/// cleared by `with_tmp_file`.
 async fn handle_response_bytes(
 	response_bytes: Vec<u8>,
 	pid: u32,
@@ -201,9 +208,6 @@ async fn handle_response_bytes(
 		);
 
 		// Return a timeout error.
-		//
-		// NOTE: The artifact exists, but is located in a temporary file which
-		// will be cleared by `with_tmp_file`.
 		return Selected::Deadline
 	}
 

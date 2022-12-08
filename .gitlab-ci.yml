@@ -93,7 +93,6 @@ default:
   before_script:
     - rustup show
     - cargo --version
-    - sccache -s
 
 .test-refs:
   rules:

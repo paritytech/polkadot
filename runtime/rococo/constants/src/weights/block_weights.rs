@@ -1,28 +1,26 @@
-// This file is part of Substrate.
+// Copyright 2017-2022 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
 
-// Copyright (C) 2022 Parity Technologies (UK) Ltd.
-// SPDX-License-Identifier: Apache-2.0
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 
-// Licensed under the Apache License, Version 2.0 (the "License");
-// you may not use this file except in compliance with the License.
-// You may obtain a copy of the License at
-//
-// http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS,
-// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-// See the License for the specific language governing permissions and
-// limitations under the License.
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
 
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-08-19 (Y/M/D)
+//! DATE: 2022-11-16 (Y/M/D)
 //! HOSTNAME: `bm6`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
 //!
 //! SHORT-NAME: `block`, LONG-NAME: `BlockExecution`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
 //! WEIGHT-PATH: `runtime/rococo/constants/src/weights/`
-//! WEIGHT-METRIC: `Average`, WEIGHT-MUL: `1`, WEIGHT-ADD: `0`
+//! WEIGHT-METRIC: `Average`, WEIGHT-MUL: `1.0`, WEIGHT-ADD: `0`
 
 // Executed Command:
 //   ./target/production/polkadot
@@ -34,32 +32,31 @@
 //   --weight-path=runtime/rococo/constants/src/weights/
 //   --warmup=10
 //   --repeat=100
+//   --header=./file_header.txt
 
-use frame_support::{
-	parameter_types,
-	weights::{constants::WEIGHT_PER_NANOS, Weight},
-};
+use sp_core::parameter_types;
+use sp_weights::{constants::WEIGHT_PER_NANOS, Weight};
 
 parameter_types! {
 	/// Time to execute an empty block.
-	/// Calculated by multiplying the *Average* with `1` and adding `0`.
+	/// Calculated by multiplying the *Average* with `1.0` and adding `0`.
 	///
 	/// Stats nanoseconds:
-	///   Min, Max: 4_039_227, 4_394_160
-	///   Average:  4_084_738
-	///   Median:   4_077_180
-	///   Std-Dev:  44325.29
+	///   Min, Max: 5_285_413, 5_582_840
+	///   Average:  5_334_883
+	///   Median:   5_320_357
+	///   Std-Dev:  54133.56
 	///
 	/// Percentiles nanoseconds:
-	///   99th: 4_189_094
-	///   95th: 4_152_261
-	///   75th: 4_098_529
-	pub const BlockExecutionWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(4_084_738);
+	///   99th: 5_495_378
+	///   95th: 5_453_765
+	///   75th: 5_352_587
+	pub const BlockExecutionWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(5_334_883);
 }
 
 #[cfg(test)]
 mod test_weights {
-	use frame_support::weights::constants;
+	use sp_weights::constants;
 
 	/// Checks that the weight exists and is sane.
 	// NOTE: If this test fails but you are sure that the generated values are fine,
