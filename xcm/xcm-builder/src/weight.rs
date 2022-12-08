@@ -17,7 +17,7 @@
 use frame_support::{
 	dispatch::GetDispatchInfo,
 	traits::{tokens::currency::Currency as CurrencyT, Get, OnUnbalanced as OnUnbalancedT},
-	weights::{constants::WEIGHT_PER_SECOND, WeightToFee as WeightToFeeT},
+	weights::{constants::WEIGHT_REF_TIME_PER_SECOND, WeightToFee as WeightToFeeT},
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
@@ -145,7 +145,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 		);
 		let (id, units_per_second) = T::get();
 		let amount =
-			units_per_second * (weight.ref_time() as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+			units_per_second * (weight.ref_time() as u128) / (WEIGHT_REF_TIME_PER_SECOND as u128);
 		if amount == 0 {
 			return Ok(payment)
 		}
@@ -161,7 +161,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
 		let amount =
-			units_per_second * (weight.ref_time() as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+			units_per_second * (weight.ref_time() as u128) / (WEIGHT_REF_TIME_PER_SECOND as u128);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		if amount > 0 {
