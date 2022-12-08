@@ -30,13 +30,19 @@ benchmarks! {
 			return Err(BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))
 		}
 		let msg = Xcm(vec![ClearOrigin]);
-		let versioned_dest: VersionedMultiLocation = Parachain(2000).into();
+		let versioned_dest: VersionedMultiLocation = T::ReachableDest.ok_or(
+			BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)),
+		)
+		.into();
 		let versioned_msg = VersionedXcm::from(msg);
 	}: _<RuntimeOrigin<T>>(send_origin, Box::new(versioned_dest), Box::new(versioned_msg))
 
 	teleport_assets {
 		let recipient = [0u8; 32];
-		let versioned_dest: VersionedMultiLocation = Parachain(2000).into();
+		let versioned_dest: VersionedMultiLocation = T::ReachableDest.ok_or(
+			BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)),
+		)
+		.into();
 		let versioned_beneficiary: VersionedMultiLocation =
 			AccountId32 { network: None, id: recipient.into() }.into();
 		let versioned_assets: VersionedMultiAssets = (Here, 10).into();
@@ -44,7 +50,10 @@ benchmarks! {
 
 	reserve_transfer_assets {
 		let recipient = [0u8; 32];
-		let versioned_dest: VersionedMultiLocation = Parachain(2000).into();
+		let versioned_dest: VersionedMultiLocation = T::ReachableDest.ok_or(
+			BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)),
+		)
+		.into();
 		let versioned_beneficiary: VersionedMultiLocation =
 			AccountId32 { network: None, id: recipient.into() }.into();
 		let versioned_assets: VersionedMultiAssets = (Here, 10).into();

@@ -209,6 +209,12 @@ pub mod pallet {
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
+
+		/// A `MultiLocation` that can be reached via `XcmRouter`. Used only in benchmarks.
+		///
+		/// If `None`, the benchmarks that depend on a reachable destination will be skipped.
+		#[cfg(feature = "runtime-benchmarks")]
+		type ReachableDest: Option<MultiLocation>;
 	}
 
 	#[pallet::event]

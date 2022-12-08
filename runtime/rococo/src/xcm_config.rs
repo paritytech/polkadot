@@ -329,4 +329,6 @@ impl pallet_xcm::Config for Runtime {
 	type SovereignAccountOf = LocationConverter;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type ReachableDest = Parachain(1000).into();
 }
