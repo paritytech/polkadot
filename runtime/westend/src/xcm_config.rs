@@ -83,6 +83,12 @@ parameter_types! {
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
+
+#[cfg(feature = "runtime-benchmarks")]
+parameter_types! {
+	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
+}
+
 pub type TrustedTeleporters =
 	(xcm_builder::Case<WndForWestmint>, xcm_builder::Case<WndForCollectives>);
 
@@ -244,5 +250,5 @@ impl pallet_xcm::Config for Runtime {
 	type MaxLockers = frame_support::traits::ConstU32<8>;
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
-	type ReachableDest = Parachain(1000).into();
+	type ReachableDest = ReachableDest;
 }

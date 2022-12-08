@@ -214,7 +214,7 @@ pub mod pallet {
 		///
 		/// If `None`, the benchmarks that depend on a reachable destination will be skipped.
 		#[cfg(feature = "runtime-benchmarks")]
-		type ReachableDest: Option<MultiLocation>;
+		type ReachableDest: Get<Option<MultiLocation>>;
 	}
 
 	#[pallet::event]
