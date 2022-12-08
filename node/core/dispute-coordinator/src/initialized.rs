@@ -26,8 +26,8 @@ use futures::{
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
-	SignedDisputeStatement, Timestamp,
+	disputes::ValidCandidateVotes, CandidateVotes, DisputeMessage, DisputeMessageCheckError,
+	DisputeStatus, SignedDisputeStatement, Timestamp,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -1024,7 +1024,7 @@ impl Initialized {
 			imported_approval_votes = ?import_result.imported_approval_votes(),
 			imported_valid_votes = ?import_result.imported_valid_votes(),
 			imported_invalid_votes = ?import_result.imported_invalid_votes(),
-			total_valid_votes = ?import_result.new_state().votes().valid.len(),
+			total_valid_votes = ?import_result.new_state().votes().valid.raw().len(),
 			total_invalid_votes = ?import_result.new_state().votes().invalid.len(),
 			confirmed = ?import_result.new_state().is_confirmed(),
 			"Import summary"
@@ -1099,7 +1099,7 @@ impl Initialized {
 			.map(CandidateVotes::from)
 			.unwrap_or_else(|| CandidateVotes {
 				candidate_receipt: candidate_receipt.clone(),
-				valid: BTreeMap::new(),
+				valid: ValidCandidateVotes::new(),
 				invalid: BTreeMap::new(),
 			});
 
@@ -1272,8 +1272,12 @@ fn make_dispute_message(
 			.map_err(|()| DisputeMessageCreationError::InvalidStoredStatement)?;
 			(our_vote, our_index, other_vote, *validator_index)
 		} else {
-			let (validator_index, (statement_kind, validator_signature)) =
-				votes.valid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
+			let (validator_index, (statement_kind, validator_signature)) = votes
+				.valid
+				.raw()
+				.iter()
+				.next()
+				.ok_or(DisputeMessageCreationError::NoOppositeVote)?;
 			let other_vote = SignedDisputeStatement::new_checked(
 				DisputeStatement::Valid(*statement_kind),
 				*our_vote.candidate_hash(),
