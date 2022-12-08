@@ -42,3 +42,8 @@ polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 assert_matches = "1.4.0"
 kvdb-memorydb = "0.12.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
+criterion = { version = "0.4.0", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "check_assignment_cert"
+harness = false
