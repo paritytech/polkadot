@@ -78,12 +78,18 @@ benchmarks! {
 	force_default_xcm_version {}: _(RawOrigin::Root, Some(2))
 
 	force_subscribe_version_notify {
-		let versioned_loc: VersionedMultiLocation = Parachain(2000).into();
+		let versioned_loc: VersionedMultiLocation = T::ReachableDest::get().ok_or(
+			BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)),
+		)?
+		.into();
 	}: _(RawOrigin::Root, Box::new(versioned_loc))
 
 	force_unsubscribe_version_notify {
-		let versioned_loc: VersionedMultiLocation = Parachain(2000).into();
-		let _ = Pallet::<T>::request_version_notify(Parachain(2000));
+		let loc = T::ReachableDest::get().ok_or(
+			BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)),
+		)?;
+		let versioned_loc: VersionedMultiLocation = loc.into();
+		let _ = Pallet::<T>::request_version_notify(loc);
 	}: _(RawOrigin::Root, Box::new(versioned_loc))
 
 	impl_benchmark_test_suite!(
