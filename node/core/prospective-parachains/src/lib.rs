@@ -79,6 +79,13 @@ impl View {
 #[derive(Default)]
 pub struct ProspectiveParachainsSubsystem;
 
+impl ProspectiveParachainsSubsystem {
+	/// Create a new instance of the `ProspectiveParachainsSubsystem`.
+	pub fn new() -> Self {
+		Self
+	}
+}
+
 #[overseer::subsystem(ProspectiveParachains, error = SubsystemError, prefix = self::overseer)]
 impl<Context> ProspectiveParachainsSubsystem
 where
