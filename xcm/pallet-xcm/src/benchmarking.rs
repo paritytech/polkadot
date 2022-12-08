@@ -26,6 +26,9 @@ type RuntimeOrigin<T> = <T as frame_system::Config>::RuntimeOrigin;
 benchmarks! {
 	send {
 		let send_origin = T::SendXcmOrigin::successful_origin();
+		if T::SendXcmOrigin::try_origin(send_origin.clone()).is_err() {
+			return BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX))
+		}
 		let msg = Xcm(vec![ClearOrigin]);
 		let versioned_dest: VersionedMultiLocation = Parachain(2000).into();
 		let versioned_msg = VersionedXcm::from(msg);
