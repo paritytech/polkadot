@@ -38,10 +38,12 @@ pub mod pallet {
 		/// If set to `None`, benchmarks which rely on a universal alias will be skipped.
 		fn universal_alias() -> Result<Junction, BenchmarkError>;
 
-		/// The `MultiLocation` used for successful transaction XCMs.
+		/// The `MultiLocation` and `RuntimeCall` used for successful transaction XCMs.
 		///
-		/// If set to `None`, benchmarks which rely on a `transact_origin` will be skipped.
-		fn transact_origin() -> Result<MultiLocation, BenchmarkError>;
+		/// If set to `None`, benchmarks which rely on a `transact_origin_and_runtime_call` will be
+		/// skipped.
+		fn transact_origin_and_runtime_call(
+		) -> Result<(MultiLocation, <Self as crate::generic::Config<I>>::RuntimeCall), BenchmarkError>;
 
 		/// A valid `MultiLocation` we can successfully subscribe to.
 		///
