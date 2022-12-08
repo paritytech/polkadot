@@ -139,4 +139,6 @@ impl pallet_xcm::Config for crate::Runtime {
 	type SovereignAccountOf = ();
 	type MaxLockers = frame_support::traits::ConstU32<8>;
 	type WeightInfo = pallet_xcm::TestWeightInfo;
+	#[cfg(feature = "runtime-benchmarks")]
+	type ReachableDest = xcm::latest::Junctions::Here.into();
 }
