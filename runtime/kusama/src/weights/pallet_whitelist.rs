@@ -62,16 +62,10 @@ impl<T: frame_system::Config> pallet_whitelist::WeightInfo for WeightInfo<T> {
 	}
 	// Storage: Whitelist WhitelistedCall (r:1 w:1)
 	// Storage: Preimage StatusFor (r:1 w:1)
-<<<<<<< HEAD
 	// Storage: Preimage PreimageFor (r:1 w:1)
 	fn dispatch_whitelisted_call() -> Weight {
 		// Minimum execution time: 5_262_360 nanoseconds.
 		Weight::from_ref_time(5_335_340_000 as u64)
-=======
-	// TODO regenerate
-	fn dispatch_whitelisted_call(_n: u32) -> Weight {
-		Weight::from_ref_time(7_327_364_000 as u64)
->>>>>>> origin/master
 			.saturating_add(T::DbWeight::get().reads(3 as u64))
 			.saturating_add(T::DbWeight::get().writes(3 as u64))
 	}
