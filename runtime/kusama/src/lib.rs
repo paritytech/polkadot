@@ -2211,10 +2211,11 @@ mod remote_tests {
 	use std::env::var;
 
 	#[tokio::test]
-	async fn slash_defer_proposal() {
+	async fn proposal() {
 		use frame_support::traits::UnfilteredDispatchable;
 		use sp_core::hexdisplay::HexDisplay;
-		use sp_runtime::traits::Zero;
+		use pallet_election_provider_multi_phase as EPM;
+		use frame_election_provider_support::Supports;
 
 		sp_tracing::try_init_simple();
 		let transport: Transport =
@@ -2236,27 +2237,62 @@ mod remote_tests {
 			.build()
 			.await
 			.unwrap();
+
+		let origin = pallet_custom_origins::Origin::StakingAdmin;
 		ext.execute_with(|| {
-			// we have some slashes now.
-			assert_eq!(pallet_staking::UnappliedSlashes::<Runtime>::iter_keys().collect::<Vec<_>>(), vec![4571]);
-			assert!(!pallet_staking::UnappliedSlashes::<Runtime>::get(4571).is_empty());
+			let slash_cancel = {
+				// we have some slashes now.
+				assert_eq!(
+					pallet_staking::UnappliedSlashes::<Runtime>::iter_keys().collect::<Vec<_>>(),
+					vec![4571]
+				);
+				assert!(!pallet_staking::UnappliedSlashes::<Runtime>::get(4571).is_empty());
 
-			// remove all slashes. we have 334 validators in era 4571 -- check with `staking.unappliedSlashes` storage.
-			let slash_indices = (0..334).into_iter().collect::<Vec<u32>>();
-			let call = RuntimeCall::Staking(pallet_staking::Call::cancel_deferred_slash {
-				era: 4571,
-				slash_indices,
-			});
+				// remove all slashes. we have 334 validators in era 4571 -- check with `staking.unappliedSlashes` storage.
+				let slash_indices = (0..334).into_iter().collect::<Vec<u32>>();
+				let call = RuntimeCall::Staking(pallet_staking::Call::cancel_deferred_slash {
+					era: 4571,
+					slash_indices,
+				});
 
-			let origin = pallet_custom_origins::Origin::StakingAdmin;
-			let res = call.clone().dispatch_bypass_filter(origin.into());
-			assert!(res.is_ok());
+				let res = call.clone().dispatch_bypass_filter(origin.clone().into());
+				assert!(res.is_ok());
 
-			// no slashes should be left in this era.
-			assert!(pallet_staking::UnappliedSlashes::<Runtime>::get(4571).is_empty());
+				// no slashes should be left in this era.
+				assert!(pallet_staking::UnappliedSlashes::<Runtime>::get(4571).is_empty());
+				call
+			};
 
+			let lower_min_untrusted_score = {
+				let mut current = EPM::MinimumUntrustedScore::<Runtime>::get().unwrap();
+				// relax this by 20%.
+				current.minimal_stake = Perbill::from_percent(80) * current.minimal_stake;
+				current.sum_stake = Perbill::from_percent(80) * current.sum_stake;
+				let call =
+					RuntimeCall::ElectionProviderMultiPhase(EPM::Call::set_minimum_untrusted_score {
+						maybe_next_score: Some(current)
+					});
+				let res = call.clone().dispatch_bypass_filter(origin.clone().into());
+				assert!(res.is_ok());
+				call
+			};
 
-			let encoded_call = call.encode();
+			let election_resume = {
+				// can be generated with:
+				// cargo remote -b "RUST_LOG=staking-miner=debug,info" run -- --release -p staking-miner -- emergency-solution -u ws://127.0.0.1:9999 --force-snapshot seq-phragmen
+				let mined_solution = std::fs::read("/home/kianenigma/remote-builds/solution.supports.bin").unwrap();
+				let supports = <Supports<AccountId> as Decode>::decode(&mut &*mined_solution).unwrap();
+				let call = RuntimeCall::ElectionProviderMultiPhase(EPM::Call::set_emergency_election_result { supports });
+				let res = call.clone().dispatch_bypass_filter(origin.clone().into());
+				assert!(res.is_ok());
+				assert!(EPM::QueuedSolution::<Runtime>::exists());
+				call
+			};
+
+			let calls = vec![slash_cancel, lower_min_untrusted_score, election_resume];
+			let final_call = RuntimeCall::Utility(pallet_utility::Call::batch { calls });
+
+			let encoded_call = final_call.encode();
 			let hashed_call = <<Runtime as frame_system::Config>::Hashing
 				as sp_runtime::traits::Hash>
 				::hash(&encoded_call);
