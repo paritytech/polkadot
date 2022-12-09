@@ -3330,23 +3330,47 @@ fn participation_requests_reprioritized_for_newly_included() {
 			let session = 1;
 			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
-			// Making our two candidates. Since participation is secondarily ordered
-			// by candidate hash, we take advantage of this to produce two candidates
-			// for which the initial participation order is known. But our plan is to
-			// upset this ordering by marking last_candidate as included. This should
-			// place last candidate in the priority queue, resulting in a different
-			// order of participation.
-			let first_candidate_receipt = make_valid_candidate_receipt();
+			// Making our three candidates. Since participation is secondarily ordered by
+			// candidate hash, we take advantage of this to produce candidates for which
+			// the initial participation order is known. But our plan is to upset this
+			// ordering by marking last_candidate as included. This should place last
+			// candidate in the priority queue, resulting in a different order of
+			// participation. We expect to trigger participation in the first candidate 
+			// immediately on vote import. Then we manually trigger two more participations, 
+			// expecting the altered ordering third, then second.
+			let mut first_candidate_receipt = make_valid_candidate_receipt();
+			// Altering this receipt so its hash will be changed
+			first_candidate_receipt.descriptor.pov_hash = Hash::from([
+				122, 200, 116, 29, 232, 183, 20, 109, 138, 86, 23, 253, 70, 41, 20, 85, 127, 230,
+				60, 38, 90, 127, 28, 16, 231, 218, 227, 40, 88, 237, 187, 128,
+			]);
 			let first_candidate_hash = first_candidate_receipt.hash();
-			let last_candidate_receipt = make_invalid_candidate_receipt();
-			let last_candidate_hash = last_candidate_receipt.hash();
+			let second_candidate_receipt = make_valid_candidate_receipt();
+			let second_candidate_hash = second_candidate_receipt.hash();
+			let mut third_candidate_receipt = make_valid_candidate_receipt();
+			// Altering this receipt so its hash will be changed
+			third_candidate_receipt.descriptor.pov_hash = Hash::from([
+				122, 200, 117, 29, 232, 183, 20, 109, 138, 86, 23, 253, 70, 41, 20, 85, 127, 230,
+				60, 38, 90, 127, 28, 16, 231, 218, 227, 40, 88, 237, 187, 128,
+			]);
+			let third_candidate_hash = third_candidate_receipt.hash();
 
-			// We participate in least hash first. Make sure our hashes have the correct ordering
-			assert!(first_candidate_hash < last_candidate_hash);
+			// We participate in lesser hash first. Make sure our hashes have the correct ordering
+			assert!(first_candidate_hash < second_candidate_hash);
+			assert!(second_candidate_hash < third_candidate_hash);
 
 			// activate leaf - without candidate included event
 			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1, vec![])
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					1,
+					vec![
+						make_candidate_backed_event(first_candidate_receipt.clone()),
+						make_candidate_backed_event(second_candidate_receipt.clone()),
+						make_candidate_backed_event(third_candidate_receipt.clone()),
+					],
+				)
 				.await;
 
 			// generate two votes per candidate
@@ -3368,23 +3392,144 @@ fn participation_requests_reprioritized_for_newly_included() {
 				)
 				.await;
 
-			let last_valid_vote = test_state
+			let second_valid_vote = test_state
 				.issue_explicit_statement_with_index(
-					ValidatorIndex(1),
-					last_candidate_hash,
+					ValidatorIndex(3),
+					second_candidate_hash,
 					session,
 					true,
 				)
 				.await;
 
-			let last_invalid_vote = test_state
+			let second_invalid_vote = test_state
 				.issue_explicit_statement_with_index(
-					ValidatorIndex(2),
-					last_candidate_hash,
+					ValidatorIndex(4),
+					second_candidate_hash,
 					session,
 					false,
 				)
 				.await;
+
+			let third_valid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(5),
+					third_candidate_hash,
+					session,
+					true,
+				)
+				.await;
+
+			let third_invalid_vote = test_state
+				.issue_explicit_statement_with_index(
+					ValidatorIndex(6),
+					third_candidate_hash,
+					session,
+					false,
+				)
+				.await;
+
+			// Importing votes for the three candidates in order
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: first_candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(first_valid_vote, ValidatorIndex(1)),
+							(first_invalid_vote, ValidatorIndex(2)),
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+			gum::debug!("After First import!");
+
+			handle_approval_vote_request(
+				&mut virtual_overseer,
+				&first_candidate_hash,
+				HashMap::new(),
+			)
+			.await;
+
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&first_candidate_hash,
+				first_candidate_receipt.commitments_hash,
+			)
+			.await;
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: second_candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(second_valid_vote, ValidatorIndex(3)),
+							(second_invalid_vote, ValidatorIndex(4)),
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+			gum::debug!("After Second import!");
+
+			handle_approval_vote_request(
+				&mut virtual_overseer,
+				&second_candidate_hash,
+				HashMap::new(),
+			)
+			.await;
+
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&second_candidate_hash,
+				second_candidate_receipt.commitments_hash,
+			)
+			.await;
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: third_candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(third_valid_vote, ValidatorIndex(5)),
+							(third_invalid_vote, ValidatorIndex(6)),
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+
+			handle_approval_vote_request(
+				&mut virtual_overseer,
+				&third_candidate_hash,
+				HashMap::new(),
+			)
+			.await;
+
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&third_candidate_hash,
+				third_candidate_receipt.commitments_hash,
+			)
+			.await;
+
+			// Issue candidate included event for third candidate. This should place
+			// the corresponding third participation request in the priority queue.
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					1,
+					vec![make_candidate_included_event(third_candidate_receipt.clone())],
+				)
+				.timeout(TEST_TIMEOUT)
+				.await;
+
+			assert_matches!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await, None);
+
+			// Trigger participation by importing another vote
 
 			// Wrap up
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
