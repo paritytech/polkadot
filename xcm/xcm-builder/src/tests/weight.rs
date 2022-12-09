@@ -17,6 +17,36 @@
 use super::*;
 
 #[test]
+fn fixed_rate_of_fungible_should_work() {
+	parameter_types! {
+		pub static WeightPrice: (AssetId, u128, u128) =
+			(Here.into(), WEIGHT_REF_TIME_PER_SECOND.into(), WEIGHT_PROOF_SIZE_PER_MB.into());
+	}
+
+	let mut trader = FixedRateOfFungible::<WeightPrice, ()>::new();
+	// supplies 100 unit of asset, 80 still remains after purchasing weight
+	assert_eq!(
+		trader.buy_weight(Weight::from_parts(10, 10), fungible_multi_asset(Here.into(), 100).into()),
+		Ok(fungible_multi_asset(Here.into(), 80).into()),
+	);
+	// should have nothing left, as 5 + 5 = 10, and we supplied 10 units of asset.
+	assert_eq!(
+		trader.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(Here.into(), 10).into()),
+		Ok(vec![].into()),
+	);
+	// should have 5 left, as there are no proof size components
+	assert_eq!(
+		trader.buy_weight(Weight::from_parts(5, 0), fungible_multi_asset(Here.into(), 10).into()),
+		Ok(fungible_multi_asset(Here.into(), 5).into()),
+	);
+	// not enough to purchase the combined weights
+	assert_err!(
+		trader.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(Here.into(), 5).into()),
+		XcmError::TooExpensive,
+	);
+}
+
+#[test]
 fn errors_should_return_unused_weight() {
 	// we'll let them have message execution for free.
 	AllowUnpaidFrom::set(vec![Here.into()]);
@@ -104,8 +134,10 @@ fn weight_trader_tuple_should_work() {
 	let para_2: MultiLocation = Parachain(2).into();
 
 	parameter_types! {
-		pub static HereWeightPrice: (AssetId, u128) = (Here.into(), WEIGHT_REF_TIME_PER_SECOND.into());
-		pub static Para1WeightPrice: (AssetId, u128) = (Parachain(1).into(), WEIGHT_REF_TIME_PER_SECOND.into());
+		pub static HereWeightPrice: (AssetId, u128, u128) =
+			(Here.into(), WEIGHT_REF_TIME_PER_SECOND.into(), WEIGHT_PROOF_SIZE_PER_MB.into());
+		pub static Para1WeightPrice: (AssetId, u128, u128) =
+			(Parachain(1).into(), WEIGHT_REF_TIME_PER_SECOND.into(), WEIGHT_PROOF_SIZE_PER_MB.into());
 	}
 
 	type Traders = (
@@ -119,25 +151,25 @@ fn weight_trader_tuple_should_work() {
 	// trader one buys weight
 	assert_eq!(
 		traders.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(Here.into(), 10).into()),
-		Ok(fungible_multi_asset(Here.into(), 5).into()),
+		Ok(vec![].into()),
 	);
 	// trader one refunds
 	assert_eq!(
 		traders.refund_weight(Weight::from_parts(2, 2)),
-		Some(fungible_multi_asset(Here.into(), 2))
+		Some(fungible_multi_asset(Here.into(), 4))
 	);
 
 	let mut traders = Traders::new();
 	// trader one failed; trader two buys weight
 	assert_eq!(
 		traders
-			.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(para_1.clone(), 10).into()),
-		Ok(fungible_multi_asset(para_1.clone(), 5).into()),
+			.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(para_1, 10).into()),
+		Ok(vec![].into()),
 	);
 	// trader two refunds
 	assert_eq!(
 		traders.refund_weight(Weight::from_parts(2, 2)),
-		Some(fungible_multi_asset(para_1, 2))
+		Some(fungible_multi_asset(para_1, 4))
 	);
 
 	let mut traders = Traders::new();

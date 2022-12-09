@@ -92,9 +92,9 @@ fn exchange_asset_should_fail_when_no_deal_possible() {
 fn paying_reserve_deposit_should_work() {
 	AllowPaidFrom::set(vec![Parent.into()]);
 	add_reserve(Parent.into(), (Parent, WildFungible).into());
-	WeightPrice::set((Parent.into(), 1_000_000_000_000));
+	WeightPrice::set((Parent.into(), 1_000_000_000_000, 1024 * 1024));
 
-	let fees = (Parent, 30u128).into();
+	let fees = (Parent, 60u128).into();
 	let message = Xcm(vec![
 		ReserveAssetDeposited((Parent, 100u128).into()),
 		BuyExecution { fees, weight_limit: Limited(Weight::from_parts(30, 30)) },
@@ -104,7 +104,7 @@ fn paying_reserve_deposit_should_work() {
 	let weight_limit = Weight::from_parts(50, 50);
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Complete(Weight::from_parts(30, 30)));
-	assert_eq!(asset_list(Here), vec![(Parent, 70u128).into()]);
+	assert_eq!(asset_list(Here), vec![(Parent, 40u128).into()]);
 }
 
 #[test]

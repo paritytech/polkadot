@@ -67,13 +67,13 @@ fn transacting_should_refund_weight() {
 fn paid_transacting_should_refund_payment_for_unused_weight() {
 	let one: MultiLocation = AccountIndex64 { index: 1, network: None }.into();
 	AllowPaidFrom::set(vec![one.clone()]);
-	add_asset(AccountIndex64 { index: 1, network: None }, (Parent, 100u128));
-	WeightPrice::set((Parent.into(), 1_000_000_000_000));
+	add_asset(AccountIndex64 { index: 1, network: None }, (Parent, 200u128));
+	WeightPrice::set((Parent.into(), 1_000_000_000_000, 1024 * 1024));
 
 	let origin = one.clone();
-	let fees = (Parent, 100u128).into();
+	let fees = (Parent, 200u128).into();
 	let message = Xcm::<TestCall>(vec![
-		WithdrawAsset((Parent, 100u128).into()), // enough for 100 units of weight.
+		WithdrawAsset((Parent, 200u128).into()), // enough for 200 units of weight.
 		BuyExecution { fees, weight_limit: Limited(Weight::from_parts(100, 100)) },
 		Transact {
 			origin_kind: OriginKind::Native,
@@ -92,7 +92,7 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 	assert_eq!(r, Outcome::Complete(Weight::from_parts(60, 60)));
 	assert_eq!(
 		asset_list(AccountIndex64 { index: 1, network: None }),
-		vec![(Parent, 40u128).into()]
+		vec![(Parent, 80u128).into()]
 	);
 }
 
