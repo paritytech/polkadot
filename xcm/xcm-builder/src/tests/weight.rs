@@ -26,7 +26,8 @@ fn fixed_rate_of_fungible_should_work() {
 	let mut trader = FixedRateOfFungible::<WeightPrice, ()>::new();
 	// supplies 100 unit of asset, 80 still remains after purchasing weight
 	assert_eq!(
-		trader.buy_weight(Weight::from_parts(10, 10), fungible_multi_asset(Here.into(), 100).into()),
+		trader
+			.buy_weight(Weight::from_parts(10, 10), fungible_multi_asset(Here.into(), 100).into()),
 		Ok(fungible_multi_asset(Here.into(), 80).into()),
 	);
 	// should have nothing left, as 5 + 5 = 10, and we supplied 10 units of asset.
@@ -162,8 +163,7 @@ fn weight_trader_tuple_should_work() {
 	let mut traders = Traders::new();
 	// trader one failed; trader two buys weight
 	assert_eq!(
-		traders
-			.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(para_1, 10).into()),
+		traders.buy_weight(Weight::from_parts(5, 5), fungible_multi_asset(para_1, 10).into()),
 		Ok(vec![].into()),
 	);
 	// trader two refunds
