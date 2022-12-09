@@ -38,6 +38,14 @@ benchmarks! {
 	}: _<RuntimeOrigin<T>>(send_origin, Box::new(versioned_dest), Box::new(versioned_msg))
 
 	teleport_assets {
+		let asset: MultiAsset = (Here, 10).into();
+		let send_origin = T::ExecuteXcmOrigin::successful_origin();
+		let origin_location = T::ExecuteXcmOrigin::try_origin(send_origin.clone())
+			.map_err(|_| BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))?;
+		if !T::XcmTeleportFilter::contains(&(origin_location, vec![asset.clone()])) {
+			return Err(BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))
+		}
+
 		let recipient = [0u8; 32];
 		let versioned_dest: VersionedMultiLocation = T::ReachableDest::get().ok_or(
 			BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)),
@@ -45,10 +53,18 @@ benchmarks! {
 		.into();
 		let versioned_beneficiary: VersionedMultiLocation =
 			AccountId32 { network: None, id: recipient.into() }.into();
-		let versioned_assets: VersionedMultiAssets = (Here, 10).into();
-	}: _(RawOrigin::Root, Box::new(versioned_dest), Box::new(versioned_beneficiary), Box::new(versioned_assets), 0)
+		let versioned_assets: VersionedMultiAssets = asset.into();
+	}: _<RuntimeOrigin<T>>(send_origin, Box::new(versioned_dest), Box::new(versioned_beneficiary), Box::new(versioned_assets), 0)
 
 	reserve_transfer_assets {
+		let asset: MultiAsset = (Here, 10).into();
+		let send_origin = T::ExecuteXcmOrigin::successful_origin();
+		let origin_location = T::ExecuteXcmOrigin::try_origin(send_origin.clone())
+			.map_err(|_| BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))?;
+		if !T::XcmReserveTransferFilter::contains(&(origin_location, vec![asset.clone()])) {
+			return Err(BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))
+		}
+
 		let recipient = [0u8; 32];
 		let versioned_dest: VersionedMultiLocation = T::ReachableDest::get().ok_or(
 			BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)),
@@ -56,8 +72,8 @@ benchmarks! {
 		.into();
 		let versioned_beneficiary: VersionedMultiLocation =
 			AccountId32 { network: None, id: recipient.into() }.into();
-		let versioned_assets: VersionedMultiAssets = (Here, 10).into();
-	}: _(RawOrigin::Root, Box::new(versioned_dest), Box::new(versioned_beneficiary), Box::new(versioned_assets), 0)
+		let versioned_assets: VersionedMultiAssets = asset.into();
+	}: _<RuntimeOrigin<T>>(send_origin, Box::new(versioned_dest), Box::new(versioned_beneficiary), Box::new(versioned_assets), 0)
 
 	execute {
 		let execute_origin = T::ExecuteXcmOrigin::successful_origin();
