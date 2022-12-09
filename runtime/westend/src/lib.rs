@@ -1872,6 +1872,10 @@ mod init_state_migration {
 	impl OnRuntimeUpgrade for InitMigrate {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+			frame_support::ensure!(
+				AutoLimits::<Runtime>::get().is_none(),
+				"Automigration already started."
+			);
 			Ok(Default::default())
 		}
 
