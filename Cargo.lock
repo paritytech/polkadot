@@ -6541,7 +6541,11 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
+ "sc-keystore",
+ "sp-application-crypto",
  "sp-core",
+ "sp-keyring",
+ "sp-keystore",
  "thiserror",
  "tracing-gum",
 ]
