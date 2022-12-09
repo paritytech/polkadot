@@ -2211,6 +2211,63 @@ mod remote_tests {
 	use std::env::var;
 
 	#[tokio::test]
+	async fn slash_defer_proposal() {
+		use frame_support::traits::UnfilteredDispatchable;
+		use sp_core::hexdisplay::HexDisplay;
+		use sp_runtime::traits::Zero;
+
+		sp_tracing::try_init_simple();
+		let transport: Transport =
+			var("WS").unwrap_or("wss://kusama-rpc.polkadot.io:443".to_string()).into();
+		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
+		let mut ext = Builder::<Block>::default()
+			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
+				Mode::OfflineOrElseOnline(
+					OfflineConfig { state_snapshot: state_snapshot.clone() },
+					OnlineConfig {
+						transport,
+						state_snapshot: Some(state_snapshot),
+						..Default::default()
+					},
+				)
+			} else {
+				Mode::Online(OnlineConfig { transport, ..Default::default() })
+			})
+			.build()
+			.await
+			.unwrap();
+		ext.execute_with(|| {
+			// we have some slashes now.
+			assert_eq!(pallet_staking::UnappliedSlashes::<Runtime>::iter_keys().collect::<Vec<_>>(), vec![4571]);
+			assert!(!pallet_staking::UnappliedSlashes::<Runtime>::get(4571).is_empty());
+
+			// remove all slashes. we have 334 validators in era 4571 -- check with `staking.unappliedSlashes` storage.
+			let slash_indices = (0..334).into_iter().collect::<Vec<u32>>();
+			let call = RuntimeCall::Staking(pallet_staking::Call::cancel_deferred_slash {
+				era: 4571,
+				slash_indices,
+			});
+
+			let origin = pallet_custom_origins::Origin::StakingAdmin;
+			let res = call.clone().dispatch_bypass_filter(origin.into());
+			assert!(res.is_ok());
+
+			// no slashes should be left in this era.
+			assert!(pallet_staking::UnappliedSlashes::<Runtime>::get(4571).is_empty());
+
+
+			let encoded_call = call.encode();
+			let hashed_call = <<Runtime as frame_system::Config>::Hashing
+				as sp_runtime::traits::Hash>
+				::hash(&encoded_call);
+			println!("encoded call: {:?}", HexDisplay::from(&encoded_call));
+			println!("call hash: {:?}", &hashed_call);
+
+			panic!("all good, just to enable prints");
+		});
+	}
+
+	#[tokio::test]
 	async fn run_migrations() {
 		sp_tracing::try_init_simple();
 		let transport: Transport =

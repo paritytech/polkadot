@@ -23,7 +23,7 @@ use sp_core::Bytes;
 use sp_npos_elections::ElectionScore;
 
 /// Forcefully create the snapshot. This can be used to compute the election at anytime.
-fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
+pub(crate) fn force_create_snapshot<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 	ext.execute_with(|| {
 		if <EPM::Snapshot<T>>::exists() {
 			log::info!(target: LOG_TARGET, "snapshot already exists.");

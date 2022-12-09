@@ -145,6 +145,10 @@ pub(crate) struct EmergencySolutionConfig {
 
 	/// The number of top backed winners to take. All are taken, if not provided.
 	pub take: Option<usize>,
+
+	/// Force create a new snapshot, else expect one to exist onchain.
+	#[arg(long)]
+	pub force_snapshot: bool,
 }
 
 #[derive(Debug, Clone, Parser)]

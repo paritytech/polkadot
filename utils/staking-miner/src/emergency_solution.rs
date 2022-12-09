@@ -27,19 +27,26 @@ macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 		config: EmergencySolutionConfig,
 	) -> Result<(), Error<$crate::[<$runtime _runtime_exports>]::Runtime>> {
 		use $crate::[<$runtime _runtime_exports>]::*;
-
-		let mut ext = crate::create_election_ext::<Runtime, Block>(client, config.at, vec![]).await?;
+		let pallets = if config.force_snapshot {
+			vec!["Staking".to_string(), "VoterList".to_string()]
+		} else {
+			Default::default()
+		};
+		let mut ext = crate::create_election_ext::<Runtime, Block>(client, config.at, pallets).await?;
+		if config.force_snapshot {
+			crate::dry_run::force_create_snapshot::<Runtime>(&mut ext)?;
+		};
 		let raw_solution = crate::mine_with::<Runtime>(&config.solver, &mut ext, false)?;
 
 		ext.execute_with(|| {
 			assert!(EPM::Pallet::<Runtime>::current_phase().is_emergency());
 
 			log::info!(target: LOG_TARGET, "mined solution with {:?}", &raw_solution.score);
-
-			let ready_solution = EPM::Pallet::<Runtime>::feasibility_check(raw_solution, EPM::ElectionCompute::Signed)?;
+			let mut ready_solution = EPM::Pallet::<Runtime>::feasibility_check(raw_solution, EPM::ElectionCompute::Signed)?;
 			let encoded_size = ready_solution.encoded_size();
 			let score = ready_solution.score;
 			let mut supports = ready_solution.supports.into_inner();
+
 			// maybe truncate.
 			if let Some(take) = config.take {
 				log::info!(target: LOG_TARGET, "truncating {} winners to {}", supports.len(), take);
@@ -52,8 +59,12 @@ macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 			let mut supports_file = std::fs::File::create("solution.supports.bin")?;
 			supports_file.write_all(&encoded_support)?;
 
-			log::info!(target: LOG_TARGET, "ReadySolution: size {:?} / score = {:?}", encoded_size, score);
+			log::info!(target: LOG_TARGET, "ReadySolution: size {:?} / score = ({:?}, {:?})", ready_solution.encoded_size(), Token::from(ready_solution.score.minimal_stake), Token::from(ready_solution.score.sum_stake));
 			log::trace!(target: LOG_TARGET, "Supports: {}", sp_core::hexdisplay::HexDisplay::from(&encoded_support));
+
+			let call = RuntimeCall::ElectionProviderMultiPhase(EPM::Call::set_emergency_election_result { supports: ready_solution.supports });
+			let mut call_file = std::fs::File::create("call.bin")?;
+			call_file.write_all(&call.encode())?;
 
 			Ok(())
 		})
