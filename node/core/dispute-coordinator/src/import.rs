@@ -28,7 +28,9 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use polkadot_node_primitives::{CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp};
+use polkadot_node_primitives::{
+	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
+};
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::v2::{
 	CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex, SessionInfo,
@@ -101,7 +103,7 @@ impl OwnVoteState {
 		let mut our_valid_votes = env
 			.controlled_indices()
 			.iter()
-			.filter_map(|i| votes.valid.get_key_value(i))
+			.filter_map(|i| votes.valid.raw().get_key_value(i))
 			.peekable();
 		let mut our_invalid_votes =
 			env.controlled_indices.iter().filter_map(|i| votes.invalid.get_key_value(i));
@@ -163,8 +165,11 @@ impl CandidateVoteState<CandidateVotes> {
 	///
 	/// in case there have not been any previous votes.
 	pub fn new_from_receipt(candidate_receipt: CandidateReceipt) -> Self {
-		let votes =
-			CandidateVotes { candidate_receipt, valid: BTreeMap::new(), invalid: BTreeMap::new() };
+		let votes = CandidateVotes {
+			candidate_receipt,
+			valid: ValidCandidateVotes::new(),
+			invalid: BTreeMap::new(),
+		};
 		Self { votes, own_vote: OwnVoteState::NoVote, dispute_status: None }
 	}
 
@@ -178,7 +183,7 @@ impl CandidateVoteState<CandidateVotes> {
 			polkadot_primitives::v2::supermajority_threshold(n_validators);
 
 		// We have a dispute, if we have votes on both sides:
-		let is_disputed = !votes.invalid.is_empty() && !votes.valid.is_empty();
+		let is_disputed = !votes.invalid.is_empty() && !votes.valid.raw().is_empty();
 
 		let dispute_status = if is_disputed {
 			let mut status = DisputeStatus::active();
@@ -187,7 +192,7 @@ impl CandidateVoteState<CandidateVotes> {
 			if is_confirmed {
 				status = status.confirm();
 			};
-			let concluded_for = votes.valid.len() >= supermajority_threshold;
+			let concluded_for = votes.valid.raw().len() >= supermajority_threshold;
 			if concluded_for {
 				status = status.conclude_for(now);
 			};
@@ -262,25 +267,20 @@ impl CandidateVoteState<CandidateVotes> {
 
 			match statement.statement() {
 				DisputeStatement::Valid(valid_kind) => {
-					let fresh = insert_into_statements(
-						&mut votes.valid,
-						*valid_kind,
+					let fresh = votes.valid.insert_vote(
 						val_index,
+						*valid_kind,
 						statement.into_validator_signature(),
 					);
-
 					if fresh {
 						imported_valid_votes += 1;
 					}
 				},
 				DisputeStatement::Invalid(invalid_kind) => {
-					let fresh = insert_into_statements(
-						&mut votes.invalid,
-						*invalid_kind,
-						val_index,
-						statement.into_validator_signature(),
-					);
-
+					let fresh = votes
+						.invalid
+						.insert(val_index, (*invalid_kind, statement.into_validator_signature()))
+						.is_none();
 					if fresh {
 						new_invalid_voters.push(val_index);
 						imported_invalid_votes += 1;
@@ -481,12 +481,7 @@ impl ImportResult {
 				},
 				"Signature check for imported approval votes failed! This is a serious bug. Session: {:?}, candidate hash: {:?}, validator index: {:?}", env.session_index(), votes.candidate_receipt.hash(), index
 			);
-			if insert_into_statements(
-				&mut votes.valid,
-				ValidDisputeStatementKind::ApprovalChecking,
-				index,
-				sig,
-			) {
+			if votes.valid.insert_vote(index, ValidDisputeStatementKind::ApprovalChecking, sig) {
 				imported_valid_votes += 1;
 				imported_approval_votes += 1;
 			}
@@ -534,15 +529,4 @@ fn find_controlled_validator_indices(
 	}
 
 	controlled
-}
-
-// Returns 'true' if no other vote by that validator was already
-// present and 'false' otherwise. Same semantics as `HashSet`.
-fn insert_into_statements<T>(
-	m: &mut BTreeMap<ValidatorIndex, (T, ValidatorSignature)>,
-	tag: T,
-	val_index: ValidatorIndex,
-	val_signature: ValidatorSignature,
-) -> bool {
-	m.insert(val_index, (tag, val_signature)).is_none()
 }
