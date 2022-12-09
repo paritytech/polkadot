@@ -128,7 +128,7 @@ pub mod v3 {
 				hrmp_max_parathread_outbound_channels: Default::default(),
 				hrmp_max_message_num_per_candidate: Default::default(),
 				ump_max_individual_weight: OldWeight(
-					frame_support::weights::constants::WEIGHT_PER_MILLIS.ref_time() * 20,
+					frame_support::weights::constants::WEIGHT_REF_TIME_PER_MILLIS * 20,
 				),
 				pvf_checking_enabled: false,
 				pvf_voting_ttl: 2u32.into(),

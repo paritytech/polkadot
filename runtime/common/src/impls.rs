@@ -61,7 +61,7 @@ where
 
 pub fn era_payout(
 	total_staked: Balance,
-	non_gilt_issuance: Balance,
+	total_stakable: Balance,
 	max_annual_inflation: Perquintill,
 	period_fraction: Perquintill,
 	auctioned_slots: u64,
@@ -79,17 +79,17 @@ pub fn era_payout(
 	// amount that we expect to be taken up with auctions.
 	let ideal_stake = Perquintill::from_percent(75).saturating_sub(auction_proportion);
 
-	let stake = Perquintill::from_rational(total_staked, non_gilt_issuance);
+	let stake = Perquintill::from_rational(total_staked, total_stakable);
 	let falloff = Perquintill::from_percent(5);
 	let adjustment = compute_inflation(stake, ideal_stake, falloff);
 	let staking_inflation =
 		min_annual_inflation.saturating_add(delta_annual_inflation * adjustment);
 
-	let max_payout = period_fraction * max_annual_inflation * non_gilt_issuance;
-	let staking_payout = (period_fraction * staking_inflation) * non_gilt_issuance;
+	let max_payout = period_fraction * max_annual_inflation * total_stakable;
+	let staking_payout = (period_fraction * staking_inflation) * total_stakable;
 	let rest = max_payout.saturating_sub(staking_payout);
 
-	let other_issuance = non_gilt_issuance.saturating_sub(total_staked);
+	let other_issuance = total_stakable.saturating_sub(total_staked);
 	if total_staked > other_issuance {
 		let _cap_rest = Perquintill::from_rational(other_issuance, total_staked) * staking_payout;
 		// We don't do anything with this, but if we wanted to, we could introduce a cap on the

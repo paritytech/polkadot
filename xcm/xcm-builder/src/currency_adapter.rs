@@ -125,6 +125,9 @@ impl<
 					AllowDeath,
 				)
 				.is_ok();
+				if ok {
+					Currency::reactivate(amount);
+				}
 				debug_assert!(
 					ok,
 					"`can_check_in` must have returned `true` immediately prior; qed"
@@ -138,6 +141,7 @@ impl<
 		if let Some(amount) = Matcher::matches_fungible(what) {
 			if let Some(checked_account) = CheckedAccount::get() {
 				Currency::deposit_creating(&checked_account, amount);
+				Currency::deactivate(amount);
 			}
 		}
 	}
