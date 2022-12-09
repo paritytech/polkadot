@@ -19,7 +19,10 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
 assert_matches = "1"
+polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+polkadot-node-subsystem-types = { path = "../../subsystem-types" }
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 # If not enabled, the dispute coordinator will do nothing.

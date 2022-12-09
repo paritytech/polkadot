@@ -55,6 +55,8 @@ use crate::{
 
 mod error;
 mod fragment_tree;
+#[cfg(test)]
+mod tests;
 
 const LOG_TARGET: &str = "parachain::prospective-parachains";
 

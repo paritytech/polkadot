@@ -159,7 +159,7 @@ full-node = [
 	"polkadot-node-core-chain-api",
 	"polkadot-node-core-chain-selection",
 	"polkadot-node-core-dispute-coordinator",
-    "polkadot-node-core-prospective-parachains",
+	"polkadot-node-core-prospective-parachains",
 	"polkadot-node-core-provisioner",
 	"polkadot-node-core-runtime-api",
 	"polkadot-statement-distribution",
