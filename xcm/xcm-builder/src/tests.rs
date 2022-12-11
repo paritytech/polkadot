@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{mock::*, test_utils::*, *};
-use frame_support::{assert_err, weights::constants::WEIGHT_PER_SECOND};
+use frame_support::{assert_err, weights::constants::WEIGHT_REF_TIME_PER_SECOND};
 use xcm::latest::prelude::*;
 use xcm_executor::{traits::*, Config, XcmExecutor};
 
@@ -676,8 +676,8 @@ fn weight_trader_tuple_should_work() {
 	pub const PARA_2: MultiLocation = X1(Parachain(2)).into();
 
 	parameter_types! {
-		pub static HereWeightPrice: (AssetId, u128) = (Here.into().into(), WEIGHT_PER_SECOND.ref_time().into());
-		pub static PARA1WeightPrice: (AssetId, u128) = (PARA_1.into(), WEIGHT_PER_SECOND.ref_time().into());
+		pub static HereWeightPrice: (AssetId, u128) = (Here.into().into(), WEIGHT_REF_TIME_PER_SECOND.into());
+		pub static PARA1WeightPrice: (AssetId, u128) = (PARA_1.into(), WEIGHT_REF_TIME_PER_SECOND.into());
 	}
 
 	type Traders = (

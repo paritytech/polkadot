@@ -1,9 +1,9 @@
 [package]
 name = "xcm"
-version = "0.9.33"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "The basic XCM datastructures."
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 impl-trait-for-tuples = "0.2.2"
