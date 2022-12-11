@@ -1,3 +1,19 @@
+// Copyright 2022 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 use super::*;
 use ::polkadot_primitives_test_helpers::dummy_hash;
 use assert_matches::assert_matches;
@@ -10,8 +26,8 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::{
 	v2::{
-		CandidateDescriptor, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
-		SessionIndex, SigningContext, ValidatorId, ValidatorIndex,
+		CandidateDescriptor, GroupRotationInfo, HeadData, Header, PersistedValidationData,
+		ScheduledCore, SessionIndex, SigningContext, ValidatorId, ValidatorIndex,
 	},
 	vstaging as vstaging_primitives,
 };
@@ -21,8 +37,12 @@ use sp_keyring::Sr25519Keyring;
 use sp_keystore::{CryptoStore, SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
 
+const ALLOWED_ANCESTRY_LEN: u32 = 3;
 const ASYNC_BACKING_PARAMETERS: vstaging_primitives::AsyncBackingParameters =
-	vstaging_primitives::AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };
+	vstaging_primitives::AsyncBackingParameters {
+		max_candidate_depth: 4,
+		allowed_ancestry_len: ALLOWED_ANCESTRY_LEN,
+	};
 
 const ASYNC_BACKING_DISABLED_ERROR: RuntimeApiError =
 	RuntimeApiError::NotSupported { runtime_api_name: "test-runtime" };
@@ -96,12 +116,13 @@ impl Default for TestState {
 		head_data.insert(chain_b, HeadData(vec![5, 6, 7]));
 
 		let relay_parent = Hash::repeat_byte(5);
+		let relay_parent_number = 0_u32.into();
 
 		let signing_context = SigningContext { session_index: 1, parent_hash: relay_parent };
 
 		let validation_data = PersistedValidationData {
 			parent_head: HeadData(vec![7, 8, 9]),
-			relay_parent_number: 0_u32.into(),
+			relay_parent_number,
 			max_pov_size: 1024,
 			relay_parent_storage_root: dummy_hash(),
 		};
@@ -119,6 +140,15 @@ impl Default for TestState {
 			relay_parent,
 		}
 	}
+}
+
+struct TestLeaf {
+	activated: ActivatedLeaf,
+	min_relay_parents: Vec<(ParaId, u32)>,
+}
+
+fn get_parent_hash(hash: Hash) -> Hash {
+	Hash::from_low_u64_be(hash.to_low_u64_be() + 1)
 }
 
 fn test_harness<T: Future<Output = VirtualOverseer>>(
@@ -155,19 +185,26 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	view
 }
 
-async fn test_startup_async_backing_disabled(
+async fn activate_leaf(
 	virtual_overseer: &mut VirtualOverseer,
+	leaf: TestLeaf,
+	leaf_parent: Hash,
 	test_state: &TestState,
 ) {
-	// Start work on some new parent.
+	let TestLeaf { activated, min_relay_parents } = leaf;
+	let leaf_hash = activated.hash;
+	let leaf_number = activated.number;
+	let header = Header {
+		parent_hash: leaf_parent,
+		number: leaf_number,
+		state_root: Hash::zero(),
+		extrinsics_root: Hash::zero(),
+		digest: Default::default(),
+	};
+
 	virtual_overseer
 		.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
-			ActivatedLeaf {
-				hash: test_state.relay_parent,
-				number: 1,
-				status: LeafStatus::Fresh,
-				span: Arc::new(jaeger::Span::Disabled),
-			},
+			activated,
 		))))
 		.await;
 
@@ -175,17 +212,137 @@ async fn test_startup_async_backing_disabled(
 		virtual_overseer.recv().await,
 		AllMessages::RuntimeApi(
 			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
-		) if parent == test_state.relay_parent => {
-			tx.send(Err(ASYNC_BACKING_DISABLED_ERROR)).unwrap();
+		) if parent == leaf_hash => {
+			tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
 		}
 	);
+
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::AvailabilityCores(tx))
+		) if parent == leaf_hash => {
+			tx.send(Ok(test_state.availability_cores.clone())).unwrap();
+		}
+	);
+
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::ChainApi(
+			ChainApiMessage::BlockHeader(parent, tx)
+		) if parent == leaf_hash => {
+			tx.send(Ok(Some(header))).unwrap();
+		}
+	);
+
+	// Check that subsystem job issues a request for ancestors.
+	let min_min = *min_relay_parents
+		.iter()
+		.map(|(_, block_num)| block_num)
+		.min()
+		.unwrap_or(&leaf_number);
+	let ancestry_len = leaf_number + 1 - min_min;
+	let ancestry_hashes: Vec<Hash> =
+		std::iter::successors(Some(leaf_hash), |h| Some(get_parent_hash(*h)))
+			.take(ancestry_len as usize)
+			.collect();
+	let ancestry_numbers = (min_min..=leaf_number).rev();
+	let ancestry_iter = ancestry_hashes.clone().into_iter().zip(ancestry_numbers).peekable();
+	println!("Ancestors: {:?}", ancestry_hashes);
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::ChainApi(
+			ChainApiMessage::Ancestors{hash, k, response_channel: tx}
+		) if hash == leaf_hash && k == ALLOWED_ANCESTRY_LEN as usize => {
+			tx.send(Ok(ancestry_hashes.clone())).unwrap();
+		}
+	);
+
+	for (hash, number) in ancestry_iter {
+		let header = Header {
+			parent_hash: get_parent_hash(hash),
+			number,
+			state_root: Hash::zero(),
+			extrinsics_root: Hash::zero(),
+			digest: Default::default(),
+		};
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ChainApi(
+				ChainApiMessage::BlockHeader(parent, tx)
+			) if parent == hash => {
+				tx.send(Ok(Some(header))).unwrap();
+			}
+		);
+	}
+
+	let message = virtual_overseer.recv().await;
+	println!("Message: {:?}", message);
 }
 
 #[test]
 fn should_do_no_work_if_async_backing_disabled_for_leaf() {
+	async fn test_startup_async_backing_disabled(
+		virtual_overseer: &mut VirtualOverseer,
+		test_state: &TestState,
+	) {
+		// Start work on some new parent.
+		virtual_overseer
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
+				ActiveLeavesUpdate::start_work(ActivatedLeaf {
+					hash: test_state.relay_parent,
+					number: 1,
+					status: LeafStatus::Fresh,
+					span: Arc::new(jaeger::Span::Disabled),
+				}),
+			)))
+			.await;
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+			) if parent == test_state.relay_parent => {
+				tx.send(Err(ASYNC_BACKING_DISABLED_ERROR)).unwrap();
+			}
+		);
+	}
+
 	let test_state = TestState::default();
 	let view = test_harness(|mut virtual_overseer| async move {
 		test_startup_async_backing_disabled(&mut virtual_overseer, &test_state).await;
+
+		virtual_overseer
+	});
+
+	assert!(view.active_leaves.is_empty());
+	assert!(view.candidate_storage.is_empty());
+}
+
+// Send some candidates, check if the candidate won't be found once its relay parent leaves the view.
+#[test]
+fn check_candidate_parent_leaving_view() {
+	let test_state = TestState::default();
+	let view = test_harness(|mut virtual_overseer| async move {
+		const LEAF_BLOCK_NUMBER: BlockNumber = 100;
+		const LEAF_ANCESTRY_LEN: BlockNumber = 3;
+		let para_id = test_state.chain_ids[0];
+
+		let leaf_hash = Hash::from_low_u64_be(130);
+		let activated = ActivatedLeaf {
+			hash: leaf_hash,
+			number: LEAF_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+
+		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_ANCESTRY_LEN)];
+
+		let test_leaf = TestLeaf { activated, min_relay_parents };
+		let leaf_parent = get_parent_hash(leaf_hash);
+
+		activate_leaf(&mut virtual_overseer, test_leaf, leaf_parent, &test_state).await;
 
 		virtual_overseer
 	});

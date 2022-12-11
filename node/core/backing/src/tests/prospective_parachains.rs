@@ -306,7 +306,6 @@ fn seconding_sanity_check_allowed() {
 		const LEAF_A_ANCESTRY_LEN: BlockNumber = 3;
 		let para_id = test_state.chain_ids[0];
 
-		let leaf_b_hash = Hash::from_low_u64_be(128);
 		// `a` is grandparent of `b`.
 		let leaf_a_hash = Hash::from_low_u64_be(130);
 		let leaf_a_parent = get_parent_hash(leaf_a_hash);
@@ -322,6 +321,7 @@ fn seconding_sanity_check_allowed() {
 		const LEAF_B_BLOCK_NUMBER: BlockNumber = LEAF_A_BLOCK_NUMBER + 2;
 		const LEAF_B_ANCESTRY_LEN: BlockNumber = 4;
 
+		let leaf_b_hash = Hash::from_low_u64_be(128);
 		let activated = ActivatedLeaf {
 			hash: leaf_b_hash,
 			number: LEAF_B_BLOCK_NUMBER,
