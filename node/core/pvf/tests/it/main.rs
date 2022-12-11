@@ -14,13 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use async_std::sync::Mutex;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
 	start, Config, InvalidCandidate, Metrics, Pvf, ValidationError, ValidationHost,
 };
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
 use std::time::Duration;
+use tokio::sync::Mutex;
 
 mod adder;
 mod worker_common;
@@ -47,7 +47,7 @@ impl TestHost {
 		let mut config = Config::new(cache_dir.path().to_owned(), program_path);
 		f(&mut config);
 		let (host, task) = start(config, Metrics::default());
-		let _ = async_std::task::spawn(task);
+		let _ = tokio::task::spawn(task);
 		Self { _cache_dir: cache_dir, host: Mutex::new(host) }
 	}
 
@@ -77,7 +77,7 @@ impl TestHost {
 	}
 }
 
-#[async_std::test]
+#[tokio::test]
 async fn terminates_on_timeout() {
 	let host = TestHost::new();
 
@@ -99,7 +99,7 @@ async fn terminates_on_timeout() {
 	}
 }
 
-#[async_std::test]
+#[tokio::test]
 async fn parallel_execution() {
 	// Run some jobs that do not complete, thus timing out.
 	let host = TestHost::new();
@@ -136,7 +136,7 @@ async fn parallel_execution() {
 	);
 }
 
-#[async_std::test]
+#[tokio::test]
 async fn execute_queue_doesnt_stall_if_workers_died() {
 	let host = TestHost::new_with_config(|cfg| {
 		cfg.execute_workers_max_num = 5;

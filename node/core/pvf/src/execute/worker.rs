@@ -24,25 +24,18 @@ use crate::{
 	},
 	LOG_TARGET,
 };
-use async_std::{
-	io,
-	os::unix::net::UnixStream,
-	path::{Path, PathBuf},
-	task,
-};
 use cpu_time::ProcessTime;
 use futures::FutureExt;
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
-	sync::{
-		atomic::{AtomicBool, Ordering},
-		Arc,
-	},
+	path::{Path, PathBuf},
+	sync::Arc,
 	thread,
 	time::Duration,
 };
+use tokio::{io, net::UnixStream, runtime::Runtime, sync::Mutex};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
@@ -235,13 +228,19 @@ impl Response {
 /// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
 /// the path to the socket used to communicate with the host.
 pub fn worker_entrypoint(socket_path: &str) {
-	worker_event_loop("execute", socket_path, |mut stream| async move {
+	worker_event_loop("execute", socket_path, |stream| async move {
 		let executor = Executor::new().map_err(|e| {
 			io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
 		})?;
+		let mutex = Arc::new(Mutex::new((stream, false)));
 
 		loop {
-			let (artifact_path, params, execution_timeout) = recv_request(&mut stream).await?;
+			let (artifact_path, params, execution_timeout) = {
+				let mut lock = mutex.lock().await;
+				// Unset the lock flag. We set it when either thread finishes.
+				lock.1 = false;
+				recv_request(&mut lock.0).await?
+			};
 			gum::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
@@ -249,24 +248,22 @@ pub fn worker_entrypoint(socket_path: &str) {
 				artifact_path.display(),
 			);
 
-			// Create a lock flag. We set it when either thread finishes.
-			let lock = Arc::new(AtomicBool::new(false));
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor. Continuously wakes up from
 			// sleeping and then either sleeps for the remaining CPU time, or kills the process if
 			// we exceed the CPU timeout.
-			let (stream_2, cpu_time_start_2, execution_timeout_2, lock_2) =
-				(stream.clone(), cpu_time_start, execution_timeout, lock.clone());
+			let (mutex_2, cpu_time_start_2, execution_timeout_2) =
+				(mutex.clone(), cpu_time_start, execution_timeout);
 			let handle =
 				thread::Builder::new().name("CPU time monitor".into()).spawn(move || {
-					task::block_on(async {
+					let rt = Runtime::new().unwrap();
+					rt.block_on(async {
 						cpu_time_monitor_loop(
 							JobKind::Execute,
-							stream_2,
+							mutex_2,
 							cpu_time_start_2,
 							execution_timeout_2,
-							lock_2,
 						)
 						.await;
 					})
@@ -275,18 +272,16 @@ pub fn worker_entrypoint(socket_path: &str) {
 			let response =
 				validate_using_artifact(&artifact_path, &params, &executor, cpu_time_start).await;
 
-			let lock_result =
-				lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
-			if lock_result.is_err() {
-				// The other thread is still sending an error response over the socket. Wait on it
-				// and return.
-				let _ = handle.join();
-				// Monitor thread detected timeout and likely already terminated the process,
+			let mut lock = mutex.lock().await;
+			if lock.1 {
+				// Monitor thread detected timeout and the process should be terminated soon,
 				// nothing to do.
+				let _ = handle.join();
 				continue
 			}
+			lock.1 = true;
 
-			send_response(&mut stream, response).await?;
+			send_response(&mut lock.0, response).await?;
 		}
 	});
 }

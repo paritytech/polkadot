@@ -24,24 +24,17 @@ use crate::{
 	},
 	LOG_TARGET,
 };
-use async_std::{
-	io,
-	os::unix::net::UnixStream,
-	path::{Path, PathBuf},
-	task,
-};
 use cpu_time::ProcessTime;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
 use std::{
 	panic,
-	sync::{
-		atomic::{AtomicBool, Ordering},
-		Arc,
-	},
+	path::{Path, PathBuf},
+	sync::Arc,
 	thread,
 	time::Duration,
 };
+use tokio::{io, net::UnixStream, runtime::Runtime, sync::Mutex};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
@@ -118,7 +111,7 @@ pub async fn start_work(
 		// load, but the CPU resources of the child can only be measured from the parent after the
 		// child process terminates.
 		let timeout = preparation_timeout * JOB_TIMEOUT_WALL_CLOCK_FACTOR;
-		let result = async_std::future::timeout(timeout, framed_recv(&mut stream)).await;
+		let result = tokio::time::timeout(timeout, framed_recv(&mut stream)).await;
 
 		let selected = match result {
 			// Received bytes from worker within the time limit.
@@ -219,7 +212,7 @@ async fn handle_response_bytes(
 		artifact_path.display(),
 	);
 
-	async_std::fs::rename(&tmp_file, &artifact_path)
+	tokio::fs::rename(&tmp_file, &artifact_path)
 		.await
 		.map(|_| Selected::Done(result))
 		.unwrap_or_else(|err| {
@@ -264,7 +257,7 @@ where
 	//
 	// In any case, we try to remove the file here so that there are no leftovers. We only report
 	// errors that are different from the `NotFound`.
-	match async_std::fs::remove_file(tmp_file).await {
+	match tokio::fs::remove_file(tmp_file).await {
 		Ok(()) => (),
 		Err(err) if err.kind() == std::io::ErrorKind::NotFound => (),
 		Err(err) => {
@@ -314,59 +307,61 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, 
 /// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
 /// the path to the socket used to communicate with the host.
 pub fn worker_entrypoint(socket_path: &str) {
-	worker_event_loop("prepare", socket_path, |mut stream| async move {
+	worker_event_loop("prepare", socket_path, |stream| async move {
+		let mutex = Arc::new(Mutex::new((stream, false)));
 		loop {
-			let (code, dest, preparation_timeout) = recv_request(&mut stream).await?;
-
+			let (code, dest, preparation_timeout) = {
+				let mut lock = mutex.lock().await;
+				// Unset the lock flag. We set it when either thread finishes.
+				lock.1 = false;
+				recv_request(&mut lock.0).await?
+			};
 			gum::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
 				"worker: preparing artifact",
 			);
 
-			// Create a lock flag. We set it when either thread finishes.
-			let lock = Arc::new(AtomicBool::new(false));
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor. Continuously wakes up from
 			// sleeping and then either sleeps for the remaining CPU time, or kills the process if
 			// we exceed the CPU timeout.
-			let (stream_2, cpu_time_start_2, preparation_timeout_2, lock_2) =
-				(stream.clone(), cpu_time_start, preparation_timeout, lock.clone());
+			let (mutex_2, cpu_time_start_2, preparation_timeout_2) =
+				(mutex.clone(), cpu_time_start, preparation_timeout);
 			let handle =
 				thread::Builder::new().name("CPU time monitor".into()).spawn(move || {
-					task::block_on(async {
+					let rt = Runtime::new().unwrap();
+					rt.block_on(async {
 						cpu_time_monitor_loop(
 							JobKind::Prepare,
-							stream_2,
+							mutex_2,
 							cpu_time_start_2,
 							preparation_timeout_2,
-							lock_2,
 						)
 						.await;
 					})
 				})?;
 
 			// Prepares the artifact in a separate thread.
-			let result = match prepare_artifact(&code).await {
+			let compilation_result = prepare_artifact(&code).await;
+			let cpu_time_elapsed = cpu_time_start.elapsed();
+
+			let mut lock = mutex.lock().await;
+			if lock.1 {
+				// Monitor thread detected timeout and the process should be terminated soon,
+				// nothing to do.
+				let _ = handle.join();
+				continue
+			}
+			lock.1 = true;
+
+			let result = match compilation_result {
 				Err(err) => {
 					// Serialized error will be written into the socket.
 					Err(err)
 				},
 				Ok(compiled_artifact) => {
-					let cpu_time_elapsed = cpu_time_start.elapsed();
-
-					let lock_result =
-						lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
-					if lock_result.is_err() {
-						// The other thread is still sending an error response over the socket. Wait on it and
-						// return.
-						let _ = handle.join();
-						// Monitor thread detected timeout and likely already terminated the
-						// process, nothing to do.
-						continue
-					}
-
 					// Write the serialized artifact into a temp file.
 					//
 					// PVF host only keeps artifacts statuses in its memory, successfully compiled code gets stored
@@ -379,13 +374,13 @@ pub fn worker_entrypoint(socket_path: &str) {
 						"worker: writing artifact to {}",
 						dest.display(),
 					);
-					async_std::fs::write(&dest, &compiled_artifact).await?;
+					tokio::fs::write(&dest, &compiled_artifact).await?;
 
 					Ok(cpu_time_elapsed)
 				},
 			};
 
-			framed_send(&mut stream, result.encode().as_slice()).await?;
+			framed_send(&mut lock.0, result.encode().as_slice()).await?;
 		}
 	});
 }

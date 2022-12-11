@@ -23,12 +23,17 @@ use crate::{
 };
 use always_assert::never;
 use assert_matches::assert_matches;
-use async_std::path::{Path, PathBuf};
 use futures::{
 	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
 };
 use slotmap::HopSlotMap;
-use std::{fmt, sync::Arc, task::Poll, time::Duration};
+use std::{
+	fmt,
+	path::{Path, PathBuf},
+	sync::Arc,
+	task::Poll,
+	time::Duration,
+};
 
 slotmap::new_key_type! { pub struct Worker; }
 
