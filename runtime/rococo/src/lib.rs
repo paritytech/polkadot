@@ -23,13 +23,13 @@
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
 	v2::{
-		self, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
 		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
 		InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
 		PersistedValidationData, ScrapedOnChainVotes, Signature, ValidationCode,
 		ValidationCodeHash, ValidatorId, ValidatorIndex,
 	},
-	vstaging,
+	v3,
 };
 use runtime_common::{
 	assigned_slots, auctions, claims, crowdloan, impl_runtime_weights, impls::ToAuthor,
@@ -45,7 +45,7 @@ use runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
 	runtime_api_impl::{
-		v2 as parachains_runtime_api_impl, vstaging as parachains_runtime_api_impl_staging,
+		v3 as parachains_runtime_api_impl
 	},
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared, ump as parachains_ump,
@@ -114,7 +114,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9330,
+	spec_version: 9331,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
@@ -1666,12 +1666,8 @@ sp_api::impl_runtime_apis! {
 			})
 		}
 
-		fn session_info(index: SessionIndex) -> Option<v2::SessionInfo> {
+		fn session_info(index: SessionIndex) -> Option<v3::SessionInfo> {
 			parachains_runtime_api_impl::session_info::<Runtime>(index)
-		}
-
-		fn session_info_staging(index: SessionIndex) -> Option<vstaging::SessionInfo> {
-			parachains_runtime_api_impl_staging::session_info_staging::<Runtime>(index)
 		}
 
 		fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumber>> {

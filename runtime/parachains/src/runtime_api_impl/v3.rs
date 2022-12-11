@@ -11,10 +11,10 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! A module exporting runtime API implementation functions for all runtime APIs using v2
+//! A module exporting runtime API implementation functions for all runtime APIs using v3
 //! primitives.
 //!
-//! Runtimes implementing the v2 runtime API are recommended to forward directly to these
+//! Runtimes implementing the v3 runtime API are recommended to forward directly to these
 //! functions.
 
 use crate::{
@@ -22,12 +22,13 @@ use crate::{
 	session_info, shared,
 };
 use primitives::v2::{
-	self, AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
+	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
 	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
+use primitives::v3::SessionInfo;
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
@@ -343,8 +344,8 @@ where
 }
 
 /// Get the session info for the given session, if stored.
-pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<v2::SessionInfo> {
-	<session_info::Pallet<T>>::session_info(index).map(|s| s.into())
+pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<SessionInfo> {
+	<session_info::Pallet<T>>::session_info(index)
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.

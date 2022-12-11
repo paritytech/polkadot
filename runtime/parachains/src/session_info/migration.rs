@@ -58,7 +58,10 @@ pub mod v2 {
 				<Pallet<T> as Store>::Sessions::translate_values(
 					|old: primitives::v2::SessionInfo| {
 						vs += 1;
-						Some(primitives::vstaging::SessionInfo::from(old))
+						log::info!(target: TARGET, "Translating {:?}", old);
+						let new = primitives::v3::SessionInfo::from(old);
+						log::info!(target: TARGET, "  ... into {:?}", new);
+						Some(new)
 					},
 				);
 				weight += db_weight.reads_writes(vs, vs);

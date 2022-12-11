@@ -16,10 +16,9 @@
 
 //! Put implementations of functions from staging APIs here.
 
-use crate::{disputes, session_info};
+use crate::disputes;
 use primitives::{
 	v2::{CandidateHash, DisputeState, SessionIndex},
-	vstaging,
 };
 use sp_std::prelude::*;
 
@@ -27,11 +26,4 @@ use sp_std::prelude::*;
 pub fn get_session_disputes<T: disputes::Config>(
 ) -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
 	<disputes::Pallet<T>>::disputes()
-}
-
-/// Get the session info for the given session, if stored.
-pub fn session_info_staging<T: session_info::Config>(
-	index: SessionIndex,
-) -> Option<vstaging::SessionInfo> {
-	<session_info::Pallet<T>>::session_info(index)
 }

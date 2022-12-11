@@ -61,7 +61,7 @@ use polkadot_primitives::{
 		AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt,
 		GroupIndex, Hash, HashT, IndexedVec, SessionIndex, ValidatorId, ValidatorIndex,
 	},
-	vstaging::SessionInfo,
+	v3::SessionInfo,
 };
 
 mod error;

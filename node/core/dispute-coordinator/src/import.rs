@@ -35,7 +35,7 @@ use polkadot_primitives::{
 		CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex, ValidDisputeStatementKind,
 		ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 	},
-	vstaging::SessionInfo,
+	v3::SessionInfo,
 };
 use sc_keystore::LocalKeystore;
 

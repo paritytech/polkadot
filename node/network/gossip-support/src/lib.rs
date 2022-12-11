@@ -53,7 +53,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util as util;
 use polkadot_primitives::{
 	v2::{AuthorityDiscoveryId, Hash, SessionIndex, ValidatorIndex},
-	vstaging::SessionInfo,
+	v3::SessionInfo,
 };
 
 #[cfg(test)]

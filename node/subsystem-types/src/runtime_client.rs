@@ -18,13 +18,13 @@ use async_trait::async_trait;
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
 	v2::{
-		self, Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+		Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
 		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id,
 		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
 		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex,
 		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	vstaging,
+	v3,
 };
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -149,7 +149,7 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 		index: SessionIndex,
-	) -> Result<Option<v2::SessionInfo>, ApiError>;
+	) -> Result<Option<v3::SessionInfo>, ApiError>;
 
 	/// Get the session info for the given session, if stored.
 	///
@@ -159,6 +159,15 @@ pub trait RuntimeApiSubsystemClient {
 		at: Hash,
 		index: SessionIndex,
 	) -> Result<Option<polkadot_primitives::v2::OldV1SessionInfo>, ApiError>;
+
+	/// Get the session info for the given session, if stored.
+	///
+	/// NOTE: This function is only available since parachain host version 2.
+	async fn session_info_before_version_3(
+		&self,
+		at: Hash,
+		index: SessionIndex,
+	) -> Result<Option<polkadot_primitives::v2::SessionInfo>, ApiError>;
 
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	///
@@ -193,13 +202,6 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
-
-	/// Get the session info for the given session, if stored.
-	async fn session_info_staging(
-		&self,
-		at: Hash,
-		index: SessionIndex,
-	) -> Result<Option<vstaging::SessionInfo>, ApiError>;
 
 	// === BABE API ===
 
@@ -333,7 +335,7 @@ where
 		&self,
 		at: Hash,
 		index: SessionIndex,
-	) -> Result<Option<v2::SessionInfo>, ApiError> {
+	) -> Result<Option<v3::SessionInfo>, ApiError> {
 		self.runtime_api().session_info(&BlockId::Hash(at), index)
 	}
 
@@ -385,18 +387,20 @@ where
 		self.runtime_api().session_info_before_version_2(&BlockId::Hash(at), index)
 	}
 
+	#[warn(deprecated)]
+	async fn session_info_before_version_3(
+		&self,
+		at: Hash,
+		index: SessionIndex,
+	) -> Result<Option<polkadot_primitives::v2::SessionInfo>, ApiError> {
+		#[allow(deprecated)]
+		self.runtime_api().session_info_before_version_3(&BlockId::Hash(at), index)
+	}
+
 	async fn disputes(
 		&self,
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError> {
 		self.runtime_api().disputes(&BlockId::Hash(at))
-	}
-
-	async fn session_info_staging(
-		&self,
-		at: Hash,
-		index: SessionIndex,
-	) -> Result<Option<vstaging::SessionInfo>, ApiError> {
-		self.runtime_api().session_info_staging(&BlockId::Hash(at), index)
 	}
 }

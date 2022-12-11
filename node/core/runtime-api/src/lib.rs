@@ -231,10 +231,20 @@ where
 				query!(candidate_events(), sender).map(|sender| Request::CandidateEvents(sender)),
 			Request::SessionInfo(index, sender) => {
 				if let Some(info) = self.requests_cache.session_info(index) {
+					gum::warn!(
+						target: LOG_TARGET,
+						"SessionInfo: cache hit for index {}",
+						index,
+					);
 					self.metrics.on_cached_request();
 					let _ = sender.send(Ok(Some(info.clone())));
 					None
 				} else {
+					gum::warn!(
+						target: LOG_TARGET,
+						"SessionInfo: cache miss for index {}",
+						index,
+					);
 					Some(Request::SessionInfo(index, sender))
 				}
 			},
@@ -454,8 +464,14 @@ where
 				.unwrap_or_default()
 				.unwrap_or_default();
 
+			gum::warn!(
+				target: LOG_TARGET,
+				"SessionInfo: API version: {}",
+				api_version,
+			);
+
 			let res = if api_version >= 3 {
-				let res = client.session_info_staging(relay_parent, index).await.map_err(|e| {
+				let res = client.session_info(relay_parent, index).await.map_err(|e| {
 					RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),
@@ -464,7 +480,7 @@ where
 				metrics.on_request(res.is_ok());
 				res
 			} else if api_version >= 2 {
-				let res = client.session_info(relay_parent, index).await.map_err(|e| {
+				let res = client.session_info_before_version_3(relay_parent, index).await.map_err(|e| {
 					RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),
