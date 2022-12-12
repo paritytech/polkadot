@@ -154,7 +154,16 @@ impl DisputeSender {
 
 		let have_new_sessions = self.refresh_sessions(ctx, runtime).await?;
 
+		gum::trace!(target: LOG_TARGET, "Requesting active disputes from dispute-coordinator");
+
 		let active_disputes = get_active_disputes(ctx).await?;
+
+		gum::trace!(
+			target: LOG_TARGET,
+			num_disputes = active_disputes.len(),
+			"Received active disputes"
+		);
+
 		let unknown_disputes = {
 			let mut disputes = active_disputes.clone();
 			disputes.retain(|(_, c)| !self.disputes.contains_key(c));
@@ -189,6 +198,11 @@ impl DisputeSender {
 			}
 		}
 
+		gum::trace!(
+			target: LOG_TARGET,
+			num_disputes = unknown_disputes.len(),
+			"Starting sending of unknown disputes"
+		);
 		// This should only be non-empty on startup, but if not - we got you covered.
 		//
 		// Initial order will not be maintained in that case, but that should be fine as disputes
@@ -198,6 +212,7 @@ impl DisputeSender {
 			self.rate_limit.limit("while going through unknown disputes", dispute.1).await;
 			self.start_send_for_dispute(ctx, runtime, dispute).await?;
 		}
+		gum::trace!(target: LOG_TARGET, "Started sending of unknown disputes");
 		Ok(())
 	}
 
