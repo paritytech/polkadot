@@ -30,7 +30,7 @@
 //! the dispute is concluded. This is also what `im-online` pallet does.
 //! However, since a dispute can conclude several sessions after the candidate
 //! was backed (see `dispute_period` in `HostConfiguration`), we can't rely on
-//! this information be available in the context of the current block. The
+//! this information being available in the context of the current block. The
 //! `babe` and `grandpa` equivocation handlers also have to deal with this
 //! problem.
 //!
