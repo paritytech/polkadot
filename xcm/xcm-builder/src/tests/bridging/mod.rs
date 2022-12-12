@@ -176,7 +176,7 @@ impl<Local: Get<Junctions>, Remote: Get<Junctions>, RemoteExporter: ExportXcm> S
 		let origin = Local::get().relative_to(&Remote::get());
 		AllowPaidFrom::set(vec![origin.clone()]);
 		set_exporter_override(price::<RemoteExporter>, deliver::<RemoteExporter>);
-		// The we execute it:
+		// Then we execute it:
 		let hash = fake_message_hash(&message);
 		let outcome = XcmExecutor::<TestConfig>::execute_xcm(
 			origin,

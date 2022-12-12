@@ -153,8 +153,8 @@ type LocalOriginConverter = (
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000_000_000, 1_000_000_000);
-	pub KsmPerSecond: (AssetId, u128) = (KsmLocation::get().into(), 1);
+	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000_000_000, 1024);
+	pub KsmPerSecondPerByte: (AssetId, u128, u128) = (KsmLocation::get().into(), 1, 1);
 }
 
 pub type Barrier = (
@@ -184,7 +184,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
-	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
+	type Trader = FixedRateOfFungible<KsmPerSecondPerByte, ()>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
 	type AssetLocker = ();

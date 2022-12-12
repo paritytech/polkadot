@@ -412,8 +412,10 @@ parameter_types! {
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowSubsFrom: Vec<MultiLocation> = vec![];
-	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
-	pub static WeightPrice: (AssetId, u128) = (From::from(Here), 1_000_000_000_000);
+	// 1_000_000_000_000 => 1 unit of asset for 1 unit of ref time weight.
+	// 1024 * 1024 => 1 unit of asset for 1 unit of proof size weight.
+	pub static WeightPrice: (AssetId, u128, u128) =
+		(From::from(Here), 1_000_000_000_000, 1024 * 1024);
 	pub static MaxInstructions: u32 = 100;
 }
 
