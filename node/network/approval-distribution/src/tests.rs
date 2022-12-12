@@ -2408,3 +2408,15 @@ fn batch_sending_half_batch() {
 	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE / 2);
 	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE / 2);
 }
+
+#[test]
+#[should_panic]
+fn const_batch_size_panics_if_zero() {
+	crate::ensure_size_not_zero(0);
+}
+
+#[test]
+fn const_ensure_size_not_zero() {
+	crate::ensure_size_not_zero(super::MAX_ASSIGNMENT_BATCH_SIZE);
+	crate::ensure_size_not_zero(super::MAX_APPROVAL_BATCH_SIZE);
+}

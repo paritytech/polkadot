@@ -1734,17 +1734,29 @@ impl<Context> ApprovalDistribution {
 	}
 }
 
+/// Ensures the batch size is always at least 1 element.
+const fn ensure_size_not_zero(size: usize) -> usize {
+	if 0 == size {
+		panic!("Size must be at least 1");
+	}
+
+	size
+}
+
 /// The maximum amount of assignments per batch is 33% of maximum allowed by protocol.
 /// This is an arbitrary value. Bumping this up increases the maximum amount of approvals or assignments
 /// we send in a single message to peers. Exceeding `MAX_NOTIFICATION_SIZE` will violate the protocol
 /// configuration.
-pub const MAX_ASSIGNMENT_BATCH_SIZE: usize = MAX_NOTIFICATION_SIZE as usize /
-	std::mem::size_of::<(IndirectAssignmentCert, CandidateIndex)>() /
-	3;
+pub const MAX_ASSIGNMENT_BATCH_SIZE: usize = ensure_size_not_zero(
+	MAX_NOTIFICATION_SIZE as usize /
+		std::mem::size_of::<(IndirectAssignmentCert, CandidateIndex)>() /
+		3,
+);
 
 /// The maximum amount of approvals per batch is 33% of maximum allowed by protocol.
-pub const MAX_APPROVAL_BATCH_SIZE: usize =
-	MAX_NOTIFICATION_SIZE as usize / std::mem::size_of::<IndirectSignedApprovalVote>() / 3;
+pub const MAX_APPROVAL_BATCH_SIZE: usize = ensure_size_not_zero(
+	MAX_NOTIFICATION_SIZE as usize / std::mem::size_of::<IndirectSignedApprovalVote>() / 3,
+);
 
 /// Send assignments while honoring the `max_notification_size` of the protocol.
 ///
