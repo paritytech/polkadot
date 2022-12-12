@@ -29,15 +29,13 @@ use crate::v2::{
 	ValidatorIndex,
 };
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "std")]
-use parity_util_mem::MallocSizeOf;
 use primitives::RuntimeDebug;
 use scale_info::TypeInfo;
 use sp_std::vec::Vec;
 
 /// Information about validator sets of a session.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct SessionInfo {
 	/****** New in vstaging *******/
 	/// Executor parameter set for the session.
@@ -67,7 +65,6 @@ pub struct SessionInfo {
 	/// `validators`, afterwards any remaining authorities can be found. This is any authorities not
 	/// participating in parachain consensus - see
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148)
-	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment keys for validators.
 	///

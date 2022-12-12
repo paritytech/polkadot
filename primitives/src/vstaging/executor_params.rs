@@ -23,14 +23,11 @@
 
 use crate::v2::{BlakeTwo256, HashT as _};
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "std")]
-use parity_util_mem::MallocSizeOf;
 use polkadot_core_primitives::Hash;
 use scale_info::TypeInfo;
 use sp_std::{ops::Deref, vec, vec::Vec};
 
 /// Execution environment type
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 #[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub enum ExecutionEnvironment {
 	/// Generic Wasmtime executor
@@ -38,7 +35,6 @@ pub enum ExecutionEnvironment {
 }
 
 /// Executor instantiation strategy
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub enum ExecInstantiationStrategy {
 	/// Pooling copy-on-write
@@ -52,7 +48,6 @@ pub enum ExecInstantiationStrategy {
 }
 
 /// A single executor parameter
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub enum ExecutorParam {
 	/// ## General parameters:
@@ -119,7 +114,6 @@ impl sp_std::fmt::LowerHex for ExecutorParamsHash {
 /// # Deterministically serialized execution environment semantics
 /// Represents an arbitrary semantics of an arbitrary execution environment, so should be kept as
 /// abstract as possible.
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub struct ExecutorParams(Vec<ExecutorParam>);
 
