@@ -372,7 +372,6 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().writes((3 as u64).saturating_mul(v as u64)))
 	}
 	// Storage: VoterList CounterForListNodes (r:1 w:0)
-	// Storage: Staking SlashingSpans (r:21 w:0)
 	// Storage: VoterList ListBags (r:200 w:0)
 	// Storage: VoterList ListNodes (r:1500 w:0)
 	// Storage: Staking Nominators (r:1500 w:0)
@@ -381,16 +380,16 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	// Storage: Staking Ledger (r:1500 w:0)
 	/// The range of component `v` is `[500, 1000]`.
 	/// The range of component `n` is `[500, 1000]`.
-	/// The range of component `s` is `[1, 20]`.
-	fn get_npos_voters(v: u32, n: u32) -> Weight {
-		Weight::from_ref_time(24_930_788_000 as u64)
-			// Standard Error: 266_386
-			.saturating_add(Weight::from_ref_time(6_687_552 as u64).saturating_mul(v as u64))
-			// Standard Error: 266_386
-			.saturating_add(Weight::from_ref_time(6_839_134 as u64).saturating_mul(n as u64))
-			.saturating_add(T::DbWeight::get().reads(6722 as u64))
-			.saturating_add(T::DbWeight::get().reads((2 as u64).saturating_mul(v as u64)))
-			.saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(n as u64)))
+	fn get_npos_voters(v: u32, n: u32, ) -> Weight {
+		// Minimum execution time: 24_634_585 nanoseconds.
+		Weight::from_ref_time(24_718_377_000)
+			// Standard Error: 324_839
+			.saturating_add(Weight::from_ref_time(3_654_508).saturating_mul(v.into()))
+			// Standard Error: 324_839
+			.saturating_add(Weight::from_ref_time(2_927_535).saturating_mul(n.into()))
+			.saturating_add(T::DbWeight::get().reads(201))
+			.saturating_add(T::DbWeight::get().reads((5_u64).saturating_mul(v.into())))
+			.saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(n.into())))
 	}
 	// Storage: Staking CounterForValidators (r:1 w:0)
 	// Storage: Staking Validators (r:501 w:0)
