@@ -21,7 +21,6 @@ use super::{
 	RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin, WeightToFee, XcmPallet,
 };
 use frame_support::{match_types, parameter_types, traits::Everything};
-use kusama_runtime_constants::xcm::body::{FELLOWS_INDEX, STAKING_ADMIN_INDEX};
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -156,9 +155,9 @@ impl xcm_executor::Config for XcmConfig {
 parameter_types! {
 	pub const CouncilBodyId: BodyId = BodyId::Executive;
 	// StakingAdmin pluralistic body.
-	pub const StakingAdminBodyId: BodyId = BodyId::Index(STAKING_ADMIN_INDEX);
+	pub const StakingAdminBodyId: BodyId = BodyId::Defence;
 	// Fellows pluralistic body.
-	pub const FellowsBodyId: BodyId = BodyId::Index(FELLOWS_INDEX);
+	pub const FellowsBodyId: BodyId = BodyId::Technical;
 }
 
 /// Type to convert the council origin to a Plurality `MultiLocation` value.
