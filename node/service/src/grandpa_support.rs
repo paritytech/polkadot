@@ -246,7 +246,7 @@ mod tests {
 
 		let get_header = {
 			let client = client.clone();
-			move |n| client.header(&BlockId::Number(n)).unwrap().unwrap()
+			move |n| client.expect_header(BlockId::Number(n)).unwrap()
 		};
 
 		// the rule should filter all votes after block #20
