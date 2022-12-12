@@ -53,7 +53,8 @@ check-transaction-versions:
     - npm install --ignore-scripts -g @polkadot/metadata-cmp
     # Set git config
     - git config remote.origin.url "https://github.com/paritytech/polkadot.git"
-    - git fetch origin release
+    - export LATEST_RELEASE=$(curl --silent "https://api.github.com/repos/paritytech/polkadot/releases/latest" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
+    - git fetch origin release-v${LATEST_RELEASE}
   script:
     - ./scripts/ci/gitlab/check_extrinsics_ordering.sh
 
