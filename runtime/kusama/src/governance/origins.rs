@@ -172,9 +172,9 @@ pub mod pallet_custom_origins {
 			SmallTipper = 250 * QUID,
 			BigTipper = 1 * GRAND,
 			SmallSpender = 10 * GRAND,
-			MediumSpender = 100 * GRAND,
-			BigSpender = 1_000 * GRAND,
-			Treasurer = 10_000 * GRAND,
+			MediumSpender = 30 * GRAND,
+			BigSpender = 120 * GRAND,
+			Treasurer = 600 * GRAND,
 		}
 	}
 
