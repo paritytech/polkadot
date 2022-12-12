@@ -1738,9 +1738,13 @@ impl<Context> ApprovalDistribution {
 /// This is an arbitrary value. Bumping this up increases the maximum amount of approvals or assignments
 /// we send in a single message to peers. Exceeding `MAX_NOTIFICATION_SIZE` will violate the protocol
 /// configuration.
-pub const MAX_BATCH_SIZE: usize = MAX_NOTIFICATION_SIZE as usize /
+pub const MAX_ASSIGNMENT_BATCH_SIZE: usize = MAX_NOTIFICATION_SIZE as usize /
 	std::mem::size_of::<(IndirectAssignmentCert, CandidateIndex)>() /
 	3;
+
+/// The maximum amount of approvals per batch is 33% of maximum allowed by protocol.
+pub const MAX_APPROVAL_BATCH_SIZE: usize =
+	MAX_NOTIFICATION_SIZE as usize / std::mem::size_of::<IndirectSignedApprovalVote>() / 3;
 
 /// Send assignments while honoring the `max_notification_size` of the protocol.
 ///
@@ -1755,7 +1759,7 @@ pub(crate) async fn send_assignments_batched(
 	let mut batches = assignments.into_iter().peekable();
 
 	while batches.peek().is_some() {
-		let batch: Vec<_> = batches.by_ref().take(MAX_BATCH_SIZE).collect();
+		let batch: Vec<_> = batches.by_ref().take(MAX_ASSIGNMENT_BATCH_SIZE).collect();
 
 		sender
 			.send_message(NetworkBridgeTxMessage::SendValidationMessage(
@@ -1777,7 +1781,7 @@ pub(crate) async fn send_approvals_batched(
 	let mut batches = approvals.into_iter().peekable();
 
 	while batches.peek().is_some() {
-		let batch: Vec<_> = batches.by_ref().take(MAX_BATCH_SIZE).collect();
+		let batch: Vec<_> = batches.by_ref().take(MAX_APPROVAL_BATCH_SIZE).collect();
 
 		sender
 			.send_message(NetworkBridgeTxMessage::SendValidationMessage(

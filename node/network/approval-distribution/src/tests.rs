@@ -2310,7 +2310,7 @@ fn batch_test_round(message_count: usize) {
 		send_approvals_batched(&mut sender, approvals.clone(), peer).await;
 
 		// Check expected assignments batches.
-		for assignment_index in (0..assignments.len()).step_by(super::MAX_BATCH_SIZE) {
+		for assignment_index in (0..assignments.len()).step_by(super::MAX_ASSIGNMENT_BATCH_SIZE) {
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
@@ -2320,10 +2320,10 @@ fn batch_test_round(message_count: usize) {
 					))
 				)) => {
 					// Last batch should cover all remaining messages.
-					if sent_assignments.len() < super::MAX_BATCH_SIZE {
+					if sent_assignments.len() < super::MAX_ASSIGNMENT_BATCH_SIZE {
 						assert_eq!(sent_assignments.len() + assignment_index, assignments.len());
 					} else {
-						assert_eq!(sent_assignments.len(), super::MAX_BATCH_SIZE);
+						assert_eq!(sent_assignments.len(), super::MAX_ASSIGNMENT_BATCH_SIZE);
 					}
 
 					assert_eq!(peers.len(), 1);
@@ -2337,7 +2337,7 @@ fn batch_test_round(message_count: usize) {
 		}
 
 		// Check approval vote batching.
-		for approval_index in (0..approvals.len()).step_by(super::MAX_BATCH_SIZE) {
+		for approval_index in (0..approvals.len()).step_by(super::MAX_APPROVAL_BATCH_SIZE) {
 			assert_matches!(
 				overseer_recv(overseer).await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
@@ -2347,10 +2347,10 @@ fn batch_test_round(message_count: usize) {
 					))
 				)) => {
 					// Last batch should cover all remaining messages.
-					if sent_approvals.len() < super::MAX_BATCH_SIZE {
+					if sent_approvals.len() < super::MAX_APPROVAL_BATCH_SIZE {
 						assert_eq!(sent_approvals.len() + approval_index, approvals.len());
 					} else {
-						assert_eq!(sent_approvals.len(), super::MAX_BATCH_SIZE);
+						assert_eq!(sent_approvals.len(), super::MAX_APPROVAL_BATCH_SIZE);
 					}
 
 					assert_eq!(peers.len(), 1);
@@ -2387,20 +2387,24 @@ fn batch_sending_1_msg() {
 
 #[test]
 fn batch_sending_exactly_one_batch() {
-	batch_test_round(super::MAX_BATCH_SIZE);
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE);
 }
 
 #[test]
 fn batch_sending_partial_batch() {
-	batch_test_round(super::MAX_BATCH_SIZE * 2 + 4);
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE * 2 + 4);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE * 2 + 4);
 }
 
 #[test]
 fn batch_sending_multiple_same_len() {
-	batch_test_round(super::MAX_BATCH_SIZE * 10);
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE * 10);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE * 10);
 }
 
 #[test]
 fn batch_sending_half_batch() {
-	batch_test_round(super::MAX_BATCH_SIZE / 2);
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE / 2);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE / 2);
 }
