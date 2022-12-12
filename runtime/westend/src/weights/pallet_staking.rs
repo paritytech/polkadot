@@ -373,28 +373,24 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 	}
 	// Storage: VoterList CounterForListNodes (r:1 w:0)
 	// Storage: Staking SlashingSpans (r:21 w:0)
-	// Storage: VoterList ListBags (r:178 w:0)
+	// Storage: VoterList ListBags (r:200 w:0)
 	// Storage: VoterList ListNodes (r:1500 w:0)
 	// Storage: Staking Nominators (r:1500 w:0)
 	// Storage: Staking Validators (r:500 w:0)
 	// Storage: Staking Bonded (r:1500 w:0)
 	// Storage: Staking Ledger (r:1500 w:0)
-	// Storage: System BlockWeight (r:1 w:1)
 	/// The range of component `v` is `[500, 1000]`.
 	/// The range of component `n` is `[500, 1000]`.
 	/// The range of component `s` is `[1, 20]`.
-	fn get_npos_voters(v: u32, n: u32, s: u32, ) -> Weight {
-		// Minimum execution time: 26_306_369 nanoseconds.
-		Weight::from_ref_time(26_515_009_000 as u64)
-			// Standard Error: 478_602
-			.saturating_add(Weight::from_ref_time(11_814_244 as u64).saturating_mul(v as u64))
-			// Standard Error: 478_602
-			.saturating_add(Weight::from_ref_time(10_546_073 as u64).saturating_mul(n as u64))
-			.saturating_add(T::DbWeight::get().reads(181 as u64))
-			.saturating_add(T::DbWeight::get().reads((5 as u64).saturating_mul(v as u64)))
-			.saturating_add(T::DbWeight::get().reads((4 as u64).saturating_mul(n as u64)))
-			.saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(s as u64)))
-			.saturating_add(T::DbWeight::get().writes(1 as u64))
+	fn get_npos_voters(v: u32, n: u32) -> Weight {
+		Weight::from_ref_time(24_930_788_000 as u64)
+			// Standard Error: 266_386
+			.saturating_add(Weight::from_ref_time(6_687_552 as u64).saturating_mul(v as u64))
+			// Standard Error: 266_386
+			.saturating_add(Weight::from_ref_time(6_839_134 as u64).saturating_mul(n as u64))
+			.saturating_add(T::DbWeight::get().reads(6722 as u64))
+			.saturating_add(T::DbWeight::get().reads((2 as u64).saturating_mul(v as u64)))
+			.saturating_add(T::DbWeight::get().reads((1 as u64).saturating_mul(n as u64)))
 	}
 	// Storage: Staking CounterForValidators (r:1 w:0)
 	// Storage: Staking Validators (r:501 w:0)
