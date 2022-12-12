@@ -35,7 +35,7 @@
 //   --header=./file_header.txt
 
 use sp_core::parameter_types;
-use sp_weights::{constants::WEIGHT_PER_NANOS, Weight};
+use sp_weights::{constants::WEIGHT_REF_TIME_PER_NANOS, Weight};
 
 parameter_types! {
 	/// Time to execute an empty block.
@@ -51,7 +51,8 @@ parameter_types! {
 	///   99th: 5_495_378
 	///   95th: 5_453_765
 	///   75th: 5_352_587
-	pub const BlockExecutionWeight: Weight = WEIGHT_PER_NANOS.saturating_mul(5_334_883);
+	pub const BlockExecutionWeight: Weight =
+		Weight::from_ref_time(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(5_334_883));
 }
 
 #[cfg(test)]
@@ -67,12 +68,12 @@ mod test_weights {
 
 		// At least 100 µs.
 		assert!(
-			w.ref_time() >= 100u64 * constants::WEIGHT_PER_MICROS.ref_time(),
+			w.ref_time() >= 100u64 * constants::WEIGHT_REF_TIME_PER_MICROS,
 			"Weight should be at least 100 µs."
 		);
 		// At most 50 ms.
 		assert!(
-			w.ref_time() <= 50u64 * constants::WEIGHT_PER_MILLIS.ref_time(),
+			w.ref_time() <= 50u64 * constants::WEIGHT_REF_TIME_PER_MILLIS,
 			"Weight should be at most 50 ms."
 		);
 	}
