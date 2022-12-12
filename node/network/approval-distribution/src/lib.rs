@@ -1737,7 +1737,7 @@ impl<Context> ApprovalDistribution {
 /// Ensures the batch size is always at least 1 element.
 const fn ensure_size_not_zero(size: usize) -> usize {
 	if 0 == size {
-		panic!("Size must be at least 1");
+		panic!("Batch size must be at least 1 (MAX_NOTIFICATION_SIZE constant is too low)",);
 	}
 
 	size
