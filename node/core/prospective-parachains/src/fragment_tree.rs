@@ -218,7 +218,12 @@ pub(crate) struct Scope {
 /// An error variant indicating that ancestors provided to a scope
 /// had unexpected order.
 #[derive(Debug)]
-pub struct UnexpectedAncestor;
+pub struct UnexpectedAncestor {
+	/// The block number that this error occurred at.
+	pub number: BlockNumber,
+	/// The previous seen block number, which did not match `number`.
+	pub prev: BlockNumber,
+}
 
 impl Scope {
 	/// Define a new [`Scope`].
@@ -250,9 +255,9 @@ impl Scope {
 			let mut prev = relay_parent.number;
 			for ancestor in ancestors {
 				if prev == 0 {
-					return Err(UnexpectedAncestor)
+					return Err(UnexpectedAncestor { number: ancestor.number, prev })
 				} else if ancestor.number != prev - 1 {
-					return Err(UnexpectedAncestor)
+					return Err(UnexpectedAncestor { number: ancestor.number, prev })
 				} else if prev == base_constraints.min_relay_parent_number {
 					break
 				} else {
@@ -778,8 +783,8 @@ mod tests {
 		let base_constraints = make_constraints(8, vec![8, 9], vec![1, 2, 3].into());
 
 		assert_matches!(
-			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
-			Err(UnexpectedAncestor)
+			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors),
+			Err(UnexpectedAncestor { number: 8, prev: 10 })
 		);
 	}
 
@@ -803,7 +808,7 @@ mod tests {
 
 		assert_matches!(
 			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
-			Err(UnexpectedAncestor)
+			Err(UnexpectedAncestor { number: 99999, prev: 0 })
 		);
 	}
 

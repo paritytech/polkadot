@@ -29,7 +29,7 @@ use polkadot_primitives::{
 		CandidateDescriptor, GroupRotationInfo, HeadData, Header, PersistedValidationData,
 		ScheduledCore, SessionIndex, SigningContext, ValidatorId, ValidatorIndex,
 	},
-	vstaging as vstaging_primitives,
+	vstaging::{AsyncBackingParameters, Constraints, InboundHrmpLimitations},
 };
 use sp_application_crypto::AppKey;
 use sp_core::testing::TaskExecutor;
@@ -38,16 +38,36 @@ use sp_keystore::{CryptoStore, SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
 
 const ALLOWED_ANCESTRY_LEN: u32 = 3;
-const ASYNC_BACKING_PARAMETERS: vstaging_primitives::AsyncBackingParameters =
-	vstaging_primitives::AsyncBackingParameters {
-		max_candidate_depth: 4,
-		allowed_ancestry_len: ALLOWED_ANCESTRY_LEN,
-	};
+const ASYNC_BACKING_PARAMETERS: AsyncBackingParameters =
+	AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: ALLOWED_ANCESTRY_LEN };
 
 const ASYNC_BACKING_DISABLED_ERROR: RuntimeApiError =
 	RuntimeApiError::NotSupported { runtime_api_name: "test-runtime" };
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ProspectiveParachainsMessage>;
+
+fn make_constraints(
+	min_relay_parent_number: BlockNumber,
+	valid_watermarks: Vec<BlockNumber>,
+	required_parent: HeadData,
+) -> Constraints {
+	Constraints {
+		min_relay_parent_number,
+		max_pov_size: 1_000_000,
+		max_code_size: 1_000_000,
+		ump_remaining: 10,
+		ump_remaining_bytes: 1_000,
+		max_ump_num_per_candidate: 10,
+		dmp_remaining_messages: 10,
+		hrmp_inbound: InboundHrmpLimitations { valid_watermarks },
+		hrmp_channels_out: vec![],
+		max_hrmp_num_per_candidate: 0,
+		required_parent,
+		validation_code_hash: Hash::repeat_byte(42).into(),
+		upgrade_restriction: None,
+		future_validation_code: None,
+	}
+}
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
@@ -241,14 +261,14 @@ async fn activate_leaf(
 		.map(|(_, block_num)| block_num)
 		.min()
 		.unwrap_or(&leaf_number);
-	let ancestry_len = leaf_number + 1 - min_min;
+	let ancestry_len = leaf_number - min_min;
 	let ancestry_hashes: Vec<Hash> =
 		std::iter::successors(Some(leaf_hash), |h| Some(get_parent_hash(*h)))
+			.skip(1)
 			.take(ancestry_len as usize)
 			.collect();
-	let ancestry_numbers = (min_min..=leaf_number).rev();
+	let ancestry_numbers = (min_min..leaf_number).rev();
 	let ancestry_iter = ancestry_hashes.clone().into_iter().zip(ancestry_numbers).peekable();
-	println!("Ancestors: {:?}", ancestry_hashes);
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::ChainApi(
@@ -277,8 +297,32 @@ async fn activate_leaf(
 		);
 	}
 
-	let message = virtual_overseer.recv().await;
-	println!("Message: {:?}", message);
+	for _ in 0..test_state.availability_cores.len() {
+		let message = virtual_overseer.recv().await;
+		// Get the para we are working with since the order is not deterministic.
+		let para_id = match message {
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				_,
+				RuntimeApiRequest::StagingValidityConstraints(p_id, _),
+			)) => p_id,
+			_ => panic!("received unexpected message {:?}", message),
+		};
+
+		let min_relay_parent_number = *min_relay_parents
+			.iter()
+			.find_map(|(p_id, block_num)| if *p_id == para_id { Some(block_num) } else { None })
+			.unwrap_or(&leaf_number);
+		let constraints =
+			make_constraints(min_relay_parent_number, vec![8, 9], vec![1, 2, 3].into());
+		assert_matches!(
+			message,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingValidityConstraints(p_id, tx))
+			) if parent == leaf_hash && p_id == para_id => {
+				tx.send(Ok(Some(constraints))).unwrap();
+			}
+		);
+	}
 }
 
 #[test]

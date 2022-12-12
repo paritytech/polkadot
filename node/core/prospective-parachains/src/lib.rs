@@ -640,7 +640,7 @@ async fn fetch_ancestry<Context>(
 	let hashes = rx.map_err(JfyiError::ChainApiRequestCanceled).await??;
 	let mut block_info = Vec::with_capacity(hashes.len());
 	for hash in hashes {
-		match fetch_block_info(ctx, relay_hash).await? {
+		match fetch_block_info(ctx, hash).await? {
 			None => {
 				gum::warn!(
 					target: LOG_TARGET,
