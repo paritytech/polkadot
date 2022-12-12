@@ -29,9 +29,8 @@ use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::ProvisionerMessage, overseer::Handle,
 };
 use polkadot_primitives::v2::{Block, Hash, InherentData as ParachainsInherentData};
-use sp_blockchain::HeaderBackend;
 use sp_runtime::generic::BlockId;
-use std::time;
+use std::{sync::Arc, time};
 
 pub(crate) const LOG_TARGET: &str = "parachain::parachains-inherent";
 
@@ -39,22 +38,24 @@ pub(crate) const LOG_TARGET: &str = "parachain::parachains-inherent";
 const PROVISIONER_TIMEOUT: time::Duration = core::time::Duration::from_millis(2500);
 
 /// Provides the parachains inherent data.
-pub struct ParachainsInherentDataProvider {
-	inherent_data: ParachainsInherentData,
+pub struct ParachainsInherentDataProvider<C: sp_blockchain::HeaderBackend<Block>> {
+	pub client: Arc<C>,
+	pub overseer: polkadot_overseer::Handle,
+	pub parent: Hash,
 }
 
-impl ParachainsInherentDataProvider {
-	/// Create a [`Self`] directly from some [`ParachainsInherentData`].
-	pub fn from_data(inherent_data: ParachainsInherentData) -> Self {
-		Self { inherent_data }
+impl<C: sp_blockchain::HeaderBackend<Block>> ParachainsInherentDataProvider<C> {
+	/// Create a new [`Self`].
+	pub fn new(client: Arc<C>, overseer: polkadot_overseer::Handle, parent: Hash) -> Self {
+		ParachainsInherentDataProvider { client, overseer, parent }
 	}
 
 	/// Create a new instance of the [`ParachainsInherentDataProvider`].
-	pub async fn create<C: HeaderBackend<Block>>(
-		client: &C,
+	pub async fn create(
+		client: Arc<C>,
 		mut overseer: Handle,
 		parent: Hash,
-	) -> Result<Self, Error> {
+	) -> Result<ParachainsInherentData, Error> {
 		let pid = async {
 			let (sender, receiver) = futures::channel::oneshot::channel();
 			gum::trace!(
@@ -119,18 +120,28 @@ impl ParachainsInherentDataProvider {
 			},
 		};
 
-		Ok(Self { inherent_data })
+		Ok(inherent_data)
 	}
 }
 
 #[async_trait::async_trait]
-impl sp_inherents::InherentDataProvider for ParachainsInherentDataProvider {
-	fn provide_inherent_data(
+impl<C: sp_blockchain::HeaderBackend<Block>> sp_inherents::InherentDataProvider
+	for ParachainsInherentDataProvider<C>
+{
+	async fn provide_inherent_data(
 		&self,
 		dst_inherent_data: &mut sp_inherents::InherentData,
 	) -> Result<(), sp_inherents::Error> {
+		let inherent_data = ParachainsInherentDataProvider::create(
+			self.client.clone(),
+			self.overseer.clone(),
+			self.parent,
+		)
+		.await
+		.map_err(|e| sp_inherents::Error::Application(Box::new(e)))?;
+
 		dst_inherent_data
-			.put_data(polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER, &self.inherent_data)
+			.put_data(polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER, &inherent_data)
 	}
 
 	async fn try_handle_error(

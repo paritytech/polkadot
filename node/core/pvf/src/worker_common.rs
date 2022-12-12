@@ -199,10 +199,8 @@ where
 }
 
 /// Loop that runs in the CPU time monitor thread on prepare and execute jobs. Continuously wakes up
-/// from sleeping and then either sleeps for the remaining CPU time, or kills the process if we
-/// exceed the CPU timeout.
-///
-/// NOTE: Killed processes are detected and cleaned up in `purge_dead`.
+/// from sleeping and then either sleeps for the remaining CPU time, or sends back a timeout error
+/// if we exceed the CPU timeout.
 ///
 /// NOTE: If the job completes and this thread is still sleeping, it will continue sleeping in the
 /// background. When it wakes, it will see that the flag has been set and return.
@@ -233,7 +231,11 @@ pub async fn cpu_time_monitor_loop(
 				timeout.as_millis(),
 			);
 
-			// Send back a TimedOut error on timeout.
+			// Send back a `TimedOut` error.
+			//
+			// NOTE: This will cause the worker, whether preparation or execution, to be killed by
+			// the host. We do not kill the process here because it would interfere with the proper
+			// handling of this error.
 			let encoded_result = match job_kind {
 				JobKind::Prepare => {
 					let result: Result<(), PrepareError> = Err(PrepareError::TimedOut);
@@ -244,8 +246,8 @@ pub async fn cpu_time_monitor_loop(
 					result.encode()
 				},
 			};
-			// If we error there is nothing else we can do here, and we are killing the process,
-			// anyway. The receiving side will just have to time out.
+			// If we error here there is nothing we can do apart from log it. The receiving side
+			// will just have to time out.
 			if let Err(err) = framed_send(&mut stream, encoded_result.as_slice()).await {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -255,8 +257,7 @@ pub async fn cpu_time_monitor_loop(
 				);
 			}
 
-			// Kill the process.
-			std::process::exit(1);
+			return
 		}
 
 		// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep
