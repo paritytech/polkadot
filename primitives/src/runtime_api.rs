@@ -222,7 +222,7 @@ sp_api::decl_runtime_apis! {
 		fn disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
 
 		/// Get the session info for the given session, if stored.
-		#[api_version(3)]
+		#[api_version(4)]
 		fn session_info_staging(index: sp_staking::SessionIndex) -> Option<vstaging::SessionInfo>;
 	}
 }

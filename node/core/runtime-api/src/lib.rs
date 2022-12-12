@@ -454,7 +454,7 @@ where
 				.unwrap_or_default()
 				.unwrap_or_default();
 
-			let res = if api_version >= 3 {
+			let res = if api_version >= 4 {
 				let res = client.session_info_staging(relay_parent, index).await.map_err(|e| {
 					RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
