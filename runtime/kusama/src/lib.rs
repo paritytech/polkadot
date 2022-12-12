@@ -2204,18 +2204,22 @@ mod multiplier_tests {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
-	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use frame_support::storage::with_storage_layer;
+use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
 	};
-	use std::env::var;
+	use core::num;
+use std::env::var;
 
 	#[tokio::test]
 	async fn proposal() {
 		use frame_support::traits::UnfilteredDispatchable;
 		use sp_core::hexdisplay::HexDisplay;
 		use pallet_election_provider_multi_phase as EPM;
+		use frame_election_provider_support as EPS;
 		use frame_election_provider_support::Supports;
+		use std::io::Write;
 
 		sp_tracing::try_init_simple();
 		let transport: Transport =
@@ -2255,49 +2259,63 @@ mod remote_tests {
 					slash_indices,
 				});
 
-				let res = call.clone().dispatch_bypass_filter(origin.clone().into());
-				assert!(res.is_ok());
-
-				// no slashes should be left in this era.
-				assert!(pallet_staking::UnappliedSlashes::<Runtime>::get(4571).is_empty());
 				call
 			};
 
 			let lower_min_untrusted_score = {
-				let mut current = EPM::MinimumUntrustedScore::<Runtime>::get().unwrap();
+				// { min_stake = 4.5kKSM }
+				// { min_stake = 2.5kKSM }
+
+				let mut current = EPM::MinimumUntrustedScore::<Runtime>::get().unwrap(); // 2.1kKSM
 				// relax this by 20%.
-				current.minimal_stake = Perbill::from_percent(80) * current.minimal_stake;
+				current.minimal_stake = Perbill::from_percent(80) * current.minimal_stake; // 1.8kKSM
 				current.sum_stake = Perbill::from_percent(80) * current.sum_stake;
 				let call =
 					RuntimeCall::ElectionProviderMultiPhase(EPM::Call::set_minimum_untrusted_score {
 						maybe_next_score: Some(current)
 					});
-				let res = call.clone().dispatch_bypass_filter(origin.clone().into());
-				assert!(res.is_ok());
 				call
 			};
 
 			let election_resume = {
 				// can be generated with:
 				// cargo remote -b "RUST_LOG=staking-miner=debug,info" run -- --release -p staking-miner -- emergency-solution -u ws://127.0.0.1:9999 --force-snapshot seq-phragmen
+				// 2.5kKSM
 				let mined_solution = std::fs::read("/home/kianenigma/remote-builds/solution.supports.bin").unwrap();
 				let supports = <Supports<AccountId> as Decode>::decode(&mut &*mined_solution).unwrap();
 				let call = RuntimeCall::ElectionProviderMultiPhase(EPM::Call::set_emergency_election_result { supports });
-				let res = call.clone().dispatch_bypass_filter(origin.clone().into());
-				assert!(res.is_ok());
-				assert!(EPM::QueuedSolution::<Runtime>::exists());
+
 				call
 			};
 
 			let calls = vec![slash_cancel, lower_min_untrusted_score, election_resume];
-			let final_call = RuntimeCall::Utility(pallet_utility::Call::batch { calls });
+			let final_call = RuntimeCall::Utility(pallet_utility::Call::force_batch { calls });
 
 			let encoded_call = final_call.encode();
 			let hashed_call = <<Runtime as frame_system::Config>::Hashing
 				as sp_runtime::traits::Hash>
 				::hash(&encoded_call);
-			println!("encoded call: {:?}", HexDisplay::from(&encoded_call));
+
+			println!("encoded call: {}", HexDisplay::from(&encoded_call));
+			println!("encoded call length: {}", encoded_call.len());
 			println!("call hash: {:?}", &hashed_call);
+			let mut call_file = std::fs::File::create("/home/kianenigma/remote-builds/call.scale").unwrap();
+			call_file.write_all(&encoded_call).unwrap();
+
+			assert!(final_call.dispatch_bypass_filter(origin.into()).is_ok());
+
+			// no slashes should be left in this era.
+			assert!(pallet_staking::UnappliedSlashes::<Runtime>::get(4571).is_empty());
+			// a solution should have been submitted.
+			assert!(EPM::QueuedSolution::<Runtime>::exists());
+
+			// TODO: run this now in WASM.
+
+			// // let's just manually try and create a snapshot
+			assert!(ElectionProviderMultiPhase::create_snapshot().is_ok());
+			// // now let's mine a new solution.
+			assert!(ElectionProviderMultiPhase::mine_and_check().is_ok());
+
 
 			panic!("all good, just to enable prints");
 		});

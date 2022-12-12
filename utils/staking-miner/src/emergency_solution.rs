@@ -59,10 +59,10 @@ macro_rules! emergency_solution_cmd_for { ($runtime:ident) => { paste::paste! {
 			let mut supports_file = std::fs::File::create("solution.supports.bin")?;
 			supports_file.write_all(&encoded_support)?;
 
-			log::info!(target: LOG_TARGET, "ReadySolution: size {:?} / score = ({:?}, {:?})", ready_solution.encoded_size(), Token::from(ready_solution.score.minimal_stake), Token::from(ready_solution.score.sum_stake));
+			log::info!(target: LOG_TARGET, "ReadySolution: size {:?} / score = ({:?}, {:?})", supports.encoded_size(), Token::from(ready_solution.score.minimal_stake), Token::from(ready_solution.score.sum_stake));
 			log::trace!(target: LOG_TARGET, "Supports: {}", sp_core::hexdisplay::HexDisplay::from(&encoded_support));
 
-			let call = RuntimeCall::ElectionProviderMultiPhase(EPM::Call::set_emergency_election_result { supports: ready_solution.supports });
+			let call = RuntimeCall::ElectionProviderMultiPhase(EPM::Call::set_emergency_election_result { supports: supports });
 			let mut call_file = std::fs::File::create("call.bin")?;
 			call_file.write_all(&call.encode())?;
 

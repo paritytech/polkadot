@@ -2432,6 +2432,11 @@ mod remote_tests {
 	use std::env::var;
 
 	#[tokio::test]
+	async fn run_proposals() {
+		todo!();
+	}
+
+	#[tokio::test]
 	async fn run_migrations() {
 		sp_tracing::try_init_simple();
 		let transport: Transport =
