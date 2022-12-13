@@ -95,7 +95,7 @@ default:
   before_script:
     - !reference [.job-switcher, before_script]
   tags:
-    - linux-docker
+    - linux-docker-vm-c2
 
 .compiler-info:
   before_script:
