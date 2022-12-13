@@ -32,7 +32,7 @@ use polkadot_primitives::{
 		OccupiedCore, ScrapedOnChainVotes, SessionIndex, Signed, SigningContext, UncheckedSigned,
 		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 	},
-	vstaging::SessionInfo,
+	v4::SessionInfo,
 };
 
 use crate::{

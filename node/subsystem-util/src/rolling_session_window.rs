@@ -26,7 +26,7 @@ use parity_scale_codec::{Decode, Encode};
 pub use polkadot_node_primitives::{new_session_window_size, SessionWindowSize};
 use polkadot_primitives::{
 	v2::{BlockNumber, Hash, SessionIndex},
-	vstaging::SessionInfo,
+	v4::SessionInfo,
 };
 use std::sync::Arc;
 

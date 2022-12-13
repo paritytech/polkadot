@@ -110,7 +110,7 @@
 //! All staging API functions should use primitives from `vstaging`. They should be clearly separated
 //! from the stable primitives.
 
-use crate::{v2, vstaging};
+use crate::{v2, v4};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives as pcp;
 use polkadot_parachain::primitives as ppp;
@@ -119,7 +119,7 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	#[api_version(2)]
+	#[api_version(4)]
 	pub trait ParachainHost<H: Encode + Decode = pcp::v2::Hash, N: Encode + Decode = pcp::v2::BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<v2::ValidatorId>;
@@ -191,7 +191,7 @@ sp_api::decl_runtime_apis! {
 		/// Get the session info for the given session, if stored.
 		///
 		/// NOTE: This function is only available since parachain host version 2.
-		fn session_info(index: sp_staking::SessionIndex) -> Option<v2::SessionInfo>;
+		fn session_info(index: sp_staking::SessionIndex) -> Option<v4::SessionInfo>;
 
 		/// Submits a PVF pre-checking statement into the transaction pool.
 		///
@@ -215,14 +215,14 @@ sp_api::decl_runtime_apis! {
 		#[changed_in(2)]
 		fn session_info(index: sp_staking::SessionIndex) -> Option<v2::OldV1SessionInfo>;
 
+		/// Old method to fetch v2 session info.
+		#[changed_in(4)]
+		fn session_info(index: sp_staking::SessionIndex) -> Option<v2::SessionInfo>;
+
 		/***** STAGING *****/
 
 		/// Returns all onchain disputes.
-		#[api_version(3)]
+		// #[api_version(3)]
 		fn disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
-
-		/// Get the session info for the given session, if stored.
-		#[api_version(4)]
-		fn session_info_staging(index: sp_staking::SessionIndex) -> Option<vstaging::SessionInfo>;
 	}
 }

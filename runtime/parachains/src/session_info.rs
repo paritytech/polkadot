@@ -29,7 +29,8 @@ use frame_support::{
 };
 use primitives::{
 	v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex},
-	vstaging::{ExecutionEnvironment, ExecutorParam, ExecutorParams, SessionInfo},
+	v4::SessionInfo,
+	vstaging::{ExecutionEnvironment, ExecutorParam, ExecutorParams},
 };
 use sp_std::vec::Vec;
 

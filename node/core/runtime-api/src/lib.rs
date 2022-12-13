@@ -455,7 +455,7 @@ where
 				.unwrap_or_default();
 
 			let res = if api_version >= 4 {
-				let res = client.session_info_staging(relay_parent, index).await.map_err(|e| {
+				let res = client.session_info(relay_parent, index).await.map_err(|e| {
 					RuntimeApiError::Execution {
 						runtime_api_name: "SessionInfo",
 						source: std::sync::Arc::new(e),
@@ -464,12 +464,13 @@ where
 				metrics.on_request(res.is_ok());
 				res
 			} else if api_version >= 2 {
-				let res = client.session_info(relay_parent, index).await.map_err(|e| {
-					RuntimeApiError::Execution {
-						runtime_api_name: "SessionInfo",
-						source: std::sync::Arc::new(e),
-					}
-				});
+				let res =
+					client.session_info_before_version_4(relay_parent, index).await.map_err(|e| {
+						RuntimeApiError::Execution {
+							runtime_api_name: "SessionInfo",
+							source: std::sync::Arc::new(e),
+						}
+					});
 				metrics.on_request(res.is_ok());
 
 				res.map(|r| r.map(|old| old.into()))

@@ -47,7 +47,7 @@ use polkadot_primitives::{
 		PersistedValidationData, ScrapedOnChainVotes, SessionIndex, Signed, SigningContext,
 		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	vstaging::SessionInfo,
+	v4::SessionInfo,
 };
 pub use rand;
 use sp_application_crypto::AppKey;

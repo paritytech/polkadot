@@ -54,7 +54,7 @@ use polkadot_primitives::{
 		DisputeStatement, GroupIndex, Hash, SessionIndex, ValidDisputeStatementKind, ValidatorId,
 		ValidatorIndex, ValidatorPair, ValidatorSignature,
 	},
-	vstaging::SessionInfo,
+	v4::SessionInfo,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;

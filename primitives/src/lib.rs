@@ -21,6 +21,7 @@
 
 // `v2` is currently the latest stable version of the runtime API.
 pub mod v2;
+pub mod v4;
 
 // The 'staging' version is special - it contains primitives which are
 // still in development. Once they are considered stable, they will be

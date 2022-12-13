@@ -25,7 +25,7 @@ use polkadot_primitives::{
 		AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, IndexedVec,
 		ValidatorIndex,
 	},
-	vstaging::SessionInfo,
+	v4::SessionInfo,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::ByteArray;

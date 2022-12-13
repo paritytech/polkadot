@@ -37,13 +37,13 @@ use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInf
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
 	v2::{
-		self, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
 		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
 		InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
 		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, Signature, ValidationCode,
 		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	vstaging,
+	v4,
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, elections::OnChainAccuracy, impl_runtime_weights,
@@ -52,15 +52,12 @@ use runtime_common::{
 };
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
-	disputes::slashing as parachains_slashing,
-	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
-	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
+	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
+	inclusion as parachains_inclusion, initializer as parachains_initializer,
+	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::{
-		v2 as parachains_runtime_api_impl, vstaging as parachains_runtime_api_impl_staging,
-	},
-	scheduler as parachains_scheduler, session_info as parachains_session_info,
-	shared as parachains_shared, ump as parachains_ump,
+	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 use scale_info::TypeInfo;
 use sp_core::{OpaqueMetadata, RuntimeDebug};
@@ -1409,12 +1406,8 @@ sp_api::impl_runtime_apis! {
 			})
 		}
 
-		fn session_info(index: SessionIndex) -> Option<v2::SessionInfo> {
+		fn session_info(index: SessionIndex) -> Option<v4::SessionInfo> {
 			parachains_runtime_api_impl::session_info::<Runtime>(index)
-		}
-
-		fn session_info_staging(index: SessionIndex) -> Option<vstaging::SessionInfo> {
-			parachains_runtime_api_impl_staging::session_info_staging::<Runtime>(index)
 		}
 
 		fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumber>> {

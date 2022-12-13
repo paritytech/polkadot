@@ -28,7 +28,7 @@ use polkadot_runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
-	paras_inherent as parachains_paras_inherent, runtime_api_impl::v2 as runtime_impl,
+	paras_inherent as parachains_paras_inherent, runtime_api_impl::v4 as runtime_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared, ump as parachains_ump,
 };
@@ -44,12 +44,15 @@ use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
-use primitives::v2::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-	ScrapedOnChainVotes, SessionInfo as SessionInfoData, Signature, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+use primitives::{
+	v2::{
+		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash as HashT,
+		Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
+		OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, Signature,
+		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	},
+	v4::SessionInfo as SessionInfoData,
 };
 use runtime_common::{
 	claims, impl_runtime_weights, paras_sudo_wrapper, BlockHashCount, BlockLength,
@@ -917,6 +920,8 @@ sp_api::impl_runtime_apis! {
 		{
 			runtime_impl::validation_code_hash::<Runtime>(para_id, assumption)
 		}
+
+		fn disputes() -> Vec<(u32, CandidateHash, DisputeState)> { todo!() }
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
