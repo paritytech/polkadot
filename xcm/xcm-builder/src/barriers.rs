@@ -240,7 +240,6 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionF
 			"AllowUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, max_weight, _weight_credit,
 		);
-		ensure!(T::contains(origin), ());
 		// We will read up to 4 instructions. This allows up to 3 `DescendOrigin` instructions. We
 		// allow for more than one since it's conceivable that composition of operations might
 		// result in more than one being appended.
@@ -250,7 +249,9 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionF
 			i = iter.next().ok_or(())?;
 		}
 		match i {
-			UnpaidExecution { weight_limit: Limited(m), .. } if m.all_gte(max_weight) => Ok(()),
+			UnpaidExecution { weight_limit: Limited(m), check_origin }
+				if m.all_gte(max_weight) && check_origin.map_or(true, |o| T::contains(&o)) =>
+				Ok(()),
 			UnpaidExecution { weight_limit: Unlimited, .. } => Ok(()),
 			_ => Err(()),
 		}
