@@ -74,7 +74,6 @@ build-test-collators:
   script:
     - time cargo build --profile testnet --verbose -p test-parachain-adder-collator
     - time cargo build --profile testnet --verbose -p test-parachain-undying-collator
-    - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/adder-collator ./artifacts/.
