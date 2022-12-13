@@ -28,7 +28,7 @@ assert_cmd = "2.0.4"
 nix = "0.24.1"
 tempfile = "3.2.0"
 tokio = "1.22.0"
-substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db2" }
 polkadot-core-primitives = { path = "core-primitives" }
  
 [workspace]
