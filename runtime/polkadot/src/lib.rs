@@ -1598,8 +1598,7 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 	}
 }
 
-pub type Migrations = (
-);
+pub type Migrations = ();
 
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =
