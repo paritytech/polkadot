@@ -239,7 +239,21 @@ pub trait DispatchBlob {
 
 pub trait HaulBlob {
 	/// Sends a blob over some point-to-point link. This will generally be implemented by a bridge.
-	fn haul_blob(blob: Vec<u8>);
+	fn haul_blob(blob: Vec<u8>) -> Result<(), HaulBlobError>;
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HaulBlobError {
+	/// Represents point-to-point link failure with a human-readable explanation of the specific issue is provided.
+	Transport(&'static str),
+}
+
+impl From<HaulBlobError> for SendError {
+	fn from(err: HaulBlobError) -> Self {
+		match err {
+			HaulBlobError::Transport(reason) => SendError::Transport(reason),
+		}
+	}
 }
 
 #[derive(Clone, Encode, Decode)]
@@ -334,7 +348,7 @@ impl<Bridge: HaulBlob, BridgedNetwork: Get<NetworkId>, Price: Get<MultiAssets>> 
 	}
 
 	fn deliver((blob, hash): (Vec<u8>, XcmHash)) -> Result<XcmHash, SendError> {
-		Bridge::haul_blob(blob);
+		Bridge::haul_blob(blob)?;
 		Ok(hash)
 	}
 }

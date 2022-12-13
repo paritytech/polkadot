@@ -51,8 +51,9 @@ impl<D: DispatchBlob> TestBridge<D> {
 	}
 }
 impl<D: DispatchBlob> HaulBlob for TestBridge<D> {
-	fn haul_blob(blob: Vec<u8>) {
+	fn haul_blob(blob: Vec<u8>) -> Result<(), HaulBlobError> {
 		BRIDGE_TRAFFIC.with(|t| t.borrow_mut().push(blob));
+		Ok(())
 	}
 }
 
