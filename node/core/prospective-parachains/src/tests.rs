@@ -208,19 +208,30 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 async fn activate_leaf(
 	virtual_overseer: &mut VirtualOverseer,
 	leaf: TestLeaf,
-	leaf_parent: Hash,
 	test_state: &TestState,
 ) {
+	async fn send_header_response(virtual_overseer: &mut VirtualOverseer, hash: Hash, number: u32) {
+		let header = Header {
+			parent_hash: get_parent_hash(hash),
+			number,
+			state_root: Hash::zero(),
+			extrinsics_root: Hash::zero(),
+			digest: Default::default(),
+		};
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ChainApi(
+				ChainApiMessage::BlockHeader(parent, tx)
+			) if parent == hash => {
+				tx.send(Ok(Some(header))).unwrap();
+			}
+		);
+	}
+
 	let TestLeaf { activated, min_relay_parents } = leaf;
 	let leaf_hash = activated.hash;
 	let leaf_number = activated.number;
-	let header = Header {
-		parent_hash: leaf_parent,
-		number: leaf_number,
-		state_root: Hash::zero(),
-		extrinsics_root: Hash::zero(),
-		digest: Default::default(),
-	};
 
 	virtual_overseer
 		.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
@@ -246,14 +257,7 @@ async fn activate_leaf(
 		}
 	);
 
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::ChainApi(
-			ChainApiMessage::BlockHeader(parent, tx)
-		) if parent == leaf_hash => {
-			tx.send(Ok(Some(header))).unwrap();
-		}
-	);
+	send_header_response(virtual_overseer, leaf_hash, leaf_number).await;
 
 	// Check that subsystem job issues a request for ancestors.
 	let min_min = *min_relay_parents
@@ -279,22 +283,7 @@ async fn activate_leaf(
 	);
 
 	for (hash, number) in ancestry_iter {
-		let header = Header {
-			parent_hash: get_parent_hash(hash),
-			number,
-			state_root: Hash::zero(),
-			extrinsics_root: Hash::zero(),
-			digest: Default::default(),
-		};
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::ChainApi(
-				ChainApiMessage::BlockHeader(parent, tx)
-			) if parent == hash => {
-				tx.send(Ok(Some(header))).unwrap();
-			}
-		);
+		send_header_response(virtual_overseer, hash, number).await;
 	}
 
 	for _ in 0..test_state.availability_cores.len() {
