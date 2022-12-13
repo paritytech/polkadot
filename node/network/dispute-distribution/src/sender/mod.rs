@@ -195,7 +195,7 @@ impl DisputeSender {
 		// recovered at startup will be relatively "old" anyway and we assume that no more than a
 		// third of the validators will go offline at any point in time anyway.
 		for dispute in unknown_disputes {
-			self.rate_limit.limit("while going through unknown disputes", dispute.1).await;
+			// Rate limiting handled inside `start_send_for_dispute` (calls `start_sender`).
 			self.start_send_for_dispute(ctx, runtime, dispute).await?;
 		}
 		Ok(())
