@@ -52,8 +52,8 @@ pub enum BodyId {
 	/// The unambiguous judicial body (this doesn't exist on Polkadot, but if it were to get a "grand oracle", it
 	/// may be considered as that).
 	Judicial,
-	/// The unambiguous defence body (for Polkadot, an opinion on the topic given via a public referendum).
-	Defence,
+	/// The unambiguous defense body (for Polkadot, an opinion on the topic given via a public referendum).
+	Defense,
 	/// The unambiguous administration body (for Polkadot, an opinion on the topic given via a public referendum).
 	Administration,
 	/// The unambiguous treasury body (for Polkadot, an opinion on the topic given via a public referendum).

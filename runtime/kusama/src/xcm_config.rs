@@ -155,7 +155,7 @@ impl xcm_executor::Config for XcmConfig {
 parameter_types! {
 	pub const CouncilBodyId: BodyId = BodyId::Executive;
 	// StakingAdmin pluralistic body.
-	pub const StakingAdminBodyId: BodyId = BodyId::Defence;
+	pub const StakingAdminBodyId: BodyId = BodyId::Defense;
 	// Fellows pluralistic body.
 	pub const FellowsBodyId: BodyId = BodyId::Technical;
 }
