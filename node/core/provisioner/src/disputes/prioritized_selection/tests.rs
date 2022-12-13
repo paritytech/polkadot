@@ -393,7 +393,9 @@ impl TestDisputes {
 					ValidDisputeStatementKind::Explicit,
 					0,
 					local_votes_count,
-				),
+				)
+				.into_iter()
+				.collect(),
 				invalid: BTreeMap::new(),
 			},
 		);

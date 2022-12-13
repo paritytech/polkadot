@@ -1,9 +1,9 @@
 [package]
 name = "test-parachain-adder-collator"
-version = "0.9.33"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator for the adder test parachain"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [[bin]]
 name = "adder-collator"

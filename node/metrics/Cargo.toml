@@ -1,9 +1,9 @@
 [package]
 name = "polkadot-node-metrics"
-version = "0.9.33"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 description = "Subsystem metric helpers"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 futures = "0.3.21"
