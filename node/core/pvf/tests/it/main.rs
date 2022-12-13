@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use assert_matches::assert_matches;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
 	start, Config, InvalidCandidate, Metrics, Pvf, ValidationError, ValidationHost,
@@ -100,7 +101,7 @@ async fn terminates_on_timeout() {
 }
 
 #[tokio::test]
-async fn parallel_execution() {
+async fn ensure_parallel_execution() {
 	// Run some jobs that do not complete, thus timing out.
 	let host = TestHost::new();
 	let execute_pvf_future_1 = host.validate_candidate(
@@ -123,7 +124,14 @@ async fn parallel_execution() {
 	);
 
 	let start = std::time::Instant::now();
-	let (_, _) = futures::join!(execute_pvf_future_1, execute_pvf_future_2);
+	let (res1, res2) = futures::join!(execute_pvf_future_1, execute_pvf_future_2);
+	assert_matches!(
+		(res1, res2),
+		(
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)),
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout))
+		)
+	);
 
 	// Total time should be < 2 x TEST_EXECUTION_TIMEOUT (two workers run in parallel).
 	let duration = std::time::Instant::now().duration_since(start);

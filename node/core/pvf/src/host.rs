@@ -1007,7 +1007,7 @@ mod tests {
 		// Dropping the handle will lead to conclusion of the read part and thus will make the event
 		// loop to stop, which in turn will resolve the join handle.
 		drop(test.to_host_tx);
-		join_handle.await;
+		join_handle.await.unwrap();
 	}
 
 	#[tokio::test]

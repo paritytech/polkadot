@@ -31,11 +31,13 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
 	path::{Path, PathBuf},
-	sync::Arc,
-	thread,
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
 	time::Duration,
 };
-use tokio::{io, net::UnixStream, runtime::Runtime, sync::Mutex};
+use tokio::{io, net::UnixStream, select};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
@@ -228,19 +230,13 @@ impl Response {
 /// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
 /// the path to the socket used to communicate with the host.
 pub fn worker_entrypoint(socket_path: &str) {
-	worker_event_loop("execute", socket_path, |stream| async move {
-		let executor = Executor::new().map_err(|e| {
+	worker_event_loop("execute", socket_path, |rt_handle, mut stream| async move {
+		let executor = Arc::new(Executor::new().map_err(|e| {
 			io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
-		})?;
-		let mutex = Arc::new(Mutex::new((stream, false)));
+		})?);
 
 		loop {
-			let (artifact_path, params, execution_timeout) = {
-				let mut lock = mutex.lock().await;
-				// Unset the lock flag. We set it when either thread finishes.
-				lock.1 = false;
-				recv_request(&mut lock.0).await?
-			};
+			let (artifact_path, params, execution_timeout) = recv_request(&mut stream).await?;
 			gum::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
@@ -248,48 +244,53 @@ pub fn worker_entrypoint(socket_path: &str) {
 				artifact_path.display(),
 			);
 
+			// Flag used only to signal to the cpu time monitor thread that it can finish.
+			let finished_flag = Arc::new(AtomicBool::new(false));
 			let cpu_time_start = ProcessTime::now();
 
-			// Spawn a new thread that runs the CPU time monitor. Continuously wakes up from
-			// sleeping and then either sleeps for the remaining CPU time, or kills the process if
-			// we exceed the CPU timeout.
-			let (mutex_2, cpu_time_start_2, execution_timeout_2) =
-				(mutex.clone(), cpu_time_start, execution_timeout);
-			let handle =
-				thread::Builder::new().name("CPU time monitor".into()).spawn(move || {
-					let rt = Runtime::new().unwrap();
-					rt.block_on(async {
-						cpu_time_monitor_loop(
-							JobKind::Execute,
-							mutex_2,
-							cpu_time_start_2,
-							execution_timeout_2,
-						)
-						.await;
-					})
-				})?;
+			// Spawn a new thread that runs the CPU time monitor.
+			let finished_flag_2 = finished_flag.clone();
+			let thread_fut = rt_handle
+				.spawn_blocking(move || {
+					cpu_time_monitor_loop(
+						JobKind::Execute,
+						cpu_time_start,
+						execution_timeout,
+						finished_flag_2,
+					);
+				})
+				.fuse();
+			let executor_2 = executor.clone();
+			let execute_fut = rt_handle
+				.spawn_blocking(move || {
+					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
+				})
+				.fuse();
 
-			let response =
-				validate_using_artifact(&artifact_path, &params, &executor, cpu_time_start).await;
+			let response = select! {
+				// If this future is not selected, the join handle is dropped and the thread will
+				// finish in the background.
+				join_res = thread_fut => {
+					match join_res {
+						Ok(()) => Response::TimedOut,
+						Err(e) => Response::InternalError(format!("{}", e)),
+					}
+				},
+				execute_res = execute_fut => {
+					finished_flag.store(true, Ordering::Relaxed);
+					execute_res.unwrap_or_else(|e| Response::InternalError(format!("{}", e)))
+				},
+			};
 
-			let mut lock = mutex.lock().await;
-			if lock.1 {
-				// Monitor thread detected timeout and the process should be terminated soon,
-				// nothing to do.
-				let _ = handle.join();
-				continue
-			}
-			lock.1 = true;
-
-			send_response(&mut lock.0, response).await?;
+			send_response(&mut stream, response).await?;
 		}
 	});
 }
 
-async fn validate_using_artifact(
+fn validate_using_artifact(
 	artifact_path: &Path,
 	params: &[u8],
-	executor: &Executor,
+	executor: Arc<Executor>,
 	cpu_time_start: ProcessTime,
 ) -> Response {
 	let descriptor_bytes = match unsafe {

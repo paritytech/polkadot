@@ -25,16 +25,19 @@ use crate::{
 	LOG_TARGET,
 };
 use cpu_time::ProcessTime;
+use futures::FutureExt;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
 use std::{
 	panic,
 	path::{Path, PathBuf},
-	sync::Arc,
-	thread,
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
 	time::Duration,
 };
-use tokio::{io, net::UnixStream, runtime::Runtime, sync::Mutex};
+use tokio::{io, net::UnixStream, select};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
@@ -307,85 +310,79 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, 
 /// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
 /// the path to the socket used to communicate with the host.
 pub fn worker_entrypoint(socket_path: &str) {
-	worker_event_loop("prepare", socket_path, |stream| async move {
-		let mutex = Arc::new(Mutex::new((stream, false)));
+	worker_event_loop("prepare", socket_path, |rt_handle, mut stream| async move {
 		loop {
-			let (code, dest, preparation_timeout) = {
-				let mut lock = mutex.lock().await;
-				// Unset the lock flag. We set it when either thread finishes.
-				lock.1 = false;
-				recv_request(&mut lock.0).await?
-			};
+			let (code, dest, preparation_timeout) = recv_request(&mut stream).await?;
 			gum::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
 				"worker: preparing artifact",
 			);
 
+			// Flag used only to signal to the cpu time monitor thread that it can finish.
+			let finished_flag = Arc::new(AtomicBool::new(false));
 			let cpu_time_start = ProcessTime::now();
 
-			// Spawn a new thread that runs the CPU time monitor. Continuously wakes up from
-			// sleeping and then either sleeps for the remaining CPU time, or kills the process if
-			// we exceed the CPU timeout.
-			let (mutex_2, cpu_time_start_2, preparation_timeout_2) =
-				(mutex.clone(), cpu_time_start, preparation_timeout);
-			let handle =
-				thread::Builder::new().name("CPU time monitor".into()).spawn(move || {
-					let rt = Runtime::new().unwrap();
-					rt.block_on(async {
-						cpu_time_monitor_loop(
-							JobKind::Prepare,
-							mutex_2,
-							cpu_time_start_2,
-							preparation_timeout_2,
-						)
-						.await;
-					})
-				})?;
+			// Spawn a new thread that runs the CPU time monitor.
+			let finished_flag_2 = finished_flag.clone();
+			let thread_fut = rt_handle
+				.spawn_blocking(move || {
+					cpu_time_monitor_loop(
+						JobKind::Prepare,
+						cpu_time_start,
+						preparation_timeout,
+						finished_flag_2,
+					)
+				})
+				.fuse();
+			let prepare_fut = rt_handle.spawn_blocking(move || prepare_artifact(&code)).fuse();
 
-			// Prepares the artifact in a separate thread.
-			let compilation_result = prepare_artifact(&code).await;
-			let cpu_time_elapsed = cpu_time_start.elapsed();
-
-			let mut lock = mutex.lock().await;
-			if lock.1 {
-				// Monitor thread detected timeout and the process should be terminated soon,
-				// nothing to do.
-				let _ = handle.join();
-				continue
-			}
-			lock.1 = true;
-
-			let result = match compilation_result {
-				Err(err) => {
-					// Serialized error will be written into the socket.
-					Err(err)
+			let result = select! {
+				// If this future is not selected, the join handle is dropped and the thread will
+				// finish in the background.
+				join_res = thread_fut => {
+					match join_res {
+						Ok(()) => Err(PrepareError::TimedOut),
+						Err(_) => Err(PrepareError::DidNotMakeIt),
+					}
 				},
-				Ok(compiled_artifact) => {
-					// Write the serialized artifact into a temp file.
-					//
-					// PVF host only keeps artifacts statuses in its memory, successfully compiled code gets stored
-					// on the disk (and consequently deserialized by execute-workers). The prepare worker is only
-					// required to send `Ok` to the pool to indicate the success.
+				compilation_res = prepare_fut => {
+					let cpu_time_elapsed = cpu_time_start.elapsed();
+					finished_flag.store(true, Ordering::Relaxed);
 
-					gum::debug!(
-						target: LOG_TARGET,
-						worker_pid = %std::process::id(),
-						"worker: writing artifact to {}",
-						dest.display(),
-					);
-					tokio::fs::write(&dest, &compiled_artifact).await?;
+					match compilation_res.unwrap_or_else(|_| Err(PrepareError::DidNotMakeIt)) {
+						Err(err) => {
+							// Serialized error will be written into the socket.
+							Err(err)
+						},
+						Ok(compiled_artifact) => {
+							// Write the serialized artifact into a temp file.
+							//
+							// PVF host only keeps artifacts statuses in its memory, successfully
+							// compiled code gets stored on the disk (and consequently deserialized
+							// by execute-workers). The prepare worker is only required to send `Ok`
+							// to the pool to indicate the success.
 
-					Ok(cpu_time_elapsed)
+							gum::debug!(
+								target: LOG_TARGET,
+								worker_pid = %std::process::id(),
+								"worker: writing artifact to {}",
+								dest.display(),
+							);
+							tokio::fs::write(&dest, &compiled_artifact).await?;
+
+							Ok(cpu_time_elapsed)
+						},
+					}
 				},
 			};
 
-			framed_send(&mut lock.0, result.encode().as_slice()).await?;
+			framed_send(&mut stream, result.encode().as_slice()).await?;
 		}
 	});
 }
 
-async fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
+fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
 	panic::catch_unwind(|| {
 		let blob = match crate::executor_intf::prevalidate(code) {
 			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),

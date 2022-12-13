@@ -16,18 +16,20 @@
 
 //! Common logic for implementation of worker processes.
 
-use crate::{execute::ExecuteResponse, PrepareError, LOG_TARGET};
+use crate::LOG_TARGET;
 use cpu_time::ProcessTime;
 use futures::{never::Never, FutureExt as _};
 use futures_timer::Delay;
-use parity_scale_codec::Encode;
 use pin_project::pin_project;
 use rand::Rng;
 use std::{
 	fmt, mem,
 	path::{Path, PathBuf},
 	pin::Pin,
-	sync::Arc,
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
 	task::{Context, Poll},
 	time::Duration,
 };
@@ -35,8 +37,7 @@ use tokio::{
 	io::{self, AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf},
 	net::{UnixListener, UnixStream},
 	process,
-	runtime::Runtime,
-	sync::Mutex,
+	runtime::{Handle, Runtime},
 };
 
 /// A multiple of the job timeout (in CPU time) for which we are willing to wait on the host (in
@@ -176,16 +177,17 @@ pub async fn tmpfile(prefix: &str) -> io::Result<PathBuf> {
 
 pub fn worker_event_loop<F, Fut>(debug_id: &'static str, socket_path: &str, mut event_loop: F)
 where
-	F: FnMut(UnixStream) -> Fut,
+	F: FnMut(Handle, UnixStream) -> Fut,
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
-	let rt = Runtime::new().unwrap();
+	let rt = Runtime::new().expect("Creates tokio runtime");
+	let handle = rt.handle();
 	let err = rt
 		.block_on(async move {
 			let stream = UnixStream::connect(socket_path).await?;
 			let _ = tokio::fs::remove_file(socket_path).await;
 
-			event_loop(stream).await
+			event_loop(handle.clone(), stream).await
 		})
 		.unwrap_err(); // it's never `Ok` because it's `Ok(Never)`
 
@@ -199,35 +201,29 @@ where
 }
 
 /// Loop that runs in the CPU time monitor thread on prepare and execute jobs. Continuously wakes up
-/// from sleeping and then either sleeps for the remaining CPU time, or sends back a timeout error
-/// if we exceed the CPU timeout.
-///
-/// NOTE: If the job completes and this thread is still sleeping, it will continue sleeping in the
-/// background. When it wakes, it will see that the flag has been set and return.
-pub async fn cpu_time_monitor_loop(
+/// from sleeping and then either sleeps for the remaining CPU time, or returns if we exceed the CPU
+/// timeout.
+pub fn cpu_time_monitor_loop(
 	job_kind: JobKind,
-	mutex: Arc<Mutex<(UnixStream, bool)>>,
 	cpu_time_start: ProcessTime,
 	timeout: Duration,
+	finished_flag: Arc<AtomicBool>,
 ) {
 	loop {
+		if finished_flag.load(Ordering::Relaxed) {
+			return
+		}
+
 		let cpu_time_elapsed = cpu_time_start.elapsed();
 
 		// Treat the timeout as CPU time, which is less subject to variance due to load.
 		if cpu_time_elapsed <= timeout {
 			// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep
 			// is wall clock time. The CPU clock may be slower than the wall clock.
-			let sleep_interval = timeout - cpu_time_elapsed + JOB_TIMEOUT_OVERHEAD;
+			let sleep_interval = timeout.saturating_sub(cpu_time_elapsed) + JOB_TIMEOUT_OVERHEAD;
 			std::thread::sleep(sleep_interval);
 			continue
 		}
-
-		let mut lock = mutex.lock().await;
-		if lock.1 {
-			// Hit the job-completed case first, return from this thread.
-			return
-		}
-		lock.1 = true;
 
 		// Log if we exceed the timeout.
 		gum::warn!(
@@ -238,32 +234,11 @@ pub async fn cpu_time_monitor_loop(
 			timeout.as_millis(),
 		);
 
-		// Send back a `TimedOut` error.
+		// Return, signaling that we should send a `TimedOut` error to the host.
 		//
 		// NOTE: This will cause the worker, whether preparation or execution, to be killed by the
 		// host. We do not kill the process here because it would interfere with the proper handling
 		// of this error.
-		let encoded_result = match job_kind {
-			JobKind::Prepare => {
-				let result: Result<(), PrepareError> = Err(PrepareError::TimedOut);
-				result.encode()
-			},
-			JobKind::Execute => {
-				let result = ExecuteResponse::TimedOut;
-				result.encode()
-			},
-		};
-		// If we error here there is nothing we can do apart from log it. The receiving side will
-		// just have to time out.
-		if let Err(err) = framed_send(&mut lock.0, encoded_result.as_slice()).await {
-			gum::warn!(
-				target: LOG_TARGET,
-				worker_pid = %std::process::id(),
-				"{job_kind} worker -> pvf host: error sending result over the socket: {:?}",
-				err
-			);
-		}
-
 		return
 	}
 }
