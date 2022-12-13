@@ -28,16 +28,19 @@ use futures::{
 	channel::oneshot,
 	future::{self, BoxFuture},
 };
+use futures_timer::Delay;
 
 use polkadot_node_subsystem_util::database::Database;
 
 use polkadot_node_primitives::{
-	DisputeStatus, SignedDisputeStatement, SignedFullStatement, Statement,
+	DisputeStatus, SignedDisputeStatement, SignedFullStatement, Statement, APPROVAL_EXECUTION_TIMEOUT,
+	AvailableData, BlockData, PoV, ValidationResult, 
 };
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalVotingMessage, ChainApiMessage, DisputeCoordinatorMessage,
-		DisputeDistributionMessage, ImportStatementsResult,
+		DisputeDistributionMessage, ImportStatementsResult, AvailabilityRecoveryMessage,
+		CandidateValidationMessage,
 	},
 	overseer::FromOrchestra,
 	OverseerSignal,
@@ -50,7 +53,9 @@ use sp_core::{sr25519::Pair, testing::TaskExecutor, Pair as PairT};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
-use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash};
+use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash, 
+	dummy_candidate_commitments
+};
 use polkadot_node_primitives::{Timestamp, ACTIVE_DURATION_SECS};
 use polkadot_node_subsystem::{
 	jaeger,
@@ -64,7 +69,8 @@ use polkadot_primitives::v2::{
 	ApprovalVote, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
 	CandidateReceipt, CoreIndex, DisputeStatement, GroupIndex, Hash, HeadData, Header, IndexedVec,
 	MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo, SigningContext,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature, PersistedValidationData,
+	ValidationCode, 
 };
 
 use crate::{
@@ -3057,23 +3063,15 @@ fn local_participation_in_dispute_for_backed_candidate() {
 				.await;
 
 			// generate two votes
-			let valid_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(1),
-					candidate_hash,
-					session,
-					true,
-				)
-				.await;
-
-			let invalid_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(2),
-					candidate_hash,
-					session,
-					false,
-				)
-				.await;
+			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
+				&test_state,
+				ValidatorIndex(1),
+				ValidatorIndex(2),
+				candidate_hash,
+				session,
+				VoteType::Explicit,
+			)
+			.await;
 
 			virtual_overseer
 				.send(FromOrchestra::Communication {
@@ -3150,7 +3148,7 @@ fn local_participation_in_dispute_for_backed_candidate() {
 				.await;
 
 			let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
-			assert_eq!(votes.valid.len(), 3); // 3 => 1 initial vote, 1 backing vote, and our vote
+			assert_eq!(votes.valid.raw().len(), 3); // 3 => 1 initial vote, 1 backing vote, and our vote
 			assert_eq!(votes.invalid.len(), 1);
 
 			// Wrap up
@@ -3171,207 +3169,95 @@ fn participation_requests_reprioritized_for_newly_included() {
 		Box::pin(async move {
 			let session = 1;
 			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			let mut hash_info: HashMap<CandidateHash, (u8, CandidateReceipt)> = HashMap::new();
 
-			// Making our three candidates. Since participation is secondarily ordered by
-			// candidate hash, we take advantage of this to produce candidates for which
-			// the initial participation order is known. But our plan is to upset this
-			// ordering by marking last_candidate as included. This should place last
-			// candidate in the priority queue, resulting in a different order of
-			// participation. We expect to trigger participation in the first candidate 
-			// immediately on vote import. Then we manually trigger two more participations, 
-			// expecting the altered ordering third, then second.
-			let mut first_candidate_receipt = make_valid_candidate_receipt();
-			// Altering this receipt so its hash will be changed
-			first_candidate_receipt.descriptor.pov_hash = Hash::from([
-				122, 200, 116, 29, 232, 183, 20, 109, 138, 86, 23, 253, 70, 41, 20, 85, 127, 230,
-				60, 38, 90, 127, 28, 16, 231, 218, 227, 40, 88, 237, 187, 128,
-			]);
-			let first_candidate_hash = first_candidate_receipt.hash();
-			let second_candidate_receipt = make_valid_candidate_receipt();
-			let second_candidate_hash = second_candidate_receipt.hash();
-			let mut third_candidate_receipt = make_valid_candidate_receipt();
-			// Altering this receipt so its hash will be changed
-			third_candidate_receipt.descriptor.pov_hash = Hash::from([
-				122, 200, 117, 29, 232, 183, 20, 109, 138, 86, 23, 253, 70, 41, 20, 85, 127, 230,
-				60, 38, 90, 127, 28, 16, 231, 218, 227, 40, 88, 237, 187, 128,
-			]);
-			let third_candidate_hash = third_candidate_receipt.hash();
+			for repetition in 1..=20u8 {
+				// Building candidate receipts
+				let mut candidate_receipt = make_valid_candidate_receipt();
+				candidate_receipt.descriptor.pov_hash = Hash::from(
+					[repetition; 32], // Altering this receipt so its hash will be changed
+				);
+				let candidate_hash = candidate_receipt.hash();
+				hash_info.insert(candidate_hash, (repetition, candidate_receipt.clone()));
 
-			// We participate in lesser hash first. Make sure our hashes have the correct ordering
-			assert!(first_candidate_hash < second_candidate_hash);
-			assert!(second_candidate_hash < third_candidate_hash);
+				// Mark all candidates as backed, so their participation requests make it to best effort
+				test_state
+					.activate_leaf_at_session(
+						&mut virtual_overseer,
+						session,
+						1,
+						vec![make_candidate_backed_event(candidate_receipt.clone())],
+					)
+					.await;
+			}
 
-			// activate leaf - without candidate included event
-			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![
-						make_candidate_backed_event(first_candidate_receipt.clone()),
-						make_candidate_backed_event(second_candidate_receipt.clone()),
-						make_candidate_backed_event(third_candidate_receipt.clone()),
-					],
-				)
-				.await;
-
-			// generate two votes per candidate
-			let first_valid_vote = test_state
-				.issue_explicit_statement_with_index(
+			for repetition in 1..=20u8 {
+				// Building candidate receipts
+				let mut candidate_receipt = make_valid_candidate_receipt();
+				candidate_receipt.descriptor.pov_hash = Hash::from(
+					[repetition; 32], // Altering this receipt so its hash will be changed
+				);
+				let candidate_hash = candidate_receipt.hash();
+				
+				// Create votes for candidates
+				let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
+					&test_state,
 					ValidatorIndex(1),
-					first_candidate_hash,
-					session,
-					true,
-				)
-				.await;
-
-			let first_invalid_vote = test_state
-				.issue_explicit_statement_with_index(
 					ValidatorIndex(2),
-					first_candidate_hash,
+					candidate_hash,
 					session,
-					false,
+					VoteType::Explicit,
 				)
 				.await;
 
-			let second_valid_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(3),
-					second_candidate_hash,
-					session,
-					true,
-				)
-				.await;
+				// Import votes for candidates
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::ImportStatements {
+							candidate_receipt: candidate_receipt.clone(),
+							session,
+							statements: vec![
+								(valid_vote, ValidatorIndex(1)),
+								(invalid_vote, ValidatorIndex(2)),
+							],
+							pending_confirmation: None,
+						},
+					})
+					.await;
 
-			let second_invalid_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(4),
-					second_candidate_hash,
-					session,
-					false,
-				)
-				.await;
+				// Meant to help process approval vote messages, though there's a chance early dispute
+				// distribution messages will come back first. We wait a very short time as to make sure
+				// we can drain the queue of incoming messages without accidentally draining the best
+				// effort queue, which we want filled.
+				println!("Message handle inside loop");
+				while let Some(message) = virtual_overseer.recv().timeout(Duration::from_millis(50)).await {
+					handle_next_overseer_message(&mut virtual_overseer, message, &hash_info).await;
+				}
 
-			let third_valid_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(5),
-					third_candidate_hash,
-					session,
-					true,
-				)
-				.await;
+				// Mark 15th candidate as included after import
+				/*if repetition == 15 {
+					test_state
+						.activate_leaf_at_session(
+							&mut virtual_overseer,
+							session,
+							1,
+							vec![make_candidate_included_event(candidate_receipt.clone())],
+						)
+						.await;
+				}*/
+			}
 
-			let third_invalid_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(6),
-					third_candidate_hash,
-					session,
-					false,
-				)
-				.await;
+			println!("Left statement import loop");
+			while let Some(message) = virtual_overseer.recv().timeout(TEST_TIMEOUT).await {
+				handle_next_overseer_message(&mut virtual_overseer, message, &hash_info).await;
+			}
 
-			// Importing votes for the three candidates in order
-			virtual_overseer
-				.send(FromOrchestra::Communication {
-					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_receipt: first_candidate_receipt.clone(),
-						session,
-						statements: vec![
-							(first_valid_vote, ValidatorIndex(1)),
-							(first_invalid_vote, ValidatorIndex(2)),
-						],
-						pending_confirmation: None,
-					},
-				})
-				.await;
-			gum::debug!("After First import!");
+			// Somehow use CandidateValidation messages to check participation order
 
-			handle_approval_vote_request(
-				&mut virtual_overseer,
-				&first_candidate_hash,
-				HashMap::new(),
-			)
-			.await;
-
-			participation_with_distribution(
-				&mut virtual_overseer,
-				&first_candidate_hash,
-				first_candidate_receipt.commitments_hash,
-			)
-			.await;
-
-			virtual_overseer
-				.send(FromOrchestra::Communication {
-					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_receipt: second_candidate_receipt.clone(),
-						session,
-						statements: vec![
-							(second_valid_vote, ValidatorIndex(3)),
-							(second_invalid_vote, ValidatorIndex(4)),
-						],
-						pending_confirmation: None,
-					},
-				})
-				.await;
-			gum::debug!("After Second import!");
-
-			handle_approval_vote_request(
-				&mut virtual_overseer,
-				&second_candidate_hash,
-				HashMap::new(),
-			)
-			.await;
-
-			participation_with_distribution(
-				&mut virtual_overseer,
-				&second_candidate_hash,
-				second_candidate_receipt.commitments_hash,
-			)
-			.await;
-
-			virtual_overseer
-				.send(FromOrchestra::Communication {
-					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_receipt: third_candidate_receipt.clone(),
-						session,
-						statements: vec![
-							(third_valid_vote, ValidatorIndex(5)),
-							(third_invalid_vote, ValidatorIndex(6)),
-						],
-						pending_confirmation: None,
-					},
-				})
-				.await;
-
-			handle_approval_vote_request(
-				&mut virtual_overseer,
-				&third_candidate_hash,
-				HashMap::new(),
-			)
-			.await;
-
-			participation_with_distribution(
-				&mut virtual_overseer,
-				&third_candidate_hash,
-				third_candidate_receipt.commitments_hash,
-			)
-			.await;
-
-			// Issue candidate included event for third candidate. This should place
-			// the corresponding third participation request in the priority queue.
-			test_state
-				.activate_leaf_at_session(
-					&mut virtual_overseer,
-					session,
-					1,
-					vec![make_candidate_included_event(third_candidate_receipt.clone())],
-				)
-				.timeout(TEST_TIMEOUT)
-				.await;
+			// Wait a long time for participation to finish
+			//Delay::new(Duration::from_millis(100000)).await;
 
 			assert_matches!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await, None);
-
-			// Trigger participation by importing another vote
 
 			// Wrap up
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
@@ -3379,4 +3265,58 @@ fn participation_requests_reprioritized_for_newly_included() {
 			test_state
 		})
 	});
+}
+
+async fn handle_next_overseer_message(
+	virtual_overseer: &mut VirtualOverseer,
+	message: AllMessages,
+	hash_info: &HashMap<CandidateHash, (u8, CandidateReceipt)>,
+) {
+	match message {
+		AllMessages::ApprovalVoting(ApprovalVotingMessage::GetApprovalSignaturesForCandidate(
+			hash,
+			tx,
+		)) => {
+			let (candidate_number, candidate_receipt) = hash_info
+				.get(&hash)
+				.expect("Message should always correspond to a candidate hash in the ordering.");
+			println!("Got approval voting messages for candidate: {}", candidate_number);
+			tx.send(HashMap::new()).unwrap();
+		},
+		AllMessages::AvailabilityRecovery(
+			AvailabilityRecoveryMessage::RecoverAvailableData(_, _, _, tx)
+		) => {
+			println!("Availability recovery");
+			let pov_block = PoV { block_data: BlockData(Vec::new()) };
+			let available_data = AvailableData {
+				pov: Arc::new(pov_block),
+				validation_data: PersistedValidationData::default(),
+			};
+
+			tx.send(Ok(available_data)).unwrap();
+		},
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			hash,
+			RuntimeApiRequest::ValidationCodeByHash(
+				_,
+				tx,
+			)
+		)) => {
+			println!("Request validation code");
+			let validation_code = ValidationCode(Vec::new());
+
+			tx.send(Ok(Some(validation_code))).unwrap();
+		},
+		AllMessages::CandidateValidation(
+			CandidateValidationMessage::ValidateFromExhaustive(_, _, candidate_receipt, _, timeout, tx)
+		) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
+			println!("Candidate validation");
+			tx.send(Ok(ValidationResult::Valid(dummy_candidate_commitments(None), PersistedValidationData::default()))).unwrap();
+		},
+		AllMessages::DisputeDistribution(DisputeDistributionMessage::SendDispute(msg)) => {
+			println!("Participation complete for: {}", hash_info.get(&msg.candidate_receipt().hash())
+				.expect("Participation should always correspond to a candidate hash in the ordering.").0);
+		},
+		_ => (),
+	}
 }
