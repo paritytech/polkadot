@@ -14,8 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem_util::session_info_at_relay_parent;
-
 use std::collections::HashSet;
 #[cfg(test)]
 use std::time::Duration;
@@ -29,7 +27,10 @@ use futures_timer::Delay;
 
 use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
-	messages::{AvailabilityRecoveryMessage, CandidateValidationMessage},
+	messages::{
+		AvailabilityRecoveryMessage, CandidateValidationMessage, RuntimeApiMessage,
+		RuntimeApiRequest,
+	},
 	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
@@ -321,14 +322,34 @@ async fn participate(
 		},
 	};
 
-	let session_info = if let Ok(session_info) =
-		session_info_at_relay_parent(req.candidate_receipt().descriptor.relay_parent, &mut sender)
-			.await
-	{
-		session_info
-	} else {
-		send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
-		return
+	let (session_info_tx, session_info_rx) = oneshot::channel();
+	sender
+		.send_message(RuntimeApiMessage::Request(
+			req.candidate_receipt().descriptor.relay_parent,
+			RuntimeApiRequest::SessionInfo(req.session(), session_info_tx),
+		))
+		.await;
+
+	let session_info = match session_info_rx.await {
+		Err(oneshot::Canceled) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				"`Oneshot` got cancelled when retrieving session info for session {:?}",
+				req.session(),
+			);
+			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
+			return
+		},
+		Ok(Ok(Some(session_info))) => session_info,
+		Ok(Err(_)) | Ok(Ok(None)) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				"Failed to retrieve session info for session {:?}",
+				req.session(),
+			);
+			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
+			return
+		},
 	};
 
 	// Issue a request to validate the candidate with the provided exhaustive

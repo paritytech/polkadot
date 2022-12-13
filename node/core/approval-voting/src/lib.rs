@@ -46,7 +46,7 @@ use polkadot_node_subsystem_util::{
 	rolling_session_window::{
 		DatabaseParams, RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
 	},
-	session_info_at_relay_parent, TimeoutExt,
+	TimeoutExt,
 };
 use polkadot_primitives::{
 	v2::{
@@ -2395,13 +2395,33 @@ async fn launch_approval<Context>(
 			},
 		};
 
-		let session_info = if let Ok(session_info) =
-			session_info_at_relay_parent(candidate.descriptor.relay_parent, &mut sender).await
-		{
-			session_info
-		} else {
-			metrics_guard.take().on_approval_no_session_info();
-			return ApprovalState::failed(validator_index, candidate_hash)
+		let (session_info_tx, session_info_rx) = oneshot::channel();
+		sender
+			.send_message(RuntimeApiMessage::Request(
+				candidate.descriptor.relay_parent,
+				RuntimeApiRequest::SessionInfo(session_index, session_info_tx),
+			))
+			.await;
+
+		let session_info = match session_info_rx.await {
+			Err(oneshot::Canceled) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					"`Oneshot` got cancelled when retrieving session info for session {:?}",
+					session_index,
+				);
+				return ApprovalState::failed(validator_index, candidate_hash)
+			},
+			Ok(Ok(Some(session_info))) => session_info,
+			Ok(Err(_)) | Ok(Ok(None)) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					"Failed to retrieve session info for session {:?}",
+					session_index,
+				);
+				metrics_guard.take().on_approval_no_session_info();
+				return ApprovalState::failed(validator_index, candidate_hash)
+			},
 		};
 
 		let (val_tx, val_rx) = oneshot::channel();
