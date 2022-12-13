@@ -3168,7 +3168,7 @@ dependencies = [
  "soketto",
  "tokio",
  "tokio-stream",
- "tokio-util 0.7.1",
+ "tokio-util",
  "tower",
  "tracing",
 ]
@@ -11401,7 +11401,7 @@ dependencies = [
  "http",
  "http-body",
  "http-range-header",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
  "tower-layer",
  "tower-service",
 ]
