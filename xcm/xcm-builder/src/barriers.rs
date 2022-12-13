@@ -252,7 +252,9 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionF
 			UnpaidExecution { weight_limit: Limited(m), check_origin }
 				if m.all_gte(max_weight) && check_origin.map_or(true, |o| T::contains(&o)) =>
 				Ok(()),
-			UnpaidExecution { weight_limit: Unlimited, .. } => Ok(()),
+			UnpaidExecution { weight_limit: Unlimited, check_origin }
+				if check_origin.map_or(true, |o| T::contains(&o)) =>
+				Ok(()),
 			_ => Err(()),
 		}
 	}
