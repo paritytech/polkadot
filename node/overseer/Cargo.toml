@@ -5,8 +5,8 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
+client = { package = "sc-client-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.21"
 futures-timer = "3.0.2"
 parking_lot = "0.12.0"
@@ -18,14 +18,14 @@ polkadot-primitives = { path = "../../primitives" }
 orchestra = "0.0.2"
 gum = { package = "tracing-gum", path = "../gum" }
 lru = "0.8"
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 async-trait = "0.1.57"
 tikv-jemalloc-ctl = "0.5.0"
 
 [dev-dependencies]
 metered = { package = "prioritized-metered-channel", version = "0.2.0" }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 femme = "2.2.1"
 assert_matches = "1.4.0"

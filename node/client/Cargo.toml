@@ -7,37 +7,37 @@ edition.workspace = true
 [dependencies]
 async-trait = "0.1.57"
 futures = "0.3.21"
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-fix-state-db" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
-sc-service = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "a-fix-state-db" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
-beefy-primitives = { git = "https://github.com/paritytech/substrate", package = "sp-beefy" , branch = "a-fix-state-db" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-beefy" }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot", optional = true }

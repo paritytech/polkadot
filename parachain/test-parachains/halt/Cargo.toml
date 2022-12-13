@@ -9,7 +9,7 @@ edition.workspace = true
 [dependencies]
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "a-fix-state-db" }
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = [ "std" ]
