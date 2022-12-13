@@ -180,7 +180,7 @@ where
 	F: FnMut(Handle, UnixStream) -> Fut,
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
-	let rt = Runtime::new().expect("Creates tokio runtime");
+	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
 	let handle = rt.handle();
 	let err = rt
 		.block_on(async move {
