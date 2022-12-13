@@ -229,6 +229,7 @@ try-runtime = [
 	"pallet-im-online/try-runtime",
 	"pallet-indices/try-runtime",
 	"pallet-membership/try-runtime",
+	"pallet-mmr/try-runtime",
 	"pallet-multisig/try-runtime",
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
