@@ -242,8 +242,8 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionF
 		);
 		ensure!(T::contains(origin), ());
 		// We will read up to 4 instructions. This allows up to 3 `DescendOrigin` instructions. We
-		// allow for more than one since anything beyond the first is a no-op and it's conceivable
-		// that composition of operations might result in more than one being appended.
+		// allow for more than one since it's conceivable that composition of operations might
+		// result in more than one being appended.
 		let mut iter = instructions.iter_mut().take(4);
 		let mut i = iter.next().ok_or(())?;
 		while let DescendOrigin(..) = i {
