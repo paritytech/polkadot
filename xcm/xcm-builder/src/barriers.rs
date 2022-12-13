@@ -250,8 +250,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionF
 			i = iter.next().ok_or(())?;
 		}
 		match i {
-			UnpaidExecution { weight_limit: Limited(m), .. } if m.all_gte(max_weight) =>
-				Ok(()),
+			UnpaidExecution { weight_limit: Limited(m), .. } if m.all_gte(max_weight) => Ok(()),
 			UnpaidExecution { weight_limit: Unlimited, .. } => Ok(()),
 			_ => Err(()),
 		}
