@@ -250,22 +250,18 @@ pub fn worker_entrypoint(socket_path: &str) {
 
 			// Spawn a new thread that runs the CPU time monitor.
 			let finished_flag_2 = finished_flag.clone();
-			let thread_fut = rt_handle
-				.spawn_blocking(move || {
-					cpu_time_monitor_loop(
-						JobKind::Execute,
-						cpu_time_start,
-						execution_timeout,
-						finished_flag_2,
-					);
-				})
-				.fuse();
+			let thread_fut = rt_handle.spawn_blocking(move || {
+				cpu_time_monitor_loop(
+					JobKind::Execute,
+					cpu_time_start,
+					execution_timeout,
+					finished_flag_2,
+				);
+			});
 			let executor_2 = executor.clone();
-			let execute_fut = rt_handle
-				.spawn_blocking(move || {
-					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
-				})
-				.fuse();
+			let execute_fut = rt_handle.spawn_blocking(move || {
+				validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
+			});
 
 			let response = select! {
 				// If this future is not selected, the join handle is dropped and the thread will

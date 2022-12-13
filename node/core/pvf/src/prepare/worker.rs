@@ -25,7 +25,6 @@ use crate::{
 	LOG_TARGET,
 };
 use cpu_time::ProcessTime;
-use futures::FutureExt;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
 use std::{
@@ -325,17 +324,15 @@ pub fn worker_entrypoint(socket_path: &str) {
 
 			// Spawn a new thread that runs the CPU time monitor.
 			let finished_flag_2 = finished_flag.clone();
-			let thread_fut = rt_handle
-				.spawn_blocking(move || {
-					cpu_time_monitor_loop(
-						JobKind::Prepare,
-						cpu_time_start,
-						preparation_timeout,
-						finished_flag_2,
-					)
-				})
-				.fuse();
-			let prepare_fut = rt_handle.spawn_blocking(move || prepare_artifact(&code)).fuse();
+			let thread_fut = rt_handle.spawn_blocking(move || {
+				cpu_time_monitor_loop(
+					JobKind::Prepare,
+					cpu_time_start,
+					preparation_timeout,
+					finished_flag_2,
+				)
+			});
+			let prepare_fut = rt_handle.spawn_blocking(move || prepare_artifact(&code));
 
 			let result = select! {
 				// If this future is not selected, the join handle is dropped and the thread will
