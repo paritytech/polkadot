@@ -85,11 +85,15 @@ default:
 
 .kubernetes-env:
   image:                           "${CI_IMAGE}"
+  before_script:
+    - !reference [.job-switcher, before_script]
   tags:
     - kubernetes-parity-build
 
 .docker-env:
   image:                           "${CI_IMAGE}"
+  before_script:
+    - !reference [.job-switcher, before_script]
   tags:
     - linux-docker
 
