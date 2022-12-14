@@ -17,25 +17,22 @@
 use super::*;
 use ::polkadot_primitives_test_helpers::{dummy_candidate_receipt_bad_sig, dummy_hash};
 use assert_matches::assert_matches;
-use futures::executor;
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
-	messages::{AllMessages, ProspectiveParachainsMessage, ProspectiveValidationDataRequest},
+	messages::{AllMessages, ProspectiveParachainsMessage},
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::{
 	v2::{
-		CandidateCommitments, CandidateDescriptor, GroupRotationInfo, HeadData, Header,
-		PersistedValidationData, ScheduledCore, SessionIndex, SigningContext, ValidationCodeHash,
-		ValidatorId, ValidatorIndex,
+		CandidateCommitments, GroupRotationInfo, HeadData, Header, PersistedValidationData,
+		ScheduledCore, ValidationCodeHash, ValidatorId, ValidatorIndex,
 	},
 	vstaging::{AsyncBackingParameters, Constraints, InboundHrmpLimitations},
 };
 use sp_application_crypto::AppKey;
-use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{CryptoStore, SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
 
 const ALLOWED_ANCESTRY_LEN: u32 = 3;
@@ -51,6 +48,7 @@ type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ProspectiveParac
 
 fn dummy_constraints(
 	min_relay_parent_number: BlockNumber,
+	valid_watermarks: Vec<BlockNumber>,
 	required_parent: HeadData,
 	validation_code_hash: ValidationCodeHash,
 ) -> Constraints {
@@ -62,7 +60,7 @@ fn dummy_constraints(
 		ump_remaining_bytes: 1_000,
 		max_ump_num_per_candidate: 10,
 		dmp_remaining_messages: 10,
-		hrmp_inbound: InboundHrmpLimitations { valid_watermarks: dummy_watermarks() },
+		hrmp_inbound: InboundHrmpLimitations { valid_watermarks },
 		hrmp_channels_out: vec![],
 		max_hrmp_num_per_candidate: 0,
 		required_parent,
@@ -79,10 +77,6 @@ fn dummy_pvd(parent_head: HeadData, relay_parent_number: u32) -> PersistedValida
 		max_pov_size: MAX_POV_SIZE,
 		relay_parent_storage_root: dummy_hash(),
 	}
-}
-
-fn dummy_watermarks() -> Vec<BlockNumber> {
-	vec![8, 9]
 }
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
@@ -293,6 +287,7 @@ async fn activate_leaf(
 			.unwrap_or(&leaf_number);
 		let constraints = dummy_constraints(
 			min_relay_parent_number,
+			vec![leaf_number],
 			required_parent.clone(),
 			test_state.validation_code_hash,
 		);
@@ -345,7 +340,7 @@ fn should_do_no_work_if_async_backing_disabled_for_leaf() {
 }
 
 #[test]
-fn check_candidate_in_view() {
+fn send_candidate_and_check_if_found() {
 	sp_tracing::init_for_tests();
 
 	let test_state = TestState::default();
@@ -379,8 +374,7 @@ fn check_candidate_in_view() {
 		resp.sort();
 		assert_eq!(resp, vec![(1.into(), 97), (2.into(), 100)]);
 
-		// Add (second) a candidate.
-		println!("Seconding candidate...");
+		// Second a candidate.
 		let pvd = dummy_pvd(required_parent.clone(), LEAF_BLOCK_NUMBER);
 		// pvd.parent_head = required_parent;
 		let commitments = CandidateCommitments {
@@ -389,7 +383,7 @@ fn check_candidate_in_view() {
 			upward_messages: Vec::new(),
 			new_validation_code: None,
 			processed_downward_messages: 0,
-			hrmp_watermark: dummy_watermarks()[0],
+			hrmp_watermark: LEAF_BLOCK_NUMBER,
 		};
 		let mut candidate = dummy_candidate_receipt_bad_sig(leaf_hash, Some(Default::default()));
 		candidate.commitments_hash = commitments.hash();
@@ -397,6 +391,7 @@ fn check_candidate_in_view() {
 		candidate.descriptor.persisted_validation_data_hash = pvd.hash();
 		candidate.descriptor.validation_code_hash = test_state.validation_code_hash;
 		let candidate = CommittedCandidateReceipt { descriptor: candidate.descriptor, commitments };
+		let candidate_hash = candidate.hash();
 		let (tx, rx) = oneshot::channel();
 		virtual_overseer
 			.send(overseer::FromOrchestra::Communication {
@@ -404,34 +399,19 @@ fn check_candidate_in_view() {
 			})
 			.await;
 		let resp = rx.await.unwrap();
-		println!("Second Candidate Resp: {:#?}", resp);
+		// TODO: Is this correct?
+		let expected_candidate_response = vec![(leaf_hash, vec![0, 1, 2, 3, 4])];
+		assert_eq!(resp, expected_candidate_response);
 
-		// TODO: Get backable candidate.
-		println!("Getting backable candidate...");
-		let required_path = vec![CandidateHash(leaf_hash)];
+		// Check candidate membership.
 		let (tx, rx) = oneshot::channel();
 		virtual_overseer
 			.send(overseer::FromOrchestra::Communication {
-				msg: ProspectiveParachainsMessage::GetBackableCandidate(
-					leaf_hash,
-					para_id,
-					required_path,
-					tx,
-				),
+				msg: ProspectiveParachainsMessage::GetTreeMembership(para_id, candidate_hash, tx),
 			})
 			.await;
 		let resp = rx.await.unwrap();
-		println!("Get Backable Resp: {:#?}", resp);
-
-		// TODO: Check candidate membership.
-		// let (tx, rx) = oneshot::channel();
-		// virtual_overseer
-		// 	.send(overseer::FromOrchestra::Communication {
-		// 		msg: ProspectiveParachainsMessage::GetTreeMembership(para_id, candidate, tx),
-		// 	})
-		// 	.await;
-		// let resp = rx.await.unwrap();
-		// println!("{:#?}", resp);
+		assert_eq!(resp, expected_candidate_response);
 
 		virtual_overseer
 	});
@@ -471,6 +451,28 @@ fn check_candidate_parent_leaving_view() {
 	assert_eq!(view.candidate_storage.len(), 0);
 
 	unimplemented!()
+}
+
+#[test]
+fn check_backable_query() {
+	todo!();
+
+	// TODO: Get backable candidate.
+	// println!("\nGetting backable candidate...\n");
+	// let required_path = vec![candidate_hash];
+	// let (tx, rx) = oneshot::channel();
+	// virtual_overseer
+	// 	.send(overseer::FromOrchestra::Communication {
+	// 		msg: ProspectiveParachainsMessage::GetBackableCandidate(
+	// 			leaf_hash,
+	// 			para_id,
+	// 			required_path,
+	// 			tx,
+	// 		),
+	// 	})
+	// 	.await;
+	// let resp = rx.await.unwrap();
+	// println!("Get Backable Resp: {:#?}", resp);
 }
 
 // #[test]
