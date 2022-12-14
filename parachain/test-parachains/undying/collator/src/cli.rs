@@ -141,7 +141,13 @@ pub struct RunCmd {
 	#[arg(long, default_value_t = 1)]
 	pub pvf_complexity: u32,
 
-	/// Configuration of the HRMP channels
+	/// Configuration of the HRMP channels in a form of comma separated `key=value` pairs (for example, `destination=101,size=100`).
+	///
+	/// HRMP parameters have the following attributes: {n}
+	/// * `destination`: destination parachain (required) {n}
+	/// * `size`: size of message to be sent (required) {n}
+	/// * `probability`: send message at specified probability (in percent) {n}
+	/// * `stop`: stop sending after block number N
 	#[clap(long)]
 	pub hrmp_params: Vec<CliHrmpChannelConfiguration>,
 }
