@@ -197,6 +197,7 @@ enum CandidateState {
 	Backed,
 }
 
+#[derive(Debug)]
 struct CandidateEntry {
 	candidate_hash: CandidateHash,
 	relay_parent: Hash,

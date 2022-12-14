@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use ::polkadot_primitives_test_helpers::dummy_hash;
+use ::polkadot_primitives_test_helpers::{dummy_candidate_receipt_bad_sig, dummy_hash};
 use assert_matches::assert_matches;
 use futures::executor;
 use polkadot_node_subsystem::{
@@ -26,8 +26,9 @@ use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::{
 	v2::{
-		CandidateDescriptor, GroupRotationInfo, HeadData, Header, PersistedValidationData,
-		ScheduledCore, SessionIndex, SigningContext, ValidatorId, ValidatorIndex,
+		CandidateCommitments, CandidateDescriptor, GroupRotationInfo, HeadData, Header,
+		PersistedValidationData, ScheduledCore, SessionIndex, SigningContext, ValidationCodeHash,
+		ValidatorId, ValidatorIndex,
 	},
 	vstaging::{AsyncBackingParameters, Constraints, InboundHrmpLimitations},
 };
@@ -44,29 +45,44 @@ const ASYNC_BACKING_PARAMETERS: AsyncBackingParameters =
 const ASYNC_BACKING_DISABLED_ERROR: RuntimeApiError =
 	RuntimeApiError::NotSupported { runtime_api_name: "test-runtime" };
 
+const MAX_POV_SIZE: u32 = 1_000_000;
+
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ProspectiveParachainsMessage>;
 
-fn make_constraints(
+fn dummy_constraints(
 	min_relay_parent_number: BlockNumber,
-	valid_watermarks: Vec<BlockNumber>,
 	required_parent: HeadData,
+	validation_code_hash: ValidationCodeHash,
 ) -> Constraints {
 	Constraints {
 		min_relay_parent_number,
-		max_pov_size: 1_000_000,
+		max_pov_size: MAX_POV_SIZE,
 		max_code_size: 1_000_000,
 		ump_remaining: 10,
 		ump_remaining_bytes: 1_000,
 		max_ump_num_per_candidate: 10,
 		dmp_remaining_messages: 10,
-		hrmp_inbound: InboundHrmpLimitations { valid_watermarks },
+		hrmp_inbound: InboundHrmpLimitations { valid_watermarks: dummy_watermarks() },
 		hrmp_channels_out: vec![],
 		max_hrmp_num_per_candidate: 0,
 		required_parent,
-		validation_code_hash: Hash::repeat_byte(42).into(),
+		validation_code_hash,
 		upgrade_restriction: None,
 		future_validation_code: None,
 	}
+}
+
+fn dummy_pvd(parent_head: HeadData, relay_parent_number: u32) -> PersistedValidationData {
+	PersistedValidationData {
+		parent_head,
+		relay_parent_number,
+		max_pov_size: MAX_POV_SIZE,
+		relay_parent_storage_root: dummy_hash(),
+	}
+}
+
+fn dummy_watermarks() -> Vec<BlockNumber> {
+	vec![8, 9]
 }
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
@@ -78,18 +94,9 @@ struct TestState {
 	keystore: SyncCryptoStorePtr,
 	validators: Vec<Sr25519Keyring>,
 	validator_public: Vec<ValidatorId>,
-	validation_data: PersistedValidationData,
 	validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 	availability_cores: Vec<CoreState>,
-	head_data: HashMap<ParaId, HeadData>,
-	signing_context: SigningContext,
-	relay_parent: Hash,
-}
-
-impl TestState {
-	fn session(&self) -> SessionIndex {
-		self.signing_context.session_index
-	}
+	validation_code_hash: ValidationCodeHash,
 }
 
 impl Default for TestState {
@@ -130,22 +137,7 @@ impl Default for TestState {
 			CoreState::Scheduled(ScheduledCore { para_id: chain_a, collator: None }),
 			CoreState::Scheduled(ScheduledCore { para_id: chain_b, collator: None }),
 		];
-
-		let mut head_data = HashMap::new();
-		head_data.insert(chain_a, HeadData(vec![4, 5, 6]));
-		head_data.insert(chain_b, HeadData(vec![5, 6, 7]));
-
-		let relay_parent = Hash::repeat_byte(5);
-		let relay_parent_number = 0_u32.into();
-
-		let signing_context = SigningContext { session_index: 1, parent_hash: relay_parent };
-
-		let validation_data = PersistedValidationData {
-			parent_head: HeadData(vec![7, 8, 9]),
-			relay_parent_number,
-			max_pov_size: 1024,
-			relay_parent_storage_root: dummy_hash(),
-		};
+		let validation_code_hash = Hash::repeat_byte(42).into();
 
 		Self {
 			chain_ids,
@@ -154,10 +146,7 @@ impl Default for TestState {
 			validator_public,
 			validator_groups: (validator_groups, group_rotation_info),
 			availability_cores,
-			head_data,
-			validation_data,
-			signing_context,
-			relay_parent,
+			validation_code_hash,
 		}
 	}
 }
@@ -208,6 +197,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 async fn activate_leaf(
 	virtual_overseer: &mut VirtualOverseer,
 	leaf: TestLeaf,
+	required_parent: HeadData,
 	test_state: &TestState,
 ) {
 	async fn send_header_response(virtual_overseer: &mut VirtualOverseer, hash: Hash, number: u32) {
@@ -301,8 +291,11 @@ async fn activate_leaf(
 			.iter()
 			.find_map(|(p_id, block_num)| if *p_id == para_id { Some(block_num) } else { None })
 			.unwrap_or(&leaf_number);
-		let constraints =
-			make_constraints(min_relay_parent_number, vec![8, 9], vec![1, 2, 3].into());
+		let constraints = dummy_constraints(
+			min_relay_parent_number,
+			required_parent.clone(),
+			test_state.validation_code_hash,
+		);
 		assert_matches!(
 			message,
 			AllMessages::RuntimeApi(
@@ -316,15 +309,14 @@ async fn activate_leaf(
 
 #[test]
 fn should_do_no_work_if_async_backing_disabled_for_leaf() {
-	async fn test_startup_async_backing_disabled(
-		virtual_overseer: &mut VirtualOverseer,
-		test_state: &TestState,
-	) {
+	async fn activate_leaf_async_backing_disabled(virtual_overseer: &mut VirtualOverseer) {
+		let hash = Hash::from_low_u64_be(130);
+
 		// Start work on some new parent.
 		virtual_overseer
 			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(
 				ActiveLeavesUpdate::start_work(ActivatedLeaf {
-					hash: test_state.relay_parent,
+					hash,
 					number: 1,
 					status: LeafStatus::Fresh,
 					span: Arc::new(jaeger::Span::Disabled),
@@ -336,21 +328,116 @@ fn should_do_no_work_if_async_backing_disabled_for_leaf() {
 			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
-			) if parent == test_state.relay_parent => {
+			) if parent == hash => {
 				tx.send(Err(ASYNC_BACKING_DISABLED_ERROR)).unwrap();
 			}
 		);
 	}
 
-	let test_state = TestState::default();
 	let view = test_harness(|mut virtual_overseer| async move {
-		test_startup_async_backing_disabled(&mut virtual_overseer, &test_state).await;
+		activate_leaf_async_backing_disabled(&mut virtual_overseer).await;
 
 		virtual_overseer
 	});
 
 	assert!(view.active_leaves.is_empty());
 	assert!(view.candidate_storage.is_empty());
+}
+
+#[test]
+fn check_candidate_in_view() {
+	sp_tracing::init_for_tests();
+
+	let test_state = TestState::default();
+	let view = test_harness(|mut virtual_overseer| async move {
+		const LEAF_BLOCK_NUMBER: BlockNumber = 100;
+		const LEAF_ANCESTRY_LEN: BlockNumber = 3;
+		let para_id = test_state.chain_ids[0];
+
+		let leaf_hash = Hash::from_low_u64_be(130);
+		let activated = ActivatedLeaf {
+			hash: leaf_hash,
+			number: LEAF_BLOCK_NUMBER,
+			status: LeafStatus::Fresh,
+			span: Arc::new(jaeger::Span::Disabled),
+		};
+
+		let required_parent = HeadData(vec![1, 2, 3]);
+		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_ANCESTRY_LEN)];
+		let test_leaf = TestLeaf { activated, min_relay_parents };
+
+		activate_leaf(&mut virtual_overseer, test_leaf, required_parent.clone(), &test_state).await;
+
+		// Get minimum relay parents.
+		let (tx, rx) = oneshot::channel();
+		virtual_overseer
+			.send(overseer::FromOrchestra::Communication {
+				msg: ProspectiveParachainsMessage::GetMinimumRelayParents(leaf_hash, tx),
+			})
+			.await;
+		let mut resp = rx.await.unwrap();
+		resp.sort();
+		assert_eq!(resp, vec![(1.into(), 97), (2.into(), 100)]);
+
+		// Add (second) a candidate.
+		println!("Seconding candidate...");
+		let pvd = dummy_pvd(required_parent.clone(), LEAF_BLOCK_NUMBER);
+		// pvd.parent_head = required_parent;
+		let commitments = CandidateCommitments {
+			head_data: required_parent,
+			horizontal_messages: Vec::new(),
+			upward_messages: Vec::new(),
+			new_validation_code: None,
+			processed_downward_messages: 0,
+			hrmp_watermark: dummy_watermarks()[0],
+		};
+		let mut candidate = dummy_candidate_receipt_bad_sig(leaf_hash, Some(Default::default()));
+		candidate.commitments_hash = commitments.hash();
+		candidate.descriptor.para_id = para_id;
+		candidate.descriptor.persisted_validation_data_hash = pvd.hash();
+		candidate.descriptor.validation_code_hash = test_state.validation_code_hash;
+		let candidate = CommittedCandidateReceipt { descriptor: candidate.descriptor, commitments };
+		let (tx, rx) = oneshot::channel();
+		virtual_overseer
+			.send(overseer::FromOrchestra::Communication {
+				msg: ProspectiveParachainsMessage::CandidateSeconded(para_id, candidate, pvd, tx),
+			})
+			.await;
+		let resp = rx.await.unwrap();
+		println!("Second Candidate Resp: {:#?}", resp);
+
+		// TODO: Get backable candidate.
+		println!("Getting backable candidate...");
+		let required_path = vec![CandidateHash(leaf_hash)];
+		let (tx, rx) = oneshot::channel();
+		virtual_overseer
+			.send(overseer::FromOrchestra::Communication {
+				msg: ProspectiveParachainsMessage::GetBackableCandidate(
+					leaf_hash,
+					para_id,
+					required_path,
+					tx,
+				),
+			})
+			.await;
+		let resp = rx.await.unwrap();
+		println!("Get Backable Resp: {:#?}", resp);
+
+		// TODO: Check candidate membership.
+		// let (tx, rx) = oneshot::channel();
+		// virtual_overseer
+		// 	.send(overseer::FromOrchestra::Communication {
+		// 		msg: ProspectiveParachainsMessage::GetTreeMembership(para_id, candidate, tx),
+		// 	})
+		// 	.await;
+		// let resp = rx.await.unwrap();
+		// println!("{:#?}", resp);
+
+		virtual_overseer
+	});
+
+	assert_eq!(view.active_leaves.len(), 1);
+	assert_eq!(view.candidate_storage.len(), 2);
 }
 
 // Send some candidates, check if the candidate won't be found once its relay parent leaves the view.
@@ -370,18 +457,20 @@ fn check_candidate_parent_leaving_view() {
 			span: Arc::new(jaeger::Span::Disabled),
 		};
 
+		let required_parent = HeadData(vec![1, 2, 3]);
 		let min_relay_parents = vec![(para_id, LEAF_BLOCK_NUMBER - LEAF_ANCESTRY_LEN)];
 
 		let test_leaf = TestLeaf { activated, min_relay_parents };
-		let leaf_parent = get_parent_hash(leaf_hash);
 
-		activate_leaf(&mut virtual_overseer, test_leaf, leaf_parent, &test_state).await;
+		activate_leaf(&mut virtual_overseer, test_leaf, required_parent, &test_state).await;
 
 		virtual_overseer
 	});
 
-	assert!(view.active_leaves.is_empty());
-	assert!(view.candidate_storage.is_empty());
+	assert_eq!(view.active_leaves.len(), 0);
+	assert_eq!(view.candidate_storage.len(), 0);
+
+	unimplemented!()
 }
 
 // #[test]
