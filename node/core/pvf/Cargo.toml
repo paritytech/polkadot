@@ -29,15 +29,15 @@ polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-metrics = { path = "../../metrics"}
 
-sc-executor = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sp-io = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sp-core = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
 
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }

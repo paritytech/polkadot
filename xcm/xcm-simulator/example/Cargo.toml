@@ -9,13 +9,13 @@ version.workspace = true
 codec = { package = "parity-scale-codec", version = "3.0.0" }
 scale-info = { version = "2.1.2", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-frame-support = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sp-std = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sp-core = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
-sp-io = { git = "https://github.com/paritytech/substrate", " branch" = "polkadot-v0.9.36" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "polkadot-v0.9.36" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }
