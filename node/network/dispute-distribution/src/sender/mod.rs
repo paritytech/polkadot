@@ -195,7 +195,7 @@ impl DisputeSender {
 		// recovered at startup will be relatively "old" anyway and we assume that no more than a
 		// third of the validators will go offline at any point in time anyway.
 		for dispute in unknown_disputes {
-			self.rate_limit.limit("while going through unknown disputes", dispute.1).await;
+			// Rate limiting handled inside `start_send_for_dispute` (calls `start_sender`).
 			self.start_send_for_dispute(ctx, runtime, dispute).await?;
 		}
 		Ok(())
@@ -389,6 +389,7 @@ impl RateLimit {
 	/// String given as occasion and candidate hash are logged in case the rate limit hit.
 	async fn limit(&mut self, occasion: &'static str, candidate_hash: CandidateHash) {
 		// Wait for rate limit and add some logging:
+		let mut num_wakes: u32 = 0;
 		poll_fn(|cx| {
 			let old_limit = Pin::new(&mut self.limit);
 			match old_limit.poll(cx) {
@@ -397,8 +398,10 @@ impl RateLimit {
 						target: LOG_TARGET,
 						?occasion,
 						?candidate_hash,
+						?num_wakes,
 						"Sending rate limit hit, slowing down requests"
 					);
+					num_wakes += 1;
 					Poll::Pending
 				},
 				Poll::Ready(()) => Poll::Ready(()),

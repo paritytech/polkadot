@@ -140,21 +140,38 @@ impl SendTask {
 		let new_authorities = self.get_relevant_validators(ctx, runtime, active_sessions).await?;
 
 		// Note this will also contain all authorities for which sending failed previously:
-		let add_authorities = new_authorities
+		let add_authorities: Vec<_> = new_authorities
 			.iter()
 			.filter(|a| !self.deliveries.contains_key(a))
 			.map(Clone::clone)
 			.collect();
 
 		// Get rid of dead/irrelevant tasks/statuses:
+		gum::trace!(
+			target: LOG_TARGET,
+			already_running_deliveries = ?self.deliveries.len(),
+			"Cleaning up deliveries"
+		);
 		self.deliveries.retain(|k, _| new_authorities.contains(k));
 
 		// Start any new tasks that are needed:
+		gum::trace!(
+			target: LOG_TARGET,
+			new_and_failed_authorities = ?add_authorities.len(),
+			overall_authority_set_size = ?new_authorities.len(),
+			already_running_deliveries = ?self.deliveries.len(),
+			"Starting new send requests for authorities."
+		);
 		let new_statuses =
 			send_requests(ctx, self.tx.clone(), add_authorities, self.request.clone(), metrics)
 				.await?;
 
 		let was_empty = new_statuses.is_empty();
+		gum::trace!(
+			target: LOG_TARGET,
+			sent_requests = ?new_statuses.len(),
+			"Requests dispatched."
+		);
 
 		self.has_failed_sends = false;
 		self.deliveries.extend(new_statuses.into_iter());
