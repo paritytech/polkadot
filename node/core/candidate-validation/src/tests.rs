@@ -381,7 +381,7 @@ impl ValidationBackend for MockValidateCandidateBackend {
 	async fn precheck_pvf(
 		&mut self,
 		_pvf: Pvf,
-		executor_params: ExecutorParams,
+		_executor_params: ExecutorParams,
 	) -> Result<Duration, PrepareError> {
 		unreachable!()
 	}
@@ -557,6 +557,7 @@ fn candidate_validation_one_ambiguous_error_is_valid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
+		Default::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -609,6 +610,7 @@ fn candidate_validation_multiple_ambiguous_errors_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
+		Default::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -931,7 +933,7 @@ impl ValidationBackend for MockPreCheckBackend {
 	async fn precheck_pvf(
 		&mut self,
 		_pvf: Pvf,
-		executor_params: ExecutorParams,
+		_executor_params: ExecutorParams,
 	) -> Result<Duration, PrepareError> {
 		self.result.clone()
 	}

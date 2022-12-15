@@ -33,9 +33,12 @@ use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_primitives::{DisputeMessage, SignedDisputeStatement};
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, SessionInfo,
-	ValidatorId, ValidatorIndex,
+use polkadot_primitives::{
+	v2::{
+		AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, ValidatorId,
+		ValidatorIndex,
+	},
+	v3::SessionInfo,
 };
 use polkadot_primitives_test_helpers::dummy_candidate_descriptor;
 
@@ -78,6 +81,7 @@ pub static ref FERDIE_DISCOVERY_KEY: AuthorityDiscoveryId =
 
 pub static ref MOCK_SESSION_INFO: SessionInfo =
 	SessionInfo {
+		executor_params: Default::default(),
 		validators: MOCK_VALIDATORS.iter().take(4).map(|k| k.public().into()).collect(),
 		discovery_keys: MOCK_VALIDATORS
 			.iter()
@@ -99,6 +103,7 @@ pub static ref MOCK_SESSION_INFO: SessionInfo =
 /// `SessionInfo` for the second session. (No more validators, but two more authorities.
 pub static ref MOCK_NEXT_SESSION_INFO: SessionInfo =
 	SessionInfo {
+		executor_params: Default::default(),
 		discovery_keys:
 			MOCK_AUTHORITIES_NEXT_SESSION
 				.iter()

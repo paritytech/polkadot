@@ -35,8 +35,9 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v2::{
-	GroupIndex, Hash, Id as ParaId, IndexedVec, SessionInfo, ValidationCode, ValidatorId,
+use polkadot_primitives::{
+	v2::{GroupIndex, Hash, Id as ParaId, IndexedVec, ValidationCode, ValidatorId},
+	v3::SessionInfo,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
@@ -2327,6 +2328,7 @@ fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInf
 		.collect();
 
 	SessionInfo {
+		executor_params: Default::default(),
 		discovery_keys: validators.iter().map(|k| k.public().into()).collect(),
 		// Not used:
 		n_cores: validator_groups.len() as u32,

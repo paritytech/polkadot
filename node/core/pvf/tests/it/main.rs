@@ -68,6 +68,7 @@ impl TestHost {
 				Pvf::from_code(code.into()),
 				TEST_EXECUTION_TIMEOUT,
 				params.encode(),
+				Default::default(),
 				polkadot_node_core_pvf::Priority::Normal,
 				result_tx,
 			)
