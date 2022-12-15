@@ -71,7 +71,7 @@ check-try-runtime:
         time cargo build --release --features try-runtime
         time cargo run --release --features try-runtime try-runtime \
             --runtime ./target/release/wbuild/runtime.wasm -lruntime=debug \
-            --chain=${NETWORK}-dev --execution=Wasm --no-spec-check-panic \
+            --chain=${NETWORK}-dev --no-spec-check-panic \
             on-runtime-upgrade live --uri wss://${NETWORK}-try-runtime-node.parity-chains.parity.io:443
       else
         echo "runtimemigration label not found. Skipping"
