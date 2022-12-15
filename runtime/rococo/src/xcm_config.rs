@@ -29,7 +29,7 @@ use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
-	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, BackingToPlurality,
+	AllowTopLevelPaidExecutionFrom, AllowExplicitUnpaidExecutionFrom, BackingToPlurality,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
@@ -127,7 +127,7 @@ pub type Barrier = (
 	// If the message is one that immediately attemps to pay for execution, then allow it.
 	AllowTopLevelPaidExecutionFrom<Everything>,
 	// Messages coming from system parachains need not pay for execution.
-	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
+	AllowExplicitUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 	// Expected responses are OK.
 	AllowKnownQueryResponses<XcmPallet>,
 	// Subscriptions for version tracking are OK.
