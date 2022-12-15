@@ -53,9 +53,11 @@ check-transaction-versions:
     - npm install --ignore-scripts -g @polkadot/metadata-cmp
     # Set git config
     - git config remote.origin.url "https://github.com/paritytech/polkadot.git"
-    - git fetch origin release
+    # - git fetch origin release
   script:
     - ./scripts/ci/gitlab/check_extrinsics_ordering.sh
+  # TODO: fixme, more info https://github.com/paritytech/polkadot/issues/6422
+  allow_failure:                   true
 
 build-test-collators:
   stage:                           build
@@ -72,7 +74,6 @@ build-test-collators:
   script:
     - time cargo build --profile testnet --verbose -p test-parachain-adder-collator
     - time cargo build --profile testnet --verbose -p test-parachain-undying-collator
-    - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/adder-collator ./artifacts/.
