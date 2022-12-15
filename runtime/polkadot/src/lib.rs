@@ -599,7 +599,6 @@ impl pallet_staking::Config for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	// A super-majority of the council can cancel the slash.
 	type StakingAdminOrigin = StakingAdminOrigin;
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
