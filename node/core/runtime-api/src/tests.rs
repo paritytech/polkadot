@@ -29,7 +29,7 @@ use polkadot_primitives::{
 		SessionIndex, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 		ValidatorSignature,
 	},
-	v4::SessionInfo,
+	v3::SessionInfo,
 };
 use sp_api::ProvideRuntimeApi;
 use sp_authority_discovery::AuthorityDiscoveryApi;

@@ -32,7 +32,7 @@ use sp_std::vec::Vec;
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct SessionInfo {
-	/****** New in vstaging *******/
+	/****** New in v3 *******/
 	/// Executor parameter set for the session.
 	pub executor_params: ExecutorParams,
 

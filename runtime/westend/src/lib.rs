@@ -43,7 +43,7 @@ use primitives::{
 		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, Signature, ValidationCode,
 		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	v4,
+	v3,
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, elections::OnChainAccuracy, impl_runtime_weights,
@@ -56,7 +56,7 @@ use runtime_parachains::{
 	inclusion as parachains_inclusion, initializer as parachains_initializer,
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	runtime_api_impl::v3 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 use scale_info::TypeInfo;
@@ -1346,7 +1346,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	#[api_version(4)]
+	#[api_version(3)]
 	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()
@@ -1406,7 +1406,7 @@ sp_api::impl_runtime_apis! {
 			})
 		}
 
-		fn session_info(index: SessionIndex) -> Option<v4::SessionInfo> {
+		fn session_info(index: SessionIndex) -> Option<v3::SessionInfo> {
 			parachains_runtime_api_impl::session_info::<Runtime>(index)
 		}
 

@@ -29,7 +29,7 @@ use frame_support::{
 };
 use primitives::{
 	v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex},
-	v4::SessionInfo,
+	v3::SessionInfo,
 	vstaging::{ExecutionEnvironment, ExecutorParam, ExecutorParams},
 };
 use sp_std::vec::Vec;

@@ -29,7 +29,7 @@ use primitives::{
 		PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, ValidationCode,
 		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	v4::SessionInfo,
+	v3::SessionInfo,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};

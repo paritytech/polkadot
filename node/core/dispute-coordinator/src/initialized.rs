@@ -45,7 +45,7 @@ use polkadot_primitives::{
 		DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, ValidDisputeStatementKind,
 		ValidatorId, ValidatorIndex,
 	},
-	v4::SessionInfo,
+	v3::SessionInfo,
 };
 
 use crate::{

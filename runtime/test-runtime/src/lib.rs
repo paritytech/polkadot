@@ -28,7 +28,7 @@ use polkadot_runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
-	paras_inherent as parachains_paras_inherent, runtime_api_impl::v4 as runtime_impl,
+	paras_inherent as parachains_paras_inherent, runtime_api_impl::v3 as runtime_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
 	shared as parachains_shared, ump as parachains_ump,
 };
@@ -52,7 +52,7 @@ use primitives::{
 		OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, Signature,
 		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 	},
-	v4::SessionInfo as SessionInfoData,
+	v3::SessionInfo as SessionInfoData,
 };
 use runtime_common::{
 	claims, impl_runtime_weights, paras_sudo_wrapper, BlockHashCount, BlockLength,

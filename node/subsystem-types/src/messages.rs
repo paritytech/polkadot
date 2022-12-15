@@ -48,7 +48,7 @@ use polkadot_primitives::{
 		SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
 		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	v4::SessionInfo,
+	v3::SessionInfo,
 	vstaging::ExecutorParams,
 };
 use polkadot_statement_table::v2::Misbehavior;

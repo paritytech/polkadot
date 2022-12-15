@@ -24,7 +24,7 @@ use polkadot_primitives::{
 		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex,
 		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	v4,
+	v3,
 };
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -149,7 +149,7 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 		index: SessionIndex,
-	) -> Result<Option<v4::SessionInfo>, ApiError>;
+	) -> Result<Option<v3::SessionInfo>, ApiError>;
 
 	/// Get the session info for the given session, if stored.
 	///
@@ -163,7 +163,7 @@ pub trait RuntimeApiSubsystemClient {
 	/// Get the session info for the given session, if stored.
 	///
 	/// NOTE: This function is only available since parachain host version 2.
-	async fn session_info_before_version_4(
+	async fn session_info_before_version_3(
 		&self,
 		at: Hash,
 		index: SessionIndex,
@@ -335,7 +335,7 @@ where
 		&self,
 		at: Hash,
 		index: SessionIndex,
-	) -> Result<Option<v4::SessionInfo>, ApiError> {
+	) -> Result<Option<v3::SessionInfo>, ApiError> {
 		self.runtime_api().session_info(&BlockId::Hash(at), index)
 	}
 
@@ -388,13 +388,13 @@ where
 	}
 
 	#[warn(deprecated)]
-	async fn session_info_before_version_4(
+	async fn session_info_before_version_3(
 		&self,
 		at: Hash,
 		index: SessionIndex,
 	) -> Result<Option<polkadot_primitives::v2::SessionInfo>, ApiError> {
 		#[allow(deprecated)]
-		self.runtime_api().session_info_before_version_4(&BlockId::Hash(at), index)
+		self.runtime_api().session_info_before_version_3(&BlockId::Hash(at), index)
 	}
 
 	async fn disputes(

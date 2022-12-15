@@ -27,7 +27,7 @@ use polkadot_primitives::{
 		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex,
 		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	v4::SessionInfo,
+	v3::SessionInfo,
 };
 
 /// For consistency we have the same capacity for all caches. We use 128 as we'll only need that

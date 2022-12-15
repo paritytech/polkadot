@@ -619,7 +619,7 @@ pub(crate) mod tests {
 	use polkadot_node_subsystem_util::database::Database;
 	use polkadot_primitives::{
 		v2::{Id as ParaId, IndexedVec, ValidatorId, ValidatorIndex},
-		v4::SessionInfo,
+		v3::SessionInfo,
 	};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},

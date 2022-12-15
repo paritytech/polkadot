@@ -58,7 +58,7 @@ pub mod v2 {
 				<Pallet<T> as Store>::Sessions::translate_values(
 					|old: primitives::v2::SessionInfo| {
 						vs += 1;
-						let new = primitives::v4::SessionInfo::from(old);
+						let new = primitives::v3::SessionInfo::from(old);
 						Some(new)
 					},
 				);

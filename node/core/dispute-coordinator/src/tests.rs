@@ -67,7 +67,7 @@ use polkadot_primitives::{
 		IndexedVec, MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SigningContext,
 		ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	v4::SessionInfo,
+	v3::SessionInfo,
 };
 
 use crate::{

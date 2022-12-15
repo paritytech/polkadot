@@ -31,7 +31,7 @@ use runtime_parachains::{
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	runtime_api_impl::v3 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
@@ -61,7 +61,7 @@ use primitives::{
 		PersistedValidationData, ScrapedOnChainVotes, Signature, ValidationCode,
 		ValidationCodeHash, ValidatorId, ValidatorIndex, LOWEST_PUBLIC_ID,
 	},
-	v4::SessionInfo,
+	v3::SessionInfo,
 };
 use sp_core::OpaqueMetadata;
 use sp_mmr_primitives as mmr;
