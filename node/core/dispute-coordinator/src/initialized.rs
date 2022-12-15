@@ -807,7 +807,14 @@ impl Initialized {
 						);
 						intermediate_result
 					},
-					Ok(votes) => intermediate_result.import_approval_votes(&env, votes, now),
+					Ok(votes) => {
+						gum::trace!(
+							target: LOG_TARGET,
+							count = votes.len(),
+							"Successfully received approval votes."
+						);
+						intermediate_result.import_approval_votes(&env, votes, now)
+					},
 				}
 			} else {
 				gum::trace!(

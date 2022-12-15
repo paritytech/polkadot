@@ -1149,11 +1149,11 @@ impl<T: Config> Pallet<T> {
 		let channel_id = HrmpChannelId { sender: origin, recipient };
 		ensure!(
 			<Self as Store>::HrmpOpenChannelRequests::get(&channel_id).is_none(),
-			Error::<T>::OpenHrmpChannelAlreadyExists,
+			Error::<T>::OpenHrmpChannelAlreadyRequested,
 		);
 		ensure!(
 			<Self as Store>::HrmpChannels::get(&channel_id).is_none(),
-			Error::<T>::OpenHrmpChannelAlreadyRequested,
+			Error::<T>::OpenHrmpChannelAlreadyExists,
 		);
 
 		let egress_cnt =
