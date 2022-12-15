@@ -3229,9 +3229,10 @@ fn participation_requests_reprioritized_for_newly_included() {
 				// distribution messages will come back first. We wait a very short time as to make sure
 				// we can drain the queue of incoming messages without accidentally draining the best
 				// effort queue, which we want filled.
-				println!("Message handle inside loop");
-				while let Some(message) = virtual_overseer.recv().timeout(Duration::from_millis(50)).await {
-					handle_next_overseer_message(&mut virtual_overseer, message, &hash_info).await;
+				println!("Handling overseer messages after importing candidate: {}", repetition);
+				while let Some(message) = virtual_overseer.recv().timeout(Duration::from_millis(100)).await {
+					// Possibly pick out messages of type get_approval_signatures and handle them first
+					handle_next_overseer_message(message, &hash_info).await;
 				}
 
 				// Mark 15th candidate as included after import
@@ -3249,7 +3250,7 @@ fn participation_requests_reprioritized_for_newly_included() {
 
 			println!("Left statement import loop");
 			while let Some(message) = virtual_overseer.recv().timeout(TEST_TIMEOUT).await {
-				handle_next_overseer_message(&mut virtual_overseer, message, &hash_info).await;
+				handle_next_overseer_message(message, &hash_info).await;
 			}
 
 			// Somehow use CandidateValidation messages to check participation order
@@ -3268,7 +3269,6 @@ fn participation_requests_reprioritized_for_newly_included() {
 }
 
 async fn handle_next_overseer_message(
-	virtual_overseer: &mut VirtualOverseer,
 	message: AllMessages,
 	hash_info: &HashMap<CandidateHash, (u8, CandidateReceipt)>,
 ) {
@@ -3277,16 +3277,19 @@ async fn handle_next_overseer_message(
 			hash,
 			tx,
 		)) => {
-			let (candidate_number, candidate_receipt) = hash_info
+			let (candidate_number, _) = hash_info
 				.get(&hash)
 				.expect("Message should always correspond to a candidate hash in the ordering.");
-			println!("Got approval voting messages for candidate: {}", candidate_number);
+			println!("Got approval votes for candidate: {}", candidate_number);
 			tx.send(HashMap::new()).unwrap();
 		},
 		AllMessages::AvailabilityRecovery(
-			AvailabilityRecoveryMessage::RecoverAvailableData(_, _, _, tx)
+			AvailabilityRecoveryMessage::RecoverAvailableData(candidate_receipt, _, _, tx)
 		) => {
-			println!("Availability recovery");
+			let (candidate_number, _) = hash_info
+				.get(&candidate_receipt.hash())
+				.expect("Message should always correspond to a candidate hash in the ordering.");
+			println!("Availability recovery for candidate: {}", candidate_number);
 			let pov_block = PoV { block_data: BlockData(Vec::new()) };
 			let available_data = AvailableData {
 				pov: Arc::new(pov_block),
@@ -3296,7 +3299,7 @@ async fn handle_next_overseer_message(
 			tx.send(Ok(available_data)).unwrap();
 		},
 		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			hash,
+			_,
 			RuntimeApiRequest::ValidationCodeByHash(
 				_,
 				tx,
@@ -3310,7 +3313,10 @@ async fn handle_next_overseer_message(
 		AllMessages::CandidateValidation(
 			CandidateValidationMessage::ValidateFromExhaustive(_, _, candidate_receipt, _, timeout, tx)
 		) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
-			println!("Candidate validation");
+			let (candidate_number, _) = hash_info
+				.get(&&candidate_receipt.hash())
+				.expect("Message should always correspond to a candidate hash in the ordering.");
+			println!("Validation triggered for candidate: {}", candidate_number);
 			tx.send(Ok(ValidationResult::Valid(dummy_candidate_commitments(None), PersistedValidationData::default()))).unwrap();
 		},
 		AllMessages::DisputeDistribution(DisputeDistributionMessage::SendDispute(msg)) => {
