@@ -232,26 +232,38 @@ mod tests {
 
 	#[test]
 	fn v2_deserialized_from_actual_data() {
-		// Fetched at Kusama 14,703,780 (0x3b2c305d01bd4adf1973d32a2d55ca1260a55eea8dfb3168e317c57f2841fdf1)
+		// Example how to get new `raw_config`:
+		// We'll obtain the raw_config hes for block
+		// 15,772,152 (0xf89d3ab5312c5f70d396dc59612f0aa65806c798346f9db4b35278baed2e0e53) on Kusama.
+		// Steps:
+		// 1. Go to Polkadot.js -> Developer -> Chain state -> Storage: https://polkadot.js.org/apps/#/chainstate
+		// 2. Set these parameters:
+		//   2.1. selected state query: configuration; activeConfig(): PolkadotRuntimeParachainsConfigurationHostConfiguration
+		//   2.2. blockhash to query at: 0xf89d3ab5312c5f70d396dc59612f0aa65806c798346f9db4b35278baed2e0e53 (the hash of the block)
+		//   2.3. Note the value of encoded storage key -> 0x06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385 for the referenced block.
+		//   2.4. You'll also need the decoded values to update the test.
+		// 3. Go to Polkadot.js -> Developer -> Chain state -> Raw storage
+		//   3.1 Enter the encoded storage key and you get the raw config.
+
+		// Fetched at Kusama 15,772,152 (0xf89d3ab5312c5f70d396dc59612f0aa65806c798346f9db4b35278baed2e0e53)
 		//
 		// This exceeds the maximal line width length, but that's fine, since this is not code and
 		// doesn't need to be read and also leaving it as one line allows to easily copy it.
-		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c8000000e87648170000001e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c8000000060000005802000002000000580200000200000059000000000000001e0000002800000000c817a804000000000200000014000000"];
+		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c800000700e8764817020040011e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c8000000060000005802000002000000580200000200000059000000000000001e000000280000000700c817a80402004001000200000014000000"];
 
-		let v2 =
-			v3::OldHostConfiguration::<primitives::v2::BlockNumber>::decode(&mut &raw_config[..])
+		let v3 =
+			v4::OldHostConfiguration::<primitives::v2::BlockNumber>::decode(&mut &raw_config[..])
 				.unwrap();
 
 		// We check only a sample of the values here. If we missed any fields or messed up data types
 		// that would skew all the fields coming after.
-		assert_eq!(v2.max_code_size, 10_485_760);
-		assert_eq!(v2.validation_upgrade_cooldown, 3600);
-		assert_eq!(v2.max_pov_size, 5_242_880);
-		assert_eq!(v2.hrmp_channel_max_message_size, 102_400);
-		assert_eq!(v2.dispute_max_spam_slots, 2);
-		assert_eq!(v2.n_delay_tranches, 89);
-		assert_eq!(v2.ump_max_individual_weight, OldWeight(20_000_000_000));
-		assert_eq!(v2.minimum_validation_upgrade_delay, 20);
+		assert_eq!(v3.max_code_size, 10_485_760);
+		assert_eq!(v3.validation_upgrade_cooldown, 3600);
+		assert_eq!(v3.max_pov_size, 5_242_880);
+		assert_eq!(v3.hrmp_channel_max_message_size, 102_400);
+		assert_eq!(v3.n_delay_tranches, 89);
+		assert_eq!(v3.ump_max_individual_weight, Weight::from_parts(20_000_000_000, 5_242_880));
+		assert_eq!(v3.minimum_validation_upgrade_delay, 20);
 	}
 
 	#[test]
@@ -264,8 +276,8 @@ mod tests {
 		// We specify only the picked fields and the rest should be provided by the `Default`
 		// implementation. That implementation is copied over between the two types and should work
 		// fine.
-		let v2 = v3::OldHostConfiguration::<primitives::v2::BlockNumber> {
-			ump_max_individual_weight: OldWeight(0x71616e6f6e0au64),
+		let v3 = v4::OldHostConfiguration::<primitives::v2::BlockNumber> {
+			ump_max_individual_weight: Weight::from_parts(0x71616e6f6e0au64, 0x71616e6f6e0au64),
 			needed_approvals: 69,
 			thread_availability_period: 55,
 			hrmp_recipient_deposit: 1337,
@@ -279,61 +291,58 @@ mod tests {
 			// Implant the v2 version in the state.
 			frame_support::storage::unhashed::put_raw(
 				&configuration::ActiveConfig::<Test>::hashed_key(),
-				&v2.encode(),
+				&v3.encode(),
 			);
 
-			migrate_to_v3::<Test>();
+			migrate_to_v4::<Test>();
 
-			let v3 = configuration::ActiveConfig::<Test>::get();
+			let v4 = configuration::ActiveConfig::<Test>::get();
 
 			#[rustfmt::skip]
 			{
-				assert_eq!(v2.max_code_size                            , v3.max_code_size);
-				assert_eq!(v2.max_head_data_size                       , v3.max_head_data_size);
-				assert_eq!(v2.max_upward_queue_count                   , v3.max_upward_queue_count);
-				assert_eq!(v2.max_upward_queue_size                    , v3.max_upward_queue_size);
-				assert_eq!(v2.max_upward_message_size                  , v3.max_upward_message_size);
-				assert_eq!(v2.max_upward_message_num_per_candidate     , v3.max_upward_message_num_per_candidate);
-				assert_eq!(v2.hrmp_max_message_num_per_candidate       , v3.hrmp_max_message_num_per_candidate);
-				assert_eq!(v2.validation_upgrade_cooldown              , v3.validation_upgrade_cooldown);
-				assert_eq!(v2.validation_upgrade_delay                 , v3.validation_upgrade_delay);
-				assert_eq!(v2.max_pov_size                             , v3.max_pov_size);
-				assert_eq!(v2.max_downward_message_size                , v3.max_downward_message_size);
-				assert_eq!(v2.hrmp_max_parachain_outbound_channels     , v3.hrmp_max_parachain_outbound_channels);
-				assert_eq!(v2.hrmp_max_parathread_outbound_channels    , v3.hrmp_max_parathread_outbound_channels);
-				assert_eq!(v2.hrmp_sender_deposit                      , v3.hrmp_sender_deposit);
-				assert_eq!(v2.hrmp_recipient_deposit                   , v3.hrmp_recipient_deposit);
-				assert_eq!(v2.hrmp_channel_max_capacity                , v3.hrmp_channel_max_capacity);
-				assert_eq!(v2.hrmp_channel_max_total_size              , v3.hrmp_channel_max_total_size);
-				assert_eq!(v2.hrmp_max_parachain_inbound_channels      , v3.hrmp_max_parachain_inbound_channels);
-				assert_eq!(v2.hrmp_max_parathread_inbound_channels     , v3.hrmp_max_parathread_inbound_channels);
-				assert_eq!(v2.hrmp_channel_max_message_size            , v3.hrmp_channel_max_message_size);
-				assert_eq!(v2.code_retention_period                    , v3.code_retention_period);
-				assert_eq!(v2.parathread_cores                         , v3.parathread_cores);
-				assert_eq!(v2.parathread_retries                       , v3.parathread_retries);
-				assert_eq!(v2.group_rotation_frequency                 , v3.group_rotation_frequency);
-				assert_eq!(v2.chain_availability_period                , v3.chain_availability_period);
-				assert_eq!(v2.thread_availability_period               , v3.thread_availability_period);
-				assert_eq!(v2.scheduling_lookahead                     , v3.scheduling_lookahead);
-				assert_eq!(v2.max_validators_per_core                  , v3.max_validators_per_core);
-				assert_eq!(v2.max_validators                           , v3.max_validators);
-				assert_eq!(v2.dispute_period                           , v3.dispute_period);
-				assert_eq!(v2.dispute_post_conclusion_acceptance_period, v3.dispute_post_conclusion_acceptance_period);
-				assert_eq!(v2.dispute_max_spam_slots                   , v3.dispute_max_spam_slots);
-				assert_eq!(v2.dispute_conclusion_by_time_out_period    , v3.dispute_conclusion_by_time_out_period);
-				assert_eq!(v2.no_show_slots                            , v3.no_show_slots);
-				assert_eq!(v2.n_delay_tranches                         , v3.n_delay_tranches);
-				assert_eq!(v2.zeroth_delay_tranche_width               , v3.zeroth_delay_tranche_width);
-				assert_eq!(v2.needed_approvals                         , v3.needed_approvals);
-				assert_eq!(v2.relay_vrf_modulo_samples                 , v3.relay_vrf_modulo_samples);
-				assert_eq!(v2.pvf_checking_enabled                     , v3.pvf_checking_enabled);
-				assert_eq!(v2.pvf_voting_ttl                           , v3.pvf_voting_ttl);
-				assert_eq!(v2.minimum_validation_upgrade_delay         , v3.minimum_validation_upgrade_delay);
+				assert_eq!(v3.max_code_size                            , v4.max_code_size);
+				assert_eq!(v3.max_head_data_size                       , v4.max_head_data_size);
+				assert_eq!(v3.max_upward_queue_count                   , v4.max_upward_queue_count);
+				assert_eq!(v3.max_upward_queue_size                    , v4.max_upward_queue_size);
+				assert_eq!(v3.max_upward_message_size                  , v4.max_upward_message_size);
+				assert_eq!(v3.max_upward_message_num_per_candidate     , v4.max_upward_message_num_per_candidate);
+				assert_eq!(v3.hrmp_max_message_num_per_candidate       , v4.hrmp_max_message_num_per_candidate);
+				assert_eq!(v3.validation_upgrade_cooldown              , v4.validation_upgrade_cooldown);
+				assert_eq!(v3.validation_upgrade_delay                 , v4.validation_upgrade_delay);
+				assert_eq!(v3.max_pov_size                             , v4.max_pov_size);
+				assert_eq!(v3.max_downward_message_size                , v4.max_downward_message_size);
+				assert_eq!(v3.ump_service_total_weight                 , v4.ump_service_total_weight);
+				assert_eq!(v3.hrmp_max_parachain_outbound_channels     , v4.hrmp_max_parachain_outbound_channels);
+				assert_eq!(v3.hrmp_max_parathread_outbound_channels    , v4.hrmp_max_parathread_outbound_channels);
+				assert_eq!(v3.hrmp_sender_deposit                      , v4.hrmp_sender_deposit);
+				assert_eq!(v3.hrmp_recipient_deposit                   , v4.hrmp_recipient_deposit);
+				assert_eq!(v3.hrmp_channel_max_capacity                , v4.hrmp_channel_max_capacity);
+				assert_eq!(v3.hrmp_channel_max_total_size              , v4.hrmp_channel_max_total_size);
+				assert_eq!(v3.hrmp_max_parachain_inbound_channels      , v4.hrmp_max_parachain_inbound_channels);
+				assert_eq!(v3.hrmp_max_parathread_inbound_channels     , v4.hrmp_max_parathread_inbound_channels);
+				assert_eq!(v3.hrmp_channel_max_message_size            , v4.hrmp_channel_max_message_size);
+				assert_eq!(v3.code_retention_period                    , v4.code_retention_period);
+				assert_eq!(v3.parathread_cores                         , v4.parathread_cores);
+				assert_eq!(v3.parathread_retries                       , v4.parathread_retries);
+				assert_eq!(v3.group_rotation_frequency                 , v4.group_rotation_frequency);
+				assert_eq!(v3.chain_availability_period                , v4.chain_availability_period);
+				assert_eq!(v3.thread_availability_period               , v4.thread_availability_period);
+				assert_eq!(v3.scheduling_lookahead                     , v4.scheduling_lookahead);
+				assert_eq!(v3.max_validators_per_core                  , v4.max_validators_per_core);
+				assert_eq!(v3.max_validators                           , v4.max_validators);
+				assert_eq!(v3.dispute_period                           , v4.dispute_period);
+				assert_eq!(v3.dispute_post_conclusion_acceptance_period, v4.dispute_post_conclusion_acceptance_period);
+				assert_eq!(v3.dispute_conclusion_by_time_out_period    , v4.dispute_conclusion_by_time_out_period);
+				assert_eq!(v3.no_show_slots                            , v4.no_show_slots);
+				assert_eq!(v3.n_delay_tranches                         , v4.n_delay_tranches);
+				assert_eq!(v3.zeroth_delay_tranche_width               , v4.zeroth_delay_tranche_width);
+				assert_eq!(v3.needed_approvals                         , v4.needed_approvals);
+				assert_eq!(v3.relay_vrf_modulo_samples                 , v4.relay_vrf_modulo_samples);
+				assert_eq!(v3.ump_max_individual_weight                , v4.ump_max_individual_weight);
+				assert_eq!(v3.pvf_checking_enabled                     , v4.pvf_checking_enabled);
+				assert_eq!(v3.pvf_voting_ttl                           , v4.pvf_voting_ttl);
+				assert_eq!(v3.minimum_validation_upgrade_delay         , v4.minimum_validation_upgrade_delay);
 
-				assert_eq!(v2.ump_service_total_weight, OldWeight(v3.ump_service_total_weight.ref_time()));
-				assert_eq!(v2.ump_max_individual_weight, OldWeight(v3.ump_max_individual_weight.ref_time()));
-				assert_eq!(v3.ump_service_total_weight.proof_size(), MAX_POV_SIZE as u64);
-				assert_eq!(v3.ump_max_individual_weight.proof_size(), MAX_POV_SIZE as u64);
 			}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
 		});
 	}
