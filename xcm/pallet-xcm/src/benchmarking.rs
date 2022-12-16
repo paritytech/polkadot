@@ -166,8 +166,9 @@ benchmarks! {
 
 	migrate_version_notify_targets {
 		let current_version = T::AdvertisedXcmVersion::get();
+		let old_version = current_version - 1;
 		let loc = VersionedMultiLocation::from(MultiLocation::from(Parent));
-		VersionNotifyTargets::<T>::insert(current_version, loc, (0, Weight::zero(), current_version));
+		VersionNotifyTargets::<T>::insert(old_version, loc, (0, Weight::zero(), current_version));
 	}: {
 		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero());
 	}
