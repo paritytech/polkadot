@@ -114,12 +114,16 @@ benchmarks! {
 	migrate_supported_version {
 		let old_version = XCM_VERSION - 1;
 		SupportedVersion::<T>::insert(old_version, Parent.into(), old_version);
-	}: check_xcm_version_change(VersionMigrationStage::MigrateSupportedVersion, Weight::zero())
+	}: {
+		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::MigrateSupportedVersion, Weight::zero());
+	}
 
 	migrate_version_notifiers {
 		let old_version = XCM_VERSION - 1;
 		VersionNotifiers::<T>::insert(old_version, Parent.into(), 0);
-	}: check_xcm_version_change(VersionMigrationStage::MigrateVersionNotifiers, Weight::zero())
+	}: {
+		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::MigrateVersionNotifiers, Weight::zero());
+	}
 
 	already_notified_target {
 		let loc = T::ReachableDest::get().ok_or(
@@ -127,7 +131,9 @@ benchmarks! {
 		)?;
 		let current_version = T::AdvertisedXcmVersion::get();
 		VersionNotifyTargets::<T>::insert(current_version, loc.into(), (0, Weight::zero(), current_version));
-	}: check_xcm_version_change(VersionMigrationStage::NotifyCurrentTargets(None), Weight::zero())
+	}: {
+		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::NotifyCurrentTargets(None), Weight::zero());
+	}
 
 	notify_current_targets {
 		let loc = T::ReachableDest::get().ok_or(
@@ -136,22 +142,29 @@ benchmarks! {
 		let current_version = T::AdvertisedXcmVersion::get();
 		let old_version = current_version - 1;
 		VersionNotifyTargets::<T>::insert(current_version, loc.into(), (0, Weight::zero(), old_version));
-	}: check_xcm_version_change(VersionMigrationStage::NotifyCurrentTargets(None), Weight::zero())
+	}: {
+		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::NotifyCurrentTargets(None), Weight::zero());
+	}
 
 	notify_target_migration_fail {
 		let bad_loc: v2::MultiLocation = v2::Junction::Plurality {
-			id: v2::BodyId::Named(WeakBoundedVec::<u8, ConstU32<32>>::try_from(vec![0; 32])),
+			id: v2::BodyId::Named(WeakBoundedVec::<u8, ConstU32<32>>::try_from(vec![0; 32]))
+				.expect("vec has a length of 32 bits; qed"),
 			part: v2::BodyPart::Voice,
 		}
 		.into();
 		let current_version = T::AdvertisedXcmVersion::get();
-		VersionNotifyTargets::<T>::insert(current_version, bad_loc.into(), (0, Weight::zero(), old_version));
-	}: check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero())
+		VersionNotifyTargets::<T>::insert(current_version, bad_loc.into(), (0, Weight::zero(), current_version));
+	}: {
+		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero());
+	}
 
 	migrate_version_notify_targets {
 		let current_version = T::AdvertisedXcmVersion::get();
 		VersionNotifyTargets::<T>::insert(current_version, Parent.into(), (0, Weight::zero(), current_version));
-	}: check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero())
+	}: {
+		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero());
+	}
 
 	migrate_and_notify_old_targets {
 		let loc = T::ReachableDest::get().ok_or(
@@ -160,7 +173,9 @@ benchmarks! {
 		let current_version = T::AdvertisedXcmVersion::get();
 		let old_version = current_version - 1;
 		VersionNotifyTargets::<T>::insert(current_version, loc.into(), (0, Weight::zero(), old_version));
-	}: check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero())
+	}: {
+		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero());
+	}
 
 	impl_benchmark_test_suite!(
 		Pallet,
