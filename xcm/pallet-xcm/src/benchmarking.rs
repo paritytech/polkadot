@@ -152,7 +152,7 @@ benchmarks! {
 		let current_version = T::AdvertisedXcmVersion::get();
 		VersionNotifyTargets::<T>::insert(current_version, Parent.into(), (0, Weight::zero(), current_version));
 	}: check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero())
-	
+
 	migrate_and_notify_old_targets {
 		let loc = T::ReachableDest::get().ok_or(
 			BenchmarkError::Override(BenchmarkResult::from_weight(T::DbWeight::get().reads_writes(1, 3))),
