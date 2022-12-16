@@ -177,9 +177,8 @@ benchmarks! {
 			BenchmarkError::Override(BenchmarkResult::from_weight(T::DbWeight::get().reads_writes(1, 3))),
 		)?;
 		let loc = VersionedMultiLocation::from(loc);
-		let current_version = T::AdvertisedXcmVersion::get();
-		let old_version = current_version - 1;
-		VersionNotifyTargets::<T>::insert(current_version, loc, (0, Weight::zero(), old_version));
+		let old_version = T::AdvertisedXcmVersion::get() - 1;
+		VersionNotifyTargets::<T>::insert(old_version, loc, (0, Weight::zero(), old_version));
 	}: {
 		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero());
 	}
