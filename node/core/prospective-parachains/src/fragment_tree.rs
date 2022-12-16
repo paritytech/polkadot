@@ -184,6 +184,11 @@ impl CandidateStorage {
 	fn get(&'_ self, candidate_hash: &CandidateHash) -> Option<&'_ CandidateEntry> {
 		self.by_candidate_hash.get(candidate_hash)
 	}
+
+	#[cfg(test)]
+	pub fn len(&self) -> (usize, usize) {
+		(self.by_parent_head.len(), self.by_candidate_hash.len())
+	}
 }
 
 /// The state of a candidate.

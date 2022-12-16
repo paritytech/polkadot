@@ -19,20 +19,20 @@ use ::polkadot_primitives_test_helpers::{dummy_candidate_receipt_bad_sig, dummy_
 use assert_matches::assert_matches;
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
-	messages::{AllMessages, ProspectiveParachainsMessage},
+	messages::{
+		AllMessages, HypotheticalDepthRequest, ProspectiveParachainsMessage,
+		ProspectiveValidationDataRequest,
+	},
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::{
 	v2::{
-		CandidateCommitments, GroupRotationInfo, HeadData, Header, PersistedValidationData,
-		ScheduledCore, ValidationCodeHash, ValidatorId, ValidatorIndex,
+		CandidateCommitments, HeadData, Header, PersistedValidationData, ScheduledCore,
+		ValidationCodeHash,
 	},
 	vstaging::{AsyncBackingParameters, Constraints, InboundHrmpLimitations},
 };
-use sp_application_crypto::AppKey;
-use sp_keyring::Sr25519Keyring;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
 
 const ALLOWED_ANCESTRY_LEN: u32 = 3;
@@ -106,16 +106,7 @@ fn make_candidate(
 	(candidate, pvd)
 }
 
-fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
-	val_ids.iter().map(|v| v.public().into()).collect()
-}
-
 struct TestState {
-	chain_ids: Vec<ParaId>,
-	keystore: SyncCryptoStorePtr,
-	validators: Vec<Sr25519Keyring>,
-	validator_public: Vec<ValidatorId>,
-	validator_groups: (Vec<Vec<ValidatorIndex>>, GroupRotationInfo),
 	availability_cores: Vec<CoreState>,
 	validation_code_hash: ValidationCodeHash,
 }
@@ -125,50 +116,13 @@ impl Default for TestState {
 		let chain_a = ParaId::from(1);
 		let chain_b = ParaId::from(2);
 
-		let chain_ids = vec![chain_a, chain_b];
-
-		let validators = vec![
-			Sr25519Keyring::Alice,
-			Sr25519Keyring::Bob,
-			Sr25519Keyring::Charlie,
-			Sr25519Keyring::Dave,
-			Sr25519Keyring::Ferdie,
-			Sr25519Keyring::One,
-		];
-
-		let keystore = Arc::new(sc_keystore::LocalKeystore::in_memory());
-		// Make sure `Alice` key is in the keystore, so this mocked node will be a parachain validator.
-		SyncCryptoStore::sr25519_generate_new(
-			&*keystore,
-			ValidatorId::ID,
-			Some(&validators[0].to_seed()),
-		)
-		.expect("Insert key into keystore");
-
-		let validator_public = validator_pubkeys(&validators);
-
-		let validator_groups = vec![vec![2, 0, 3, 5], vec![1]]
-			.into_iter()
-			.map(|g| g.into_iter().map(ValidatorIndex).collect())
-			.collect();
-		let group_rotation_info =
-			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 100, now: 1 };
-
 		let availability_cores = vec![
 			CoreState::Scheduled(ScheduledCore { para_id: chain_a, collator: None }),
 			CoreState::Scheduled(ScheduledCore { para_id: chain_b, collator: None }),
 		];
 		let validation_code_hash = Hash::repeat_byte(42).into();
 
-		Self {
-			chain_ids,
-			keystore,
-			validators,
-			validator_public,
-			validator_groups: (validator_groups, group_rotation_info),
-			availability_cores,
-			validation_code_hash,
-		}
+		Self { availability_cores, validation_code_hash }
 	}
 }
 
@@ -212,12 +166,12 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 struct PerParaData {
 	min_relay_parent: BlockNumber,
-	required_parent: HeadData,
+	head_data: HeadData,
 }
 
 impl PerParaData {
-	pub fn new(min_relay_parent: BlockNumber, required_parent: HeadData) -> Self {
-		Self { min_relay_parent, required_parent }
+	pub fn new(min_relay_parent: BlockNumber, head_data: HeadData) -> Self {
+		Self { min_relay_parent, head_data }
 	}
 }
 
@@ -339,11 +293,11 @@ async fn handle_leaf_activation(
 			_ => panic!("received unexpected message {:?}", message),
 		};
 
-		let PerParaData { min_relay_parent, required_parent } = leaf.para_data(para_id);
+		let PerParaData { min_relay_parent, head_data } = leaf.para_data(para_id);
 		let constraints = dummy_constraints(
 			*min_relay_parent,
 			vec![*number],
-			required_parent.clone(),
+			head_data.clone(),
 			test_state.validation_code_hash,
 		);
 		assert_matches!(
@@ -416,11 +370,11 @@ async fn back_candidate(
 		.await;
 }
 
-async fn check_membership(
+async fn get_membership(
 	virtual_overseer: &mut VirtualOverseer,
 	para_id: ParaId,
 	candidate_hash: CandidateHash,
-	expected_candidate_response: Vec<(Hash, Vec<usize>)>,
+	expected_membership_response: Vec<(Hash, Vec<usize>)>,
 ) {
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
@@ -429,7 +383,7 @@ async fn check_membership(
 		})
 		.await;
 	let resp = rx.await.unwrap();
-	assert_eq!(resp, expected_candidate_response);
+	assert_eq!(resp, expected_membership_response);
 }
 
 async fn get_backable_candidate(
@@ -437,7 +391,7 @@ async fn get_backable_candidate(
 	leaf: &TestLeaf,
 	para_id: ParaId,
 	required_path: Vec<CandidateHash>,
-	candidate_hash: Option<CandidateHash>,
+	expected_candidate_hash: Option<CandidateHash>,
 ) {
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
@@ -452,7 +406,55 @@ async fn get_backable_candidate(
 		.await;
 	let resp = rx.await.unwrap();
 	println!("Get backable resp: {:#?}", resp);
-	assert_eq!(resp, candidate_hash);
+	assert_eq!(resp, expected_candidate_hash);
+}
+
+async fn get_hypothetical_depth(
+	virtual_overseer: &mut VirtualOverseer,
+	candidate_hash: CandidateHash,
+	para_id: ParaId,
+	parent_head_data: HeadData,
+	candidate_relay_parent: Hash,
+	fragment_tree_relay_parent: Hash,
+	expected_depths: Vec<usize>,
+) {
+	let request = HypotheticalDepthRequest {
+		candidate_hash,
+		candidate_para: para_id,
+		parent_head_data_hash: parent_head_data.hash(),
+		candidate_relay_parent,
+		fragment_tree_relay_parent,
+	};
+	let (tx, rx) = oneshot::channel();
+	virtual_overseer
+		.send(overseer::FromOrchestra::Communication {
+			msg: ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx),
+		})
+		.await;
+	let resp = rx.await.unwrap();
+	assert_eq!(resp, expected_depths);
+}
+
+async fn get_pvd(
+	virtual_overseer: &mut VirtualOverseer,
+	para_id: ParaId,
+	candidate_relay_parent: Hash,
+	parent_head_data: HeadData,
+	expected_pvd: Option<PersistedValidationData>,
+) {
+	let request = ProspectiveValidationDataRequest {
+		para_id,
+		candidate_relay_parent,
+		parent_head_data_hash: parent_head_data.hash(),
+	};
+	let (tx, rx) = oneshot::channel();
+	virtual_overseer
+		.send(overseer::FromOrchestra::Communication {
+			msg: ProspectiveParachainsMessage::GetProspectiveValidationData(request, tx),
+		})
+		.await;
+	let resp = rx.await.unwrap();
+	assert_eq!(resp, expected_pvd);
 }
 
 #[test]
@@ -584,16 +586,16 @@ fn send_candidates_and_check_if_found() {
 		second_candidate(&mut virtual_overseer, candidate_c, pvd_c, response_c.clone()).await;
 
 		// Check candidate tree membership.
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, response_a1).await;
-		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, response_a2).await;
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, response_b).await;
-		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, response_c).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, response_a1).await;
+		get_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, response_a2).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, response_b).await;
+		get_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, response_c).await;
 
 		// The candidates should not be found on other parachains.
-		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_a1, vec![]).await;
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a2, vec![]).await;
-		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_b, vec![]).await;
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_c, vec![]).await;
+		get_membership(&mut virtual_overseer, 2.into(), candidate_hash_a1, vec![]).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_a2, vec![]).await;
+		get_membership(&mut virtual_overseer, 2.into(), candidate_hash_b, vec![]).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_c, vec![]).await;
 
 		virtual_overseer
 	});
@@ -697,29 +699,28 @@ fn check_candidate_parent_leaving_view() {
 		deactivate_leaf(&mut virtual_overseer, leaf_a.hash).await;
 
 		// Candidates A1 and A2 should be gone. Candidates B and C should remain.
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, vec![]).await;
-		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, vec![]).await;
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, response_b).await;
-		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, response_c.clone())
-			.await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, vec![]).await;
+		get_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, vec![]).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, response_b).await;
+		get_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, response_c.clone()).await;
 
 		// Deactivate leaf B.
 		deactivate_leaf(&mut virtual_overseer, leaf_b.hash).await;
 
 		// Candidate B should be gone, C should remain.
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, vec![]).await;
-		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, vec![]).await;
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, vec![]).await;
-		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, response_c).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, vec![]).await;
+		get_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, vec![]).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, vec![]).await;
+		get_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, response_c).await;
 
 		// Deactivate leaf C.
 		deactivate_leaf(&mut virtual_overseer, leaf_c.hash).await;
 
 		// Candidate C should be gone.
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, vec![]).await;
-		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, vec![]).await;
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, vec![]).await;
-		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, vec![]).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, vec![]).await;
+		get_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, vec![]).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, vec![]).await;
+		get_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, vec![]).await;
 
 		virtual_overseer
 	});
@@ -823,9 +824,9 @@ fn check_candidate_on_multiple_forks() {
 		.await;
 
 		// Check candidate tree membership.
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a, response_a).await;
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, response_b).await;
-		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_c, response_c).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_a, response_a).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, response_b).await;
+		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_c, response_c).await;
 
 		virtual_overseer
 	});
@@ -947,7 +948,201 @@ fn check_backable_query() {
 	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (0, 0));
 }
 
-// TODO: Test other queries.
+// Test depth and pvd queries.
+#[test]
+fn check_depth_and_pvd_queries() {
+	let test_state = TestState::default();
+	let view = test_harness(|mut virtual_overseer| async move {
+		// Leaf A
+		let leaf_a = TestLeaf {
+			number: 100,
+			hash: Hash::from_low_u64_be(130),
+			para_data: vec![
+				(1.into(), PerParaData::new(97, HeadData(vec![1, 2, 3]))),
+				(2.into(), PerParaData::new(100, HeadData(vec![2, 3, 4]))),
+			],
+		};
+
+		// Activate leaves.
+		activate_leaf(&mut virtual_overseer, &leaf_a, &test_state).await;
+
+		// Candidate A.
+		let (candidate_a, pvd_a) = make_candidate(
+			&leaf_a,
+			1.into(),
+			HeadData(vec![1, 2, 3]),
+			HeadData(vec![1]),
+			test_state.validation_code_hash,
+		);
+		let candidate_hash_a = candidate_a.hash();
+		let response_a = vec![(leaf_a.hash, vec![0])];
+
+		// Candidate B.
+		let (candidate_b, pvd_b) = make_candidate(
+			&leaf_a,
+			1.into(),
+			HeadData(vec![1]),
+			HeadData(vec![2]),
+			test_state.validation_code_hash,
+		);
+		let candidate_hash_b = candidate_b.hash();
+		let response_b = vec![(leaf_a.hash, vec![1])];
+
+		// Candidate C.
+		let (candidate_c, pvd_c) = make_candidate(
+			&leaf_a,
+			1.into(),
+			HeadData(vec![2]),
+			HeadData(vec![3]),
+			test_state.validation_code_hash,
+		);
+		let candidate_hash_c = candidate_c.hash();
+		let response_c = vec![(leaf_a.hash, vec![2])];
+
+		// Get hypothetical depth and pvd of candidate A before adding it.
+		get_hypothetical_depth(
+			&mut virtual_overseer,
+			candidate_hash_a,
+			1.into(),
+			leaf_a.para_data(1.into()).head_data.clone(),
+			leaf_a.hash,
+			leaf_a.hash,
+			vec![0],
+		)
+		.await;
+		get_pvd(
+			&mut virtual_overseer,
+			1.into(),
+			leaf_a.hash,
+			leaf_a.para_data(1.into()).head_data.clone(),
+			Some(pvd_a.clone()),
+		)
+		.await;
+
+		// Add candidate A.
+		second_candidate(
+			&mut virtual_overseer,
+			candidate_a.clone(),
+			pvd_a.clone(),
+			response_a.clone(),
+		)
+		.await;
+
+		// Get depth and pvd of candidate A after adding it.
+		get_hypothetical_depth(
+			&mut virtual_overseer,
+			candidate_hash_a,
+			1.into(),
+			HeadData(vec![1, 2, 3]),
+			// TODO: When would these be different?
+			leaf_a.hash,
+			leaf_a.hash,
+			vec![0],
+		)
+		.await;
+		get_pvd(
+			&mut virtual_overseer,
+			1.into(),
+			leaf_a.hash,
+			HeadData(vec![1, 2, 3]),
+			Some(pvd_a.clone()),
+		)
+		.await;
+
+		// TODO: Get hypothetical depth and pvd of candidate B before adding it.
+		get_hypothetical_depth(
+			&mut virtual_overseer,
+			candidate_hash_b,
+			1.into(),
+			HeadData(vec![1]),
+			leaf_a.hash,
+			leaf_a.hash,
+			vec![1],
+		)
+		.await;
+		// get_pvd(
+		// 	&mut virtual_overseer,
+		// 	1.into(),
+		// 	leaf_a.hash,
+		// 	HeadData(vec![1]),
+		// 	Some(pvd_b.clone()),
+		// )
+		// .await;
+
+		// Add candidate B.
+		second_candidate(&mut virtual_overseer, candidate_b, pvd_b.clone(), response_b.clone())
+			.await;
+
+		// Get depth and pvd of candidate B after adding it.
+		get_hypothetical_depth(
+			&mut virtual_overseer,
+			candidate_hash_b,
+			1.into(),
+			HeadData(vec![1]),
+			leaf_a.hash,
+			leaf_a.hash,
+			vec![1],
+		)
+		.await;
+		get_pvd(
+			&mut virtual_overseer,
+			1.into(),
+			leaf_a.hash,
+			HeadData(vec![1]),
+			Some(pvd_b.clone()),
+		)
+		.await;
+
+		// TODO: Get hypothetical depth and pvd of candidate C before adding it.
+		get_hypothetical_depth(
+			&mut virtual_overseer,
+			candidate_hash_c,
+			1.into(),
+			HeadData(vec![1]),
+			leaf_a.hash,
+			leaf_a.hash,
+			vec![1],
+		)
+		.await;
+		// get_pvd(
+		// 	&mut virtual_overseer,
+		// 	1.into(),
+		// 	leaf_a.hash,
+		// 	HeadData(vec![2]),
+		// 	Some(pvd_c.clone()),
+		// )
+		// .await;
+
+		// Add candidate C.
+		second_candidate(&mut virtual_overseer, candidate_c, pvd_c.clone(), response_c.clone())
+			.await;
+
+		// Get depth and pvd of candidate C after adding it.
+		get_hypothetical_depth(
+			&mut virtual_overseer,
+			candidate_hash_c,
+			1.into(),
+			HeadData(vec![2]),
+			leaf_a.hash,
+			leaf_a.hash,
+			vec![2],
+		)
+		.await;
+		get_pvd(
+			&mut virtual_overseer,
+			1.into(),
+			leaf_a.hash,
+			HeadData(vec![2]),
+			Some(pvd_c.clone()),
+		)
+		.await;
+
+		virtual_overseer
+	});
+
+	assert_eq!(view.active_leaves.len(), 1);
+	assert_eq!(view.candidate_storage.len(), 2);
+}
 
 // Test simultaneously activating and deactivating leaves, and simultaneously deactivating multiple
 // leaves.
