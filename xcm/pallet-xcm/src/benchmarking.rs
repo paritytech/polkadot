@@ -113,7 +113,7 @@ benchmarks! {
 
 	migrate_supported_version {
 		let old_version = XCM_VERSION - 1;
-		let loc = VersionedMultiLocation::from(Parent.into());
+		let loc = VersionedMultiLocation::from(MultiLocation::from(Parent));
 		SupportedVersion::<T>::insert(old_version, loc, old_version);
 	}: {
 		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::MigrateSupportedVersion, Weight::zero());
@@ -121,7 +121,7 @@ benchmarks! {
 
 	migrate_version_notifiers {
 		let old_version = XCM_VERSION - 1;
-		let loc = VersionedMultiLocation::from(Parent.into());
+		let loc = VersionedMultiLocation::from(MultiLocation::from(Parent));
 		VersionNotifiers::<T>::insert(old_version, loc, 0);
 	}: {
 		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::MigrateVersionNotifiers, Weight::zero());
@@ -166,7 +166,7 @@ benchmarks! {
 
 	migrate_version_notify_targets {
 		let current_version = T::AdvertisedXcmVersion::get();
-		let loc = VersionedMultiLocation::from(Parent.into());
+		let loc = VersionedMultiLocation::from(MultiLocation::from(Parent));
 		VersionNotifyTargets::<T>::insert(current_version, loc, (0, Weight::zero(), current_version));
 	}: {
 		Pallet::<T>::check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero());
