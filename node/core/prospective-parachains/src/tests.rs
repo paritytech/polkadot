@@ -82,12 +82,13 @@ fn dummy_pvd(parent_head: HeadData, relay_parent_number: u32) -> PersistedValida
 fn make_candidate(
 	leaf: &TestLeaf,
 	para_id: ParaId,
+	parent_head: HeadData,
+	head_data: HeadData,
 	validation_code_hash: ValidationCodeHash,
 ) -> (CommittedCandidateReceipt, PersistedValidationData) {
-	let PerParaData { min_relay_parent: _, required_parent } = leaf.para_data(para_id);
-	let pvd = dummy_pvd(required_parent.clone(), leaf.number);
+	let pvd = dummy_pvd(parent_head, leaf.number);
 	let commitments = CandidateCommitments {
-		head_data: required_parent.clone(),
+		head_data,
 		horizontal_messages: Vec::new(),
 		upward_messages: Vec::new(),
 		new_validation_code: None,
@@ -533,32 +534,48 @@ fn send_candidates_and_check_if_found() {
 		activate_leaf(&mut virtual_overseer, &leaf_c, &test_state).await;
 
 		// Candidate A1
-		let (candidate_a1, pvd_a1) =
-			make_candidate(&leaf_a, 1.into(), test_state.validation_code_hash);
+		let (candidate_a1, pvd_a1) = make_candidate(
+			&leaf_a,
+			1.into(),
+			HeadData(vec![1, 2, 3]),
+			HeadData(vec![1]),
+			test_state.validation_code_hash,
+		);
 		let candidate_hash_a1 = candidate_a1.hash();
-		// TODO: Is this correct?
-		let response_a1 = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
+		let response_a1 = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate A2
-		let (candidate_a2, pvd_a2) =
-			make_candidate(&leaf_a, 2.into(), test_state.validation_code_hash);
+		let (candidate_a2, pvd_a2) = make_candidate(
+			&leaf_a,
+			2.into(),
+			HeadData(vec![2, 3, 4]),
+			HeadData(vec![2]),
+			test_state.validation_code_hash,
+		);
 		let candidate_hash_a2 = candidate_a2.hash();
-		// TODO: Is this correct?
-		let response_a2 = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
+		let response_a2 = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate B
-		let (candidate_b, pvd_b) =
-			make_candidate(&leaf_b, 1.into(), test_state.validation_code_hash);
+		let (candidate_b, pvd_b) = make_candidate(
+			&leaf_b,
+			1.into(),
+			HeadData(vec![3, 4, 5]),
+			HeadData(vec![3]),
+			test_state.validation_code_hash,
+		);
 		let candidate_hash_b = candidate_b.hash();
-		// TODO: Is this correct?
-		let response_b = vec![(leaf_b.hash, vec![0, 1, 2, 3, 4])];
+		let response_b = vec![(leaf_b.hash, vec![0])];
 
 		// Candidate C
-		let (candidate_c, pvd_c) =
-			make_candidate(&leaf_c, 2.into(), test_state.validation_code_hash);
+		let (candidate_c, pvd_c) = make_candidate(
+			&leaf_c,
+			2.into(),
+			HeadData(vec![6, 7, 8]),
+			HeadData(vec![4]),
+			test_state.validation_code_hash,
+		);
 		let candidate_hash_c = candidate_c.hash();
-		// TODO: Is this correct?
-		let response_c = vec![(leaf_c.hash, vec![0, 1, 2, 3, 4])];
+		let response_c = vec![(leaf_c.hash, vec![0])];
 
 		// Second candidates.
 		second_candidate(&mut virtual_overseer, candidate_a1, pvd_a1, response_a1.clone()).await;
@@ -627,32 +644,48 @@ fn check_candidate_parent_leaving_view() {
 		activate_leaf(&mut virtual_overseer, &leaf_c, &test_state).await;
 
 		// Candidate A1
-		let (candidate_a1, pvd_a1) =
-			make_candidate(&leaf_a, 1.into(), test_state.validation_code_hash);
+		let (candidate_a1, pvd_a1) = make_candidate(
+			&leaf_a,
+			1.into(),
+			HeadData(vec![1, 2, 3]),
+			HeadData(vec![1]),
+			test_state.validation_code_hash,
+		);
 		let candidate_hash_a1 = candidate_a1.hash();
-		// TODO: Is this correct?
-		let response_a1 = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
+		let response_a1 = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate A2
-		let (candidate_a2, pvd_a2) =
-			make_candidate(&leaf_a, 2.into(), test_state.validation_code_hash);
+		let (candidate_a2, pvd_a2) = make_candidate(
+			&leaf_a,
+			2.into(),
+			HeadData(vec![2, 3, 4]),
+			HeadData(vec![2]),
+			test_state.validation_code_hash,
+		);
 		let candidate_hash_a2 = candidate_a2.hash();
-		// TODO: Is this correct?
-		let response_a2 = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
+		let response_a2 = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate B
-		let (candidate_b, pvd_b) =
-			make_candidate(&leaf_b, 1.into(), test_state.validation_code_hash);
+		let (candidate_b, pvd_b) = make_candidate(
+			&leaf_b,
+			1.into(),
+			HeadData(vec![3, 4, 5]),
+			HeadData(vec![3]),
+			test_state.validation_code_hash,
+		);
 		let candidate_hash_b = candidate_b.hash();
-		// TODO: Is this correct?
-		let response_b = vec![(leaf_b.hash, vec![0, 1, 2, 3, 4])];
+		let response_b = vec![(leaf_b.hash, vec![0])];
 
 		// Candidate C
-		let (candidate_c, pvd_c) =
-			make_candidate(&leaf_c, 2.into(), test_state.validation_code_hash);
+		let (candidate_c, pvd_c) = make_candidate(
+			&leaf_c,
+			2.into(),
+			HeadData(vec![6, 7, 8]),
+			HeadData(vec![4]),
+			test_state.validation_code_hash,
+		);
 		let candidate_hash_c = candidate_c.hash();
-		// TODO: Is this correct?
-		let response_c = vec![(leaf_c.hash, vec![0, 1, 2, 3, 4])];
+		let response_c = vec![(leaf_c.hash, vec![0])];
 
 		// Second candidates.
 		second_candidate(&mut virtual_overseer, candidate_a1, pvd_a1, response_a1.clone()).await;
@@ -734,7 +767,13 @@ fn check_candidate_on_multiple_forks() {
 		activate_leaf(&mut virtual_overseer, &leaf_c, &test_state).await;
 
 		// Candidate
-		let (candidate, pvd) = make_candidate(&leaf_a, 1.into(), test_state.validation_code_hash);
+		let (candidate, pvd) = make_candidate(
+			&leaf_a,
+			1.into(),
+			HeadData(vec![1, 2, 3]),
+			HeadData(vec![1]),
+			test_state.validation_code_hash,
+		);
 		let candidate_hash = candidate.hash();
 		// TODO: Is this correct?
 		let response = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
@@ -788,20 +827,28 @@ fn check_backable_query() {
 		activate_leaf(&mut virtual_overseer, &leaf_a, &test_state).await;
 
 		// Candidate A
-		let (candidate_a, pvd_a) =
-			make_candidate(&leaf_a, 1.into(), test_state.validation_code_hash);
+		let (candidate_a, pvd_a) = make_candidate(
+			&leaf_a,
+			1.into(),
+			HeadData(vec![1, 2, 3]),
+			HeadData(vec![1]),
+			test_state.validation_code_hash,
+		);
 		let candidate_hash_a = candidate_a.hash();
-		// TODO: Is this correct?
-		let response_a = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
+		let response_a = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate B
-		let (mut candidate_b, pvd_b) =
-			make_candidate(&leaf_a, 1.into(), test_state.validation_code_hash);
+		let (mut candidate_b, pvd_b) = make_candidate(
+			&leaf_a,
+			1.into(),
+			HeadData(vec![1]),
+			HeadData(vec![2]),
+			test_state.validation_code_hash,
+		);
 		// Set a field to make this candidate unique.
 		candidate_b.descriptor.para_head = Hash::from_low_u64_le(1000);
 		let candidate_hash_b = candidate_b.hash();
-		// TODO: Is this correct?
-		let response_b = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
+		let response_b = vec![(leaf_a.hash, vec![1])];
 
 		// Second candidates.
 		second_candidate(
