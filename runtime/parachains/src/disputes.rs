@@ -474,6 +474,9 @@ pub mod pallet {
 	/// fewer than `byzantine_threshold + 1` validators.
 	///
 	/// The i'th entry of the vector corresponds to the i'th validator in the session.
+	#[deprecated(
+		note = "SpamSlots is no longer used and will be removed. Check https://github.com/paritytech/polkadot/pull/6345 for details"
+	)]
 	#[pallet::storage]
 	pub(super) type SpamSlots<T> = StorageMap<_, Twox64Concat, SessionIndex, Vec<u32>>;
 
