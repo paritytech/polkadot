@@ -28,19 +28,16 @@ use futures::{
 	channel::oneshot,
 	future::{self, BoxFuture},
 };
-use futures_timer::Delay;
 
 use polkadot_node_subsystem_util::database::Database;
 
 use polkadot_node_primitives::{
-	DisputeStatus, SignedDisputeStatement, SignedFullStatement, Statement, APPROVAL_EXECUTION_TIMEOUT,
-	AvailableData, BlockData, PoV, ValidationResult, 
+	DisputeStatus, SignedDisputeStatement, SignedFullStatement, Statement,
 };
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalVotingMessage, ChainApiMessage, DisputeCoordinatorMessage,
-		DisputeDistributionMessage, ImportStatementsResult, AvailabilityRecoveryMessage,
-		CandidateValidationMessage,
+		DisputeDistributionMessage, ImportStatementsResult,
 	},
 	overseer::FromOrchestra,
 	OverseerSignal,
@@ -53,9 +50,7 @@ use sp_core::{sr25519::Pair, testing::TaskExecutor, Pair as PairT};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
-use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash, 
-	dummy_candidate_commitments
-};
+use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash, };
 use polkadot_node_primitives::{Timestamp, ACTIVE_DURATION_SECS};
 use polkadot_node_subsystem::{
 	jaeger,
@@ -69,8 +64,7 @@ use polkadot_primitives::v2::{
 	ApprovalVote, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
 	CandidateReceipt, CoreIndex, DisputeStatement, GroupIndex, Hash, HeadData, Header, IndexedVec,
 	MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo, SigningContext,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature, PersistedValidationData,
-	ValidationCode, 
+	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 use crate::{
@@ -3157,172 +3151,4 @@ fn local_participation_in_dispute_for_backed_candidate() {
 			test_state
 		})
 	});
-}
-
-/// Shows that when a candidate_included event is scraped from the chain we
-/// reprioritize any participation requests pertaining to that candidate.
-/// This involves moving the request for this candidate from the best effort
-/// queue to the priority queue.
-#[test]
-fn participation_requests_reprioritized_for_newly_included() {
-	test_harness(|mut test_state, mut virtual_overseer| {
-		Box::pin(async move {
-			let session = 1;
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
-			let mut hash_info: HashMap<CandidateHash, (u8, CandidateReceipt)> = HashMap::new();
-
-			for repetition in 1..=20u8 {
-				// Building candidate receipts
-				let mut candidate_receipt = make_valid_candidate_receipt();
-				candidate_receipt.descriptor.pov_hash = Hash::from(
-					[repetition; 32], // Altering this receipt so its hash will be changed
-				);
-				let candidate_hash = candidate_receipt.hash();
-				hash_info.insert(candidate_hash, (repetition, candidate_receipt.clone()));
-
-				// Mark all candidates as backed, so their participation requests make it to best effort
-				test_state
-					.activate_leaf_at_session(
-						&mut virtual_overseer,
-						session,
-						1,
-						vec![make_candidate_backed_event(candidate_receipt.clone())],
-					)
-					.await;
-			}
-
-			for repetition in 1..=20u8 {
-				// Building candidate receipts
-				let mut candidate_receipt = make_valid_candidate_receipt();
-				candidate_receipt.descriptor.pov_hash = Hash::from(
-					[repetition; 32], // Altering this receipt so its hash will be changed
-				);
-				let candidate_hash = candidate_receipt.hash();
-				
-				// Create votes for candidates
-				let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
-					&test_state,
-					ValidatorIndex(1),
-					ValidatorIndex(2),
-					candidate_hash,
-					session,
-					VoteType::Explicit,
-				)
-				.await;
-
-				// Import votes for candidates
-				virtual_overseer
-					.send(FromOrchestra::Communication {
-						msg: DisputeCoordinatorMessage::ImportStatements {
-							candidate_receipt: candidate_receipt.clone(),
-							session,
-							statements: vec![
-								(valid_vote, ValidatorIndex(1)),
-								(invalid_vote, ValidatorIndex(2)),
-							],
-							pending_confirmation: None,
-						},
-					})
-					.await;
-
-				// Meant to help process approval vote messages, though there's a chance early dispute
-				// distribution messages will come back first. We wait a very short time as to make sure
-				// we can drain the queue of incoming messages without accidentally draining the best
-				// effort queue, which we want filled.
-				println!("Handling overseer messages after importing candidate: {}", repetition);
-				while let Some(message) = virtual_overseer.recv().timeout(Duration::from_millis(100)).await {
-					// Possibly pick out messages of type get_approval_signatures and handle them first
-					handle_next_overseer_message(message, &hash_info).await;
-				}
-
-				// Mark 15th candidate as included after import
-				/*if repetition == 15 {
-					test_state
-						.activate_leaf_at_session(
-							&mut virtual_overseer,
-							session,
-							1,
-							vec![make_candidate_included_event(candidate_receipt.clone())],
-						)
-						.await;
-				}*/
-			}
-
-			println!("Left statement import loop");
-			while let Some(message) = virtual_overseer.recv().timeout(TEST_TIMEOUT).await {
-				handle_next_overseer_message(message, &hash_info).await;
-			}
-
-			// Somehow use CandidateValidation messages to check participation order
-
-			// Wait a long time for participation to finish
-			//Delay::new(Duration::from_millis(100000)).await;
-
-			assert_matches!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await, None);
-
-			// Wrap up
-			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
-
-			test_state
-		})
-	});
-}
-
-async fn handle_next_overseer_message(
-	message: AllMessages,
-	hash_info: &HashMap<CandidateHash, (u8, CandidateReceipt)>,
-) {
-	match message {
-		AllMessages::ApprovalVoting(ApprovalVotingMessage::GetApprovalSignaturesForCandidate(
-			hash,
-			tx,
-		)) => {
-			let (candidate_number, _) = hash_info
-				.get(&hash)
-				.expect("Message should always correspond to a candidate hash in the ordering.");
-			println!("Got approval votes for candidate: {}", candidate_number);
-			tx.send(HashMap::new()).unwrap();
-		},
-		AllMessages::AvailabilityRecovery(
-			AvailabilityRecoveryMessage::RecoverAvailableData(candidate_receipt, _, _, tx)
-		) => {
-			let (candidate_number, _) = hash_info
-				.get(&candidate_receipt.hash())
-				.expect("Message should always correspond to a candidate hash in the ordering.");
-			println!("Availability recovery for candidate: {}", candidate_number);
-			let pov_block = PoV { block_data: BlockData(Vec::new()) };
-			let available_data = AvailableData {
-				pov: Arc::new(pov_block),
-				validation_data: PersistedValidationData::default(),
-			};
-
-			tx.send(Ok(available_data)).unwrap();
-		},
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-			_,
-			RuntimeApiRequest::ValidationCodeByHash(
-				_,
-				tx,
-			)
-		)) => {
-			println!("Request validation code");
-			let validation_code = ValidationCode(Vec::new());
-
-			tx.send(Ok(Some(validation_code))).unwrap();
-		},
-		AllMessages::CandidateValidation(
-			CandidateValidationMessage::ValidateFromExhaustive(_, _, candidate_receipt, _, timeout, tx)
-		) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
-			let (candidate_number, _) = hash_info
-				.get(&&candidate_receipt.hash())
-				.expect("Message should always correspond to a candidate hash in the ordering.");
-			println!("Validation triggered for candidate: {}", candidate_number);
-			tx.send(Ok(ValidationResult::Valid(dummy_candidate_commitments(None), PersistedValidationData::default()))).unwrap();
-		},
-		AllMessages::DisputeDistribution(DisputeDistributionMessage::SendDispute(msg)) => {
-			println!("Participation complete for: {}", hash_info.get(&msg.candidate_receipt().hash())
-				.expect("Participation should always correspond to a candidate hash in the ordering.").0);
-		},
-		_ => (),
-	}
 }
