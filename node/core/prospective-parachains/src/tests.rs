@@ -766,47 +766,75 @@ fn check_candidate_on_multiple_forks() {
 		activate_leaf(&mut virtual_overseer, &leaf_b, &test_state).await;
 		activate_leaf(&mut virtual_overseer, &leaf_c, &test_state).await;
 
-		// Candidate
-		let (candidate, pvd) = make_candidate(
+		// Candidate on leaf A.
+		let (candidate_a, pvd_a) = make_candidate(
 			&leaf_a,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
 			test_state.validation_code_hash,
 		);
-		let candidate_hash = candidate.hash();
-		// TODO: Is this correct?
-		let response = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
+		let candidate_hash_a = candidate_a.hash();
+		let response_a = vec![(leaf_a.hash, vec![0])];
+
+		// Candidate on leaf B.
+		let (candidate_b, pvd_b) = make_candidate(
+			&leaf_b,
+			1.into(),
+			HeadData(vec![3, 4, 5]),
+			HeadData(vec![1]),
+			test_state.validation_code_hash,
+		);
+		let candidate_hash_b = candidate_b.hash();
+		let response_b = vec![(leaf_b.hash, vec![0])];
+
+		// Candidate on leaf C.
+		let (candidate_c, pvd_c) = make_candidate(
+			&leaf_c,
+			1.into(),
+			HeadData(vec![5, 6, 7]),
+			HeadData(vec![1]),
+			test_state.validation_code_hash,
+		);
+		let candidate_hash_c = candidate_c.hash();
+		let response_c = vec![(leaf_c.hash, vec![0])];
 
 		// Second candidate on all three leaves.
-		second_candidate(&mut virtual_overseer, candidate.clone(), pvd.clone(), response.clone())
-			.await;
 		second_candidate(
 			&mut virtual_overseer,
-			candidate.clone(),
-			pvd.clone(),
-			// TODO: is this right?
-			vec![],
+			candidate_a.clone(),
+			pvd_a.clone(),
+			response_a.clone(),
 		)
 		.await;
 		second_candidate(
 			&mut virtual_overseer,
-			candidate.clone(),
-			pvd.clone(),
-			// TODO: is this right?
-			response.clone(),
+			candidate_b.clone(),
+			pvd_b.clone(),
+			response_b.clone(),
+		)
+		.await;
+		second_candidate(
+			&mut virtual_overseer,
+			candidate_c.clone(),
+			pvd_c.clone(),
+			response_c.clone(),
 		)
 		.await;
 
-		// TODO: Check membership.
+		// Check candidate tree membership.
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a, response_a).await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, response_b).await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_c, response_c).await;
 
 		virtual_overseer
 	});
 
 	assert_eq!(view.active_leaves.len(), 3);
 	assert_eq!(view.candidate_storage.len(), 2);
-	assert_eq!(view.candidate_storage.get(&1.into()).unwrap().len(), (0, 4));
-	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (0, 4));
+	// Three parents and three candidates on para 1.
+	assert_eq!(view.candidate_storage.get(&1.into()).unwrap().len(), (3, 3));
+	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (0, 0));
 }
 
 // Backs some candidates and tests `GetBackableCandidate`.
