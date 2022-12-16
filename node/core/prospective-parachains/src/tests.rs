@@ -81,13 +81,13 @@ fn dummy_pvd(parent_head: HeadData, relay_parent_number: u32) -> PersistedValida
 
 fn make_candidate(
 	leaf: &TestLeaf,
-	para_head: Option<Hash>,
+	para_id: ParaId,
 	validation_code_hash: ValidationCodeHash,
 ) -> (CommittedCandidateReceipt, PersistedValidationData) {
-	let pvd = dummy_pvd(leaf.required_parent.clone(), leaf.number);
-	// pvd.parent_head = required_parent;
+	let PerParaData { min_relay_parent: _, required_parent } = leaf.para_data(para_id);
+	let pvd = dummy_pvd(required_parent.clone(), leaf.number);
 	let commitments = CandidateCommitments {
-		head_data: leaf.required_parent.clone(),
+		head_data: required_parent.clone(),
 		horizontal_messages: Vec::new(),
 		upward_messages: Vec::new(),
 		new_validation_code: None,
@@ -96,13 +96,9 @@ fn make_candidate(
 	};
 	let mut candidate = dummy_candidate_receipt_bad_sig(leaf.hash, Some(Default::default()));
 	candidate.commitments_hash = commitments.hash();
-	candidate.descriptor.para_id = leaf.para_id;
+	candidate.descriptor.para_id = para_id;
 	candidate.descriptor.persisted_validation_data_hash = pvd.hash();
 	candidate.descriptor.validation_code_hash = validation_code_hash;
-	if let Some(para_head) = para_head {
-		// Setting this field to make the candidate unique.
-		candidate.descriptor.para_head = para_head;
-	}
 	let candidate = CommittedCandidateReceipt { descriptor: candidate.descriptor, commitments };
 
 	(candidate, pvd)
@@ -212,13 +208,30 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	view
 }
 
+struct PerParaData {
+	min_relay_parent: BlockNumber,
+	required_parent: HeadData,
+}
+
+impl PerParaData {
+	pub fn new(min_relay_parent: BlockNumber, required_parent: HeadData) -> Self {
+		Self { min_relay_parent, required_parent }
+	}
+}
+
 struct TestLeaf {
 	number: BlockNumber,
-	ancestry_len: BlockNumber,
 	hash: Hash,
-	para_id: ParaId,
-	required_parent: HeadData,
-	mrp_response: Vec<(ParaId, BlockNumber)>,
+	para_data: Vec<(ParaId, PerParaData)>,
+}
+
+impl TestLeaf {
+	pub fn para_data(&self, para_id: ParaId) -> &PerParaData {
+		self.para_data
+			.iter()
+			.find_map(|(p_id, data)| if *p_id == para_id { Some(data) } else { None })
+			.unwrap()
+	}
 }
 
 async fn activate_leaf(
@@ -245,7 +258,7 @@ async fn activate_leaf(
 		);
 	}
 
-	let TestLeaf { number, ancestry_len, hash, para_id, required_parent, mrp_response } = leaf;
+	let TestLeaf { number, hash, para_data } = leaf;
 
 	let activated = ActivatedLeaf {
 		hash: *hash,
@@ -253,7 +266,6 @@ async fn activate_leaf(
 		status: LeafStatus::Fresh,
 		span: Arc::new(jaeger::Span::Disabled),
 	};
-	let min_relay_parents = vec![(para_id, number - ancestry_len)];
 
 	virtual_overseer
 		.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
@@ -282,7 +294,7 @@ async fn activate_leaf(
 	send_header_response(virtual_overseer, *hash, *number).await;
 
 	// Check that subsystem job issues a request for ancestors.
-	let min_min = *min_relay_parents.iter().map(|(_, block_num)| block_num).min().unwrap_or(number);
+	let min_min = para_data.iter().map(|(_, data)| data.min_relay_parent).min().unwrap_or(*number);
 	let ancestry_len = number - min_min;
 	let ancestry_hashes: Vec<Hash> =
 		std::iter::successors(Some(*hash), |h| Some(get_parent_hash(*h)))
@@ -315,12 +327,9 @@ async fn activate_leaf(
 			_ => panic!("received unexpected message {:?}", message),
 		};
 
-		let min_relay_parent_number = *min_relay_parents
-			.iter()
-			.find_map(|(p_id, block_num)| if **p_id == para_id { Some(block_num) } else { None })
-			.unwrap_or(number);
+		let PerParaData { min_relay_parent, required_parent } = leaf.para_data(para_id);
 		let constraints = dummy_constraints(
-			min_relay_parent_number,
+			*min_relay_parent,
 			vec![*number],
 			required_parent.clone(),
 			test_state.validation_code_hash,
@@ -344,7 +353,11 @@ async fn activate_leaf(
 		.await;
 	let mut resp = rx.await.unwrap();
 	resp.sort();
-	assert_eq!(resp, *mrp_response);
+	let mrp_response: Vec<(ParaId, BlockNumber)> = para_data
+		.iter()
+		.map(|(para_id, data)| (*para_id, data.min_relay_parent))
+		.collect();
+	assert_eq!(resp, mrp_response);
 }
 
 async fn deactivate_leaf(virtual_overseer: &mut VirtualOverseer, hash: Hash) {
@@ -357,7 +370,6 @@ async fn deactivate_leaf(virtual_overseer: &mut VirtualOverseer, hash: Hash) {
 
 async fn second_candidate(
 	virtual_overseer: &mut VirtualOverseer,
-	para_id: ParaId,
 	candidate: CommittedCandidateReceipt,
 	pvd: PersistedValidationData,
 	expected_candidate_response: Vec<(Hash, Vec<usize>)>,
@@ -365,7 +377,12 @@ async fn second_candidate(
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
 		.send(overseer::FromOrchestra::Communication {
-			msg: ProspectiveParachainsMessage::CandidateSeconded(para_id, candidate, pvd, tx),
+			msg: ProspectiveParachainsMessage::CandidateSeconded(
+				candidate.descriptor.para_id,
+				candidate,
+				pvd,
+				tx,
+			),
 		})
 		.await;
 	let resp = rx.await.unwrap();
@@ -427,8 +444,8 @@ fn should_do_no_work_if_async_backing_disabled_for_leaf() {
 
 // Send some candidates and make sure all are found:
 // - Two for the same leaf A
-// - One for leaf B
-// - One for leaf C on a different parachain
+// - One for leaf B on parachain 1
+// - One for leaf C on parachain 2
 #[test]
 fn send_candidates_and_check_if_found() {
 	let test_state = TestState::default();
@@ -436,29 +453,29 @@ fn send_candidates_and_check_if_found() {
 		// Leaf A
 		let leaf_a = TestLeaf {
 			number: 100,
-			ancestry_len: 3,
 			hash: Hash::from_low_u64_be(130),
-			para_id: test_state.chain_ids[0],
-			required_parent: HeadData(vec![1, 2, 3]),
-			mrp_response: vec![(1.into(), 97), (2.into(), 100)],
+			para_data: vec![
+				(1.into(), PerParaData::new(97, HeadData(vec![1, 2, 3]))),
+				(2.into(), PerParaData::new(100, HeadData(vec![2, 3, 4]))),
+			],
 		};
 		// Leaf B
 		let leaf_b = TestLeaf {
 			number: 101,
-			ancestry_len: 2,
 			hash: Hash::from_low_u64_be(131),
-			para_id: test_state.chain_ids[0],
-			required_parent: HeadData(vec![2, 3, 4]),
-			mrp_response: vec![(1.into(), 99), (2.into(), 101)],
+			para_data: vec![
+				(1.into(), PerParaData::new(99, HeadData(vec![3, 4, 5]))),
+				(2.into(), PerParaData::new(101, HeadData(vec![4, 5, 6]))),
+			],
 		};
 		// Leaf C
 		let leaf_c = TestLeaf {
 			number: 102,
-			ancestry_len: 4,
 			hash: Hash::from_low_u64_be(132),
-			para_id: test_state.chain_ids[1],
-			required_parent: HeadData(vec![3, 4, 5]),
-			mrp_response: vec![(1.into(), 102), (2.into(), 98)],
+			para_data: vec![
+				(1.into(), PerParaData::new(102, HeadData(vec![5, 6, 7]))),
+				(2.into(), PerParaData::new(98, HeadData(vec![6, 7, 8]))),
+			],
 		};
 
 		// Activate leaves.
@@ -467,74 +484,50 @@ fn send_candidates_and_check_if_found() {
 		activate_leaf(&mut virtual_overseer, &leaf_c, &test_state).await;
 
 		// Candidate A1
-		let (candidate_a1, pvd_a1) = make_candidate(&leaf_a, None, test_state.validation_code_hash);
+		let (candidate_a1, pvd_a1) =
+			make_candidate(&leaf_a, 1.into(), test_state.validation_code_hash);
 		let candidate_hash_a1 = candidate_a1.hash();
 		// TODO: Is this correct?
 		let response_a1 = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
 
 		// Candidate A2
-		let (candidate_a2, pvd_a2) = make_candidate(
-			&leaf_a,
-			Some(Hash::from_low_u64_be(133)),
-			test_state.validation_code_hash,
-		);
+		let (candidate_a2, pvd_a2) =
+			make_candidate(&leaf_a, 2.into(), test_state.validation_code_hash);
 		let candidate_hash_a2 = candidate_a2.hash();
 		// TODO: Is this correct?
 		let response_a2 = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
 
 		// Candidate B
-		let (candidate_b, pvd_b) = make_candidate(&leaf_b, None, test_state.validation_code_hash);
+		let (candidate_b, pvd_b) =
+			make_candidate(&leaf_b, 1.into(), test_state.validation_code_hash);
 		let candidate_hash_b = candidate_b.hash();
 		// TODO: Is this correct?
 		let response_b = vec![(leaf_b.hash, vec![0, 1, 2, 3, 4])];
 
 		// Candidate C
-		let (candidate_c, pvd_c) = make_candidate(&leaf_c, None, test_state.validation_code_hash);
+		let (candidate_c, pvd_c) =
+			make_candidate(&leaf_c, 2.into(), test_state.validation_code_hash);
 		let candidate_hash_c = candidate_c.hash();
 		// TODO: Is this correct?
 		let response_c = vec![(leaf_c.hash, vec![0, 1, 2, 3, 4])];
 
 		// Second candidates.
-		second_candidate(
-			&mut virtual_overseer,
-			leaf_a.para_id,
-			candidate_a1,
-			pvd_a1,
-			response_a1.clone(),
-		)
-		.await;
-		second_candidate(
-			&mut virtual_overseer,
-			leaf_a.para_id,
-			candidate_a2,
-			pvd_a2,
-			response_a2.clone(),
-		)
-		.await;
-		second_candidate(
-			&mut virtual_overseer,
-			leaf_b.para_id,
-			candidate_b,
-			pvd_b,
-			response_b.clone(),
-		)
-		.await;
-		second_candidate(
-			&mut virtual_overseer,
-			leaf_c.para_id,
-			candidate_c,
-			pvd_c,
-			response_c.clone(),
-		)
-		.await;
+		second_candidate(&mut virtual_overseer, candidate_a1, pvd_a1, response_a1.clone()).await;
+		second_candidate(&mut virtual_overseer, candidate_a2, pvd_a2, response_a2.clone()).await;
+		second_candidate(&mut virtual_overseer, candidate_b, pvd_b, response_b.clone()).await;
+		second_candidate(&mut virtual_overseer, candidate_c, pvd_c, response_c.clone()).await;
 
 		// Check candidate tree membership.
-		check_membership(&mut virtual_overseer, leaf_a.para_id, candidate_hash_a1, response_a1)
-			.await;
-		check_membership(&mut virtual_overseer, leaf_a.para_id, candidate_hash_a2, response_a2)
-			.await;
-		check_membership(&mut virtual_overseer, leaf_b.para_id, candidate_hash_b, response_b).await;
-		check_membership(&mut virtual_overseer, leaf_c.para_id, candidate_hash_c, response_c).await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, response_a1).await;
+		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, response_a2).await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, response_b).await;
+		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, response_c).await;
+
+		// The candidates should not be found on other parachains.
+		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_a1, vec![]).await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a2, vec![]).await;
+		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_b, vec![]).await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_c, vec![]).await;
 
 		virtual_overseer
 	});
@@ -551,29 +544,29 @@ fn check_candidate_parent_leaving_view() {
 		// Leaf A
 		let leaf_a = TestLeaf {
 			number: 100,
-			ancestry_len: 3,
 			hash: Hash::from_low_u64_be(130),
-			para_id: test_state.chain_ids[0],
-			required_parent: HeadData(vec![1, 2, 3]),
-			mrp_response: vec![(1.into(), 97), (2.into(), 100)],
+			para_data: vec![
+				(1.into(), PerParaData::new(97, HeadData(vec![1, 2, 3]))),
+				(2.into(), PerParaData::new(100, HeadData(vec![2, 3, 4]))),
+			],
 		};
 		// Leaf B
 		let leaf_b = TestLeaf {
 			number: 101,
-			ancestry_len: 2,
 			hash: Hash::from_low_u64_be(131),
-			para_id: test_state.chain_ids[0],
-			required_parent: HeadData(vec![2, 3, 4]),
-			mrp_response: vec![(1.into(), 99), (2.into(), 101)],
+			para_data: vec![
+				(1.into(), PerParaData::new(99, HeadData(vec![3, 4, 5]))),
+				(2.into(), PerParaData::new(101, HeadData(vec![4, 5, 6]))),
+			],
 		};
 		// Leaf C
 		let leaf_c = TestLeaf {
 			number: 102,
-			ancestry_len: 4,
 			hash: Hash::from_low_u64_be(132),
-			para_id: test_state.chain_ids[1],
-			required_parent: HeadData(vec![3, 4, 5]),
-			mrp_response: vec![(1.into(), 102), (2.into(), 98)],
+			para_data: vec![
+				(1.into(), PerParaData::new(102, HeadData(vec![5, 6, 7]))),
+				(2.into(), PerParaData::new(98, HeadData(vec![6, 7, 8]))),
+			],
 		};
 
 		// Activate leaves.
@@ -582,99 +575,66 @@ fn check_candidate_parent_leaving_view() {
 		activate_leaf(&mut virtual_overseer, &leaf_c, &test_state).await;
 
 		// Candidate A1
-		let (candidate_a1, pvd_a1) = make_candidate(&leaf_a, None, test_state.validation_code_hash);
+		let (candidate_a1, pvd_a1) =
+			make_candidate(&leaf_a, 1.into(), test_state.validation_code_hash);
 		let candidate_hash_a1 = candidate_a1.hash();
 		// TODO: Is this correct?
 		let response_a1 = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
 
 		// Candidate A2
-		let (candidate_a2, pvd_a2) = make_candidate(
-			&leaf_a,
-			Some(Hash::from_low_u64_be(133)),
-			test_state.validation_code_hash,
-		);
+		let (candidate_a2, pvd_a2) =
+			make_candidate(&leaf_a, 2.into(), test_state.validation_code_hash);
 		let candidate_hash_a2 = candidate_a2.hash();
 		// TODO: Is this correct?
 		let response_a2 = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
 
 		// Candidate B
-		let (candidate_b, pvd_b) = make_candidate(&leaf_b, None, test_state.validation_code_hash);
+		let (candidate_b, pvd_b) =
+			make_candidate(&leaf_b, 1.into(), test_state.validation_code_hash);
 		let candidate_hash_b = candidate_b.hash();
 		// TODO: Is this correct?
 		let response_b = vec![(leaf_b.hash, vec![0, 1, 2, 3, 4])];
 
 		// Candidate C
-		let (candidate_c, pvd_c) = make_candidate(&leaf_c, None, test_state.validation_code_hash);
+		let (candidate_c, pvd_c) =
+			make_candidate(&leaf_c, 2.into(), test_state.validation_code_hash);
 		let candidate_hash_c = candidate_c.hash();
 		// TODO: Is this correct?
 		let response_c = vec![(leaf_c.hash, vec![0, 1, 2, 3, 4])];
 
 		// Second candidates.
-		second_candidate(
-			&mut virtual_overseer,
-			leaf_a.para_id,
-			candidate_a1,
-			pvd_a1,
-			response_a1.clone(),
-		)
-		.await;
-		second_candidate(
-			&mut virtual_overseer,
-			leaf_a.para_id,
-			candidate_a2,
-			pvd_a2,
-			response_a2.clone(),
-		)
-		.await;
-		second_candidate(
-			&mut virtual_overseer,
-			leaf_b.para_id,
-			candidate_b,
-			pvd_b,
-			response_b.clone(),
-		)
-		.await;
-		second_candidate(
-			&mut virtual_overseer,
-			leaf_c.para_id,
-			candidate_c,
-			pvd_c,
-			response_c.clone(),
-		)
-		.await;
+		second_candidate(&mut virtual_overseer, candidate_a1, pvd_a1, response_a1.clone()).await;
+		second_candidate(&mut virtual_overseer, candidate_a2, pvd_a2, response_a2.clone()).await;
+		second_candidate(&mut virtual_overseer, candidate_b, pvd_b, response_b.clone()).await;
+		second_candidate(&mut virtual_overseer, candidate_c, pvd_c, response_c.clone()).await;
 
 		// Deactivate leaf A.
 		deactivate_leaf(&mut virtual_overseer, leaf_a.hash).await;
 
 		// Candidates A1 and A2 should be gone. Candidates B and C should remain.
-		check_membership(&mut virtual_overseer, leaf_a.para_id, candidate_hash_a1, vec![]).await;
-		check_membership(&mut virtual_overseer, leaf_a.para_id, candidate_hash_a2, vec![]).await;
-		check_membership(&mut virtual_overseer, leaf_b.para_id, candidate_hash_b, response_b).await;
-		check_membership(
-			&mut virtual_overseer,
-			leaf_c.para_id,
-			candidate_hash_c,
-			response_c.clone(),
-		)
-		.await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, vec![]).await;
+		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, vec![]).await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, response_b).await;
+		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, response_c.clone())
+			.await;
 
 		// Deactivate leaf B.
 		deactivate_leaf(&mut virtual_overseer, leaf_b.hash).await;
 
 		// Candidate B should be gone, C should remain.
-		check_membership(&mut virtual_overseer, leaf_a.para_id, candidate_hash_a1, vec![]).await;
-		check_membership(&mut virtual_overseer, leaf_a.para_id, candidate_hash_a2, vec![]).await;
-		check_membership(&mut virtual_overseer, leaf_b.para_id, candidate_hash_b, vec![]).await;
-		check_membership(&mut virtual_overseer, leaf_c.para_id, candidate_hash_c, response_c).await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, vec![]).await;
+		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, vec![]).await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, vec![]).await;
+		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, response_c).await;
 
 		// Deactivate leaf C.
 		deactivate_leaf(&mut virtual_overseer, leaf_c.hash).await;
 
 		// Candidate C should be gone.
-		check_membership(&mut virtual_overseer, leaf_a.para_id, candidate_hash_a1, vec![]).await;
-		check_membership(&mut virtual_overseer, leaf_a.para_id, candidate_hash_a2, vec![]).await;
-		check_membership(&mut virtual_overseer, leaf_b.para_id, candidate_hash_b, vec![]).await;
-		check_membership(&mut virtual_overseer, leaf_c.para_id, candidate_hash_c, vec![]).await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, vec![]).await;
+		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_a2, vec![]).await;
+		check_membership(&mut virtual_overseer, 1.into(), candidate_hash_b, vec![]).await;
+		check_membership(&mut virtual_overseer, 2.into(), candidate_hash_c, vec![]).await;
 
 		virtual_overseer
 	});
@@ -691,29 +651,29 @@ fn check_candidate_on_multiple_forks() {
 		// Leaf A
 		let leaf_a = TestLeaf {
 			number: 100,
-			ancestry_len: 3,
 			hash: Hash::from_low_u64_be(130),
-			para_id: test_state.chain_ids[0],
-			required_parent: HeadData(vec![1, 2, 3]),
-			mrp_response: vec![(1.into(), 97), (2.into(), 100)],
+			para_data: vec![
+				(1.into(), PerParaData::new(97, HeadData(vec![1, 2, 3]))),
+				(2.into(), PerParaData::new(100, HeadData(vec![2, 3, 4]))),
+			],
 		};
 		// Leaf B
 		let leaf_b = TestLeaf {
 			number: 101,
-			ancestry_len: 2,
 			hash: Hash::from_low_u64_be(131),
-			para_id: test_state.chain_ids[0],
-			required_parent: HeadData(vec![2, 3, 4]),
-			mrp_response: vec![(1.into(), 99), (2.into(), 101)],
+			para_data: vec![
+				(1.into(), PerParaData::new(99, HeadData(vec![3, 4, 5]))),
+				(2.into(), PerParaData::new(101, HeadData(vec![4, 5, 6]))),
+			],
 		};
 		// Leaf C
 		let leaf_c = TestLeaf {
 			number: 102,
-			ancestry_len: 4,
 			hash: Hash::from_low_u64_be(132),
-			para_id: test_state.chain_ids[1],
-			required_parent: HeadData(vec![3, 4, 5]),
-			mrp_response: vec![(1.into(), 102), (2.into(), 98)],
+			para_data: vec![
+				(1.into(), PerParaData::new(102, HeadData(vec![5, 6, 7]))),
+				(2.into(), PerParaData::new(98, HeadData(vec![6, 7, 8]))),
+			],
 		};
 
 		// Activate leaves.
@@ -722,23 +682,16 @@ fn check_candidate_on_multiple_forks() {
 		activate_leaf(&mut virtual_overseer, &leaf_c, &test_state).await;
 
 		// Candidate
-		let (candidate, pvd) = make_candidate(&leaf_a, None, test_state.validation_code_hash);
+		let (candidate, pvd) = make_candidate(&leaf_a, 1.into(), test_state.validation_code_hash);
 		let candidate_hash = candidate.hash();
 		// TODO: Is this correct?
 		let response = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
 
 		// Second candidate on all three leaves.
+		second_candidate(&mut virtual_overseer, candidate.clone(), pvd.clone(), response.clone())
+			.await;
 		second_candidate(
 			&mut virtual_overseer,
-			leaf_a.para_id,
-			candidate.clone(),
-			pvd.clone(),
-			response.clone(),
-		)
-		.await;
-		second_candidate(
-			&mut virtual_overseer,
-			leaf_b.para_id,
 			candidate.clone(),
 			pvd.clone(),
 			// TODO: is this right?
@@ -747,7 +700,6 @@ fn check_candidate_on_multiple_forks() {
 		.await;
 		second_candidate(
 			&mut virtual_overseer,
-			leaf_c.para_id,
 			candidate.clone(),
 			pvd.clone(),
 			// TODO: is this right?
