@@ -683,6 +683,87 @@ fn check_candidate_parent_leaving_view() {
 	assert_eq!(view.candidate_storage.len(), 0);
 }
 
+// Introduce a candidate to multiple forks, see how the membership is returned.
+#[test]
+fn check_candidate_on_multiple_forks() {
+	let test_state = TestState::default();
+	let view = test_harness(|mut virtual_overseer| async move {
+		// Leaf A
+		let leaf_a = TestLeaf {
+			number: 100,
+			ancestry_len: 3,
+			hash: Hash::from_low_u64_be(130),
+			para_id: test_state.chain_ids[0],
+			required_parent: HeadData(vec![1, 2, 3]),
+			mrp_response: vec![(1.into(), 97), (2.into(), 100)],
+		};
+		// Leaf B
+		let leaf_b = TestLeaf {
+			number: 101,
+			ancestry_len: 2,
+			hash: Hash::from_low_u64_be(131),
+			para_id: test_state.chain_ids[0],
+			required_parent: HeadData(vec![2, 3, 4]),
+			mrp_response: vec![(1.into(), 99), (2.into(), 101)],
+		};
+		// Leaf C
+		let leaf_c = TestLeaf {
+			number: 102,
+			ancestry_len: 4,
+			hash: Hash::from_low_u64_be(132),
+			para_id: test_state.chain_ids[1],
+			required_parent: HeadData(vec![3, 4, 5]),
+			mrp_response: vec![(1.into(), 102), (2.into(), 98)],
+		};
+
+		// Activate leaves.
+		activate_leaf(&mut virtual_overseer, &leaf_a, &test_state).await;
+		activate_leaf(&mut virtual_overseer, &leaf_b, &test_state).await;
+		activate_leaf(&mut virtual_overseer, &leaf_c, &test_state).await;
+
+		// Candidate
+		let (candidate, pvd) = make_candidate(&leaf_a, None, test_state.validation_code_hash);
+		let candidate_hash = candidate.hash();
+		// TODO: Is this correct?
+		let response = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
+
+		// Second candidate on all three leaves.
+		second_candidate(
+			&mut virtual_overseer,
+			leaf_a.para_id,
+			candidate.clone(),
+			pvd.clone(),
+			response.clone(),
+		)
+		.await;
+		second_candidate(
+			&mut virtual_overseer,
+			leaf_b.para_id,
+			candidate.clone(),
+			pvd.clone(),
+			// TODO: is this right?
+			vec![],
+		)
+		.await;
+		second_candidate(
+			&mut virtual_overseer,
+			leaf_c.para_id,
+			candidate.clone(),
+			pvd.clone(),
+			// TODO: is this right?
+			response.clone(),
+		)
+		.await;
+
+		// Check membership.
+
+		virtual_overseer
+	});
+
+	assert_eq!(view.active_leaves.len(), 3);
+	assert_eq!(view.candidate_storage.len(), 2);
+}
+
 #[test]
 fn check_backable_query() {
 	todo!();
