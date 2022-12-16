@@ -18,8 +18,9 @@ use super::*;
 use frame_benchmarking::{benchmarks, BenchmarkError, BenchmarkResult};
 use frame_support::weights::Weight;
 use frame_system::RawOrigin;
+use sp_core::{bounded::WeakBoundedVec, ConstU32};
 use sp_std::prelude::*;
-use xcm::latest::prelude::*;
+use xcm::{latest::prelude::*, v2};
 
 type RuntimeOrigin<T> = <T as frame_system::Config>::RuntimeOrigin;
 
@@ -109,6 +110,57 @@ benchmarks! {
 		let versioned_loc: VersionedMultiLocation = loc.into();
 		let _ = Pallet::<T>::request_version_notify(loc);
 	}: _(RawOrigin::Root, Box::new(versioned_loc))
+
+	migrate_supported_version {
+		let old_version = XCM_VERSION - 1;
+		SupportedVersion::<T>::insert(old_version, Parent.into(), old_version);
+	}: check_xcm_version_change(VersionMigrationStage::MigrateSupportedVersion, Weight::zero())
+
+	migrate_version_notifiers {
+		let old_version = XCM_VERSION - 1;
+		VersionNotifiers::<T>::insert(old_version, Parent.into(), 0);
+	}: check_xcm_version_change(VersionMigrationStage::MigrateVersionNotifiers, Weight::zero())
+
+	already_notified_target {
+		let loc = T::ReachableDest::get().ok_or(
+			BenchmarkError::Override(BenchmarkResult::from_weight(T::DbWeight::get().reads(1))),
+		)?;
+		let current_version = T::AdvertisedXcmVersion::get();
+		VersionNotifyTargets::<T>::insert(current_version, loc.into(), (0, Weight::zero(), current_version));
+	}: check_xcm_version_change(VersionMigrationStage::NotifyCurrentTargets(None), Weight::zero())
+
+	notify_current_targets {
+		let loc = T::ReachableDest::get().ok_or(
+			BenchmarkError::Override(BenchmarkResult::from_weight(T::DbWeight::get().reads_writes(1, 3))),
+		)?;
+		let current_version = T::AdvertisedXcmVersion::get();
+		let old_version = current_version - 1;
+		VersionNotifyTargets::<T>::insert(current_version, loc.into(), (0, Weight::zero(), old_version));
+	}: check_xcm_version_change(VersionMigrationStage::NotifyCurrentTargets(None), Weight::zero())
+
+	notify_target_migration_fail {
+		let bad_loc: v2::MultiLocation = v2::Junction::Plurality {
+			id: v2::BodyId::Named(WeakBoundedVec::<u8, ConstU32<32>>::try_from(vec![0; 32])),
+			part: v2::BodyPart::Voice,
+		}
+		.into();
+		let current_version = T::AdvertisedXcmVersion::get();
+		VersionNotifyTargets::<T>::insert(current_version, bad_loc.into(), (0, Weight::zero(), old_version));
+	}: check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero())
+
+	migrate_version_notify_targets {
+		let current_version = T::AdvertisedXcmVersion::get();
+		VersionNotifyTargets::<T>::insert(current_version, Parent.into(), (0, Weight::zero(), current_version));
+	}: check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero())
+	
+	migrate_and_notify_old_targets {
+		let loc = T::ReachableDest::get().ok_or(
+			BenchmarkError::Override(BenchmarkResult::from_weight(T::DbWeight::get().reads_writes(1, 3))),
+		)?;
+		let current_version = T::AdvertisedXcmVersion::get();
+		let old_version = current_version - 1;
+		VersionNotifyTargets::<T>::insert(current_version, loc.into(), (0, Weight::zero(), old_version));
+	}: check_xcm_version_change(VersionMigrationStage::MigrateAndNotifyOldTargets, Weight::zero())
 
 	impl_benchmark_test_suite!(
 		Pallet,

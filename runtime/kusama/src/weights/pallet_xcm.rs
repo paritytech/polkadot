@@ -108,4 +108,31 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(6 as u64))
 			.saturating_add(T::DbWeight::get().writes(5 as u64))
 	}
+	fn migrate_supported_version() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_version_notifiers() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn already_notified_target() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn notify_current_targets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn notify_target_migration_fail() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_version_notify_targets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_and_notify_old_targets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
 }

@@ -66,6 +66,13 @@ pub trait WeightInfo {
 	fn force_default_xcm_version() -> Weight;
 	fn force_subscribe_version_notify() -> Weight;
 	fn force_unsubscribe_version_notify() -> Weight;
+	fn migrate_supported_version() -> Weight;
+	fn migrate_version_notifiers() -> Weight;
+	fn already_notified_target() -> Weight;
+	fn notify_current_targets() -> Weight;
+	fn notify_target_migration_fail() -> Weight;
+	fn migrate_version_notify_targets() -> Weight;
+	fn migrate_and_notify_old_targets() -> Weight;
 }
 
 /// fallback implementation
@@ -100,6 +107,34 @@ impl WeightInfo for TestWeightInfo {
 	}
 
 	fn force_unsubscribe_version_notify() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_supported_version() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_version_notifiers() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn already_notified_target() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn notify_current_targets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn notify_target_migration_fail() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_version_notify_targets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_and_notify_old_targets() -> Weight {
 		Weight::from_ref_time(100_000_000)
 	}
 }
@@ -1176,13 +1211,13 @@ impl<T: Config> Pallet<T> {
 		let mut weight_used = Weight::zero();
 
 		// TODO: Correct weights for the components of this:
-		let todo_sv_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-		let todo_vn_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-		let todo_vnt_already_notified_weight: Weight = T::DbWeight::get().reads(1);
-		let todo_vnt_notify_weight: Weight = T::DbWeight::get().reads_writes(1, 3);
-		let todo_vnt_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-		let todo_vnt_migrate_fail_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-		let todo_vnt_notify_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 3);
+		let todo_sv_migrate_weight = T::WeightInfo::migrate_supported_version();
+		let todo_vn_migrate_weight = T::WeightInfo::migrate_version_notifiers();
+		let todo_vnt_already_notified_weight = T::WeightInfo::already_notified_target();
+		let todo_vnt_notify_weight = T::WeightInfo::notify_current_targets();
+		let todo_vnt_migrate_weight = T::WeightInfo::migrate_version_notify_targets();
+		let todo_vnt_migrate_fail_weight = T::WeightInfo::notify_target_migration_fail();
+		let todo_vnt_notify_migrate_weight = T::WeightInfo::migrate_and_notify_old_targets();
 
 		use VersionMigrationStage::*;
 
