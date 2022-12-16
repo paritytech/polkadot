@@ -437,7 +437,7 @@ async fn get_backable_candidate(
 	leaf: &TestLeaf,
 	para_id: ParaId,
 	required_path: Vec<CandidateHash>,
-	candidate_hash: CandidateHash,
+	candidate_hash: Option<CandidateHash>,
 ) {
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
@@ -452,7 +452,7 @@ async fn get_backable_candidate(
 		.await;
 	let resp = rx.await.unwrap();
 	println!("Get backable resp: {:#?}", resp);
-	assert_eq!(resp, Some(candidate_hash));
+	assert_eq!(resp, candidate_hash);
 }
 
 #[test]
@@ -600,7 +600,7 @@ fn send_candidates_and_check_if_found() {
 
 	assert_eq!(view.active_leaves.len(), 3);
 	assert_eq!(view.candidate_storage.len(), 2);
-	// TODO: Are these right?
+	// Two parents and two candidates per para.
 	assert_eq!(view.candidate_storage.get(&1.into()).unwrap().len(), (2, 2));
 	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (2, 2));
 }
@@ -809,6 +809,7 @@ fn check_candidate_on_multiple_forks() {
 	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (0, 4));
 }
 
+// Backs some candidates and tests `GetBackableCandidate`.
 #[test]
 fn check_backable_query() {
 	let test_state = TestState::default();
@@ -866,19 +867,45 @@ fn check_backable_query() {
 		)
 		.await;
 
+		// Should not get any backable candidates.
+		get_backable_candidate(
+			&mut virtual_overseer,
+			&leaf_a,
+			1.into(),
+			vec![candidate_hash_a],
+			None,
+		)
+		.await;
+
 		// Back candidates.
 		back_candidate(&mut virtual_overseer, &candidate_a, candidate_hash_a).await;
 		back_candidate(&mut virtual_overseer, &candidate_b, candidate_hash_b).await;
 
 		// Get backable candidate.
-		println!("\nGetting backable candidate...\n");
-		let required_path = vec![candidate_hash_a, candidate_hash_a, candidate_hash_a];
 		get_backable_candidate(
 			&mut virtual_overseer,
 			&leaf_a,
 			1.into(),
-			required_path,
-			candidate_hash_b,
+			vec![],
+			Some(candidate_hash_a),
+		)
+		.await;
+		get_backable_candidate(
+			&mut virtual_overseer,
+			&leaf_a,
+			1.into(),
+			vec![candidate_hash_a],
+			Some(candidate_hash_b),
+		)
+		.await;
+
+		// Should not get anything at the wrong path.
+		get_backable_candidate(
+			&mut virtual_overseer,
+			&leaf_a,
+			1.into(),
+			vec![candidate_hash_b],
+			None,
 		)
 		.await;
 
@@ -887,8 +914,9 @@ fn check_backable_query() {
 
 	assert_eq!(view.active_leaves.len(), 1);
 	assert_eq!(view.candidate_storage.len(), 2);
-	assert_eq!(view.candidate_storage.get(&1.into()).unwrap().len(), (1, 2));
-	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (0, 4));
+	// Two parents and two candidates on para 1.
+	assert_eq!(view.candidate_storage.get(&1.into()).unwrap().len(), (2, 2));
+	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (0, 0));
 }
 
 // TODO: Test other queries.
