@@ -711,7 +711,15 @@ where
 	}
 
 	/// Run the `Overseer`.
-	pub async fn run(mut self) -> SubsystemResult<()> {
+	///
+	/// Logging any errors.
+	pub async fn run(self) {
+		if let Err(err) = self.run_inner().await {
+			gum::error!(target: LOG_TARGET, ?err, "Overseer exited with error");
+		}
+	}
+
+	async fn run_inner(mut self) -> SubsystemResult<()> {
 		let metrics = self.metrics.clone();
 		spawn_metronome_metrics(&mut self, metrics)?;
 
