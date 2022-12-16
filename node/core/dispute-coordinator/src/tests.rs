@@ -50,7 +50,7 @@ use sp_core::{sr25519::Pair, testing::TaskExecutor, Pair as PairT};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
-use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash, };
+use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash};
 use polkadot_node_primitives::{Timestamp, ACTIVE_DURATION_SECS};
 use polkadot_node_subsystem::{
 	jaeger,
@@ -3174,22 +3174,25 @@ fn participation_requests_reprioritized_for_newly_included() {
 				receipts.push(candidate_receipt.clone());
 
 				// Mark all candidates as backed, so their participation requests make it to best effort.
-				// These calls must all occur before including the candidates due to test overseer 
+				// These calls must all occur before including the candidates due to test overseer
 				// oddities.
 				test_state
 					.activate_leaf_at_session(
 						&mut virtual_overseer,
 						session,
+						// TODO: This is in a loop, so we'll generate active leaves update multiple times for
+						// the same block num. I don't think this is okay, better batch all events together
+						// and do a single active leaves update
 						1,
 						vec![make_candidate_backed_event(candidate_receipt)],
 					)
 					.await;
 			}
 
-			for candidate_receipt in receipts {
+			for candidate_receipt in receipts.iter() {
 				let candidate_hash = candidate_receipt.hash();
 				println!("Import of candidate with hash: {}", candidate_hash);
-				
+
 				// Create votes for candidates
 				let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
 					&test_state,
@@ -3215,7 +3218,49 @@ fn participation_requests_reprioritized_for_newly_included() {
 						},
 					})
 					.await;
+
+				// Send approval votes to unblock import
+				handle_approval_vote_request(
+					&mut virtual_overseer,
+					&candidate_hash,
+					HashMap::new(),
+				)
+				.await;
 			}
+
+			// Generate included event for one of the candidates here
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					2,
+					vec![make_candidate_included_event(
+						receipts.last().expect("There is more than one candidate").clone(),
+					)],
+				)
+				.await;
+
+			// Unblock participation and verify ordering
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&receipts.first().expect("There is more than one candidate").hash(),
+				receipts.first().expect("There is more than one candidate").commitments_hash,
+			)
+			.await;
+
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&receipts.last().expect("There is more than one candidate").hash(),
+				receipts.last().expect("There is more than one candidate").commitments_hash,
+			)
+			.await;
+
+			// if we see this -> the ordering is correct. We might need to do participating for the 2nd
+			// candidate in order to exit cleanly.
+			println!("Horray");
+
+			// Remove this when the test is ready
+			std::thread::sleep(std::time::Duration::from_secs(180));
 
 			// Wrap up
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
