@@ -94,6 +94,7 @@ fn make_candidate(
 		processed_downward_messages: 0,
 		hrmp_watermark: leaf.number,
 	};
+
 	let mut candidate = dummy_candidate_receipt_bad_sig(leaf.hash, Some(Default::default()));
 	candidate.commitments_hash = commitments.hash();
 	candidate.descriptor.para_id = para_id;
@@ -234,31 +235,31 @@ impl TestLeaf {
 	}
 }
 
+async fn send_block_header(virtual_overseer: &mut VirtualOverseer, hash: Hash, number: u32) {
+	let header = Header {
+		parent_hash: get_parent_hash(hash),
+		number,
+		state_root: Hash::zero(),
+		extrinsics_root: Hash::zero(),
+		digest: Default::default(),
+	};
+
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::ChainApi(
+			ChainApiMessage::BlockHeader(parent, tx)
+		) if parent == hash => {
+			tx.send(Ok(Some(header))).unwrap();
+		}
+	);
+}
+
 async fn activate_leaf(
 	virtual_overseer: &mut VirtualOverseer,
 	leaf: &TestLeaf,
 	test_state: &TestState,
 ) {
-	async fn send_header_response(virtual_overseer: &mut VirtualOverseer, hash: Hash, number: u32) {
-		let header = Header {
-			parent_hash: get_parent_hash(hash),
-			number,
-			state_root: Hash::zero(),
-			extrinsics_root: Hash::zero(),
-			digest: Default::default(),
-		};
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::ChainApi(
-				ChainApiMessage::BlockHeader(parent, tx)
-			) if parent == hash => {
-				tx.send(Ok(Some(header))).unwrap();
-			}
-		);
-	}
-
-	let TestLeaf { number, hash, para_data } = leaf;
+	let TestLeaf { number, hash, para_data: _ } = leaf;
 
 	let activated = ActivatedLeaf {
 		hash: *hash,
@@ -272,6 +273,16 @@ async fn activate_leaf(
 			activated,
 		))))
 		.await;
+
+	handle_leaf_activation(virtual_overseer, leaf, test_state).await;
+}
+
+async fn handle_leaf_activation(
+	virtual_overseer: &mut VirtualOverseer,
+	leaf: &TestLeaf,
+	test_state: &TestState,
+) {
+	let TestLeaf { number, hash, para_data } = leaf;
 
 	assert_matches!(
 		virtual_overseer.recv().await,
@@ -291,7 +302,7 @@ async fn activate_leaf(
 		}
 	);
 
-	send_header_response(virtual_overseer, *hash, *number).await;
+	send_block_header(virtual_overseer, *hash, *number).await;
 
 	// Check that subsystem job issues a request for ancestors.
 	let min_min = para_data.iter().map(|(_, data)| data.min_relay_parent).min().unwrap_or(*number);
@@ -313,7 +324,7 @@ async fn activate_leaf(
 	);
 
 	for (hash, number) in ancestry_iter {
-		send_header_response(virtual_overseer, hash, number).await;
+		send_block_header(virtual_overseer, hash, number).await;
 	}
 
 	for _ in 0..test_state.availability_cores.len() {
@@ -389,6 +400,21 @@ async fn second_candidate(
 	assert_eq!(resp, expected_candidate_response);
 }
 
+async fn back_candidate(
+	virtual_overseer: &mut VirtualOverseer,
+	candidate: &CommittedCandidateReceipt,
+	candidate_hash: CandidateHash,
+) {
+	virtual_overseer
+		.send(overseer::FromOrchestra::Communication {
+			msg: ProspectiveParachainsMessage::CandidateBacked(
+				candidate.descriptor.para_id,
+				candidate_hash,
+			),
+		})
+		.await;
+}
+
 async fn check_membership(
 	virtual_overseer: &mut VirtualOverseer,
 	para_id: ParaId,
@@ -403,6 +429,29 @@ async fn check_membership(
 		.await;
 	let resp = rx.await.unwrap();
 	assert_eq!(resp, expected_candidate_response);
+}
+
+async fn get_backable_candidate(
+	virtual_overseer: &mut VirtualOverseer,
+	leaf: &TestLeaf,
+	para_id: ParaId,
+	required_path: Vec<CandidateHash>,
+	candidate_hash: CandidateHash,
+) {
+	let (tx, rx) = oneshot::channel();
+	virtual_overseer
+		.send(overseer::FromOrchestra::Communication {
+			msg: ProspectiveParachainsMessage::GetBackableCandidate(
+				leaf.hash,
+				para_id,
+				required_path,
+				tx,
+			),
+		})
+		.await;
+	let resp = rx.await.unwrap();
+	println!("Get backable resp: {:#?}", resp);
+	assert_eq!(resp, Some(candidate_hash));
 }
 
 #[test]
@@ -534,6 +583,9 @@ fn send_candidates_and_check_if_found() {
 
 	assert_eq!(view.active_leaves.len(), 3);
 	assert_eq!(view.candidate_storage.len(), 2);
+	// TODO: Are these right?
+	assert_eq!(view.candidate_storage.get(&1.into()).unwrap().len(), (2, 2));
+	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (2, 2));
 }
 
 // Send some candidates, check if the candidate won't be found once its relay parent leaves the view.
@@ -707,120 +759,193 @@ fn check_candidate_on_multiple_forks() {
 		)
 		.await;
 
-		// Check membership.
+		// TODO: Check membership.
 
 		virtual_overseer
 	});
 
 	assert_eq!(view.active_leaves.len(), 3);
 	assert_eq!(view.candidate_storage.len(), 2);
+	assert_eq!(view.candidate_storage.get(&1.into()).unwrap().len(), (0, 4));
+	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (0, 4));
 }
 
 #[test]
 fn check_backable_query() {
-	todo!();
+	let test_state = TestState::default();
+	let view = test_harness(|mut virtual_overseer| async move {
+		// Leaf A
+		let leaf_a = TestLeaf {
+			number: 100,
+			hash: Hash::from_low_u64_be(130),
+			para_data: vec![
+				(1.into(), PerParaData::new(97, HeadData(vec![1, 2, 3]))),
+				(2.into(), PerParaData::new(100, HeadData(vec![2, 3, 4]))),
+			],
+		};
 
-	// TODO: Get backable candidate.
-	// println!("\nGetting backable candidate...\n");
-	// let required_path = vec![candidate_hash];
-	// let (tx, rx) = oneshot::channel();
-	// virtual_overseer
-	// 	.send(overseer::FromOrchestra::Communication {
-	// 		msg: ProspectiveParachainsMessage::GetBackableCandidate(
-	// 			leaf_hash,
-	// 			para_id,
-	// 			required_path,
-	// 			tx,
-	// 		),
-	// 	})
-	// 	.await;
-	// let resp = rx.await.unwrap();
-	// println!("Get Backable Resp: {:#?}", resp);
+		// Activate leaves.
+		activate_leaf(&mut virtual_overseer, &leaf_a, &test_state).await;
+
+		// Candidate A
+		let (candidate_a, pvd_a) =
+			make_candidate(&leaf_a, 1.into(), test_state.validation_code_hash);
+		let candidate_hash_a = candidate_a.hash();
+		// TODO: Is this correct?
+		let response_a = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
+
+		// Candidate B
+		let (mut candidate_b, pvd_b) =
+			make_candidate(&leaf_a, 1.into(), test_state.validation_code_hash);
+		// Set a field to make this candidate unique.
+		candidate_b.descriptor.para_head = Hash::from_low_u64_le(1000);
+		let candidate_hash_b = candidate_b.hash();
+		// TODO: Is this correct?
+		let response_b = vec![(leaf_a.hash, vec![0, 1, 2, 3, 4])];
+
+		// Second candidates.
+		second_candidate(
+			&mut virtual_overseer,
+			candidate_a.clone(),
+			pvd_a.clone(),
+			response_a.clone(),
+		)
+		.await;
+		second_candidate(
+			&mut virtual_overseer,
+			candidate_b.clone(),
+			pvd_b.clone(),
+			response_b.clone(),
+		)
+		.await;
+
+		// Back candidates.
+		back_candidate(&mut virtual_overseer, &candidate_a, candidate_hash_a).await;
+		back_candidate(&mut virtual_overseer, &candidate_b, candidate_hash_b).await;
+
+		// Get backable candidate.
+		println!("\nGetting backable candidate...\n");
+		let required_path = vec![candidate_hash_a, candidate_hash_a, candidate_hash_a];
+		get_backable_candidate(
+			&mut virtual_overseer,
+			&leaf_a,
+			1.into(),
+			required_path,
+			candidate_hash_b,
+		)
+		.await;
+
+		virtual_overseer
+	});
+
+	assert_eq!(view.active_leaves.len(), 1);
+	assert_eq!(view.candidate_storage.len(), 2);
+	assert_eq!(view.candidate_storage.get(&1.into()).unwrap().len(), (1, 2));
+	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (0, 4));
 }
 
-// #[test]
-// fn correctly_updates_leaves() {
-// 	let first_block_hash = [1; 32].into();
-// 	let second_block_hash = [2; 32].into();
-// 	let third_block_hash = [3; 32].into();
+// TODO: Test other queries.
 
-// 	let pool = TaskExecutor::new();
-// 	let (mut ctx, mut ctx_handle) =
-// 		test_helpers::make_subsystem_context::<ProspectiveParachainsMessage, _>(pool.clone());
+// Test simultaneously activating and deactivating leaves, and simultaneously deactivating multiple
+// leaves.
+#[test]
+fn correctly_updates_leaves() {
+	let test_state = TestState::default();
+	let view = test_harness(|mut virtual_overseer| async move {
+		// Leaf A
+		let leaf_a = TestLeaf {
+			number: 100,
+			hash: Hash::from_low_u64_be(130),
+			para_data: vec![
+				(1.into(), PerParaData::new(97, HeadData(vec![1, 2, 3]))),
+				(2.into(), PerParaData::new(100, HeadData(vec![2, 3, 4]))),
+			],
+		};
+		// Leaf B
+		let leaf_b = TestLeaf {
+			number: 101,
+			hash: Hash::from_low_u64_be(131),
+			para_data: vec![
+				(1.into(), PerParaData::new(99, HeadData(vec![3, 4, 5]))),
+				(2.into(), PerParaData::new(101, HeadData(vec![4, 5, 6]))),
+			],
+		};
+		// Leaf C
+		let leaf_c = TestLeaf {
+			number: 102,
+			hash: Hash::from_low_u64_be(132),
+			para_data: vec![
+				(1.into(), PerParaData::new(102, HeadData(vec![5, 6, 7]))),
+				(2.into(), PerParaData::new(98, HeadData(vec![6, 7, 8]))),
+			],
+		};
 
-// 	let mut view = View::new();
+		// Activate leaves.
+		activate_leaf(&mut virtual_overseer, &leaf_a, &test_state).await;
+		activate_leaf(&mut virtual_overseer, &leaf_b, &test_state).await;
 
-// 	let check_fut = async move {
-// 		// Activate a leaf.
-// 		let activated = ActivatedLeaf {
-// 			hash: first_block_hash,
-// 			number: 1,
-// 			span: Arc::new(jaeger::Span::Disabled),
-// 			status: LeafStatus::Fresh,
-// 		};
-// 		let update = ActiveLeavesUpdate::start_work(activated);
-// 		handle_active_leaves_update(&mut ctx, &mut view, update).await.unwrap();
+		// Try activating a duplicate leaf.
+		activate_leaf(&mut virtual_overseer, &leaf_b, &test_state).await;
 
-// 		// Activate another leaf.
-// 		let activated = ActivatedLeaf {
-// 			hash: second_block_hash,
-// 			number: 2,
-// 			span: Arc::new(jaeger::Span::Disabled),
-// 			status: LeafStatus::Fresh,
-// 		};
-// 		let update = ActiveLeavesUpdate::start_work(activated);
-// 		handle_active_leaves_update(&mut ctx, &mut view, update.clone()).await.unwrap();
+		// Pass in an empty update.
+		let update = ActiveLeavesUpdate::default();
+		virtual_overseer
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)))
+			.await;
 
-// 		// Try activating a duplicate leaf.
-// 		handle_active_leaves_update(&mut ctx, &mut view, update).await.unwrap();
+		// Activate a leaf and remove one at the same time.
+		let activated = ActivatedLeaf {
+			hash: leaf_c.hash,
+			number: leaf_c.number,
+			span: Arc::new(jaeger::Span::Disabled),
+			status: LeafStatus::Fresh,
+		};
+		let update = ActiveLeavesUpdate {
+			activated: Some(activated),
+			deactivated: [leaf_b.hash][..].into(),
+		};
+		virtual_overseer
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)))
+			.await;
+		handle_leaf_activation(&mut virtual_overseer, &leaf_c, &test_state).await;
 
-// 		// Pass in an empty update.
-// 		let update = ActiveLeavesUpdate::default();
-// 		handle_active_leaves_update(&mut ctx, &mut view, update).await.unwrap();
+		// Remove all remaining leaves.
+		let update = ActiveLeavesUpdate {
+			deactivated: [leaf_a.hash, leaf_c.hash][..].into(),
+			..Default::default()
+		};
+		virtual_overseer
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)))
+			.await;
 
-// 		// Activate a leaf and remove one at the same time.
-// 		let activated = ActivatedLeaf {
-// 			hash: third_block_hash,
-// 			number: 3,
-// 			span: Arc::new(jaeger::Span::Disabled),
-// 			status: LeafStatus::Fresh,
-// 		};
-// 		let update = ActiveLeavesUpdate {
-// 			activated: Some(activated),
-// 			deactivated: [second_block_hash][..].into(),
-// 		};
-// 		handle_active_leaves_update(&mut ctx, &mut view, update).await.unwrap();
+		// Activate and deactivate the same leaf.
+		let activated = ActivatedLeaf {
+			hash: leaf_a.hash,
+			number: leaf_a.number,
+			span: Arc::new(jaeger::Span::Disabled),
+			status: LeafStatus::Fresh,
+		};
+		let update = ActiveLeavesUpdate {
+			activated: Some(activated),
+			deactivated: [leaf_a.hash][..].into(),
+		};
+		virtual_overseer
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)))
+			.await;
+		handle_leaf_activation(&mut virtual_overseer, &leaf_a, &test_state).await;
 
-// 		// TODO: Check tree contents.
-// 		assert_eq!(view.active_leaves.len(), 2);
+		// Remove the leaf again. Send some unnecessary hashes.
+		let update = ActiveLeavesUpdate {
+			deactivated: [leaf_a.hash, leaf_b.hash, leaf_c.hash][..].into(),
+			..Default::default()
+		};
+		virtual_overseer
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)))
+			.await;
 
-// 		// Remove all remaining leaves.
-// 		let update = ActiveLeavesUpdate {
-// 			deactivated: [first_block_hash, third_block_hash][..].into(),
-// 			..Default::default()
-// 		};
-// 		handle_active_leaves_update(&mut ctx, &mut view, update).await.unwrap();
+		virtual_overseer
+	});
 
-// 		// Check final tree contents.
-// 		assert!(view.active_leaves.is_empty() && view.candidate_storage.is_empty());
-// 	};
-
-// 	let test_fut = async move {
-// 		assert_matches!(
-// 			ctx_handle.recv().await,
-// 			AllMessages::RuntimeApi(
-// 				RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
-// 			) if parent == first_block_hash => {
-// 				tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
-// 			}
-// 		);
-
-// 		// TODO: Fill this out.
-
-// 		let message = ctx_handle.recv().await;
-// 		println!("{:?}", message);
-// 	};
-
-// 	let test_fut = future::join(test_fut, check_fut);
-// 	executor::block_on(test_fut);
-// }
+	assert_eq!(view.active_leaves.len(), 0);
+	assert_eq!(view.candidate_storage.len(), 0);
+}
