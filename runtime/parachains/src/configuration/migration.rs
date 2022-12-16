@@ -17,11 +17,7 @@
 //! A module that is responsible for migration of storage.
 
 use crate::configuration::{self, Config, Pallet, Store, MAX_POV_SIZE};
-use frame_support::{
-	pallet_prelude::*,
-	traits::StorageVersion,
-	weights::{OldWeight, Weight},
-};
+use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
 
 /// The current storage version.
@@ -29,11 +25,12 @@ use frame_system::pallet_prelude::BlockNumberFor;
 /// v0-v1: <https://github.com/paritytech/polkadot/pull/3575>
 /// v1-v2: <https://github.com/paritytech/polkadot/pull/4420>
 /// v2-v3: <https://github.com/paritytech/polkadot/pull/6091>
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
+/// v3-v4: <https://github.com/paritytech/polkadot/pull/6345>
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 
-pub mod v3 {
+pub mod v4 {
 	use super::*;
-	use frame_support::traits::OnRuntimeUpgrade;
+	use frame_support::{traits::OnRuntimeUpgrade, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
 	use primitives::v2::{Balance, SessionIndex};
 
 	// Copied over from configuration.rs @ de9e147695b9f1be8bd44e07861a31e483c8343a and removed
@@ -51,7 +48,7 @@ pub mod v3 {
 		pub validation_upgrade_delay: BlockNumber,
 		pub max_pov_size: u32,
 		pub max_downward_message_size: u32,
-		pub ump_service_total_weight: OldWeight,
+		pub ump_service_total_weight: Weight,
 		pub hrmp_max_parachain_outbound_channels: u32,
 		pub hrmp_max_parathread_outbound_channels: u32,
 		pub hrmp_sender_deposit: Balance,
@@ -79,7 +76,7 @@ pub mod v3 {
 		pub zeroth_delay_tranche_width: u32,
 		pub needed_approvals: u32,
 		pub relay_vrf_modulo_samples: u32,
-		pub ump_max_individual_weight: OldWeight,
+		pub ump_max_individual_weight: Weight,
 		pub pvf_checking_enabled: bool,
 		pub pvf_voting_ttl: SessionIndex,
 		pub minimum_validation_upgrade_delay: BlockNumber,
@@ -114,7 +111,7 @@ pub mod v3 {
 				max_upward_queue_count: Default::default(),
 				max_upward_queue_size: Default::default(),
 				max_downward_message_size: Default::default(),
-				ump_service_total_weight: OldWeight(Default::default()),
+				ump_service_total_weight: Default::default(),
 				max_upward_message_size: Default::default(),
 				max_upward_message_num_per_candidate: Default::default(),
 				hrmp_sender_deposit: Default::default(),
@@ -127,8 +124,9 @@ pub mod v3 {
 				hrmp_max_parachain_outbound_channels: Default::default(),
 				hrmp_max_parathread_outbound_channels: Default::default(),
 				hrmp_max_message_num_per_candidate: Default::default(),
-				ump_max_individual_weight: OldWeight(
-					frame_support::weights::constants::WEIGHT_REF_TIME_PER_MILLIS * 20,
+				ump_max_individual_weight: Weight::from_parts(
+					20u64 * WEIGHT_REF_TIME_PER_MILLIS,
+					MAX_POV_SIZE as u64,
 				),
 				pvf_checking_enabled: false,
 				pvf_voting_ttl: 2u32.into(),
@@ -137,32 +135,32 @@ pub mod v3 {
 		}
 	}
 
-	pub struct MigrateToV3<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Config> OnRuntimeUpgrade for MigrateToV3<T> {
+	pub struct MigrateToV4<T>(sp_std::marker::PhantomData<T>);
+	impl<T: Config> OnRuntimeUpgrade for MigrateToV4<T> {
 		fn on_runtime_upgrade() -> Weight {
-			if StorageVersion::get::<Pallet<T>>() == 2 {
-				let weight_consumed = migrate_to_v3::<T>();
+			if StorageVersion::get::<Pallet<T>>() == 3 {
+				let weight_consumed = migrate_to_v4::<T>();
 
-				log::info!(target: configuration::LOG_TARGET, "MigrateToV3 executed successfully");
+				log::info!(target: configuration::LOG_TARGET, "MigrateToV4 executed successfully");
 				STORAGE_VERSION.put::<Pallet<T>>();
 
 				weight_consumed
 			} else {
-				log::warn!(target: configuration::LOG_TARGET, "MigrateToV3 should be removed.");
+				log::warn!(target: configuration::LOG_TARGET, "MigrateToV4 should be removed.");
 				T::DbWeight::get().reads(1)
 			}
 		}
 	}
 }
 
-fn migrate_to_v3<T: Config>() -> Weight {
+fn migrate_to_v4<T: Config>() -> Weight {
 	// Unusual formatting is justified:
 	// - make it easier to verify that fields assign what they supposed to assign.
 	// - this code is transient and will be removed after all migrations are done.
 	// - this code is important enough to optimize for legibility sacrificing consistency.
 	#[rustfmt::skip]
 	let translate =
-		|pre: v3::OldHostConfiguration<BlockNumberFor<T>>| ->
+		|pre: v4::OldHostConfiguration<BlockNumberFor<T>>| ->
 configuration::HostConfiguration<BlockNumberFor<T>>
 	{
 		super::HostConfiguration {
@@ -177,6 +175,7 @@ validation_upgrade_cooldown              : pre.validation_upgrade_cooldown,
 validation_upgrade_delay                 : pre.validation_upgrade_delay,
 max_pov_size                             : pre.max_pov_size,
 max_downward_message_size                : pre.max_downward_message_size,
+ump_service_total_weight                 : pre.ump_service_total_weight,
 hrmp_max_parachain_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
 hrmp_max_parathread_outbound_channels    : pre.hrmp_max_parathread_outbound_channels,
 hrmp_sender_deposit                      : pre.hrmp_sender_deposit,
@@ -197,19 +196,17 @@ max_validators_per_core                  : pre.max_validators_per_core,
 max_validators                           : pre.max_validators,
 dispute_period                           : pre.dispute_period,
 dispute_post_conclusion_acceptance_period: pre.dispute_post_conclusion_acceptance_period,
-dispute_max_spam_slots                   : pre.dispute_max_spam_slots,
 dispute_conclusion_by_time_out_period    : pre.dispute_conclusion_by_time_out_period,
 no_show_slots                            : pre.no_show_slots,
 n_delay_tranches                         : pre.n_delay_tranches,
 zeroth_delay_tranche_width               : pre.zeroth_delay_tranche_width,
 needed_approvals                         : pre.needed_approvals,
 relay_vrf_modulo_samples                 : pre.relay_vrf_modulo_samples,
+ump_max_individual_weight                : pre.ump_max_individual_weight,
 pvf_checking_enabled                     : pre.pvf_checking_enabled,
 pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 
-ump_service_total_weight: Weight::from_ref_time(pre.ump_service_total_weight.0).set_proof_size(MAX_POV_SIZE as u64),
-ump_max_individual_weight: Weight::from_ref_time(pre.ump_max_individual_weight.0).set_proof_size(MAX_POV_SIZE as u64),
 		}
 	};
 

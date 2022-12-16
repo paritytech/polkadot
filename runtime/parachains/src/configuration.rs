@@ -192,9 +192,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub dispute_period: SessionIndex,
 	/// How long after dispute conclusion to accept statements.
 	pub dispute_post_conclusion_acceptance_period: BlockNumber,
-	/// The maximum number of dispute spam slots
-	/// TODO: This will be removed once https://github.com/paritytech/polkadot/pull/6271 is merged
-	pub dispute_max_spam_slots: u32,
 	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
 	pub dispute_conclusion_by_time_out_period: BlockNumber,
 	/// The amount of consensus slots that must pass between submitting an assignment and
@@ -264,7 +261,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_validators: None,
 			dispute_period: 6,
 			dispute_post_conclusion_acceptance_period: 100.into(),
-			dispute_max_spam_slots: 2,
 			dispute_conclusion_by_time_out_period: 200.into(),
 			n_delay_tranches: Default::default(),
 			zeroth_delay_tranche_width: Default::default(),
