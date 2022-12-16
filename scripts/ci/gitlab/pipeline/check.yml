@@ -69,6 +69,8 @@ check-try-runtime:
         export RUST_LOG=remote-ext=debug,runtime=debug
         echo "---------- Running try-runtime for ${NETWORK} ----------"
         time cargo build --release --features try-runtime
+        echo $CARGO_TARGET_DIR
+        ls -la $CARGO_TARGET_DIR
         time cargo run --release --features try-runtime try-runtime \
             --runtime "${CARGO_TARGET_DIR:-$PWD/target}"/release/wbuild/runtime.wasm -lruntime=debug \
             --chain=${NETWORK}-dev \
