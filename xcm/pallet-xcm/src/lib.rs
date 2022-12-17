@@ -66,6 +66,13 @@ pub trait WeightInfo {
 	fn force_default_xcm_version() -> Weight;
 	fn force_subscribe_version_notify() -> Weight;
 	fn force_unsubscribe_version_notify() -> Weight;
+	fn migrate_supported_version() -> Weight;
+	fn migrate_version_notifiers() -> Weight;
+	fn already_notified_target() -> Weight;
+	fn notify_current_targets() -> Weight;
+	fn notify_target_migration_fail() -> Weight;
+	fn migrate_version_notify_targets() -> Weight;
+	fn migrate_and_notify_old_targets() -> Weight;
 }
 
 /// fallback implementation
@@ -100,6 +107,34 @@ impl WeightInfo for TestWeightInfo {
 	}
 
 	fn force_unsubscribe_version_notify() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_supported_version() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_version_notifiers() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn already_notified_target() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn notify_current_targets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn notify_target_migration_fail() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_version_notify_targets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_and_notify_old_targets() -> Weight {
 		Weight::from_ref_time(100_000_000)
 	}
 }
@@ -1175,14 +1210,13 @@ impl<T: Config> Pallet<T> {
 	) -> (Weight, Option<VersionMigrationStage>) {
 		let mut weight_used = Weight::zero();
 
-		// TODO: Correct weights for the components of this:
-		let todo_sv_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-		let todo_vn_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-		let todo_vnt_already_notified_weight: Weight = T::DbWeight::get().reads(1);
-		let todo_vnt_notify_weight: Weight = T::DbWeight::get().reads_writes(1, 3);
-		let todo_vnt_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-		let todo_vnt_migrate_fail_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-		let todo_vnt_notify_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 3);
+		let sv_migrate_weight = T::WeightInfo::migrate_supported_version();
+		let vn_migrate_weight = T::WeightInfo::migrate_version_notifiers();
+		let vnt_already_notified_weight = T::WeightInfo::already_notified_target();
+		let vnt_notify_weight = T::WeightInfo::notify_current_targets();
+		let vnt_migrate_weight = T::WeightInfo::migrate_version_notify_targets();
+		let vnt_migrate_fail_weight = T::WeightInfo::notify_target_migration_fail();
+		let vnt_notify_migrate_weight = T::WeightInfo::migrate_and_notify_old_targets();
 
 		use VersionMigrationStage::*;
 
@@ -1194,7 +1228,7 @@ impl<T: Config> Pallet<T> {
 					if let Ok(new_key) = old_key.into_latest() {
 						SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
 					}
-					weight_used.saturating_accrue(todo_sv_migrate_weight);
+					weight_used.saturating_accrue(sv_migrate_weight);
 					if weight_used.any_gte(weight_cutoff) {
 						return (weight_used, Some(stage))
 					}
@@ -1208,7 +1242,7 @@ impl<T: Config> Pallet<T> {
 					if let Ok(new_key) = old_key.into_latest() {
 						VersionNotifiers::<T>::insert(XCM_VERSION, new_key, value);
 					}
-					weight_used.saturating_accrue(todo_vn_migrate_weight);
+					weight_used.saturating_accrue(vn_migrate_weight);
 					if weight_used.any_gte(weight_cutoff) {
 						return (weight_used, Some(stage))
 					}
@@ -1231,7 +1265,7 @@ impl<T: Config> Pallet<T> {
 					_ => {
 						// We don't early return here since we need to be certain that we
 						// make some progress.
-						weight_used.saturating_accrue(todo_vnt_already_notified_weight);
+						weight_used.saturating_accrue(vnt_already_notified_weight);
 						continue
 					},
 				};
@@ -1250,7 +1284,7 @@ impl<T: Config> Pallet<T> {
 					},
 				};
 				Self::deposit_event(event);
-				weight_used.saturating_accrue(todo_vnt_notify_weight);
+				weight_used.saturating_accrue(vnt_notify_weight);
 				if weight_used.any_gte(weight_cutoff) {
 					let last = Some(iter.last_raw_key().into());
 					return (weight_used, Some(NotifyCurrentTargets(last)))
@@ -1266,7 +1300,7 @@ impl<T: Config> Pallet<T> {
 						Ok(k) => k,
 						Err(()) => {
 							Self::deposit_event(Event::NotifyTargetMigrationFail(old_key, value.0));
-							weight_used.saturating_accrue(todo_vnt_migrate_fail_weight);
+							weight_used.saturating_accrue(vnt_migrate_fail_weight);
 							if weight_used.any_gte(weight_cutoff) {
 								return (weight_used, Some(stage))
 							}
@@ -1277,7 +1311,7 @@ impl<T: Config> Pallet<T> {
 					let versioned_key = LatestVersionedMultiLocation(&new_key);
 					if target_xcm_version == xcm_version {
 						VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_key, value);
-						weight_used.saturating_accrue(todo_vnt_migrate_weight);
+						weight_used.saturating_accrue(vnt_migrate_weight);
 					} else {
 						// Need to notify target.
 						let response = Response::Version(xcm_version);
@@ -1299,7 +1333,7 @@ impl<T: Config> Pallet<T> {
 							Err(e) => Event::NotifyTargetSendFail(new_key, query_id, e.into()),
 						};
 						Self::deposit_event(event);
-						weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
+						weight_used.saturating_accrue(vnt_notify_migrate_weight);
 					}
 					if weight_used.any_gte(weight_cutoff) {
 						return (weight_used, Some(stage))
