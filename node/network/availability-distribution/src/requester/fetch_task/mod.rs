@@ -326,7 +326,7 @@ impl RunningTask {
 		&mut self,
 		validator: &AuthorityDiscoveryId,
 	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
-		gum::debug!(
+		gum::trace!(
 			target: LOG_TARGET,
 			origin = ?validator,
 			relay_parent = ?self.relay_parent,

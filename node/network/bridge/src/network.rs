@@ -161,7 +161,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		let peer_id = match peer {
 			Recipient::Peer(peer_id) => Some(peer_id),
 			Recipient::Authority(authority) => {
-				gum::debug!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?authority,
 					"Searching for peer id to connect to authority",
@@ -202,7 +202,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			Some(peer_id) => peer_id,
 		};
 
-		gum::debug!(
+		gum::trace!(
 			target: LOG_TARGET,
 			%peer_id,
 			protocol = %req_protocol_names.get_name(protocol),
