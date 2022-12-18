@@ -366,7 +366,7 @@ impl futures::Future for WorkerHandle {
 				gum::debug!(
 					target: LOG_TARGET,
 					worker_pid = %me.child_id,
-					status_code = ?code,
+					status_code = ?me.child.try_wait().ok().flatten().map(|c| c.to_string()),
 					"pvf worker ({}): {:?}",
 					me.program.display(),
 					err,
