@@ -189,7 +189,8 @@ where
 
 			event_loop(handle.clone(), stream).await
 		})
-		.unwrap_err(); // it's never `Ok` because it's `Ok(Never)`
+		 // It's never `Ok` because it's `Ok(Never)`.
+		.unwrap_err();
 
 	gum::debug!(
 		target: LOG_TARGET,
@@ -198,6 +199,11 @@ where
 		debug_id,
 		err,
 	);
+
+	// We don't want tokio to wait for the tasks to finish. We want to bring down the worker as fast
+	// as possible and not wait for stalled validation to finish. This isn't strictly necessary now,
+	// but may be in the future.
+	rt.shutdown_background();
 }
 
 /// Loop that runs in the CPU time monitor thread on prepare and execute jobs. Continuously wakes up
