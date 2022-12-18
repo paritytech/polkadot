@@ -358,11 +358,6 @@ impl futures::Future for WorkerHandle {
 				// leaves us with legit errors which we suppose were due to termination.
 
 				// Log the status code.
-				let code = if let Ok(Some(code)) = me.child.try_wait() {
-					format!("{}", code)
-				} else {
-					"none".into()
-				};
 				gum::debug!(
 					target: LOG_TARGET,
 					worker_pid = %me.child_id,
