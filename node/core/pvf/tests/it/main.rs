@@ -18,6 +18,7 @@ use assert_matches::assert_matches;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
 	start, Config, InvalidCandidate, Metrics, Pvf, ValidationError, ValidationHost,
+	JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 };
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
 use std::time::Duration;
@@ -82,6 +83,7 @@ impl TestHost {
 async fn terminates_on_timeout() {
 	let host = TestHost::new();
 
+	let start = std::time::Instant::now();
 	let result = host
 		.validate_candidate(
 			halt::wasm_binary_unwrap(),
@@ -98,6 +100,10 @@ async fn terminates_on_timeout() {
 		Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)) => {},
 		r => panic!("{:?}", r),
 	}
+
+	let duration = std::time::Instant::now().duration_since(start);
+	assert!(duration >= TEST_EXECUTION_TIMEOUT);
+	assert!(duration < TEST_EXECUTION_TIMEOUT * JOB_TIMEOUT_WALL_CLOCK_FACTOR);
 }
 
 #[tokio::test]

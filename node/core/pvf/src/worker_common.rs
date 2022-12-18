@@ -203,6 +203,12 @@ where
 /// Loop that runs in the CPU time monitor thread on prepare and execute jobs. Continuously wakes up
 /// from sleeping and then either sleeps for the remaining CPU time, or returns if we exceed the CPU
 /// timeout.
+///
+/// Returning indicates that we should send a `TimedOut` error to the host.
+///
+/// NOTE: Returning will cause the worker, whether preparation or execution, to be killed by the
+/// host. We do not kill the process here because it would interfere with the proper handling of
+/// this error.
 pub fn cpu_time_monitor_loop(
 	job_kind: JobKind,
 	cpu_time_start: ProcessTime,
@@ -234,11 +240,6 @@ pub fn cpu_time_monitor_loop(
 			timeout.as_millis(),
 		);
 
-		// Return, signaling that we should send a `TimedOut` error to the host.
-		//
-		// NOTE: This will cause the worker, whether preparation or execution, to be killed by the
-		// host. We do not kill the process here because it would interfere with the proper handling
-		// of this error.
 		return
 	}
 }
@@ -358,15 +359,10 @@ impl futures::Future for WorkerHandle {
 				// leaves us with legit errors which we suppose were due to termination.
 
 				// Log the status code.
-				let code = if let Ok(Some(code)) = me.child.try_wait() {
-					format!("{}", code)
-				} else {
-					"none".into()
-				};
 				gum::debug!(
 					target: LOG_TARGET,
 					worker_pid = %me.child_id,
-					status_code = ?code,
+					status_code = ?me.child.try_wait().ok().flatten().map(|c| c.to_string()),
 					"pvf worker ({}): {:?}",
 					me.program.display(),
 					err,

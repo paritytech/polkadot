@@ -25,6 +25,7 @@ use crate::{
 	LOG_TARGET,
 };
 use cpu_time::ProcessTime;
+use futures::{pin_mut, select_biased, FutureExt};
 use parity_scale_codec::{Decode, Encode};
 use sp_core::hexdisplay::HexDisplay;
 use std::{
@@ -36,7 +37,7 @@ use std::{
 	},
 	time::Duration,
 };
-use tokio::{io, net::UnixStream, select};
+use tokio::{io, net::UnixStream};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
@@ -324,17 +325,22 @@ pub fn worker_entrypoint(socket_path: &str) {
 
 			// Spawn a new thread that runs the CPU time monitor.
 			let finished_flag_2 = finished_flag.clone();
-			let thread_fut = rt_handle.spawn_blocking(move || {
-				cpu_time_monitor_loop(
-					JobKind::Prepare,
-					cpu_time_start,
-					preparation_timeout,
-					finished_flag_2,
-				)
-			});
-			let prepare_fut = rt_handle.spawn_blocking(move || prepare_artifact(&code));
+			let thread_fut = rt_handle
+				.spawn_blocking(move || {
+					cpu_time_monitor_loop(
+						JobKind::Prepare,
+						cpu_time_start,
+						preparation_timeout,
+						finished_flag_2,
+					)
+				})
+				.fuse();
+			let prepare_fut = rt_handle.spawn_blocking(move || prepare_artifact(&code)).fuse();
 
-			let result = select! {
+			pin_mut!(thread_fut);
+			pin_mut!(prepare_fut);
+
+			let result = select_biased! {
 				// If this future is not selected, the join handle is dropped and the thread will
 				// finish in the background.
 				join_res = thread_fut => {

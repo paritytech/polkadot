@@ -25,7 +25,7 @@ use crate::{
 	LOG_TARGET,
 };
 use cpu_time::ProcessTime;
-use futures::FutureExt;
+use futures::{pin_mut, select_biased, FutureExt};
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationResult;
@@ -37,7 +37,7 @@ use std::{
 	},
 	time::Duration,
 };
-use tokio::{io, net::UnixStream, select};
+use tokio::{io, net::UnixStream};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
@@ -250,20 +250,27 @@ pub fn worker_entrypoint(socket_path: &str) {
 
 			// Spawn a new thread that runs the CPU time monitor.
 			let finished_flag_2 = finished_flag.clone();
-			let thread_fut = rt_handle.spawn_blocking(move || {
-				cpu_time_monitor_loop(
-					JobKind::Execute,
-					cpu_time_start,
-					execution_timeout,
-					finished_flag_2,
-				);
-			});
+			let thread_fut = rt_handle
+				.spawn_blocking(move || {
+					cpu_time_monitor_loop(
+						JobKind::Execute,
+						cpu_time_start,
+						execution_timeout,
+						finished_flag_2,
+					);
+				})
+				.fuse();
 			let executor_2 = executor.clone();
-			let execute_fut = rt_handle.spawn_blocking(move || {
-				validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
-			});
+			let execute_fut = rt_handle
+				.spawn_blocking(move || {
+					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
+				})
+				.fuse();
 
-			let response = select! {
+			pin_mut!(thread_fut);
+			pin_mut!(execute_fut);
+
+			let response = select_biased! {
 				// If this future is not selected, the join handle is dropped and the thread will
 				// finish in the background.
 				join_res = thread_fut => {
