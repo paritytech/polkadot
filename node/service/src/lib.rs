@@ -1112,8 +1112,8 @@ where
 					pin_mut!(forward);
 
 					select! {
-						_ = forward => (),
-						_ = overseer_fut => (),
+						() = forward => (),
+						() = overseer_fut => (),
 						complete => (),
 					}
 				}),
