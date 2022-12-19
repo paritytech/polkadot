@@ -26,6 +26,7 @@ polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -34,6 +35,7 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "master
 polkadot-node-metrics = { path = "../node/metrics" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
