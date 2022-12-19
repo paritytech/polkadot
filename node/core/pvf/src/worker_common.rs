@@ -190,7 +190,7 @@ where
 
 		if let Err(err) = stream.shutdown(Shutdown::Both) {
 			// Log, but don't return error here, as it may shadow any error from `event_loop`.
-			gum::warn!(
+			gum::debug!(
 				target: LOG_TARGET,
 				"error shutting down stream at path {}: {}",
 				socket_path,
