@@ -277,6 +277,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
+		#[pallet::call_index(0)]
 		#[pallet::weight((
 			paras_inherent_total_weight::<T>(
 				data.backed_candidates.as_slice(),
