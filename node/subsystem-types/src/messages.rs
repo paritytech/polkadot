@@ -473,18 +473,6 @@ impl BitfieldDistributionMessage {
 	}
 }
 
-/// Bitfield signing message.
-///
-/// Currently non-instantiable.
-#[derive(Debug)]
-pub enum BitfieldSigningMessage {}
-
-impl BoundToRelayParent for BitfieldSigningMessage {
-	fn relay_parent(&self) -> Hash {
-		match *self {}
-	}
-}
-
 /// Availability store subsystem message.
 #[derive(Debug)]
 pub enum AvailabilityStoreMessage {
@@ -541,9 +529,7 @@ pub enum AvailabilityStoreMessage {
 impl AvailabilityStoreMessage {
 	/// In fact, none of the `AvailabilityStore` messages assume a particular relay parent.
 	pub fn relay_parent(&self) -> Option<Hash> {
-		match self {
-			_ => None,
-		}
+		None
 	}
 }
 
@@ -952,9 +938,3 @@ pub enum GossipSupportMessage {
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::GossipSupportNetworkMessage>),
 }
-
-/// PVF checker message.
-///
-/// Currently non-instantiable.
-#[derive(Debug)]
-pub enum PvfCheckerMessage {}

@@ -109,13 +109,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9310,
+	spec_version: 9330,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 14,
+	transaction_version: 15,
 	state_version: 0,
 };
 
@@ -1212,6 +1212,12 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 	}
 }
 
+pub type Migrations = (
+	pallet_balances::migration::MigrateToTrackInactive<Runtime, xcm_config::CheckAccount>,
+	crowdloan::migration::MigrateToTrackInactive<Runtime>,
+	pallet_staking::migrations::v13::MigrateToV13<Runtime>,
+);
+
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =
 	generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
@@ -1222,7 +1228,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(pallet_staking::migrations::v13::MigrateToV13<Runtime>,),
+	Migrations,
 >;
 /// The payload being signed in transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
@@ -1450,7 +1456,10 @@ sp_api::impl_runtime_apis! {
 
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
 		fn mmr_root() -> Result<Hash, mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
 
+		fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
@@ -1622,21 +1631,21 @@ sp_api::impl_runtime_apis! {
 
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
-		fn on_runtime_upgrade() -> (Weight, Weight) {
+		fn on_runtime_upgrade(checks: bool) -> (Weight, Weight) {
 			log::info!("try-runtime::on_runtime_upgrade westend.");
-			let weight = Executive::try_runtime_upgrade().unwrap();
+			let weight = Executive::try_runtime_upgrade(checks).unwrap();
 			(weight, BlockWeights::get().max_block)
 		}
 
-		fn execute_block(block: Block, state_root_check: bool, select: frame_try_runtime::TryStateSelect) -> Weight {
-			log::info!(
-				target: "runtime::westend", "try-runtime: executing block #{} ({:?}) / root checks: {:?} / sanity-checks: {:?}",
-				block.header.number,
-				block.header.hash(),
-				state_root_check,
-				select,
-			);
-			Executive::try_execute_block(block, state_root_check, select).expect("try_execute_block failed")
+		fn execute_block(
+			block: Block,
+			state_root_check: bool,
+			signature_check: bool,
+			select: frame_try_runtime::TryStateSelect,
+		) -> Weight {
+			// NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
+			// have a backtrace here.
+			Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
 		}
 	}
 
@@ -1824,6 +1833,6 @@ mod remote_tests {
 			.build()
 			.await
 			.unwrap();
-		ext.execute_with(|| Runtime::on_runtime_upgrade());
+		ext.execute_with(|| Runtime::on_runtime_upgrade(true));
 	}
 }

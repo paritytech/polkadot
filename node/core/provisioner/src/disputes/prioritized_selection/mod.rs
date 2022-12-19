@@ -99,7 +99,7 @@ where
 	);
 
 	// Fetch the onchain disputes. We'll do a prioritization based on them.
-	let onchain = match get_onchain_disputes(sender, leaf.hash.clone()).await {
+	let onchain = match get_onchain_disputes(sender, leaf.hash).await {
 		Ok(r) => r,
 		Err(GetOnchainDisputesError::NotSupported(runtime_api_err, relay_parent)) => {
 			// Runtime version is checked before calling this method, so the error below should never happen!
@@ -216,7 +216,7 @@ where
 
 		// Check if votes are within the limit
 		for (session_index, candidate_hash, selected_votes) in votes {
-			let votes_len = selected_votes.valid.len() + selected_votes.invalid.len();
+			let votes_len = selected_votes.valid.raw().len() + selected_votes.invalid.len();
 			if votes_len + total_votes_len > MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME {
 				// we are done - no more votes can be added
 				return result

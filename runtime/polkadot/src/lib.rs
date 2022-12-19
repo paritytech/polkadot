@@ -114,13 +114,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9310,
+	spec_version: 9330,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 16,
+	transaction_version: 17,
 	state_version: 0,
 };
 
@@ -578,7 +578,6 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 
 		runtime_common::impls::era_payout(
 			total_staked,
-			// Polkadot has no notion of gilts, the entire issuance is non-guilt.
 			total_issuance,
 			MAX_ANNUAL_INFLATION,
 			Perquintill::from_rational(era_duration_millis, MILLISECONDS_PER_YEAR),
@@ -1599,6 +1598,12 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 	}
 }
 
+pub type Migrations = (
+	pallet_balances::migration::MigrateToTrackInactive<Runtime, xcm_config::CheckAccount>,
+	crowdloan::migration::MigrateToTrackInactive<Runtime>,
+	pallet_staking::migrations::v13::MigrateToV13<Runtime>,
+);
+
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =
 	generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
@@ -1609,7 +1614,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(pallet_staking::migrations::v13::MigrateToV13<Runtime>,),
+	Migrations,
 >;
 
 /// The payload being signed in transactions.
@@ -1851,6 +1856,10 @@ sp_api::impl_runtime_apis! {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
+		fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
 		fn generate_proof(
 			_block_numbers: Vec<BlockNumber>,
 			_best_known_block_number: Option<BlockNumber>,
@@ -2007,21 +2016,21 @@ sp_api::impl_runtime_apis! {
 
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
-		fn on_runtime_upgrade() -> (Weight, Weight) {
+		fn on_runtime_upgrade(checks: bool) -> (Weight, Weight) {
 			log::info!("try-runtime::on_runtime_upgrade polkadot.");
-			let weight = Executive::try_runtime_upgrade().unwrap();
+			let weight = Executive::try_runtime_upgrade(checks).unwrap();
 			(weight, BlockWeights::get().max_block)
 		}
 
-		fn execute_block(block: Block, state_root_check: bool, select: frame_try_runtime::TryStateSelect) -> Weight {
-			log::info!(
-				target: "runtime::polkadot", "try-runtime: executing block #{} ({:?}) / root checks: {:?} / sanity-checks: {:?}",
-				block.header.number,
-				block.header.hash(),
-				state_root_check,
-				select,
-			);
-			Executive::try_execute_block(block, state_root_check, select).expect("try_execute_block failed")
+		fn execute_block(
+			block: Block,
+			state_root_check: bool,
+			signature_check: bool,
+			select: frame_try_runtime::TryStateSelect,
+		) -> Weight {
+			// NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
+			// have a backtrace here.
+			Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
 		}
 	}
 
@@ -2433,6 +2442,6 @@ mod remote_tests {
 			.build()
 			.await
 			.unwrap();
-		ext.execute_with(|| Runtime::on_runtime_upgrade());
+		ext.execute_with(|| Runtime::on_runtime_upgrade(true));
 	}
 }

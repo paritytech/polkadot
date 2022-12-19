@@ -195,7 +195,7 @@ impl DisputeSender {
 		// recovered at startup will be relatively "old" anyway and we assume that no more than a
 		// third of the validators will go offline at any point in time anyway.
 		for dispute in unknown_disputes {
-			self.rate_limit.limit("while going through unknown disputes", dispute.1).await;
+			// Rate limiting handled inside `start_send_for_dispute` (calls `start_sender`).
 			self.start_send_for_dispute(ctx, runtime, dispute).await?;
 		}
 		Ok(())
@@ -279,7 +279,7 @@ impl DisputeSender {
 			Some(votes) => votes,
 		};
 
-		let our_valid_vote = votes.valid.get(&our_index);
+		let our_valid_vote = votes.valid.raw().get(&our_index);
 
 		let our_invalid_vote = votes.invalid.get(&our_index);
 
@@ -291,7 +291,7 @@ impl DisputeSender {
 		} else if let Some(our_invalid_vote) = our_invalid_vote {
 			// Get some valid vote as well:
 			let valid_vote =
-				votes.valid.iter().next().ok_or(JfyiError::MissingVotesFromCoordinator)?;
+				votes.valid.raw().iter().next().ok_or(JfyiError::MissingVotesFromCoordinator)?;
 			(valid_vote, (&our_index, our_invalid_vote))
 		} else {
 			// There is no vote from us yet - nothing to do.
@@ -304,7 +304,7 @@ impl DisputeSender {
 			.get(*valid_index)
 			.ok_or(JfyiError::InvalidStatementFromCoordinator)?;
 		let valid_signed = SignedDisputeStatement::new_checked(
-			DisputeStatement::Valid(kind.clone()),
+			DisputeStatement::Valid(*kind),
 			candidate_hash,
 			session_index,
 			valid_public.clone(),
@@ -319,7 +319,7 @@ impl DisputeSender {
 			.get(*invalid_index)
 			.ok_or(JfyiError::InvalidValidatorIndexFromCoordinator)?;
 		let invalid_signed = SignedDisputeStatement::new_checked(
-			DisputeStatement::Invalid(kind.clone()),
+			DisputeStatement::Invalid(*kind),
 			candidate_hash,
 			session_index,
 			invalid_public.clone(),
@@ -389,6 +389,7 @@ impl RateLimit {
 	/// String given as occasion and candidate hash are logged in case the rate limit hit.
 	async fn limit(&mut self, occasion: &'static str, candidate_hash: CandidateHash) {
 		// Wait for rate limit and add some logging:
+		let mut num_wakes: u32 = 0;
 		poll_fn(|cx| {
 			let old_limit = Pin::new(&mut self.limit);
 			match old_limit.poll(cx) {
@@ -397,8 +398,10 @@ impl RateLimit {
 						target: LOG_TARGET,
 						?occasion,
 						?candidate_hash,
+						?num_wakes,
 						"Sending rate limit hit, slowing down requests"
 					);
+					num_wakes += 1;
 					Poll::Pending
 				},
 				Poll::Ready(()) => Poll::Ready(()),

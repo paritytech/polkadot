@@ -1,9 +1,9 @@
 [package]
 name = "rococo-runtime"
-version = "0.9.31"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 build = "build.rs"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive", "max-encoded-len"] }
@@ -16,7 +16,7 @@ smallvec = "1.8.0"
 
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, package = "sp-beefy" }
 beefy-merkle-tree = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 rococo-runtime-constants = { package = "rococo-runtime-constants", path = "./constants", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -49,13 +49,13 @@ pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "
 pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-gilt = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-nis = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -130,7 +130,7 @@ std = [
 	"pallet-collective/std",
 	"pallet-elections-phragmen/std",
 	"pallet-democracy/std",
-	"pallet-gilt/std",
+	"pallet-nis/std",
 	"pallet-grandpa/std",
 	"pallet-identity/std",
 	"pallet-im-online/std",
@@ -188,7 +188,7 @@ runtime-benchmarks = [
 	"pallet-collective/runtime-benchmarks",
 	"pallet-democracy/runtime-benchmarks",
 	"pallet-elections-phragmen/runtime-benchmarks",
-	"pallet-gilt/runtime-benchmarks",
+	"pallet-nis/runtime-benchmarks",
 	"pallet-grandpa/runtime-benchmarks",
 	"pallet-identity/runtime-benchmarks",
 	"pallet-im-online/runtime-benchmarks",

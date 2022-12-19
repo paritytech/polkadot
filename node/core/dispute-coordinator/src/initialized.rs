@@ -26,8 +26,8 @@ use futures::{
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
-	SignedDisputeStatement, Timestamp,
+	disputes::ValidCandidateVotes, CandidateVotes, DisputeMessage, DisputeMessageCheckError,
+	DisputeStatus, SignedDisputeStatement, Timestamp,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -713,20 +713,22 @@ impl Initialized {
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
-		let env =
-			match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
-			{
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						session,
-						"We are lacking a `SessionInfo` for handling import of statements."
-					);
+		let env = match CandidateEnvironment::new(
+			&self.keystore,
+			&self.rolling_session_window,
+			session,
+		) {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					session,
+					"We are lacking a `SessionInfo` for handling import of statements."
+				);
 
-					return Ok(ImportStatementsResult::InvalidImport)
-				},
-				Some(env) => env,
-			};
+				return Ok(ImportStatementsResult::InvalidImport)
+			},
+			Some(env) => env,
+		};
 
 		let candidate_hash = candidate_receipt.hash();
 
@@ -805,7 +807,14 @@ impl Initialized {
 						);
 						intermediate_result
 					},
-					Ok(votes) => intermediate_result.import_approval_votes(&env, votes, now),
+					Ok(votes) => {
+						gum::trace!(
+							target: LOG_TARGET,
+							count = votes.len(),
+							"Successfully received approval votes."
+						);
+						intermediate_result.import_approval_votes(&env, votes, now)
+					},
 				}
 			} else {
 				gum::trace!(
@@ -1022,7 +1031,7 @@ impl Initialized {
 			imported_approval_votes = ?import_result.imported_approval_votes(),
 			imported_valid_votes = ?import_result.imported_valid_votes(),
 			imported_invalid_votes = ?import_result.imported_invalid_votes(),
-			total_valid_votes = ?import_result.new_state().votes().valid.len(),
+			total_valid_votes = ?import_result.new_state().votes().valid.raw().len(),
 			total_invalid_votes = ?import_result.new_state().votes().invalid.len(),
 			confirmed = ?import_result.new_state().is_confirmed(),
 			"Import summary"
@@ -1075,27 +1084,29 @@ impl Initialized {
 			"Issuing local statement for candidate!"
 		);
 		// Load environment:
-		let env =
-			match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
-			{
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						session,
-						"Missing info for session which has an active dispute",
-					);
+		let env = match CandidateEnvironment::new(
+			&self.keystore,
+			&self.rolling_session_window,
+			session,
+		) {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					session,
+					"Missing info for session which has an active dispute",
+				);
 
-					return Ok(())
-				},
-				Some(env) => env,
-			};
+				return Ok(())
+			},
+			Some(env) => env,
+		};
 
 		let votes = overlay_db
 			.load_candidate_votes(session, &candidate_hash)?
 			.map(CandidateVotes::from)
 			.unwrap_or_else(|| CandidateVotes {
 				candidate_receipt: candidate_receipt.clone(),
-				valid: BTreeMap::new(),
+				valid: ValidCandidateVotes::new(),
 				invalid: BTreeMap::new(),
 			});
 
@@ -1257,7 +1268,7 @@ fn make_dispute_message(
 				votes.invalid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
 			let other_vote = SignedDisputeStatement::new_checked(
 				DisputeStatement::Invalid(*statement_kind),
-				our_vote.candidate_hash().clone(),
+				*our_vote.candidate_hash(),
 				our_vote.session_index(),
 				validators
 					.get(*validator_index)
@@ -1268,11 +1279,15 @@ fn make_dispute_message(
 			.map_err(|()| DisputeMessageCreationError::InvalidStoredStatement)?;
 			(our_vote, our_index, other_vote, *validator_index)
 		} else {
-			let (validator_index, (statement_kind, validator_signature)) =
-				votes.valid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
+			let (validator_index, (statement_kind, validator_signature)) = votes
+				.valid
+				.raw()
+				.iter()
+				.next()
+				.ok_or(DisputeMessageCreationError::NoOppositeVote)?;
 			let other_vote = SignedDisputeStatement::new_checked(
 				DisputeStatement::Valid(*statement_kind),
-				our_vote.candidate_hash().clone(),
+				*our_vote.candidate_hash(),
 				our_vote.session_index(),
 				validators
 					.get(*validator_index)
