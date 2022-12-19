@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2022-11-16 (Y/M/D)
-//! HOSTNAME: `bm4`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
+//! DATE: 2022-12-16 (Y/M/D)
+//! HOSTNAME: `bm6`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
 //!
 //! SHORT-NAME: `block`, LONG-NAME: `BlockExecution`, RUNTIME: `Development`
 //! WARMUPS: `10`, REPEAT: `100`
@@ -42,17 +42,17 @@ parameter_types! {
 	/// Calculated by multiplying the *Average* with `1.0` and adding `0`.
 	///
 	/// Stats nanoseconds:
-	///   Min, Max: 6_019_119, 6_263_448
-	///   Average:  6_103_588
-	///   Median:   6_099_366
-	///   Std-Dev:  50562.05
+	///   Min, Max: 5_985_342, 6_305_787
+	///   Average:  6_062_818
+	///   Median:   6_038_168
+	///   Std-Dev:  73457.12
 	///
 	/// Percentiles nanoseconds:
-	///   99th: 6_239_600
-	///   95th: 6_178_734
-	///   75th: 6_145_812
+	///   99th: 6_284_621
+	///   95th: 6_214_705
+	///   75th: 6_089_252
 	pub const BlockExecutionWeight: Weight =
-		Weight::from_ref_time(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(6_103_588));
+		Weight::from_ref_time(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(6_062_818));
 }
 
 #[cfg(test)]
