@@ -189,7 +189,7 @@ where
 
 			event_loop(handle.clone(), stream).await
 		})
-		 // It's never `Ok` because it's `Ok(Never)`.
+		// It's never `Ok` because it's `Ok(Never)`.
 		.unwrap_err();
 
 	gum::debug!(
