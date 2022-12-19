@@ -188,7 +188,15 @@ where
 
 		let result = event_loop(stream.clone()).await;
 
-		stream.shutdown(Shutdown::Both)?;
+		if let Err(err) = stream.shutdown(Shutdown::Both) {
+			// Log, but don't return error here, as it may shadow any error from `event_loop`.
+			gum::warn!(
+				target: LOG_TARGET,
+				"error shutting down stream at path {}: {}",
+				socket_path,
+				err
+			);
+		}
 
 		result
 	})
