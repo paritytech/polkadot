@@ -1143,7 +1143,16 @@ async fn handle_from_overseer<Context>(
 			if let Some(activated) = update.activated {
 				let head = activated.hash;
 				let mut span = jaeger::PerLeafSpan::new(activated.span, "approval-voting");
-				match import::handle_new_head(ctx, state, db, head, &*last_finalized_height, &mut span).await {
+				match import::handle_new_head(
+					ctx,
+					state,
+					db,
+					head,
+					&*last_finalized_height,
+					&mut span,
+				)
+				.await
+				{
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
 					Ok(block_imported_candidates) => {
 						// Schedule wakeups for all imported candidates.
