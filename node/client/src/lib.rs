@@ -560,12 +560,12 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 }
 
 impl sp_blockchain::HeaderBackend<Block> for Client {
-	fn header(&self, id: BlockId<Block>) -> sp_blockchain::Result<Option<Header>> {
+	fn header(&self, hash: Hash) -> sp_blockchain::Result<Option<Header>> {
 		with_client! {
 			self,
 			client,
 			{
-				client.header(&id)
+				client.header(hash)
 			}
 		}
 	}

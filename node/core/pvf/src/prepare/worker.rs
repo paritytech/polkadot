@@ -55,28 +55,26 @@ pub enum Outcome {
 	/// The host tried to reach the worker but failed. This is most likely because the worked was
 	/// killed by the system.
 	Unreachable,
+	/// The temporary file for the artifact could not be created at the given cache path.
+	CreateTmpFileErr { worker: IdleWorker, err: String },
+	/// The response from the worker is received, but the file cannot be renamed (moved) to the
+	/// final destination location.
+	RenameTmpFileErr { worker: IdleWorker, result: PrepareResult, err: String },
 	/// The worker failed to finish the job until the given deadline.
 	///
 	/// The worker is no longer usable and should be killed.
 	TimedOut,
-	/// The execution was interrupted abruptly and the worker is not available anymore.
+	/// An IO error occurred while receiving the result from the worker process.
 	///
 	/// This doesn't return an idle worker instance, thus this worker is no longer usable.
-	DidNotMakeIt,
-}
-
-#[derive(Debug)]
-enum Selected {
-	Done(PrepareResult),
 	IoErr,
-	Deadline,
 }
 
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
 /// returns the outcome.
 ///
-/// NOTE: Returning the `TimedOut` or `DidNotMakeIt` errors will trigger the child process being
-/// killed.
+/// NOTE: Returning the `TimedOut`, `IoErr` or `Unreachable` outcomes will trigger the child process
+/// being killed.
 pub async fn start_work(
 	worker: IdleWorker,
 	code: Arc<Vec<u8>>,
@@ -93,7 +91,7 @@ pub async fn start_work(
 		artifact_path.display(),
 	);
 
-	with_tmp_file(pid, cache_path, |tmp_file| async move {
+	with_tmp_file(stream.clone(), pid, cache_path, |tmp_file| async move {
 		if let Err(err) = send_request(&mut stream, code, &tmp_file, preparation_timeout).await {
 			gum::warn!(
 				target: LOG_TARGET,
@@ -116,10 +114,11 @@ pub async fn start_work(
 		let timeout = preparation_timeout * JOB_TIMEOUT_WALL_CLOCK_FACTOR;
 		let result = tokio::time::timeout(timeout, framed_recv(&mut stream)).await;
 
-		let selected = match result {
+		match result {
 			// Received bytes from worker within the time limit.
 			Ok(Ok(response_bytes)) =>
 				handle_response_bytes(
+					IdleWorker { stream, pid },
 					response_bytes,
 					pid,
 					tmp_file,
@@ -135,7 +134,7 @@ pub async fn start_work(
 					"failed to recv a prepare response: {:?}",
 					err,
 				);
-				Selected::IoErr
+				Outcome::IoErr
 			},
 			Err(_) => {
 				// Timed out here on the host.
@@ -144,18 +143,8 @@ pub async fn start_work(
 					worker_pid = %pid,
 					"did not recv a prepare response within the time limit",
 				);
-				Selected::Deadline
+				Outcome::TimedOut
 			},
-		};
-
-		// NOTE: A `TimedOut` or `DidNotMakeIt` error triggers the child process being killed.
-		match selected {
-			// Timed out on the child. This should already be logged by the child.
-			Selected::Done(Err(PrepareError::TimedOut)) => Outcome::TimedOut,
-			Selected::Done(result) =>
-				Outcome::Concluded { worker: IdleWorker { stream, pid }, result },
-			Selected::Deadline => Outcome::TimedOut,
-			Selected::IoErr => Outcome::DidNotMakeIt,
 		}
 	})
 	.await
@@ -166,12 +155,13 @@ pub async fn start_work(
 /// NOTE: Here we know the artifact exists, but is still located in a temporary file which will be
 /// cleared by `with_tmp_file`.
 async fn handle_response_bytes(
+	worker: IdleWorker,
 	response_bytes: Vec<u8>,
 	pid: u32,
 	tmp_file: PathBuf,
 	artifact_path: PathBuf,
 	preparation_timeout: Duration,
-) -> Selected {
+) -> Outcome {
 	// By convention we expect encoded `PrepareResult`.
 	let result = match PrepareResult::decode(&mut response_bytes.as_slice()) {
 		Ok(result) => result,
@@ -184,12 +174,14 @@ async fn handle_response_bytes(
 				"received unexpected response from the prepare worker: {}",
 				HexDisplay::from(&bound_bytes),
 			);
-			return Selected::IoErr
+			return Outcome::IoErr
 		},
 	};
 	let cpu_time_elapsed = match result {
 		Ok(result) => result,
-		Err(_) => return Selected::Done(result),
+		// Timed out on the child. This should already be logged by the child.
+		Err(PrepareError::TimedOut) => return Outcome::TimedOut,
+		Err(_) => return Outcome::Concluded { worker, result },
 	};
 
 	if cpu_time_elapsed > preparation_timeout {
@@ -204,7 +196,10 @@ async fn handle_response_bytes(
 		);
 
 		// Return a timeout error.
-		return Selected::Deadline
+		//
+		// NOTE: The artifact exists, but is located in a temporary file which
+		// will be cleared by `with_tmp_file`.
+		return Outcome::TimedOut
 	}
 
 	gum::debug!(
@@ -217,7 +212,7 @@ async fn handle_response_bytes(
 
 	tokio::fs::rename(&tmp_file, &artifact_path)
 		.await
-		.map(|_| Selected::Done(result))
+		.map(|_| Outcome::Concluded { worker, result })
 		.unwrap_or_else(|err| {
 			gum::warn!(
 				target: LOG_TARGET,
@@ -227,7 +222,7 @@ async fn handle_response_bytes(
 				artifact_path.display(),
 				err,
 			);
-			Selected::IoErr
+			Outcome::RenameTmpFileErr { worker, result, err: format!("{:?}", err) }
 		})
 }
 
@@ -235,7 +230,7 @@ async fn handle_response_bytes(
 /// future/closure passing the file path in.
 ///
 /// The function will try best effort to not leave behind the temporary file.
-async fn with_tmp_file<F, Fut>(pid: u32, cache_path: &Path, f: F) -> Outcome
+async fn with_tmp_file<F, Fut>(stream: UnixStream, pid: u32, cache_path: &Path, f: F) -> Outcome
 where
 	Fut: futures::Future<Output = Outcome>,
 	F: FnOnce(PathBuf) -> Fut,
@@ -249,7 +244,10 @@ where
 				"failed to create a temp file for the artifact: {:?}",
 				err,
 			);
-			return Outcome::DidNotMakeIt
+			return Outcome::CreateTmpFileErr {
+				worker: IdleWorker { stream, pid },
+				err: format!("{:?}", err),
+			}
 		},
 	};
 
