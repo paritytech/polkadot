@@ -295,8 +295,8 @@ mod tests {
 			futures::executor::block_on(voting_rule.restrict_vote(
 				client.clone(),
 				&get_header(hashes[10]),
-				&get_header(hashes[121]),
-				&get_header(hashes[121])
+				&get_header(hashes[21]),
+				&get_header(hashes[21])
 			)),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
