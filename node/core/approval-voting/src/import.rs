@@ -327,15 +327,12 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	db: &mut OverlayedBackend<'_, B>,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
+	span: &mut jaeger::PerLeafSpan,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
-
-	let mut span = jaeger::Span::new(head, "approval-checking-import");
-
 	let header = {
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
-
 		match h_rx.await? {
 			Err(e) => {
 				gum::debug!(

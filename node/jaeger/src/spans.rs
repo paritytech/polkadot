@@ -135,6 +135,13 @@ impl std::ops::Deref for PerLeafSpan {
 	}
 }
 
+/// Returns a mutable reference to the child span.
+impl std::ops::DerefMut for PerLeafSpan {
+	fn deref_mut(&mut self) -> &mut Self::Target {
+		&mut self.span
+	}
+}
+
 /// A helper to annotate the stage with a numerical value
 /// to ease the life of the tooling team creating viable
 /// statistical metrics for which stage of the inclusion

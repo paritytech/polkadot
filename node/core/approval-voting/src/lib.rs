@@ -1140,10 +1140,10 @@ async fn handle_from_overseer<Context>(
 	let actions = match x {
 		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
 			let mut actions = Vec::new();
-
 			if let Some(activated) = update.activated {
 				let head = activated.hash;
-				match import::handle_new_head(ctx, state, db, head, &*last_finalized_height).await {
+				let mut span = jaeger::PerLeafSpan::new(activated.span, "approval-voting");
+				match import::handle_new_head(ctx, state, db, head, &*last_finalized_height, &mut span).await {
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
 					Ok(block_imported_candidates) => {
 						// Schedule wakeups for all imported candidates.
