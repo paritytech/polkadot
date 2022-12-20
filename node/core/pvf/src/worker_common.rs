@@ -26,7 +26,7 @@ use std::{
 	fmt, mem,
 	path::{Path, PathBuf},
 	pin::Pin,
-	sync::mpsc::Receiver,
+	sync::mpsc::{Receiver, RecvTimeoutError},
 	task::{Context, Poll},
 	time::Duration,
 };
@@ -232,7 +232,8 @@ pub fn cpu_time_monitor_loop(
 				// Received finish signal.
 				Ok(()) => return,
 				// Timed out, restart loop.
-				Err(_) => continue,
+				Err(RecvTimeoutError::Timeout) => continue,
+				Err(RecvTimeoutError::Disconnected) => return,
 			}
 		}
 
