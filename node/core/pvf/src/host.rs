@@ -703,10 +703,19 @@ async fn handle_prepare_done(
 	*state = match result {
 		Ok(cpu_time_elapsed) =>
 			ArtifactState::Prepared { last_time_needed: SystemTime::now(), cpu_time_elapsed },
-		Err(error) => ArtifactState::FailedToProcess {
-			last_time_failed: SystemTime::now(),
-			num_failures: *num_failures + 1,
-			error,
+		Err(error) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				artifact_id = ?artifact_id,
+				num_failures = ?num_failures,
+				"Failed to process artifact: {}",
+				error
+			);
+			ArtifactState::FailedToProcess {
+				last_time_failed: SystemTime::now(),
+				num_failures: *num_failures + 1,
+				error,
+			}
 		},
 	};
 
