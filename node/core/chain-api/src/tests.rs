@@ -124,7 +124,7 @@ impl HeaderBackend<Block> for TestClient {
 			Ok(self.headers.get(&hash).cloned())
 		}
 	}
-	fn status(&self, hash: Hash) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+	fn status(&self, _hash: Hash) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
 		unimplemented!()
 	}
 }
