@@ -34,7 +34,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 		if StorageVersion::get::<Pallet<T>>() < STORAGE_VERSION {
 			weight += migrate_to_v1::<T>();
 			STORAGE_VERSION.put::<Pallet<T>>();
-			weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+			weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
 		}
 		weight
 	}
@@ -42,7 +42,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 
 /// Migrates the pallet storage to the most recent version, checking and setting the `StorageVersion`.
 pub fn migrate_to_v1<T: Config>() -> Weight {
-	let weight: Weight = Weight::zero();
+	let mut weight: Weight = Weight::zero();
 
 	// SpamSlots should not contain too many keys so removing everything at once should be safe
 	loop {
@@ -50,7 +50,7 @@ pub fn migrate_to_v1<T: Config>() -> Weight {
 		let res = SpamSlots::<T>::clear(u32::MAX, None);
 		// `loops` is the number of iterations => used to calculate read weights
 		// `backend` is the number of keys removed from the backend => used to calculate write weights
-		weight
+		weight = weight
 			.saturating_add(T::DbWeight::get().reads_writes(res.loops as u64, res.backend as u64));
 
 		if res.maybe_cursor.is_none() {
