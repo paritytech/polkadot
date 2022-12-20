@@ -327,14 +327,14 @@ fn handle_mux(
 
 					Ok(())
 				},
-				Outcome::IoErr => {
+				Outcome::IoErr(err) => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(
 							from_pool,
 							FromPool::Concluded {
 								worker,
 								rip: true,
-								result: Err(PrepareError::IoErr),
+								result: Err(PrepareError::IoErr(err)),
 							},
 						)?;
 					}

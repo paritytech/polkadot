@@ -64,7 +64,7 @@ pub enum Outcome {
 	/// An IO error occurred while receiving the result from the worker process.
 	///
 	/// This doesn't return an idle worker instance, thus this worker is no longer usable.
-	IoErr,
+	IoErr(String),
 }
 
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
@@ -131,7 +131,7 @@ pub async fn start_work(
 					"failed to recv a prepare response: {:?}",
 					err,
 				);
-				Outcome::IoErr
+				Outcome::IoErr(err.to_string())
 			},
 			Err(_) => {
 				// Timed out here on the host.
@@ -162,7 +162,7 @@ async fn handle_response_bytes(
 	// By convention we expect encoded `PrepareResult`.
 	let result = match PrepareResult::decode(&mut response_bytes.as_slice()) {
 		Ok(result) => result,
-		Err(_) => {
+		Err(err) => {
 			// We received invalid bytes from the worker.
 			let bound_bytes = &response_bytes[..response_bytes.len().min(4)];
 			gum::warn!(
@@ -171,7 +171,7 @@ async fn handle_response_bytes(
 				"received unexpected response from the prepare worker: {}",
 				HexDisplay::from(&bound_bytes),
 			);
-			return Outcome::IoErr
+			return Outcome::IoErr(err.to_string())
 		},
 	};
 	let cpu_time_elapsed = match result {
@@ -335,14 +335,14 @@ pub fn worker_entrypoint(socket_path: &str) {
 				join_res = thread_fut => {
 					match join_res {
 						Ok(()) => Err(PrepareError::TimedOut),
-						Err(_) => Err(PrepareError::IoErr),
+						Err(err) => Err(PrepareError::IoErr(err.to_string())),
 					}
 				},
 				compilation_res = prepare_fut => {
 					let cpu_time_elapsed = cpu_time_start.elapsed();
 					finished_tx.send(()).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
-					match compilation_res.unwrap_or_else(|_| Err(PrepareError::IoErr)) {
+					match compilation_res.unwrap_or_else(|err| Err(PrepareError::IoErr(err.to_string()))) {
 						Err(err) => {
 							// Serialized error will be written into the socket.
 							Err(err)
