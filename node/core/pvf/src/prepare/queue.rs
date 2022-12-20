@@ -761,7 +761,7 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Concluded {
 			worker: w1,
 			rip: true,
-			result: Err(PrepareError::DidNotMakeIt),
+			result: Err(PrepareError::IoErr),
 		});
 		test.poll_ensure_to_pool_is_empty().await;
 	}
