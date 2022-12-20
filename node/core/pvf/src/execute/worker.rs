@@ -31,10 +31,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
 	path::{Path, PathBuf},
-	sync::{
-		atomic::{AtomicBool, Ordering},
-		Arc,
-	},
+	sync::{mpsc::channel, Arc},
 	time::Duration,
 };
 use tokio::{io, net::UnixStream};
@@ -244,19 +241,18 @@ pub fn worker_entrypoint(socket_path: &str) {
 				artifact_path.display(),
 			);
 
-			// Flag used only to signal to the cpu time monitor thread that it can finish.
-			let finished_flag = Arc::new(AtomicBool::new(false));
+			// Used to signal to the cpu time monitor thread that it can finish.
+			let (finished_tx, finished_rx) = channel::<()>();
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor.
-			let finished_flag_2 = finished_flag.clone();
 			let thread_fut = rt_handle
 				.spawn_blocking(move || {
 					cpu_time_monitor_loop(
 						JobKind::Execute,
 						cpu_time_start,
 						execution_timeout,
-						finished_flag_2,
+						finished_rx,
 					);
 				})
 				.fuse();
@@ -280,7 +276,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 					}
 				},
 				execute_res = execute_fut => {
-					finished_flag.store(true, Ordering::Relaxed);
+					finished_tx.send(()).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 					execute_res.unwrap_or_else(|e| Response::InternalError(format!("{}", e)))
 				},
 			};

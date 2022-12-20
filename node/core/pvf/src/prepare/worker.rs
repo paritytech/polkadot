@@ -31,10 +31,7 @@ use sp_core::hexdisplay::HexDisplay;
 use std::{
 	panic,
 	path::{Path, PathBuf},
-	sync::{
-		atomic::{AtomicBool, Ordering},
-		Arc,
-	},
+	sync::{mpsc::channel, Arc},
 	time::Duration,
 };
 use tokio::{io, net::UnixStream};
@@ -312,19 +309,18 @@ pub fn worker_entrypoint(socket_path: &str) {
 				"worker: preparing artifact",
 			);
 
-			// Flag used only to signal to the cpu time monitor thread that it can finish.
-			let finished_flag = Arc::new(AtomicBool::new(false));
+			// Used to signal to the cpu time monitor thread that it can finish.
+			let (finished_tx, finished_rx) = channel::<()>();
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor.
-			let finished_flag_2 = finished_flag.clone();
 			let thread_fut = rt_handle
 				.spawn_blocking(move || {
 					cpu_time_monitor_loop(
 						JobKind::Prepare,
 						cpu_time_start,
 						preparation_timeout,
-						finished_flag_2,
+						finished_rx,
 					)
 				})
 				.fuse();
@@ -344,7 +340,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 				},
 				compilation_res = prepare_fut => {
 					let cpu_time_elapsed = cpu_time_start.elapsed();
-					finished_flag.store(true, Ordering::Relaxed);
+					finished_tx.send(()).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
 
 					match compilation_res.unwrap_or_else(|_| Err(PrepareError::IoErr)) {
 						Err(err) => {

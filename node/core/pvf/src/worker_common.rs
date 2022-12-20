@@ -26,10 +26,7 @@ use std::{
 	fmt, mem,
 	path::{Path, PathBuf},
 	pin::Pin,
-	sync::{
-		atomic::{AtomicBool, Ordering},
-		Arc,
-	},
+	sync::mpsc::Receiver,
 	task::{Context, Poll},
 	time::Duration,
 };
@@ -221,13 +218,9 @@ pub fn cpu_time_monitor_loop(
 	job_kind: JobKind,
 	cpu_time_start: ProcessTime,
 	timeout: Duration,
-	finished_flag: Arc<AtomicBool>,
+	finished_rx: Receiver<()>,
 ) {
 	loop {
-		if finished_flag.load(Ordering::Relaxed) {
-			return
-		}
-
 		let cpu_time_elapsed = cpu_time_start.elapsed();
 
 		// Treat the timeout as CPU time, which is less subject to variance due to load.
@@ -235,8 +228,12 @@ pub fn cpu_time_monitor_loop(
 			// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep
 			// is wall clock time. The CPU clock may be slower than the wall clock.
 			let sleep_interval = timeout.saturating_sub(cpu_time_elapsed) + JOB_TIMEOUT_OVERHEAD;
-			std::thread::sleep(sleep_interval);
-			continue
+			match finished_rx.recv_timeout(sleep_interval) {
+				// Received finish signal.
+				Ok(()) => return,
+				// Timed out, restart loop.
+				Err(_) => continue,
+			}
 		}
 
 		// Log if we exceed the timeout.
