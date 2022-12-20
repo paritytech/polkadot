@@ -82,7 +82,7 @@ pub async fn start_work(
 	artifact_path: PathBuf,
 	preparation_timeout: Duration,
 ) -> Outcome {
-	let IdleWorker { mut stream, pid } = worker;
+	let IdleWorker { stream, pid } = worker;
 
 	gum::debug!(
 		target: LOG_TARGET,
@@ -91,7 +91,7 @@ pub async fn start_work(
 		artifact_path.display(),
 	);
 
-	with_tmp_file(stream.clone(), pid, cache_path, |tmp_file| async move {
+	with_tmp_file(stream, pid, cache_path, |tmp_file, mut stream| async move {
 		if let Err(err) = send_request(&mut stream, code, &tmp_file, preparation_timeout).await {
 			gum::warn!(
 				target: LOG_TARGET,
@@ -194,11 +194,6 @@ async fn handle_response_bytes(
 			preparation_timeout.as_millis(),
 			tmp_file.display(),
 		);
-
-		// Return a timeout error.
-		//
-		// NOTE: The artifact exists, but is located in a temporary file which
-		// will be cleared by `with_tmp_file`.
 		return Outcome::TimedOut
 	}
 
@@ -210,10 +205,9 @@ async fn handle_response_bytes(
 		artifact_path.display(),
 	);
 
-	tokio::fs::rename(&tmp_file, &artifact_path)
-		.await
-		.map(|_| Outcome::Concluded { worker, result })
-		.unwrap_or_else(|err| {
+	match tokio::fs::rename(&tmp_file, &artifact_path).await {
+		Ok(()) => Outcome::Concluded { worker, result },
+		Err(err) => {
 			gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
@@ -223,7 +217,8 @@ async fn handle_response_bytes(
 				err,
 			);
 			Outcome::RenameTmpFileErr { worker, result, err: format!("{:?}", err) }
-		})
+		},
+	}
 }
 
 /// Create a temporary file for an artifact at the given cache path and execute the given
@@ -233,7 +228,7 @@ async fn handle_response_bytes(
 async fn with_tmp_file<F, Fut>(stream: UnixStream, pid: u32, cache_path: &Path, f: F) -> Outcome
 where
 	Fut: futures::Future<Output = Outcome>,
-	F: FnOnce(PathBuf) -> Fut,
+	F: FnOnce(PathBuf, UnixStream) -> Fut,
 {
 	let tmp_file = match tmpfile_in("prepare-artifact-", cache_path).await {
 		Ok(f) => f,
@@ -251,7 +246,7 @@ where
 		},
 	};
 
-	let outcome = f(tmp_file.clone()).await;
+	let outcome = f(tmp_file.clone(), stream).await;
 
 	// The function called above is expected to move `tmp_file` to a new location upon success. However,
 	// the function may as well fail and in that case we should remove the tmp file here.
@@ -344,14 +339,14 @@ pub fn worker_entrypoint(socket_path: &str) {
 				join_res = thread_fut => {
 					match join_res {
 						Ok(()) => Err(PrepareError::TimedOut),
-						Err(_) => Err(PrepareError::DidNotMakeIt),
+						Err(_) => Err(PrepareError::IoErr),
 					}
 				},
 				compilation_res = prepare_fut => {
 					let cpu_time_elapsed = cpu_time_start.elapsed();
 					finished_flag.store(true, Ordering::Relaxed);
 
-					match compilation_res.unwrap_or_else(|_| Err(PrepareError::DidNotMakeIt)) {
+					match compilation_res.unwrap_or_else(|_| Err(PrepareError::IoErr)) {
 						Err(err) => {
 							// Serialized error will be written into the socket.
 							Err(err)

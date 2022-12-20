@@ -16,7 +16,7 @@
 
 //! Common logic for implementation of worker processes.
 
-use crate::{execute::ExecuteResponse, PrepareError, LOG_TARGET};
+use crate::LOG_TARGET;
 use cpu_time::ProcessTime;
 use futures::{never::Never, FutureExt as _};
 use futures_timer::Delay;
@@ -187,21 +187,12 @@ where
 			let stream = UnixStream::connect(socket_path).await?;
 			let _ = tokio::fs::remove_file(socket_path).await;
 
-			let result = event_loop(handle.clone(), stream.clone()).await;
-
-			if let Err(err) = stream.shutdown(Shutdown::Both) {
-				// Log, but don't return error here, as it may shadow any error from `event_loop`.
-				gum::debug!(
-					target: LOG_TARGET,
-					"error shutting down stream at path {}: {}",
-					socket_path,
-					err
-				);
-			}
+			let result = event_loop(handle.clone(), stream).await;
 
 			result
 		})
-		.unwrap_err(); // it's never `Ok` because it's `Ok(Never)`
+		// It's never `Ok` because it's `Ok(Never)`.
+		.unwrap_err();
 
 	gum::debug!(
 		target: LOG_TARGET,
