@@ -580,12 +580,12 @@ impl sp_blockchain::HeaderBackend<Block> for Client {
 		}
 	}
 
-	fn status(&self, id: BlockId<Block>) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+	fn status(&self, hash: Hash) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
 		with_client! {
 			self,
 			client,
 			{
-				client.status(id)
+				client.status(hash)
 			}
 		}
 	}
