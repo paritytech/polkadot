@@ -1601,6 +1601,7 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 pub type Migrations = (
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, xcm_config::CheckAccount>,
 	crowdloan::migration::MigrateToTrackInactive<Runtime>,
+	pallet_scheduler::migration::v4::CleanupAgendas,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.

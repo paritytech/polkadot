@@ -1489,6 +1489,7 @@ pub type Migrations = (
 		Runtime,
 		governance::FellowshipReferendaInstance,
 	>,
+	pallet_scheduler::migration::v4::CleanupAgendas,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
