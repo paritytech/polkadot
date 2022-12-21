@@ -46,7 +46,9 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
-mod migration;
+pub mod migration;
+
+const LOG_TARGET: &str = "runtime::disputes";
 
 /// Whether the dispute is local or remote.
 #[derive(Encode, Decode, Clone, PartialEq, Eq, RuntimeDebug, TypeInfo)]
