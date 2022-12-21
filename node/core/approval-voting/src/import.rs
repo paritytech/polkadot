@@ -391,18 +391,18 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	match span {
 		Some(span) => {
 			span.add_uint_tag("new-blocks", new_blocks.len() as u64);
-			gum::trace!{
+			gum::trace! {
 				target: LOG_TARGET,
 				?new_blocks,
 				"New blocks tag added to 'approval-voting' span",
 			}
 		},
 		None => {
-			gum::trace!{
+			gum::trace! {
 				target: LOG_TARGET,
 				"No 'approval-voting' span to tag"
 			}
-		}
+		},
 	}
 
 	if new_blocks.is_empty() {
@@ -1260,9 +1260,16 @@ pub(crate) mod tests {
 			Box::pin(async move {
 				let mut mock_span = jaeger::PerLeafSpan::default();
 				let mut overlay_db = OverlayedBackend::new(&db);
-				let result = handle_new_head(&mut ctx, &mut state, &mut overlay_db, hash, &Some(1), Some(&mut mock_span))
-					.await
-					.unwrap();
+				let result = handle_new_head(
+					&mut ctx,
+					&mut state,
+					&mut overlay_db,
+					hash,
+					&Some(1),
+					Some(&mut mock_span),
+				)
+				.await
+				.unwrap();
 
 				let write_ops = overlay_db.into_write_ops();
 				db.write(write_ops).unwrap();
