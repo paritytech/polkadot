@@ -525,6 +525,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_unfreeze())]
 		pub fn force_unfreeze(origin: OriginFor<T>) -> DispatchResult {
 			ensure_root(origin)?;

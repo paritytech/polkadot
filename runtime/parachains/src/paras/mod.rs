@@ -788,6 +788,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Set the storage for the parachain validation code immediately.
+		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_code(new_code.0.len() as u32))]
 		pub fn force_set_current_code(
 			origin: OriginFor<T>,
@@ -815,6 +816,7 @@ pub mod pallet {
 		}
 
 		/// Set the storage for the current parachain head data immediately.
+		#[pallet::call_index(1)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_head(new_head.0.len() as u32))]
 		pub fn force_set_current_head(
 			origin: OriginFor<T>,
@@ -827,6 +829,7 @@ pub mod pallet {
 		}
 
 		/// Schedule an upgrade as if it was scheduled in the given relay parent block.
+		#[pallet::call_index(2)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_schedule_code_upgrade(new_code.0.len() as u32))]
 		pub fn force_schedule_code_upgrade(
 			origin: OriginFor<T>,
@@ -842,6 +845,7 @@ pub mod pallet {
 		}
 
 		/// Note a new block head for para within the context of the current block.
+		#[pallet::call_index(3)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_note_new_head(new_head.0.len() as u32))]
 		pub fn force_note_new_head(
 			origin: OriginFor<T>,
@@ -858,6 +862,7 @@ pub mod pallet {
 		/// Put a parachain directly into the next session's action queue.
 		/// We can't queue it any sooner than this without going into the
 		/// initializer...
+		#[pallet::call_index(4)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_queue_action())]
 		pub fn force_queue_action(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
@@ -884,6 +889,7 @@ pub mod pallet {
 		///
 		/// This function is mainly meant to be used for upgrading parachains that do not follow
 		/// the go-ahead signal while the PVF pre-checking feature is enabled.
+		#[pallet::call_index(5)]
 		#[pallet::weight(<T as Config>::WeightInfo::add_trusted_validation_code(validation_code.0.len() as u32))]
 		pub fn add_trusted_validation_code(
 			origin: OriginFor<T>,
@@ -932,6 +938,7 @@ pub mod pallet {
 		/// This is better than removing the storage directly, because it will not remove the code
 		/// that was suddenly got used by some parachain while this dispatchable was pending
 		/// dispatching.
+		#[pallet::call_index(6)]
 		#[pallet::weight(<T as Config>::WeightInfo::poke_unused_validation_code())]
 		pub fn poke_unused_validation_code(
 			origin: OriginFor<T>,
@@ -946,6 +953,7 @@ pub mod pallet {
 
 		/// Includes a statement for a PVF pre-checking vote. Potentially, finalizes the vote and
 		/// enacts the results if that was the last vote before achieving the supermajority.
+		#[pallet::call_index(7)]
 		#[pallet::weight(
 			<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_accept()
 				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject())

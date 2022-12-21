@@ -200,6 +200,7 @@ pub mod pallet {
 	impl<T: Config> Pallet<T> {
 		// TODO: Benchmark this
 		/// Assign a permanent parachain slot and immediately create a lease for it.
+		#[pallet::call_index(0)]
 		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
 		pub fn assign_perm_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			T::AssignSlotOrigin::ensure_origin(origin)?;
@@ -258,6 +259,7 @@ pub mod pallet {
 		/// Assign a temporary parachain slot. The function tries to create a lease for it
 		/// immediately if `SlotLeasePeriodStart::Current` is specified, and if the number
 		/// of currently active temporary slots is below `MaxTemporarySlotPerLeasePeriod`.
+		#[pallet::call_index(1)]
 		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
 		pub fn assign_temp_parachain_slot(
 			origin: OriginFor<T>,
@@ -341,6 +343,7 @@ pub mod pallet {
 
 		// TODO: Benchmark this
 		/// Unassign a permanent or temporary parachain slot
+		#[pallet::call_index(2)]
 		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
 		pub fn unassign_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			T::AssignSlotOrigin::ensure_origin(origin.clone())?;

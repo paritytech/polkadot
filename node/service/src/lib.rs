@@ -161,10 +161,7 @@ where
 		&self,
 		hash: Block::Hash,
 	) -> sp_blockchain::Result<Option<<Block as BlockT>::Header>> {
-		<Self as sp_blockchain::HeaderBackend<Block>>::header(
-			self,
-			generic::BlockId::<Block>::Hash(hash),
-		)
+		<Self as sp_blockchain::HeaderBackend<Block>>::header(self, hash)
 	}
 	fn number(
 		&self,
@@ -701,7 +698,7 @@ where
 				return None
 			};
 
-			let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
+			let parent_hash = client.header(hash).ok()??.parent_hash;
 
 			Some(BlockInfo { hash, parent_hash, number })
 		})
@@ -1112,8 +1109,8 @@ where
 					pin_mut!(forward);
 
 					select! {
-						_ = forward => (),
-						_ = overseer_fut => (),
+						() = forward => (),
+						() = overseer_fut => (),
 						complete => (),
 					}
 				}),
