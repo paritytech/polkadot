@@ -55,6 +55,7 @@ use polkadot_primitives::{
 		ValidatorIndex, ValidatorPair, ValidatorSignature,
 	},
 	v3::SessionInfo,
+	vstaging::ExecutorParams,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -199,12 +200,6 @@ impl Metrics {
 	fn on_approval_unavailable(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.approvals_produced_total.with_label_values(&["unavailable"]).inc()
-		}
-	}
-
-	fn on_approval_no_session_info(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.approvals_produced_total.with_label_values(&["no session info"]).inc()
 		}
 	}
 
@@ -754,6 +749,7 @@ enum Action {
 		relay_block_hash: Hash,
 		candidate_index: CandidateIndex,
 		session: SessionIndex,
+		executor_params: ExecutorParams,
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
 	},
@@ -969,6 +965,7 @@ async fn handle_actions<Context>(
 				relay_block_hash,
 				candidate_index,
 				session,
+				executor_params,
 				candidate,
 				backing_group,
 			} => {
@@ -1009,6 +1006,7 @@ async fn handle_actions<Context>(
 										ctx,
 										metrics.clone(),
 										session,
+										executor_params,
 										candidate,
 										validator_index,
 										block_hash,
@@ -2247,6 +2245,7 @@ fn process_wakeup(
 				relay_block_hash: relay_block,
 				candidate_index: i as _,
 				session: block_entry.session(),
+				executor_params: session_info.executor_params.clone(),
 				candidate: candidate_receipt,
 				backing_group,
 			});
@@ -2280,6 +2279,7 @@ async fn launch_approval<Context>(
 	ctx: &mut Context,
 	metrics: Metrics,
 	session_index: SessionIndex,
+	executor_params: ExecutorParams,
 	candidate: CandidateReceipt,
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
@@ -2400,35 +2400,6 @@ async fn launch_approval<Context>(
 			},
 		};
 
-		let (session_info_tx, session_info_rx) = oneshot::channel();
-		sender
-			.send_message(RuntimeApiMessage::Request(
-				candidate.descriptor.relay_parent,
-				RuntimeApiRequest::SessionInfo(session_index, session_info_tx),
-			))
-			.await;
-
-		let session_info = match session_info_rx.await {
-			Err(oneshot::Canceled) => {
-				gum::warn!(
-					target: LOG_TARGET,
-					"`Oneshot` got cancelled when retrieving session info for session {:?}",
-					session_index,
-				);
-				return ApprovalState::failed(validator_index, candidate_hash)
-			},
-			Ok(Ok(Some(session_info))) => session_info,
-			Ok(Err(_)) | Ok(Ok(None)) => {
-				gum::warn!(
-					target: LOG_TARGET,
-					"Failed to retrieve session info for session {:?}",
-					session_index,
-				);
-				metrics_guard.take().on_approval_no_session_info();
-				return ApprovalState::failed(validator_index, candidate_hash)
-			},
-		};
-
 		let (val_tx, val_rx) = oneshot::channel();
 
 		sender
@@ -2437,7 +2408,7 @@ async fn launch_approval<Context>(
 				validation_code,
 				candidate.clone(),
 				available_data.pov,
-				session_info.executor_params,
+				executor_params,
 				APPROVAL_EXECUTION_TIMEOUT,
 				val_tx,
 			))
