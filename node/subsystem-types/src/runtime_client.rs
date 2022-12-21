@@ -17,14 +17,14 @@
 use async_trait::async_trait;
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
-	v2::{
+	v3,
+	v3::{
 		Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
 		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id,
 		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
 		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex,
 		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	v3,
 };
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;

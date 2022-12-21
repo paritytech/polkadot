@@ -19,7 +19,7 @@
 #![warn(missing_docs)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-// `v2` is currently the latest stable version of the runtime API.
+// `v3` is currently the latest stable version of the runtime API.
 pub mod v2;
 pub mod v3;
 

@@ -597,7 +597,7 @@ mod tests {
 		SubsystemContext,
 	};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_primitives::v2::Header;
+	use polkadot_primitives::v3::Header;
 	use sp_core::testing::TaskExecutor;
 
 	const SESSION_DATA_COL: u32 = 0;

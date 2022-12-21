@@ -21,15 +21,12 @@ use crate::{
 	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
 	session_info, shared,
 };
-use primitives::{
-	v2::{
-		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
-		CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-		InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-		PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, ValidationCode,
-		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
-	},
-	v3::SessionInfo,
+use primitives::v3::{
+	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
+	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -259,7 +256,7 @@ pub fn assumed_validation_data<T: initializer::Config>(
 /// Implementation for the `check_validation_outputs` function of the runtime API.
 pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
-	outputs: primitives::v2::CandidateCommitments,
+	outputs: primitives::v3::CandidateCommitments,
 ) -> bool {
 	<inclusion::Pallet<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
 }

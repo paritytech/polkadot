@@ -21,7 +21,7 @@ use rand::{seq::SliceRandom, thread_rng};
 
 use polkadot_node_subsystem::overseer;
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v2::{
+use polkadot_primitives::v3::{
 	AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex, ValidatorIndex,
 };
 

@@ -28,7 +28,7 @@ use futures::{select, FutureExt};
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::ProvisionerMessage, overseer::Handle,
 };
-use polkadot_primitives::v2::{Block, Hash, InherentData as ParachainsInherentData};
+use polkadot_primitives::v3::{Block, Hash, InherentData as ParachainsInherentData};
 use sp_runtime::generic::BlockId;
 use std::{sync::Arc, time};
 
@@ -141,7 +141,7 @@ impl<C: sp_blockchain::HeaderBackend<Block>> sp_inherents::InherentDataProvider
 		.map_err(|e| sp_inherents::Error::Application(Box::new(e)))?;
 
 		dst_inherent_data
-			.put_data(polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER, &inherent_data)
+			.put_data(polkadot_primitives::v3::PARACHAINS_INHERENT_IDENTIFIER, &inherent_data)
 	}
 
 	async fn try_handle_error(

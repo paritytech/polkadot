@@ -28,7 +28,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem::{messages::NetworkBridgeTxMessage, overseer};
 use polkadot_node_subsystem_util::{metrics, runtime::RuntimeInfo};
-use polkadot_primitives::v2::{
+use polkadot_primitives::v3::{
 	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex,
 };
 

@@ -19,15 +19,12 @@ use std::{collections::btree_map::BTreeMap, num::NonZeroUsize};
 use lru::LruCache;
 use sp_consensus_babe::Epoch;
 
-use polkadot_primitives::{
-	v2::{
-		AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
-		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex,
-		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
-	},
-	v3::SessionInfo,
+use polkadot_primitives::v3::{
+	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 /// For consistency we have the same capacity for all caches. We use 128 as we'll only need that

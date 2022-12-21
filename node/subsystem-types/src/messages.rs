@@ -39,19 +39,18 @@ use polkadot_node_primitives::{
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::{
-	v2::{
+	v3::{
 		AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
 		CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
 		DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
 		InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
 		OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex,
-		SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
+		SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
 		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 	},
-	v3::SessionInfo,
 	vstaging::ExecutorParams,
 };
-use polkadot_statement_table::v2::Misbehavior;
+use polkadot_statement_table::v3::Misbehavior;
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
 	sync::Arc,
@@ -649,7 +648,7 @@ pub enum RuntimeApiRequest {
 	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
 	CheckValidationOutputs(
 		ParaId,
-		polkadot_primitives::v2::CandidateCommitments,
+		polkadot_primitives::v3::CandidateCommitments,
 		RuntimeApiSender<bool>,
 	),
 	/// Get the session index that a child of the block will have.
@@ -679,7 +678,7 @@ pub enum RuntimeApiRequest {
 	/// Get information about the BABE epoch the block was included in.
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 	/// Get all disputes in relation to a relay parent.
-	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v2::ScrapedOnChainVotes>>),
+	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v3::ScrapedOnChainVotes>>),
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	SubmitPvfCheckStatement(PvfCheckStatement, ValidatorSignature, RuntimeApiSender<()>),
 	/// Returns code hashes of PVFs that require pre-checking by validators in the active set.

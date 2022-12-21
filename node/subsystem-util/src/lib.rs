@@ -40,14 +40,12 @@ pub use polkadot_node_metrics::{metrics, Metronome};
 use futures::channel::{mpsc, oneshot};
 use parity_scale_codec::Encode;
 
-use polkadot_primitives::{
-	v2::{
-		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
-		GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-		PersistedValidationData, ScrapedOnChainVotes, SessionIndex, Signed, SigningContext,
-		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
-	},
-	v3::SessionInfo,
+use polkadot_primitives::v3::{
+	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
+	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
+	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed,
+	SigningContext, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 pub use rand;
 use sp_application_crypto::AppKey;

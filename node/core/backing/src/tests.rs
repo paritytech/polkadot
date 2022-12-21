@@ -30,7 +30,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_primitives::v2::{
+use polkadot_primitives::v3::{
 	CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData, PersistedValidationData,
 	ScheduledCore,
 };
@@ -38,7 +38,7 @@ use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{CryptoStore, SyncCryptoStore};
 use sp_tracing as _;
-use statement_table::v2::Misbehavior;
+use statement_table::v3::Misbehavior;
 use std::collections::HashMap;
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {

@@ -49,12 +49,11 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::{
-	v2::{
+	v3::{
 		ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
-		DisputeStatement, GroupIndex, Hash, SessionIndex, ValidDisputeStatementKind, ValidatorId,
-		ValidatorIndex, ValidatorPair, ValidatorSignature,
+		DisputeStatement, GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind,
+		ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 	},
-	v3::SessionInfo,
 	vstaging::ExecutorParams,
 };
 use sc_keystore::LocalKeystore;

@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::{
 	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
 	request_validators, session_info_at_relay_parent, Validator,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::v3::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SigningContext,
 	ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
@@ -56,7 +56,7 @@ use polkadot_primitives::v2::{
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
-	v2::{
+	v3::{
 		SignedStatement as TableSignedStatement, Statement as TableStatement,
 		Summary as TableSummary,
 	},
@@ -587,7 +587,7 @@ async fn make_pov_available(
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
-	validation_data: polkadot_primitives::v2::PersistedValidationData,
+	validation_data: polkadot_primitives::v3::PersistedValidationData,
 	expected_erasure_root: Hash,
 	span: Option<&jaeger::Span>,
 ) -> Result<Result<(), InvalidErasureRoot>, Error> {
