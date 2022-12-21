@@ -57,18 +57,11 @@ pub mod v1 {
 		let mut weight: Weight = Weight::zero();
 
 		// SpamSlots should not contain too many keys so removing everything at once should be safe
-		loop {
-			let res = SpamSlots::<T>::clear(u32::MAX, None);
-			// `loops` is the number of iterations => used to calculate read weights
-			// `backend` is the number of keys removed from the backend => used to calculate write weights
-			weight = weight.saturating_add(
-				T::DbWeight::get().reads_writes(res.loops as u64, res.backend as u64),
-			);
-
-			if res.maybe_cursor.is_none() {
-				break
-			}
-		}
+		let res = SpamSlots::<T>::clear(u32::MAX, None);
+		// `loops` is the number of iterations => used to calculate read weights
+		// `backend` is the number of keys removed from the backend => used to calculate write weights
+		weight = weight
+			.saturating_add(T::DbWeight::get().reads_writes(res.loops as u64, res.backend as u64));
 
 		weight
 	}
