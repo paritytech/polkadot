@@ -1149,7 +1149,7 @@ async fn handle_from_overseer<Context>(
 					db,
 					head,
 					&*last_finalized_height,
-					&mut span,
+					Some(&mut span),
 				)
 				.await
 				{
