@@ -19,6 +19,7 @@
 use crate::{execute::ExecuteResponse, PrepareError, LOG_TARGET};
 use async_std::{
 	io,
+	net::Shutdown,
 	os::unix::net::{UnixListener, UnixStream},
 	path::{Path, PathBuf},
 };
@@ -185,7 +186,19 @@ where
 		let stream = UnixStream::connect(socket_path).await?;
 		let _ = async_std::fs::remove_file(socket_path).await;
 
-		event_loop(stream).await
+		let result = event_loop(stream.clone()).await;
+
+		if let Err(err) = stream.shutdown(Shutdown::Both) {
+			// Log, but don't return error here, as it may shadow any error from `event_loop`.
+			gum::debug!(
+				target: LOG_TARGET,
+				"error shutting down stream at path {}: {}",
+				socket_path,
+				err
+			);
+		}
+
+		result
 	})
 	.unwrap_err(); // it's never `Ok` because it's `Ok(Never)`
 

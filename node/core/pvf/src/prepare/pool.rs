@@ -22,7 +22,6 @@ use crate::{
 	LOG_TARGET,
 };
 use always_assert::never;
-use assert_matches::assert_matches;
 use async_std::path::{Path, PathBuf};
 use futures::{
 	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
@@ -232,7 +231,7 @@ fn handle_to_pool(
 					// items concluded;
 					// thus idle token is Some;
 					// qed.
-					never!("unexpected abscence of the idle token in prepare pool");
+					never!("unexpected absence of the idle token in prepare pool");
 				}
 			} else {
 				// That's a relatively normal situation since the queue may send `start_work` and
@@ -294,29 +293,28 @@ fn handle_mux(
 			Ok(())
 		},
 		PoolEvent::StartWork(worker, outcome) => {
-			// If we receive any outcome other than `Concluded`, we attempt to kill the worker
-			// process.
+			// If we receive an outcome that the worker is unreachable or that an error occurred on
+			// the worker, we attempt to kill the worker process.
 			match outcome {
-				Outcome::Concluded { worker: idle, result } => {
-					let data = match spawned.get_mut(worker) {
-						None => {
-							// Perhaps the worker was killed meanwhile and the result is no longer
-							// relevant. We already send `Rip` when purging if we detect that the
-							// worker is dead.
-							return Ok(())
-						},
-						Some(data) => data,
-					};
-
-					// We just replace the idle worker that was loaned from this option during
-					// the work starting.
-					let old = data.idle.replace(idle);
-					assert_matches!(old, None, "attempt to overwrite an idle worker");
-
-					reply(from_pool, FromPool::Concluded { worker, rip: false, result })?;
-
-					Ok(())
-				},
+				Outcome::Concluded { worker: idle, result } =>
+					handle_concluded_no_rip(from_pool, spawned, worker, idle, result),
+				// Return `Concluded`, but do not kill the worker since the error was on the host side.
+				Outcome::CreateTmpFileErr { worker: idle, err } => handle_concluded_no_rip(
+					from_pool,
+					spawned,
+					worker,
+					idle,
+					Err(PrepareError::CreateTmpFileErr(err)),
+				),
+				// Return `Concluded`, but do not kill the worker since the error was on the host side.
+				Outcome::RenameTmpFileErr { worker: idle, result: _, err } =>
+					handle_concluded_no_rip(
+						from_pool,
+						spawned,
+						worker,
+						idle,
+						Err(PrepareError::RenameTmpFileErr(err)),
+					),
 				Outcome::Unreachable => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(from_pool, FromPool::Rip(worker))?;
@@ -324,14 +322,14 @@ fn handle_mux(
 
 					Ok(())
 				},
-				Outcome::DidNotMakeIt => {
+				Outcome::IoErr => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(
 							from_pool,
 							FromPool::Concluded {
 								worker,
 								rip: true,
-								result: Err(PrepareError::DidNotMakeIt),
+								result: Err(PrepareError::IoErr),
 							},
 						)?;
 					}
@@ -378,6 +376,40 @@ fn attempt_retire(
 	} else {
 		false
 	}
+}
+
+/// Handles the case where we received a response. There potentially was an error, but not the fault
+/// of the worker as far as we know, so the worker should not be killed.
+///
+/// This function tries to put the idle worker back into the pool and then replies with
+/// `FromPool::Concluded` with `rip: false`.
+fn handle_concluded_no_rip(
+	from_pool: &mut mpsc::UnboundedSender<FromPool>,
+	spawned: &mut HopSlotMap<Worker, WorkerData>,
+	worker: Worker,
+	idle: IdleWorker,
+	result: PrepareResult,
+) -> Result<(), Fatal> {
+	let data = match spawned.get_mut(worker) {
+		None => {
+			// Perhaps the worker was killed meanwhile and the result is no longer relevant. We
+			// already send `Rip` when purging if we detect that the worker is dead.
+			return Ok(())
+		},
+		Some(data) => data,
+	};
+
+	// We just replace the idle worker that was loaned from this option during
+	// the work starting.
+	let old = data.idle.replace(idle);
+	never!(
+		old.is_some(),
+		"old idle worker was taken out when starting work; we only replace it here; qed"
+	);
+
+	reply(from_pool, FromPool::Concluded { worker, rip: false, result })?;
+
+	Ok(())
 }
 
 /// Spins up the pool and returns the future that should be polled to make the pool functional.
