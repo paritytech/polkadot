@@ -471,14 +471,6 @@ pub mod pallet {
 		T::BlockNumber,
 	>;
 
-	/// Maps session indices to a vector indicating the number of potentially-spam disputes
-	/// each validator is participating in. Potentially-spam disputes are remote disputes which have
-	/// fewer than `byzantine_threshold + 1` validators.
-	///
-	/// The i'th entry of the vector corresponds to the i'th validator in the session.
-	#[pallet::storage]
-	pub(super) type SpamSlots<T> = StorageMap<_, Twox64Concat, SessionIndex, Vec<u32>>;
-
 	/// Whether the chain is frozen. Starts as `None`. When this is `Some`,
 	/// the chain will not accept any new parachain blocks for backing or inclusion,
 	/// and its value indicates the last valid block number in the chain.
