@@ -390,12 +390,13 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 	match span {
 		Some(span) => {
-			span.add_uint_tag("new-blocks", new_blocks.len() as u64);
+			span.add_uint_tag("new-blocks-count", new_blocks.len() as u64);
+			span.add_string_tag("new-blocks-hashes", format!("{:?}", new_blocks));
 			gum::trace! {
 				target: LOG_TARGET,
 				?new_blocks,
 				"New blocks tag added to 'approval-voting' span",
-			}
+			};
 		},
 		None => {
 			gum::trace! {
