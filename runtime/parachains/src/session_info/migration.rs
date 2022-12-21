@@ -43,8 +43,7 @@ pub mod v2 {
 	#[cfg(feature = "try-runtime")]
 	use crate::shared;
 
-	/// The log target.
-	const TARGET: &'static str = "runtime::session_info::migration::v2";
+	const LOG_TARGET: &'static str = "runtime::session_info::migration::v2";
 
 	pub struct MigrateToV2<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config + session_info::pallet::Config> OnRuntimeUpgrade for MigrateToV2<T> {
@@ -52,7 +51,7 @@ pub mod v2 {
 			let db_weight = T::DbWeight::get();
 			let mut weight = db_weight.reads(1);
 			if StorageVersion::get::<Pallet<T>>() == 1 {
-				log::info!(target: TARGET, "Upgrading storage v1 -> v2");
+				log::info!(target: LOG_TARGET, "Upgrading storage v1 -> v2");
 				let mut vs = 0;
 
 				<Pallet<T> as Store>::Sessions::translate_values(
@@ -67,21 +66,21 @@ pub mod v2 {
 				STORAGE_VERSION.put::<Pallet<T>>();
 				weight += db_weight.writes(1);
 			} else {
-				log::warn!(target: TARGET, "Can only upgrade from version 1");
+				log::warn!(target: LOG_TARGET, "Can only upgrade from version 1");
 			}
 			weight
 		}
 
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-			log::info!(target: TARGET, "Performing pre-upgrade checks");
+			log::info!(target: LOG_TARGET, "Performing pre-upgrade checks");
 			assert_eq!(StorageVersion::get::<Pallet<T>>(), 1);
 			Ok(Default::default())
 		}
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade(_: Vec<u8>) -> Result<(), &'static str> {
-			log::info!(target: TARGET, "Performing post-upgrade checks");
+			log::info!(target: LOG_TARGET, "Performing post-upgrade checks");
 			assert_eq!(StorageVersion::get::<Pallet<T>>(), 2);
 			let session_index = <shared::Pallet<T>>::session_index();
 			let session_info = Pallet::<T>::session_info(session_index);
