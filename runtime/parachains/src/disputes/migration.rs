@@ -16,7 +16,6 @@
 
 //! Storage migration(s) related to disputes pallet
 
-#[allow(deprecated)]
 use crate::disputes::{pallet::SpamSlots, Config, Pallet};
 use frame_support::{
 	pallet_prelude::*,
@@ -46,7 +45,6 @@ pub fn migrate_to_v1<T: Config>() -> Weight {
 
 	// SpamSlots should not contain too many keys so removing everything at once should be safe
 	loop {
-		#[allow(deprecated)]
 		let res = SpamSlots::<T>::clear(u32::MAX, None);
 		// `loops` is the number of iterations => used to calculate read weights
 		// `backend` is the number of keys removed from the backend => used to calculate write weights
