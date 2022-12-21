@@ -54,7 +54,7 @@ pub use queues::{ParticipationPriority, ParticipationRequest, QueueError};
 #[cfg(not(test))]
 const MAX_PARALLEL_PARTICIPATIONS: usize = 3;
 #[cfg(test)]
-const MAX_PARALLEL_PARTICIPATIONS: usize = 1;
+pub(crate) const MAX_PARALLEL_PARTICIPATIONS: usize = 1;
 
 /// Keep track of disputes we need to participate in.
 ///
