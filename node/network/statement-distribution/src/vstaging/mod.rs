@@ -180,6 +180,7 @@ pub(crate) struct State {
 
 // For the provided validator index, if there is a connected peer
 // controlling the given authority ID,
+// TODO [now]: finish above doc.
 fn connected_validator_peer(
 	authorities: &HashMap<AuthorityDiscoveryId, PeerId>,
 	per_session: &PerSessionState,
@@ -212,13 +213,6 @@ impl PeerState {
 	fn is_authority(&self, authority_id: &AuthorityDiscoveryId) -> bool {
 		self.discovery_ids.as_ref().map_or(false, |x| x.contains(authority_id))
 	}
-}
-
-/// How many votes we need to consider a candidate backed.
-///
-/// WARNING: This has to be kept in sync with the runtime check in the inclusion module.
-fn minimum_votes(n_validators: usize) -> usize {
-	std::cmp::min(2, n_validators)
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
