@@ -3257,7 +3257,6 @@ fn participation_requests_reprioritized_for_newly_included() {
 
 			for (idx, candidate_receipt) in receipts.iter().enumerate() {
 				let candidate_hash = candidate_receipt.hash();
-				println!("Import of candidate with hash: {}", candidate_hash);
 
 				// Create votes for candidates
 				let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
