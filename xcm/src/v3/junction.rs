@@ -95,6 +95,15 @@ pub enum BodyId {
 	/// The unambiguous judicial body (this doesn't exist on Polkadot, but if it were to get a "grand oracle", it
 	/// may be considered as that).
 	Judicial,
+	/// The unambiguous defense body (for Polkadot, an opinion on the topic given via a public referendum
+	/// on the `staking_admin` track).
+	Defense,
+	/// The unambiguous administration body (for Polkadot, an opinion on the topic given via a public referendum
+	/// on the `general_admin` track).
+	Administration,
+	/// The unambiguous treasury body (for Polkadot, an opinion on the topic given via a public referendum
+	/// on the `treasurer` track).
+	Treasury,
 }
 
 impl TryFrom<OldBodyId> for BodyId {
@@ -116,6 +125,9 @@ impl TryFrom<OldBodyId> for BodyId {
 			Technical => Self::Technical,
 			Legislative => Self::Legislative,
 			Judicial => Self::Judicial,
+			Defense => Self::Defense,
+			Administration => Self::Administration,
+			Treasury => Self::Treasury,
 		})
 	}
 }
