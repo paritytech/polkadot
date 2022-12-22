@@ -449,6 +449,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 							(block_hash, block_header.number),
 							error,
 						);
+						imported_blocks_and_info_span
+							.add_string_tag("error", format!("Skipping chain: unable to gather info about imported block: {}, due to {:?}", block_hash, error));
 					}
 
 					return Ok(Vec::new())
