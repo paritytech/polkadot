@@ -22,6 +22,11 @@ use frame_support::{
 	Twox64Concat,
 };
 
+// TODO: Insert migration to set inactive balance to zero (this must happen first).
+// TODO: Insert migration to set treasury deactiavated balance to zero.
+// TODO: Re-enable this migration.
+// TODO: Re-enable checking account migration.
+
 pub struct MigrateToTrackInactive<T>(sp_std::marker::PhantomData<T>);
 impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactive<T> {
 	fn on_runtime_upgrade() -> Weight {
@@ -29,8 +34,8 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactive<T> {
 
 		if onchain_version == 0 {
 			let mut translated = 0u64;
-			for index in Funds::<T>::iter_keys() {
-				let b = CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(index.into()));
+			for (_, item) in Funds::<T>::iter() {
+				let b = CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(item.fund_index));
 				CurrencyOf::<T>::deactivate(b);
 				translated.saturating_inc();
 			}
