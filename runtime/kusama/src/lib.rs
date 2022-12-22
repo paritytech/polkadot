@@ -1455,9 +1455,13 @@ construct_runtime! {
 #[cfg(feature = "std")]
 #[test]
 fn dump_check_account() {
-	use sp_runtime::app_crypto::{Ss58Codec};
 	use sp_core::crypto::Ss58AddressFormatRegistry;
-	println!("{:?}", XcmPallet::check_account().to_ss58check_with_version(Ss58AddressFormatRegistry::KusamaAccount.into()));
+	use sp_runtime::app_crypto::Ss58Codec;
+	println!(
+		"{:?}",
+		XcmPallet::check_account()
+			.to_ss58check_with_version(Ss58AddressFormatRegistry::KusamaAccount.into())
+	);
 	assert!(false);
 }
 

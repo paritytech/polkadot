@@ -51,8 +51,6 @@
 
 pub mod migration;
 
-// TODO: Expose the total amount held.
-
 use crate::{
 	slot_range::SlotRange,
 	traits::{Auctioneer, Registrar},
