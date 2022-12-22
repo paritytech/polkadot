@@ -3013,7 +3013,7 @@ fn participation_for_included_candidates() {
 
 				assert_eq!(rx.await.unwrap().len(), 1);
 
-				// check if we have participated (casted a vote)
+				// check if we have participated (cast a vote)
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
 					.send(FromOrchestra::Communication {

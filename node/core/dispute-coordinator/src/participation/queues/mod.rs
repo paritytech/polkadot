@@ -161,9 +161,6 @@ impl Queues {
 
 	/// Reprioritizes any participation requests pertaining to the
 	/// passed candidates from best effort to priority.
-	///
-	/// Returns: Either a bool telling the caller whether the priority queue is now full
-	/// or an error resulting from the failed creation of a comparator.
 	pub async fn prioritize_if_present(
 		&mut self,
 		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
