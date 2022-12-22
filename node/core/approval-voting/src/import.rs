@@ -441,7 +441,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					let lost_to_finality = match rx.await {
 						Ok(Ok(Some(h))) if h != block_hash => {
 							imported_blocks_and_info_span
-								.add_string_tag("lost-to-finality", format!("{:?}", true);
+								.add_string_tag("lost-to-finality", format!("{:?}", true));
 							true
 						},
 						_ => false,
