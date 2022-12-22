@@ -354,7 +354,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			Ok(None) => {
 				gum::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
 				// May be a better way of handling warnings here.
-				get_header_span.add_string_tag("warn", format!("Missing header for new head {}", head));
+				get_header_span
+					.add_string_tag("warn", format!("Missing header for new head {}", head));
 				return Ok(Vec::new())
 			},
 			Ok(Some(h)) => {
@@ -412,7 +413,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 	// `determine_new_blocks` gives us a vec in backwards order. we want to move forwards.
 	let imported_blocks_and_info = {
-		let mut imported_blocks_and_info_span = handle_new_head_span.child("imported-blocks-and-info");
+		let mut imported_blocks_and_info_span =
+			handle_new_head_span.child("imported-blocks-and-info");
 		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
 		for (block_hash, block_header) in new_blocks.into_iter().rev() {
 			let env = ImportedBlockInfoEnv {
@@ -424,7 +426,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			match imported_block_info(ctx, env, block_hash, &block_header).await {
 				Ok(i) => {
 					imported_blocks_and_info.push((block_hash, block_header, i));
-					imported_blocks_and_info_span.add_string_tag("block-hash", format!("{:?}", block_hash));
+					imported_blocks_and_info_span
+						.add_string_tag("block-hash", format!("{:?}", block_hash));
 				},
 				Err(error) => {
 					// It's possible that we've lost a race with finality.
