@@ -359,7 +359,10 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				return Ok(Vec::new())
 			},
 			Ok(Some(h)) => {
-				get_header_span.add_string_tag("header", format!("{:?}", h));
+				get_header_span.add_string_tag("parent-hash", format!("{:?}", h.parent_hash));
+				get_header_span.add_string_tag("number", format!("{:?}", h.number));
+				get_header_span.add_string_tag("state_root", format!("{:?}", h.state_root));
+				get_header_span.add_string_tag("extrinsics_root", format!("{:?}", h.extrinsics_root));
 				h
 			},
 		}
