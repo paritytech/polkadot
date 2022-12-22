@@ -348,13 +348,13 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					e,
 				);
 				// May be a better way of handling errors here.
-				get_header_span.add_string_tag("error", "Chain API unreachable");
+				get_header_span.add_string_tag("error", format!("{:?}", e));
 				return Ok(Vec::new())
 			},
 			Ok(None) => {
 				gum::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
 				// May be a better way of handling warnings here.
-				get_header_span.add_string_tag("warn", "Missing header");
+				get_header_span.add_string_tag("warn", format!("Missing header for new head {}", head));
 				return Ok(Vec::new())
 			},
 			Ok(Some(h)) => {
