@@ -42,7 +42,7 @@ jobs:
           repo-token: "${{ secrets.RELEASE_BRANCH_TOKEN }}"
           tag: ${{ steps.compute_tag.outputs.new_tag }}
       - id: create-issue
-        uses: JasonEtco/create-an-issue@9e6213aec58987fa7d2f4deb8b256b99e63107a2 # v2.6.0
+        uses: JasonEtco/create-an-issue@4d7c131a30a822fb445196f0de8ed11991f9f8a7 # v2.9.0
         # Only create the issue if it's the first release candidate
         if: steps.compute_tag.outputs.first_rc == 'true'
         env:
