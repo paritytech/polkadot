@@ -213,7 +213,24 @@ impl RequestManager {
 		}
 	}
 
-	// TODO [now]: removal based on relay-parent.
+	/// Remove based on relay-parent.
+	pub fn remove_by_relay_parent(&mut self, relay_parent: Hash) {
+		// Remove from `by_priority` and `requests`.
+		self.by_priority.retain(|(_priority, id)| {
+			let retain = relay_parent != id.relay_parent;
+			if !retain {
+				self.requests.remove(id);
+			}
+			retain
+		});
+		// Remove from `unique_identifiers`.
+		for (_, candidate_identifier_set) in self.unique_identifiers.iter_mut() {
+			candidate_identifier_set.retain(|id| relay_parent != id.relay_parent);
+		}
+		// TODO: is this necessary?
+		// If any candidates don't have unique identifiers, remove them.
+		self.unique_identifiers.retain(|_, set| !set.is_empty());
+	}
 
 	/// Yields the next request to dispatch, if there is any.
 	///
@@ -614,6 +631,57 @@ fn insert_or_update_priority(
 #[cfg(test)]
 mod tests {
 	use super::*;
+
+	#[test]
+	fn test_remove_by_relay_parent() {
+		let parent_a = Hash::from_low_u64_le(10);
+		let parent_b = Hash::from_low_u64_le(11);
+		let parent_c = Hash::from_low_u64_le(12);
+
+		let candidate_a1 = CandidateHash(Hash::from_low_u64_le(101));
+		let candidate_a2 = CandidateHash(Hash::from_low_u64_le(102));
+		let candidate_b1 = CandidateHash(Hash::from_low_u64_le(111));
+		let candidate_b2 = CandidateHash(Hash::from_low_u64_le(112));
+		let candidate_c1 = CandidateHash(Hash::from_low_u64_le(121));
+		let duplicate_hash = CandidateHash(Hash::from_low_u64_le(121));
+
+		let mut request_manager = RequestManager::new();
+		request_manager.get_or_insert(parent_a, candidate_a1, 1.into());
+		request_manager.get_or_insert(parent_a, candidate_a2, 1.into());
+		request_manager.get_or_insert(parent_b, candidate_b1, 1.into());
+		request_manager.get_or_insert(parent_b, candidate_b2, 2.into());
+		request_manager.get_or_insert(parent_c, candidate_c1, 2.into());
+		request_manager.get_or_insert(parent_a, duplicate_hash, 1.into());
+
+		assert_eq!(request_manager.requests.len(), 6);
+		assert_eq!(request_manager.by_priority.len(), 6);
+		assert_eq!(request_manager.unique_identifiers.len(), 5);
+
+		request_manager.remove_by_relay_parent(parent_a);
+
+		assert_eq!(request_manager.requests.len(), 3);
+		assert_eq!(request_manager.by_priority.len(), 3);
+		assert_eq!(request_manager.unique_identifiers.len(), 3);
+
+		assert!(!request_manager.unique_identifiers.contains_key(&candidate_a1));
+		assert!(!request_manager.unique_identifiers.contains_key(&candidate_a2));
+		assert!(!request_manager.unique_identifiers.contains_key(&duplicate_hash));
+
+		request_manager.remove_by_relay_parent(parent_b);
+
+		assert_eq!(request_manager.requests.len(), 1);
+		assert_eq!(request_manager.by_priority.len(), 1);
+		assert_eq!(request_manager.unique_identifiers.len(), 1);
+
+		assert!(!request_manager.unique_identifiers.contains_key(&candidate_b1));
+		assert!(!request_manager.unique_identifiers.contains_key(&candidate_b2));
+
+		request_manager.remove_by_relay_parent(parent_c);
+
+		assert!(request_manager.requests.is_empty());
+		assert!(request_manager.requests.is_empty());
+		assert!(request_manager.requests.is_empty());
+	}
 
 	// TODO [now]: test priority ordering.
 }
