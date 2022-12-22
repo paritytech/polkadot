@@ -217,26 +217,26 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for RococoXcmWeight<RuntimeCall> {
 		XcmGeneric::<Runtime>::clear_transact_status()
 	}
 	fn universal_origin(_: &Junction) -> Weight {
-		// Kusama does not currently support universal origin operations
+		// Rococo does not currently support universal origin operations
 		Weight::MAX
 	}
 	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
 		Weight::MAX // todo fix
 	}
 	fn lock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Kusama does not currently support asset locking operations
+		// Rococo does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn unlock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Kusama does not currently support asset locking operations
+		// Rococo does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn note_unlockable(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Kusama does not currently support asset locking operations
+		// Rococo does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn request_unlock(_: &MultiAsset, _: &MultiLocation) -> Weight {
-		// Kusama does not currently support asset locking operations
+		// Rococo does not currently support asset locking operations
 		Weight::MAX
 	}
 	fn set_fees_mode(_: &bool) -> Weight {
