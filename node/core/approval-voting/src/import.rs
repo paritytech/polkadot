@@ -330,7 +330,14 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	span: Option<&mut jaeger::PerLeafSpan>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
+	
+	let handle_new_head_span = match span {
+		Some(ref span) => span.child("handle-new-head"),
+		None => jaeger::Span::Disabled
+	};
+
 	let header = {
+		let mut get_header_span = handle_new_head_span.child("get-header");
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
 		match h_rx.await? {
@@ -340,14 +347,20 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					"Chain API subsystem temporarily unreachable {}",
 					e,
 				);
-
+				// May be a better way of handling errors here.
+				get_header_span.add_string_tag("error", "Chain API unreachable");
 				return Ok(Vec::new())
 			},
 			Ok(None) => {
 				gum::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
+				// May be a better way of handling warnings here.
+				get_header_span.add_string_tag("warn", "Missing header");
 				return Ok(Vec::new())
 			},
-			Ok(Some(h)) => h,
+			Ok(Some(h)) => {
+				get_header_span.add_string_tag("header", format!("{:?}", h));
+				h
+			},
 		}
 	};
 
