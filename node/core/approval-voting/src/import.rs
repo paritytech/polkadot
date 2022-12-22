@@ -331,7 +331,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
 	
-	let handle_new_head_span = match span {
+	let mut handle_new_head_span = match span {
 		Some(ref span) => span.child("handle-new-head"),
 		None => jaeger::Span::Disabled
 	};
@@ -401,23 +401,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 	.await?;
 
-	match span {
-		Some(span) => {
-			span.add_uint_tag("new-blocks-count", new_blocks.len() as u64);
-			span.add_string_tag("new-blocks-hashes", format!("{:?}", new_blocks));
-			gum::trace! {
-				target: LOG_TARGET,
-				?new_blocks,
-				"New blocks tag added to 'approval-voting' span",
-			};
-		},
-		None => {
-			gum::trace! {
-				target: LOG_TARGET,
-				"No 'approval-voting' span to tag"
-			}
-		},
-	}
+	handle_new_head_span.add_uint_tag("new-blocks-count", new_blocks.len() as u64);
+	handle_new_head_span.add_string_tag("new-blocks-hashes", format!("{:?}", new_blocks));
 
 	if new_blocks.is_empty() {
 		return Ok(Vec::new())
