@@ -402,7 +402,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	.await?;
 
 	handle_new_head_span.add_uint_tag("new-blocks-count", new_blocks.len() as u64);
-	handle_new_head_span.add_string_tag("new-blocks-hashes", format!("{:?}", new_blocks));
 
 	if new_blocks.is_empty() {
 		return Ok(Vec::new())
@@ -413,6 +412,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 	// `determine_new_blocks` gives us a vec in backwards order. we want to move forwards.
 	let imported_blocks_and_info = {
+		let mut imported_blocks_and_info_span = handle_new_head_span.child("imported-blocks-and-info");
 		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
 		for (block_hash, block_header) in new_blocks.into_iter().rev() {
 			let env = ImportedBlockInfoEnv {
@@ -422,7 +422,10 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			};
 
 			match imported_block_info(ctx, env, block_hash, &block_header).await {
-				Ok(i) => imported_blocks_and_info.push((block_hash, block_header, i)),
+				Ok(i) => {
+					imported_blocks_and_info.push((block_hash, block_header, i));
+					imported_blocks_and_info_span.add_string_tag("block-hash", format!("{:?}", block_hash));
+				},
 				Err(error) => {
 					// It's possible that we've lost a race with finality.
 					let (tx, rx) = oneshot::channel();
