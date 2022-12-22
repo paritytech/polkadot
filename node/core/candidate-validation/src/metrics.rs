@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::{ValidationFailed, ValidationResult};
+use super::{InvalidCandidate, ValidationFailed, ValidationResult};
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 #[derive(Clone)]
@@ -32,32 +32,22 @@ pub struct Metrics(Option<MetricsInner>);
 impl Metrics {
 	pub fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
 		if let Some(metrics) = &self.0 {
-			match event {
-				Ok(ValidationResult::Valid(_, _)) => {
-					metrics.validation_requests.with_label_values(&["valid"]).inc();
+			let label = match event {
+				Ok(ValidationResult::Valid(_, _)) => &["valid"],
+				Ok(ValidationResult::Invalid(err)) => match err {
+					InvalidCandidate::PrevalidationError(_) => &["invalid (prevalidation)"],
+					InvalidCandidate::CompilationError(_) => &["invalid (compilation)"],
+					InvalidCandidate::PreparationTimeout => &["invalid (preparation timeout)"],
+					InvalidCandidate::ExecutionTimeout => &["invalid (execution timeout)"],
+					InvalidCandidate::PreparationError(_) => &["invalid (misc preparation)"],
+					InvalidCandidate::ExecutionError(_) => &["invalid (misc execution)"],
+					_ => &["invalid (misc)"],
 				},
-				Ok(ValidationResult::Invalid(_)) => {
-					metrics.validation_requests.with_label_values(&["invalid"]).inc();
-				},
-				Err(ValidationFailed::Prepare(_)) => {
-					metrics
-						.validation_requests
-						.with_label_values(&["internal failure (prepare)"])
-						.inc();
-				},
-				Err(ValidationFailed::Execute(_)) => {
-					metrics
-						.validation_requests
-						.with_label_values(&["internal failure (execute)"])
-						.inc();
-				},
-				Err(ValidationFailed::Other(_)) => {
-					metrics
-						.validation_requests
-						.with_label_values(&["internal failure (misc)"])
-						.inc();
-				},
-			}
+				Err(ValidationFailed::Prepare(_)) => &["internal failure (preparation)"],
+				Err(ValidationFailed::Execute(_)) => &["internal failure (execution)"],
+				Err(ValidationFailed::Other(_)) => &["internal failure (misc)"],
+			};
+			metrics.validation_requests.with_label_values(label).inc();
 		}
 	}
 

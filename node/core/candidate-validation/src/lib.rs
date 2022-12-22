@@ -560,24 +560,33 @@ async fn validate_candidate_exhaustive(
 	}
 
 	match result {
-		// TODO: More fine-grained variants?
+		// Internal errors.
 		Err(ValidationError::InternalPrepareError(e)) =>
 			Err(ValidationFailed::Prepare(e.to_string())),
 		Err(ValidationError::InternalExecuteError(e)) => Err(ValidationFailed::Execute(e)),
 		Err(ValidationError::InternalOtherError(e)) => Err(ValidationFailed::Other(e)),
 
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)) =>
-			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
-		// TODO: Split into some more fine-grained variants.
-			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)) =>
-			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
-				"ambiguous worker death".to_string(),
-			))),
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) =>
-		// TODO: Split into some more fine-grained variants.
-			Ok(ValidationResult::Invalid(InvalidCandidate::PreparationError(e.to_string()))),
+		// Invalid candidate errors.
+		Err(ValidationError::InvalidCandidate(e)) => match e {
+			// Execution errors.
+			WasmInvalidCandidate::HardTimeout =>
+				Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionTimeout)),
+			WasmInvalidCandidate::WorkerReportedError(e) =>
+				Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
+			WasmInvalidCandidate::AmbiguousWorkerDeath =>
+				Ok(ValidationResult::Invalid(InvalidCandidate::AmbiguousWorkerDeath)),
+
+			// Prepare errors.
+			WasmInvalidCandidate::PrepareError(PrepareError::Prevalidation(e)) =>
+				Ok(ValidationResult::Invalid(InvalidCandidate::PrevalidationError(e.to_string()))),
+			WasmInvalidCandidate::PrepareError(PrepareError::Preparation(e)) =>
+				Ok(ValidationResult::Invalid(InvalidCandidate::CompilationError(e.to_string()))),
+			WasmInvalidCandidate::PrepareError(PrepareError::TimedOut) =>
+				Ok(ValidationResult::Invalid(InvalidCandidate::PreparationTimeout)),
+			WasmInvalidCandidate::PrepareError(e) =>
+			// General preparation error.
+				Ok(ValidationResult::Invalid(InvalidCandidate::PreparationError(e.to_string()))),
+		},
 
 		Ok(res) =>
 			if res.head_data.hash() != candidate_receipt.descriptor.para_head {

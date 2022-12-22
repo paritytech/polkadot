@@ -227,14 +227,20 @@ pub type UncheckedSignedFullStatement = UncheckedSigned<Statement, CompactStatem
 /// Candidate invalidity details
 #[derive(Debug)]
 pub enum InvalidCandidate {
-	/// Failed to prepare `validate_block`. This includes function panicking.
+	/// Failed to prevalidate.
+	PrevalidationError(String),
+	/// Failed to compile.
+	CompilationError(String),
+	/// Failed to prepare in some other way. This includes function panicking.
 	PreparationError(String),
 	/// Failed to execute `validate_block`. This includes function panicking.
 	ExecutionError(String),
 	/// Validation outputs check doesn't pass.
 	InvalidOutputs,
+	/// Preparation timeout.
+	PreparationTimeout,
 	/// Execution timeout.
-	Timeout,
+	ExecutionTimeout,
 	/// Validation input is over the limit.
 	ParamsTooLarge(u64),
 	/// Code size is over the limit.
@@ -257,6 +263,9 @@ pub enum InvalidCandidate {
 	CodeHashMismatch,
 	/// Validation has generated different candidate commitments.
 	CommitmentsHashMismatch,
+	/// The worker has died during validation of a candidate. See
+	/// [`InvalidCandidate::AmbiguousWorkerDeath`].
+	AmbiguousWorkerDeath,
 }
 
 /// Result of the validation of the candidate.
