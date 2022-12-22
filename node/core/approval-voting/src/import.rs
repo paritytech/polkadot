@@ -330,10 +330,10 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	span: Option<&mut jaeger::PerLeafSpan>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
-	
+
 	let mut handle_new_head_span = match span {
 		Some(ref span) => span.child("handle-new-head"),
-		None => jaeger::Span::Disabled
+		None => jaeger::Span::Disabled,
 	};
 
 	let header = {
