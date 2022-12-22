@@ -439,7 +439,11 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 						.await;
 
 					let lost_to_finality = match rx.await {
-						Ok(Ok(Some(h))) if h != block_hash => true,
+						Ok(Ok(Some(h))) if h != block_hash => {
+							imported_blocks_and_info_span
+								.add_string_tag("lost-to-finality", format!("{:?}", true);
+							true
+						},
 						_ => false,
 					};
 
@@ -453,7 +457,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 							error,
 						);
 						imported_blocks_and_info_span
-							.add_string_tag("error", format!("Skipping chain: unable to gather info about imported block: {}, due to {:?}", block_hash, error));
+							.add_string_tag("error", format!("Skipping chain: unable to gather info about imported block with hash {} due to {:?}", block_hash, error));
 					}
 
 					return Ok(Vec::new())
