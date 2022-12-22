@@ -52,6 +52,8 @@ pub use queues::{ParticipationPriority, ParticipationRequest, QueueError};
 /// due to multi-core architectures, but the fetching itself can not be improved by parallel
 /// requests. This means that higher numbers make it harder for a single dispute to resolve fast.
 const MAX_PARALLEL_PARTICIPATIONS: usize = 3;
+#[cfg(test)]
+pub(crate) const MAX_PARALLEL_PARTICIPATIONS: usize = 1;
 
 /// Keep track of disputes we need to participate in.
 ///
