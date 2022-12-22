@@ -17,8 +17,9 @@
 //! XCM configurations for the Kusama runtime.
 
 use super::{
-	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, ParaId,
-	Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, Fellows,
+	ParaId, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin, WeightToFee,
+	XcmPallet,
 };
 use frame_support::{
 	match_types, parameter_types,
