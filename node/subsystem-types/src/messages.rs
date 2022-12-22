@@ -91,7 +91,14 @@ impl BoundToRelayParent for CandidateBackingMessage {
 /// Blanket error for validation failing for internal reasons.
 #[derive(Debug, Error)]
 #[error("Validation failed with {0:?}")]
-pub struct ValidationFailed(pub String);
+pub enum ValidationFailed {
+	/// Validation failed due to an internal prepare error.
+	Prepare(String),
+	/// Validation failed due to an internal execute error.
+	Execute(String),
+	/// Validation failed due to some other internal error.
+	Other(String),
+}
 
 /// The outcome of the candidate-validation's PVF pre-check request.
 #[derive(Debug, PartialEq)]

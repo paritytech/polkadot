@@ -433,7 +433,7 @@ where
 			Ok(None)
 		},
 		AssumptionCheckOutcome::BadRequest =>
-			Err(ValidationFailed("Assumption Check: Bad request".into())),
+			Err(ValidationFailed::Other("Assumption Check: Bad request".into())),
 	}
 }
 
@@ -483,7 +483,7 @@ where
 			Ok(true) => {},
 			Ok(false) => return Ok(ValidationResult::Invalid(InvalidCandidate::InvalidOutputs)),
 			Err(RuntimeRequestFailed) =>
-				return Err(ValidationFailed("Check Validation Outputs: Bad request".into())),
+				return Err(ValidationFailed::Other("Check Validation Outputs: Bad request".into())),
 		}
 	}
 
@@ -560,18 +560,24 @@ async fn validate_candidate_exhaustive(
 	}
 
 	match result {
-		Err(ValidationError::InternalError(e)) => Err(ValidationFailed(e)),
+		// TODO: More fine-grained variants?
+		Err(ValidationError::InternalPrepareError(e)) =>
+			Err(ValidationFailed::Prepare(e.to_string())),
+		Err(ValidationError::InternalExecuteError(e)) => Err(ValidationFailed::Execute(e)),
+		Err(ValidationError::InternalOtherError(e)) => Err(ValidationFailed::Other(e)),
 
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
+		// TODO: Split into some more fine-grained variants.
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
 				"ambiguous worker death".to_string(),
 			))),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) =>
-			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
+		// TODO: Split into some more fine-grained variants.
+			Ok(ValidationResult::Invalid(InvalidCandidate::PreparationError(e.to_string()))),
 
 		Ok(res) =>
 			if res.head_data.hash() != candidate_receipt.descriptor.para_head {
@@ -654,14 +660,14 @@ impl ValidationBackend for ValidationHost {
 
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = self.execute_pvf(pvf, timeout, encoded_params, priority, tx).await {
-			return Err(ValidationError::InternalError(format!(
+			return Err(ValidationError::InternalOtherError(format!(
 				"cannot send pvf to the validation host: {:?}",
 				err
 			)))
 		}
 
 		rx.await
-			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
+			.map_err(|_| ValidationError::InternalOtherError("validation was cancelled".into()))?
 	}
 
 	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError> {

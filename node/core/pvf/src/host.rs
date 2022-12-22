@@ -1235,7 +1235,7 @@ mod tests {
 		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Err(PrepareError::TimedOut));
 		assert_matches!(
 			result_rx_execute.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InternalError(_))
+			Err(ValidationError::InternalPrepareError(_))
 		);
 
 		// Reversed case: first send multiple precheck requests, then ask for an execution.

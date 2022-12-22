@@ -39,8 +39,23 @@ impl Metrics {
 				Ok(ValidationResult::Invalid(_)) => {
 					metrics.validation_requests.with_label_values(&["invalid"]).inc();
 				},
-				Err(_) => {
-					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
+				Err(ValidationFailed::Prepare(_)) => {
+					metrics
+						.validation_requests
+						.with_label_values(&["internal failure (prepare)"])
+						.inc();
+				},
+				Err(ValidationFailed::Execute(_)) => {
+					metrics
+						.validation_requests
+						.with_label_values(&["internal failure (execute)"])
+						.inc();
+				},
+				Err(ValidationFailed::Other(_)) => {
+					metrics
+						.validation_requests
+						.with_label_values(&["internal failure (misc)"])
+						.inc();
 				},
 			}
 		}

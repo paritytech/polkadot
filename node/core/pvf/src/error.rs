@@ -79,16 +79,24 @@ impl fmt::Display for PrepareError {
 pub enum ValidationError {
 	/// The error was raised because the candidate is invalid.
 	InvalidCandidate(InvalidCandidate),
-	/// This error is raised due to inability to serve the request.
-	InternalError(String),
+	// TODO: Split `PrepareError` into deterministic and non-deterministic, as only the
+	// non-deterministic variants should be allowed here.
+	/// This error is raised due to inability to serve the request during preparation.
+	InternalPrepareError(PrepareError),
+	/// This error is raised due to inability to serve the request during execution.
+	InternalExecuteError(String),
+	/// This error is raised due to inability to serve the request for some other reason.
+	InternalOtherError(String),
 }
 
 /// A description of an error raised during executing a PVF and can be attributed to the combination
 /// of the candidate [`polkadot_parachain::primitives::ValidationParams`] and the PVF.
 #[derive(Debug, Clone)]
 pub enum InvalidCandidate {
+	// TODO: Split `PrepareError` into deterministic and non-deterministic, as only the
+	// deterministic variants should be allowed here.
 	/// PVF preparation ended up with a deterministic error.
-	PrepareError(String),
+	PrepareError(PrepareError),
 	/// The failure is reported by the execution worker. The string contains the error message.
 	WorkerReportedError(String),
 	/// The worker has died during validation of a candidate. That may fall in one of the following
@@ -123,12 +131,12 @@ impl From<PrepareError> for ValidationError {
 		// We treat the deterministic errors as `InvalidCandidate`. Should those occur they could
 		// potentially trigger disputes.
 		//
-		// All non-deterministic errors are qualified as `InternalError`s and will not trigger
+		// All non-deterministic errors are qualified as `InternalPrepareError`s and will not trigger
 		// disputes.
 		if error.is_deterministic() {
-			ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
+			ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error))
 		} else {
-			ValidationError::InternalError(error.to_string())
+			ValidationError::InternalPrepareError(error)
 		}
 	}
 }
