@@ -19,7 +19,7 @@ use crate::{
 	executor_intf::Executor,
 	worker_common::{
 		bytes_to_path, cpu_time_monitor_loop, framed_recv, framed_send, path_to_bytes,
-		spawn_with_program_path, worker_event_loop, IdleWorker, JobKind, SpawnErr, WorkerHandle,
+		spawn_with_program_path, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
 		JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 	},
 	LOG_TARGET,
@@ -248,12 +248,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 			// Spawn a new thread that runs the CPU time monitor.
 			let thread_fut = rt_handle
 				.spawn_blocking(move || {
-					cpu_time_monitor_loop(
-						JobKind::Execute,
-						cpu_time_start,
-						execution_timeout,
-						finished_rx,
-					);
+					cpu_time_monitor_loop(cpu_time_start, execution_timeout, finished_rx)
 				})
 				.fuse();
 			let executor_2 = executor.clone();
@@ -271,12 +266,23 @@ pub fn worker_entrypoint(socket_path: &str) {
 				// finish in the background.
 				join_res = thread_fut => {
 					match join_res {
-						Ok(()) => Response::TimedOut,
+						Ok(Some(cpu_time_elapsed)) => {
+							// Log if we exceed the timeout and the other thread hasn't finished.
+							gum::warn!(
+								target: LOG_TARGET,
+								worker_pid = %std::process::id(),
+								"execute job took {}ms cpu time, exceeded execute timeout {}ms",
+								cpu_time_elapsed.as_millis(),
+								execution_timeout.as_millis(),
+							);
+							Response::TimedOut
+						},
+						Ok(None) => Response::InternalError("error communicating over finished channel".into()),
 						Err(e) => Response::InternalError(format!("{}", e)),
 					}
 				},
 				execute_res = execute_fut => {
-					finished_tx.send(()).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+					let _ = finished_tx.send(());
 					execute_res.unwrap_or_else(|e| Response::InternalError(format!("{}", e)))
 				},
 			};

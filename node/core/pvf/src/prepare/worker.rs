@@ -19,8 +19,8 @@ use crate::{
 	error::{PrepareError, PrepareResult},
 	worker_common::{
 		bytes_to_path, cpu_time_monitor_loop, framed_recv, framed_send, path_to_bytes,
-		spawn_with_program_path, tmpfile_in, worker_event_loop, IdleWorker, JobKind, SpawnErr,
-		WorkerHandle, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
+		spawn_with_program_path, tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
+		JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 	},
 	LOG_TARGET,
 };
@@ -316,12 +316,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 			// Spawn a new thread that runs the CPU time monitor.
 			let thread_fut = rt_handle
 				.spawn_blocking(move || {
-					cpu_time_monitor_loop(
-						JobKind::Prepare,
-						cpu_time_start,
-						preparation_timeout,
-						finished_rx,
-					)
+					cpu_time_monitor_loop(cpu_time_start, preparation_timeout, finished_rx)
 				})
 				.fuse();
 			let prepare_fut = rt_handle.spawn_blocking(move || prepare_artifact(&code)).fuse();
@@ -334,13 +329,24 @@ pub fn worker_entrypoint(socket_path: &str) {
 				// finish in the background.
 				join_res = thread_fut => {
 					match join_res {
-						Ok(()) => Err(PrepareError::TimedOut),
+						Ok(Some(cpu_time_elapsed)) => {
+							// Log if we exceed the timeout and the other thread hasn't finished.
+							gum::warn!(
+								target: LOG_TARGET,
+								worker_pid = %std::process::id(),
+								"prepare job took {}ms cpu time, exceeded prepare timeout {}ms",
+								cpu_time_elapsed.as_millis(),
+								preparation_timeout.as_millis(),
+							);
+							Err(PrepareError::TimedOut)
+						},
+						Ok(None) => Err(PrepareError::IoErr("error communicating over finished channel".into())),
 						Err(err) => Err(PrepareError::IoErr(err.to_string())),
 					}
 				},
 				compilation_res = prepare_fut => {
 					let cpu_time_elapsed = cpu_time_start.elapsed();
-					finished_tx.send(()).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e.to_string()))?;
+					let _ = finished_tx.send(());
 
 					match compilation_res.unwrap_or_else(|err| Err(PrepareError::IoErr(err.to_string()))) {
 						Err(err) => {

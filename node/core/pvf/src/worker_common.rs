@@ -45,21 +45,6 @@ pub const JOB_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
 /// child process.
 pub const JOB_TIMEOUT_OVERHEAD: Duration = Duration::from_millis(50);
 
-#[derive(Copy, Clone, Debug)]
-pub enum JobKind {
-	Prepare,
-	Execute,
-}
-
-impl fmt::Display for JobKind {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			Self::Prepare => write!(f, "prepare"),
-			Self::Execute => write!(f, "execute"),
-		}
-	}
-}
-
 /// This is publicly exposed only for integration tests.
 #[doc(hidden)]
 pub async fn spawn_with_program_path(
@@ -206,20 +191,19 @@ where
 }
 
 /// Loop that runs in the CPU time monitor thread on prepare and execute jobs. Continuously wakes up
-/// from sleeping and then either sleeps for the remaining CPU time, or returns if we exceed the CPU
-/// timeout.
+/// and then either blocks for the remaining CPU time, or returns if we exceed the CPU timeout.
 ///
-/// Returning indicates that we should send a `TimedOut` error to the host.
+/// Returning `Some` indicates that we should send a `TimedOut` error to the host. Will return
+/// `None` if the other thread finishes first, without us timing out.
 ///
-/// NOTE: Returning will cause the worker, whether preparation or execution, to be killed by the
-/// host. We do not kill the process here because it would interfere with the proper handling of
-/// this error.
+/// NOTE: Sending a `TimedOut` error to the host will cause the worker, whether preparation or
+/// execution, to be killed by the host. We do not kill the process here because it would interfere
+/// with the proper handling of this error.
 pub fn cpu_time_monitor_loop(
-	job_kind: JobKind,
 	cpu_time_start: ProcessTime,
 	timeout: Duration,
 	finished_rx: Receiver<()>,
-) {
+) -> Option<Duration> {
 	loop {
 		let cpu_time_elapsed = cpu_time_start.elapsed();
 
@@ -230,23 +214,14 @@ pub fn cpu_time_monitor_loop(
 			let sleep_interval = timeout.saturating_sub(cpu_time_elapsed) + JOB_TIMEOUT_OVERHEAD;
 			match finished_rx.recv_timeout(sleep_interval) {
 				// Received finish signal.
-				Ok(()) => return,
+				Ok(()) => return None,
 				// Timed out, restart loop.
 				Err(RecvTimeoutError::Timeout) => continue,
-				Err(RecvTimeoutError::Disconnected) => return,
+				Err(RecvTimeoutError::Disconnected) => return None,
 			}
 		}
 
-		// Log if we exceed the timeout.
-		gum::warn!(
-			target: LOG_TARGET,
-			worker_pid = %std::process::id(),
-			"{job_kind} job took {}ms cpu time, exceeded {job_kind} timeout {}ms",
-			cpu_time_elapsed.as_millis(),
-			timeout.as_millis(),
-		);
-
-		return
+		return Some(cpu_time_elapsed)
 	}
 }
 
