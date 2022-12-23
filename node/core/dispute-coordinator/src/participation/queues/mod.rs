@@ -18,7 +18,10 @@ use std::{cmp::Ordering, collections::BTreeMap};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::ChainApiMessage, overseer};
-use polkadot_primitives::v3::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
+use polkadot_primitives::{
+	v3::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex},
+	vstaging::ExecutorParams,
+};
 
 use crate::{
 	error::{FatalError, FatalResult, Result},
@@ -64,6 +67,7 @@ pub struct ParticipationRequest {
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
+	executor_params: ExecutorParams,
 }
 
 /// Whether a `ParticipationRequest` should be put on best-effort or the priority queue.
@@ -107,8 +111,17 @@ pub enum QueueError {
 
 impl ParticipationRequest {
 	/// Create a new `ParticipationRequest` to be queued.
-	pub fn new(candidate_receipt: CandidateReceipt, session: SessionIndex) -> Self {
-		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session }
+	pub fn new(
+		candidate_receipt: CandidateReceipt,
+		session: SessionIndex,
+		executor_params: ExecutorParams,
+	) -> Self {
+		Self {
+			candidate_hash: candidate_receipt.hash(),
+			candidate_receipt,
+			session,
+			executor_params,
+		}
 	}
 
 	pub fn candidate_receipt(&'_ self) -> &'_ CandidateReceipt {
@@ -119,6 +132,9 @@ impl ParticipationRequest {
 	}
 	pub fn session(&self) -> SessionIndex {
 		self.session
+	}
+	pub fn executor_params(&'_ self) -> &'_ ExecutorParams {
+		&self.executor_params
 	}
 	pub fn into_candidate_info(self) -> (CandidateHash, CandidateReceipt) {
 		let Self { candidate_hash, candidate_receipt, .. } = self;

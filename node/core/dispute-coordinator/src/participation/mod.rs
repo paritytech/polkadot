@@ -27,10 +27,7 @@ use futures_timer::Delay;
 
 use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
 use polkadot_node_subsystem::{
-	messages::{
-		AvailabilityRecoveryMessage, CandidateValidationMessage, RuntimeApiMessage,
-		RuntimeApiRequest,
-	},
+	messages::{AvailabilityRecoveryMessage, CandidateValidationMessage},
 	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
@@ -322,36 +319,6 @@ async fn participate(
 		},
 	};
 
-	let (session_info_tx, session_info_rx) = oneshot::channel();
-	sender
-		.send_message(RuntimeApiMessage::Request(
-			req.candidate_receipt().descriptor.relay_parent,
-			RuntimeApiRequest::SessionInfo(req.session(), session_info_tx),
-		))
-		.await;
-
-	let session_info = match session_info_rx.await {
-		Err(oneshot::Canceled) => {
-			gum::warn!(
-				target: LOG_TARGET,
-				"`Oneshot` got cancelled when retrieving session info for session {:?}",
-				req.session(),
-			);
-			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
-			return
-		},
-		Ok(Ok(Some(session_info))) => session_info,
-		Ok(Err(_)) | Ok(Ok(None)) => {
-			gum::warn!(
-				target: LOG_TARGET,
-				"Failed to retrieve session info for session {:?}",
-				req.session(),
-			);
-			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
-			return
-		},
-	};
-
 	// Issue a request to validate the candidate with the provided exhaustive
 	// parameters
 	//
@@ -359,13 +326,14 @@ async fn participate(
 	// be run outside of backing and therefore should be subject to the
 	// same level of leeway.
 	let (validation_tx, validation_rx) = oneshot::channel();
+	let executor_params = req.executor_params().clone();
 	sender
 		.send_message(CandidateValidationMessage::ValidateFromExhaustive(
 			available_data.validation_data,
 			validation_code,
 			req.candidate_receipt().clone(),
 			available_data.pov,
-			session_info.executor_params,
+			executor_params,
 			APPROVAL_EXECUTION_TIMEOUT,
 			validation_tx,
 		))

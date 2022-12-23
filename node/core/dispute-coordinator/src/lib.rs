@@ -302,6 +302,7 @@ impl DisputeCoordinatorSubsystem {
 					},
 				};
 
+			let session_info;
 			let validators = match rolling_session_window.session_info(session) {
 				None => {
 					gum::warn!(
@@ -311,7 +312,10 @@ impl DisputeCoordinatorSubsystem {
 					);
 					continue
 				},
-				Some(info) => info.validators.clone(),
+				Some(info) => {
+					session_info = info;
+					info.validators.clone()
+				},
 			};
 
 			let voted_indices = votes.voted_indices();
@@ -344,7 +348,11 @@ impl DisputeCoordinatorSubsystem {
 			if missing_local_statement {
 				participation_requests.push((
 					ParticipationPriority::with_priority_if(is_included),
-					ParticipationRequest::new(votes.candidate_receipt.clone(), session),
+					ParticipationRequest::new(
+						votes.candidate_receipt.clone(),
+						session,
+						session_info.executor_params.clone(),
+					),
 				));
 			}
 		}
