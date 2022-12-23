@@ -1053,5 +1053,5 @@ fn precheck_properly_classifies_outcomes() {
 	inner(Err(PrepareError::Panic("baz".to_owned())), PreCheckOutcome::Invalid);
 
 	inner(Err(PrepareError::TimedOut), PreCheckOutcome::Failed);
-	inner(Err(PrepareError::DidNotMakeIt), PreCheckOutcome::Failed);
+	inner(Err(PrepareError::IoErr), PreCheckOutcome::Failed);
 }

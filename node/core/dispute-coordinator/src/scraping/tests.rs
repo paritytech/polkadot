@@ -23,6 +23,7 @@ use parity_scale_codec::Encode;
 use sp_core::testing::TaskExecutor;
 
 use ::test_helpers::{dummy_collator, dummy_collator_signature, dummy_hash};
+use polkadot_node_primitives::DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{
@@ -452,9 +453,9 @@ fn scraper_prunes_finalized_candidates() {
 
 		let candidate = make_candidate_receipt(get_block_number_hash(TEST_TARGET_BLOCK_NUMBER));
 
-		// After `CANDIDATE_LIFETIME_AFTER_FINALIZATION` blocks the candidate should be removed
+		// After `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` blocks the candidate should be removed
 		finalized_block_number =
-			TEST_TARGET_BLOCK_NUMBER + ChainScraper::CANDIDATE_LIFETIME_AFTER_FINALIZATION;
+			TEST_TARGET_BLOCK_NUMBER + DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		assert!(!scraper.is_candidate_backed(&candidate.hash()));
@@ -512,10 +513,10 @@ fn scraper_handles_backed_but_not_included_candidate() {
 		// The candidate should be removed.
 		assert!(
 			finalized_block_number <
-				TEST_TARGET_BLOCK_NUMBER + ChainScraper::CANDIDATE_LIFETIME_AFTER_FINALIZATION
+				TEST_TARGET_BLOCK_NUMBER + DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION
 		);
 		finalized_block_number +=
-			TEST_TARGET_BLOCK_NUMBER + ChainScraper::CANDIDATE_LIFETIME_AFTER_FINALIZATION;
+			TEST_TARGET_BLOCK_NUMBER + DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		assert!(!scraper.is_candidate_included(&candidate.hash()));
@@ -562,7 +563,7 @@ fn scraper_handles_the_same_candidate_incuded_in_two_different_block_heights() {
 		// Finalize blocks to enforce pruning of scraped events.
 		// The magic candidate was added twice, so it shouldn't be removed if we finalize two more blocks.
 		finalized_block_number = test_targets.first().expect("there are two block nums") +
-			ChainScraper::CANDIDATE_LIFETIME_AFTER_FINALIZATION;
+			DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION;
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		let magic_candidate = make_candidate_receipt(get_magic_candidate_hash());
