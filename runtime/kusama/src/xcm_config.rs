@@ -21,6 +21,7 @@ use super::{
 	RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin, WeightToFee, XcmPallet,
 };
 use frame_support::{match_types, parameter_types, traits::Everything};
+use frame_system::EnsureRoot;
 use runtime_common::{xcm_sender, ToAuthor};
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -219,4 +220,5 @@ impl pallet_xcm::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }

@@ -22,6 +22,7 @@ use frame_support::{
 	traits::{Everything, Nothing},
 	weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
+use frame_system::EnsureRoot;
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -315,6 +316,7 @@ impl pallet_xcm::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;

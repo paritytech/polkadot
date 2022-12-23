@@ -18,6 +18,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, Nothing},
 };
+use frame_system::EnsureRoot;
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 use sp_std::cell::RefCell;
@@ -194,6 +195,7 @@ impl pallet_xcm::Config for Runtime {
 	type RuntimeOrigin = RuntimeOrigin;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 impl origin::Config for Runtime {}

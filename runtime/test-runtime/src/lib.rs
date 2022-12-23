@@ -40,6 +40,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, KeyOwnerProofSystem, WithdrawReasons},
 };
+use frame_system::EnsureRoot;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
@@ -564,6 +565,7 @@ impl pallet_xcm::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 impl parachains_hrmp::Config for Runtime {

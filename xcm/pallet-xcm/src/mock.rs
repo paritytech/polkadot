@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::{construct_runtime, parameter_types, traits::Everything};
+use frame_system::EnsureRoot;
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
 use sp_core::H256;
@@ -291,6 +292,7 @@ impl pallet_xcm::Config for Test {
 	type RuntimeCall = RuntimeCall;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = AdvertisedXcmVersion;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 impl origin::Config for Test {}
