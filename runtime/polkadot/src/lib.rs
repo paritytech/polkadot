@@ -1431,6 +1431,7 @@ impl pallet_nomination_pools::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type RewardCounter = FixedU128;
+	type BlockNumberToU32 = runtime_common::BlockNumberToU32;
 	type BalanceToU256 = runtime_common::BalanceToU256;
 	type U256ToBalance = runtime_common::U256ToBalance;
 	type Staking = Staking;

@@ -45,7 +45,8 @@ use primitives::v2::{
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, elections::OnChainAccuracy, impl_runtime_weights,
 	impls::ToAuthor, paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BalanceToU256,
-	BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate, U256ToBalance,
+	BlockHashCount, BlockLength, BlockNumberToU32, CurrencyToVote, SlowAdjustingFeeUpdate,
+	U256ToBalance,
 };
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
@@ -1075,6 +1076,7 @@ impl pallet_nomination_pools::Config for Runtime {
 	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 	type Currency = Balances;
 	type RewardCounter = FixedU128;
+	type BlockNumberToU32 = BlockNumberToU32;
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
 	type Staking = Staking;

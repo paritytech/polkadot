@@ -224,6 +224,14 @@ impl pallet_staking::BenchmarkingConfig for StakingBenchmarkingConfig {
 	type MaxNominators = ConstU32<1000>;
 }
 
+/// Convert a block number to an unsigned 32-bit number, use in nomination pools.
+pub struct BlockNumberToU32;
+impl sp_runtime::traits::Convert<BlockNumber, u32> for BlockNumberToU32 {
+	fn convert(n: BlockNumber) -> u32 {
+		n as u32
+	}
+}
+
 /// Convert a balance to an unsigned 256-bit number, use in nomination pools.
 pub struct BalanceToU256;
 impl sp_runtime::traits::Convert<Balance, sp_core::U256> for BalanceToU256 {
