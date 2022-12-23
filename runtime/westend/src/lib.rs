@@ -45,8 +45,7 @@ use primitives::v2::{
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, elections::OnChainAccuracy, impl_runtime_weights,
 	impls::ToAuthor, paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BalanceToU256,
-	BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate,
-	U256ToBalance,
+	BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate, U256ToBalance,
 };
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
