@@ -31,7 +31,7 @@ use primitives::v2::{
 };
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
-	prod_or_fast, slots, BalanceToU256, BlockHashCount, BlockLength, BlockNumberToU32,
+	prod_or_fast, slots, BalanceToU256, BlockHashCount, BlockLength,
 	CurrencyToVote, SlowAdjustingFeeUpdate, U256ToBalance,
 };
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
@@ -1311,7 +1311,6 @@ impl pallet_nomination_pools::Config for Runtime {
 	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
 	type Currency = Balances;
 	type RewardCounter = FixedU128;
-	type BlockNumberToU32 = BlockNumberToU32;
 	type BalanceToU256 = BalanceToU256;
 	type U256ToBalance = U256ToBalance;
 	type Staking = Staking;
