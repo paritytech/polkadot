@@ -40,8 +40,8 @@ use std::{
 // The data section for runtimes are typically rather small and can fit in a single digit number of
 // WASM pages, so let's say an extra 16 pages. Thus let's assume that 32 pages or 2 MiB are used for
 // these needs by default.
-const DEFAULT_HEAP_PAGES_ESTIMATE: u64 = 32;
-const EXTRA_HEAP_PAGES: u64 = 2048;
+const DEFAULT_HEAP_PAGES_ESTIMATE: u32 = 32;
+const EXTRA_HEAP_PAGES: u32 = 2048;
 
 /// The number of bytes devoted for the stack during wasm execution of a PVF.
 const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
@@ -50,7 +50,7 @@ const CONFIG: Config = Config {
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
-		extra_heap_pages: EXTRA_HEAP_PAGES,
+		extra_heap_pages: EXTRA_HEAP_PAGES as u64,
 
 		// NOTE: This is specified in bytes, so we multiply by WASM page size.
 		max_memory_size: Some(((DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES) * 65536) as usize),

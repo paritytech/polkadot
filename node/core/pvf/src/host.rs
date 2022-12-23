@@ -219,7 +219,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 
 	let (to_execute_queue_tx, run_execute_queue) = execute::start(
 		metrics,
-		config.execute_worker_program_path.to_owned(),
+		config.execute_worker_program_path.clone(),
 		config.execute_workers_max_num,
 		config.execute_worker_spawn_timeout,
 	);

@@ -191,7 +191,7 @@ impl Artifacts {
 		let now = SystemTime::now();
 
 		let mut to_remove = vec![];
-		for (k, v) in self.artifacts.iter() {
+		for (k, v) in &self.artifacts {
 			if let ArtifactState::Prepared { last_time_needed, .. } = *v {
 				if now
 					.duration_since(last_time_needed)

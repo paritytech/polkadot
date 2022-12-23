@@ -149,7 +149,7 @@ impl Queue {
 						break;
 					}
 				}
-				ev = self.mux.select_next_some() => handle_mux(&mut self, ev).await,
+				ev = self.mux.select_next_some() => handle_mux(&mut self, ev),
 			}
 
 			purge_dead(&self.metrics, &mut self.workers).await;
@@ -192,7 +192,7 @@ fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
 	}
 }
 
-async fn handle_mux(queue: &mut Queue, event: QueueEvent) {
+fn handle_mux(queue: &mut Queue, event: QueueEvent) {
 	match event {
 		QueueEvent::Spawn(idle, handle) => {
 			handle_worker_spawned(queue, idle, handle);
