@@ -241,6 +241,7 @@ remove-cancel-pipeline-message:
     PR_NUM:                        "${CI_COMMIT_REF_NAME}"
   trigger:
     project:                       "parity/infrastructure/ci_cd/pipeline-stopper"
+    branch:                        "as-add-excptn"
 
 cancel-pipeline-test-linux-stable:
   extends:                         .cancel-pipeline-template
