@@ -1462,7 +1462,6 @@ fn dump_check_account() {
 		XcmPallet::check_account()
 			.to_ss58check_with_version(Ss58AddressFormatRegistry::KusamaAccount.into())
 	);
-	assert!(false);
 }
 
 /// The address format for describing accounts.
@@ -1495,8 +1494,9 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 }
 
 pub type Migrations = (
+	pallet_balances::migration::ResetInactive<Runtime>,
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, CheckAccount>,
-	crowdloan::migration::MigrateToTrackInactive<Runtime>,
+	crowdloan::migration::MigrateToTrackInactive<Runtime>, //< Must stay in a second time.
 	pallet_referenda::migration::v1::MigrateV0ToV1<Runtime>,
 	pallet_referenda::migration::v1::MigrateV0ToV1<
 		Runtime,

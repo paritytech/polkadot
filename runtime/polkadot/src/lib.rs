@@ -1599,8 +1599,9 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 }
 
 pub type Migrations = (
+	pallet_balances::migration::ResetInactive<Runtime>,
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, xcm_config::CheckAccount>,
-	crowdloan::migration::MigrateToTrackInactive<Runtime>,
+	crowdloan::migration::MigrateToTrackInactive<Runtime>, //< Must stay in a second time.
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
