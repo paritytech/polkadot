@@ -21,7 +21,9 @@ use frame_support::{
 	traits::{AsEnsureOriginWithArg, Everything, Nothing},
 	weights::Weight,
 };
+
 use sp_core::{ConstU32, H256};
+use frame_system::EnsureRoot;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 
 use polkadot_parachain::primitives::Id as ParaId;
@@ -221,6 +223,7 @@ impl pallet_xcm::Config for Runtime {
 	type WeightInfo = pallet_xcm::TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 parameter_types! {

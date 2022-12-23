@@ -22,7 +22,9 @@ use frame_support::{
 	traits::{EnsureOrigin, EnsureOriginWithArg, Everything, EverythingBut, Nothing},
 	weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
+
 use sp_core::{ConstU32, H256};
+use frame_system::EnsureRoot;
 use sp_runtime::{
 	testing::Header,
 	traits::{Hash, IdentityLookup},
@@ -424,6 +426,7 @@ impl pallet_xcm::Config for Runtime {
 	type WeightInfo = pallet_xcm::TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Runtime>;
