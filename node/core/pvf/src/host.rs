@@ -776,7 +776,7 @@ fn can_retry_prepare_after_failure(
 	num_failures: u32,
 	error: &PrepareError,
 ) -> bool {
-	if error.is_deterministic() {
+	if matches!(error, PrepareError::Deterministic(_)) {
 		// This error is considered deterministic, so it will probably be reproducible. Don't retry.
 		return false
 	}
@@ -801,7 +801,10 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{InvalidCandidate, PrepareError};
+	use crate::{
+		error::{DeterministicError, NonDeterministicError, PrepareError},
+		InvalidCandidate,
+	};
 	use assert_matches::assert_matches;
 	use futures::future::BoxFuture;
 
@@ -1181,7 +1184,7 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(2),
-				result: Err(PrepareError::TimedOut),
+				result: Err(PrepareError::NonDeterministic(NonDeterministicError::TimedOut)),
 			})
 			.await
 			.unwrap();
@@ -1189,7 +1192,7 @@ mod tests {
 		for result_rx in precheck_receivers {
 			assert_matches!(
 				result_rx.now_or_never().unwrap().unwrap(),
-				Err(PrepareError::TimedOut)
+				Err(PrepareError::NonDeterministic(NonDeterministicError::TimedOut))
 			);
 		}
 	}
@@ -1227,12 +1230,15 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
-				result: Err(PrepareError::TimedOut),
+				result: Err(PrepareError::NonDeterministic(NonDeterministicError::TimedOut)),
 			})
 			.await
 			.unwrap();
 		test.poll_ensure_to_execute_queue_is_empty().await;
-		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Err(PrepareError::TimedOut));
+		assert_matches!(
+			result_rx.now_or_never().unwrap().unwrap(),
+			Err(PrepareError::NonDeterministic(NonDeterministicError::TimedOut))
+		);
 		assert_matches!(
 			result_rx_execute.now_or_never().unwrap().unwrap(),
 			Err(ValidationError::InternalPrepareError(_))
@@ -1299,7 +1305,7 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
-				result: Err(PrepareError::TimedOut),
+				result: Err(PrepareError::NonDeterministic(NonDeterministicError::TimedOut)),
 			})
 			.await
 			.unwrap();
@@ -1350,7 +1356,7 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
-				result: Err(PrepareError::TimedOut),
+				result: Err(PrepareError::NonDeterministic(NonDeterministicError::TimedOut)),
 			})
 			.await
 			.unwrap();
@@ -1420,7 +1426,9 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
-				result: Err(PrepareError::Prevalidation("reproducible error".into())),
+				result: Err(PrepareError::Deterministic(DeterministicError::Prevalidation(
+					"reproducible error".into(),
+				))),
 			})
 			.await
 			.unwrap();
@@ -1477,7 +1485,7 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
-				result: Err(PrepareError::TimedOut),
+				result: Err(PrepareError::NonDeterministic(NonDeterministicError::TimedOut)),
 			})
 			.await
 			.unwrap();

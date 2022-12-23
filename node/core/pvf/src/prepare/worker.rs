@@ -16,7 +16,7 @@
 
 use crate::{
 	artifacts::CompiledArtifact,
-	error::{PrepareError, PrepareResult},
+	error::{DeterministicError, NonDeterministicError, PrepareError, PrepareResult},
 	worker_common::{
 		bytes_to_path, cpu_time_monitor_loop, framed_recv, framed_send, path_to_bytes,
 		spawn_with_program_path, tmpfile_in, worker_event_loop, IdleWorker, JobKind, SpawnErr,
@@ -184,7 +184,8 @@ async fn handle_response_bytes(
 	let cpu_time_elapsed = match result {
 		Ok(result) => result,
 		// Timed out on the child. This should already be logged by the child.
-		Err(PrepareError::TimedOut) => return Outcome::TimedOut,
+		Err(PrepareError::NonDeterministic(NonDeterministicError::TimedOut)) =>
+			return Outcome::TimedOut,
 		Err(_) => return Outcome::Concluded { worker, result },
 	};
 
@@ -346,10 +347,10 @@ pub fn worker_entrypoint(socket_path: &str) {
 				})?;
 
 			// Prepares the artifact in a separate thread.
-			let result = match prepare_artifact(&code).await {
+			let result: PrepareResult = match prepare_artifact(&code).await {
 				Err(err) => {
 					// Serialized error will be written into the socket.
-					Err(err)
+					Err(PrepareError::Deterministic(err))
 				},
 				Ok(compiled_artifact) => {
 					let cpu_time_elapsed = cpu_time_start.elapsed();
@@ -388,20 +389,20 @@ pub fn worker_entrypoint(socket_path: &str) {
 	});
 }
 
-async fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
+async fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, DeterministicError> {
 	panic::catch_unwind(|| {
 		let blob = match crate::executor_intf::prevalidate(code) {
-			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
+			Err(err) => return Err(DeterministicError::Prevalidation(format!("{:?}", err))),
 			Ok(b) => b,
 		};
 
 		match crate::executor_intf::prepare(blob) {
 			Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
-			Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
+			Err(err) => Err(DeterministicError::Preparation(format!("{:?}", err))),
 		}
 	})
 	.map_err(|panic_payload| {
-		PrepareError::Panic(crate::error::stringify_panic_payload(panic_payload))
+		DeterministicError::Panic(crate::error::stringify_panic_payload(panic_payload))
 	})
 	.and_then(|inner_result| inner_result)
 }

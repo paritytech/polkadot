@@ -24,7 +24,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, PrepareError, Pvf, ValidationError, ValidationHost,
+	DeterministicError, InvalidCandidate as WasmInvalidCandidate, NonDeterministicError,
+	PrepareError, Pvf, ValidationError, ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -321,7 +322,7 @@ where
 	match validation_backend.precheck_pvf(validation_code).await {
 		Ok(_) => PreCheckOutcome::Valid,
 		Err(prepare_err) =>
-			if prepare_err.is_deterministic() {
+			if matches!(prepare_err, PrepareError::Deterministic(_)) {
 				PreCheckOutcome::Invalid
 			} else {
 				PreCheckOutcome::Failed
@@ -577,12 +578,10 @@ async fn validate_candidate_exhaustive(
 				Ok(ValidationResult::Invalid(InvalidCandidate::AmbiguousWorkerDeath)),
 
 			// Prepare errors.
-			WasmInvalidCandidate::PrepareError(PrepareError::Prevalidation(e)) =>
+			WasmInvalidCandidate::PrepareError(DeterministicError::Prevalidation(e)) =>
 				Ok(ValidationResult::Invalid(InvalidCandidate::PrevalidationError(e.to_string()))),
-			WasmInvalidCandidate::PrepareError(PrepareError::Preparation(e)) =>
+			WasmInvalidCandidate::PrepareError(DeterministicError::Preparation(e)) =>
 				Ok(ValidationResult::Invalid(InvalidCandidate::CompilationError(e.to_string()))),
-			WasmInvalidCandidate::PrepareError(PrepareError::TimedOut) =>
-				Ok(ValidationResult::Invalid(InvalidCandidate::PreparationTimeout)),
 			WasmInvalidCandidate::PrepareError(e) =>
 			// General preparation error.
 				Ok(ValidationResult::Invalid(InvalidCandidate::PreparationError(e.to_string()))),
@@ -683,10 +682,11 @@ impl ValidationBackend for ValidationHost {
 		let (tx, rx) = oneshot::channel();
 		if let Err(_) = self.precheck_pvf(pvf, tx).await {
 			// Return an IO error if there was an error communicating with the host.
-			return Err(PrepareError::IoErr)
+			return Err(PrepareError::NonDeterministic(NonDeterministicError::IoErr))
 		}
 
-		let precheck_result = rx.await.or(Err(PrepareError::IoErr))?;
+		let precheck_result =
+			rx.await.or(Err(PrepareError::NonDeterministic(NonDeterministicError::IoErr)))?;
 
 		precheck_result
 	}

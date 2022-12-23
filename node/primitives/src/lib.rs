@@ -237,6 +237,9 @@ pub enum InvalidCandidate {
 	ExecutionError(String),
 	/// Validation outputs check doesn't pass.
 	InvalidOutputs,
+	// TODO: Currently unused. Preparation timeouts are treated as non-deterministic, so this can
+	// never be instantiated, whereas execution timeouts are deterministic. Should this
+	// inconsistency be addressed?
 	/// Preparation timeout.
 	PreparationTimeout,
 	/// Execution timeout.

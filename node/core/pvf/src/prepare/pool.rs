@@ -16,7 +16,7 @@
 
 use super::worker::{self, Outcome};
 use crate::{
-	error::{PrepareError, PrepareResult},
+	error::{NonDeterministicError, PrepareError, PrepareResult},
 	metrics::Metrics,
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
@@ -304,7 +304,9 @@ fn handle_mux(
 					spawned,
 					worker,
 					idle,
-					Err(PrepareError::CreateTmpFileErr(err)),
+					Err(PrepareError::NonDeterministic(NonDeterministicError::CreateTmpFileErr(
+						err,
+					))),
 				),
 				// Return `Concluded`, but do not kill the worker since the error was on the host side.
 				Outcome::RenameTmpFileErr { worker: idle, result: _, err } =>
@@ -313,7 +315,9 @@ fn handle_mux(
 						spawned,
 						worker,
 						idle,
-						Err(PrepareError::RenameTmpFileErr(err)),
+						Err(PrepareError::NonDeterministic(
+							NonDeterministicError::RenameTmpFileErr(err),
+						)),
 					),
 				Outcome::Unreachable => {
 					if attempt_retire(metrics, spawned, worker) {
@@ -329,7 +333,9 @@ fn handle_mux(
 							FromPool::Concluded {
 								worker,
 								rip: true,
-								result: Err(PrepareError::IoErr),
+								result: Err(PrepareError::NonDeterministic(
+									NonDeterministicError::IoErr,
+								)),
 							},
 						)?;
 					}
@@ -343,7 +349,9 @@ fn handle_mux(
 							FromPool::Concluded {
 								worker,
 								rip: true,
-								result: Err(PrepareError::TimedOut),
+								result: Err(PrepareError::NonDeterministic(
+									NonDeterministicError::TimedOut,
+								)),
 							},
 						)?;
 					}

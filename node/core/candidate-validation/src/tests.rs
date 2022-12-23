@@ -18,7 +18,7 @@ use super::*;
 use ::test_helpers::{dummy_hash, make_valid_candidate_descriptor};
 use assert_matches::assert_matches;
 use futures::executor;
-use polkadot_node_core_pvf::PrepareError;
+use polkadot_node_core_pvf::{DeterministicError, NonDeterministicError, PrepareError};
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::reexports::SubsystemContext;
@@ -491,7 +491,7 @@ fn candidate_validation_bad_return_is_invalid() {
 	))
 	.unwrap();
 
-	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::Timeout));
+	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::ExecutionTimeout));
 }
 
 #[test]
@@ -607,7 +607,7 @@ fn candidate_validation_multiple_ambiguous_errors_is_invalid() {
 	))
 	.unwrap();
 
-	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::ExecutionError(_)));
+	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::AmbiguousWorkerDeath));
 }
 
 #[test]
@@ -650,7 +650,7 @@ fn candidate_validation_timeout_is_internal_error() {
 		&Default::default(),
 	));
 
-	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
+	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionTimeout)));
 }
 
 #[test]
@@ -1048,10 +1048,25 @@ fn precheck_properly_classifies_outcomes() {
 		executor::block_on(test_fut);
 	};
 
-	inner(Err(PrepareError::Prevalidation("foo".to_owned())), PreCheckOutcome::Invalid);
-	inner(Err(PrepareError::Preparation("bar".to_owned())), PreCheckOutcome::Invalid);
-	inner(Err(PrepareError::Panic("baz".to_owned())), PreCheckOutcome::Invalid);
+	inner(
+		Err(PrepareError::Deterministic(DeterministicError::Prevalidation("foo".to_owned()))),
+		PreCheckOutcome::Invalid,
+	);
+	inner(
+		Err(PrepareError::Deterministic(DeterministicError::Preparation("bar".to_owned()))),
+		PreCheckOutcome::Invalid,
+	);
+	inner(
+		Err(PrepareError::Deterministic(DeterministicError::Panic("baz".to_owned()))),
+		PreCheckOutcome::Invalid,
+	);
 
-	inner(Err(PrepareError::TimedOut), PreCheckOutcome::Failed);
-	inner(Err(PrepareError::IoErr), PreCheckOutcome::Failed);
+	inner(
+		Err(PrepareError::NonDeterministic(NonDeterministicError::TimedOut)),
+		PreCheckOutcome::Failed,
+	);
+	inner(
+		Err(PrepareError::NonDeterministic(NonDeterministicError::IoErr)),
+		PreCheckOutcome::Failed,
+	);
 }

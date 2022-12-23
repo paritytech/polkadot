@@ -16,7 +16,11 @@
 
 //! Common logic for implementation of worker processes.
 
-use crate::{execute::ExecuteResponse, PrepareError, LOG_TARGET};
+use crate::{
+	error::{NonDeterministicError, PrepareError},
+	execute::ExecuteResponse,
+	LOG_TARGET,
+};
 use async_std::{
 	io,
 	net::Shutdown,
@@ -251,7 +255,8 @@ pub async fn cpu_time_monitor_loop(
 			// handling of this error.
 			let encoded_result = match job_kind {
 				JobKind::Prepare => {
-					let result: Result<(), PrepareError> = Err(PrepareError::TimedOut);
+					let result: Result<(), PrepareError> =
+						Err(PrepareError::NonDeterministic(NonDeterministicError::TimedOut));
 					result.encode()
 				},
 				JobKind::Execute => {

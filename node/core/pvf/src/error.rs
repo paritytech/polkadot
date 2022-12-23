@@ -24,12 +24,50 @@ pub type PrepareResult = Result<Duration, PrepareError>;
 /// An error that occurred during the prepare part of the PVF pipeline.
 #[derive(Debug, Clone, Encode, Decode)]
 pub enum PrepareError {
+	/// An error that should trigger reliably. See [`DeterministicError`].
+	Deterministic(DeterministicError),
+	/// An error that may happen spuriously. See [`NonDeterministicError`].
+	NonDeterministic(NonDeterministicError),
+}
+
+impl fmt::Display for PrepareError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		use PrepareError::*;
+		match self {
+			Deterministic(err) => write!(f, "{}", err),
+			NonDeterministic(err) => write!(f, "{}", err),
+		}
+	}
+}
+
+/// A deterministic error, i.e. one that should trigger reliably. Those errors depend on the PVF
+/// itself and the sc-executor/wasmtime logic.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum DeterministicError {
 	/// During the prevalidation stage of preparation an issue was found with the PVF.
 	Prevalidation(String),
 	/// Compilation failed for the given PVF.
 	Preparation(String),
 	/// An unexpected panic has occured in the preparation worker.
 	Panic(String),
+}
+
+impl fmt::Display for DeterministicError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		use DeterministicError::*;
+		match self {
+			Prevalidation(err) => write!(f, "prevalidation: {}", err),
+			Preparation(err) => write!(f, "preparation: {}", err),
+			Panic(err) => write!(f, "panic: {}", err),
+		}
+	}
+}
+
+/// Non-deterministic errors can happen spuriously. Typically, they occur due to resource
+/// starvation, e.g. under heavy load or memory pressure. Those errors are typically transient but
+/// may persist e.g. if the node is run by overwhelmingly underpowered machine.
+#[derive(Debug, Clone, Encode, Decode)]
+pub enum NonDeterministicError {
 	/// Failed to prepare the PVF due to the time limit.
 	TimedOut,
 	/// An IO error occurred while receiving the result from the worker process. This state is reported by the
@@ -43,29 +81,10 @@ pub enum PrepareError {
 	RenameTmpFileErr(String),
 }
 
-impl PrepareError {
-	/// Returns whether this is a deterministic error, i.e. one that should trigger reliably. Those
-	/// errors depend on the PVF itself and the sc-executor/wasmtime logic.
-	///
-	/// Non-deterministic errors can happen spuriously. Typically, they occur due to resource
-	/// starvation, e.g. under heavy load or memory pressure. Those errors are typically transient
-	/// but may persist e.g. if the node is run by overwhelmingly underpowered machine.
-	pub fn is_deterministic(&self) -> bool {
-		use PrepareError::*;
-		match self {
-			Prevalidation(_) | Preparation(_) | Panic(_) => true,
-			TimedOut | IoErr | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
-		}
-	}
-}
-
-impl fmt::Display for PrepareError {
+impl fmt::Display for NonDeterministicError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		use PrepareError::*;
+		use NonDeterministicError::*;
 		match self {
-			Prevalidation(err) => write!(f, "prevalidation: {}", err),
-			Preparation(err) => write!(f, "preparation: {}", err),
-			Panic(err) => write!(f, "panic: {}", err),
 			TimedOut => write!(f, "prepare: timeout"),
 			IoErr => write!(f, "prepare: io error while receiving response"),
 			CreateTmpFileErr(err) => write!(f, "prepare: error creating tmp file: {}", err),
@@ -79,10 +98,8 @@ impl fmt::Display for PrepareError {
 pub enum ValidationError {
 	/// The error was raised because the candidate is invalid.
 	InvalidCandidate(InvalidCandidate),
-	// TODO: Split `PrepareError` into deterministic and non-deterministic, as only the
-	// non-deterministic variants should be allowed here.
 	/// This error is raised due to inability to serve the request during preparation.
-	InternalPrepareError(PrepareError),
+	InternalPrepareError(NonDeterministicError),
 	/// This error is raised due to inability to serve the request during execution.
 	InternalExecuteError(String),
 	/// This error is raised due to inability to serve the request for some other reason.
@@ -93,10 +110,8 @@ pub enum ValidationError {
 /// of the candidate [`polkadot_parachain::primitives::ValidationParams`] and the PVF.
 #[derive(Debug, Clone)]
 pub enum InvalidCandidate {
-	// TODO: Split `PrepareError` into deterministic and non-deterministic, as only the
-	// deterministic variants should be allowed here.
 	/// PVF preparation ended up with a deterministic error.
-	PrepareError(PrepareError),
+	PrepareError(DeterministicError),
 	/// The failure is reported by the execution worker. The string contains the error message.
 	WorkerReportedError(String),
 	/// The worker has died during validation of a candidate. That may fall in one of the following
@@ -133,10 +148,10 @@ impl From<PrepareError> for ValidationError {
 		//
 		// All non-deterministic errors are qualified as `InternalPrepareError`s and will not trigger
 		// disputes.
-		if error.is_deterministic() {
-			ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error))
-		} else {
-			ValidationError::InternalPrepareError(error)
+		match error {
+			PrepareError::Deterministic(error) =>
+				ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error)),
+			PrepareError::NonDeterministic(error) => ValidationError::InternalPrepareError(error),
 		}
 	}
 }

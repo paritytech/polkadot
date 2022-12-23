@@ -492,7 +492,10 @@ pub fn start(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{error::PrepareError, host::PRECHECK_PREPARATION_TIMEOUT};
+	use crate::{
+		error::{NonDeterministicError, PrepareError},
+		host::PRECHECK_PREPARATION_TIMEOUT,
+	};
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
 	use slotmap::SlotMap;
@@ -761,7 +764,7 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Concluded {
 			worker: w1,
 			rip: true,
-			result: Err(PrepareError::IoErr),
+			result: Err(PrepareError::NonDeterministic(NonDeterministicError::IoErr)),
 		});
 		test.poll_ensure_to_pool_is_empty().await;
 	}
