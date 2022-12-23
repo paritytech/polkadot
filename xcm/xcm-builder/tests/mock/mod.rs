@@ -19,6 +19,7 @@ use frame_support::{
 	traits::{Everything, Nothing},
 	weights::Weight,
 };
+use frame_system::EnsureRoot;
 use parity_scale_codec::Encode;
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
@@ -231,6 +232,7 @@ impl pallet_xcm::Config for Runtime {
 	type WeightInfo = pallet_xcm::TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 impl origin::Config for Runtime {}

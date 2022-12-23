@@ -20,6 +20,7 @@ use frame_support::{
 	traits::{Everything, Nothing},
 	weights::Weight,
 };
+use frame_system::EnsureRoot;
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
 use sp_core::H256;
@@ -341,6 +342,7 @@ impl pallet_xcm::Config for Test {
 	type WeightInfo = TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 impl origin::Config for Test {}

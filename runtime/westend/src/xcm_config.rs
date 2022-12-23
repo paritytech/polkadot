@@ -24,6 +24,7 @@ use frame_support::{
 	parameter_types,
 	traits::{Contains, Everything, Nothing},
 };
+use frame_system::EnsureRoot;
 use runtime_common::{paras_registrar, xcm_sender, ToAuthor};
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
@@ -279,4 +280,5 @@ impl pallet_xcm::Config for Runtime {
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
