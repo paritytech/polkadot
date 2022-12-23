@@ -226,7 +226,7 @@ deploy-parity-testnet:
     PR_NUM:                        "${PR_NUM}"
   trigger:
     project:                       "parity/infrastructure/ci_cd/pipeline-stopper"
-    branch:                        "as-improve"
+    branch:                        "as-add-excptn"
 
 remove-cancel-pipeline-message:
   stage: .post
