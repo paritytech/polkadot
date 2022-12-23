@@ -1192,7 +1192,7 @@ fn backing_works_after_failed_validation() {
 					tx,
 				)
 			) if pov == pov && c.descriptor() == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && c.commitments_hash == candidate.commitments.hash() => {
-				tx.send(Err(ValidationFailed("Internal test error".into()))).unwrap();
+				tx.send(Err(ValidationFailed::Other("Internal test error".into()))).unwrap();
 			}
 		);
 
