@@ -20,7 +20,6 @@
     "/dns/westend.bootnode.amforc.com/tcp/30334/wss/p2p/12D3KooWJ5y9ZgVepBQNW4aabrxgmnrApdVnscqgKWiUu4BNJbC8",
     "/dns/westend-bootnode.polkadotters.com/tcp/30333/p2p/12D3KooWQiGqJxKmaRboMN2ATkW22R6SiXrc6Tp1APGwequhzuJU",
     "/dns/westend-bootnode.polkadotters.com/tcp/30334/wss/p2p/12D3KooWQiGqJxKmaRboMN2ATkW22R6SiXrc6Tp1APGwequhzuJU"
-
   ],
   "telemetryEndpoints": [
     [
