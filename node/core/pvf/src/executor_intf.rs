@@ -126,16 +126,15 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 			ExecutorParam::MaxMemorySize(mms) => sem.max_memory_size = Some(*mms as usize),
 			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
 			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
-			ExecutorParam::InstantiationStrategy(is) => match is {
-				ExecInstantiationStrategy::PoolingCoW =>
-					sem.instantiation_strategy = InstantiationStrategy::PoolingCopyOnWrite,
-				ExecInstantiationStrategy::RecreateCoW =>
-					sem.instantiation_strategy = InstantiationStrategy::RecreateInstanceCopyOnWrite,
-				ExecInstantiationStrategy::Pooling =>
-					sem.instantiation_strategy = InstantiationStrategy::Pooling,
-				ExecInstantiationStrategy::Recreate =>
-					sem.instantiation_strategy = InstantiationStrategy::RecreateInstance,
-			},
+			ExecutorParam::InstantiationStrategy(is) =>
+				sem.instantiation_strategy = match is {
+					ExecInstantiationStrategy::PoolingCoW =>
+						InstantiationStrategy::PoolingCopyOnWrite,
+					ExecInstantiationStrategy::RecreateCoW =>
+						InstantiationStrategy::RecreateInstanceCopyOnWrite,
+					ExecInstantiationStrategy::Pooling => InstantiationStrategy::Pooling,
+					ExecInstantiationStrategy::Recreate => InstantiationStrategy::RecreateInstance,
+				},
 			ExecutorParam::CanonicalizeNaNs(cnan) => sem.canonicalize_nans = *cnan,
 			ExecutorParam::ParallelCompilation(pc) => sem.parallel_compilation = *pc,
 		}

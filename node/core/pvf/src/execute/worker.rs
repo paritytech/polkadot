@@ -60,7 +60,15 @@ pub async fn spawn(
 			.await?;
 	send_handshake(&mut idle_worker.stream, Handshake { executor_params })
 		.await
-		.map_err(|_| SpawnErr::Handshake)?;
+		.map_err(|error| {
+			gum::warn!(
+				target: LOG_TARGET,
+				worker_pid = %idle_worker.pid,
+				?error,
+				"failed to send a handshake to the spawned worker",
+			);
+			SpawnErr::Handshake
+		})?;
 	Ok((idle_worker, worker_handle))
 }
 

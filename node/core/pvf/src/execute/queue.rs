@@ -39,7 +39,10 @@ use std::{
 	time::{Duration, Instant},
 };
 
-const MAX_KEEP_WAITING: u128 = 60000u128; // FIXME: Needs to be evaluated
+/// The amount of time the queue will wait for new jobs with an execution environment for which it
+/// already has workers before it starts to kill them and spawn new ones for jobs waiting in the
+/// queue with an incompatible execution environment.
+const MAX_KEEP_WAITING: Duration = Duration::from_millis(60000); // FIXME: Needs to be evaluated
 
 slotmap::new_key_type! { struct Worker; }
 
@@ -177,13 +180,19 @@ impl Queue {
 		}
 	}
 
+	/// Returns a job index of a job that is supposed to be executed next, or `None` if the queue
+	/// is empty. If optional `idle_worker` is provided, it does its best to find a job that is
+	/// compatible with the worker's execution environment, but that is not guaranteed; the caller
+	/// must check if the job returned may or may not be executed with the given worker and must
+	/// kill the worker and spawn a new one to execute the job if needed.
+	/// The result may be used with `take_job()` to acquire the actual job.
 	fn next_job_index(&self, idle_worker: Option<Worker>) -> Option<usize> {
 		// New jobs are always pushed to the tail of the queue; the one at its head is always the eldest one.
 		// First check if we have a job that cannot wait any more even if we have to kill a worker to run it
 
 		let eldest = if let Some(eldest) = self.queue.get(0) { eldest } else { return None };
 
-		if eldest.waiting_since.elapsed().as_millis() > MAX_KEEP_WAITING {
+		if eldest.waiting_since.elapsed() > MAX_KEEP_WAITING {
 			return Some(0)
 		}
 
@@ -214,8 +223,35 @@ impl Queue {
 		}
 	}
 
+	/// Removes job from the queue by its index (returned by `next_job_index()`) and returns it
 	fn take_job(&mut self, index: usize) -> Option<ExecuteJob> {
 		self.queue.remove(index)
+	}
+
+	/// TODO: Docs
+	fn try_assign_next_job(&mut self) {
+		if let Some(ji) = self.next_job_index(None) {
+			if let Some(available) =
+				self.workers.find_available(self.queue[ji].executor_params.hash())
+			{
+				let job = self.take_job(ji).expect("Job is just checked to be in queue; qed");
+				assign(self, available, job);
+				return
+			} else {
+				if let Some(idle) = self.workers.find_idle() {
+					// No available workers of required type but there are some idle ones of other types,
+					// have to kill one and re-spawn with the correct type
+					if self.workers.running.remove(idle).is_some() {
+						self.metrics.execute_worker().on_retired();
+					}
+				}
+			}
+
+			if self.workers.can_afford_one_more() {
+				let job = self.take_job(ji).expect("Job is just checked to be in queue; qed");
+				spawn_extra_worker(self, job);
+			}
+		}
 	}
 }
 
@@ -230,31 +266,6 @@ async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
 	for w in to_remove {
 		if workers.running.remove(w).is_some() {
 			metrics.execute_worker().on_retired();
-		}
-	}
-}
-
-fn try_assign_next_job(queue: &mut Queue) {
-	if let Some(ji) = queue.next_job_index(None) {
-		if let Some(available) =
-			queue.workers.find_available(queue.queue[ji].executor_params.hash())
-		{
-			let job = queue.take_job(ji).expect("Job is just checked to be in queue; qed");
-			assign(queue, available, job);
-			return
-		} else {
-			if let Some(idle) = queue.workers.find_idle() {
-				// No available workers of required type but there are some idle ones of other types,
-				// have to kill one and re-spawn with the correct type
-				if queue.workers.running.remove(idle).is_some() {
-					queue.metrics.execute_worker().on_retired();
-				}
-			}
-		}
-
-		if queue.workers.can_afford_one_more() {
-			let job = queue.take_job(ji).expect("Job is just checked to be in queue; qed");
-			spawn_extra_worker(queue, job);
 		}
 	}
 }
@@ -277,7 +288,7 @@ fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
 		waiting_since: Instant::now(),
 	};
 	queue.queue.push_back(job);
-	try_assign_next_job(queue);
+	queue.try_assign_next_job();
 }
 
 async fn handle_mux(queue: &mut Queue, event: QueueEvent) {
@@ -368,7 +379,7 @@ fn handle_job_finish(
 		}
 	}
 
-	try_assign_next_job(queue);
+	queue.try_assign_next_job();
 }
 
 fn spawn_extra_worker(queue: &mut Queue, job: ExecuteJob) {
@@ -404,7 +415,8 @@ async fn spawn_worker_task(
 
 /// Ask the given worker to perform the given job.
 ///
-/// The worker must be running and idle.
+/// The worker must be running and idle. The job and the worker must share the same execution
+/// environment parameter set.
 fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 	gum::debug!(
 		target: LOG_TARGET,
