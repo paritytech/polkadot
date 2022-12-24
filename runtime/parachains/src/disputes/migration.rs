@@ -36,19 +36,33 @@ pub mod v1 {
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 		fn on_runtime_upgrade() -> Weight {
-			log::info!(target: crate::disputes::LOG_TARGET, "Migrating disputes storage");
 			let mut weight: Weight = Weight::zero();
 
 			if StorageVersion::get::<Pallet<T>>() < STORAGE_VERSION {
-				log::info!(
-					target: crate::disputes::LOG_TARGET,
-					"Will migrate disputes storage!!!!"
-				);
+				log::info!(target: crate::disputes::LOG_TARGET, "Migrating disputes storage to v1");
 				weight += migrate_to_v1::<T>();
 				STORAGE_VERSION.put::<Pallet<T>>();
 				weight = weight.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+			} else {
+				log::info!(
+					target: crate::disputes::LOG_TARGET,
+					"Disputes storage up to date - no need for migration"
+				);
 			}
 			weight
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+			ensure!(
+				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
+				format!("Storage version should be {} after the migration", STORAGE_VERSION)
+			);
+			ensure!(
+				SpamSlots::<T>::iter().count() == 0,
+				"SpamSlots should be empty after the migration"
+			);
+			Ok(())
 		}
 	}
 
