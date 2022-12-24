@@ -286,26 +286,27 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 			.saturating_add(T::DbWeight::get().reads(9 as u64))
 			.saturating_add(T::DbWeight::get().writes(5 as u64))
 	}
-		// Storage: NominationPools BondedPools (r:1 w:1)
-		fn set_commission() -> Weight {
-			// Minimum execution time: 26_000 nanoseconds.
-			Weight::from_ref_time(27_000_000)
-				.saturating_add(T::DbWeight::get().reads(1))
-				.saturating_add(T::DbWeight::get().writes(1))
-		}
-		// Storage: NominationPools BondedPools (r:1 w:1)
-		fn set_commission_max() -> Weight {
-			// Minimum execution time: 25_000 nanoseconds.
-			Weight::from_ref_time(25_000_000)
-				.saturating_add(T::DbWeight::get().reads(1))
-				.saturating_add(T::DbWeight::get().writes(1))
-		}
-		// Storage: NominationPools BondedPools (r:1 w:1)
-		fn set_commission_throttle() -> Weight {
-			// Minimum execution time: 25_000 nanoseconds.
-			Weight::from_ref_time(26_000_000)
-				.saturating_add(T::DbWeight::get().reads(1))
-				.saturating_add(T::DbWeight::get().writes(1))
-		}
-	
+	// Storage: NominationPools BondedPools (r:1 w:1)
+	// Storage: NominationPools GlobalMaxCommission (r:1 w:0)
+	fn set_commission() -> Weight {
+		// Minimum execution time: 23_000 nanoseconds.
+		Weight::from_ref_time(23_000_000)
+			.saturating_add(RocksDbWeight::get().reads(2))
+			.saturating_add(RocksDbWeight::get().writes(1))
+	}
+	// Storage: NominationPools BondedPools (r:1 w:1)
+	// Storage: NominationPools GlobalMaxCommission (r:1 w:0)
+	fn set_commission_max() -> Weight {
+		// Minimum execution time: 22_000 nanoseconds.
+		Weight::from_ref_time(23_000_000)
+			.saturating_add(RocksDbWeight::get().reads(2))
+			.saturating_add(RocksDbWeight::get().writes(1))
+	}
+	// Storage: NominationPools BondedPools (r:1 w:1)
+	fn set_commission_throttle() -> Weight {
+		// Minimum execution time: 22_000 nanoseconds.
+		Weight::from_ref_time(23_000_000)
+			.saturating_add(RocksDbWeight::get().reads(1))
+			.saturating_add(RocksDbWeight::get().writes(1))
+	}
 }
