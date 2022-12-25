@@ -208,8 +208,6 @@ impl Queue {
 
 				// There are some jobs but an idle worker cannot execute them. Let's instruct the caller to
 				// kill the useless worker and spawn a new one to execute the eldest job.
-				// FIXME: Worst case scenario should be carefully evaluated and this logic might require
-				// adjustment
 				return Some(0)
 			} else {
 				// Worker to which the job was supposed to be assigned is not there any more, just execute
@@ -228,9 +226,14 @@ impl Queue {
 		self.queue.remove(index)
 	}
 
-	/// TODO: Docs
-	fn try_assign_next_job(&mut self) {
-		if let Some(ji) = self.next_job_index(None) {
+	/// Tries to assign a job in the queue to a worker. If an idle worker is provided, it does its
+	/// best to find a job with a compatible execution environment unless there are jobs in the
+	/// queue waiting too long. In that case, it kills an existing idle worker and spawns a new
+	/// one. It may spawn an additional worker if that is affordable.
+	/// If all the workers are busy or the queue is empty, it does nothing.
+	/// Should be called every time a new job arrives to the queue or a job finishes.
+	fn try_assign_next_job(&mut self, idle_worker: Option<Worker>) {
+		if let Some(ji) = self.next_job_index(idle_worker) {
 			if let Some(available) =
 				self.workers.find_available(self.queue[ji].executor_params.hash())
 			{
@@ -288,7 +291,7 @@ fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
 		waiting_since: Instant::now(),
 	};
 	queue.queue.push_back(job);
-	queue.try_assign_next_job();
+	queue.try_assign_next_job(None);
 }
 
 async fn handle_mux(queue: &mut Queue, event: QueueEvent) {
@@ -371,6 +374,7 @@ fn handle_job_finish(
 	if let Some(idle_worker) = idle_worker {
 		if let Some(data) = queue.workers.running.get_mut(worker) {
 			data.idle = Some(idle_worker);
+			return queue.try_assign_next_job(Some(worker))
 		}
 	} else {
 		// Note it's possible that the worker was purged already by `purge_dead`
@@ -379,7 +383,7 @@ fn handle_job_finish(
 		}
 	}
 
-	queue.try_assign_next_job();
+	queue.try_assign_next_job(None);
 }
 
 fn spawn_extra_worker(queue: &mut Queue, job: ExecuteJob) {
