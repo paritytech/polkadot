@@ -28,6 +28,7 @@ use thiserror::Error;
 
 pub use sc_network::IfDisconnected;
 
+use polkadot_node_core_pvf::NonDeterministicError;
 use polkadot_node_network_protocol::{
 	self as net_protocol, peer_set::PeerSet, request_response::Requests, PeerId,
 	UnifiedReputationChange,
@@ -93,7 +94,7 @@ impl BoundToRelayParent for CandidateBackingMessage {
 #[error("Validation failed with {0:?}")]
 pub enum ValidationFailed {
 	/// Validation failed due to an internal prepare error.
-	Prepare(String),
+	Prepare(NonDeterministicError),
 	/// Validation failed due to an internal execute error.
 	Execute(String),
 	/// Validation failed due to some other internal error.

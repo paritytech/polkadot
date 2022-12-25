@@ -562,8 +562,7 @@ async fn validate_candidate_exhaustive(
 
 	match result {
 		// Internal errors.
-		Err(ValidationError::InternalPrepareError(e)) =>
-			Err(ValidationFailed::Prepare(e.to_string())),
+		Err(ValidationError::InternalPrepareError(e)) => Err(ValidationFailed::Prepare(e)),
 		Err(ValidationError::InternalExecuteError(e)) => Err(ValidationFailed::Execute(e)),
 		Err(ValidationError::InternalOtherError(e)) => Err(ValidationFailed::Other(e)),
 

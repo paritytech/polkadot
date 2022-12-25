@@ -99,11 +99,11 @@ pub enum ValidationError {
 	/// The error was raised because the candidate is invalid.
 	InvalidCandidate(InvalidCandidate),
 	/// This error is raised due to inability to serve the request during preparation.
-	InternalPrepareError(NonDeterministicError),
+	InternalPrepare(NonDeterministicError),
 	/// This error is raised due to inability to serve the request during execution.
-	InternalExecuteError(String),
+	InternalExecute(String),
 	/// This error is raised due to inability to serve the request for some other reason.
-	InternalOtherError(String),
+	InternalOther(String),
 }
 
 /// A description of an error raised during executing a PVF and can be attributed to the combination

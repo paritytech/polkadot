@@ -455,7 +455,7 @@ fn cast_invalid_vote_if_validation_fails_or_is_invalid() {
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
 			) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
-				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::Timeout))).unwrap();
+				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionTimeout))).unwrap();
 			},
 			"overseer did not receive candidate validation message",
 		);

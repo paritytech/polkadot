@@ -6602,6 +6602,7 @@ dependencies = [
  "derive_more",
  "futures",
  "orchestra",
+ "polkadot-node-core-pvf",
  "polkadot-node-jaeger",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
