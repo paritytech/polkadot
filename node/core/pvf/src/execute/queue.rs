@@ -180,80 +180,63 @@ impl Queue {
 		}
 	}
 
-	/// Returns a job index of a job that is supposed to be executed next, or `None` if the queue
-	/// is empty. If optional `idle_worker` is provided, it does its best to find a job that is
-	/// compatible with the worker's execution environment, but that is not guaranteed; the caller
-	/// must check if the job returned may or may not be executed with the given worker and must
-	/// kill the worker and spawn a new one to execute the job if needed.
-	/// The result may be used with `take_job()` to acquire the actual job.
-	fn next_job_index(&self, idle_worker: Option<Worker>) -> Option<usize> {
-		// New jobs are always pushed to the tail of the queue; the one at its head is always the eldest one.
-		// First check if we have a job that cannot wait any more even if we have to kill a worker to run it
-
-		let eldest = if let Some(eldest) = self.queue.get(0) { eldest } else { return None };
-
-		if eldest.waiting_since.elapsed() > MAX_KEEP_WAITING {
-			return Some(0)
-		}
-
-		// No rush, let's try to find the most suitable job for the worker that's just become idle or dead
-
-		if let Some(idle_worker) = idle_worker {
-			if let Some(worker) = self.workers.running.get(idle_worker) {
-				for (i, job) in self.queue.iter().enumerate() {
-					if worker.executor_params_hash == job.executor_params.hash() {
-						return Some(i)
-					}
-				}
-
-				// There are some jobs but an idle worker cannot execute them. Let's instruct the caller to
-				// kill the useless worker and spawn a new one to execute the eldest job.
-				return Some(0)
-			} else {
-				// Worker to which the job was supposed to be assigned is not there any more, just execute
-				// the eldest job
-				return Some(0)
-			}
-		} else {
-			// Old worker is dead anyway so let's just instruct caller to spawn a new one to
-			// execute the eldest job
-			return Some(0)
-		}
-	}
-
-	/// Removes job from the queue by its index (returned by `next_job_index()`) and returns it
-	fn take_job(&mut self, index: usize) -> Option<ExecuteJob> {
-		self.queue.remove(index)
-	}
-
 	/// Tries to assign a job in the queue to a worker. If an idle worker is provided, it does its
 	/// best to find a job with a compatible execution environment unless there are jobs in the
 	/// queue waiting too long. In that case, it kills an existing idle worker and spawns a new
 	/// one. It may spawn an additional worker if that is affordable.
 	/// If all the workers are busy or the queue is empty, it does nothing.
 	/// Should be called every time a new job arrives to the queue or a job finishes.
-	fn try_assign_next_job(&mut self, idle_worker: Option<Worker>) {
-		if let Some(ji) = self.next_job_index(idle_worker) {
-			if let Some(available) =
-				self.workers.find_available(self.queue[ji].executor_params.hash())
-			{
-				let job = self.take_job(ji).expect("Job is just checked to be in queue; qed");
-				assign(self, available, job);
-				return
-			} else {
-				if let Some(idle) = self.workers.find_idle() {
-					// No available workers of required type but there are some idle ones of other types,
-					// have to kill one and re-spawn with the correct type
-					if self.workers.running.remove(idle).is_some() {
-						self.metrics.execute_worker().on_retired();
+	fn try_assign_next_job(&mut self, finished_worker: Option<Worker>) {
+		// New jobs are always pushed to the tail of the queue; the one at its head is always
+		// the eldest one.
+		let eldest = if let Some(eldest) = self.queue.get(0) { eldest } else { return };
+
+		// By default, we're going to execute the eldest job on any worker slot available, even if
+		// we have to kill and re-spawn a worker
+		let mut worker = None;
+		let mut job_index = 0;
+
+		// But if we're not pressed for time, we can try to find a better job-worker pair not
+		// requiring the expensive kill-spawn operation
+		if eldest.waiting_since.elapsed() < MAX_KEEP_WAITING {
+			if let Some(finished_worker) = finished_worker {
+				if let Some(worker_data) = self.workers.running.get(finished_worker) {
+					for (i, job) in self.queue.iter().enumerate() {
+						if worker_data.executor_params_hash == job.executor_params.hash() {
+							(worker, job_index) = (Some(finished_worker), i);
+							break
+						}
 					}
 				}
 			}
+		}
 
-			if self.workers.can_afford_one_more() {
-				let job = self.take_job(ji).expect("Job is just checked to be in queue; qed");
-				spawn_extra_worker(self, job);
+		if worker.is_none() {
+			// Try to obtain a worker for the job
+			worker = self.workers.find_available(self.queue[job_index].executor_params.hash());
+		}
+
+		if worker.is_none() {
+			if let Some(idle) = self.workers.find_idle() {
+				// No available workers of required type but there are some idle ones of other
+				// types, have to kill one and re-spawn with the correct type
+				if self.workers.running.remove(idle).is_some() {
+					self.metrics.execute_worker().on_retired();
+				}
 			}
+		}
+
+		if worker.is_none() && !self.workers.can_afford_one_more() {
+			// Bad luck, no worker slot can be used to execute the job
+			return
+		}
+
+		let job = self.queue.remove(job_index).expect("Job is just checked to be in queue; qed");
+
+		if let Some(worker) = worker {
+			assign(self, worker, job);
+		} else {
+			spawn_extra_worker(self, job);
 		}
 	}
 }
