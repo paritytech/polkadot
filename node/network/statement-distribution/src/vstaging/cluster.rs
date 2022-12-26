@@ -172,6 +172,7 @@ impl ClusterTracker {
 	}
 
 	/// Note that we accepted an incoming statement. This updates internal structures.
+	///
 	/// Should only be called after a successful `can_receive` call.
 	pub fn note_received(
 		&mut self,
@@ -748,5 +749,55 @@ mod tests {
 		);
 	}
 
-	// TODO [now] ensure statements received with prejudice don't prevent sending later
+	// Ensure statements received with prejudice don't prevent sending later.
+	#[test]
+	fn can_send_statements_received_with_prejudice() {
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
+
+		let seconding_limit = 1;
+
+		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+		let hash_b = CandidateHash(Hash::repeat_byte(2));
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(200),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_a),
+			),
+			Ok(Accept::Ok),
+		);
+
+		tracker.note_received(
+			ValidatorIndex(200),
+			ValidatorIndex(5),
+			CompactStatement::Seconded(hash_a),
+		);
+
+		assert_eq!(
+			tracker.can_receive(
+				ValidatorIndex(24),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_b),
+			),
+			Ok(Accept::WithPrejudice),
+		);
+
+		tracker.note_received(
+			ValidatorIndex(24),
+			ValidatorIndex(5),
+			CompactStatement::Seconded(hash_b),
+		);
+
+		assert_eq!(
+			tracker.can_send(
+				ValidatorIndex(24),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_a),
+			),
+			Ok(()),
+		);
+	}
 }
