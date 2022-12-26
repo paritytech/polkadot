@@ -665,7 +665,8 @@ mod tests {
 
 		assert!(!request_manager.unique_identifiers.contains_key(&candidate_a1));
 		assert!(!request_manager.unique_identifiers.contains_key(&candidate_a2));
-		assert!(!request_manager.unique_identifiers.contains_key(&duplicate_hash));
+		// Duplicate hash should still be there (under a different parent).
+		assert!(request_manager.unique_identifiers.contains_key(&duplicate_hash));
 
 		request_manager.remove_by_relay_parent(parent_b);
 
@@ -679,8 +680,8 @@ mod tests {
 		request_manager.remove_by_relay_parent(parent_c);
 
 		assert!(request_manager.requests.is_empty());
-		assert!(request_manager.requests.is_empty());
-		assert!(request_manager.requests.is_empty());
+		assert!(request_manager.by_priority.is_empty());
+		assert!(request_manager.unique_identifiers.is_empty());
 	}
 
 	// TODO [now]: test priority ordering.
