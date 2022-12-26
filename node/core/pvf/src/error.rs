@@ -146,12 +146,12 @@ impl From<PrepareError> for ValidationError {
 		// We treat the deterministic errors as `InvalidCandidate`. Should those occur they could
 		// potentially trigger disputes.
 		//
-		// All non-deterministic errors are qualified as `InternalPrepareError`s and will not trigger
+		// All non-deterministic errors are qualified as `InternalPrepare` and will not trigger
 		// disputes.
 		match error {
 			PrepareError::Deterministic(error) =>
 				ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error)),
-			PrepareError::NonDeterministic(error) => ValidationError::InternalPrepareError(error),
+			PrepareError::NonDeterministic(error) => ValidationError::InternalPrepare(error),
 		}
 	}
 }

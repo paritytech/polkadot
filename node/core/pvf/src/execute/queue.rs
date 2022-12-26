@@ -235,7 +235,7 @@ fn handle_job_finish(
 			Err(ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(err))),
 		),
 		Outcome::InternalError { err, idle_worker } =>
-			(Some(idle_worker), Err(ValidationError::InternalExecuteError(err))),
+			(Some(idle_worker), Err(ValidationError::InternalExecute(err))),
 		Outcome::HardTimeout =>
 			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout))),
 		Outcome::IoErr =>

@@ -1241,7 +1241,7 @@ mod tests {
 		);
 		assert_matches!(
 			result_rx_execute.now_or_never().unwrap().unwrap(),
-			Err(ValidationError::InternalPrepareError(_))
+			Err(ValidationError::InternalPrepare(_))
 		);
 
 		// Reversed case: first send multiple precheck requests, then ask for an execution.

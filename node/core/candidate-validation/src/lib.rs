@@ -562,9 +562,9 @@ async fn validate_candidate_exhaustive(
 
 	match result {
 		// Internal errors.
-		Err(ValidationError::InternalPrepareError(e)) => Err(ValidationFailed::Prepare(e)),
-		Err(ValidationError::InternalExecuteError(e)) => Err(ValidationFailed::Execute(e)),
-		Err(ValidationError::InternalOtherError(e)) => Err(ValidationFailed::Other(e)),
+		Err(ValidationError::InternalPrepare(e)) => Err(ValidationFailed::Prepare(e)),
+		Err(ValidationError::InternalExecute(e)) => Err(ValidationFailed::Execute(e)),
+		Err(ValidationError::InternalOther(e)) => Err(ValidationFailed::Other(e)),
 
 		// Invalid candidate errors.
 		Err(ValidationError::InvalidCandidate(e)) => match e {
@@ -667,14 +667,14 @@ impl ValidationBackend for ValidationHost {
 
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = self.execute_pvf(pvf, timeout, encoded_params, priority, tx).await {
-			return Err(ValidationError::InternalOtherError(format!(
+			return Err(ValidationError::InternalOther(format!(
 				"cannot send pvf to the validation host: {:?}",
 				err
 			)))
 		}
 
 		rx.await
-			.map_err(|_| ValidationError::InternalOtherError("validation was cancelled".into()))?
+			.map_err(|_| ValidationError::InternalOther("validation was cancelled".into()))?
 	}
 
 	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError> {
