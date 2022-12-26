@@ -57,7 +57,7 @@ pub enum FakeCandidateValidationError {
 	/// Failed to execute.`validate_block`. This includes function panicking.
 	ExecutionError,
 	/// Execution timeout.
-	Timeout,
+	ExecutionTimeout,
 	/// Validation input is over the limit.
 	ParamsTooLarge,
 	/// Code size is over the limit.
@@ -86,7 +86,7 @@ impl Into<InvalidCandidate> for FakeCandidateValidationError {
 			FakeCandidateValidationError::ExecutionError =>
 				InvalidCandidate::ExecutionError("Malus".into()),
 			FakeCandidateValidationError::InvalidOutputs => InvalidCandidate::InvalidOutputs,
-			FakeCandidateValidationError::Timeout => InvalidCandidate::Timeout,
+			FakeCandidateValidationError::ExecutionTimeout => InvalidCandidate::ExecutionTimeout,
 			FakeCandidateValidationError::ParamsTooLarge => InvalidCandidate::ParamsTooLarge(666),
 			FakeCandidateValidationError::CodeTooLarge => InvalidCandidate::CodeTooLarge(666),
 			FakeCandidateValidationError::CodeDecompressionFailure =>
