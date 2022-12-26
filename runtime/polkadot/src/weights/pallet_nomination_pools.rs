@@ -303,7 +303,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 			.saturating_add(RocksDbWeight::get().writes(1))
 	}
 	// Storage: NominationPools BondedPools (r:1 w:1)
-	fn set_commission_throttle() -> Weight {
+	fn set_commission_change_rate() -> Weight {
 		// Minimum execution time: 22_000 nanoseconds.
 		Weight::from_ref_time(23_000_000)
 			.saturating_add(RocksDbWeight::get().reads(1))
