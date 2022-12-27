@@ -47,8 +47,8 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactive<T> {
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-		let total = Funds::<T>::iter()
-			.map(|(_, item)| {
+		let total = Funds::<T>::iter_values()
+			.map(|item| {
 				CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(item.fund_index))
 			})
 			.fold(BalanceOf::<T>::zero(), |a, i| a.saturating_add(i));
