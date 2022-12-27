@@ -97,11 +97,12 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: NominationPools BondedPools (r:1 w:1)
 	// Storage: NominationPools RewardPools (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
+	// Storage: NominationPools GlobalMaxCommission (r:1 w:0)
 	fn claim_payout() -> Weight {
-		// Minimum execution time: 54_447 nanoseconds.
-		Weight::from_ref_time(54_781_000 as u64)
-			.saturating_add(T::DbWeight::get().reads(4 as u64))
-			.saturating_add(T::DbWeight::get().writes(4 as u64))
+		// Minimum execution time: 64_000 nanoseconds.
+		Weight::from_ref_time(65_000_000)
+			.saturating_add(T::DbWeight::get().reads(5))
+			.saturating_add(T::DbWeight::get().writes(4))
 	}
 	// Storage: NominationPools PoolMembers (r:1 w:1)
 	// Storage: NominationPools BondedPools (r:1 w:1)
