@@ -951,9 +951,8 @@ mod tests {
 		let reserve_ancestry: MultiLocation = (Parachain(1000)).into();
 		let destination = MultiLocation::new(1, X1(Parachain(2000)));
 		inverted.reanchor(&destination, &reserve_ancestry).unwrap();
-		let expected: MultiLocation =
-			(Parent, Parachain(1000), PalletInstance(50), GeneralIndex(1984)).into();
-		assert_eq!(inverted, expected);
+
+		assert_eq!(inverted, input);
 	}
 
 	#[test]
