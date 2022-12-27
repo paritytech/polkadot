@@ -29,7 +29,7 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactive<T> {
 
 		if onchain_version == 1 {
 			let mut translated = 0u64;
-			for (_, item) in Funds::<T>::iter() {
+			for item in Funds::<T>::iter_values() {
 				let b =
 					CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(item.fund_index));
 				CurrencyOf::<T>::deactivate(b);
