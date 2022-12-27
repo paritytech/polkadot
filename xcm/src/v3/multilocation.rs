@@ -540,6 +540,59 @@ mod tests {
 		assert_eq!(location, expected);
 	}
 
+	fn account20() -> Junction {
+		AccountKey20 { network: None, key: Default::default() }
+	}
+
+	fn account32() -> Junction {
+		AccountId32 { network: None, id: Default::default() }
+	}
+
+	#[test]
+	fn inverter_works_in_tree() {
+		let ancestry: InteriorMultiLocation = X3(Parachain(1), account20(), account20()).into();
+		let target = MultiLocation::new(3, X2(Parachain(2), account32()));
+		let inverted = ancestry.invert_target(&target).unwrap();
+		let expected = MultiLocation::new(2, X3(Parachain(1), account20(), account20()));
+		assert_eq!(inverted, expected);
+	}
+
+	#[test]
+	fn inverter_uses_ancestry_as_inverted_location() {
+		let ancestry: InteriorMultiLocation = X2(account20(), account20()).into();
+		let target = MultiLocation::grandparent();
+		let inverted = ancestry.invert_target(&target).unwrap();
+		let expected = X2(account20(), account20()).into();
+		assert_eq!(inverted, expected);
+	}
+
+	#[test]
+	fn inverter_errors_when_location_is_too_large() {
+		let ancestry: InteriorMultiLocation = Here.into();
+		let target = MultiLocation { parents: 99, interior: X1(Parachain(88)) };
+		let inverted = ancestry.invert_target(&target);
+		assert_eq!(inverted, Err(()));
+	}
+
+	#[test]
+	fn fixed_point() {
+		let non_reserve_ancestry: Junctions = (Parachain(2000)).into();
+
+		let input =
+			MultiLocation::new(1, X3(Parachain(1000), PalletInstance(50), GeneralIndex(1984)));
+		let destination = MultiLocation::new(1, X1(Parachain(1000)));
+		let mut inverted = input.clone();
+		inverted.reanchor(&destination, non_reserve_ancestry).unwrap();
+		let expected: MultiLocation = X2(PalletInstance(50), GeneralIndex(1984)).into();
+		assert_eq!(inverted, expected);
+
+		let reserve_ancestry: Junctions = (Parachain(1000)).into();
+		let destination = MultiLocation::new(1, X1(Parachain(2000)));
+		inverted.reanchor(&destination, reserve_ancestry).unwrap();
+
+		assert_eq!(inverted, input);
+	}
+
 	#[test]
 	fn simplify_incompatible_location_fails() {
 		let mut location: MultiLocation =
