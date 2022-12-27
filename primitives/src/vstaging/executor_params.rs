@@ -114,6 +114,9 @@ impl sp_std::fmt::LowerHex for ExecutorParamsHash {
 /// # Deterministically serialized execution environment semantics
 /// Represents an arbitrary semantics of an arbitrary execution environment, so should be kept as
 /// abstract as possible.
+// ADR: For mandatory entries (like `ExecutorParam::Environment`), mandatoriness should be enforced
+// in code rather than separating them into individual fields of the structure. Thus, complex
+// migrations shall be avoided when adding new entries and removing old ones.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub struct ExecutorParams(Vec<ExecutorParam>);
 
