@@ -1483,7 +1483,7 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 pub type Migrations = (
 	pallet_balances::migration::ResetInactive<Runtime>,
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, CheckAccount>,
-	crowdloan::migration::MigrateToTrackInactive<Runtime>, //< Must stay in a second time.
+	crowdloan::migration::MigrateToTrackInactiveV2<Runtime>,
 	pallet_referenda::migration::v1::MigrateV0ToV1<Runtime>,
 	pallet_referenda::migration::v1::MigrateV0ToV1<
 		Runtime,

@@ -22,8 +22,8 @@ use frame_support::{
 	Twox64Concat,
 };
 
-pub struct MigrateToTrackInactive<T>(sp_std::marker::PhantomData<T>);
-impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactive<T> {
+pub struct MigrateToTrackInactiveV2<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactiveV2<T> {
 	fn on_runtime_upgrade() -> Weight {
 		let onchain_version = Pallet::<T>::on_chain_storage_version();
 
