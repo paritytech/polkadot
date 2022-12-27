@@ -75,8 +75,8 @@
 //!	Further limitations: Because everything is routed to the same channel, it is not possible with
 //!	this approach to put back pressure on only a single source (as all are the same). If a module
 //!	has a task that requires this, it indeed has to spawn a long running task which can do the
-//!	back-pressure on that message source. This is just one of the situations that justifies
-//!	spawning a task.
+//!	back-pressure on that message source or we make it its own subsystem. This is just one of the
+//!	situations that justifies the complexity of asynchronism.
 
 use std::convert::identity;
 
