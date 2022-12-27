@@ -205,49 +205,6 @@ specialize_requests! {
 	fn request_on_chain_votes() -> Option<ScrapedOnChainVotes>; FetchOnChainVotes;
 }
 
-/// Requests session info from the runtime effective at given relay-parent. First obtains
-/// session index at the relay-parent, relying on the fact that it should be cached by the runtime
-/// API caching layer even if the block itself has already been pruned. Then requests session info
-/// by session index.
-/// Returns an error if failed to communicate to the runtime, or the session info is not in the
-/// storage, which should never happen.
-pub async fn session_info_at_relay_parent(
-	relay_parent: Hash,
-	sender: &mut impl overseer::SubsystemSender<RuntimeApiMessage>,
-) -> Result<SessionInfo, Error> {
-	match request_session_index_for_child(relay_parent, sender).await.await {
-		Err(err) => {
-			// Failed to communicate with the runtime
-			Err(Error::Oneshot(err))
-		},
-		Ok(Err(err)) => {
-			// Runtime has failed to obtain a session index at the relay-parent; should never happen
-			Err(Error::RuntimeApi(err))
-		},
-		Ok(Ok(session_index)) => {
-			match request_session_info(relay_parent, session_index, sender).await.await {
-				Err(err) => {
-					// Failed to communicate with the runtime
-					Err(Error::Oneshot(err))
-				},
-				Ok(Err(err)) => {
-					// Runtime has failed to provide session info for the given session; should
-					// never happen
-					Err(Error::RuntimeApi(err))
-				},
-				Ok(Ok(None)) => {
-					// Storage doesn't contain session info for the given session; should never
-					// happen
-					Err(Error::RuntimeApi(RuntimeApiError::NotSupported {
-						runtime_api_name: "SessionInfo",
-					}))
-				},
-				Ok(Ok(Some(session_info))) => Ok(session_info),
-			}
-		},
-	}
-}
-
 /// From the given set of validators, find the first key we can sign with, if any.
 pub async fn signing_key(
 	validators: &[ValidatorId],

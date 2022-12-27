@@ -46,12 +46,15 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, session_info_at_relay_parent, Validator,
+	request_validators, runtime::RuntimeInfo, Validator,
 };
-use polkadot_primitives::v3::{
-	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SigningContext,
-	ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+use polkadot_primitives::{
+	v3::{
+		BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
+		CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SigningContext,
+		ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	},
+	vstaging::ExecutorParams,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -119,6 +122,7 @@ impl ValidatedCandidateCommand {
 
 /// The candidate backing subsystem.
 pub struct CandidateBackingSubsystem {
+	runtime: RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
 }
@@ -126,7 +130,8 @@ pub struct CandidateBackingSubsystem {
 impl CandidateBackingSubsystem {
 	/// Create a new instance of the `CandidateBackingSubsystem`.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-		Self { keystore, metrics }
+		let runtime = RuntimeInfo::new(Some(keystore.clone()));
+		Self { runtime, keystore, metrics }
 	}
 }
 
@@ -135,9 +140,9 @@ impl<Context> CandidateBackingSubsystem
 where
 	Context: Send + Sync,
 {
-	fn start(self, ctx: Context) -> SpawnedSubsystem {
+	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
 		let future = async move {
-			run(ctx, self.keystore, self.metrics)
+			run(ctx, &mut self.runtime, self.keystore, self.metrics)
 				.await
 				.map_err(|e| SubsystemError::with_origin("candidate-backing", e))
 		}
@@ -150,6 +155,7 @@ where
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
+	runtime: &mut RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
 ) -> FatalResult<()> {
@@ -159,6 +165,7 @@ async fn run<Context>(
 	loop {
 		let res = run_iteration(
 			&mut ctx,
+			runtime,
 			keystore.clone(),
 			&metrics,
 			&mut jobs,
@@ -179,6 +186,7 @@ async fn run<Context>(
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn run_iteration<Context>(
 	ctx: &mut Context,
+	runtime: &mut RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
 	metrics: &Metrics,
 	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
@@ -205,6 +213,7 @@ async fn run_iteration<Context>(
 						&mut *ctx,
 						update,
 						jobs,
+						runtime,
 						&keystore,
 						&background_validation_tx,
 						&metrics,
@@ -266,6 +275,7 @@ async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
 	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
+	runtime: &mut RuntimeInfo,
 	keystore: &SyncCryptoStorePtr,
 	background_validation_tx: &mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	metrics: &Metrics,
@@ -318,6 +328,21 @@ async fn handle_active_leaves_update<Context>(
 	let (validator_groups, group_rotation_info) = try_runtime_api!(groups);
 	let session_index = try_runtime_api!(session_index);
 	let cores = try_runtime_api!(cores);
+
+	let ext_session_info =
+		match runtime.get_session_info_by_index(ctx.sender(), parent, session_index).await {
+			Ok(esi) => esi,
+			Err(e) => {
+				gum::warn!(
+					target: LOG_TARGET,
+					err = ?e,
+					"Failed to get session info for job",
+				);
+
+				return Ok(())
+			},
+		};
+	let executor_params = ext_session_info.session_info.executor_params.clone();
 
 	drop(_span);
 	let _span = span.child("validator-construction");
@@ -389,6 +414,7 @@ async fn handle_active_leaves_update<Context>(
 		unbacked_candidates: HashMap::new(),
 		backed: HashSet::new(),
 		keystore: keystore.clone(),
+		executor_params,
 		table: Table::default(),
 		table_context,
 		background_validation_tx: background_validation_tx.clone(),
@@ -428,6 +454,7 @@ struct CandidateBackingJob<Context> {
 	/// that we've sent the provisioner the backed candidate.
 	backed: HashSet<CandidateHash>,
 	keystore: SyncCryptoStorePtr,
+	executor_params: ExecutorParams,
 	table: Table<TableContext>,
 	table_context: TableContext,
 	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
@@ -643,23 +670,14 @@ async fn request_candidate_validation(
 	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
+	executor_params: ExecutorParams,
 ) -> Result<ValidationResult, Error> {
-	let session_info =
-		session_info_at_relay_parent(candidate_receipt.descriptor.relay_parent, sender)
-			.await
-			.map_err(|_| {
-				Error::ValidationFailed(polkadot_node_subsystem::messages::ValidationFailed(
-					"cannot acquire session info for the candidate".to_owned(),
-				))
-			})?;
-
 	let (tx, rx) = oneshot::channel();
-
 	sender
 		.send_message(CandidateValidationMessage::ValidateFromChainState(
 			candidate_receipt,
 			pov,
-			session_info.executor_params,
+			executor_params,
 			BACKING_EXECUTION_TIMEOUT,
 			tx,
 		))
@@ -681,6 +699,7 @@ struct BackgroundValidationParams<S: overseer::CandidateBackingSenderTrait, F> {
 	candidate: CandidateReceipt,
 	relay_parent: Hash,
 	pov: PoVData,
+	executor_params: ExecutorParams,
 	n_validators: usize,
 	span: Option<jaeger::Span>,
 	make_command: F,
@@ -699,6 +718,7 @@ async fn validate_and_make_available(
 		relay_parent,
 		pov,
 		n_validators,
+		executor_params,
 		span,
 		make_command,
 	} = params;
@@ -739,7 +759,8 @@ async fn validate_and_make_available(
 				.with_pov(&pov)
 				.with_para_id(candidate.descriptor().para_id)
 		});
-		request_candidate_validation(&mut sender, candidate.clone(), pov.clone()).await?
+		request_candidate_validation(&mut sender, candidate.clone(), pov.clone(), executor_params)
+			.await?
 	};
 
 	let res = match v {
@@ -967,6 +988,7 @@ impl<Context> CandidateBackingJob<Context> {
 				candidate: candidate.clone(),
 				relay_parent: self.parent,
 				pov: PoVData::Ready(pov),
+				executor_params: self.executor_params.clone(),
 				n_validators: self.table_context.validators.len(),
 				span,
 				make_command: ValidatedCandidateCommand::Second,
@@ -1218,6 +1240,7 @@ impl<Context> CandidateBackingJob<Context> {
 				candidate: attesting.candidate,
 				relay_parent: self.parent,
 				pov,
+				executor_params: self.executor_params.clone(),
 				n_validators: self.table_context.validators.len(),
 				span,
 				make_command: ValidatedCandidateCommand::Attest,

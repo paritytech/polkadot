@@ -30,6 +30,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::v3::{
 	CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData, PersistedValidationData,
 	ScheduledCore,
@@ -151,7 +152,8 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 	let subsystem = async move {
-		if let Err(e) = super::run(context, keystore, Metrics(None)).await {
+		let mut runtime = RuntimeInfo::new(Some(keystore.clone()));
+		if let Err(e) = super::run(context, &mut runtime, keystore, Metrics(None)).await {
 			panic!("{:?}", e);
 		}
 	};
