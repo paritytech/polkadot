@@ -153,6 +153,27 @@ impl CoreAssignment {
 	}
 }
 
+pub trait CoreAssignmentAlgo<T: Config> {
+	/// Called by the initializer to note that a new session has started.
+	fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>);
+
+	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
+	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
+	fn free_cores(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>);
+}
+
+pub struct ParachainsAndthreadsAssigner;
+
+impl<T: Config> CoreAssignmentAlgo<T> for ParachainsAndthreadsAssigner {
+	fn initializer_on_new_session(notification: &SessionChangeNotification<T::BlockNumber>) {
+		panic!("initializer_on_new_session")
+	}
+
+	fn free_cores(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>) {
+		panic!("free_cores")
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -163,7 +184,9 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + configuration::Config + paras::Config {}
+	pub trait Config: frame_system::Config + configuration::Config + paras::Config {
+		type CoreAssigner<T: Config>: CoreAssignmentAlgo<T>;
+	}
 
 	/// All the validator groups. One for each core. Indices are into `ActiveValidators` - not the
 	/// broader set of Polkadot validators, but instead just the subset used for parachains during
@@ -236,10 +259,10 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		notification: &SessionChangeNotification<T::BlockNumber>,
 	) {
+		T::CoreAssigner::<T>::initializer_on_new_session(notification);
 		let &SessionChangeNotification { ref validators, ref new_config, .. } = notification;
 		let config = new_config;
 
-		let mut thread_queue = ParathreadQueue::<T>::get();
 		let n_parachains = <paras::Pallet<T>>::parachains().len() as u32;
 		let n_cores = core::cmp::max(
 			n_parachains + config.parathread_cores,
@@ -249,6 +272,7 @@ impl<T: Config> Pallet<T> {
 			},
 		);
 
+		let mut thread_queue = ParathreadQueue::<T>::get();
 		AvailabilityCores::<T>::mutate(|cores| {
 			// clear all occupied cores.
 			for maybe_occupied in cores.iter_mut() {
