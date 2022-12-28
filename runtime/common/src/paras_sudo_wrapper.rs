@@ -70,6 +70,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Schedule a para to be initialized at the start of the next session.
+		#[pallet::call_index(0)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_para_initialize(
 			origin: OriginFor<T>,
@@ -83,6 +84,7 @@ pub mod pallet {
 		}
 
 		/// Schedule a para to be cleaned up at the start of the next session.
+		#[pallet::call_index(1)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_para_cleanup(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
@@ -92,6 +94,7 @@ pub mod pallet {
 		}
 
 		/// Upgrade a parathread to a parachain
+		#[pallet::call_index(2)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_parathread_upgrade(
 			origin: OriginFor<T>,
@@ -109,6 +112,7 @@ pub mod pallet {
 		}
 
 		/// Downgrade a parachain to a parathread
+		#[pallet::call_index(3)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_schedule_parachain_downgrade(
 			origin: OriginFor<T>,
@@ -129,6 +133,7 @@ pub mod pallet {
 		///
 		/// The given parachain should exist and the payload should not exceed the preconfigured size
 		/// `config.max_downward_message_size`.
+		#[pallet::call_index(4)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_queue_downward_xcm(
 			origin: OriginFor<T>,
@@ -149,6 +154,7 @@ pub mod pallet {
 		///
 		/// This is equivalent to sending an `Hrmp::hrmp_init_open_channel` extrinsic followed by
 		/// `Hrmp::hrmp_accept_open_channel`.
+		#[pallet::call_index(5)]
 		#[pallet::weight((1_000, DispatchClass::Operational))]
 		pub fn sudo_establish_hrmp_channel(
 			origin: OriginFor<T>,

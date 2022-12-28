@@ -330,12 +330,12 @@ where
 
 	match validation_backend.precheck_pvf(validation_code, executor_params).await {
 		Ok(_) => PreCheckOutcome::Valid,
-		Err(prepare_err) => match prepare_err {
-			PrepareError::Prevalidation(_) |
-			PrepareError::Preparation(_) |
-			PrepareError::Panic(_) => PreCheckOutcome::Invalid,
-			PrepareError::TimedOut | PrepareError::DidNotMakeIt => PreCheckOutcome::Failed,
-		},
+		Err(prepare_err) =>
+			if prepare_err.is_deterministic() {
+				PreCheckOutcome::Invalid
+			} else {
+				PreCheckOutcome::Failed
+			},
 	}
 }
 
@@ -700,10 +700,11 @@ impl ValidationBackend for ValidationHost {
 	) -> Result<Duration, PrepareError> {
 		let (tx, rx) = oneshot::channel();
 		if let Err(_) = self.precheck_pvf(pvf, executor_params, tx).await {
-			return Err(PrepareError::DidNotMakeIt)
+			// Return an IO error if there was an error communicating with the host.
+			return Err(PrepareError::IoErr)
 		}
 
-		let precheck_result = rx.await.or(Err(PrepareError::DidNotMakeIt))?;
+		let precheck_result = rx.await.or(Err(PrepareError::IoErr))?;
 
 		precheck_result
 	}

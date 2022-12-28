@@ -372,6 +372,7 @@ pub mod pallet {
 		///
 		/// This applies a lock to your parachain configuration, ensuring that it cannot be changed
 		/// by the parachain manager.
+		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::create())]
 		pub fn create(
 			origin: OriginFor<T>,
@@ -449,6 +450,7 @@ pub mod pallet {
 
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable when the crowdloan has ended and the funds are unused.
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::contribute())]
 		pub fn contribute(
 			origin: OriginFor<T>,
@@ -477,6 +479,7 @@ pub mod pallet {
 		///
 		/// - `who`: The account whose contribution should be withdrawn.
 		/// - `index`: The parachain to whose crowdloan the contribution was made.
+		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::withdraw())]
 		pub fn withdraw(
 			origin: OriginFor<T>,
@@ -510,6 +513,7 @@ pub mod pallet {
 		/// times to fully refund all users. We will refund `RemoveKeysLimit` users at a time.
 		///
 		/// Origin must be signed, but can come from anyone.
+		#[pallet::call_index(3)]
 		#[pallet::weight(T::WeightInfo::refund(T::RemoveKeysLimit::get()))]
 		pub fn refund(
 			origin: OriginFor<T>,
@@ -555,6 +559,7 @@ pub mod pallet {
 		}
 
 		/// Remove a fund after the retirement period has ended and all funds have been returned.
+		#[pallet::call_index(4)]
 		#[pallet::weight(T::WeightInfo::dissolve())]
 		pub fn dissolve(origin: OriginFor<T>, #[pallet::compact] index: ParaId) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -582,6 +587,7 @@ pub mod pallet {
 		/// Edit the configuration for an in-progress crowdloan.
 		///
 		/// Can only be called by Root origin.
+		#[pallet::call_index(5)]
 		#[pallet::weight(T::WeightInfo::edit())]
 		pub fn edit(
 			origin: OriginFor<T>,
@@ -619,6 +625,7 @@ pub mod pallet {
 		/// Add an optional memo to an existing crowdloan contribution.
 		///
 		/// Origin must be Signed, and the user must have contributed to the crowdloan.
+		#[pallet::call_index(6)]
 		#[pallet::weight(T::WeightInfo::add_memo())]
 		pub fn add_memo(origin: OriginFor<T>, index: ParaId, memo: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -637,6 +644,7 @@ pub mod pallet {
 		/// Poke the fund into `NewRaise`
 		///
 		/// Origin must be Signed, and the fund has non-zero raise.
+		#[pallet::call_index(7)]
 		#[pallet::weight(T::WeightInfo::poke())]
 		pub fn poke(origin: OriginFor<T>, index: ParaId) -> DispatchResult {
 			ensure_signed(origin)?;
@@ -650,6 +658,7 @@ pub mod pallet {
 
 		/// Contribute your entire balance to a crowd sale. This will transfer the entire balance of a user over to fund a parachain
 		/// slot. It will be withdrawable when the crowdloan has ended and the funds are unused.
+		#[pallet::call_index(8)]
 		#[pallet::weight(T::WeightInfo::contribute())]
 		pub fn contribute_all(
 			origin: OriginFor<T>,

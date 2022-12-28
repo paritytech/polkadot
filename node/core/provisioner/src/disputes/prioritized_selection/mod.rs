@@ -218,7 +218,9 @@ where
 		for (session_index, candidate_hash, selected_votes) in votes {
 			let votes_len = selected_votes.valid.raw().len() + selected_votes.invalid.len();
 			if votes_len + total_votes_len > MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME {
-				// we are done - no more votes can be added
+				// we are done - no more votes can be added. Importantly, we don't add any votes for a dispute here
+				// if we can't fit them all. This gives us an important invariant, that backing votes for
+				// disputes make it into the provisioned vote set.
 				return result
 			}
 			result.insert((session_index, candidate_hash), selected_votes);

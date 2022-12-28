@@ -465,6 +465,7 @@ pub mod pallet {
 		///
 		/// The channel can be opened only after the recipient confirms it and only on a session
 		/// change.
+		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::hrmp_init_open_channel())]
 		pub fn hrmp_init_open_channel(
 			origin: OriginFor<T>,
@@ -491,6 +492,7 @@ pub mod pallet {
 		/// Accept a pending open channel request from the given sender.
 		///
 		/// The channel will be opened only on the next session boundary.
+		#[pallet::call_index(1)]
 		#[pallet::weight(<T as Config>::WeightInfo::hrmp_accept_open_channel())]
 		pub fn hrmp_accept_open_channel(origin: OriginFor<T>, sender: ParaId) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin))?;
@@ -503,6 +505,7 @@ pub mod pallet {
 		/// recipient in the channel being closed.
 		///
 		/// The closure can only happen on a session change.
+		#[pallet::call_index(2)]
 		#[pallet::weight(<T as Config>::WeightInfo::hrmp_close_channel())]
 		pub fn hrmp_close_channel(
 			origin: OriginFor<T>,
@@ -521,6 +524,7 @@ pub mod pallet {
 		/// Origin must be Root.
 		///
 		/// Number of inbound and outbound channels for `para` must be provided as witness data of weighing.
+		#[pallet::call_index(3)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_clean_hrmp(*_inbound, *_outbound))]
 		pub fn force_clean_hrmp(
 			origin: OriginFor<T>,
@@ -539,6 +543,7 @@ pub mod pallet {
 		/// function process all of those requests immediately.
 		///
 		/// Total number of opening channels must be provided as witness data of weighing.
+		#[pallet::call_index(4)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_process_hrmp_open(*_channels))]
 		pub fn force_process_hrmp_open(origin: OriginFor<T>, _channels: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -553,6 +558,7 @@ pub mod pallet {
 		/// function process all of those requests immediately.
 		///
 		/// Total number of closing channels must be provided as witness data of weighing.
+		#[pallet::call_index(5)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_process_hrmp_close(*_channels))]
 		pub fn force_process_hrmp_close(origin: OriginFor<T>, _channels: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -568,6 +574,7 @@ pub mod pallet {
 		///
 		/// Total number of open requests (i.e. `HrmpOpenChannelRequestsList`) must be provided as
 		/// witness data.
+		#[pallet::call_index(6)]
 		#[pallet::weight(<T as Config>::WeightInfo::hrmp_cancel_open_request(*open_requests))]
 		pub fn hrmp_cancel_open_request(
 			origin: OriginFor<T>,
@@ -591,6 +598,7 @@ pub mod pallet {
 		///
 		/// Expected use is when one of the `ParaId`s involved in the channel is governed by the
 		/// Relay Chain, e.g. a common good parachain.
+		#[pallet::call_index(7)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel())]
 		pub fn force_open_hrmp_channel(
 			origin: OriginFor<T>,

@@ -253,6 +253,7 @@ pub mod pallet {
 		/// This can only happen when there isn't already an auction in progress and may only be
 		/// called by the root origin. Accepts the `duration` of this auction and the
 		/// `lease_period_index` of the initial lease period of the four that are to be auctioned.
+		#[pallet::call_index(0)]
 		#[pallet::weight((T::WeightInfo::new_auction(), DispatchClass::Operational))]
 		pub fn new_auction(
 			origin: OriginFor<T>,
@@ -279,6 +280,7 @@ pub mod pallet {
 		/// absolute lease period index value, not an auction-specific offset.
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::bid())]
 		pub fn bid(
 			origin: OriginFor<T>,
@@ -296,6 +298,7 @@ pub mod pallet {
 		/// Cancel an in-progress auction.
 		///
 		/// Can only be called by Root origin.
+		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::cancel_auction())]
 		pub fn cancel_auction(origin: OriginFor<T>) -> DispatchResult {
 			ensure_root(origin)?;
