@@ -592,6 +592,8 @@ pub enum ChainSelectionMessage {
 	/// Request the best leaf containing the given block in its ancestry. Return `None` if
 	/// there is no such leaf.
 	BestLeafContaining(Hash, oneshot::Sender<Option<Hash>>),
+	/// Apply reverted status to blocks in chains containing the disputed candidate.
+	DisputeConcludedAgainst(Hash),
 }
 
 impl ChainSelectionMessage {
@@ -604,6 +606,7 @@ impl ChainSelectionMessage {
 			ChainSelectionMessage::Approved(_) => None,
 			ChainSelectionMessage::Leaves(_) => None,
 			ChainSelectionMessage::BestLeafContaining(..) => None,
+			ChainSelectionMessage::DisputeConcludedAgainst(_) => None,
 		}
 	}
 }
