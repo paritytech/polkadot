@@ -20,8 +20,7 @@
 //! There is also the [`Client`] enum that combines all the different clients into one common structure.
 
 use polkadot_primitives::{
-	runtime_api::ParachainHost,
-	v2::{AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce},
+	runtime_api::ParachainHost, AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce,
 };
 use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
 use sc_executor::NativeElseWasmExecutor;

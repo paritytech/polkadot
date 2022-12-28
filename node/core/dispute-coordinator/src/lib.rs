@@ -38,7 +38,7 @@ use polkadot_node_subsystem_util::{
 	database::Database,
 	rolling_session_window::{DatabaseParams, RollingSessionWindow},
 };
-use polkadot_primitives::v2::{ScrapedOnChainVotes, ValidatorIndex, ValidatorPair};
+use polkadot_primitives::{ScrapedOnChainVotes, ValidatorIndex, ValidatorPair};
 
 use crate::{
 	error::{FatalResult, JfyiError, Result},

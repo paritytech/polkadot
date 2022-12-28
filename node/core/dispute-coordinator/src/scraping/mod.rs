@@ -25,9 +25,7 @@ use polkadot_node_subsystem::{
 	SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::{get_candidate_events, get_on_chain_votes};
-use polkadot_primitives::v2::{
-	BlockNumber, CandidateEvent, CandidateHash, Hash, ScrapedOnChainVotes,
-};
+use polkadot_primitives::{BlockNumber, CandidateEvent, CandidateHash, Hash, ScrapedOnChainVotes};
 
 use crate::{
 	error::{FatalError, FatalResult, Result},

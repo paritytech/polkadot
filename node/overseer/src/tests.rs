@@ -29,7 +29,7 @@ use polkadot_node_subsystem_types::{
 	messages::{NetworkBridgeEvent, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, CandidateReceipt, CollatorPair, InvalidDisputeStatementKind, SessionIndex,
 	ValidDisputeStatementKind, ValidatorIndex,
 };
