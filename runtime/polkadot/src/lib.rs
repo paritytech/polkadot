@@ -37,7 +37,9 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_election_provider_support::{generate_solution_type, onchain, SequentialPhragmen};
+use frame_election_provider_support::{
+	generate_solution_type, onchain, ElectionBoundsBuilder, SequentialPhragmen,
+};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -401,11 +403,13 @@ parameter_types! {
 	// 4 hour session, 1 hour unsigned phase, 32 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 32;
 
-	/// We take the top 22500 nominators as electing voters..
+	/// We take the top 22500 nominators as electing voters and all of the validators as electable
+	/// targets (unbound). Whilst this is the case, we cannot and shall not increase the size of the
+	/// validator intentions.
 	pub const MaxElectingVoters: u32 = 22_500;
-	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
-	/// shall not increase the size of the validator intentions.
-	pub const MaxElectableTargets: u16 = u16::MAX;
+	pub ElectionBounds: frame_election_provider_support::ElectionBounds =
+		ElectionBoundsBuilder::new().voters_count(22_500.into()).build();
+
 	/// Setup election pallet to support maximum winners upto 1200. This will mean Staking Pallet
 	/// cannot have active validators higher than this count.
 	pub const MaxActiveValidators: u32 = 1200;
@@ -428,8 +432,7 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type DataProvider = Staking;
 	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
 	type MaxWinners = MaxActiveValidators;
-	type VotersBound = MaxElectingVoters;
-	type TargetsBound = MaxElectableTargets;
+	type ElectionBounds = ElectionBounds;
 }
 
 impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
@@ -497,9 +500,8 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 2, 3>,
 	>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
-	type MaxElectingVoters = MaxElectingVoters;
-	type MaxElectableTargets = MaxElectableTargets;
 	type MaxWinners = MaxActiveValidators;
+	type ElectionBounds = ElectionBounds;
 }
 
 parameter_types! {
@@ -549,8 +551,6 @@ parameter_types! {
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 512;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
-	// 16
-	pub const MaxNominations: u32 = <NposCompactSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
 }
 
 type StakingAdminOrigin = EitherOfDiverse<
@@ -586,8 +586,10 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 	}
 }
 
+/// Upper limit on the number of NPOS nominations.
+const MAX_QUOTA_NOMINATIONS: u32 = 16;
+
 impl pallet_staking::Config for Runtime {
-	type MaxNominations = MaxNominations;
 	type Currency = Balances;
 	type CurrencyBalance = Balance;
 	type UnixTime = Timestamp;
@@ -603,6 +605,7 @@ impl pallet_staking::Config for Runtime {
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
+	type NominationsQuota = pallet_staking::FixedNominationsQuota<MAX_QUOTA_NOMINATIONS>;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
