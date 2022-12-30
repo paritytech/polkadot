@@ -147,13 +147,13 @@ where
 	}
 }
 
-trait Conversion<M, M1>: Fn(M1) -> M {
+trait Conversion<M, M1>: Fn(M1) -> M + 'static + Send + Sync {
 	fn box_clone(&self) -> Box<dyn Conversion<M, M1>>;
 }
 
 impl<M, M1, T> Conversion<M, M1> for T
 where
-	T: Fn(M1) -> M + 'static + Clone,
+	T: Fn(M1) -> M + 'static + Clone + Send + Sync,
 {
 	fn box_clone(&self) -> Box<dyn Conversion<M, M1>> {
 		Box::new(self.clone())
