@@ -296,18 +296,19 @@ impl DisputeCoordinatorSubsystem {
 		let mut spam_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
 		let (scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
 		for ((session, ref candidate_hash), _) in active_disputes {
-			let env = match CandidateEnvironment::new(&self.keystore, &rolling_session_window, session) {
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						session,
-						"We are lacking a `SessionInfo` for handling db votes on startup."
-					);
+			let env =
+				match CandidateEnvironment::new(&self.keystore, &rolling_session_window, session) {
+					None => {
+						gum::warn!(
+							target: LOG_TARGET,
+							session,
+							"We are lacking a `SessionInfo` for handling db votes on startup."
+						);
 
-					continue
-				},
-				Some(env) => env,
-			};
+						continue
+					},
+					Some(env) => env,
+				};
 
 			let votes: CandidateVotes =
 				match overlay_db.load_candidate_votes(session, candidate_hash) {
