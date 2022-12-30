@@ -24,9 +24,14 @@ use crate::{
 	configuration::HostConfiguration,
 	initializer::SessionChangeNotification,
 	mock::{
-		new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, Scheduler, System, Test,
+		new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, Scheduler,
+		SchedulerParachains, System, Test,
 	},
 	paras::{ParaGenesisArgs, ParaKind},
+	scheduler_common::AssignmentKind,
+	scheduler_parachains::{
+		ParathreadClaimIndex, ParathreadClaimQueue, ParathreadQueue, QueuedParathread,
+	},
 };
 
 fn schedule_blank_para(id: ParaId, parakind: ParaKind) {
@@ -131,8 +136,8 @@ fn add_parathread_claim_works() {
 		assert!(Paras::is_parathread(thread_id));
 
 		{
-			Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
-			let queue = ParathreadQueue::<Test>::get();
+			SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
+			let queue = scheduler_parachains::ParathreadQueue::<Test>::get();
 			assert_eq!(queue.next_core_offset, 1);
 			assert_eq!(queue.queue.len(), 1);
 			assert_eq!(
@@ -150,8 +155,11 @@ fn add_parathread_claim_works() {
 		// due to the index, completing claims are not allowed.
 		{
 			let collator2 = CollatorId::from(Sr25519Keyring::Bob.public());
-			Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator2.clone()));
-			let queue = ParathreadQueue::<Test>::get();
+			SchedulerParachains::add_parathread_claim(ParathreadClaim(
+				thread_id,
+				collator2.clone(),
+			));
+			let queue = scheduler_parachains::ParathreadQueue::<Test>::get();
 			assert_eq!(queue.next_core_offset, 1);
 			assert_eq!(queue.queue.len(), 1);
 			assert_eq!(
@@ -169,7 +177,10 @@ fn add_parathread_claim_works() {
 		// claims on non-live parathreads have no effect.
 		{
 			let thread_id2 = ParaId::from(11);
-			Scheduler::add_parathread_claim(ParathreadClaim(thread_id2, collator.clone()));
+			SchedulerParachains::add_parathread_claim(ParathreadClaim(
+				thread_id2,
+				collator.clone(),
+			));
 			let queue = ParathreadQueue::<Test>::get();
 			assert_eq!(queue.next_core_offset, 1);
 			assert_eq!(queue.queue.len(), 1);
@@ -211,7 +222,7 @@ fn cannot_add_claim_when_no_parathread_cores() {
 
 		assert!(Paras::is_parathread(thread_id));
 
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_id, collator.clone()));
 		assert_eq!(ParathreadQueue::<Test>::get(), Default::default());
 	});
 }
@@ -497,8 +508,8 @@ fn schedule_schedules() {
 		}
 
 		// add a couple of parathread claims.
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
 
 		run_to_block(2, |_| None);
 
@@ -601,8 +612,8 @@ fn schedule_schedules_including_just_freed() {
 		});
 
 		// add a couple of parathread claims now that the parathreads are live.
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_c, collator.clone()));
 
 		run_to_block(2, |_| None);
 
@@ -626,9 +637,9 @@ fn schedule_schedules_including_just_freed() {
 		// add a couple more parathread claims - the claim on `b` will go to the 3rd parathread core (4)
 		// and the claim on `d` will go back to the 1st parathread core (2). The claim on `e` then
 		// will go for core `3`.
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_d, collator.clone()));
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_e, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_d, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_e, collator.clone()));
 
 		run_to_block(3, |_| None);
 
@@ -868,8 +879,8 @@ fn schedule_rotates_groups() {
 		let session_start_block = <Scheduler as Store>::SessionStartBlock::get();
 		assert_eq!(session_start_block, 1);
 
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
 
 		run_to_block(2, |_| None);
 
@@ -937,8 +948,8 @@ fn parathread_claims_are_pruned_after_retries() {
 			_ => None,
 		});
 
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
 
 		run_to_block(2, |_| None);
 		assert_eq!(Scheduler::scheduled().len(), 2);
@@ -1094,7 +1105,7 @@ fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 		let thread_claim_a = ParathreadClaim(thread_a, collator.clone());
 		let thread_claim_b = ParathreadClaim(thread_b, collator.clone());
 
-		Scheduler::add_parathread_claim(thread_claim_a.clone());
+		SchedulerParachains::add_parathread_claim(thread_claim_a.clone());
 
 		run_to_block(2, |_| None);
 
@@ -1112,7 +1123,7 @@ fn next_up_on_available_uses_next_scheduled_or_none_for_thread() {
 
 			assert!(Scheduler::next_up_on_available(CoreIndex(0)).is_none());
 
-			Scheduler::add_parathread_claim(thread_claim_b);
+			SchedulerParachains::add_parathread_claim(thread_claim_b);
 
 			let queue = ParathreadQueue::<Test>::get();
 			assert_eq!(
@@ -1166,7 +1177,7 @@ fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
 		let thread_claim_a = ParathreadClaim(thread_a, collator.clone());
 		let thread_claim_b = ParathreadClaim(thread_b, collator.clone());
 
-		Scheduler::add_parathread_claim(thread_claim_a.clone());
+		SchedulerParachains::add_parathread_claim(thread_claim_a.clone());
 
 		run_to_block(2, |_| None);
 
@@ -1189,7 +1200,7 @@ fn next_up_on_time_out_reuses_claim_if_nothing_queued() {
 				ScheduledCore { para_id: thread_a, collator: Some(collator.clone()) }
 			);
 
-			Scheduler::add_parathread_claim(thread_claim_b);
+			SchedulerParachains::add_parathread_claim(thread_claim_b);
 
 			let queue = ParathreadQueue::<Test>::get();
 			assert_eq!(
@@ -1425,8 +1436,8 @@ fn parathread_claims_are_pruned_after_deregistration() {
 			_ => None,
 		});
 
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
-		Scheduler::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
+		SchedulerParachains::add_parathread_claim(ParathreadClaim(thread_b, collator.clone()));
 
 		run_to_block(2, |_| None);
 		assert_eq!(Scheduler::scheduled().len(), 2);

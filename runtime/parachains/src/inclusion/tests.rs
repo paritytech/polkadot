@@ -24,7 +24,7 @@ use crate::{
 	},
 	paras::{ParaGenesisArgs, ParaKind},
 	paras_inherent::DisputedBitfield,
-	scheduler::AssignmentKind,
+	scheduler_common::AssignmentKind,
 };
 use assert_matches::assert_matches;
 use frame_support::assert_noop;

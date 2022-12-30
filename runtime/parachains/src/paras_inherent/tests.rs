@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::scheduler_common;
 
 // In order to facilitate benchmarks as tests we have a benchmark feature gated `WeightInfo` impl
 // that uses 0 for all the weights. Because all the weights are 0, the tests that rely on
@@ -1167,7 +1168,7 @@ mod sanitizers {
 			.into_iter()
 			.map(|idx| {
 				let ca = CoreAssignment {
-					kind: scheduler::AssignmentKind::Parachain,
+					kind: scheduler_common::AssignmentKind::Parachain,
 					group_idx: GroupIndex::from(idx as u32),
 					para_id: ParaId::from(1_u32 + idx as u32),
 					core: CoreIndex::from(idx as u32),

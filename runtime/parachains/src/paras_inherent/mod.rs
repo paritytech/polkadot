@@ -28,7 +28,8 @@ use crate::{
 	inclusion::{CandidateCheckContext, FullCheck},
 	initializer,
 	metrics::METRICS,
-	scheduler::{self, CoreAssignment, FreedReason},
+	scheduler,
+	scheduler_common::{CoreAssignment, FreedReason},
 	shared, ump, ParaId,
 };
 use bitvec::prelude::BitVec;
