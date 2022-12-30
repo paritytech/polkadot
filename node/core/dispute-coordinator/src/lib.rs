@@ -296,19 +296,18 @@ impl DisputeCoordinatorSubsystem {
 		let mut spam_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
 		let (scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
 		for ((session, ref candidate_hash), _) in active_disputes {
-			let env =
-				match CandidateEnvironment::new(&self.keystore, &rolling_session_window, session) {
-					None => {
-						gum::warn!(
-							target: LOG_TARGET,
-							session,
-							"We are lacking a `SessionInfo` for handling db votes on startup."
-						);
+			let env = match CandidateEnvironment::new(&self.keystore, &rolling_session_window, session) {
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						session,
+						"We are lacking a `SessionInfo` for handling db votes on startup."
+					);
 
-						continue
-					},
-					Some(env) => env,
-				};
+					continue
+				},
+				Some(env) => env,
+			};
 
 			let votes: CandidateVotes =
 				match overlay_db.load_candidate_votes(session, candidate_hash) {
@@ -413,10 +412,10 @@ async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> Result<Option<Activa
 			// finality until we are fully functional.
 			{
 				gum::warn!(
-                    target: LOG_TARGET,
-                    ?msg,
-                    "Received msg before first active leaves update. This is not expected - message will be dropped."
-                )
+					target: LOG_TARGET,
+					?msg,
+					"Received msg before first active leaves update. This is not expected - message will be dropped."
+				)
 			},
 		}
 	}
