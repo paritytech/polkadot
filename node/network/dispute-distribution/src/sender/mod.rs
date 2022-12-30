@@ -214,6 +214,7 @@ impl<M: 'static + Send + Sync> DisputeSender<M> {
 					Some(WaitForActiveDisputesState { have_new_sessions });
 				let mut sender = ctx.sender().clone();
 				let mut tx = self.tx.clone();
+
 				let get_active_disputes_task = async move {
 					let result = get_active_disputes(&mut sender).await;
 					let result =
@@ -226,6 +227,7 @@ impl<M: 'static + Send + Sync> DisputeSender<M> {
 						);
 					}
 				};
+
 				ctx.spawn("get_active_disputes", Box::pin(get_active_disputes_task))
 					.map_err(FatalError::SpawnTask)?;
 			},
@@ -234,9 +236,9 @@ impl<M: 'static + Send + Sync> DisputeSender<M> {
 				let new_state = WaitForActiveDisputesState { have_new_sessions };
 				self.waiting_for_active_disputes = Some(new_state);
 				gum::debug!(
-                    target: LOG_TARGET,
-                    "Dispute coordinator slow? We are still waiting for data on next active leaves update."
-                );
+					target: LOG_TARGET,
+					"Dispute coordinator slow? We are still waiting for data on next active leaves update."
+				);
 			},
 		}
 		Ok(())
