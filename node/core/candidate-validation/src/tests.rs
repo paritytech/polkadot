@@ -365,10 +365,9 @@ impl MockValidateCandidateBackend {
 impl ValidationBackend for MockValidateCandidateBackend {
 	async fn validate_candidate(
 		&mut self,
-		_pvf: Pvf,
+		_pvf_with_params: PvfWithExecutorParams,
 		_timeout: Duration,
 		_encoded_params: Vec<u8>,
-		_executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		// This is expected to panic if called more times than expected, indicating an error in the
 		// test.
@@ -380,8 +379,7 @@ impl ValidationBackend for MockValidateCandidateBackend {
 
 	async fn precheck_pvf(
 		&mut self,
-		_pvf: Pvf,
-		_executor_params: ExecutorParams,
+		_pvf_with_params: PvfWithExecutorParams,
 	) -> Result<Duration, PrepareError> {
 		unreachable!()
 	}
@@ -922,18 +920,16 @@ impl MockPreCheckBackend {
 impl ValidationBackend for MockPreCheckBackend {
 	async fn validate_candidate(
 		&mut self,
-		_pvf: Pvf,
+		_pvf_with_params: PvfWithExecutorParams,
 		_timeout: Duration,
 		_encoded_params: Vec<u8>,
-		_executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		unreachable!()
 	}
 
 	async fn precheck_pvf(
 		&mut self,
-		_pvf: Pvf,
-		_executor_params: ExecutorParams,
+		_pvf_with_params: PvfWithExecutorParams,
 	) -> Result<Duration, PrepareError> {
 		self.result.clone()
 	}

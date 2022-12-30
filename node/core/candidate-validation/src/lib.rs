@@ -24,7 +24,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, PrepareError, Pvf, ValidationError, ValidationHost,
+	InvalidCandidate as WasmInvalidCandidate, PrepareError, Pvf, PvfWithExecutorParams,
+	ValidationError, ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -317,18 +318,18 @@ where
 			},
 		};
 
-	let validation_code = match sp_maybe_compressed_blob::decompress(
+	let pvf_with_params = match sp_maybe_compressed_blob::decompress(
 		&validation_code.0,
 		VALIDATION_CODE_BOMB_LIMIT,
 	) {
-		Ok(code) => Pvf::from_code(code.into_owned()),
+		Ok(code) => PvfWithExecutorParams::new(Pvf::from_code(code.into_owned()), executor_params),
 		Err(e) => {
 			gum::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
 			return PreCheckOutcome::Invalid
 		},
 	};
 
-	match validation_backend.precheck_pvf(validation_code, executor_params).await {
+	match validation_backend.precheck_pvf(pvf_with_params).await {
 		Ok(_) => PreCheckOutcome::Valid,
 		Err(prepare_err) =>
 			if prepare_err.is_deterministic() {
@@ -624,10 +625,9 @@ async fn validate_candidate_exhaustive(
 trait ValidationBackend {
 	async fn validate_candidate(
 		&mut self,
-		pvf: Pvf,
+		pvf_with_params: PvfWithExecutorParams,
 		timeout: Duration,
 		encoded_params: Vec<u8>,
-		executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError>;
 
 	async fn validate_candidate_with_retry(
@@ -638,11 +638,11 @@ trait ValidationBackend {
 		executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
-		let pvf = Pvf::from_code(raw_validation_code);
+		let pvf_with_params =
+			PvfWithExecutorParams::new(Pvf::from_code(raw_validation_code), executor_params);
 
-		let validation_result = self
-			.validate_candidate(pvf.clone(), timeout, params.encode(), executor_params.clone())
-			.await;
+		let validation_result =
+			self.validate_candidate(pvf_with_params.clone(), timeout, params.encode()).await;
 
 		// If we get an AmbiguousWorkerDeath error, retry once after a brief delay, on the
 		// assumption that the conditions that caused this error may have been transient.
@@ -653,7 +653,7 @@ trait ValidationBackend {
 			futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
 			// Encode the params again when re-trying. We expect the retry case to be relatively
 			// rare, and we want to avoid unconditionally cloning data.
-			self.validate_candidate(pvf, timeout, params.encode(), executor_params).await
+			self.validate_candidate(pvf_with_params, timeout, params.encode()).await
 		} else {
 			validation_result
 		}
@@ -661,8 +661,7 @@ trait ValidationBackend {
 
 	async fn precheck_pvf(
 		&mut self,
-		pvf: Pvf,
-		executor_params: ExecutorParams,
+		pvf_with_params: PvfWithExecutorParams,
 	) -> Result<Duration, PrepareError>;
 }
 
@@ -671,17 +670,15 @@ impl ValidationBackend for ValidationHost {
 	/// Tries executing a PVF a single time (no retries).
 	async fn validate_candidate(
 		&mut self,
-		pvf: Pvf,
+		pvf_with_params: PvfWithExecutorParams,
 		timeout: Duration,
 		encoded_params: Vec<u8>,
-		executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		let priority = polkadot_node_core_pvf::Priority::Normal;
 
 		let (tx, rx) = oneshot::channel();
-		if let Err(err) = self
-			.execute_pvf(pvf, timeout, encoded_params, executor_params, priority, tx)
-			.await
+		if let Err(err) =
+			self.execute_pvf(pvf_with_params, timeout, encoded_params, priority, tx).await
 		{
 			return Err(ValidationError::InternalError(format!(
 				"cannot send pvf to the validation host: {:?}",
@@ -695,11 +692,10 @@ impl ValidationBackend for ValidationHost {
 
 	async fn precheck_pvf(
 		&mut self,
-		pvf: Pvf,
-		executor_params: ExecutorParams,
+		pvf_with_params: PvfWithExecutorParams,
 	) -> Result<Duration, PrepareError> {
 		let (tx, rx) = oneshot::channel();
-		if let Err(_) = self.precheck_pvf(pvf, executor_params, tx).await {
+		if let Err(_) = self.precheck_pvf(pvf_with_params, tx).await {
 			// Return an IO error if there was an error communicating with the host.
 			return Err(PrepareError::IoErr)
 		}

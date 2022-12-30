@@ -109,7 +109,7 @@ pub use sp_tracing;
 
 pub use error::{InvalidCandidate, PrepareError, PrepareResult, ValidationError};
 pub use priority::Priority;
-pub use pvf::Pvf;
+pub use pvf::{Pvf, PvfWithExecutorParams};
 
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;

@@ -25,7 +25,7 @@ use crate::{
 	error::PrepareError,
 	execute,
 	metrics::Metrics,
-	prepare, PrepareResult, Priority, Pvf, ValidationError, LOG_TARGET,
+	prepare, PrepareResult, Priority, PvfWithExecutorParams, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use async_std::path::{Path, PathBuf};
@@ -84,12 +84,11 @@ impl ValidationHost {
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn precheck_pvf(
 		&mut self,
-		pvf: Pvf,
-		executor_params: ExecutorParams,
+		pvf_with_params: PvfWithExecutorParams,
 		result_tx: PrepareResultSender,
 	) -> Result<(), String> {
 		self.to_host_tx
-			.send(ToHost::PrecheckPvf { pvf, result_tx, executor_params })
+			.send(ToHost::PrecheckPvf { pvf_with_params, result_tx })
 			.await
 			.map_err(|_| "the inner loop hung up".to_string())
 	}
@@ -103,19 +102,18 @@ impl ValidationHost {
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
 	pub async fn execute_pvf(
 		&mut self,
-		pvf: Pvf,
+		pvf_with_params: PvfWithExecutorParams,
 		execution_timeout: Duration,
 		params: Vec<u8>,
-		executor_params: ExecutorParams,
 		priority: Priority,
 		result_tx: ResultSender,
 	) -> Result<(), String> {
 		self.to_host_tx
 			.send(ToHost::ExecutePvf(ExecutePvfInputs {
-				pvf,
+				pvf_with_params,
 				execution_timeout,
 				params,
-				executor_params,
+				// executor_params,
 				priority,
 				result_tx,
 			}))
@@ -141,16 +139,15 @@ impl ValidationHost {
 }
 
 enum ToHost {
-	PrecheckPvf { pvf: Pvf, executor_params: ExecutorParams, result_tx: PrepareResultSender },
+	PrecheckPvf { pvf_with_params: PvfWithExecutorParams, result_tx: PrepareResultSender },
 	ExecutePvf(ExecutePvfInputs),
 	HeadsUp { active_pvfs: Vec<PvfWithExecutorParams> },
 }
 
 struct ExecutePvfInputs {
-	pvf: Pvf,
+	pvf_with_params: PvfWithExecutorParams,
 	execution_timeout: Duration,
 	params: Vec<u8>,
-	executor_params: ExecutorParams,
 	priority: Priority,
 	result_tx: ResultSender,
 }
@@ -193,19 +190,6 @@ impl Config {
 			execute_worker_spawn_timeout: Duration::from_secs(3),
 			execute_workers_max_num: 2,
 		}
-	}
-}
-
-/// Coupling PVF code with executor params
-pub struct PvfWithExecutorParams {
-	pvf: Pvf,
-	executor_params: ExecutorParams,
-}
-
-impl PvfWithExecutorParams {
-	/// Returns artifact ID that corresponds to the PVF with given executor params
-	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
-		ArtifactId::new(self.pvf.code_hash, self.executor_params.hash())
 	}
 }
 
@@ -444,8 +428,8 @@ async fn handle_to_host(
 	to_host: ToHost,
 ) -> Result<(), Fatal> {
 	match to_host {
-		ToHost::PrecheckPvf { pvf, result_tx, executor_params } => {
-			handle_precheck_pvf(artifacts, prepare_queue, pvf, executor_params, result_tx).await?;
+		ToHost::PrecheckPvf { pvf_with_params, result_tx } => {
+			handle_precheck_pvf(artifacts, prepare_queue, pvf_with_params, result_tx).await?;
 		},
 		ToHost::ExecutePvf(inputs) => {
 			handle_execute_pvf(
@@ -473,11 +457,10 @@ async fn handle_to_host(
 async fn handle_precheck_pvf(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	pvf: Pvf,
-	executor_params: ExecutorParams,
+	pvf_with_params: PvfWithExecutorParams,
 	result_sender: PrepareResultSender,
 ) -> Result<(), Fatal> {
-	let artifact_id = pvf.as_artifact_id(executor_params.hash());
+	let artifact_id = pvf_with_params.as_artifact_id();
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
@@ -499,8 +482,7 @@ async fn handle_precheck_pvf(
 			prepare_queue,
 			prepare::ToQueue::Enqueue {
 				priority: Priority::Normal,
-				pvf,
-				executor_params,
+				pvf_with_params,
 				preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 			},
 		)
@@ -526,9 +508,9 @@ async fn handle_execute_pvf(
 	awaiting_prepare: &mut AwaitingPrepare,
 	inputs: ExecutePvfInputs,
 ) -> Result<(), Fatal> {
-	let ExecutePvfInputs { pvf, execution_timeout, params, executor_params, priority, result_tx } =
+	let ExecutePvfInputs { pvf_with_params, execution_timeout, params, priority, result_tx } =
 		inputs;
-	let artifact_id = pvf.as_artifact_id(executor_params.hash());
+	let artifact_id = pvf_with_params.as_artifact_id();
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
@@ -542,7 +524,7 @@ async fn handle_execute_pvf(
 						artifact: ArtifactPathId::new(artifact_id, cache_path),
 						execution_timeout,
 						params,
-						executor_params,
+						executor_params: pvf_with_params.executor_params(),
 						result_tx,
 					},
 				)
@@ -553,7 +535,7 @@ async fn handle_execute_pvf(
 					artifact_id,
 					execution_timeout,
 					params,
-					executor_params,
+					pvf_with_params.executor_params(),
 					result_tx,
 				);
 			},
@@ -569,8 +551,7 @@ async fn handle_execute_pvf(
 						prepare_queue,
 						prepare::ToQueue::Enqueue {
 							priority,
-							pvf,
-							executor_params,
+							pvf_with_params,
 							preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 						},
 					)
@@ -583,13 +564,13 @@ async fn handle_execute_pvf(
 	} else {
 		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
 		// PVF.
+		let executor_params = pvf_with_params.executor_params();
 		artifacts.insert_preparing(artifact_id.clone(), Vec::new());
 		send_prepare(
 			prepare_queue,
 			prepare::ToQueue::Enqueue {
 				priority,
-				pvf,
-				executor_params: executor_params.clone(),
+				pvf_with_params,
 				preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 			},
 		)
@@ -631,8 +612,7 @@ async fn handle_heads_up(
 							prepare_queue,
 							prepare::ToQueue::Enqueue {
 								priority: Priority::Normal,
-								pvf: active_pvf.pvf,
-								executor_params: active_pvf.executor_params,
+								pvf_with_params: active_pvf,
 								preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 							},
 						)
@@ -648,8 +628,7 @@ async fn handle_heads_up(
 				prepare_queue,
 				prepare::ToQueue::Enqueue {
 					priority: Priority::Normal,
-					pvf: active_pvf.pvf,
-					executor_params: active_pvf.executor_params,
+					pvf_with_params: active_pvf,
 					preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 				},
 			)
@@ -845,7 +824,6 @@ mod tests {
 	use crate::{InvalidCandidate, PrepareError};
 	use assert_matches::assert_matches;
 	use futures::future::BoxFuture;
-	use polkadot_primitives::vstaging::ExecutorParamsHash;
 
 	const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -864,14 +842,12 @@ mod tests {
 	}
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
-	fn artifact_id(descriminator: u32, executor_params_hash: ExecutorParamsHash) -> ArtifactId {
-		Pvf::from_discriminator(descriminator).as_artifact_id(executor_params_hash)
+	fn artifact_id(descriminator: u32) -> ArtifactId {
+		PvfWithExecutorParams::from_discriminator(descriminator).as_artifact_id()
 	}
 
-	fn artifact_path(descriminator: u32, executor_params_hash: ExecutorParamsHash) -> PathBuf {
-		artifact_id(descriminator, executor_params_hash)
-			.path(&PathBuf::from(std::env::temp_dir()))
-			.to_owned()
+	fn artifact_path(descriminator: u32) -> PathBuf {
+		artifact_id(descriminator).path(&PathBuf::from(std::env::temp_dir())).to_owned()
 	}
 
 	struct Builder {
@@ -1056,40 +1032,22 @@ mod tests {
 	#[async_std::test]
 	async fn pruning() {
 		let mock_now = SystemTime::now() - Duration::from_millis(1000);
-		let executor_params = ExecutorParams::default();
-		let executor_params_hash = executor_params.hash();
 
 		let mut builder = Builder::default();
 		builder.cleanup_pulse_interval = Duration::from_millis(100);
 		builder.artifact_ttl = Duration::from_millis(500);
-		builder.artifacts.insert_prepared(
-			artifact_id(1, executor_params_hash),
-			mock_now,
-			Duration::default(),
-		);
-		builder.artifacts.insert_prepared(
-			artifact_id(2, executor_params_hash),
-			mock_now,
-			Duration::default(),
-		);
+		builder.artifacts.insert_prepared(artifact_id(1), mock_now, Duration::default());
+		builder.artifacts.insert_prepared(artifact_id(2), mock_now, Duration::default());
 		let mut test = builder.build();
 		let mut host = test.host_handle();
 
-		host.heads_up(vec![PvfWithExecutorParams {
-			pvf: Pvf::from_discriminator(1),
-			executor_params: executor_params.clone(),
-		}])
-		.await
-		.unwrap();
+		host.heads_up(vec![PvfWithExecutorParams::from_discriminator(1)]).await.unwrap();
 
 		let to_sweeper_rx = &mut test.to_sweeper_rx;
 		run_until(
 			&mut test.run,
 			async {
-				assert_eq!(
-					to_sweeper_rx.next().await.unwrap(),
-					artifact_path(2, executor_params_hash)
-				);
+				assert_eq!(to_sweeper_rx.next().await.unwrap(), artifact_path(2));
 			}
 			.boxed(),
 		)
@@ -1097,12 +1055,7 @@ mod tests {
 
 		// Extend TTL for the first artifact and make sure we don't receive another file removal
 		// request.
-		host.heads_up(vec![PvfWithExecutorParams {
-			pvf: Pvf::from_discriminator(1),
-			executor_params,
-		}])
-		.await
-		.unwrap();
+		host.heads_up(vec![PvfWithExecutorParams::from_discriminator(1)]).await.unwrap();
 		test.poll_ensure_to_sweeper_is_empty().await;
 	}
 
@@ -1110,15 +1063,12 @@ mod tests {
 	async fn execute_pvf_requests() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let executor_params = ExecutorParams::default();
-		let executor_params_hash = executor_params.hash();
 
 		let (result_tx, result_rx_pvf_1_1) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfWithExecutorParams::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
-			executor_params.clone(),
 			Priority::Normal,
 			result_tx,
 		)
@@ -1127,10 +1077,9 @@ mod tests {
 
 		let (result_tx, result_rx_pvf_1_2) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfWithExecutorParams::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
-			executor_params.clone(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1139,10 +1088,9 @@ mod tests {
 
 		let (result_tx, result_rx_pvf_2) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(2),
+			PvfWithExecutorParams::from_discriminator(2),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
-			executor_params.clone(),
 			Priority::Normal,
 			result_tx,
 		)
@@ -1160,7 +1108,7 @@ mod tests {
 
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, executor_params_hash),
+				artifact_id: artifact_id(1),
 				result: Ok(Duration::default()),
 			})
 			.await
@@ -1176,7 +1124,7 @@ mod tests {
 
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(2, executor_params_hash),
+				artifact_id: artifact_id(2),
 				result: Ok(Duration::default()),
 			})
 			.await
@@ -1215,12 +1163,10 @@ mod tests {
 	async fn precheck_pvf() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let executor_params = ExecutorParams::default();
-		let executor_params_hash = executor_params.hash();
 
 		// First, test a simple precheck request.
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), executor_params.clone(), result_tx)
+		host.precheck_pvf(PvfWithExecutorParams::from_discriminator(1), result_tx)
 			.await
 			.unwrap();
 
@@ -1232,7 +1178,7 @@ mod tests {
 		// Send `Ok` right away and poll the host.
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, executor_params_hash),
+				artifact_id: artifact_id(1),
 				result: Ok(Duration::default()),
 			})
 			.await
@@ -1246,7 +1192,7 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::from_discriminator(2), executor_params.clone(), result_tx)
+			host.precheck_pvf(PvfWithExecutorParams::from_discriminator(1), result_tx)
 				.await
 				.unwrap();
 			precheck_receivers.push(result_rx);
@@ -1258,7 +1204,7 @@ mod tests {
 		);
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(2, executor_params_hash),
+				artifact_id: artifact_id(2),
 				result: Err(PrepareError::TimedOut),
 			})
 			.await
@@ -1276,8 +1222,6 @@ mod tests {
 	async fn test_prepare_done() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let executor_params = ExecutorParams::default();
-		let executor_params_hash = executor_params.hash();
 
 		// Test mixed cases of receiving execute and precheck requests
 		// for the same PVF.
@@ -1285,10 +1229,9 @@ mod tests {
 		// Send PVF for the execution and request the prechecking for it.
 		let (result_tx, result_rx_execute) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfWithExecutorParams::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
-			executor_params.clone(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1301,7 +1244,7 @@ mod tests {
 		);
 
 		let (result_tx, result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), executor_params.clone(), result_tx)
+		host.precheck_pvf(PvfWithExecutorParams::from_discriminator(1), result_tx)
 			.await
 			.unwrap();
 
@@ -1309,7 +1252,7 @@ mod tests {
 		// "clients" receive their results.
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, executor_params_hash),
+				artifact_id: artifact_id(1),
 				result: Err(PrepareError::TimedOut),
 			})
 			.await
@@ -1325,7 +1268,7 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(Pvf::from_discriminator(2), executor_params.clone(), result_tx)
+			host.precheck_pvf(PvfWithExecutorParams::from_discriminator(1), result_tx)
 				.await
 				.unwrap();
 			precheck_receivers.push(result_rx);
@@ -1333,10 +1276,9 @@ mod tests {
 
 		let (result_tx, _result_rx_execute) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(2),
+			PvfWithExecutorParams::from_discriminator(2),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf2".to_vec(),
-			executor_params.clone(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1349,7 +1291,7 @@ mod tests {
 		);
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(2, executor_params_hash),
+				artifact_id: artifact_id(2),
 				result: Ok(Duration::default()),
 			})
 			.await
@@ -1371,12 +1313,10 @@ mod tests {
 	async fn test_precheck_prepare_retry() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let executor_params = ExecutorParams::default();
-		let executor_params_hash = executor_params.hash();
 
 		// Submit a precheck request that fails.
 		let (result_tx, _result_rx) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), executor_params.clone(), result_tx)
+		host.precheck_pvf(PvfWithExecutorParams::from_discriminator(1), result_tx)
 			.await
 			.unwrap();
 
@@ -1388,7 +1328,7 @@ mod tests {
 		// Send a PrepareError.
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, executor_params_hash),
+				artifact_id: artifact_id(1),
 				result: Err(PrepareError::TimedOut),
 			})
 			.await
@@ -1396,7 +1336,7 @@ mod tests {
 
 		// Submit another precheck request.
 		let (result_tx_2, _result_rx_2) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), executor_params.clone(), result_tx_2)
+		host.precheck_pvf(PvfWithExecutorParams::from_discriminator(1), result_tx_2)
 			.await
 			.unwrap();
 
@@ -1408,7 +1348,7 @@ mod tests {
 
 		// Submit another precheck request.
 		let (result_tx_3, _result_rx_3) = oneshot::channel();
-		host.precheck_pvf(Pvf::from_discriminator(1), executor_params, result_tx_3)
+		host.precheck_pvf(PvfWithExecutorParams::from_discriminator(1), result_tx_3)
 			.await
 			.unwrap();
 
@@ -1422,16 +1362,13 @@ mod tests {
 	async fn test_execute_prepare_retry() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let executor_params = ExecutorParams::default();
-		let executor_params_hash = executor_params.hash();
 
 		// Submit a execute request that fails.
 		let (result_tx, _result_rx) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfWithExecutorParams::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf".to_vec(),
-			executor_params.clone(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1446,7 +1383,7 @@ mod tests {
 		// Send a PrepareError.
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, executor_params_hash),
+				artifact_id: artifact_id(1),
 				result: Err(PrepareError::TimedOut),
 			})
 			.await
@@ -1455,10 +1392,9 @@ mod tests {
 		// Submit another execute request.
 		let (result_tx_2, _result_rx_2) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfWithExecutorParams::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf".to_vec(),
-			executor_params.clone(),
 			Priority::Critical,
 			result_tx_2,
 		)
@@ -1474,10 +1410,9 @@ mod tests {
 		// Submit another execute request.
 		let (result_tx_3, _result_rx_3) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfWithExecutorParams::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf".to_vec(),
-			executor_params,
 			Priority::Critical,
 			result_tx_3,
 		)
@@ -1497,16 +1432,13 @@ mod tests {
 	async fn test_execute_prepare_no_retry() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let executor_params = ExecutorParams::default();
-		let executor_params_hash = executor_params.hash();
 
 		// Submit a execute request that fails.
 		let (result_tx, _result_rx) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfWithExecutorParams::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf".to_vec(),
-			executor_params.clone(),
 			Priority::Critical,
 			result_tx,
 		)
@@ -1521,7 +1453,7 @@ mod tests {
 		// Send a PrepareError.
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, executor_params_hash),
+				artifact_id: artifact_id(1),
 				result: Err(PrepareError::Prevalidation("reproducible error".into())),
 			})
 			.await
@@ -1530,10 +1462,9 @@ mod tests {
 		// Submit another execute request.
 		let (result_tx_2, _result_rx_2) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfWithExecutorParams::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf".to_vec(),
-			executor_params.clone(),
 			Priority::Critical,
 			result_tx_2,
 		)
@@ -1549,10 +1480,9 @@ mod tests {
 		// Submit another execute request.
 		let (result_tx_3, _result_rx_3) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfWithExecutorParams::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf".to_vec(),
-			executor_params,
 			Priority::Critical,
 			result_tx_3,
 		)
@@ -1568,16 +1498,9 @@ mod tests {
 	async fn test_heads_up_prepare_retry() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let executor_params = ExecutorParams::default();
-		let executor_params_hash = executor_params.hash();
 
 		// Submit a heads-up request that fails.
-		host.heads_up(vec![PvfWithExecutorParams {
-			pvf: Pvf::from_discriminator(1),
-			executor_params: executor_params.clone(),
-		}])
-		.await
-		.unwrap();
+		host.heads_up(vec![PvfWithExecutorParams::from_discriminator(1)]).await.unwrap();
 
 		// The queue received the prepare request.
 		assert_matches!(
@@ -1587,19 +1510,14 @@ mod tests {
 		// Send a PrepareError.
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, executor_params_hash),
+				artifact_id: artifact_id(1),
 				result: Err(PrepareError::TimedOut),
 			})
 			.await
 			.unwrap();
 
 		// Submit another heads-up request.
-		host.heads_up(vec![PvfWithExecutorParams {
-			pvf: Pvf::from_discriminator(1),
-			executor_params: executor_params.clone(),
-		}])
-		.await
-		.unwrap();
+		host.heads_up(vec![PvfWithExecutorParams::from_discriminator(1)]).await.unwrap();
 
 		// Assert the prepare queue is empty.
 		test.poll_ensure_to_prepare_queue_is_empty().await;
@@ -1608,12 +1526,7 @@ mod tests {
 		futures_timer::Delay::new(PREPARE_FAILURE_COOLDOWN).await;
 
 		// Submit another heads-up request.
-		host.heads_up(vec![PvfWithExecutorParams {
-			pvf: Pvf::from_discriminator(1),
-			executor_params,
-		}])
-		.await
-		.unwrap();
+		host.heads_up(vec![PvfWithExecutorParams::from_discriminator(1)]).await.unwrap();
 
 		// Assert the prepare queue contains the request.
 		assert_matches!(
@@ -1626,15 +1539,12 @@ mod tests {
 	async fn cancellation() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
-		let executor_params = ExecutorParams::default();
-		let executor_params_hash = executor_params.hash();
 
 		let (result_tx, result_rx) = oneshot::channel();
 		host.execute_pvf(
-			Pvf::from_discriminator(1),
+			PvfWithExecutorParams::from_discriminator(1),
 			TEST_EXECUTION_TIMEOUT,
 			b"pvf1".to_vec(),
-			executor_params,
 			Priority::Normal,
 			result_tx,
 		)
@@ -1648,7 +1558,7 @@ mod tests {
 
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
-				artifact_id: artifact_id(1, executor_params_hash),
+				artifact_id: artifact_id(1),
 				result: Ok(Duration::default()),
 			})
 			.await

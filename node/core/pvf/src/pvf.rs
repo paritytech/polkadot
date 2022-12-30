@@ -16,7 +16,7 @@
 
 use crate::artifacts::ArtifactId;
 use polkadot_parachain::primitives::ValidationCodeHash;
-use polkadot_primitives::vstaging::ExecutorParamsHash;
+use polkadot_primitives::vstaging::ExecutorParams;
 use sp_core::blake2_256;
 use std::{fmt, sync::Arc};
 
@@ -49,9 +49,44 @@ impl Pvf {
 		let descriminator_buf = num.to_le_bytes().to_vec();
 		Pvf::from_code(descriminator_buf)
 	}
+}
 
-	/// Returns the artifact ID that corresponds to this PVF.
-	pub(crate) fn as_artifact_id(&self, executor_params_hash: ExecutorParamsHash) -> ArtifactId {
-		ArtifactId::new(self.code_hash, executor_params_hash)
+/// Coupling PVF code with executor params
+#[derive(Debug, Clone)]
+pub struct PvfWithExecutorParams {
+	pvf: Pvf,
+	executor_params: ExecutorParams,
+}
+
+impl PvfWithExecutorParams {
+	/// Creates a new PVF-ExecutorParams pair structure
+	pub fn new(pvf: Pvf, executor_params: ExecutorParams) -> Self {
+		Self { pvf, executor_params }
+	}
+
+	/// Returns artifact ID that corresponds to the PVF with given executor params
+	pub(crate) fn as_artifact_id(&self) -> ArtifactId {
+		ArtifactId::new(self.pvf.code_hash, self.executor_params.hash())
+	}
+
+	/// Returns validation code hash for the PVF
+	pub(crate) fn code_hash(&self) -> ValidationCodeHash {
+		self.pvf.code_hash
+	}
+
+	/// Returns PVF code
+	pub(crate) fn code(&self) -> Arc<Vec<u8>> {
+		self.pvf.code.clone()
+	}
+
+	/// Returns executor params
+	pub(crate) fn executor_params(&self) -> ExecutorParams {
+		self.executor_params.clone()
+	}
+
+	/// Creates a structure for tests
+	#[cfg(test)]
+	pub(crate) fn from_discriminator(num: u32) -> Self {
+		Self { pvf: Pvf::from_discriminator(num), executor_params: Default::default() }
 	}
 }
