@@ -396,19 +396,19 @@ impl Initialized {
 							CompactStatement::Valid(_) =>
 								ValidDisputeStatementKind::BackingValid(relay_parent),
 						};
-                    debug_assert!(
-                        SignedDisputeStatement::new_checked(
+					debug_assert!(
+						SignedDisputeStatement::new_checked(
 							DisputeStatement::Valid(valid_statement_kind),
 							candidate_hash,
 							session,
 							validator_public.clone(),
 							validator_signature.clone(),
-                        ).is_ok(),
-                        "Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}",
-                        candidate_hash,
-                        session,
-                        validator_public,
-                    );
+						).is_ok(),
+						"Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}",
+						candidate_hash,
+						session,
+						validator_public,
+					);
 					let signed_dispute_statement =
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
 							DisputeStatement::Valid(valid_statement_kind),
@@ -492,20 +492,20 @@ impl Initialized {
 						})
 						.cloned()?;
 
-                    debug_assert!(
-                        SignedDisputeStatement::new_checked(
+					debug_assert!(
+						SignedDisputeStatement::new_checked(
 							dispute_statement.clone(),
 							candidate_hash,
 							session,
 							validator_public.clone(),
 							validator_signature.clone(),
-                        ).is_ok(),
-                        "Scraped dispute votes had invalid signature! candidate: {:?}, session: {:?}, dispute_statement: {:?}, validator_public: {:?}",
-                        candidate_hash,
-                        session,
+						).is_ok(),
+						"Scraped dispute votes had invalid signature! candidate: {:?}, session: {:?}, dispute_statement: {:?}, validator_public: {:?}",
+						candidate_hash,
+						session,
 						dispute_statement,
-                        validator_public,
-                    );
+						validator_public,
+					);
 
 					Some((
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
