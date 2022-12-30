@@ -6381,6 +6381,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "sp-keystore",
+ "sp-tracing",
  "thiserror",
  "tracing-gum",
 ]
@@ -6650,6 +6651,7 @@ dependencies = [
  "env_logger 0.9.0",
  "fatality",
  "futures",
+ "futures-channel",
  "itertools",
  "kvdb",
  "kvdb-memorydb",
