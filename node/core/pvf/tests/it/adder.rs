@@ -23,7 +23,7 @@ use polkadot_parachain::primitives::{
 };
 
 #[async_std::test]
-async fn execute_good_on_parent() {
+async fn execute_good_block_on_parent() {
 	let parent_head = HeadData { number: 0, parent_hash: [0; 32], post_state: hash_state(0) };
 
 	let block_data = BlockData { state: 0, add: 512 };
@@ -89,7 +89,7 @@ async fn execute_good_chain_on_parent() {
 }
 
 #[async_std::test]
-async fn execute_bad_on_parent() {
+async fn execute_bad_block_on_parent() {
 	let parent_head = HeadData { number: 0, parent_hash: [0; 32], post_state: hash_state(0) };
 
 	let block_data = BlockData {

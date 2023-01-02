@@ -225,9 +225,8 @@ fn handle_job_finish(
 	result_tx: ResultSender,
 ) {
 	let (idle_worker, result) = match outcome {
-		Outcome::Ok { result_descriptor, duration_ms, idle_worker } => {
+		Outcome::Ok { result_descriptor, duration: _, idle_worker } => {
 			// TODO: propagate the soft timeout
-			drop(duration_ms);
 
 			(Some(idle_worker), Ok(result_descriptor))
 		},
@@ -252,8 +251,8 @@ fn handle_job_finish(
 		"execute worker concluded",
 	);
 
-	// First we send the result. It may fail due the other end of the channel being dropped, that's
-	// legitimate and we don't treat that as an error.
+	// First we send the result. It may fail due to the other end of the channel being dropped,
+	// that's legitimate and we don't treat that as an error.
 	let _ = result_tx.send(result);
 
 	// Then, we should deal with the worker:
@@ -305,7 +304,7 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Qu
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn an execute worker: {:?}", err);
 
-				// Assume that the failure intermittent and retry after a delay.
+				// Assume that the failure is intermittent and retry after a delay.
 				Delay::new(Duration::from_secs(3)).await;
 			},
 		}

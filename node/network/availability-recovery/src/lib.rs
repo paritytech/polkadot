@@ -338,8 +338,7 @@ impl RequestChunksFromValidators {
 					index: validator_index,
 				};
 
-				let (req, res) =
-					OutgoingRequest::new(Recipient::Authority(validator), raw_request.clone());
+				let (req, res) = OutgoingRequest::new(Recipient::Authority(validator), raw_request);
 				requests.push(Requests::ChunkFetchingV1(req));
 
 				params.metrics.on_chunk_request_issued();
@@ -836,7 +835,7 @@ async fn handle_signal(state: &mut State, signal: OverseerSignal) -> SubsystemRe
 		OverseerSignal::Conclude => Ok(true),
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. }) => {
 			// if activated is non-empty, set state.live_block to the highest block in `activated`
-			for activated in activated {
+			if let Some(activated) = activated {
 				if activated.number > state.live_block.0 {
 					state.live_block = (activated.number, activated.hash)
 				}
@@ -973,7 +972,7 @@ async fn query_full_data<Context>(
 	ctx.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx))
 		.await;
 
-	Ok(rx.await.map_err(error::Error::CanceledQueryFullData)?)
+	rx.await.map_err(error::Error::CanceledQueryFullData)
 }
 
 #[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]

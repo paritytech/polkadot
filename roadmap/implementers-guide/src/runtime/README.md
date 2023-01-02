@@ -14,16 +14,18 @@ There is some functionality of the relay chain relating to parachains that we al
 
 We will split the logic of the runtime up into these modules:
 
-* Initializer: manage initialization order of the other modules.
+* Initializer: manages initialization order of the other modules.
 * Shared: manages shared storage and configurations for other modules.
-* Configuration: manage configuration and configuration updates in a non-racy manner.
-* Paras: manage chain-head and validation code for parachains and parathreads.
+* Configuration: manages configuration and configuration updates in a non-racy manner.
+* Paras: manages chain-head and validation code for parachains and parathreads.
 * Scheduler: manages parachain and parathread scheduling as well as validator assignments.
 * Inclusion: handles the inclusion and availability of scheduled parachains and parathreads.
-* Validity: handles secondary checks and dispute resolution for included, available parablocks.
+* SessionInfo: manages various session keys of validators and other params stored per session.
+* Disputes: handles dispute resolution for included, available parablocks.
+* Slashing: handles slashing logic for concluded disputes.
 * HRMP: handles horizontal messages between paras.
-* UMP: Handles upward messages from a para to the relay chain.
-* DMP: Handles downward messages from the relay chain to the para.
+* UMP: handles upward messages from a para to the relay chain.
+* DMP: handles downward messages from the relay chain to the para.
 
 The [Initializer module](initializer.md) is special - it's responsible for handling the initialization logic of the other modules to ensure that the correct initialization order and related invariants are maintained. The other modules won't specify a on-initialize logic, but will instead expose a special semi-private routine that the initialization module will call. The other modules are relatively straightforward and perform the roles described above.
 
