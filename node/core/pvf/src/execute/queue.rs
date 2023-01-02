@@ -39,9 +39,9 @@ use std::{
 	time::{Duration, Instant},
 };
 
-/// The amount of time the queue will wait for new jobs with an execution environment for which it
-/// already has workers before it starts to kill them and spawn new ones for jobs waiting in the
-/// queue with an incompatible execution environment.
+/// The amount of time a job for which the queue does not have a compatible worker may wait in the
+/// queue. After that time passes, the queue will kill the first worker which becomes idle to
+/// re-spawn a new worker to execute the job immediately.
 const MAX_KEEP_WAITING: Duration = Duration::from_millis(60000); // FIXME: Needs to be evaluated
 
 slotmap::new_key_type! { struct Worker; }
