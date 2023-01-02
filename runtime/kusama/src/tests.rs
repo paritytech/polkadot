@@ -20,6 +20,7 @@ use crate::*;
 use frame_support::{dispatch::GetDispatchInfo, weights::WeightToFee as WeightToFeeT};
 use keyring::Sr25519Keyring::Charlie;
 use pallet_transaction_payment::Multiplier;
+use pallet_xcm::runtime_decl_for_XcmApi::XcmApi;
 use parity_scale_codec::Encode;
 use runtime_common::MinimumMultiplier;
 use separator::Separatable;
@@ -140,4 +141,57 @@ fn nominator_limit() {
 #[test]
 fn call_size() {
 	RuntimeCall::assert_size_under(230);
+}
+
+#[test]
+fn pallet_xcm_weight() {
+	use xcm::v2::XcmWeightInfo;
+	let message = xcm::VersionedXcm::<RuntimeCall>::V2(xcm::latest::Xcm(vec![
+		xcm::latest::prelude::ClearOrigin,
+	]));
+	assert_eq!(
+		Runtime::weigh_message(message),
+		Ok(weights::xcm::KusamaXcmWeight::<RuntimeCall>::clear_origin().into())
+	);
+}
+
+#[test]
+fn xcm_runtime_location_convert() {
+	use xcm::latest::prelude::*;
+	use xcm_executor::traits::Convert;
+	let para_location = xcm::latest::MultiLocation::new(0, X1(Parachain(1000u32)));
+	assert_eq!(
+		Runtime::convert_location(para_location.clone().into()),
+		Ok(xcm_builder::ChildParachainConvertsVia::<ParaId, AccountId>::convert_ref(para_location)
+			.unwrap())
+	);
+	let local_location = xcm::latest::MultiLocation::new(
+		0,
+		X1(AccountId32 { network: NetworkId::Any, id: [1u8; 32] }),
+	);
+	assert_eq!(
+		Runtime::convert_location(local_location.clone().into()),
+		Ok(xcm_builder::AccountId32Aliases::<xcm_config::KusamaNetwork, AccountId>::convert_ref(
+			local_location
+		)
+		.unwrap())
+	);
+}
+
+#[test]
+fn xcm_asset() {
+	use frame_support::weights::WeightToFee as WeightToFeeT;
+	use xcm::latest::prelude::*;
+	let asset_location: MultiLocation = Here.into();
+	let t = frame_system::GenesisConfig::default()
+		.build_storage::<Runtime>()
+		.expect("Frame system builds valid default genesis config");
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| {
+		let result = Runtime::calculate_concrete_asset_fee(
+			asset_location.into(),
+			ExtrinsicBaseWeight::get().ref_time().into(),
+		);
+		assert_eq!(result, Ok(WeightToFee::weight_to_fee(&ExtrinsicBaseWeight::get())));
+	});
 }

@@ -75,6 +75,11 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
+use xcm::{
+	latest::{Error as XcmError, MultiAsset, MultiLocation, Xcm},
+	VersionedMultiLocation, VersionedXcm,
+};
+use xcm_executor::traits::{WeightBounds, WeightTrader};
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -1624,6 +1629,40 @@ sp_api::impl_runtime_apis! {
 	> for Runtime {
 		fn pending_rewards(member: AccountId) -> Balance {
 			NominationPools::pending_rewards(member).unwrap_or_default()
+		}
+	}
+
+	impl pallet_xcm::XcmApi<
+		Block,
+		AccountId,
+		RuntimeCall,
+	> for Runtime {
+
+		fn weigh_message(message: VersionedXcm<RuntimeCall>) -> pallet_xcm::XcmApiResult<pallet_xcm::VersionedWeight> {
+			let mut message: Xcm<RuntimeCall> = message.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+			<xcm_config::XcmConfig as xcm_executor::Config>::Weigher::weight(& mut message).map_err(|_| XcmError::WeightNotComputable).map(|weight| weight.into())
+		}
+
+		fn convert_location(location: VersionedMultiLocation) -> pallet_xcm::XcmApiResult<AccountId> {
+			let location: MultiLocation = location.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+			<xcm_config::LocationConverter as xcm_executor::traits::Convert<
+				MultiLocation, AccountId
+			>>::convert_ref(location).map_err(|_| XcmError::FailedToTransactAsset("AccountIdConversionFailed"))
+		}
+
+		fn calculate_concrete_asset_fee(asset_location: VersionedMultiLocation, weight: pallet_xcm::VersionedWeight) -> pallet_xcm::XcmApiResult<u128>  {
+			let asset_location: MultiLocation = asset_location.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+			let weight: xcm::latest::Weight = weight.try_into().map_err(|_| XcmError::UnhandledXcmVersion)?;
+
+			// We create a multiasset with max fee
+			let multiasset: MultiAsset = (asset_location, u128::MAX).into();
+			let mut trader = <xcm_config::XcmConfig as xcm_executor::Config>::Trader::new();
+
+			// buy_weight returns unused assets
+			let unused = trader.buy_weight(weight, vec![multiasset.clone()].into())?;
+
+			// we just need to substract from u128::MAX the unused assets
+			unused.fungible.get(&multiasset.id).map(|&value| u128::MAX.saturating_sub(value)).ok_or(XcmError::NotHoldingFees)
 		}
 	}
 

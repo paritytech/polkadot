@@ -17,6 +17,7 @@
 //! Tests for the Westend Runtime Configuration
 
 use crate::*;
+use pallet_xcm::runtime_decl_for_XcmApi::XcmApi;
 use xcm::latest::{AssetId::*, Fungibility::*, MultiLocation};
 
 #[test]
@@ -66,4 +67,57 @@ fn sanity_check_teleport_assets_weight() {
 	.weight;
 
 	assert!((weight * 50).all_lt(BlockWeights::get().max_block));
+}
+
+#[test]
+fn pallet_xcm_weight() {
+	use xcm::v2::XcmWeightInfo;
+	let message = xcm::VersionedXcm::<RuntimeCall>::V2(xcm::latest::Xcm(vec![
+		xcm::latest::prelude::ClearOrigin,
+	]));
+	assert_eq!(
+		Runtime::weigh_message(message),
+		Ok(weights::xcm::WestendXcmWeight::<RuntimeCall>::clear_origin().into())
+	);
+}
+
+#[test]
+fn xcm_runtime_location_convert() {
+	use xcm::latest::prelude::*;
+	use xcm_executor::traits::Convert;
+	let para_location = xcm::latest::MultiLocation::new(0, X1(Parachain(1000u32)));
+	assert_eq!(
+		Runtime::convert_location(para_location.clone().into()),
+		Ok(xcm_builder::ChildParachainConvertsVia::<ParaId, AccountId>::convert_ref(para_location)
+			.unwrap())
+	);
+	let local_location = xcm::latest::MultiLocation::new(
+		0,
+		X1(AccountId32 { network: NetworkId::Any, id: [1u8; 32] }),
+	);
+	assert_eq!(
+		Runtime::convert_location(local_location.clone().into()),
+		Ok(xcm_builder::AccountId32Aliases::<xcm_config::WestendNetwork, AccountId>::convert_ref(
+			local_location
+		)
+		.unwrap())
+	);
+}
+
+#[test]
+fn xcm_asset() {
+	use frame_support::weights::WeightToFee as WeightToFeeT;
+	use xcm::latest::prelude::*;
+	let asset_location: MultiLocation = Here.into();
+	let t = frame_system::GenesisConfig::default()
+		.build_storage::<Runtime>()
+		.expect("Frame system builds valid default genesis config");
+	let mut ext = sp_io::TestExternalities::new(t);
+	ext.execute_with(|| {
+		let result = Runtime::calculate_concrete_asset_fee(
+			asset_location.into(),
+			ExtrinsicBaseWeight::get().ref_time().into(),
+		);
+		assert_eq!(result, Ok(WeightToFee::weight_to_fee(&ExtrinsicBaseWeight::get())));
+	});
 }

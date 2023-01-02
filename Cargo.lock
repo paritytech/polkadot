@@ -5529,6 +5529,7 @@ dependencies = [
 name = "pallet-xcm"
 version = "0.9.33"
 dependencies = [
+ "derivative",
  "frame-support",
  "frame-system",
  "log",
@@ -5538,6 +5539,7 @@ dependencies = [
  "polkadot-runtime-parachains",
  "scale-info",
  "serde",
+ "sp-api",
  "sp-core",
  "sp-io",
  "sp-runtime",
