@@ -454,6 +454,7 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 	/// Returns `None` if the quorum is not reached, or the direction of the decision.
 	fn quorum(&self, n_validators: usize) -> Option<PvfCheckOutcome> {
 		let accept_threshold = primitives::v2::supermajority_threshold(n_validators);
+		// At this threshold, a supermajority is no longer possible, so we reject.
 		let reject_threshold = n_validators - accept_threshold;
 
 		if self.votes_accept.count_ones() >= accept_threshold {
