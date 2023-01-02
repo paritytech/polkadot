@@ -107,10 +107,12 @@ pub type XcmRouter = (
 parameter_types! {
 	pub const Polkadot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(DotLocation::get()) });
 	pub const PolkadotForStatemint: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1000).into());
+	pub const PolkadotForCollectives: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1001).into());
 }
 
-/// Polkadot Relay recognizes/respects the Statemint chain as a teleporter.
-pub type TrustedTeleporters = (xcm_builder::Case<PolkadotForStatemint>,);
+/// Polkadot Relay recognizes/respects System parachains as teleporters.
+pub type TrustedTeleporters =
+	(xcm_builder::Case<PolkadotForStatemint>, xcm_builder::Case<PolkadotForCollectives>);
 
 match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {

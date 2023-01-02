@@ -17,7 +17,7 @@
 use frame_support::{
 	dispatch::GetDispatchInfo,
 	traits::{tokens::currency::Currency as CurrencyT, Get, OnUnbalanced as OnUnbalancedT},
-	weights::{constants::WEIGHT_PER_SECOND, WeightToFee as WeightToFeeT},
+	weights::{constants::WEIGHT_REF_TIME_PER_SECOND, WeightToFee as WeightToFeeT},
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
@@ -153,7 +153,7 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
 			weight, payment,
 		);
 		let (id, units_per_second) = T::get();
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let amount = units_per_second * (weight as u128) / (WEIGHT_REF_TIME_PER_SECOND as u128);
 		let unused =
 			payment.checked_sub((id, amount).into()).map_err(|_| XcmError::TooExpensive)?;
 		self.0 = self.0.saturating_add(weight);
@@ -165,7 +165,7 @@ impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
 		log::trace!(target: "xcm::weight", "FixedRateOfConcreteFungible::refund_weight weight: {:?}", weight);
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let amount = units_per_second * (weight as u128) / (WEIGHT_REF_TIME_PER_SECOND as u128);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		if amount > 0 {
@@ -205,7 +205,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 			weight, payment,
 		);
 		let (id, units_per_second) = T::get();
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let amount = units_per_second * (weight as u128) / (WEIGHT_REF_TIME_PER_SECOND as u128);
 		if amount == 0 {
 			return Ok(payment)
 		}
@@ -220,7 +220,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 		log::trace!(target: "xcm::weight", "FixedRateOfFungible::refund_weight weight: {:?}", weight);
 		let (id, units_per_second) = T::get();
 		let weight = weight.min(self.0);
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let amount = units_per_second * (weight as u128) / (WEIGHT_REF_TIME_PER_SECOND as u128);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		if amount > 0 {
