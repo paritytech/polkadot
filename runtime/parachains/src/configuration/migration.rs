@@ -231,7 +231,7 @@ mod tests {
 	use crate::mock::{new_test_ext, Test};
 
 	#[test]
-	fn v2_deserialized_from_actual_data() {
+	fn v3_deserialized_from_actual_data() {
 		// Example how to get new `raw_config`:
 		// We'll obtain the raw_config hes for block
 		// 15,772,152 (0xf89d3ab5312c5f70d396dc59612f0aa65806c798346f9db4b35278baed2e0e53) on Kusama.
@@ -267,7 +267,7 @@ mod tests {
 	}
 
 	#[test]
-	fn test_migrate_to_v3() {
+	fn test_migrate_to_v4() {
 		// Host configuration has lots of fields. However, in this migration we add only a couple of
 		// fields. The most important part to check are a couple of the last fields. We also pick
 		// extra fields to check arbitrarily, e.g. depending on their position (i.e. the middle) and
