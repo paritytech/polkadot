@@ -368,6 +368,8 @@ fn is_vote_worth_to_keep(
 		DisputeStatement::Valid(kind) => (true, Some(kind)),
 		DisputeStatement::Invalid(_) => (false, None)
 	};
+	// We want to keep all backing votes. This maximizes the number of backers
+	// punished when misbehaving.
 	if let Some(kind) = valid_kind {
 		match kind {
 			ValidDisputeStatementKind::BackingValid(_) => return true,
