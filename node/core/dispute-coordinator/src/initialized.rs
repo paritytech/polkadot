@@ -32,7 +32,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalVotingMessage, BlockDescription, DisputeCoordinatorMessage,
-		DisputeDistributionMessage, ImportStatementsResult,
+		DisputeDistributionMessage, ImportStatementsResult, ChainSelectionMessage,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
@@ -1016,6 +1016,12 @@ impl Initialized {
 				);
 				overlay_db.write_recent_disputes(recent_disputes);
 			}
+		}
+
+		// Notify ChainSelection if a dispute has concluded against a candidate
+		if import_result.is_freshly_concluded_against() {
+			ctx.send_message(ChainSelectionMessage::DisputeConcludedAgainst(candidate_hash))
+				.await;
 		}
 
 		// Update metrics:
