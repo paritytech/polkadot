@@ -686,9 +686,13 @@ fn test_freeze_provided_against_supermajority_for_included() {
 	});
 }
 
-#[test]
-fn test_unconfirmed_are_ignored() {
-	new_test_ext(Default::default()).execute_with(|| {
+mod unconfirmed_disputes {
+	use super::*;
+	use assert_matches::assert_matches;
+	use sp_runtime::ModuleError;
+
+	// Shared initialization code between `test_unconfirmed_are_ignored` and `test_unconfirmed_disputes_cause_block_import_error`
+	fn generate_dispute_statement_set_and_run_to_block() -> DisputeStatementSet {
 		// 7 validators needed for byzantine threshold of 2.
 		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
 		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
@@ -736,7 +740,7 @@ fn test_unconfirmed_are_ignored() {
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
 
 		// v0 votes for 4, v1 votes against 4.
-		let stmts = vec![DisputeStatementSet {
+		DisputeStatementSet {
 			candidate_hash: candidate_hash.clone(),
 			session: 4,
 			statements: vec![
@@ -765,13 +769,33 @@ fn test_unconfirmed_are_ignored() {
 					),
 				),
 			],
-		}];
+		}
+	}
+	#[test]
+	fn test_unconfirmed_are_ignored() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let stmts = vec![generate_dispute_statement_set_and_run_to_block()];
+			let stmts = filter_dispute_set(stmts);
 
-		let stmts = filter_dispute_set(stmts);
+			// Not confirmed => should be filtered out
+			assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![],);
+		});
+	}
 
-		// Not confirmed => should be filtered out
-		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![],);
+	#[test]
+	fn test_unconfirmed_disputes_cause_block_import_error() {
+		new_test_ext(Default::default()).execute_with(|| {
+
+		let stmts = generate_dispute_statement_set_and_run_to_block();
+		let stmts = vec![CheckedDisputeStatementSet::unchecked_from_unchecked(stmts)];
+
+		assert_matches!(
+			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
+			Err(DispatchError::Module(ModuleError{index: _, error: _, message})) => assert_eq!(message, Some("UnconfirmedDispute"))
+		);
+
 	});
+	}
 }
 
 // tests for:
