@@ -16,11 +16,13 @@ To be relevant for the subsystem, a PVF must be returned by the [`pvfs_require_p
 
 When a PVF just becomes relevant, the subsystem will send a message to the [Candidate Validation] subsystem asking for the pre-check.
 
-Upon receving a message from the candidate-validation subsystem, the pre-checker will note down that the PVF has its judgement and will also sign and submit a [`PvfCheckStatement`][PvfCheckStatement] via the [`submit_pvf_check_statement` runtime API][PVF pre-checking runtime API]. In case, a judgement was received for a PVF that is no longer in view it is ignored. It is possible that the candidate validation was not able to check the PVF. In that case, the PVF pre-checker will abstain and won't submit any check statements.
+Upon receving a message from the candidate-validation subsystem, the pre-checker will note down that the PVF has its judgement and will also sign and submit a [`PvfCheckStatement`][PvfCheckStatement] via the [`submit_pvf_check_statement` runtime API][PVF pre-checking runtime API]. In case, a judgement was received for a PVF that is no longer in view it is ignored.
 
-Since a vote only is valid during [one session][overview], the subsystem will have to resign and submit the statements for for the new session. The new session is assumed to be started if at least one of the leaves has a greater session index that was previously observed in any of the leaves.
+It is possible that the candidate validation was not able to check the PVF, e.g. if it timed out. In that case, the PVF pre-checker will vote against it. This is considered safe, as there is no slashing for being on the wrong side of a pre-check vote.
 
-The subsystem tracks all the statement that it submitted within a session. If for some reason a PVF became irrelevant and then becomes relevant again, the subsystem will not submit a new statement for that PVF within the same session.
+Since a vote only is valid during [one session][overview], the subsystem will have to resign and submit the statements for the new session. The new session is assumed to be started if at least one of the leaves has a greater session index that was previously observed in any of the leaves.
+
+The subsystem tracks all the statements that it submitted within a session. If for some reason a PVF became irrelevant and then becomes relevant again, the subsystem will not submit a new statement for that PVF within the same session.
 
 If the node is not in the active validator set, it will still perform all the checks. However, it will only submit the check statements when the node is in the active validator set.
 

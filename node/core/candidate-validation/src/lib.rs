@@ -295,8 +295,7 @@ where
 			_ => {
 				// The reasoning why this is "failed" and not invalid is because we assume that
 				// during pre-checking voting the relay-chain will pin the code. In case the code
-				// actually is not there, we issue failed since this looks more like a bug. This
-				// leads to us abstaining.
+				// actually is not there, we issue failed since this looks more like a bug.
 				gum::warn!(
 					target: LOG_TARGET,
 					?relay_parent,
