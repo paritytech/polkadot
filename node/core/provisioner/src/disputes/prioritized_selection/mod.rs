@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_primitives::v2::{
 	supermajority_threshold, CandidateHash, DisputeState, DisputeStatement, DisputeStatementSet,
-	Hash, MultiDisputeStatementSet, SessionIndex, ValidatorIndex, ValidDisputeStatementKind,
+	Hash, MultiDisputeStatementSet, SessionIndex, ValidDisputeStatementKind, ValidatorIndex,
 };
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -366,7 +366,7 @@ fn is_vote_worth_to_keep(
 ) -> bool {
 	let (offchain_vote, valid_kind) = match dispute_statement {
 		DisputeStatement::Valid(kind) => (true, Some(kind)),
-		DisputeStatement::Invalid(_) => (false, None)
+		DisputeStatement::Invalid(_) => (false, None),
 	};
 	// We want to keep all backing votes. This maximizes the number of backers
 	// punished when misbehaving.
