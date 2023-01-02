@@ -338,7 +338,10 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn block(&self, hash: <Block as BlockT>::Hash) -> sp_blockchain::Result<Option<SignedBlock<Block>>> {
+	fn block(
+		&self,
+		hash: <Block as BlockT>::Hash,
+	) -> sp_blockchain::Result<Option<SignedBlock<Block>>> {
 		with_client! {
 			self,
 			client,
