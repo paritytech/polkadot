@@ -454,7 +454,7 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 	/// Returns `None` if the quorum is not reached, or the direction of the decision.
 	fn quorum(&self, n_validators: usize) -> Option<PvfCheckOutcome> {
 		let accept_threshold = primitives::v2::supermajority_threshold(n_validators);
-		let reject_threshold = primitives::v2::byzantine_threshold(n_validators);
+		let reject_threshold = n_validators - accept_threshold;
 
 		if self.votes_accept.count_ones() >= accept_threshold {
 			Some(PvfCheckOutcome::Accepted)
