@@ -49,14 +49,24 @@ pub mod v1 {
 					"Disputes storage up to date - no need for migration"
 				);
 			}
+
 			weight
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+			ensure!(
+				StorageVersion::get::<Pallet<T>>() < STORAGE_VERSION,
+				"Storage version should be less than `1` before the migration",
+			);
+			Ok(Vec::new())
 		}
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
-				format!("Storage version should be {} after the migration", STORAGE_VERSION)
+				"Storage version should be `1` after the migration"
 			);
 			ensure!(
 				SpamSlots::<T>::iter().count() == 0,
