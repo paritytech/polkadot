@@ -289,7 +289,7 @@ async fn send_request(
 	executor_params: &ExecutorParams,
 	preparation_timeout: Duration,
 ) -> io::Result<()> {
-	framed_send(stream, &*code).await?;
+	framed_send(stream, &code).await?;
 	framed_send(stream, path_to_bytes(tmp_file)).await?;
 	framed_send(stream, &executor_params.encode()).await?;
 	framed_send(stream, &preparation_timeout.encode()).await?;
