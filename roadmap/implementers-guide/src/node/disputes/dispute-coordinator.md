@@ -398,11 +398,22 @@ and only if all of the following conditions are satisfied:
 * the dispute is not confirmed
 * we haven't cast a vote for the dispute
 
+Whenever any vote on a dispute is imported these conditions are checked. If the
+dispute is found not to be potential spam, then spam slots for the disputed candidate hash are cleared. This decrements the spam count for every validator
+which had voted invalid. 
+
+To keep spam slots from filling up unnecessarily we want to clear spam slots 
+whenever a candidate is seen to be backed or included. Fortunately this behavior
+is acheived by clearing slots on vote import as described above. Because on chain
+backing votes are processed when a block backing the disputed candidate is discovered, spam slots are cleared for every backed candidate. Included 
+candidates have also been seen as backed on the same fork, so decrementing spam
+slots is handled in that case as well.
+
 The reason this works is because we only need to worry about actual dispute
 votes. Import of backing votes are already rate limited and concern only real
-candidates for approval votes a similar argument holds (if they come from
+candidates. For approval votes a similar argument holds (if they come from
 approval-voting), but we also don't import them until a dispute already
-concluded. For actual dispute votes, we need two opposing votes, so there must be
+concluded. For actual dispute votes we need two opposing votes, so there must be
 an explicit `invalid` vote in the import. Only a third of the validators can be
 malicious, so spam disk usage is limited to `2*vote_size*n/3*NUM_SPAM_SLOTS`, with
 `n` being the number of validators.
@@ -516,16 +527,14 @@ We only ever care about disputes for candidates that have been included on at
 least some chain (became available). This is because the availability system was
 designed for precisely that: Only with inclusion (availability) we have
 guarantees about the candidate to actually be available. Because only then we
-have guarantees that malicious backers can be reliably checked and slashed. The
-system was also designed for non included candidates to not pose any threat to
-the system.
+have guarantees that malicious backers can be reliably checked and slashed. Also, by design non included candidates do not pose any threat to the system.
 
 One could think of an (additional) dispute system to make it possible to dispute
 any candidate that has been proposed by a validator, no matter whether it got
 successfully included or even backed. Unfortunately, it would be very brittle
 (no availability) and also spam protection would be way harder than for the
-disputes handled by the dispute-coordinator. In fact all described spam handling
-strategies above would simply be not available.
+disputes handled by the dispute-coordinator. In fact, all the spam handling
+strategies described above would simply be unavailable.
 
 It is worth thinking about who could actually raise such disputes anyway:
 Approval checkers certainly not, as they will only ever check once availability
