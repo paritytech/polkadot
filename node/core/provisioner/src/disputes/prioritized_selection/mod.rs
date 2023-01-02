@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_primitives::v2::{
 	supermajority_threshold, CandidateHash, DisputeState, DisputeStatement, DisputeStatementSet,
-	Hash, MultiDisputeStatementSet, SessionIndex, ValidatorIndex,
+	Hash, MultiDisputeStatementSet, SessionIndex, ValidatorIndex, ValidDisputeStatementKind,
 };
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -364,10 +364,18 @@ fn is_vote_worth_to_keep(
 	dispute_statement: DisputeStatement,
 	onchain_state: &DisputeState,
 ) -> bool {
-	let offchain_vote = match dispute_statement {
-		DisputeStatement::Valid(_) => true,
-		DisputeStatement::Invalid(_) => false,
+	let (offchain_vote, valid_kind) = match dispute_statement {
+		DisputeStatement::Valid(kind) => (true, Some(kind)),
+		DisputeStatement::Invalid(_) => (false, None)
 	};
+	if let Some(kind) = valid_kind {
+		match kind {
+			ValidDisputeStatementKind::BackingValid(_) => return true,
+			ValidDisputeStatementKind::BackingSeconded(_) => return true,
+			_ => (),
+		}
+	}
+
 	let in_validators_for = onchain_state
 		.validators_for
 		.get(validator_index.0 as usize)
