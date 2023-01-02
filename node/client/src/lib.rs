@@ -560,12 +560,12 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 }
 
 impl sp_blockchain::HeaderBackend<Block> for Client {
-	fn header(&self, id: BlockId<Block>) -> sp_blockchain::Result<Option<Header>> {
+	fn header(&self, hash: Hash) -> sp_blockchain::Result<Option<Header>> {
 		with_client! {
 			self,
 			client,
 			{
-				client.header(&id)
+				client.header(hash)
 			}
 		}
 	}
@@ -580,12 +580,12 @@ impl sp_blockchain::HeaderBackend<Block> for Client {
 		}
 	}
 
-	fn status(&self, id: BlockId<Block>) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+	fn status(&self, hash: Hash) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
 		with_client! {
 			self,
 			client,
 			{
-				client.status(id)
+				client.status(hash)
 			}
 		}
 	}

@@ -74,15 +74,16 @@ use lru::LruCache;
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use polkadot_primitives::v2::{Block, BlockNumber, Hash};
 
+use self::messages::{BitfieldSigningMessage, PvfCheckerMessage};
 use polkadot_node_subsystem_types::messages::{
 	ApprovalDistributionMessage, ApprovalVotingMessage, AvailabilityDistributionMessage,
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
-	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
-	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
-	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
-	NetworkBridgeRxMessage, NetworkBridgeTxMessage, ProvisionerMessage, PvfCheckerMessage,
-	RuntimeApiMessage, StatementDistributionMessage,
+	CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage, ChainSelectionMessage,
+	CollationGenerationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
+	DisputeDistributionMessage, GossipSupportMessage, NetworkBridgeRxMessage,
+	NetworkBridgeTxMessage, ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage,
 };
+
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
@@ -101,8 +102,6 @@ pub use polkadot_node_metrics::{
 	Metronome,
 };
 
-use parity_util_mem::MemoryAllocationTracker;
-
 pub use orchestra as gen;
 pub use orchestra::{
 	contextbounds, orchestra, subsystem, FromOrchestra, MapSubsystem, MessagePacket,
@@ -118,10 +117,13 @@ pub const KNOWN_LEAVES_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(2 * 24
 	None => panic!("Known leaves cache size must be non-zero"),
 };
 
+mod memory_stats;
 #[cfg(test)]
 mod tests;
 
 use sp_core::traits::SpawnNamed;
+
+use memory_stats::MemoryAllocationTracker;
 
 /// Glue to connect `trait orchestra::Spawner` and `SpawnNamed` from `substrate`.
 pub struct SpawnGlue<S>(pub S);
@@ -457,7 +459,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	candidate_validation: CandidateValidation,
 
-	#[subsystem(PvfCheckerMessage, sends: [
+	#[subsystem(sends: [
 		CandidateValidationMessage,
 		RuntimeApiMessage,
 	])]
@@ -497,7 +499,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	availability_recovery: AvailabilityRecovery,
 
-	#[subsystem(blocking, BitfieldSigningMessage, sends: [
+	#[subsystem(blocking, sends: [
 		AvailabilityStoreMessage,
 		RuntimeApiMessage,
 		BitfieldDistributionMessage,
@@ -710,7 +712,15 @@ where
 	}
 
 	/// Run the `Overseer`.
-	pub async fn run(mut self) -> SubsystemResult<()> {
+	///
+	/// Logging any errors.
+	pub async fn run(self) {
+		if let Err(err) = self.run_inner().await {
+			gum::error!(target: LOG_TARGET, ?err, "Overseer exited with error");
+		}
+	}
+
+	async fn run_inner(mut self) -> SubsystemResult<()> {
 		let metrics = self.metrics.clone();
 		spawn_metronome_metrics(&mut self, metrics)?;
 

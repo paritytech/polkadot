@@ -390,7 +390,7 @@ async fn run(
 			from_prepare_queue = from_prepare_queue_rx.next() => {
 				let from_queue = break_if_fatal!(from_prepare_queue.ok_or(Fatal));
 
-				// Note that preparation always succeeds.
+				// Note that the preparation outcome is always reported as concluded.
 				//
 				// That's because the error conditions are written into the artifact and will be
 				// reported at the time of the execution. It potentially, but not necessarily, can
@@ -776,16 +776,15 @@ fn can_retry_prepare_after_failure(
 	num_failures: u32,
 	error: &PrepareError,
 ) -> bool {
-	use PrepareError::*;
-	match error {
-		// Gracefully returned an error, so it will probably be reproducible. Don't retry.
-		Prevalidation(_) | Preparation(_) => false,
-		// Retry if the retry cooldown has elapsed and if we have already retried less than
-		// `NUM_PREPARE_RETRIES` times. IO errors may resolve themselves.
-		Panic(_) | TimedOut | DidNotMakeIt =>
-			SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
-				num_failures <= NUM_PREPARE_RETRIES,
+	if error.is_deterministic() {
+		// This error is considered deterministic, so it will probably be reproducible. Don't retry.
+		return false
 	}
+
+	// Retry if the retry cooldown has elapsed and if we have already retried less than `NUM_PREPARE_RETRIES` times. IO
+	// errors may resolve themselves.
+	SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
+		num_failures <= NUM_PREPARE_RETRIES
 }
 
 /// A stream that yields a pulse continuously at a given interval.

@@ -74,6 +74,8 @@ pub enum Outcome {
 
 /// Given the idle token of a worker and parameters of work, communicates with the worker and
 /// returns the outcome.
+///
+/// NOTE: Returning the `HardTimeout` or `IoErr` errors will trigger the child process being killed.
 pub async fn start_work(
 	worker: IdleWorker,
 	artifact: ArtifactPathId,
@@ -148,7 +150,7 @@ pub async fn start_work(
 				target: LOG_TARGET,
 				worker_pid = %pid,
 				validation_code_hash = ?artifact.id.code_hash,
-				"execution worker exceeded alloted time for execution",
+				"execution worker exceeded allotted time for execution",
 			);
 			// TODO: This case is not really a hard timeout as the timeout here in the host is
 			// lenient. Should fix this as part of
