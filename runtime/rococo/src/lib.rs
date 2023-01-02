@@ -1480,6 +1480,8 @@ pub type UncheckedExtrinsic =
 pub type Migrations = (
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, xcm_config::CheckAccount>,
 	crowdloan::migration::MigrateToTrackInactive<Runtime>,
+	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
+	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
 );
 
 /// Executive: handles dispatch to the various modules.

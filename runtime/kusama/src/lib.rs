@@ -1489,6 +1489,8 @@ pub type Migrations = (
 		Runtime,
 		governance::FellowshipReferendaInstance,
 	>,
+	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
+	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
