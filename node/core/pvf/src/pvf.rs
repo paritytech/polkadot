@@ -55,13 +55,13 @@ impl Pvf {
 #[derive(Debug, Clone)]
 pub struct PvfWithExecutorParams {
 	pvf: Pvf,
-	executor_params: ExecutorParams,
+	executor_params: Arc<ExecutorParams>,
 }
 
 impl PvfWithExecutorParams {
 	/// Creates a new PVF-ExecutorParams pair structure
 	pub fn new(pvf: Pvf, executor_params: ExecutorParams) -> Self {
-		Self { pvf, executor_params }
+		Self { pvf, executor_params: Arc::new(executor_params) }
 	}
 
 	/// Returns artifact ID that corresponds to the PVF with given executor params
@@ -81,12 +81,15 @@ impl PvfWithExecutorParams {
 
 	/// Returns executor params
 	pub(crate) fn executor_params(&self) -> ExecutorParams {
-		self.executor_params.clone()
+		(*self.executor_params).clone()
 	}
 
 	/// Creates a structure for tests
 	#[cfg(test)]
 	pub(crate) fn from_discriminator(num: u32) -> Self {
-		Self { pvf: Pvf::from_discriminator(num), executor_params: Default::default() }
+		Self {
+			pvf: Pvf::from_discriminator(num),
+			executor_params: Arc::new(ExecutorParams::default()),
+		}
 	}
 }

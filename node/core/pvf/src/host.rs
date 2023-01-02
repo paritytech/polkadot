@@ -113,7 +113,6 @@ impl ValidationHost {
 				pvf_with_params,
 				execution_timeout,
 				params,
-				// executor_params,
 				priority,
 				result_tx,
 			}))
