@@ -348,8 +348,7 @@ impl pallet_staking::Config for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	// A majority of the council can cancel the slash.
-	type SlashCancelOrigin = frame_system::EnsureNever<()>;
+	type AdminOrigin = frame_system::EnsureNever<()>;
 	type SessionInterface = Self;
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
@@ -621,6 +620,7 @@ pub mod pallet_test_notifier {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[pallet::weight(1_000_000)]
 		pub fn prepare_new_query(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -635,6 +635,7 @@ pub mod pallet_test_notifier {
 			Ok(())
 		}
 
+		#[pallet::call_index(1)]
 		#[pallet::weight(1_000_000)]
 		pub fn prepare_new_notify_query(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -652,6 +653,7 @@ pub mod pallet_test_notifier {
 			Ok(())
 		}
 
+		#[pallet::call_index(2)]
 		#[pallet::weight(1_000_000)]
 		pub fn notification_received(
 			origin: OriginFor<T>,

@@ -106,7 +106,7 @@ pub mod xcm_config;
 // Governance configurations.
 pub mod governance;
 use governance::{
-	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, GeneralAdmin, LeaseAdmin,
+	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, Fellows, GeneralAdmin, LeaseAdmin,
 	StakingAdmin, Treasurer, TreasurySpender,
 };
 use xcm_config::CheckAccount;
@@ -584,8 +584,7 @@ impl pallet_staking::Config for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	// The staking admin or root can cancel the slash.
-	type SlashCancelOrigin = EitherOf<EnsureRoot<Self::AccountId>, StakingAdmin>;
+	type AdminOrigin = EitherOf<EnsureRoot<Self::AccountId>, StakingAdmin>;
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;

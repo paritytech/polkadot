@@ -165,6 +165,7 @@ pub mod pallet {
 		/// independently of any other on-chain mechanism to use it.
 		///
 		/// The dispatch origin for this call must match `T::ForceOrigin`.
+		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::force_lease())]
 		pub fn force_lease(
 			origin: OriginFor<T>,
@@ -183,6 +184,7 @@ pub mod pallet {
 		/// Clear all leases for a Para Id, refunding any deposits back to the original owners.
 		///
 		/// The dispatch origin for this call must match `T::ForceOrigin`.
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::clear_all_leases())]
 		pub fn clear_all_leases(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			T::ForceOrigin::ensure_origin(origin)?;
@@ -205,6 +207,7 @@ pub mod pallet {
 		/// let them onboard from here.
 		///
 		/// Origin must be signed, but can be called by anyone.
+		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::trigger_onboard())]
 		pub fn trigger_onboard(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			let _ = ensure_signed(origin)?;

@@ -541,7 +541,7 @@ pub fn run() -> Result<()> {
 					ensure_dev(chain_spec).map_err(Error::Other)?;
 					runner.sync_run(|mut config| {
 						let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
-						let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
+						let header = client.header(client.info().genesis_hash).unwrap().unwrap();
 						let inherent_data = benchmark_inherent_data(header)
 							.map_err(|e| format!("generating inherent data: {:?}", e))?;
 						let remark_builder = RemarkBuilder::new(client.clone());

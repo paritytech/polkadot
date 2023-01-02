@@ -458,6 +458,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[pallet::weight(100_000_000)]
 		pub fn send(
 			origin: OriginFor<T>,
@@ -493,6 +494,7 @@ pub mod pallet {
 		///   `dest` side. May not be empty.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
+		#[pallet::call_index(1)]
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
 			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
@@ -534,6 +536,7 @@ pub mod pallet {
 		///   `dest` side.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
+		#[pallet::call_index(2)]
 		#[pallet::weight({
 			match ((*assets.clone()).try_into(), (*dest.clone()).try_into()) {
 				(Ok(assets), Ok(dest)) => {
@@ -574,6 +577,7 @@ pub mod pallet {
 		///
 		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
 		/// to completion; only that *some* of it was executed.
+		#[pallet::call_index(3)]
 		#[pallet::weight(Weight::from_ref_time(max_weight.saturating_add(100_000_000u64)))]
 		pub fn execute(
 			origin: OriginFor<T>,
@@ -602,6 +606,7 @@ pub mod pallet {
 		/// - `origin`: Must be Root.
 		/// - `location`: The destination that is being described.
 		/// - `xcm_version`: The latest version of XCM that `location` supports.
+		#[pallet::call_index(4)]
 		#[pallet::weight(100_000_000u64)]
 		pub fn force_xcm_version(
 			origin: OriginFor<T>,
@@ -624,6 +629,7 @@ pub mod pallet {
 		///
 		/// - `origin`: Must be Root.
 		/// - `maybe_xcm_version`: The default XCM encoding version, or `None` to disable.
+		#[pallet::call_index(5)]
 		#[pallet::weight(100_000_000u64)]
 		pub fn force_default_xcm_version(
 			origin: OriginFor<T>,
@@ -638,6 +644,7 @@ pub mod pallet {
 		///
 		/// - `origin`: Must be Root.
 		/// - `location`: The location to which we should subscribe for XCM version notifications.
+		#[pallet::call_index(6)]
 		#[pallet::weight(100_000_000u64)]
 		pub fn force_subscribe_version_notify(
 			origin: OriginFor<T>,
@@ -661,6 +668,7 @@ pub mod pallet {
 		/// - `origin`: Must be Root.
 		/// - `location`: The location to which we are currently subscribed for XCM version
 		///   notifications which we no longer desire.
+		#[pallet::call_index(7)]
 		#[pallet::weight(100_000_000u64)]
 		pub fn force_unsubscribe_version_notify(
 			origin: OriginFor<T>,
@@ -696,6 +704,7 @@ pub mod pallet {
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
+		#[pallet::call_index(8)]
 		#[pallet::weight({
 			match ((*assets.clone()).try_into(), (*dest.clone()).try_into()) {
 				(Ok(assets), Ok(dest)) => {
@@ -743,6 +752,7 @@ pub mod pallet {
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
+		#[pallet::call_index(9)]
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
 			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
@@ -1514,6 +1524,19 @@ impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
 	fn contains(l: &MultiLocation) -> bool {
 		let maybe_suffix = l.match_and_split(&Prefix::get());
 		matches!(maybe_suffix, Some(Plurality { id, part }) if id == &Body::get() && part.is_majority())
+	}
+}
+
+/// Filter for `MultiLocation` to find those which represent a voice of an identified plurality.
+///
+/// May reasonably be used with `EnsureXcm`.
+pub struct IsVoiceOfBody<Prefix, Body>(PhantomData<(Prefix, Body)>);
+impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
+	for IsVoiceOfBody<Prefix, Body>
+{
+	fn contains(l: &MultiLocation) -> bool {
+		let maybe_suffix = l.match_and_split(&Prefix::get());
+		matches!(maybe_suffix, Some(Plurality { id, part }) if id == &Body::get() && part == &BodyPart::Voice)
 	}
 }
 
