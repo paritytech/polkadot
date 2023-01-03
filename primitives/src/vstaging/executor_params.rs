@@ -69,6 +69,11 @@ pub enum ExecutorParam {
 	CanonicalizeNaNs(bool),
 	/// `true` if parallel compilation is allowed, single thread is used otherwise
 	ParallelCompilation(bool),
+
+	/// Placeholder for any data not fitting into the semantics. May be used to avoid `SessionInfo`
+	/// migration if fast adoption of a new parameter is needed.
+	#[codec(index = 255)]
+	RawData(Vec<u8>),
 }
 
 impl ExecutorParam {
