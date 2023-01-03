@@ -1,4 +1,4 @@
-use polkadot_primitives::v2::{BlockNumber, CandidateHash};
+use polkadot_primitives::v2::{BlockNumber, CandidateHash, Hash};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Keeps `CandidateHash` in reference counted way.
@@ -7,7 +7,13 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// Each `remove` decreases the reference count for the corresponding `CandidateHash`.
 /// If the reference count reaches 0 - the value is removed.
 struct RefCountedCandidates {
-	candidates: HashMap<CandidateHash, usize>,
+	candidates: HashMap<CandidateHash, CandidateInfo>,
+}
+
+pub struct CandidateInfo {
+	count: usize,
+	pub block_number: BlockNumber,
+	pub block_hash: Hash,
 }
 
 impl RefCountedCandidates {
@@ -17,8 +23,16 @@ impl RefCountedCandidates {
 	// If `CandidateHash` doesn't exist in the `HashMap` it is created and its reference
 	// count is set to 1.
 	// If `CandidateHash` already exists in the `HashMap` its reference count is increased.
-	pub fn insert(&mut self, candidate: CandidateHash) {
-		*self.candidates.entry(candidate).or_default() += 1;
+	pub fn insert(
+		&mut self,
+		block_number: BlockNumber,
+		block_hash: Hash,
+		candidate: CandidateHash,
+	) {
+		self.candidates
+			.entry(candidate)
+			.or_insert(CandidateInfo { count: 0, block_number, block_hash })
+			.count += 1;
 	}
 
 	// If a `CandidateHash` with reference count equals to 1 is about to be removed - the
@@ -27,9 +41,9 @@ impl RefCountedCandidates {
 	// reference count is decreased and the candidate remains in the container.
 	pub fn remove(&mut self, candidate: &CandidateHash) {
 		match self.candidates.get_mut(candidate) {
-			Some(v) if *v > 1 => *v -= 1,
+			Some(v) if v.count > 1 => v.count -= 1,
 			Some(v) => {
-				assert!(*v == 1);
+				assert!(v.count == 1);
 				self.candidates.remove(candidate);
 			},
 			None => {},
@@ -45,6 +59,7 @@ impl RefCountedCandidates {
 mod ref_counted_candidates_tests {
 	use super::*;
 	use polkadot_primitives::v2::{BlakeTwo256, HashT};
+	use test_helpers::dummy_hash;
 
 	#[test]
 	fn element_is_removed_when_refcount_reaches_zero() {
@@ -53,11 +68,11 @@ mod ref_counted_candidates_tests {
 		let zero = CandidateHash(BlakeTwo256::hash(&vec![0]));
 		let one = CandidateHash(BlakeTwo256::hash(&vec![1]));
 		// add two separate candidates
-		container.insert(zero); // refcount == 1
-		container.insert(one);
+		container.insert(0, dummy_hash(), zero); // refcount == 1
+		container.insert(0, dummy_hash(), one);
 
 		// and increase the reference count for the first
-		container.insert(zero); // refcount == 2
+		container.insert(0, dummy_hash(), zero); // refcount == 2
 
 		assert!(container.contains(&zero));
 		assert!(container.contains(&one));
@@ -113,8 +128,17 @@ impl ScrapedCandidates {
 		}
 	}
 
-	pub fn insert(&mut self, block_number: BlockNumber, candidate_hash: CandidateHash) {
-		self.candidates.insert(candidate_hash);
+	pub fn get_candidate_info(&mut self, candidate: CandidateHash) -> Option<&CandidateInfo> {
+		self.candidates.candidates.get(&candidate)
+	}
+
+	pub fn insert(
+		&mut self,
+		block_number: BlockNumber,
+		block_hash: Hash,
+		candidate_hash: CandidateHash,
+	) {
+		self.candidates.insert( block_number, block_hash, candidate_hash);
 		self.candidates_by_block_number
 			.entry(block_number)
 			.or_default()
@@ -132,12 +156,13 @@ impl ScrapedCandidates {
 mod scraped_candidates_tests {
 	use super::*;
 	use polkadot_primitives::v2::{BlakeTwo256, HashT};
+	use test_helpers::dummy_hash;
 
 	#[test]
 	fn stale_candidates_are_removed() {
 		let mut candidates = ScrapedCandidates::new();
 		let target = CandidateHash(BlakeTwo256::hash(&vec![1, 2, 3]));
-		candidates.insert(1, target);
+		candidates.insert(1, dummy_hash(), target);
 
 		assert!(candidates.contains(&target));
 

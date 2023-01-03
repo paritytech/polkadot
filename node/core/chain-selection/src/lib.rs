@@ -34,7 +34,6 @@ use std::{
 	sync::Arc,
 	time::{Duration, SystemTime, UNIX_EPOCH},
 };
-use std::collections::BTreeMap;
 
 use crate::backend::{Backend, BackendWriteOp, OverlayedBackend};
 
@@ -329,14 +328,13 @@ pub struct Config {
 pub struct ChainSelectionSubsystem {
 	config: Config,
 	db: Arc<dyn Database>,
-	blocks_including_candidates: BTreeMap<CandidateHash, BlockNumber>,
 }
 
 impl ChainSelectionSubsystem {
 	/// Create a new instance of the subsystem with the given config
 	/// and key-value store.
 	pub fn new(config: Config, db: Arc<dyn Database>) -> Self {
-		ChainSelectionSubsystem { config, db, blocks_including_candidates: BTreeMap::new() }
+		ChainSelectionSubsystem { config, db, }
 	}
 
 	/// Revert to the block corresponding to the specified `hash`.
@@ -444,9 +442,6 @@ where
 
 							backend.write(write_ops)?;
 						}
-
-						// Update blocks including candidates based on candidate included events
-						process_included_events(sender, block_number, block_hash)
 					}
 					FromOrchestra::Signal(OverseerSignal::BlockFinalized(h, n)) => {
 						handle_finalized_block(backend, h, n)?
@@ -472,8 +467,8 @@ where
 
 							let _ = tx.send(best_containing);
 						}
-						ChainSelectionMessage::DisputeConcludedAgainst(hash) => {
-							handle_concluded_dispute_reversions(hash)?
+						ChainSelectionMessage::DisputeConcludedAgainst(block_number, block_hash) => {
+							handle_concluded_dispute_reversions(block_number, block_hash)?
 						}
 					}
 				}
@@ -689,7 +684,7 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 
 // A dispute has concluded against a candidate. Here we apply the reverted status to
 // all blocks on chains containing that candidate.
-fn handle_concluded_dispute_reversions(hash: CandidateHash) -> Result<(), Error> {
+fn handle_concluded_dispute_reversions(block_number: u32, block_hash: Hash) -> Result<(), Error> {
 
 	Ok(())
 }

@@ -1020,8 +1020,23 @@ impl Initialized {
 
 		// Notify ChainSelection if a dispute has concluded against a candidate
 		if import_result.is_freshly_concluded_against() {
-			ctx.send_message(ChainSelectionMessage::DisputeConcludedAgainst(candidate_hash))
-				.await;
+			let possible_info = self.scraper.get_included_candidate_info(candidate_hash);
+			if let Some(info) = possible_info {
+				ctx.send_message(
+					ChainSelectionMessage::DisputeConcludedAgainst(
+						info.block_number,
+						info.block_hash,
+					))
+					.await;
+			}
+			else {
+				gum::error!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"Could not find parent block info for concluded candidate!"
+				);
+			}
 		}
 
 		// Update metrics:

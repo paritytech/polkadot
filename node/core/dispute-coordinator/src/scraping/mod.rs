@@ -34,6 +34,8 @@ use crate::{
 	LOG_TARGET,
 };
 
+use self::candidates::CandidateInfo;
+
 #[cfg(test)]
 mod tests;
 
@@ -207,7 +209,7 @@ impl ChainScraper {
 						?block_number,
 						"Processing included event"
 					);
-					self.included_candidates.insert(block_number, candidate_hash);
+					self.included_candidates.insert(block_number, block_hash, candidate_hash);
 				},
 				CandidateEvent::CandidateBacked(receipt, _, _, _) => {
 					let candidate_hash = receipt.hash();
@@ -217,7 +219,7 @@ impl ChainScraper {
 						?block_number,
 						"Processing backed event"
 					);
-					self.backed_candidates.insert(block_number, candidate_hash);
+					self.backed_candidates.insert(block_number, block_hash, candidate_hash);
 				},
 				_ => {
 					// skip the rest
@@ -291,6 +293,13 @@ impl ChainScraper {
 			}
 		}
 		return Ok(ancestors)
+	}
+
+	pub fn get_included_candidate_info(
+		&mut self,
+		candidate: CandidateHash,
+	) -> Option<&CandidateInfo> {
+		self.included_candidates.get_candidate_info(candidate)
 	}
 }
 
