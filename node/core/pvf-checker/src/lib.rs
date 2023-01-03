@@ -304,7 +304,7 @@ async fn handle_leaves_update(
 			.on_leaves_update(Some((activated.hash, pending_pvfs)), &update.deactivated);
 		metrics.on_pvf_observed(outcome.newcomers.len());
 		metrics.on_pvf_left(outcome.left_num);
-		if outcome.newcomers.len() > 0 {
+		if !outcome.newcomers.is_empty() {
 			let session_index = match (&new_session_index, &state.latest_session) {
 				(Some((nsi, _)), _) => *nsi,
 				(None, Some(lsi)) => *lsi,
@@ -341,7 +341,7 @@ async fn handle_leaves_update(
 				initiate_precheck(
 					state,
 					sender,
-					recent_block_hash,
+					activated.hash,
 					newcomer,
 					executor_params.clone(),
 					metrics,

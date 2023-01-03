@@ -302,8 +302,7 @@ impl DisputeCoordinatorSubsystem {
 					},
 				};
 
-			let session_info;
-			let validators = match rolling_session_window.session_info(session) {
+			let session_info = match rolling_session_window.session_info(session) {
 				None => {
 					gum::warn!(
 						target: LOG_TARGET,
@@ -312,11 +311,9 @@ impl DisputeCoordinatorSubsystem {
 					);
 					continue
 				},
-				Some(info) => {
-					session_info = info;
-					info.validators.clone()
-				},
+				Some(info) => info,
 			};
+			let validators = session_info.validators.clone();
 
 			let voted_indices = votes.voted_indices();
 
