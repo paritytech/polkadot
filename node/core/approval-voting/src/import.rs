@@ -337,7 +337,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	};
 
 	let header = {
-		let mut get_header_span = handle_new_head_span.add_follows_from("get-header");
+		let mut get_header_span = handle_new_head_span.child("get-header");
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
 		match h_rx.await? {
@@ -417,8 +417,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 	// `determine_new_blocks` gives us a vec in backwards order. we want to move forwards.
 	let imported_blocks_and_info = {
-		let mut imported_blocks_and_info_span =
-			handle_new_head_span.child("imported-blocks-and-info");
 		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
 		for (block_hash, block_header) in new_blocks.into_iter().rev() {
 			let env = ImportedBlockInfoEnv {
@@ -430,8 +428,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			match imported_block_info(ctx, env, block_hash, &block_header).await {
 				Ok(i) => {
 					imported_blocks_and_info.push((block_hash, block_header, i));
-					imported_blocks_and_info_span
-						.add_string_tag("block-hash", format!("{:?}", block_hash));
 				},
 				Err(error) => {
 					// It's possible that we've lost a race with finality.
@@ -441,8 +437,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 					let lost_to_finality = match rx.await {
 						Ok(Ok(Some(h))) if h != block_hash => {
-							imported_blocks_and_info_span
-								.add_string_tag("lost-to-finality", format!("{:?}", true));
 							true
 						},
 						_ => false,
@@ -457,8 +451,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 							(block_hash, block_header.number),
 							error,
 						);
-						imported_blocks_and_info_span
-							.add_string_tag("error", format!("Skipping chain: unable to gather info about imported block with hash {} due to {:?}", block_hash, error));
 					}
 
 					return Ok(Vec::new())
