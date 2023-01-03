@@ -372,8 +372,7 @@ fn is_vote_worth_to_keep(
 	// punished when misbehaving.
 	if let Some(kind) = valid_kind {
 		match kind {
-			ValidDisputeStatementKind::BackingValid(_)
-			|
+			ValidDisputeStatementKind::BackingValid(_) |
 			ValidDisputeStatementKind::BackingSeconded(_) => return true,
 			_ => (),
 		}
