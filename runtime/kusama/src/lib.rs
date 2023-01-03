@@ -1480,6 +1480,9 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 	}
 }
 
+/// All migrations that will run on the next runtime upgrade.
+///
+/// Should be cleared after every release.
 pub type Migrations = (
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, CheckAccount>,
 	crowdloan::migration::MigrateToTrackInactive<Runtime>,
@@ -1488,6 +1491,7 @@ pub type Migrations = (
 		Runtime,
 		governance::FellowshipReferendaInstance,
 	>,
+	pallet_scheduler::migration::v4::CleanupAgendas<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
