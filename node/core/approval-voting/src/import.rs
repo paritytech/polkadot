@@ -512,8 +512,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		// cf. https://github.com/paritytech/polkadot/issues/2411
 		let num_candidates = included_candidates.len();
 		let mut bitfield_span = block_insertion_span.child("bitfield");
-		bitfield_span.add_uint_tag("num-candidates", num_candidates);
-		bitfield_span.add_uint_tag("needed-approvals", needed_approvals);
+		bitfield_span.add_uint_tag("num-candidates", num_candidates.try_into().unwrap());
+		bitfield_span.add_uint_tag("needed-approvals", needed_approvals.into());
 		let approved_bitfield = {
 			if needed_approvals == 0 {
 				gum::debug!(
@@ -532,16 +532,17 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					let backing_group_size =
 						validator_group_lens.get(backing_group.0 as usize).copied().unwrap_or(0);
 
-					bitfield_span.add_uint_tag("backing-group-size", backing_group_size);
+					bitfield_span.add_uint_tag("backing-group-size", backing_group_size.try_into().unwrap());
 					let needed_approvals =
 						usize::try_from(needed_approvals).expect("usize is at least u32; qed");
 					if n_validators.saturating_sub(backing_group_size) < needed_approvals {
 						bitfield_span.add_string_tag(
 							"update-bitfield",
 							format!(
-								"updating bitfield index {:?} as validators less backing group size (which equals {:?}) is less than the number of needed approvals ({:?}).",
+								"updated bitfield index {:?} as validators less backing group size (which equals {:?}) is less than the number of needed approvals ({:?}).",
 								i,
 								n_validators.saturating_sub(backing_group_size),
+								needed_approvals
 							),
 						);
 						result.set(i, true);
