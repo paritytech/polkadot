@@ -362,7 +362,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				get_header_span.add_string_tag("parent-hash", format!("{:?}", h.parent_hash));
 				get_header_span.add_string_tag("number", format!("{:?}", h.number));
 				get_header_span.add_string_tag("state_root", format!("{:?}", h.state_root));
-				get_header_span.add_string_tag("extrinsics_root", format!("{:?}", h.extrinsics_root));
+				get_header_span
+					.add_string_tag("extrinsics_root", format!("{:?}", h.extrinsics_root));
 				h
 			},
 		}
@@ -473,8 +474,9 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		imported_blocks = imported_blocks_and_info.len(),
 		"Inserting imported blocks into database"
 	);
-
 	for (block_hash, block_header, imported_block_info) in imported_blocks_and_info {
+		let mut block_insertion_span = handle_new_head_span.child("block-db-insertion");
+
 		let ImportedBlockInfo {
 			included_candidates,
 			session_index,
@@ -490,6 +492,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			.as_ref()
 			.and_then(|s| s.session_info(session_index))
 			.expect("imported_block_info requires session info to be available; qed");
+		block_insertion_span.add_string_tag("session-info", format!("{:?}", session_info));
 
 		let (block_tick, no_show_duration) = {
 			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
@@ -499,12 +502,18 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			);
 			(block_tick, no_show_duration)
 		};
+		block_insertion_span.add_uint_tag("block-tick", block_tick);
+		block_insertion_span.add_uint_tag("no-show-duration", no_show_duration);
+
 		let needed_approvals = session_info.needed_approvals;
 		let validator_group_lens: Vec<usize> =
 			session_info.validator_groups.iter().map(|v| v.len()).collect();
 		// insta-approve candidates on low-node testnets:
 		// cf. https://github.com/paritytech/polkadot/issues/2411
 		let num_candidates = included_candidates.len();
+		let mut bitfield_span = block_insertion_span.child("bitfield");
+		bitfield_span.add_uint_tag("num-candidates", num_candidates);
+		bitfield_span.add_uint_tag("needed-approvals", needed_approvals);
 		let approved_bitfield = {
 			if needed_approvals == 0 {
 				gum::debug!(
@@ -512,15 +521,29 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					block_hash = ?block_hash,
 					"Insta-approving all candidates",
 				);
+				bitfield_span.add_string_tag(
+					"approved",
+					format!("{:?}, insta-approval as needed approvals is set to 0.", true),
+				);
 				bitvec::bitvec![u8, BitOrderLsb0; 1; num_candidates]
 			} else {
 				let mut result = bitvec::bitvec![u8, BitOrderLsb0; 0; num_candidates];
 				for (i, &(_, _, _, backing_group)) in included_candidates.iter().enumerate() {
 					let backing_group_size =
 						validator_group_lens.get(backing_group.0 as usize).copied().unwrap_or(0);
+
+					bitfield_span.add_uint_tag("backing-group-size", backing_group_size);
 					let needed_approvals =
 						usize::try_from(needed_approvals).expect("usize is at least u32; qed");
 					if n_validators.saturating_sub(backing_group_size) < needed_approvals {
+						bitfield_span.add_string_tag(
+							"update-bitfield",
+							format!(
+								"approving bitfield {:?} as {:?} less than needed approvals",
+								i,
+								n_validators.saturating_sub(backing_group_size)
+							),
+						);
 						result.set(i, true);
 					}
 				}
@@ -532,14 +555,19 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 						result.count_ones(),
 						result.len(),
 					);
+					bitfield_span.add_string_tag(
+						"approved",
+						format!("{:?}, insta-approval as number of validators too low.", true),
+					);
 				}
-
 				result
 			}
 		};
 
 		// If all bits are already set, then send an approve message.
 		if approved_bitfield.count_ones() == approved_bitfield.len() {
+			bitfield_span
+				.add_string_tag("approved", format!("{:?}, all bitfields are set to 1.", true));
 			ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
 		}
 
