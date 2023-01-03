@@ -78,6 +78,7 @@ pub mod pallet_test_notifier {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[pallet::weight(Weight::from_parts(1_000_000, 1_000_000))]
 		pub fn prepare_new_query(origin: OriginFor<T>, querier: MultiLocation) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -93,6 +94,7 @@ pub mod pallet_test_notifier {
 			Ok(())
 		}
 
+		#[pallet::call_index(1)]
 		#[pallet::weight(Weight::from_parts(1_000_000, 1_000_000))]
 		pub fn prepare_new_notify_query(
 			origin: OriginFor<T>,
@@ -114,6 +116,7 @@ pub mod pallet_test_notifier {
 			Ok(())
 		}
 
+		#[pallet::call_index(2)]
 		#[pallet::weight(Weight::from_parts(1_000_000, 1_000_000))]
 		pub fn notification_received(
 			origin: OriginFor<T>,
@@ -264,7 +267,7 @@ type LocalOriginConverter = (
 
 parameter_types! {
 	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000, 1_000);
-	pub CurrencyPerSecond: (AssetId, u128) = (Concrete(RelayLocation::get()), 1);
+	pub CurrencyPerSecondPerByte: (AssetId, u128, u128) = (Concrete(RelayLocation::get()), 1, 1);
 	pub TrustedAssets: (MultiAssetFilter, MultiLocation) = (All.into(), Here.into());
 	pub const MaxInstructions: u32 = 100;
 	pub const MaxAssetsIntoHolding: u32 = 64;
@@ -288,7 +291,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalLocation = UniversalLocation;
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
-	type Trader = FixedRateOfFungible<CurrencyPerSecond, ()>;
+	type Trader = FixedRateOfFungible<CurrencyPerSecondPerByte, ()>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
 	type AssetLocker = ();
@@ -301,12 +304,18 @@ impl xcm_executor::Config for XcmConfig {
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 	type CallDispatcher = RuntimeCall;
+	type SafeCallFilter = Everything;
 }
 
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, AnyNetwork>;
 
 parameter_types! {
 	pub static AdvertisedXcmVersion: pallet_xcm::XcmVersion = 3;
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+parameter_types! {
+	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
 }
 
 impl pallet_xcm::Config for Test {
@@ -330,6 +339,8 @@ impl pallet_xcm::Config for Test {
 	type CurrencyMatcher = IsConcrete<RelayLocation>;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
 	type WeightInfo = TestWeightInfo;
+	#[cfg(feature = "runtime-benchmarks")]
+	type ReachableDest = ReachableDest;
 }
 
 impl origin::Config for Test {}

@@ -19,7 +19,7 @@ pub use crate::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
 	AllowUnpaidExecutionFrom, FixedRateOfFungible, FixedWeightBounds, TakeWeightCredit,
 };
-use frame_support::traits::ContainsPair;
+use frame_support::traits::{ContainsPair, Everything};
 pub use frame_support::{
 	dispatch::{
 		DispatchError, DispatchInfo, DispatchResultWithPostInfo, Dispatchable, GetDispatchInfo,
@@ -412,8 +412,10 @@ parameter_types! {
 	pub static AllowUnpaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowPaidFrom: Vec<MultiLocation> = vec![];
 	pub static AllowSubsFrom: Vec<MultiLocation> = vec![];
-	// 1_000_000_000_000 => 1 unit of asset for 1 unit of Weight.
-	pub static WeightPrice: (AssetId, u128) = (From::from(Here), 1_000_000_000_000);
+	// 1_000_000_000_000 => 1 unit of asset for 1 unit of ref time weight.
+	// 1024 * 1024 => 1 unit of asset for 1 unit of proof size weight.
+	pub static WeightPrice: (AssetId, u128, u128) =
+		(From::from(Here), 1_000_000_000_000, 1024 * 1024);
 	pub static MaxInstructions: u32 = 100;
 }
 
@@ -642,6 +644,7 @@ impl Config for TestConfig {
 	type UniversalAliases = TestUniversalAliases;
 	type MessageExporter = TestMessageExporter;
 	type CallDispatcher = TestCall;
+	type SafeCallFilter = Everything;
 }
 
 pub fn fungible_multi_asset(location: MultiLocation, amount: u128) -> MultiAsset {

@@ -100,17 +100,17 @@ impl Assets {
 	}
 
 	/// A borrowing iterator over the fungible assets.
-	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
+	pub fn fungible_assets_iter(&self) -> impl Iterator<Item = MultiAsset> + '_ {
 		self.fungible
 			.iter()
-			.map(|(id, &amount)| MultiAsset { fun: Fungible(amount), id: id.clone() })
+			.map(|(id, &amount)| MultiAsset { fun: Fungible(amount), id: *id })
 	}
 
 	/// A borrowing iterator over the non-fungible assets.
-	pub fn non_fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
+	pub fn non_fungible_assets_iter(&self) -> impl Iterator<Item = MultiAsset> + '_ {
 		self.non_fungible
 			.iter()
-			.map(|(id, instance)| MultiAsset { fun: NonFungible(instance.clone()), id: id.clone() })
+			.map(|(id, instance)| MultiAsset { fun: NonFungible(*instance), id: *id })
 	}
 
 	/// A consuming iterator over all assets.
@@ -126,7 +126,7 @@ impl Assets {
 	}
 
 	/// A borrowing iterator over all assets.
-	pub fn assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
+	pub fn assets_iter(&self) -> impl Iterator<Item = MultiAsset> + '_ {
 		self.fungible_assets_iter().chain(self.non_fungible_assets_iter())
 	}
 
@@ -248,10 +248,10 @@ impl Assets {
 	/// Returns `true` if `asset` is contained within `self`.
 	pub fn contains_asset(&self, asset: &MultiAsset) -> bool {
 		match asset {
-			MultiAsset { fun: Fungible(ref amount), ref id } =>
+			MultiAsset { fun: Fungible(amount), id } =>
 				self.fungible.get(id).map_or(false, |a| a >= amount),
-			MultiAsset { fun: NonFungible(ref instance), ref id } =>
-				self.non_fungible.contains(&(id.clone(), instance.clone())),
+			MultiAsset { fun: NonFungible(instance), id } =>
+				self.non_fungible.contains(&(*id, *instance)),
 		}
 	}
 
@@ -274,13 +274,13 @@ impl Assets {
 	pub fn ensure_contains(&self, assets: &MultiAssets) -> Result<(), TakeError> {
 		for asset in assets.inner().iter() {
 			match asset {
-				MultiAsset { fun: Fungible(ref amount), ref id } => {
+				MultiAsset { fun: Fungible(amount), id } => {
 					if self.fungible.get(id).map_or(true, |a| a < amount) {
-						return Err(TakeError::AssetUnderflow((id.clone(), *amount).into()))
+						return Err(TakeError::AssetUnderflow((*id, *amount).into()))
 					}
 				},
-				MultiAsset { fun: NonFungible(ref instance), ref id } => {
-					let id_instance = (id.clone(), instance.clone());
+				MultiAsset { fun: NonFungible(instance), id } => {
+					let id_instance = (*id, *instance);
 					if !self.non_fungible.contains(&id_instance) {
 						return Err(TakeError::AssetUnderflow(id_instance.into()))
 					}
@@ -460,14 +460,14 @@ impl Assets {
 				if maybe_limit.map_or(true, |l| self.len() <= l) {
 					return self.clone()
 				} else {
-					for (c, &amount) in self.fungible.iter() {
-						masked.fungible.insert(c.clone(), amount);
+					for (&c, &amount) in self.fungible.iter() {
+						masked.fungible.insert(c, amount);
 						if maybe_limit.map_or(false, |l| masked.len() >= l) {
 							return masked
 						}
 					}
 					for (c, instance) in self.non_fungible.iter() {
-						masked.non_fungible.insert((c.clone(), instance.clone()));
+						masked.non_fungible.insert((*c, *instance));
 						if maybe_limit.map_or(false, |l| masked.len() >= l) {
 							return masked
 						}
@@ -477,13 +477,13 @@ impl Assets {
 			MultiAssetFilter::Wild(AllOfCounted { fun: WildFungible, id, .. }) |
 			MultiAssetFilter::Wild(AllOf { fun: WildFungible, id }) =>
 				if let Some(&amount) = self.fungible.get(&id) {
-					masked.fungible.insert(id.clone(), amount);
+					masked.fungible.insert(*id, amount);
 				},
 			MultiAssetFilter::Wild(AllOfCounted { fun: WildNonFungible, id, .. }) |
 			MultiAssetFilter::Wild(AllOf { fun: WildNonFungible, id }) =>
 				for (c, instance) in self.non_fungible.iter() {
 					if c == id {
-						masked.non_fungible.insert((c.clone(), instance.clone()));
+						masked.non_fungible.insert((*c, *instance));
 						if maybe_limit.map_or(false, |l| masked.len() >= l) {
 							return masked
 						}
@@ -492,13 +492,13 @@ impl Assets {
 			MultiAssetFilter::Definite(assets) =>
 				for asset in assets.inner().iter() {
 					match asset {
-						MultiAsset { fun: Fungible(ref amount), ref id } => {
+						MultiAsset { fun: Fungible(amount), id } => {
 							if let Some(m) = self.fungible.get(id) {
-								masked.subsume((id.clone(), Fungible(*amount.min(m))).into());
+								masked.subsume((*id, Fungible(*amount.min(m))).into());
 							}
 						},
-						MultiAsset { fun: NonFungible(ref instance), ref id } => {
-							let id_instance = (id.clone(), instance.clone());
+						MultiAsset { fun: NonFungible(instance), id } => {
+							let id_instance = (*id, *instance);
 							if self.non_fungible.contains(&id_instance) {
 								masked.subsume(id_instance.into());
 							}

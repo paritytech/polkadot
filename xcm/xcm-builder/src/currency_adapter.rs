@@ -114,11 +114,15 @@ impl<
 	}
 	fn accrue_checked(checked_account: AccountId, amount: Currency::Balance) {
 		Currency::deposit_creating(&checked_account, amount);
+		Currency::deactivate(amount);
 	}
 	fn reduce_checked(checked_account: AccountId, amount: Currency::Balance) {
 		let ok =
 			Currency::withdraw(&checked_account, amount, WithdrawReasons::TRANSFER, AllowDeath)
 				.is_ok();
+		if ok {
+			Currency::reactivate(amount);
+		}
 		debug_assert!(ok, "`can_check_in` must have returned `true` immediately prior; qed");
 	}
 }

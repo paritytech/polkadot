@@ -1,9 +1,9 @@
 [package]
 name = "xcm"
-version = "0.9.31"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "The basic XCM datastructures."
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 derivative = { version = "2.2.0", default-features = false, features = [ "use_core" ] }

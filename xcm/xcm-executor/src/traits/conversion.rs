@@ -14,9 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use frame_support::traits::{Contains, OriginTrait};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::{traits::Dispatchable, DispatchErrorWithPostInfo};
-use sp_std::{borrow::Borrow, prelude::*, result::Result};
+use sp_std::{borrow::Borrow, marker::PhantomData, prelude::*, result::Result};
 use xcm::latest::prelude::*;
 
 /// Generic third-party conversion trait. Use this when you don't want to force the user to use default
@@ -213,6 +214,26 @@ pub trait CallDispatcher<Call: Dispatchable> {
 		call: Call,
 		origin: Call::RuntimeOrigin,
 	) -> Result<Call::PostInfo, DispatchErrorWithPostInfo<Call::PostInfo>>;
+}
+
+pub struct WithOriginFilter<Filter>(PhantomData<Filter>);
+impl<Call, Filter> CallDispatcher<Call> for WithOriginFilter<Filter>
+where
+	Call: Dispatchable,
+	Call::RuntimeOrigin: OriginTrait,
+	<<Call as Dispatchable>::RuntimeOrigin as OriginTrait>::Call: 'static,
+	Filter: Contains<<<Call as Dispatchable>::RuntimeOrigin as OriginTrait>::Call> + 'static,
+{
+	fn dispatch(
+		call: Call,
+		mut origin: <Call as Dispatchable>::RuntimeOrigin,
+	) -> Result<
+		<Call as Dispatchable>::PostInfo,
+		DispatchErrorWithPostInfo<<Call as Dispatchable>::PostInfo>,
+	> {
+		origin.add_filter(Filter::contains);
+		call.dispatch(origin)
+	}
 }
 
 // We implement it for every calls so they can dispatch themselves

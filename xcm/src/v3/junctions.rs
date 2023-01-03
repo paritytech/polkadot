@@ -214,8 +214,8 @@ impl Junctions {
 	/// This will return an `Err` if the first item is not a `GlobalConsensus`, which would indicate
 	/// that this value is not a universal location.
 	pub fn global_consensus(&self) -> Result<NetworkId, ()> {
-		if let Some(Junction::GlobalConsensus(ref network)) = self.first() {
-			Ok(network.clone())
+		if let Some(Junction::GlobalConsensus(network)) = self.first() {
+			Ok(*network)
 		} else {
 			Err(())
 		}
@@ -503,7 +503,7 @@ impl Junctions {
 
 	/// Returns a mutable reference to the junction at index `i`, or `None` if the location doesn't contain that many
 	/// elements.
-	pub fn at_mut<'a>(&'a mut self, i: usize) -> Option<&'a mut Junction> {
+	pub fn at_mut(&mut self, i: usize) -> Option<&mut Junction> {
 		Some(match (i, self) {
 			(0, Junctions::X1(ref mut a)) => a,
 			(0, Junctions::X2(ref mut a, ..)) => a,

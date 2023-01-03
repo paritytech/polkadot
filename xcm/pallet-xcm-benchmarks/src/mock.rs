@@ -64,7 +64,7 @@ impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 parameter_types! {
 	pub UniversalLocation: InteriorMultiLocation = Junction::Parachain(101).into();
 	pub UnitWeightCost: Weight = Weight::from_parts(10, 10);
-	pub WeightPrice: (AssetId, u128) = (Concrete(Here.into()), 1_000_000);
+	pub WeightPrice: (AssetId, u128, u128) = (Concrete(Here.into()), 1_000_000, 1024);
 }
 
 pub struct AllAssetLocationsPass;

@@ -74,7 +74,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		);
 
 		ensure!(T::contains(origin), ());
-		// We will read up to 5 instructions. This allows up to 3 `ClearOrigin`s instructions. We
+		// We will read up to 5 instructions. This allows up to 3 `ClearOrigin` instructions. We
 		// allow for more than one since anything beyond the first is a no-op and it's conceivable
 		// that composition of operations might result in more than one being appended.
 		let mut iter = instructions.iter_mut().take(5);
@@ -171,7 +171,7 @@ impl<
 			"WithComputedOrigin origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, max_weight, weight_credit,
 		);
-		let mut actual_origin = origin.clone();
+		let mut actual_origin = *origin;
 		let mut skipped = 0;
 		// NOTE: We do not check the validity of `UniversalOrigin` here, meaning that a malicious
 		// origin could place a `UniversalOrigin` in order to spoof some location which gets free
@@ -183,10 +183,10 @@ impl<
 				Some(UniversalOrigin(new_global)) => {
 					// Note the origin is *relative to local consensus*! So we need to escape local
 					// consensus with the `parents` before diving in into the `universal_location`.
-					actual_origin = X1(new_global.clone()).relative_to(&LocalUniversal::get());
+					actual_origin = X1(*new_global).relative_to(&LocalUniversal::get());
 				},
 				Some(DescendOrigin(j)) => {
-					actual_origin.append_with(j.clone()).map_err(|_| ())?;
+					actual_origin.append_with(*j).map_err(|_| ())?;
 				},
 				_ => break,
 			}
@@ -237,7 +237,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionF
 	) -> Result<(), ()> {
 		log::trace!(
 			target: "xcm::barriers",
-			"AllowUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
+			"AllowExplicitUnpaidExecutionFrom origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, max_weight, _weight_credit,
 		);
 		ensure!(T::contains(origin), ());

@@ -90,11 +90,8 @@ benchmarks! {
 	// and included in the final weight calculation. So this is just the overhead of submitting
 	// a noop call.
 	transact {
-		let origin = T::transact_origin()?;
+		let (origin, noop_call) = T::transact_origin_and_runtime_call()?;
 		let mut executor = new_executor::<T>(origin);
-		let noop_call: <T as Config>::RuntimeCall = frame_system::Call::remark_with_event {
-			remark: Default::default()
-		}.into();
 		let double_encoded_noop_call: DoubleEncoded<_> = noop_call.encode().into();
 
 		let instruction = Instruction::Transact {
@@ -108,9 +105,7 @@ benchmarks! {
 	}: {
 		executor.bench_process(xcm)?;
 	} verify {
-		// TODO make better assertion? #4426
-		let num_events2 = frame_system::Pallet::<T>::events().len();
-		assert_eq!(num_events + 1, num_events2);
+		// TODO Make the assertion configurable?
 	}
 
 	refund_surplus {
@@ -264,7 +259,7 @@ benchmarks! {
 	unsubscribe_version {
 		use xcm_executor::traits::VersionChangeNotifier;
 		// First we need to subscribe to notifications.
-		let origin = T::transact_origin()?;
+		let (origin, _) = T::transact_origin_and_runtime_call()?;
 		let query_id = Default::default();
 		let max_response_weight = Default::default();
 		<T::XcmConfig as xcm_executor::Config>::SubscriptionService::start(
@@ -588,6 +583,20 @@ benchmarks! {
 		executor.bench_process(xcm)?;
 	} verify {
 		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
+	unpaid_execution {
+		let mut executor = new_executor::<T>(Default::default());
+		executor.set_origin(Some(Here.into()));
+
+		let instruction = Instruction::<XcmCallOf<T>>::UnpaidExecution {
+			weight_limit: WeightLimit::Unlimited,
+			check_origin: Some(Here.into()),
+		};
+
+		let xcm = Xcm(vec![instruction]);
+	}: {
+		executor.bench_process(xcm)?;
 	}
 
 	impl_benchmark_test_suite!(

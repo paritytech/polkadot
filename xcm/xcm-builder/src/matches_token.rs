@@ -59,8 +59,7 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 impl<T: Get<MultiLocation>, I: TryFrom<AssetInstance>> MatchesNonFungible<I> for IsConcrete<T> {
 	fn matches_nonfungible(a: &MultiAsset) -> Option<I> {
 		match (&a.id, &a.fun) {
-			(Concrete(ref id), NonFungible(ref instance)) if id == &T::get() =>
-				instance.clone().try_into().ok(),
+			(Concrete(id), NonFungible(instance)) if id == &T::get() => (*instance).try_into().ok(),
 			_ => None,
 		}
 	}
@@ -103,8 +102,7 @@ impl<T: Get<[u8; 32]>, B: TryFrom<u128>> MatchesFungible<B> for IsAbstract<T> {
 impl<T: Get<[u8; 32]>, B: TryFrom<AssetInstance>> MatchesNonFungible<B> for IsAbstract<T> {
 	fn matches_nonfungible(a: &MultiAsset) -> Option<B> {
 		match (&a.id, &a.fun) {
-			(Abstract(ref id), NonFungible(ref instance)) if id == &T::get() =>
-				instance.clone().try_into().ok(),
+			(Abstract(id), NonFungible(instance)) if id == &T::get() => (*instance).try_into().ok(),
 			_ => None,
 		}
 	}

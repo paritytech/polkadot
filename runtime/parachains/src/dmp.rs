@@ -29,6 +29,8 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
+pub const MAX_MESSAGE_QUEUE_SIZE: usize = 1024;
+
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
 pub enum QueueDownwardMessageError {
@@ -142,13 +144,20 @@ impl<T: Config> Pallet<T> {
 	/// `queue_downward_message` with the same parameters will be successful.
 	pub fn can_queue_downward_message(
 		config: &HostConfiguration<T::BlockNumber>,
-		_para: &ParaId,
+		para: &ParaId,
 		msg: &DownwardMessage,
 	) -> Result<(), QueueDownwardMessageError> {
 		let serialized_len = msg.len() as u32;
 		if serialized_len > config.max_downward_message_size {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
+
+		if <Self as Store>::DownwardMessageQueues::decode_len(para).unwrap_or(0) >
+			MAX_MESSAGE_QUEUE_SIZE
+		{
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+		}
+
 		Ok(())
 	}
 
@@ -167,6 +176,12 @@ impl<T: Config> Pallet<T> {
 	) -> Result<(), QueueDownwardMessageError> {
 		let serialized_len = msg.len() as u32;
 		if serialized_len > config.max_downward_message_size {
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+		}
+
+		if <Self as Store>::DownwardMessageQueues::decode_len(para).unwrap_or(0) >
+			MAX_MESSAGE_QUEUE_SIZE
+		{
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 

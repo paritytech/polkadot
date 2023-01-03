@@ -17,7 +17,10 @@
 use frame_support::{
 	dispatch::GetDispatchInfo,
 	traits::{tokens::currency::Currency as CurrencyT, Get, OnUnbalanced as OnUnbalancedT},
-	weights::{constants::WEIGHT_PER_SECOND, WeightToFee as WeightToFeeT},
+	weights::{
+		constants::{WEIGHT_PROOF_SIZE_PER_MB, WEIGHT_REF_TIME_PER_SECOND},
+		WeightToFee as WeightToFeeT,
+	},
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
@@ -125,14 +128,14 @@ impl TakeRevenue for () {
 
 /// Simple fee calculator that requires payment in a single fungible at a fixed rate.
 ///
-/// The constant `Get` type parameter should be the fungible ID and the amount of it required for
-/// one second of weight.
-pub struct FixedRateOfFungible<T: Get<(AssetId, u128)>, R: TakeRevenue>(
+/// The constant `Get` type parameter should be the fungible ID, the amount of it required for one
+/// second of weight and the amount required for 1 MB of proof.
+pub struct FixedRateOfFungible<T: Get<(AssetId, u128, u128)>, R: TakeRevenue>(
 	Weight,
 	u128,
 	PhantomData<(T, R)>,
 );
-impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungible<T, R> {
+impl<T: Get<(AssetId, u128, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungible<T, R> {
 	fn new() -> Self {
 		Self(Weight::zero(), 0, PhantomData)
 	}
@@ -143,9 +146,10 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 			"FixedRateOfFungible::buy_weight weight: {:?}, payment: {:?}",
 			weight, payment,
 		);
-		let (id, units_per_second) = T::get();
-		let amount =
-			units_per_second * (weight.ref_time() as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let (id, units_per_second, units_per_mb) = T::get();
+		let amount = (units_per_second * (weight.ref_time() as u128) /
+			(WEIGHT_REF_TIME_PER_SECOND as u128)) +
+			(units_per_mb * (weight.proof_size() as u128) / (WEIGHT_PROOF_SIZE_PER_MB as u128));
 		if amount == 0 {
 			return Ok(payment)
 		}
@@ -158,10 +162,11 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
 		log::trace!(target: "xcm::weight", "FixedRateOfFungible::refund_weight weight: {:?}", weight);
-		let (id, units_per_second) = T::get();
+		let (id, units_per_second, units_per_mb) = T::get();
 		let weight = weight.min(self.0);
-		let amount =
-			units_per_second * (weight.ref_time() as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let amount = (units_per_second * (weight.ref_time() as u128) /
+			(WEIGHT_REF_TIME_PER_SECOND as u128)) +
+			(units_per_mb * (weight.proof_size() as u128) / (WEIGHT_PROOF_SIZE_PER_MB as u128));
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		if amount > 0 {
@@ -172,7 +177,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 	}
 }
 
-impl<T: Get<(AssetId, u128)>, R: TakeRevenue> Drop for FixedRateOfFungible<T, R> {
+impl<T: Get<(AssetId, u128, u128)>, R: TakeRevenue> Drop for FixedRateOfFungible<T, R> {
 	fn drop(&mut self) {
 		if self.1 > 0 {
 			R::take_revenue((T::get().0, self.1).into());

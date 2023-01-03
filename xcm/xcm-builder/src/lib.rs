@@ -35,7 +35,7 @@ pub use location_conversion::{
 mod origin_conversion;
 pub use origin_conversion::{
 	BackingToPlurality, ChildParachainAsNative, ChildSystemParachainAsSuperuser, EnsureXcmOrigin,
-	ParentAsSuperuser, RelayChainAsNative, SiblingParachainAsNative,
+	OriginToPluralityVoice, ParentAsSuperuser, RelayChainAsNative, SiblingParachainAsNative,
 	SiblingSystemParachainAsSuperuser, SignedAccountId32AsNative, SignedAccountKey20AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation,
 };
@@ -80,6 +80,6 @@ pub use filter_asset_location::{Case, NativeAsset};
 mod universal_exports;
 pub use universal_exports::{
 	BridgeBlobDispatcher, BridgeMessage, DispatchBlob, DispatchBlobError, ExporterFor, HaulBlob,
-	HaulBlobExporter, LocalUnpaidExporter, NetworkExportTable, SovereignPaidRemoteExporter,
+	HaulBlobExporter, NetworkExportTable, SovereignPaidRemoteExporter, UnpaidLocalExporter,
 	UnpaidRemoteExporter,
 };

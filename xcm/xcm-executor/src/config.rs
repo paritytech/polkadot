@@ -100,4 +100,10 @@ pub trait Config {
 	/// XCM will use this to dispatch any calls. When no special call dispatcher is required,
 	/// this can be set to the same type as `Self::Call`.
 	type CallDispatcher: CallDispatcher<Self::RuntimeCall>;
+
+	/// The safe call filter for `Transact`.
+	///
+	/// Use this type to explicitly whitelist calls that cannot undergo recursion. This is a
+	/// temporary measure until we properly account for proof size weights for XCM instructions.
+	type SafeCallFilter: Contains<Self::RuntimeCall>;
 }

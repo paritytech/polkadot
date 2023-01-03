@@ -22,7 +22,7 @@ use super::{
 };
 use frame_support::{
 	match_types, parameter_types,
-	traits::{Everything, Nothing},
+	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
 use runtime_common::{xcm_sender, ToAuthor};
@@ -34,6 +34,7 @@ use xcm_builder::{
 	IsConcrete, MintLocation, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
 };
+use xcm_executor::traits::WithOriginFilter;
 
 parameter_types! {
 	/// The location of the DOT token, from the context of this chain. Since this token is native to this
@@ -45,7 +46,9 @@ parameter_types! {
 	/// Our location in the universe of consensus systems.
 	pub const UniversalLocation: InteriorMultiLocation = X1(GlobalConsensus(ThisNetwork::get()));
 	/// The check account, which holds any native assets that have been teleported out and not back in (yet).
-	pub CheckAccount: (AccountId, MintLocation) = (XcmPallet::check_account(), MintLocation::Local);
+	pub CheckAccount: AccountId = XcmPallet::check_account();
+	/// The check account that is allowed to mint assets locally.
+	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
 }
 
 /// The canonical means of converting a `MultiLocation` into an `AccountId`, used when we want to determine
@@ -71,7 +74,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
 	AccountId,
 	// We track our teleports in/out to keep total issuance correct.
-	CheckAccount,
+	LocalCheckAccount,
 >;
 
 /// The means that we convert an XCM origin `MultiLocation` into the runtime's `Origin` type for
@@ -107,11 +110,13 @@ pub type XcmRouter = (
 parameter_types! {
 	pub const Dot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
 	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(1000).into_location());
+	pub const DotForCollectives: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(1001).into_location());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
 /// Polkadot Relay recognizes/respects the Statemint chain as a teleporter.
-pub type TrustedTeleporters = (xcm_builder::Case<DotForStatemint>,);
+pub type TrustedTeleporters =
+	(xcm_builder::Case<DotForStatemint>, xcm_builder::Case<DotForCollectives>);
 
 match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
@@ -130,6 +135,161 @@ pub type Barrier = (
 	// Subscriptions for version tracking are OK.
 	AllowSubscriptionsFrom<OnlyParachains>,
 );
+
+/// A call filter for the XCM Transact instruction. This is a temporary measure until we
+/// properly account for proof size weights.
+///
+/// Calls that are allowed through this filter must:
+/// 1. Have a fixed weight;
+/// 2. Cannot lead to another call being made;
+/// 3. Have a defined proof size weight, e.g. no unbounded vecs in call parameters.
+pub struct SafeCallFilter;
+impl Contains<RuntimeCall> for SafeCallFilter {
+	fn contains(call: &RuntimeCall) -> bool {
+		#[cfg(feature = "runtime-benchmarks")]
+		{
+			if matches!(call, RuntimeCall::System(frame_system::Call::remark_with_event { .. })) {
+				return true
+			}
+		}
+
+		match call {
+			RuntimeCall::System(
+				frame_system::Call::kill_prefix { .. } | frame_system::Call::set_heap_pages { .. },
+			) |
+			RuntimeCall::Babe(..) |
+			RuntimeCall::Timestamp(..) |
+			RuntimeCall::Indices(..) |
+			RuntimeCall::Balances(..) |
+			RuntimeCall::Staking(
+				pallet_staking::Call::bond { .. } |
+				pallet_staking::Call::bond_extra { .. } |
+				pallet_staking::Call::unbond { .. } |
+				pallet_staking::Call::withdraw_unbonded { .. } |
+				pallet_staking::Call::validate { .. } |
+				pallet_staking::Call::nominate { .. } |
+				pallet_staking::Call::chill { .. } |
+				pallet_staking::Call::set_payee { .. } |
+				pallet_staking::Call::set_controller { .. } |
+				pallet_staking::Call::set_validator_count { .. } |
+				pallet_staking::Call::increase_validator_count { .. } |
+				pallet_staking::Call::scale_validator_count { .. } |
+				pallet_staking::Call::force_no_eras { .. } |
+				pallet_staking::Call::force_new_era { .. } |
+				pallet_staking::Call::set_invulnerables { .. } |
+				pallet_staking::Call::force_unstake { .. } |
+				pallet_staking::Call::force_new_era_always { .. } |
+				pallet_staking::Call::payout_stakers { .. } |
+				pallet_staking::Call::rebond { .. } |
+				pallet_staking::Call::reap_stash { .. } |
+				pallet_staking::Call::set_staking_configs { .. } |
+				pallet_staking::Call::chill_other { .. } |
+				pallet_staking::Call::force_apply_min_commission { .. },
+			) |
+			RuntimeCall::Session(pallet_session::Call::purge_keys { .. }) |
+			RuntimeCall::Grandpa(..) |
+			RuntimeCall::ImOnline(..) |
+			RuntimeCall::Democracy(
+				pallet_democracy::Call::second { .. } |
+				pallet_democracy::Call::vote { .. } |
+				pallet_democracy::Call::emergency_cancel { .. } |
+				pallet_democracy::Call::fast_track { .. } |
+				pallet_democracy::Call::veto_external { .. } |
+				pallet_democracy::Call::cancel_referendum { .. } |
+				pallet_democracy::Call::delegate { .. } |
+				pallet_democracy::Call::undelegate { .. } |
+				pallet_democracy::Call::clear_public_proposals { .. } |
+				pallet_democracy::Call::unlock { .. } |
+				pallet_democracy::Call::remove_vote { .. } |
+				pallet_democracy::Call::remove_other_vote { .. } |
+				pallet_democracy::Call::blacklist { .. } |
+				pallet_democracy::Call::cancel_proposal { .. },
+			) |
+			RuntimeCall::Council(
+				pallet_collective::Call::vote { .. } |
+				pallet_collective::Call::close_old_weight { .. } |
+				pallet_collective::Call::disapprove_proposal { .. } |
+				pallet_collective::Call::close { .. },
+			) |
+			RuntimeCall::TechnicalCommittee(
+				pallet_collective::Call::vote { .. } |
+				pallet_collective::Call::close_old_weight { .. } |
+				pallet_collective::Call::disapprove_proposal { .. } |
+				pallet_collective::Call::close { .. },
+			) |
+			RuntimeCall::PhragmenElection(
+				pallet_elections_phragmen::Call::remove_voter { .. } |
+				pallet_elections_phragmen::Call::submit_candidacy { .. } |
+				pallet_elections_phragmen::Call::renounce_candidacy { .. } |
+				pallet_elections_phragmen::Call::remove_member { .. } |
+				pallet_elections_phragmen::Call::clean_defunct_voters { .. },
+			) |
+			RuntimeCall::TechnicalMembership(
+				pallet_membership::Call::add_member { .. } |
+				pallet_membership::Call::remove_member { .. } |
+				pallet_membership::Call::swap_member { .. } |
+				pallet_membership::Call::change_key { .. } |
+				pallet_membership::Call::set_prime { .. } |
+				pallet_membership::Call::clear_prime { .. },
+			) |
+			RuntimeCall::Treasury(..) |
+			RuntimeCall::Claims(
+				super::claims::Call::claim { .. } |
+				super::claims::Call::mint_claim { .. } |
+				super::claims::Call::move_claim { .. },
+			) |
+			RuntimeCall::Utility(pallet_utility::Call::as_derivative { .. }) |
+			RuntimeCall::Identity(
+				pallet_identity::Call::add_registrar { .. } |
+				pallet_identity::Call::set_identity { .. } |
+				pallet_identity::Call::clear_identity { .. } |
+				pallet_identity::Call::request_judgement { .. } |
+				pallet_identity::Call::cancel_request { .. } |
+				pallet_identity::Call::set_fee { .. } |
+				pallet_identity::Call::set_account_id { .. } |
+				pallet_identity::Call::set_fields { .. } |
+				pallet_identity::Call::provide_judgement { .. } |
+				pallet_identity::Call::kill_identity { .. } |
+				pallet_identity::Call::add_sub { .. } |
+				pallet_identity::Call::rename_sub { .. } |
+				pallet_identity::Call::remove_sub { .. } |
+				pallet_identity::Call::quit_sub { .. },
+			) |
+			RuntimeCall::Vesting(..) |
+			RuntimeCall::Bounties(
+				pallet_bounties::Call::propose_bounty { .. } |
+				pallet_bounties::Call::approve_bounty { .. } |
+				pallet_bounties::Call::propose_curator { .. } |
+				pallet_bounties::Call::unassign_curator { .. } |
+				pallet_bounties::Call::accept_curator { .. } |
+				pallet_bounties::Call::award_bounty { .. } |
+				pallet_bounties::Call::claim_bounty { .. } |
+				pallet_bounties::Call::close_bounty { .. },
+			) |
+			RuntimeCall::ChildBounties(..) |
+			RuntimeCall::ElectionProviderMultiPhase(..) |
+			RuntimeCall::VoterList(..) |
+			RuntimeCall::NominationPools(
+				pallet_nomination_pools::Call::join { .. } |
+				pallet_nomination_pools::Call::bond_extra { .. } |
+				pallet_nomination_pools::Call::claim_payout { .. } |
+				pallet_nomination_pools::Call::unbond { .. } |
+				pallet_nomination_pools::Call::pool_withdraw_unbonded { .. } |
+				pallet_nomination_pools::Call::withdraw_unbonded { .. } |
+				pallet_nomination_pools::Call::create { .. } |
+				pallet_nomination_pools::Call::create_with_pool_id { .. } |
+				pallet_nomination_pools::Call::set_state { .. } |
+				pallet_nomination_pools::Call::set_configs { .. } |
+				pallet_nomination_pools::Call::update_roles { .. } |
+				pallet_nomination_pools::Call::chill { .. },
+			) |
+			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
+				..
+			}) => true,
+			_ => false,
+		}
+	}
+}
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
@@ -158,11 +318,17 @@ impl xcm_executor::Config for XcmConfig {
 	// No bridges yet...
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
-	type CallDispatcher = RuntimeCall;
+	type CallDispatcher = WithOriginFilter<SafeCallFilter>;
+	type SafeCallFilter = SafeCallFilter;
 }
 
 parameter_types! {
 	pub const CouncilBodyId: BodyId = BodyId::Executive;
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+parameter_types! {
+	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
 }
 
 /// Type to convert a council origin to a Plurality `MultiLocation` value.
@@ -206,4 +372,6 @@ impl pallet_xcm::Config for Runtime {
 	type SovereignAccountOf = SovereignAccountOf;
 	type MaxLockers = frame_support::traits::ConstU32<8>;
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type ReachableDest = ReachableDest;
 }

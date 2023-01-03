@@ -19,7 +19,7 @@ use core::convert::TryInto;
 use frame_support::{
 	assert_err,
 	traits::{ConstU32, ContainsPair},
-	weights::constants::WEIGHT_PER_SECOND,
+	weights::constants::{WEIGHT_PROOF_SIZE_PER_MB, WEIGHT_REF_TIME_PER_SECOND},
 };
 use xcm_executor::{traits::prelude::*, Config, XcmExecutor};
 

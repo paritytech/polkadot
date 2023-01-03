@@ -131,6 +131,7 @@ impl xcm_executor::Config for XcmConfig {
 	type MessageExporter = ();
 	type UniversalAliases = TestUniversalAliases;
 	type CallDispatcher = RuntimeCall;
+	type SafeCallFilter = Everything;
 }
 
 impl crate::Config for Test {
@@ -166,8 +167,9 @@ impl generic::Config for Test {
 		Ok(GlobalConsensus(ByGenesis([0; 32])))
 	}
 
-	fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
-		Ok(Default::default())
+	fn transact_origin_and_runtime_call(
+	) -> Result<(MultiLocation, <Self as generic::Config>::RuntimeCall), BenchmarkError> {
+		Ok((Default::default(), frame_system::Call::remark_with_event { remark: vec![] }.into()))
 	}
 
 	fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
