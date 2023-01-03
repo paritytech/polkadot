@@ -539,9 +539,9 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 						bitfield_span.add_string_tag(
 							"update-bitfield",
 							format!(
-								"approving bitfield {:?} as {:?} less than needed approvals",
+								"updating bitfield index {:?} as validators less backing group size (which equals {:?}) is less than the number of needed approvals ({:?}).",
 								i,
-								n_validators.saturating_sub(backing_group_size)
+								n_validators.saturating_sub(backing_group_size),
 							),
 						);
 						result.set(i, true);
