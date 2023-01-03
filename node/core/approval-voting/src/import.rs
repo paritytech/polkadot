@@ -335,9 +335,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		Some(ref span) => span.child("handle-new-head"),
 		None => jaeger::Span::Disabled,
 	};
-
+	let mut get_header_span = handle_new_head_span.child("get-header");
 	let header = {
-		let mut get_header_span = handle_new_head_span.child("get-header");
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
 		match h_rx.await? {
@@ -368,6 +367,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			},
 		}
 	};
+	drop(get_header_span);
 
 	// Update session info based on most recent head.
 	match state.cache_session_info_for_head(ctx, head).await {
