@@ -1253,14 +1253,12 @@ fn pvf_check_upgrade_reject() {
 		check_code_is_stored(&new_code);
 
 		// 1/3 of validators vote against `new_code`. PVF should not be rejected yet.
-		IntoIterator::into_iter([0])
-			.map(|i| PvfCheckStatement {
-				accept: false,
-				subject: new_code.hash(),
-				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
-			})
-			.for_each(sign_and_include_pvf_check_statement);
+		sign_and_include_pvf_check_statement(PvfCheckStatement {
+			accept: false,
+			subject: new_code.hash(),
+			session_index: EXPECTED_SESSION,
+			validator_index: 0.into(),
+		});
 
 		// Verify that the new code is not yet discarded.
 		check_code_is_stored(&new_code);
