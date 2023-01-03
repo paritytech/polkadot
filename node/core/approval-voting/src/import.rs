@@ -532,7 +532,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					let backing_group_size =
 						validator_group_lens.get(backing_group.0 as usize).copied().unwrap_or(0);
 
-					bitfield_span.add_uint_tag("backing-group-size", backing_group_size.try_into().unwrap());
+					bitfield_span
+						.add_uint_tag("backing-group-size", backing_group_size.try_into().unwrap());
 					let needed_approvals =
 						usize::try_from(needed_approvals).expect("usize is at least u32; qed");
 					if n_validators.saturating_sub(backing_group_size) < needed_approvals {
