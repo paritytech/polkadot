@@ -292,7 +292,10 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
-impl crate::scheduler::Config for Test {}
+impl crate::scheduler::Config for Test {
+	type CoreAssigners<T: crate::scheduler::Config> =
+		(crate::scheduler::Parachains, crate::scheduler::Parathreads);
+}
 impl crate::scheduler_parachains::Config for Test {}
 
 impl crate::inclusion::Config for Test {

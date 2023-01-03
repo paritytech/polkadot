@@ -18,7 +18,9 @@ use super::*;
 
 use frame_support::assert_ok;
 use keyring::Sr25519Keyring;
-use primitives::v2::{BlockNumber, CollatorId, SessionIndex, ValidatorId};
+use primitives::v2::{
+	BlockNumber, CollatorId, ParathreadClaim, ParathreadEntry, SessionIndex, ValidatorId,
+};
 
 use crate::{
 	configuration::HostConfiguration,

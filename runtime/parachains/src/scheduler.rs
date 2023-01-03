@@ -37,10 +37,9 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::v2::{
-	CollatorId, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
-	ParathreadClaim, ParathreadEntry, ScheduledCore, ValidatorIndex,
+	CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId, ScheduledCore,
+	ValidatorIndex,
 };
-use scale_info::TypeInfo;
 use sp_runtime::traits::{One, Saturating};
 use sp_std::prelude::*;
 
@@ -57,6 +56,71 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
+pub trait CoreAssigner<T: Config> {
+	fn session_cores() -> u32;
+
+	fn initializer_on_new_session(
+		notification: &SessionChangeNotification<T::BlockNumber>,
+		cores: &[Option<CoreOccupied>],
+	);
+}
+
+pub struct Parachains;
+impl<T: Config> CoreAssigner<T> for Parachains {
+	fn session_cores() -> u32 {
+		<paras::Pallet<T>>::parachains().len() as u32
+	}
+
+	fn initializer_on_new_session(
+		notification: &SessionChangeNotification<T::BlockNumber>,
+		cores: &[Option<CoreOccupied>],
+	) {
+		let &SessionChangeNotification { ref validators, ref new_config, .. } = notification;
+		let config = new_config;
+
+		<scheduler_parachains::Pallet<T>>::initializer_on_new_session(
+			notification,
+			cores,
+			config.parathread_cores,
+			config.parathread_retries,
+		);
+	}
+}
+
+pub struct Parathreads;
+impl<T: Config> CoreAssigner<T> for Parathreads {
+	fn session_cores() -> u32 {
+		let config = <configuration::Pallet<T>>::config();
+		config.parathread_cores
+	}
+
+	fn initializer_on_new_session(
+		notification: &SessionChangeNotification<T::BlockNumber>,
+		cores: &[Option<CoreOccupied>],
+	) {
+		return
+	}
+}
+
+impl<A, B, T> CoreAssigner<T> for (A, B)
+where
+	T: Config,
+	A: CoreAssigner<T>,
+	B: CoreAssigner<T>,
+{
+	fn session_cores() -> u32 {
+		A::session_cores() + B::session_cores()
+	}
+
+	fn initializer_on_new_session(
+		notification: &SessionChangeNotification<T::BlockNumber>,
+		cores: &[Option<CoreOccupied>],
+	) {
+		A::initializer_on_new_session(notification, cores);
+		B::initializer_on_new_session(notification, cores);
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -70,6 +134,7 @@ pub mod pallet {
 	pub trait Config:
 		frame_system::Config + configuration::Config + paras::Config + scheduler_parachains::Config
 	{
+		type CoreAssigners<T: Config>: CoreAssigner<T>;
 	}
 
 	/// All the validator groups. One for each core. Indices are into `ActiveValidators` - not the
@@ -132,9 +197,8 @@ impl<T: Config> Pallet<T> {
 		let &SessionChangeNotification { ref validators, ref new_config, .. } = notification;
 		let config = new_config;
 
-		let n_parachains = <paras::Pallet<T>>::parachains().len() as u32;
 		let n_cores = core::cmp::max(
-			n_parachains + config.parathread_cores,
+			T::CoreAssigners::<T>::session_cores(),
 			match config.max_validators_per_core {
 				Some(x) if x != 0 => validators.len() as u32 / x,
 				_ => 0,
@@ -142,17 +206,13 @@ impl<T: Config> Pallet<T> {
 		);
 
 		AvailabilityCores::<T>::mutate(|cores| {
-			<scheduler_parachains::Pallet<T>>::initializer_on_new_session(
-				notification,
-				cores,
-				config.parathread_cores,
-				config.parathread_retries,
-			);
+			T::CoreAssigners::<T>::initializer_on_new_session(notification, cores);
 
 			// clear all occupied cores.
 			for core in cores.iter_mut() {
 				*core = None;
 			}
+
 			cores.resize(n_cores as _, None);
 		});
 
@@ -280,9 +340,11 @@ impl<T: Config> Pallet<T> {
 						),
 					})
 				} else {
-					// parathread core offset, rel. to beginning.
-					let core_offset = (core_index - parachains.len()) as u32;
-					<scheduler_parachains::Pallet<T>>::take_on_next_core(core, now)
+					<scheduler_parachains::Pallet<T>>::take_on_next_core(
+						core,
+						now,
+						Self::group_assigned_to_core,
+					)
 				};
 
 				if let Some(assignment) = core_assignment {
@@ -486,16 +548,25 @@ impl<T: Config> Pallet<T> {
 		if (core.0 as usize) < parachains.len() {
 			Some(ScheduledCore { para_id: parachains[core.0 as usize], collator: None })
 		} else {
-			<scheduler_parachains::Pallet<T>>::next_up_on_time_out(core)
+			<scheduler_parachains::Pallet<T>>::next_up_on_time_out(
+				core,
+				AvailabilityCores::<T>::get(),
+			)
 		}
 	}
 
 	// Free all scheduled cores and return parathread claims to queue, with retries incremented.
 	pub(crate) fn clear() {
 		let config = <configuration::Pallet<T>>::config();
+		let mut vec = vec![];
+		for core_assignment in Scheduled::<T>::take() {
+			vec.push(core_assignment);
+		}
+
 		<scheduler_parachains::Pallet<T>>::clear(
 			config.parathread_cores,
 			config.parathread_retries,
+			vec,
 		);
 	}
 }

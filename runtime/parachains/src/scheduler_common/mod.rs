@@ -37,14 +37,10 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::v2::{
-	CollatorId, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
-	ParathreadClaim, ParathreadEntry, ScheduledCore, ValidatorIndex,
+	CollatorId, CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ParathreadClaim, ParathreadEntry,
 };
 use scale_info::TypeInfo;
-use sp_runtime::traits::{One, Saturating};
 use sp_std::prelude::*;
-
-use crate::{configuration, initializer::SessionChangeNotification, paras, scheduler_parachains};
 
 //#[cfg(test)]
 //mod tests;

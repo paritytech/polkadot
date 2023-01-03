@@ -1322,7 +1322,8 @@ impl parachains_paras_inherent::Config for Runtime {
 impl scheduler_parachains::Config for Runtime {}
 
 impl parachains_scheduler::Config for Runtime {
-	//type CoreAssignments = (ParachainSlots, ParathreadCores, ...)
+	type CoreAssigners<T: runtime_parachains::scheduler::Config> =
+		(runtime_parachains::scheduler::Parachains, runtime_parachains::scheduler::Parathreads);
 }
 
 impl parachains_initializer::Config for Runtime {
