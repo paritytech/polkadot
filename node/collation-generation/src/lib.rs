@@ -177,7 +177,7 @@ async fn handle_new_activations<Context>(
 	sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 ) -> crate::error::Result<()> {
 	// follow the procedure from the guide:
-	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
+	// https://paritytech.github.io/polkadot/book/node/collators/collation-generation.html
 
 	let _overall_timer = metrics.time_new_activations();
 
