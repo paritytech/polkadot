@@ -337,7 +337,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	};
 
 	let header = {
-		let mut get_header_span = handle_new_head_span.child("get-header");
+		let mut get_header_span = handle_new_head_span.add_follows_from("get-header");
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
 		match h_rx.await? {
