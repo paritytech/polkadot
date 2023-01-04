@@ -288,7 +288,7 @@ mod tests {
 		};
 
 		new_test_ext(Default::default()).execute_with(|| {
-			// Implant the v2 version in the state.
+			// Implant the v3 version in the state.
 			frame_support::storage::unhashed::put_raw(
 				&configuration::ActiveConfig::<Test>::hashed_key(),
 				&v3.encode(),
