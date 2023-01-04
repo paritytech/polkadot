@@ -546,6 +546,7 @@ fn send_dispute_gets_cleaned_up() {
 
 #[test]
 fn dispute_retries_and_works_across_session_boundaries() {
+	sp_tracing::try_init_simple();
 	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>, _| async move {
 		let old_head = handle_subsystem_startup(&mut handle, None).await;
 
