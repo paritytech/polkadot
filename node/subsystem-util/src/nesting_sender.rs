@@ -78,8 +78,7 @@
 //!	back-pressure on that message source or we make it its own subsystem. This is just one of the
 //!	situations that justifies the complexity of asynchronism.
 
-use std::convert::identity;
-use std::sync::Arc;
+use std::{convert::identity, sync::Arc};
 
 use futures::{channel::mpsc, SinkExt};
 
