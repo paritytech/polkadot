@@ -77,6 +77,7 @@ pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 pallet-xcm-benchmarks = { path = "../../xcm/pallet-xcm-benchmarks", default-features = false, optional = true }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 hex-literal = { version = "0.3.4" }
 
@@ -92,9 +93,12 @@ xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default
 [dev-dependencies]
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-remote-externalities" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 separator = "0.4.1"
 serde_json = "1.0.81"
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+tokio = { version = "1.22.0", features = ["macros"] }
 
 [build-dependencies]
 substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -168,6 +172,7 @@ std = [
 	"sp-session/std",
 	"runtime-common/std",
 	"runtime-parachains/std",
+	"frame-try-runtime/std",
 	"beefy-primitives/std",
 	"rococo-runtime-constants/std",
 	"xcm/std",
@@ -214,10 +219,14 @@ runtime-benchmarks = [
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
+	"frame-try-runtime",
 	"frame-system/try-runtime",
 	"pallet-authority-discovery/try-runtime",
 	"pallet-authorship/try-runtime",
 	"pallet-balances/try-runtime",
+	"pallet-babe/try-runtime",
+	"pallet-beefy/try-runtime",
+	"pallet-beefy-mmr/try-runtime",
 	"pallet-bounties/try-runtime",
 	"pallet-child-bounties/try-runtime",
 	"pallet-transaction-payment/try-runtime",
@@ -229,7 +238,9 @@ try-runtime = [
 	"pallet-im-online/try-runtime",
 	"pallet-indices/try-runtime",
 	"pallet-membership/try-runtime",
+	"pallet-mmr/try-runtime",
 	"pallet-multisig/try-runtime",
+	"pallet-nis/try-runtime",
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-proxy/try-runtime",
@@ -239,13 +250,15 @@ try-runtime = [
 	"pallet-society/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-staking/try-runtime",
+	"pallet-state-trie-migration/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-tips/try-runtime",
 	"pallet-treasury/try-runtime",
 	"pallet-utility/try-runtime",
 	"pallet-vesting/try-runtime",
-	"pallet-babe/try-runtime",
+	"pallet-xcm/try-runtime",
 	"runtime-common/try-runtime",
+	"runtime-parachains/try-runtime",
 ]
 # When enabled, the runtime API will not be build.
 #
