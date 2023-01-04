@@ -498,7 +498,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		// insta-approve candidates on low-node testnets:
 		// cf. https://github.com/paritytech/polkadot/issues/2411
 		let num_candidates = included_candidates.len();
-		let mut bitfield_span = block_insertion_span.child("bitfield");
 		let approved_bitfield = {
 			if needed_approvals == 0 {
 				gum::debug!(
