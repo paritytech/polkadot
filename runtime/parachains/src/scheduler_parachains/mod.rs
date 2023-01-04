@@ -277,22 +277,18 @@ impl<T: Config> Pallet<T> {
 	/// newly-freed along with the reason for them being freed. The list is assumed to be sorted in
 	/// ascending order by core index.
 	pub(crate) fn take_on_next_core(
-		core: CoreIndex,
-		now: T::BlockNumber,
-		group_assigned_to_core: fn(CoreIndex, T::BlockNumber) -> Option<GroupIndex>,
+		core_idx: CoreIndex,
+		group_idx: GroupIndex,
 	) -> Option<CoreAssignment> {
 		let mut parathread_queue = ParathreadQueue::<T>::get();
 
 		// parathread core offset, rel. to beginning.
-		let core_offset = (core.0 as usize - <paras::Pallet<T>>::parachains().len()) as u32;
+		let core_offset = (core_idx.0 as usize - <paras::Pallet<T>>::parachains().len()) as u32;
 		let r = parathread_queue.take_next_on_core(core_offset).map(|entry| CoreAssignment {
 			kind: AssignmentKind::Parathread(entry.claim.1, entry.retries),
 			para_id: entry.claim.0,
-			core,
-			group_idx: group_assigned_to_core(core, now).expect(
-				"core is not out of bounds and we are guaranteed \
-						to be after the most recent session start; qed",
-			),
+			core: core_idx,
+			group_idx,
 		});
 
 		ParathreadQueue::<T>::set(parathread_queue);
@@ -457,17 +453,17 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn clear(
 		n_parathread_cores: u32,
 		n_parathread_retries: u32,
-		scheduled: Vec<CoreAssignment>,
+		scheduled: &[CoreAssignment],
 	) {
 		ParathreadQueue::<T>::mutate(|queue| {
 			for core_assignment in scheduled {
-				if let AssignmentKind::Parathread(collator, retries) = core_assignment.kind {
+				if let AssignmentKind::Parathread(collator, retries) = &core_assignment.kind {
 					if !<paras::Pallet<T>>::is_parathread(core_assignment.para_id) {
 						continue
 					}
 
 					let entry = ParathreadEntry {
-						claim: ParathreadClaim(core_assignment.para_id, collator),
+						claim: ParathreadClaim(core_assignment.para_id, collator.clone()),
 						retries: retries + 1,
 					};
 

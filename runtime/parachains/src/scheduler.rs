@@ -68,6 +68,10 @@ pub trait CoreAssigner<T: Config> {
 		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
 		cores: &[Option<CoreOccupied>],
 	);
+
+	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment>;
+
+	fn clear(scheduled: &[CoreAssignment]);
 }
 
 pub struct Parachains;
@@ -87,6 +91,21 @@ impl<T: Config> CoreAssigner<T> for Parachains {
 		_just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
 		_cores: &[Option<CoreOccupied>],
 	) {
+		return
+	}
+
+	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment> {
+		let parachains = <paras::Pallet<T>>::parachains();
+
+		Some(CoreAssignment {
+			kind: AssignmentKind::Parachain,
+			para_id: parachains[core_idx.0 as usize],
+			core: core_idx,
+			group_idx,
+		})
+	}
+
+	fn clear(_scheduled: &[CoreAssignment]) {
 		return
 	}
 }
@@ -125,6 +144,20 @@ impl<T: Config> CoreAssigner<T> for Parathreads {
 			config.parathread_cores,
 		);
 	}
+
+	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment> {
+		<scheduler_parachains::Pallet<T>>::take_on_next_core(core_idx, group_idx)
+	}
+
+	fn clear(scheduled: &[CoreAssignment]) {
+		let config = <configuration::Pallet<T>>::config();
+
+		<scheduler_parachains::Pallet<T>>::clear(
+			config.parathread_cores,
+			config.parathread_retries,
+			scheduled,
+		);
+	}
 }
 
 impl<A, B, T> CoreAssigner<T> for (A, B)
@@ -151,6 +184,22 @@ where
 	) {
 		A::free_cores(just_freed_cores, cores);
 		B::free_cores(just_freed_cores, cores);
+	}
+
+	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment> {
+		let c_idx = core_idx.0 as u32;
+		let a_cores = A::session_cores();
+
+		if (0..a_cores).contains(&c_idx) {
+			A::make_core_assignment(core_idx, group_idx)
+		} else {
+			B::make_core_assignment(core_idx, group_idx)
+		}
+	}
+
+	fn clear(scheduled: &[CoreAssignment]) {
+		A::clear(scheduled);
+		B::clear(scheduled);
 	}
 }
 
@@ -314,99 +363,81 @@ impl<T: Config> Pallet<T> {
 	) {
 		Self::free_cores(just_freed_cores);
 
-		let cores = AvailabilityCores::<T>::get();
-		let parachains = <paras::Pallet<T>>::parachains();
-		let mut scheduled = Scheduled::<T>::get();
-
 		if ValidatorGroups::<T>::get().is_empty() {
 			return
 		}
 
-		{
-			let mut prev_scheduled_in_order = scheduled.iter().enumerate().peekable();
+		let mut scheduled = Scheduled::<T>::get();
+		let mut prev_scheduled_in_order = scheduled.iter().enumerate().peekable();
 
-			// Updates to the previous list of scheduled updates and the position of where to insert
-			// them, without accounting for prior updates.
-			let mut scheduled_updates: Vec<(usize, CoreAssignment)> = Vec::new();
+		// Updates to the previous list of scheduled updates and the position of where to insert
+		// them, without accounting for prior updates.
+		let mut scheduled_updates: Vec<(usize, CoreAssignment)> = Vec::new();
 
-			// single-sweep O(n) in the number of cores.
-			for (core_index, _core) in cores.iter().enumerate().filter(|(_, ref c)| c.is_none()) {
-				let schedule_and_insert_at = {
-					// advance the iterator until just before the core index we are looking at now.
-					while prev_scheduled_in_order
-						.peek()
-						.map_or(false, |(_, assign)| (assign.core.0 as usize) < core_index)
-					{
-						let _ = prev_scheduled_in_order.next();
-					}
-
-					// check the first entry already scheduled with core index >= than the one we
-					// are looking at. 3 cases:
-					//  1. No such entry, clearly this core is not scheduled, so we need to schedule and put at the end.
-					//  2. Entry exists and has same index as the core we are inspecting. do not schedule again.
-					//  3. Entry exists and has higher index than the core we are inspecting. schedule and note
-					//     insertion position.
-					prev_scheduled_in_order.peek().map_or(
-						Some(scheduled.len()),
-						|(idx_in_scheduled, assign)| {
-							if (assign.core.0 as usize) == core_index {
-								None
-							} else {
-								Some(*idx_in_scheduled)
-							}
-						},
-					)
-				};
-
-				let schedule_and_insert_at = match schedule_and_insert_at {
-					None => continue,
-					Some(at) => at,
-				};
-
-				let core = CoreIndex(core_index as u32);
-
-				let core_assignment = if core_index < parachains.len() {
-					// parachain core.
-					Some(CoreAssignment {
-						kind: AssignmentKind::Parachain,
-						para_id: parachains[core_index],
-						core,
-						group_idx: Self::group_assigned_to_core(core, now).expect(
-							"core is not out of bounds and we are guaranteed \
-									to be after the most recent session start; qed",
-						),
-					})
-				} else {
-					<scheduler_parachains::Pallet<T>>::take_on_next_core(
-						core,
-						now,
-						Self::group_assigned_to_core,
-					)
-				};
-
-				if let Some(assignment) = core_assignment {
-					scheduled_updates.push((schedule_and_insert_at, assignment))
+		let cores = AvailabilityCores::<T>::get();
+		// single-sweep O(n) in the number of cores.
+		for (core_index, _core) in cores.iter().enumerate().filter(|(_, ref c)| c.is_none()) {
+			let schedule_and_insert_at = {
+				// advance the iterator until just before the core index we are looking at now.
+				while prev_scheduled_in_order
+					.peek()
+					.map_or(false, |(_, assign)| (assign.core.0 as usize) < core_index)
+				{
+					let _ = prev_scheduled_in_order.next();
 				}
-			}
 
-			// at this point, because `Scheduled` is guaranteed to be sorted and we navigated unassigned
-			// core indices in ascending order, we can enact the updates prepared by the previous actions.
-			//
-			// while inserting, we have to account for the amount of insertions already done.
-			//
-			// This is O(n) as well, capped at n operations, where n is the number of cores.
-			for (num_insertions_before, (insert_at, to_insert)) in
-				scheduled_updates.into_iter().enumerate()
+				// check the first entry already scheduled with core index >= than the one we
+				// are looking at. 3 cases:
+				//  1. No such entry, clearly this core is not scheduled, so we need to schedule and put at the end.
+				//  2. Entry exists and has same index as the core we are inspecting. do not schedule again.
+				//  3. Entry exists and has higher index than the core we are inspecting. schedule and note
+				//     insertion position.
+				prev_scheduled_in_order.peek().map_or(
+					Some(scheduled.len()),
+					|(idx_in_scheduled, assign)| {
+						if (assign.core.0 as usize) == core_index {
+							None
+						} else {
+							Some(*idx_in_scheduled)
+						}
+					},
+				)
+			};
+
+			let schedule_and_insert_at = match schedule_and_insert_at {
+				None => continue,
+				Some(at) => at,
+			};
+
+			let core_idx = CoreIndex(core_index as u32);
+			let group_idx = Self::group_assigned_to_core(core_idx, now).expect(
+				"core is not out of bounds and we are guaranteed \
+										  to be after the most recent session start; qed",
+			);
+
+			if let Some(assignment) =
+				T::CoreAssigners::<T>::make_core_assignment(core_idx, group_idx)
 			{
-				let insert_at = num_insertions_before + insert_at;
-				scheduled.insert(insert_at, to_insert);
+				scheduled_updates.push((schedule_and_insert_at, assignment))
 			}
-
-			// scheduled is guaranteed to be sorted after this point because it was sorted before, and we
-			// applied sorted updates at their correct positions, accounting for the offsets of previous
-			// insertions.
 		}
 
+		// at this point, because `Scheduled` is guaranteed to be sorted and we navigated unassigned
+		// core indices in ascending order, we can enact the updates prepared by the previous actions.
+		//
+		// while inserting, we have to account for the amount of insertions already done.
+		//
+		// This is O(n) as well, capped at n operations, where n is the number of cores.
+		for (num_insertions_before, (insert_at, to_insert)) in
+			scheduled_updates.into_iter().enumerate()
+		{
+			let insert_at = num_insertions_before + insert_at;
+			scheduled.insert(insert_at, to_insert);
+		}
+
+		// scheduled is guaranteed to be sorted after this point because it was sorted before, and we
+		// applied sorted updates at their correct positions, accounting for the offsets of previous
+		// insertions.
 		Scheduled::<T>::set(scheduled);
 	}
 
@@ -594,16 +625,11 @@ impl<T: Config> Pallet<T> {
 
 	// Free all scheduled cores and return parathread claims to queue, with retries incremented.
 	pub(crate) fn clear() {
-		let config = <configuration::Pallet<T>>::config();
 		let mut vec = vec![];
 		for core_assignment in Scheduled::<T>::take() {
 			vec.push(core_assignment);
 		}
 
-		<scheduler_parachains::Pallet<T>>::clear(
-			config.parathread_cores,
-			config.parathread_retries,
-			vec,
-		);
+		T::CoreAssigners::<T>::clear(&vec);
 	}
 }
