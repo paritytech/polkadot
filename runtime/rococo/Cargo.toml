@@ -77,6 +77,7 @@ pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 pallet-xcm-benchmarks = { path = "../../xcm/pallet-xcm-benchmarks", default-features = false, optional = true }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 hex-literal = { version = "0.3.4" }
 
@@ -168,6 +169,7 @@ std = [
 	"sp-session/std",
 	"runtime-common/std",
 	"runtime-parachains/std",
+	"frame-try-runtime/std",
 	"beefy-primitives/std",
 	"rococo-runtime-constants/std",
 	"xcm/std",
@@ -214,6 +216,7 @@ runtime-benchmarks = [
 ]
 try-runtime = [
 	"frame-executive/try-runtime",
+	"frame-try-runtime",
 	"frame-system/try-runtime",
 	"pallet-authority-discovery/try-runtime",
 	"pallet-authorship/try-runtime",
