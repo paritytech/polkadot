@@ -55,6 +55,11 @@ pub mod v1 {
 
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+			log::info!(
+				target: crate::disputes::LOG_TARGET,
+				"SpamSlots before migration: {}",
+				SpamSlots::<T>::iter().count()
+			);
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() < STORAGE_VERSION,
 				"Storage version should be less than `1` before the migration",
