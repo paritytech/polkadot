@@ -79,6 +79,7 @@
 //!	situations that justifies the complexity of asynchronism.
 
 use std::convert::identity;
+use std::sync::Arc;
 
 use futures::{channel::mpsc, SinkExt};
 
@@ -88,7 +89,7 @@ use futures::{channel::mpsc, SinkExt};
 /// type `M1` to the message type actually supported by the mpsc (`M`).
 pub struct NestingSender<M, M1> {
 	sender: mpsc::Sender<M>,
-	conversion: Box<dyn Conversion<M, M1>>,
+	conversion: Arc<dyn Fn(M1) -> M + 'static + Send + Sync>,
 }
 
 impl<M> NestingSender<M, M>
@@ -99,7 +100,7 @@ where
 	///
 	/// This is a sender that directly passes messages to the mpsc.
 	pub fn new_root(root: mpsc::Sender<M>) -> Self {
-		Self { sender: root, conversion: Box::new(identity) }
+		Self { sender: root, conversion: Arc::new(identity) }
 	}
 }
 
@@ -122,7 +123,7 @@ where
 		M2: 'static,
 	{
 		let NestingSender { sender, conversion } = parent;
-		Self { sender, conversion: Box::new(move |x| conversion(child_conversion(x))) }
+		Self { sender, conversion: Arc::new(move |x| conversion(child_conversion(x))) }
 	}
 
 	/// Send a message via the underlying mpsc.
@@ -144,28 +145,5 @@ where
 {
 	fn clone(&self) -> Self {
 		Self { sender: self.sender.clone(), conversion: self.conversion.clone() }
-	}
-}
-
-trait Conversion<M, M1>: Fn(M1) -> M + 'static + Send + Sync {
-	fn box_clone(&self) -> Box<dyn Conversion<M, M1>>;
-}
-
-impl<M, M1, T> Conversion<M, M1> for T
-where
-	T: Fn(M1) -> M + 'static + Clone + Send + Sync,
-{
-	fn box_clone(&self) -> Box<dyn Conversion<M, M1>> {
-		Box::new(self.clone())
-	}
-}
-
-impl<M, M1> Clone for Box<dyn Conversion<M, M1>>
-where
-	M: 'static,
-	M1: 'static,
-{
-	fn clone(&self) -> Self {
-		self.box_clone()
 	}
 }
