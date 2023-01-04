@@ -782,7 +782,7 @@ impl<T: Config> Pallet<T> {
 				dispute.concluded_at = Some(now);
 				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
 
-				weight += T::DbWeight::get().reads_writes(1, 1);
+				weight += T::DbWeight::get().reads_writes(0, 1);
 			}
 		}
 
