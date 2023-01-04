@@ -550,7 +550,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				result
 			}
 		};
-		db_insertion_span.add_uint_tag("approved-bitfields", format!("{:?}", approved_bitfield.count_ones()));
+		db_insertion_span
+			.add_uint_tag("approved-bitfields", format!("{:?}", approved_bitfield.count_ones()));
 		// If all bits are already set, then send an approve message.
 		if approved_bitfield.count_ones() == approved_bitfield.len() {
 			ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
