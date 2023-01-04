@@ -21,7 +21,7 @@
 
 use polkadot_primitives::{
 	runtime_api::ParachainHost,
-	v2::{AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce},
+	v3::{AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce},
 };
 use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
 use sc_executor::NativeElseWasmExecutor;

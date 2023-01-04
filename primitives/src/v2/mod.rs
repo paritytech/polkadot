@@ -18,30 +18,13 @@
 
 use crate::v3::{AssignmentId, GroupIndex, IndexedVec, ValidatorId, ValidatorIndex};
 
-use parity_scale_codec::{Decode, Encode};
-use scale_info::TypeInfo;
+use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
+use sp_staking::SessionIndex;
 use sp_std::prelude::*;
 
+use parity_scale_codec::{Decode, Encode};
 use primitives::RuntimeDebug;
-
-pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
-
-// Export some core primitives.
-pub use polkadot_core_primitives::v2::{
-	AccountId, AccountIndex, AccountPublic, Balance, Block, BlockId, BlockNumber, CandidateHash,
-	ChainId, DownwardMessage, Hash, Header, InboundDownwardMessage, InboundHrmpMessage, Moment,
-	Nonce, OutboundHrmpMessage, Remark, Signature, UncheckedExtrinsic,
-};
-
-// Export some polkadot-parachain primitives
-pub use polkadot_parachain::primitives::{
-	HeadData, HrmpChannelId, Id, UpwardMessage, ValidationCode, ValidationCodeHash,
-	LOWEST_PUBLIC_ID, LOWEST_USER_ID,
-};
-
-pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-pub use sp_consensus_slots::Slot;
-pub use sp_staking::SessionIndex;
+use scale_info::TypeInfo;
 
 /// Information about validator sets of a session.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]

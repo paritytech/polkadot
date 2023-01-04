@@ -21,7 +21,7 @@
 //! by the first element of the vector). Decoding to a usable semantics structure is
 //! done in `polkadot-node-core-pvf`.
 
-use crate::v2::{BlakeTwo256, HashT as _};
+use crate::v3::{BlakeTwo256, HashT as _};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives::Hash;
 use scale_info::TypeInfo;
