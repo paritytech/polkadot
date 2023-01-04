@@ -1,5 +1,5 @@
-# Contributing
-
+# Contributing 2
+ 
 ## Rules
 
 There are a few basic ground-rules for contributors (including the maintainer(s) of the project):
