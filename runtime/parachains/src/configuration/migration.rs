@@ -218,7 +218,7 @@ minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 		// to be unlikely to be caused by this. So we just log. Maybe it'll work out still?
 		log::error!(
 			target: configuration::LOG_TARGET,
-			"unexpected error when performing translation of the configuration type during storage upgrade to v2."
+			"unexpected error when performing translation of the configuration type during storage upgrade to v4."
 		);
 	}
 
