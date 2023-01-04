@@ -417,8 +417,12 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 	// `determine_new_blocks` gives us a vec in backwards order. we want to move forwards.
 	let imported_blocks_and_info = {
+		let mut imported_blocks_and_info_span =
+			handle_new_head_span.child("imported-blocks-and-info");
+		imported_blocks_and_info_span.add_uint_tag("new-blocks-count", new_blocks.len() as u64);
 		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
 		for (block_hash, block_header) in new_blocks.into_iter().rev() {
+			let mut candidate_span = imported_blocks_and_info_span.child("candidate");
 			let env = ImportedBlockInfoEnv {
 				session_window: &state.session_window,
 				assignment_criteria: &*state.assignment_criteria,
@@ -428,8 +432,20 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			match imported_block_info(ctx, env, block_hash, &block_header).await {
 				Ok(i) => {
 					imported_blocks_and_info.push((block_hash, block_header, i));
+					candidate_span.with_candidate(candidate_hash);
+					candidate_span
+						.add_string_tag("parent-hash", format!("{:?}", block_header.parent_hash));
+					candidate_span.add_string_tag("number", format!("{:?}", block_header.number));
+					candidate_span
+						.add_string_tag("state-root", format!("{:?}", block_header.state_root));
+					candidate_span.add_string_tag(
+						"extrinsics-root",
+						format!("{:?}", block_header.extrinsics_root),
+					);
 				},
 				Err(error) => {
+					candidate_span
+						.add_string_tag("imported-block-info-error", format!("{:?}", error));
 					// It's possible that we've lost a race with finality.
 					let (tx, rx) = oneshot::channel();
 					ctx.send_message(ChainApiMessage::FinalizedBlockHash(block_header.number, tx))
