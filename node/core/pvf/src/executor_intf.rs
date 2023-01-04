@@ -137,6 +137,7 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 				},
 			ExecutorParam::CanonicalizeNaNs(cnan) => sem.canonicalize_nans = *cnan,
 			ExecutorParam::ParallelCompilation(pc) => sem.parallel_compilation = *pc,
+			ExecutorParam::RawData(_) => (),
 		}
 	}
 	sem.deterministic_stack_limit = Some(stack_limit);
