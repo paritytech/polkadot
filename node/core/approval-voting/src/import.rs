@@ -481,6 +481,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		"Inserting imported blocks into database"
 	);
 	for (block_hash, block_header, imported_block_info) in imported_blocks_and_info {
+		let mut db_insertion_span = handle_new_head_span.child("block-db-insertion");
 		let ImportedBlockInfo {
 			included_candidates,
 			session_index,
@@ -507,11 +508,13 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		};
 
 		let needed_approvals = session_info.needed_approvals;
+		db_insertion_span.add_uint_tag("needed-approvals", needed_approvals as u64);
 		let validator_group_lens: Vec<usize> =
 			session_info.validator_groups.iter().map(|v| v.len()).collect();
 		// insta-approve candidates on low-node testnets:
 		// cf. https://github.com/paritytech/polkadot/issues/2411
 		let num_candidates = included_candidates.len();
+		db_insertion_span.add_uint_tag("num-candidates", num_candidates as u64);
 		let approved_bitfield = {
 			if needed_approvals == 0 {
 				gum::debug!(
@@ -523,10 +526,14 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			} else {
 				let mut result = bitvec::bitvec![u8, BitOrderLsb0; 0; num_candidates];
 				for (i, &(_, _, _, backing_group)) in included_candidates.iter().enumerate() {
+					let mut bitfield_span = db_insertion_span.child("bitfield");
+					bitfield_span.add_uint_tag("candidate-index", i as u64);
 					let backing_group_size =
 						validator_group_lens.get(backing_group.0 as usize).copied().unwrap_or(0);
+					bitfield_span.add_uint_tag("backing-group-size", backing_group_size as u64);
 					let needed_approvals =
 						usize::try_from(needed_approvals).expect("usize is at least u32; qed");
+					bitfield_span.add_uint_tag("needed-approvals", needed_approvals as u64);
 					if n_validators.saturating_sub(backing_group_size) < needed_approvals {
 						result.set(i, true);
 					}
@@ -543,7 +550,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				result
 			}
 		};
-
+		db_insertion_span.add_uint_tag("approved-bitfields", format!("{:?}", approved_bitfield.count_ones()));
 		// If all bits are already set, then send an approve message.
 		if approved_bitfield.count_ones() == approved_bitfield.len() {
 			ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
@@ -563,6 +570,13 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			approved_bitfield,
 			children: Vec::new(),
 		};
+		db_insertion_span.add_string_tag("block-hash", format!("{:?}", block_hash));
+		db_insertion_span.add_string_tag("parent-hash", format!("{:?}", block_header.parent_hash));
+		db_insertion_span.add_string_tag("block-number", format!("{:?}", block_header.number));
+		db_insertion_span.add_uint_tag("session", session_index);
+		db_insertion_span.add_uint_tag("slot", slot);
+		db_insertion_span.add_string_tag("candidates", format!("{:?}", block_entry.candidates));
+		db_insertion_span.add_string_tag("approved-bitfield", format!("{:?}", approved_bitfield));
 
 		gum::trace!(
 			target: LOG_TARGET,
