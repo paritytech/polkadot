@@ -40,43 +40,43 @@
 //!		- need to wait for some async event (message to arrive)
 //!		- need to do some hefty CPU bound processing (a thread is required here as well)
 //!
-//!	and it is not acceptable to block the main task for waiting for the result, because we actually
-//!	really have other things to do or at least need to stay responsive just in case.
+//! and it is not acceptable to block the main task for waiting for the result, because we actually
+//! really have other things to do or at least need to stay responsive just in case.
 //!
-//!	With the types and traits in this module you can achieve exactly that: You write modules which
-//!	just execute logic and can call into the functions of other modules - yes we are calling normal
-//!	functions. For the case a module you are calling into requires an occasional background task,
-//!	you provide it with a `NestingSender<M, ChildModuleMessage>` that it can pass to any spawned tasks.
+//! With the types and traits in this module you can achieve exactly that: You write modules which
+//! just execute logic and can call into the functions of other modules - yes we are calling normal
+//! functions. For the case a module you are calling into requires an occasional background task,
+//! you provide it with a `NestingSender<M, ChildModuleMessage>` that it can pass to any spawned tasks.
 //!
-//!	This way you don't have to spawn a task for each module just for it to be able to handle
-//!	asynchronous events. The module relies on the using/enclosing code/module to forward it any
-//!	asynchronous messages in a structured way.
+//! This way you don't have to spawn a task for each module just for it to be able to handle
+//! asynchronous events. The module relies on the using/enclosing code/module to forward it any
+//! asynchronous messages in a structured way.
 //!
-//!	What makes this architecture nice is the separation of concerns - at the top you only have to
-//!	provide a sender and dispatch received messages to the root module - it is completely
-//!	irrelevant how complex that module is, it might consist of child modules also having the need
-//!	to spawn and receive messages, which in turn do the same, still the root logic stays unchanged.
-//!	Everything is isolated to the level where it belongs, while we still keep a single task scope
-//!	in all non blocking/not CPU intensive parts, which allows us to share data via references for
-//!	example.
+//! What makes this architecture nice is the separation of concerns - at the top you only have to
+//! provide a sender and dispatch received messages to the root module - it is completely
+//! irrelevant how complex that module is, it might consist of child modules also having the need
+//! to spawn and receive messages, which in turn do the same, still the root logic stays unchanged.
+//! Everything is isolated to the level where it belongs, while we still keep a single task scope
+//! in all non blocking/not CPU intensive parts, which allows us to share data via references for
+//! example.
 //!
-//!	Because the wrapping is optional and transparent to the lower modules, each module can also be
-//!	used at the top directly without any wrapping, e.g. for standalone use or for testing purposes.
+//! Because the wrapping is optional and transparent to the lower modules, each module can also be
+//! used at the top directly without any wrapping, e.g. for standalone use or for testing purposes.
 //!
-//!	In the interest of time I refrain from providing a usage example here for now, but would instead
-//!	like to point you to the dispute-distribution subsystem which makes use of this architecture.
+//! In the interest of time I refrain from providing a usage example here for now, but would instead
+//! like to point you to the dispute-distribution subsystem which makes use of this architecture.
 //!
-//!	Nothing is ever for free of course: Each level adds an indirect function call to message
-//!	sending. which should be cheap enough for most applications, but something to keep in mind. In
-//!	particular we avoided the use of of async traits, which would have required memory allocations
-//!	on each send. Also cloning of `NestingSender` is more expensive than cloning a plain
-//!	mpsc::Sender, the overhead should be negligible though.
+//! Nothing is ever for free of course: Each level adds an indirect function call to message
+//! sending. which should be cheap enough for most applications, but something to keep in mind. In
+//! particular we avoided the use of of async traits, which would have required memory allocations
+//! on each send. Also cloning of `NestingSender` is more expensive than cloning a plain
+//! mpsc::Sender, the overhead should be negligible though.
 //!
-//!	Further limitations: Because everything is routed to the same channel, it is not possible with
-//!	this approach to put back pressure on only a single source (as all are the same). If a module
-//!	has a task that requires this, it indeed has to spawn a long running task which can do the
-//!	back-pressure on that message source or we make it its own subsystem. This is just one of the
-//!	situations that justifies the complexity of asynchronism.
+//! Further limitations: Because everything is routed to the same channel, it is not possible with
+//! this approach to put back pressure on only a single source (as all are the same). If a module
+//! has a task that requires this, it indeed has to spawn a long running task which can do the
+//! back-pressure on that message source or we make it its own subsystem. This is just one of the
+//! situations that justifies the complexity of asynchronism.
 
 use std::{convert::identity, sync::Arc};
 
