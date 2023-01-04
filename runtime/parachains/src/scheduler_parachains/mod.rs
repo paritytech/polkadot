@@ -41,7 +41,7 @@ use primitives::v2::{
 	ScheduledCore,
 };
 use scale_info::TypeInfo;
-use sp_std::prelude::*;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use crate::{
 	configuration,
@@ -239,13 +239,13 @@ impl<T: Config> Pallet<T> {
 	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
 	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
 	pub(crate) fn free_cores(
-		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
-		cores: &mut Vec<Option<CoreOccupied>>,
+		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
+		cores: &[Option<CoreOccupied>],
 		n_parathread_cores: u32,
 	) {
 		for (freed_index, freed_reason) in just_freed_cores {
 			if (freed_index.0 as usize) < cores.len() {
-				match cores[freed_index.0 as usize].take() {
+				match &cores[freed_index.0 as usize] {
 					None => continue,
 					Some(CoreOccupied::Parachain) => {},
 					Some(CoreOccupied::Parathread(entry)) => {
@@ -263,7 +263,7 @@ impl<T: Config> Pallet<T> {
 								// If a parathread candidate times out, it's not the collator's fault,
 								// so we don't increment retries.
 								ParathreadQueue::<T>::mutate(|queue| {
-									queue.enqueue_entry(entry, n_parathread_cores);
+									queue.enqueue_entry(entry.clone(), n_parathread_cores);
 								})
 							},
 						}

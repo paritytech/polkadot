@@ -431,7 +431,7 @@ impl<T: Config> Pallet<T> {
 			// Process the dispute sets of the current session.
 			METRICS.on_current_session_disputes_processed(new_current_dispute_sets.len() as u64);
 
-			let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
+			let freed_disputed = if !new_current_dispute_sets.is_empty() {
 				let concluded_invalid_disputes = new_current_dispute_sets
 					.iter()
 					.filter(|(session, candidate)| {
@@ -443,7 +443,7 @@ impl<T: Config> Pallet<T> {
 				// Count invalid dispute sets.
 				METRICS.on_disputes_concluded_invalid(concluded_invalid_disputes.len() as u64);
 
-				let freed_disputed: Vec<_> =
+				let freed_disputed: BTreeMap<_, _> =
 					<inclusion::Pallet<T>>::collect_disputed(&concluded_invalid_disputes)
 						.into_iter()
 						.map(|core| (core, FreedReason::Concluded))
@@ -451,7 +451,7 @@ impl<T: Config> Pallet<T> {
 
 				freed_disputed
 			} else {
-				Vec::new()
+				BTreeMap::new()
 			};
 
 			// Create a bit index from the set of core indices where each index corresponds to
@@ -464,9 +464,6 @@ impl<T: Config> Pallet<T> {
 			);
 
 			if !freed_disputed.is_empty() {
-				// unstable sort is fine, because core indices are unique
-				// i.e. the same candidate can't occupy 2 cores at once.
-				freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 				<scheduler::Pallet<T>>::free_cores(freed_disputed);
 			}
 
@@ -667,7 +664,7 @@ impl<T: Config> Pallet<T> {
 				})
 				.collect::<BTreeSet<CandidateHash>>();
 
-			let mut freed_disputed: Vec<_> =
+			let freed_disputed: BTreeMap<_, _> =
 				<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes)
 					.into_iter()
 					.map(|core| (core, FreedReason::Concluded))
@@ -677,9 +674,6 @@ impl<T: Config> Pallet<T> {
 				create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x, _)| x));
 
 			if !freed_disputed.is_empty() {
-				// unstable sort is fine, because core indices are unique
-				// i.e. the same candidate can't occupy 2 cores at once.
-				freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
 				<scheduler::Pallet<T>>::free_cores(freed_disputed.clone());
 			}
 

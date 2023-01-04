@@ -41,7 +41,7 @@ use primitives::v2::{
 	ValidatorIndex,
 };
 use sp_runtime::traits::{One, Saturating};
-use sp_std::prelude::*;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use crate::{
 	configuration,
@@ -63,12 +63,39 @@ pub trait CoreAssigner<T: Config> {
 		notification: &SessionChangeNotification<T::BlockNumber>,
 		cores: &[Option<CoreOccupied>],
 	);
+
+	fn free_cores(
+		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
+		cores: &[Option<CoreOccupied>],
+	);
 }
 
 pub struct Parachains;
 impl<T: Config> CoreAssigner<T> for Parachains {
 	fn session_cores() -> u32 {
 		<paras::Pallet<T>>::parachains().len() as u32
+	}
+
+	fn initializer_on_new_session(
+		_notification: &SessionChangeNotification<T::BlockNumber>,
+		_cores: &[Option<CoreOccupied>],
+	) {
+		return
+	}
+
+	fn free_cores(
+		_just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
+		_cores: &[Option<CoreOccupied>],
+	) {
+		return
+	}
+}
+
+pub struct Parathreads;
+impl<T: Config> CoreAssigner<T> for Parathreads {
+	fn session_cores() -> u32 {
+		let config = <configuration::Pallet<T>>::config();
+		config.parathread_cores
 	}
 
 	fn initializer_on_new_session(
@@ -85,20 +112,18 @@ impl<T: Config> CoreAssigner<T> for Parachains {
 			config.parathread_retries,
 		);
 	}
-}
 
-pub struct Parathreads;
-impl<T: Config> CoreAssigner<T> for Parathreads {
-	fn session_cores() -> u32 {
-		let config = <configuration::Pallet<T>>::config();
-		config.parathread_cores
-	}
-
-	fn initializer_on_new_session(
-		notification: &SessionChangeNotification<T::BlockNumber>,
+	fn free_cores(
+		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
 		cores: &[Option<CoreOccupied>],
 	) {
-		return
+		let config = <configuration::Pallet<T>>::config();
+
+		<scheduler_parachains::Pallet<T>>::free_cores(
+			just_freed_cores,
+			cores,
+			config.parathread_cores,
+		);
 	}
 }
 
@@ -118,6 +143,14 @@ where
 	) {
 		A::initializer_on_new_session(notification, cores);
 		B::initializer_on_new_session(notification, cores);
+	}
+
+	fn free_cores(
+		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
+		cores: &[Option<CoreOccupied>],
+	) {
+		A::free_cores(just_freed_cores, cores);
+		B::free_cores(just_freed_cores, cores);
 	}
 }
 
@@ -206,6 +239,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		AvailabilityCores::<T>::mutate(|cores| {
+			// TODO: Can we map assigners to cores in particular? Can we actually iterate over assigners?
 			T::CoreAssigners::<T>::initializer_on_new_session(notification, cores);
 
 			// clear all occupied cores.
@@ -256,15 +290,18 @@ impl<T: Config> Pallet<T> {
 
 	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
 	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
-	pub(crate) fn free_cores(just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>) {
-		let config = <configuration::Pallet<T>>::config();
-
+	pub(crate) fn free_cores(just_freed_cores: BTreeMap<CoreIndex, FreedReason>) {
 		AvailabilityCores::<T>::mutate(|cores| {
-			<scheduler_parachains::Pallet<T>>::free_cores(
-				just_freed_cores,
-				cores,
-				config.parathread_cores,
-			);
+			T::CoreAssigners::<T>::free_cores(&just_freed_cores, cores);
+
+			let c_len = cores.len();
+			for freed_index in just_freed_cores
+				.keys()
+				.map(|free_idx| free_idx.0 as usize)
+				.filter(|free_idx| *free_idx < c_len)
+			{
+				cores[freed_index] = None;
+			}
 		})
 	}
 
@@ -272,7 +309,7 @@ impl<T: Config> Pallet<T> {
 	/// newly-freed along with the reason for them being freed. The list is assumed to be sorted in
 	/// ascending order by core index.
 	pub(crate) fn schedule(
-		just_freed_cores: impl IntoIterator<Item = (CoreIndex, FreedReason)>,
+		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
 		now: T::BlockNumber,
 	) {
 		Self::free_cores(just_freed_cores);

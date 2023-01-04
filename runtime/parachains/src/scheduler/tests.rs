@@ -77,7 +77,7 @@ fn run_to_block(
 
 		// In the real runtime this is expected to be called by the `InclusionInherent` pallet.
 		Scheduler::clear();
-		Scheduler::schedule(Vec::new(), b + 1);
+		Scheduler::schedule(BTreeMap::new(), b + 1);
 	}
 }
 
@@ -668,7 +668,9 @@ fn schedule_schedules_including_just_freed() {
 				(CoreIndex(0), FreedReason::Concluded),
 				(CoreIndex(2), FreedReason::Concluded),
 				(CoreIndex(3), FreedReason::TimedOut), // should go back on queue.
-			],
+			]
+			.into_iter()
+			.collect(),
 			3,
 		);
 
@@ -797,7 +799,9 @@ fn schedule_clears_availability_cores() {
 
 		// now note that cores 0 and 2 were freed.
 		Scheduler::schedule(
-			vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)],
+			vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)]
+				.into_iter()
+				.collect(),
 			3,
 		);
 
@@ -1390,7 +1394,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 		});
 
 		Scheduler::clear();
-		Scheduler::schedule(Vec::new(), 3);
+		Scheduler::schedule(BTreeMap::new(), 3);
 
 		assert_eq!(
 			Scheduler::scheduled(),
