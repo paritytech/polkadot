@@ -169,6 +169,7 @@ struct TestState {
 	config: Config,
 	clock: MockClock,
 	headers: HashMap<Hash, Header>,
+	block_num_to_header: HashMap<BlockNumber, Hash>,
 	last_block: Hash,
 	// last session the subsystem knows about.
 	known_session: Option<SessionIndex>,
@@ -225,6 +226,8 @@ impl Default for TestState {
 
 		let mut headers = HashMap::new();
 		let _ = headers.insert(last_block, genesis_header.clone());
+		let mut block_num_to_header = HashMap::new();
+		let _ = block_num_to_header.insert(genesis_header.number, last_block);
 
 		TestState {
 			validators: validators.into_iter().map(|(pair, _)| pair).collect(),
@@ -236,6 +239,7 @@ impl Default for TestState {
 			config,
 			clock: MockClock::default(),
 			headers,
+			block_num_to_header,
 			last_block,
 			known_session: None,
 		}
@@ -262,6 +266,7 @@ impl TestState {
 		let block_hash = block_header.hash();
 
 		let _ = self.headers.insert(block_hash, block_header.clone());
+		let _ = self.block_num_to_header.insert(block_header.number, block_hash);
 		self.last_block = block_hash;
 
 		gum::debug!(?block_number, "Activating block in activate_leaf_at_session.");
@@ -390,6 +395,27 @@ impl TestState {
 					);
 					finished_steps.got_scraping_information = true;
 					tx.send(Ok(0)).unwrap();
+
+					// If the activated block number is > 1 the scraper will ask for block ancestors. Handle this case.
+					if block_number > 1 {
+						assert_matches!(
+							overseer_recv(virtual_overseer).await,
+							AllMessages::ChainApi(ChainApiMessage::Ancestors{
+								hash,
+								k,
+								response_channel,
+							}) => {
+								assert_eq!(hash, block_hash);	// A bit restrictive, remove if it causes problems.
+								let target_header = self.headers.get(&hash).expect("The function is called for this block so it should exist");
+								let mut response = Vec::new();
+								for i in target_header.number.saturating_sub(k as u32)..target_header.number {
+									response.push(self.block_num_to_header.get(&i).expect("headers and block_num_to_header should always be in sync").clone());
+								}
+								let _ = response_channel.send(Ok(response));
+							}
+						);
+					}
+
 					assert_matches!(
 					overseer_recv(virtual_overseer).await,
 					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
@@ -580,7 +606,34 @@ fn test_harness<F>(test: F) -> TestState
 where
 	F: FnOnce(TestState, VirtualOverseer) -> BoxFuture<'static, TestState>,
 {
-	TestState::default().resume(test)
+	let mut test_state = TestState::default();
+
+	// Add two more blocks after the genesis (which is created in `default()`)
+	let h1 = Header {
+		parent_hash: test_state.last_block.clone(),
+		number: 1,
+		digest: dummy_digest(),
+		state_root: dummy_hash(),
+		extrinsics_root: dummy_hash(),
+	};
+	let h1_hash = h1.hash();
+	test_state.headers.insert(h1_hash.clone(), h1);
+	test_state.block_num_to_header.insert(1, h1_hash.clone());
+	test_state.last_block = h1_hash;
+
+	let h2 = Header {
+		parent_hash: test_state.last_block.clone(),
+		number: 2,
+		digest: dummy_digest(),
+		state_root: dummy_hash(),
+		extrinsics_root: dummy_hash(),
+	};
+	let h2_hash = h2.hash();
+	test_state.headers.insert(h2_hash.clone(), h2);
+	test_state.block_num_to_header.insert(2, h2_hash.clone());
+	test_state.last_block = h2_hash;
+
+	test_state.resume(test)
 }
 
 /// Handle participation messages.
@@ -646,6 +699,18 @@ pub async fn handle_approval_vote_request(
 		},
 		"overseer did not receive `GetApprovalSignaturesForCandidate` message.",
 	);
+}
+
+/// Handle block number request. In the context of these tests this message is required for
+/// handling comparator creation for enqueuing participations.
+async fn handle_get_block_number(ctx_handle: &mut VirtualOverseer, test_state: &TestState) {
+	assert_matches!(
+		ctx_handle.recv().await,
+		AllMessages::ChainApi(
+		ChainApiMessage::BlockNumber(hash, tx)) => {
+			tx.send(Ok(test_state.headers.get(&hash).map(|r| r.number))).unwrap();
+		}
+	)
 }
 
 #[test]
@@ -1273,7 +1338,7 @@ fn backing_statements_import_works_and_no_spam() {
 				})
 				.await;
 
-			// Result should be valid, because our node participated, so spam slots are cleared:
+			// Import should be valid, as spam slots were not filled
 			assert_matches!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
@@ -3013,7 +3078,7 @@ fn participation_for_included_candidates() {
 
 				assert_eq!(rx.await.unwrap().len(), 1);
 
-				// check if we have participated (casted a vote)
+				// check if we have participated (cast a vote)
 				let (tx, rx) = oneshot::channel();
 				virtual_overseer
 					.send(FromOrchestra::Communication {
@@ -3029,6 +3094,255 @@ fn participation_for_included_candidates() {
 				assert_eq!(votes.invalid.len(), 1);
 			}
 
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+
+			test_state
+		})
+	});
+}
+
+/// Shows that importing backing votes when a backing event is being processed
+/// results in participation.
+#[test]
+fn local_participation_in_dispute_for_backed_candidate() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_valid_candidate_receipt();
+			let candidate_hash = candidate_receipt.hash();
+
+			// Step 1: Show that we don't participate when not backed, confirmed, or included
+
+			// activate leaf - without candidate backed event
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, vec![])
+				.await;
+
+			// generate two votes
+			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
+				&test_state,
+				ValidatorIndex(1),
+				ValidatorIndex(2),
+				candidate_hash,
+				session,
+				VoteType::Explicit,
+			)
+			.await;
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(valid_vote, ValidatorIndex(1)),
+							(invalid_vote, ValidatorIndex(2)),
+						],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
+
+			assert_matches!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await, None);
+
+			// Step 2: Show that once backing votes are processed we participate
+
+			// Activate leaf: With candidate backed event
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					1,
+					vec![make_candidate_backed_event(candidate_receipt.clone())],
+				)
+				.await;
+
+			let backing_valid = test_state
+				.issue_backing_statement_with_index(ValidatorIndex(3), candidate_hash, session)
+				.await;
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![(backing_valid, ValidatorIndex(3))],
+						pending_confirmation: None,
+					},
+				})
+				.await;
+
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				candidate_receipt.commitments_hash,
+			)
+			.await;
+
+			// Check for our 1 active dispute
+			let (tx, rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
+				})
+				.await;
+
+			assert_eq!(rx.await.unwrap().len(), 1);
+
+			// check if we have participated (casted a vote)
+			let (tx, rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::QueryCandidateVotes(
+						vec![(session, candidate_hash)],
+						tx,
+					),
+				})
+				.await;
+
+			let (_, _, votes) = rx.await.unwrap().get(0).unwrap().clone();
+			assert_eq!(votes.valid.raw().len(), 3); // 3 => 1 initial vote, 1 backing vote, and our vote
+			assert_eq!(votes.invalid.len(), 1);
+
+			// Wrap up
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+
+			test_state
+		})
+	});
+}
+
+/// Shows that when a candidate_included event is scraped from the chain we
+/// reprioritize any participation requests pertaining to that candidate.
+/// This involves moving the request for this candidate from the best effort
+/// queue to the priority queue.
+#[test]
+fn participation_requests_reprioritized_for_newly_included() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			let mut receipts: Vec<CandidateReceipt> = Vec::new();
+
+			// Generate all receipts
+			for repetition in 1..=3u8 {
+				// Building candidate receipts
+				let mut candidate_receipt = make_valid_candidate_receipt();
+				candidate_receipt.descriptor.pov_hash = Hash::from(
+					[repetition; 32], // Altering this receipt so its hash will be changed
+				);
+				// Set consecutive parents (starting from zero). They will order the candidates for participation.
+				let parent_block_num: BlockNumber = repetition as BlockNumber - 1;
+				candidate_receipt.descriptor.relay_parent =
+					test_state.block_num_to_header.get(&parent_block_num).unwrap().clone();
+				receipts.push(candidate_receipt.clone());
+			}
+
+			// Mark all candidates as backed, so their participation requests make it to best effort.
+			// These calls must all occur before including the candidates due to test overseer
+			// oddities.
+			let mut candidate_events = Vec::new();
+			for r in receipts.iter() {
+				candidate_events.push(make_candidate_backed_event(r.clone()))
+			}
+			test_state
+				.activate_leaf_at_session(&mut virtual_overseer, session, 1, candidate_events)
+				.await;
+
+			for (idx, candidate_receipt) in receipts.iter().enumerate() {
+				let candidate_hash = candidate_receipt.hash();
+
+				// Create votes for candidates
+				let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
+					&test_state,
+					ValidatorIndex(1),
+					ValidatorIndex(2),
+					candidate_hash,
+					session,
+					VoteType::Explicit,
+				)
+				.await;
+
+				// Import votes for candidates
+				virtual_overseer
+					.send(FromOrchestra::Communication {
+						msg: DisputeCoordinatorMessage::ImportStatements {
+							candidate_receipt: candidate_receipt.clone(),
+							session,
+							statements: vec![
+								(valid_vote, ValidatorIndex(1)),
+								(invalid_vote, ValidatorIndex(2)),
+							],
+							pending_confirmation: None,
+						},
+					})
+					.await;
+
+				// Handle corresponding messages to unblock import
+				// we need to handle `ApprovalVotingMessage::GetApprovalSignaturesForCandidate` for import
+				handle_approval_vote_request(
+					&mut virtual_overseer,
+					&candidate_hash,
+					HashMap::new(),
+				)
+				.await;
+
+				//  We'll trigger participation for the first `MAX_PARALLEL_PARTICIPATIONS` candidates.
+				// The rest will be queued => we need to handle `ChainApiMessage::BlockNumber` for them.
+				if idx >= crate::participation::MAX_PARALLEL_PARTICIPATIONS {
+					// We send the `idx` as parent block number, because it is used for ordering.
+					// This way we get predictable ordering and participation.
+					handle_get_block_number(&mut virtual_overseer, &test_state).await;
+				}
+			}
+
+			// Generate included event for one of the candidates here
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					2,
+					vec![make_candidate_included_event(
+						receipts.last().expect("There is more than one candidate").clone(),
+					)],
+				)
+				.await;
+
+			// NB: The checks below are a bit racy. In theory candidate 2 can be processed even before candidate 0 and this is okay. If any
+			// of the asserts in the two functions after this comment fail -> rework `participation_with_distribution` to expect a set of
+			// commitment hashes instead of just one.
+
+			// This is the candidate for which participation was started initially (`MAX_PARALLEL_PARTICIPATIONS` threshold was not yet hit)
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&receipts.get(0).expect("There is more than one candidate").hash(),
+				receipts.first().expect("There is more than one candidate").commitments_hash,
+			)
+			.await;
+
+			// This one should have been prioritized
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&receipts.get(2).expect("There is more than one candidate").hash(),
+				receipts.last().expect("There is more than one candidate").commitments_hash,
+			)
+			.await;
+
+			// And this is the last one
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&receipts.get(1).expect("There is more than one candidate").hash(),
+				receipts.first().expect("There is more than one candidate").commitments_hash,
+			)
+			.await;
+
+			// Wrap up
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 
 			test_state
