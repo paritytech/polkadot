@@ -17,6 +17,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", default-features = 
 [features]
 default = ["std"]
 std = [
+	"runtime-common/std",
 	"sp-core/std",
 	"sp-runtime/std",
 	"sp-weights/std"
