@@ -436,9 +436,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 						.await;
 
 					let lost_to_finality = match rx.await {
-						Ok(Ok(Some(h))) if h != block_hash => {
-							true
-						},
+						Ok(Ok(Some(h))) if h != block_hash => true,
 						_ => false,
 					};
 
