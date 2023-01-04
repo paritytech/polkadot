@@ -525,10 +525,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 						result.count_ones(),
 						result.len(),
 					);
-					bitfield_span.add_string_tag(
-						"approved",
-						format!("{:?}, insta-approval as number of validators too low.", true),
-					);
 				}
 				result
 			}
