@@ -431,17 +431,17 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 			match imported_block_info(ctx, env, block_hash, &block_header).await {
 				Ok(i) => {
-					imported_blocks_and_info.push((block_hash, block_header, i));
-					candidate_span.with_candidate(candidate_hash);
+					candidate_span.add_string_tag("candidate-hash", format!("{:?}", &block_hash));
 					candidate_span
-						.add_string_tag("parent-hash", format!("{:?}", block_header.parent_hash));
-					candidate_span.add_string_tag("number", format!("{:?}", block_header.number));
+						.add_string_tag("parent-hash", format!("{:?}", &block_header.parent_hash));
+					candidate_span.add_string_tag("number", format!("{:?}", &block_header.number));
 					candidate_span
-						.add_string_tag("state-root", format!("{:?}", block_header.state_root));
+						.add_string_tag("state-root", format!("{:?}", &block_header.state_root));
 					candidate_span.add_string_tag(
 						"extrinsics-root",
-						format!("{:?}", block_header.extrinsics_root),
+						format!("{:?}", &block_header.extrinsics_root),
 					);
+					imported_blocks_and_info.push((block_hash, block_header, i));
 				},
 				Err(error) => {
 					candidate_span
