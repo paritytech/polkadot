@@ -551,7 +551,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			}
 		};
 		db_insertion_span
-			.add_uint_tag("approved-bitfields", format!("{:?}", approved_bitfield.count_ones()));
+			.add_uint_tag("approved-bitfields", approved_bitfield.count_ones() as u64);
 		// If all bits are already set, then send an approve message.
 		if approved_bitfield.count_ones() == approved_bitfield.len() {
 			ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
@@ -573,11 +573,11 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		};
 		db_insertion_span.add_string_tag("block-hash", format!("{:?}", block_hash));
 		db_insertion_span.add_string_tag("parent-hash", format!("{:?}", block_header.parent_hash));
-		db_insertion_span.add_string_tag("block-number", format!("{:?}", block_header.number));
-		db_insertion_span.add_uint_tag("session", session_index);
-		db_insertion_span.add_uint_tag("slot", slot);
+		db_insertion_span.add_uint_tag("block-number", block_header.number as u64);
+		db_insertion_span.add_uint_tag("session", session_index as u64);
+		db_insertion_span.add_uint_tag("slot", *slot);
 		db_insertion_span.add_string_tag("candidates", format!("{:?}", block_entry.candidates));
-		db_insertion_span.add_string_tag("approved-bitfield", format!("{:?}", approved_bitfield));
+		db_insertion_span.add_string_tag("approved-bitfield", format!("{:?}", block_entry.approved_bitfield));
 
 		gum::trace!(
 			target: LOG_TARGET,
