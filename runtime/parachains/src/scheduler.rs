@@ -56,8 +56,13 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
+// TODO: need to link CoreOccupied variants to CoreAssigner impls
 pub trait CoreAssigner<T: Config> {
 	fn session_cores() -> u32;
+
+	fn initializer_initialize(now: T::BlockNumber) -> Weight;
+
+	fn initializer_finalize();
 
 	fn initializer_on_new_session(
 		notification: &SessionChangeNotification<T::BlockNumber>,
@@ -72,12 +77,28 @@ pub trait CoreAssigner<T: Config> {
 	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment>;
 
 	fn clear(scheduled: &[CoreAssignment]);
+
+	fn core_para(core_index: CoreIndex, core_occupied: &CoreOccupied) -> Option<ParaId>;
+
+	fn availability_timeout_predicate(
+		core_occupied: &CoreOccupied,
+		blocks_since_last_rotation: T::BlockNumber,
+		pending_since: T::BlockNumber,
+	) -> Option<bool>;
 }
 
 pub struct Parachains;
 impl<T: Config> CoreAssigner<T> for Parachains {
 	fn session_cores() -> u32 {
 		<paras::Pallet<T>>::parachains().len() as u32
+	}
+
+	fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+		Weight::zero()
+	}
+
+	fn initializer_finalize() {
+		return
 	}
 
 	fn initializer_on_new_session(
@@ -108,6 +129,39 @@ impl<T: Config> CoreAssigner<T> for Parachains {
 	fn clear(_scheduled: &[CoreAssignment]) {
 		return
 	}
+
+	fn core_para(core_index: CoreIndex, core_occupied: &CoreOccupied) -> Option<ParaId> {
+		match core_occupied {
+			CoreOccupied::Parachain => {
+				let parachains = <paras::Pallet<T>>::parachains();
+				Some(parachains[core_index.0 as usize])
+			},
+			CoreOccupied::Parathread(_) => None,
+		}
+	}
+
+	fn availability_timeout_predicate(
+		core_occupied: &CoreOccupied,
+		blocks_since_last_rotation: T::BlockNumber,
+		pending_since: T::BlockNumber,
+	) -> Option<bool> {
+		match core_occupied {
+			CoreOccupied::Parachain => {
+				let config = <configuration::Pallet<T>>::config();
+
+				let pred = if blocks_since_last_rotation >= config.chain_availability_period {
+					false // no pruning except recently after rotation.
+				} else {
+					let now = <frame_system::Pallet<T>>::block_number();
+					now.saturating_sub(pending_since) >= config.chain_availability_period
+				};
+
+				Some(pred)
+			},
+
+			CoreOccupied::Parathread(_) => None,
+		}
+	}
 }
 
 pub struct Parathreads;
@@ -117,11 +171,19 @@ impl<T: Config> CoreAssigner<T> for Parathreads {
 		config.parathread_cores
 	}
 
+	fn initializer_initialize(now: T::BlockNumber) -> Weight {
+		<scheduler_parachains::Pallet<T>>::initializer_initialize(now)
+	}
+
+	fn initializer_finalize() {
+		<scheduler_parachains::Pallet<T>>::initializer_finalize()
+	}
+
 	fn initializer_on_new_session(
 		notification: &SessionChangeNotification<T::BlockNumber>,
 		cores: &[Option<CoreOccupied>],
 	) {
-		let &SessionChangeNotification { ref validators, ref new_config, .. } = notification;
+		let &SessionChangeNotification { ref new_config, .. } = notification;
 		let config = new_config;
 
 		<scheduler_parachains::Pallet<T>>::initializer_on_new_session(
@@ -158,6 +220,36 @@ impl<T: Config> CoreAssigner<T> for Parathreads {
 			scheduled,
 		);
 	}
+
+	fn core_para(_core_index: CoreIndex, core_occupied: &CoreOccupied) -> Option<ParaId> {
+		match core_occupied {
+			CoreOccupied::Parathread(ref entry) => Some(entry.claim.0),
+			CoreOccupied::Parachain => None,
+		}
+	}
+
+	fn availability_timeout_predicate(
+		core_occupied: &CoreOccupied,
+		blocks_since_last_rotation: T::BlockNumber,
+		pending_since: T::BlockNumber,
+	) -> Option<bool> {
+		match core_occupied {
+			CoreOccupied::Parathread(_) => {
+				let config = <configuration::Pallet<T>>::config();
+
+				let pred = if blocks_since_last_rotation >= config.thread_availability_period {
+					false // no pruning except recently after rotation.
+				} else {
+					let now = <frame_system::Pallet<T>>::block_number();
+					now.saturating_sub(pending_since) >= config.thread_availability_period
+				};
+
+				Some(pred)
+			},
+
+			CoreOccupied::Parachain => None,
+		}
+	}
 }
 
 impl<A, B, T> CoreAssigner<T> for (A, B)
@@ -168,6 +260,15 @@ where
 {
 	fn session_cores() -> u32 {
 		A::session_cores() + B::session_cores()
+	}
+
+	fn initializer_initialize(now: T::BlockNumber) -> Weight {
+		A::initializer_initialize(now) + B::initializer_initialize(now)
+	}
+
+	fn initializer_finalize() {
+		A::initializer_finalize();
+		B::initializer_finalize();
 	}
 
 	fn initializer_on_new_session(
@@ -200,6 +301,25 @@ where
 	fn clear(scheduled: &[CoreAssignment]) {
 		A::clear(scheduled);
 		B::clear(scheduled);
+	}
+
+	fn core_para(core_index: CoreIndex, core_occupied: &CoreOccupied) -> Option<ParaId> {
+		A::core_para(core_index, core_occupied).or_else(|| B::core_para(core_index, core_occupied))
+	}
+
+	fn availability_timeout_predicate(
+		core_occupied: &CoreOccupied,
+		blocks_since_last_rotation: T::BlockNumber,
+		pending_since: T::BlockNumber,
+	) -> Option<bool> {
+		A::availability_timeout_predicate(core_occupied, blocks_since_last_rotation, pending_since)
+			.or_else(|| {
+				B::availability_timeout_predicate(
+					core_occupied,
+					blocks_since_last_rotation,
+					pending_since,
+				)
+			})
 	}
 }
 
@@ -484,11 +604,7 @@ impl<T: Config> Pallet<T> {
 		let cores = AvailabilityCores::<T>::get();
 		match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
 			None => None,
-			Some(CoreOccupied::Parachain) => {
-				let parachains = <paras::Pallet<T>>::parachains();
-				Some(parachains[core_index.0 as usize])
-			},
-			Some(CoreOccupied::Parathread(ref entry)) => Some(entry.claim.0),
+			Some(x) => T::CoreAssigners::<T>::core_para(core_index, x),
 		}
 	}
 
@@ -557,26 +673,23 @@ impl<T: Config> Pallet<T> {
 		if blocks_since_last_rotation >= absolute_cutoff {
 			None
 		} else {
-			Some(Box::new(move |core_index: CoreIndex, pending_since| {
+			let predicate = move |core_index: CoreIndex, pending_since| {
 				match availability_cores.get(core_index.0 as usize) {
 					None => true,       // out-of-bounds, doesn't really matter what is returned.
 					Some(None) => true, // core not occupied, still doesn't really matter.
-					Some(Some(CoreOccupied::Parachain)) => {
-						if blocks_since_last_rotation >= config.chain_availability_period {
-							false // no pruning except recently after rotation.
-						} else {
-							now.saturating_sub(pending_since) >= config.chain_availability_period
-						}
-					},
-					Some(Some(CoreOccupied::Parathread(_))) => {
-						if blocks_since_last_rotation >= config.thread_availability_period {
-							false // no pruning except recently after rotation.
-						} else {
-							now.saturating_sub(pending_since) >= config.thread_availability_period
-						}
-					},
+					Some(Some(x)) => T::CoreAssigners::<T>::availability_timeout_predicate(
+						x,
+						blocks_since_last_rotation,
+						pending_since,
+					)
+					.expect(
+						"availability_timeout_predicate can't be None because \
+									  one of CoreAssigners needs to be responsible for this CoreOccupied; qed",
+					),
 				}
-			}))
+			};
+
+			Some(Box::new(predicate))
 		}
 	}
 
