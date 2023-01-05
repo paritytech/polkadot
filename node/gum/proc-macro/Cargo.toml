@@ -1,8 +1,8 @@
 [package]
 name = "tracing-gum-proc-macro"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 description = "Generate an overseer including builder pattern and message wrapper from a single annotated struct definition."
 
 [package.metadata.docs.rs]

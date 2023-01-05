@@ -1,10 +1,10 @@
 [package]
 name = "test-parachain-undying"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "Test parachain for zombienet integration tests"
-edition = "2021"
 build = "build.rs"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 parachain = { package = "polkadot-parachain", path = "../../", default-features = false, features = [ "wasm-api" ] }

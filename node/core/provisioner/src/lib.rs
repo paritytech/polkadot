@@ -183,7 +183,7 @@ fn handle_active_leaves_update(
 		per_relay_parent.remove(deactivated);
 	}
 
-	for leaf in update.activated {
+	if let Some(leaf) = update.activated {
 		let delay_fut = Delay::new(PRE_PROPOSE_TIMEOUT).map(move |_| leaf.hash).boxed();
 		per_relay_parent.insert(leaf.hash, PerRelayParent::new(leaf));
 		inherent_delays.push(delay_fut);
@@ -271,7 +271,15 @@ async fn send_inherent_data_bg<Context>(
 
 		match send_result.await {
 			Err(err) => {
-				gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+				if let Error::CanceledBackedCandidates(_) = err {
+					gum::debug!(
+						target: LOG_TARGET,
+						err = ?err,
+						"Failed to assemble or send inherent data - block got likely obsoleted already."
+					);
+				} else {
+					gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+				}
 				metrics.on_inherent_data_request(Err(()));
 			},
 			Ok(()) => {
@@ -365,7 +373,7 @@ async fn send_inherent_data(
 
 	let disputes = match has_required_runtime(
 		from_job,
-		leaf.hash.clone(),
+		leaf.hash,
 		PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT,
 	)
 	.await
@@ -498,7 +506,7 @@ fn select_availability_bitfields(
 		bitfields.len()
 	);
 
-	selected.into_iter().map(|(_, b)| b).collect()
+	selected.into_values().collect()
 }
 
 /// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.

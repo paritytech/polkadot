@@ -18,9 +18,9 @@
 
 use derive_more::Display;
 use polkadot_primitives::v2::Hash;
-use sc_network::{
+use sc_network_common::{
 	config::{NonDefaultSetConfig, SetConfig},
-	ProtocolName,
+	protocol::ProtocolName,
 };
 use std::{
 	collections::{hash_map::Entry, HashMap},
@@ -36,7 +36,7 @@ const LEGACY_COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
 const LEGACY_PROTOCOL_VERSION_V1: u32 = 1;
 
 /// Max notification size is currently constant.
-const MAX_NOTIFICATION_SIZE: u64 = 100 * 1024;
+pub const MAX_NOTIFICATION_SIZE: u64 = 100 * 1024;
 
 /// The peer-sets and thus the protocols which are used for the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
@@ -80,7 +80,8 @@ impl PeerSet {
 				notifications_protocol: protocol,
 				fallback_names,
 				max_notification_size,
-				set_config: sc_network::config::SetConfig {
+				handshake: None,
+				set_config: sc_network_common::config::SetConfig {
 					// we allow full nodes to connect to validators for gossip
 					// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers
 					// we limit the amount of non-reserved slots to be less
@@ -88,22 +89,23 @@ impl PeerSet {
 					in_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
 					out_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
 					reserved_nodes: Vec::new(),
-					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
+					non_reserved_mode: sc_network_common::config::NonReservedPeerMode::Accept,
 				},
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
 				notifications_protocol: protocol,
 				fallback_names,
 				max_notification_size,
+				handshake: None,
 				set_config: SetConfig {
 					// Non-authority nodes don't need to accept incoming connections on this peer set:
 					in_peers: if is_authority == IsAuthority::Yes { 100 } else { 0 },
 					out_peers: 0,
 					reserved_nodes: Vec::new(),
 					non_reserved_mode: if is_authority == IsAuthority::Yes {
-						sc_network::config::NonReservedPeerMode::Accept
+						sc_network_common::config::NonReservedPeerMode::Accept
 					} else {
-						sc_network::config::NonReservedPeerMode::Deny
+						sc_network_common::config::NonReservedPeerMode::Deny
 					},
 				},
 			},
@@ -188,7 +190,7 @@ impl<T> IndexMut<PeerSet> for PerPeerSet<T> {
 pub fn peer_sets_info(
 	is_authority: IsAuthority,
 	peerset_protocol_names: &PeerSetProtocolNames,
-) -> Vec<sc_network::config::NonDefaultSetConfig> {
+) -> Vec<sc_network_common::config::NonDefaultSetConfig> {
 	PeerSet::iter()
 		.map(|s| s.get_info(is_authority, &peerset_protocol_names))
 		.collect()

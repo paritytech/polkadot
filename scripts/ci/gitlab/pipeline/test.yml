@@ -1,0 +1,89 @@
+# This file is part of .gitlab-ci.yml
+# Here are all jobs that are executed during "test" stage
+
+test-linux-stable:
+  stage:                           test
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job:                         job-starter
+      artifacts:                   false
+  extends:
+    - .docker-env
+    - .common-refs
+    - .pipeline-stopper-artifacts
+  before_script:
+    - rustup show
+    - cargo --version
+    - !reference [.pipeline-stopper-vars, before_script]
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+  script:
+    - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics
+
+.check-dependent-project:          &check-dependent-project
+  stage:                           test
+  extends:
+    - .docker-env
+    - .test-pr-refs
+  script:
+    - git clone
+        --depth=1
+        "--branch=$PIPELINE_SCRIPTS_TAG"
+        https://github.com/paritytech/pipeline-scripts
+    - ./pipeline-scripts/check_dependent_project.sh
+        --org paritytech
+        --dependent-repo "$DEPENDENT_REPO"
+        --github-api-token "$GITHUB_PR_TOKEN"
+        --extra-dependencies "$EXTRA_DEPENDENCIES"
+        --companion-overrides "$COMPANION_OVERRIDES"
+
+check-dependent-cumulus:
+  <<: *check-dependent-project
+  variables:
+    DEPENDENT_REPO: cumulus
+    EXTRA_DEPENDENCIES: substrate
+    COMPANION_OVERRIDES: |
+      polkadot: release-v*
+      cumulus: polkadot-v*
+
+test-node-metrics:
+  stage:                           test
+  extends:
+    - .docker-env
+    - .test-refs
+    - .compiler-info
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+  script:
+    - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
+
+test-deterministic-wasm:
+  stage:                           test
+  extends:
+    - .docker-env
+    - .test-refs
+    - .compiler-info
+  script:
+    - ./scripts/ci/gitlab/test_deterministic_wasm.sh
+
+cargo-clippy:
+  stage:                           test
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job:                         job-starter
+      artifacts:                   false
+  variables:
+    RUSTY_CACHIER_TOOLCHAIN: nightly
+  extends:
+    - .docker-env
+    - .test-refs
+  script:
+    - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo +nightly clippy --all-targets

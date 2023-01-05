@@ -1,12 +1,13 @@
 [package]
 name = "polkadot-node-core-candidate-validation"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 async-trait = "0.1.57"
 futures = "0.3.21"
+futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../../gum" }
 
 sp-maybe-compressed-blob = { package = "sp-maybe-compressed-blob", git = "https://github.com/paritytech/substrate", branch = "master" }

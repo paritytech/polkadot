@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_primitives::v2::{
 	supermajority_threshold, CandidateHash, DisputeState, DisputeStatement, DisputeStatementSet,
-	Hash, MultiDisputeStatementSet, SessionIndex, ValidatorIndex,
+	Hash, MultiDisputeStatementSet, SessionIndex, ValidDisputeStatementKind, ValidatorIndex,
 };
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -45,23 +45,17 @@ pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200_000;
 #[cfg(test)]
 pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200;
 
-/// Controls how much dispute votes to be fetched from the runtime per iteration in `fn vote_selection`.
-/// The purpose is to fetch the votes in batches until `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` is
-/// reached. This value should definitely be less than `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME`.
+/// Controls how much dispute votes to be fetched from the `dispute-coordinator` per iteration in
+/// `fn vote_selection`. The purpose is to fetch the votes in batches until
+/// `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` is reached. If all votes are fetched in single call
+/// we might fetch votes which we never use. This will create unnecessary load on `dispute-coordinator`.
 ///
-/// The ratio `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` / `VOTES_SELECTION_BATCH_SIZE` gives an
-/// approximation about how many runtime requests will be issued to fetch votes from the runtime in
-/// a single `select_disputes` call. Ideally we don't want to make more than 2-3 calls. In practice
-/// it's hard to predict this number because we can't guess how many new votes (for the runtime) a
-/// batch will contain.
-///
-/// The value below is reached by: `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME` / 2 + 10%
-/// The 10% makes approximately means '10% new votes'. Tweak this if provisioner makes excessive
-/// number of runtime calls.
+/// This value should be less than `MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME`. Increase it in case
+/// `provisioner` sends too many `QueryCandidateVotes` messages to `dispite-coordinator`.
 #[cfg(not(test))]
 const VOTES_SELECTION_BATCH_SIZE: usize = 1_100;
 #[cfg(test)]
-const VOTES_SELECTION_BATCH_SIZE: usize = 11; // Just a small value for tests. Doesn't follow the rules above
+const VOTES_SELECTION_BATCH_SIZE: usize = 11;
 
 /// Implements the `select_disputes` function which selects dispute votes which should
 /// be sent to the Runtime.
@@ -89,7 +83,7 @@ const VOTES_SELECTION_BATCH_SIZE: usize = 11; // Just a small value for tests. D
 ///
 /// The logic outlined above relies on `RuntimeApiRequest::Disputes` message from the Runtime. The user
 /// check the Runtime version before calling `select_disputes`. If the function is used with old runtime
-/// an error is logged and the logic will continue with empty onchain votes HashMap.
+/// an error is logged and the logic will continue with empty onchain votes `HashMap`.
 pub async fn select_disputes<Sender>(
 	sender: &mut Sender,
 	metrics: &metrics::Metrics,
@@ -105,7 +99,7 @@ where
 	);
 
 	// Fetch the onchain disputes. We'll do a prioritization based on them.
-	let onchain = match get_onchain_disputes(sender, leaf.hash.clone()).await {
+	let onchain = match get_onchain_disputes(sender, leaf.hash).await {
 		Ok(r) => r,
 		Err(GetOnchainDisputesError::NotSupported(runtime_api_err, relay_parent)) => {
 			// Runtime version is checked before calling this method, so the error below should never happen!
@@ -144,6 +138,13 @@ where
 		recent_disputes.len(),
 		onchain.len(),
 	);
+
+	// Filter out unconfirmed disputes. However if the dispute is already onchain - don't skip it.
+	// In this case we'd better push as much fresh votes as possible to bring it to conclusion faster.
+	let recent_disputes = recent_disputes
+		.into_iter()
+		.filter(|d| d.2.is_confirmed_concluded() || onchain.contains_key(&(d.0, d.1)))
+		.collect::<Vec<_>>();
 
 	let partitioned = partition_recent_disputes(recent_disputes, &onchain);
 	metrics.on_partition_recent_disputes(&partitioned);
@@ -215,9 +216,11 @@ where
 
 		// Check if votes are within the limit
 		for (session_index, candidate_hash, selected_votes) in votes {
-			let votes_len = selected_votes.valid.len() + selected_votes.invalid.len();
+			let votes_len = selected_votes.valid.raw().len() + selected_votes.invalid.len();
 			if votes_len + total_votes_len > MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME {
-				// we are done - no more votes can be added
+				// we are done - no more votes can be added. Importantly, we don't add any votes for a dispute here
+				// if we can't fit them all. This gives us an important invariant, that backing votes for
+				// disputes make it into the provisioned vote set.
 				return result
 			}
 			result.insert((session_index, candidate_hash), selected_votes);
@@ -361,10 +364,20 @@ fn is_vote_worth_to_keep(
 	dispute_statement: DisputeStatement,
 	onchain_state: &DisputeState,
 ) -> bool {
-	let offchain_vote = match dispute_statement {
-		DisputeStatement::Valid(_) => true,
-		DisputeStatement::Invalid(_) => false,
+	let (offchain_vote, valid_kind) = match dispute_statement {
+		DisputeStatement::Valid(kind) => (true, Some(kind)),
+		DisputeStatement::Invalid(_) => (false, None),
 	};
+	// We want to keep all backing votes. This maximizes the number of backers
+	// punished when misbehaving.
+	if let Some(kind) = valid_kind {
+		match kind {
+			ValidDisputeStatementKind::BackingValid(_) |
+			ValidDisputeStatementKind::BackingSeconded(_) => return true,
+			_ => (),
+		}
+	}
+
 	let in_validators_for = onchain_state
 		.validators_for
 		.get(validator_index.0 as usize)

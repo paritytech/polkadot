@@ -62,6 +62,7 @@
 use std::{
 	collections::{hash_map, HashMap},
 	fmt::{self, Debug},
+	num::NonZeroUsize,
 	pin::Pin,
 	sync::Arc,
 	time::Duration,
@@ -73,15 +74,16 @@ use lru::LruCache;
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
 use polkadot_primitives::v2::{Block, BlockNumber, Hash};
 
+use self::messages::{BitfieldSigningMessage, PvfCheckerMessage};
 use polkadot_node_subsystem_types::messages::{
 	ApprovalDistributionMessage, ApprovalVotingMessage, AvailabilityDistributionMessage,
 	AvailabilityRecoveryMessage, AvailabilityStoreMessage, BitfieldDistributionMessage,
-	BitfieldSigningMessage, CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage,
-	ChainSelectionMessage, CollationGenerationMessage, CollatorProtocolMessage,
-	DisputeCoordinatorMessage, DisputeDistributionMessage, GossipSupportMessage,
-	NetworkBridgeRxMessage, NetworkBridgeTxMessage, ProvisionerMessage, PvfCheckerMessage,
-	RuntimeApiMessage, StatementDistributionMessage,
+	CandidateBackingMessage, CandidateValidationMessage, ChainApiMessage, ChainSelectionMessage,
+	CollationGenerationMessage, CollatorProtocolMessage, DisputeCoordinatorMessage,
+	DisputeDistributionMessage, GossipSupportMessage, NetworkBridgeRxMessage,
+	NetworkBridgeTxMessage, ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage,
 };
+
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
 	jaeger, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, OverseerSignal,
@@ -100,8 +102,6 @@ pub use polkadot_node_metrics::{
 	Metronome,
 };
 
-use parity_util_mem::MemoryAllocationTracker;
-
 pub use orchestra as gen;
 pub use orchestra::{
 	contextbounds, orchestra, subsystem, FromOrchestra, MapSubsystem, MessagePacket,
@@ -112,12 +112,18 @@ pub use orchestra::{
 
 /// Store 2 days worth of blocks, not accounting for forks,
 /// in the LRU cache. Assumes a 6-second block time.
-pub const KNOWN_LEAVES_CACHE_SIZE: usize = 2 * 24 * 3600 / 6;
+pub const KNOWN_LEAVES_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(2 * 24 * 3600 / 6) {
+	Some(cap) => cap,
+	None => panic!("Known leaves cache size must be non-zero"),
+};
 
+mod memory_stats;
 #[cfg(test)]
 mod tests;
 
 use sp_core::traits::SpawnNamed;
+
+use memory_stats::MemoryAllocationTracker;
 
 /// Glue to connect `trait orchestra::Spawner` and `SpawnNamed` from `substrate`.
 pub struct SpawnGlue<S>(pub S);
@@ -453,7 +459,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	candidate_validation: CandidateValidation,
 
-	#[subsystem(PvfCheckerMessage, sends: [
+	#[subsystem(sends: [
 		CandidateValidationMessage,
 		RuntimeApiMessage,
 	])]
@@ -493,7 +499,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	availability_recovery: AvailabilityRecovery,
 
-	#[subsystem(blocking, BitfieldSigningMessage, sends: [
+	#[subsystem(blocking, sends: [
 		AvailabilityStoreMessage,
 		RuntimeApiMessage,
 		BitfieldDistributionMessage,
@@ -682,7 +688,7 @@ where
 			subsystem_meters
 				.iter()
 				.cloned()
-				.filter_map(|x| x)
+				.flatten()
 				.map(|(name, ref meters)| (name, meters.read())),
 		);
 
@@ -706,7 +712,15 @@ where
 	}
 
 	/// Run the `Overseer`.
-	pub async fn run(mut self) -> SubsystemResult<()> {
+	///
+	/// Logging any errors.
+	pub async fn run(self) {
+		if let Err(err) = self.run_inner().await {
+			gum::error!(target: LOG_TARGET, ?err, "Overseer exited with error");
+		}
+	}
+
+	async fn run_inner(mut self) -> SubsystemResult<()> {
 		let metrics = self.metrics.clone();
 		spawn_metronome_metrics(&mut self, metrics)?;
 
@@ -843,6 +857,11 @@ where
 
 		self.metrics.on_head_activated();
 		if let Some(listeners) = self.activation_external_listeners.remove(hash) {
+			gum::trace!(
+				target: LOG_TARGET,
+				relay_parent = ?hash,
+				"Leaf got activated, notifying exterinal listeners"
+			);
 			for listener in listeners {
 				// it's fine if the listener is no longer interested
 				let _ = listener.send(Ok(()));
@@ -852,7 +871,7 @@ where
 		let mut span = jaeger::Span::new(*hash, "leaf-activated");
 
 		if let Some(parent_span) = parent_hash.and_then(|h| self.span_per_active_leaf.get(&h)) {
-			span.add_follows_from(&*parent_span);
+			span.add_follows_from(parent_span);
 		}
 
 		let span = Arc::new(span);
@@ -884,14 +903,20 @@ where
 	fn handle_external_request(&mut self, request: ExternalRequest) {
 		match request {
 			ExternalRequest::WaitForActivation { hash, response_channel } => {
-				// We use known leaves here because the `WaitForActivation` message
-				// is primarily concerned about leaves which subsystems have simply
-				// not been made aware of yet. Anything in the known leaves set,
-				// even if stale, has been activated in the past.
-				if self.known_leaves.peek(&hash).is_some() {
+				if self.active_leaves.get(&hash).is_some() {
+					gum::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?hash,
+						"Leaf was already ready - answering `WaitForActivation`"
+					);
 					// it's fine if the listener is no longer interested
 					let _ = response_channel.send(Ok(()));
 				} else {
+					gum::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?hash,
+						"Leaf not yet ready - queuing `WaitForActivation` sender"
+					);
 					self.activation_external_listeners
 						.entry(hash)
 						.or_default()

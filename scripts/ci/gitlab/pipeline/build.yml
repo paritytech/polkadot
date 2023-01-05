@@ -1,0 +1,194 @@
+# This file is part of .gitlab-ci.yml
+# Here are all jobs that are executed during "build" stage
+
+build-linux-stable:
+  stage:                           build
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job:                         job-starter
+      artifacts:                   false
+  extends:
+    - .docker-env
+    - .common-refs
+    - .compiler-info
+    - .collect-artifacts
+  variables:
+    RUST_TOOLCHAIN: stable
+    # Enable debug assertions since we are running optimized builds for testing
+    # but still want to have debug assertions.
+    RUSTFLAGS: "-Cdebug-assertions=y -Dwarnings"
+    # Ensure we run the UI tests.
+    RUN_UI_TESTS: 1
+  script:
+    - time cargo build --profile testnet --features pyroscope --verbose --bin polkadot
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
+    - mv ./target/testnet/polkadot ./artifacts/.
+    - pushd artifacts
+    - sha256sum polkadot | tee polkadot.sha256
+    - shasum -c polkadot.sha256
+    - popd
+    - EXTRATAG="${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}"
+    - echo "Polkadot version = ${VERSION} (EXTRATAG = ${EXTRATAG})"
+    - echo -n ${VERSION} > ./artifacts/VERSION
+    - echo -n ${EXTRATAG} > ./artifacts/EXTRATAG
+    - echo -n ${CI_JOB_ID} > ./artifacts/BUILD_LINUX_JOB_ID
+    - RELEASE_VERSION=$(./artifacts/polkadot -V | awk '{print $2}'| awk -F "-" '{print $1}')
+    - echo -n "v${RELEASE_VERSION}" > ./artifacts/BUILD_RELEASE_VERSION
+    - cp -r scripts/* ./artifacts
+
+check-transaction-versions:
+  stage:                           build
+  extends:
+    - .docker-env
+    - .test-refs
+  image:                           node:15
+  needs:
+    - job:                         build-linux-stable
+      artifacts:                   true
+  before_script:
+    - apt-get -y update; apt-get -y install jq lsof
+    - npm install --ignore-scripts -g @polkadot/metadata-cmp
+    # Set git config
+    - git config remote.origin.url "https://github.com/paritytech/polkadot.git"
+    # - git fetch origin release
+  script:
+    - ./scripts/ci/gitlab/check_extrinsics_ordering.sh
+  # TODO: fixme, more info https://github.com/paritytech/polkadot/issues/6422
+  allow_failure:                   true
+
+build-test-collators:
+  stage:                           build
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job:                         job-starter
+      artifacts:                   false
+  extends:
+    - .docker-env
+    - .common-refs
+    - .compiler-info
+    - .collect-artifacts
+  script:
+    - time cargo build --profile testnet --verbose -p test-parachain-adder-collator
+    - time cargo build --profile testnet --verbose -p test-parachain-undying-collator
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - mv ./target/testnet/adder-collator ./artifacts/.
+    - mv ./target/testnet/undying-collator ./artifacts/.
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+    - echo "adder-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+    - echo "undying-collator version = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+    - cp -r ./scripts/* ./artifacts
+
+build-malus:
+  stage:                           build
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job:                         job-starter
+      artifacts:                   false
+  extends:
+    - .docker-env
+    - .common-refs
+    - .compiler-info
+    - .collect-artifacts
+  script:
+    - time cargo build --profile testnet --verbose -p polkadot-test-malus
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - mv ./target/testnet/malus ./artifacts/.
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+    - echo "polkadot-test-malus = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+    - cp -r ./scripts/* ./artifacts
+
+build-staking-miner:
+  stage:                           build
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job:                         job-starter
+      artifacts:                   false
+  extends:
+    - .docker-env
+    - .common-refs
+    - .compiler-info
+    - .collect-artifacts
+  script:
+    - time cargo build --locked --release --package staking-miner
+    # pack artifacts
+    - mkdir -p ./artifacts
+    - mv ./target/release/staking-miner ./artifacts/.
+    - echo -n "${CI_COMMIT_REF_NAME}" > ./artifacts/VERSION
+    - echo -n "${CI_COMMIT_REF_NAME}-${CI_COMMIT_SHORT_SHA}" > ./artifacts/EXTRATAG
+    - echo "staking-miner = $(cat ./artifacts/VERSION) (EXTRATAG = $(cat ./artifacts/EXTRATAG))"
+    - cp -r ./scripts/* ./artifacts
+
+build-rustdoc:
+  stage:                           build
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in test.yml
+  needs:
+    - job:                         test-deterministic-wasm
+      artifacts:                   false
+  extends:
+    - .docker-env
+    - .test-refs
+  variables:
+    SKIP_WASM_BUILD:               1
+  artifacts:
+    name:                          "${CI_JOB_NAME}_${CI_COMMIT_REF_NAME}-doc"
+    when:                          on_success
+    expire_in:                     1 days
+    paths:
+    - ./crate-docs/
+  script:
+    # FIXME: it fails with `RUSTDOCFLAGS="-Dwarnings"` and `--all-features`
+    # FIXME: return to stable when https://github.com/rust-lang/rust/issues/96937 gets into stable
+    - time cargo +nightly doc --workspace --verbose --no-deps
+    - rm -f ./target/doc/.lock
+    - mv ./target/doc ./crate-docs
+    # FIXME: remove me after CI image gets nonroot
+    - chown -R nonroot:nonroot ./crate-docs
+    - echo "<meta http-equiv=refresh content=0;url=polkadot_service/index.html>" > ./crate-docs/index.html
+
+build-implementers-guide:
+  stage:                           build
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in test.yml
+  needs:
+    - job:                         test-deterministic-wasm
+      artifacts:                   false
+  extends:
+    - .kubernetes-env
+    - .test-refs
+    - .collect-artifacts-short
+  # git depth is set on purpose: https://github.com/paritytech/polkadot/issues/6284
+  variables:
+    GIT_STRATEGY:                  clone
+    GIT_DEPTH:                     0
+    CI_IMAGE:                      paritytech/mdbook-utils:e14aae4a-20221123
+  script:
+    - mdbook build ./roadmap/implementers-guide
+    - mkdir -p artifacts
+    - mv roadmap/implementers-guide/book artifacts/
+
+build-short-benchmark:
+  stage:                           build
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job:                         job-starter
+      artifacts:                   false
+  extends:
+    - .docker-env
+    - .test-refs
+    - .collect-artifacts
+  script:
+    - cargo +nightly build --profile release --locked --features=runtime-benchmarks
+    - mkdir artifacts
+    - cp ./target/release/polkadot ./artifacts/

@@ -26,7 +26,8 @@ use test_helpers::{dummy_head_data, dummy_validation_code};
 use crate::{
 	configuration::HostConfiguration,
 	mock::{
-		new_test_ext, Configuration, MockGenesisConfig, Origin, Paras, ParasShared, System, Test,
+		new_test_ext, Configuration, MockGenesisConfig, Paras, ParasShared, RuntimeOrigin, System,
+		Test,
 	},
 };
 
@@ -221,7 +222,7 @@ fn schedule_para_init_rejects_empty_code() {
 			Paras::schedule_para_initialize(
 				1000.into(),
 				ParaGenesisArgs {
-					parachain: false,
+					para_kind: ParaKind::Parathread,
 					genesis_head: dummy_head_data(),
 					validation_code: ValidationCode(vec![]),
 				}
@@ -232,7 +233,7 @@ fn schedule_para_init_rejects_empty_code() {
 		assert_ok!(Paras::schedule_para_initialize(
 			1000.into(),
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: dummy_head_data(),
 				validation_code: ValidationCode(vec![1]),
 			}
@@ -247,7 +248,7 @@ fn para_past_code_pruning_in_initialize() {
 		(
 			0u32.into(),
 			ParaGenesisArgs {
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -255,7 +256,7 @@ fn para_past_code_pruning_in_initialize() {
 		(
 			1u32.into(),
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -315,7 +316,7 @@ fn note_new_head_sets_head() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: dummy_validation_code(),
 		},
@@ -348,7 +349,7 @@ fn note_past_code_sets_up_pruning_correctly() {
 		(
 			0u32.into(),
 			ParaGenesisArgs {
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -356,7 +357,7 @@ fn note_past_code_sets_up_pruning_correctly() {
 		(
 			1u32.into(),
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: dummy_head_data(),
 				validation_code: dummy_validation_code(),
 			},
@@ -401,7 +402,7 @@ fn code_upgrade_applied_after_delay() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: original_code.clone(),
 		},
@@ -504,7 +505,7 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: original_code.clone(),
 		},
@@ -589,7 +590,7 @@ fn submit_code_change_when_not_allowed_is_err() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: vec![1, 2, 3].into(),
 		},
@@ -657,7 +658,7 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: vec![1, 2, 3].into(),
 		},
@@ -720,7 +721,7 @@ fn full_parachain_cleanup_storage() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: original_code.clone(),
 		},
@@ -771,9 +772,6 @@ fn full_parachain_cleanup_storage() {
 			expected_at
 		};
 
-		// Cannot offboard while an upgrade is pending.
-		assert_err!(Paras::schedule_para_cleanup(para_id), Error::<Test>::CannotOffboard);
-
 		// Enact the upgrade.
 		//
 		// For that run to block #7 and submit a new head.
@@ -820,6 +818,65 @@ fn full_parachain_cleanup_storage() {
 }
 
 #[test]
+fn cannot_offboard_ongoing_pvf_check() {
+	let para_id = ParaId::from(0);
+
+	let existing_code: ValidationCode = vec![1, 2, 3].into();
+	let new_code: ValidationCode = vec![3, 2, 1].into();
+
+	let paras = vec![(
+		para_id,
+		ParaGenesisArgs {
+			para_kind: ParaKind::Parachain,
+			genesis_head: Default::default(),
+			validation_code: existing_code,
+		},
+	)];
+
+	let genesis_config = MockGenesisConfig {
+		paras: GenesisConfig { paras, ..Default::default() },
+		configuration: crate::configuration::GenesisConfig {
+			config: HostConfiguration { pvf_checking_enabled: true, ..Default::default() },
+			..Default::default()
+		},
+		..Default::default()
+	};
+
+	new_test_ext(genesis_config).execute_with(|| {
+		run_to_block(2, Some(vec![1]));
+
+		// Relay parent of the block that schedules the upgrade.
+		const RELAY_PARENT: BlockNumber = 1;
+		// Expected current session index.
+		const EXPECTED_SESSION: SessionIndex = 1;
+
+		Paras::schedule_code_upgrade(
+			para_id,
+			new_code.clone(),
+			RELAY_PARENT,
+			&Configuration::config(),
+		);
+		assert!(!Paras::pvfs_require_precheck().is_empty());
+
+		// Cannot offboard when there's an ongoing pvf-check voting.
+		assert_err!(Paras::schedule_para_cleanup(para_id), Error::<Test>::CannotOffboard);
+
+		// Include votes for super-majority.
+		IntoIterator::into_iter([0, 1, 2, 3])
+			.map(|i| PvfCheckStatement {
+				accept: true,
+				subject: new_code.hash(),
+				session_index: EXPECTED_SESSION,
+				validator_index: i.into(),
+			})
+			.for_each(sign_and_include_pvf_check_statement);
+
+		// Voting concluded, can offboard even though an upgrade is in progress.
+		assert_ok!(Paras::schedule_para_cleanup(para_id));
+	});
+}
+
+#[test]
 fn para_incoming_at_session() {
 	let code_a = ValidationCode(vec![2]);
 	let code_b = ValidationCode(vec![1]);
@@ -843,7 +900,7 @@ fn para_incoming_at_session() {
 		assert_ok!(Paras::schedule_para_initialize(
 			b,
 			ParaGenesisArgs {
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 				genesis_head: vec![1].into(),
 				validation_code: code_b.clone(),
 			},
@@ -852,7 +909,7 @@ fn para_incoming_at_session() {
 		assert_ok!(Paras::schedule_para_initialize(
 			a,
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: vec![2].into(),
 				validation_code: code_a.clone(),
 			},
@@ -861,7 +918,7 @@ fn para_incoming_at_session() {
 		assert_ok!(Paras::schedule_para_initialize(
 			c,
 			ParaGenesisArgs {
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 				genesis_head: vec![3].into(),
 				validation_code: code_c.clone(),
 			},
@@ -937,7 +994,7 @@ fn code_hash_at_returns_up_to_end_of_code_retention_period() {
 	let paras = vec![(
 		0u32.into(),
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: dummy_head_data(),
 			validation_code: vec![1, 2, 3].into(),
 		},
@@ -1027,7 +1084,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 	let paras = vec![(
 		a,
 		ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: Default::default(),
 			validation_code: existing_code,
 		},
@@ -1060,7 +1117,7 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 		assert_ok!(Paras::schedule_para_initialize(
 			b,
 			ParaGenesisArgs {
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 				genesis_head: vec![2].into(),
 				validation_code: validation_code.clone(),
 			},
@@ -1128,7 +1185,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 		assert_ok!(Paras::schedule_para_initialize(
 			a,
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: vec![2].into(),
 				validation_code: validation_code.clone(),
 			},
@@ -1167,7 +1224,7 @@ fn pvf_check_upgrade_reject() {
 	let paras = vec![(
 		a,
 		ParaGenesisArgs {
-			parachain: false,
+			para_kind: ParaKind::Parathread,
 			genesis_head: Default::default(),
 			validation_code: old_code,
 		},
@@ -1302,7 +1359,7 @@ fn pvf_check_submit_vote() {
 		assert_ok!(Paras::schedule_para_initialize(
 			1000.into(),
 			ParaGenesisArgs {
-				parachain: false,
+				para_kind: ParaKind::Parathread,
 				genesis_head: vec![2].into(),
 				validation_code: code_a.clone(),
 			},
@@ -1389,7 +1446,7 @@ fn include_pvf_check_statement_refunds_weight() {
 	let paras = vec![(
 		a,
 		ParaGenesisArgs {
-			parachain: false,
+			para_kind: ParaKind::Parathread,
 			genesis_head: Default::default(),
 			validation_code: old_code,
 		},
@@ -1449,7 +1506,10 @@ fn add_trusted_validation_code_inserts_with_no_users() {
 	// with the reference count equal to 0.
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 		assert_eq!(<Paras as Store>::CodeByHashRefs::get(&validation_code.hash()), 0,);
 	});
 }
@@ -1460,9 +1520,15 @@ fn add_trusted_validation_code_idempotent() {
 	// parameters is a no-op.
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 		assert_storage_noop!({
-			assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+			assert_ok!(Paras::add_trusted_validation_code(
+				RuntimeOrigin::root(),
+				validation_code.clone()
+			));
 		});
 	});
 }
@@ -1473,8 +1539,14 @@ fn poke_unused_validation_code_removes_code_cleanly() {
 	// in the storage but has no users will remove it cleanly from the storage.
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
-		assert_ok!(Paras::poke_unused_validation_code(Origin::root(), validation_code.hash()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
+		assert_ok!(Paras::poke_unused_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.hash()
+		));
 
 		assert_eq!(<Paras as Store>::CodeByHashRefs::get(&validation_code.hash()), 0);
 		assert!(!<Paras as Store>::CodeByHash::contains_key(&validation_code.hash()));
@@ -1487,7 +1559,10 @@ fn poke_unused_validation_code_doesnt_remove_code_with_users() {
 	let validation_code = ValidationCode(vec![1, 2, 3]);
 	new_test_ext(Default::default()).execute_with(|| {
 		// First we add the code to the storage.
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 
 		// Then we add a user to the code, say by upgrading.
 		run_to_block(2, None);
@@ -1496,7 +1571,10 @@ fn poke_unused_validation_code_doesnt_remove_code_with_users() {
 
 		// Finally we poke the code, which should not remove it from the storage.
 		assert_storage_noop!({
-			assert_ok!(Paras::poke_unused_validation_code(Origin::root(), validation_code.hash()));
+			assert_ok!(Paras::poke_unused_validation_code(
+				RuntimeOrigin::root(),
+				validation_code.hash()
+			));
 		});
 		check_code_is_stored(&validation_code);
 	});
@@ -1511,7 +1589,7 @@ fn increase_code_ref_doesnt_have_allergy_on_add_trusted_validation_code() {
 	let code = ValidationCode(vec![1, 2, 3]);
 
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), code.clone()));
 		Paras::increase_code_ref(&code.hash(), &code);
 		Paras::increase_code_ref(&code.hash(), &code);
 		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
@@ -1519,7 +1597,7 @@ fn increase_code_ref_doesnt_have_allergy_on_add_trusted_validation_code() {
 	});
 
 	new_test_ext(Default::default()).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), code.clone()));
 		Paras::decrease_code_ref(&code.hash());
 		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
 		assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 0);
@@ -1547,7 +1625,10 @@ fn add_trusted_validation_code_insta_approval() {
 		..Default::default()
 	};
 	new_test_ext(genesis_config).execute_with(|| {
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 
 		// Then some parachain upgrades it's code with the relay-parent 1.
 		run_to_block(2, None);
@@ -1602,7 +1683,10 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 		assert!(<Paras as Store>::PvfActiveVoteMap::contains_key(&validation_code.hash()));
 
 		// Then we add a trusted validation code. That should conclude the vote.
-		assert_ok!(Paras::add_trusted_validation_code(Origin::root(), validation_code.clone()));
+		assert_ok!(Paras::add_trusted_validation_code(
+			RuntimeOrigin::root(),
+			validation_code.clone()
+		));
 		assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_some());
 		assert!(!<Paras as Store>::PvfActiveVoteMap::contains_key(&validation_code.hash()));
 	});
@@ -1638,4 +1722,42 @@ fn verify_upgrade_restriction_signal_is_externally_accessible() {
 			vec![0],
 		);
 	});
+}
+
+#[test]
+fn parakind_encodes_decodes_to_bool_scale() {
+	let chain_kind = ParaKind::Parachain.encode();
+	let chain_bool = true.encode();
+	assert_eq!(chain_kind, chain_bool);
+
+	let chain_dec = ParaKind::decode(&mut chain_kind.as_slice());
+	assert_eq!(chain_dec, Ok(ParaKind::Parachain));
+
+	let thread_kind = ParaKind::Parathread.encode();
+	let thread_bool = false.encode();
+	assert_eq!(thread_kind, thread_bool);
+
+	let thread_dec = ParaKind::decode(&mut thread_kind.as_slice());
+	assert_eq!(thread_dec, Ok(ParaKind::Parathread));
+
+	assert_eq!(bool::type_info(), ParaKind::type_info());
+}
+
+#[test]
+fn parakind_encodes_decodes_to_bool_serde() {
+	let chain = ParaKind::Parachain;
+	let ser_chain = serde_json::to_string(&ParaKind::Parachain).unwrap();
+	let de_chain: ParaKind = serde_json::from_str(&ser_chain).unwrap();
+	assert_eq!(chain, de_chain);
+
+	let ser_true = serde_json::to_string(&true).unwrap();
+	assert_eq!(ser_true, ser_chain);
+
+	let thread = ParaKind::Parathread;
+	let ser_thread = serde_json::to_string(&thread).unwrap();
+	let de_thread: ParaKind = serde_json::from_str(&ser_thread).unwrap();
+	assert_eq!(thread, de_thread);
+
+	let ser_false = serde_json::to_string(&false).unwrap();
+	assert_eq!(ser_false, ser_thread);
 }

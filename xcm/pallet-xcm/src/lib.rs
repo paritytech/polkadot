@@ -31,7 +31,7 @@ use sp_runtime::{
 	RuntimeDebug,
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
-use xcm::prelude::*;
+use xcm::{latest::Weight as XcmWeight, prelude::*};
 use xcm_executor::traits::ConvertOrigin;
 
 use frame_support::PalletId;
@@ -75,7 +75,10 @@ pub mod pallet {
 
 		/// Required origin for sending XCM messages. If successful, it resolves to `MultiLocation`
 		/// which exists as an interior location within this chain's XCM context.
-		type SendXcmOrigin: EnsureOrigin<<Self as SysConfig>::Origin, Success = MultiLocation>;
+		type SendXcmOrigin: EnsureOrigin<
+			<Self as SysConfig>::RuntimeOrigin,
+			Success = MultiLocation,
+		>;
 
 		/// The type used to actually dispatch an XCM to its destination.
 		type XcmRouter: SendXcm;
@@ -83,7 +86,10 @@ pub mod pallet {
 		/// Required origin for executing XCM messages, including the teleport functionality. If successful,
 		/// then it resolves to `MultiLocation` which exists as an interior location within this chain's XCM
 		/// context.
-		type ExecuteXcmOrigin: EnsureOrigin<<Self as SysConfig>::Origin, Success = MultiLocation>;
+		type ExecuteXcmOrigin: EnsureOrigin<
+			<Self as SysConfig>::RuntimeOrigin,
+			Success = MultiLocation,
+		>;
 
 		/// Our XCM filter which messages to be executed using `XcmExecutor` must pass.
 		type XcmExecuteFilter: Contains<(MultiLocation, Xcm<<Self as SysConfig>::RuntimeCall>)>;
@@ -104,13 +110,16 @@ pub mod pallet {
 		type LocationInverter: InvertLocation;
 
 		/// The outer `Origin` type.
-		type Origin: From<Origin> + From<<Self as SysConfig>::Origin>;
+		type RuntimeOrigin: From<Origin> + From<<Self as SysConfig>::RuntimeOrigin>;
 
 		/// The outer `Call` type.
 		type RuntimeCall: Parameter
 			+ GetDispatchInfo
 			+ IsType<<Self as frame_system::Config>::RuntimeCall>
-			+ Dispatchable<Origin = <Self as Config>::Origin, PostInfo = PostDispatchInfo>;
+			+ Dispatchable<
+				RuntimeOrigin = <Self as Config>::RuntimeOrigin,
+				PostInfo = PostDispatchInfo,
+			>;
 
 		const VERSION_DISCOVERY_QUEUE_SIZE: u32;
 
@@ -209,6 +218,10 @@ pub mod pallet {
 		///
 		/// \[ location, query ID \]
 		NotifyTargetMigrationFail(VersionedMultiLocation, QueryId),
+		/// Some assets have been claimed from an asset trap
+		///
+		/// \[ hash, origin, assets \]
+		AssetsClaimed(H256, MultiLocation, VersionedMultiAssets),
 	}
 
 	#[pallet::origin]
@@ -445,6 +458,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[pallet::weight(100_000_000)]
 		pub fn send(
 			origin: OriginFor<T>,
@@ -480,6 +494,7 @@ pub mod pallet {
 		///   `dest` side. May not be empty.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
+		#[pallet::call_index(1)]
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
 			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
@@ -521,6 +536,7 @@ pub mod pallet {
 		///   `dest` side.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
+		#[pallet::call_index(2)]
 		#[pallet::weight({
 			match ((*assets.clone()).try_into(), (*dest.clone()).try_into()) {
 				(Ok(assets), Ok(dest)) => {
@@ -561,11 +577,12 @@ pub mod pallet {
 		///
 		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
 		/// to completion; only that *some* of it was executed.
-		#[pallet::weight(max_weight.saturating_add(Weight::from_ref_time(100_000_000u64)))]
+		#[pallet::call_index(3)]
+		#[pallet::weight(Weight::from_ref_time(max_weight.saturating_add(100_000_000u64)))]
 		pub fn execute(
 			origin: OriginFor<T>,
 			message: Box<VersionedXcm<<T as SysConfig>::RuntimeCall>>,
-			max_weight: Weight,
+			max_weight: XcmWeight,
 		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
 			let message = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
@@ -575,8 +592,8 @@ pub mod pallet {
 			let outcome = T::XcmExecutor::execute_xcm_in_credit(
 				origin_location,
 				message,
-				max_weight.ref_time(),
-				max_weight.ref_time(),
+				max_weight,
+				max_weight,
 			);
 			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
 			Self::deposit_event(Event::Attempted(outcome));
@@ -589,6 +606,7 @@ pub mod pallet {
 		/// - `origin`: Must be Root.
 		/// - `location`: The destination that is being described.
 		/// - `xcm_version`: The latest version of XCM that `location` supports.
+		#[pallet::call_index(4)]
 		#[pallet::weight(100_000_000u64)]
 		pub fn force_xcm_version(
 			origin: OriginFor<T>,
@@ -611,6 +629,7 @@ pub mod pallet {
 		///
 		/// - `origin`: Must be Root.
 		/// - `maybe_xcm_version`: The default XCM encoding version, or `None` to disable.
+		#[pallet::call_index(5)]
 		#[pallet::weight(100_000_000u64)]
 		pub fn force_default_xcm_version(
 			origin: OriginFor<T>,
@@ -625,6 +644,7 @@ pub mod pallet {
 		///
 		/// - `origin`: Must be Root.
 		/// - `location`: The location to which we should subscribe for XCM version notifications.
+		#[pallet::call_index(6)]
 		#[pallet::weight(100_000_000u64)]
 		pub fn force_subscribe_version_notify(
 			origin: OriginFor<T>,
@@ -648,6 +668,7 @@ pub mod pallet {
 		/// - `origin`: Must be Root.
 		/// - `location`: The location to which we are currently subscribed for XCM version
 		///   notifications which we no longer desire.
+		#[pallet::call_index(7)]
 		#[pallet::weight(100_000_000u64)]
 		pub fn force_unsubscribe_version_notify(
 			origin: OriginFor<T>,
@@ -683,6 +704,7 @@ pub mod pallet {
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
+		#[pallet::call_index(8)]
 		#[pallet::weight({
 			match ((*assets.clone()).try_into(), (*dest.clone()).try_into()) {
 				(Ok(assets), Ok(dest)) => {
@@ -730,6 +752,7 @@ pub mod pallet {
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
+		#[pallet::call_index(9)]
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
 			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
@@ -1303,12 +1326,13 @@ pub mod pallet {
 				(0, Here) => (),
 				_ => return false,
 			};
-			let hash = BlakeTwo256::hash_of(&(origin, versioned));
+			let hash = BlakeTwo256::hash_of(&(origin, versioned.clone()));
 			match AssetTraps::<T>::get(hash) {
 				0 => return false,
 				1 => AssetTraps::<T>::remove(hash),
 				n => AssetTraps::<T>::insert(hash, n - 1),
 			}
+			Self::deposit_event(Event::AssetsClaimed(hash, origin.clone(), versioned));
 			return true
 		}
 	}
@@ -1503,6 +1527,19 @@ impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
 	}
 }
 
+/// Filter for `MultiLocation` to find those which represent a voice of an identified plurality.
+///
+/// May reasonably be used with `EnsureXcm`.
+pub struct IsVoiceOfBody<Prefix, Body>(PhantomData<(Prefix, Body)>);
+impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
+	for IsVoiceOfBody<Prefix, Body>
+{
+	fn contains(l: &MultiLocation) -> bool {
+		let maybe_suffix = l.match_and_split(&Prefix::get());
+		matches!(maybe_suffix, Some(Plurality { id, part }) if id == &Body::get() && part == &BodyPart::Voice)
+	}
+}
+
 /// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter the
 /// `Origin::Xcm` item.
 pub struct EnsureXcm<F>(PhantomData<F>);
@@ -1555,12 +1592,14 @@ where
 
 /// A simple passthrough where we reuse the `MultiLocation`-typed XCM origin as the inner value of
 /// this crate's `Origin::Xcm` value.
-pub struct XcmPassthrough<Origin>(PhantomData<Origin>);
-impl<Origin: From<crate::Origin>> ConvertOrigin<Origin> for XcmPassthrough<Origin> {
+pub struct XcmPassthrough<RuntimeOrigin>(PhantomData<RuntimeOrigin>);
+impl<RuntimeOrigin: From<crate::Origin>> ConvertOrigin<RuntimeOrigin>
+	for XcmPassthrough<RuntimeOrigin>
+{
 	fn convert_origin(
 		origin: impl Into<MultiLocation>,
 		kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
+	) -> Result<RuntimeOrigin, MultiLocation> {
 		let origin = origin.into();
 		match kind {
 			OriginKind::Xcm => Ok(crate::Origin::Xcm(origin).into()),

@@ -20,8 +20,10 @@ use bitvec::bitvec;
 use futures::executor;
 use maplit::hashmap;
 use polkadot_node_network_protocol::{
-	grid_topology::SessionBoundGridTopologyStorage, our_view, peer_set::ValidationVersion, view,
-	ObservedRole,
+	grid_topology::{SessionBoundGridTopologyStorage, SessionGridTopology, TopologyPeerInfo},
+	our_view,
+	peer_set::ValidationVersion,
+	view, ObservedRole,
 };
 use polkadot_node_subsystem::{
 	jaeger,
@@ -32,6 +34,7 @@ use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::v2::{AvailabilityBitfield, Signed, ValidatorIndex};
 use rand_chacha::ChaCha12Rng;
 use sp_application_crypto::AppKey;
+use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 use sp_core::Pair as PairT;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{testing::KeyStore, SyncCryptoStore, SyncCryptoStorePtr};
@@ -61,10 +64,11 @@ fn prewarmed_state(
 	peers: Vec<PeerId>,
 ) -> ProtocolState {
 	let relay_parent = known_message.relay_parent.clone();
-	let mut topology: SessionGridTopology = Default::default();
-	topology.peers_x = peers.iter().cloned().collect();
 	let mut topologies = SessionBoundGridTopologyStorage::default();
-	topologies.update_topology(0_u32, topology);
+	topologies.update_topology(0_u32, SessionGridTopology::new(Vec::new(), Vec::new()), None);
+	topologies.get_current_topology_mut().local_grid_neighbors_mut().peers_x =
+		peers.iter().cloned().collect();
+
 	ProtocolState {
 		per_relay_parent: hashmap! {
 			relay_parent.clone() =>
@@ -456,10 +460,9 @@ fn do_not_relay_message_twice() {
 	let mut rng = dummy_rng();
 
 	executor::block_on(async move {
-		let gossip_peers = SessionGridTopology {
-			peers_x: HashSet::from_iter(vec![peer_a.clone(), peer_b.clone()].into_iter()),
-			..Default::default()
-		};
+		let mut gossip_peers = GridNeighbors::empty();
+		gossip_peers.peers_x = HashSet::from_iter(vec![peer_a.clone(), peer_b.clone()].into_iter());
+
 		relay_message(
 			&mut ctx,
 			state.per_relay_parent.get_mut(&hash).unwrap(),
@@ -780,33 +783,43 @@ fn topology_test() {
 		.try_init();
 
 	let hash: Hash = [0; 32].into();
-	let peers_x = (0..25).map(|_| PeerId::random()).collect::<Vec<_>>();
-	let peers_y = (0..25).map(|_| PeerId::random()).collect::<Vec<_>>();
-
-	// ensure all unique
-	assert_eq!(
-		peers_x.iter().chain(peers_y.iter()).collect::<HashSet<_>>().len(),
-		peers_x.len() + peers_y.len()
-	);
 
 	// validator 0 key pair
 	let (mut state, signing_context, keystore, validator) = state_with_view(our_view![hash], hash);
 
-	// Create a simple grid
-	let mut topology: SessionGridTopology = Default::default();
-	topology.peers_x = peers_x.iter().cloned().collect::<HashSet<_>>();
-	topology.validator_indices_x = peers_x
+	// Create a simple grid without any shuffling. We occupy position 1.
+	let topology_peer_info: Vec<_> = (0..49)
+		.map(|i| TopologyPeerInfo {
+			peer_ids: vec![PeerId::random()],
+			validator_index: ValidatorIndex(i as _),
+			discovery_id: AuthorityDiscoveryPair::generate().0.public(),
+		})
+		.collect();
+
+	let topology = SessionGridTopology::new((0usize..49).collect(), topology_peer_info.clone());
+	state.topologies.update_topology(0_u32, topology, Some(ValidatorIndex(1)));
+
+	let peers_x: Vec<_> = [0, 2, 3, 4, 5, 6]
 		.iter()
-		.enumerate()
-		.map(|(idx, _)| ValidatorIndex(idx as u32))
-		.collect::<HashSet<_>>();
-	topology.peers_y = peers_y.iter().cloned().collect::<HashSet<_>>();
-	topology.validator_indices_y = peers_y
+		.cloned()
+		.map(|i| topology_peer_info[i].peer_ids[0].clone())
+		.collect();
+
+	let peers_y: Vec<_> = [8, 15, 22, 29, 36, 43]
 		.iter()
-		.enumerate()
-		.map(|(idx, _)| ValidatorIndex((idx + peers_x.len()) as u32))
-		.collect::<HashSet<_>>();
-	state.topologies.update_topology(0_u32, topology);
+		.cloned()
+		.map(|i| topology_peer_info[i].peer_ids[0].clone())
+		.collect();
+
+	{
+		let t = state.topologies.get_current_topology().local_grid_neighbors();
+		for p_x in &peers_x {
+			assert!(t.peers_x.contains(p_x));
+		}
+		for p_y in &peers_y {
+			assert!(t.peers_y.contains(p_y));
+		}
+	}
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
@@ -860,7 +873,7 @@ fn topology_test() {
 			AllMessages::NetworkBridgeTx(
 				NetworkBridgeTxMessage::SendValidationMessage(peers, send_msg),
 			) => {
-				let topology = state.topologies.get_current_topology();
+				let topology = state.topologies.get_current_topology().local_grid_neighbors();
 				// It should send message to all peers in y direction and to 4 random peers in x direction
 				assert_eq!(peers_y.len() + 4, peers.len());
 				assert!(topology.peers_y.iter().all(|peer| peers.contains(&peer)));

@@ -1,0 +1,216 @@
+# This file is part of .gitlab-ci.yml
+# Here are all jobs that are executed during "publish" stage
+
+# This image is used in testnets
+# Release image is handled by the Github Action here:
+# .github/workflows/publish-docker-release.yml
+publish-polkadot-debug-image:
+  stage:                           publish
+  extends:
+    - .kubernetes-env
+    - .build-push-image
+  rules:
+    # Don't run when triggered from another pipeline
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+    - if: $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+  variables:
+    CI_IMAGE:                      ${BUILDAH_IMAGE}
+    GIT_STRATEGY:                  none
+    DOCKER_USER:                   ${PARITYPR_USER}
+    DOCKER_PASS:                   ${PARITYPR_PASS}
+    # scripts/ci/dockerfiles/polkadot_injected_debug.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/polkadot_injected_debug.Dockerfile
+    IMAGE_NAME:                    docker.io/paritypr/polkadot-debug
+  needs:
+    - job:                         build-linux-stable
+      artifacts:                   true
+  after_script:
+    # pass artifacts to the zombienet-tests job
+    # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
+    - echo "PARACHAINS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/parachains.env
+    - echo "PARACHAINS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/parachains.env
+  artifacts:
+    reports:
+      # this artifact is used in zombienet-tests job
+      dotenv: ./artifacts/parachains.env
+    expire_in:                     1 days
+
+publish-test-collators-image:
+  # service image for Simnet
+  stage:                           publish
+  extends:
+    - .kubernetes-env
+    - .build-push-image
+    - .zombienet-refs
+  variables:
+    CI_IMAGE:                      ${BUILDAH_IMAGE}
+    GIT_STRATEGY:                  none
+    DOCKER_USER:                   ${PARITYPR_USER}
+    DOCKER_PASS:                   ${PARITYPR_PASS}
+    # scripts/ci/dockerfiles/collator_injected.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/collator_injected.Dockerfile
+    IMAGE_NAME:                    docker.io/paritypr/colander
+  needs:
+    - job:                         build-test-collators
+      artifacts:                   true
+  after_script:
+    - buildah logout --all
+    # pass artifacts to the zombienet-tests job
+    - echo "COLLATOR_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/collator.env
+    - echo "COLLATOR_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/collator.env
+  artifacts:
+    reports:
+      # this artifact is used in zombienet-tests job
+      dotenv: ./artifacts/collator.env
+
+publish-malus-image:
+  # service image for Simnet
+  stage:                           publish
+  extends:
+    - .kubernetes-env
+    - .build-push-image
+    - .zombienet-refs
+  variables:
+    CI_IMAGE:                      ${BUILDAH_IMAGE}
+    GIT_STRATEGY:                  none
+    DOCKER_USER:                   ${PARITYPR_USER}
+    DOCKER_PASS:                   ${PARITYPR_PASS}
+    # scripts/ci/dockerfiles/malus_injected.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/malus_injected.Dockerfile
+    IMAGE_NAME:                    docker.io/paritypr/malus
+  needs:
+    - job:                         build-malus
+      artifacts:                   true
+  after_script:
+    - buildah logout "$IMAGE_NAME"
+    # pass artifacts to the zombienet-tests job
+    - echo "MALUS_IMAGE_NAME=${IMAGE_NAME}" > ./artifacts/malus.env
+    - echo "MALUS_IMAGE_TAG=$(cat ./artifacts/EXTRATAG)" >> ./artifacts/malus.env
+  artifacts:
+    reports:
+      # this artifact is used in zombienet-tests job
+      dotenv: ./artifacts/malus.env
+
+publish-staking-miner-image:
+  stage:                           publish
+  extends:
+    - .kubernetes-env
+    - .build-push-image
+    - .publish-refs
+  variables:
+    CI_IMAGE:                      ${BUILDAH_IMAGE}
+    # scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
+    DOCKERFILE:                    ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
+    IMAGE_NAME:                    docker.io/paritytech/staking-miner
+    GIT_STRATEGY:                  none
+    DOCKER_USER:                   ${Docker_Hub_User_Parity}
+    DOCKER_PASS:                   ${Docker_Hub_Pass_Parity}
+  needs:
+    - job:                         build-staking-miner
+      artifacts:                   true
+
+
+publish-s3-release:
+  stage:                           publish
+  extends:
+    - .kubernetes-env
+  needs:
+    - job:                         build-linux-stable
+      artifacts:                   true
+  variables:
+    CI_IMAGE:                      paritytech/awscli:latest
+    GIT_STRATEGY:                  none
+    PREFIX:                        "builds/polkadot/${ARCH}-${DOCKER_OS}"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    # publishing binaries nightly
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+  before_script:
+    - !reference [.build-push-image, before_script]
+  script:
+    - echo "uploading objects to https://releases.parity.io/${PREFIX}/${VERSION}"
+    - aws s3 sync --acl public-read ./artifacts/ s3://${AWS_BUCKET}/${PREFIX}/${VERSION}/
+    - echo "update objects at https://releases.parity.io/${PREFIX}/${EXTRATAG}"
+    - find ./artifacts -type f | while read file; do
+        name="${file#./artifacts/}";
+        aws s3api copy-object
+          --copy-source ${AWS_BUCKET}/${PREFIX}/${VERSION}/${name}
+          --bucket ${AWS_BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
+      done
+    - |
+      cat <<-EOM
+      |
+      |  polkadot binary paths:
+      |
+      |  - https://releases.parity.io/${PREFIX}/${EXTRATAG}/polkadot
+      |  - https://releases.parity.io/${PREFIX}/${VERSION}/polkadot
+      |
+      EOM
+  after_script:
+    - aws s3 ls s3://${AWS_BUCKET}/${PREFIX}/${EXTRATAG}/
+        --recursive --human-readable --summarize
+
+publish-rustdoc:
+  stage:                           publish
+  extends:
+    - .kubernetes-env
+  variables:
+    CI_IMAGE:                      paritytech/tools:latest
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "web" && $CI_COMMIT_REF_NAME == "master"
+    - if: $CI_COMMIT_REF_NAME == "master"
+  # `needs:` can be removed after CI image gets nonroot. In this case `needs:` stops other
+  # artifacts from being dowloaded by this job.
+  needs:
+    - job:                         build-rustdoc
+      artifacts:                   true
+    - job:                         build-implementers-guide
+      artifacts:                   true
+  script:
+    # Save README and docs
+    - cp -r ./crate-docs/ /tmp/doc/
+    - cp -r ./artifacts/book/ /tmp/
+    # setup ssh
+    - eval $(ssh-agent)
+    - ssh-add - <<< ${GITHUB_SSH_PRIV_KEY}
+    - mkdir ~/.ssh && touch ~/.ssh/known_hosts
+    - ssh-keyscan -t rsa github.com >> ~/.ssh/known_hosts
+    # Set git config
+    - git config user.email "devops-team@parity.io"
+    - git config user.name "${GITHUB_USER}"
+    - git config remote.origin.url "git@github.com:/paritytech/${CI_PROJECT_NAME}.git"
+    - git config remote.origin.fetch "+refs/heads/*:refs/remotes/origin/*"
+    - git fetch origin gh-pages
+    - git checkout gh-pages
+    # Remove everything and restore generated docs and README
+    - cp index.html /tmp
+    - cp README.md /tmp
+    - rm -rf ./*
+    # dir for rustdoc
+    - mkdir -p doc
+    # dir for implementors guide
+    - mkdir -p book
+    - mv /tmp/doc/* doc/
+    - mv /tmp/book/html/* book/
+    - mv /tmp/index.html .
+    - mv /tmp/README.md .
+    # Upload files
+    - git add --all --force
+    # `git commit` has an exit code of > 0 if there is nothing to commit.
+    # This causes GitLab to exit immediately and marks this job failed.
+    # We don't want to mark the entire job failed if there's nothing to
+    # publish though, hence the `|| true`.
+    - git commit -m "Updated docs for ${CI_COMMIT_REF_NAME}" ||
+        echo "___Nothing to commit___"
+    - git push origin gh-pages --force
+    - echo "___Rustdoc was successfully published to https://paritytech.github.io/polkadot/___"
+  after_script:
+    - rm -rf .git/ ./*
