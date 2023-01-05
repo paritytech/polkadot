@@ -5,6 +5,7 @@ update_polkadot_weights:           &update-weights
   stage:                           weights
   timeout:                         1d
   when:                            manual
+  image:                           $CI_IMAGE
   variables:
     RUNTIME:                       polkadot
   artifacts:
