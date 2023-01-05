@@ -20,6 +20,5 @@
 
 pub mod executor_params;
 pub use executor_params::{
-	ExecInstantiationStrategy, ExecutionEnvironment, ExecutorParam, ExecutorParams,
-	ExecutorParamsHash,
+	ExecutionEnvironment, ExecutorParam, ExecutorParams, ExecutorParamsHash,
 };

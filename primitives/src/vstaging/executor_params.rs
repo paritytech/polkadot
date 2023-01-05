@@ -34,19 +34,6 @@ pub enum ExecutionEnvironment {
 	WasmtimeGeneric = 0,
 }
 
-/// Executor instantiation strategy
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
-pub enum ExecInstantiationStrategy {
-	/// Pooling copy-on-write
-	PoolingCoW,
-	/// Recreate instance copy-on-write
-	RecreateCoW,
-	/// Pooling
-	Pooling,
-	/// Recreate instance
-	Recreate,
-}
-
 /// A single executor parameter
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub enum ExecutorParam {
@@ -55,23 +42,16 @@ pub enum ExecutorParam {
 	Environment(ExecutionEnvironment),
 
 	/// ## Parameters setting the executuion environment semantics:
-	/// Number of extra heap pages
-	ExtraHeapPages(u64),
 	/// Max. memory size
 	MaxMemorySize(u32),
-	/// Wasm logical stack size limit, in units
+	/// Wasm logical stack size limit (max. number of Wasm values on stack)
 	StackLogicalMax(u32),
 	/// Executor machine stack size limit, in bytes
 	StackNativeMax(u32),
-	/// Executor instantiation strategy
-	InstantiationStrategy(ExecInstantiationStrategy),
-	/// `true` if compiler should perform NaNs canonicalization
-	CanonicalizeNaNs(bool),
-	/// `true` if parallel compilation is allowed, single thread is used otherwise
-	ParallelCompilation(bool),
 
-	/// Placeholder for any data not fitting into the semantics. May be used to avoid `SessionInfo`
-	/// migration if fast adoption of a new parameter is needed.
+	/// Placeholder for any data not fitting into the semantics. It may be used to avoid
+	/// `SessionInfo` migration if fast adoption of a new parameter is needed. This is an
+	/// emergency measure, only use it if you ought to.
 	#[codec(index = 255)]
 	RawData(Vec<u8>),
 }

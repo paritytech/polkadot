@@ -17,13 +17,13 @@
 //! Interface to the Substrate Executor
 
 use polkadot_primitives::vstaging::executor_params::{
-	ExecInstantiationStrategy, ExecutionEnvironment, ExecutorParam, ExecutorParams,
+	ExecutionEnvironment, ExecutorParam, ExecutorParams,
 };
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
 };
-use sc_executor_wasmtime::{Config, DeterministicStackLimit, InstantiationStrategy, Semantics};
+use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
 use sp_externalities::MultiRemovalResults;
 use std::{
@@ -122,21 +122,9 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 				if *env != ExecutionEnvironment::WasmtimeGeneric {
 					return Err("Wrong execution environment type".to_owned())
 				},
-			ExecutorParam::ExtraHeapPages(ehp) => sem.extra_heap_pages = *ehp,
 			ExecutorParam::MaxMemorySize(mms) => sem.max_memory_size = Some(*mms as usize),
 			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
 			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
-			ExecutorParam::InstantiationStrategy(is) =>
-				sem.instantiation_strategy = match is {
-					ExecInstantiationStrategy::PoolingCoW =>
-						InstantiationStrategy::PoolingCopyOnWrite,
-					ExecInstantiationStrategy::RecreateCoW =>
-						InstantiationStrategy::RecreateInstanceCopyOnWrite,
-					ExecInstantiationStrategy::Pooling => InstantiationStrategy::Pooling,
-					ExecInstantiationStrategy::Recreate => InstantiationStrategy::RecreateInstance,
-				},
-			ExecutorParam::CanonicalizeNaNs(cnan) => sem.canonicalize_nans = *cnan,
-			ExecutorParam::ParallelCompilation(pc) => sem.parallel_compilation = *pc,
 			ExecutorParam::RawData(_) => (),
 		}
 	}
