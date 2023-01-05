@@ -525,7 +525,7 @@ async fn handle_execute_pvf(
 			},
 			ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
 				if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
-					gum::info!(
+					gum::warn!(
 						target: LOG_TARGET,
 						?pvf,
 						?artifact_id,
@@ -595,7 +595,7 @@ async fn handle_heads_up(
 				},
 				ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
 					if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
-						gum::info!(
+						gum::warn!(
 							target: LOG_TARGET,
 							?active_pvf,
 							?artifact_id,
@@ -723,10 +723,19 @@ async fn handle_prepare_done(
 	*state = match result {
 		Ok(cpu_time_elapsed) =>
 			ArtifactState::Prepared { last_time_needed: SystemTime::now(), cpu_time_elapsed },
-		Err(error) => ArtifactState::FailedToProcess {
-			last_time_failed: SystemTime::now(),
-			num_failures: *num_failures + 1,
-			error,
+		Err(error) => {
+			let last_time_failed = SystemTime::now();
+			let num_failures = *num_failures + 1;
+
+			gum::warn!(
+				target: LOG_TARGET,
+				?artifact_id,
+				time_failed = ?last_time_failed,
+				%num_failures,
+				"artifact preparation failed: {}",
+				error
+			);
+			ArtifactState::FailedToProcess { last_time_failed, num_failures, error }
 		},
 	};
 

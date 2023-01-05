@@ -633,7 +633,7 @@ trait ValidationBackend {
 			// Wait a brief delay before retrying.
 			futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
 
-			gum::info!(
+			gum::warn!(
 				target: LOG_TARGET,
 				?pvf,
 				"Re-trying failed candidate validation due to AmbiguousWorkerDeath."
