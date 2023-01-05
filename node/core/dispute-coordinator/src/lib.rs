@@ -339,7 +339,7 @@ impl DisputeCoordinatorSubsystem {
 				spam_disputes
 					.insert((session, *candidate_hash), vote_state.votes().voted_indices());
 			} else {
-				// Participate if we need be:
+				// Participate if need be:
 				if vote_state.own_vote_missing() {
 					gum::trace!(
 						target: LOG_TARGET,

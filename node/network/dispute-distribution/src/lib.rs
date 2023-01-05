@@ -52,33 +52,33 @@ use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 /// to this subsystem, unknown dispute. This is to make sure, we get our vote out, even on
 /// restarts.
 ///
-///    The actual work of sending and keeping track of transmission attempts to each validator for a
-///    particular dispute are done by [`SendTask`].  The purpose of the `DisputeSender` is to keep
-///    track of all ongoing disputes and start and clean up `SendTask`s accordingly.
+/// The actual work of sending and keeping track of transmission attempts to each validator for a
+/// particular dispute are done by [`SendTask`].  The purpose of the `DisputeSender` is to keep
+/// track of all ongoing disputes and start and clean up `SendTask`s accordingly.
 mod sender;
 use self::sender::{DisputeSender, DisputeSenderMessage};
 
-///    ## The receiver [`DisputesReceiver`]
+/// ## The receiver [`DisputesReceiver`]
 ///
-///    The receiving side is implemented as `DisputesReceiver` and is run as a separate long running task within
-///    this subsystem ([`DisputesReceiver::run`]).
+/// The receiving side is implemented as `DisputesReceiver` and is run as a separate long running task within
+/// this subsystem ([`DisputesReceiver::run`]).
 ///
-///    Conceptually all the receiver has to do, is waiting for incoming requests which are passed in
-///    via a dedicated channel and forwarding them to the dispute coordinator via
-///    `DisputeCoordinatorMessage::ImportStatements`. Being the interface to the network and untrusted
-///    nodes, the reality is not that simple of course. Before importing statements the receiver will
-///    batch up imports as well as possible for efficient imports while maintaining timely dispute
-///    resolution and handling of spamming validators:
+/// Conceptually all the receiver has to do, is waiting for incoming requests which are passed in
+/// via a dedicated channel and forwarding them to the dispute coordinator via
+/// `DisputeCoordinatorMessage::ImportStatements`. Being the interface to the network and untrusted
+/// nodes, the reality is not that simple of course. Before importing statements the receiver will
+/// batch up imports as well as possible for efficient imports while maintaining timely dispute
+/// resolution and handling of spamming validators:
 ///
-///    - Drop all messages from non validator nodes, for this it requires the [`AuthorityDiscovery`]
-///    service.
-///    - Drop messages from a node, if it sends at a too high rate.
-///    - Filter out duplicate messages (over some period of time).
-///    - Drop any obviously invalid votes (invalid signatures for example).
-///    - Ban peers whose votes were deemed invalid.
+/// - Drop all messages from non validator nodes, for this it requires the [`AuthorityDiscovery`]
+/// service.
+/// - Drop messages from a node, if it sends at a too high rate.
+/// - Filter out duplicate messages (over some period of time).
+/// - Drop any obviously invalid votes (invalid signatures for example).
+/// - Ban peers whose votes were deemed invalid.
 ///
-///    In general dispute-distribution works on limiting the work the dispute-coordinator will have to
-///    do, while at the same time making it aware of new disputes as fast as possible.
+/// In general dispute-distribution works on limiting the work the dispute-coordinator will have to
+/// do, while at the same time making it aware of new disputes as fast as possible.
 ///
 /// For successfully imported votes, we will confirm the receipt of the message back to the sender.
 /// This way a received confirmation guarantees, that the vote has been stored to disk by the

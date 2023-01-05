@@ -89,6 +89,7 @@ impl<'a> CandidateEnvironment<'a> {
 pub enum OwnVoteState {
 	/// Our votes, if any.
 	Voted(Vec<(ValidatorIndex, (DisputeStatement, ValidatorSignature))>),
+
 	/// We are not a parachain validator in the session.
 	///
 	/// Hence we cannot vote.
