@@ -525,7 +525,7 @@ async fn handle_execute_pvf(
 			},
 			ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
 				if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
-					gum::debug!(
+					gum::info!(
 						target: LOG_TARGET,
 						?pvf,
 						?artifact_id,
@@ -595,7 +595,7 @@ async fn handle_heads_up(
 				},
 				ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
 					if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
-						gum::debug!(
+						gum::info!(
 							target: LOG_TARGET,
 							?active_pvf,
 							?artifact_id,
