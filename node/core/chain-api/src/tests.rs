@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use polkadot_node_primitives::BlockWeight;
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
-use polkadot_primitives::v2::{BlockId, BlockNumber, Hash, Header};
+use polkadot_primitives::v2::{BlockNumber, Hash, Header};
 use sp_blockchain::Info as BlockInfo;
 use sp_core::testing::TaskExecutor;
 
@@ -124,7 +124,7 @@ impl HeaderBackend<Block> for TestClient {
 			Ok(self.headers.get(&hash).cloned())
 		}
 	}
-	fn status(&self, _id: BlockId) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+	fn status(&self, _hash: Hash) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
 		unimplemented!()
 	}
 }

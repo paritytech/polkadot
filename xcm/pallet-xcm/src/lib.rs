@@ -1527,6 +1527,19 @@ impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
 	}
 }
 
+/// Filter for `MultiLocation` to find those which represent a voice of an identified plurality.
+///
+/// May reasonably be used with `EnsureXcm`.
+pub struct IsVoiceOfBody<Prefix, Body>(PhantomData<(Prefix, Body)>);
+impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
+	for IsVoiceOfBody<Prefix, Body>
+{
+	fn contains(l: &MultiLocation) -> bool {
+		let maybe_suffix = l.match_and_split(&Prefix::get());
+		matches!(maybe_suffix, Some(Plurality { id, part }) if id == &Body::get() && part == &BodyPart::Voice)
+	}
+}
+
 /// `EnsureOrigin` implementation succeeding with a `MultiLocation` value to recognize and filter the
 /// `Origin::Xcm` item.
 pub struct EnsureXcm<F>(PhantomData<F>);
