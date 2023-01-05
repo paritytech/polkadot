@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-node-core-parachains-inherent"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 futures = "0.3.21"
@@ -11,7 +11,7 @@ gum = { package = "tracing-gum", path = "../../gum" }
 thiserror = "1.0.31"
 async-trait = "0.1.57"
 polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }

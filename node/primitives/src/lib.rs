@@ -30,10 +30,10 @@ use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
 use polkadot_primitives::v2::{
-	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
-	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
-	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
-	ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CollatorPair,
+	CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId,
+	OutboundHrmpMessage, PersistedValidationData, SessionIndex, Signed, UncheckedSigned,
+	UpwardMessage, ValidationCode, ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
 };
 pub use sp_consensus_babe::{
 	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -71,9 +71,29 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 ///
 /// This is deliberately much longer than the backing execution timeout to
 /// ensure that in the absence of extremely large disparities between hardware,
-/// blocks that pass backing are considerd executable by approval checkers or
+/// blocks that pass backing are considered executable by approval checkers or
 /// dispute participants.
+///
+/// NOTE: If this value is increased significantly, also check the dispute coordinator to consider
+/// candidates longer into finalization: `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION`.
 pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
+
+/// How many blocks after finalization an information about backed/included candidate should be
+/// kept.
+///
+/// We don't want to remove scraped candidates on finalization because we want to
+/// be sure that disputes will conclude on abandoned forks.
+/// Removing the candidate on finalization creates a possibility for an attacker to
+/// avoid slashing. If a bad fork is abandoned too quickly because another
+/// better one gets finalized the entries for the bad fork will be pruned and we
+/// might never participate in a dispute for it.
+///
+/// This value should consider the timeout we allow for participation in approval-voting. In
+/// particular, the following condition should hold:
+///
+/// slot time * `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` > `APPROVAL_EXECUTION_TIMEOUT`
+/// + slot time
+pub const DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION: BlockNumber = 10;
 
 /// Linked to `MAX_FINALITY_LAG` in relay chain selection,
 /// `MAX_HEADS_LOOK_BACK` in `approval-voting` and
@@ -90,9 +110,7 @@ pub const MAX_FINALITY_LAG: u32 = 500;
 pub struct SessionWindowSize(SessionIndex);
 
 #[macro_export]
-/// Create a new checked `SessionWindowSize`
-///
-/// which cannot be 0.
+/// Create a new checked `SessionWindowSize` which cannot be 0.
 macro_rules! new_session_window_size {
 	(0) => {
 		compile_error!("Must be non zero");
@@ -385,7 +403,7 @@ impl std::fmt::Debug for CollationGenerationConfig {
 pub struct AvailableData {
 	/// The Proof-of-Validation of the candidate.
 	pub pov: std::sync::Arc<PoV>,
-	/// The persisted validation data needed for secondary checks.
+	/// The persisted validation data needed for approval checks.
 	pub validation_data: PersistedValidationData,
 }
 

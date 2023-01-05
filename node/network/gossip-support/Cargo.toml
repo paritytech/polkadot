@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-gossip-support"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }

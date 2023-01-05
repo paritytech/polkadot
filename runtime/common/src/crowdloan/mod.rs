@@ -51,6 +51,8 @@
 
 pub mod migration;
 
+// TODO: Expose the total amount held.
+
 use crate::{
 	slot_range::SlotRange,
 	traits::{Auctioneer, Registrar},
@@ -182,9 +184,13 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 	use frame_system::{ensure_root, ensure_signed, pallet_prelude::*};
 
+	/// The current storage version.
+	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
+
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -366,6 +372,7 @@ pub mod pallet {
 		///
 		/// This applies a lock to your parachain configuration, ensuring that it cannot be changed
 		/// by the parachain manager.
+		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::create())]
 		pub fn create(
 			origin: OriginFor<T>,
@@ -443,6 +450,7 @@ pub mod pallet {
 
 		/// Contribute to a crowd sale. This will transfer some balance over to fund a parachain
 		/// slot. It will be withdrawable when the crowdloan has ended and the funds are unused.
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::contribute())]
 		pub fn contribute(
 			origin: OriginFor<T>,
@@ -471,6 +479,7 @@ pub mod pallet {
 		///
 		/// - `who`: The account whose contribution should be withdrawn.
 		/// - `index`: The parachain to whose crowdloan the contribution was made.
+		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::withdraw())]
 		pub fn withdraw(
 			origin: OriginFor<T>,
@@ -488,6 +497,7 @@ pub mod pallet {
 			ensure!(balance > Zero::zero(), Error::<T>::NoContributions);
 
 			CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
+			CurrencyOf::<T>::reactivate(balance);
 
 			Self::contribution_kill(fund.fund_index, &who);
 			fund.raised = fund.raised.saturating_sub(balance);
@@ -503,6 +513,7 @@ pub mod pallet {
 		/// times to fully refund all users. We will refund `RemoveKeysLimit` users at a time.
 		///
 		/// Origin must be signed, but can come from anyone.
+		#[pallet::call_index(3)]
 		#[pallet::weight(T::WeightInfo::refund(T::RemoveKeysLimit::get()))]
 		pub fn refund(
 			origin: OriginFor<T>,
@@ -527,6 +538,7 @@ pub mod pallet {
 					break
 				}
 				CurrencyOf::<T>::transfer(&fund_account, &who, balance, AllowDeath)?;
+				CurrencyOf::<T>::reactivate(balance);
 				Self::contribution_kill(fund.fund_index, &who);
 				fund.raised = fund.raised.saturating_sub(balance);
 				refund_count += 1;
@@ -547,6 +559,7 @@ pub mod pallet {
 		}
 
 		/// Remove a fund after the retirement period has ended and all funds have been returned.
+		#[pallet::call_index(4)]
 		#[pallet::weight(T::WeightInfo::dissolve())]
 		pub fn dissolve(origin: OriginFor<T>, #[pallet::compact] index: ParaId) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -574,6 +587,7 @@ pub mod pallet {
 		/// Edit the configuration for an in-progress crowdloan.
 		///
 		/// Can only be called by Root origin.
+		#[pallet::call_index(5)]
 		#[pallet::weight(T::WeightInfo::edit())]
 		pub fn edit(
 			origin: OriginFor<T>,
@@ -611,6 +625,7 @@ pub mod pallet {
 		/// Add an optional memo to an existing crowdloan contribution.
 		///
 		/// Origin must be Signed, and the user must have contributed to the crowdloan.
+		#[pallet::call_index(6)]
 		#[pallet::weight(T::WeightInfo::add_memo())]
 		pub fn add_memo(origin: OriginFor<T>, index: ParaId, memo: Vec<u8>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -629,6 +644,7 @@ pub mod pallet {
 		/// Poke the fund into `NewRaise`
 		///
 		/// Origin must be Signed, and the fund has non-zero raise.
+		#[pallet::call_index(7)]
 		#[pallet::weight(T::WeightInfo::poke())]
 		pub fn poke(origin: OriginFor<T>, index: ParaId) -> DispatchResult {
 			ensure_signed(origin)?;
@@ -642,6 +658,7 @@ pub mod pallet {
 
 		/// Contribute your entire balance to a crowd sale. This will transfer the entire balance of a user over to fund a parachain
 		/// slot. It will be withdrawable when the crowdloan has ended and the funds are unused.
+		#[pallet::call_index(8)]
 		#[pallet::weight(T::WeightInfo::contribute())]
 		pub fn contribute_all(
 			origin: OriginFor<T>,
@@ -777,6 +794,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		CurrencyOf::<T>::transfer(&who, &fund_account, value, existence)?;
+		CurrencyOf::<T>::deactivate(value);
 
 		let balance = old_balance.saturating_add(value);
 		Self::contribution_put(fund.fund_index, &who, &balance, &memo);

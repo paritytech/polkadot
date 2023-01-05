@@ -1,9 +1,9 @@
 [package]
 name = "polkadot-statement-distribution"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "Statement Distribution Subsystem"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 futures = "0.3.21"

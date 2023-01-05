@@ -58,6 +58,7 @@ pub trait WeightInfo {
 	fn force_process_hrmp_close(c: u32) -> Weight;
 	fn hrmp_cancel_open_request(c: u32) -> Weight;
 	fn clean_open_channel_requests(c: u32) -> Weight;
+	fn force_open_hrmp_channel() -> Weight;
 }
 
 /// A weight info that is only suitable for testing.
@@ -86,6 +87,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn clean_open_channel_requests(_: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_open_hrmp_channel() -> Weight {
 		Weight::MAX
 	}
 }
@@ -269,6 +273,9 @@ pub mod pallet {
 		OpenChannelAccepted(ParaId, ParaId),
 		/// HRMP channel closed. `[by_parachain, channel_id]`
 		ChannelClosed(ParaId, HrmpChannelId),
+		/// An HRMP channel was opened via Root origin.
+		/// `[sender, recipient, proposed_max_capacity, proposed_max_message_size]`
+		HrmpChannelForceOpened(ParaId, ParaId, u32, u32),
 	}
 
 	#[pallet::error]
@@ -458,6 +465,7 @@ pub mod pallet {
 		///
 		/// The channel can be opened only after the recipient confirms it and only on a session
 		/// change.
+		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::hrmp_init_open_channel())]
 		pub fn hrmp_init_open_channel(
 			origin: OriginFor<T>,
@@ -484,6 +492,7 @@ pub mod pallet {
 		/// Accept a pending open channel request from the given sender.
 		///
 		/// The channel will be opened only on the next session boundary.
+		#[pallet::call_index(1)]
 		#[pallet::weight(<T as Config>::WeightInfo::hrmp_accept_open_channel())]
 		pub fn hrmp_accept_open_channel(origin: OriginFor<T>, sender: ParaId) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin))?;
@@ -496,6 +505,7 @@ pub mod pallet {
 		/// recipient in the channel being closed.
 		///
 		/// The closure can only happen on a session change.
+		#[pallet::call_index(2)]
 		#[pallet::weight(<T as Config>::WeightInfo::hrmp_close_channel())]
 		pub fn hrmp_close_channel(
 			origin: OriginFor<T>,
@@ -514,6 +524,7 @@ pub mod pallet {
 		/// Origin must be Root.
 		///
 		/// Number of inbound and outbound channels for `para` must be provided as witness data of weighing.
+		#[pallet::call_index(3)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_clean_hrmp(*_inbound, *_outbound))]
 		pub fn force_clean_hrmp(
 			origin: OriginFor<T>,
@@ -532,6 +543,7 @@ pub mod pallet {
 		/// function process all of those requests immediately.
 		///
 		/// Total number of opening channels must be provided as witness data of weighing.
+		#[pallet::call_index(4)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_process_hrmp_open(*_channels))]
 		pub fn force_process_hrmp_open(origin: OriginFor<T>, _channels: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -546,6 +558,7 @@ pub mod pallet {
 		/// function process all of those requests immediately.
 		///
 		/// Total number of closing channels must be provided as witness data of weighing.
+		#[pallet::call_index(5)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_process_hrmp_close(*_channels))]
 		pub fn force_process_hrmp_close(origin: OriginFor<T>, _channels: u32) -> DispatchResult {
 			ensure_root(origin)?;
@@ -561,6 +574,7 @@ pub mod pallet {
 		///
 		/// Total number of open requests (i.e. `HrmpOpenChannelRequestsList`) must be provided as
 		/// witness data.
+		#[pallet::call_index(6)]
 		#[pallet::weight(<T as Config>::WeightInfo::hrmp_cancel_open_request(*open_requests))]
 		pub fn hrmp_cancel_open_request(
 			origin: OriginFor<T>,
@@ -575,6 +589,33 @@ pub mod pallet {
 			);
 			Self::cancel_open_request(origin, channel_id.clone())?;
 			Self::deposit_event(Event::OpenChannelCanceled(origin, channel_id));
+			Ok(())
+		}
+
+		/// Open a channel from a `sender` to a `recipient` `ParaId` using the Root origin. Although
+		/// opened by Root, the `max_capacity` and `max_message_size` are still subject to the Relay
+		/// Chain's configured limits.
+		///
+		/// Expected use is when one of the `ParaId`s involved in the channel is governed by the
+		/// Relay Chain, e.g. a common good parachain.
+		#[pallet::call_index(7)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_open_hrmp_channel())]
+		pub fn force_open_hrmp_channel(
+			origin: OriginFor<T>,
+			sender: ParaId,
+			recipient: ParaId,
+			max_capacity: u32,
+			max_message_size: u32,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::init_open_channel(sender, recipient, max_capacity, max_message_size)?;
+			Self::accept_open_channel(recipient, sender)?;
+			Self::deposit_event(Event::HrmpChannelForceOpened(
+				sender,
+				recipient,
+				max_capacity,
+				max_message_size,
+			));
 			Ok(())
 		}
 	}
@@ -718,10 +759,10 @@ impl<T: Config> Pallet<T> {
 
 		let ingress = <Self as Store>::HrmpIngressChannelsIndex::take(outgoing_para)
 			.into_iter()
-			.map(|sender| HrmpChannelId { sender, recipient: outgoing_para.clone() });
+			.map(|sender| HrmpChannelId { sender, recipient: *outgoing_para });
 		let egress = <Self as Store>::HrmpEgressChannelsIndex::take(outgoing_para)
 			.into_iter()
-			.map(|recipient| HrmpChannelId { sender: outgoing_para.clone(), recipient });
+			.map(|recipient| HrmpChannelId { sender: *outgoing_para, recipient });
 		let mut to_close = ingress.chain(egress).collect::<Vec<_>>();
 		to_close.sort();
 		to_close.dedup();
@@ -1042,7 +1083,7 @@ impl<T: Config> Pallet<T> {
 			channel.total_size += inbound.data.len() as u32;
 
 			// compute the new MQC head of the channel
-			let prev_head = channel.mqc_head.clone().unwrap_or(Default::default());
+			let prev_head = channel.mqc_head.unwrap_or(Default::default());
 			let new_head = BlakeTwo256::hash_of(&(
 				prev_head,
 				inbound.sent_at,
@@ -1116,11 +1157,11 @@ impl<T: Config> Pallet<T> {
 		let channel_id = HrmpChannelId { sender: origin, recipient };
 		ensure!(
 			<Self as Store>::HrmpOpenChannelRequests::get(&channel_id).is_none(),
-			Error::<T>::OpenHrmpChannelAlreadyExists,
+			Error::<T>::OpenHrmpChannelAlreadyRequested,
 		);
 		ensure!(
 			<Self as Store>::HrmpChannels::get(&channel_id).is_none(),
-			Error::<T>::OpenHrmpChannelAlreadyRequested,
+			Error::<T>::OpenHrmpChannelAlreadyExists,
 		);
 
 		let egress_cnt =

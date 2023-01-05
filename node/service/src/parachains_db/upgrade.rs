@@ -28,7 +28,7 @@ type Version = u32;
 const VERSION_FILE_NAME: &'static str = "parachain_db_version";
 
 /// Current db version.
-const CURRENT_VERSION: Version = 1;
+const CURRENT_VERSION: Version = 2;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -36,7 +36,7 @@ pub enum Error {
 	Io(#[from] io::Error),
 	#[error("The version file format is incorrect")]
 	CorruptedVersionFile,
-	#[error("Future version (expected {current:?}, found {got:?})")]
+	#[error("Parachains DB has a future version (expected {current:?}, found {got:?})")]
 	FutureVersion { current: Version, got: Version },
 }
 
@@ -56,6 +56,8 @@ pub(crate) fn try_upgrade_db(db_path: &Path, db_kind: DatabaseKind) -> Result<()
 		match get_db_version(db_path)? {
 			// 0 -> 1 migration
 			Some(0) => migrate_from_version_0_to_1(db_path, db_kind)?,
+			// 1 -> 2 migration
+			Some(1) => migrate_from_version_1_to_2(db_path, db_kind)?,
 			// Already at current version, do nothing.
 			Some(CURRENT_VERSION) => (),
 			// This is an arbitrary future version, we don't handle it.
@@ -112,6 +114,19 @@ fn migrate_from_version_0_to_1(path: &Path, db_kind: DatabaseKind) -> Result<(),
 	})
 }
 
+fn migrate_from_version_1_to_2(path: &Path, db_kind: DatabaseKind) -> Result<(), Error> {
+	gum::info!(target: LOG_TARGET, "Migrating parachains db from version 1 to version 2 ...");
+
+	match db_kind {
+		DatabaseKind::ParityDB => paritydb_migrate_from_version_1_to_2(path),
+		DatabaseKind::RocksDB => rocksdb_migrate_from_version_1_to_2(path),
+	}
+	.and_then(|result| {
+		gum::info!(target: LOG_TARGET, "Migration complete! ");
+		Ok(result)
+	})
+}
+
 /// Migration from version 0 to version 1:
 /// * the number of columns has changed from 3 to 5;
 fn rocksdb_migrate_from_version_0_to_1(path: &Path) -> Result<(), Error> {
@@ -121,9 +136,25 @@ fn rocksdb_migrate_from_version_0_to_1(path: &Path) -> Result<(), Error> {
 		.to_str()
 		.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
 	let db_cfg = DatabaseConfig::with_columns(super::columns::v0::NUM_COLUMNS);
-	let db = Database::open(&db_cfg, db_path)?;
+	let mut db = Database::open(&db_cfg, db_path)?;
 
 	db.add_column()?;
+	db.add_column()?;
+
+	Ok(())
+}
+
+/// Migration from version 1 to version 2:
+/// * the number of columns has changed from 5 to 6;
+fn rocksdb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
+	use kvdb_rocksdb::{Database, DatabaseConfig};
+
+	let db_path = path
+		.to_str()
+		.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
+	let db_cfg = DatabaseConfig::with_columns(super::columns::v1::NUM_COLUMNS);
+	let mut db = Database::open(&db_cfg, db_path)?;
+
 	db.add_column()?;
 
 	Ok(())
@@ -190,7 +221,18 @@ fn paritydb_fix_columns(
 pub(crate) fn paritydb_version_1_config(path: &Path) -> parity_db::Options {
 	let mut options =
 		parity_db::Options::with_columns(&path, super::columns::v1::NUM_COLUMNS as u8);
-	for i in columns::v1::ORDERED_COL {
+	for i in columns::v2::ORDERED_COL {
+		options.columns[*i as usize].btree_index = true;
+	}
+
+	options
+}
+
+/// Database configuration for version 2.
+pub(crate) fn paritydb_version_2_config(path: &Path) -> parity_db::Options {
+	let mut options =
+		parity_db::Options::with_columns(&path, super::columns::v2::NUM_COLUMNS as u8);
+	for i in columns::v2::ORDERED_COL {
 		options.columns[*i as usize].btree_index = true;
 	}
 
@@ -202,8 +244,8 @@ pub(crate) fn paritydb_version_1_config(path: &Path) -> parity_db::Options {
 pub(crate) fn paritydb_version_0_config(path: &Path) -> parity_db::Options {
 	let mut options =
 		parity_db::Options::with_columns(&path, super::columns::v1::NUM_COLUMNS as u8);
-	options.columns[super::columns::v1::COL_AVAILABILITY_META as usize].btree_index = true;
-	options.columns[super::columns::v1::COL_CHAIN_SELECTION_DATA as usize].btree_index = true;
+	options.columns[super::columns::v2::COL_AVAILABILITY_META as usize].btree_index = true;
+	options.columns[super::columns::v2::COL_CHAIN_SELECTION_DATA as usize].btree_index = true;
 
 	options
 }
@@ -218,17 +260,30 @@ fn paritydb_migrate_from_version_0_to_1(path: &Path) -> Result<(), Error> {
 	paritydb_fix_columns(
 		path,
 		paritydb_version_1_config(path),
-		vec![super::columns::v1::COL_DISPUTE_COORDINATOR_DATA],
+		vec![super::columns::v2::COL_DISPUTE_COORDINATOR_DATA],
 	)?;
+
+	Ok(())
+}
+
+/// Migration from version 1 to version 2:
+/// - add a new column for session information storage
+fn paritydb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
+	let mut options = paritydb_version_1_config(path);
+
+	// Adds the session info column.
+	parity_db::Db::add_column(&mut options, Default::default())
+		.map_err(|e| other_io_error(format!("Error adding column {:?}", e)))?;
 
 	Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+	use super::{columns::v2::*, *};
+
 	#[test]
-	fn test_paritydb_migrate_0_1() {
-		use super::{columns::v1::*, *};
+	fn test_paritydb_migrate_0_to_1() {
 		use parity_db::Db;
 
 		let db_dir = tempfile::tempdir().unwrap();
@@ -246,13 +301,119 @@ mod tests {
 		try_upgrade_db(&path, DatabaseKind::ParityDB).unwrap();
 
 		let db = Db::open(&paritydb_version_1_config(&path)).unwrap();
+		assert_eq!(db.get(COL_DISPUTE_COORDINATOR_DATA as u8, b"1234").unwrap(), None);
 		assert_eq!(
-			db.get(super::columns::v1::COL_DISPUTE_COORDINATOR_DATA as u8, b"1234").unwrap(),
-			None
-		);
-		assert_eq!(
-			db.get(super::columns::v1::COL_AVAILABILITY_META as u8, b"5678").unwrap(),
+			db.get(COL_AVAILABILITY_META as u8, b"5678").unwrap(),
 			Some("somevalue".as_bytes().to_vec())
+		);
+	}
+
+	#[test]
+	fn test_paritydb_migrate_1_to_2() {
+		use parity_db::Db;
+
+		let db_dir = tempfile::tempdir().unwrap();
+		let path = db_dir.path();
+
+		// We need to properly set db version for upgrade to work.
+		fs::write(version_file_path(path), "1").expect("Failed to write DB version");
+
+		{
+			let db = Db::open_or_create(&paritydb_version_1_config(&path)).unwrap();
+
+			// Write some dummy data
+			db.commit(vec![(
+				COL_DISPUTE_COORDINATOR_DATA as u8,
+				b"1234".to_vec(),
+				Some(b"somevalue".to_vec()),
+			)])
+			.unwrap();
+
+			assert_eq!(db.num_columns(), columns::v1::NUM_COLUMNS as u8);
+		}
+
+		try_upgrade_db(&path, DatabaseKind::ParityDB).unwrap();
+
+		let db = Db::open(&paritydb_version_2_config(&path)).unwrap();
+
+		assert_eq!(db.num_columns(), columns::v2::NUM_COLUMNS as u8);
+
+		assert_eq!(
+			db.get(COL_DISPUTE_COORDINATOR_DATA as u8, b"1234").unwrap(),
+			Some("somevalue".as_bytes().to_vec())
+		);
+
+		// Test we can write the new column.
+		db.commit(vec![(
+			COL_SESSION_WINDOW_DATA as u8,
+			b"1337".to_vec(),
+			Some(b"0xdeadb00b".to_vec()),
+		)])
+		.unwrap();
+
+		// Read back data from new column.
+		assert_eq!(
+			db.get(COL_SESSION_WINDOW_DATA as u8, b"1337").unwrap(),
+			Some("0xdeadb00b".as_bytes().to_vec())
+		);
+	}
+
+	#[test]
+	fn test_rocksdb_migrate_1_to_2() {
+		use kvdb::{DBKey, DBOp};
+		use kvdb_rocksdb::{Database, DatabaseConfig};
+		use polkadot_node_subsystem_util::database::{
+			kvdb_impl::DbAdapter, DBTransaction, KeyValueDB,
+		};
+
+		let db_dir = tempfile::tempdir().unwrap();
+		let db_path = db_dir.path().to_str().unwrap();
+		let db_cfg = DatabaseConfig::with_columns(super::columns::v1::NUM_COLUMNS);
+		let db = Database::open(&db_cfg, db_path).unwrap();
+		assert_eq!(db.num_columns(), super::columns::v1::NUM_COLUMNS as u32);
+
+		// We need to properly set db version for upgrade to work.
+		fs::write(version_file_path(db_dir.path()), "1").expect("Failed to write DB version");
+		{
+			let db = DbAdapter::new(db, columns::v2::ORDERED_COL);
+			db.write(DBTransaction {
+				ops: vec![DBOp::Insert {
+					col: COL_DISPUTE_COORDINATOR_DATA,
+					key: DBKey::from_slice(b"1234"),
+					value: b"0xdeadb00b".to_vec(),
+				}],
+			})
+			.unwrap();
+		}
+
+		try_upgrade_db(&db_dir.path(), DatabaseKind::RocksDB).unwrap();
+
+		let db_cfg = DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
+		let db = Database::open(&db_cfg, db_path).unwrap();
+
+		assert_eq!(db.num_columns(), super::columns::v2::NUM_COLUMNS);
+
+		let db = DbAdapter::new(db, columns::v2::ORDERED_COL);
+
+		assert_eq!(
+			db.get(COL_DISPUTE_COORDINATOR_DATA, b"1234").unwrap(),
+			Some("0xdeadb00b".as_bytes().to_vec())
+		);
+
+		// Test we can write the new column.
+		db.write(DBTransaction {
+			ops: vec![DBOp::Insert {
+				col: COL_SESSION_WINDOW_DATA,
+				key: DBKey::from_slice(b"1337"),
+				value: b"0xdeadb00b".to_vec(),
+			}],
+		})
+		.unwrap();
+
+		// Read back data from new column.
+		assert_eq!(
+			db.get(COL_SESSION_WINDOW_DATA, b"1337").unwrap(),
+			Some("0xdeadb00b".as_bytes().to_vec())
 		);
 	}
 }

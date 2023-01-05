@@ -257,7 +257,7 @@ where
 
 		let keys = losers
 			.into_iter()
-			.filter_map(|i| session_info.validators.get(i.0 as usize).cloned().map(|id| (i, id)))
+			.filter_map(|i| session_info.validators.get(i).cloned().map(|id| (i, id)))
 			.collect();
 		let unapplied = PendingSlashes { keys, kind };
 		<UnappliedSlashes<T>>::insert(session_index, candidate_hash, unapplied);
@@ -475,6 +475,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::report_dispute_lost(
 			key_owner_proof.validator_count()
 		))]

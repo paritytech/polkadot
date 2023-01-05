@@ -36,7 +36,7 @@ const LEGACY_COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
 const LEGACY_PROTOCOL_VERSION_V1: u32 = 1;
 
 /// Max notification size is currently constant.
-const MAX_NOTIFICATION_SIZE: u64 = 100 * 1024;
+pub const MAX_NOTIFICATION_SIZE: u64 = 100 * 1024;
 
 /// The peer-sets and thus the protocols which are used for the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]
@@ -80,6 +80,7 @@ impl PeerSet {
 				notifications_protocol: protocol,
 				fallback_names,
 				max_notification_size,
+				handshake: None,
 				set_config: sc_network_common::config::SetConfig {
 					// we allow full nodes to connect to validators for gossip
 					// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers
@@ -95,6 +96,7 @@ impl PeerSet {
 				notifications_protocol: protocol,
 				fallback_names,
 				max_notification_size,
+				handshake: None,
 				set_config: SetConfig {
 					// Non-authority nodes don't need to accept incoming connections on this peer set:
 					in_peers: if is_authority == IsAuthority::Yes { 100 } else { 0 },

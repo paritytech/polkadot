@@ -1,9 +1,9 @@
 [package]
 name = "xcm-simulator"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "Test kit to simulate cross-chain message passing and XCM execution"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0" }
