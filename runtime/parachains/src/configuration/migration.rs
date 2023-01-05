@@ -32,6 +32,7 @@ pub mod v4 {
 	use super::*;
 	use frame_support::{traits::OnRuntimeUpgrade, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
 	use primitives::v2::{Balance, SessionIndex};
+	#[cfg(feature = "try-runtime")]
 	use sp_std::prelude::*;
 
 	// Copied over from configuration.rs @ de9e147695b9f1be8bd44e07861a31e483c8343a and removed
