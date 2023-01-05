@@ -623,6 +623,7 @@ async fn validate_candidate_exhaustive(
 
 #[async_trait]
 trait ValidationBackend {
+	/// Tries executing a PVF a single time (no retries).
 	async fn validate_candidate(
 		&mut self,
 		pvf_with_params: PvfWithExecutorParams,
@@ -630,6 +631,8 @@ trait ValidationBackend {
 		encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError>;
 
+	/// Tries executing a PVF. Will retry once if an error is encountered that may have been
+	/// transient.
 	async fn validate_candidate_with_retry(
 		&mut self,
 		raw_validation_code: Vec<u8>,
@@ -641,7 +644,7 @@ trait ValidationBackend {
 		let pvf_with_params =
 			PvfWithExecutorParams::new(Pvf::from_code(raw_validation_code), executor_params);
 
-		let validation_result =
+		let mut validation_result =
 			self.validate_candidate(pvf_with_params.clone(), timeout, params.encode()).await;
 
 		// If we get an AmbiguousWorkerDeath error, retry once after a brief delay, on the
@@ -651,12 +654,19 @@ trait ValidationBackend {
 		{
 			// Wait a brief delay before retrying.
 			futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
+
+			gum::debug!(
+				target: LOG_TARGET,
+				?pvf_with_params,
+				"Re-trying failed candidate validation due to AmbiguousWorkerDeath."
+			);
+
 			// Encode the params again when re-trying. We expect the retry case to be relatively
 			// rare, and we want to avoid unconditionally cloning data.
-			self.validate_candidate(pvf_with_params, timeout, params.encode()).await
-		} else {
-			validation_result
+			validation_result = self.validate_candidate(pvf_with_params, timeout, params.encode()).await;
 		}
+
+		validation_result
 	}
 
 	async fn precheck_pvf(
