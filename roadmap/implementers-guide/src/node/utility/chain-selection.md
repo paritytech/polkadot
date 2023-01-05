@@ -8,6 +8,7 @@ This subsystem needs to update its information on the unfinalized chain:
   * On every leaf-activated signal
   * On every block-finalized signal
   * On every `ChainSelectionMessage::Approve`
+  * On every `ChainSelectionMessage::DisputeConcludedAgainst`
   * Periodically, to detect stagnation.
 
 Simple implementations of these updates do `O(n_unfinalized_blocks)` disk operations. If the amount of unfinalized blocks is relatively small, the updates should not take very much time. However, in cases where there are hundreds or thousands of unfinalized blocks the naive implementations of these update algorithms would have to be replaced with more sophisticated versions.
@@ -28,6 +29,10 @@ Update the approval status of the referenced block. If the block was stagnant an
 
 If the required block is unknown or not viable, then return `None`.
 Iterate over all leaves, returning the first leaf containing the required block in its chain, and `None` otherwise.
+
+### `ChainSelectionMessage::DisputeConcludedAgainst`
+This message indicates that a dispute has concluded against a parachain block candidate. The message passes along the block number and hash of the disputed candidate's relay parent. The relay parent will be marked as reverted, and its descendants will be marked as non-viable.
+
 
 ### Periodically
 

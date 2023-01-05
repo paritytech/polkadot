@@ -73,7 +73,10 @@ impl ScrapedUpdates {
 
 /// Chain scraper
 ///
-/// Scrapes unfinalized chain in order to collect information from blocks.
+/// Scrapes unfinalized chain in order to collect information from blocks. Chain scraping
+/// during disputes enables critical spam prevention. It does so by updating two important
+/// criteria determining whether a vote sent during dispute distribution is potential 
+/// spam. Namely, whether the candidate being voted on is backed or included.
 ///
 /// Concretely:
 ///
