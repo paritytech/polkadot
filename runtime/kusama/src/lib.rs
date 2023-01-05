@@ -484,9 +484,9 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
-	#[cfg(feature = "fast-runtime")]
+	#[cfg(any(feature = "fast-runtime", feature = "runtime-benchmarks"))]
 	type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
-	#[cfg(not(feature = "fast-runtime"))]
+	#[cfg(not(any(feature = "fast-runtime", feature = "runtime-benchmarks")))]
 	type Fallback = frame_election_provider_support::NoElection<(
 		AccountId,
 		BlockNumber,
