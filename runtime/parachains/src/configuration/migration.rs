@@ -32,6 +32,7 @@ pub mod v4 {
 	use super::*;
 	use frame_support::{traits::OnRuntimeUpgrade, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
 	use primitives::v2::{Balance, SessionIndex};
+	use sp_std::prelude::*;
 
 	// Copied over from configuration.rs @ de9e147695b9f1be8bd44e07861a31e483c8343a and removed
 	// all the comments, and changed the Weight struct to OldWeight
@@ -137,6 +138,14 @@ pub mod v4 {
 
 	pub struct MigrateToV4<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV4<T> {
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+			log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
+
+			ensure!(StorageVersion::get::<Pallet<T>>() == 3, "The migration requires version 3");
+			Ok(Vec::new())
+		}
+
 		fn on_runtime_upgrade() -> Weight {
 			if StorageVersion::get::<Pallet<T>>() == 3 {
 				let weight_consumed = migrate_to_v4::<T>();
@@ -149,6 +158,17 @@ pub mod v4 {
 				log::warn!(target: configuration::LOG_TARGET, "MigrateToV4 should be removed.");
 				T::DbWeight::get().reads(1)
 			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+			log::trace!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
+			ensure!(
+				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
+				"Storage version should be 4 after the migration"
+			);
+
+			Ok(())
 		}
 	}
 }

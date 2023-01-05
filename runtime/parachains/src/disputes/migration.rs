@@ -55,13 +55,13 @@ pub mod v1 {
 
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-			log::info!(
+			log::trace!(
 				target: crate::disputes::LOG_TARGET,
 				"SpamSlots before migration: {}",
 				SpamSlots::<T>::iter().count()
 			);
 			ensure!(
-				StorageVersion::get::<Pallet<T>>() < STORAGE_VERSION,
+				StorageVersion::get::<Pallet<T>>() == 0,
 				"Storage version should be less than `1` before the migration",
 			);
 			Ok(Vec::new())
@@ -69,6 +69,7 @@ pub mod v1 {
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+			log::trace!(target: crate::disputes::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
 				"Storage version should be `1` after the migration"
