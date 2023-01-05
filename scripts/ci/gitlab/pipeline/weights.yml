@@ -15,7 +15,7 @@ update_polkadot_weights:           &update-weights
     - git diff -P > ${RUNTIME}_weights_${CI_COMMIT_SHORT_SHA}.patch
   # uses the "shell" executors
   tags:
-    - weights
+    - weights-vm
 
 update_kusama_weights:
   <<:                              *update-weights
