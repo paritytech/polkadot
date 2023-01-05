@@ -263,7 +263,7 @@ where
 	}
 
 	fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		A::initializer_initialize(now) + B::initializer_initialize(now)
+		A::initializer_initialize(now).max(B::initializer_initialize(now))
 	}
 
 	fn initializer_finalize() {
