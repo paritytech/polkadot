@@ -7,62 +7,62 @@ edition.workspace = true
 
 [dependencies]
 # Substrate Client
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-beefy" }
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-mmr-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master"}
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-offchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", package = "sp-beefy" , branch = "bkchr-speed-up-kademlia" }
+beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+mmr-gadget = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-network = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-offchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+service = { package = "sc-service", git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-speed-up-kademlia" }
+telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
 
 # Substrate Primitives
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
 
 # Substrate Pallets
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
 
 # Substrate Other
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
 
 # External Crates
 futures = "0.3.21"

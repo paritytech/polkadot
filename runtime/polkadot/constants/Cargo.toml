@@ -7,12 +7,12 @@ edition.workspace = true
 [dependencies]
 smallvec = "1.8.0"
 
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-speed-up-kademlia" }
 primitives = { package = "polkadot-primitives", path = "../../../primitives", default-features = false }
 runtime-common = { package = "polkadot-runtime-common", path = "../../common", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-speed-up-kademlia" }
+sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-speed-up-kademlia" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-speed-up-kademlia" }
 
 [features]
 default = ["std"]

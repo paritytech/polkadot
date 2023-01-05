@@ -7,37 +7,37 @@ edition.workspace = true
 [dependencies]
 async-trait = "0.1.57"
 futures = "0.3.21"
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
 
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-storage = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-speed-up-kademlia" }
 
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "bkchr-speed-up-kademlia" }
+sc-service = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "bkchr-speed-up-kademlia" }
 
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-beefy" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", package = "sp-beefy" , branch = "bkchr-speed-up-kademlia" }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot", optional = true }
