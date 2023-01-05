@@ -31,8 +31,8 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		ApprovalVotingMessage, BlockDescription, DisputeCoordinatorMessage,
-		DisputeDistributionMessage, ImportStatementsResult, ChainSelectionMessage,
+		ApprovalVotingMessage, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage,
+		DisputeDistributionMessage, ImportStatementsResult,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
@@ -1031,14 +1031,12 @@ impl Initialized {
 		// will need to mark the candidate's relay parent as reverted.
 		if import_result.is_freshly_concluded_against() {
 			if let Some(info) = self.scraper.get_included_candidate_info(candidate_hash) {
-				ctx.send_message(
-					ChainSelectionMessage::DisputeConcludedAgainst(
-						info.block_number,
-						info.block_hash,
-					))
-					.await;
-			}
-			else {
+				ctx.send_message(ChainSelectionMessage::DisputeConcludedAgainst(
+					info.block_number,
+					info.block_hash,
+				))
+				.await;
+			} else {
 				gum::error!(
 					target: LOG_TARGET,
 					?candidate_hash,

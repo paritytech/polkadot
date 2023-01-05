@@ -593,7 +593,7 @@ pub enum ChainSelectionMessage {
 	/// there is no such leaf.
 	BestLeafContaining(Hash, oneshot::Sender<Option<Hash>>),
 	/// Passed block number and hash are for the relay parent of the disputed candidate.
-	/// The parent must be marked as reverted, and its children must be marked as 
+	/// The parent must be marked as reverted, and its children must be marked as
 	/// non-viable.
 	DisputeConcludedAgainst(BlockNumber, Hash),
 }

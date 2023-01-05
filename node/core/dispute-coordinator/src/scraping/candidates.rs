@@ -10,7 +10,7 @@ struct RefCountedCandidates {
 	candidates: HashMap<CandidateHash, CandidateInfo>,
 }
 
-// If a dispute is concluded against this candidate, then the ChainSelection 
+// If a dispute is concluded against this candidate, then the ChainSelection
 // subsystem needs block number and block hash to mark the relay parent as reverted.
 pub struct CandidateInfo {
 	count: usize,
@@ -131,7 +131,7 @@ impl ScrapedCandidates {
 	}
 
 	// Gets candidate info, importantly containing relay parent block number and
-	// block hash. These are needed for relay block reversions based on concluded 
+	// block hash. These are needed for relay block reversions based on concluded
 	// disputes.
 	pub fn get_candidate_info(&mut self, candidate: CandidateHash) -> Option<&CandidateInfo> {
 		self.candidates.candidates.get(&candidate)
@@ -143,7 +143,7 @@ impl ScrapedCandidates {
 		block_hash: Hash,
 		candidate_hash: CandidateHash,
 	) {
-		self.candidates.insert( block_number, block_hash, candidate_hash);
+		self.candidates.insert(block_number, block_hash, candidate_hash);
 		self.candidates_by_block_number
 			.entry(block_number)
 			.or_default()

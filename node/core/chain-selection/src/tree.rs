@@ -400,35 +400,34 @@ fn apply_ancestor_reversions(
 pub(crate) fn apply_single_reversion(
 	backend: &mut OverlayedBackend<impl Backend>,
 	revert_hash: Hash,
-	revert_number: BlockNumber
+	revert_number: BlockNumber,
 ) -> Result<(), Error> {
-	let mut entry_to_revert = 
-		match backend.load_block_entry(&revert_hash)? {
-			None => {
-				gum::warn!(
-					target: LOG_TARGET,
-					?revert_hash,
-					// We keep parent block numbers in the disputes subsystem just
-					// for this log
-					revert_target = revert_number,
-					"The hammer has dropped. \
+	let mut entry_to_revert = match backend.load_block_entry(&revert_hash)? {
+		None => {
+			gum::warn!(
+				target: LOG_TARGET,
+				?revert_hash,
+				// We keep parent block numbers in the disputes subsystem just
+				// for this log
+				revert_target = revert_number,
+				"The hammer has dropped. \
 				A dispute has concluded against a finalized block. \
 				Please inform an adult.",
-				);
+			);
 
-				return Ok(());
-			},
-			Some(entry_to_revert) => {
-				gum::info!(
-					target: LOG_TARGET,
-					?revert_hash,
-					revert_target = revert_number,
-					"A dispute has concluded against a block, causing it to be reverted.",
-				);
+			return Ok(())
+		},
+		Some(entry_to_revert) => {
+			gum::info!(
+				target: LOG_TARGET,
+				?revert_hash,
+				revert_target = revert_number,
+				"A dispute has concluded against a block, causing it to be reverted.",
+			);
 
-				entry_to_revert
-			},
-		};
+			entry_to_revert
+		},
+	};
 	entry_to_revert.viability.explicitly_reverted = true;
 	// Marks children of reverted block as non-viable
 	propagate_viability_update(backend, entry_to_revert)?;

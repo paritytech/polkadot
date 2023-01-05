@@ -684,9 +684,9 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 // A dispute has concluded against a candidate. Here we revert the block containing
 // that candidate and mark its descendants as non-viable
 fn handle_concluded_dispute_reversions(
-	backend: &mut impl Backend, 
-	block_number: u32, 
-	block_hash: Hash
+	backend: &mut impl Backend,
+	block_number: u32,
+	block_hash: Hash,
 ) -> Result<(), Error> {
 	let mut overlay = OverlayedBackend::new(backend);
 	tree::apply_single_reversion(&mut overlay, block_hash, block_number)?;
