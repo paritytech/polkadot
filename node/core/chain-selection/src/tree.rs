@@ -247,7 +247,7 @@ pub(crate) fn import_block(
 	stagnant_at: Timestamp,
 ) -> Result<(), Error> {
 	add_block(backend, block_hash, block_number, parent_hash, weight, stagnant_at)?;
-	apply_reversions(backend, block_hash, block_number, reversion_logs)?;
+	apply_ancestor_reversions(backend, block_hash, block_number, reversion_logs)?;
 
 	Ok(())
 }
@@ -349,7 +349,7 @@ fn add_block(
 
 // Assuming that a block is already imported, accepts the number of the block
 // as well as a list of reversions triggered by the block in ascending order.
-fn apply_reversions(
+fn apply_ancestor_reversions(
 	backend: &mut OverlayedBackend<impl Backend>,
 	block_hash: Hash,
 	block_number: BlockNumber,
@@ -390,6 +390,43 @@ fn apply_reversions(
 		ancestor_entry.viability.explicitly_reverted = true;
 		propagate_viability_update(backend, ancestor_entry)?;
 	}
+
+	Ok(())
+}
+
+pub(crate) fn apply_single_reversion(
+	backend: &mut OverlayedBackend<impl Backend>,
+	revert_hash: Hash,
+	revert_number: BlockNumber
+) -> Result<(), Error> {
+	let mut entry_to_revert = 
+		match backend.load_block_entry(&revert_hash)? {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					?revert_hash,
+					revert_target = revert_number,
+					"The hammer has dropped. \
+				A dispute has concluded against a finalized block. \
+				Please inform an adult.",
+				);
+
+				return Ok(());
+			},
+			Some(entry_to_revert) => {
+				gum::info!(
+					target: LOG_TARGET,
+					?revert_hash,
+					revert_target = revert_number,
+					revert_hash = ?entry_to_revert.block_hash,
+					"A dispute has concluded against a block, causing it to be reverted.",
+				);
+
+				entry_to_revert
+			},
+		};
+	entry_to_revert.viability.explicitly_reverted = true;
+	propagate_viability_update(backend, entry_to_revert)?;
 
 	Ok(())
 }

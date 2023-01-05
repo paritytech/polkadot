@@ -16,7 +16,6 @@
 
 //! Implements the Chain Selection Subsystem.
 
-use gum::CandidateHash;
 use polkadot_node_primitives::BlockWeight;
 use polkadot_node_subsystem::{
 	errors::ChainApiError,
@@ -468,7 +467,7 @@ where
 							let _ = tx.send(best_containing);
 						}
 						ChainSelectionMessage::DisputeConcludedAgainst(block_number, block_hash) => {
-							handle_concluded_dispute_reversions(block_number, block_hash)?
+							handle_concluded_dispute_reversions(backend, block_number, block_hash)?
 						}
 					}
 				}
@@ -684,8 +683,13 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 
 // A dispute has concluded against a candidate. Here we apply the reverted status to
 // all blocks on chains containing that candidate.
-fn handle_concluded_dispute_reversions(block_number: u32, block_hash: Hash) -> Result<(), Error> {
-
+fn handle_concluded_dispute_reversions(
+	backend: &mut impl Backend, 
+	block_number: u32, 
+	block_hash: Hash
+) -> Result<(), Error> {
+	let mut overlay = OverlayedBackend::new(backend);
+	tree::apply_single_reversion(&mut overlay, block_hash, block_number)?;
 	Ok(())
 }
 
