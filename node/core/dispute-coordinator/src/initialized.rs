@@ -1027,10 +1027,10 @@ impl Initialized {
 			}
 		}
 
-		// Notify ChainSelection if a dispute has concluded against a candidate
+		// Notify ChainSelection if a dispute has concluded against a candidate. ChainSelection
+		// will need to mark the candidate's relay parent as reverted.
 		if import_result.is_freshly_concluded_against() {
-			let possible_info = self.scraper.get_included_candidate_info(candidate_hash);
-			if let Some(info) = possible_info {
+			if let Some(info) = self.scraper.get_included_candidate_info(candidate_hash) {
 				ctx.send_message(
 					ChainSelectionMessage::DisputeConcludedAgainst(
 						info.block_number,

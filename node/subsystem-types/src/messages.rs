@@ -592,7 +592,9 @@ pub enum ChainSelectionMessage {
 	/// Request the best leaf containing the given block in its ancestry. Return `None` if
 	/// there is no such leaf.
 	BestLeafContaining(Hash, oneshot::Sender<Option<Hash>>),
-	/// Apply reverted status to blocks in chains containing the disputed candidate.
+	/// Passed block number and hash are for the relay parent of the disputed candidate.
+	/// The parent must be marked as reverted, and its children must be marked as 
+	/// non-viable.
 	DisputeConcludedAgainst(BlockNumber, Hash),
 }
 

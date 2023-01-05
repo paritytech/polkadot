@@ -394,6 +394,9 @@ fn apply_ancestor_reversions(
 	Ok(())
 }
 
+/// Marks a single block as explicitly reverted. Then propegates viability updates
+/// to all its children. This is triggered when the disputes subsystem signals that
+/// a dispute has concluded against a candidate.
 pub(crate) fn apply_single_reversion(
 	backend: &mut OverlayedBackend<impl Backend>,
 	revert_hash: Hash,
@@ -405,6 +408,8 @@ pub(crate) fn apply_single_reversion(
 				gum::warn!(
 					target: LOG_TARGET,
 					?revert_hash,
+					// We keep parent block numbers in the disputes subsystem just
+					// for this log
 					revert_target = revert_number,
 					"The hammer has dropped. \
 				A dispute has concluded against a finalized block. \
@@ -418,7 +423,6 @@ pub(crate) fn apply_single_reversion(
 					target: LOG_TARGET,
 					?revert_hash,
 					revert_target = revert_number,
-					revert_hash = ?entry_to_revert.block_hash,
 					"A dispute has concluded against a block, causing it to be reverted.",
 				);
 
@@ -426,6 +430,7 @@ pub(crate) fn apply_single_reversion(
 			},
 		};
 	entry_to_revert.viability.explicitly_reverted = true;
+	// Marks children of reverted block as non-viable
 	propagate_viability_update(backend, entry_to_revert)?;
 
 	Ok(())
