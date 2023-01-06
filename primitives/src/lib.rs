@@ -50,7 +50,7 @@ pub use v2::{
 	RuntimeMetricLabelValue, RuntimeMetricLabelValues, RuntimeMetricLabels, RuntimeMetricOp,
 	RuntimeMetricUpdate, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signature,
 	Signed, SignedAvailabilityBitfield, SignedAvailabilityBitfields, SignedStatement,
-	SigningContext, UncheckedSigned, UncheckedSignedAvailabilityBitfield,
+	SigningContext, Slot, UncheckedSigned, UncheckedSignedAvailabilityBitfield,
 	UncheckedSignedAvailabilityBitfields, UncheckedSignedStatement, UpgradeGoAhead,
 	UpgradeRestriction, UpwardMessage, ValidDisputeStatementKind, ValidationCode,
 	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
