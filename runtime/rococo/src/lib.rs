@@ -43,7 +43,7 @@ use runtime_parachains::{
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
 	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	scheduler_parachains, session_info as parachains_session_info, shared as parachains_shared,
+	scheduler_parathreads, session_info as parachains_session_info, shared as parachains_shared,
 	ump as parachains_ump,
 };
 
@@ -1088,7 +1088,7 @@ impl parachains_scheduler::Config for Runtime {
 	type CoreAssigners<T: runtime_parachains::scheduler::Config> = Parachains;
 	//type CoreAssigners<T: runtime_parachains::scheduler::Config>= (Parachains, Parathreads);
 }
-impl scheduler_parachains::Config for Runtime {}
+impl scheduler_parathreads::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;

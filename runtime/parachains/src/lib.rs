@@ -35,7 +35,8 @@ pub mod paras;
 pub mod paras_inherent;
 pub mod reward_points;
 pub mod scheduler;
-pub mod scheduler_parachains;
+mod scheduler_common;
+pub mod scheduler_parathreads;
 pub mod session_info;
 pub mod shared;
 pub mod ump;
@@ -48,7 +49,6 @@ mod util;
 mod builder;
 #[cfg(test)]
 mod mock;
-mod scheduler_common;
 
 pub use origin::{ensure_parachain, Origin};
 pub use paras::ParaLifecycle;

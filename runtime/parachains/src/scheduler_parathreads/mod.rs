@@ -41,13 +41,14 @@ use primitives::v2::{
 	ScheduledCore,
 };
 use scale_info::TypeInfo;
+use sp_runtime::Saturating;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 use crate::{
 	configuration,
 	initializer::SessionChangeNotification,
 	paras,
-	scheduler_common::{AssignmentKind, CoreAssignment, FreedReason},
+	scheduler_common::{AssignmentKind, CoreAssigner, CoreAssignment, FreedReason},
 };
 
 pub use pallet::*;
@@ -99,6 +100,89 @@ impl ParathreadClaimQueue {
 impl Default for ParathreadClaimQueue {
 	fn default() -> Self {
 		Self { queue: vec![], next_core_offset: 0 }
+	}
+}
+
+pub struct ParathreadsScheduler;
+impl<T: Config + crate::scheduler::pallet::Config> CoreAssigner<T> for ParathreadsScheduler {
+	fn session_cores() -> u32 {
+		let config = <configuration::Pallet<T>>::config();
+		config.parathread_cores
+	}
+
+	fn initializer_initialize(now: T::BlockNumber) -> Weight {
+		<self::Pallet<T>>::initializer_initialize(now)
+	}
+
+	fn initializer_finalize() {
+		<self::Pallet<T>>::initializer_finalize()
+	}
+
+	fn initializer_on_new_session(
+		notification: &SessionChangeNotification<T::BlockNumber>,
+		cores: &[Option<CoreOccupied>],
+	) {
+		let &SessionChangeNotification { ref new_config, .. } = notification;
+		let config = new_config;
+
+		<self::Pallet<T>>::initializer_on_new_session(
+			notification,
+			cores,
+			config.parathread_cores,
+			config.parathread_retries,
+		);
+	}
+
+	fn free_cores(
+		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
+		cores: &[Option<CoreOccupied>],
+	) {
+		let config = <configuration::Pallet<T>>::config();
+
+		<self::Pallet<T>>::free_cores(just_freed_cores, cores, config.parathread_cores);
+	}
+
+	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment> {
+		<self::Pallet<T>>::take_on_next_core(core_idx, group_idx)
+	}
+
+	fn clear(scheduled: &[CoreAssignment]) {
+		let config = <configuration::Pallet<T>>::config();
+
+		<self::Pallet<T>>::clear(config.parathread_cores, config.parathread_retries, scheduled);
+	}
+
+	fn core_para(_core_index: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
+		match core_occupied {
+			CoreOccupied::Parathread(ref entry) => entry.claim.0,
+			_ => panic!("impossible"),
+		}
+	}
+
+	fn availability_timeout_predicate(
+		_core_index: CoreIndex,
+		blocks_since_last_rotation: T::BlockNumber,
+		pending_since: T::BlockNumber,
+	) -> bool {
+		let config = <configuration::Pallet<T>>::config();
+
+		if blocks_since_last_rotation >= config.thread_availability_period {
+			false // no pruning except recently after rotation.
+		} else {
+			let now = <frame_system::Pallet<T>>::block_number();
+			now.saturating_sub(pending_since) >= config.thread_availability_period
+		}
+	}
+
+	fn next_up_on_available(core_idx: CoreIndex) -> Option<ScheduledCore> {
+		<self::Pallet<T>>::next_up_on_available(core_idx)
+	}
+
+	fn next_up_on_time_out(
+		core_idx: CoreIndex,
+		cores: &[Option<CoreOccupied>],
+	) -> Option<ScheduledCore> {
+		<self::Pallet<T>>::next_up_on_time_out(core_idx, cores)
 	}
 }
 
@@ -422,7 +506,7 @@ impl<T: Config> Pallet<T> {
 	/// as the claim's retries would not exceed the limit. Otherwise None.
 	pub(crate) fn next_up_on_time_out(
 		core: CoreIndex,
-		cores: Vec<Option<CoreOccupied>>,
+		cores: &[Option<CoreOccupied>],
 	) -> Option<ScheduledCore> {
 		let queue = ParathreadQueue::<T>::get();
 

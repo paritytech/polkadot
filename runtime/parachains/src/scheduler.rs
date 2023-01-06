@@ -48,44 +48,14 @@ use crate::{
 	initializer::SessionChangeNotification,
 	paras,
 	scheduler_common::{AssignmentKind, CoreAssignment, FreedReason},
-	scheduler_parachains,
+	scheduler_parathreads,
 };
 
+use crate::scheduler_common::CoreAssigner;
 pub use pallet::*;
 
 #[cfg(test)]
 mod tests;
-
-// TODO: need to link CoreOccupied variants to CoreAssigner impls
-pub trait CoreAssigner<T: Config> {
-	fn session_cores() -> u32;
-
-	fn initializer_initialize(now: T::BlockNumber) -> Weight;
-
-	fn initializer_finalize();
-
-	fn initializer_on_new_session(
-		notification: &SessionChangeNotification<T::BlockNumber>,
-		cores: &[Option<CoreOccupied>],
-	);
-
-	fn free_cores(
-		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
-		cores: &[Option<CoreOccupied>],
-	);
-
-	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment>;
-
-	fn clear(scheduled: &[CoreAssignment]);
-
-	fn core_para(core_index: CoreIndex, core_occupied: &CoreOccupied) -> Option<ParaId>;
-
-	fn availability_timeout_predicate(
-		core_occupied: &CoreOccupied,
-		blocks_since_last_rotation: T::BlockNumber,
-		pending_since: T::BlockNumber,
-	) -> Option<bool>;
-}
 
 pub struct Parachains;
 impl<T: Config> CoreAssigner<T> for Parachains {
@@ -130,196 +100,42 @@ impl<T: Config> CoreAssigner<T> for Parachains {
 		return
 	}
 
-	fn core_para(core_index: CoreIndex, core_occupied: &CoreOccupied) -> Option<ParaId> {
+	fn core_para(core_index: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
 		match core_occupied {
 			CoreOccupied::Parachain => {
 				let parachains = <paras::Pallet<T>>::parachains();
-				Some(parachains[core_index.0 as usize])
+				parachains[core_index.0 as usize]
 			},
-			CoreOccupied::Parathread(_) => None,
+			_ => panic!("impossible"),
 		}
 	}
 
 	fn availability_timeout_predicate(
-		core_occupied: &CoreOccupied,
+		_core_index: CoreIndex,
 		blocks_since_last_rotation: T::BlockNumber,
 		pending_since: T::BlockNumber,
-	) -> Option<bool> {
-		match core_occupied {
-			CoreOccupied::Parachain => {
-				let config = <configuration::Pallet<T>>::config();
-
-				let pred = if blocks_since_last_rotation >= config.chain_availability_period {
-					false // no pruning except recently after rotation.
-				} else {
-					let now = <frame_system::Pallet<T>>::block_number();
-					now.saturating_sub(pending_since) >= config.chain_availability_period
-				};
-
-				Some(pred)
-			},
-
-			CoreOccupied::Parathread(_) => None,
-		}
-	}
-}
-
-pub struct Parathreads;
-impl<T: Config> CoreAssigner<T> for Parathreads {
-	fn session_cores() -> u32 {
-		let config = <configuration::Pallet<T>>::config();
-		config.parathread_cores
-	}
-
-	fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		<scheduler_parachains::Pallet<T>>::initializer_initialize(now)
-	}
-
-	fn initializer_finalize() {
-		<scheduler_parachains::Pallet<T>>::initializer_finalize()
-	}
-
-	fn initializer_on_new_session(
-		notification: &SessionChangeNotification<T::BlockNumber>,
-		cores: &[Option<CoreOccupied>],
-	) {
-		let &SessionChangeNotification { ref new_config, .. } = notification;
-		let config = new_config;
-
-		<scheduler_parachains::Pallet<T>>::initializer_on_new_session(
-			notification,
-			cores,
-			config.parathread_cores,
-			config.parathread_retries,
-		);
-	}
-
-	fn free_cores(
-		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
-		cores: &[Option<CoreOccupied>],
-	) {
+	) -> bool {
 		let config = <configuration::Pallet<T>>::config();
 
-		<scheduler_parachains::Pallet<T>>::free_cores(
-			just_freed_cores,
-			cores,
-			config.parathread_cores,
-		);
-	}
-
-	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment> {
-		<scheduler_parachains::Pallet<T>>::take_on_next_core(core_idx, group_idx)
-	}
-
-	fn clear(scheduled: &[CoreAssignment]) {
-		let config = <configuration::Pallet<T>>::config();
-
-		<scheduler_parachains::Pallet<T>>::clear(
-			config.parathread_cores,
-			config.parathread_retries,
-			scheduled,
-		);
-	}
-
-	fn core_para(_core_index: CoreIndex, core_occupied: &CoreOccupied) -> Option<ParaId> {
-		match core_occupied {
-			CoreOccupied::Parathread(ref entry) => Some(entry.claim.0),
-			CoreOccupied::Parachain => None,
-		}
-	}
-
-	fn availability_timeout_predicate(
-		core_occupied: &CoreOccupied,
-		blocks_since_last_rotation: T::BlockNumber,
-		pending_since: T::BlockNumber,
-	) -> Option<bool> {
-		match core_occupied {
-			CoreOccupied::Parathread(_) => {
-				let config = <configuration::Pallet<T>>::config();
-
-				let pred = if blocks_since_last_rotation >= config.thread_availability_period {
-					false // no pruning except recently after rotation.
-				} else {
-					let now = <frame_system::Pallet<T>>::block_number();
-					now.saturating_sub(pending_since) >= config.thread_availability_period
-				};
-
-				Some(pred)
-			},
-
-			CoreOccupied::Parachain => None,
-		}
-	}
-}
-
-impl<A, B, T> CoreAssigner<T> for (A, B)
-where
-	T: Config,
-	A: CoreAssigner<T>,
-	B: CoreAssigner<T>,
-{
-	fn session_cores() -> u32 {
-		A::session_cores() + B::session_cores()
-	}
-
-	fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		A::initializer_initialize(now).max(B::initializer_initialize(now))
-	}
-
-	fn initializer_finalize() {
-		A::initializer_finalize();
-		B::initializer_finalize();
-	}
-
-	fn initializer_on_new_session(
-		notification: &SessionChangeNotification<T::BlockNumber>,
-		cores: &[Option<CoreOccupied>],
-	) {
-		A::initializer_on_new_session(notification, cores);
-		B::initializer_on_new_session(notification, cores);
-	}
-
-	fn free_cores(
-		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
-		cores: &[Option<CoreOccupied>],
-	) {
-		A::free_cores(just_freed_cores, cores);
-		B::free_cores(just_freed_cores, cores);
-	}
-
-	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment> {
-		let c_idx = core_idx.0 as u32;
-		let a_cores = A::session_cores();
-
-		if (0..a_cores).contains(&c_idx) {
-			A::make_core_assignment(core_idx, group_idx)
+		if blocks_since_last_rotation >= config.chain_availability_period {
+			false // no pruning except recently after rotation.
 		} else {
-			B::make_core_assignment(core_idx, group_idx)
+			let now = <frame_system::Pallet<T>>::block_number();
+			now.saturating_sub(pending_since) >= config.chain_availability_period
 		}
 	}
 
-	fn clear(scheduled: &[CoreAssignment]) {
-		A::clear(scheduled);
-		B::clear(scheduled);
+	fn next_up_on_available(core_idx: CoreIndex) -> Option<ScheduledCore> {
+		let parachains = <paras::Pallet<T>>::parachains();
+		Some(ScheduledCore { para_id: parachains[core_idx.0 as usize], collator: None })
 	}
 
-	fn core_para(core_index: CoreIndex, core_occupied: &CoreOccupied) -> Option<ParaId> {
-		A::core_para(core_index, core_occupied).or_else(|| B::core_para(core_index, core_occupied))
-	}
-
-	fn availability_timeout_predicate(
-		core_occupied: &CoreOccupied,
-		blocks_since_last_rotation: T::BlockNumber,
-		pending_since: T::BlockNumber,
-	) -> Option<bool> {
-		A::availability_timeout_predicate(core_occupied, blocks_since_last_rotation, pending_since)
-			.or_else(|| {
-				B::availability_timeout_predicate(
-					core_occupied,
-					blocks_since_last_rotation,
-					pending_since,
-				)
-			})
+	fn next_up_on_time_out(
+		core_idx: CoreIndex,
+		_cores: &[Option<CoreOccupied>],
+	) -> Option<ScheduledCore> {
+		let parachains = <paras::Pallet<T>>::parachains();
+		Some(ScheduledCore { para_id: parachains[core_idx.0 as usize], collator: None })
 	}
 }
 
@@ -334,8 +150,9 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config:
-		frame_system::Config + configuration::Config + paras::Config + scheduler_parachains::Config
+		frame_system::Config + configuration::Config + paras::Config + scheduler_parathreads::Config
 	{
+		// I believe having a Vec<CoreAssigners> would be nicer
 		type CoreAssigners<T: Config>: CoreAssigner<T>;
 	}
 
@@ -359,6 +176,7 @@ pub mod pallet {
 	///   * The number of validators divided by `configuration.max_validators_per_core`.
 	#[pallet::storage]
 	#[pallet::getter(fn availability_cores)]
+	// TODO(?): macro here to check if there is a CoreAssigners impl for every CoreOccupied variant
 	pub(crate) type AvailabilityCores<T> = StorageValue<_, Vec<Option<CoreOccupied>>, ValueQuery>;
 
 	/// The block number where the session start occurred. Used to track how many group rotations have occurred.
@@ -407,10 +225,11 @@ impl<T: Config> Pallet<T> {
 			},
 		);
 
-		AvailabilityCores::<T>::mutate(|cores| {
-			// TODO: Can we map assigners to cores in particular? Can we actually iterate over assigners?
-			T::CoreAssigners::<T>::initializer_on_new_session(notification, cores);
+		// TODO: Can we map assigners to cores in particular? Can we actually iterate over assigners?
+		let cores = AvailabilityCores::<T>::get();
+		T::CoreAssigners::<T>::initializer_on_new_session(notification, &cores);
 
+		AvailabilityCores::<T>::mutate(|cores| {
 			// clear all occupied cores.
 			for core in cores.iter_mut() {
 				*core = None;
@@ -460,9 +279,10 @@ impl<T: Config> Pallet<T> {
 	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
 	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
 	pub(crate) fn free_cores(just_freed_cores: BTreeMap<CoreIndex, FreedReason>) {
-		AvailabilityCores::<T>::mutate(|cores| {
-			T::CoreAssigners::<T>::free_cores(&just_freed_cores, cores);
+		let cores = AvailabilityCores::<T>::get();
+		T::CoreAssigners::<T>::free_cores(&just_freed_cores, &cores);
 
+		AvailabilityCores::<T>::mutate(|cores| {
 			let c_len = cores.len();
 			for freed_index in just_freed_cores
 				.keys()
@@ -604,7 +424,7 @@ impl<T: Config> Pallet<T> {
 		let cores = AvailabilityCores::<T>::get();
 		match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
 			None => None,
-			Some(x) => T::CoreAssigners::<T>::core_para(core_index, x),
+			Some(x) => Some(T::CoreAssigners::<T>::core_para(core_index, x)),
 		}
 	}
 
@@ -677,14 +497,10 @@ impl<T: Config> Pallet<T> {
 				match availability_cores.get(core_index.0 as usize) {
 					None => true,       // out-of-bounds, doesn't really matter what is returned.
 					Some(None) => true, // core not occupied, still doesn't really matter.
-					Some(Some(x)) => T::CoreAssigners::<T>::availability_timeout_predicate(
-						x,
+					Some(Some(_)) => T::CoreAssigners::<T>::availability_timeout_predicate(
+						core_index,
 						blocks_since_last_rotation,
 						pending_since,
-					)
-					.expect(
-						"availability_timeout_predicate can't be None because \
-									  one of CoreAssigners needs to be responsible for this CoreOccupied; qed",
 					),
 				}
 			};
@@ -709,12 +525,7 @@ impl<T: Config> Pallet<T> {
 	/// For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that
 	/// core, and is None if there isn't one.
 	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
-		let parachains = <paras::Pallet<T>>::parachains();
-		if (core.0 as usize) < parachains.len() {
-			Some(ScheduledCore { para_id: parachains[core.0 as usize], collator: None })
-		} else {
-			<scheduler_parachains::Pallet<T>>::next_up_on_available(core)
-		}
+		T::CoreAssigners::<T>::next_up_on_available(core)
 	}
 
 	/// Return the next thing that will be scheduled on this core assuming it is currently
@@ -725,15 +536,8 @@ impl<T: Config> Pallet<T> {
 	/// core, or if there isn't one, the claim that is currently occupying the core, as long
 	/// as the claim's retries would not exceed the limit. Otherwise None.
 	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {
-		let parachains = <paras::Pallet<T>>::parachains();
-		if (core.0 as usize) < parachains.len() {
-			Some(ScheduledCore { para_id: parachains[core.0 as usize], collator: None })
-		} else {
-			<scheduler_parachains::Pallet<T>>::next_up_on_time_out(
-				core,
-				AvailabilityCores::<T>::get(),
-			)
-		}
+		let cores = AvailabilityCores::<T>::get();
+		T::CoreAssigners::<T>::next_up_on_time_out(core, &cores)
 	}
 
 	// Free all scheduled cores and return parathread claims to queue, with retries incremented.

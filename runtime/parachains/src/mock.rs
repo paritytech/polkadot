@@ -18,7 +18,7 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
-	scheduler, scheduler_parachains, session_info, shared,
+	scheduler, scheduler_parathreads, session_info, shared,
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
@@ -60,7 +60,7 @@ frame_support::construct_runtime!(
 		ParaInclusion: inclusion,
 		ParaInherent: paras_inherent,
 		Scheduler: scheduler,
-		SchedulerParachains: scheduler_parachains,
+		SchedulerParathreads: scheduler_parathreads,
 		Initializer: initializer,
 		Dmp: dmp,
 		Ump: ump,
@@ -294,9 +294,10 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 
 impl crate::scheduler::Config for Test {
 	type CoreAssigners<T: crate::scheduler::Config> =
-		(crate::scheduler::Parachains, crate::scheduler::Parathreads);
+		(crate::scheduler::Parachains, crate::scheduler_parathreads::ParathreadsScheduler);
+	// (crate::scheduler::Parachains, (crate::scheduler_parathreads::ParathreadsScheduler, crate::scheduler_parathreads::ParathreadsScheduler));
 }
-impl crate::scheduler_parachains::Config for Test {}
+impl crate::scheduler_parathreads::Config for Test {}
 
 impl crate::inclusion::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
