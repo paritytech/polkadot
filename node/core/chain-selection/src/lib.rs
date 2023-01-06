@@ -467,7 +467,7 @@ where
 							let _ = tx.send(best_containing);
 						}
 						ChainSelectionMessage::DisputeConcludedAgainst(block_number, block_hash) => {
-							handle_concluded_dispute_reversions(backend, block_number, block_hash)?
+							handle_concluded_dispute_reversion(backend, block_number, block_hash)?
 						}
 					}
 				}
@@ -683,7 +683,7 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 
 // A dispute has concluded against a candidate. Here we revert the block containing
 // that candidate and mark its descendants as non-viable
-fn handle_concluded_dispute_reversions(
+fn handle_concluded_dispute_reversion(
 	backend: &mut impl Backend,
 	block_number: u32,
 	block_hash: Hash,

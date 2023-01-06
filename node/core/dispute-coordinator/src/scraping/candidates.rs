@@ -13,7 +13,7 @@ struct RefCountedCandidates {
 // If a dispute is concluded against this candidate, then the ChainSelection
 // subsystem needs block number and block hash to mark the relay parent as reverted.
 pub struct CandidateInfo {
-	count: usize,
+	ref_count: usize,
 	pub block_number: BlockNumber,
 	pub block_hash: Hash,
 }
@@ -33,8 +33,8 @@ impl RefCountedCandidates {
 	) {
 		self.candidates
 			.entry(candidate)
-			.or_insert(CandidateInfo { count: 0, block_number, block_hash })
-			.count += 1;
+			.or_insert(CandidateInfo { ref_count: 0, block_number, block_hash })
+			.ref_count += 1;
 	}
 
 	// If a `CandidateHash` with reference count equals to 1 is about to be removed - the
@@ -43,9 +43,9 @@ impl RefCountedCandidates {
 	// reference count is decreased and the candidate remains in the container.
 	pub fn remove(&mut self, candidate: &CandidateHash) {
 		match self.candidates.get_mut(candidate) {
-			Some(v) if v.count > 1 => v.count -= 1,
+			Some(v) if v.ref_count > 1 => v.ref_count -= 1,
 			Some(v) => {
-				assert!(v.count == 1);
+				assert!(v.ref_count == 1);
 				self.candidates.remove(candidate);
 			},
 			None => {},
