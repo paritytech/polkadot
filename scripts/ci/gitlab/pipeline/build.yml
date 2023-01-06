@@ -39,26 +39,6 @@ build-linux-stable:
     - echo -n "v${RELEASE_VERSION}" > ./artifacts/BUILD_RELEASE_VERSION
     - cp -r scripts/* ./artifacts
 
-check-transaction-versions:
-  stage:                           build
-  extends:
-    - .docker-env
-    - .test-refs
-  image:                           node:15
-  needs:
-    - job:                         build-linux-stable
-      artifacts:                   true
-  before_script:
-    - apt-get -y update; apt-get -y install jq lsof
-    - npm install --ignore-scripts -g @polkadot/metadata-cmp
-    # Set git config
-    - git config remote.origin.url "https://github.com/paritytech/polkadot.git"
-    # - git fetch origin release
-  script:
-    - ./scripts/ci/gitlab/check_extrinsics_ordering.sh
-  # TODO: fixme, more info https://github.com/paritytech/polkadot/issues/6422
-  allow_failure:                   true
-
 build-test-collators:
   stage:                           build
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs

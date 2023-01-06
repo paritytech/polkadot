@@ -525,6 +525,16 @@ async fn handle_execute_pvf(
 			},
 			ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
 				if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
+					gum::debug!(
+						target: LOG_TARGET,
+						?pvf,
+						?artifact_id,
+						?last_time_failed,
+						%num_failures,
+						%error,
+						"handle_execute_pvf: Re-trying failed PVF preparation."
+					);
+
 					// If we are allowed to retry the failed prepare job, change the state to
 					// Preparing and re-queue this job.
 					*state = ArtifactState::Preparing {
@@ -585,6 +595,16 @@ async fn handle_heads_up(
 				},
 				ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
 					if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
+						gum::debug!(
+							target: LOG_TARGET,
+							?active_pvf,
+							?artifact_id,
+							?last_time_failed,
+							%num_failures,
+							%error,
+							"handle_heads_up: Re-trying failed PVF preparation."
+						);
+
 						// If we are allowed to retry the failed prepare job, change the state to
 						// Preparing and re-queue this job.
 						*state = ArtifactState::Preparing {
@@ -1393,7 +1413,7 @@ mod tests {
 	}
 
 	// Test that multiple execution requests don't trigger preparation retries if the first one
-	// failed due to reproducible error (e.g. Prevalidation).
+	// failed due to a reproducible error (e.g. Prevalidation).
 	#[async_std::test]
 	async fn test_execute_prepare_no_retry() {
 		let mut test = Builder::default().build();
