@@ -58,7 +58,7 @@ use futures::{
 };
 use indexmap::{map::Entry as IEntry, IndexMap};
 use sp_keystore::SyncCryptoStorePtr;
-use util::runtime::RuntimeInfo;
+use util::runtime::{RuntimeInfo, RuntimeInfoProvider};
 
 use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 

@@ -18,11 +18,21 @@
 
 #![warn(missing_docs)]
 
+use crate::overseer::SubsystemSender;
 use polkadot_node_subsystem::{
-	messages::AllMessages, overseer, FromOrchestra, OverseerSignal, SpawnGlue, SpawnedSubsystem,
-	SubsystemError, SubsystemResult,
+	messages::{AllMessages, RuntimeApiMessage},
+	overseer, FromOrchestra, OverseerSignal, SpawnGlue, SpawnedSubsystem, SubsystemError,
+	SubsystemResult,
 };
-use polkadot_node_subsystem_util::TimeoutExt;
+use polkadot_node_subsystem_util::{
+	runtime,
+	runtime::{ExtendedSessionInfo, RuntimeInfoProvider, ValidatorInfo},
+	TimeoutExt,
+};
+use polkadot_primitives::v3::{EncodeAs, Hash, SessionIndex, Signed, UncheckedSigned};
+use polkadot_primitives_test_helpers::dummy_session_info;
+use sp_core::Encode;
+use sp_keystore::SyncCryptoStorePtr;
 
 use futures::{channel::mpsc, poll, prelude::*};
 use parking_lot::Mutex;
@@ -370,6 +380,67 @@ where
 		});
 
 		SpawnedSubsystem { name: "forward-subsystem", future }
+	}
+}
+
+/// `RuntimeInfoProvider` dummy implementation for tests
+pub struct TestRuntimeInfo(Option<ExtendedSessionInfo>);
+
+#[async_trait::async_trait]
+impl RuntimeInfoProvider for TestRuntimeInfo {
+	fn new(_keystore: Option<SyncCryptoStorePtr>) -> Self {
+		Self(None)
+	}
+	fn new_with_config(_cfg: runtime::Config) -> Self {
+		Self(None)
+	}
+
+	async fn get_session_index_for_child<Sender>(
+		&mut self,
+		_sender: &mut Sender,
+		_parent: Hash,
+	) -> runtime::error::Result<SessionIndex>
+	where
+		Sender: SubsystemSender<RuntimeApiMessage>,
+	{
+		Ok(1u32.into())
+	}
+
+	async fn get_session_info_by_index<'a, Sender>(
+		&'a mut self,
+		_sender: &mut Sender,
+		_parent: Hash,
+		session_index: SessionIndex,
+	) -> runtime::error::Result<&'a ExtendedSessionInfo>
+	where
+		Sender: SubsystemSender<RuntimeApiMessage>,
+	{
+		if self.0.is_none() {
+			self.0 = Some(ExtendedSessionInfo {
+				session_info: dummy_session_info(session_index),
+				validator_info: ValidatorInfo {
+					our_index: Some(0.into()),
+					our_group: Some(0.into()),
+				},
+			});
+		}
+		Ok(&self.0.as_ref().unwrap())
+	}
+
+	async fn check_signature<Sender, Payload, RealPayload>(
+		&mut self,
+		_sender: &mut Sender,
+		_relay_parent: Hash,
+		_signed: UncheckedSigned<Payload, RealPayload>,
+	) -> runtime::error::Result<
+		std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>>,
+	>
+	where
+		Sender: SubsystemSender<RuntimeApiMessage>,
+		Payload: EncodeAs<RealPayload> + Clone + Send,
+		RealPayload: Encode + Clone + Send,
+	{
+		todo!()
 	}
 }
 

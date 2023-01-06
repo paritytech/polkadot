@@ -32,7 +32,7 @@ use indexmap::{map::Entry, IndexMap};
 use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
 use polkadot_node_primitives::{CandidateVotes, DisputeMessage, SignedDisputeStatement};
 use polkadot_node_subsystem::{messages::DisputeCoordinatorMessage, overseer, ActiveLeavesUpdate};
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_node_subsystem_util::runtime::{RuntimeInfo, RuntimeInfoProvider};
 use polkadot_primitives::v3::{CandidateHash, DisputeStatement, Hash, SessionIndex};
 
 /// For each ongoing dispute we have a `SendTask` which takes care of it.

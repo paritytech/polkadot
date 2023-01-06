@@ -46,7 +46,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, runtime::RuntimeInfo, Validator,
+	request_validators, runtime::RuntimeInfoProvider, Validator,
 };
 use polkadot_primitives::{
 	v3::{
@@ -121,13 +121,13 @@ impl ValidatedCandidateCommand {
 }
 
 /// The candidate backing subsystem.
-pub struct CandidateBackingSubsystem {
+pub struct CandidateBackingSubsystem<RuntimeInfo: RuntimeInfoProvider> {
 	runtime: RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
 }
 
-impl CandidateBackingSubsystem {
+impl<RuntimeInfo: RuntimeInfoProvider> CandidateBackingSubsystem<RuntimeInfo> {
 	/// Create a new instance of the `CandidateBackingSubsystem`.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
 		let runtime = RuntimeInfo::new(Some(keystore.clone()));
@@ -136,13 +136,14 @@ impl CandidateBackingSubsystem {
 }
 
 #[overseer::subsystem(CandidateBacking, error = SubsystemError, prefix = self::overseer)]
-impl<Context> CandidateBackingSubsystem
+impl<Context, RuntimeInfo> CandidateBackingSubsystem<RuntimeInfo>
 where
 	Context: Send + Sync,
+	RuntimeInfo: RuntimeInfoProvider + Send + 'static,
 {
-	fn start(mut self, ctx: Context) -> SpawnedSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async move {
-			run(ctx, &mut self.runtime, self.keystore, self.metrics)
+			run(ctx, self.runtime, self.keystore, self.metrics)
 				.await
 				.map_err(|e| SubsystemError::with_origin("candidate-backing", e))
 		}
@@ -153,9 +154,9 @@ where
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn run<Context>(
+async fn run<Context, RuntimeInfo: RuntimeInfoProvider>(
 	mut ctx: Context,
-	runtime: &mut RuntimeInfo,
+	mut runtime: RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
 ) -> FatalResult<()> {
@@ -165,7 +166,7 @@ async fn run<Context>(
 	loop {
 		let res = run_iteration(
 			&mut ctx,
-			runtime,
+			&mut runtime,
 			keystore.clone(),
 			&metrics,
 			&mut jobs,
@@ -184,7 +185,7 @@ async fn run<Context>(
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn run_iteration<Context>(
+async fn run_iteration<Context, RuntimeInfo: RuntimeInfoProvider>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
@@ -213,7 +214,7 @@ async fn run_iteration<Context>(
 						&mut *ctx,
 						update,
 						jobs,
-						runtime,
+						&mut *runtime,
 						&keystore,
 						&background_validation_tx,
 						&metrics,
@@ -271,7 +272,7 @@ async fn handle_communication<Context>(
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn handle_active_leaves_update<Context>(
+async fn handle_active_leaves_update<Context, RuntimeInfo: RuntimeInfoProvider>(
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
 	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,

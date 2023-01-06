@@ -20,7 +20,7 @@ use lru::LruCache;
 use rand::{seq::SliceRandom, thread_rng};
 
 use polkadot_node_subsystem::overseer;
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_node_subsystem_util::runtime::{RuntimeInfo, RuntimeInfoProvider};
 use polkadot_primitives::v3::{
 	AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex, ValidatorIndex,
 };

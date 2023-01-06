@@ -663,7 +663,8 @@ trait ValidationBackend {
 
 			// Encode the params again when re-trying. We expect the retry case to be relatively
 			// rare, and we want to avoid unconditionally cloning data.
-			validation_result = self.validate_candidate(pvf_with_params, timeout, params.encode()).await;
+			validation_result =
+				self.validate_candidate(pvf_with_params, timeout, params.encode()).await;
 		}
 
 		validation_result
