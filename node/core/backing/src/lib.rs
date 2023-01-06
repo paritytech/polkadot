@@ -121,7 +121,7 @@ impl ValidatedCandidateCommand {
 }
 
 /// The candidate backing subsystem.
-pub struct CandidateBackingSubsystem<RuntimeInfo: RuntimeInfoProvider> {
+pub struct CandidateBackingSubsystem<RuntimeInfo> {
 	runtime: RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
