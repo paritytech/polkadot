@@ -2048,7 +2048,7 @@ fn dispute_concluded_against_message_triggers_proper_reversion() {
 				msg: ChainSelectionMessage::DisputeConcludedAgainst(2, block_2_hash),
 			})
 			.await;
-		
+
 		write_rx.await.unwrap();
 
 		// Checking results:
