@@ -444,7 +444,7 @@ impl pallet_xcm::Config for Runtime {
 	type CurrencyMatcher = ();
 	type TrustedLockers = ();
 	type SovereignAccountOf = SovereignAccountOf;
-	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type MaxLockers = ConstU32<8>;
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
