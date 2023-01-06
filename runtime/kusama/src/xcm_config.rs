@@ -27,6 +27,7 @@ use frame_support::{
 	weights::Weight,
 };
 use runtime_common::{xcm_sender, ToAuthor};
+use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
@@ -35,6 +36,7 @@ use xcm_builder::{
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WeightInfoBounds,
+	WithComputedOrigin,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -129,14 +131,20 @@ match_types! {
 pub type Barrier = (
 	// Weight that is paid for may be consumed.
 	TakeWeightCredit,
-	// If the message is one that immediately attemps to pay for execution, then allow it.
-	AllowTopLevelPaidExecutionFrom<Everything>,
-	// Messages coming from system parachains need not pay for execution.
-	AllowExplicitUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
 	// Expected responses are OK.
 	AllowKnownQueryResponses<XcmPallet>,
-	// Subscriptions for version tracking are OK.
-	AllowSubscriptionsFrom<OnlyParachains>,
+	WithComputedOrigin<
+		(
+			// If the message is one that immediately attemps to pay for execution, then allow it.
+			AllowTopLevelPaidExecutionFrom<Everything>,
+			// Messages coming from system parachains need not pay for execution.
+			AllowExplicitUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
+			// Subscriptions for version tracking are OK.
+			AllowSubscriptionsFrom<OnlyParachains>,
+		),
+		UniversalLocation,
+		ConstU32<8>,
+	>,
 );
 
 /// A call filter for the XCM Transact instruction. This is a temporary measure until we properly
