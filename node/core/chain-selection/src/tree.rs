@@ -176,7 +176,6 @@ fn propagate_viability_update(
 				*viability_pivots.entry(new_entry.parent_hash).or_insert(0) += 1;
 			}
 		}
-
 		backend.write_block_entry(new_entry);
 
 		tree_frontier
