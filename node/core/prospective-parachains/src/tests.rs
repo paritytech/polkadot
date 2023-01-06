@@ -405,7 +405,6 @@ async fn get_backable_candidate(
 		})
 		.await;
 	let resp = rx.await.unwrap();
-	println!("Get backable resp: {:#?}", resp);
 	assert_eq!(resp, expected_candidate_hash);
 }
 
@@ -948,9 +947,9 @@ fn check_backable_query() {
 	assert_eq!(view.candidate_storage.get(&2.into()).unwrap().len(), (0, 0));
 }
 
-// Test depth and pvd queries.
+// Test depth query.
 #[test]
-fn check_depth_and_pvd_queries() {
+fn check_depth_query() {
 	let test_state = TestState::default();
 	let view = test_harness(|mut virtual_overseer| async move {
 		// Leaf A
@@ -999,7 +998,7 @@ fn check_depth_and_pvd_queries() {
 		let candidate_hash_c = candidate_c.hash();
 		let response_c = vec![(leaf_a.hash, vec![2])];
 
-		// Get hypothetical depth and pvd of candidate A before adding it.
+		// Get hypothetical depth of candidate A before adding it.
 		get_hypothetical_depth(
 			&mut virtual_overseer,
 			candidate_hash_a,
@@ -1008,14 +1007,6 @@ fn check_depth_and_pvd_queries() {
 			leaf_a.hash,
 			leaf_a.hash,
 			vec![0],
-		)
-		.await;
-		get_pvd(
-			&mut virtual_overseer,
-			1.into(),
-			leaf_a.hash,
-			leaf_a.para_data(1.into()).head_data.clone(),
-			Some(pvd_a.clone()),
 		)
 		.await;
 
@@ -1028,7 +1019,7 @@ fn check_depth_and_pvd_queries() {
 		)
 		.await;
 
-		// Get depth and pvd of candidate A after adding it.
+		// Get depth of candidate A after adding it.
 		get_hypothetical_depth(
 			&mut virtual_overseer,
 			candidate_hash_a,
@@ -1040,16 +1031,8 @@ fn check_depth_and_pvd_queries() {
 			vec![0],
 		)
 		.await;
-		get_pvd(
-			&mut virtual_overseer,
-			1.into(),
-			leaf_a.hash,
-			HeadData(vec![1, 2, 3]),
-			Some(pvd_a.clone()),
-		)
-		.await;
 
-		// TODO: Get hypothetical depth and pvd of candidate B before adding it.
+		// Get hypothetical depth of candidate B before adding it.
 		get_hypothetical_depth(
 			&mut virtual_overseer,
 			candidate_hash_b,
@@ -1060,6 +1043,136 @@ fn check_depth_and_pvd_queries() {
 			vec![1],
 		)
 		.await;
+
+		// Add candidate B.
+		second_candidate(&mut virtual_overseer, candidate_b, pvd_b.clone(), response_b.clone())
+			.await;
+
+		// Get depth of candidate B after adding it.
+		get_hypothetical_depth(
+			&mut virtual_overseer,
+			candidate_hash_b,
+			1.into(),
+			HeadData(vec![1]),
+			leaf_a.hash,
+			leaf_a.hash,
+			vec![1],
+		)
+		.await;
+
+		// Get hypothetical depth of candidate C before adding it.
+		get_hypothetical_depth(
+			&mut virtual_overseer,
+			candidate_hash_c,
+			1.into(),
+			HeadData(vec![1]),
+			leaf_a.hash,
+			leaf_a.hash,
+			vec![1],
+		)
+		.await;
+
+		// Add candidate C.
+		second_candidate(&mut virtual_overseer, candidate_c, pvd_c.clone(), response_c.clone())
+			.await;
+
+		// Get depth of candidate C after adding it.
+		get_hypothetical_depth(
+			&mut virtual_overseer,
+			candidate_hash_c,
+			1.into(),
+			HeadData(vec![2]),
+			leaf_a.hash,
+			leaf_a.hash,
+			vec![2],
+		)
+		.await;
+
+		virtual_overseer
+	});
+
+	assert_eq!(view.active_leaves.len(), 1);
+	assert_eq!(view.candidate_storage.len(), 2);
+}
+
+#[test]
+fn check_pvd_query() {
+	let test_state = TestState::default();
+	let view = test_harness(|mut virtual_overseer| async move {
+		// Leaf A
+		let leaf_a = TestLeaf {
+			number: 100,
+			hash: Hash::from_low_u64_be(130),
+			para_data: vec![
+				(1.into(), PerParaData::new(97, HeadData(vec![1, 2, 3]))),
+				(2.into(), PerParaData::new(100, HeadData(vec![2, 3, 4]))),
+			],
+		};
+
+		// Activate leaves.
+		activate_leaf(&mut virtual_overseer, &leaf_a, &test_state).await;
+
+		// Candidate A.
+		let (candidate_a, pvd_a) = make_candidate(
+			&leaf_a,
+			1.into(),
+			HeadData(vec![1, 2, 3]),
+			HeadData(vec![1]),
+			test_state.validation_code_hash,
+		);
+		let response_a = vec![(leaf_a.hash, vec![0])];
+
+		// Candidate B.
+		let (candidate_b, pvd_b) = make_candidate(
+			&leaf_a,
+			1.into(),
+			HeadData(vec![1]),
+			HeadData(vec![2]),
+			test_state.validation_code_hash,
+		);
+		let response_b = vec![(leaf_a.hash, vec![1])];
+
+		// Candidate C.
+		let (candidate_c, pvd_c) = make_candidate(
+			&leaf_a,
+			1.into(),
+			HeadData(vec![2]),
+			HeadData(vec![3]),
+			test_state.validation_code_hash,
+		);
+		let response_c = vec![(leaf_a.hash, vec![2])];
+
+		// Get pvd of candidate A before adding it.
+		get_pvd(
+			&mut virtual_overseer,
+			1.into(),
+			leaf_a.hash,
+			HeadData(vec![1, 2, 3]),
+			Some(pvd_a.clone()),
+		)
+		.await;
+
+		// Add candidate A.
+		second_candidate(
+			&mut virtual_overseer,
+			candidate_a.clone(),
+			pvd_a.clone(),
+			response_a.clone(),
+		)
+		.await;
+		back_candidate(&mut virtual_overseer, &candidate_a, candidate_a.hash()).await;
+
+		// Get pvd of candidate A after adding it.
+		get_pvd(
+			&mut virtual_overseer,
+			1.into(),
+			leaf_a.hash,
+			HeadData(vec![1, 2, 3]),
+			Some(pvd_a.clone()),
+		)
+		.await;
+
+		// TODO: Get pvd of candidate B before adding it.
 		// get_pvd(
 		// 	&mut virtual_overseer,
 		// 	1.into(),
@@ -1074,16 +1187,6 @@ fn check_depth_and_pvd_queries() {
 			.await;
 
 		// Get depth and pvd of candidate B after adding it.
-		get_hypothetical_depth(
-			&mut virtual_overseer,
-			candidate_hash_b,
-			1.into(),
-			HeadData(vec![1]),
-			leaf_a.hash,
-			leaf_a.hash,
-			vec![1],
-		)
-		.await;
 		get_pvd(
 			&mut virtual_overseer,
 			1.into(),
@@ -1093,17 +1196,7 @@ fn check_depth_and_pvd_queries() {
 		)
 		.await;
 
-		// TODO: Get hypothetical depth and pvd of candidate C before adding it.
-		get_hypothetical_depth(
-			&mut virtual_overseer,
-			candidate_hash_c,
-			1.into(),
-			HeadData(vec![1]),
-			leaf_a.hash,
-			leaf_a.hash,
-			vec![1],
-		)
-		.await;
+		// TODO: Get pvd of candidate C before adding it.
 		// get_pvd(
 		// 	&mut virtual_overseer,
 		// 	1.into(),
@@ -1118,16 +1211,6 @@ fn check_depth_and_pvd_queries() {
 			.await;
 
 		// Get depth and pvd of candidate C after adding it.
-		get_hypothetical_depth(
-			&mut virtual_overseer,
-			candidate_hash_c,
-			1.into(),
-			HeadData(vec![2]),
-			leaf_a.hash,
-			leaf_a.hash,
-			vec![2],
-		)
-		.await;
 		get_pvd(
 			&mut virtual_overseer,
 			1.into(),
