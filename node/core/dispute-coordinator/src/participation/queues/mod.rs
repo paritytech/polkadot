@@ -159,6 +159,31 @@ impl Queues {
 		self.pop_best_effort().map(|d| d.1)
 	}
 
+	/// Reprioritizes any participation requests pertaining to the
+	/// passed candidates from best effort to priority.
+	pub async fn prioritize_if_present(
+		&mut self,
+		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
+		receipt: &CandidateReceipt,
+	) -> Result<()> {
+		let comparator = CandidateComparator::new(sender, receipt).await?;
+		self.prioritize_with_comparator(comparator)?;
+		Ok(())
+	}
+
+	fn prioritize_with_comparator(
+		&mut self,
+		comparator: CandidateComparator,
+	) -> std::result::Result<(), QueueError> {
+		if self.priority.len() >= PRIORITY_QUEUE_SIZE {
+			return Err(QueueError::PriorityFull)
+		}
+		if let Some(request) = self.best_effort.remove(&comparator) {
+			self.priority.insert(comparator, request);
+		}
+		Ok(())
+	}
+
 	fn queue_with_comparator(
 		&mut self,
 		comparator: CandidateComparator,
