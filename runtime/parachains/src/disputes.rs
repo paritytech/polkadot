@@ -1191,7 +1191,7 @@ impl<T: Config> Pallet<T> {
 		// Reject statements with no accompanying backing votes.
 		ensure!(!backers.is_empty(), Error::<T>::MissingBackingVotes);
 		<BackersOnDisputes<T>>::insert(&set.session, &set.candidate_hash, backers.clone());
-        // AUDIT: from now on, no error should be returned.
+		// AUDIT: from now on, no error should be returned.
 
 		let DisputeStatementSet { ref session, ref candidate_hash, .. } = set;
 		let session = *session;
