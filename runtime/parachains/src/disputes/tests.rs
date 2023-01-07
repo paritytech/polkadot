@@ -851,8 +851,6 @@ mod unconfirmed_disputes {
 		});
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
-		let inclusion_parent = sp_core::H256::repeat_byte(0xff);
-		let session = 3;
 
 		// v0 votes for 4, v1 votes against 4.
 		DisputeStatementSet {
@@ -966,6 +964,8 @@ fn test_provide_multi_dispute_success_and_other() {
 		});
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+		let inclusion_parent = sp_core::H256::repeat_byte(0xff);
+		let session = 3;
 
 		// v0 and v1 vote for 3, v6 votes against
 		let stmts = vec![DisputeStatementSet {
@@ -1324,7 +1324,7 @@ fn test_punish_post_conclusion() {
 			],
 		}];
 
-		let stmts = update_spam_slots(stmts);
+		let stmts = filter_dispute_set(stmts);
 		assert_ok!(
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
 			vec![(3, candidate_hash)],
@@ -1392,7 +1392,7 @@ fn test_punish_post_conclusion() {
 			],
 		}];
 
-		let stmts = update_spam_slots(stmts);
+		let stmts = filter_dispute_set(stmts);
 		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![],);
 
 		assert_eq!(
@@ -1433,7 +1433,7 @@ fn test_punish_post_conclusion() {
 			],
 		}];
 
-		let stmts = update_spam_slots(stmts);
+		let stmts = filter_dispute_set(stmts);
 		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![],);
 
 		// Ensure punishment for is called
