@@ -135,8 +135,6 @@ async fn run_iteration<Context>(ctx: &mut Context, view: &mut View) -> Result<()
 					required_path,
 					tx,
 				) => answer_get_backable_candidate(&view, relay_parent, para, required_path, tx),
-				ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx) =>
-					answer_hypothetical_depths_request(&view, request, tx),
 				ProspectiveParachainsMessage::GetHypotheticalFrontier(request, tx) =>
 					answer_hypothetical_frontier_request(&view, request, tx),
 				ProspectiveParachainsMessage::GetTreeMembership(para, candidate, tx) =>
@@ -440,32 +438,6 @@ fn answer_get_backable_candidate(
 	};
 
 	let _ = tx.send(tree.select_child(&required_path, |candidate| storage.is_backed(candidate)));
-}
-
-fn answer_hypothetical_depths_request(
-	view: &View,
-	request: HypotheticalDepthRequest,
-	tx: oneshot::Sender<Vec<usize>>,
-) {
-	match view
-		.active_leaves
-		.get(&request.fragment_tree_relay_parent)
-		.and_then(|l| l.fragment_trees.get(&request.candidate_para))
-	{
-		Some(fragment_tree) => {
-			let depths = fragment_tree.hypothetical_depths(
-				request.candidate_hash,
-				crate::fragment_tree::HypotheticalCandidate::Incomplete {
-					relay_parent: request.candidate_relay_parent,
-					parent_head_data_hash: request.parent_head_data_hash,
-				},
-			);
-			let _ = tx.send(depths);
-		},
-		None => {
-			let _ = tx.send(Vec::new());
-		},
-	}
 }
 
 fn answer_hypothetical_frontier_request(

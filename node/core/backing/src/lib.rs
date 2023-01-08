@@ -884,8 +884,6 @@ async fn handle_active_leaves_update<Context>(
 							target: LOG_TARGET,
 							"Prospective parachains subsystem unreachable for membership request",
 						);
-
-						continue
 					},
 					Ok((para_id, candidate_hash, membership)) => {
 						// This request gives membership in all fragment trees. We have some
