@@ -909,6 +909,14 @@ pub enum HypotheticalCandidate {
 }
 
 impl HypotheticalCandidate {
+	/// Get the `CandidateHash` of the hypothetical candidate.
+	pub fn candidate_hash(&self) -> CandidateHash {
+		match *self {
+			HypotheticalCandidate::Complete { candidate_hash, .. } => candidate_hash,
+			HypotheticalCandidate::Incomplete { candidate_hash, .. } => candidate_hash,
+		}
+	}
+
 	/// Get the `ParaId` of the hypothetical candidate.
 	pub fn candidate_para(&self) -> ParaId {
 		match *self {
@@ -928,25 +936,6 @@ pub struct HypotheticalFrontierRequest {
 	pub candidates: Vec<HypotheticalCandidate>,
 	/// Either a specific fragment tree to check, otherwise all.
 	pub fragment_tree_relay_parent: Option<Hash>,
-}
-
-/// A request for the depths a hypothetical candidate would occupy within
-/// some fragment tree. Note that this is not an absolute indication of whether
-/// a candidate can be added to a fragment tree, as the commitments are not
-/// considered in this request.
-// TODO [now]: file issue making this obsolete in favor of `HypotheticalFrontierRequest`
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct HypotheticalDepthRequest {
-	/// The hash of the potential candidate.
-	pub candidate_hash: CandidateHash,
-	/// The para of the candidate.
-	pub candidate_para: ParaId,
-	/// The hash of the parent head-data of the candidate.
-	pub parent_head_data_hash: Hash,
-	/// The relay-parent of the candidate.
-	pub candidate_relay_parent: Hash,
-	/// The relay-parent of the fragment tree we are comparing to.
-	pub fragment_tree_relay_parent: Hash,
 }
 
 /// A request for the persisted validation data stored in the prospective
@@ -994,12 +983,6 @@ pub enum ProspectiveParachainsMessage {
 	///
 	/// Returns an empty vector either if there is no such depth or the fragment tree relay-parent
 	/// is unknown.
-	GetHypotheticalDepth(HypotheticalDepthRequest, oneshot::Sender<Vec<usize>>),
-	/// Get the hypothetical frontier membership of candidates with the given properties
-	/// under the specified active leaves' fragment trees.
-	///
-	/// For any candidate which is already known, this returns the depths the candidate
-	/// occupies.
 	GetHypotheticalFrontier(
 		HypotheticalFrontierRequest,
 		oneshot::Sender<Vec<(HypotheticalCandidate, FragmentTreeMembership)>>,
