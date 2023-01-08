@@ -975,14 +975,11 @@ pub enum ProspectiveParachainsMessage {
 	/// which is a descendant of the given candidate hashes. Returns `None` on the channel
 	/// if no such candidate exists.
 	GetBackableCandidate(Hash, ParaId, Vec<CandidateHash>, oneshot::Sender<Option<CandidateHash>>),
-	/// Get the hypothetical depths that a candidate with the given properties would
-	/// occupy in the fragment tree for the given relay-parent.
+	/// Get the hypothetical frontier membership of candidates with the given properties
+	/// under the specified active leaves' fragment trees.
 	///
-	/// If the candidate is already known, this returns the depths the candidate
+	/// For any candidate which is already known, this returns the depths the candidate
 	/// occupies.
-	///
-	/// Returns an empty vector either if there is no such depth or the fragment tree relay-parent
-	/// is unknown.
 	GetHypotheticalFrontier(
 		HypotheticalFrontierRequest,
 		oneshot::Sender<Vec<(HypotheticalCandidate, FragmentTreeMembership)>>,
