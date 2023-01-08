@@ -30,7 +30,7 @@ Gets all leaves of the chain, i.e. block hashes that are suitable to build upon 
 
 ### `ChainSelectionMessage::BestLeafContaining`
 
-If the required block is unknown or not viable, then return `None`. Iterate over all leaves, returning the first leaf containing the required block in its chain, and `None` otherwise.
+If the required block is unknown or not viable, then return `None`. Iterate over all leaves in order of descending weight, returning the first leaf containing the required block in its chain, and `None` otherwise.
 
 ### Periodically
 
