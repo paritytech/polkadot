@@ -104,6 +104,7 @@ impl CoreAssignment {
 }
 
 // TODO: need to link CoreOccupied variants to CoreAssigner impls
+// TOOD: Change interface to remove CoreIndex and GroupIndex to not leak abstraction
 pub trait CoreAssigner<T: crate::scheduler::pallet::Config> {
 	fn session_cores() -> u32;
 

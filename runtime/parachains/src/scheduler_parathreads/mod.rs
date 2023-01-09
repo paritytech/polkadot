@@ -104,7 +104,7 @@ impl Default for ParathreadClaimQueue {
 }
 
 pub struct ParathreadsScheduler;
-impl<T: Config + crate::scheduler::pallet::Config> CoreAssigner<T> for ParathreadsScheduler {
+impl<T: crate::scheduler::pallet::Config> CoreAssigner<T> for ParathreadsScheduler {
 	fn session_cores() -> u32 {
 		let config = <configuration::Pallet<T>>::config();
 		config.parathread_cores
@@ -122,7 +122,7 @@ impl<T: Config + crate::scheduler::pallet::Config> CoreAssigner<T> for Parathrea
 		notification: &SessionChangeNotification<T::BlockNumber>,
 		cores: &[Option<CoreOccupied>],
 	) {
-		let &SessionChangeNotification { ref new_config, .. } = notification;
+		let SessionChangeNotification { new_config, .. } = notification;
 		let config = new_config;
 
 		<self::Pallet<T>>::initializer_on_new_session(
@@ -155,7 +155,7 @@ impl<T: Config + crate::scheduler::pallet::Config> CoreAssigner<T> for Parathrea
 	fn core_para(_core_index: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
 		match core_occupied {
 			CoreOccupied::Parathread(ref entry) => entry.claim.0,
-			_ => panic!("impossible"),
+			CoreOccupied::Parachain => panic!("impossible"),
 		}
 	}
 
@@ -230,8 +230,8 @@ impl<T: Config> Pallet<T> {
 		n_parathread_retries: u32,
 	) {
 		let mut thread_queue = ParathreadQueue::<T>::get();
-		for maybe_occupied in cores.iter() {
-			if let Some(CoreOccupied::Parathread(claim)) = maybe_occupied {
+		for maybe_occupied in cores.iter().flatten() {
+			if let CoreOccupied::Parathread(claim) = maybe_occupied {
 				let queued = QueuedParathread {
 					claim: claim.clone(),
 					core_offset: 0, // this gets set later in the re-balancing.
@@ -379,108 +379,6 @@ impl<T: Config> Pallet<T> {
 
 		return r
 	}
-
-	/// Note that the given cores have become occupied. Behavior undefined if any of the given cores were not scheduled
-	/// or the slice is not sorted ascending by core index.
-	///
-	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total cores.
-	/// This is efficient in the case that most scheduled cores are occupied.
-	//pub(crate) fn occupied(now_occupied: &[CoreIndex]) {
-	//	if now_occupied.is_empty() {
-	//		return
-	//	}
-
-	//	let mut availability_cores = AvailabilityCores::<T>::get();
-	//	Scheduled::<T>::mutate(|scheduled| {
-	//		// The constraints on the function require that `now_occupied` is a sorted subset of the
-	//		// `scheduled` cores, which are also sorted.
-
-	//		let mut occupied_iter = now_occupied.iter().cloned().peekable();
-	//		scheduled.retain(|assignment| {
-	//			let retain = occupied_iter
-	//				.peek()
-	//				.map_or(true, |occupied_idx| occupied_idx != &assignment.core);
-
-	//			if !retain {
-	//				// remove this entry - it's now occupied. and begin inspecting the next extry
-	//				// of the occupied iterator.
-	//				let _ = occupied_iter.next();
-
-	//				availability_cores[assignment.core.0 as usize] =
-	//					Some(assignment.to_core_occupied());
-	//			}
-
-	//			retain
-	//		})
-	//	});
-
-	//	AvailabilityCores::<T>::set(availability_cores);
-	//}
-
-	///// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
-	///// out of bounds will return `None`, as will indices of unassigned cores.
-	//pub(crate) fn core_para(core_index: CoreIndex) -> Option<ParaId> {
-	//	let cores = AvailabilityCores::<T>::get();
-	//	match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
-	//		None => None,
-	//		Some(CoreOccupied::Parachain) => {
-	//			let parachains = <paras::Pallet<T>>::parachains();
-	//			Some(parachains[core_index.0 as usize])
-	//		},
-	//		Some(CoreOccupied::Parathread(ref entry)) => Some(entry.claim.0),
-	//	}
-	//}
-
-	/// Returns an optional predicate that should be used for timing out occupied cores.
-	///
-	/// If `None`, no timing-out should be done. The predicate accepts the index of the core, and the
-	/// block number since which it has been occupied, and the respective parachain and parathread
-	/// timeouts, i.e. only within `max(config.chain_availability_period, config.thread_availability_period)`
-	/// of the last rotation would this return `Some`, unless there are no rotations.
-	///
-	/// This really should not be a box, but is working around a compiler limitation filed here:
-	/// https://github.com/rust-lang/rust/issues/73226
-	/// which prevents us from testing the code if using `impl Trait`.
-	//pub(crate) fn availability_timeout_predicate(
-	//) -> Option<Box<dyn Fn(CoreIndex, T::BlockNumber) -> bool>> {
-	//	let now = <frame_system::Pallet<T>>::block_number();
-	//	let config = <configuration::Pallet<T>>::config();
-
-	//	let session_start = <SessionStartBlock<T>>::get();
-	//	let blocks_since_session_start = now.saturating_sub(session_start);
-	//	let blocks_since_last_rotation =
-	//		blocks_since_session_start % config.group_rotation_frequency;
-
-	//	let absolute_cutoff =
-	//		sp_std::cmp::max(config.chain_availability_period, config.thread_availability_period);
-
-	//	let availability_cores = AvailabilityCores::<T>::get();
-
-	//	if blocks_since_last_rotation >= absolute_cutoff {
-	//		None
-	//	} else {
-	//		Some(Box::new(move |core_index: CoreIndex, pending_since| {
-	//			match availability_cores.get(core_index.0 as usize) {
-	//				None => true,       // out-of-bounds, doesn't really matter what is returned.
-	//				Some(None) => true, // core not occupied, still doesn't really matter.
-	//				Some(Some(CoreOccupied::Parachain)) => {
-	//					if blocks_since_last_rotation >= config.chain_availability_period {
-	//						false // no pruning except recently after rotation.
-	//					} else {
-	//						now.saturating_sub(pending_since) >= config.chain_availability_period
-	//					}
-	//				},
-	//				Some(Some(CoreOccupied::Parathread(_))) => {
-	//					if blocks_since_last_rotation >= config.thread_availability_period {
-	//						false // no pruning except recently after rotation.
-	//					} else {
-	//						now.saturating_sub(pending_since) >= config.thread_availability_period
-	//					}
-	//				},
-	//			}
-	//		}))
-	//	}
-	//}
 
 	/// Return the next thing that will be scheduled on this core assuming it is currently
 	/// occupied and the candidate occupying it became available.

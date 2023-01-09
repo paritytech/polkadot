@@ -36,6 +36,7 @@ pub mod paras_inherent;
 pub mod reward_points;
 pub mod scheduler;
 mod scheduler_common;
+pub mod scheduler_parachains;
 pub mod scheduler_parathreads;
 pub mod session_info;
 pub mod shared;
