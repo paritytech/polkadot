@@ -237,7 +237,7 @@ impl ChainScraper {
 						?block_number,
 						"Processing included event"
 					);
-					self.included_candidates.insert(block_number, block_hash, candidate_hash);
+					self.included_candidates.insert(candidate_hash, block_number, block_hash);
 					included_receipts.push(receipt);
 				},
 				CandidateEvent::CandidateBacked(receipt, _, _, _) => {
@@ -248,7 +248,7 @@ impl ChainScraper {
 						?block_number,
 						"Processing backed event"
 					);
-					self.backed_candidates.insert(block_number, block_hash, candidate_hash);
+					self.backed_candidates.insert(candidate_hash, block_number, block_hash);
 				},
 				_ => {
 					// skip the rest

@@ -139,9 +139,9 @@ impl ScrapedCandidates {
 
 	pub fn insert(
 		&mut self,
+		candidate_hash: CandidateHash,
 		block_number: BlockNumber,
 		block_hash: Hash,
-		candidate_hash: CandidateHash,
 	) {
 		self.candidates.insert(candidate_hash, block_number, block_hash);
 		self.candidates_by_block_number
@@ -167,7 +167,7 @@ mod scraped_candidates_tests {
 	fn stale_candidates_are_removed() {
 		let mut candidates = ScrapedCandidates::new();
 		let target = CandidateHash(BlakeTwo256::hash(&vec![1, 2, 3]));
-		candidates.insert(1, dummy_hash(), target);
+		candidates.insert(target, 1, dummy_hash());
 
 		assert!(candidates.contains(&target));
 
