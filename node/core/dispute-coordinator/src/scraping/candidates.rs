@@ -27,9 +27,9 @@ impl RefCountedCandidates {
 	// If `CandidateHash` already exists in the `HashMap` its reference count is increased.
 	pub fn insert(
 		&mut self,
+		candidate: CandidateHash,
 		block_number: BlockNumber,
 		block_hash: Hash,
-		candidate: CandidateHash,
 	) {
 		self.candidates
 			.entry(candidate)
@@ -70,11 +70,11 @@ mod ref_counted_candidates_tests {
 		let zero = CandidateHash(BlakeTwo256::hash(&vec![0]));
 		let one = CandidateHash(BlakeTwo256::hash(&vec![1]));
 		// add two separate candidates
-		container.insert(0, dummy_hash(), zero); // refcount == 1
-		container.insert(0, dummy_hash(), one);
+		container.insert(zero, 0, dummy_hash()); // refcount == 1
+		container.insert(one, 0, dummy_hash());
 
 		// and increase the reference count for the first
-		container.insert(0, dummy_hash(), zero); // refcount == 2
+		container.insert(zero, 0, dummy_hash()); // refcount == 2
 
 		assert!(container.contains(&zero));
 		assert!(container.contains(&one));
@@ -143,7 +143,7 @@ impl ScrapedCandidates {
 		block_hash: Hash,
 		candidate_hash: CandidateHash,
 	) {
-		self.candidates.insert(block_number, block_hash, candidate_hash);
+		self.candidates.insert(candidate_hash, block_number, block_hash);
 		self.candidates_by_block_number
 			.entry(block_number)
 			.or_default()

@@ -346,8 +346,8 @@ fn add_block(
 	Ok(())
 }
 
-// Assuming that a block is already imported, accepts the number of the block
-// as well as a list of reversions triggered by the block in ascending order.
+/// Assuming that a block is already imported, accepts the number of the block
+/// as well as a list of reversions triggered by the block in ascending order.
 fn apply_ancestor_reversions(
 	backend: &mut OverlayedBackend<impl Backend>,
 	block_hash: Hash,

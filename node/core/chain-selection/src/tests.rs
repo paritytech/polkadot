@@ -2080,4 +2080,37 @@ fn dispute_concluded_against_message_triggers_proper_reversion() {
 }
 
 #[test]
-fn dispute_concluded_against_finalized_sends_warning() {}
+fn dispute_reversion_against_finalized_is_ignored() {
+	test_harness(|backend, _, mut virtual_overseer| async move {
+		// Building mini chain with 1 finalized block and 3 unfinalized blocks
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		let (head_hash, built_chain) =
+			construct_chain_on_base(vec![1], finalized_number, finalized_hash, |_| {});
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			built_chain.clone(),
+		)
+		.await;
+
+		// Checking mini chain
+		assert_backend_contains(&backend, built_chain.iter().map(|&(ref h, _)| h));
+
+		// Sending dispute conculded against message
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: ChainSelectionMessage::DisputeConcludedAgainst(finalized_number, finalized_hash),
+			})
+			.await;
+
+		// Leaf should be head if reversion of finalized was properly ignored
+		assert_leaves(&backend, vec![head_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![head_hash]).await;
+
+		virtual_overseer
+	})
+}
