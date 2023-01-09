@@ -168,8 +168,7 @@ where
 			session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
 				.expect("Dispute window can not be 0; qed"),
 		});
-		let (tx, sender_rx) = mpsc::channel(1);
-		let tx = NestingSender::new_root(tx);
+		let (tx, sender_rx) = NestingSender::new_root(1);
 		let disputes_sender = DisputeSender::new(tx, metrics.clone());
 		Self {
 			runtime,

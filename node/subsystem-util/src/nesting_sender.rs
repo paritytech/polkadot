@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright 2022-2023 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Hierarchical messages.
+//! ## Background
 //!
 //! Writing concurrent and even multithreaded by default is inconvenient and slow: No references
 //! hence lots of needless cloning and data duplication, locks, mutexes, ... We should reach
@@ -23,11 +23,13 @@
 //!
 //! I very much agree with many points in this blog post for example:
 //!
-//! https://maciej.codes/2022-06-09-local-async.html
+//! <https://maciej.codes/2022-06-09-local-async.html>
 //!
 //! Another very good post by Pierre (Tomaka):
 //!
-//! https://tomaka.medium.com/a-look-back-at-asynchronous-rust-d54d63934a1c
+//! <https://tomaka.medium.com/a-look-back-at-asynchronous-rust-d54d63934a1c>
+//!
+//! ## Architecture
 //!
 //! This module helps with this in part. It does not break the multithreaded by default approach,
 //! but it breaks the `spawn everything` approach. So once you `spawn` you will still be
@@ -63,14 +65,17 @@
 //! Because the wrapping is optional and transparent to the lower modules, each module can also be
 //! used at the top directly without any wrapping, e.g. for standalone use or for testing purposes.
 //!
-//! In the interest of time I refrain from providing a usage example here for now, but would instead
-//! like to point you to the dispute-distribution subsystem which makes use of this architecture.
+//! Checkout the documentation of [`NestingSender`][nesting_sender::NestingSender] below for a basic usage example. For a real
+//! world usage I would like to point you to the dispute-distribution subsystem which makes use of
+//! this architecture.
+//!
+//! ## Limitations
 //!
 //! Nothing is ever for free of course: Each level adds an indirect function call to message
 //! sending. which should be cheap enough for most applications, but something to keep in mind. In
 //! particular we avoided the use of of async traits, which would have required memory allocations
-//! on each send. Also cloning of `NestingSender` is more expensive than cloning a plain
-//! mpsc::Sender, the overhead should be negligible though.
+//! on each send. Also cloning of [`NestingSender`][nesting_sender::NestingSender] is more
+//! expensive than cloning a plain mpsc::Sender, the overhead should be negligible though.
 //!
 //! Further limitations: Because everything is routed to the same channel, it is not possible with
 //! this approach to put back pressure on only a single source (as all are the same). If a module
@@ -82,13 +87,54 @@ use std::{convert::identity, sync::Arc};
 
 use futures::{channel::mpsc, SinkExt};
 
-/// A message sender that supports nested messages.
+/// A message sender that supports sending nested messages.
 ///
 /// This sender wraps an `mpsc::Sender` and a conversion function for converting given messages of
-/// type `M1` to the message type actually supported by the mpsc (`M`).
-pub struct NestingSender<M, M1> {
+/// type `Mnested` to the message type actually supported by the mpsc (`M`).
+///
+/// Example:
+///
+/// ```rust
+///     enum RootMessage {
+///         Child1Message(ChildMessage),
+///         Child2Message(OtherChildMessage),
+///         SomeOwnMessage,
+///     }
+///
+///     enum ChildMessage {
+///         TaskFinished(u32),
+///     }
+///
+///     enum OtherChildMessage {
+///         QueryResult(bool),
+///     }
+///
+/// ```
+///
+/// We would then pass in a `NestingSender` to our child module of the following type:
+///
+/// ```rust
+///     type ChildSender = NestingSender<RootMessage, ChildMessage>;
+///     // types in the child module can be generic over the root type:
+///     struct ChildState<M> {
+///         tx: NestingSender<M, ChildMessage>,
+///     }
+///
+///
+///    // Create the root message sender:
+///
+///    let (root_sender, receiver) = NestingSender::new_root(1);
+///    // Get a sender for the child module based on that root sender:
+///    let child_sender = NestingSender::new(root_sender.clone(), RootMessage::Child1Message);
+///    // pass `child_sender` to child module ...
+/// ```
+///
+/// `ChildMessage` could itself have a constructor with messages of a child of its own and can use
+/// `NestingSender::new` with its own sender and a conversion function to provide a further nested
+/// sender, suitable for the child module.
+pub struct NestingSender<M, Mnested> {
 	sender: mpsc::Sender<M>,
-	conversion: Arc<dyn Fn(M1) -> M + 'static + Send + Sync>,
+	conversion: Arc<dyn Fn(Mnested) -> M + 'static + Send + Sync>,
 }
 
 impl<M> NestingSender<M, M>
@@ -97,29 +143,43 @@ where
 {
 	/// Create a new "root" sender.
 	///
-	/// This is a sender that directly passes messages to the mpsc.
-	pub fn new_root(root: mpsc::Sender<M>) -> Self {
-		Self { sender: root, conversion: Arc::new(identity) }
+	/// This is a sender that directly passes messages to the internal mpsc.
+	///
+	/// Params: The channel size of the created mpsc.
+	/// Returns: The newly constructed `NestingSender` and the corresponding mpsc receiver.
+	pub fn new_root(channel_size: usize) -> (Self, mpsc::Receiver<M>) {
+		let (sender, receiver) = mpsc::channel(channel_size);
+		let s = Self { sender, conversion: Arc::new(identity) };
+		(s, receiver)
 	}
 }
 
-impl<M, M1> NestingSender<M, M1>
+impl<M, Mnested> NestingSender<M, Mnested>
 where
 	M: 'static,
-	M1: 'static,
+	Mnested: 'static,
 {
 	/// Create a new `NestingSender` which wraps a given "parent" sender.
 	///
-	/// Doing the necessary conversion from the child message type `M1` to the parent message type
-	/// `M2.
-	/// M1 -> M2 -> M
-	/// Inputs:
-	///		F(M2) -> M (via parent)
-	///		F(M1) -> M2 (via child_conversion)
-	/// Result: F(M1) -> M
-	pub fn new<M2>(parent: NestingSender<M, M2>, child_conversion: fn(M1) -> M2) -> Self
+	/// By passing in a necessary conversion from `Mnested` to `Mparent` (the `Mnested` of the
+	/// parent sender), we can construct a derived `NestingSender<M, Mnested>` from a
+	/// `NestingSender<M, Mparent>`.
+	///
+	/// Resulting sender does the following conversion:
+	///
+	/// ```text
+	///    Mnested -> Mparent -> M
+	///    Inputs:
+	///    	F(Mparent) -> M (via parent)
+	///    	F(Mnested) -> Mparent (via child_conversion)
+	///    Result: F(Mnested) -> M
+	/// ```
+	pub fn new<Mparent>(
+		parent: NestingSender<M, Mparent>,
+		child_conversion: fn(Mnested) -> Mparent,
+	) -> Self
 	where
-		M2: 'static,
+		Mparent: 'static,
 	{
 		let NestingSender { sender, conversion } = parent;
 		Self { sender, conversion: Arc::new(move |x| conversion(child_conversion(x))) }
@@ -128,7 +188,7 @@ where
 	/// Send a message via the underlying mpsc.
 	///
 	/// Necessary conversion is accomplished.
-	pub async fn send_message(&mut self, m: M1) -> Result<(), mpsc::SendError> {
+	pub async fn send_message(&mut self, m: Mnested) -> Result<(), mpsc::SendError> {
 		// Flushing on an mpsc means to wait for the receiver to pick up the data - we don't want
 		// to wait for that.
 		self.sender.feed((self.conversion)(m)).await

@@ -72,7 +72,7 @@ pub mod runtime;
 /// Database trait for subsystem.
 pub mod database;
 
-/// Nested message sending.
+/// Nested message sending
 ///
 /// Useful for having mostly synchronous code, with submodules spawning short lived asynchronous
 /// tasks, sending messages back.
