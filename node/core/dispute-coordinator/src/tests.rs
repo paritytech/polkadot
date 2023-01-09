@@ -3444,8 +3444,6 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
-			test_state.clock.set(ACTIVE_DURATION_SECS + 1);
-
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::ChainSelection(
