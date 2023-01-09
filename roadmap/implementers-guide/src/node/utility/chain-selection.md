@@ -24,10 +24,13 @@ Delete data for all orphaned chains and update all metadata descending from the 
 
 Update the approval status of the referenced block. If the block was stagnant and thus non-viable and is now viable, then the metadata of all of its descendants needs to be updated as well, as they may no longer be stagnant either. Update the set of viable leaves accordingly.
 
+### `ChainSelectionMessage::Leaves`
+
+Gets all leaves of the chain, i.e. block hashes that are suitable to build upon and have no suitable children. Supplies the leaves in descending order by score.
+
 ### `ChainSelectionMessage::BestLeafContaining`
 
-If the required block is unknown or not viable, then return `None`.
-Iterate over all leaves, returning the first leaf containing the required block in its chain, and `None` otherwise.
+If the required block is unknown or not viable, then return `None`. Iterate over all leaves in order of descending weight, returning the first leaf containing the required block in its chain, and `None` otherwise.
 
 ### Periodically
 

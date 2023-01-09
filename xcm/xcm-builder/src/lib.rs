@@ -37,7 +37,7 @@ pub use location_conversion::{
 mod origin_conversion;
 pub use origin_conversion::{
 	BackingToPlurality, ChildParachainAsNative, ChildSystemParachainAsSuperuser, EnsureXcmOrigin,
-	ParentAsSuperuser, RelayChainAsNative, SiblingParachainAsNative,
+	OriginToPluralityVoice, ParentAsSuperuser, RelayChainAsNative, SiblingParachainAsNative,
 	SiblingSystemParachainAsSuperuser, SignedAccountId32AsNative, SignedAccountKey20AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation,
 };

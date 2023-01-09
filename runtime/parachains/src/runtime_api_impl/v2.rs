@@ -107,7 +107,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 						<inclusion::Pallet<T>>::pending_availability(para_id)
 							.expect("Occupied core always has pending availability; qed");
 
-					let backed_in_number = pending_availability.backed_in_number().clone();
+					let backed_in_number = *pending_availability.backed_in_number();
 					OccupiedCore {
 						next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(
 							CoreIndex(i as u32),
@@ -135,7 +135,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 						<inclusion::Pallet<T>>::pending_availability(para_id)
 							.expect("Occupied core always has pending availability; qed");
 
-					let backed_in_number = pending_availability.backed_in_number().clone();
+					let backed_in_number = *pending_availability.backed_in_number();
 					OccupiedCore {
 						next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(
 							CoreIndex(i as u32),

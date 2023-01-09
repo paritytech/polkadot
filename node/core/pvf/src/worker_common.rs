@@ -16,24 +16,54 @@
 
 //! Common logic for implementation of worker processes.
 
-use crate::LOG_TARGET;
+use crate::{execute::ExecuteResponse, PrepareError, LOG_TARGET};
 use async_std::{
 	io,
+	net::Shutdown,
 	os::unix::net::{UnixListener, UnixStream},
 	path::{Path, PathBuf},
 };
+use cpu_time::ProcessTime;
 use futures::{
 	never::Never, AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, FutureExt as _,
 };
 use futures_timer::Delay;
+use parity_scale_codec::Encode;
 use pin_project::pin_project;
 use rand::Rng;
 use std::{
 	fmt, mem,
 	pin::Pin,
+	sync::{
+		atomic::{AtomicBool, Ordering},
+		Arc,
+	},
 	task::{Context, Poll},
 	time::Duration,
 };
+
+/// A multiple of the job timeout (in CPU time) for which we are willing to wait on the host (in
+/// wall clock time). This is lenient because CPU time may go slower than wall clock time.
+pub const JOB_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
+
+/// Some allowed overhead that we account for in the "CPU time monitor" thread's sleeps, on the
+/// child process.
+pub const JOB_TIMEOUT_OVERHEAD: Duration = Duration::from_millis(50);
+
+#[derive(Copy, Clone, Debug)]
+pub enum JobKind {
+	Prepare,
+	Execute,
+}
+
+impl fmt::Display for JobKind {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Prepare => write!(f, "prepare"),
+			Self::Execute => write!(f, "execute"),
+		}
+	}
+}
 
 /// This is publicly exposed only for integration tests.
 #[doc(hidden)]
@@ -156,7 +186,19 @@ where
 		let stream = UnixStream::connect(socket_path).await?;
 		let _ = async_std::fs::remove_file(socket_path).await;
 
-		event_loop(stream).await
+		let result = event_loop(stream.clone()).await;
+
+		if let Err(err) = stream.shutdown(Shutdown::Both) {
+			// Log, but don't return error here, as it may shadow any error from `event_loop`.
+			gum::debug!(
+				target: LOG_TARGET,
+				"error shutting down stream at path {}: {}",
+				socket_path,
+				err
+			);
+		}
+
+		result
 	})
 	.unwrap_err(); // it's never `Ok` because it's `Ok(Never)`
 
@@ -167,6 +209,75 @@ where
 		debug_id,
 		err,
 	);
+}
+
+/// Loop that runs in the CPU time monitor thread on prepare and execute jobs. Continuously wakes up
+/// from sleeping and then either sleeps for the remaining CPU time, or sends back a timeout error
+/// if we exceed the CPU timeout.
+///
+/// NOTE: If the job completes and this thread is still sleeping, it will continue sleeping in the
+/// background. When it wakes, it will see that the flag has been set and return.
+pub async fn cpu_time_monitor_loop(
+	job_kind: JobKind,
+	mut stream: UnixStream,
+	cpu_time_start: ProcessTime,
+	timeout: Duration,
+	lock: Arc<AtomicBool>,
+) {
+	loop {
+		let cpu_time_elapsed = cpu_time_start.elapsed();
+
+		// Treat the timeout as CPU time, which is less subject to variance due to load.
+		if cpu_time_elapsed > timeout {
+			let result = lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
+			if result.is_err() {
+				// Hit the job-completed case first, return from this thread.
+				return
+			}
+
+			// Log if we exceed the timeout.
+			gum::warn!(
+				target: LOG_TARGET,
+				worker_pid = %std::process::id(),
+				"{job_kind} job took {}ms cpu time, exceeded {job_kind} timeout {}ms",
+				cpu_time_elapsed.as_millis(),
+				timeout.as_millis(),
+			);
+
+			// Send back a `TimedOut` error.
+			//
+			// NOTE: This will cause the worker, whether preparation or execution, to be killed by
+			// the host. We do not kill the process here because it would interfere with the proper
+			// handling of this error.
+			let encoded_result = match job_kind {
+				JobKind::Prepare => {
+					let result: Result<(), PrepareError> = Err(PrepareError::TimedOut);
+					result.encode()
+				},
+				JobKind::Execute => {
+					let result = ExecuteResponse::TimedOut;
+					result.encode()
+				},
+			};
+			// If we error here there is nothing we can do apart from log it. The receiving side
+			// will just have to time out.
+			if let Err(err) = framed_send(&mut stream, encoded_result.as_slice()).await {
+				gum::warn!(
+					target: LOG_TARGET,
+					worker_pid = %std::process::id(),
+					"{job_kind} worker -> pvf host: error sending result over the socket: {:?}",
+					err
+				);
+			}
+
+			return
+		}
+
+		// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep
+		// is wall clock time. The CPU clock may be slower than the wall clock.
+		let sleep_interval = timeout - cpu_time_elapsed + JOB_TIMEOUT_OVERHEAD;
+		std::thread::sleep(sleep_interval);
+	}
 }
 
 /// A struct that represents an idle worker.
@@ -200,8 +311,8 @@ pub enum SpawnErr {
 /// This is a representation of a potentially running worker. Drop it and the process will be killed.
 ///
 /// A worker's handle is also a future that resolves when it's detected that the worker's process
-/// has been terminated. Since the worker is running in another process it is obviously not necessary
-///  to poll this future to make the worker run, it's only for termination detection.
+/// has been terminated. Since the worker is running in another process it is obviously not
+/// necessary to poll this future to make the worker run, it's only for termination detection.
 ///
 /// This future relies on the fact that a child process's stdout `fd` is closed upon it's termination.
 #[pin_project]

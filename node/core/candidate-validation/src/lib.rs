@@ -320,12 +320,12 @@ where
 
 	match validation_backend.precheck_pvf(validation_code).await {
 		Ok(_) => PreCheckOutcome::Valid,
-		Err(prepare_err) => match prepare_err {
-			PrepareError::Prevalidation(_) |
-			PrepareError::Preparation(_) |
-			PrepareError::Panic(_) => PreCheckOutcome::Invalid,
-			PrepareError::TimedOut | PrepareError::DidNotMakeIt => PreCheckOutcome::Failed,
-		},
+		Err(prepare_err) =>
+			if prepare_err.is_deterministic() {
+				PreCheckOutcome::Invalid
+			} else {
+				PreCheckOutcome::Failed
+			},
 	}
 }
 
@@ -502,7 +502,7 @@ async fn validate_candidate_exhaustive(
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
 	let validation_code_hash = validation_code.hash();
-	let para_id = candidate_receipt.descriptor.para_id.clone();
+	let para_id = candidate_receipt.descriptor.para_id;
 	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
@@ -513,7 +513,7 @@ async fn validate_candidate_exhaustive(
 	if let Err(e) = perform_basic_checks(
 		&candidate_receipt.descriptor,
 		persisted_validation_data.max_pov_size,
-		&*pov,
+		&pov,
 		&validation_code_hash,
 	) {
 		gum::info!(target: LOG_TARGET, ?para_id, "Invalid candidate (basic checks)");
@@ -604,6 +604,7 @@ async fn validate_candidate_exhaustive(
 
 #[async_trait]
 trait ValidationBackend {
+	/// Tries executing a PVF a single time (no retries).
 	async fn validate_candidate(
 		&mut self,
 		pvf: Pvf,
@@ -611,6 +612,8 @@ trait ValidationBackend {
 		encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError>;
 
+	/// Tries executing a PVF. Will retry once if an error is encountered that may have been
+	/// transient.
 	async fn validate_candidate_with_retry(
 		&mut self,
 		raw_validation_code: Vec<u8>,
@@ -620,7 +623,7 @@ trait ValidationBackend {
 		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
 		let pvf = Pvf::from_code(raw_validation_code);
 
-		let validation_result =
+		let mut validation_result =
 			self.validate_candidate(pvf.clone(), timeout, params.encode()).await;
 
 		// If we get an AmbiguousWorkerDeath error, retry once after a brief delay, on the
@@ -630,15 +633,22 @@ trait ValidationBackend {
 		{
 			// Wait a brief delay before retrying.
 			futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
+
+			gum::debug!(
+				target: LOG_TARGET,
+				?pvf,
+				"Re-trying failed candidate validation due to AmbiguousWorkerDeath."
+			);
+
 			// Encode the params again when re-trying. We expect the retry case to be relatively
 			// rare, and we want to avoid unconditionally cloning data.
-			self.validate_candidate(pvf, timeout, params.encode()).await
-		} else {
-			validation_result
+			validation_result = self.validate_candidate(pvf, timeout, params.encode()).await;
 		}
+
+		validation_result
 	}
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError>;
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError>;
 }
 
 #[async_trait]
@@ -664,13 +674,14 @@ impl ValidationBackend for ValidationHost {
 			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
 	}
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError> {
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError> {
 		let (tx, rx) = oneshot::channel();
 		if let Err(_) = self.precheck_pvf(pvf, tx).await {
-			return Err(PrepareError::DidNotMakeIt)
+			// Return an IO error if there was an error communicating with the host.
+			return Err(PrepareError::IoErr)
 		}
 
-		let precheck_result = rx.await.or(Err(PrepareError::DidNotMakeIt))?;
+		let precheck_result = rx.await.or(Err(PrepareError::IoErr))?;
 
 		precheck_result
 	}
