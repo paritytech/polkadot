@@ -365,11 +365,6 @@ impl<V> CandidateVoteState<V> {
 		self.dispute_status.map_or(false, |s| s.has_concluded_against())
 	}
 
-	/// Has concluded. Either for or agains the candidate.
-	pub fn has_concluded(&self) -> bool {
-		self.has_concluded_against() || self.has_concluded_for()
-	}
-
 	/// Get access to the dispute status, in case there is one.
 	pub fn dispute_status(&self) -> &Option<DisputeStatus> {
 		&self.dispute_status
