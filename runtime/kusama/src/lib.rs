@@ -1433,7 +1433,7 @@ construct_runtime! {
 		FastUnstake: pallet_fast_unstake = 42,
 
 		// Stake tracker pallet: staking event listener.
-		StakeTracker: pallet_stake_tracker = 43,
+		StakeTracker: pallet_stake_tracker = 46,
 
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,
