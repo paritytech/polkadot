@@ -397,52 +397,6 @@ impl TestState {
 					);
 					finished_steps.got_scraping_information = true;
 					tx.send(Ok(0)).unwrap();
-
-					// If the activated block number is > 1 the scraper will ask for block ancestors. Handle this case.
-					if block_number > 1 {
-						assert_matches!(
-							overseer_recv(virtual_overseer).await,
-							AllMessages::ChainApi(ChainApiMessage::Ancestors{
-								hash,
-								k,
-								response_channel,
-							}) => {
-								assert_eq!(hash, block_hash);	// A bit restrictive, remove if it causes problems.
-								let target_header = self.headers.get(&hash).expect("The function is called for this block so it should exist");
-								let mut response = Vec::new();
-								for i in target_header.number.saturating_sub(k as u32)..target_header.number {
-									response.push(self.block_num_to_header.get(&i).expect("headers and block_num_to_header should always be in sync").clone());
-								}
-								let _ = response_channel.send(Ok(response));
-							}
-						);
-					}
-
-					assert_matches!(
-					overseer_recv(virtual_overseer).await,
-					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							_new_leaf,
-							RuntimeApiRequest::CandidateEvents(tx),
-							)) => {
-						tx.send(Ok(candidate_events.clone())).unwrap();
-					}
-					);
-					gum::trace!("After answering runtime api request");
-					assert_matches!(
-					overseer_recv(virtual_overseer).await,
-					AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-							_new_leaf,
-							RuntimeApiRequest::FetchOnChainVotes(tx),
-							)) => {
-						//add some `BackedCandidates` or resolved disputes here as needed
-						tx.send(Ok(Some(ScrapedOnChainVotes {
-							session,
-							backing_validators_per_candidate: Vec::default(),
-							disputes: MultiDisputeStatementSet::default(),
-						}))).unwrap();
-					}
-					);
-					gum::trace!("After answering runtime API request (votes)");
 				},
 				AllMessages::ChainApi(ChainApiMessage::BlockNumber(hash, tx)) => {
 					let block_num = self.headers.get(&hash).map(|header| header.number);
@@ -450,6 +404,40 @@ impl TestState {
 				},
 				AllMessages::DisputeDistribution(DisputeDistributionMessage::SendDispute(msg)) => {
 					sent_disputes.push(msg);
+                },
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_new_leaf,
+					RuntimeApiRequest::CandidateEvents(tx),
+				)) => {
+					tx.send(Ok(candidate_events.clone())).unwrap();
+				},
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_new_leaf,
+					RuntimeApiRequest::FetchOnChainVotes(tx),
+				)) => {
+					//add some `BackedCandidates` or resolved disputes here as needed
+					tx.send(Ok(Some(ScrapedOnChainVotes {
+						session,
+						backing_validators_per_candidate: Vec::default(),
+						disputes: MultiDisputeStatementSet::default(),
+					})))
+					.unwrap();
+				},
+				AllMessages::ChainApi(ChainApiMessage::Ancestors { hash, k, response_channel }) => {
+					let target_header = self
+						.headers
+						.get(&hash)
+						.expect("The function is called for this block so it should exist");
+					let mut response = Vec::new();
+					for i in target_header.number.saturating_sub(k as u32)..target_header.number {
+						response.push(
+							self.block_num_to_header
+								.get(&i)
+								.expect("headers and block_num_to_header should always be in sync")
+								.clone(),
+						);
+					}
+					let _ = response_channel.send(Ok(response));
 				},
 				msg => {
 					panic!("Received unexpected message in `handle_sync_queries`: {:?}", msg);
@@ -491,13 +479,19 @@ impl TestState {
 				)))
 				.await;
 
+            let events = if n == 1 {
+					std::mem::take(&mut initial_events)
+            } else {
+                Vec::new()
+            };
+
 			let mut new_messages = self
 				.handle_sync_queries(
 					virtual_overseer,
 					*leaf,
 					n as BlockNumber,
 					session,
-					std::mem::take(&mut initial_events),
+					events,
 				)
 				.await;
 			messages.append(&mut new_messages);
@@ -2400,7 +2394,7 @@ fn resume_dispute_with_local_statement() {
 		})
 	})
 	// Alice should not send a DisputeParticiationMessage::Participate on restart since she has a
-	// local statement for the active dispute.
+	// local statement for the active dispute, instead she should try to (re-)send her vote.
 	.resume(|mut test_state, mut virtual_overseer| {
 		let candidate_receipt = make_valid_candidate_receipt();
 		Box::pin(async move {

@@ -12,9 +12,9 @@ lru = "0.8"
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-types = { path = "../../subsystem-types" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
