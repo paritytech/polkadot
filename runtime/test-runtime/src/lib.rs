@@ -358,13 +358,20 @@ impl pallet_staking::Config for Runtime {
 	type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
 	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
 	// to bags-list is a no-op, but the storage version will be updated.
-	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Runtime>;
+	type VoterList = <Runtime as StakeTracker>::VoterList;
 	type TargetList = pallet_staking::UseValidatorsMap<Runtime>;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type HistoryDepth = frame_support::traits::ConstU32<84>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type OnStakerSlash = ();
 	type WeightInfo = ();
+	type EventListener = StakeTracker;
+}
+
+impl pallet_stake_tracker::Config for Runtime {
+	type Currency = Balances;
+	type Staking = Staking;
+	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Runtime>;
 }
 
 impl pallet_grandpa::Config for Runtime {
@@ -698,6 +705,9 @@ construct_runtime! {
 
 		// Vesting. Usable initially, but removed once all vesting is finished.
 		Vesting: pallet_vesting::{Pallet, Call, Storage, Event<T>, Config<T>},
+
+		// Stake tracker pallet: staking event listener.
+		StakeTracker: pallet_stake_tracker,
 
 		// Parachains runtime modules
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>},
