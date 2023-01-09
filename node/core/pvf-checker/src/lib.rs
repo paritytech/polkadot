@@ -26,7 +26,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 	SubsystemResult, SubsystemSender,
 };
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_node_subsystem_util::runtime::{RuntimeInfo, RuntimeInfoProvider};
 use polkadot_primitives::{
 	v3::{
 		BlockNumber, Hash, PvfCheckStatement, SessionIndex, ValidationCodeHash, ValidatorId,

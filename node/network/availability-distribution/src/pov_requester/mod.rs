@@ -29,7 +29,7 @@ use polkadot_node_subsystem::{
 	messages::{IfDisconnected, NetworkBridgeTxMessage},
 	overseer,
 };
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_node_subsystem_util::runtime::{RuntimeInfo, RuntimeInfoProvider};
 use polkadot_primitives::v3::{
 	AuthorityDiscoveryId, CandidateHash, Hash, Id as ParaId, ValidatorIndex,
 };

@@ -40,6 +40,7 @@ pub enum Error {
 	NoSuchSession(SessionIndex),
 }
 
+/// `RuntimeInfoProvider` result
 pub type Result<T> = std::result::Result<T, Error>;
 
 /// Receive a response from a runtime request and convert errors.

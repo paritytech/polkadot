@@ -44,7 +44,7 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, PerLeafSpan,
 };
 use polkadot_node_subsystem_util::{
-	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
+	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo, RuntimeInfoProvider},
 	TimeoutExt,
 };
 use polkadot_primitives::v3::{
