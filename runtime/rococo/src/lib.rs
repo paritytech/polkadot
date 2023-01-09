@@ -1485,6 +1485,8 @@ pub type Migrations = (
 	crowdloan::migration::MigrateToTrackInactive<Runtime>,
 	parachains_session_info::migration::v2::MigrateToV2<Runtime>,
 	pallet_scheduler::migration::v4::CleanupAgendas<Runtime>,
+	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
+	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
 );
 
 /// Executive: handles dispatch to the various modules.

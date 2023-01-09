@@ -10,7 +10,7 @@ hex = "0.4.3"
 gum = { package = "tracing-gum", path = "../../gum" }
 rand = "0.8.5"
 tempfile = "3.2.0"
-tokio = "1.22.0"
+tokio = "1.24.1"
 
 # Polkadot dependencies
 polkadot-overseer = { path = "../../overseer" }
@@ -61,7 +61,7 @@ substrate-test-client = { git = "https://github.com/paritytech/substrate", branc
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 serde_json = "1.0.81"
 substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tokio = { version = "1.22.0", features = ["macros"] }
+tokio = { version = "1.24.1", features = ["macros"] }
 
 [features]
 runtime-metrics=["polkadot-test-runtime/runtime-metrics"]
