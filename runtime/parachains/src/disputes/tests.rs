@@ -23,7 +23,6 @@ use crate::{
 		Test, PUNISH_VALIDATORS_AGAINST, PUNISH_VALIDATORS_FOR, REWARD_VALIDATORS,
 	},
 };
-use assert_matches::assert_matches;
 use frame_support::{
 	assert_err, assert_noop, assert_ok,
 	traits::{OnFinalize, OnInitialize},
@@ -31,20 +30,16 @@ use frame_support::{
 use primitives::v2::BlockNumber;
 use sp_core::{crypto::CryptoType, Pair};
 
-/// Filtering updates the spam slots, as such update them.
-fn update_spam_slots(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeStatementSet {
+fn filter_dispute_set(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeStatementSet {
 	let config = <configuration::Pallet<Test>>::config();
-	let max_spam_slots = config.dispute_max_spam_slots;
 	let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
 	stmts
 		.into_iter()
 		.filter_map(|set| {
-			// updates spam slots implicitly
 			let filter = Pallet::<Test>::filter_dispute_data(
 				&set,
 				post_conclusion_acceptance_period,
-				max_spam_slots,
 				VerifyDisputeSignatures::Skip,
 			);
 			filter.filter_statement_set(set)
@@ -135,7 +130,7 @@ fn test_dispute_state_flag_from_state() {
 }
 
 #[test]
-fn test_import_new_participant_spam_inc() {
+fn test_import_new_participant() {
 	let mut importer = DisputeStateImporter::new(
 		DisputeState {
 			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
@@ -171,14 +166,13 @@ fn test_import_new_participant_spam_inc() {
 			concluded_at: None,
 		},
 	);
-	assert_eq!(summary.spam_slot_changes, vec![(ValidatorIndex(2), SpamSlotChange::Inc)]);
 	assert!(summary.slash_for.is_empty());
 	assert!(summary.slash_against.is_empty());
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0, 0]);
 }
 
 #[test]
-fn test_import_prev_participant_spam_dec_confirmed() {
+fn test_import_prev_participant_confirmed() {
 	let mut importer = DisputeStateImporter::new(
 		DisputeState {
 			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
@@ -201,10 +195,7 @@ fn test_import_prev_participant_spam_dec_confirmed() {
 			concluded_at: None,
 		},
 	);
-	assert_eq!(
-		summary.spam_slot_changes,
-		vec![(ValidatorIndex(0), SpamSlotChange::Dec), (ValidatorIndex(1), SpamSlotChange::Dec),],
-	);
+
 	assert!(summary.slash_for.is_empty());
 	assert!(summary.slash_against.is_empty());
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0, 0]);
@@ -212,7 +203,7 @@ fn test_import_prev_participant_spam_dec_confirmed() {
 }
 
 #[test]
-fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
+fn test_import_prev_participant_confirmed_slash_for() {
 	let mut importer = DisputeStateImporter::new(
 		DisputeState {
 			validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
@@ -240,10 +231,7 @@ fn test_import_prev_participant_spam_dec_confirmed_slash_for() {
 			concluded_at: Some(0),
 		},
 	);
-	assert_eq!(
-		summary.spam_slot_changes,
-		vec![(ValidatorIndex(0), SpamSlotChange::Dec), (ValidatorIndex(1), SpamSlotChange::Dec),],
-	);
+
 	assert_eq!(summary.slash_for, vec![ValidatorIndex(0), ValidatorIndex(2)]);
 	assert!(summary.slash_against.is_empty());
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 1, 1, 1, 1, 1, 0]);
@@ -281,222 +269,10 @@ fn test_import_slash_against() {
 			concluded_at: Some(0),
 		},
 	);
-	assert!(summary.spam_slot_changes.is_empty());
 	assert!(summary.slash_for.is_empty());
 	assert_eq!(summary.slash_against, vec![ValidatorIndex(1), ValidatorIndex(5)]);
 	assert_eq!(summary.new_participants, bitvec![u8, BitOrderLsb0; 0, 0, 0, 1, 1, 1, 1, 1]);
 	assert_eq!(summary.new_flags, DisputeStateFlags::FOR_SUPERMAJORITY);
-}
-
-fn generate_dispute_statement_set_entry(
-	session: u32,
-	candidate_hash: CandidateHash,
-	statement: DisputeStatement,
-	validator: &<ValidatorId as CryptoType>::Pair,
-) -> (DisputeStatement, ValidatorSignature) {
-	let valid = match &statement {
-		DisputeStatement::Valid(_) => true,
-		_ => false,
-	};
-	let signature_bytes = validator
-		.sign(&ExplicitDisputeStatement { valid, candidate_hash, session }.signing_payload());
-	let signature = ValidatorSignature::try_from(signature_bytes).unwrap();
-	(statement, signature)
-}
-
-fn generate_dispute_statement_set(
-	session: SessionIndex,
-	candidate_hash: CandidateHash,
-	validators: &[<ValidatorId as CryptoType>::Pair],
-	vidxs: Vec<(usize, DisputeStatement)>,
-) -> DisputeStatementSet {
-	let statements = vidxs
-		.into_iter()
-		.map(|(v_i, statement)| {
-			let validator_index = ValidatorIndex(v_i as u32);
-			let (statement, signature) = generate_dispute_statement_set_entry(
-				session,
-				candidate_hash.clone(),
-				statement,
-				&validators[v_i],
-			);
-			(statement, validator_index, signature)
-		})
-		.collect::<Vec<(DisputeStatement, ValidatorIndex, ValidatorSignature)>>();
-	DisputeStatementSet { candidate_hash: candidate_hash.clone(), session, statements }
-}
-
-#[test]
-fn dispute_statement_becoming_onesided_due_to_spamslots_is_accepted() {
-	let dispute_conclusion_by_time_out_period = 3;
-	let start = 10;
-	let session = start - 1;
-	let dispute_max_spam_slots = 2;
-	let post_conclusion_acceptance_period = 3;
-
-	let mock_genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration {
-				dispute_conclusion_by_time_out_period,
-				dispute_max_spam_slots,
-				..Default::default()
-			},
-			..Default::default()
-		},
-		..Default::default()
-	};
-
-	new_test_ext(mock_genesis_config).execute_with(|| {
-		// We need 6 validators for the byzantine threshold to be 2
-		static ACCOUNT_IDS: &[AccountId] = &[0, 1, 2, 3, 4, 5, 6, 7];
-		let validators = std::iter::repeat(())
-			.take(7)
-			.map(|_| <ValidatorId as CryptoType>::Pair::generate().0)
-			.collect::<Vec<_>>();
-		let validators = &validators;
-
-		// a new session at each block, but always the same validators
-		let session_change_callback = |block_number: u32| -> Option<NewSession<'_>> {
-			let session_validators =
-				Vec::from_iter(ACCOUNT_IDS.iter().zip(validators.iter().map(|pair| pair.public())));
-			Some((true, block_number, session_validators.clone(), Some(session_validators)))
-		};
-
-		run_to_block(start, session_change_callback);
-
-		// Must be _foreign_ parachain candidate
-		// otherwise slots do not trigger.
-		let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(0xA));
-		let candidate_hash_b = CandidateHash(sp_core::H256::repeat_byte(0xB));
-		let candidate_hash_c = CandidateHash(sp_core::H256::repeat_byte(0xC));
-		let candidate_hash_d = CandidateHash(sp_core::H256::repeat_byte(0xD));
-
-		let stmts = vec![
-			// a
-			generate_dispute_statement_set(
-				session,
-				candidate_hash_a,
-				validators,
-				vec![
-					(3, DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)),
-					(6, DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)),
-				],
-			),
-			// b
-			generate_dispute_statement_set(
-				session,
-				candidate_hash_b,
-				validators,
-				vec![
-					(1, DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)),
-					(6, DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)),
-				],
-			),
-			// c
-			generate_dispute_statement_set(
-				session,
-				candidate_hash_c,
-				validators,
-				vec![
-					(2, DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)),
-					(6, DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)),
-				],
-			),
-			// d
-			generate_dispute_statement_set(
-				session,
-				candidate_hash_d,
-				validators,
-				vec![
-					(4, DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)),
-					(5, DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)),
-				],
-			),
-			generate_dispute_statement_set(
-				session,
-				candidate_hash_d,
-				validators,
-				vec![(6, DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit))],
-			),
-		];
-
-		// no filtering happens, host config for `dispute_max_spam_slots: 2` is the default
-		// updates spam slots implicitly
-		let set = stmts[0].clone();
-		let filter = Pallet::<Test>::filter_dispute_data(
-			&set,
-			post_conclusion_acceptance_period,
-			dispute_max_spam_slots,
-			VerifyDisputeSignatures::Skip,
-		);
-		assert_matches!(&filter, StatementSetFilter::RemoveIndices(v) if v.is_empty());
-		assert_matches!(filter.filter_statement_set(set.clone()), Some(modified) => {
-			assert_eq!(&set, modified.as_ref());
-		});
-		assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 0, 0, 1, 0, 0, 1]));
-
-		// <----->
-
-		// 2nd, still ok? Should be
-		let set = stmts[1].clone();
-		let filter = Pallet::<Test>::filter_dispute_data(
-			&set,
-			post_conclusion_acceptance_period,
-			dispute_max_spam_slots,
-			VerifyDisputeSignatures::Skip,
-		);
-		assert_matches!(&filter, StatementSetFilter::RemoveIndices(v) if v.is_empty());
-		assert_matches!(filter.filter_statement_set(set.clone()), Some(modified) => {
-			assert_eq!(&set, modified.as_ref());
-		});
-		assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 1, 0, 1, 0, 0, 2]));
-
-		// <----->
-
-		// now this is the third spammy participation of validator 6 and hence
-		let set = stmts[2].clone();
-		let filter = Pallet::<Test>::filter_dispute_data(
-			&set,
-			post_conclusion_acceptance_period,
-			dispute_max_spam_slots,
-			VerifyDisputeSignatures::Skip,
-		);
-		assert_matches!(&filter, StatementSetFilter::RemoveAll);
-		// no need to apply the filter,
-		// we don't do anything with the result, and spam slots were updated already
-
-		// <----->
-
-		// now there is no pariticipation in this dispute being initiated
-		// only validator 4 and 5 are part of it
-		// with 3 validators it's not a an unconfirmed dispute anymore
-		// so validator 6, while being considered spammy should work again
-		let set = stmts[3].clone();
-		let filter = Pallet::<Test>::filter_dispute_data(
-			&set,
-			post_conclusion_acceptance_period,
-			dispute_max_spam_slots,
-			VerifyDisputeSignatures::Skip,
-		);
-		assert_matches!(&filter, StatementSetFilter::RemoveIndices(v) if v.is_empty());
-		// no need to apply the filter,
-		// we don't do anything with the result, and spam slots were updated already
-
-		// <----->
-
-		// it's a spammy participant, so a new dispute will not be accepted being initiated by a spammer
-		let set = stmts[4].clone();
-		let filter = Pallet::<Test>::filter_dispute_data(
-			&set,
-			post_conclusion_acceptance_period,
-			dispute_max_spam_slots,
-			VerifyDisputeSignatures::Skip,
-		);
-		assert_matches!(&filter, StatementSetFilter::RemoveAll);
-		assert_matches!(filter.filter_statement_set(set.clone()), None);
-
-		assert_eq!(SpamSlots::<Test>::get(session), Some(vec![0, 1, 1, 1, 1, 1, 3]));
-	});
 }
 
 // Test that dispute timeout is handled correctly.
@@ -517,7 +293,7 @@ fn test_dispute_timeout() {
 	};
 
 	new_test_ext(mock_genesis_config).execute_with(|| {
-		// We need 6 validators for the byzantine threshold to be 2
+		// We need 7 validators for the byzantine threshold to be 2
 		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
 		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
 		let v2 = <ValidatorId as CryptoType>::Pair::generate().0;
@@ -554,15 +330,29 @@ fn test_dispute_timeout() {
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
 
-		// v0 votes for 3, v6 against.
+		// v0 and v1 vote for 3, v2 against. We need f+1 votes (3) so that the dispute is
+		// confirmed. Otherwise It will be filtered out.
+		let session = start - 1;
 		let stmts = vec![DisputeStatementSet {
 			candidate_hash: candidate_hash.clone(),
-			session: start - 1,
+			session,
 			statements: vec![
 				(
 					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
 					ValidatorIndex(0),
 					v0.sign(
+						&ExplicitDisputeStatement {
+							valid: true,
+							candidate_hash: candidate_hash.clone(),
+							session: start - 1,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					ValidatorIndex(1),
+					v1.sign(
 						&ExplicitDisputeStatement {
 							valid: true,
 							candidate_hash: candidate_hash.clone(),
@@ -586,8 +376,7 @@ fn test_dispute_timeout() {
 			],
 		}];
 
-		let stmts = update_spam_slots(stmts);
-		assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![1, 0, 0, 0, 0, 0, 1]));
+		let stmts = filter_dispute_set(stmts);
 
 		assert_ok!(
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
@@ -596,11 +385,20 @@ fn test_dispute_timeout() {
 
 		// Run to timeout period
 		run_to_block(start + dispute_conclusion_by_time_out_period, |_| None);
-		assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![1, 0, 0, 0, 0, 0, 1]));
+		assert!(<Disputes<Test>>::get(&session, &candidate_hash)
+			.expect("dispute should exist")
+			.concluded_at
+			.is_none());
 
 		// Run to timeout + 1 in order to executive on_finalize(timeout)
 		run_to_block(start + dispute_conclusion_by_time_out_period + 1, |_| None);
-		assert_eq!(SpamSlots::<Test>::get(start - 1), Some(vec![0, 0, 0, 0, 0, 0, 0]));
+		assert_eq!(
+			<Disputes<Test>>::get(&session, &candidate_hash)
+				.expect("dispute should exist")
+				.concluded_at
+				.expect("dispute should have concluded"),
+			start + dispute_conclusion_by_time_out_period + 1
+		);
 	});
 }
 
@@ -888,16 +686,13 @@ fn test_freeze_provided_against_supermajority_for_included() {
 	});
 }
 
-// tests for:
-// * provide_multi_dispute: with success scenario
-// * disputes: correctness of datas
-// * could_be_invalid: correctness of datas
-// * note_included: decrement spam correctly
-// * spam slots: correctly incremented and decremented
-// * ensure rewards and punishment are correctly called.
-#[test]
-fn test_provide_multi_dispute_success_and_other() {
-	new_test_ext(Default::default()).execute_with(|| {
+mod unconfirmed_disputes {
+	use super::*;
+	use assert_matches::assert_matches;
+	use sp_runtime::ModuleError;
+
+	// Shared initialization code between `test_unconfirmed_are_ignored` and `test_unconfirmed_disputes_cause_block_import_error`
+	fn generate_dispute_statement_set_and_run_to_block() -> DisputeStatementSet {
 		// 7 validators needed for byzantine threshold of 2.
 		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
 		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
@@ -907,6 +702,7 @@ fn test_provide_multi_dispute_success_and_other() {
 		let v5 = <ValidatorId as CryptoType>::Pair::generate().0;
 		let v6 = <ValidatorId as CryptoType>::Pair::generate().0;
 
+		// Mapping between key pair and `ValidatorIndex`
 		// v0 -> 0
 		// v1 -> 3
 		// v2 -> 6
@@ -943,7 +739,120 @@ fn test_provide_multi_dispute_success_and_other() {
 
 		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
 
-		// v0 votes for 3, v6 votes against
+		// v0 votes for 4, v1 votes against 4.
+		DisputeStatementSet {
+			candidate_hash: candidate_hash.clone(),
+			session: 4,
+			statements: vec![
+				(
+					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+					ValidatorIndex(0),
+					v0.sign(
+						&ExplicitDisputeStatement {
+							valid: true,
+							candidate_hash: candidate_hash.clone(),
+							session: 4,
+						}
+						.signing_payload(),
+					),
+				),
+				(
+					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+					ValidatorIndex(3),
+					v1.sign(
+						&ExplicitDisputeStatement {
+							valid: false,
+							candidate_hash: candidate_hash.clone(),
+							session: 4,
+						}
+						.signing_payload(),
+					),
+				),
+			],
+		}
+	}
+	#[test]
+	fn test_unconfirmed_are_ignored() {
+		new_test_ext(Default::default()).execute_with(|| {
+			let stmts = vec![generate_dispute_statement_set_and_run_to_block()];
+			let stmts = filter_dispute_set(stmts);
+
+			// Not confirmed => should be filtered out
+			assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![],);
+		});
+	}
+
+	#[test]
+	fn test_unconfirmed_disputes_cause_block_import_error() {
+		new_test_ext(Default::default()).execute_with(|| {
+
+		let stmts = generate_dispute_statement_set_and_run_to_block();
+		let stmts = vec![CheckedDisputeStatementSet::unchecked_from_unchecked(stmts)];
+
+		assert_matches!(
+			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
+			Err(DispatchError::Module(ModuleError{index: _, error: _, message})) => assert_eq!(message, Some("UnconfirmedDispute"))
+		);
+
+	});
+	}
+}
+
+// tests for:
+// * provide_multi_dispute: with success scenario
+// * disputes: correctness of datas
+// * could_be_invalid: correctness of datas
+// * ensure rewards and punishment are correctly called.
+#[test]
+fn test_provide_multi_dispute_success_and_other() {
+	new_test_ext(Default::default()).execute_with(|| {
+		// 7 validators needed for byzantine threshold of 2.
+		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v2 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v3 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v4 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v5 = <ValidatorId as CryptoType>::Pair::generate().0;
+		let v6 = <ValidatorId as CryptoType>::Pair::generate().0;
+
+		// Mapping between key pair and `ValidatorIndex`
+		// v0 -> 0
+		// v1 -> 3
+		// v2 -> 6
+		// v3 -> 5
+		// v4 -> 1
+		// v5 -> 4
+		// v6 -> 2
+
+		run_to_block(6, |b| {
+			// a new session at each block
+			Some((
+				true,
+				b,
+				vec![
+					(&0, v0.public()),
+					(&1, v1.public()),
+					(&2, v2.public()),
+					(&3, v3.public()),
+					(&4, v4.public()),
+					(&5, v5.public()),
+					(&6, v6.public()),
+				],
+				Some(vec![
+					(&0, v0.public()),
+					(&1, v1.public()),
+					(&2, v2.public()),
+					(&3, v3.public()),
+					(&4, v4.public()),
+					(&5, v5.public()),
+					(&6, v6.public()),
+				]),
+			))
+		});
+
+		let candidate_hash = CandidateHash(sp_core::H256::repeat_byte(1));
+
+		// v0 and v1 vote for 3, v6 votes against
 		let stmts = vec![DisputeStatementSet {
 			candidate_hash: candidate_hash.clone(),
 			session: 3,
@@ -972,53 +881,7 @@ fn test_provide_multi_dispute_success_and_other() {
 						.signing_payload(),
 					),
 				),
-			],
-		}];
-
-		let stmts = update_spam_slots(stmts);
-		assert_eq!(SpamSlots::<Test>::get(3), Some(vec![1, 0, 1, 0, 0, 0, 0]));
-
-		assert_ok!(
-			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
-			vec![(3, candidate_hash.clone())],
-		);
-
-		// v1 votes for 4 and for 3, v6 votes against 4.
-		let stmts = vec![
-			DisputeStatementSet {
-				candidate_hash: candidate_hash.clone(),
-				session: 4,
-				statements: vec![
-					(
-						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-						ValidatorIndex(3),
-						v1.sign(
-							&ExplicitDisputeStatement {
-								valid: true,
-								candidate_hash: candidate_hash.clone(),
-								session: 4,
-							}
-							.signing_payload(),
-						),
-					),
-					(
-						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-						ValidatorIndex(2),
-						v6.sign(
-							&ExplicitDisputeStatement {
-								valid: false,
-								candidate_hash: candidate_hash.clone(),
-								session: 4,
-							}
-							.signing_payload(),
-						),
-					),
-				],
-			},
-			DisputeStatementSet {
-				candidate_hash: candidate_hash.clone(),
-				session: 3,
-				statements: vec![(
+				(
 					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
 					ValidatorIndex(3),
 					v1.sign(
@@ -1029,20 +892,18 @@ fn test_provide_multi_dispute_success_and_other() {
 						}
 						.signing_payload(),
 					),
-				)],
-			},
-		];
+				),
+			],
+		}];
 
-		let stmts = update_spam_slots(stmts);
+		let stmts = filter_dispute_set(stmts);
 
 		assert_ok!(
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
-			vec![(4, candidate_hash.clone())],
+			vec![(3, candidate_hash.clone())],
 		);
-		assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0])); // Confirmed as no longer spam
-		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
 
-		// v3 votes against 3 and for 5, v6 votes against 5.
+		// v3 votes against 3 and for 5, v2 and v6 vote against 5.
 		let stmts = vec![
 			DisputeStatementSet {
 				candidate_hash: candidate_hash.clone(),
@@ -1078,6 +939,18 @@ fn test_provide_multi_dispute_success_and_other() {
 					),
 					(
 						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
+						ValidatorIndex(6),
+						v2.sign(
+							&ExplicitDisputeStatement {
+								valid: false,
+								candidate_hash: candidate_hash.clone(),
+								session: 5,
+							}
+							.signing_payload(),
+						),
+					),
+					(
+						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
 						ValidatorIndex(2),
 						v6.sign(
 							&ExplicitDisputeStatement {
@@ -1092,55 +965,31 @@ fn test_provide_multi_dispute_success_and_other() {
 			},
 		];
 
-		let stmts = update_spam_slots(stmts);
+		let stmts = filter_dispute_set(stmts);
 		assert_ok!(
 			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
 			vec![(5, candidate_hash.clone())],
 		);
-		assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0]));
-		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
-		assert_eq!(SpamSlots::<Test>::get(5), Some(vec![0, 0, 1, 0, 0, 1, 0]));
 
-		// v2 votes for 3 and against 5
-		let stmts = vec![
-			DisputeStatementSet {
-				candidate_hash: candidate_hash.clone(),
-				session: 3,
-				statements: vec![(
-					DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-					ValidatorIndex(6),
-					v2.sign(
-						&ExplicitDisputeStatement {
-							valid: true,
-							candidate_hash: candidate_hash.clone(),
-							session: 3,
-						}
-						.signing_payload(),
-					),
-				)],
-			},
-			DisputeStatementSet {
-				candidate_hash: candidate_hash.clone(),
-				session: 5,
-				statements: vec![(
-					DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-					ValidatorIndex(6),
-					v2.sign(
-						&ExplicitDisputeStatement {
-							valid: false,
-							candidate_hash: candidate_hash.clone(),
-							session: 5,
-						}
-						.signing_payload(),
-					),
-				)],
-			},
-		];
-		let stmts = update_spam_slots(stmts);
+		// v2 votes for 3
+		let stmts = vec![DisputeStatementSet {
+			candidate_hash: candidate_hash.clone(),
+			session: 3,
+			statements: vec![(
+				DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
+				ValidatorIndex(6),
+				v2.sign(
+					&ExplicitDisputeStatement {
+						valid: true,
+						candidate_hash: candidate_hash.clone(),
+						session: 3,
+					}
+					.signing_payload(),
+				),
+			)],
+		}];
+		let stmts = filter_dispute_set(stmts);
 		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![]);
-		assert_eq!(SpamSlots::<Test>::get(3), Some(vec![0, 0, 0, 0, 0, 0, 0]));
-		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
-		assert_eq!(SpamSlots::<Test>::get(5), Some(vec![0, 0, 0, 0, 0, 0, 0]));
 
 		let stmts = vec![
 			// 0, 4, and 5 vote against 5
@@ -1218,7 +1067,7 @@ fn test_provide_multi_dispute_success_and_other() {
 				],
 			},
 		];
-		let stmts = update_spam_slots(stmts);
+		let stmts = filter_dispute_set(stmts);
 		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![]);
 
 		assert_eq!(
@@ -1244,16 +1093,6 @@ fn test_provide_multi_dispute_success_and_other() {
 						concluded_at: Some(6), // 5 vote for
 					}
 				),
-				(
-					4,
-					candidate_hash.clone(),
-					DisputeState {
-						validators_for: bitvec![u8, BitOrderLsb0; 0, 0, 0, 1, 0, 0, 0],
-						validators_against: bitvec![u8, BitOrderLsb0; 0, 0, 1, 0, 0, 0, 0],
-						start: 6,
-						concluded_at: None,
-					}
-				),
 			]
 		);
 
@@ -1261,22 +1100,14 @@ fn test_provide_multi_dispute_success_and_other() {
 		assert!(!Pallet::<Test>::concluded_invalid(4, candidate_hash.clone()));
 		assert!(Pallet::<Test>::concluded_invalid(5, candidate_hash.clone()));
 
-		// Ensure inclusion removes spam slots
-		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 1, 1, 0, 0, 0]));
-		Pallet::<Test>::note_included(4, candidate_hash.clone(), 4);
-		assert_eq!(SpamSlots::<Test>::get(4), Some(vec![0, 0, 0, 0, 0, 0, 0]));
-
 		// Ensure the `reward_validator` function was correctly called
 		assert_eq!(
 			REWARD_VALIDATORS.with(|r| r.borrow().clone()),
 			vec![
-				(3, vec![ValidatorIndex(0), ValidatorIndex(2)]),
-				(4, vec![ValidatorIndex(2), ValidatorIndex(3)]),
-				(3, vec![ValidatorIndex(3)]),
+				(3, vec![ValidatorIndex(0), ValidatorIndex(2), ValidatorIndex(3)]),
 				(3, vec![ValidatorIndex(5)]),
-				(5, vec![ValidatorIndex(2), ValidatorIndex(5)]),
+				(5, vec![ValidatorIndex(2), ValidatorIndex(5), ValidatorIndex(6)]),
 				(3, vec![ValidatorIndex(6)]),
-				(5, vec![ValidatorIndex(6)]),
 				(5, vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(4)]),
 				(3, vec![ValidatorIndex(1), ValidatorIndex(4)]),
 			],
@@ -1287,12 +1118,9 @@ fn test_provide_multi_dispute_success_and_other() {
 			PUNISH_VALIDATORS_AGAINST.with(|r| r.borrow().clone()),
 			vec![
 				(3, vec![]),
-				(4, vec![]),
-				(3, vec![]),
 				(3, vec![]),
 				(5, vec![]),
 				(3, vec![]),
-				(5, vec![]),
 				(5, vec![]),
 				(3, vec![ValidatorIndex(2), ValidatorIndex(5)]),
 			],
@@ -1303,12 +1131,9 @@ fn test_provide_multi_dispute_success_and_other() {
 			PUNISH_VALIDATORS_FOR.with(|r| r.borrow().clone()),
 			vec![
 				(3, vec![]),
-				(4, vec![]),
-				(3, vec![]),
 				(3, vec![]),
 				(5, vec![]),
 				(3, vec![]),
-				(5, vec![]),
 				(5, vec![ValidatorIndex(5)]),
 				(3, vec![]),
 			],
@@ -1378,44 +1203,6 @@ fn test_has_supermajority_against() {
 		}),
 		true,
 	);
-}
-
-#[test]
-fn test_decrement_spam() {
-	let original_spam_slots = vec![0, 1, 2, 3, 4, 5, 6, 7];
-
-	// Test confirm is no-op
-	let mut spam_slots = original_spam_slots.clone();
-	let dispute_state_confirm = DisputeState {
-		validators_for: bitvec![u8, BitOrderLsb0; 1, 1, 0, 0, 0, 0, 0, 0],
-		validators_against: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
-		start: 0,
-		concluded_at: None,
-	};
-	assert_eq!(DisputeStateFlags::from_state(&dispute_state_confirm), DisputeStateFlags::CONFIRMED);
-	assert_eq!(
-		decrement_spam(spam_slots.as_mut(), &dispute_state_confirm),
-		bitvec![u8, BitOrderLsb0; 1, 1, 1, 0, 0, 0, 0, 0],
-	);
-	assert_eq!(spam_slots, original_spam_slots);
-
-	// Test not confirm is decreasing spam
-	let mut spam_slots = original_spam_slots.clone();
-	let dispute_state_no_confirm = DisputeState {
-		validators_for: bitvec![u8, BitOrderLsb0; 1, 0, 0, 0, 0, 0, 0, 0],
-		validators_against: bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
-		start: 0,
-		concluded_at: None,
-	};
-	assert_eq!(
-		DisputeStateFlags::from_state(&dispute_state_no_confirm),
-		DisputeStateFlags::default()
-	);
-	assert_eq!(
-		decrement_spam(spam_slots.as_mut(), &dispute_state_no_confirm),
-		bitvec![u8, BitOrderLsb0; 1, 0, 1, 0, 0, 0, 0, 0],
-	);
-	assert_eq!(spam_slots, vec![0, 1, 1, 3, 4, 5, 6, 7]);
 }
 
 #[test]
@@ -1912,14 +1699,12 @@ fn apply_filter_all<T: Config, I: IntoIterator<Item = DisputeStatementSet>>(
 	sets: I,
 ) -> Vec<CheckedDisputeStatementSet> {
 	let config = <configuration::Pallet<T>>::config();
-	let max_spam_slots = config.dispute_max_spam_slots;
 	let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
 	let mut acc = Vec::<CheckedDisputeStatementSet>::new();
 	for dispute_statement in sets {
 		if let Some(checked) = <Pallet<T> as DisputesHandler<<T>::BlockNumber>>::filter_dispute_data(
 			dispute_statement,
-			max_spam_slots,
 			post_conclusion_acceptance_period,
 			VerifyDisputeSignatures::Yes,
 		) {
@@ -1993,13 +1778,11 @@ fn filter_removes_duplicates_within_set() {
 			],
 		};
 
-		let max_spam_slots = 10;
 		let post_conclusion_acceptance_period = 10;
 		let statements = <Pallet<Test> as DisputesHandler<
 			<Test as frame_system::Config>::BlockNumber,
 		>>::filter_dispute_data(
 			statements,
-			max_spam_slots,
 			post_conclusion_acceptance_period,
 			VerifyDisputeSignatures::Yes,
 		);
@@ -2082,151 +1865,6 @@ fn filter_bad_signatures_correctly_detects_single_sided() {
 		let statements = apply_filter_all::<Test, _>(statements);
 
 		assert!(statements.is_empty());
-	})
-}
-
-#[test]
-fn filter_correctly_accounts_spam_slots() {
-	let dispute_max_spam_slots = 2;
-
-	let mock_genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config: HostConfiguration { dispute_max_spam_slots, ..Default::default() },
-			..Default::default()
-		},
-		..Default::default()
-	};
-
-	new_test_ext(mock_genesis_config).execute_with(|| {
-		// We need 7 validators for the byzantine threshold to be 2
-		let v0 = <ValidatorId as CryptoType>::Pair::generate().0;
-		let v1 = <ValidatorId as CryptoType>::Pair::generate().0;
-		let v2 = <ValidatorId as CryptoType>::Pair::generate().0;
-		let v3 = <ValidatorId as CryptoType>::Pair::generate().0;
-		let v4 = <ValidatorId as CryptoType>::Pair::generate().0;
-		let v5 = <ValidatorId as CryptoType>::Pair::generate().0;
-		let v6 = <ValidatorId as CryptoType>::Pair::generate().0;
-
-		run_to_block(3, |b| {
-			// a new session at each block
-			Some((
-				true,
-				b,
-				vec![
-					(&0, v0.public()),
-					(&1, v1.public()),
-					(&2, v2.public()),
-					(&3, v3.public()),
-					(&4, v4.public()),
-					(&5, v5.public()),
-					(&6, v6.public()),
-				],
-				Some(vec![
-					(&0, v0.public()),
-					(&1, v1.public()),
-					(&2, v2.public()),
-					(&3, v3.public()),
-					(&4, v4.public()),
-					(&5, v5.public()),
-					(&6, v6.public()),
-				]),
-			))
-		});
-
-		let candidate_hash_a = CandidateHash(sp_core::H256::repeat_byte(1));
-		let candidate_hash_b = CandidateHash(sp_core::H256::repeat_byte(2));
-		let candidate_hash_c = CandidateHash(sp_core::H256::repeat_byte(3));
-
-		let payload = |c_hash: &CandidateHash, valid| {
-			ExplicitDisputeStatement { valid, candidate_hash: c_hash.clone(), session: 1 }
-				.signing_payload()
-		};
-
-		let payload_a = payload(&candidate_hash_a, true);
-		let payload_b = payload(&candidate_hash_b, true);
-		let payload_c = payload(&candidate_hash_c, true);
-
-		let payload_a_bad = payload(&candidate_hash_a, false);
-		let payload_b_bad = payload(&candidate_hash_b, false);
-		let payload_c_bad = payload(&candidate_hash_c, false);
-
-		let sig_0a = v0.sign(&payload_a);
-		let sig_0b = v0.sign(&payload_b);
-		let sig_0c = v0.sign(&payload_c);
-
-		let sig_1b = v1.sign(&payload_b);
-
-		let sig_2a = v2.sign(&payload_a_bad);
-		let sig_2b = v2.sign(&payload_b_bad);
-		let sig_2c = v2.sign(&payload_c_bad);
-
-		let statements = vec![
-			// validators 0 and 2 get 1 spam slot from this.
-			DisputeStatementSet {
-				candidate_hash: candidate_hash_a.clone(),
-				session: 1,
-				statements: vec![
-					(
-						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-						ValidatorIndex(0),
-						sig_0a.clone(),
-					),
-					(
-						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-						ValidatorIndex(6),
-						sig_2a.clone(),
-					),
-				],
-			},
-			// Validators 0, 2, and 3 get no spam slots for this
-			DisputeStatementSet {
-				candidate_hash: candidate_hash_b.clone(),
-				session: 1,
-				statements: vec![
-					(
-						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-						ValidatorIndex(0),
-						sig_0b.clone(),
-					),
-					(
-						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-						ValidatorIndex(3),
-						sig_1b.clone(),
-					),
-					(
-						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-						ValidatorIndex(6),
-						sig_2b.clone(),
-					),
-				],
-			},
-			// Validators 0 and 2 get an extra spam slot for this.
-			DisputeStatementSet {
-				candidate_hash: candidate_hash_c.clone(),
-				session: 1,
-				statements: vec![
-					(
-						DisputeStatement::Valid(ValidDisputeStatementKind::Explicit),
-						ValidatorIndex(0),
-						sig_0c.clone(),
-					),
-					(
-						DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit),
-						ValidatorIndex(6),
-						sig_2c.clone(),
-					),
-				],
-			},
-		];
-
-		let old_statements = statements
-			.clone()
-			.into_iter()
-			.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
-			.collect::<Vec<_>>();
-		let statements = apply_filter_all::<Test, _>(statements);
-
-		assert_eq!(statements, old_statements);
 	})
 }
 
