@@ -1484,6 +1484,8 @@ pub type Migrations = (
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, xcm_config::CheckAccount>,
 	crowdloan::migration::MigrateToTrackInactive<Runtime>,
 	pallet_scheduler::migration::v4::CleanupAgendas<Runtime>,
+	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
+	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
 );
 
 /// Executive: handles dispatch to the various modules.
