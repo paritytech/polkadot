@@ -456,10 +456,7 @@ impl<T: Config> Pallet<T> {
 			// a core index that was freed due to a dispute.
 			//
 			// I.e. 010100 would indicate, the candidates on Core 1 and 3 would be disputed.
-			let disputed_bitfield = create_disputed_bitfield(
-				expected_bits,
-				freed_disputed.keys()
-			);
+			let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_disputed.keys());
 
 			if !freed_disputed.is_empty() {
 				<scheduler::Pallet<T>>::free_cores(freed_disputed);
@@ -666,8 +663,7 @@ impl<T: Config> Pallet<T> {
 					.map(|core| (core, FreedReason::Concluded))
 					.collect();
 
-			let disputed_bitfield =
-				create_disputed_bitfield(expected_bits, freed_disputed.keys());
+			let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_disputed.keys());
 
 			if !freed_disputed.is_empty() {
 				<scheduler::Pallet<T>>::free_cores(freed_disputed.clone());
