@@ -2103,7 +2103,10 @@ fn dispute_reversion_against_finalized_is_ignored() {
 		// Sending dispute conculded against message
 		virtual_overseer
 			.send(FromOrchestra::Communication {
-				msg: ChainSelectionMessage::DisputeConcludedAgainst(finalized_number, finalized_hash),
+				msg: ChainSelectionMessage::DisputeConcludedAgainst(
+					finalized_number,
+					finalized_hash,
+				),
 			})
 			.await;
 
