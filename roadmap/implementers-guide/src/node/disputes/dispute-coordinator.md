@@ -685,7 +685,7 @@ struct State {
 When the subsystem is initialised it waits for a new leaf (message
 `OverseerSignal::ActiveLeaves`). The leaf is used to initialise a
 `RollingSessionWindow` instance (contains leaf hash and `DISPUTE_WINDOW` which
-is a constant.
+is a constant).
 
 Next the active disputes are loaded from the DB and initialize spam slots
 accordingly, then for each loaded dispute, we either send a
