@@ -608,8 +608,7 @@ pub fn maybe_compress_pov(pov: PoV) -> PoV {
 
 /// How many votes we need to consider a candidate backed.
 ///
-/// WARNING: This has to be kept in sync with the runtime check in the inclusion module and
-/// the backing subsystem.
+/// WARNING: This has to be kept in sync with the runtime check in the inclusion module.
 pub fn minimum_votes(n_validators: usize) -> usize {
 	std::cmp::min(2, n_validators)
 }

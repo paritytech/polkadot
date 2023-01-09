@@ -172,8 +172,7 @@ impl<H> Default for ProcessedCandidates<H> {
 
 /// Number of backing votes we need for a valid backing.
 ///
-/// WARNING: This check has to be kept in sync with the node side check in the backing
-/// subsystem.
+/// WARNING: This check has to be kept in sync with the node side checks.
 pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	// For considerations on this value see:
 	// https://github.com/paritytech/polkadot/pull/1656#issuecomment-999734650
