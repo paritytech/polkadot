@@ -220,7 +220,7 @@ update-node-template:
   stage:                           publish
   extends:                         .kubernetes-env
   rules:
-    # The template is not updated for FINAL releases
+    # The template is only updated for FINAL releases
     # i.e. the rule should not cover RC or patch releases
     - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+$/           # e.g. v1.0
     - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]$/    # e.g. v1.0.0
