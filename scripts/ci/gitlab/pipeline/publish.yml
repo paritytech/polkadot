@@ -223,7 +223,7 @@ update-node-template:
     # The template is only updated for FINAL releases
     # i.e. the rule should not cover RC or patch releases
     - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+$/           # e.g. v1.0
-    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]$/    # e.g. v1.0.0
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/    # e.g. v1.0.0
   script:
     - git clone --depth=1 --branch="$PIPELINE_SCRIPTS_TAG" https://github.com/paritytech/pipeline-scripts
     - export POLKADOT_BRANCH="polkadot-v$CI_COMMIT_TAG"
