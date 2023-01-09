@@ -193,6 +193,9 @@ async fn handle_pvf_check(
 			// Always vote against in case of failures. Voting against a PVF when encountering a
 			// timeout (or an unlikely node-specific issue) can be considered safe, since
 			// there is no slashing for being on the wrong side on a pre-check vote.
+			//
+			// Also, by being more strict here, we can safely be more lenient during preparation and
+			// avoid the risk of getting slashed there.
 			gum::info!(
 				target: LOG_TARGET,
 				?validation_code_hash,
