@@ -219,6 +219,8 @@ publish-rustdoc:
 update-node-template:
   stage:                           publish
   extends:                         .kubernetes-env
+  variables:
+    GIT_STRATEGY:          none
   rules:
     # The template is only updated for FINAL releases
     # i.e. the rule should not cover RC or patch releases
