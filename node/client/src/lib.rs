@@ -29,7 +29,7 @@ use sp_api::{CallApiAt, Encode, NumberFor, ProvideRuntimeApi};
 use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_consensus::BlockStatus;
 use sp_runtime::{
-	generic::{BlockId, SignedBlock},
+	generic::SignedBlock,
 	traits::{BlakeTwo256, Block as BlockT},
 	Justifications,
 };
@@ -338,22 +338,25 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn block(&self, id: &BlockId<Block>) -> sp_blockchain::Result<Option<SignedBlock<Block>>> {
+	fn block(
+		&self,
+		hash: <Block as BlockT>::Hash,
+	) -> sp_blockchain::Result<Option<SignedBlock<Block>>> {
 		with_client! {
 			self,
 			client,
 			{
-				client.block(id)
+				client.block(hash)
 			}
 		}
 	}
 
-	fn block_status(&self, id: &BlockId<Block>) -> sp_blockchain::Result<BlockStatus> {
+	fn block_status(&self, hash: <Block as BlockT>::Hash) -> sp_blockchain::Result<BlockStatus> {
 		with_client! {
 			self,
 			client,
 			{
-				client.block_status(id)
+				client.block_status(hash)
 			}
 		}
 	}
