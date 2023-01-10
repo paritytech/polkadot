@@ -87,60 +87,69 @@ impl<'a> CandidateEnvironment<'a> {
 
 /// Whether or not we already issued some statement about a candidate.
 pub enum OwnVoteState {
-	/// We already voted/issued a statement for the candidate.
-	Voted,
-	/// We already voted/issued a statement for the candidate and it was an approval vote.
+	/// Our votes, if any.
+	Voted(Vec<(ValidatorIndex, (DisputeStatement, ValidatorSignature))>),
+
+	/// We are not a parachain validator in the session.
 	///
-	/// Needs special treatment as we have to make sure to propagate it to peers, to guarantee the
-	/// dispute can conclude.
-	VotedApproval(Vec<(ValidatorIndex, ValidatorSignature)>),
-	/// We not yet voted for the dispute.
-	NoVote,
+	/// Hence we cannot vote.
+	CannotVote,
 }
 
 impl OwnVoteState {
 	fn new<'a>(votes: &CandidateVotes, env: &CandidateEnvironment<'a>) -> Self {
-		let mut our_valid_votes = env
-			.controlled_indices()
+		let controlled_indices = env.controlled_indices();
+		if controlled_indices.is_empty() {
+			return Self::CannotVote
+		}
+
+		let our_valid_votes = controlled_indices
 			.iter()
 			.filter_map(|i| votes.valid.raw().get_key_value(i))
-			.peekable();
-		let mut our_invalid_votes =
-			env.controlled_indices.iter().filter_map(|i| votes.invalid.get_key_value(i));
-		let has_valid_votes = our_valid_votes.peek().is_some();
-		let has_invalid_votes = our_invalid_votes.next().is_some();
-		let our_approval_votes: Vec<_> = our_valid_votes
-			.filter_map(|(index, (k, sig))| {
-				if let ValidDisputeStatementKind::ApprovalChecking = k {
-					Some((*index, sig.clone()))
-				} else {
-					None
-				}
-			})
-			.collect();
+			.map(|(index, (kind, sig))| (*index, (DisputeStatement::Valid(*kind), sig.clone())));
+		let our_invalid_votes = controlled_indices
+			.iter()
+			.filter_map(|i| votes.invalid.get_key_value(i))
+			.map(|(index, (kind, sig))| (*index, (DisputeStatement::Invalid(*kind), sig.clone())));
 
-		if !our_approval_votes.is_empty() {
-			return Self::VotedApproval(our_approval_votes)
-		}
-		if has_valid_votes || has_invalid_votes {
-			return Self::Voted
-		}
-		Self::NoVote
+		Self::Voted(our_valid_votes.chain(our_invalid_votes).collect())
 	}
 
-	/// Whether or not we issued a statement for the candidate already.
-	fn voted(&self) -> bool {
+	/// Is a vote from us missing but we are a validator able to vote?
+	fn vote_missing(&self) -> bool {
 		match self {
-			Self::Voted | Self::VotedApproval(_) => true,
-			Self::NoVote => false,
+			Self::Voted(votes) if votes.is_empty() => true,
+			Self::Voted(_) | Self::CannotVote => false,
 		}
 	}
 
 	/// Get own approval votes, if any.
-	fn approval_votes(&self) -> Option<&Vec<(ValidatorIndex, ValidatorSignature)>> {
+	///
+	/// Empty iterator means, no approval votes. `None` means, there will never be any (we cannot
+	/// vote).
+	fn approval_votes(
+		&self,
+	) -> Option<impl Iterator<Item = (ValidatorIndex, &ValidatorSignature)>> {
 		match self {
-			Self::VotedApproval(votes) => Some(&votes),
-			_ => None,
+			Self::Voted(votes) => Some(votes.iter().filter_map(|(index, (kind, sig))| {
+				if let DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking) = kind {
+					Some((*index, sig))
+				} else {
+					None
+				}
+			})),
+			Self::CannotVote => None,
+		}
+	}
+
+	/// Get our votes if there are any.
+	///
+	/// Empty iterator means, no votes. `None` means, there will never be any (we cannot
+	/// vote).
+	fn votes(&self) -> Option<&Vec<(ValidatorIndex, (DisputeStatement, ValidatorSignature))>> {
+		match self {
+			Self::Voted(votes) => Some(&votes),
+			Self::CannotVote => None,
 		}
 	}
 }
@@ -170,7 +179,7 @@ impl CandidateVoteState<CandidateVotes> {
 			valid: ValidCandidateVotes::new(),
 			invalid: BTreeMap::new(),
 		};
-		Self { votes, own_vote: OwnVoteState::NoVote, dispute_status: None }
+		Self { votes, own_vote: OwnVoteState::CannotVote, dispute_status: None }
 	}
 
 	/// Create a new `CandidateVoteState` from already existing votes.
@@ -327,14 +336,23 @@ impl<V> CandidateVoteState<V> {
 		self.dispute_status.map_or(false, |s| s.is_confirmed_concluded())
 	}
 
-	/// This machine already cast some vote in that dispute/for that candidate.
-	pub fn has_own_vote(&self) -> bool {
-		self.own_vote.voted()
+	/// Are we a validator in the session, but have not yet voted?
+	pub fn own_vote_missing(&self) -> bool {
+		self.own_vote.vote_missing()
 	}
 
 	/// Own approval votes if any:
-	pub fn own_approval_votes(&self) -> Option<&Vec<(ValidatorIndex, ValidatorSignature)>> {
+	pub fn own_approval_votes(
+		&self,
+	) -> Option<impl Iterator<Item = (ValidatorIndex, &ValidatorSignature)>> {
 		self.own_vote.approval_votes()
+	}
+
+	/// Get own votes if there are any.
+	pub fn own_votes(
+		&self,
+	) -> Option<&Vec<(ValidatorIndex, (DisputeStatement, ValidatorSignature))>> {
+		self.own_vote.votes()
 	}
 
 	/// Whether or not there is a dispute and it has already enough valid votes to conclude.

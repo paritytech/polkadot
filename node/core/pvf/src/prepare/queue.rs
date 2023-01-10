@@ -22,10 +22,10 @@ use crate::{
 	LOG_TARGET,
 };
 use always_assert::{always, never};
-use async_std::path::PathBuf;
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
 use std::{
 	collections::{HashMap, VecDeque},
+	path::PathBuf,
 	time::Duration,
 };
 
@@ -614,7 +614,7 @@ mod tests {
 		}
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn properly_concludes() {
 		let mut test = Test::new(2, 2);
 
@@ -639,7 +639,7 @@ mod tests {
 		);
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn dont_spawn_over_soft_limit_unless_critical() {
 		let mut test = Test::new(2, 3);
 		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
@@ -695,7 +695,7 @@ mod tests {
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn cull_unwanted() {
 		let mut test = Test::new(1, 2);
 		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
@@ -733,7 +733,7 @@ mod tests {
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Kill(w1));
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn worker_mass_die_out_doesnt_stall_queue() {
 		let mut test = Test::new(2, 2);
 
@@ -782,7 +782,7 @@ mod tests {
 		);
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn doesnt_resurrect_ripped_worker_if_no_work() {
 		let mut test = Test::new(2, 2);
 
@@ -802,12 +802,12 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Concluded {
 			worker: w1,
 			rip: true,
-			result: Err(PrepareError::IoErr),
+			result: Err(PrepareError::IoErr("test".into())),
 		});
 		test.poll_ensure_to_pool_is_empty().await;
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn rip_for_start_work() {
 		let mut test = Test::new(2, 2);
 
