@@ -95,6 +95,8 @@ use futures::{channel::mpsc, SinkExt};
 /// Example:
 ///
 /// ```rust
+///     # use polkadot_node_subsystem_util::nesting_sender::NestingSender;
+///
 ///     enum RootMessage {
 ///         Child1Message(ChildMessage),
 ///         Child2Message(OtherChildMessage),
@@ -109,13 +111,10 @@ use futures::{channel::mpsc, SinkExt};
 ///         QueryResult(bool),
 ///     }
 ///
-/// ```
-///
-/// We would then pass in a `NestingSender` to our child module of the following type:
-///
-/// ```rust
+///     // We would then pass in a `NestingSender` to our child module of the following type:
 ///     type ChildSender = NestingSender<RootMessage, ChildMessage>;
-///     // types in the child module can be generic over the root type:
+///
+///     // Types in the child module can (and should) be generic over the root type:
 ///     struct ChildState<M> {
 ///         tx: NestingSender<M, ChildMessage>,
 ///     }

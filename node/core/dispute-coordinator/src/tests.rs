@@ -404,7 +404,7 @@ impl TestState {
 				},
 				AllMessages::DisputeDistribution(DisputeDistributionMessage::SendDispute(msg)) => {
 					sent_disputes.push(msg);
-                },
+				},
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					_new_leaf,
 					RuntimeApiRequest::CandidateEvents(tx),
@@ -479,20 +479,10 @@ impl TestState {
 				)))
 				.await;
 
-            let events = if n == 1 {
-					std::mem::take(&mut initial_events)
-            } else {
-                Vec::new()
-            };
+			let events = if n == 1 { std::mem::take(&mut initial_events) } else { Vec::new() };
 
 			let mut new_messages = self
-				.handle_sync_queries(
-					virtual_overseer,
-					*leaf,
-					n as BlockNumber,
-					session,
-					events,
-				)
+				.handle_sync_queries(virtual_overseer, *leaf, n as BlockNumber, session, events)
 				.await;
 			messages.append(&mut new_messages);
 		}
