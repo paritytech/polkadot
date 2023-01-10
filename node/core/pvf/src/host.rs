@@ -550,6 +550,10 @@ async fn handle_execute_pvf(
 						},
 					)
 					.await?;
+
+					// Add an execution request that will wait to run after this prepare job has
+					// finished.
+					awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 				} else {
 					let _ = result_tx.send(Err(ValidationError::from(error.clone())));
 				}
@@ -1447,9 +1451,28 @@ mod tests {
 			prepare::ToQueue::Enqueue { .. }
 		);
 
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Ok(Duration::default()),
+			})
+			.await
+			.unwrap();
+
 		// Preparation should have been retried and succeeded this time.
-		let result = test.poll_and_recv_result(result_rx_3).await;
-		assert_matches!(result, Err(ValidationError::InternalError(_)));
+		let result_tx_3 = assert_matches!(
+			test.poll_and_recv_to_execute_queue().await,
+			execute::ToQueue::Enqueue { result_tx, .. } => result_tx
+		);
+
+		// Send an error for the execution here, just so the result receiver gets something.
+		result_tx_3
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
+			.unwrap();
+		assert_matches!(
+			result_rx_3.now_or_never().unwrap().unwrap(),
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))
+		);
 	}
 
 	// Test that multiple execution requests don't trigger preparation retries if the first one
