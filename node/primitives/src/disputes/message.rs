@@ -28,7 +28,7 @@ use polkadot_primitives::v2::{
 	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidatorIndex,
 };
 
-/// A dispute initiating/participating message that is guaranteed to have been built from signed
+/// A dispute initiating/participating message that have been built from signed
 /// statements.
 ///
 /// And most likely has been constructed correctly. This is used with
