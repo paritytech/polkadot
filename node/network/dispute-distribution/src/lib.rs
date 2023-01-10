@@ -156,7 +156,7 @@ impl<AD> DisputeDistributionSubsystem<AD>
 where
 	AD: AuthorityDiscovery + Clone,
 {
-	/// Create a new instance of the availability distribution.
+	/// Create a new instance of the dispute distribution.
 	pub fn new(
 		keystore: SyncCryptoStorePtr,
 		req_receiver: IncomingRequestReceiver<v1::DisputeRequest>,
