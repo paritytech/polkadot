@@ -1282,7 +1282,7 @@ impl BeefyDataProvider<H256> for ParasProvider {
 			.filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
 			.collect();
 		para_heads.sort();
-		merkle_tree::merkle_root::<<Runtime as pallet_mmr::Config>::Hashing, _>(
+		binary_merkle_tree::merkle_root::<<Runtime as pallet_mmr::Config>::Hashing, _>(
 			para_heads.into_iter().map(|pair| pair.encode()),
 		)
 		.into()
