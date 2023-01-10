@@ -164,7 +164,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		SpawnGlue<Spawner>,
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,
-		PvfCheckerSubsystem,
+		PvfCheckerSubsystem<RuntimeInfo>,
 		CandidateBackingSubsystem<RuntimeInfo>,
 		StatementDistributionSubsystem<rand::rngs::StdRng>,
 		AvailabilityDistributionSubsystem,
