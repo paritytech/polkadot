@@ -22,12 +22,17 @@ use crate::{
 	LOG_TARGET,
 };
 use always_assert::never;
-use async_std::path::{Path, PathBuf};
 use futures::{
 	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
 };
 use slotmap::HopSlotMap;
-use std::{fmt, sync::Arc, task::Poll, time::Duration};
+use std::{
+	fmt,
+	path::{Path, PathBuf},
+	sync::Arc,
+	task::Poll,
+	time::Duration,
+};
 
 slotmap::new_key_type! { pub struct Worker; }
 
@@ -322,14 +327,14 @@ fn handle_mux(
 
 					Ok(())
 				},
-				Outcome::IoErr => {
+				Outcome::IoErr(err) => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(
 							from_pool,
 							FromPool::Concluded {
 								worker,
 								rip: true,
-								result: Err(PrepareError::IoErr),
+								result: Err(PrepareError::IoErr(err)),
 							},
 						)?;
 					}

@@ -32,7 +32,7 @@ use futures::{
 use polkadot_node_subsystem_util::database::Database;
 
 use polkadot_node_primitives::{
-	DisputeStatus, SignedDisputeStatement, SignedFullStatement, Statement,
+	DisputeMessage, DisputeStatus, SignedDisputeStatement, SignedFullStatement, Statement,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -291,6 +291,7 @@ impl TestState {
 		.await;
 	}
 
+	/// Returns any sent `DisputeMessage`s.
 	async fn handle_sync_queries(
 		&mut self,
 		virtual_overseer: &mut VirtualOverseer,
@@ -298,7 +299,7 @@ impl TestState {
 		block_number: BlockNumber,
 		session: SessionIndex,
 		candidate_events: Vec<CandidateEvent>,
-	) {
+	) -> Vec<DisputeMessage> {
 		// Order of messages is not fixed (different on initializing):
 		#[derive(Debug)]
 		struct FinishedSteps {
@@ -316,6 +317,7 @@ impl TestState {
 		}
 
 		let mut finished_steps = FinishedSteps::new();
+		let mut sent_disputes = Vec::new();
 
 		while !finished_steps.is_done() {
 			let recv = overseer_recv(virtual_overseer).await;
@@ -400,6 +402,9 @@ impl TestState {
 					let block_num = self.headers.get(&hash).map(|header| header.number);
 					tx.send(Ok(block_num)).unwrap();
 				},
+				AllMessages::DisputeDistribution(DisputeDistributionMessage::SendDispute(msg)) => {
+					sent_disputes.push(msg);
+				},
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					_new_leaf,
 					RuntimeApiRequest::CandidateEvents(tx),
@@ -439,14 +444,25 @@ impl TestState {
 				},
 			}
 		}
+		return sent_disputes
 	}
 
 	async fn handle_resume_sync(
 		&mut self,
 		virtual_overseer: &mut VirtualOverseer,
 		session: SessionIndex,
-	) {
+	) -> Vec<DisputeMessage> {
+		self.handle_resume_sync_with_events(virtual_overseer, session, Vec::new()).await
+	}
+
+	async fn handle_resume_sync_with_events(
+		&mut self,
+		virtual_overseer: &mut VirtualOverseer,
+		session: SessionIndex,
+		mut initial_events: Vec<CandidateEvent>,
+	) -> Vec<DisputeMessage> {
 		let leaves: Vec<Hash> = self.headers.keys().cloned().collect();
+		let mut messages = Vec::new();
 		for (n, leaf) in leaves.iter().enumerate() {
 			gum::debug!(
 				block_number= ?n,
@@ -463,15 +479,14 @@ impl TestState {
 				)))
 				.await;
 
-			self.handle_sync_queries(
-				virtual_overseer,
-				*leaf,
-				n as BlockNumber,
-				session,
-				Vec::new(),
-			)
-			.await;
+			let events = if n == 1 { std::mem::take(&mut initial_events) } else { Vec::new() };
+
+			let mut new_messages = self
+				.handle_sync_queries(virtual_overseer, *leaf, n as BlockNumber, session, events)
+				.await;
+			messages.append(&mut new_messages);
 		}
+		messages
 	}
 
 	fn session_info(&self) -> SessionInfo {
@@ -2148,6 +2163,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 
 #[test]
 fn resume_dispute_without_local_statement() {
+	sp_tracing::init_for_tests();
 	let session = 1;
 
 	test_harness(|mut test_state, mut virtual_overseer| {
@@ -2188,10 +2204,8 @@ fn resume_dispute_without_local_statement() {
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
-			// Missing availability -> No local vote.
 			// Participation won't happen here because the dispute is neither backed, not confirmed
 			// nor the candidate is included. Or in other words - we'll refrain from participation.
-
 			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
 
 			{
@@ -2216,7 +2230,17 @@ fn resume_dispute_without_local_statement() {
 	// local statement for the active dispute.
 	.resume(|mut test_state, mut virtual_overseer| {
 		Box::pin(async move {
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			let candidate_receipt = make_valid_candidate_receipt();
+			// Candidate is now backed:
+			let dispute_messages = test_state
+				.handle_resume_sync_with_events(
+					&mut virtual_overseer,
+					session,
+					vec![make_candidate_backed_event(candidate_receipt.clone())],
+				)
+				.await;
+
+			assert_eq!(dispute_messages.len(), 0, "We don't expect any messages sent here.");
 
 			let candidate_receipt = make_valid_candidate_receipt();
 			let candidate_hash = candidate_receipt.hash();
@@ -2282,6 +2306,7 @@ fn resume_dispute_without_local_statement() {
 
 #[test]
 fn resume_dispute_with_local_statement() {
+	sp_tracing::init_for_tests();
 	let session = 1;
 
 	test_harness(|mut test_state, mut virtual_overseer| {
@@ -2359,10 +2384,19 @@ fn resume_dispute_with_local_statement() {
 		})
 	})
 	// Alice should not send a DisputeParticiationMessage::Participate on restart since she has a
-	// local statement for the active dispute.
+	// local statement for the active dispute, instead she should try to (re-)send her vote.
 	.resume(|mut test_state, mut virtual_overseer| {
+		let candidate_receipt = make_valid_candidate_receipt();
 		Box::pin(async move {
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+			let messages = test_state
+				.handle_resume_sync_with_events(
+					&mut virtual_overseer,
+					session,
+					vec![make_candidate_backed_event(candidate_receipt.clone())],
+				)
+				.await;
+
+			assert_eq!(messages.len(), 1, "A message should have gone out.");
 
 			// Assert that subsystem is not sending Participation messages because we issued a local statement
 			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
@@ -2390,7 +2424,12 @@ fn resume_dispute_without_local_statement_or_local_key() {
 				let candidate_hash = candidate_receipt.hash();
 
 				test_state
-					.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
+					.activate_leaf_at_session(
+						&mut virtual_overseer,
+						session,
+						1,
+						vec![make_candidate_included_event(candidate_receipt.clone())],
+					)
 					.await;
 
 				let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
@@ -2462,101 +2501,6 @@ fn resume_dispute_without_local_statement_or_local_key() {
 				test_state
 			})
 		});
-}
-
-#[test]
-fn resume_dispute_with_local_statement_without_local_key() {
-	let session = 1;
-
-	let test_state = TestState::default();
-	let mut test_state = test_state.resume(|mut test_state, mut virtual_overseer| {
-		Box::pin(async move {
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
-
-			let candidate_receipt = make_valid_candidate_receipt();
-			let candidate_hash = candidate_receipt.hash();
-
-			test_state
-				.activate_leaf_at_session(&mut virtual_overseer, session, 1, Vec::new())
-				.await;
-
-			let local_valid_vote = test_state
-				.issue_explicit_statement_with_index(
-					ValidatorIndex(0),
-					candidate_hash,
-					session,
-					true,
-				)
-				.await;
-
-			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
-				&test_state,
-				ValidatorIndex(1),
-				ValidatorIndex(2),
-				candidate_hash,
-				session,
-				VoteType::Explicit,
-			)
-			.await;
-
-			let (pending_confirmation, confirmation_rx) = oneshot::channel();
-			virtual_overseer
-				.send(FromOrchestra::Communication {
-					msg: DisputeCoordinatorMessage::ImportStatements {
-						candidate_receipt: candidate_receipt.clone(),
-						session,
-						statements: vec![
-							(local_valid_vote, ValidatorIndex(0)),
-							(valid_vote, ValidatorIndex(1)),
-							(invalid_vote, ValidatorIndex(2)),
-						],
-						pending_confirmation: Some(pending_confirmation),
-					},
-				})
-				.await;
-			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
-				.await;
-
-			assert_eq!(confirmation_rx.await, Ok(ImportStatementsResult::ValidImport));
-
-			{
-				let (tx, rx) = oneshot::channel();
-
-				virtual_overseer
-					.send(FromOrchestra::Communication {
-						msg: DisputeCoordinatorMessage::ActiveDisputes(tx),
-					})
-					.await;
-
-				assert_eq!(rx.await.unwrap().len(), 1);
-			}
-
-			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
-			assert!(virtual_overseer.try_recv().await.is_none());
-
-			test_state
-		})
-	});
-
-	// No keys:
-	test_state.subsystem_keystore =
-		make_keystore(vec![Sr25519Keyring::Two.to_seed()].into_iter()).into();
-	// Two should not send a DisputeParticiationMessage::Participate on restart since we gave
-	// her a non existing key.
-	test_state.resume(|mut test_state, mut virtual_overseer| {
-		Box::pin(async move {
-			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
-
-			// Assert that subsystem is not sending Participation messages because we don't
-			// have a key.
-			assert!(virtual_overseer.recv().timeout(TEST_TIMEOUT).await.is_none());
-
-			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
-			assert!(virtual_overseer.try_recv().await.is_none());
-
-			test_state
-		})
-	});
 }
 
 #[test]
