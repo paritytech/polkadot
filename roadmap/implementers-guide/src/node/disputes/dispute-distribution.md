@@ -339,11 +339,8 @@ coordinator.
 
 ### Node Startup
 
-On startup we need to check with the dispute coordinator for any ongoing
-disputes and assume we have not yet sent our statement for those. In case we
-find an explicit statement from ourselves via
-`DisputeCoordinatorMessage::QueryCandidateVotes` we will pretend to just have
-received a `SendDispute` message for that candidate.
+Nothing special happens on node startup. We expect the `dispute-coordinator` to
+inform us about any ongoing disputes via `SendDispute` messages.
 
 ## Backing and Approval Votes
 
