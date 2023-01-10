@@ -196,9 +196,10 @@ where
 
 // Helper traits and implementations:
 
-impl<M> Clone for NestingSender<M, M>
+impl<M, Mnested> Clone for NestingSender<M, Mnested>
 where
 	M: 'static,
+	Mnested: 'static,
 {
 	fn clone(&self) -> Self {
 		Self { sender: self.sender.clone(), conversion: self.conversion.clone() }
