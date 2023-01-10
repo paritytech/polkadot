@@ -89,7 +89,9 @@ pub use pallet_balances::Call as BalancesCall;
 
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
-use runtime_parachains::scheduler_parachains::ParachainsScheduler;
+use runtime_parachains::{
+	scheduler_parachains::ParachainsScheduler, scheduler_parathreads::ParathreadsScheduler,
+};
 
 // Weights used in the runtime.
 mod weights;
@@ -1085,8 +1087,8 @@ impl parachains_paras_inherent::Config for Runtime {
 }
 
 impl parachains_scheduler::Config for Runtime {
-	type CoreAssigners<T: runtime_parachains::scheduler::Config> = ParachainsScheduler;
-	//type CoreAssigners<T: runtime_parachains::scheduler::Config>= (ParachainsScheduler, ParathreadsScheduler);
+	type CoreAssigners<T: runtime_parachains::scheduler::Config> =
+		(ParachainsScheduler, ParathreadsScheduler);
 }
 impl scheduler_parathreads::Config for Runtime {}
 
