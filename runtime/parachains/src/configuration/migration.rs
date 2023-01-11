@@ -30,9 +30,9 @@ use frame_system::pallet_prelude::BlockNumberFor;
 // TODO
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 
-pub mod v4 {
+pub mod v5 {
 	use super::*;
-	use frame_support::{traits::OnRuntimeUpgrade, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
+	use frame_support::traits::OnRuntimeUpgrade;
 	use primitives::{Balance, SessionIndex};
 	#[cfg(feature = "try-runtime")]
 	use sp_std::prelude::*;
@@ -136,8 +136,8 @@ pub mod v4 {
 		}
 	}
 
-	pub struct MigrateToV4<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Config> OnRuntimeUpgrade for MigrateToV4<T> {
+	pub struct MigrateToV5<T>(sp_std::marker::PhantomData<T>);
+	impl<T: Config> OnRuntimeUpgrade for MigrateToV5<T> {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
 			log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
@@ -148,7 +148,7 @@ pub mod v4 {
 
 		fn on_runtime_upgrade() -> Weight {
 			if StorageVersion::get::<Pallet<T>>() == 3 {
-				let weight_consumed = migrate_to_v4::<T>();
+				let weight_consumed = migrate_to_v5::<T>();
 
 				log::info!(target: configuration::LOG_TARGET, "MigrateToV4 executed successfully");
 				STORAGE_VERSION.put::<Pallet<T>>();
@@ -268,7 +268,7 @@ mod tests {
 		// doesn't need to be read and also leaving it as one line allows to easily copy it.
 		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c800000700e8764817020040011e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c8000000060000005802000002000000580200000200000059000000000000001e000000280000000700c817a80402004001000200000014000000"];
 
-		let v3 = v4::OldHostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..])
+		let v4 = v5::OldHostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..])
 			.unwrap();
 
 		// We check only a sample of the values here. If we missed any fields or messed up data types
@@ -292,7 +292,7 @@ mod tests {
 		// We specify only the picked fields and the rest should be provided by the `Default`
 		// implementation. That implementation is copied over between the two types and should work
 		// fine.
-		let v3 = v4::OldHostConfiguration::<primitives::BlockNumber> {
+		let v4 = v5::OldHostConfiguration::<primitives::BlockNumber> {
 			ump_max_individual_weight: Weight::from_parts(0x71616e6f6e0au64, 0x71616e6f6e0au64),
 			needed_approvals: 69,
 			thread_availability_period: 55,

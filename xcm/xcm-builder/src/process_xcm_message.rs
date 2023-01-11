@@ -16,10 +16,7 @@
 
 //! Implementation of `ProcessMessage` for an `ExecuteXcm` implementation.
 
-use frame_support::{
-	ensure,
-	traits::{ProcessMessage, ProcessMessageError},
-};
+use frame_support::traits::{ProcessMessage, ProcessMessageError};
 use parity_scale_codec::{Decode, FullCodec, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_io::hashing::blake2_256;
