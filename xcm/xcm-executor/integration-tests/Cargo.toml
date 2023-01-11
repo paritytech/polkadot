@@ -1,6 +1,7 @@
 [package]
 name = "xcm-executor-integration-tests"
 description = "Integration tests for the XCM Executor"
+publish = false
 authors.workspace = true
 edition.workspace = true
 version.workspace = true

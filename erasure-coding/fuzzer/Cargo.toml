@@ -1,5 +1,6 @@
 [package]
 name = "erasure_coding_fuzzer"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

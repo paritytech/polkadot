@@ -1,6 +1,7 @@
 [package]
 name = "xcm-simulator-fuzzer"
 description = "Examples of xcm-simulator usage."
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

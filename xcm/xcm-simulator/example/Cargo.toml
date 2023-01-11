@@ -1,6 +1,7 @@
 [package]
 name = "xcm-simulator-example"
 description = "Examples of xcm-simulator usage."
+publish = false
 authors.workspace = true
 edition.workspace = true
 version.workspace = true

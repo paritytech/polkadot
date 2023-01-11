@@ -2,6 +2,7 @@
 name = "test-parachain-halt"
 description = "Test parachain which executes forever"
 build = "build.rs"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

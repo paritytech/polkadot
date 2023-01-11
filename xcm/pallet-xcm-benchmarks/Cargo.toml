@@ -1,5 +1,6 @@
 [package]
 name = "pallet-xcm-benchmarks"
+publish = false
 authors.workspace = true
 edition.workspace = true
 version.workspace = true

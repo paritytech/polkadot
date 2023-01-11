@@ -2,6 +2,7 @@
 name = "test-parachain-undying"
 description = "Test parachain for zombienet integration tests"
 build = "build.rs"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

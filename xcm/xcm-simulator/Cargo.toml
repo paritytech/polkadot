@@ -1,6 +1,7 @@
 [package]
 name = "xcm-simulator"
 description = "Test kit to simulate cross-chain message passing and XCM execution"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

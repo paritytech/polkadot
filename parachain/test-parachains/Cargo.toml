@@ -1,6 +1,7 @@
 [package]
 name = "test-parachains"
 description = "Integration tests using the test-parachains"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
