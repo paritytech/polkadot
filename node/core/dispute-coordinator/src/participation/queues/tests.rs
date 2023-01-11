@@ -17,7 +17,7 @@
 use crate::ParticipationPriority;
 use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 use assert_matches::assert_matches;
-use polkadot_primitives::v2::{BlockNumber, Hash};
+use polkadot_primitives::{BlockNumber, Hash};
 
 use super::{CandidateComparator, ParticipationRequest, QueueError, Queues};
 

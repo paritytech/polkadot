@@ -18,7 +18,7 @@
 
 use crate::{configuration, paras::*, shared::Pallet as ParasShared};
 use frame_system::RawOrigin;
-use primitives::v2::{HeadData, Id as ParaId, ValidationCode, ValidatorId, ValidatorIndex};
+use primitives::{HeadData, Id as ParaId, ValidationCode, ValidatorId, ValidatorIndex};
 use sp_application_crypto::RuntimeAppPublic;
 
 // Constants for the benchmarking
@@ -179,7 +179,7 @@ where
 {
 	let validators = ParasShared::<T>::active_validator_keys();
 
-	let required_votes = primitives::v2::supermajority_threshold(validators.len());
+	let required_votes = primitives::supermajority_threshold(validators.len());
 	(0..required_votes).map(move |validator_index| {
 		let stmt = PvfCheckStatement {
 			accept: vote_outcome == VoteOutcome::Accept,
