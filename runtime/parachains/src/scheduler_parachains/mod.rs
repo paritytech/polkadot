@@ -53,7 +53,6 @@ use crate::scheduler_common::CoreAssigner;
 //mod tests;
 
 pub struct ParachainsScheduler;
-//impl<T: crate::scheduler::pallet::Config> CoreAssigner<T> for Parachains {
 impl<T: crate::scheduler::pallet::Config> CoreAssigner<T> for ParachainsScheduler {
 	fn session_cores() -> u32 {
 		<paras::Pallet<T>>::parachains().len() as u32

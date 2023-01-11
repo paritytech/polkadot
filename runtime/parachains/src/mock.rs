@@ -297,7 +297,6 @@ impl crate::scheduler::Config for Test {
 		crate::scheduler_parachains::ParachainsScheduler,
 		crate::scheduler_parathreads::ParathreadsScheduler,
 	);
-	// (crate::scheduler_parachains::Parachains, (crate::scheduler_parathreads::ParathreadsScheduler, crate::scheduler_parathreads::ParathreadsScheduler));
 }
 impl crate::scheduler_parathreads::Config for Test {}
 
