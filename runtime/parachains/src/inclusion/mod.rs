@@ -972,16 +972,15 @@ impl<T: Config> Pallet<T> {
 		para: ParaId,
 		upward_messages: Vec<UpwardMessage>,
 	) -> Weight {
-		if !upward_messages.is_empty() {
-			let count = upward_messages.len() as u32;
-			Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
-			let messages =
-				upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
-			T::MessageQueue::enqueue_messages(messages, para);
-			<T as Config>::WeightInfo::receive_upward_messages(count)
-		} else {
-			Weight::zero()
+		if upward_messages.is_empty() {
+			return Weight::zero()
 		}
+
+		let count = upward_messages.len() as u32;
+		Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
+		let messages = upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
+		T::MessageQueue::enqueue_messages(messages, MessageOrigin::ump(para));
+		<T as Config>::WeightInfo::receive_upward_messages(count)
 	}
 
 	/// Cleans up all paras pending availability that the predicate returns true for.
@@ -1170,12 +1169,13 @@ impl<T: Config> CandidateCheckContext<T> {
 		let relay_parent_number = now - One::one();
 
 		{
-			// this should never fail because the para is registered
 			let persisted_validation_data = match crate::util::make_persisted_validation_data::<T>(
 				para_id,
 				relay_parent_number,
 				parent_storage_root,
-			) {
+			)
+			.defensive_proof("the para is registered")
+			{
 				Some(l) => l,
 				None => return Ok(Err(FailedToCreatePVD)),
 			};
