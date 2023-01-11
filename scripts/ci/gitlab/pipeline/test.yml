@@ -87,3 +87,14 @@ cargo-clippy:
     - .test-refs
   script:
     - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo +nightly clippy --all-targets
+
+check-crate-publishing:
+  extends:
+    - .test-refs
+    - .crates-publishing-template
+  script:
+    - git clone
+        --depth 1
+        --branch "$RELENG_SCRIPTS_BRANCH"
+        https://github.com/paritytech/releng-scripts.git
+    - CRATESIO_TARGET_INSTANCE=local ./releng-scripts/publish-crates
