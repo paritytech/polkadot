@@ -3412,7 +3412,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67c21572b4949434e4fc1e1978b99c5f77064153c59d998bf13ecd96fb5ecba7"
 
 [[package]]
-name = "kusama-runtime"
+name = "kusama-chain-runtime"
 version = "0.9.33"
 dependencies = [
  "bitvec",
@@ -3510,9 +3510,9 @@ dependencies = [
  "substrate-wasm-builder",
  "tiny-keccak",
  "tokio",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -5877,9 +5877,9 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -5902,9 +5902,9 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-tracing",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -6346,7 +6346,7 @@ dependencies = [
  "frame-system",
  "frame-system-rpc-runtime-api",
  "futures",
- "kusama-runtime",
+ "kusama-chain-runtime",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "polkadot-core-primitives",
@@ -7083,7 +7083,7 @@ name = "polkadot-performance-test"
 version = "0.9.33"
 dependencies = [
  "env_logger 0.9.0",
- "kusama-runtime",
+ "kusama-chain-runtime",
  "log",
  "polkadot-erasure-coding",
  "polkadot-node-core-pvf",
@@ -7251,9 +7251,9 @@ dependencies = [
  "substrate-wasm-builder",
  "tiny-keccak",
  "tokio",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -7305,7 +7305,7 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "static_assertions",
- "xcm",
+ "xcmsg",
 ]
 
 [[package]]
@@ -7380,8 +7380,8 @@ dependencies = [
  "sp-tracing",
  "static_assertions",
  "thousands",
- "xcm",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -7396,7 +7396,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "futures",
  "hex-literal",
- "kusama-runtime",
+ "kusama-chain-runtime",
  "kusama-runtime-constants",
  "kvdb",
  "kvdb-rocksdb",
@@ -7496,6 +7496,47 @@ dependencies = [
  "tracing-gum",
  "westend-runtime",
  "westend-runtime-constants",
+]
+
+[[package]]
+name = "polkadot-staking-miner"
+version = "0.9.33"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "exitcode",
+ "frame-election-provider-support",
+ "frame-remote-externalities",
+ "frame-support",
+ "frame-system",
+ "futures-util",
+ "jsonrpsee",
+ "kusama-chain-runtime",
+ "log",
+ "pallet-balances",
+ "pallet-election-provider-multi-phase",
+ "pallet-staking",
+ "pallet-transaction-payment",
+ "parity-scale-codec",
+ "paste",
+ "polkadot-core-primitives",
+ "polkadot-runtime",
+ "polkadot-runtime-common",
+ "sc-transaction-pool-api",
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "signal-hook-tokio",
+ "sp-core",
+ "sp-io",
+ "sp-npos-elections",
+ "sp-runtime",
+ "sp-version",
+ "sub-tokens",
+ "thiserror",
+ "tokio",
+ "tracing-subscriber 0.3.11",
+ "westend-runtime",
 ]
 
 [[package]]
@@ -7625,6 +7666,7 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
+ "polkadot-test-runtime-constants",
  "rustc-hex",
  "scale-info",
  "serde",
@@ -7650,11 +7692,23 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "substrate-wasm-builder",
- "test-runtime-constants",
  "tiny-keccak",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
+]
+
+[[package]]
+name = "polkadot-test-runtime-constants"
+version = "0.9.33"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-core",
+ "sp-runtime",
+ "sp-weights",
 ]
 
 [[package]]
@@ -7678,6 +7732,7 @@ dependencies = [
  "polkadot-runtime-parachains",
  "polkadot-service",
  "polkadot-test-runtime",
+ "polkadot-test-runtime-constants",
  "rand 0.8.5",
  "sc-authority-discovery",
  "sc-chain-spec",
@@ -7707,7 +7762,6 @@ dependencies = [
  "substrate-test-client",
  "substrate-test-utils",
  "tempfile",
- "test-runtime-constants",
  "tokio",
  "tracing-gum",
 ]
@@ -7718,7 +7772,7 @@ version = "0.9.33"
 dependencies = [
  "clap",
  "generate-bags",
- "kusama-runtime",
+ "kusama-chain-runtime",
  "polkadot-runtime",
  "sp-io",
  "westend-runtime",
@@ -8345,7 +8399,7 @@ version = "0.9.33"
 dependencies = [
  "clap",
  "frame-system",
- "kusama-runtime",
+ "kusama-chain-runtime",
  "kusama-runtime-constants",
  "log",
  "pallet-bags-list-remote-tests",
@@ -8538,9 +8592,9 @@ dependencies = [
  "substrate-wasm-builder",
  "tiny-keccak",
  "tokio",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -10968,47 +11022,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
 
 [[package]]
-name = "staking-miner"
-version = "0.9.33"
-dependencies = [
- "assert_cmd",
- "clap",
- "exitcode",
- "frame-election-provider-support",
- "frame-remote-externalities",
- "frame-support",
- "frame-system",
- "futures-util",
- "jsonrpsee",
- "kusama-runtime",
- "log",
- "pallet-balances",
- "pallet-election-provider-multi-phase",
- "pallet-staking",
- "pallet-transaction-payment",
- "parity-scale-codec",
- "paste",
- "polkadot-core-primitives",
- "polkadot-runtime",
- "polkadot-runtime-common",
- "sc-transaction-pool-api",
- "serde",
- "serde_json",
- "signal-hook",
- "signal-hook-tokio",
- "sp-core",
- "sp-io",
- "sp-npos-elections",
- "sp-runtime",
- "sp-version",
- "sub-tokens",
- "thiserror",
- "tokio",
- "tracing-subscriber 0.3.11",
- "westend-runtime",
-]
-
-[[package]]
 name = "static_assertions"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11510,19 +11523,6 @@ dependencies = [
  "test-parachain-adder",
  "test-parachain-halt",
  "tiny-keccak",
-]
-
-[[package]]
-name = "test-runtime-constants"
-version = "0.9.33"
-dependencies = [
- "frame-support",
- "polkadot-primitives",
- "polkadot-runtime-common",
- "smallvec",
- "sp-core",
- "sp-runtime",
- "sp-weights",
 ]
 
 [[package]]
@@ -13080,9 +13080,9 @@ dependencies = [
  "tiny-keccak",
  "tokio",
  "westend-runtime-constants",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -13419,59 +13419,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xcm"
-version = "0.9.33"
-dependencies = [
- "derivative",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "scale-info",
- "sp-runtime",
- "xcm-procedural",
-]
-
-[[package]]
-name = "xcm-builder"
-version = "0.9.33"
-dependencies = [
- "frame-support",
- "frame-system",
- "log",
- "pallet-balances",
- "pallet-transaction-payment",
- "pallet-xcm",
- "parity-scale-codec",
- "polkadot-parachain",
- "polkadot-runtime-parachains",
- "scale-info",
- "sp-arithmetic",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "xcm",
- "xcm-executor",
-]
-
-[[package]]
-name = "xcm-executor"
-version = "0.9.33"
-dependencies = [
- "frame-benchmarking",
- "frame-support",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "sp-arithmetic",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "xcm",
-]
-
-[[package]]
 name = "xcm-executor-integration-tests"
 version = "0.9.33"
 dependencies = [
@@ -13487,8 +13434,8 @@ dependencies = [
  "sp-runtime",
  "sp-state-machine",
  "sp-tracing",
- "xcm",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -13513,8 +13460,8 @@ dependencies = [
  "polkadot-runtime-parachains",
  "sp-io",
  "sp-std",
- "xcm",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -13534,10 +13481,10 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "xcm",
- "xcm-builder",
- "xcm-executor",
  "xcm-simulator",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -13558,10 +13505,63 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "xcm",
- "xcm-builder",
- "xcm-executor",
  "xcm-simulator",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
+]
+
+[[package]]
+name = "xcmsg"
+version = "0.9.33"
+dependencies = [
+ "derivative",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-runtime",
+ "xcm-procedural",
+]
+
+[[package]]
+name = "xcmsg-builder"
+version = "0.9.33"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-balances",
+ "pallet-transaction-payment",
+ "pallet-xcm",
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "polkadot-runtime-parachains",
+ "scale-info",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xcmsg",
+ "xcmsg-executor",
+]
+
+[[package]]
+name = "xcmsg-executor"
+version = "0.9.33"
+dependencies = [
+ "frame-benchmarking",
+ "frame-support",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xcmsg",
 ]
 
 [[package]]
