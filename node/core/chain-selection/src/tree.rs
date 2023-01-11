@@ -393,7 +393,7 @@ fn apply_ancestor_reversions(
 	Ok(())
 }
 
-/// Marks a single block as explicitly reverted. Then propegates viability updates
+/// Marks a single block as explicitly reverted, then propagates viability updates
 /// to all its children. This is triggered when the disputes subsystem signals that
 /// a dispute has concluded against a candidate.
 pub(crate) fn apply_single_reversion(

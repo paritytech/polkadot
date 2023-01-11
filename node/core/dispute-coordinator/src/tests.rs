@@ -3342,7 +3342,7 @@ fn participation_requests_reprioritized_for_newly_included() {
 // the chain selection subsystem. Then chain selection can revert the relay parent of
 // the disputed candidate and mark all descendants as non-viable. This direct
 // notification saves time compared to letting chain selection learn about a dispute
-// conclusion from on chain sources.
+// conclusion from an on chain revert log.
 #[test]
 fn informs_chain_selection_when_dispute_concluded_against() {
 	test_harness(|mut test_state, mut virtual_overseer| {
@@ -3447,12 +3447,12 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::ChainSelection(
-					ChainSelectionMessage::DisputeConcludedAgainst(block_number, block_hash)
+					ChainSelectionMessage::RevertBlocks(block_number, block_hash)
 				) => {
 					assert_eq!(block_number, parent_number);
 					assert_eq!(block_hash, parent_hash);
 				},
-				"Overseer did not receive `ChainSelectionMessage::DisputeConcludedAgainst` message"
+				"Overseer did not receive `ChainSelectionMessage::RevertBlocks` message"
 			);
 
 			// Wrap up

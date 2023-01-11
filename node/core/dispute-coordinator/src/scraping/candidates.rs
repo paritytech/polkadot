@@ -1,4 +1,4 @@
-use polkadot_primitives::v2::{BlockNumber, CandidateHash, Hash};
+use polkadot_primitives::v2::{BlockNumber, CandidateHash};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Keeps `CandidateHash` in reference counted way.
@@ -7,15 +7,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 /// Each `remove` decreases the reference count for the corresponding `CandidateHash`.
 /// If the reference count reaches 0 - the value is removed.
 struct RefCountedCandidates {
-	candidates: HashMap<CandidateHash, CandidateInfo>,
-}
-
-// If a dispute is concluded against this candidate, then the ChainSelection
-// subsystem needs block number and block hash to mark the relay parent as reverted.
-pub struct CandidateInfo {
-	ref_count: usize,
-	pub block_number: BlockNumber,
-	pub block_hash: Hash,
+	candidates: HashMap<CandidateHash, usize>,
 }
 
 impl RefCountedCandidates {
@@ -25,16 +17,8 @@ impl RefCountedCandidates {
 	// If `CandidateHash` doesn't exist in the `HashMap` it is created and its reference
 	// count is set to 1.
 	// If `CandidateHash` already exists in the `HashMap` its reference count is increased.
-	pub fn insert(
-		&mut self,
-		candidate: CandidateHash,
-		block_number: BlockNumber,
-		block_hash: Hash,
-	) {
-		self.candidates
-			.entry(candidate)
-			.or_insert(CandidateInfo { ref_count: 0, block_number, block_hash })
-			.ref_count += 1;
+	pub fn insert(&mut self, candidate: CandidateHash) {
+		*self.candidates.entry(candidate).or_default() += 1;
 	}
 
 	// If a `CandidateHash` with reference count equals to 1 is about to be removed - the
@@ -43,9 +27,9 @@ impl RefCountedCandidates {
 	// reference count is decreased and the candidate remains in the container.
 	pub fn remove(&mut self, candidate: &CandidateHash) {
 		match self.candidates.get_mut(candidate) {
-			Some(v) if v.ref_count > 1 => v.ref_count -= 1,
+			Some(v) if *v > 1 => *v -= 1,
 			Some(v) => {
-				assert!(v.ref_count == 1);
+				assert!(*v == 1);
 				self.candidates.remove(candidate);
 			},
 			None => {},
@@ -61,7 +45,6 @@ impl RefCountedCandidates {
 mod ref_counted_candidates_tests {
 	use super::*;
 	use polkadot_primitives::v2::{BlakeTwo256, HashT};
-	use test_helpers::dummy_hash;
 
 	#[test]
 	fn element_is_removed_when_refcount_reaches_zero() {
@@ -70,11 +53,11 @@ mod ref_counted_candidates_tests {
 		let zero = CandidateHash(BlakeTwo256::hash(&vec![0]));
 		let one = CandidateHash(BlakeTwo256::hash(&vec![1]));
 		// add two separate candidates
-		container.insert(zero, 0, dummy_hash()); // refcount == 1
-		container.insert(one, 0, dummy_hash());
+		container.insert(zero); // refcount == 1
+		container.insert(one);
 
 		// and increase the reference count for the first
-		container.insert(zero, 0, dummy_hash()); // refcount == 2
+		container.insert(zero); // refcount == 2
 
 		assert!(container.contains(&zero));
 		assert!(container.contains(&one));
@@ -119,31 +102,27 @@ impl ScrapedCandidates {
 	}
 
 	// Removes all candidates up to a given height. The candidates at the block height are NOT removed.
-	pub fn remove_up_to_height(&mut self, height: &BlockNumber) {
+	pub fn remove_up_to_height(&mut self, height: &BlockNumber) -> HashSet<CandidateHash> {
+		let mut unique_candidates: HashSet<CandidateHash> = HashSet::new();
 		let not_stale = self.candidates_by_block_number.split_off(&height);
 		let stale = std::mem::take(&mut self.candidates_by_block_number);
 		self.candidates_by_block_number = not_stale;
 		for candidates in stale.values() {
 			for c in candidates {
 				self.candidates.remove(c);
+				unique_candidates.insert(c.clone());
 			}
 		}
-	}
 
-	// Gets candidate info, importantly containing relay parent block number and
-	// block hash. These are needed for relay block reversions based on concluded
-	// disputes.
-	pub fn get_candidate_info(&mut self, candidate: CandidateHash) -> Option<&CandidateInfo> {
-		self.candidates.candidates.get(&candidate)
+		unique_candidates
 	}
 
 	pub fn insert(
 		&mut self,
-		candidate_hash: CandidateHash,
 		block_number: BlockNumber,
-		block_hash: Hash,
+		candidate_hash: CandidateHash
 	) {
-		self.candidates.insert(candidate_hash, block_number, block_hash);
+		self.candidates.insert(candidate_hash);
 		self.candidates_by_block_number
 			.entry(block_number)
 			.or_default()
@@ -167,7 +146,7 @@ mod scraped_candidates_tests {
 	fn stale_candidates_are_removed() {
 		let mut candidates = ScrapedCandidates::new();
 		let target = CandidateHash(BlakeTwo256::hash(&vec![1, 2, 3]));
-		candidates.insert(target, 1, dummy_hash());
+		candidates.insert(1, target);
 
 		assert!(candidates.contains(&target));
 

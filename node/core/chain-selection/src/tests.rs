@@ -2045,7 +2045,7 @@ fn dispute_concluded_against_message_triggers_proper_reversion() {
 		let (_, write_rx) = backend.await_next_write();
 		virtual_overseer
 			.send(FromOrchestra::Communication {
-				msg: ChainSelectionMessage::DisputeConcludedAgainst(2, block_2_hash),
+				msg: ChainSelectionMessage::RevertBlocks(Vec::from({(2, block_2_hash)})),
 			})
 			.await;
 
@@ -2103,10 +2103,7 @@ fn dispute_reversion_against_finalized_is_ignored() {
 		// Sending dispute conculded against message
 		virtual_overseer
 			.send(FromOrchestra::Communication {
-				msg: ChainSelectionMessage::DisputeConcludedAgainst(
-					finalized_number,
-					finalized_hash,
-				),
+				msg: ChainSelectionMessage::RevertBlocks(Vec::from({(finalized_number, finalized_hash)})),
 			})
 			.await;
 

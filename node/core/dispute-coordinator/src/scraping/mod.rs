@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::num::NonZeroUsize;
+use std::{
+	collections::{HashMap, HashSet},
+	num::NonZeroUsize,
+};
 
 use futures::channel::oneshot;
 use lru::LruCache;
@@ -33,8 +36,6 @@ use crate::{
 	error::{FatalError, FatalResult, Result},
 	LOG_TARGET,
 };
-
-use self::candidates::CandidateInfo;
 
 #[cfg(test)]
 mod tests;
@@ -100,6 +101,11 @@ pub struct ChainScraper {
 	/// We assume that ancestors of cached blocks are already processed, i.e. we have saved
 	/// corresponding included candidates.
 	last_observed_blocks: LruCache<Hash, ()>,
+	/// Maps included candidate hashes to one or more relay block heights and hashes.
+	/// These correspond to all the relay blocks which marked a candidate as included,
+	/// and are needed to apply reversions in case a dispute is concluded against the
+	/// candidate.
+	inclusions_per_candidate: HashMap<CandidateHash, HashSet<(BlockNumber, Hash)>>,
 }
 
 impl ChainScraper {
@@ -124,6 +130,7 @@ impl ChainScraper {
 			included_candidates: candidates::ScrapedCandidates::new(),
 			backed_candidates: candidates::ScrapedCandidates::new(),
 			last_observed_blocks: LruCache::new(LRU_OBSERVED_BLOCKS_CAPACITY),
+			inclusions_per_candidate: HashMap::new(),
 		};
 		let update =
 			ActiveLeavesUpdate { activated: Some(initial_head), deactivated: Default::default() };
@@ -200,7 +207,23 @@ impl ChainScraper {
 		{
 			Some(key_to_prune) => {
 				self.backed_candidates.remove_up_to_height(&key_to_prune);
-				self.included_candidates.remove_up_to_height(&key_to_prune);
+				let candidates_pruned = self.included_candidates.remove_up_to_height(&key_to_prune);
+				// Removing entries from inclusions per candidate referring to blocks before 
+				// key_to_prune
+				for candidate_hash in candidates_pruned {
+					self.inclusions_per_candidate.entry(candidate_hash).and_modify(|inclusions| {
+						*inclusions = inclusions
+							.clone()
+							.into_iter()
+							.filter(|inclusion| inclusion.0 >= key_to_prune)
+							.collect::<HashSet<(BlockNumber, Hash)>>();
+					}); 
+					if let Some(inclusions) = self.inclusions_per_candidate.get(&candidate_hash) {
+						if inclusions.is_empty() {
+							self.inclusions_per_candidate.remove(&candidate_hash);
+						}
+					}
+				}
 			},
 			None => {
 				// Nothing to prune. We are still in the beginning of the chain and there are not
@@ -237,7 +260,13 @@ impl ChainScraper {
 						?block_number,
 						"Processing included event"
 					);
-					self.included_candidates.insert(candidate_hash, block_number, block_hash);
+					self.included_candidates.insert(block_number, candidate_hash);
+					self.inclusions_per_candidate
+						.entry(candidate_hash)
+						.and_modify(|blocks_including| {
+							blocks_including.insert((block_number, block_hash));
+						})
+						.or_insert(HashSet::from([(block_number, block_hash)]));
 					included_receipts.push(receipt);
 				},
 				CandidateEvent::CandidateBacked(receipt, _, _, _) => {
@@ -248,7 +277,7 @@ impl ChainScraper {
 						?block_number,
 						"Processing backed event"
 					);
-					self.backed_candidates.insert(candidate_hash, block_number, block_hash);
+					self.backed_candidates.insert(block_number, candidate_hash);
 				},
 				_ => {
 					// skip the rest
@@ -324,11 +353,11 @@ impl ChainScraper {
 		return Ok(ancestors)
 	}
 
-	pub fn get_included_candidate_info(
+	pub fn get_blocks_including_candidate(
 		&mut self,
 		candidate: CandidateHash,
-	) -> Option<&CandidateInfo> {
-		self.included_candidates.get_candidate_info(candidate)
+	) -> Option<&HashSet<(BlockNumber, Hash)>> {
+		self.inclusions_per_candidate.get(&candidate)
 	}
 }
 

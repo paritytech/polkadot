@@ -32,6 +32,7 @@ use parity_scale_codec::Error as CodecError;
 use std::{
 	sync::Arc,
 	time::{Duration, SystemTime, UNIX_EPOCH},
+	collections::HashSet,
 };
 
 use crate::backend::{Backend, BackendWriteOp, OverlayedBackend};
@@ -466,8 +467,8 @@ where
 
 							let _ = tx.send(best_containing);
 						}
-						ChainSelectionMessage::DisputeConcludedAgainst(block_number, block_hash) => {
-							let write_ops = handle_concluded_dispute_reversion(backend, block_number, block_hash)?;
+						ChainSelectionMessage::RevertBlocks(blocks_to_revert) => {
+							let write_ops = handle_revert_blocks(backend, blocks_to_revert)?;
 							backend.write(write_ops)?;
 						}
 					}
@@ -682,15 +683,16 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 	backend.write(ops)
 }
 
-// A dispute has concluded against a candidate. Here we revert the block containing
-// that candidate and mark its descendants as non-viable
-fn handle_concluded_dispute_reversion(
+// Here we revert a provided group of blocks. The most common cause for this is that
+// the dispute coordinator has notified chain selection 
+fn handle_revert_blocks(
 	backend: &impl Backend,
-	block_number: u32,
-	block_hash: Hash,
+	blocks_to_revert: HashSet<(BlockNumber, Hash)>,
 ) -> Result<Vec<BackendWriteOp>, Error> {
 	let mut overlay = OverlayedBackend::new(backend);
-	tree::apply_single_reversion(&mut overlay, block_hash, block_number)?;
+	for (block_number, block_hash) in blocks_to_revert {
+		tree::apply_single_reversion(&mut overlay, block_hash, block_number)?;
+	}
 
 	Ok(overlay.into_write_ops().collect())
 }
