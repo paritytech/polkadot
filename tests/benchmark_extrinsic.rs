@@ -17,9 +17,10 @@
 use assert_cmd::cargo::cargo_bin;
 use std::{process::Command, result::Result};
 
-static RUNTIMES: [&str; 4] = ["polkadot", "kusama", "westend", "rococo"];
+static RUNTIMES: [&'static str; 4] = ["polkadot", "kusama", "westend", "rococo"];
 
-static EXTRINSICS: [(&str, &str); 2] = [("system", "remark"), ("balances", "transfer_keep_alive")];
+static EXTRINSICS: [(&'static str, &'static str); 2] =
+	[("system", "remark"), ("balances", "transfer_keep_alive")];
 
 /// `benchmark extrinsic` works for all dev runtimes and some extrinsics.
 #[test]
@@ -42,8 +43,8 @@ fn benchmark_extrinsic_rejects_non_dev_runtimes() {
 
 fn benchmark_extrinsic(runtime: &str, pallet: &str, extrinsic: &str) -> Result<(), String> {
 	let status = Command::new(cargo_bin("polkadot"))
-		.args(["benchmark", "extrinsic", "--chain", runtime])
-		.args(["--pallet", pallet, "--extrinsic", extrinsic])
+		.args(["benchmark", "extrinsic", "--chain", &runtime])
+		.args(&["--pallet", pallet, "--extrinsic", extrinsic])
 		// Run with low repeats for faster execution.
 		.args(["--repeat=1", "--warmup=1", "--max-ext-per-block=1"])
 		.status()

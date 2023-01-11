@@ -58,6 +58,12 @@ use std::{
 pub mod network_bridge_event;
 pub use network_bridge_event::NetworkBridgeEvent;
 
+/// Subsystem messages where each message is always bound to a relay parent.
+pub trait BoundToRelayParent {
+	/// Returns the relay parent this message is bound to.
+	fn relay_parent(&self) -> Hash;
+}
+
 /// Messages received by the Candidate Backing subsystem.
 #[derive(Debug)]
 pub enum CandidateBackingMessage {
@@ -70,6 +76,16 @@ pub enum CandidateBackingMessage {
 	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
 	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatement),
+}
+
+impl BoundToRelayParent for CandidateBackingMessage {
+	fn relay_parent(&self) -> Hash {
+		match self {
+			Self::GetBackedCandidates(hash, _, _) => *hash,
+			Self::Second(hash, _, _) => *hash,
+			Self::Statement(hash, _) => *hash,
+		}
+	}
 }
 
 /// Blanket error for validation failing for internal reasons.
@@ -154,6 +170,17 @@ pub enum CandidateValidationMessage {
 	),
 }
 
+impl CandidateValidationMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::ValidateFromChainState(_, _, _, _) => None,
+			Self::ValidateFromExhaustive(_, _, _, _, _, _) => None,
+			Self::PreCheck(relay_parent, _, _) => Some(*relay_parent),
+		}
+	}
+}
+
 /// Messages received by the Collator Protocol subsystem.
 #[derive(Debug, derive_more::From)]
 pub enum CollatorProtocolMessage {
@@ -188,6 +215,12 @@ pub enum CollatorProtocolMessage {
 impl Default for CollatorProtocolMessage {
 	fn default() -> Self {
 		Self::CollateOn(Default::default())
+	}
+}
+
+impl BoundToRelayParent for CollatorProtocolMessage {
+	fn relay_parent(&self) -> Hash {
+		Default::default()
 	}
 }
 
@@ -235,13 +268,13 @@ pub enum DisputeCoordinatorMessage {
 		///		- or the imported statements are backing/approval votes, which are always accepted.
 		pending_confirmation: Option<oneshot::Sender<ImportStatementsResult>>,
 	},
-	/// Fetch a list of all recent disputes the coordinator is aware of.
+	/// Fetch a list of all recent disputes the co-ordinator is aware of.
 	/// These are disputes which have occurred any time in recent sessions,
 	/// and which may have already concluded.
 	RecentDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash, DisputeStatus)>>),
 	/// Fetch a list of all active disputes that the coordinator is aware of.
 	/// These disputes are either not yet concluded or recently concluded.
-	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash, DisputeStatus)>>),
+	ActiveDisputes(oneshot::Sender<Vec<(SessionIndex, CandidateHash)>>),
 	/// Get candidate votes for a candidate.
 	QueryCandidateVotes(
 		Vec<(SessionIndex, CandidateHash)>,
@@ -364,6 +397,23 @@ pub enum NetworkBridgeTxMessage {
 	},
 }
 
+impl NetworkBridgeTxMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::ReportPeer(_, _) => None,
+			Self::DisconnectPeer(_, _) => None,
+			Self::SendValidationMessage(_, _) => None,
+			Self::SendCollationMessage(_, _) => None,
+			Self::SendValidationMessages(_) => None,
+			Self::SendCollationMessages(_) => None,
+			Self::ConnectToValidators { .. } => None,
+			Self::ConnectToResolvedValidators { .. } => None,
+			Self::SendRequests { .. } => None,
+		}
+	}
+}
+
 /// Availability Distribution Message.
 #[derive(Debug)]
 pub enum AvailabilityDistributionMessage {
@@ -411,6 +461,28 @@ pub enum BitfieldDistributionMessage {
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::BitfieldDistributionMessage>),
+}
+
+impl BitfieldDistributionMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::DistributeBitfield(hash, _) => Some(*hash),
+			Self::NetworkBridgeUpdate(_) => None,
+		}
+	}
+}
+
+/// Bitfield signing message.
+///
+/// Currently non-instantiable.
+#[derive(Debug)]
+pub enum BitfieldSigningMessage {}
+
+impl BoundToRelayParent for BitfieldSigningMessage {
+	fn relay_parent(&self) -> Hash {
+		match *self {}
+	}
 }
 
 /// Availability store subsystem message.
@@ -466,6 +538,15 @@ pub enum AvailabilityStoreMessage {
 	},
 }
 
+impl AvailabilityStoreMessage {
+	/// In fact, none of the `AvailabilityStore` messages assume a particular relay parent.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			_ => None,
+		}
+	}
+}
+
 /// A response channel for the result of a chain API request.
 pub type ChainApiResponseChannel<T> = oneshot::Sender<Result<T, crate::errors::ChainApiError>>;
 
@@ -508,6 +589,13 @@ pub enum ChainApiMessage {
 	},
 }
 
+impl ChainApiMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
+	}
+}
+
 /// Chain selection subsystem messages
 #[derive(Debug)]
 pub enum ChainSelectionMessage {
@@ -518,6 +606,20 @@ pub enum ChainSelectionMessage {
 	/// Request the best leaf containing the given block in its ancestry. Return `None` if
 	/// there is no such leaf.
 	BestLeafContaining(Hash, oneshot::Sender<Option<Hash>>),
+}
+
+impl ChainSelectionMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		// None of the messages, even the ones containing specific
+		// block hashes, can be considered to have those blocks as
+		// a relay parent.
+		match *self {
+			ChainSelectionMessage::Approved(_) => None,
+			ChainSelectionMessage::Leaves(_) => None,
+			ChainSelectionMessage::BestLeafContaining(..) => None,
+		}
+	}
 }
 
 /// A sender for the result of a runtime API request.
@@ -614,6 +716,15 @@ pub enum RuntimeApiMessage {
 	Request(Hash, RuntimeApiRequest),
 }
 
+impl RuntimeApiMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		match self {
+			Self::Request(hash, _) => Some(*hash),
+		}
+	}
+}
+
 /// Statement distribution message.
 #[derive(Debug, derive_more::From)]
 pub enum StatementDistributionMessage {
@@ -665,11 +776,27 @@ pub enum ProvisionerMessage {
 	ProvisionableData(Hash, ProvisionableData),
 }
 
+impl BoundToRelayParent for ProvisionerMessage {
+	fn relay_parent(&self) -> Hash {
+		match self {
+			Self::RequestInherentData(hash, _) => *hash,
+			Self::ProvisionableData(hash, _) => *hash,
+		}
+	}
+}
+
 /// Message to the Collation Generation subsystem.
 #[derive(Debug)]
 pub enum CollationGenerationMessage {
 	/// Initialize the collation generation subsystem
 	Initialize(CollationGenerationConfig),
+}
+
+impl CollationGenerationMessage {
+	/// If the current variant contains the relay parent hash, return it.
+	pub fn relay_parent(&self) -> Option<Hash> {
+		None
+	}
 }
 
 /// The result type of [`ApprovalVotingMessage::CheckAndImportAssignment`] request.
@@ -825,3 +952,9 @@ pub enum GossipSupportMessage {
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::GossipSupportNetworkMessage>),
 }
+
+/// PVF checker message.
+///
+/// Currently non-instantiable.
+#[derive(Debug)]
+pub enum PvfCheckerMessage {}

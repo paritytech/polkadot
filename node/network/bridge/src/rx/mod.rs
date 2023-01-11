@@ -125,7 +125,7 @@ where
 		let future = run_network_in(self, ctx, network_stream)
 			.map_err(|e| SubsystemError::with_origin("network-bridge", e))
 			.boxed();
-		SpawnedSubsystem { name: "network-bridge-rx-subsystem", future }
+		SpawnedSubsystem { name: "network-bridge-subsystem", future }
 	}
 }
 
@@ -213,7 +213,7 @@ where
 						PeerSet::Collation => &mut shared.collation_peers,
 					};
 
-					match peer_map.entry(peer) {
+					match peer_map.entry(peer.clone()) {
 						hash_map::Entry::Occupied(_) => continue,
 						hash_map::Entry::Vacant(vacant) => {
 							vacant.insert(PeerData { view: View::default(), version });
@@ -234,12 +234,12 @@ where
 						dispatch_validation_events_to_all(
 							vec![
 								NetworkBridgeEvent::PeerConnected(
-									peer,
+									peer.clone(),
 									role,
 									version,
 									maybe_authority,
 								),
-								NetworkBridgeEvent::PeerViewChange(peer, View::default()),
+								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
 							],
 							&mut sender,
 						)
@@ -259,12 +259,12 @@ where
 						dispatch_collation_events_to_all(
 							vec![
 								NetworkBridgeEvent::PeerConnected(
-									peer,
+									peer.clone(),
 									role,
 									version,
 									maybe_authority,
 								),
-								NetworkBridgeEvent::PeerViewChange(peer, View::default()),
+								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
 							],
 							&mut sender,
 						)
@@ -421,7 +421,7 @@ where
 							Some(ValidationVersion::V1.into())
 						{
 							handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
-								remote,
+								remote.clone(),
 								PeerSet::Validation,
 								&mut shared.0.lock().validation_peers,
 								v_messages,
@@ -442,7 +442,7 @@ where
 						};
 
 					for report in reports {
-						network_service.report_peer(remote, report);
+						network_service.report_peer(remote.clone(), report);
 					}
 
 					dispatch_validation_events_to_all(events, &mut sender).await;
@@ -454,7 +454,7 @@ where
 							Some(CollationVersion::V1.into())
 						{
 							handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
-								remote,
+								remote.clone(),
 								PeerSet::Collation,
 								&mut shared.0.lock().collation_peers,
 								c_messages,
@@ -475,7 +475,7 @@ where
 						};
 
 					for report in reports {
-						network_service.report_peer(remote, report);
+						network_service.report_peer(remote.clone(), report);
 					}
 
 					dispatch_collation_events_to_all(events, &mut sender).await;
@@ -795,11 +795,11 @@ fn handle_v1_peer_messages<RawMessage: Decode, OutMessage: From<RawMessage>>(
 				} else {
 					peer_data.view = new_view;
 
-					NetworkBridgeEvent::PeerViewChange(peer, peer_data.view.clone())
+					NetworkBridgeEvent::PeerViewChange(peer.clone(), peer_data.view.clone())
 				}
 			},
 			WireMessage::ProtocolMessage(message) =>
-				NetworkBridgeEvent::PeerMessage(peer, message.into()),
+				NetworkBridgeEvent::PeerMessage(peer.clone(), message.into()),
 		})
 	}
 

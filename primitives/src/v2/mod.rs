@@ -48,6 +48,8 @@ pub use polkadot_parachain::primitives::{
 };
 
 #[cfg(feature = "std")]
+use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
+#[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
 
 pub use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
@@ -75,12 +77,32 @@ mod collator_app {
 /// Identity that collators use.
 pub type CollatorId = collator_app::Public;
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for CollatorId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
 /// A Parachain collator keypair.
 #[cfg(feature = "std")]
 pub type CollatorPair = collator_app::Pair;
 
 /// Signature on candidate's block data by a collator.
 pub type CollatorSignature = collator_app::Signature;
+
+#[cfg(feature = "std")]
+impl MallocSizeOf for CollatorSignature {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
 
 /// The key type ID for a parachain validator key.
 pub const PARACHAIN_KEY_TYPE_ID: KeyTypeId = KeyTypeId(*b"para");
@@ -96,6 +118,16 @@ mod validator_app {
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorId = validator_app::Public;
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for ValidatorId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
 /// Trait required for type specific indices e.g. `ValidatorIndex` and `GroupIndex`
 pub trait TypeIndex {
 	/// Returns the index associated to this value.
@@ -104,7 +136,7 @@ pub trait TypeIndex {
 
 /// Index of the validator is used as a lightweight replacement of the `ValidatorId` when appropriate.
 #[derive(Eq, Ord, PartialEq, PartialOrd, Copy, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
 pub struct ValidatorIndex(pub u32);
 
 // We should really get https://github.com/paritytech/polkadot/issues/2403 going ..
@@ -131,9 +163,19 @@ application_crypto::with_pair! {
 /// so we define it to be the same type as `SessionKey`. In the future it may have different crypto.
 pub type ValidatorSignature = validator_app::Signature;
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for ValidatorSignature {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
 /// A declarations of storage keys where an external observer can find some interesting data.
 pub mod well_known_keys {
-	use super::{HrmpChannelId, Id, WellKnownKey};
+	use super::{HrmpChannelId, Id};
 	use hex_literal::hex;
 	use parity_scale_codec::Encode as _;
 	use sp_io::hashing::twox_64;
@@ -208,13 +250,6 @@ pub mod well_known_keys {
 		})
 	}
 
-	/// Type safe version of `relay_dispatch_queue_size`.
-	#[deprecated = "Use `relay_dispatch_queue_remaining_capacity` instead"]
-	pub fn relay_dispatch_queue_size_typed(para: Id) -> WellKnownKey<(u32, u32)> {
-		#[allow(deprecated)]
-		relay_dispatch_queue_size(para).into()
-	}
-
 	/// The upward message dispatch queue remaining capacity for the given para id.
 	///
 	/// The storage entry stores a tuple of two values:
@@ -222,8 +257,8 @@ pub mod well_known_keys {
 	/// - `count: u32`, the number of additional messages which may be enqueued for the given para,
 	/// - `total_size: u32`, the total size of additional messages which may be enqueued for the
 	/// given para.
-	pub fn relay_dispatch_queue_remaining_capacity(para_id: Id) -> WellKnownKey<(u32, u32)> {
-		(b":relay_dispatch_queue_remaining_capacity", para_id).encode().into()
+	pub fn relay_dispatch_queue_remaining_capacity(para_id: Id) -> Vec<u8> {
+		(b":relay_dispatch_queue_remaining_capacity", para_id).encode()
 	}
 
 	/// The HRMP channel for the given identifier.
@@ -383,6 +418,16 @@ application_crypto::with_pair! {
 	pub type AssignmentPair = assignment_app::Pair;
 }
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for AssignmentId {
+	fn size_of(&self, _ops: &mut MallocSizeOfOps) -> usize {
+		0
+	}
+	fn constant_size() -> Option<usize> {
+		Some(0)
+	}
+}
+
 /// The index of the candidate in the list of candidates fully included as-of the block.
 pub type CandidateIndex = u32;
 
@@ -432,7 +477,7 @@ fn check_collator_signature<H: AsRef<[u8]>>(
 
 /// A unique descriptor of the candidate receipt.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Hash))]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct CandidateDescriptor<H = Hash> {
 	/// The ID of the para this is a candidate for.
 	pub para_id: Id,
@@ -474,6 +519,7 @@ impl<H: AsRef<[u8]>> CandidateDescriptor<H> {
 
 /// A candidate-receipt.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct CandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -510,7 +556,7 @@ pub struct FullCandidateReceipt<H = Hash, N = BlockNumber> {
 
 /// A candidate-receipt with commitments directly included.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Hash))]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct CommittedCandidateReceipt<H = Hash> {
 	/// The descriptor of the candidate.
 	pub descriptor: CandidateDescriptor<H>,
@@ -591,7 +637,7 @@ impl Ord for CommittedCandidateReceipt {
 /// The `PersistedValidationData` should be relatively lightweight primarily because it is constructed
 /// during inclusion for each candidate and therefore lies on the critical path of inclusion.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Default))]
+#[cfg_attr(feature = "std", derive(Default, MallocSizeOf))]
 pub struct PersistedValidationData<H = Hash, N = BlockNumber> {
 	/// The parent head-data.
 	pub parent_head: HeadData,
@@ -612,7 +658,7 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Hash, Default))]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf, Default))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
@@ -732,7 +778,7 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 		.zip(backed.validity_votes.iter())
 	{
 		let validator_id = validator_lookup(val_in_group_idx).ok_or(())?;
-		let payload = attestation.signed_payload(hash, signing_context);
+		let payload = attestation.signed_payload(hash.clone(), signing_context);
 		let sig = attestation.signature();
 
 		if sig.verify(&payload[..], &validator_id) {
@@ -753,7 +799,7 @@ pub fn check_candidate_backing<H: AsRef<[u8]> + Clone + Encode>(
 #[derive(
 	Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, TypeInfo, RuntimeDebug,
 )]
-#[cfg_attr(feature = "std", derive(Hash))]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct CoreIndex(pub u32);
 
 impl From<u32> for CoreIndex {
@@ -770,7 +816,7 @@ impl TypeIndex for CoreIndex {
 
 /// The unique (during session) index of a validator group.
 #[derive(Encode, Decode, Default, Clone, Copy, Debug, PartialEq, Eq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Hash))]
+#[cfg_attr(feature = "std", derive(Hash, MallocSizeOf))]
 pub struct GroupIndex(pub u32);
 
 impl From<u32> for GroupIndex {
@@ -812,7 +858,7 @@ pub enum CoreOccupied {
 
 /// A helper data-type for tracking validator-group rotations.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct GroupRotationInfo<N = BlockNumber> {
 	/// The block number where the session started.
 	pub session_start_block: N,
@@ -900,7 +946,7 @@ impl<N: Saturating + BaseArithmetic + Copy> GroupRotationInfo<N> {
 
 /// Information about a core which is currently occupied.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	// NOTE: this has no ParaId as it can be deduced from the candidate descriptor.
 	/// If this core is freed by availability, this is the assignment that is next up on this
@@ -917,6 +963,7 @@ pub struct OccupiedCore<H = Hash, N = BlockNumber> {
 	/// A bitfield with 1 bit for each validator in the set. `1` bits mean that the corresponding
 	/// validators has attested to availability on-chain. A 2/3+ majority of `1` bits means that
 	/// this will be available.
+	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
 	pub availability: BitVec<u8, bitvec::order::Lsb0>,
 	/// The group assigned to distribute availability pieces of this candidate.
 	pub group_responsible: GroupIndex,
@@ -935,7 +982,7 @@ impl<H, N> OccupiedCore<H, N> {
 
 /// Information about a core which is currently occupied.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct ScheduledCore {
 	/// The ID of a para scheduled.
 	pub para_id: Id,
@@ -945,7 +992,7 @@ pub struct ScheduledCore {
 
 /// The state of a particular availability core.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// The core is currently occupied.
 	#[codec(index = 0)]
@@ -996,7 +1043,7 @@ pub enum OccupiedCoreAssumption {
 
 /// An even concerning a candidate.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub enum CandidateEvent<H = Hash> {
 	/// This candidate receipt was backed in the most recent block.
 	/// This includes the core index the candidate is now occupying.
@@ -1015,7 +1062,7 @@ pub enum CandidateEvent<H = Hash> {
 
 /// Scraped runtime backing votes and resolved disputes.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct ScrapedOnChainVotes<H: Encode + Decode = Hash> {
 	/// The session in which the block was included.
 	pub session: SessionIndex,
@@ -1204,6 +1251,7 @@ impl From<ConsensusLog> for runtime_primitives::DigestItem {
 ///
 /// Statements are either in favor of the candidate's validity or against it.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum DisputeStatement {
 	/// A valid statement, of the given kind.
 	#[codec(index = 0)]
@@ -1284,6 +1332,7 @@ impl DisputeStatement {
 
 /// Different kinds of statements of validity on  a candidate.
 #[derive(Encode, Decode, Copy, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum ValidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
 	#[codec(index = 0)]
@@ -1301,6 +1350,7 @@ pub enum ValidDisputeStatementKind {
 
 /// Different kinds of statements of invalidity on a candidate.
 #[derive(Encode, Decode, Copy, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum InvalidDisputeStatementKind {
 	/// An explicit statement issued as part of a dispute.
 	#[codec(index = 0)]
@@ -1329,6 +1379,7 @@ impl ExplicitDisputeStatement {
 
 /// A set of statements about a specific candidate.
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct DisputeStatementSet {
 	/// The candidate referenced by this set.
 	pub candidate_hash: CandidateHash,
@@ -1393,6 +1444,22 @@ pub struct DisputeState<N = BlockNumber> {
 	pub concluded_at: Option<N>,
 }
 
+#[cfg(feature = "std")]
+impl MallocSizeOf for DisputeState {
+	fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
+		// destructuring to make sure no new fields are added to the struct without modifying this function
+		let Self { validators_for, validators_against, start, concluded_at } = self;
+
+		// According to the documentation `.capacity()` might not return a byte aligned value, so just in case:
+		let align_eight = |d: usize| (d + 7) / 8;
+
+		align_eight(validators_for.capacity()) +
+			align_eight(validators_against.capacity()) +
+			start.size_of(ops) +
+			concluded_at.size_of(ops)
+	}
+}
+
 /// Parachains inherent-data passed into the runtime by a block author
 #[derive(Encode, Decode, Clone, PartialEq, RuntimeDebug, TypeInfo)]
 pub struct InherentData<HDR: HeaderT = Header> {
@@ -1409,6 +1476,7 @@ pub struct InherentData<HDR: HeaderT = Header> {
 /// An either implicit or explicit attestation to the validity of a parachain
 /// candidate.
 #[derive(Clone, Eq, PartialEq, Decode, Encode, RuntimeDebug, TypeInfo)]
+#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub enum ValidityAttestation {
 	/// Implicit validity attestation by issuing.
 	/// This corresponds to issuance of a `Candidate` statement.
@@ -1544,7 +1612,7 @@ impl CompactStatement {
 
 /// `IndexedVec` struct indexed by type specific indices.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct IndexedVec<K, V>(Vec<V>, PhantomData<fn(K) -> K>);
 
 impl<K, V> Default for IndexedVec<K, V> {
@@ -1623,7 +1691,7 @@ pub fn supermajority_threshold(n: usize) -> usize {
 
 /// Information about validator sets of a session.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct SessionInfo {
 	/****** New in v2 *******/
 	/// All the validators actively participating in parachain consensus.
@@ -1649,6 +1717,7 @@ pub struct SessionInfo {
 	/// `validators`, afterwards any remaining authorities can be found. This is any authorities not
 	/// participating in parachain consensus - see
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148)
+	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment keys for validators.
 	///
@@ -1705,44 +1774,10 @@ impl PvfCheckStatement {
 	}
 }
 
-/// A well-known and typed storage key.
-pub struct WellKnownKey<T> {
-	/// The raw storage key.
-	pub key: Vec<u8>,
-	_p: sp_std::marker::PhantomData<T>,
-}
-
-impl<T> From<Vec<u8>> for WellKnownKey<T> {
-	fn from(key: Vec<u8>) -> Self {
-		Self { key, _p: Default::default() }
-	}
-}
-
-impl<T> AsRef<[u8]> for WellKnownKey<T> {
-	fn as_ref(&self) -> &[u8] {
-		self.key.as_ref()
-	}
-}
-
-impl<T: Decode> WellKnownKey<T> {
-	/// Gets the value or `None` if it does not exist or decoding failed.
-	pub fn get(&self) -> Option<T> {
-		sp_io::storage::get(&self.key)
-			.and_then(|raw| parity_scale_codec::DecodeAll::decode_all(&mut raw.as_ref()).ok())
-	}
-}
-
-impl<T: Encode> WellKnownKey<T> {
-	/// Sets the value.
-	pub fn set(&self, value: T) {
-		sp_io::storage::set(&self.key, &value.encode());
-	}
-}
-
 /// Old, v1-style info about session info. Only needed for limited
 /// backwards-compatibility.
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq))]
+#[cfg_attr(feature = "std", derive(PartialEq, MallocSizeOf))]
 pub struct OldV1SessionInfo {
 	/// Validators in canonical ordering.
 	///
@@ -1758,6 +1793,7 @@ pub struct OldV1SessionInfo {
 	/// `validators`, afterwards any remaining authorities can be found. This is any authorities not
 	/// participating in parachain consensus - see
 	/// [`max_validators`](https://github.com/paritytech/polkadot/blob/a52dca2be7840b23c19c153cf7e110b1e3e475f8/runtime/parachains/src/configuration.rs#L148)
+	#[cfg_attr(feature = "std", ignore_malloc_size_of = "outside type")]
 	pub discovery_keys: Vec<AuthorityDiscoveryId>,
 	/// The assignment keys for validators.
 	///

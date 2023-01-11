@@ -29,7 +29,7 @@ use sp_api::{CallApiAt, Encode, NumberFor, ProvideRuntimeApi};
 use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_consensus::BlockStatus;
 use sp_runtime::{
-	generic::SignedBlock,
+	generic::{BlockId, SignedBlock},
 	traits::{BlakeTwo256, Block as BlockT},
 	Justifications,
 };
@@ -338,25 +338,22 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn block(
-		&self,
-		hash: <Block as BlockT>::Hash,
-	) -> sp_blockchain::Result<Option<SignedBlock<Block>>> {
+	fn block(&self, id: &BlockId<Block>) -> sp_blockchain::Result<Option<SignedBlock<Block>>> {
 		with_client! {
 			self,
 			client,
 			{
-				client.block(hash)
+				client.block(id)
 			}
 		}
 	}
 
-	fn block_status(&self, hash: <Block as BlockT>::Hash) -> sp_blockchain::Result<BlockStatus> {
+	fn block_status(&self, id: &BlockId<Block>) -> sp_blockchain::Result<BlockStatus> {
 		with_client! {
 			self,
 			client,
 			{
-				client.block_status(hash)
+				client.block_status(id)
 			}
 		}
 	}
@@ -563,12 +560,12 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 }
 
 impl sp_blockchain::HeaderBackend<Block> for Client {
-	fn header(&self, hash: Hash) -> sp_blockchain::Result<Option<Header>> {
+	fn header(&self, id: BlockId<Block>) -> sp_blockchain::Result<Option<Header>> {
 		with_client! {
 			self,
 			client,
 			{
-				client.header(hash)
+				client.header(&id)
 			}
 		}
 	}
@@ -583,12 +580,12 @@ impl sp_blockchain::HeaderBackend<Block> for Client {
 		}
 	}
 
-	fn status(&self, hash: Hash) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+	fn status(&self, id: BlockId<Block>) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
 		with_client! {
 			self,
 			client,
 			{
-				client.status(hash)
+				client.status(id)
 			}
 		}
 	}

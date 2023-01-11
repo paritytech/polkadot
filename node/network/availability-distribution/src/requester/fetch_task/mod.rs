@@ -326,17 +326,6 @@ impl RunningTask {
 		&mut self,
 		validator: &AuthorityDiscoveryId,
 	) -> std::result::Result<ChunkFetchingResponse, TaskError> {
-		gum::trace!(
-			target: LOG_TARGET,
-			origin = ?validator,
-			relay_parent = ?self.relay_parent,
-			group_index = ?self.group_index,
-			session_index = ?self.session_index,
-			chunk_index = ?self.request.index,
-			candidate_hash = ?self.request.candidate_hash,
-			"Starting chunk request",
-		);
-
 		let (full_request, response_recv) =
 			OutgoingRequest::new(Recipient::Authority(validator.clone()), self.request);
 		let requests = Requests::ChunkFetchingV1(full_request);
@@ -357,13 +346,13 @@ impl RunningTask {
 			Err(RequestError::InvalidResponse(err)) => {
 				gum::warn!(
 					target: LOG_TARGET,
-					origin = ?validator,
+					origin= ?validator,
 					relay_parent = ?self.relay_parent,
 					group_index = ?self.group_index,
 					session_index = ?self.session_index,
 					chunk_index = ?self.request.index,
 					candidate_hash = ?self.request.candidate_hash,
-					err = ?err,
+					err= ?err,
 					"Peer sent us invalid erasure chunk data"
 				);
 				Err(TaskError::PeerError)
@@ -371,13 +360,13 @@ impl RunningTask {
 			Err(RequestError::NetworkError(err)) => {
 				gum::debug!(
 					target: LOG_TARGET,
-					origin = ?validator,
+					origin= ?validator,
 					relay_parent = ?self.relay_parent,
 					group_index = ?self.group_index,
 					session_index = ?self.session_index,
 					chunk_index = ?self.request.index,
 					candidate_hash = ?self.request.candidate_hash,
-					err = ?err,
+					err= ?err,
 					"Some network error occurred when fetching erasure chunk"
 				);
 				Err(TaskError::PeerError)
@@ -385,7 +374,7 @@ impl RunningTask {
 			Err(RequestError::Canceled(oneshot::Canceled)) => {
 				gum::debug!(
 					target: LOG_TARGET,
-					origin = ?validator,
+					origin= ?validator,
 					relay_parent = ?self.relay_parent,
 					group_index = ?self.group_index,
 					session_index = ?self.session_index,

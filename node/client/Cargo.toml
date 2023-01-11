@@ -1,12 +1,10 @@
 [package]
 name = "polkadot-client"
-version.workspace = true
-authors.workspace = true
-edition.workspace = true
+version = "0.9.31"
+authors = ["Parity Technologies <admin@parity.io>"]
+edition = "2021"
 
 [dependencies]
-async-trait = "0.1.57"
-futures = "0.3.21"
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -37,7 +35,7 @@ sc-executor = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-beefy" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot", optional = true }

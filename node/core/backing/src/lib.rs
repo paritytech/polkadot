@@ -482,7 +482,9 @@ impl TableContextTrait for TableContext {
 	}
 
 	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
-		self.groups.get(group).map_or(false, |g| g.iter().any(|a| a == authority))
+		self.groups
+			.get(group)
+			.map_or(false, |g| g.iter().position(|a| a == authority).is_some())
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
@@ -497,7 +499,7 @@ struct InvalidErasureRoot;
 fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement {
 	let statement = match s.payload() {
 		Statement::Seconded(c) => TableStatement::Seconded(c.clone()),
-		Statement::Valid(h) => TableStatement::Valid(*h),
+		Statement::Valid(h) => TableStatement::Valid(h.clone()),
 	};
 
 	TableSignedStatement {

@@ -120,7 +120,6 @@ pub mod pallet_custom_origins {
 	}
 	decl_unit_ensures!(
 		StakingAdmin,
-		Treasurer,
 		FellowshipAdmin,
 		GeneralAdmin,
 		AuctionAdmin,
@@ -174,7 +173,6 @@ pub mod pallet_custom_origins {
 			SmallSpender = 10 * GRAND,
 			MediumSpender = 100 * GRAND,
 			BigSpender = 1_000 * GRAND,
-			Treasurer = 10_000 * GRAND,
 		}
 	}
 

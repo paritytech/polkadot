@@ -27,15 +27,14 @@ use sp_std::{fmt::Debug, marker::PhantomData};
 use sp_weights::Weight;
 use xcm::prelude::*;
 
-pub struct ProcessXcmMessage<MessageOrigin, XcmExecutor, Call, MessageToDispatchOrigin>(
-	PhantomData<(MessageOrigin, XcmExecutor, Call, MessageToDispatchOrigin)>,
+pub struct ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>(
+	PhantomData<(MessageOrigin, XcmExecutor, Call)>,
 );
 impl<
-		MessageOrigin: FullCodec + MaxEncodedLen + Clone + Eq + PartialEq + TypeInfo + Debug,
+		MessageOrigin: Into<MultiLocation> + FullCodec + MaxEncodedLen + Clone + Eq + PartialEq + TypeInfo + Debug,
 		XcmExecutor: ExecuteXcm<Call>,
 		Call,
-		MessageToDispatchOrigin: sp_runtime::traits::Convert<MessageOrigin, Junction>,
-	> ProcessMessage for ProcessXcmMessage<MessageOrigin, XcmExecutor, Call, MessageToDispatchOrigin>
+	> ProcessMessage for ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>
 {
 	type Origin = MessageOrigin;
 
@@ -43,33 +42,20 @@ impl<
 	fn process_message(
 		message: &[u8],
 		origin: Self::Origin,
-		_weight_limit: Weight,
+		weight_limit: Weight,
 	) -> Result<(bool, Weight), ProcessMessageError> {
-		let _hash = blake2_256(message);
+		let hash = blake2_256(message);
 		let versioned_message = VersionedXcm::<Call>::decode(&mut &message[..])
 			.map_err(|_| ProcessMessageError::Corrupt)?;
 		let message = Xcm::<Call>::try_from(versioned_message)
 			.map_err(|_| ProcessMessageError::Unsupported)?;
-		// FIXME: Needs XCMv3 for pre-dispatch message weight extraction
-		// <https://github.com/paritytech/polkadot/pull/4097>
-		/* let pre = XcmExecutor::prepare(message).map_err(|_| ProcessMessageError::Unsupported)?;
+		let pre = XcmExecutor::prepare(message).map_err(|_| ProcessMessageError::Unsupported)?;
 		let weight = Weight::from_ref_time(pre.weight_of());
 		ensure!(weight.all_lte(weight_limit), ProcessMessageError::Overweight(weight));
 		match XcmExecutor::execute(origin.into(), pre, hash, 0) {
 			Outcome::Complete(w) => Ok((true, Weight::from_ref_time(w))),
 			Outcome::Incomplete(w, _) => Ok((false, Weight::from_ref_time(w))),
 			Outcome::Error(_) => Err(ProcessMessageError::Unsupported),
-		}*/
-		// Do not merge this…
-		let outcome = XcmExecutor::execute_xcm(
-			MessageToDispatchOrigin::convert(origin).into(),
-			message,
-			u64::MAX,
-		);
-		match outcome {
-			Outcome::Error(XcmError::WeightLimitReached(_required)) =>
-				Err(ProcessMessageError::Unsupported),
-			_outcome => Ok((true, Weight::MAX)),
 		}
 	}
 }

@@ -207,7 +207,7 @@ impl View {
 	}
 
 	/// Obtain an iterator over all heads.
-	pub fn iter(&self) -> impl Iterator<Item = &Hash> {
+	pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Hash> {
 		self.heads.iter()
 	}
 

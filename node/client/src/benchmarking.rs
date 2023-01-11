@@ -165,7 +165,7 @@ impl BenchmarkCallSigner<polkadot_runtime::RuntimeCall, sp_core::sr25519::Pair>
 				(),
 				runtime::VERSION.spec_version,
 				runtime::VERSION.transaction_version,
-				genesis,
+				genesis.clone(),
 				genesis,
 				(),
 				(),
@@ -220,7 +220,7 @@ impl BenchmarkCallSigner<westend_runtime::RuntimeCall, sp_core::sr25519::Pair>
 				(),
 				runtime::VERSION.spec_version,
 				runtime::VERSION.transaction_version,
-				genesis,
+				genesis.clone(),
 				genesis,
 				(),
 				(),
@@ -274,7 +274,7 @@ impl BenchmarkCallSigner<kusama_runtime::RuntimeCall, sp_core::sr25519::Pair>
 				(),
 				runtime::VERSION.spec_version,
 				runtime::VERSION.transaction_version,
-				genesis,
+				genesis.clone(),
 				genesis,
 				(),
 				(),
@@ -328,7 +328,7 @@ impl BenchmarkCallSigner<rococo_runtime::RuntimeCall, sp_core::sr25519::Pair>
 				(),
 				runtime::VERSION.spec_version,
 				runtime::VERSION.transaction_version,
-				genesis,
+				genesis.clone(),
 				genesis,
 				(),
 				(),
@@ -359,7 +359,7 @@ pub fn benchmark_inherent_data(
 	// Assume that all runtimes have the `timestamp` pallet.
 	let d = std::time::Duration::from_millis(0);
 	let timestamp = sp_timestamp::InherentDataProvider::new(d.into());
-	futures::executor::block_on(timestamp.provide_inherent_data(&mut inherent_data))?;
+	timestamp.provide_inherent_data(&mut inherent_data)?;
 
 	let para_data = polkadot_primitives::v2::InherentData {
 		bitfields: Vec::new(),
@@ -368,7 +368,8 @@ pub fn benchmark_inherent_data(
 		parent_header: header,
 	};
 
-	inherent_data.put_data(polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER, &para_data)?;
+	polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::from_data(para_data)
+		.provide_inherent_data(&mut inherent_data)?;
 
 	Ok(inherent_data)
 }

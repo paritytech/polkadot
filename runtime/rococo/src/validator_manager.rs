@@ -66,7 +66,6 @@ pub mod pallet {
 		/// Add new validators to the set.
 		///
 		/// The new validators will be active from current session + 2.
-		#[pallet::call_index(0)]
 		#[pallet::weight(100_000)]
 		pub fn register_validators(
 			origin: OriginFor<T>,
@@ -83,7 +82,6 @@ pub mod pallet {
 		/// Remove validators from the set.
 		///
 		/// The removed validators will be deactivated from current session + 2.
-		#[pallet::call_index(1)]
 		#[pallet::weight(100_000)]
 		pub fn deregister_validators(
 			origin: OriginFor<T>,

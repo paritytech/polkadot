@@ -41,7 +41,7 @@ use polkadot_node_subsystem::{
 	messages::ChainApiMessage, overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 	SubsystemError, SubsystemResult,
 };
-use polkadot_primitives::v2::Block;
+use polkadot_primitives::v2::{Block, BlockId};
 
 mod metrics;
 use self::metrics::Metrics;
@@ -99,7 +99,10 @@ where
 				},
 				ChainApiMessage::BlockHeader(hash, response_channel) => {
 					let _timer = subsystem.metrics.time_block_header();
-					let result = subsystem.client.header(hash).map_err(|e| e.to_string().into());
+					let result = subsystem
+						.client
+						.header(BlockId::Hash(hash))
+						.map_err(|e| e.to_string().into());
 					subsystem.metrics.on_request(result.is_ok());
 					let _ = response_channel.send(result);
 				},
@@ -131,7 +134,7 @@ where
 					let mut hash = hash;
 
 					let next_parent = core::iter::from_fn(|| {
-						let maybe_header = subsystem.client.header(hash);
+						let maybe_header = subsystem.client.header(BlockId::Hash(hash));
 						match maybe_header {
 							// propagate the error
 							Err(e) => {

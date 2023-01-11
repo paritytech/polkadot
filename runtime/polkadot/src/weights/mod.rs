@@ -31,7 +31,6 @@ pub mod pallet_identity;
 pub mod pallet_im_online;
 pub mod pallet_indices;
 pub mod pallet_membership;
-pub mod pallet_message_queue;
 pub mod pallet_multisig;
 pub mod pallet_nomination_pools;
 pub mod pallet_preimage;

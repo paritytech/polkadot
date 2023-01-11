@@ -95,7 +95,6 @@ pub use polkadot_client::PolkadotExecutorDispatch;
 
 pub use chain_spec::{KusamaChainSpec, PolkadotChainSpec, RococoChainSpec, WestendChainSpec};
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
-use mmr_gadget::MmrGadget;
 #[cfg(feature = "full-node")]
 pub use polkadot_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
@@ -161,7 +160,10 @@ where
 		&self,
 		hash: Block::Hash,
 	) -> sp_blockchain::Result<Option<<Block as BlockT>::Header>> {
-		<Self as sp_blockchain::HeaderBackend<Block>>::header(self, hash)
+		<Self as sp_blockchain::HeaderBackend<Block>>::header(
+			self,
+			generic::BlockId::<Block>::Hash(hash),
+		)
 	}
 	fn number(
 		&self,
@@ -698,7 +700,7 @@ where
 				return None
 			};
 
-			let parent_hash = client.header(hash).ok()??.parent_hash;
+			let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
 
 			Some(BlockInfo { hash, parent_hash, number })
 		})
@@ -756,7 +758,6 @@ where
 {
 	use polkadot_node_network_protocol::request_response::IncomingRequest;
 
-	let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks = {
@@ -1109,8 +1110,8 @@ where
 					pin_mut!(forward);
 
 					select! {
-						() = forward => (),
-						() = overseer_fut => (),
+						_ = forward => (),
+						_ = overseer_fut => (),
 						complete => (),
 					}
 				}),
@@ -1151,12 +1152,11 @@ where
 				let overseer_handle = overseer_handle.clone();
 
 				async move {
-					let parachain =
-						polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::new(
-							client_clone,
-							overseer_handle,
-							parent,
-						);
+					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
+						&*client_clone,
+						overseer_handle,
+						parent,
+					).await.map_err(|e| Box::new(e))?;
 
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
@@ -1218,18 +1218,6 @@ where
 				.spawn_blocking("beefy-gadget", None, gadget);
 		} else {
 			task_manager.spawn_handle().spawn_blocking("beefy-gadget", None, gadget);
-		}
-
-		if is_offchain_indexing_enabled {
-			task_manager.spawn_handle().spawn_blocking(
-				"mmr-gadget",
-				None,
-				MmrGadget::start(
-					client.clone(),
-					backend.clone(),
-					sp_mmr_primitives::INDEXING_PREFIX.to_vec(),
-				),
-			);
 		}
 	}
 

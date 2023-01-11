@@ -1,9 +1,9 @@
 [package]
 name = "xcm-simulator-example"
+version = "0.9.31"
+authors = ["Parity Technologies <admin@parity.io>"]
 description = "Examples of xcm-simulator usage."
-authors.workspace = true
-edition.workspace = true
-version.workspace = true
+edition = "2021"
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0" }

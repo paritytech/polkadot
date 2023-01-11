@@ -321,20 +321,3 @@ where
 		})
 	}
 }
-
-/// `Convert` implementation to convert from an origin which passes the check of an `EnsureOrigin`
-/// into a voice of a given pluralistic `Body`.
-pub struct OriginToPluralityVoice<RuntimeOrigin, EnsureBodyOrigin, Body>(
-	PhantomData<(RuntimeOrigin, EnsureBodyOrigin, Body)>,
-);
-impl<RuntimeOrigin: Clone, EnsureBodyOrigin: EnsureOrigin<RuntimeOrigin>, Body: Get<BodyId>>
-	Convert<RuntimeOrigin, MultiLocation>
-	for OriginToPluralityVoice<RuntimeOrigin, EnsureBodyOrigin, Body>
-{
-	fn convert(o: RuntimeOrigin) -> Result<MultiLocation, RuntimeOrigin> {
-		match EnsureBodyOrigin::try_origin(o) {
-			Ok(_) => Ok(Junction::Plurality { id: Body::get(), part: BodyPart::Voice }.into()),
-			Err(o) => Err(o),
-		}
-	}
-}

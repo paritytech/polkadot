@@ -28,11 +28,7 @@ use crate::{
 	shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_support::{
-	pallet_prelude::*,
-	traits::{Defensive, EnqueueMessage},
-	BoundedSlice,
-};
+use frame_support::{pallet_prelude::*, traits::EnqueueMessage, BoundedSlice};
 use pallet_message_queue::OnQueueChanged;
 use parity_scale_codec::{Decode, Encode};
 use primitives::v2::{
@@ -42,7 +38,7 @@ use primitives::v2::{
 	UpwardMessage, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use scale_info::TypeInfo;
-use sp_runtime::{traits::One, DispatchError, SaturatedConversion};
+use sp_runtime::{traits::One, DispatchError};
 use sp_std::{collections::btree_set::BTreeSet, fmt, prelude::*};
 
 pub use pallet::*;
@@ -136,7 +132,7 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 
 	/// Get the core index.
 	pub(crate) fn core_occupied(&self) -> CoreIndex {
-		self.core
+		self.core.clone()
 	}
 
 	/// Get the candidate hash.
@@ -213,33 +209,6 @@ pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	sp_std::cmp::min(n_validators, 2)
 }
 
-/// Divides the [`Config::MessageQueue`] into sub queues which are serviced in a round-robin fashion.
-///
-/// NOTE Ideally we want the queue pallet to be sub-queue aware since currently we waste PoV by introducing a lot of few-element queues by doing this.
-///
-/// Changing this requires a migration of the queue pallet.
-#[derive(Encode, Decode, Clone, Copy, Debug, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
-pub enum SubQueue {
-	UMP,
-	HRMP,
-	DMP,
-}
-
-/// Over which `queue` and `from` which para-chain a message came in from.
-///
-/// Changing this requires a migration of the queue pallet.
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
-pub struct MessageOrigin {
-	pub queue: SubQueue,
-	pub para: ParaId,
-}
-
-impl MessageOrigin {
-	pub const fn ump(para: ParaId) -> Self {
-		Self { queue: SubQueue::UMP, para }
-	}
-}
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -264,9 +233,7 @@ pub mod pallet {
 		type RewardValidators: RewardValidators;
 
 		/// The system message queue.
-		///
-		/// The message queue provides general queueing and processing functionality. Currently it replaces the old `UMP`, `HRMP` and `DMP` queue pallets. Since it provides a very generic kind of service; other use-cases can be implemented as well.
-		type MessageQueue: EnqueueMessage<MessageOrigin>;
+		type MessageQueue: EnqueueMessage<ParaId>;
 	}
 
 	#[pallet::event]
@@ -381,16 +348,11 @@ enum AcceptanceCheckErr<BlockNumber> {
 
 /// An error returned by [`check_upward_messages`] that indicates a violation of one of acceptance
 /// criteria rules.
-#[cfg_attr(test, derive(PartialEq))]
 pub enum UmpAcceptanceCheckErr {
-	/// The maximal number of messages that can be submitted in one batch was exceeded.
 	MoreMessagesThanPermitted { sent: u32, permitted: u32 },
-	/// The maximal size of a single message was exceeded.
 	MessageSize { idx: u32, msg_size: u32, max_size: u32 },
-	/// The allowed number of messages in the queue was exceeded.
-	CapacityExceeded { count: u64, limit: u64 },
-	/// The allowed combined message size in the queue was exceeded.
-	TotalSizeExceeded { total_size: u64, limit: u64 },
+	CapacityExceeded { count: u32, limit: u32 },
+	TotalSizeExceeded { total_size: u32, limit: u32 },
 }
 
 impl fmt::Debug for UmpAcceptanceCheckErr {
@@ -503,7 +465,7 @@ impl<T: Config> Pallet<T> {
 		let mut freed_cores = Vec::with_capacity(expected_bits);
 		for (para_id, pending_availability) in assigned_paras_record
 			.into_iter()
-			.flatten()
+			.filter_map(|x| x)
 			.filter_map(|(id, p)| p.map(|p| (id, p)))
 		{
 			if pending_availability.availability_votes.count_ones() >= threshold {
@@ -764,7 +726,8 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// one more sweep for actually writing to storage.
-		let core_indices = core_indices_and_backers.iter().map(|&(ref c, _, _)| *c).collect();
+		let core_indices =
+			core_indices_and_backers.iter().map(|&(ref c, _, _)| c.clone()).collect();
 		for (candidate, (core, backers, group)) in
 			candidates.into_iter().zip(core_indices_and_backers)
 		{
@@ -915,56 +878,47 @@ impl<T: Config> Pallet<T> {
 
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria. Returns
 	/// false, if any of the messages doesn't pass.
-	// FAIL-CI: TODO update docs
 	pub(crate) fn check_upward_messages(
 		config: &HostConfiguration<T::BlockNumber>,
 		para: ParaId,
 		upward_messages: &[UpwardMessage],
 	) -> Result<(), UmpAcceptanceCheckErr> {
-		let additional_msgs = upward_messages.len();
-		if additional_msgs > config.max_upward_message_num_per_candidate as usize {
+		if upward_messages.len() as u32 > config.max_upward_message_num_per_candidate {
 			return Err(UmpAcceptanceCheckErr::MoreMessagesThanPermitted {
-				sent: additional_msgs as u32,
+				sent: upward_messages.len() as u32,
 				permitted: config.max_upward_message_num_per_candidate,
 			})
 		}
 
-		let fp = T::MessageQueue::footprint(MessageOrigin::ump(para));
-		let (para_queue_count, mut para_queue_size) = (fp.count, fp.size);
-
-		if para_queue_count
-			.checked_add(additional_msgs as u64)
-			.map(|want| want > config.max_upward_queue_count as u64)
-			.unwrap_or(true)
-		{
-			return Err(UmpAcceptanceCheckErr::CapacityExceeded {
-				count: para_queue_count.saturating_add(additional_msgs as u64),
-				limit: config.max_upward_queue_count as u64,
-			})
-		}
+		let fp = T::MessageQueue::footprint(para);
+		let (mut para_queue_count, mut para_queue_size) = (fp.count, fp.size);
 
 		for (idx, msg) in upward_messages.into_iter().enumerate() {
-			let msg_size = msg.len();
-			if msg_size > config.max_upward_message_size as usize {
+			let msg_size = msg.len() as u32;
+			if msg_size > config.max_upward_message_size {
 				return Err(UmpAcceptanceCheckErr::MessageSize {
 					idx: idx as u32,
-					msg_size: msg_size as u32,
+					msg_size,
 					max_size: config.max_upward_message_size,
 				})
 			}
-			// make sure that the queue is not overfilled.
-			// we do it here only once since returning false invalidates the whole relay-chain block.
-			if para_queue_size
-				.checked_add(msg_size as u64)
-				.map(|want| want > config.max_upward_queue_size as u64)
-				.unwrap_or(true)
-			{
-				return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {
-					total_size: para_queue_size.saturating_add(msg_size as u64),
-					limit: config.max_upward_queue_size as u64,
-				})
-			}
-			para_queue_size += msg_size as u64;
+			para_queue_count += 1;
+			para_queue_size += msg_size;
+		}
+
+		// make sure that the queue is not overfilled.
+		// we do it here only once since returning false invalidates the whole relay-chain block.
+		if para_queue_count > config.max_upward_queue_count {
+			return Err(UmpAcceptanceCheckErr::CapacityExceeded {
+				count: para_queue_count,
+				limit: config.max_upward_queue_count,
+			})
+		}
+		if para_queue_size > config.max_upward_queue_size {
+			return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {
+				total_size: para_queue_size,
+				limit: config.max_upward_queue_size,
+			})
 		}
 
 		Ok(())
@@ -976,15 +930,16 @@ impl<T: Config> Pallet<T> {
 		para: ParaId,
 		upward_messages: Vec<UpwardMessage>,
 	) -> Weight {
-		if upward_messages.is_empty() {
-			return Weight::zero()
+		if !upward_messages.is_empty() {
+			let count = upward_messages.len() as u32;
+			Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
+			let messages =
+				upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
+			T::MessageQueue::enqueue_messages(messages, para);
+			<T as Config>::WeightInfo::receive_upward_messages(count)
+		} else {
+			Weight::zero()
 		}
-
-		let count = upward_messages.len() as u32;
-		Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
-		let messages = upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
-		T::MessageQueue::enqueue_messages(messages, MessageOrigin::ump(para));
-		<T as Config>::WeightInfo::receive_upward_messages(count)
 	}
 
 	/// Cleans up all paras pending availability that the predicate returns true for.
@@ -1117,24 +1072,18 @@ impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 	}
 }
 
-impl<T: Config> OnQueueChanged<MessageOrigin> for Pallet<T> {
-	fn on_queue_changed(queue: MessageOrigin, count: u64, size: u64) {
-		match queue {
-			MessageOrigin { queue: SubQueue::UMP, para } => {
-				// TODO maybe migrate this to u64
-				let (count, size) = (count.saturated_into(), size.saturated_into());
-				// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
-				#[allow(deprecated)]
-				well_known_keys::relay_dispatch_queue_size_typed(para).set((count, size));
+impl<T: Config> OnQueueChanged<ParaId> for Pallet<T> {
+	fn on_queue_changed(para: ParaId, count: u32, size: u32) {
+		// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
+		#[allow(deprecated)]
+		let key = well_known_keys::relay_dispatch_queue_size(para);
+		(count, size).using_encoded(|d| sp_io::storage::set(&key, d));
 
-				let config = <configuration::Pallet<T>>::config();
-				let remaining_count = config.max_upward_queue_count.saturating_sub(count);
-				let remaining_size = config.max_upward_queue_size.saturating_sub(size);
-				well_known_keys::relay_dispatch_queue_remaining_capacity(para)
-					.set((remaining_count, remaining_size));
-			},
-			_ => todo!(),
-		}
+		let config = <configuration::Pallet<T>>::config();
+		let key = well_known_keys::relay_dispatch_queue_remaining_capacity(para);
+		let remaining_count = config.max_upward_queue_count.saturating_sub(count);
+		let remaining_size = config.max_upward_queue_size.saturating_sub(size);
+		(remaining_count, remaining_size).using_encoded(|d| sp_io::storage::set(&key, d));
 	}
 }
 
@@ -1173,13 +1122,12 @@ impl<T: Config> CandidateCheckContext<T> {
 		let relay_parent_number = now - One::one();
 
 		{
+			// this should never fail because the para is registered
 			let persisted_validation_data = match crate::util::make_persisted_validation_data::<T>(
 				para_id,
 				relay_parent_number,
 				parent_storage_root,
-			)
-			.defensive_proof("the para is registered")
-			{
+			) {
 				Some(l) => l,
 				None => return Ok(Err(FailedToCreatePVD)),
 			};
