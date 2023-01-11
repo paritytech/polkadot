@@ -11,5 +11,5 @@ generate-bags = { git = "https://github.com/paritytech/substrate", branch = "mas
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 westend-runtime = { path = "../../runtime/westend" }
-kusama-runtime = { path = "../../runtime/kusama" }
+kusama-runtime = { path = "../../runtime/kusama", package = "kusama-chain-runtime" }
 polkadot-runtime = { path = "../../runtime/polkadot" }

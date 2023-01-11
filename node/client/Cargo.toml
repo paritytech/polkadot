@@ -41,7 +41,7 @@ beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "
 
 # Polkadot Runtimes
 polkadot-runtime = { path = "../../runtime/polkadot", optional = true }
-kusama-runtime = { path = "../../runtime/kusama", optional = true }
+kusama-runtime = { path = "../../runtime/kusama", optional = true, package = "kusama-chain-runtime" }
 westend-runtime = { path = "../../runtime/westend", optional = true }
 rococo-runtime = { path = "../../runtime/rococo", optional = true }
 

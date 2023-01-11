@@ -7,7 +7,7 @@ edition.workspace = true
 
 [dependencies]
 polkadot-runtime = { path = "../../../runtime/polkadot" }
-kusama-runtime = { path = "../../../runtime/kusama" }
+kusama-runtime = { path = "../../../runtime/kusama", package = "kusama-chain-runtime" }
 westend-runtime = { path = "../../../runtime/westend" }
 polkadot-runtime-constants = { path = "../../../runtime/polkadot/constants" }
 kusama-runtime-constants = { path = "../../../runtime/kusama/constants" }

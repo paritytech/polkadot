@@ -1,5 +1,5 @@
 [package]
-name = "xcm-builder"
+name = "xcmsg-builder"
 description = "Tools & types for building with XCM and its executor."
 authors.workspace = true
 edition.workspace = true
@@ -8,8 +8,8 @@ version.workspace = true
 [dependencies]
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-xcm = { path = "..", default-features = false }
-xcm-executor = { path = "../xcm-executor", default-features = false }
+xcm = { path = "..", default-features = false, package = "xcmsg" }
+xcm-executor = { path = "../xcm-executor", default-features = false, package = "xcmsg-executor" }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

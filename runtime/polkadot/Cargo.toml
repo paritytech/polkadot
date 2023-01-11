@@ -89,9 +89,9 @@ runtime-common = { package = "polkadot-runtime-common", path = "../common", defa
 runtime-parachains = { package = "polkadot-runtime-parachains", path = "../parachains", default-features = false }
 primitives = { package = "polkadot-primitives", path = "../../primitives", default-features = false }
 
-xcm = { package = "xcm", path = "../../xcm", default-features = false }
-xcm-executor = { package = "xcm-executor", path = "../../xcm/xcm-executor", default-features = false }
-xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default-features = false }
+xcm = { path = "../../xcm", default-features = false, package = "xcmsg" }
+xcm-executor = { path = "../../xcm/xcm-executor", default-features = false, package = "xcmsg-executor" }
+xcm-builder = { path = "../../xcm/xcm-builder", default-features = false, package = "xcmsg-builder" }
 
 [dev-dependencies]
 hex-literal = "0.3.4"

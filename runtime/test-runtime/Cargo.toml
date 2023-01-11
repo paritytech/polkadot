@@ -59,9 +59,9 @@ primitives = { package = "polkadot-primitives", path = "../../primitives", defau
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 polkadot-parachain = { path = "../../parachain", default-features = false }
 polkadot-runtime-parachains = { path = "../parachains", default-features = false }
-xcm-builder = { path = "../../xcm/xcm-builder", default-features = false }
-xcm-executor = { path = "../../xcm/xcm-executor", default-features = false }
-xcm = { path = "../../xcm", default-features = false }
+xcm-builder = { path = "../../xcm/xcm-builder", default-features = false, package = "xcmsg-builder" }
+xcm-executor = { path = "../../xcm/xcm-executor", default-features = false, package = "xcmsg-executor" }
+xcm = { path = "../../xcm", default-features = false, package = "xcmsg" }
 
 [dev-dependencies]
 hex-literal = "0.3.4"

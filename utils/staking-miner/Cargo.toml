@@ -1,5 +1,5 @@
 [package]
-name = "staking-miner"
+name = "polkadot-staking-miner"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -36,7 +36,7 @@ core-primitives = { package = "polkadot-core-primitives", path = "../../core-pri
 
 runtime-common = { package = "polkadot-runtime-common", path = "../../runtime/common" }
 polkadot-runtime = { path = "../../runtime/polkadot" }
-kusama-runtime = { path = "../../runtime/kusama" }
+kusama-runtime = { path = "../../runtime/kusama", package = "kusama-chain-runtime" }
 westend-runtime = { path = "../../runtime/westend" }
 exitcode = "1.1"
 

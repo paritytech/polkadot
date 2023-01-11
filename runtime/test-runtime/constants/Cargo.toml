@@ -1,5 +1,5 @@
 [package]
-name = "test-runtime-constants"
+name = "polkadot-test-runtime-constants"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

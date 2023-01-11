@@ -17,14 +17,14 @@ sp-core = { git = "https://github.com/paritytech/substrate", default-features = 
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 
-xcm = { path = "..", default-features = false }
-xcm-executor = { path = "../xcm-executor", default-features = false }
+xcm = { path = "..", default-features = false, package = "xcmsg" }
+xcm-executor = { path = "../xcm-executor", default-features = false, package = "xcmsg-executor" }
 
 [dev-dependencies]
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-xcm-builder = { path = "../xcm-builder" }
+xcm-builder = { path = "../xcm-builder", package = "xcmsg-builder" }
 polkadot-parachain = { path = "../../parachain" }
 
 [features]
