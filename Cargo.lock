@@ -7499,47 +7499,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "polkadot-staking-miner"
-version = "0.9.33"
-dependencies = [
- "assert_cmd",
- "clap",
- "exitcode",
- "frame-election-provider-support",
- "frame-remote-externalities",
- "frame-support",
- "frame-system",
- "futures-util",
- "jsonrpsee",
- "kusama-chain-runtime",
- "log",
- "pallet-balances",
- "pallet-election-provider-multi-phase",
- "pallet-staking",
- "pallet-transaction-payment",
- "parity-scale-codec",
- "paste",
- "polkadot-core-primitives",
- "polkadot-runtime",
- "polkadot-runtime-common",
- "sc-transaction-pool-api",
- "serde",
- "serde_json",
- "signal-hook",
- "signal-hook-tokio",
- "sp-core",
- "sp-io",
- "sp-npos-elections",
- "sp-runtime",
- "sp-version",
- "sub-tokens",
- "thiserror",
- "tokio",
- "tracing-subscriber 0.3.11",
- "westend-runtime",
-]
-
-[[package]]
 name = "polkadot-statement-distribution"
 version = "0.9.33"
 dependencies = [
@@ -11020,6 +10979,47 @@ name = "stable_deref_trait"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a8f112729512f8e442d81f95a8a7ddf2b7c6b8a1a6f509a95864142b30cab2d3"
+
+[[package]]
+name = "staking-miner"
+version = "0.9.33"
+dependencies = [
+ "assert_cmd",
+ "clap",
+ "exitcode",
+ "frame-election-provider-support",
+ "frame-remote-externalities",
+ "frame-support",
+ "frame-system",
+ "futures-util",
+ "jsonrpsee",
+ "kusama-chain-runtime",
+ "log",
+ "pallet-balances",
+ "pallet-election-provider-multi-phase",
+ "pallet-staking",
+ "pallet-transaction-payment",
+ "parity-scale-codec",
+ "paste",
+ "polkadot-core-primitives",
+ "polkadot-runtime",
+ "polkadot-runtime-common",
+ "sc-transaction-pool-api",
+ "serde",
+ "serde_json",
+ "signal-hook",
+ "signal-hook-tokio",
+ "sp-core",
+ "sp-io",
+ "sp-npos-elections",
+ "sp-runtime",
+ "sp-version",
+ "sub-tokens",
+ "thiserror",
+ "tokio",
+ "tracing-subscriber 0.3.11",
+ "westend-runtime",
+]
 
 [[package]]
 name = "static_assertions"
