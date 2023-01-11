@@ -28,7 +28,11 @@ use crate::{
 	shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
-use frame_support::{pallet_prelude::*, traits::EnqueueMessage, BoundedSlice};
+use frame_support::{
+	pallet_prelude::*,
+	traits::{Defensive, EnqueueMessage},
+	BoundedSlice,
+};
 use pallet_message_queue::OnQueueChanged;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{
