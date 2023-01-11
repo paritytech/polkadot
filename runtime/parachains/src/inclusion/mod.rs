@@ -911,47 +911,56 @@ impl<T: Config> Pallet<T> {
 
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria. Returns
 	/// false, if any of the messages doesn't pass.
+	// FAIL-CI: TODO update docs
 	pub(crate) fn check_upward_messages(
 		config: &HostConfiguration<T::BlockNumber>,
 		para: ParaId,
 		upward_messages: &[UpwardMessage],
 	) -> Result<(), UmpAcceptanceCheckErr> {
-		if upward_messages.len() as u32 > config.max_upward_message_num_per_candidate {
+		let additional_msgs = upward_messages.len();
+		if additional_msgs > config.max_upward_message_num_per_candidate as usize {
 			return Err(UmpAcceptanceCheckErr::MoreMessagesThanPermitted {
-				sent: upward_messages.len() as u32,
+				sent: additional_msgs as u32,
 				permitted: config.max_upward_message_num_per_candidate,
 			})
 		}
 
-		let fp = T::MessageQueue::footprint(para);
-		let (mut para_queue_count, mut para_queue_size) = (fp.count, fp.size);
+		let fp = T::MessageQueue::footprint(MessageOrigin::ump(para));
+		let (para_queue_count, mut para_queue_size) = (fp.count, fp.size);
+
+		if para_queue_count
+			.checked_add(additional_msgs as u64)
+			.map(|want| want > config.max_upward_queue_count as u64)
+			.unwrap_or(true)
+		{
+			return Err(UmpAcceptanceCheckErr::CapacityExceeded {
+				count: para_queue_count.saturating_add(additional_msgs as u64),
+				limit: config.max_upward_queue_count as u64,
+			})
+		}
 
 		for (idx, msg) in upward_messages.into_iter().enumerate() {
-			let msg_size = msg.len() as u32;
-			if msg_size > config.max_upward_message_size {
+			let msg_size = msg.len();
+			if msg_size > config.max_upward_message_size as usize {
 				return Err(UmpAcceptanceCheckErr::MessageSize {
 					idx: idx as u32,
-					msg_size,
+					msg_size: msg_size as u32,
 					max_size: config.max_upward_message_size,
 				})
 			}
-			para_queue_count += 1;
-			para_queue_size += msg_size;
-		}
-
-		// make sure that the queue is not overfilled.
-		// we do it here only once since returning false invalidates the whole relay-chain block.
-		if para_queue_count > config.max_upward_queue_count {
-			return Err(UmpAcceptanceCheckErr::CapacityExceeded {
-				count: para_queue_count,
-				limit: config.max_upward_queue_count,
-			})
-		}
-		if para_queue_size > config.max_upward_queue_size {
-			return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {
-				total_size: para_queue_size,
-				limit: config.max_upward_queue_size,
-			})
+			// make sure that the queue is not overfilled.
+			// we do it here only once since returning false invalidates the whole relay-chain block.
+			if para_queue_size
+				.checked_add(msg_size as u64)
+				.map(|want| want > config.max_upward_queue_size as u64)
+				.unwrap_or(true)
+			{
+				return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {
+					total_size: para_queue_size.saturating_add(msg_size as u64),
+					limit: config.max_upward_queue_size as u64,
+				})
+			}
+			para_queue_size += msg_size as u64;
 		}
 
 		Ok(())
