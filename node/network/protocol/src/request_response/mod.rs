@@ -35,7 +35,7 @@
 use std::{collections::HashMap, time::Duration, u64};
 
 use futures::channel::mpsc;
-use polkadot_primitives::v2::{MAX_CODE_SIZE, MAX_POV_SIZE};
+use polkadot_primitives::{MAX_CODE_SIZE, MAX_POV_SIZE};
 use strum::{EnumIter, IntoEnumIterator};
 
 pub use sc_network::{config as network, config::RequestResponseConfig, ProtocolName};

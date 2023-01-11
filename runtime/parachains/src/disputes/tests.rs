@@ -27,7 +27,7 @@ use frame_support::{
 	assert_err, assert_noop, assert_ok,
 	traits::{OnFinalize, OnInitialize},
 };
-use primitives::v2::BlockNumber;
+use primitives::BlockNumber;
 use sp_core::{crypto::CryptoType, Pair};
 
 fn filter_dispute_set(stmts: MultiDisputeStatementSet) -> CheckedMultiDisputeStatementSet {
