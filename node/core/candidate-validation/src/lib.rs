@@ -627,7 +627,8 @@ trait ValidationBackend {
 			self.validate_candidate(pvf.clone(), timeout, params.encode()).await;
 
 		// If we get an AmbiguousWorkerDeath error, retry once after a brief delay, on the
-		// assumption that the conditions that caused this error may have been transient.
+		// assumption that the conditions that caused this error may have been transient. Note that
+		// this error is only a result of execution itself and not of preparation.
 		if let Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)) =
 			validation_result
 		{
@@ -676,12 +677,12 @@ impl ValidationBackend for ValidationHost {
 
 	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError> {
 		let (tx, rx) = oneshot::channel();
-		if let Err(_) = self.precheck_pvf(pvf, tx).await {
+		if let Err(err) = self.precheck_pvf(pvf, tx).await {
 			// Return an IO error if there was an error communicating with the host.
-			return Err(PrepareError::IoErr)
+			return Err(PrepareError::IoErr(err))
 		}
 
-		let precheck_result = rx.await.or(Err(PrepareError::IoErr))?;
+		let precheck_result = rx.await.map_err(|err| PrepareError::IoErr(err.to_string()))?;
 
 		precheck_result
 	}
