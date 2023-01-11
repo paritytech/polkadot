@@ -39,7 +39,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use pallet_babe::{self, ParentBlockRandomness};
-use primitives::v2::{
+use primitives::{
 	BackedCandidate, CandidateHash, CandidateReceipt, CheckedDisputeStatementSet,
 	CheckedMultiDisputeStatementSet, CoreIndex, DisputeStatementSet,
 	InherentData as ParachainsInherentData, MultiDisputeStatementSet, ScrapedOnChainVotes,
@@ -277,6 +277,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
+		#[pallet::call_index(0)]
 		#[pallet::weight((
 			paras_inherent_total_weight::<T>(
 				data.backed_candidates.as_slice(),
@@ -348,7 +349,6 @@ impl<T: Config> Pallet<T> {
 		let (checked_disputes, total_consumed_weight) = {
 			// Obtain config params..
 			let config = <configuration::Pallet<T>>::config();
-			let max_spam_slots = config.dispute_max_spam_slots;
 			let post_conclusion_acceptance_period =
 				config.dispute_post_conclusion_acceptance_period;
 
@@ -362,7 +362,6 @@ impl<T: Config> Pallet<T> {
 			let dispute_set_validity_check = move |set| {
 				T::DisputesHandler::filter_dispute_data(
 					set,
-					max_spam_slots,
 					post_conclusion_acceptance_period,
 					verify_dispute_sigs,
 				)
@@ -513,7 +512,7 @@ impl<T: Config> Pallet<T> {
 		METRICS.on_candidates_sanitized(backed_candidates.len() as u64);
 
 		// Process backed candidates according to scheduled cores.
-		let parent_storage_root = parent_header.state_root().clone();
+		let parent_storage_root = *parent_header.state_root();
 		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
 			core_indices: occupied,
 			candidate_receipt_with_backing_validator_indices,
@@ -590,7 +589,6 @@ impl<T: Config> Pallet<T> {
 		}
 
 		let config = <configuration::Pallet<T>>::config();
-		let max_spam_slots = config.dispute_max_spam_slots;
 		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
 		// TODO: Better if we can convert this to `with_transactional` and handle an error if
@@ -604,7 +602,6 @@ impl<T: Config> Pallet<T> {
 			let dispute_statement_set_valid = move |set: DisputeStatementSet| {
 				T::DisputesHandler::filter_dispute_data(
 					set,
-					max_spam_slots,
 					post_conclusion_acceptance_period,
 					// `DisputeCoordinator` on the node side only forwards
 					// valid dispute statement sets and hence this does not
@@ -707,7 +704,7 @@ impl<T: Config> Pallet<T> {
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
 
 			let relay_parent_number = now - One::one();
-			let parent_storage_root = parent_header.state_root().clone();
+			let parent_storage_root = *parent_header.state_root();
 
 			let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 			let backed_candidates = sanitize_backed_candidates::<T, _>(
@@ -1197,7 +1194,7 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	// known 2 epochs ago. it is marginally better than using the parent block
 	// hash since it's harder to influence the VRF output than the block hash.
 	let vrf_random = ParentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
-	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT.clone();
+	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT;
 	if let Some(vrf_random) = vrf_random {
 		entropy.as_mut().copy_from_slice(vrf_random.as_ref());
 	} else {

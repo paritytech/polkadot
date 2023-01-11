@@ -24,7 +24,6 @@ use crate::{
 	worker_common::{IdleWorker, WorkerHandle},
 	InvalidCandidate, ValidationError, LOG_TARGET,
 };
-use async_std::path::PathBuf;
 use futures::{
 	channel::mpsc,
 	future::BoxFuture,
@@ -32,7 +31,7 @@ use futures::{
 	Future, FutureExt,
 };
 use slotmap::HopSlotMap;
-use std::{collections::VecDeque, fmt, time::Duration};
+use std::{collections::VecDeque, fmt, path::PathBuf, time::Duration};
 
 slotmap::new_key_type! { struct Worker; }
 
@@ -225,9 +224,8 @@ fn handle_job_finish(
 	result_tx: ResultSender,
 ) {
 	let (idle_worker, result) = match outcome {
-		Outcome::Ok { result_descriptor, duration_ms, idle_worker } => {
+		Outcome::Ok { result_descriptor, duration: _, idle_worker } => {
 			// TODO: propagate the soft timeout
-			drop(duration_ms);
 
 			(Some(idle_worker), Ok(result_descriptor))
 		},

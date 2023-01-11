@@ -541,7 +541,7 @@ pub fn run() -> Result<()> {
 					ensure_dev(chain_spec).map_err(Error::Other)?;
 					runner.sync_run(|mut config| {
 						let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
-						let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
+						let header = client.header(client.info().genesis_hash).unwrap().unwrap();
 						let inherent_data = benchmark_inherent_data(header)
 							.map_err(|e| format!("generating inherent data: {:?}", e))?;
 						let remark_builder = RemarkBuilder::new(client.clone());
@@ -591,27 +591,27 @@ pub fn run() -> Result<()> {
 
 					#[cfg(feature = "kusama-native")]
 					if chain_spec.is_kusama() {
-						return Ok(runner.sync_run(|config| {
+						return runner.sync_run(|config| {
 							cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(config)
 								.map_err(|e| Error::SubstrateCli(e))
-						})?)
+						})
 					}
 
 					#[cfg(feature = "westend-native")]
 					if chain_spec.is_westend() {
-						return Ok(runner.sync_run(|config| {
+						return runner.sync_run(|config| {
 							cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(config)
 								.map_err(|e| Error::SubstrateCli(e))
-						})?)
+						})
 					}
 
 					// else we assume it is polkadot.
 					#[cfg(feature = "polkadot-native")]
 					{
-						return Ok(runner.sync_run(|config| {
+						return runner.sync_run(|config| {
 							cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(config)
 								.map_err(|e| Error::SubstrateCli(e))
-						})?)
+						})
 					}
 
 					#[cfg(not(feature = "polkadot-native"))]
@@ -638,9 +638,14 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
 		Some(Subcommand::TryRuntime(cmd)) => {
+			use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
 			set_default_ss58_version(chain_spec);
+			type HostFunctionsOf<E> = ExtendedHostFunctions<
+				sp_io::SubstrateHostFunctions,
+				<E as NativeExecutionDispatch>::ExtendHostFunctions,
+			>;
 
 			use sc_service::TaskManager;
 			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
@@ -651,10 +656,9 @@ pub fn run() -> Result<()> {
 
 			#[cfg(feature = "kusama-native")]
 			if chain_spec.is_kusama() {
-				return runner.async_run(|config| {
+				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(
-							config,
+						cmd.run::<service::kusama_runtime::Block, HostFunctionsOf<service::KusamaExecutorDispatch>>(
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -664,10 +668,9 @@ pub fn run() -> Result<()> {
 
 			#[cfg(feature = "westend-native")]
 			if chain_spec.is_westend() {
-				return runner.async_run(|config| {
+				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(
-							config,
+						cmd.run::<service::westend_runtime::Block, HostFunctionsOf<service::WestendExecutorDispatch>>(
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -677,10 +680,9 @@ pub fn run() -> Result<()> {
 			// else we assume it is polkadot.
 			#[cfg(feature = "polkadot-native")]
 			{
-				return runner.async_run(|config| {
+				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
-							config,
+						cmd.run::<service::polkadot_runtime::Block, HostFunctionsOf<service::PolkadotExecutorDispatch>>(
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,

@@ -29,13 +29,16 @@ use parity_scale_codec::Encode;
 use polkadot_node_primitives::{AvailableData, BlockData, InvalidCandidate, PoV};
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest},
+	messages::{
+		AllMessages, ChainApiMessage, DisputeCoordinatorMessage, RuntimeApiMessage,
+		RuntimeApiRequest,
+	},
 	ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SpawnGlue,
 };
 use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, TestSubsystemContext, TestSubsystemContextHandle,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlakeTwo256, CandidateCommitments, HashT, Header, PersistedValidationData, ValidationCode,
 };
 
@@ -221,9 +224,9 @@ fn same_req_wont_get_queued_if_participation_is_already_running() {
 
 #[test]
 fn reqs_get_queued_when_out_of_capacity() {
-	futures::executor::block_on(async {
-		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
+	let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
 
+	let test = async {
 		let (sender, mut worker_receiver) = mpsc::channel(1);
 		let mut participation = Participation::new(sender);
 		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
@@ -239,43 +242,81 @@ fn reqs_get_queued_when_out_of_capacity() {
 		}
 
 		for _ in 0..MAX_PARALLEL_PARTICIPATIONS + 1 {
-			assert_matches!(
-				ctx_handle.recv().await,
-				AllMessages::AvailabilityRecovery(
-					AvailabilityRecoveryMessage::RecoverAvailableData(_, _, _, tx)
-				) => {
-					tx.send(Err(RecoveryError::Unavailable)).unwrap();
-				},
-				"overseer did not receive recover available data message",
-			);
-
 			let result = participation
 				.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
 				.await
 				.unwrap();
-
 			assert_matches!(
 				result.outcome,
 				ParticipationOutcome::Unavailable => {}
 			);
 		}
-
-		// we should not have any further results nor recovery requests:
-		assert_matches!(ctx_handle.recv().timeout(Duration::from_millis(10)).await, None);
+		// we should not have any further recovery requests:
 		assert_matches!(worker_receiver.next().timeout(Duration::from_millis(10)).await, None);
-	})
+	};
+
+	let request_handler = async {
+		let mut recover_available_data_msg_count = 0;
+		let mut block_number_msg_count = 0;
+
+		while recover_available_data_msg_count < MAX_PARALLEL_PARTICIPATIONS + 1 ||
+			block_number_msg_count < 1
+		{
+			match ctx_handle.recv().await {
+				AllMessages::AvailabilityRecovery(
+					AvailabilityRecoveryMessage::RecoverAvailableData(_, _, _, tx),
+				) => {
+					tx.send(Err(RecoveryError::Unavailable)).unwrap();
+					recover_available_data_msg_count += 1;
+				},
+				AllMessages::ChainApi(ChainApiMessage::BlockNumber(_, tx)) => {
+					tx.send(Ok(None)).unwrap();
+					block_number_msg_count += 1;
+				},
+				_ => assert!(false, "Received unexpected message"),
+			}
+		}
+
+		// we should not have any further results
+		assert_matches!(ctx_handle.recv().timeout(Duration::from_millis(10)).await, None);
+	};
+
+	futures::executor::block_on(async {
+		futures::join!(test, request_handler);
+	});
 }
 
 #[test]
 fn reqs_get_queued_on_no_recent_block() {
-	futures::executor::block_on(async {
-		let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
-
+	let (mut ctx, mut ctx_handle) = make_our_subsystem_context(TaskExecutor::new());
+	let (mut unblock_test, mut wait_for_verification) = mpsc::channel(0);
+	let test = async {
 		let (sender, _worker_receiver) = mpsc::channel(1);
 		let mut participation = Participation::new(sender);
 		participate(&mut ctx, &mut participation).await.unwrap();
-		assert!(ctx_handle.recv().timeout(Duration::from_millis(10)).await.is_none());
+
+		// We have initiated participation but we'll block `active_leaf` so that we can check that
+		// the participation is queued in race-free way
+		let _ = wait_for_verification.next().await.unwrap();
+
 		activate_leaf(&mut ctx, &mut participation, 10).await.unwrap();
+	};
+
+	// Responds to messages from the test and verifies its behaviour
+	let request_handler = async {
+		// If we receive `BlockNumber` request this implicitly proves that the participation is queued
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::ChainApi(ChainApiMessage::BlockNumber(_, tx)) => {
+				tx.send(Ok(None)).unwrap();
+			},
+			"overseer did not receive `ChainApiMessage::BlockNumber` message",
+		);
+
+		assert!(ctx_handle.recv().timeout(Duration::from_millis(10)).await.is_none());
+
+		// No activity so the participation is queued => unblock the test
+		unblock_test.send(()).await.unwrap();
 
 		// after activating at least one leaf the recent block
 		// state should be available which should lead to trying
@@ -288,7 +329,11 @@ fn reqs_get_queued_on_no_recent_block() {
 			)),
 			"overseer did not receive recover available data message",
 		);
-	})
+	};
+
+	futures::executor::block_on(async {
+		futures::join!(test, request_handler);
+	});
 }
 
 #[test]

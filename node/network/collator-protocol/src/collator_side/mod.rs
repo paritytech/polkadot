@@ -47,7 +47,7 @@ use polkadot_node_subsystem_util::{
 	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
 	TimeoutExt,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState,
 	GroupIndex, Hash, Id as ParaId, SessionIndex,
 };
@@ -561,7 +561,7 @@ async fn advertise_collation<Context>(
 	let wire_message = protocol_v1::CollatorProtocolMessage::AdvertiseCollation(relay_parent);
 
 	ctx.send_message(NetworkBridgeTxMessage::SendCollationMessage(
-		vec![peer.clone()],
+		vec![peer],
 		Versioned::V1(protocol_v1::CollationProtocol::CollatorProtocol(wire_message)),
 	))
 	.await;
@@ -707,11 +707,8 @@ async fn handle_incoming_peer_message<Context>(
 				"AdvertiseCollation message is not expected on the collator side of the protocol",
 			);
 
-			ctx.send_message(NetworkBridgeTxMessage::ReportPeer(
-				origin.clone(),
-				COST_UNEXPECTED_MESSAGE,
-			))
-			.await;
+			ctx.send_message(NetworkBridgeTxMessage::ReportPeer(origin, COST_UNEXPECTED_MESSAGE))
+				.await;
 
 			// If we are advertised to, this is another collator, and we should disconnect.
 			ctx.send_message(NetworkBridgeTxMessage::DisconnectPeer(origin, PeerSet::Collation))
@@ -838,14 +835,14 @@ async fn handle_peer_view_change<Context>(
 	peer_id: PeerId,
 	view: View,
 ) {
-	let current = state.peer_views.entry(peer_id.clone()).or_default();
+	let current = state.peer_views.entry(peer_id).or_default();
 
 	let added: Vec<Hash> = view.difference(&*current).cloned().collect();
 
 	*current = view;
 
 	for added in added.into_iter() {
-		advertise_collation(ctx, state, added, peer_id.clone()).await;
+		advertise_collation(ctx, state, added, peer_id).await;
 	}
 }
 

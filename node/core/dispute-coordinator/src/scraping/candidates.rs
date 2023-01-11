@@ -1,4 +1,4 @@
-use polkadot_primitives::v2::{BlockNumber, CandidateHash};
+use polkadot_primitives::{BlockNumber, CandidateHash};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Keeps `CandidateHash` in reference counted way.
@@ -44,7 +44,7 @@ impl RefCountedCandidates {
 #[cfg(test)]
 mod ref_counted_candidates_tests {
 	use super::*;
-	use polkadot_primitives::v2::{BlakeTwo256, HashT};
+	use polkadot_primitives::{BlakeTwo256, HashT};
 
 	#[test]
 	fn element_is_removed_when_refcount_reaches_zero() {
@@ -131,7 +131,7 @@ impl ScrapedCandidates {
 #[cfg(test)]
 mod scraped_candidates_tests {
 	use super::*;
-	use polkadot_primitives::v2::{BlakeTwo256, HashT};
+	use polkadot_primitives::{BlakeTwo256, HashT};
 
 	#[test]
 	fn stale_candidates_are_removed() {

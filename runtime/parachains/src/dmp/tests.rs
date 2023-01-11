@@ -18,7 +18,7 @@ use super::*;
 use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System};
 use hex_literal::hex;
 use parity_scale_codec::Encode;
-use primitives::v2::BlockNumber;
+use primitives::BlockNumber;
 
 pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 	while System::block_number() < to {
@@ -184,7 +184,7 @@ fn queue_downward_message_critical() {
 #[test]
 fn verify_dmq_mqc_head_is_externally_accessible() {
 	use hex_literal::hex;
-	use primitives::v2::well_known_keys;
+	use primitives::well_known_keys;
 
 	let a = ParaId::from(2020);
 
