@@ -348,11 +348,16 @@ enum AcceptanceCheckErr<BlockNumber> {
 
 /// An error returned by [`check_upward_messages`] that indicates a violation of one of acceptance
 /// criteria rules.
+#[cfg_attr(test, derive(PartialEq))]
 pub enum UmpAcceptanceCheckErr {
+	/// The maximal number of messages that can be submitted in one batch was exceeded.
 	MoreMessagesThanPermitted { sent: u32, permitted: u32 },
+	/// The maximal size of a single message was exceeded.
 	MessageSize { idx: u32, msg_size: u32, max_size: u32 },
-	CapacityExceeded { count: u32, limit: u32 },
-	TotalSizeExceeded { total_size: u32, limit: u32 },
+	/// The allowed number of messages in the queue was exceeded.
+	CapacityExceeded { count: u64, limit: u64 },
+	/// The allowed combined message size in the queue was exceeded.
+	TotalSizeExceeded { total_size: u64, limit: u64 },
 }
 
 impl fmt::Debug for UmpAcceptanceCheckErr {
