@@ -1465,7 +1465,8 @@ mod tests {
 			execute::ToQueue::Enqueue { result_tx, .. } => result_tx
 		);
 
-		// Send an error for the execution here, just so the result receiver gets something.
+		// Send an error for the execution here, just so we can check the result receiver is still
+		// alive.
 		result_tx_3
 			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
 			.unwrap();
