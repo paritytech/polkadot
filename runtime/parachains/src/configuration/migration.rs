@@ -16,7 +16,7 @@
 
 //! A module that is responsible for migration of storage.
 
-use crate::configuration::{self, Config, Pallet, Store, MAX_POV_SIZE};
+use crate::configuration::{self, Config, Pallet, Store};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
 
@@ -31,7 +31,7 @@ pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
 
 pub mod v5 {
 	use super::*;
-	use frame_support::{traits::OnRuntimeUpgrade, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
+	use frame_support::traits::OnRuntimeUpgrade;
 	use primitives::v2::{Balance, SessionIndex};
 	#[cfg(feature = "try-runtime")]
 	use sp_std::prelude::*;
@@ -172,14 +172,14 @@ pub mod v5 {
 	}
 }
 
-fn migrate_to_v4<T: Config>() -> Weight {
+fn migrate_to_v5<T: Config>() -> Weight {
 	// Unusual formatting is justified:
 	// - make it easier to verify that fields assign what they supposed to assign.
 	// - this code is transient and will be removed after all migrations are done.
 	// - this code is important enough to optimize for legibility sacrificing consistency.
 	#[rustfmt::skip]
 	let translate =
-		|pre: v4::OldHostConfiguration<BlockNumberFor<T>>| ->
+		|pre: v5::OldHostConfiguration<BlockNumberFor<T>>| ->
 configuration::HostConfiguration<BlockNumberFor<T>>
 	{
 		super::HostConfiguration {
@@ -194,7 +194,6 @@ validation_upgrade_cooldown              : pre.validation_upgrade_cooldown,
 validation_upgrade_delay                 : pre.validation_upgrade_delay,
 max_pov_size                             : pre.max_pov_size,
 max_downward_message_size                : pre.max_downward_message_size,
-ump_service_total_weight                 : pre.ump_service_total_weight,
 hrmp_max_parachain_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
 hrmp_max_parathread_outbound_channels    : pre.hrmp_max_parathread_outbound_channels,
 hrmp_sender_deposit                      : pre.hrmp_sender_deposit,
@@ -221,7 +220,6 @@ n_delay_tranches                         : pre.n_delay_tranches,
 zeroth_delay_tranche_width               : pre.zeroth_delay_tranche_width,
 needed_approvals                         : pre.needed_approvals,
 relay_vrf_modulo_samples                 : pre.relay_vrf_modulo_samples,
-ump_max_individual_weight                : pre.ump_max_individual_weight,
 pvf_checking_enabled                     : pre.pvf_checking_enabled,
 pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
@@ -236,7 +234,7 @@ minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 		// to be unlikely to be caused by this. So we just log. Maybe it'll work out still?
 		log::error!(
 			target: configuration::LOG_TARGET,
-			"unexpected error when performing translation of the configuration type during storage upgrade to v4."
+			"unexpected error when performing translation of the configuration type during storage upgrade to v5."
 		);
 	}
 
@@ -275,17 +273,17 @@ mod tests {
 
 		// We check only a sample of the values here. If we missed any fields or messed up data types
 		// that would skew all the fields coming after.
-		assert_eq!(v3.max_code_size, 10_485_760);
-		assert_eq!(v3.validation_upgrade_cooldown, 3600);
-		assert_eq!(v3.max_pov_size, 5_242_880);
-		assert_eq!(v3.hrmp_channel_max_message_size, 102_400);
-		assert_eq!(v3.n_delay_tranches, 89);
-		assert_eq!(v3.ump_max_individual_weight, Weight::zero());
-		assert_eq!(v3.minimum_validation_upgrade_delay, 20);
+		assert_eq!(v4.max_code_size, 10_485_760);
+		assert_eq!(v4.validation_upgrade_cooldown, 3600);
+		assert_eq!(v4.max_pov_size, 5_242_880);
+		assert_eq!(v4.hrmp_channel_max_message_size, 102_400);
+		assert_eq!(v4.n_delay_tranches, 89);
+		assert_eq!(v4.ump_max_individual_weight, Weight::zero());
+		assert_eq!(v4.minimum_validation_upgrade_delay, 20);
 	}
 
 	#[test]
-	fn test_migrate_to_v4() {
+	fn test_migrate_to_v5() {
 		// Host configuration has lots of fields. However, in this migration we add only a couple of
 		// fields. The most important part to check are a couple of the last fields. We also pick
 		// extra fields to check arbitrarily, e.g. depending on their position (i.e. the middle) and
@@ -306,58 +304,58 @@ mod tests {
 		};
 
 		new_test_ext(Default::default()).execute_with(|| {
-			// Implant the v3 version in the state.
+			// Implant the v4 version in the state.
 			frame_support::storage::unhashed::put_raw(
 				&configuration::ActiveConfig::<Test>::hashed_key(),
-				&v3.encode(),
+				&v4.encode(),
 			);
 
-			migrate_to_v4::<Test>();
+			migrate_to_v5::<Test>();
 
-			let v4 = configuration::ActiveConfig::<Test>::get();
+			let v5 = configuration::ActiveConfig::<Test>::get();
 
 			#[rustfmt::skip]
 			{
-				assert_eq!(v3.max_code_size                            , v4.max_code_size);
-				assert_eq!(v3.max_head_data_size                       , v4.max_head_data_size);
-				assert_eq!(v3.max_upward_queue_count                   , v4.max_upward_queue_count);
-				assert_eq!(v3.max_upward_queue_size                    , v4.max_upward_queue_size);
-				assert_eq!(v3.max_upward_message_size                  , v4.max_upward_message_size);
-				assert_eq!(v3.max_upward_message_num_per_candidate     , v4.max_upward_message_num_per_candidate);
-				assert_eq!(v3.hrmp_max_message_num_per_candidate       , v4.hrmp_max_message_num_per_candidate);
-				assert_eq!(v3.validation_upgrade_cooldown              , v4.validation_upgrade_cooldown);
-				assert_eq!(v3.validation_upgrade_delay                 , v4.validation_upgrade_delay);
-				assert_eq!(v3.max_pov_size                             , v4.max_pov_size);
-				assert_eq!(v3.max_downward_message_size                , v4.max_downward_message_size);
-				assert_eq!(v3.hrmp_max_parachain_outbound_channels     , v4.hrmp_max_parachain_outbound_channels);
-				assert_eq!(v3.hrmp_max_parathread_outbound_channels    , v4.hrmp_max_parathread_outbound_channels);
-				assert_eq!(v3.hrmp_sender_deposit                      , v4.hrmp_sender_deposit);
-				assert_eq!(v3.hrmp_recipient_deposit                   , v4.hrmp_recipient_deposit);
-				assert_eq!(v3.hrmp_channel_max_capacity                , v4.hrmp_channel_max_capacity);
-				assert_eq!(v3.hrmp_channel_max_total_size              , v4.hrmp_channel_max_total_size);
-				assert_eq!(v3.hrmp_max_parachain_inbound_channels      , v4.hrmp_max_parachain_inbound_channels);
-				assert_eq!(v3.hrmp_max_parathread_inbound_channels     , v4.hrmp_max_parathread_inbound_channels);
-				assert_eq!(v3.hrmp_channel_max_message_size            , v4.hrmp_channel_max_message_size);
-				assert_eq!(v3.code_retention_period                    , v4.code_retention_period);
-				assert_eq!(v3.parathread_cores                         , v4.parathread_cores);
-				assert_eq!(v3.parathread_retries                       , v4.parathread_retries);
-				assert_eq!(v3.group_rotation_frequency                 , v4.group_rotation_frequency);
-				assert_eq!(v3.chain_availability_period                , v4.chain_availability_period);
-				assert_eq!(v3.thread_availability_period               , v4.thread_availability_period);
-				assert_eq!(v3.scheduling_lookahead                     , v4.scheduling_lookahead);
-				assert_eq!(v3.max_validators_per_core                  , v4.max_validators_per_core);
-				assert_eq!(v3.max_validators                           , v4.max_validators);
-				assert_eq!(v3.dispute_period                           , v4.dispute_period);
-				assert_eq!(v3.dispute_post_conclusion_acceptance_period, v4.dispute_post_conclusion_acceptance_period);
-				assert_eq!(v3.dispute_conclusion_by_time_out_period    , v4.dispute_conclusion_by_time_out_period);
-				assert_eq!(v3.no_show_slots                            , v4.no_show_slots);
-				assert_eq!(v3.n_delay_tranches                         , v4.n_delay_tranches);
-				assert_eq!(v3.zeroth_delay_tranche_width               , v4.zeroth_delay_tranche_width);
-				assert_eq!(v3.needed_approvals                         , v4.needed_approvals);
-				assert_eq!(v3.relay_vrf_modulo_samples                 , v4.relay_vrf_modulo_samples);
-				assert_eq!(v3.pvf_checking_enabled                     , v4.pvf_checking_enabled);
-				assert_eq!(v3.pvf_voting_ttl                           , v4.pvf_voting_ttl);
-				assert_eq!(v3.minimum_validation_upgrade_delay         , v4.minimum_validation_upgrade_delay);
+				assert_eq!(v4.max_code_size                            , v5.max_code_size);
+				assert_eq!(v4.max_head_data_size                       , v5.max_head_data_size);
+				assert_eq!(v4.max_upward_queue_count                   , v5.max_upward_queue_count);
+				assert_eq!(v4.max_upward_queue_size                    , v5.max_upward_queue_size);
+				assert_eq!(v4.max_upward_message_size                  , v5.max_upward_message_size);
+				assert_eq!(v4.max_upward_message_num_per_candidate     , v5.max_upward_message_num_per_candidate);
+				assert_eq!(v4.hrmp_max_message_num_per_candidate       , v5.hrmp_max_message_num_per_candidate);
+				assert_eq!(v4.validation_upgrade_cooldown              , v5.validation_upgrade_cooldown);
+				assert_eq!(v4.validation_upgrade_delay                 , v5.validation_upgrade_delay);
+				assert_eq!(v4.max_pov_size                             , v5.max_pov_size);
+				assert_eq!(v4.max_downward_message_size                , v5.max_downward_message_size);
+				assert_eq!(v4.hrmp_max_parachain_outbound_channels     , v5.hrmp_max_parachain_outbound_channels);
+				assert_eq!(v4.hrmp_max_parathread_outbound_channels    , v5.hrmp_max_parathread_outbound_channels);
+				assert_eq!(v4.hrmp_sender_deposit                      , v5.hrmp_sender_deposit);
+				assert_eq!(v4.hrmp_recipient_deposit                   , v5.hrmp_recipient_deposit);
+				assert_eq!(v4.hrmp_channel_max_capacity                , v5.hrmp_channel_max_capacity);
+				assert_eq!(v4.hrmp_channel_max_total_size              , v5.hrmp_channel_max_total_size);
+				assert_eq!(v4.hrmp_max_parachain_inbound_channels      , v5.hrmp_max_parachain_inbound_channels);
+				assert_eq!(v4.hrmp_max_parathread_inbound_channels     , v5.hrmp_max_parathread_inbound_channels);
+				assert_eq!(v4.hrmp_channel_max_message_size            , v5.hrmp_channel_max_message_size);
+				assert_eq!(v4.code_retention_period                    , v5.code_retention_period);
+				assert_eq!(v4.parathread_cores                         , v5.parathread_cores);
+				assert_eq!(v4.parathread_retries                       , v5.parathread_retries);
+				assert_eq!(v4.group_rotation_frequency                 , v5.group_rotation_frequency);
+				assert_eq!(v4.chain_availability_period                , v5.chain_availability_period);
+				assert_eq!(v4.thread_availability_period               , v5.thread_availability_period);
+				assert_eq!(v4.scheduling_lookahead                     , v5.scheduling_lookahead);
+				assert_eq!(v4.max_validators_per_core                  , v5.max_validators_per_core);
+				assert_eq!(v4.max_validators                           , v5.max_validators);
+				assert_eq!(v4.dispute_period                           , v5.dispute_period);
+				assert_eq!(v4.dispute_post_conclusion_acceptance_period, v5.dispute_post_conclusion_acceptance_period);
+				assert_eq!(v4.dispute_conclusion_by_time_out_period    , v5.dispute_conclusion_by_time_out_period);
+				assert_eq!(v4.no_show_slots                            , v5.no_show_slots);
+				assert_eq!(v4.n_delay_tranches                         , v5.n_delay_tranches);
+				assert_eq!(v4.zeroth_delay_tranche_width               , v5.zeroth_delay_tranche_width);
+				assert_eq!(v4.needed_approvals                         , v5.needed_approvals);
+				assert_eq!(v4.relay_vrf_modulo_samples                 , v5.relay_vrf_modulo_samples);
+				assert_eq!(v4.pvf_checking_enabled                     , v5.pvf_checking_enabled);
+				assert_eq!(v4.pvf_voting_ttl                           , v5.pvf_voting_ttl);
+				assert_eq!(v4.minimum_validation_upgrade_delay         , v5.minimum_validation_upgrade_delay);
 			}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
 		});
 	}
