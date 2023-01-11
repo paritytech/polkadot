@@ -27,14 +27,15 @@ use sp_std::{fmt::Debug, marker::PhantomData};
 use sp_weights::Weight;
 use xcm::prelude::*;
 
-pub struct ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>(
-	PhantomData<(MessageOrigin, XcmExecutor, Call)>,
+pub struct ProcessXcmMessage<MessageOrigin, XcmExecutor, Call, MessageToDispatchOrigin>(
+	PhantomData<(MessageOrigin, XcmExecutor, Call, MessageToDispatchOrigin)>,
 );
 impl<
-		MessageOrigin: Into<MultiLocation> + FullCodec + MaxEncodedLen + Clone + Eq + PartialEq + TypeInfo + Debug,
+		MessageOrigin: FullCodec + MaxEncodedLen + Clone + Eq + PartialEq + TypeInfo + Debug,
 		XcmExecutor: ExecuteXcm<Call>,
 		Call,
-	> ProcessMessage for ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>
+		MessageToDispatchOrigin: sp_runtime::traits::Convert<MessageOrigin, Junction>,
+	> ProcessMessage for ProcessXcmMessage<MessageOrigin, XcmExecutor, Call, MessageToDispatchOrigin>
 {
 	type Origin = MessageOrigin;
 
