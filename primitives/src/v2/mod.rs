@@ -1727,8 +1727,8 @@ impl<T> AsRef<[u8]> for WellKnownKey<T> {
 impl<T: Decode> WellKnownKey<T> {
 	/// Gets the value or `None` if it does not exist or decoding failed.
 	pub fn get(&self) -> Option<T> {
-		sp_io::storage::get(&self.key).and_then(|raw| 
-			parity_scale_codec::DecodeAll::decode_all(&mut raw.as_ref()).ok())
+		sp_io::storage::get(&self.key)
+			.and_then(|raw| parity_scale_codec::DecodeAll::decode_all(&mut raw.as_ref()).ok())
 	}
 }
 
