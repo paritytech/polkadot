@@ -1025,7 +1025,6 @@ fn check_depth_query() {
 			candidate_hash_a,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
-			// TODO: When would these be different?
 			leaf_a.hash,
 			leaf_a.hash,
 			vec![0],
