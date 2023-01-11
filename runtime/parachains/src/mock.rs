@@ -17,8 +17,9 @@
 //! Mocks for all the traits.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
-	scheduler, session_info, shared, ParaId,
+	configuration, disputes, dmp, hrmp,
+	inclusion::{self, MessageOrigin, SubQueue},
+	initializer, origin, paras, paras_inherent, scheduler, session_info, shared, ParaId,
 };
 
 use frame_support::{
@@ -279,42 +280,47 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 
 impl crate::scheduler::Config for Test {}
 
-pub struct TestWeightInfo;
-impl pallet_message_queue::WeightInfo for TestWeightInfo {
-	fn service_page_base() -> Weight {
-		Weight::zero()
-	}
-	fn service_queue_base() -> Weight {
-		Weight::zero()
-	}
-	fn service_page_process_message() -> Weight {
-		Weight::zero()
-	}
-	fn bump_service_head() -> Weight {
-		Weight::zero()
-	}
-	fn service_page_item() -> Weight {
+pub struct TestMessageQueueWeight;
+impl pallet_message_queue::WeightInfo for TestMessageQueueWeight {
+	fn ready_ring_knit() -> Weight {
 		Weight::zero()
 	}
 	fn ready_ring_unknit() -> Weight {
 		Weight::zero()
 	}
+	fn service_queue_base() -> Weight {
+		Weight::zero()
+	}
+	fn service_page_base_completion() -> Weight {
+		Weight::zero()
+	}
+	fn service_page_base_no_completion() -> Weight {
+		Weight::zero()
+	}
+	fn service_page_item() -> Weight {
+		Weight::zero()
+	}
+	fn bump_service_head() -> Weight {
+		Weight::zero()
+	}
 	fn reap_page() -> Weight {
 		Weight::zero()
 	}
-	fn execute_overweight() -> Weight {
+	fn execute_overweight_page_removed() -> Weight {
 		Weight::zero()
 	}
-	fn process_message_payload(_: u32) -> Weight {
+	fn execute_overweight_page_updated() -> Weight {
 		Weight::zero()
 	}
 }
 
+pub type MessageQueueSize = u32;
+
 impl pallet_message_queue::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
-	type WeightInfo = TestWeightInfo;
+	type WeightInfo = TestMessageQueueWeight;
 	type MessageProcessor = TestProcessMessage;
-	type Size = u32;
+	type Size = MessageQueueSize;
 	type QueueChangeHandler = ParaInclusion;
 	type HeapSize = ConstU32<65536>;
 	type MaxStale = ConstU32<8>;
@@ -403,13 +409,8 @@ pub fn availability_rewards() -> HashMap<ValidatorIndex, usize> {
 	AVAILABILITY_REWARDS.with(|r| r.borrow().clone())
 }
 
-std::thread_local! {
-	static PROCESSED: RefCell<Vec<(ParaId, UpwardMessage)>> = RefCell::new(vec![]);
-}
-
-/// Return which messages have been processed by `process_upward_message` and clear the buffer.
-pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
-	PROCESSED.with(|opt_hook| std::mem::take(&mut *opt_hook.borrow_mut()))
+parameter_types! {
+	pub static Processed: Vec<(ParaId, UpwardMessage)> = vec![];
 }
 
 /// An implementation of a UMP sink that just records which messages were processed.
@@ -418,23 +419,24 @@ pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
 /// `u32`.
 pub struct TestProcessMessage;
 impl ProcessMessage for TestProcessMessage {
-	type Origin = ParaId;
+	type Origin = MessageOrigin;
 	fn process_message(
 		message: &[u8],
-		origin: ParaId,
+		origin: MessageOrigin,
 		weight_limit: Weight,
 	) -> Result<(bool, Weight), ProcessMessageError> {
 		let weight = match u32::decode(&mut &message[..]) {
 			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Err(ProcessMessageError::Corrupt), // same as the real `ProcessMessage`
 		};
+		debug_assert!(origin.queue == SubQueue::UMP);
 		if weight.any_gt(weight_limit) {
 			return Err(ProcessMessageError::Overweight(weight))
 		}
 
-		PROCESSED.with(|opt_hook| {
-			opt_hook.borrow_mut().push((origin, message.to_owned()));
-		});
+		let mut processed = Processed::get();
+		processed.push((origin.para, message.to_vec()));
+		Processed::set(processed);
 		Ok((true, weight))
 	}
 }
