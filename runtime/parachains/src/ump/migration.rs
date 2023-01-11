@@ -33,6 +33,7 @@ pub mod v1 {
 				let mut weight = T::DbWeight::get().reads(1);
 
 				let overweight_messages = Overweight::<T>::initialize_counter() as u64;
+				log::info!("Initialized Overweight to {}", overweight_messages);
 
 				weight.saturating_accrue(T::DbWeight::get().reads_writes(overweight_messages, 1));
 
