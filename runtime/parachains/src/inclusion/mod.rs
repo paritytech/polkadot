@@ -38,7 +38,7 @@ use primitives::v2::{
 	UpwardMessage, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use scale_info::TypeInfo;
-use sp_runtime::{traits::One, DispatchError};
+use sp_runtime::{traits::One, DispatchError, SaturatedConversion};
 use sp_std::{collections::btree_set::BTreeSet, fmt, prelude::*};
 
 pub use pallet::*;
@@ -209,6 +209,33 @@ pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	sp_std::cmp::min(n_validators, 2)
 }
 
+/// Divides the [`Config::MessageQueue`] into sub queues which are serviced in a round-robin fashion.
+///
+/// NOTE Ideally we want the queue pallet to be sub-queue aware since currently we waste PoV by introducing a lot of few-element queues by doing this.
+///
+/// Changing this requires a migration of the queue pallet.
+#[derive(Encode, Decode, Clone, Copy, Debug, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
+pub enum SubQueue {
+	UMP,
+	HRMP,
+	DMP,
+}
+
+/// Over which `queue` and `from` which para-chain a message came in from.
+///
+/// Changing this requires a migration of the queue pallet.
+#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
+pub struct MessageOrigin {
+	pub queue: SubQueue,
+	pub para: ParaId,
+}
+
+impl MessageOrigin {
+	pub const fn ump(para: ParaId) -> Self {
+		Self { queue: SubQueue::UMP, para }
+	}
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -233,7 +260,9 @@ pub mod pallet {
 		type RewardValidators: RewardValidators;
 
 		/// The system message queue.
-		type MessageQueue: EnqueueMessage<ParaId>;
+		///
+		/// The message queue provides general queueing and processing functionality. Currently it replaces the old `UMP`, `HRMP` and `DMP` queue pallets. Since it provides a very generic kind of service; other use-cases can be implemented as well.
+		type MessageQueue: EnqueueMessage<MessageOrigin>;
 	}
 
 	#[pallet::event]
@@ -1076,18 +1105,24 @@ impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 	}
 }
 
-impl<T: Config> OnQueueChanged<ParaId> for Pallet<T> {
-	fn on_queue_changed(para: ParaId, count: u32, size: u32) {
-		// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
-		#[allow(deprecated)]
-		let key = well_known_keys::relay_dispatch_queue_size(para);
-		(count, size).using_encoded(|d| sp_io::storage::set(&key, d));
+impl<T: Config> OnQueueChanged<MessageOrigin> for Pallet<T> {
+	fn on_queue_changed(queue: MessageOrigin, count: u64, size: u64) {
+		match queue {
+			MessageOrigin { queue: SubQueue::UMP, para } => {
+				// TODO maybe migrate this to u64
+				let (count, size) = (count.saturated_into(), size.saturated_into());
+				// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
+				#[allow(deprecated)]
+				well_known_keys::relay_dispatch_queue_size_typed(para).set((count, size));
 
-		let config = <configuration::Pallet<T>>::config();
-		let key = well_known_keys::relay_dispatch_queue_remaining_capacity(para);
-		let remaining_count = config.max_upward_queue_count.saturating_sub(count);
-		let remaining_size = config.max_upward_queue_size.saturating_sub(size);
-		(remaining_count, remaining_size).using_encoded(|d| sp_io::storage::set(&key, d));
+				let config = <configuration::Pallet<T>>::config();
+				let remaining_count = config.max_upward_queue_count.saturating_sub(count);
+				let remaining_size = config.max_upward_queue_size.saturating_sub(size);
+				well_known_keys::relay_dispatch_queue_remaining_capacity(para)
+					.set((remaining_count, remaining_size));
+			},
+			_ => todo!(),
+		}
 	}
 }
 
