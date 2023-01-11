@@ -14,7 +14,7 @@ paste = "1.0.7"
 serde = "1.0.137"
 serde_json = "1.0"
 thiserror = "1.0.31"
-tokio = { version = "1.22.0", features = ["macros", "rt-multi-thread", "sync"] }
+tokio = { version = "1.24.1", features = ["macros", "rt-multi-thread", "sync"] }
 remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-remote-externalities" }
 signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }

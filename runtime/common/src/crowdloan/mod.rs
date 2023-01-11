@@ -51,8 +51,6 @@
 
 pub mod migration;
 
-// TODO: Expose the total amount held.
-
 use crate::{
 	slot_range::SlotRange,
 	traits::{Auctioneer, Registrar},
@@ -70,7 +68,7 @@ use frame_support::{
 };
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::Id as ParaId;
+use primitives::Id as ParaId;
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::{
@@ -866,7 +864,7 @@ mod tests {
 		assert_noop, assert_ok, parameter_types,
 		traits::{OnFinalize, OnInitialize},
 	};
-	use primitives::v2::Id as ParaId;
+	use primitives::Id as ParaId;
 	use sp_core::H256;
 	use std::{cell::RefCell, collections::BTreeMap, sync::Arc};
 	// The testing primitives are very useful for avoiding having to work with signatures

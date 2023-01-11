@@ -24,7 +24,6 @@ use crate::{
 	worker_common::{IdleWorker, WorkerHandle},
 	InvalidCandidate, ValidationError, LOG_TARGET,
 };
-use async_std::path::PathBuf;
 use futures::{
 	channel::mpsc,
 	future::BoxFuture,
@@ -32,7 +31,7 @@ use futures::{
 	Future, FutureExt,
 };
 use slotmap::HopSlotMap;
-use std::{collections::VecDeque, fmt, time::Duration};
+use std::{collections::VecDeque, fmt, path::PathBuf, time::Duration};
 
 slotmap::new_key_type! { struct Worker; }
 
