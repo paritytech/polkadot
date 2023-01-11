@@ -1484,8 +1484,10 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
+	pallet_balances::migration::ResetInactive<Runtime>,
+	// We need to apply this migration again, because `ResetInactive` resets the state again.
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, CheckAccount>,
-	crowdloan::migration::MigrateToTrackInactive<Runtime>,
+	crowdloan::migration::MigrateToTrackInactiveV2<Runtime>,
 	pallet_referenda::migration::v1::MigrateV0ToV1<Runtime>,
 	pallet_referenda::migration::v1::MigrateV0ToV1<
 		Runtime,
