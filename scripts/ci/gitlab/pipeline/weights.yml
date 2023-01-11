@@ -2,6 +2,11 @@
 # Here are all jobs that are executed during "weights" stage
 
 update_polkadot_weights:           &update-weights
+  # The update-weights pipeline defaults to `interruptible: false` so that we'll be able to
+  # reach and run the benchmarking jobs despite the "Auto-cancel redundant pipelines" CI setting.
+  # The setting is relevant because future pipelines (e.g. created for new commits or other schedules)
+  # might otherwise cancel the benchmark jobs early.
+  interruptible:                   false
   stage:                           weights
   timeout:                         1d
   when:                            manual

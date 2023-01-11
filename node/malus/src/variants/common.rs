@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 	overseer,
 };
 
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, PersistedValidationData,
 };
 

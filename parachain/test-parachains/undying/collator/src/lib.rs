@@ -23,7 +23,7 @@ use polkadot_node_primitives::{
 	maybe_compress_pov, Collation, CollationResult, CollationSecondedSignal, CollatorFn,
 	MaybeCompressedPoV, PoV, Statement,
 };
-use polkadot_primitives::v2::{CollatorId, CollatorPair, Hash};
+use polkadot_primitives::{CollatorId, CollatorPair, Hash};
 use sp_core::Pair;
 use std::{
 	collections::HashMap,
@@ -330,7 +330,7 @@ mod tests {
 	use super::*;
 	use futures::executor::block_on;
 	use polkadot_parachain::primitives::{ValidationParams, ValidationResult};
-	use polkadot_primitives::v2::{Hash, PersistedValidationData};
+	use polkadot_primitives::{Hash, PersistedValidationData};
 
 	#[test]
 	fn collator_works() {
