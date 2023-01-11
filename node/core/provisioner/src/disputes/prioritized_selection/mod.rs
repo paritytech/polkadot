@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_primitives::v2::{
 	supermajority_threshold, CandidateHash, DisputeState, DisputeStatement, DisputeStatementSet,
-	Hash, MultiDisputeStatementSet, SessionIndex, ValidatorIndex,
+	Hash, MultiDisputeStatementSet, SessionIndex, ValidDisputeStatementKind, ValidatorIndex,
 };
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -218,7 +218,9 @@ where
 		for (session_index, candidate_hash, selected_votes) in votes {
 			let votes_len = selected_votes.valid.raw().len() + selected_votes.invalid.len();
 			if votes_len + total_votes_len > MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME {
-				// we are done - no more votes can be added
+				// we are done - no more votes can be added. Importantly, we don't add any votes for a dispute here
+				// if we can't fit them all. This gives us an important invariant, that backing votes for
+				// disputes make it into the provisioned vote set.
 				return result
 			}
 			result.insert((session_index, candidate_hash), selected_votes);
@@ -362,10 +364,20 @@ fn is_vote_worth_to_keep(
 	dispute_statement: DisputeStatement,
 	onchain_state: &DisputeState,
 ) -> bool {
-	let offchain_vote = match dispute_statement {
-		DisputeStatement::Valid(_) => true,
-		DisputeStatement::Invalid(_) => false,
+	let (offchain_vote, valid_kind) = match dispute_statement {
+		DisputeStatement::Valid(kind) => (true, Some(kind)),
+		DisputeStatement::Invalid(_) => (false, None),
 	};
+	// We want to keep all backing votes. This maximizes the number of backers
+	// punished when misbehaving.
+	if let Some(kind) = valid_kind {
+		match kind {
+			ValidDisputeStatementKind::BackingValid(_) |
+			ValidDisputeStatementKind::BackingSeconded(_) => return true,
+			_ => (),
+		}
+	}
+
 	let in_validators_for = onchain_state
 		.validators_for
 		.get(validator_index.0 as usize)

@@ -106,7 +106,7 @@ pub mod xcm_config;
 // Governance configurations.
 pub mod governance;
 use governance::{
-	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, GeneralAdmin, LeaseAdmin,
+	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, Fellows, GeneralAdmin, LeaseAdmin,
 	StakingAdmin, Treasurer, TreasurySpender,
 };
 use xcm_config::CheckAccount;
@@ -584,8 +584,7 @@ impl pallet_staking::Config for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	// The staking admin or root can cancel the slash.
-	type SlashCancelOrigin = EitherOf<EnsureRoot<Self::AccountId>, StakingAdmin>;
+	type AdminOrigin = EitherOf<EnsureRoot<Self::AccountId>, StakingAdmin>;
 	type SessionInterface = Self;
 	type EraPayout = EraPayout;
 	type NextNewSession = Session;
@@ -1481,6 +1480,9 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 	}
 }
 
+/// All migrations that will run on the next runtime upgrade.
+///
+/// Should be cleared after every release.
 pub type Migrations = (
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, CheckAccount>,
 	crowdloan::migration::MigrateToTrackInactive<Runtime>,
@@ -1489,6 +1491,10 @@ pub type Migrations = (
 		Runtime,
 		governance::FellowshipReferendaInstance,
 	>,
+	pallet_scheduler::migration::v4::CleanupAgendas<Runtime>,
+	pallet_staking::migrations::v13::MigrateToV13<Runtime>,
+	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
+	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
@@ -1913,21 +1919,21 @@ sp_api::impl_runtime_apis! {
 
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
-		fn on_runtime_upgrade() -> (Weight, Weight) {
+		fn on_runtime_upgrade(checks: frame_try_runtime::UpgradeCheckSelect) -> (Weight, Weight) {
 			log::info!("try-runtime::on_runtime_upgrade kusama.");
-			let weight = Executive::try_runtime_upgrade().unwrap();
+			let weight = Executive::try_runtime_upgrade(checks).unwrap();
 			(weight, BlockWeights::get().max_block)
 		}
 
-		fn execute_block(block: Block, state_root_check: bool, select: frame_try_runtime::TryStateSelect) -> Weight {
-			log::info!(
-				target: "runtime::kusama", "try-runtime: executing block #{} ({:?}) / root checks: {:?} / sanity-checks: {:?}",
-				block.header.number,
-				block.header.hash(),
-				state_root_check,
-				select,
-			);
-			Executive::try_execute_block(block, state_root_check, select).expect("try_execute_block failed")
+		fn execute_block(
+			block: Block,
+			state_root_check: bool,
+			signature_check: bool,
+			select: frame_try_runtime::TryStateSelect,
+		) -> Weight {
+			// NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
+			// have a backtrace here.
+			Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
 		}
 	}
 
@@ -2233,6 +2239,6 @@ mod remote_tests {
 			.build()
 			.await
 			.unwrap();
-		ext.execute_with(|| Runtime::on_runtime_upgrade());
+		ext.execute_with(|| Runtime::on_runtime_upgrade(true));
 	}
 }

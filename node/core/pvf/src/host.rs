@@ -28,7 +28,6 @@ use crate::{
 	prepare, PrepareResult, Priority, Pvf, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
-use async_std::path::{Path, PathBuf};
 use futures::{
 	channel::{mpsc, oneshot},
 	Future, FutureExt, SinkExt, StreamExt,
@@ -36,6 +35,7 @@ use futures::{
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
 	collections::HashMap,
+	path::{Path, PathBuf},
 	time::{Duration, SystemTime},
 };
 
@@ -171,7 +171,7 @@ pub struct Config {
 impl Config {
 	/// Create a new instance of the configuration.
 	pub fn new(cache_path: std::path::PathBuf, program_path: std::path::PathBuf) -> Self {
-		// Do not contaminate the other parts of the codebase with the types from `async_std`.
+		// Do not contaminate the other parts of the codebase with the types from `tokio`.
 		let cache_path = PathBuf::from(cache_path);
 		let program_path = PathBuf::from(program_path);
 
@@ -525,6 +525,16 @@ async fn handle_execute_pvf(
 			},
 			ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
 				if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
+					gum::debug!(
+						target: LOG_TARGET,
+						?pvf,
+						?artifact_id,
+						?last_time_failed,
+						%num_failures,
+						%error,
+						"handle_execute_pvf: Re-trying failed PVF preparation."
+					);
+
 					// If we are allowed to retry the failed prepare job, change the state to
 					// Preparing and re-queue this job.
 					*state = ArtifactState::Preparing {
@@ -585,6 +595,16 @@ async fn handle_heads_up(
 				},
 				ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
 					if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
+						gum::debug!(
+							target: LOG_TARGET,
+							?active_pvf,
+							?artifact_id,
+							?last_time_failed,
+							%num_failures,
+							%error,
+							"handle_heads_up: Re-trying failed PVF preparation."
+						);
+
 						// If we are allowed to retry the failed prepare job, change the state to
 						// Preparing and re-queue this job.
 						*state = ArtifactState::Preparing {
@@ -703,10 +723,19 @@ async fn handle_prepare_done(
 	*state = match result {
 		Ok(cpu_time_elapsed) =>
 			ArtifactState::Prepared { last_time_needed: SystemTime::now(), cpu_time_elapsed },
-		Err(error) => ArtifactState::FailedToProcess {
-			last_time_failed: SystemTime::now(),
-			num_failures: *num_failures + 1,
-			error,
+		Err(error) => {
+			gum::debug!(
+				target: LOG_TARGET,
+				artifact_id = ?artifact_id,
+				num_failures = ?num_failures,
+				"Failed to process artifact: {}",
+				error
+			);
+			ArtifactState::FailedToProcess {
+				last_time_failed: SystemTime::now(),
+				num_failures: *num_failures + 1,
+				error,
+			}
 		},
 	};
 
@@ -758,7 +787,7 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 		match sweeper_rx.next().await {
 			None => break,
 			Some(condemned) => {
-				let result = async_std::fs::remove_file(&condemned).await;
+				let result = tokio::fs::remove_file(&condemned).await;
 				gum::trace!(
 					target: LOG_TARGET,
 					?result,
@@ -776,16 +805,15 @@ fn can_retry_prepare_after_failure(
 	num_failures: u32,
 	error: &PrepareError,
 ) -> bool {
-	use PrepareError::*;
-	match error {
-		// Gracefully returned an error, so it will probably be reproducible. Don't retry.
-		Prevalidation(_) | Preparation(_) => false,
-		// Retry if the retry cooldown has elapsed and if we have already retried less than
-		// `NUM_PREPARE_RETRIES` times. IO errors may resolve themselves.
-		Panic(_) | TimedOut | DidNotMakeIt =>
-			SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
-				num_failures <= NUM_PREPARE_RETRIES,
+	if error.is_deterministic() {
+		// This error is considered deterministic, so it will probably be reproducible. Don't retry.
+		return false
 	}
+
+	// Retry if the retry cooldown has elapsed and if we have already retried less than `NUM_PREPARE_RETRIES` times. IO
+	// errors may resolve themselves.
+	SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
+		num_failures <= NUM_PREPARE_RETRIES
 }
 
 /// A stream that yields a pulse continuously at a given interval.
@@ -808,7 +836,7 @@ mod tests {
 
 	const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn pulse_test() {
 		let pulse = pulse_every(Duration::from_millis(100));
 		futures::pin_mut!(pulse);
@@ -998,19 +1026,19 @@ mod tests {
 		}
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn shutdown_on_handle_drop() {
 		let test = Builder::default().build();
 
-		let join_handle = async_std::task::spawn(test.run);
+		let join_handle = tokio::task::spawn(test.run);
 
 		// Dropping the handle will lead to conclusion of the read part and thus will make the event
 		// loop to stop, which in turn will resolve the join handle.
 		drop(test.to_host_tx);
-		join_handle.await;
+		join_handle.await.unwrap();
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn pruning() {
 		let mock_now = SystemTime::now() - Duration::from_millis(1000);
 
@@ -1040,7 +1068,7 @@ mod tests {
 		test.poll_ensure_to_sweeper_is_empty().await;
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn execute_pvf_requests() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1140,7 +1168,7 @@ mod tests {
 		);
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn precheck_pvf() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1195,7 +1223,7 @@ mod tests {
 		}
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn test_prepare_done() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1282,7 +1310,7 @@ mod tests {
 
 	// Test that multiple prechecking requests do not trigger preparation retries if the first one
 	// failed.
-	#[async_std::test]
+	#[tokio::test]
 	async fn test_precheck_prepare_retry() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1325,7 +1353,7 @@ mod tests {
 
 	// Test that multiple execution requests trigger preparation retries if the first one failed due
 	// to a potentially non-reproducible error.
-	#[async_std::test]
+	#[tokio::test]
 	async fn test_execute_prepare_retry() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1394,8 +1422,8 @@ mod tests {
 	}
 
 	// Test that multiple execution requests don't trigger preparation retries if the first one
-	// failed due to reproducible error (e.g. Prevalidation).
-	#[async_std::test]
+	// failed due to a reproducible error (e.g. Prevalidation).
+	#[tokio::test]
 	async fn test_execute_prepare_no_retry() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1461,7 +1489,7 @@ mod tests {
 	}
 
 	// Test that multiple heads-up requests trigger preparation retries if the first one failed.
-	#[async_std::test]
+	#[tokio::test]
 	async fn test_heads_up_prepare_retry() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1502,7 +1530,7 @@ mod tests {
 		);
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn cancellation() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();

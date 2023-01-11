@@ -16,29 +16,25 @@
 
 //! Common logic for implementation of worker processes.
 
-use crate::{execute::ExecuteResponse, PrepareError, LOG_TARGET};
-use async_std::{
-	io,
-	os::unix::net::{UnixListener, UnixStream},
-	path::{Path, PathBuf},
-};
+use crate::LOG_TARGET;
 use cpu_time::ProcessTime;
-use futures::{
-	never::Never, AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, FutureExt as _,
-};
+use futures::{never::Never, FutureExt as _};
 use futures_timer::Delay;
-use parity_scale_codec::Encode;
 use pin_project::pin_project;
 use rand::Rng;
 use std::{
 	fmt, mem,
+	path::{Path, PathBuf},
 	pin::Pin,
-	sync::{
-		atomic::{AtomicBool, Ordering},
-		Arc,
-	},
+	sync::mpsc::{Receiver, RecvTimeoutError},
 	task::{Context, Poll},
 	time::Duration,
+};
+use tokio::{
+	io::{self, AsyncRead, AsyncReadExt as _, AsyncWrite, AsyncWriteExt as _, ReadBuf},
+	net::{UnixListener, UnixStream},
+	process,
+	runtime::{Handle, Runtime},
 };
 
 /// A multiple of the job timeout (in CPU time) for which we are willing to wait on the host (in
@@ -48,21 +44,6 @@ pub const JOB_TIMEOUT_WALL_CLOCK_FACTOR: u32 = 4;
 /// Some allowed overhead that we account for in the "CPU time monitor" thread's sleeps, on the
 /// child process.
 pub const JOB_TIMEOUT_OVERHEAD: Duration = Duration::from_millis(50);
-
-#[derive(Copy, Clone, Debug)]
-pub enum JobKind {
-	Prepare,
-	Execute,
-}
-
-impl fmt::Display for JobKind {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			Self::Prepare => write!(f, "prepare"),
-			Self::Execute => write!(f, "execute"),
-		}
-	}
-}
 
 /// This is publicly exposed only for integration tests.
 #[doc(hidden)]
@@ -76,7 +57,7 @@ pub async fn spawn_with_program_path(
 	with_transient_socket_path(debug_id, |socket_path| {
 		let socket_path = socket_path.to_owned();
 		async move {
-			let listener = UnixListener::bind(&socket_path).await.map_err(|err| {
+			let listener = UnixListener::bind(&socket_path).map_err(|err| {
 				gum::warn!(
 					target: LOG_TARGET,
 					%debug_id,
@@ -131,7 +112,7 @@ where
 
 	// Best effort to remove the socket file. Under normal circumstances the socket will be removed
 	// by the worker. We make sure that it is removed here, just in case a failed rendezvous.
-	let _ = async_std::fs::remove_file(socket_path).await;
+	let _ = tokio::fs::remove_file(socket_path).await;
 
 	result
 }
@@ -162,7 +143,7 @@ pub async fn tmpfile_in(prefix: &str, dir: &Path) -> io::Result<PathBuf> {
 
 	for _ in 0..NUM_RETRIES {
 		let candidate_path = tmppath(prefix, dir);
-		if !candidate_path.exists().await {
+		if !candidate_path.exists() {
 			return Ok(candidate_path)
 		}
 	}
@@ -178,16 +159,22 @@ pub async fn tmpfile(prefix: &str) -> io::Result<PathBuf> {
 
 pub fn worker_event_loop<F, Fut>(debug_id: &'static str, socket_path: &str, mut event_loop: F)
 where
-	F: FnMut(UnixStream) -> Fut,
+	F: FnMut(Handle, UnixStream) -> Fut,
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
-	let err = async_std::task::block_on::<_, io::Result<Never>>(async move {
-		let stream = UnixStream::connect(socket_path).await?;
-		let _ = async_std::fs::remove_file(socket_path).await;
+	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
+	let handle = rt.handle();
+	let err = rt
+		.block_on(async move {
+			let stream = UnixStream::connect(socket_path).await?;
+			let _ = tokio::fs::remove_file(socket_path).await;
 
-		event_loop(stream).await
-	})
-	.unwrap_err(); // it's never `Ok` because it's `Ok(Never)`
+			let result = event_loop(handle.clone(), stream).await;
+
+			result
+		})
+		// It's never `Ok` because it's `Ok(Never)`.
+		.unwrap_err();
 
 	gum::debug!(
 		target: LOG_TARGET,
@@ -196,74 +183,45 @@ where
 		debug_id,
 		err,
 	);
+
+	// We don't want tokio to wait for the tasks to finish. We want to bring down the worker as fast
+	// as possible and not wait for stalled validation to finish. This isn't strictly necessary now,
+	// but may be in the future.
+	rt.shutdown_background();
 }
 
 /// Loop that runs in the CPU time monitor thread on prepare and execute jobs. Continuously wakes up
-/// from sleeping and then either sleeps for the remaining CPU time, or sends back a timeout error
-/// if we exceed the CPU timeout.
+/// and then either blocks for the remaining CPU time, or returns if we exceed the CPU timeout.
 ///
-/// NOTE: If the job completes and this thread is still sleeping, it will continue sleeping in the
-/// background. When it wakes, it will see that the flag has been set and return.
-pub async fn cpu_time_monitor_loop(
-	job_kind: JobKind,
-	mut stream: UnixStream,
+/// Returning `Some` indicates that we should send a `TimedOut` error to the host. Will return
+/// `None` if the other thread finishes first, without us timing out.
+///
+/// NOTE: Sending a `TimedOut` error to the host will cause the worker, whether preparation or
+/// execution, to be killed by the host. We do not kill the process here because it would interfere
+/// with the proper handling of this error.
+pub fn cpu_time_monitor_loop(
 	cpu_time_start: ProcessTime,
 	timeout: Duration,
-	lock: Arc<AtomicBool>,
-) {
+	finished_rx: Receiver<()>,
+) -> Option<Duration> {
 	loop {
 		let cpu_time_elapsed = cpu_time_start.elapsed();
 
 		// Treat the timeout as CPU time, which is less subject to variance due to load.
-		if cpu_time_elapsed > timeout {
-			let result = lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
-			if result.is_err() {
-				// Hit the job-completed case first, return from this thread.
-				return
+		if cpu_time_elapsed <= timeout {
+			// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep
+			// is wall clock time. The CPU clock may be slower than the wall clock.
+			let sleep_interval = timeout.saturating_sub(cpu_time_elapsed) + JOB_TIMEOUT_OVERHEAD;
+			match finished_rx.recv_timeout(sleep_interval) {
+				// Received finish signal.
+				Ok(()) => return None,
+				// Timed out, restart loop.
+				Err(RecvTimeoutError::Timeout) => continue,
+				Err(RecvTimeoutError::Disconnected) => return None,
 			}
-
-			// Log if we exceed the timeout.
-			gum::warn!(
-				target: LOG_TARGET,
-				worker_pid = %std::process::id(),
-				"{job_kind} job took {}ms cpu time, exceeded {job_kind} timeout {}ms",
-				cpu_time_elapsed.as_millis(),
-				timeout.as_millis(),
-			);
-
-			// Send back a `TimedOut` error.
-			//
-			// NOTE: This will cause the worker, whether preparation or execution, to be killed by
-			// the host. We do not kill the process here because it would interfere with the proper
-			// handling of this error.
-			let encoded_result = match job_kind {
-				JobKind::Prepare => {
-					let result: Result<(), PrepareError> = Err(PrepareError::TimedOut);
-					result.encode()
-				},
-				JobKind::Execute => {
-					let result = ExecuteResponse::TimedOut;
-					result.encode()
-				},
-			};
-			// If we error here there is nothing we can do apart from log it. The receiving side
-			// will just have to time out.
-			if let Err(err) = framed_send(&mut stream, encoded_result.as_slice()).await {
-				gum::warn!(
-					target: LOG_TARGET,
-					worker_pid = %std::process::id(),
-					"{job_kind} worker -> pvf host: error sending result over the socket: {:?}",
-					err
-				);
-			}
-
-			return
 		}
 
-		// Sleep for the remaining CPU time, plus a bit to account for overhead. Note that the sleep
-		// is wall clock time. The CPU clock may be slower than the wall clock.
-		let sleep_interval = timeout - cpu_time_elapsed + JOB_TIMEOUT_OVERHEAD;
-		std::thread::sleep(sleep_interval);
+		return Some(cpu_time_elapsed)
 	}
 }
 
@@ -304,9 +262,10 @@ pub enum SpawnErr {
 /// This future relies on the fact that a child process's stdout `fd` is closed upon it's termination.
 #[pin_project]
 pub struct WorkerHandle {
-	child: async_process::Child,
+	child: process::Child,
+	child_id: u32,
 	#[pin]
-	stdout: async_process::ChildStdout,
+	stdout: process::ChildStdout,
 	program: PathBuf,
 	drop_box: Box<[u8]>,
 }
@@ -317,13 +276,16 @@ impl WorkerHandle {
 		extra_args: &[&str],
 		socket_path: impl AsRef<Path>,
 	) -> io::Result<Self> {
-		let mut child = async_process::Command::new(program.as_ref())
+		let mut child = process::Command::new(program.as_ref())
 			.args(extra_args)
 			.arg(socket_path.as_ref().as_os_str())
-			.stdout(async_process::Stdio::piped())
+			.stdout(std::process::Stdio::piped())
 			.kill_on_drop(true)
 			.spawn()?;
 
+		let child_id = child
+			.id()
+			.ok_or(io::Error::new(io::ErrorKind::Other, "could not get id of spawned process"))?;
 		let stdout = child
 			.stdout
 			.take()
@@ -331,6 +293,7 @@ impl WorkerHandle {
 
 		Ok(WorkerHandle {
 			child,
+			child_id,
 			stdout,
 			program: program.as_ref().to_path_buf(),
 			// We don't expect the bytes to be ever read. But in case we do, we should not use a buffer
@@ -348,7 +311,7 @@ impl WorkerHandle {
 
 	/// Returns the process id of this worker.
 	pub fn id(&self) -> u32 {
-		self.child.id()
+		self.child_id
 	}
 }
 
@@ -357,15 +320,20 @@ impl futures::Future for WorkerHandle {
 
 	fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
 		let me = self.project();
-		match futures::ready!(AsyncRead::poll_read(me.stdout, cx, &mut *me.drop_box)) {
-			Ok(0) => {
-				// 0 means `EOF` means the child was terminated. Resolve.
-				Poll::Ready(())
-			},
-			Ok(_bytes_read) => {
-				// weird, we've read something. Pretend that never happened and reschedule ourselves.
-				cx.waker().wake_by_ref();
-				Poll::Pending
+		// Create a `ReadBuf` here instead of storing it in `WorkerHandle` to avoid a lifetime
+		// parameter on `WorkerHandle`. Creating the `ReadBuf` is fairly cheap.
+		let mut read_buf = ReadBuf::new(&mut *me.drop_box);
+		match futures::ready!(AsyncRead::poll_read(me.stdout, cx, &mut read_buf)) {
+			Ok(()) => {
+				if read_buf.filled().len() > 0 {
+					// weird, we've read something. Pretend that never happened and reschedule
+					// ourselves.
+					cx.waker().wake_by_ref();
+					Poll::Pending
+				} else {
+					// Nothing read means `EOF` means the child was terminated. Resolve.
+					Poll::Ready(())
+				}
 			},
 			Err(err) => {
 				// The implementation is guaranteed to not to return `WouldBlock` and Interrupted. This
@@ -374,8 +342,8 @@ impl futures::Future for WorkerHandle {
 				// Log the status code.
 				gum::debug!(
 					target: LOG_TARGET,
-					worker_pid = %me.child.id(),
-					status_code = ?me.child.try_status(),
+					worker_pid = %me.child_id,
+					status_code = ?me.child.try_wait().ok().flatten().map(|c| c.to_string()),
 					"pvf worker ({}): {:?}",
 					me.program.display(),
 					err,
