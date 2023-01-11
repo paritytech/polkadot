@@ -133,7 +133,7 @@ pub type ValidatorSignature = validator_app::Signature;
 
 /// A declarations of storage keys where an external observer can find some interesting data.
 pub mod well_known_keys {
-	use super::{HrmpChannelId, Id};
+	use super::{HrmpChannelId, Id, WellKnownKey};
 	use hex_literal::hex;
 	use parity_scale_codec::Encode as _;
 	use sp_io::hashing::twox_64;
@@ -208,6 +208,13 @@ pub mod well_known_keys {
 		})
 	}
 
+	/// Type safe version of `relay_dispatch_queue_size`.
+	#[deprecated = "Use `relay_dispatch_queue_remaining_capacity` instead"]
+	pub fn relay_dispatch_queue_size_typed(para: Id) -> WellKnownKey<(u32, u32)> {
+		#[allow(deprecated)]
+		relay_dispatch_queue_size(para).into()
+	}
+
 	/// The upward message dispatch queue remaining capacity for the given para id.
 	///
 	/// The storage entry stores a tuple of two values:
@@ -215,8 +222,8 @@ pub mod well_known_keys {
 	/// - `count: u32`, the number of additional messages which may be enqueued for the given para,
 	/// - `total_size: u32`, the total size of additional messages which may be enqueued for the
 	/// given para.
-	pub fn relay_dispatch_queue_remaining_capacity(para_id: Id) -> Vec<u8> {
-		(b":relay_dispatch_queue_remaining_capacity", para_id).encode()
+	pub fn relay_dispatch_queue_remaining_capacity(para_id: Id) -> WellKnownKey<(u32, u32)> {
+		(b":relay_dispatch_queue_remaining_capacity", para_id).encode().into()
 	}
 
 	/// The HRMP channel for the given identifier.
@@ -1695,6 +1702,40 @@ impl PvfCheckStatement {
 	pub fn signing_payload(&self) -> Vec<u8> {
 		const MAGIC: [u8; 4] = *b"VCPC"; // for "validation code pre-checking"
 		(MAGIC, self.accept, self.subject, self.session_index, self.validator_index).encode()
+	}
+}
+
+/// A well-known and typed storage key.
+pub struct WellKnownKey<T> {
+	/// The raw storage key.
+	pub key: Vec<u8>,
+	_p: sp_std::marker::PhantomData<T>,
+}
+
+impl<T> From<Vec<u8>> for WellKnownKey<T> {
+	fn from(key: Vec<u8>) -> Self {
+		Self { key, _p: Default::default() }
+	}
+}
+
+impl<T> AsRef<[u8]> for WellKnownKey<T> {
+	fn as_ref(&self) -> &[u8] {
+		self.key.as_ref()
+	}
+}
+
+impl<T: Decode> WellKnownKey<T> {
+	/// Gets the value or `None` if it does not exist or decoding failed.
+	pub fn get(&self) -> Option<T> {
+		sp_io::storage::get(&self.key).and_then(|raw| 
+			parity_scale_codec::DecodeAll::decode_all(&mut raw.as_ref()).ok())
+	}
+}
+
+impl<T: Encode> WellKnownKey<T> {
+	/// Sets the value.
+	pub fn set(&self, value: T) {
+		sp_io::storage::set(&self.key, &value.encode());
 	}
 }
 
