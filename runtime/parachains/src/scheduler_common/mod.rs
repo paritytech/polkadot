@@ -36,7 +36,7 @@
 //! over time.
 
 use frame_support::pallet_prelude::*;
-use primitives::v2::{
+use primitives::{
 	CollatorId, CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ParathreadClaim,
 	ParathreadEntry, ScheduledCore,
 };

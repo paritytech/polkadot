@@ -36,7 +36,7 @@
 //! over time.
 
 use frame_support::pallet_prelude::*;
-use primitives::v2::{CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ScheduledCore};
+use primitives::{CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ScheduledCore};
 use sp_runtime::traits::Saturating;
 use sp_std::collections::btree_map::BTreeMap;
 

@@ -29,7 +29,7 @@ use polkadot_node_primitives::approval::{
 use polkadot_node_subsystem::messages::{network_bridge_event, AllMessages, ApprovalCheckError};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, BlakeTwo256, HashT};
+use polkadot_primitives::{AuthorityDiscoveryId, BlakeTwo256, HashT};
 use polkadot_primitives_test_helpers::dummy_signature;
 use rand::SeedableRng;
 use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;

@@ -31,7 +31,7 @@ pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
 pub mod v4 {
 	use super::*;
 	use frame_support::{traits::OnRuntimeUpgrade, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
-	use primitives::v2::{Balance, SessionIndex};
+	use primitives::{Balance, SessionIndex};
 	#[cfg(feature = "try-runtime")]
 	use sp_std::prelude::*;
 
@@ -272,9 +272,8 @@ mod tests {
 		// doesn't need to be read and also leaving it as one line allows to easily copy it.
 		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c800000700e8764817020040011e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c8000000060000005802000002000000580200000200000059000000000000001e000000280000000700c817a80402004001000200000014000000"];
 
-		let v3 =
-			v4::OldHostConfiguration::<primitives::v2::BlockNumber>::decode(&mut &raw_config[..])
-				.unwrap();
+		let v3 = v4::OldHostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..])
+			.unwrap();
 
 		// We check only a sample of the values here. If we missed any fields or messed up data types
 		// that would skew all the fields coming after.
@@ -297,7 +296,7 @@ mod tests {
 		// We specify only the picked fields and the rest should be provided by the `Default`
 		// implementation. That implementation is copied over between the two types and should work
 		// fine.
-		let v3 = v4::OldHostConfiguration::<primitives::v2::BlockNumber> {
+		let v3 = v4::OldHostConfiguration::<primitives::BlockNumber> {
 			ump_max_individual_weight: Weight::from_parts(0x71616e6f6e0au64, 0x71616e6f6e0au64),
 			needed_approvals: 69,
 			thread_availability_period: 55,
