@@ -26,8 +26,7 @@ use futures::{
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	disputes::ValidCandidateVotes, CandidateVotes, DisputeMessage, DisputeMessageCheckError,
-	DisputeStatus, SignedDisputeStatement, Timestamp,
+	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -48,6 +47,7 @@ use polkadot_primitives::v2::{
 use crate::{
 	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	import::{CandidateEnvironment, CandidateVoteState},
+	is_potential_spam,
 	metrics::Metrics,
 	status::{get_active_with_status, Clock},
 	DisputeCoordinatorSubsystem, LOG_TARGET,
@@ -55,7 +55,7 @@ use crate::{
 
 use super::{
 	backend::Backend,
-	db,
+	db, make_dispute_message,
 	participation::{
 		self, Participation, ParticipationPriority, ParticipationRequest, ParticipationStatement,
 		WorkerMessageReceiver,
@@ -269,8 +269,13 @@ impl Initialized {
 		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
-		let on_chain_votes =
+		let scraped_updates =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
+		log_error(
+			self.participation
+				.bump_to_priority_for_candidates(ctx, &scraped_updates.included_receipts)
+				.await,
+		)?;
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
@@ -308,7 +313,7 @@ impl Initialized {
 
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
 			// so there is no point in running these in parallel.
-			for votes in on_chain_votes {
+			for votes in scraped_updates.on_chain_votes {
 				let _ = self.process_on_chain_votes(ctx, overlay_db, votes, now).await.map_err(
 					|error| {
 						gum::warn!(
@@ -391,19 +396,19 @@ impl Initialized {
 							CompactStatement::Valid(_) =>
 								ValidDisputeStatementKind::BackingValid(relay_parent),
 						};
-                    debug_assert!(
-                        SignedDisputeStatement::new_checked(
+					debug_assert!(
+						SignedDisputeStatement::new_checked(
 							DisputeStatement::Valid(valid_statement_kind),
 							candidate_hash,
 							session,
 							validator_public.clone(),
 							validator_signature.clone(),
-                        ).is_ok(),
-                        "Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}",
-                        candidate_hash,
-                        session,
-                        validator_public,
-                    );
+						).is_ok(),
+						"Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}",
+						candidate_hash,
+						session,
+						validator_public,
+					);
 					let signed_dispute_statement =
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
 							DisputeStatement::Valid(valid_statement_kind),
@@ -416,6 +421,8 @@ impl Initialized {
 				})
 				.collect();
 
+			// Importantly, handling import statements for backing votes also
+			// clears spam slots for any newly backed candidates
 			let import_result = self
 				.handle_import_statements(
 					ctx,
@@ -485,20 +492,20 @@ impl Initialized {
 						})
 						.cloned()?;
 
-                    debug_assert!(
-                        SignedDisputeStatement::new_checked(
+					debug_assert!(
+						SignedDisputeStatement::new_checked(
 							dispute_statement.clone(),
 							candidate_hash,
 							session,
 							validator_public.clone(),
 							validator_signature.clone(),
-                        ).is_ok(),
-                        "Scraped dispute votes had invalid signature! candidate: {:?}, session: {:?}, dispute_statement: {:?}, validator_public: {:?}",
-                        candidate_hash,
-                        session,
+						).is_ok(),
+						"Scraped dispute votes had invalid signature! candidate: {:?}, session: {:?}, dispute_statement: {:?}, validator_public: {:?}",
+						candidate_hash,
+						session,
 						dispute_statement,
-                        validator_public,
-                    );
+						validator_public,
+					);
 
 					Some((
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
@@ -837,12 +844,17 @@ impl Initialized {
 		let new_state = import_result.new_state();
 
 		let is_included = self.scraper.is_candidate_included(&candidate_hash);
-
-		let potential_spam = !is_included && !new_state.is_confirmed() && !new_state.has_own_vote();
+		let is_backed = self.scraper.is_candidate_backed(&candidate_hash);
+		let own_vote_missing = new_state.own_vote_missing();
+		let is_disputed = new_state.is_disputed();
+		let is_confirmed = new_state.is_confirmed();
+		let potential_spam = is_potential_spam(&self.scraper, &new_state, &candidate_hash);
+		// We participate only in disputes which are not potential spam.
+		let allow_participation = !potential_spam;
 
 		gum::trace!(
 			target: LOG_TARGET,
-			has_own_vote = ?new_state.has_own_vote(),
+			?own_vote_missing,
 			?potential_spam,
 			?is_included,
 			?candidate_hash,
@@ -851,8 +863,11 @@ impl Initialized {
 			"Is spam?"
 		);
 
+		// This check is responsible for all clearing of spam slots. It runs
+		// whenever a vote is imported from on or off chain, and decrements
+		// slots whenever a candidate is newly backed, confirmed, or has our
+		// own vote.
 		if !potential_spam {
-			// Former spammers have not been spammers after all:
 			self.spam_slots.clear(&(session, candidate_hash));
 
 		// Potential spam:
@@ -880,21 +895,13 @@ impl Initialized {
 			}
 		}
 
-		let has_own_vote = new_state.has_own_vote();
-		let is_disputed = new_state.is_disputed();
-		let has_controlled_indices = !env.controlled_indices().is_empty();
-		let is_backed = self.scraper.is_candidate_backed(&candidate_hash);
-		let is_confirmed = new_state.is_confirmed();
-		// We participate only in disputes which are included, backed or confirmed
-		let allow_participation = is_included || is_backed || is_confirmed;
-
 		// Participate in dispute if we did not cast a vote before and actually have keys to cast a
 		// local vote. Disputes should fall in one of the categories below, otherwise we will refrain
 		// from participation:
 		// - `is_included` lands in prioritised queue
 		// - `is_confirmed` | `is_backed` lands in best effort queue
 		// We don't participate in disputes on finalized candidates.
-		if !has_own_vote && is_disputed && has_controlled_indices && allow_participation {
+		if own_vote_missing && is_disputed && allow_participation {
 			let priority = ParticipationPriority::with_priority_if(is_included);
 			gum::trace!(
 				target: LOG_TARGET,
@@ -921,9 +928,8 @@ impl Initialized {
 				target: LOG_TARGET,
 				?candidate_hash,
 				?is_confirmed,
-				?has_own_vote,
+				?own_vote_missing,
 				?is_disputed,
-				?has_controlled_indices,
 				?allow_participation,
 				?is_included,
 				?is_backed,
@@ -937,10 +943,9 @@ impl Initialized {
 
 		// Also send any already existing approval vote on new disputes:
 		if import_result.is_freshly_disputed() {
-			let no_votes = Vec::new();
-			let our_approval_votes = new_state.own_approval_votes().unwrap_or(&no_votes);
+			let our_approval_votes = new_state.own_approval_votes().into_iter().flatten();
 			for (validator_index, sig) in our_approval_votes {
-				let pub_key = match env.validators().get(*validator_index) {
+				let pub_key = match env.validators().get(validator_index) {
 					None => {
 						gum::error!(
 							target: LOG_TARGET,
@@ -970,7 +975,7 @@ impl Initialized {
 					env.session_info(),
 					&new_state.votes(),
 					statement,
-					*validator_index,
+					validator_index,
 				) {
 					Err(err) => {
 						gum::error!(
@@ -1141,9 +1146,9 @@ impl Initialized {
 				Ok(None) => {},
 				Err(e) => {
 					gum::error!(
-					target: LOG_TARGET,
-					err = ?e,
-					"Encountered keystore error while signing dispute statement",
+						target: LOG_TARGET,
+						err = ?e,
+						"Encountered keystore error while signing dispute statement",
 					);
 				},
 			}
@@ -1240,74 +1245,6 @@ impl MaybeCandidateReceipt {
 			Self::AssumeBackingVotePresent(hash) => *hash,
 		}
 	}
-}
-
-#[derive(Debug, thiserror::Error)]
-enum DisputeMessageCreationError {
-	#[error("There was no opposite vote available")]
-	NoOppositeVote,
-	#[error("Found vote had an invalid validator index that could not be found")]
-	InvalidValidatorIndex,
-	#[error("Statement found in votes had invalid signature.")]
-	InvalidStoredStatement,
-	#[error(transparent)]
-	InvalidStatementCombination(DisputeMessageCheckError),
-}
-
-fn make_dispute_message(
-	info: &SessionInfo,
-	votes: &CandidateVotes,
-	our_vote: SignedDisputeStatement,
-	our_index: ValidatorIndex,
-) -> std::result::Result<DisputeMessage, DisputeMessageCreationError> {
-	let validators = &info.validators;
-
-	let (valid_statement, valid_index, invalid_statement, invalid_index) =
-		if let DisputeStatement::Valid(_) = our_vote.statement() {
-			let (validator_index, (statement_kind, validator_signature)) =
-				votes.invalid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
-			let other_vote = SignedDisputeStatement::new_checked(
-				DisputeStatement::Invalid(*statement_kind),
-				*our_vote.candidate_hash(),
-				our_vote.session_index(),
-				validators
-					.get(*validator_index)
-					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
-					.clone(),
-				validator_signature.clone(),
-			)
-			.map_err(|()| DisputeMessageCreationError::InvalidStoredStatement)?;
-			(our_vote, our_index, other_vote, *validator_index)
-		} else {
-			let (validator_index, (statement_kind, validator_signature)) = votes
-				.valid
-				.raw()
-				.iter()
-				.next()
-				.ok_or(DisputeMessageCreationError::NoOppositeVote)?;
-			let other_vote = SignedDisputeStatement::new_checked(
-				DisputeStatement::Valid(*statement_kind),
-				*our_vote.candidate_hash(),
-				our_vote.session_index(),
-				validators
-					.get(*validator_index)
-					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
-					.clone(),
-				validator_signature.clone(),
-			)
-			.map_err(|()| DisputeMessageCreationError::InvalidStoredStatement)?;
-			(other_vote, *validator_index, our_vote, our_index)
-		};
-
-	DisputeMessage::from_signed_statements(
-		valid_statement,
-		valid_index,
-		invalid_statement,
-		invalid_index,
-		votes.candidate_receipt.clone(),
-		info,
-	)
-	.map_err(DisputeMessageCreationError::InvalidStatementCombination)
 }
 
 /// Determine the best block and its block number.
