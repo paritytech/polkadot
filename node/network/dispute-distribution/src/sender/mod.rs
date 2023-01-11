@@ -34,7 +34,7 @@ use polkadot_node_subsystem_util::{
 	nesting_sender::NestingSender,
 	runtime::{RuntimeInfo, RuntimeInfoProvider},
 };
-use polkadot_primitives::v3::{CandidateHash, Hash, SessionIndex};
+use polkadot_primitives::{CandidateHash, Hash, SessionIndex};
 
 /// For each ongoing dispute we have a `SendTask` which takes care of it.
 ///

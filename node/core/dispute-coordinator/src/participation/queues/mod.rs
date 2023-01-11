@@ -19,8 +19,7 @@ use std::{cmp::Ordering, collections::BTreeMap};
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::ChainApiMessage, overseer};
 use polkadot_primitives::{
-	v3::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex},
-	vstaging::ExecutorParams,
+	vstaging::ExecutorParams, BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex,
 };
 
 use crate::{

@@ -508,7 +508,7 @@ mod tests {
 	use futures::executor::block_on;
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
 	use polkadot_overseer::{dummy::dummy_overseer_builder, Handle, HeadSupportsParachains};
-	use polkadot_primitives::v3::Hash;
+	use polkadot_primitives::Hash;
 	use sp_core::traits::SpawnNamed;
 
 	struct AlwaysSupportsParachains;

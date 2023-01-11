@@ -42,7 +42,7 @@ use polkadot_node_subsystem_util::{
 	database::Database,
 	rolling_session_window::{DatabaseParams, RollingSessionWindow},
 };
-use polkadot_primitives::v3::{DisputeStatement, ScrapedOnChainVotes, SessionInfo, ValidatorIndex};
+use polkadot_primitives::{v3::SessionInfo, DisputeStatement, ScrapedOnChainVotes, ValidatorIndex};
 
 use crate::{
 	error::{FatalResult, JfyiError, Result},

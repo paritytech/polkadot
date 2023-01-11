@@ -17,14 +17,14 @@
 //! Runtime API implementations for Parachains.
 //!
 //! These are exposed as different modules using different sets of primitives.
-//! At the moment there is a `v2` module for the current stable API and
+//! At the moment there is a `v3` module for the current stable API and
 //! `vstaging` module for all staging methods.
-//! When new version of the stable API is released it will be based on `v2` and
+//! When new version of the stable API is released it will be based on `v3` and
 //! will contain methods from `vstaging`.
 //! The promotion consists of the following steps:
-//! 1. Bump the version of the stable module (e.g. `v2` becomes `v3`)
-//! 2. Move methods from `vstaging` to `v3`. The new stable version should include
+//! 1. Bump the version of the stable module (e.g. `v3` becomes `v4`)
+//! 2. Move methods from `vstaging` to `v4`. The new stable version should include
 //!    all methods from `vstaging` tagged with the new version number (e.g. all
-//!    `v3` methods).
+//!    `v4` methods).
 pub mod v3;
 pub mod vstaging;

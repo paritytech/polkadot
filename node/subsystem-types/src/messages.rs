@@ -39,16 +39,13 @@ use polkadot_node_primitives::{
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::{
-	v3::{
-		AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
-		CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
-		DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-		InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
-		OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex,
-		SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
-		ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
-	},
-	vstaging::ExecutorParams,
+	v3::SessionInfo, vstaging::ExecutorParams, AuthorityDiscoveryId, BackedCandidate, BlockNumber,
+	CandidateEvent, CandidateHash, CandidateIndex, CandidateReceipt, CollatorId,
+	CommittedCandidateReceipt, CoreState, DisputeState, GroupIndex, GroupRotationInfo, Hash,
+	Header as BlockHeader, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
+	SessionIndex, SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use polkadot_statement_table::v3::Misbehavior;
 use std::{
@@ -560,7 +557,7 @@ pub enum RuntimeApiRequest {
 	/// Sends back `true` if the validation outputs pass all acceptance criteria checks.
 	CheckValidationOutputs(
 		ParaId,
-		polkadot_primitives::v3::CandidateCommitments,
+		polkadot_primitives::CandidateCommitments,
 		RuntimeApiSender<bool>,
 	),
 	/// Get the session index that a child of the block will have.
@@ -590,7 +587,7 @@ pub enum RuntimeApiRequest {
 	/// Get information about the BABE epoch the block was included in.
 	CurrentBabeEpoch(RuntimeApiSender<BabeEpoch>),
 	/// Get all disputes in relation to a relay parent.
-	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::v3::ScrapedOnChainVotes>>),
+	FetchOnChainVotes(RuntimeApiSender<Option<polkadot_primitives::ScrapedOnChainVotes>>),
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	SubmitPvfCheckStatement(PvfCheckStatement, ValidatorSignature, RuntimeApiSender<()>),
 	/// Returns code hashes of PVFs that require pre-checking by validators in the active set.

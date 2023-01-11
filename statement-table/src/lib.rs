@@ -21,7 +21,7 @@ pub use generic::{Context, Table};
 /// Concrete instantiations suitable for v2 primitives.
 pub mod v3 {
 	use crate::generic;
-	use primitives::v3::{
+	use primitives::{
 		CandidateHash, CommittedCandidateReceipt, CompactStatement as PrimitiveStatement, Id,
 		ValidatorIndex, ValidatorSignature,
 	};

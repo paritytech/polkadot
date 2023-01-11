@@ -51,8 +51,8 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v3::{
-	AuthorityDiscoveryId, Hash, SessionIndex, SessionInfo, ValidatorIndex,
+use polkadot_primitives::{
+	v3::SessionInfo, AuthorityDiscoveryId, Hash, SessionIndex, ValidatorIndex,
 };
 
 #[cfg(test)]

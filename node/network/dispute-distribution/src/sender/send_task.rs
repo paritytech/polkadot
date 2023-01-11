@@ -32,7 +32,7 @@ use polkadot_node_subsystem_util::{
 	nesting_sender::NestingSender,
 	runtime::{RuntimeInfo, RuntimeInfoProvider},
 };
-use polkadot_primitives::v3::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex,
 };
 

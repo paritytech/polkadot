@@ -24,7 +24,7 @@ use kvdb::{DBKey, DBOp};
 
 use parity_scale_codec::{Decode, Encode};
 pub use polkadot_node_primitives::{new_session_window_size, SessionWindowSize};
-use polkadot_primitives::v3::{BlockNumber, Hash, SessionIndex, SessionInfo};
+use polkadot_primitives::{v3::SessionInfo, BlockNumber, Hash, SessionIndex};
 use std::sync::Arc;
 
 use futures::channel::oneshot;
@@ -594,7 +594,7 @@ mod tests {
 		SubsystemContext,
 	};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
-	use polkadot_primitives::v3::Header;
+	use polkadot_primitives::Header;
 	use polkadot_primitives_test_helpers::dummy_session_info;
 	use sp_core::testing::TaskExecutor;
 

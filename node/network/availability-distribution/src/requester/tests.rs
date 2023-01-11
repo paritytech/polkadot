@@ -21,9 +21,9 @@ use futures::FutureExt;
 use polkadot_node_network_protocol::jaeger;
 use polkadot_node_primitives::{BlockData, ErasureChunk, PoV};
 use polkadot_node_subsystem_util::runtime::{RuntimeInfo, RuntimeInfoProvider};
-use polkadot_primitives::v3::{
-	BlockNumber, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionIndex,
-	SessionInfo,
+use polkadot_primitives::{
+	v3::SessionInfo, BlockNumber, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore,
+	SessionIndex,
 };
 use sp_core::traits::SpawnNamed;
 

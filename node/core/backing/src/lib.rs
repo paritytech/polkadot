@@ -49,12 +49,10 @@ use polkadot_node_subsystem_util::{
 	request_validators, runtime::RuntimeInfoProvider, Validator,
 };
 use polkadot_primitives::{
-	v3::{
-		BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-		CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SigningContext,
-		ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
-	},
-	vstaging::ExecutorParams,
+	vstaging::ExecutorParams, BackedCandidate, CandidateCommitments, CandidateHash,
+	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash,
+	Id as ParaId, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature,
+	ValidityAttestation,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -615,7 +613,7 @@ async fn make_pov_available(
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
-	validation_data: polkadot_primitives::v3::PersistedValidationData,
+	validation_data: polkadot_primitives::PersistedValidationData,
 	expected_erasure_root: Hash,
 	span: Option<&jaeger::Span>,
 ) -> Result<Result<(), InvalidErasureRoot>, Error> {

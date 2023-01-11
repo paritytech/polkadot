@@ -19,7 +19,7 @@ use futures::channel::{mpsc, oneshot};
 
 use polkadot_node_subsystem::{messages::ValidationFailed, SubsystemError};
 use polkadot_node_subsystem_util::Error as UtilError;
-use polkadot_primitives::v3::BackedCandidate;
+use polkadot_primitives::BackedCandidate;
 
 use crate::LOG_TARGET;
 

@@ -19,7 +19,7 @@ use crate::{
 	initializer,
 };
 use frame_support::pallet_prelude::*;
-use primitives::v3::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
+use primitives::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use sp_std::{fmt, prelude::*};
 use xcm::latest::SendError;

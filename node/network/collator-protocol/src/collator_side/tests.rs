@@ -43,9 +43,9 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v3::{
-	AuthorityDiscoveryId, CollatorPair, GroupIndex, GroupRotationInfo, IndexedVec, ScheduledCore,
-	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+use polkadot_primitives::{
+	v3::SessionInfo, AuthorityDiscoveryId, CollatorPair, GroupIndex, GroupRotationInfo, IndexedVec,
+	ScheduledCore, SessionIndex, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::TestCandidateBuilder;
 
