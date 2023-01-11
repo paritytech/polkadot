@@ -111,7 +111,7 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{
+use primitives::{
 	ConsensusLog, HeadData, Id as ParaId, PvfCheckStatement, SessionIndex, UpgradeGoAhead,
 	UpgradeRestriction, ValidationCode, ValidationCodeHash, ValidatorSignature,
 };
@@ -452,7 +452,7 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 
 	/// Returns `None` if the quorum is not reached, or the direction of the decision.
 	fn quorum(&self, n_validators: usize) -> Option<PvfCheckOutcome> {
-		let q_threshold = primitives::v2::supermajority_threshold(n_validators);
+		let q_threshold = primitives::supermajority_threshold(n_validators);
 		// NOTE: counting the reject votes is deliberately placed first. This is to err on the safe.
 		if self.votes_reject.count_ones() >= q_threshold {
 			Some(PvfCheckOutcome::Rejected)

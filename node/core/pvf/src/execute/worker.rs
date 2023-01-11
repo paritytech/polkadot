@@ -19,30 +19,22 @@ use crate::{
 	executor_intf::Executor,
 	worker_common::{
 		bytes_to_path, cpu_time_monitor_loop, framed_recv, framed_send, path_to_bytes,
-		spawn_with_program_path, worker_event_loop, IdleWorker, JobKind, SpawnErr, WorkerHandle,
+		spawn_with_program_path, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
 		JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 	},
 	LOG_TARGET,
 };
-use async_std::{
-	io,
-	os::unix::net::UnixStream,
-	path::{Path, PathBuf},
-	task,
-};
 use cpu_time::ProcessTime;
-use futures::FutureExt;
+use futures::{pin_mut, select_biased, FutureExt};
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
-	sync::{
-		atomic::{AtomicBool, Ordering},
-		Arc,
-	},
-	thread,
+	path::{Path, PathBuf},
+	sync::{mpsc::channel, Arc},
 	time::Duration,
 };
+use tokio::{io, net::UnixStream};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
 ///
@@ -150,11 +142,8 @@ pub async fn start_work(
 				target: LOG_TARGET,
 				worker_pid = %pid,
 				validation_code_hash = ?artifact.id.code_hash,
-				"execution worker exceeded allotted time for execution",
+				"execution worker exceeded lenient timeout for execution, child worker likely stalled",
 			);
-			// TODO: This case is not really a hard timeout as the timeout here in the host is
-			// lenient. Should fix this as part of
-			// https://github.com/paritytech/polkadot/issues/3754.
 			Response::TimedOut
 		},
 	};
@@ -235,10 +224,10 @@ impl Response {
 /// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
 /// the path to the socket used to communicate with the host.
 pub fn worker_entrypoint(socket_path: &str) {
-	worker_event_loop("execute", socket_path, |mut stream| async move {
-		let executor = Executor::new().map_err(|e| {
+	worker_event_loop("execute", socket_path, |rt_handle, mut stream| async move {
+		let executor = Arc::new(Executor::new().map_err(|e| {
 			io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
-		})?;
+		})?);
 
 		loop {
 			let (artifact_path, params, execution_timeout) = recv_request(&mut stream).await?;
@@ -249,52 +238,61 @@ pub fn worker_entrypoint(socket_path: &str) {
 				artifact_path.display(),
 			);
 
-			// Create a lock flag. We set it when either thread finishes.
-			let lock = Arc::new(AtomicBool::new(false));
+			// Used to signal to the cpu time monitor thread that it can finish.
+			let (finished_tx, finished_rx) = channel::<()>();
 			let cpu_time_start = ProcessTime::now();
 
-			// Spawn a new thread that runs the CPU time monitor. Continuously wakes up from
-			// sleeping and then either sleeps for the remaining CPU time, or kills the process if
-			// we exceed the CPU timeout.
-			let (stream_2, cpu_time_start_2, execution_timeout_2, lock_2) =
-				(stream.clone(), cpu_time_start, execution_timeout, lock.clone());
-			let handle =
-				thread::Builder::new().name("CPU time monitor".into()).spawn(move || {
-					task::block_on(async {
-						cpu_time_monitor_loop(
-							JobKind::Execute,
-							stream_2,
-							cpu_time_start_2,
-							execution_timeout_2,
-							lock_2,
-						)
-						.await;
-					})
-				})?;
+			// Spawn a new thread that runs the CPU time monitor.
+			let thread_fut = rt_handle
+				.spawn_blocking(move || {
+					cpu_time_monitor_loop(cpu_time_start, execution_timeout, finished_rx)
+				})
+				.fuse();
+			let executor_2 = executor.clone();
+			let execute_fut = rt_handle
+				.spawn_blocking(move || {
+					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
+				})
+				.fuse();
 
-			let response =
-				validate_using_artifact(&artifact_path, &params, &executor, cpu_time_start).await;
+			pin_mut!(thread_fut);
+			pin_mut!(execute_fut);
 
-			let lock_result =
-				lock.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed);
-			if lock_result.is_err() {
-				// The other thread is still sending an error response over the socket. Wait on it
-				// and return.
-				let _ = handle.join();
-				// Monitor thread detected timeout and likely already terminated the process,
-				// nothing to do.
-				continue
-			}
+			let response = select_biased! {
+				// If this future is not selected, the join handle is dropped and the thread will
+				// finish in the background.
+				join_res = thread_fut => {
+					match join_res {
+						Ok(Some(cpu_time_elapsed)) => {
+							// Log if we exceed the timeout and the other thread hasn't finished.
+							gum::warn!(
+								target: LOG_TARGET,
+								worker_pid = %std::process::id(),
+								"execute job took {}ms cpu time, exceeded execute timeout {}ms",
+								cpu_time_elapsed.as_millis(),
+								execution_timeout.as_millis(),
+							);
+							Response::TimedOut
+						},
+						Ok(None) => Response::InternalError("error communicating over finished channel".into()),
+						Err(e) => Response::InternalError(format!("{}", e)),
+					}
+				},
+				execute_res = execute_fut => {
+					let _ = finished_tx.send(());
+					execute_res.unwrap_or_else(|e| Response::InternalError(format!("{}", e)))
+				},
+			};
 
 			send_response(&mut stream, response).await?;
 		}
 	});
 }
 
-async fn validate_using_artifact(
+fn validate_using_artifact(
 	artifact_path: &Path,
 	params: &[u8],
-	executor: &Executor,
+	executor: Arc<Executor>,
 	cpu_time_start: ProcessTime,
 ) -> Response {
 	let descriptor_bytes = match unsafe {
