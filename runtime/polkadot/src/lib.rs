@@ -32,7 +32,7 @@ use runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+	session_info as parachains_session_info, shared as parachains_shared,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -44,7 +44,7 @@ use frame_support::{
 		ConstU32, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		PrivilegeCmp, WithdrawReasons,
 	},
-	weights::ConstantMultiplier,
+	weights::{constants::WEIGHT_REF_TIME_PER_MILLIS, ConstantMultiplier},
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
@@ -1280,6 +1280,8 @@ impl parachains_inclusion::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = ParasDisputes;
 	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
+	type MessageQueue = MessageQueue;
+	type WeightInfo = (); // FAIL-CI: TODO
 }
 
 parameter_types! {
@@ -1293,17 +1295,44 @@ impl parachains_paras::Config for Runtime {
 	type NextSessionRotation = Babe;
 }
 
-parameter_types! {
-	pub const FirstMessageFactorPercent: u64 = 100;
+// TODO does this make the slightest amount of sense?
+pub struct ParaIdToJunction;
+impl sp_runtime::traits::Convert<parachains_inclusion::MessageOrigin, xcm::latest::Junction>
+	for ParaIdToJunction
+{
+	fn convert(o: parachains_inclusion::MessageOrigin) -> xcm::latest::Junction {
+		match o {
+			parachains_inclusion::MessageOrigin {
+				para,
+				queue: parachains_inclusion::SubQueue::UMP,
+			} => xcm::latest::Junction::Parachain(para.into()),
+			// FAIL-CI: Should be similar for the other *MP queues but check this as a TODO
+			_ => todo!(),
+		}
+	}
 }
 
-impl parachains_ump::Config for Runtime {
+parameter_types! {
+	/// Amount of weigh which can be spent per block to service messages.
+	/// FAIL-CI: Pretty random value. Should eventually be the sum of `UMP+DMP+HRMP`.
+	pub const MessageQueueServiceWeight: Weight = Weight::from_parts(100 * WEIGHT_REF_TIME_PER_MILLIS, u64::MAX);
+}
+
+impl pallet_message_queue::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type UmpSink =
-		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
-	type FirstMessageFactorPercent = FirstMessageFactorPercent;
-	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = parachains_ump::TestWeightInfo;
+	type Size = u32;
+	type HeapSize = ConstU32<65_536>;
+	type MaxStale = ConstU32<8>;
+	type ServiceWeight = MessageQueueServiceWeight;
+	// TODO Is `ParaIdToJunction` correct here?
+	type MessageProcessor = xcm_builder::ProcessXcmMessage<
+		parachains_inclusion::MessageOrigin,
+		xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
+		RuntimeCall,
+		ParaIdToJunction,
+	>;
+	type QueueChangeHandler = ();
+	type WeightInfo = (); // FAIL-CI: TODO
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -1551,10 +1580,11 @@ construct_runtime! {
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config, ValidateUnsigned} = 56,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 58,
-		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
+		// Ump 59
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
+		MessageQueue: pallet_message_queue::{Pallet, Call, Storage, Event<T>} = 63,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,
@@ -1666,6 +1696,7 @@ mod benches {
 		[pallet_im_online, ImOnline]
 		[pallet_indices, Indices]
 		[pallet_membership, TechnicalMembership]
+		[pallet_message_queue, MessageQueue]
 		[pallet_multisig, Multisig]
 		[pallet_nomination_pools, NominationPoolsBench::<Runtime>]
 		[pallet_offences, OffencesBench::<Runtime>]
