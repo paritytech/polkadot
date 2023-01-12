@@ -21,7 +21,7 @@ use crate::{
 	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
 	session_info, shared,
 };
-use primitives::v2::{
+use primitives::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
@@ -256,7 +256,7 @@ pub fn assumed_validation_data<T: initializer::Config>(
 /// Implementation for the `check_validation_outputs` function of the runtime API.
 pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
-	outputs: primitives::v2::CandidateCommitments,
+	outputs: primitives::CandidateCommitments,
 ) -> bool {
 	<inclusion::Pallet<T>>::check_validation_outputs_for_runtime_api(para_id, outputs)
 }

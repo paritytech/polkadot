@@ -400,12 +400,12 @@ and only if all of the following conditions are satisfied:
 
 Whenever any vote on a dispute is imported these conditions are checked. If the
 dispute is found not to be potential spam, then spam slots for the disputed candidate hash are cleared. This decrements the spam count for every validator
-which had voted invalid. 
+which had voted invalid.
 
-To keep spam slots from filling up unnecessarily we want to clear spam slots 
+To keep spam slots from filling up unnecessarily we want to clear spam slots
 whenever a candidate is seen to be backed or included. Fortunately this behavior
 is acheived by clearing slots on vote import as described above. Because on chain
-backing votes are processed when a block backing the disputed candidate is discovered, spam slots are cleared for every backed candidate. Included 
+backing votes are processed when a block backing the disputed candidate is discovered, spam slots are cleared for every backed candidate. Included
 candidates have also been seen as backed on the same fork, so decrementing spam
 slots is handled in that case as well.
 
@@ -681,12 +681,17 @@ struct State {
 ```
 
 ### On startup
-When the subsystem is initialised it waits for a new leaf (message `OverseerSignal::ActiveLeaves`).
-The leaf is used to initialise a `RollingSessionWindow` instance (contains leaf hash and
-`DISPUTE_WINDOW` which is a constant.
 
-Next the active disputes are loaded from the DB. The subsystem checks if there are disputes for
-which a local statement is not issued. A list of these is passed to the main loop.
+When the subsystem is initialised it waits for a new leaf (message
+`OverseerSignal::ActiveLeaves`). The leaf is used to initialise a
+`RollingSessionWindow` instance (contains leaf hash and `DISPUTE_WINDOW` which
+is a constant).
+
+Next the active disputes are loaded from the DB and initialize spam slots
+accordingly, then for each loaded dispute, we either send a
+`DisputeDistribution::SendDispute` if there is a local vote from us available or
+if there is none and participation is in order, we push the dispute to
+participation.
 
 ### The main loop
 

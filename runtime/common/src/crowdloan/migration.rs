@@ -22,20 +22,21 @@ use frame_support::{
 	Twox64Concat,
 };
 
-pub struct MigrateToTrackInactive<T>(sp_std::marker::PhantomData<T>);
-impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactive<T> {
+pub struct MigrateToTrackInactiveV2<T>(sp_std::marker::PhantomData<T>);
+impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactiveV2<T> {
 	fn on_runtime_upgrade() -> Weight {
 		let onchain_version = Pallet::<T>::on_chain_storage_version();
 
-		if onchain_version == 0 {
+		if onchain_version == 1 {
 			let mut translated = 0u64;
-			for index in Funds::<T>::iter_keys() {
-				let b = CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(index.into()));
+			for item in Funds::<T>::iter_values() {
+				let b =
+					CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(item.fund_index));
 				CurrencyOf::<T>::deactivate(b);
 				translated.saturating_inc();
 			}
 
-			StorageVersion::new(1).put::<Pallet<T>>();
+			StorageVersion::new(2).put::<Pallet<T>>();
 			log::info!(target: "runtime::crowdloan", "Summed {} funds, storage to version 1", translated);
 			T::DbWeight::get().reads_writes(translated * 2 + 1, translated * 2 + 1)
 		} else {
@@ -46,9 +47,9 @@ impl<T: Config> OnRuntimeUpgrade for MigrateToTrackInactive<T> {
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-		let total = Funds::<T>::iter_keys()
-			.map(|index| {
-				CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(index.into()))
+		let total = Funds::<T>::iter_values()
+			.map(|item| {
+				CurrencyOf::<T>::total_balance(&Pallet::<T>::fund_account_id(item.fund_index))
 			})
 			.fold(BalanceOf::<T>::zero(), |a, i| a.saturating_add(i));
 		Ok((total, CurrencyOf::<T>::active_issuance()).encode())

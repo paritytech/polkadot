@@ -21,7 +21,7 @@ use frame_benchmarking::{benchmarks, whitelist_account};
 use frame_support::traits::{OnFinalize, OnInitialize};
 use frame_system::RawOrigin;
 use pallet_staking::testing_utils::create_validators;
-use primitives::v2::{Hash, PARACHAIN_KEY_TYPE_ID};
+use primitives::{Hash, PARACHAIN_KEY_TYPE_ID};
 use sp_runtime::traits::{One, StaticLookup};
 use sp_session::MembershipProof;
 
