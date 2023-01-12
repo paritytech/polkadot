@@ -3339,7 +3339,7 @@ fn participation_requests_reprioritized_for_newly_included() {
 }
 
 // When a dispute has concluded against a parachain block candidate we want to notify
-// the chain selection subsystem. Then chain selection can revert the relay parent of
+// the chain selection subsystem. Then chain selection can revert the relay parents of
 // the disputed candidate and mark all descendants as non-viable. This direct
 // notification saves time compared to letting chain selection learn about a dispute
 // conclusion from an on chain revert log.
@@ -3352,29 +3352,49 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
 
 			let candidate_receipt = make_invalid_candidate_receipt();
-			let parent_number = 1;
+			let parent_1_number = 1;
+			let parent_2_number = 2;
 
 			let candidate_hash = candidate_receipt.hash();
 
-			// Copied from activate_leaf_at_session to give access to parent_hash
-			let block_header = Header {
+			// Including test candidate in 2 different parent blocks
+			let block_1_header = Header {
 				parent_hash: test_state.last_block,
-				number: parent_number,
+				number: parent_1_number,
 				digest: dummy_digest(),
 				state_root: dummy_hash(),
 				extrinsics_root: dummy_hash(),
 			};
-			let parent_hash = block_header.hash();
+			let parent_1_hash = block_1_header.hash();
 
 			test_state
 				.activate_leaf_at_session(
 					&mut virtual_overseer,
 					session,
-					parent_number,
+					parent_1_number,
 					vec![make_candidate_included_event(candidate_receipt.clone())],
 				)
 				.await;
 
+			let block_2_header = Header {
+				parent_hash: test_state.last_block,
+				number: parent_2_number,
+				digest: dummy_digest(),
+				state_root: dummy_hash(),
+				extrinsics_root: dummy_hash(),
+			};
+			let parent_2_hash = block_2_header.hash();
+
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					parent_2_number,
+					vec![make_candidate_included_event(candidate_receipt.clone())],
+				)
+				.await;
+
+			// Concluding dispute
 			let supermajority_threshold =
 				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 
@@ -3444,13 +3464,14 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
 				.await;
 
+			// Checking that concluded dispute has signaled the reversion of all parent blocks.
 			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::ChainSelection(
-					ChainSelectionMessage::RevertBlocks(block_number, block_hash)
+					ChainSelectionMessage::RevertBlocks(revert_set)
 				) => {
-					assert_eq!(block_number, parent_number);
-					assert_eq!(block_hash, parent_hash);
+					assert!(revert_set.contains(&(parent_1_number, parent_1_hash)));
+					assert!(revert_set.contains(&(parent_2_number, parent_2_hash)));
 				},
 				"Overseer did not receive `ChainSelectionMessage::RevertBlocks` message"
 			);

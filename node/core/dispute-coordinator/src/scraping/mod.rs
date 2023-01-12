@@ -208,16 +208,12 @@ impl ChainScraper {
 			Some(key_to_prune) => {
 				self.backed_candidates.remove_up_to_height(&key_to_prune);
 				let candidates_pruned = self.included_candidates.remove_up_to_height(&key_to_prune);
-				// Removing entries from inclusions per candidate referring to blocks before 
+				// Removing entries from inclusions per candidate referring to blocks before
 				// key_to_prune
 				for candidate_hash in candidates_pruned {
 					self.inclusions_per_candidate.entry(candidate_hash).and_modify(|inclusions| {
-						*inclusions = inclusions
-							.clone()
-							.into_iter()
-							.filter(|inclusion| inclusion.0 >= key_to_prune)
-							.collect::<HashSet<(BlockNumber, Hash)>>();
-					}); 
+						inclusions.retain(|inclusion| inclusion.0 >= key_to_prune);
+					});
 					if let Some(inclusions) = self.inclusions_per_candidate.get(&candidate_hash) {
 						if inclusions.is_empty() {
 							self.inclusions_per_candidate.remove(&candidate_hash);

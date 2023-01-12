@@ -117,11 +117,7 @@ impl ScrapedCandidates {
 		unique_candidates
 	}
 
-	pub fn insert(
-		&mut self,
-		block_number: BlockNumber,
-		candidate_hash: CandidateHash
-	) {
+	pub fn insert(&mut self, block_number: BlockNumber, candidate_hash: CandidateHash) {
 		self.candidates.insert(candidate_hash);
 		self.candidates_by_block_number
 			.entry(block_number)
@@ -140,7 +136,6 @@ impl ScrapedCandidates {
 mod scraped_candidates_tests {
 	use super::*;
 	use polkadot_primitives::v2::{BlakeTwo256, HashT};
-	use test_helpers::dummy_hash;
 
 	#[test]
 	fn stale_candidates_are_removed() {
