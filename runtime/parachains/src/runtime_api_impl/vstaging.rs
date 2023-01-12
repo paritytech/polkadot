@@ -18,10 +18,10 @@
 
 use crate::{configuration, disputes, dmp, hrmp, initializer, paras, shared, ump};
 use primitives::{
-	v2::{CandidateHash, DisputeState, Id as ParaId, SessionIndex},
 	vstaging::{
 		AsyncBackingParameters, Constraints, InboundHrmpLimitations, OutboundHrmpChannelLimitations,
 	},
+	CandidateHash, DisputeState, Id as ParaId, SessionIndex,
 };
 use sp_std::prelude::*;
 

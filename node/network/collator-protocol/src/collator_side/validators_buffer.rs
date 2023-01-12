@@ -43,7 +43,7 @@ use bitvec::{bitvec, vec::BitVec};
 use futures::FutureExt;
 
 use polkadot_node_network_protocol::PeerId;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, CandidateHash, GroupIndex, SessionIndex};
+use polkadot_primitives::{AuthorityDiscoveryId, CandidateHash, GroupIndex, SessionIndex};
 
 /// The ring buffer stores at most this many unique validator groups.
 ///

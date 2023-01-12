@@ -574,9 +574,9 @@ fn collator_peer_id(
 	peer_data: &HashMap<PeerId, PeerData>,
 	collator_id: &CollatorId,
 ) -> Option<PeerId> {
-	peer_data.iter().find_map(|(peer, data)| {
-		data.collator_id().filter(|c| c == &collator_id).map(|_| peer.clone())
-	})
+	peer_data
+		.iter()
+		.find_map(|(peer, data)| data.collator_id().filter(|c| c == &collator_id).map(|_| *peer))
 }
 
 async fn disconnect_peer(sender: &mut impl overseer::CollatorProtocolSenderTrait, peer_id: PeerId) {
@@ -849,7 +849,7 @@ async fn process_incoming_peer_message<Context>(
 					"Declared as collator for unneeded para",
 				);
 
-				modify_reputation(ctx.sender(), origin.clone(), COST_UNNEEDED_COLLATOR).await;
+				modify_reputation(ctx.sender(), origin, COST_UNNEEDED_COLLATOR).await;
 				gum::trace!(target: LOG_TARGET, "Disconnecting unneeded collator");
 				disconnect_peer(ctx.sender(), origin).await;
 			}
@@ -1648,7 +1648,7 @@ async fn poll_requests(
 			retained_requested.insert(pending_collation.clone());
 		}
 		if let CollationFetchResult::Error(Some(rep)) = result {
-			reputation_changes.push((pending_collation.peer_id.clone(), rep));
+			reputation_changes.push((pending_collation.peer_id, rep));
 		}
 	}
 	requested_collations.retain(|k, _| retained_requested.contains(k));
@@ -1820,7 +1820,7 @@ async fn disconnect_inactive_peers(
 	for (peer, peer_data) in peers {
 		if peer_data.is_inactive(&eviction_policy) {
 			gum::trace!(target: LOG_TARGET, "Disconnecting inactive peer");
-			disconnect_peer(sender, peer.clone()).await;
+			disconnect_peer(sender, *peer).await;
 		}
 	}
 }

@@ -36,7 +36,7 @@ use polkadot_node_network_protocol::{
 	request_response::{OutgoingRequest, Recipient, ReqProtocolNames, Requests},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v2::{AuthorityDiscoveryId, Block, Hash};
+use polkadot_primitives::{AuthorityDiscoveryId, Block, Hash};
 
 use crate::validator_discovery::AuthorityDiscovery;
 
@@ -164,6 +164,12 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 		let peer_id = match peer {
 			Recipient::Peer(peer_id) => Some(peer_id),
 			Recipient::Authority(authority) => {
+				gum::trace!(
+					target: LOG_TARGET,
+					?authority,
+					"Searching for peer id to connect to authority",
+				);
+
 				let mut found_peer_id = None;
 				// Note: `get_addresses_by_authority_id` searched in a cache, and it thus expected
 				// to be very quick.
@@ -177,7 +183,7 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 						Ok(v) => v,
 						Err(_) => continue,
 					};
-					NetworkService::add_known_address(&*self, peer_id.clone(), addr);
+					NetworkService::add_known_address(self, peer_id, addr);
 					found_peer_id = Some(peer_id);
 				}
 				found_peer_id
@@ -199,8 +205,16 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 			Some(peer_id) => peer_id,
 		};
 
+		gum::trace!(
+			target: LOG_TARGET,
+			%peer_id,
+			protocol = %req_protocol_names.get_name(protocol),
+			?if_disconnected,
+			"Starting request",
+		);
+
 		NetworkService::start_request(
-			&*self,
+			self,
 			peer_id,
 			req_protocol_names.get_name(protocol),
 			payload,

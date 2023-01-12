@@ -31,18 +31,16 @@ pub mod slots_crowdloan_index_migration {
 		for (para_id, leases) in Leases::<T>::iter() {
 			let old_fund_account = old_fund_account_id::<T>(para_id);
 
-			for maybe_deposit in leases.iter() {
-				if let Some((who, _amount)) = maybe_deposit {
-					if *who == old_fund_account {
-						let crowdloan =
-							crowdloan::Funds::<T>::get(para_id).ok_or("no crowdloan found")?;
-						log::info!(
-							target: "runtime",
-							"para_id={:?}, old_fund_account={:?}, fund_id={:?}, leases={:?}",
-							para_id, old_fund_account, crowdloan.fund_index, leases,
-						);
-						break
-					}
+			for (who, _amount) in leases.iter().flatten() {
+				if *who == old_fund_account {
+					let crowdloan =
+						crowdloan::Funds::<T>::get(para_id).ok_or("no crowdloan found")?;
+					log::info!(
+						target: "runtime",
+						"para_id={:?}, old_fund_account={:?}, fund_id={:?}, leases={:?}",
+						para_id, old_fund_account, crowdloan.fund_index, leases,
+					);
+					break
 				}
 			}
 		}
@@ -61,11 +59,9 @@ pub mod slots_crowdloan_index_migration {
 				let new_fund_account = crowdloan::Pallet::<T>::fund_account_id(fund.fund_index);
 
 				// look for places the old account is used, and replace with the new account.
-				for maybe_deposit in leases.iter_mut() {
-					if let Some((who, _amount)) = maybe_deposit {
-						if *who == old_fund_account {
-							*who = new_fund_account.clone();
-						}
+				for (who, _amount) in leases.iter_mut().flatten() {
+					if *who == old_fund_account {
+						*who = new_fund_account.clone();
 					}
 				}
 
@@ -83,11 +79,9 @@ pub mod slots_crowdloan_index_migration {
 			let old_fund_account = old_fund_account_id::<T>(para_id);
 			log::info!(target: "runtime", "checking para_id: {:?}", para_id);
 			// check the old fund account doesn't exist anywhere.
-			for maybe_deposit in leases.iter() {
-				if let Some((who, _amount)) = maybe_deposit {
-					if *who == old_fund_account {
-						panic!("old fund account found after migration!");
-					}
+			for (who, _amount) in leases.iter().flatten() {
+				if *who == old_fund_account {
+					panic!("old fund account found after migration!");
 				}
 			}
 		}

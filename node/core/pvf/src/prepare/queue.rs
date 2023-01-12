@@ -19,10 +19,10 @@
 use super::pool::{self, Worker};
 use crate::{artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, Pvf, LOG_TARGET};
 use always_assert::{always, never};
-use async_std::path::PathBuf;
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
 use std::{
 	collections::{HashMap, VecDeque},
+	path::PathBuf,
 	time::Duration,
 };
 
@@ -364,16 +364,14 @@ async fn handle_worker_concluded(
 			// the pool up to the hard cap.
 			spawn_extra_worker(queue, false).await?;
 		}
+	} else if queue.limits.should_cull(queue.workers.len() + queue.spawn_inflight) {
+		// We no longer need services of this worker. Kill it.
+		queue.workers.remove(worker);
+		send_pool(&mut queue.to_pool_tx, pool::ToPool::Kill(worker)).await?;
 	} else {
-		if queue.limits.should_cull(queue.workers.len() + queue.spawn_inflight) {
-			// We no longer need services of this worker. Kill it.
-			queue.workers.remove(worker);
-			send_pool(&mut queue.to_pool_tx, pool::ToPool::Kill(worker)).await?;
-		} else {
-			// see if there are more work available and schedule it.
-			if let Some(job) = queue.unscheduled.next() {
-				assign(queue, worker, job).await?;
-			}
+		// see if there are more work available and schedule it.
+		if let Some(job) = queue.unscheduled.next() {
+			assign(queue, worker, job).await?;
 		}
 	}
 
@@ -605,7 +603,7 @@ mod tests {
 		}
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn properly_concludes() {
 		let mut test = Test::new(2, 2);
 
@@ -618,12 +616,16 @@ mod tests {
 
 		let w = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w));
-		test.send_from_pool(pool::FromPool::Concluded { worker: w, rip: false, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w,
+			rip: false,
+			result: Ok(Duration::default()),
+		});
 
 		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn dont_spawn_over_soft_limit_unless_critical() {
 		let mut test = Test::new(2, 3);
 		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
@@ -647,7 +649,11 @@ mod tests {
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
-		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: false, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w1,
+			rip: false,
+			result: Ok(Duration::default()),
+		});
 
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
@@ -663,7 +669,7 @@ mod tests {
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn cull_unwanted() {
 		let mut test = Test::new(1, 2);
 		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
@@ -693,11 +699,15 @@ mod tests {
 		// That's a bit silly in this context, but in production there will be an entire pool up
 		// to the `soft_capacity` of workers and it doesn't matter which one to cull. Either way,
 		// we just check that edge case of an edge case works.
-		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: false, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w1,
+			rip: false,
+			result: Ok(Duration::default()),
+		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Kill(w1));
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn worker_mass_die_out_doesnt_stall_queue() {
 		let mut test = Test::new(2, 2);
 
@@ -719,7 +729,11 @@ mod tests {
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		// Conclude worker 1 and rip it.
-		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: true, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w1,
+			rip: true,
+			result: Ok(Duration::default()),
+		});
 
 		// Since there is still work, the queue requested one extra worker to spawn to handle the
 		// remaining enqueued work items.
@@ -727,7 +741,7 @@ mod tests {
 		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn doesnt_resurrect_ripped_worker_if_no_work() {
 		let mut test = Test::new(2, 2);
 
@@ -747,12 +761,12 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Concluded {
 			worker: w1,
 			rip: true,
-			result: Err(PrepareError::DidNotMakeIt),
+			result: Err(PrepareError::IoErr("test".into())),
 		});
 		test.poll_ensure_to_pool_is_empty().await;
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn rip_for_start_work() {
 		let mut test = Test::new(2, 2);
 

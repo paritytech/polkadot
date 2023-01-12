@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal, TimeoutExt,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateDescriptor, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
 	SessionIndex,
 };

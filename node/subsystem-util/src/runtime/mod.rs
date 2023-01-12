@@ -29,12 +29,10 @@ use polkadot_node_subsystem::{
 	errors::RuntimeApiError, messages::RuntimeApiMessage, overseer, SubsystemSender,
 };
 use polkadot_primitives::{
-	v2::{
-		CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, IndexedVec,
-		OccupiedCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed, SigningContext,
-		UncheckedSigned, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	},
-	vstaging as vstaging_primitives,
+	vstaging as vstaging_primitives, CandidateEvent, CoreState, EncodeAs, GroupIndex,
+	GroupRotationInfo, Hash, IndexedVec, OccupiedCore, ScrapedOnChainVotes, SessionIndex,
+	SessionInfo, Signed, SigningContext, UncheckedSigned, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex,
 };
 
 use crate::{

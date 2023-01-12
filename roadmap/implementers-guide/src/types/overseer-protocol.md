@@ -825,7 +825,7 @@ pub enum CandidateValidationMessage {
     ///
     /// This request doesn't involve acceptance criteria checking, therefore only useful for the
     /// cases where the validity of the candidate is established. This is the case for the typical
-    /// use-case: secondary checkers would use this request relying on the full prior checks
+    /// use-case: approval checkers would use this request relying on the full prior checks
     /// performed by the relay-chain.
     ValidateFromExhaustive(
         PersistedValidationData,

@@ -20,7 +20,7 @@
 //! dependent on any of the other pallets.
 
 use frame_support::pallet_prelude::*;
-use primitives::v2::{SessionIndex, ValidatorId, ValidatorIndex};
+use primitives::{SessionIndex, ValidatorId, ValidatorIndex};
 use sp_runtime::traits::AtLeast32BitUnsigned;
 use sp_std::{collections::vec_deque::VecDeque, vec::Vec};
 
@@ -101,7 +101,7 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 		}
 
 		let age = (self.buffer.len() - 1) - pos;
-		let number = self.latest_number.clone() - BlockNumber::from(age as u32);
+		let number = self.latest_number - BlockNumber::from(age as u32);
 
 		Some((self.buffer[pos].1, number))
 	}

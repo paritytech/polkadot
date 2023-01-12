@@ -39,7 +39,7 @@ use polkadot_node_subsystem_util::{
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 	TimeoutExt,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, Hash, Id as ParaId,
 	OccupiedCoreAssumption, SignedAvailabilityBitfield, ValidatorIndex,
 };
@@ -383,7 +383,7 @@ async fn send_inherent_data(
 
 	let disputes = match has_required_runtime(
 		from_job,
-		leaf.hash.clone(),
+		leaf.hash,
 		PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT,
 	)
 	.await
@@ -524,7 +524,7 @@ fn select_availability_bitfields(
 		bitfields.len()
 	);
 
-	selected.into_iter().map(|(_, b)| b).collect()
+	selected.into_values().collect()
 }
 
 /// Selects candidates from tracked ones to note in a relay chain block.

@@ -18,7 +18,7 @@ use std::{cmp::Ordering, collections::BTreeMap};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::ChainApiMessage, overseer};
-use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
+use polkadot_primitives::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
 use crate::{
 	error::{FatalError, FatalResult, Result},
@@ -159,6 +159,31 @@ impl Queues {
 		self.pop_best_effort().map(|d| d.1)
 	}
 
+	/// Reprioritizes any participation requests pertaining to the
+	/// passed candidates from best effort to priority.
+	pub async fn prioritize_if_present(
+		&mut self,
+		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
+		receipt: &CandidateReceipt,
+	) -> Result<()> {
+		let comparator = CandidateComparator::new(sender, receipt).await?;
+		self.prioritize_with_comparator(comparator)?;
+		Ok(())
+	}
+
+	fn prioritize_with_comparator(
+		&mut self,
+		comparator: CandidateComparator,
+	) -> std::result::Result<(), QueueError> {
+		if self.priority.len() >= PRIORITY_QUEUE_SIZE {
+			return Err(QueueError::PriorityFull)
+		}
+		if let Some(request) = self.best_effort.remove(&comparator) {
+			self.priority.insert(comparator, request);
+		}
+		Ok(())
+	}
+
 	fn queue_with_comparator(
 		&mut self,
 		comparator: CandidateComparator,
@@ -204,7 +229,7 @@ impl Queues {
 		// Once https://github.com/rust-lang/rust/issues/62924 is there, we can use a simple:
 		// target.pop_first().
 		if let Some((comparator, _)) = target.iter().next() {
-			let comparator = comparator.clone();
+			let comparator = *comparator;
 			target
 				.remove(&comparator)
 				.map(|participation_request| (comparator, participation_request))

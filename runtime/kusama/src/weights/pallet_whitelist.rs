@@ -63,7 +63,8 @@ impl<T: frame_system::Config> pallet_whitelist::WeightInfo for WeightInfo<T> {
 	// Storage: Whitelist WhitelistedCall (r:1 w:1)
 	// Storage: Preimage PreimageFor (r:1 w:1)
 	// Storage: Preimage StatusFor (r:1 w:1)
-	fn dispatch_whitelisted_call() -> Weight {
+	// TODO regenerate
+	fn dispatch_whitelisted_call(_n: u32) -> Weight {
 		Weight::from_ref_time(7_327_364_000 as u64)
 			.saturating_add(T::DbWeight::get().reads(3 as u64))
 			.saturating_add(T::DbWeight::get().writes(3 as u64))
