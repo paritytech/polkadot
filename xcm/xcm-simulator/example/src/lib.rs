@@ -47,8 +47,8 @@ decl_test_parachain! {
 decl_test_parachain! {
 	pub struct ParaC {
 		Runtime = parachain_c::Runtime,
-		XcmpMessageHandler = parachain::MsgQueue,
-		DmpMessageHandler = parachain::MsgQueue,
+		XcmpMessageHandler = parachain_c::MsgQueue,
+		DmpMessageHandler = parachain_c::MsgQueue,
 		new_ext = para_ext(2),
 	}
 }
