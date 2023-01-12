@@ -67,17 +67,21 @@ impl DropAssets for TestAssetTrap {
 }
 
 impl ClaimAssets for TestAssetTrap {
-	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, what: &MultiAssets) -> bool {
+	fn claim_assets(
+		origin: &MultiLocation,
+		ticket: &MultiLocation,
+		what: &MultiAssets,
+	) -> (Weight, bool) {
 		let mut t: Vec<(MultiLocation, MultiAssets)> = TrappedAssets::get();
 		if let (0, X1(GeneralIndex(i))) = (ticket.parents, &ticket.interior) {
 			if let Some((l, a)) = t.get(*i as usize) {
 				if l == origin && a == what {
 					t.swap_remove(*i as usize);
 					TrappedAssets::set(t);
-					return true
+					return (0, true)
 				}
 			}
 		}
-		false
+		(0, false)
 	}
 }

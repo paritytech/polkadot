@@ -62,19 +62,25 @@ impl<D: DropAssets, O: Contains<MultiLocation>> DropAssets for FilterOrigin<D, O
 
 /// Define any handlers for the `AssetClaim` instruction.
 pub trait ClaimAssets {
-	/// Claim any assets available to `origin` and return them in a single `Assets` value, together
-	/// with the weight used by this operation.
-	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, what: &MultiAssets) -> bool;
+	/// Claim any assets available to `origin`.
+	/// Return true if the claim is successful, together with the weight used by this operation.
+	fn claim_assets(
+		origin: &MultiLocation,
+		ticket: &MultiLocation,
+		what: &MultiAssets,
+	) -> (Weight, bool);
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl ClaimAssets for Tuple {
-	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, what: &MultiAssets) -> bool {
+	fn claim_assets(
+		origin: &MultiLocation,
+		ticket: &MultiLocation,
+		what: &MultiAssets,
+	) -> (Weight, bool) {
 		for_tuples!( #(
-			if Tuple::claim_assets(origin, ticket, what) {
-				return true;
-			}
+			return Tuple::claim_assets(origin, ticket, what);
 		)* );
-		false
+		(0, false)
 	}
 }

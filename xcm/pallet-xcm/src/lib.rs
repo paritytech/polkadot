@@ -1315,25 +1315,27 @@ pub mod pallet {
 			origin: &MultiLocation,
 			ticket: &MultiLocation,
 			assets: &MultiAssets,
-		) -> bool {
+		) -> (u64, bool) {
 			let mut versioned = VersionedMultiAssets::from(assets.clone());
 			match (ticket.parents, &ticket.interior) {
 				(0, X1(GeneralIndex(i))) =>
 					versioned = match versioned.into_version(*i as u32) {
 						Ok(v) => v,
-						Err(()) => return false,
+						Err(()) => return (0, false),
 					},
 				(0, Here) => (),
-				_ => return false,
+				_ => return (0, false),
 			};
 			let hash = BlakeTwo256::hash_of(&(origin, versioned.clone()));
 			match AssetTraps::<T>::get(hash) {
-				0 => return false,
+				0 => return (0, false),
 				1 => AssetTraps::<T>::remove(hash),
 				n => AssetTraps::<T>::insert(hash, n - 1),
 			}
 			Self::deposit_event(Event::AssetsClaimed(hash, origin.clone(), versioned));
-			return true
+
+			// TODO #3735: Put the real weight in there.
+			return (0, true)
 		}
 	}
 
