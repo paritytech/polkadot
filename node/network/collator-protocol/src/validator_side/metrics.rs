@@ -57,7 +57,7 @@ impl Metrics {
 		self.0.as_ref().map(|metrics| metrics.collation_request_duration.start_timer())
 	}
 
-	/// Provide a timer for `PerRequest` structure which observes on drop.
+	/// Provide a timer for `request_unblocked_collations` which observes on drop.
 	pub fn time_request_unblocked_collations(
 		&self,
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
