@@ -40,8 +40,13 @@ pub use assets::Assets;
 mod config;
 pub use config::Config;
 
+/// A struct to specify how fees are being paid.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct FeesMode {
+	/// If true, then the fee assets are taken directly from the origin's on-chain account,
+	/// otherwise the fee assets are taken from the holding register.
+	///
+	/// Defaults to false.
 	pub jit_withdraw: bool,
 }
 
