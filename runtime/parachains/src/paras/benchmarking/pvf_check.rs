@@ -170,7 +170,8 @@ where
 }
 
 /// Generates a list of votes combined with signatures for the active validator set. The number of
-/// votes is equal to the minimum number of votes required to reach the supermajority.
+/// votes is equal to the minimum number of votes required to reach the threshold for either accept
+/// or reject.
 fn generate_statements<T>(
 	vote_outcome: VoteOutcome,
 ) -> impl Iterator<Item = (PvfCheckStatement, ValidatorSignature)>
@@ -179,7 +180,11 @@ where
 {
 	let validators = ParasShared::<T>::active_validator_keys();
 
-	let required_votes = primitives::supermajority_threshold(validators.len());
+	let accept_threshold = primitives::supermajority_threshold(validators.len());
+	let required_votes = match vote_outcome {
+		VoteOutcome::Accept => accept_threshold,
+		VoteOutcome::Reject => validators.len() - accept_threshold,
+	};
 	(0..required_votes).map(move |validator_index| {
 		let stmt = PvfCheckStatement {
 			accept: vote_outcome == VoteOutcome::Accept,

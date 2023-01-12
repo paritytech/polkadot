@@ -73,13 +73,14 @@
 //!
 //! # PVF Pre-checking
 //!
-//! As was mentioned above, a brand new validation code should go through a process of approval.
-//! As part of this process, validators from the active set will take the validation code and
-//! check if it is malicious. Once they did that and have their judgement, either accept or reject,
-//! they issue a statement in a form of an unsigned extrinsic. This extrinsic is processed by this
-//! pallet. Once supermajority is gained for accept, then the process that initiated the check
-//! is resumed (as mentioned before this can be either upgrading of validation code or onboarding).
-//! If supermajority is gained for reject, then the process is canceled.
+//! As was mentioned above, a brand new validation code should go through a process of approval. As
+//! part of this process, validators from the active set will take the validation code and check if
+//! it is malicious. Once they did that and have their judgement, either accept or reject, they
+//! issue a statement in a form of an unsigned extrinsic. This extrinsic is processed by this
+//! pallet. Once supermajority is gained for accept, then the process that initiated the check is
+//! resumed (as mentioned before this can be either upgrading of validation code or onboarding). If
+//! getting a supermajority becomes impossible (>1/3 of validators have already voted against), then
+//! we reject.
 //!
 //! Below is a state diagram that depicts states of a single PVF pre-checking vote.
 //!
@@ -92,8 +93,8 @@
 //!         │      │   │
 //!         │  ┌───────┐
 //!         │  │       │
-//!         └─▶│ init  │────supermajority      ┌──────────┐
-//!            │       │       against         │          │
+//!         └─▶│ init  │──── >1/3 against      ┌──────────┐
+//!            │       │           │           │          │
 //!            └───────┘           └──────────▶│ rejected │
 //!             ▲  │                           │          │
 //!             │  │ session                   └──────────┘
@@ -452,12 +453,14 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 
 	/// Returns `None` if the quorum is not reached, or the direction of the decision.
 	fn quorum(&self, n_validators: usize) -> Option<PvfCheckOutcome> {
-		let q_threshold = primitives::supermajority_threshold(n_validators);
-		// NOTE: counting the reject votes is deliberately placed first. This is to err on the safe.
-		if self.votes_reject.count_ones() >= q_threshold {
-			Some(PvfCheckOutcome::Rejected)
-		} else if self.votes_accept.count_ones() >= q_threshold {
+		let accept_threshold = primitives::supermajority_threshold(n_validators);
+		// At this threshold, a supermajority is no longer possible, so we reject.
+		let reject_threshold = n_validators - accept_threshold;
+
+		if self.votes_accept.count_ones() >= accept_threshold {
 			Some(PvfCheckOutcome::Accepted)
+		} else if self.votes_reject.count_ones() > reject_threshold {
+			Some(PvfCheckOutcome::Rejected)
 		} else {
 			None
 		}
@@ -1011,7 +1014,7 @@ pub mod pallet {
 			}
 
 			if let Some(outcome) = active_vote.quorum(validators.len()) {
-				// The supermajority quorum has been achieved.
+				// The quorum has been achieved.
 				//
 				// Remove the PVF vote from the active map and finalize the PVF checking according
 				// to the outcome.
