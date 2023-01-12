@@ -122,8 +122,11 @@ impl<
 				.is_ok();
 		if ok {
 			Currency::reactivate(amount);
+		} else {
+			frame_support::defensive!(
+				"`can_check_in` must have returned `true` immediately prior; qed"
+			);
 		}
-		debug_assert!(ok, "`can_check_in` must have returned `true` immediately prior; qed");
 	}
 }
 

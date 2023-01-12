@@ -1199,7 +1199,7 @@ fn subscription_side_upgrades_work_with_multistage_notify() {
 		);
 
 		let mut contents = VersionNotifyTargets::<Test>::iter().collect::<Vec<_>>();
-		contents.sort_by_key(|k| k.2.0);
+		contents.sort_by_key(|k| k.2 .0);
 		assert_eq!(
 			contents,
 			vec![
