@@ -43,6 +43,16 @@ decl_test_parachain! {
 	}
 }
 
+// Para C is configured with `AdvertisedXcmVersion = 2`
+decl_test_parachain! {
+	pub struct ParaC {
+		Runtime = parachain_c::Runtime,
+		XcmpMessageHandler = parachain::MsgQueue,
+		DmpMessageHandler = parachain::MsgQueue,
+		new_ext = para_ext(2),
+	}
+}
+
 decl_test_relay_chain! {
 	pub struct Relay {
 		Runtime = relay_chain::Runtime,
@@ -57,6 +67,7 @@ decl_test_network! {
 		parachains = vec![
 			(1, ParaA),
 			(2, ParaB),
+			(3, ParaC),
 		],
 	}
 }
@@ -620,6 +631,149 @@ mod tests {
 					querier: Some(Here.into()),
 				}])],
 			);
+		});
+	}
+	/// Scenario:
+	/// A parachain still running on xcm v2 and hasn't yet updated to support v3 needs to send
+	/// messages to a parachain which already supports v3
+	#[test]
+	fn xcmp_from_v2_chain_to_v3_chain() {
+		MockNet::reset();
+
+		let remark = parachain::RuntimeCall::System(
+			frame_system::Call::<parachain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
+		);
+		ParaC::execute_with(|| {
+			assert_ok!(ParachainPalletXcm::send_xcm(
+				Here,
+				(Parent, Parachain(1)),
+				Xcm(vec![Transact {
+					origin_kind: OriginKind::SovereignAccount,
+					require_weight_at_most: Weight::from_parts(INITIAL_BALANCE as u64, 1024 * 1024),
+					call: remark.encode().into(),
+				}]),
+			));
+		});
+
+		ParaA::execute_with(|| {
+			use parachain::{RuntimeEvent, System};
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				RuntimeEvent::System(frame_system::Event::Remarked { .. })
+			)));
+		});
+	}
+
+	/// Scenario:
+	/// A parachain which supports xcm v3 should be able to send messages to a parachain which
+	/// hasn't yet been updated and only supports xcm v2
+	#[test]
+	fn xcmp_from_v3_chain_to_v2_chain() {
+		MockNet::reset();
+
+		let remark = parachain::RuntimeCall::System(
+			frame_system::Call::<parachain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
+		);
+		ParaC::execute_with(|| {
+			assert_ok!(ParachainPalletXcm::send_xcm(
+				Here,
+				(Parent, Parachain(1)),
+				Xcm(vec![Transact {
+					origin_kind: OriginKind::SovereignAccount,
+					require_weight_at_most: Weight::from_parts(INITIAL_BALANCE as u64, 1024 * 1024),
+					call: remark.encode().into(),
+				}]),
+			));
+		});
+
+		ParaA::execute_with(|| {
+			use parachain::{RuntimeEvent, System};
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				RuntimeEvent::System(frame_system::Event::Remarked { .. })
+			)));
+		});
+	}
+
+	/// Scenario:
+	/// A parachain still running on xcm v2 and hasn't yet updated to support v3 needs to send
+	/// messages to a parachain which already supports v3, but forcing the version of sent message.
+	#[test]
+	fn xcmp_from_v2_chain_to_v3_chain_forced() {
+		MockNet::reset();
+
+		let remark = parachain::RuntimeCall::System(
+			frame_system::Call::<parachain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
+		);
+		ParaC::execute_with(|| {
+			let _ = ParachainPalletXcm::force_default_xcm_version(
+				parachain::RuntimeOrigin::root(),
+				Some(2),
+			);
+			// Force using XCM v2 version encoding,  when messaging the chain even though it
+			// supports v3.
+			let _ = ParachainPalletXcm::force_xcm_version(
+				parachain::RuntimeOrigin::root(),
+				Box::new(xcm_simulator::MultiLocation::new(1, Parachain(1))),
+				2,
+			);
+			assert_ok!(ParachainPalletXcm::send_xcm(
+				Here,
+				(Parent, Parachain(1)),
+				Xcm(vec![Transact {
+					origin_kind: OriginKind::SovereignAccount,
+					require_weight_at_most: Weight::from_parts(INITIAL_BALANCE as u64, 1024 * 1024),
+					call: remark.encode().into(),
+				}]),
+			));
+		});
+
+		ParaA::execute_with(|| {
+			use parachain::{RuntimeEvent, System};
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				RuntimeEvent::System(frame_system::Event::Remarked { .. })
+			)));
+		});
+	}
+
+	/// Scenario:
+	/// A parachain which supports xcm v3 should be able to send messages to a parachain which
+	/// hasn't yet been updated and only supports xcm v2, but forcing the version of sent message.
+	#[test]
+	fn xcmp_from_v3_chain_to_v2_chain_forced() {
+		MockNet::reset();
+
+		let remark = parachain::RuntimeCall::System(
+			frame_system::Call::<parachain::Runtime>::remark_with_event { remark: vec![1, 2, 3] },
+		);
+		ParaC::execute_with(|| {
+			let _ = ParachainPalletXcm::force_default_xcm_version(
+				parachain::RuntimeOrigin::root(),
+				Some(3),
+			);
+			let _ = ParachainPalletXcm::force_xcm_version(
+				parachain::RuntimeOrigin::root(),
+				Box::new(xcm_simulator::MultiLocation::new(0, Parachain(2))),
+				3,
+			);
+			assert_ok!(ParachainPalletXcm::send_xcm(
+				Here,
+				(Parent, Parachain(1)),
+				Xcm(vec![Transact {
+					origin_kind: OriginKind::SovereignAccount,
+					require_weight_at_most: Weight::from_parts(INITIAL_BALANCE as u64, 1024 * 1024),
+					call: remark.encode().into(),
+				}]),
+			));
+		});
+
+		ParaA::execute_with(|| {
+			use parachain::{RuntimeEvent, System};
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				RuntimeEvent::System(frame_system::Event::Remarked { .. })
+			)));
 		});
 	}
 }
