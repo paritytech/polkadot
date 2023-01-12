@@ -63,7 +63,8 @@ impl<D: DropAssets, O: Contains<MultiLocation>> DropAssets for FilterOrigin<D, O
 /// Define any handlers for the `AssetClaim` instruction.
 pub trait ClaimAssets {
 	/// Claim any assets available to `origin` and return them in a single `Assets` value.
-	/// If it returns true, the weight returned by the operation must be the maximum possible weight.
+	/// If it returns true, the weight returned by the operation must be the maximum possible weight to be consumed when executing `ClaimAssets` instruction.
+	/// TODO: improve API by adding a max_weight parameter to `fn claim_assets`
 	fn claim_assets(origin: &MultiLocation, ticket: &MultiLocation, what: &MultiAssets) -> bool;
 }
 
