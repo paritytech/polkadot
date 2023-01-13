@@ -18,13 +18,14 @@
 //!
 //!	# Lifecycle of an artifact
 //!
-//! 1. During node start-up, the artifacts cache is cleaned up.
+//! 1. During node start-up, the artifacts cache is cleaned up. This means that all local artifacts
+//!    stored on-disk are cleared, and we start with an empty [`Artifacts`] table.
 //!
 //! 2. In order to be executed, a PVF should be prepared first. This means that artifacts should
-//!    have an [`ArtifactState::Prepared`] entry for that artifact. If not, the preparation process
-//!    kicks in. The execution request is stashed until after the preparation is done, and the
-//!    artifact state in the host is set to [`ArtifactState::Preparing`]. Preparation goes through
-//!    the preparation queue and the pool.
+//!    have an [`ArtifactState::Prepared`] entry for that artifact in the table. If not, the
+//!    preparation process kicks in. The execution request is stashed until after the preparation is
+//!    done, and the artifact state in the host is set to [`ArtifactState::Preparing`]. Preparation
+//!    goes through the preparation queue and the pool.
 //!
 //!    1. If the artifact is already being processed, we add another execution request to the
 //!       existing preparation job, without starting a new one.
