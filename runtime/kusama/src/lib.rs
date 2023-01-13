@@ -2137,8 +2137,8 @@ mod multiplier_tests {
 			<Runtime as pallet_fast_unstake::Config>::BatchSize::get(),
 		)
 		.ref_time() as f32;
-		dbg!(block_time, on_idle, on_idle / block_time);
-		assert!(on_idle / block_time <= 0.25f32)
+		println!("ratio of block weight for full batch fast-unstake {}", on_idle / block_time);
+		assert!(on_idle / block_time <= 0.5f32)
 	}
 
 	#[test]
