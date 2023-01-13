@@ -32,7 +32,6 @@ use parity_scale_codec::Error as CodecError;
 use std::{
 	sync::Arc,
 	time::{Duration, SystemTime, UNIX_EPOCH},
-	collections::HashSet,
 };
 
 use crate::backend::{Backend, BackendWriteOp, OverlayedBackend};

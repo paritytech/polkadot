@@ -2016,7 +2016,7 @@ fn stagnant_makes_childless_parent_leaf() {
 }
 
 #[test]
-fn dispute_concluded_against_message_triggers_proper_reversion() {
+fn revert_blocks_message_triggers_proper_reversion() {
 	test_harness(|backend, _, mut virtual_overseer| async move {
 		// Building mini chain with 1 finalized block and 3 unfinalized blocks
 		let finalized_number = 0;
@@ -2045,7 +2045,7 @@ fn dispute_concluded_against_message_triggers_proper_reversion() {
 		let (_, write_rx) = backend.await_next_write();
 		virtual_overseer
 			.send(FromOrchestra::Communication {
-				msg: ChainSelectionMessage::RevertBlocks(Vec::from({(2, block_2_hash)})),
+				msg: ChainSelectionMessage::RevertBlocks(Vec::from([(2, block_2_hash)])),
 			})
 			.await;
 
@@ -2080,7 +2080,7 @@ fn dispute_concluded_against_message_triggers_proper_reversion() {
 }
 
 #[test]
-fn dispute_reversion_against_finalized_is_ignored() {
+fn revert_blocks_against_finalized_is_ignored() {
 	test_harness(|backend, _, mut virtual_overseer| async move {
 		// Building mini chain with 1 finalized block and 3 unfinalized blocks
 		let finalized_number = 0;
@@ -2103,7 +2103,7 @@ fn dispute_reversion_against_finalized_is_ignored() {
 		// Sending dispute conculded against message
 		virtual_overseer
 			.send(FromOrchestra::Communication {
-				msg: ChainSelectionMessage::RevertBlocks(Vec::from({(finalized_number, finalized_hash)})),
+				msg: ChainSelectionMessage::RevertBlocks(Vec::from([(finalized_number, finalized_hash)])),
 			})
 			.await;
 
