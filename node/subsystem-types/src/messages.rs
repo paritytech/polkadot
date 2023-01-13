@@ -520,7 +520,7 @@ pub enum ChainSelectionMessage {
 	BestLeafContaining(Hash, oneshot::Sender<Option<Hash>>),
 	/// The passed blocks must be marked as reverted, and their children must be marked
 	/// as non-viable.
-	RevertBlocks(HashSet<(BlockNumber, Hash)>),
+	RevertBlocks(Vec<(BlockNumber, Hash)>),
 }
 
 /// A sender for the result of a runtime API request.

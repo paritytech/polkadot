@@ -687,7 +687,7 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 // the dispute coordinator has notified chain selection 
 fn handle_revert_blocks(
 	backend: &impl Backend,
-	blocks_to_revert: HashSet<(BlockNumber, Hash)>,
+	blocks_to_revert: Vec<(BlockNumber, Hash)>,
 ) -> Result<Vec<BackendWriteOp>, Error> {
 	let mut overlay = OverlayedBackend::new(backend);
 	for (block_number, block_hash) in blocks_to_revert {

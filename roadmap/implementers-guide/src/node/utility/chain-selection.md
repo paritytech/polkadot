@@ -34,7 +34,7 @@ Gets all leaves of the chain, i.e. block hashes that are suitable to build upon 
 If the required block is unknown or not viable, then return `None`. Iterate over all leaves in order of descending weight, returning the first leaf containing the required block in its chain, and `None` otherwise.
 
 ### `ChainSelectionMessage::RevertBlocks`
-This message indicates that a dispute has concluded against a parachain block candidate. The message passes along the block number and hash of the disputed candidate's relay parent. The relay parent will be marked as reverted, and its descendants will be marked as non-viable.
+This message indicates that a dispute has concluded against a parachain block candidate. The message passes along a vector containing the block number and block hash of each block where the disputed candidate was included. The passed blocks will be marked as reverted, and their descendants will be marked as non-viable.
 
 
 ### Periodically

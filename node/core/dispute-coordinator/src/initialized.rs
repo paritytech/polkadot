@@ -1031,7 +1031,7 @@ impl Initialized {
 		// will need to mark the candidate's relay parent as reverted.
 		if import_result.is_freshly_concluded_against() {
 			if let Some(blocks_to_revert) =
-				self.scraper.get_blocks_including_candidate(candidate_hash)
+				self.scraper.get_blocks_including_candidate(&candidate_hash)
 			{
 				ctx.send_message(ChainSelectionMessage::RevertBlocks(blocks_to_revert.clone()))
 					.await;
