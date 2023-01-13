@@ -2265,8 +2265,6 @@ mod remote_tests {
 			.await
 			.unwrap();
 		ext.execute_with(|| {
-			println!("{}", <crate::weights::pallet_fast_unstake::WeightInfo<Runtime> as pallet_fast_unstake::WeightInfo>::on_idle_check(1, 1000, 1));
-			return;
 			pallet_fast_unstake::ErasToCheckPerBlock::<Runtime>::put(1);
 			runtime_common::try_runtime::migrate_all_inactive_nominators::<Runtime>()
 		});
