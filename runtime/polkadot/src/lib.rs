@@ -2419,7 +2419,7 @@ mod multiplier_tests {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
-	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use frame_try_runtime::{runtime_decl_for_TryRuntime::TryRuntime, UpgradeCheckSelect};
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
 	};
@@ -2447,6 +2447,34 @@ mod remote_tests {
 			.build()
 			.await
 			.unwrap();
-		ext.execute_with(|| Runtime::on_runtime_upgrade(true));
+		ext.execute_with(|| Runtime::on_runtime_upgrade(UpgradeCheckSelect::All));
+	}
+
+	#[tokio::test]
+	async fn try_fast_unstake_all() {
+		sp_tracing::try_init_simple();
+		let transport: Transport =
+			var("WS").unwrap_or("wss://rpc.polkadot.io:443".to_string()).into();
+		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
+		let mut ext = Builder::<Block>::default()
+			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
+				Mode::OfflineOrElseOnline(
+					OfflineConfig { state_snapshot: state_snapshot.clone() },
+					OnlineConfig {
+						transport,
+						state_snapshot: Some(state_snapshot),
+						..Default::default()
+					},
+				)
+			} else {
+				Mode::Online(OnlineConfig { transport, ..Default::default() })
+			})
+			.build()
+			.await
+			.unwrap();
+		ext.execute_with(|| {
+			pallet_fast_unstake::ErasToCheckPerBlock::<Runtime>::put(1);
+			runtime_common::try_runtime::migrate_all_inactive_nominators::<Runtime>()
+		});
 	}
 }

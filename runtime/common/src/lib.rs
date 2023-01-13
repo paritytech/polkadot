@@ -31,6 +31,8 @@ pub mod slot_range;
 pub mod slots;
 pub mod traits;
 pub mod xcm_sender;
+#[cfg(feature = "try-runtime")]
+pub mod try_runtime;
 
 #[cfg(test)]
 mod integration_tests;

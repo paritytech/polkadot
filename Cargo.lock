@@ -7276,6 +7276,7 @@ dependencies = [
  "pallet-balances",
  "pallet-beefy-mmr",
  "pallet-election-provider-multi-phase",
+ "pallet-fast-unstake",
  "pallet-session",
  "pallet-staking",
  "pallet-staking-reward-fn",
