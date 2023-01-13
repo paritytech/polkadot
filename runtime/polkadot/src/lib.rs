@@ -2336,6 +2336,22 @@ mod multiplier_tests {
 	}
 
 	#[test]
+	fn fast_unstake_estimate() {
+		use pallet_fast_unstake::WeightInfo;
+		let block_time = BlockWeights::get().max_block.ref_time() as f32;
+		let on_idle = weights::pallet_fast_unstake::WeightInfo::<Runtime>::on_idle_check(
+			1,
+			300,
+			<Runtime as pallet_fast_unstake::Config>::BatchSize::get(),
+		)
+		.ref_time() as f32;
+		println!("ratio of block weight for full batch fast-unstake {}"
+			block_time, on_idle, on_idle / block_time
+		);
+		assert!(on_idle / block_time <= 0.25f32)
+	}
+
+	#[test]
 	#[ignore]
 	fn multiplier_growth_simulator() {
 		// assume the multiplier is initially set to its minimum. We update it with values twice the
