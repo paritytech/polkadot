@@ -1,5 +1,6 @@
 [package]
 name = "staking-miner"
+publish = false
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
