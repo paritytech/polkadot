@@ -683,7 +683,8 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 }
 
 // Here we revert a provided group of blocks. The most common cause for this is that
-// the dispute coordinator has notified chain selection 
+// the dispute coordinator has notified chain selection of a dispute which concluded
+// against a candidate.
 fn handle_revert_blocks(
 	backend: &impl Backend,
 	blocks_to_revert: Vec<(BlockNumber, Hash)>,

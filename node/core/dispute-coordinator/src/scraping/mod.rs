@@ -71,7 +71,7 @@ impl ScrapedUpdates {
 
 /// A structure meant to facilitate chain reversions in the event of a dispute
 /// concluding against a candidate. Each candidate hash maps to a vector of block
-/// numbers and hashes for all blocks which included the candidate. The entries
+/// number + hash pairs for all blocks which included the candidate. The entries
 /// in each vector are ordered by decreasing parent block number to facilitate
 /// minimal cost pruning.
 pub struct InclusionsPerCandidate {

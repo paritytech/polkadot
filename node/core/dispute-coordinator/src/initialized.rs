@@ -1036,11 +1036,11 @@ impl Initialized {
 				ctx.send_message(ChainSelectionMessage::RevertBlocks(blocks_to_revert.clone()))
 					.await;
 			} else {
-				gum::error!(
+				gum::trace!(
 					target: LOG_TARGET,
 					?candidate_hash,
 					?session,
-					"Could not find parent block info for concluded candidate!"
+					"Could not find an including block for candidate against which a dispute has concluded."
 				);
 			}
 		}

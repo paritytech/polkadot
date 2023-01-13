@@ -2103,7 +2103,10 @@ fn revert_blocks_against_finalized_is_ignored() {
 		// Sending dispute conculded against message
 		virtual_overseer
 			.send(FromOrchestra::Communication {
-				msg: ChainSelectionMessage::RevertBlocks(Vec::from([(finalized_number, finalized_hash)])),
+				msg: ChainSelectionMessage::RevertBlocks(Vec::from([(
+					finalized_number,
+					finalized_hash,
+				)])),
 			})
 			.await;
 
