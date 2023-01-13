@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use ::test_helpers::{dummy_digest, dummy_hash};
+use ::test_helpers::{dummy_digest, dummy_hash, dummy_session_info};
 use futures::{channel::oneshot, future::BoxFuture, prelude::*};
 use polkadot_node_subsystem::{
 	jaeger,
@@ -24,10 +24,8 @@ use polkadot_node_subsystem::{
 	},
 	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal, RuntimeApiError,
 };
-use polkadot_node_subsystem_test_helpers::{
-	make_subsystem_context, TestRuntimeInfo, TestSubsystemContextHandle,
-};
-use polkadot_node_subsystem_util::runtime::RuntimeInfoProvider;
+use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
 	BlockNumber, Hash, Header, PvfCheckStatement, SessionIndex, ValidationCode, ValidationCodeHash,
 	ValidatorId,
@@ -271,6 +269,26 @@ impl TestState {
 		}
 	}
 
+	/// Expects that the subsystem has sent a session info request. Answers with a dummy
+	/// `SessionInfo`.
+	async fn expect_session_info(&mut self, handle: &mut VirtualOverseer) {
+		match self.recv_timeout(handle).await.expect("timeout waiting for a message") {
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(_, tx),
+			)) => match self.leaves.get(&relay_parent) {
+				Some(leaf) => {
+					let session_info = dummy_session_info(leaf.session_index);
+					tx.send(Ok(Some(session_info))).unwrap();
+				},
+				None => {
+					panic!("a request to an unknown relay parent has been made");
+				},
+			},
+			msg => panic!("Unexpected message was received: {:#?}", msg),
+		}
+	}
+
 	/// Expects that the subsystem has sent a pre-checking request to candidate-validation. Returns
 	/// a mocked handle for the request.
 	async fn expect_candidate_precheck(
@@ -374,7 +392,7 @@ fn test_harness(test: impl FnOnce(TestState, VirtualOverseer) -> BoxFuture<'stat
 	)
 	.expect("Generating keys for our node failed");
 
-	let runtime = TestRuntimeInfo::new(Some(keystore.clone()));
+	let runtime = RuntimeInfo::new(Some(keystore.clone()));
 	let subsystem_task =
 		crate::run(ctx, runtime, keystore, crate::Metrics::default()).map(|x| x.unwrap());
 
@@ -411,6 +429,7 @@ fn reacts_to_new_pvfs_in_heads() {
 			test_state.expect_pvfs_require_precheck(&mut handle).await.reply_mock();
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
+			test_state.expect_session_info(&mut handle).await;
 
 			let pre_check = test_state.expect_candidate_precheck(&mut handle).await;
 			assert_eq!(pre_check.relay_parent, block.block_hash);
@@ -476,6 +495,7 @@ fn activation_of_descendant_leaves_pvfs_in_view() {
 			test_state.expect_pvfs_require_precheck(&mut handle).await.reply_mock();
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
+			test_state.expect_session_info(&mut handle).await;
 
 			test_state
 				.expect_candidate_precheck(&mut handle)
@@ -522,6 +542,7 @@ fn reactivating_pvf_leads_to_second_check() {
 			test_state.expect_pvfs_require_precheck(&mut handle).await.reply_mock();
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
+			test_state.expect_session_info(&mut handle).await;
 			test_state
 				.expect_candidate_precheck(&mut handle)
 				.await
@@ -577,6 +598,7 @@ fn dont_double_vote_for_pvfs_in_view() {
 			test_state.expect_pvfs_require_precheck(&mut handle).await.reply_mock();
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
+			test_state.expect_session_info(&mut handle).await;
 
 			// Pre-checking will take quite some time.
 			let pre_check = test_state.expect_candidate_precheck(&mut handle).await;
@@ -629,6 +651,7 @@ fn judgements_come_out_of_order() {
 			test_state.expect_pvfs_require_precheck(&mut handle).await.reply_mock();
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
+			test_state.expect_session_info(&mut handle).await;
 
 			let pre_check_1 = test_state.expect_candidate_precheck(&mut handle).await;
 
@@ -676,6 +699,7 @@ fn dont_vote_until_a_validator() {
 			test_state.expect_pvfs_require_precheck(&mut handle).await.reply_mock();
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
+			test_state.expect_session_info(&mut handle).await;
 
 			test_state
 				.expect_candidate_precheck(&mut handle)
@@ -728,6 +752,7 @@ fn resign_on_session_change() {
 			test_state.expect_pvfs_require_precheck(&mut handle).await.reply_mock();
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
+			test_state.expect_session_info(&mut handle).await;
 
 			let pre_check_1 = test_state.expect_candidate_precheck(&mut handle).await;
 			assert_eq!(pre_check_1.validation_code_hash, pvf_1);
@@ -789,6 +814,7 @@ fn dont_resign_if_not_us() {
 			test_state.expect_pvfs_require_precheck(&mut handle).await.reply_mock();
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
+			test_state.expect_session_info(&mut handle).await;
 
 			let pre_check_1 = test_state.expect_candidate_precheck(&mut handle).await;
 			assert_eq!(pre_check_1.validation_code_hash, pvf_1);
@@ -868,6 +894,7 @@ fn not_supported_api_becomes_supported() {
 			test_state.expect_pvfs_require_precheck(&mut handle).await.reply_mock();
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
+			test_state.expect_session_info(&mut handle).await;
 			test_state
 				.expect_candidate_precheck(&mut handle)
 				.await
@@ -896,6 +923,7 @@ fn unexpected_pvf_check_judgement() {
 			test_state.expect_pvfs_require_precheck(&mut handle).await.reply_mock();
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
+			test_state.expect_session_info(&mut handle).await;
 
 			// Catch the pre-check request, but don't reply just yet.
 			let pre_check = test_state.expect_candidate_precheck(&mut handle).await;
@@ -930,6 +958,7 @@ fn dont_abstain_for_nondeterministic_pvfcheck_failure() {
 			test_state.expect_pvfs_require_precheck(&mut handle).await.reply_mock();
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
+			test_state.expect_session_info(&mut handle).await;
 
 			// Catch the pre-check request, but don't reply just yet.
 			let pre_check = test_state.expect_candidate_precheck(&mut handle).await;

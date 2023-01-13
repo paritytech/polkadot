@@ -17,7 +17,7 @@
 use super::*;
 use ::test_helpers::{
 	dummy_candidate_receipt_bad_sig, dummy_collator, dummy_collator_signature,
-	dummy_committed_candidate_receipt, dummy_hash, dummy_validation_code,
+	dummy_committed_candidate_receipt, dummy_hash, dummy_session_info, dummy_validation_code,
 };
 use assert_matches::assert_matches;
 use futures::{future, Future};
@@ -31,8 +31,8 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::{
-	CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData, PersistedValidationData,
-	ScheduledCore,
+	v3::SessionInfo, CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData,
+	PersistedValidationData, ScheduledCore,
 };
 use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
@@ -64,6 +64,7 @@ struct TestState {
 	head_data: HashMap<ParaId, HeadData>,
 	signing_context: SigningContext,
 	relay_parent: Hash,
+	session_info: SessionInfo,
 }
 
 impl Default for TestState {
@@ -125,6 +126,8 @@ impl Default for TestState {
 			relay_parent_storage_root: dummy_hash(),
 		};
 
+		let session_info = dummy_session_info(signing_context.session_index);
+
 		Self {
 			chain_ids,
 			keystore,
@@ -136,6 +139,7 @@ impl Default for TestState {
 			validation_data,
 			signing_context,
 			relay_parent,
+			session_info,
 		}
 	}
 }
@@ -151,7 +155,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
 	let subsystem = async move {
-		let runtime = test_helpers::TestRuntimeInfo::new(Some(keystore.clone()));
+		let runtime = RuntimeInfo::new(Some(keystore.clone()));
 		if let Err(e) = super::run(context, runtime, keystore, Metrics(None)).await {
 			panic!("{:?}", e);
 		}
@@ -264,6 +268,16 @@ async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 			RuntimeApiMessage::Request(parent, RuntimeApiRequest::AvailabilityCores(tx))
 		) if parent == test_state.relay_parent => {
 			tx.send(Ok(test_state.availability_cores.clone())).unwrap();
+		}
+	);
+
+	// Check that subsystem job issues a request for the session info.
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionInfo(_, tx))
+		) if parent == test_state.relay_parent => {
+			tx.send(Ok(Some(test_state.session_info.clone()))).unwrap();
 		}
 	);
 }

@@ -27,11 +27,7 @@ use polkadot_node_network_protocol::{
 	IfDisconnected,
 };
 use polkadot_node_subsystem::{messages::NetworkBridgeTxMessage, overseer};
-use polkadot_node_subsystem_util::{
-	metrics,
-	nesting_sender::NestingSender,
-	runtime::{RuntimeInfo, RuntimeInfoProvider},
-};
+use polkadot_node_subsystem_util::{metrics, nesting_sender::NestingSender, runtime::RuntimeInfo};
 use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex,
 };

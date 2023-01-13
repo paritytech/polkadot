@@ -26,7 +26,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 	SubsystemResult, SubsystemSender,
 };
-use polkadot_node_subsystem_util::runtime::RuntimeInfoProvider;
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
 	vstaging::ExecutorParams, BlockNumber, Hash, PvfCheckStatement, SessionIndex,
 	ValidationCodeHash, ValidatorId, ValidatorIndex,
@@ -49,14 +49,14 @@ use self::{
 };
 
 /// PVF pre-checking subsystem.
-pub struct PvfCheckerSubsystem<RuntimeInfo: RuntimeInfoProvider> {
+pub struct PvfCheckerSubsystem {
 	enabled: bool,
 	runtime: RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
 }
 
-impl<RuntimeInfo: RuntimeInfoProvider> PvfCheckerSubsystem<RuntimeInfo> {
+impl PvfCheckerSubsystem {
 	pub fn new(enabled: bool, keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
 		let runtime = RuntimeInfo::new(Some(keystore.clone()));
 		PvfCheckerSubsystem { enabled, runtime, keystore, metrics }
@@ -64,7 +64,7 @@ impl<RuntimeInfo: RuntimeInfoProvider> PvfCheckerSubsystem<RuntimeInfo> {
 }
 
 #[overseer::subsystem(PvfChecker, error=SubsystemError, prefix = self::overseer)]
-impl<Context, RuntimeInfo: RuntimeInfoProvider + Send + 'static> PvfCheckerSubsystem<RuntimeInfo> {
+impl<Context> PvfCheckerSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		if self.enabled {
 			let future = run(ctx, self.runtime, self.keystore, self.metrics)
@@ -124,7 +124,7 @@ struct State {
 }
 
 #[overseer::contextbounds(PvfChecker, prefix = self::overseer)]
-async fn run<Context, RuntimeInfo: RuntimeInfoProvider>(
+async fn run<Context>(
 	mut ctx: Context,
 	mut runtime: RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
@@ -246,7 +246,7 @@ async fn handle_pvf_check(
 /// A marker for the outer loop that the subsystem should stop.
 struct Conclude;
 
-async fn handle_from_overseer<RuntimeInfo: RuntimeInfoProvider>(
+async fn handle_from_overseer(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	runtime: &mut RuntimeInfo,
@@ -273,7 +273,7 @@ async fn handle_from_overseer<RuntimeInfo: RuntimeInfoProvider>(
 	}
 }
 
-async fn handle_leaves_update<RuntimeInfo: RuntimeInfoProvider>(
+async fn handle_leaves_update(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	runtime: &mut RuntimeInfo,

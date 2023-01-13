@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 mod error;
 use error::{log_error, FatalError, Result};
 
-use polkadot_node_subsystem_util::runtime::{RuntimeInfo, RuntimeInfoProvider};
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 
 /// `Requester` taking care of requesting chunks for candidates pending availability.
 mod requester;

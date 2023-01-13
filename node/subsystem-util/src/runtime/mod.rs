@@ -38,10 +38,8 @@ use crate::{
 	request_validator_groups,
 };
 
-use async_trait::async_trait;
-
 /// Errors that can happen on runtime fetches.
-pub mod error;
+mod error;
 
 use error::{recv_runtime, Result};
 pub use error::{Error, FatalError, JfyiError};
@@ -102,78 +100,14 @@ impl Default for Config {
 	}
 }
 
-/// Runtime information provider
-#[async_trait]
-pub trait RuntimeInfoProvider {
+impl RuntimeInfo {
 	/// Create a new `RuntimeInfo` for convenient runtime fetches.
-	fn new(keystore: Option<SyncCryptoStorePtr>) -> Self
-	where
-		Self: Sized;
-
-	/// Create with more elaborate configuration options.
-	fn new_with_config(cfg: Config) -> Self
-	where
-		Self: Sized;
-
-	/// Returns the session index expected at any child of the `parent` block.
-	/// This does not return the session index for the `parent` block.
-	async fn get_session_index_for_child<Sender>(
-		&mut self,
-		sender: &mut Sender,
-		parent: Hash,
-	) -> Result<SessionIndex>
-	where
-		Sender: SubsystemSender<RuntimeApiMessage>;
-
-	/// Get `ExtendedSessionInfo` by relay parent hash.
-	async fn get_session_info<Sender>(
-		&mut self,
-		sender: &mut Sender,
-		relay_parent: Hash,
-	) -> Result<&ExtendedSessionInfo>
-	where
-		Sender: SubsystemSender<RuntimeApiMessage>,
-	{
-		let session_index = self.get_session_index_for_child(sender, relay_parent).await?;
-
-		self.get_session_info_by_index(sender, relay_parent, session_index).await
-	}
-
-	/// Get `ExtendedSessionInfo` by session index.
-	///
-	/// `request_session_info` still requires the parent to be passed in, so we take the parent
-	/// in addition to the `SessionIndex`.
-	async fn get_session_info_by_index<'a, Sender>(
-		&'a mut self,
-		sender: &mut Sender,
-		parent: Hash,
-		session_index: SessionIndex,
-	) -> Result<&'a ExtendedSessionInfo>
-	where
-		Sender: SubsystemSender<RuntimeApiMessage>;
-
-	/// Convenience function for checking the signature of something signed.
-	async fn check_signature<Sender, Payload, RealPayload>(
-		&mut self,
-		sender: &mut Sender,
-		relay_parent: Hash,
-		signed: UncheckedSigned<Payload, RealPayload>,
-	) -> Result<
-		std::result::Result<Signed<Payload, RealPayload>, UncheckedSigned<Payload, RealPayload>>,
-	>
-	where
-		Sender: SubsystemSender<RuntimeApiMessage>,
-		Payload: EncodeAs<RealPayload> + Clone + Send,
-		RealPayload: Encode + Clone + Send;
-}
-
-#[async_trait]
-impl RuntimeInfoProvider for RuntimeInfo {
-	fn new(keystore: Option<SyncCryptoStorePtr>) -> Self {
+	pub fn new(keystore: Option<SyncCryptoStorePtr>) -> Self {
 		Self::new_with_config(Config { keystore, ..Default::default() })
 	}
 
-	fn new_with_config(cfg: Config) -> Self {
+	/// Create with more elaborate configuration options.
+	pub fn new_with_config(cfg: Config) -> Self {
 		Self {
 			session_index_cache: LruCache::new(
 				cfg.session_cache_lru_size
@@ -184,7 +118,9 @@ impl RuntimeInfoProvider for RuntimeInfo {
 		}
 	}
 
-	async fn get_session_index_for_child<Sender>(
+	/// Returns the session index expected at any child of the `parent` block.
+	/// This does not return the session index for the `parent` block.
+	pub async fn get_session_index_for_child<Sender>(
 		&mut self,
 		sender: &mut Sender,
 		parent: Hash,
@@ -203,7 +139,25 @@ impl RuntimeInfoProvider for RuntimeInfo {
 		}
 	}
 
-	async fn get_session_info_by_index<'a, Sender>(
+	/// Get `ExtendedSessionInfo` by relay parent hash.
+	pub async fn get_session_info<'a, Sender>(
+		&'a mut self,
+		sender: &mut Sender,
+		relay_parent: Hash,
+	) -> Result<&'a ExtendedSessionInfo>
+	where
+		Sender: SubsystemSender<RuntimeApiMessage>,
+	{
+		let session_index = self.get_session_index_for_child(sender, relay_parent).await?;
+
+		self.get_session_info_by_index(sender, relay_parent, session_index).await
+	}
+
+	/// Get `ExtendedSessionInfo` by session index.
+	///
+	/// `request_session_info` still requires the parent to be passed in, so we take the parent
+	/// in addition to the `SessionIndex`.
+	pub async fn get_session_info_by_index<'a, Sender>(
 		&'a mut self,
 		sender: &mut Sender,
 		parent: Hash,
@@ -229,7 +183,8 @@ impl RuntimeInfoProvider for RuntimeInfo {
 			.expect("We just put the value there. qed."))
 	}
 
-	async fn check_signature<Sender, Payload, RealPayload>(
+	/// Convenience function for checking the signature of something signed.
+	pub async fn check_signature<Sender, Payload, RealPayload>(
 		&mut self,
 		sender: &mut Sender,
 		relay_parent: Hash,
@@ -239,16 +194,14 @@ impl RuntimeInfoProvider for RuntimeInfo {
 	>
 	where
 		Sender: SubsystemSender<RuntimeApiMessage>,
-		Payload: EncodeAs<RealPayload> + Clone + Send,
-		RealPayload: Encode + Clone + Send,
+		Payload: EncodeAs<RealPayload> + Clone,
+		RealPayload: Encode + Clone,
 	{
 		let session_index = self.get_session_index_for_child(sender, relay_parent).await?;
 		let info = self.get_session_info_by_index(sender, relay_parent, session_index).await?;
 		Ok(check_signature(session_index, &info.session_info, relay_parent, signed))
 	}
-}
 
-impl RuntimeInfo {
 	/// Build `ValidatorInfo` for the current session.
 	///
 	///

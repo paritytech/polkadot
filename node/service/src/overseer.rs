@@ -71,10 +71,7 @@ pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
-use polkadot_node_subsystem_util::{
-	rand::{self, SeedableRng},
-	runtime::RuntimeInfo,
-};
+use polkadot_node_subsystem_util::rand::{self, SeedableRng};
 pub use polkadot_statement_distribution::StatementDistributionSubsystem;
 
 /// Arguments passed for overseer construction.
@@ -164,8 +161,8 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		SpawnGlue<Spawner>,
 		Arc<RuntimeClient>,
 		CandidateValidationSubsystem,
-		PvfCheckerSubsystem<RuntimeInfo>,
-		CandidateBackingSubsystem<RuntimeInfo>,
+		PvfCheckerSubsystem,
+		CandidateBackingSubsystem,
 		StatementDistributionSubsystem<rand::rngs::StdRng>,
 		AvailabilityDistributionSubsystem,
 		AvailabilityRecoverySubsystem,

@@ -46,7 +46,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{
 	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, runtime::RuntimeInfoProvider, Validator,
+	request_validators, runtime::RuntimeInfo, Validator,
 };
 use polkadot_primitives::{
 	vstaging::ExecutorParams, BackedCandidate, CandidateCommitments, CandidateHash,
@@ -119,13 +119,13 @@ impl ValidatedCandidateCommand {
 }
 
 /// The candidate backing subsystem.
-pub struct CandidateBackingSubsystem<RuntimeInfo: RuntimeInfoProvider> {
+pub struct CandidateBackingSubsystem {
 	runtime: RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
 }
 
-impl<RuntimeInfo: RuntimeInfoProvider> CandidateBackingSubsystem<RuntimeInfo> {
+impl CandidateBackingSubsystem {
 	/// Create a new instance of the `CandidateBackingSubsystem`.
 	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
 		let runtime = RuntimeInfo::new(Some(keystore.clone()));
@@ -134,10 +134,9 @@ impl<RuntimeInfo: RuntimeInfoProvider> CandidateBackingSubsystem<RuntimeInfo> {
 }
 
 #[overseer::subsystem(CandidateBacking, error = SubsystemError, prefix = self::overseer)]
-impl<Context, RuntimeInfo> CandidateBackingSubsystem<RuntimeInfo>
+impl<Context> CandidateBackingSubsystem
 where
 	Context: Send + Sync,
-	RuntimeInfo: RuntimeInfoProvider + Send + 'static,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = async move {
@@ -152,7 +151,7 @@ where
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn run<Context, RuntimeInfo: RuntimeInfoProvider>(
+async fn run<Context>(
 	mut ctx: Context,
 	mut runtime: RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
@@ -183,7 +182,7 @@ async fn run<Context, RuntimeInfo: RuntimeInfoProvider>(
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn run_iteration<Context, RuntimeInfo: RuntimeInfoProvider>(
+async fn run_iteration<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
@@ -270,7 +269,7 @@ async fn handle_communication<Context>(
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn handle_active_leaves_update<Context, RuntimeInfo: RuntimeInfoProvider>(
+async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	update: ActiveLeavesUpdate,
 	jobs: &mut HashMap<Hash, JobAndSpan<Context>>,
