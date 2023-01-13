@@ -92,14 +92,8 @@ impl InclusionsPerCandidate {
 		block_hash: Hash,
 	) {
 		if let Some(blocks_including) = self.inclusions_inner.get_mut(&candidate_hash) {
-			for idx in 0..blocks_including.len() {
-				if blocks_including[idx].0 < block_number {
-					// Idx is between 0 and blocks_including.len(), therefore in bounds. QED
-					blocks_including.insert(idx, (block_number, block_hash));
-				} else if idx == blocks_including.len() - 1 {
-					blocks_including.push((block_number, block_hash));
-				}
-			}
+			let first_lower_entry = blocks_including.partition_point(|(number_at_idx, _)| *number_at_idx >= block_number);
+			blocks_including.insert(first_lower_entry, (block_number, block_hash));
 		} else {
 			self.inclusions_inner
 				.insert(candidate_hash, Vec::from([(block_number, block_hash)]));
@@ -108,12 +102,8 @@ impl InclusionsPerCandidate {
 
 	pub fn remove_up_to_height(&mut self, height: &BlockNumber) {
 		for including_blocks in self.inclusions_inner.values_mut() {
-			while including_blocks.len() > 0 &&
-				including_blocks[including_blocks.len() - 1].0 < *height
-			{
-				// Since parent_blocks length is positive, parent_blocks.len() - 1 is in bounds. QED
-				including_blocks.pop();
-			}
+			let first_lower_entry = including_blocks.partition_point(|(number_at_idx, _)| *number_at_idx >= *height);
+			including_blocks.drain(first_lower_entry..);
 		}
 		self.inclusions_inner.retain(|_, including_blocks| including_blocks.len() > 0);
 	}
