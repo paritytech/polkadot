@@ -298,7 +298,7 @@ impl<Router: SendXcm, OurPlace: Get<InteriorMultiLocation>> DispatchBlob
 		let dest = universal_dest.relative_to(&our_universal);
 		let message: Xcm<()> =
 			message.try_into().map_err(|_| DispatchBlobError::UnsupportedXcmVersion)?;
-		send_xcm::<Router>(dest, message).map_err(|_| DispatchBlobError::RoutingError)?;
+		let _ = send_xcm::<Router>(dest, message).map_err(|_| DispatchBlobError::RoutingError)?;
 		Ok(())
 	}
 }

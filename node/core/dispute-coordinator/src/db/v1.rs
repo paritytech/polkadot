@@ -19,7 +19,7 @@
 use polkadot_node_primitives::DisputeStatus;
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, CandidateReceipt, Hash, InvalidDisputeStatementKind, SessionIndex,
 	ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature,
 };
@@ -373,7 +373,7 @@ mod tests {
 	use super::*;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use polkadot_node_primitives::DISPUTE_WINDOW;
-	use polkadot_primitives::v2::{Hash, Id as ParaId};
+	use polkadot_primitives::{Hash, Id as ParaId};
 
 	fn make_db() -> DbBackend {
 		let db = kvdb_memorydb::create(1);

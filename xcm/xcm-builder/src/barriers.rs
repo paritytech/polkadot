@@ -302,8 +302,8 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 			origin, instructions, _max_weight, _weight_credit,
 		);
 		ensure!(T::contains(origin), ());
-		match (instructions.len(), instructions.first()) {
-			(1, Some(SubscribeVersion { .. })) | (1, Some(UnsubscribeVersion)) => Ok(()),
+		match instructions {
+			&mut [SubscribeVersion { .. } | UnsubscribeVersion] => Ok(()),
 			_ => Err(()),
 		}
 	}
