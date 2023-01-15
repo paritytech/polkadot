@@ -16,7 +16,10 @@
 
 //! A queue that handles requests for PVF preparation.
 
-use super::pool::{self, Worker};
+use super::{
+	pool::{self, Worker},
+	PreparationKind,
+};
 use crate::{artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, Pvf, LOG_TARGET};
 use always_assert::{always, never};
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
@@ -33,7 +36,12 @@ pub enum ToQueue {
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue`] response.
-	Enqueue { priority: Priority, pvf: Pvf, preparation_timeout: Duration },
+	Enqueue {
+		priority: Priority,
+		pvf: Pvf,
+		preparation_timeout: Duration,
+		preparation_kind: PreparationKind,
+	},
 }
 
 /// A response from queue.
@@ -81,6 +89,8 @@ struct JobData {
 	pvf: Pvf,
 	/// The timeout for the preparation job.
 	preparation_timeout: Duration,
+	/// Are we preparing because of a pre-check, execution, or heads-up request?
+	preparation_kind: PreparationKind,
 	worker: Option<Worker>,
 }
 
@@ -208,8 +218,8 @@ impl Queue {
 
 async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fatal> {
 	match to_queue {
-		ToQueue::Enqueue { priority, pvf, preparation_timeout } => {
-			handle_enqueue(queue, priority, pvf, preparation_timeout).await?;
+		ToQueue::Enqueue { priority, pvf, preparation_timeout, preparation_kind } => {
+			handle_enqueue(queue, priority, pvf, preparation_timeout, preparation_kind).await?;
 		},
 	}
 	Ok(())
@@ -220,6 +230,7 @@ async fn handle_enqueue(
 	priority: Priority,
 	pvf: Pvf,
 	preparation_timeout: Duration,
+	preparation_kind: PreparationKind,
 ) -> Result<(), Fatal> {
 	gum::debug!(
 		target: LOG_TARGET,
@@ -247,7 +258,13 @@ async fn handle_enqueue(
 		return Ok(())
 	}
 
-	let job = queue.jobs.insert(JobData { priority, pvf, preparation_timeout, worker: None });
+	let job = queue.jobs.insert(JobData {
+		priority,
+		pvf,
+		preparation_timeout,
+		preparation_kind,
+		worker: None,
+	});
 	queue.artifact_id_to_job.insert(artifact_id, job);
 
 	if let Some(available) = find_idle_worker(queue) {
@@ -438,6 +455,7 @@ async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal
 			code: job_data.pvf.code.clone(),
 			artifact_path,
 			preparation_timeout: job_data.preparation_timeout,
+			preparation_kind: job_data.preparation_kind,
 		},
 	)
 	.await?;

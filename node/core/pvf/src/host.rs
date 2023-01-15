@@ -25,7 +25,8 @@ use crate::{
 	error::PrepareError,
 	execute,
 	metrics::Metrics,
-	prepare, PrepareResult, Priority, Pvf, ValidationError, LOG_TARGET,
+	prepare::{self, PreparationKind},
+	PrepareResult, Priority, Pvf, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
 use futures::{
@@ -476,6 +477,7 @@ async fn handle_precheck_pvf(
 				priority: Priority::Normal,
 				pvf,
 				preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
+				preparation_kind: PreparationKind::PreCheck,
 			},
 		)
 		.await?;
@@ -547,6 +549,7 @@ async fn handle_execute_pvf(
 							priority,
 							pvf,
 							preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+							preparation_kind: PreparationKind::FromExecutionRequest,
 						},
 					)
 					.await?;
@@ -569,6 +572,7 @@ async fn handle_execute_pvf(
 				priority,
 				pvf,
 				preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+				preparation_kind: PreparationKind::FromExecutionRequest,
 			},
 		)
 		.await?;
@@ -621,6 +625,7 @@ async fn handle_heads_up(
 								priority: Priority::Normal,
 								pvf: active_pvf,
 								preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+								preparation_kind: PreparationKind::FromHeadsUpRequest,
 							},
 						)
 						.await?;
@@ -637,6 +642,7 @@ async fn handle_heads_up(
 					priority: Priority::Normal,
 					pvf: active_pvf,
 					preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+					preparation_kind: PreparationKind::FromHeadsUpRequest,
 				},
 			)
 			.await?;

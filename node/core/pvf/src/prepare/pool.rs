@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::worker::{self, Outcome};
+use super::{
+	worker::{self, Outcome},
+	PreparationKind,
+};
 use crate::{
 	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
@@ -70,6 +73,7 @@ pub enum ToPool {
 		code: Arc<Vec<u8>>,
 		artifact_path: PathBuf,
 		preparation_timeout: Duration,
+		preparation_kind: PreparationKind,
 	},
 }
 
@@ -214,7 +218,13 @@ fn handle_to_pool(
 			metrics.prepare_worker().on_begin_spawn();
 			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
 		},
-		ToPool::StartWork { worker, code, artifact_path, preparation_timeout } => {
+		ToPool::StartWork {
+			worker,
+			code,
+			artifact_path,
+			preparation_timeout,
+			preparation_kind,
+		} => {
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
 					let preparation_timer = metrics.time_preparation();
@@ -226,6 +236,7 @@ fn handle_to_pool(
 							cache_path.to_owned(),
 							artifact_path,
 							preparation_timeout,
+							preparation_kind,
 							preparation_timer,
 						)
 						.boxed(),
@@ -274,10 +285,18 @@ async fn start_work_task<Timer>(
 	cache_path: PathBuf,
 	artifact_path: PathBuf,
 	preparation_timeout: Duration,
+	preparation_kind: PreparationKind,
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
-	let outcome =
-		worker::start_work(idle, code, &cache_path, artifact_path, preparation_timeout).await;
+	let outcome = worker::start_work(
+		idle,
+		code,
+		&cache_path,
+		artifact_path,
+		preparation_timeout,
+		preparation_kind,
+	)
+	.await;
 	PoolEvent::StartWork(worker, outcome)
 }
 
