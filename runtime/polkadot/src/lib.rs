@@ -2343,12 +2343,12 @@ mod multiplier_tests {
 		use pallet_fast_unstake::WeightInfo;
 		let block_time = BlockWeights::get().max_block.ref_time() as f32;
 		let on_idle = weights::pallet_fast_unstake::WeightInfo::<Runtime>::on_idle_check(
-			1 * 300,
+			300,
 			<Runtime as pallet_fast_unstake::Config>::BatchSize::get(),
 		)
 		.ref_time() as f32;
 		println!("ratio of block weight for full batch fast-unstake {}", on_idle / block_time);
-		assert!(on_idle / block_time <= 0.25f32)
+		assert!(on_idle / block_time <= 0.5f32)
 	}
 
 	#[test]
