@@ -21,6 +21,7 @@ use sp_std::{marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, TransactAsset};
 
+/// `TransactAsset` implementation to convert a `fungibles` implementation to become usable in XCM.
 pub struct FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, AccountId>(
 	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>,
 );
@@ -65,10 +66,23 @@ pub enum MintLocation {
 	NonLocal,
 }
 
+/// Simple trait to indicate whether an asset is subject to having its teleportation into and out of
+/// this chain recorded and if so in what `MintLocation`.
+///
+/// The overall purpose of asset-checking is to ensure either no more assets are teleported into a
+/// chain than the outstanding balance of assets which were previously teleported out (as in the
+/// case of locally-minted assets); or that no more assets are teleported out of a chain than the
+/// outstanding balance of assets which have previously been teleported in (as in the case of chains
+/// where the `asset` is not minted locally).
 pub trait AssetChecking<AssetId> {
+	/// Return the teleportation asset-checking policy for the given `asset`. `None` implies no
+	/// checking. Otherwise the policy detailed by the inner `MintLocation` should be respected by
+	/// teleportation.
 	fn asset_checking(asset: &AssetId) -> Option<MintLocation>;
 }
 
+/// Implementation of `AssetChecking` which subjects no assets to having their teleportations
+/// recorded.
 pub struct NoChecking;
 impl<AssetId> AssetChecking<AssetId> for NoChecking {
 	fn asset_checking(_: &AssetId) -> Option<MintLocation> {
@@ -76,6 +90,8 @@ impl<AssetId> AssetChecking<AssetId> for NoChecking {
 	}
 }
 
+/// Implementation of `AssetChecking` which subjects a given set of assets `T` to having their
+/// teleportations recorded with a `MintLocation::Local`.
 pub struct LocalMint<T>(sp_std::marker::PhantomData<T>);
 impl<AssetId, T: Contains<AssetId>> AssetChecking<AssetId> for LocalMint<T> {
 	fn asset_checking(asset: &AssetId) -> Option<MintLocation> {
@@ -86,6 +102,8 @@ impl<AssetId, T: Contains<AssetId>> AssetChecking<AssetId> for LocalMint<T> {
 	}
 }
 
+/// Implementation of `AssetChecking` which subjects a given set of assets `T` to having their
+/// teleportations recorded with a `MintLocation::NonLocal`.
 pub struct NonLocalMint<T>(sp_std::marker::PhantomData<T>);
 impl<AssetId, T: Contains<AssetId>> AssetChecking<AssetId> for NonLocalMint<T> {
 	fn asset_checking(asset: &AssetId) -> Option<MintLocation> {
@@ -96,6 +114,9 @@ impl<AssetId, T: Contains<AssetId>> AssetChecking<AssetId> for NonLocalMint<T> {
 	}
 }
 
+/// Implementation of `AssetChecking` which subjects a given set of assets `L` to having their
+/// teleportations recorded with a `MintLocation::Local` and a second set of assets `R` to having
+/// their teleportations recorded with a `MintLocation::NonLocal`.
 pub struct DualMint<L, R>(sp_std::marker::PhantomData<(L, R)>);
 impl<AssetId, L: Contains<AssetId>, R: Contains<AssetId>> AssetChecking<AssetId>
 	for DualMint<L, R>
