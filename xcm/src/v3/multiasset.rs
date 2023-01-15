@@ -441,7 +441,7 @@ impl MultiAsset {
 		Ok(self)
 	}
 
-	/// Returns true if `self` is a super-set of the given `inner`.
+	/// Returns true if `self` is a super-set of the given `inner` asset.
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		use Fungibility::*;
 		if self.id == inner.id {
@@ -602,7 +602,7 @@ impl MultiAssets {
 		self.0.is_empty()
 	}
 
-	/// Returns true if `self` is a super-set of the given `inner`.
+	/// Returns true if `self` is a super-set of the given `inner` asset.
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		self.0.iter().any(|i| i.contains(inner))
 	}
@@ -695,10 +695,7 @@ impl TryFrom<(OldWildMultiAsset, u32)> for WildMultiAsset {
 }
 
 impl WildMultiAsset {
-	/// Returns true if `self` is a super-set of the given `inner`.
-	///
-	/// Typically, any wildcard is never contained in anything else, and a wildcard can contain any other non-wildcard.
-	/// For more details, see the implementation and tests.
+	/// Returns true if `self` is a super-set of the given `inner` asset.
 	pub fn contains(&self, inner: &MultiAsset) -> bool {
 		use WildMultiAsset::*;
 		match self {

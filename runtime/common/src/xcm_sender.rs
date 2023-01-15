@@ -27,7 +27,10 @@ use sp_std::{marker::PhantomData, prelude::*};
 use xcm::prelude::*;
 use SendError::*;
 
+/// Simple value-bearing trait for determining/expressing the assets required to be paid for a
+/// messages to be delivered to a parachain.
 pub trait PriceForParachainDelivery {
+	/// Return the assets required to deliver `message` to the given `para` destination.
 	fn price_for_parachain_delivery(para: ParaId, message: &Xcm<()>) -> MultiAssets;
 }
 impl PriceForParachainDelivery for () {
@@ -36,6 +39,7 @@ impl PriceForParachainDelivery for () {
 	}
 }
 
+/// Implementation of `PriceForParachainDelivery` which returns a fixed price.
 pub struct ConstantPrice<T>(sp_std::marker::PhantomData<T>);
 impl<T: Get<MultiAssets>> PriceForParachainDelivery for ConstantPrice<T> {
 	fn price_for_parachain_delivery(_: ParaId, _: &Xcm<()>) -> MultiAssets {
