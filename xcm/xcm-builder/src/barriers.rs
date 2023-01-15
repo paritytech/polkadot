@@ -286,7 +286,7 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 	}
 }
 
-/// Allows execution from `origin` if it is just a straight `SubscribeVerison` or
+/// Allows execution from `origin` if it is just a straight `SubscribeVersion` or
 /// `UnsubscribeVersion` instruction.
 pub struct AllowSubscriptionsFrom<T>(PhantomData<T>);
 impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
