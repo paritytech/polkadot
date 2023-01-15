@@ -625,8 +625,11 @@ impl pallet_fast_unstake::Config for Runtime {
 		EnsureRoot<AccountId>,
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
 	>;
-	type WeightInfo = weights::pallet_fast_unstake::WeightInfo<Runtime>;
 	type Staking = Staking;
+	type MaxErasToCheckPerBlock = ConstU32<1>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type MaxBackersPerValidator = MaxNominatorRewardedPerValidator;
+	type WeightInfo = weights::pallet_fast_unstake::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -2340,7 +2343,7 @@ mod multiplier_tests {
 		use pallet_fast_unstake::WeightInfo;
 		let block_time = BlockWeights::get().max_block.ref_time() as f32;
 		let on_idle = weights::pallet_fast_unstake::WeightInfo::<Runtime>::on_idle_check(
-			1 *  300,
+			1 * 300,
 			<Runtime as pallet_fast_unstake::Config>::BatchSize::get(),
 		)
 		.ref_time() as f32;
