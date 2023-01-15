@@ -19,7 +19,7 @@ use std::collections::HashSet;
 use futures::{executor, future, Future};
 
 use polkadot_node_network_protocol::request_response::{IncomingRequest, ReqProtocolNames};
-use polkadot_primitives::v2::{CoreState, Hash};
+use polkadot_primitives::{CoreState, Hash};
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_subsystem_test_helpers as test_helpers;

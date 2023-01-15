@@ -45,7 +45,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	SubsystemError,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
 	IndexedVec, SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId,
 	ValidatorIndex, ValidatorSignature,

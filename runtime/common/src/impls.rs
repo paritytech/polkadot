@@ -18,7 +18,7 @@
 
 use crate::NegativeImbalance;
 use frame_support::traits::{Currency, Imbalance, OnUnbalanced};
-use primitives::v2::Balance;
+use primitives::Balance;
 use sp_runtime::Perquintill;
 
 /// Logic for the author to get a portion of fees.
@@ -26,8 +26,8 @@ pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for ToAuthor<R>
 where
 	R: pallet_balances::Config + pallet_authorship::Config,
-	<R as frame_system::Config>::AccountId: From<primitives::v2::AccountId>,
-	<R as frame_system::Config>::AccountId: Into<primitives::v2::AccountId>,
+	<R as frame_system::Config>::AccountId: From<primitives::AccountId>,
+	<R as frame_system::Config>::AccountId: Into<primitives::AccountId>,
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		if let Some(author) = <pallet_authorship::Pallet<R>>::author() {
@@ -41,8 +41,8 @@ impl<R> OnUnbalanced<NegativeImbalance<R>> for DealWithFees<R>
 where
 	R: pallet_balances::Config + pallet_treasury::Config + pallet_authorship::Config,
 	pallet_treasury::Pallet<R>: OnUnbalanced<NegativeImbalance<R>>,
-	<R as frame_system::Config>::AccountId: From<primitives::v2::AccountId>,
-	<R as frame_system::Config>::AccountId: Into<primitives::v2::AccountId>,
+	<R as frame_system::Config>::AccountId: From<primitives::AccountId>,
+	<R as frame_system::Config>::AccountId: Into<primitives::AccountId>,
 {
 	fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance<R>>) {
 		if let Some(fees) = fees_then_tips.next() {
@@ -105,7 +105,7 @@ mod tests {
 		dispatch::DispatchClass, parameter_types, traits::FindAuthor, weights::Weight, PalletId,
 	};
 	use frame_system::limits;
-	use primitives::v2::AccountId;
+	use primitives::AccountId;
 	use sp_core::H256;
 	use sp_runtime::{
 		testing::Header,

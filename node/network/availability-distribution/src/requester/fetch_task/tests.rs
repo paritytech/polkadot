@@ -31,7 +31,7 @@ use sp_keyring::Sr25519Keyring;
 use polkadot_node_network_protocol::request_response::{v1, Recipient};
 use polkadot_node_primitives::{BlockData, PoV, Proof};
 use polkadot_node_subsystem::messages::AllMessages;
-use polkadot_primitives::v2::{CandidateHash, ValidatorIndex};
+use polkadot_primitives::{CandidateHash, ValidatorIndex};
 
 use super::*;
 use crate::{metrics::Metrics, tests::mock::get_valid_chunk_data};
