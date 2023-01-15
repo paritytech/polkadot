@@ -16,19 +16,38 @@
 
 use xcm::latest::prelude::*;
 
+/// Utility for delivering a message to a system under a different (non-local) consensus with a
+/// spoofed origin. This essentially defines the behaviour of the `ExportMessage` XCM instruction.
+///
+/// This is quite different to `SendXcm`; `SendXcm` assumes that the local side's location will be
+/// preserved to be represented as the value of the Origin register in the messages execution.
+///
+/// This trait on the other hand assumes that we do not necessarily want the Origin register to
+/// contain the local (i.e. the caller chain's) location, since it will generally be exporting a
+/// message on behalf of another consensus system. Therefore in addition to the message, the
+/// destination must be given in two parts: the network and the interior location within it.
+///
+/// We also require the caller to state exactly what location they purport to be representing. The
+/// destination must accept the local location to represent that location or the operation will
+/// fail.
 pub trait ExportXcm {
+	/// Intermediate value which connects the two phaases of the export operation.
 	type Ticket;
 
-	/// Check whether the given `message` is deliverable to the given `destination` spoofing
-	/// its source as `universal_source` and if so determine the cost which will be paid by this
-	/// chain to do so, returning a `Validated` token which can be used to enact delivery.
+	/// Check whether the given `message` is deliverable to the given `destination` on `network`,
+	/// spoofing its source as `universal_source` and if so determine the cost which will be paid by
+	/// this chain to do so, returning a `Ticket` token which can be used to enact delivery.
+	///
+	/// The `channel` to be used on the `network`'s export mechanism (bridge, probably) must also
+	/// be provided.
 	///
 	/// The `destination` and `message` must be `Some` (or else an error will be returned) and they
 	/// may only be consumed if the `Err` is not `NotApplicable`.
 	///
 	/// If it is not a destination which can be reached with this type but possibly could by others,
 	/// then this *MUST* return `NotApplicable`. Any other error will cause the tuple
-	/// implementation to exit early without trying other type fields.
+	/// implementation (used to compose routing systems from different delivery agents) to exit
+	/// early without trying alternative means of delivery.
 	fn validate(
 		network: NetworkId,
 		channel: u32,

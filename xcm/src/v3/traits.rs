@@ -382,12 +382,11 @@ impl<T> Unwrappable for Option<T> {
 	}
 }
 
-/// Utility for sending an XCM message.
+/// Utility for sending an XCM message to a given location.
 ///
-/// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each router might return
-/// `NotApplicable` to pass the execution to the next sender item. Note that each `NotApplicable`
-/// might alter the destination and the XCM message for to the next router.
-///
+/// These can be amalgamated in tuples to form sophisticated routing systems. In tuple format, each
+/// router might return `NotApplicable` to pass the execution to the next sender item. Note that
+/// each `NotApplicable` might alter the destination and the XCM message for to the next router.
 ///
 /// # Example
 /// ```rust
@@ -456,6 +455,7 @@ impl<T> Unwrappable for Option<T> {
 /// # }
 /// ```
 pub trait SendXcm {
+	/// Intermediate value which connects the two phaases of the send operation.
 	type Ticket;
 
 	/// Check whether the given `_message` is deliverable to the given `_destination` and if so
