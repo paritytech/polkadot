@@ -30,6 +30,7 @@ use futures::{
 	stream::{FuturesUnordered, StreamExt as _},
 	Future, FutureExt,
 };
+use polkadot_node_primitives::BACKING_EXECUTION_TIMEOUT;
 use polkadot_primitives::vstaging::{ExecutorParams, ExecutorParamsHash};
 use slotmap::HopSlotMap;
 use std::{
@@ -42,7 +43,8 @@ use std::{
 /// The amount of time a job for which the queue does not have a compatible worker may wait in the
 /// queue. After that time passes, the queue will kill the first worker which becomes idle to
 /// re-spawn a new worker to execute the job immediately.
-const MAX_KEEP_WAITING: Duration = Duration::from_millis(60000); // FIXME: Needs to be evaluated
+const MAX_KEEP_WAITING: Duration =
+	Duration::from_millis(BACKING_EXECUTION_TIMEOUT.as_millis() as u64 * 2);
 
 slotmap::new_key_type! { struct Worker; }
 
