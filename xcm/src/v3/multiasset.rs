@@ -238,7 +238,10 @@ impl TryFrom<AssetInstance> for u128 {
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Fungibility {
+	/// A fungible asset; we record a number of units, as a `u128` in the inner item.
 	Fungible(#[codec(compact)] u128),
+	/// A non-fungible asset. We record the instance identifier in the inner item. Only one asset
+	/// of each instance identifier may ever be in existence at once.
 	NonFungible(AssetInstance),
 }
 
@@ -287,7 +290,9 @@ impl TryFrom<OldFungibility> for Fungibility {
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum WildFungibility {
+	/// The asset is fungible.
 	Fungible,
+	/// The asset is not fungible.
 	NonFungible,
 }
 
@@ -308,7 +313,10 @@ impl TryFrom<OldWildFungibility> for WildFungibility {
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum AssetId {
+	/// A specific location identifying an asset.
 	Concrete(MultiLocation),
+	/// An abstract location; this is a name which may mean different specific locations on
+	/// different chains at different times.
 	Abstract([u8; 32]),
 }
 
@@ -375,10 +383,14 @@ impl AssetId {
 	}
 }
 
+/// Either an amount of a single fungible asset, or a single well-identified non-fungible asset.
 #[derive(Clone, Eq, PartialEq, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultiAsset {
+	/// The overall asset identity (aka *class*, in the case of a non-fungible).
 	pub id: AssetId,
+	/// The fungibility of the asset, which contains either the amount (in the case of a fungible
+	/// asset) or the *insance ID`, the secondary asset identifier.
 	pub fun: Fungibility,
 }
 
@@ -462,10 +474,15 @@ impl TryFrom<OldMultiAsset> for MultiAsset {
 	}
 }
 
-/// A `Vec` of `MultiAsset`s. There may be no duplicate fungible items in here and when decoding, they must be sorted.
+/// A `Vec` of `MultiAsset`s.
+///
+/// There are a number of invariants which the construction and mutation functions must ensure are
+/// maintained:
+/// - It may contain no items of duplicate asset class;
+/// - All items must be ordered;
+/// - The number of items should grow no larger than `MAX_ITEMS_IN_MULTIASSETS`.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, TypeInfo, Default)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-// TODO: Change to a `BoundedVec`.
 pub struct MultiAssets(Vec<MultiAsset>);
 
 /// Maximum number of items we expect in a single `MultiAssets` value. Note this is not (yet)
@@ -761,11 +778,13 @@ impl<A: Into<AssetId>, B: Into<WildFungibility>> From<(A, B)> for WildMultiAsset
 	}
 }
 
-/// `MultiAsset` collection, either `MultiAssets` or a single wildcard.
+/// `MultiAsset` collection, defined either by a number of `MultiAssets` or a single wildcard.
 #[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum MultiAssetFilter {
+	/// Specify the filter as being everything contained by the given `MultiAssets` inner.
 	Definite(MultiAssets),
+	/// Specify the filter as the given `WildMultiAsset` wildcard.
 	Wild(WildMultiAsset),
 }
 
