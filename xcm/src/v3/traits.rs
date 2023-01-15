@@ -25,6 +25,9 @@ pub use sp_weights::Weight;
 
 use super::*;
 
+/// Error codes used in XCM. The first errors codes have explicit indices and are part of the XCM
+/// format. Those trailing are merely part of the XCM implementation; there is no expectation that
+/// they will retain the same index over time.
 #[derive(Copy, Clone, Encode, Decode, Eq, PartialEq, Debug, TypeInfo)]
 pub enum Error {
 	// Errors that happen due to instructions being executed. These alone are defined in the
