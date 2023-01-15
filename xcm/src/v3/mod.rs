@@ -236,7 +236,7 @@ impl PalletInfo {
 
 impl MaxEncodedLen for PalletInfo {
 	fn max_encoded_len() -> usize {
-		parity_scale_codec::Compact::<u32>::max_encoded_len() * 4 + MAX_NAME_LEN * 2
+		parity_scale_codec::Compact::<u32>::max_encoded_len() * 4 + (MAX_NAME_LEN + 1) * 2
 	}
 }
 
