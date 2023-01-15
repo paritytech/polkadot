@@ -533,7 +533,7 @@ impl pallet_fast_unstake::Config for Runtime {
 	type Deposit = frame_support::traits::ConstU128<{ UNITS }>;
 	type ControlOrigin = EnsureRoot<AccountId>;
 	type Staking = Staking;
-	type MaxErasToCheckPerBlock = ConstU32<2>;
+	type MaxErasToCheckPerBlock = ConstU32<1>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type MaxBackersPerValidator = MaxNominatorRewardedPerValidator;
 	type WeightInfo = weights::pallet_fast_unstake::WeightInfo<Runtime>;
