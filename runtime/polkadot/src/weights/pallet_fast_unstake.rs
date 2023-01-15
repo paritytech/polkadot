@@ -62,10 +62,10 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 	// Storage: Staking Payee (r:0 w:1)
 	/// The range of component `b` is `[1, 64]`.
 	fn on_idle_unstake(b: u32, ) -> Weight {
-		// Minimum execution time: 89_039 nanoseconds.
-		Weight::from_ref_time(79_243_959)
-			// Standard Error: 32_697
-			.saturating_add(Weight::from_ref_time(34_051_186).saturating_mul(b.into()))
+		// Minimum execution time: 89_186 nanoseconds.
+		Weight::from_ref_time(81_064_737)
+			// Standard Error: 35_660
+			.saturating_add(Weight::from_ref_time(33_538_270).saturating_mul(b.into()))
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().reads((6_u64).saturating_mul(b.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -81,12 +81,12 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 	/// The range of component `v` is `[1, 1000]`.
 	/// The range of component `b` is `[1, 64]`.
 	fn on_idle_check(v: u32, b: u32, ) -> Weight {
-		// Minimum execution time: 2_465_044 nanoseconds.
-		Weight::from_ref_time(2_485_296_000)
-			// Standard Error: 25_747_369
-			.saturating_add(Weight::from_ref_time(831_370_194).saturating_mul(v.into()))
-			// Standard Error: 402_494_104
-			.saturating_add(Weight::from_ref_time(12_667_790_065).saturating_mul(b.into()))
+		// Minimum execution time: 2_466_451 nanoseconds.
+		Weight::from_ref_time(2_482_162_000)
+			// Standard Error: 25_800_482
+			.saturating_add(Weight::from_ref_time(833_589_133).saturating_mul(v.into()))
+			// Standard Error: 403_324_394
+			.saturating_add(Weight::from_ref_time(12_683_971_547).saturating_mul(b.into()))
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(v.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -105,8 +105,8 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 	// Storage: Balances Locks (r:1 w:1)
 	// Storage: FastUnstake CounterForQueue (r:1 w:1)
 	fn register_fast_unstake() -> Weight {
-		// Minimum execution time: 125_984 nanoseconds.
-		Weight::from_ref_time(128_076_000)
+		// Minimum execution time: 125_878 nanoseconds.
+		Weight::from_ref_time(129_289_000)
 			.saturating_add(T::DbWeight::get().reads(15))
 			.saturating_add(T::DbWeight::get().writes(10))
 	}
@@ -116,15 +116,15 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 	// Storage: FastUnstake Head (r:1 w:0)
 	// Storage: FastUnstake CounterForQueue (r:1 w:1)
 	fn deregister() -> Weight {
-		// Minimum execution time: 50_089 nanoseconds.
-		Weight::from_ref_time(51_829_000)
+		// Minimum execution time: 51_516 nanoseconds.
+		Weight::from_ref_time(52_357_000)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
 	// Storage: FastUnstake ErasToCheckPerBlock (r:0 w:1)
 	fn control() -> Weight {
-		// Minimum execution time: 4_241 nanoseconds.
-		Weight::from_ref_time(4_418_000)
+		// Minimum execution time: 4_145 nanoseconds.
+		Weight::from_ref_time(4_410_000)
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 }
