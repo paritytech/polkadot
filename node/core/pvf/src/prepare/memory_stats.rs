@@ -76,7 +76,7 @@ impl MemoryAllocationTracker {
 
 /// Get the rusage stats for the current thread.
 #[cfg(target_os = "linux")]
-fn getrusage_thread() -> io::Result<i32> {
+fn getrusage_thread() -> io::Result<rusage> {
 	let mut result = rusage {
 		ru_utime: timeval { tv_sec: 0, tv_usec: 0 },
 		ru_stime: timeval { tv_sec: 0, tv_usec: 0 },
@@ -96,7 +96,7 @@ fn getrusage_thread() -> io::Result<i32> {
 		ru_nivcsw: 0,
 	};
 	if unsafe { getrusage(RUSAGE_THREAD, &mut result) } == -1 {
-		return Err(io::Error::last_os_error().to_string())
+		return Err(io::Error::last_os_error())
 	}
 	Ok(result)
 }
