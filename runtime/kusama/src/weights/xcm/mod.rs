@@ -97,7 +97,7 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for KusamaXcmWeight<RuntimeCall> {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::transfer_reserve_asset())
 	}
 	fn transact(
-		_origin_type: &OriginKind,
+		_origin_kind: &OriginKind,
 		_require_weight_at_most: &u64,
 		_call: &DoubleEncoded<RuntimeCall>,
 	) -> XCMWeight {

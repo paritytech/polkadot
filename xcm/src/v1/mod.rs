@@ -236,9 +236,9 @@ pub enum Xcm<RuntimeCall> {
 	TransferReserveAsset { assets: MultiAssets, dest: MultiLocation, effects: Vec<Order<()>> },
 
 	/// Apply the encoded transaction `call`, whose dispatch-origin should be `origin` as expressed by the kind
-	/// of origin `origin_type`.
+	/// of origin `origin_kind`.
 	///
-	/// - `origin_type`: The means of expressing the message origin as a dispatch origin.
+	/// - `origin_kind`: The means of expressing the message origin as a dispatch origin.
 	/// - `max_weight`: The weight of `call`; this should be at least the chain's calculated weight and will
 	///   be used in the weight determination arithmetic.
 	/// - `call`: The encoded transaction to be applied.
@@ -250,7 +250,7 @@ pub enum Xcm<RuntimeCall> {
 	/// Errors:
 	#[codec(index = 6)]
 	Transact {
-		origin_type: OriginKind,
+		origin_kind: OriginKind,
 		require_weight_at_most: u64,
 		call: DoubleEncoded<RuntimeCall>,
 	},
@@ -365,8 +365,8 @@ impl<RuntimeCall> Xcm<RuntimeCall> {
 			HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
 			HrmpChannelClosing { initiator, sender, recipient } =>
 				HrmpChannelClosing { initiator, sender, recipient },
-			Transact { origin_type, require_weight_at_most, call } =>
-				Transact { origin_type, require_weight_at_most, call: call.into() },
+			Transact { origin_kind, require_weight_at_most, call } =>
+				Transact { origin_kind, require_weight_at_most, call: call.into() },
 			RelayedFrom { who, message } =>
 				RelayedFrom { who, message: alloc::boxed::Box::new((*message).into()) },
 			SubscribeVersion { query_id, max_response_weight } =>
@@ -437,8 +437,8 @@ impl<RuntimeCall> TryFrom<OldXcm<RuntimeCall>> for Xcm<RuntimeCall> {
 			OldXcm::HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
 			OldXcm::HrmpChannelClosing { initiator, sender, recipient } =>
 				HrmpChannelClosing { initiator, sender, recipient },
-			OldXcm::Transact { origin_type, require_weight_at_most, call } =>
-				Transact { origin_type, require_weight_at_most, call: call.into() },
+			OldXcm::Transact { origin_kind, require_weight_at_most, call } =>
+				Transact { origin_kind, require_weight_at_most, call: call.into() },
 			OldXcm::RelayedFrom { who, message } => RelayedFrom {
 				who: MultiLocation::try_from(who)?.try_into()?,
 				message: alloc::boxed::Box::new((*message).try_into()?),
@@ -495,8 +495,8 @@ impl<RuntimeCall> TryFrom<NewXcm<RuntimeCall>> for Xcm<RuntimeCall> {
 			Instruction::HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
 			Instruction::HrmpChannelClosing { initiator, sender, recipient } =>
 				HrmpChannelClosing { initiator, sender, recipient },
-			Instruction::Transact { origin_type, require_weight_at_most, call } =>
-				Transact { origin_type, require_weight_at_most, call },
+			Instruction::Transact { origin_kind, require_weight_at_most, call } =>
+				Transact { origin_kind, require_weight_at_most, call },
 			Instruction::SubscribeVersion { query_id, max_response_weight } =>
 				SubscribeVersion { query_id, max_response_weight },
 			Instruction::UnsubscribeVersion => UnsubscribeVersion,

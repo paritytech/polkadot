@@ -336,13 +336,13 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				}
 				Ok(())
 			},
-			Transact { origin_type, require_weight_at_most, mut call } => {
+			Transact { origin_kind, require_weight_at_most, mut call } => {
 				// We assume that the Relay-chain is allowed to use transact on this parachain.
 				let origin = self.origin.clone().ok_or(XcmError::BadOrigin)?;
 
 				// TODO: #2841 #TRANSACTFILTER allow the trait to issue filters for the relay-chain
 				let message_call = call.take_decoded().map_err(|_| XcmError::FailedToDecode)?;
-				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_type)
+				let dispatch_origin = Config::OriginConverter::convert_origin(origin, origin_kind)
 					.map_err(|_| XcmError::BadOrigin)?;
 				let weight = message_call.get_dispatch_info().weight;
 				ensure!(weight.ref_time() <= require_weight_at_most, XcmError::MaxWeightInvalid);

@@ -126,7 +126,7 @@ mod tests {
 				Here,
 				Parachain(1),
 				Xcm(vec![Transact {
-					origin_type: OriginKind::SovereignAccount,
+					origin_kind: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
 				}]),
@@ -154,7 +154,7 @@ mod tests {
 				Here,
 				Parent,
 				Xcm(vec![Transact {
-					origin_type: OriginKind::SovereignAccount,
+					origin_kind: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
 				}]),
@@ -182,7 +182,7 @@ mod tests {
 				Here,
 				(Parent, Parachain(2)),
 				Xcm(vec![Transact {
-					origin_type: OriginKind::SovereignAccount,
+					origin_kind: OriginKind::SovereignAccount,
 					require_weight_at_most: INITIAL_BALANCE as u64,
 					call: remark.encode().into(),
 				}]),

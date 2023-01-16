@@ -324,9 +324,9 @@ pub enum Instruction<RuntimeCall> {
 	TransferReserveAsset { assets: MultiAssets, dest: MultiLocation, xcm: Xcm<()> },
 
 	/// Apply the encoded transaction `call`, whose dispatch-origin should be `origin` as expressed
-	/// by the kind of origin `origin_type`.
+	/// by the kind of origin `origin_kind`.
 	///
-	/// - `origin_type`: The means of expressing the message origin as a dispatch origin.
+	/// - `origin_kind`: The means of expressing the message origin as a dispatch origin.
 	/// - `max_weight`: The weight of `call`; this should be at least the chain's calculated weight
 	///   and will be used in the weight determination arithmetic.
 	/// - `call`: The encoded transaction to be applied.
@@ -337,7 +337,7 @@ pub enum Instruction<RuntimeCall> {
 	///
 	/// Errors:
 	Transact {
-		origin_type: OriginKind,
+		origin_kind: OriginKind,
 		#[codec(compact)]
 		require_weight_at_most: u64,
 		call: DoubleEncoded<RuntimeCall>,
@@ -676,8 +676,8 @@ impl<RuntimeCall> Instruction<RuntimeCall> {
 			HrmpChannelAccepted { recipient } => HrmpChannelAccepted { recipient },
 			HrmpChannelClosing { initiator, sender, recipient } =>
 				HrmpChannelClosing { initiator, sender, recipient },
-			Transact { origin_type, require_weight_at_most, call } =>
-				Transact { origin_type, require_weight_at_most, call: call.into() },
+			Transact { origin_kind, require_weight_at_most, call } =>
+				Transact { origin_kind, require_weight_at_most, call: call.into() },
 			ReportError { query_id, dest, max_response_weight } =>
 				ReportError { query_id, dest, max_response_weight },
 			DepositAsset { assets, max_assets, beneficiary } =>
@@ -719,8 +719,8 @@ impl<RuntimeCall, W: XcmWeightInfo<RuntimeCall>> GetWeight<W> for Instruction<Ru
 			TransferAsset { assets, beneficiary } => W::transfer_asset(assets, beneficiary),
 			TransferReserveAsset { assets, dest, xcm } =>
 				W::transfer_reserve_asset(&assets, dest, xcm),
-			Transact { origin_type, require_weight_at_most, call } =>
-				W::transact(origin_type, require_weight_at_most, call),
+			Transact { origin_kind, require_weight_at_most, call } =>
+				W::transact(origin_kind, require_weight_at_most, call),
 			HrmpNewChannelOpenRequest { sender, max_message_size, max_capacity } =>
 				W::hrmp_new_channel_open_request(sender, max_message_size, max_capacity),
 			HrmpChannelAccepted { recipient } => W::hrmp_channel_accepted(recipient),
@@ -816,8 +816,8 @@ impl<RuntimeCall> TryFrom<OldXcm<RuntimeCall>> for Xcm<RuntimeCall> {
 			OldXcm::HrmpChannelAccepted { recipient } => vec![HrmpChannelAccepted { recipient }],
 			OldXcm::HrmpChannelClosing { initiator, sender, recipient } =>
 				vec![HrmpChannelClosing { initiator, sender, recipient }],
-			OldXcm::Transact { origin_type, require_weight_at_most, call } =>
-				vec![Transact { origin_type, require_weight_at_most, call }],
+			OldXcm::Transact { origin_kind, require_weight_at_most, call } =>
+				vec![Transact { origin_kind, require_weight_at_most, call }],
 			// We don't handle this one at all due to nested XCM.
 			OldXcm::RelayedFrom { .. } => return Err(()),
 			OldXcm::SubscribeVersion { query_id, max_response_weight } =>

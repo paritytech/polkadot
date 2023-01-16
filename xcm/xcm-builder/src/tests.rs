@@ -578,7 +578,7 @@ fn transacting_should_work() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let message = Xcm::<TestCall>(vec![Transact {
-		origin_type: OriginKind::Native,
+		origin_kind: OriginKind::Native,
 		require_weight_at_most: 50,
 		call: TestCall::Any(50, None).encode().into(),
 	}]);
@@ -592,7 +592,7 @@ fn transacting_should_respect_max_weight_requirement() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let message = Xcm::<TestCall>(vec![Transact {
-		origin_type: OriginKind::Native,
+		origin_kind: OriginKind::Native,
 		require_weight_at_most: 40,
 		call: TestCall::Any(50, None).encode().into(),
 	}]);
@@ -606,7 +606,7 @@ fn transacting_should_refund_weight() {
 	AllowUnpaidFrom::set(vec![Parent.into()]);
 
 	let message = Xcm::<TestCall>(vec![Transact {
-		origin_type: OriginKind::Native,
+		origin_kind: OriginKind::Native,
 		require_weight_at_most: 50,
 		call: TestCall::Any(50, Some(30)).encode().into(),
 	}]);
@@ -628,7 +628,7 @@ fn paid_transacting_should_refund_payment_for_unused_weight() {
 		WithdrawAsset((Parent, 100).into()), // enough for 100 units of weight.
 		BuyExecution { fees, weight_limit: Limited(100) },
 		Transact {
-			origin_type: OriginKind::Native,
+			origin_kind: OriginKind::Native,
 			require_weight_at_most: 50,
 			// call estimated at 50 but only takes 10.
 			call: TestCall::Any(50, Some(10)).encode().into(),
