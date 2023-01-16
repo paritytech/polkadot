@@ -142,11 +142,8 @@ pub async fn start_work(
 				target: LOG_TARGET,
 				worker_pid = %pid,
 				validation_code_hash = ?artifact.id.code_hash,
-				"execution worker exceeded allotted time for execution",
+				"execution worker exceeded lenient timeout for execution, child worker likely stalled",
 			);
-			// TODO: This case is not really a hard timeout as the timeout here in the host is
-			// lenient. Should fix this as part of
-			// https://github.com/paritytech/polkadot/issues/3754.
 			Response::TimedOut
 		},
 	};

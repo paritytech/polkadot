@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-pub use polkadot_primitives::v2::{CandidateHash, Hash};
+pub use polkadot_primitives::{CandidateHash, Hash};
 
 #[derive(Default, Debug)]
 struct Y {

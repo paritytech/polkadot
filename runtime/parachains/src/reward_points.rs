@@ -23,7 +23,7 @@
 
 use crate::{session_info, shared};
 use frame_support::traits::{Defensive, ValidatorSet};
-use primitives::v2::{SessionIndex, ValidatorIndex};
+use primitives::{SessionIndex, ValidatorIndex};
 use sp_std::collections::btree_set::BTreeSet;
 
 /// The amount of era points given by backing a candidate that is included.
