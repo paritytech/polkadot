@@ -36,7 +36,7 @@ use polkadot_node_subsystem_test_helpers::{
 	make_subsystem_context, TestSubsystemContext, TestSubsystemContextHandle, TestSubsystemSender,
 };
 use polkadot_node_subsystem_util::{reexports::SubsystemContext, TimeoutExt};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlakeTwo256, BlockNumber, CandidateDescriptor, CandidateEvent, CandidateReceipt, CoreIndex,
 	GroupIndex, Hash, HashT, HeadData, Id as ParaId,
 };

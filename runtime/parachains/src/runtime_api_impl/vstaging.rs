@@ -17,7 +17,7 @@
 //! Put implementations of functions from staging APIs here.
 
 use crate::disputes;
-use primitives::v2::{CandidateHash, DisputeState, SessionIndex};
+use primitives::{CandidateHash, DisputeState, SessionIndex};
 use sp_std::prelude::*;
 
 /// Implementation for `get_session_disputes` function from the runtime API

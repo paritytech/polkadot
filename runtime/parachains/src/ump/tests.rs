@@ -269,7 +269,7 @@ fn verify_relay_dispatch_queue_size_is_externally_accessible() {
 	// keys and is decodable into a (u32, u32).
 
 	use parity_scale_codec::Decode as _;
-	use primitives::v2::well_known_keys;
+	use primitives::well_known_keys;
 
 	let a = ParaId::from(228);
 	let msg = vec![1, 2, 3];

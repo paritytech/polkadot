@@ -32,7 +32,7 @@ mod handle_new_activations {
 	use polkadot_node_subsystem_test_helpers::{
 		subsystem_test_harness, TestSubsystemContextHandle,
 	};
-	use polkadot_primitives::v2::{
+	use polkadot_primitives::{
 		CollatorPair, Id as ParaId, PersistedValidationData, ScheduledCore, ValidationCode,
 	};
 	use std::pin::Pin;
