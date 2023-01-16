@@ -213,7 +213,7 @@ async fn execute_queue_doesnt_stall_with_varying_executor_params() {
 	// without waiting. The jobs will be executed in 3 batches, each running two jobs in parallel,
 	// and execution time would be roughly 3 * TEST_EXECUTION_TIMEOUT
 	let start = std::time::Instant::now();
-	futures::future::join_all((0u8..=6).map(|i| {
+	futures::future::join_all((0u8..6).map(|i| {
 		host.validate_candidate(
 			halt::wasm_binary_unwrap(),
 			ValidationParams {
@@ -231,10 +231,17 @@ async fn execute_queue_doesnt_stall_with_varying_executor_params() {
 	.await;
 
 	let duration = std::time::Instant::now().duration_since(start);
-	let max_duration = 3 * TEST_EXECUTION_TIMEOUT;
+	let min_duration = 3 * TEST_EXECUTION_TIMEOUT;
+	let max_duration = 4 * TEST_EXECUTION_TIMEOUT;
 	assert!(
-		duration >= max_duration,
+		duration >= min_duration,
 		"Expected duration {}ms to be greater than or equal to {}ms",
+		duration.as_millis(),
+		min_duration.as_millis()
+	);
+	assert!(
+		duration <= max_duration,
+		"Expected duration {}ms to be less than or equal to {}ms",
 		duration.as_millis(),
 		max_duration.as_millis()
 	);
