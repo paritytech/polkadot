@@ -601,12 +601,16 @@ impl MultiAssets {
 
 	/// Add some asset onto the list, saturating. This is quite a laborious operation since it maintains the ordering.
 	pub fn push(&mut self, a: MultiAsset) {
-		if let Fungibility::Fungible(ref amount) = a.fun {
-			for asset in self.0.iter_mut().filter(|x| x.id == a.id) {
-				if let Fungibility::Fungible(ref mut balance) = asset.fun {
+		for asset in self.0.iter_mut().filter(|x| x.id == a.id) {
+			match (&a.fun, &mut asset.fun) {
+				(Fungibility::Fungible(amount), Fungibility::Fungible(balance)) => {
 					*balance = balance.saturating_add(*amount);
 					return
-				}
+				},
+				(Fungibility::NonFungible(inst1), Fungibility::NonFungible(inst2))
+					if inst1 == inst2 =>
+					return,
+				_ => (),
 			}
 		}
 		self.0.push(a);
@@ -889,8 +893,8 @@ mod tests {
 
 	#[test]
 	fn from_sorted_and_deduplicated_works() {
-		use alloc::vec;
 		use super::*;
+		use alloc::vec;
 
 		let empty = vec![];
 		let r = MultiAssets::from_sorted_and_deduplicated(empty);
