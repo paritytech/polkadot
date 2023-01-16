@@ -1249,15 +1249,24 @@ fn pvf_check_upgrade_reject() {
 		Paras::schedule_code_upgrade(a, new_code.clone(), RELAY_PARENT, &Configuration::config());
 		check_code_is_stored(&new_code);
 
-		// Supermajority of validators vote against `new_code`. PVF should be rejected.
-		IntoIterator::into_iter([0, 1, 2, 3])
-			.map(|i| PvfCheckStatement {
-				accept: false,
-				subject: new_code.hash(),
-				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
-			})
-			.for_each(sign_and_include_pvf_check_statement);
+		// 1/3 of validators vote against `new_code`. PVF should not be rejected yet.
+		sign_and_include_pvf_check_statement(PvfCheckStatement {
+			accept: false,
+			subject: new_code.hash(),
+			session_index: EXPECTED_SESSION,
+			validator_index: 0.into(),
+		});
+
+		// Verify that the new code is not yet discarded.
+		check_code_is_stored(&new_code);
+
+		// >1/3 of validators vote against `new_code`. PVF should be rejected.
+		sign_and_include_pvf_check_statement(PvfCheckStatement {
+			accept: false,
+			subject: new_code.hash(),
+			session_index: EXPECTED_SESSION,
+			validator_index: 1.into(),
+		});
 
 		// Verify that the new code is discarded.
 		check_code_is_not_stored(&new_code);
