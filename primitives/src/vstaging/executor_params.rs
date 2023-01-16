@@ -48,6 +48,9 @@ pub enum ExecutorParam {
 	StackLogicalMax(u32),
 	/// Executor machine stack size limit, in bytes
 	StackNativeMax(u32),
+	/// Max. amount of memory the preparation worker is allowed to use during
+	/// pre-checking, in bytes
+	PrecheckingMaxMemory(u64),
 
 	/// Placeholder for any data not fitting into the semantics. It may be used to avoid
 	/// `SessionInfo` migration if fast adoption of a new parameter is needed. This is an
