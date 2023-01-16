@@ -878,9 +878,70 @@ impl TryFrom<(OldMultiAssetFilter, u32)> for MultiAssetFilter {
 	}
 }
 
-#[test]
-fn conversion_works() {
-	use super::prelude::*;
+#[cfg(test)]
+mod tests {
+	use super::super::prelude::*;
 
-	let _: MultiAssets = (Here, 1u128).into();
+	#[test]
+	fn conversion_works() {
+		let _: MultiAssets = (Here, 1u128).into();
+	}
+
+	#[test]
+	fn from_sorted_and_deduplicated_works() {
+		use alloc::vec;
+		use super::*;
+
+		let empty = vec![];
+		let r = MultiAssets::from_sorted_and_deduplicated(empty);
+		assert_eq!(r, Ok(MultiAssets(vec![])));
+
+		let dup_fun = vec![(Here, 100).into(), (Here, 10).into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(dup_fun);
+		assert!(r.is_err());
+
+		let dup_nft = vec![(Here, *b"notgood!").into(), (Here, *b"notgood!").into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(dup_nft);
+		assert!(r.is_err());
+
+		let good_fun = vec![(Here, 10).into(), (Parent, 10).into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(good_fun.clone());
+		assert_eq!(r, Ok(MultiAssets(good_fun)));
+
+		let bad_fun = vec![(Parent, 10).into(), (Here, 10).into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(bad_fun);
+		assert!(r.is_err());
+
+		let good_abstract_fun = vec![(Here, 100).into(), ([0u8; 32], 10).into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(good_abstract_fun.clone());
+		assert_eq!(r, Ok(MultiAssets(good_abstract_fun)));
+
+		let bad_abstract_fun = vec![([0u8; 32], 10).into(), (Here, 10).into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(bad_abstract_fun);
+		assert!(r.is_err());
+
+		let good_nft = vec![(Here, ()).into(), (Here, *b"good").into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(good_nft.clone());
+		assert_eq!(r, Ok(MultiAssets(good_nft)));
+
+		let bad_nft = vec![(Here, *b"bad!").into(), (Here, ()).into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(bad_nft);
+		assert!(r.is_err());
+
+		let good_abstract_nft = vec![(Here, ()).into(), ([0u8; 32], ()).into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(good_abstract_nft.clone());
+		assert_eq!(r, Ok(MultiAssets(good_abstract_nft)));
+
+		let bad_abstract_nft = vec![([0u8; 32], ()).into(), (Here, ()).into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(bad_abstract_nft);
+		assert!(r.is_err());
+
+		let mixed_good = vec![(Here, 10).into(), (Here, *b"good").into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(mixed_good.clone());
+		assert_eq!(r, Ok(MultiAssets(mixed_good)));
+
+		let mixed_bad = vec![(Here, *b"bad!").into(), (Here, 10).into()];
+		let r = MultiAssets::from_sorted_and_deduplicated(mixed_bad);
+		assert!(r.is_err());
+	}
 }
