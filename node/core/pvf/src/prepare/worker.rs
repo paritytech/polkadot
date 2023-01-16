@@ -167,7 +167,7 @@ async fn handle_response(
 	metrics: &Metrics,
 	worker: IdleWorker,
 	result: PrepareResult,
-	memory_stats: MemoryStats,
+	memory_stats: Option<MemoryStats>,
 	pid: u32,
 	tmp_file: PathBuf,
 	artifact_path: PathBuf,
@@ -218,7 +218,9 @@ async fn handle_response(
 
 	// If there were no errors up until now, log the memory stats for a successful preparation, if
 	// available.
-	observe_memory_metrics(metrics, memory_stats, pid);
+	if let Some(memory_stats) = memory_stats {
+		observe_memory_metrics(metrics, memory_stats, pid);
+	}
 
 	outcome
 }
@@ -325,7 +327,7 @@ async fn send_response(
 async fn recv_response(
 	stream: &mut UnixStream,
 	pid: u32,
-) -> io::Result<(PrepareResult, MemoryStats)> {
+) -> io::Result<(PrepareResult, Option<MemoryStats>)> {
 	let result = framed_recv(stream).await?;
 	let result = PrepareResult::decode(&mut &result[..]).map_err(|e| {
 		// We received invalid bytes from the worker.
@@ -342,7 +344,7 @@ async fn recv_response(
 		)
 	})?;
 	let memory_stats = framed_recv(stream).await?;
-	let memory_stats = MemoryStats::decode(&mut &memory_stats[..]).map_err(|e| {
+	let memory_stats = Option::<MemoryStats>::decode(&mut &memory_stats[..]).map_err(|e| {
 		io::Error::new(
 			io::ErrorKind::Other,
 			format!("prepare pvf recv_response: failed to decode memory stats: {:?}", e),

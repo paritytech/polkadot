@@ -105,7 +105,7 @@ fn getrusage_thread() -> io::Result<i32> {
 /// returns `None`.
 pub fn get_max_rss_thread() -> Option<io::Result<i32>> {
 	#[cfg(target_os = "linux")]
-	let max_rss = Some(getrusage_thread().map(|rusage| max_rss));
+	let max_rss = Some(getrusage_thread().map(|rusage| rusage.max_rss));
 	#[cfg(not(target_os = "linux"))]
 	let max_rss = None;
 	max_rss

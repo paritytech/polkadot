@@ -510,7 +510,10 @@ pub fn start(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{error::PrepareError, host::PRECHECK_PREPARATION_TIMEOUT};
+	use crate::{
+		error::PrepareError,
+		host::{LENIENT_PREPARATION_TIMEOUT, PRECHECK_PREPARATION_TIMEOUT},
+	};
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
 	use slotmap::SlotMap;
@@ -629,6 +632,7 @@ mod tests {
 			priority: Priority::Normal,
 			pvf: pvf(1),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
+			preparation_kind: PreparationKind::PreCheck,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
@@ -646,12 +650,29 @@ mod tests {
 	#[tokio::test]
 	async fn dont_spawn_over_soft_limit_unless_critical() {
 		let mut test = Test::new(2, 3);
-		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
 
 		let priority = Priority::Normal;
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(1), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(2), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(3), preparation_timeout });
+		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
+		let preparation_kind = PreparationKind::PreCheck;
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf: pvf(1),
+			preparation_timeout,
+			preparation_kind,
+		});
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf: pvf(2),
+			preparation_timeout,
+			preparation_kind,
+		});
+		// Start a non-precheck preparation for this one.
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf: pvf(3),
+			preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+			preparation_kind: PreparationKind::FromExecutionRequest,
+		});
 
 		// Receive only two spawns.
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -680,6 +701,7 @@ mod tests {
 			priority: Priority::Critical,
 			pvf: pvf(4),
 			preparation_timeout,
+			preparation_kind,
 		});
 
 		// 2 out of 2 are working, but there is a critical job incoming. That means that spawning
@@ -691,11 +713,13 @@ mod tests {
 	async fn cull_unwanted() {
 		let mut test = Test::new(1, 2);
 		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
+		let preparation_kind = PreparationKind::PreCheck;
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
 			preparation_timeout,
+			preparation_kind,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 		let w1 = test.workers.insert(());
@@ -707,6 +731,7 @@ mod tests {
 			priority: Priority::Critical,
 			pvf: pvf(2),
 			preparation_timeout,
+			preparation_kind,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
@@ -729,10 +754,28 @@ mod tests {
 	async fn worker_mass_die_out_doesnt_stall_queue() {
 		let mut test = Test::new(2, 2);
 
-		let (priority, preparation_timeout) = (Priority::Normal, PRECHECK_PREPARATION_TIMEOUT);
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(1), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(2), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(3), preparation_timeout });
+		let priority = Priority::Normal;
+		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
+		let preparation_kind = PreparationKind::PreCheck;
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf: pvf(1),
+			preparation_timeout,
+			preparation_kind,
+		});
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf: pvf(2),
+			preparation_timeout,
+			preparation_kind,
+		});
+		// Start a non-precheck preparation for this one.
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf: pvf(3),
+			preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+			preparation_kind: PreparationKind::FromExecutionRequest,
+		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -767,6 +810,7 @@ mod tests {
 			priority: Priority::Normal,
 			pvf: pvf(1),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
+			preparation_kind: PreparationKind::PreCheck,
 		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -792,6 +836,7 @@ mod tests {
 			priority: Priority::Normal,
 			pvf: pvf(1),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
+			preparation_kind: PreparationKind::PreCheck,
 		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
