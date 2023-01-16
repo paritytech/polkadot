@@ -566,6 +566,51 @@ pub mod pallet {
 			)
 		}
 
+		/// Transfer some assets from sovereign account to reserve holder chain.
+		///
+		/// Fee payment on the destination side is made from the asset in the `assets` vector of
+		/// index `fee_asset_item`. The weight limit for fees is not provided and thus is unlimited,
+		/// with all fees taken as needed from the asset.
+		///
+		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
+		/// - `dest`: Destination context for the assets. Will typically be `X2(Parent, Parachain(..))` to send
+		///   from parachain to parachain, or `X1(Parachain(..))` to send from relay to parachain.
+		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
+		///   an `AccountId32` value.
+		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
+		///   `dest` side.
+		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
+		///   fees.
+		#[pallet::weight({
+			match ((*assets.clone()).try_into(), (*dest.clone()).try_into()) {
+				(Ok(assets), Ok(dest)) => {
+					use sp_std::vec;
+					let mut message = Xcm(vec![
+						WithdrawAsset(assets),
+						InitiateReserveWithdraw { assets: Wild(All), reserve: dest, xcm: Xcm(vec![]) }
+					]);
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
+				},
+				_ => Weight::MAX,
+			}
+		})]
+		pub fn reserve_withdraw_assets(
+			origin: OriginFor<T>,
+			dest: Box<VersionedMultiLocation>,
+			beneficiary: Box<VersionedMultiLocation>,
+			assets: Box<VersionedMultiAssets>,
+			fee_asset_item: u32,
+		) -> DispatchResult {
+			Self::do_reserve_withdraw_assets(
+				origin,
+				dest,
+				beneficiary,
+				assets,
+				fee_asset_item,
+				None,
+			)
+		}
+
 		/// Execute an XCM message from a local, signed, origin.
 		///
 		/// An event is deposited indicating whether `msg` could be executed completely or only
@@ -785,6 +830,52 @@ pub mod pallet {
 				Some(weight_limit),
 			)
 		}
+
+		/// Transfer some assets from sovereign account to reserve holder chain.
+		///
+		/// Fee payment on the destination side is made from the asset in the `assets` vector of
+		/// index `fee_asset_item`. The weight limit for fees is not provided and thus is unlimited,
+		/// with all fees taken as needed from the asset.
+		///
+		/// - `origin`: Must be capable of withdrawing the `assets` and executing XCM.
+		/// - `dest`: Destination context for the assets. Will typically be `(Parent, Parachain(..))` to claim
+		///   reserve assets from a sibling parachain, or `(Parent,)` to claim the reserve assets from the Relay chain.
+		/// - `beneficiary`: A beneficiary location for the assets in the context of `dest`. Will generally be
+		///   an `AccountId32` value.
+		/// - `assets`: The assets to be withdrawn. This should include the assets used to pay the fee on the
+		///   `dest` side.
+		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
+		///   fees.
+		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
+		#[pallet::weight({
+			match ((*assets.clone()).try_into(), (*dest.clone()).try_into()) {
+				(Ok(assets), Ok(dest)) => {
+					use sp_std::vec;
+					let mut message = Xcm(vec![
+						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
+					]);
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
+				},
+				_ => Weight::MAX,
+			}
+		})]
+		pub fn limited_reserve_withdraw_assets(
+			origin: OriginFor<T>,
+			dest: Box<VersionedMultiLocation>,
+			beneficiary: Box<VersionedMultiLocation>,
+			assets: Box<VersionedMultiAssets>,
+			fee_asset_item: u32,
+			weight_limit: WeightLimit,
+		) -> DispatchResult {
+			Self::do_reserve_withdraw_assets(
+				origin,
+				dest,
+				beneficiary,
+				assets,
+				fee_asset_item,
+				Some(weight_limit),
+			)
+		}
 	}
 
 	impl<T: Config> Pallet<T> {
@@ -837,6 +928,88 @@ pub mod pallet {
 				DepositAsset { assets: Wild(All), max_assets, beneficiary },
 			]);
 			let mut message = Xcm(vec![TransferReserveAsset { assets, dest, xcm }]);
+			let weight =
+				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
+			let outcome =
+				T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
+			Self::deposit_event(Event::Attempted(outcome));
+			Ok(())
+		}
+
+		fn do_reserve_withdraw_assets(
+			origin: OriginFor<T>,
+			dest: Box<VersionedMultiLocation>,
+			beneficiary: Box<VersionedMultiLocation>,
+			assets: Box<VersionedMultiAssets>,
+			fee_asset_item: u32,
+			maybe_weight_limit: Option<WeightLimit>,
+		) -> DispatchResult {
+			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
+			let beneficiary: MultiLocation = (*beneficiary)
+				.try_into()
+				.map_err(|()| Error::<T>::BadVersion)?;
+			let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
+
+			ensure!(
+				assets.len() <= MAX_ASSETS_FOR_TRANSFER,
+				Error::<T>::TooManyAssets
+			);
+			let value = (origin_location, assets.drain());
+			ensure!(
+				T::XcmReserveTransferFilter::contains(&value),
+				Error::<T>::Filtered
+			);
+			let (origin_location, assets) = value;
+			let ancestry = T::LocationInverter::ancestry();
+			let fees = assets
+				.get(fee_asset_item as usize)
+				.ok_or(Error::<T>::Empty)?
+				.clone()
+				.reanchored(&dest, &ancestry)
+				.map_err(|_| Error::<T>::CannotReanchor)?;
+			let max_assets = assets.len() as u32;
+			let assets: MultiAssets = assets.into();
+			let weight_limit = match maybe_weight_limit {
+				Some(weight_limit) => weight_limit,
+				None => {
+					let beneficiary = beneficiary.clone();
+					let fees = fees.clone();
+					let mut remote_message = Xcm(vec![
+						WithdrawAsset(assets.clone()),
+						ClearOrigin,
+						BuyExecution {
+							fees,
+							weight_limit: Limited(0),
+						},
+						DepositAsset {
+							assets: Wild(All),
+							max_assets,
+							beneficiary,
+						},
+					]);
+					// use local weight for remote message and hope for the best.
+					let remote_weight = T::Weigher::weight(&mut remote_message)
+						.map_err(|()| Error::<T>::UnweighableMessage)?;
+					Limited(remote_weight)
+				}
+			};
+			let xcm = Xcm(vec![
+				BuyExecution { fees, weight_limit },
+				DepositAsset {
+					assets: Wild(All),
+					max_assets,
+					beneficiary,
+				},
+			]);
+			let mut message = Xcm(vec![
+				WithdrawAsset(assets),
+				InitiateReserveWithdraw {
+					assets: Wild(All),
+					reserve: dest,
+					xcm,
+				},
+			]);
 			let weight =
 				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
 			let outcome =
