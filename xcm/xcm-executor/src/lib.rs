@@ -452,8 +452,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					// pay for `weight` using up to `fees` of the holding register.
 					let max_fee =
 						self.holding.try_take(fees.into()).map_err(|_| XcmError::NotHoldingFees)?;
-					let unspent = self.trader.buy_weight(weight, max_fee)?;
-					self.holding.subsume_assets(unspent);
+
+					if let Ok(unspent) = self.trader.buy_weight(weight, max_fee.clone()) {
+						self.holding.subsume_assets(unspent);
+					} else {
+						self.holding.subsume_assets(max_fee);
+					}
 				}
 				Ok(())
 			},
