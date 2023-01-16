@@ -340,8 +340,7 @@ impl TryFrom<OldAssetId> for AssetId {
 			Concrete(l) => Self::Concrete(l.try_into()?),
 			Abstract(v) if v.len() <= 32 => {
 				let mut r = [0u8; 32];
-				let (left, _right) = r.split_at_mut(v.len());
-				left.copy_from_slice(&v[..]);
+				r[..v.len()].copy_from_slice(&v[..]);
 				Self::Abstract(r)
 			},
 			_ => return Err(()),
