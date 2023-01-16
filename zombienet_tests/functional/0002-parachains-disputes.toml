@@ -1,0 +1,71 @@
+[settings]
+timeout = 1000
+
+[relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
+  max_validators_per_core = 5
+  needed_approvals = 8
+
+[relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "rococo-local"
+chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default-bootnode"
+default_command = "polkadot"
+
+[relaychain.default_resources]
+limits = { memory = "4G", cpu = "2" }
+requests = { memory = "2G", cpu = "1" }
+
+  [[relaychain.nodes]]
+  image = "{{MALUS_IMAGE}}"
+  name = "alice"
+  command = "malus dispute-ancestor --fake-validation approval-invalid"
+  args = [ "--alice", " -lparachain=debug,MALUS=trace" ]
+
+  [[relaychain.nodes]]
+  image = "{{MALUS_IMAGE}}"
+  name = "bob"
+  command = "malus dispute-ancestor --fake-validation approval-invalid"
+  args = [ "--bob", "-lparachain=debug,MALUS=trace"]
+
+  [[relaychain.nodes]]
+  name = "charlie"
+  args = [ "--charlie", "-lparachain=debug" ]
+
+  [[relaychain.nodes]]
+  name = "dave"
+  args = [ "--dave", "-lparachain=debug"]
+
+  [[relaychain.nodes]]
+  name = "ferdie"
+  args = [ "--ferdie", "-lparachain=debug" ]
+
+  [[relaychain.nodes]]
+  name = "eve"
+  args = [ "--eve", "-lparachain=debug"]
+
+  [[relaychain.nodes]]
+  name = "one"
+  args = [ "--one", "-lparachain=debug" ]
+
+  [[relaychain.nodes]]
+  name = "two"
+  args = [ "--two", "-lparachain=debug"]
+
+{% for id in range(2000,2004) %}
+[[parachains]]
+id = {{id}}
+addToGenesis = true
+genesis_state_generator = "undying-collator export-genesis-state --pov-size={{25000*(id-1999)}} --pvf-complexity={{id - 1999}}"
+
+  [parachains.collator]
+  image = "{{COL_IMAGE}}"
+  name = "collator"
+  command = "undying-collator"
+  args = ["-lparachain=debug", "--pov-size={{25000*(id-1999)}}", "--parachain-id={{id}}", "--pvf-complexity={{id - 1999}}"]
+
+{% endfor %}
+
+[types.Header]
+number = "u64"
+parent_hash = "Hash"
+post_state = "Hash"

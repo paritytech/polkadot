@@ -17,14 +17,16 @@
 //! A mock runtime for XCM benchmarking.
 
 use crate::{generic, mock::*, *};
+use codec::Decode;
 use frame_support::{
 	parameter_types,
 	traits::{Everything, OriginTrait},
+	weights::Weight,
 };
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
-	traits::{BlakeTwo256, IdentityLookup},
+	traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
 	BuildStorage,
 };
 use xcm_builder::{
@@ -50,7 +52,9 @@ frame_support::construct_runtime!(
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(1024);
+		frame_system::limits::BlockWeights::simple_max(
+			Weight::from_ref_time(1024).set_proof_size(u64::MAX),
+		);
 }
 
 impl frame_system::Config for Test {
@@ -58,16 +62,16 @@ impl frame_system::Config for Test {
 	type BlockWeights = ();
 	type BlockLength = ();
 	type DbWeight = ();
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
@@ -98,15 +102,15 @@ parameter_types! {
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type XcmSender = DevNull;
 	type AssetTransactor = NoAssetTransactor;
-	type OriginConverter = AlwaysSignedByDefault<Origin>;
+	type OriginConverter = AlwaysSignedByDefault<RuntimeOrigin>;
 	type IsReserve = AllAssetLocationsPass;
 	type IsTeleporter = ();
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
-	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
+	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 	type AssetTrap = TestAssetTrap;
@@ -129,7 +133,7 @@ impl crate::Config for Test {
 }
 
 impl generic::Config for Test {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 
 	fn worst_case_response() -> (u64, Response) {
 		let assets: MultiAssets = (Concrete(Here.into()), 100).into();
@@ -157,16 +161,19 @@ pub fn new_test_ext() -> sp_io::TestExternalities {
 	t.into()
 }
 
-pub struct AlwaysSignedByDefault<Origin>(core::marker::PhantomData<Origin>);
-impl<Origin> ConvertOrigin<Origin> for AlwaysSignedByDefault<Origin>
+pub struct AlwaysSignedByDefault<RuntimeOrigin>(core::marker::PhantomData<RuntimeOrigin>);
+impl<RuntimeOrigin> ConvertOrigin<RuntimeOrigin> for AlwaysSignedByDefault<RuntimeOrigin>
 where
-	Origin: OriginTrait,
-	<Origin as OriginTrait>::AccountId: Default,
+	RuntimeOrigin: OriginTrait,
+	<RuntimeOrigin as OriginTrait>::AccountId: Decode,
 {
 	fn convert_origin(
 		_origin: impl Into<MultiLocation>,
 		_kind: OriginKind,
-	) -> Result<Origin, MultiLocation> {
-		Ok(Origin::signed(Default::default()))
+	) -> Result<RuntimeOrigin, MultiLocation> {
+		Ok(RuntimeOrigin::signed(
+			<RuntimeOrigin as OriginTrait>::AccountId::decode(&mut TrailingZeroInput::zeroes())
+				.expect("infinite length input; no invalid inputs for type; qed"),
+		))
 	}
 }

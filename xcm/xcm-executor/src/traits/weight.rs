@@ -15,19 +15,18 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::Assets;
-use frame_support::weights::Weight;
 use sp_std::result::Result;
-use xcm::latest::prelude::*;
+use xcm::latest::{prelude::*, Weight};
 
 /// Determine the weight of an XCM message.
-pub trait WeightBounds<Call> {
+pub trait WeightBounds<RuntimeCall> {
 	/// Return the maximum amount of weight that an attempted execution of this message could
 	/// consume.
-	fn weight(message: &mut Xcm<Call>) -> Result<Weight, ()>;
+	fn weight(message: &mut Xcm<RuntimeCall>) -> Result<Weight, ()>;
 
 	/// Return the maximum amount of weight that an attempted execution of this instruction could
 	/// consume.
-	fn instr_weight(instruction: &Instruction<Call>) -> Result<Weight, ()>;
+	fn instr_weight(instruction: &Instruction<RuntimeCall>) -> Result<Weight, ()>;
 }
 
 /// A means of getting approximate weight consumption for a given destination message executor and a
@@ -47,9 +46,9 @@ pub trait WeightTrader: Sized {
 	/// Create a new trader instance.
 	fn new() -> Self;
 
-	/// Purchase execution weight credit in return for up to a given `fee`. If less of the fee is required
-	/// then the surplus is returned. If the `fee` cannot be used to pay for the `weight`, then an error is
-	/// returned.
+	/// Purchase execution weight credit in return for up to a given `payment`. If less of the
+	/// payment is required then the surplus is returned. If the `payment` cannot be used to pay
+	/// for the `weight`, then an error is returned.
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError>;
 
 	/// Attempt a refund of `weight` into some asset. The caller does not guarantee that the weight was

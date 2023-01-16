@@ -17,18 +17,19 @@
 use super::*;
 
 use ::test_helpers::{dummy_committed_candidate_receipt, dummy_validation_code};
-use futures::channel::oneshot;
 use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfiguration};
+use polkadot_node_subsystem::SpawnGlue;
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_primitives::{
-	v1::{
-		AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState,
-		GroupRotationInfo, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-		OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionIndex,
-		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
-	},
-	v2::{PvfCheckStatement, SessionInfo},
+	runtime_api::ParachainHost, AuthorityDiscoveryId, Block, CandidateEvent,
+	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
+use sp_api::ProvideRuntimeApi;
+use sp_authority_discovery::AuthorityDiscoveryApi;
+use sp_consensus_babe::BabeApi;
 use sp_core::testing::TaskExecutor;
 use std::{
 	collections::{BTreeMap, HashMap},
@@ -85,7 +86,7 @@ sp_api::mock_impl_runtime_apis! {
 		}
 
 		fn availability_cores(&self) -> Vec<CoreState> {
-			let _ = self.availability_cores_wait.lock().unwrap();
+			let _lock = self.availability_cores_wait.lock().unwrap();
 			self.availability_cores.clone()
 		}
 
@@ -111,7 +112,7 @@ sp_api::mock_impl_runtime_apis! {
 		fn check_validation_outputs(
 			&self,
 			para_id: ParaId,
-			_commitments: polkadot_primitives::v1::CandidateCommitments,
+			_commitments: polkadot_primitives::CandidateCommitments,
 		) -> bool {
 			self.validation_outputs_results
 				.get(&para_id)
@@ -195,7 +196,7 @@ sp_api::mock_impl_runtime_apis! {
 	}
 
 	impl BabeApi<Block> for MockRuntimeApi {
-		fn configuration(&self) -> sp_consensus_babe::BabeGenesisConfiguration {
+		fn configuration(&self) -> sp_consensus_babe::BabeConfiguration {
 			unimplemented!()
 		}
 
@@ -219,7 +220,7 @@ sp_api::mock_impl_runtime_apis! {
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
-			_equivocation_proof: sp_consensus_babe::EquivocationProof<polkadot_primitives::v1::Header>,
+			_equivocation_proof: sp_consensus_babe::EquivocationProof<polkadot_primitives::Header>,
 			_key_owner_proof: sp_consensus_babe::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
 			None
@@ -240,20 +241,21 @@ fn requests_authorities() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(relay_parent, Request::Authorities(tx)),
 			})
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.authorities);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -266,20 +268,21 @@ fn requests_validators() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(relay_parent, Request::Validators(tx)),
 			})
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.validators);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -292,20 +295,21 @@ fn requests_validator_groups() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(relay_parent, Request::ValidatorGroups(tx)),
 			})
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap().0, runtime_api.validator_groups);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -318,20 +322,21 @@ fn requests_availability_cores() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(relay_parent, Request::AvailabilityCores(tx)),
 			})
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.availability_cores);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -341,21 +346,22 @@ fn requests_availability_cores() {
 fn requests_persisted_validation_data() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let mut runtime_api = MockRuntimeApi::default();
 	runtime_api.validation_data.insert(para_a, Default::default());
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::PersistedValidationData(para_a, OccupiedCoreAssumption::Included, tx),
@@ -367,7 +373,7 @@ fn requests_persisted_validation_data() {
 
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::PersistedValidationData(para_b, OccupiedCoreAssumption::Included, tx),
@@ -377,7 +383,7 @@ fn requests_persisted_validation_data() {
 
 		assert_eq!(rx.await.unwrap().unwrap(), None);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -387,8 +393,8 @@ fn requests_persisted_validation_data() {
 fn requests_assumed_validation_data() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let validation_code = ValidationCode(vec![1, 2, 3]);
@@ -401,13 +407,14 @@ fn requests_assumed_validation_data() {
 	runtime_api.validation_data.insert(para_b, Default::default());
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::AssumedValidationData(para_a, expected_data_hash, tx),
@@ -419,7 +426,7 @@ fn requests_assumed_validation_data() {
 
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::AssumedValidationData(para_a, Hash::zero(), tx),
@@ -429,7 +436,7 @@ fn requests_assumed_validation_data() {
 
 		assert_eq!(rx.await.unwrap().unwrap(), None);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -440,9 +447,9 @@ fn requests_check_validation_outputs() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let mut runtime_api = MockRuntimeApi::default();
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
-	let commitments = polkadot_primitives::v1::CandidateCommitments::default();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
+	let commitments = polkadot_primitives::CandidateCommitments::default();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	runtime_api.validation_outputs_results.insert(para_a, false);
@@ -450,13 +457,14 @@ fn requests_check_validation_outputs() {
 
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::CheckValidationOutputs(para_a, commitments.clone(), tx),
@@ -467,7 +475,7 @@ fn requests_check_validation_outputs() {
 
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::CheckValidationOutputs(para_b, commitments, tx),
@@ -476,7 +484,7 @@ fn requests_check_validation_outputs() {
 			.await;
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.validation_outputs_results[&para_b]);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -489,20 +497,21 @@ fn requests_session_index_for_child() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(relay_parent, Request::SessionIndexForChild(tx)),
 			})
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.session_index_for_child);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -510,10 +519,10 @@ fn requests_session_index_for_child() {
 
 fn dummy_session_info() -> SessionInfo {
 	SessionInfo {
-		validators: vec![],
+		validators: Default::default(),
 		discovery_keys: vec![],
 		assignment_keys: vec![],
-		validator_groups: vec![],
+		validator_groups: Default::default(),
 		n_cores: 4u32,
 		zeroth_delay_tranche_width: 0u32,
 		relay_vrf_modulo_samples: 0u32,
@@ -536,13 +545,14 @@ fn requests_session_info() {
 
 	let relay_parent = [1; 32].into();
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::SessionInfo(session_index, tx),
@@ -552,7 +562,7 @@ fn requests_session_info() {
 
 		assert_eq!(rx.await.unwrap().unwrap(), Some(dummy_session_info()));
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -563,8 +573,8 @@ fn requests_validation_code() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 	let validation_code = dummy_validation_code();
 
@@ -572,13 +582,14 @@ fn requests_validation_code() {
 	runtime_api.validation_code.insert(para_a, validation_code.clone());
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::ValidationCode(para_a, OccupiedCoreAssumption::Included, tx),
@@ -590,7 +601,7 @@ fn requests_validation_code() {
 
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::ValidationCode(para_b, OccupiedCoreAssumption::Included, tx),
@@ -600,7 +611,7 @@ fn requests_validation_code() {
 
 		assert_eq!(rx.await.unwrap().unwrap(), None);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -610,8 +621,8 @@ fn requests_validation_code() {
 fn requests_candidate_pending_availability() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 	let candidate_receipt = dummy_committed_candidate_receipt(relay_parent);
 
@@ -621,13 +632,14 @@ fn requests_candidate_pending_availability() {
 		.insert(para_a, candidate_receipt.clone());
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::CandidatePendingAvailability(para_a, tx),
@@ -640,7 +652,7 @@ fn requests_candidate_pending_availability() {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::CandidatePendingAvailability(para_b, tx),
@@ -650,7 +662,7 @@ fn requests_candidate_pending_availability() {
 
 		assert_eq!(rx.await.unwrap().unwrap(), None);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -663,20 +675,21 @@ fn requests_candidate_events() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(relay_parent, Request::CandidateEvents(tx)),
 			})
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), runtime_api.candidate_events);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -687,8 +700,8 @@ fn requests_dmq_contents() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let runtime_api = Arc::new({
@@ -703,12 +716,13 @@ fn requests_dmq_contents() {
 		runtime_api
 	});
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(relay_parent, Request::DmqContents(para_a, tx)),
 			})
 			.await;
@@ -716,7 +730,7 @@ fn requests_dmq_contents() {
 
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(relay_parent, Request::DmqContents(para_b, tx)),
 			})
 			.await;
@@ -725,7 +739,7 @@ fn requests_dmq_contents() {
 			vec![InboundDownwardMessage { sent_at: 228, msg: b"Novus Ordo Seclorum".to_vec() }]
 		);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 	futures::executor::block_on(future::join(subsystem_task, test_task));
 }
@@ -735,9 +749,9 @@ fn requests_inbound_hrmp_channels_contents() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
-	let para_a = 99.into();
-	let para_b = 66.into();
-	let para_c = 33.into();
+	let para_a = ParaId::from(99_u32);
+	let para_b = ParaId::from(66_u32);
+	let para_c = ParaId::from(33_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let para_b_inbound_channels = [
@@ -757,12 +771,13 @@ fn requests_inbound_hrmp_channels_contents() {
 		runtime_api
 	});
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::InboundHrmpChannelsContents(para_a, tx),
@@ -773,7 +788,7 @@ fn requests_inbound_hrmp_channels_contents() {
 
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::InboundHrmpChannelsContents(para_b, tx),
@@ -782,7 +797,7 @@ fn requests_inbound_hrmp_channels_contents() {
 			.await;
 		assert_eq!(rx.await.unwrap().unwrap(), para_b_inbound_channels);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 	futures::executor::block_on(future::join(subsystem_task, test_task));
 }
@@ -805,7 +820,8 @@ fn requests_validation_code_by_hash() {
 		(runtime_api, validation_code)
 	};
 
-	let subsystem = RuntimeApiSubsystem::new(Arc::new(runtime_api), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(Arc::new(runtime_api), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 
 	let relay_parent = [1; 32].into();
@@ -813,7 +829,7 @@ fn requests_validation_code_by_hash() {
 		for code in validation_code {
 			let (tx, rx) = oneshot::channel();
 			ctx_handle
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: RuntimeApiMessage::Request(
 						relay_parent,
 						Request::ValidationCodeByHash(code.hash(), tx),
@@ -824,7 +840,7 @@ fn requests_validation_code_by_hash() {
 			assert_eq!(rx.await.unwrap().unwrap(), Some(code));
 		}
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -838,35 +854,46 @@ fn multiple_requests_in_parallel_are_working() {
 	let spawner = sp_core::testing::TaskExecutor::new();
 	let mutex = runtime_api.availability_cores_wait.clone();
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		// Make all requests block until we release this mutex.
 		let lock = mutex.lock().unwrap();
 
 		let mut receivers = Vec::new();
-
-		for _ in 0..MAX_PARALLEL_REQUESTS * 10 {
+		for _ in 0..MAX_PARALLEL_REQUESTS {
 			let (tx, rx) = oneshot::channel();
 
 			ctx_handle
-				.send(FromOverseer::Communication {
+				.send(FromOrchestra::Communication {
 					msg: RuntimeApiMessage::Request(relay_parent, Request::AvailabilityCores(tx)),
 				})
 				.await;
+			receivers.push(rx);
+		}
 
+		// The backpressure from reaching `MAX_PARALLEL_REQUESTS` will make the test block, we need to drop the lock.
+		drop(lock);
+
+		for _ in 0..MAX_PARALLEL_REQUESTS * 100 {
+			let (tx, rx) = oneshot::channel();
+
+			ctx_handle
+				.send(FromOrchestra::Communication {
+					msg: RuntimeApiMessage::Request(relay_parent, Request::AvailabilityCores(tx)),
+				})
+				.await;
 			receivers.push(rx);
 		}
 
 		let join = future::join_all(receivers);
 
-		drop(lock);
-
 		join.await
 			.into_iter()
 			.for_each(|r| assert_eq!(r.unwrap().unwrap(), runtime_api.availability_cores));
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -889,19 +916,20 @@ fn requests_babe_epoch() {
 	let relay_parent = [1; 32].into();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(relay_parent, Request::CurrentBabeEpoch(tx)),
 			})
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), epoch);
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -913,7 +941,8 @@ fn requests_submit_pvf_check_statement() {
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	let runtime_api = Arc::new(MockRuntimeApi::default());
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 
 	let relay_parent = [1; 32].into();
@@ -925,7 +954,7 @@ fn requests_submit_pvf_check_statement() {
 		// Here we just want to ensure that those requests do not go through the cache.
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::SubmitPvfCheckStatement(stmt.clone(), sig.clone(), tx),
@@ -935,7 +964,7 @@ fn requests_submit_pvf_check_statement() {
 		assert_eq!(rx.await.unwrap().unwrap(), ());
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::SubmitPvfCheckStatement(stmt.clone(), sig.clone(), tx),
@@ -949,7 +978,7 @@ fn requests_submit_pvf_check_statement() {
 			&[(stmt.clone(), sig.clone()), (stmt.clone(), sig.clone())]
 		);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -977,7 +1006,8 @@ fn requests_pvfs_require_precheck() {
 		runtime_api
 	});
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 
 	let relay_parent = [1; 32].into();
@@ -985,13 +1015,13 @@ fn requests_pvfs_require_precheck() {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(relay_parent, Request::PvfsRequirePrecheck(tx)),
 			})
 			.await;
 
 		assert_eq!(rx.await.unwrap().unwrap(), vec![[1; 32].into(), [2; 32].into()]);
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));
@@ -1002,8 +1032,8 @@ fn requests_validation_code_hash() {
 	let (ctx, mut ctx_handle) = make_subsystem_context(TaskExecutor::new());
 
 	let relay_parent = [1; 32].into();
-	let para_a = 5.into();
-	let para_b = 6.into();
+	let para_a = ParaId::from(5_u32);
+	let para_b = ParaId::from(6_u32);
 	let spawner = sp_core::testing::TaskExecutor::new();
 	let validation_code_hash = dummy_validation_code().hash();
 
@@ -1011,13 +1041,14 @@ fn requests_validation_code_hash() {
 	runtime_api.validation_code_hash.insert(para_a, validation_code_hash.clone());
 	let runtime_api = Arc::new(runtime_api);
 
-	let subsystem = RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), spawner);
+	let subsystem =
+		RuntimeApiSubsystem::new(runtime_api.clone(), Metrics(None), SpawnGlue(spawner));
 	let subsystem_task = run(ctx, subsystem).map(|x| x.unwrap());
 	let test_task = async move {
 		let (tx, rx) = oneshot::channel();
 
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::ValidationCodeHash(para_a, OccupiedCoreAssumption::Included, tx),
@@ -1029,7 +1060,7 @@ fn requests_validation_code_hash() {
 
 		let (tx, rx) = oneshot::channel();
 		ctx_handle
-			.send(FromOverseer::Communication {
+			.send(FromOrchestra::Communication {
 				msg: RuntimeApiMessage::Request(
 					relay_parent,
 					Request::ValidationCodeHash(para_b, OccupiedCoreAssumption::Included, tx),
@@ -1039,7 +1070,7 @@ fn requests_validation_code_hash() {
 
 		assert_eq!(rx.await.unwrap().unwrap(), None);
 
-		ctx_handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		ctx_handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	};
 
 	futures::executor::block_on(future::join(subsystem_task, test_task));

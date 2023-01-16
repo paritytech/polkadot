@@ -17,8 +17,8 @@
 //! Cross-Consensus Message format data structures.
 
 use super::Junction;
-use core::{convert::TryFrom, mem, result};
-use parity_scale_codec::{Decode, Encode};
+use core::{mem, result};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 /// A relative path between state-bearing consensus systems.
@@ -47,7 +47,7 @@ use scale_info::TypeInfo;
 /// that a value is strictly an interior location, in those cases, `Junctions` may be used.
 ///
 /// The `MultiLocation` value of `Null` simply refers to the interpreting consensus system.
-#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo)]
+#[derive(Clone, Decode, Encode, Eq, PartialEq, Ord, PartialOrd, Debug, TypeInfo, MaxEncodedLen)]
 pub struct MultiLocation {
 	/// The number of parent junctions at the beginning of this `MultiLocation`.
 	pub parents: u8,
@@ -253,6 +253,24 @@ impl MultiLocation {
 		self.interior.match_and_split(&prefix.interior)
 	}
 
+	/// Returns whether `self` has the same number of parents as `prefix` and its junctions begins
+	/// with the junctions of `prefix`.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v1::{Junctions::*, Junction::*, MultiLocation};
+	/// let m = MultiLocation::new(1, X3(PalletInstance(3), OnlyChild, OnlyChild));
+	/// assert!(m.starts_with(&MultiLocation::new(1, X1(PalletInstance(3)))));
+	/// assert!(!m.starts_with(&MultiLocation::new(1, X1(GeneralIndex(99)))));
+	/// assert!(!m.starts_with(&MultiLocation::new(0, X1(PalletInstance(3)))));
+	/// ```
+	pub fn starts_with(&self, prefix: &MultiLocation) -> bool {
+		if self.parents != prefix.parents {
+			return false
+		}
+		self.interior.starts_with(&prefix.interior)
+	}
+
 	/// Mutate `self` so that it is suffixed with `suffix`.
 	///
 	/// Does not modify `self` and returns `Err` with `suffix` in case of overflow.
@@ -425,7 +443,7 @@ const MAX_JUNCTIONS: usize = 8;
 ///
 /// Parent junctions cannot be constructed with this type. Refer to `MultiLocation` for
 /// instructions on constructing parent junctions.
-#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 pub enum Junctions {
 	/// The interpreting consensus system.
 	Here,
@@ -801,15 +819,29 @@ impl Junctions {
 	/// # }
 	/// ```
 	pub fn match_and_split(&self, prefix: &Junctions) -> Option<&Junction> {
-		if prefix.len() + 1 != self.len() {
+		if prefix.len() + 1 != self.len() || !self.starts_with(prefix) {
 			return None
 		}
-		for i in 0..prefix.len() {
-			if prefix.at(i) != self.at(i) {
-				return None
-			}
+		self.at(prefix.len())
+	}
+
+	/// Returns whether `self` begins with or is equal to `prefix`.
+	///
+	/// # Example
+	/// ```rust
+	/// # use xcm::v1::{Junctions::*, Junction::*};
+	/// let mut j = X3(Parachain(2), PalletInstance(3), OnlyChild);
+	/// assert!(j.starts_with(&X2(Parachain(2), PalletInstance(3))));
+	/// assert!(j.starts_with(&j));
+	/// assert!(j.starts_with(&X1(Parachain(2))));
+	/// assert!(!j.starts_with(&X1(Parachain(999))));
+	/// assert!(!j.starts_with(&X4(Parachain(2), PalletInstance(3), OnlyChild, OnlyChild)));
+	/// ```
+	pub fn starts_with(&self, prefix: &Junctions) -> bool {
+		if self.len() < prefix.len() {
+			return false
 		}
-		return self.at(prefix.len())
+		prefix.iter().zip(self.iter()).all(|(l, r)| l == r)
 	}
 }
 
@@ -930,6 +962,26 @@ mod tests {
 	}
 
 	#[test]
+	fn starts_with_works() {
+		let full: MultiLocation =
+			(Parent, Parachain(1000), AccountId32 { network: Any, id: [0; 32] }).into();
+		let identity: MultiLocation = full.clone();
+		let prefix: MultiLocation = (Parent, Parachain(1000)).into();
+		let wrong_parachain: MultiLocation = (Parent, Parachain(1001)).into();
+		let wrong_account: MultiLocation =
+			(Parent, Parachain(1000), AccountId32 { network: Any, id: [1; 32] }).into();
+		let no_parents: MultiLocation = (Parachain(1000)).into();
+		let too_many_parents: MultiLocation = (Parent, Parent, Parachain(1000)).into();
+
+		assert!(full.starts_with(&identity));
+		assert!(full.starts_with(&prefix));
+		assert!(!full.starts_with(&wrong_parachain));
+		assert!(!full.starts_with(&wrong_account));
+		assert!(!full.starts_with(&no_parents));
+		assert!(!full.starts_with(&too_many_parents));
+	}
+
+	#[test]
 	fn append_with_works() {
 		let acc = AccountIndex64 { network: Any, index: 23 };
 		let mut m = MultiLocation { parents: 1, interior: X1(Parachain(42)) };
@@ -1011,8 +1063,6 @@ mod tests {
 	#[test]
 	fn conversion_from_other_types_works() {
 		use crate::v0;
-		use core::convert::TryInto;
-
 		fn takes_multilocation<Arg: Into<MultiLocation>>(_arg: Arg) {}
 
 		takes_multilocation(Parent);
@@ -1043,10 +1093,13 @@ mod tests {
 			v0::MultiLocation::X3(
 				v0::Junction::Parent,
 				v0::Junction::Parent,
-				v0::Junction::GeneralKey(b"foo".to_vec()),
+				v0::Junction::GeneralKey(b"foo".to_vec().try_into().unwrap()),
 			)
 			.try_into(),
-			Ok(MultiLocation { parents: 2, interior: X1(GeneralKey(b"foo".to_vec())) }),
+			Ok(MultiLocation {
+				parents: 2,
+				interior: X1(GeneralKey(b"foo".to_vec().try_into().unwrap()))
+			}),
 		);
 	}
 }

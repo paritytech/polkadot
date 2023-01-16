@@ -38,22 +38,23 @@
 use super::{HeaderProvider, HeaderProviderProvider};
 use consensus_common::{Error as ConsensusError, SelectChain};
 use futures::channel::oneshot;
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
-use polkadot_overseer::{AllMessages, Handle};
-use polkadot_primitives::v1::{
-	Block as PolkadotBlock, BlockNumber, Hash, Header as PolkadotHeader,
-};
-use polkadot_subsystem::messages::{
+use polkadot_node_primitives::MAX_FINALITY_LAG as PRIMITIVES_MAX_FINALITY_LAG;
+use polkadot_node_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
 	HighestApprovedAncestorBlock,
 };
+use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_overseer::{AllMessages, Handle};
+use polkadot_primitives::{Block as PolkadotBlock, BlockNumber, Hash, Header as PolkadotHeader};
 use std::sync::Arc;
 
 /// The maximum amount of unfinalized blocks we are willing to allow due to approval checking
 /// or disputes.
 ///
 /// This is a safety net that should be removed at some point in the future.
-const MAX_FINALITY_LAG: polkadot_primitives::v1::BlockNumber = 500;
+// In sync with `MAX_HEADS_LOOK_BACK` in `approval-voting`
+// and `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator`.
+const MAX_FINALITY_LAG: polkadot_primitives::BlockNumber = PRIMITIVES_MAX_FINALITY_LAG;
 
 const LOG_TARGET: &str = "parachain::chain-selection";
 
@@ -151,7 +152,7 @@ where
 {
 	/// Use the plain longest chain algorithm exclusively.
 	pub fn new_longest_chain(backend: Arc<B>) -> Self {
-		tracing::debug!(target: LOG_TARGET, "Using {} chain selection algorithm", "longest");
+		gum::debug!(target: LOG_TARGET, "Using {} chain selection algorithm", "longest");
 
 		Self {
 			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
@@ -161,30 +162,13 @@ where
 
 	/// Create a new [`SelectRelayChain`] wrapping the given chain backend
 	/// and a handle to the overseer.
-	pub fn new_disputes_aware(
-		backend: Arc<B>,
-		overseer: Handle,
-		metrics: Metrics,
-		disputes_enabled: bool,
-	) -> Self {
-		tracing::debug!(
-			target: LOG_TARGET,
-			"Using {} chain selection algorithm",
-			if disputes_enabled {
-				"dispute aware relay"
-			} else {
-				// no disputes are queried, that logic is disabled
-				// in `fn finality_target_with_longest_chain`.
-				"short-circuited relay"
-			}
-		);
+	pub fn new_with_overseer(backend: Arc<B>, overseer: Handle, metrics: Metrics) -> Self {
+		gum::debug!(target: LOG_TARGET, "Using dispute aware relay-chain selection algorithm",);
+
 		SelectRelayChain {
 			longest_chain: sc_consensus::LongestChain::new(backend.clone()),
 			selection: IsDisputesAwareWithOverseer::Yes(SelectRelayChainInner::new(
-				backend,
-				overseer,
-				metrics,
-				disputes_enabled,
+				backend, overseer, metrics,
 			)),
 		}
 	}
@@ -241,7 +225,6 @@ where
 pub struct SelectRelayChainInner<B, OH> {
 	backend: Arc<B>,
 	overseer: OH,
-	disputes_enabled: bool,
 	metrics: Metrics,
 }
 
@@ -252,8 +235,8 @@ where
 {
 	/// Create a new [`SelectRelayChainInner`] wrapping the given chain backend
 	/// and a handle to the overseer.
-	pub fn new(backend: Arc<B>, overseer: OH, metrics: Metrics, disputes_enabled: bool) -> Self {
-		SelectRelayChainInner { backend, overseer, metrics, disputes_enabled }
+	pub fn new(backend: Arc<B>, overseer: OH, metrics: Metrics) -> Self {
+		SelectRelayChainInner { backend, overseer, metrics }
 	}
 
 	fn block_header(&self, hash: Hash) -> Result<PolkadotHeader, ConsensusError> {
@@ -291,16 +274,23 @@ where
 			backend: self.backend.clone(),
 			overseer: self.overseer.clone(),
 			metrics: self.metrics.clone(),
-			disputes_enabled: self.disputes_enabled,
 		}
 	}
 }
 
 #[derive(thiserror::Error, Debug)]
 enum Error {
-	// A request to the subsystem was canceled.
-	#[error("Overseer is disconnected from Chain Selection")]
-	OverseerDisconnected(oneshot::Canceled),
+	// Oneshot for requesting leaves from chain selection got canceled - check errors in that
+	// subsystem.
+	#[error("Request for leaves from chain selection got canceled")]
+	LeavesCanceled(oneshot::Canceled),
+	#[error("Request for leaves from chain selection got canceled")]
+	BestLeafContainingCanceled(oneshot::Canceled),
+	// Requesting recent disputes oneshot got canceled.
+	#[error("Request for determining the undisputed chain from DisputeCoordinator got canceled")]
+	DetermineUndisputedChainCanceled(oneshot::Canceled),
+	#[error("Request approved ancestor from approval voting got canceled")]
+	ApprovedAncestorCanceled(oneshot::Canceled),
 	/// Chain selection returned empty leaves.
 	#[error("ChainSelection returned no leaves")]
 	EmptyLeaves,
@@ -338,10 +328,10 @@ where
 
 		let leaves = rx
 			.await
-			.map_err(Error::OverseerDisconnected)
+			.map_err(Error::LeavesCanceled)
 			.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
-		tracing::trace!(target: LOG_TARGET, ?leaves, "Chain selection leaves");
+		gum::trace!(target: LOG_TARGET, ?leaves, "Chain selection leaves");
 
 		Ok(leaves)
 	}
@@ -351,14 +341,13 @@ where
 		// The Chain Selection subsystem is supposed to treat the finalized
 		// block as the best leaf in the case that there are no viable
 		// leaves, so this should not happen in practice.
-		let best_leaf = self
+		let best_leaf = *self
 			.leaves()
 			.await?
 			.first()
-			.ok_or_else(|| ConsensusError::Other(Box::new(Error::EmptyLeaves)))?
-			.clone();
+			.ok_or_else(|| ConsensusError::Other(Box::new(Error::EmptyLeaves)))?;
 
-		tracing::trace!(target: LOG_TARGET, ?best_leaf, "Best chain");
+		gum::trace!(target: LOG_TARGET, ?best_leaf, "Best chain");
 
 		self.block_header(best_leaf)
 	}
@@ -379,9 +368,9 @@ where
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Hash, ConsensusError> {
 		let mut overseer = self.overseer.clone();
-		tracing::trace!(target: LOG_TARGET, ?best_leaf, "Longest chain");
+		gum::trace!(target: LOG_TARGET, ?best_leaf, "Longest chain");
 
-		let subchain_head = if self.disputes_enabled {
+		let subchain_head = {
 			let (tx, rx) = oneshot::channel();
 			overseer
 				.send_msg(
@@ -392,22 +381,15 @@ where
 
 			let best = rx
 				.await
-				.map_err(Error::OverseerDisconnected)
+				.map_err(Error::BestLeafContainingCanceled)
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
-			tracing::trace!(target: LOG_TARGET, ?best, "Best leaf containing");
+			gum::trace!(target: LOG_TARGET, ?best, "Best leaf containing");
 
 			match best {
 				// No viable leaves containing the block.
 				None => return Ok(target_hash),
 				Some(best) => best,
-			}
-		} else {
-			tracing::trace!(target: LOG_TARGET, ?best_leaf, "Dummy disputes active");
-			if best_leaf == target_hash {
-				return Ok(target_hash)
-			} else {
-				best_leaf
 			}
 		};
 
@@ -419,7 +401,7 @@ where
 			Some(max) => {
 				if max <= target_number {
 					if max < target_number {
-						tracing::warn!(
+						gum::warn!(
 							LOG_TARGET,
 							max_number = max,
 							target_number,
@@ -432,7 +414,7 @@ where
 				let subchain_header = self.block_header(subchain_head)?;
 
 				if subchain_header.number <= max {
-					tracing::trace!(target: LOG_TARGET, ?best_leaf, "Constrained sub-chain head",);
+					gum::trace!(target: LOG_TARGET, ?best_leaf, "Constrained sub-chain head",);
 					subchain_head
 				} else {
 					let (ancestor_hash, _) =
@@ -442,7 +424,7 @@ where
 							&subchain_header,
 						)
 						.map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
-					tracing::trace!(
+					gum::trace!(
 						target: LOG_TARGET,
 						?ancestor_hash,
 						"Grandpa walk backwards sub-chain head"
@@ -467,7 +449,7 @@ where
 
 			match rx
 				.await
-				.map_err(Error::OverseerDisconnected)
+				.map_err(Error::ApprovedAncestorCanceled)
 				.map_err(|e| ConsensusError::Other(Box::new(e)))?
 			{
 				// No approved ancestors means target hash is maximal vote.
@@ -477,21 +459,17 @@ where
 			}
 		};
 
-		tracing::trace!(
-			target: LOG_TARGET,
-			?subchain_head,
-			"Ancestor approval restriction applied",
-		);
+		gum::trace!(target: LOG_TARGET, ?subchain_head, "Ancestor approval restriction applied",);
 
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);
 
-		let (lag, subchain_head) = if self.disputes_enabled {
+		let (lag, subchain_head) = {
 			// Prevent sending flawed data to the dispute-coordinator.
 			if Some(subchain_block_descriptions.len() as _) !=
 				subchain_number.checked_sub(target_number)
 			{
-				tracing::error!(
+				gum::error!(
 					LOG_TARGET,
 					present_block_descriptions = subchain_block_descriptions.len(),
 					target_number,
@@ -512,20 +490,35 @@ where
 					std::any::type_name::<Self>(),
 				)
 				.await;
-			let (subchain_number, subchain_head) = rx
-				.await
-				.map_err(Error::OverseerDisconnected)
-				.map_err(|e| ConsensusError::Other(Box::new(e)))?;
 
-			// The the total lag accounting for disputes.
-			let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
-			self.metrics.note_disputes_finality_lag(lag_disputes);
-			(lag_disputes, subchain_head)
-		} else {
+			// Try to fetch response from `dispute-coordinator`. If an error occurs we just log it
+			// and return `target_hash` as maximal vote. It is safer to contain this error here
+			// and not push it up the stack to cause additional issues in GRANDPA/BABE.
+			let (lag, subchain_head) =
+				match rx.await.map_err(Error::DetermineUndisputedChainCanceled) {
+					// If request succeded we will receive (block number, block hash).
+					Ok((subchain_number, subchain_head)) => {
+						// The total lag accounting for disputes.
+						let lag_disputes = initial_leaf_number.saturating_sub(subchain_number);
+						self.metrics.note_disputes_finality_lag(lag_disputes);
+						(lag_disputes, subchain_head)
+					},
+					Err(e) => {
+						gum::error!(
+							target: LOG_TARGET,
+							error = ?e,
+							"Call to `DetermineUndisputedChain` failed",
+						);
+						// We need to return a sane finality target. But, we are unable to ensure we are not
+						// finalizing something that is being disputed or has been concluded as invalid. We will be
+						// conservative here and not vote for finality above the ancestor passed in.
+						return Ok(target_hash)
+					},
+				};
 			(lag, subchain_head)
 		};
 
-		tracing::trace!(
+		gum::trace!(
 			target: LOG_TARGET,
 			?subchain_head,
 			"Disputed blocks in ancestry restriction applied",
@@ -538,7 +531,7 @@ where
 			let safe_target = initial_leaf_number - MAX_FINALITY_LAG;
 
 			if safe_target <= target_number {
-				tracing::warn!(target: LOG_TARGET, ?target_hash, "Safeguard enforced finalization");
+				gum::warn!(target: LOG_TARGET, ?target_hash, "Safeguard enforced finalization");
 				// Minimal vote needs to be on the target number.
 				Ok(target_hash)
 			} else {
@@ -551,7 +544,7 @@ where
 				)
 				.map_err(|e| ConsensusError::ChainLookup(format!("{:?}", e)))?;
 
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					?forced_target,
 					"Safeguard enforced finalization of child"

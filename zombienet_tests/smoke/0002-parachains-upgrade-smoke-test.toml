@@ -1,0 +1,38 @@
+[settings]
+timeout = 1000
+bootnode = true
+
+[relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "rococo-local"
+command = "polkadot"
+
+  [[relaychain.nodes]]
+  name = "alice"
+  extra_args = [ "--alice" ]
+
+  [[relaychain.nodes.env]]
+  name = "RUST_LOG"
+  value = "runtime=debug,parachain=trace,cumulus-collator=trace,aura=trace"
+
+  [[relaychain.nodes]]
+  name = "bob"
+  extra_args = [ "--bob" ]
+
+  [[relaychain.nodes.env]]
+  name = "RUST_LOG"
+  value = "runtime=debug,parachain=trace,cumulus-collator=trace,aura=trace"
+
+[[parachains]]
+id = 100
+addToGenesis = true
+cumulus_based = true
+
+  [parachains.collator]
+  name = "collator01"
+  image = "{{COL_IMAGE}}"
+  command = "polkadot-collator"
+
+  [[parachains.collator.env]]
+  name = "RUST_LOG"
+  value = "runtime=debug,parachain=trace,cumulus-collator=trace,aura=trace"

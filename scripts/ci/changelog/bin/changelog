@@ -1,0 +1,102 @@
+#!/usr/bin/env ruby
+
+# frozen_string_literal: true
+
+# call for instance as:
+# ./bin/changelog <to> [<from>] [<output_file>]
+# for instance, for the release notes of v1.2.3:
+# ./bin/changelog v1.2.3
+# or
+# ./bin/changelog v1.2.3 v1.2.2
+#
+# You may set the ENV NO_CACHE to force fetching from Github
+# You should also ensure you set the ENV: GITHUB_TOKEN
+
+require_relative '../lib/changelog'
+require 'logger'
+
+logger = Logger.new($stdout)
+logger.level = Logger::DEBUG
+logger.debug('Starting')
+
+owner = 'paritytech'
+repo = 'polkadot'
+
+gh_polkadot = SubRef.new(format('%<owner>s/%<repo>s', { owner: owner, repo: repo }))
+last_release_ref = gh_polkadot.get_last_ref()
+
+polkadot_ref2 = ARGV[0] || 'HEAD'
+polkadot_ref1 = ARGV[1] || last_release_ref
+
+output = ARGV[2] || 'release-notes.md'
+
+ENV['REF1'] = polkadot_ref1
+ENV['REF2'] = polkadot_ref2
+
+substrate_ref1 = gh_polkadot.get_dependency_reference(polkadot_ref1, 'sp-io')
+substrate_ref2 = gh_polkadot.get_dependency_reference(polkadot_ref2, 'sp-io')
+
+logger.debug("Polkadot from:   #{polkadot_ref1}")
+logger.debug("Polkadot to:     #{polkadot_ref2}")
+
+logger.debug("Substrate from:  #{substrate_ref1}")
+logger.debug("Substrate to:    #{substrate_ref2}")
+
+substrate_data = 'substrate.json'
+polkadot_data = 'polkadot.json'
+
+logger.debug("Using SUBSTRATE: #{substrate_data}")
+logger.debug("Using POLKADOT:  #{polkadot_data}")
+
+logger.warn('NO_CACHE set') if ENV['NO_CACHE']
+
+if ENV['NO_CACHE'] || !File.file?(polkadot_data)
+  logger.debug(format('Fetching data for Polkadot into %s', polkadot_data))
+  cmd = format('changelogerator %<owner>s/%<repo>s -f %<from>s -t %<to>s > %<output>s',
+               { owner: owner, repo: 'polkadot', from: polkadot_ref1, to: polkadot_ref2, output: polkadot_data })
+  system(cmd)
+else
+  logger.debug("Re-using:#{polkadot_data}")
+end
+
+if ENV['NO_CACHE'] || !File.file?(substrate_data)
+  logger.debug(format('Fetching data for Substrate into %s', substrate_data))
+  cmd = format('changelogerator %<owner>s/%<repo>s -f %<from>s -t %<to>s > %<output>s',
+               { owner: owner, repo: 'substrate', from: substrate_ref1, to: substrate_ref2, output: substrate_data })
+  system(cmd)
+else
+  logger.debug("Re-using:#{substrate_data}")
+end
+
+KUSAMA_DIGEST = ENV['KUSAMA_DIGEST'] || 'digests/kusama_srtool_output.json'
+WESTEND_DIGEST = ENV['WESTEND_DIGEST'] || 'digests/westend_srtool_output.json'
+ROCOCO_DIGEST = ENV['ROCOCO_DIGEST'] || 'digests/rococo_srtool_output.json'
+POLKADOT_DIGEST = ENV['POLKADOT_DIGEST'] || 'digests/polkadot_srtool_output.json'
+
+# Here we compose all the pieces together into one
+# single big json file.
+cmd = format('jq \
+    --slurpfile substrate %s \
+    --slurpfile polkadot %s \
+    --slurpfile srtool_kusama %s \
+    --slurpfile srtool_westend %s \
+    --slurpfile srtool_rococo %s \
+    --slurpfile srtool_polkadot %s \
+    -n \'{
+            substrate: $substrate[0],
+            polkadot: $polkadot[0],
+        srtool: [
+        { name: "kusama", data: $srtool_kusama[0] },
+        { name: "westend", data: $srtool_westend[0] },
+        { name: "rococo", data: $srtool_rococo[0] },
+        { name: "polkadot", data: $srtool_polkadot[0] }
+    ] }\' > context.json', substrate_data, polkadot_data,
+             KUSAMA_DIGEST,
+             WESTEND_DIGEST,
+             ROCOCO_DIGEST,
+             POLKADOT_DIGEST)
+system(cmd)
+
+cmd = format('tera --env --env-key env --include-path templates \
+        --template templates/template.md.tera context.json > %s', output)
+system(cmd)

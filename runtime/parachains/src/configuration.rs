@@ -19,12 +19,15 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use crate::shared;
-use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_PER_MILLIS};
+use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
+use primitives::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -189,8 +192,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub dispute_period: SessionIndex,
 	/// How long after dispute conclusion to accept statements.
 	pub dispute_post_conclusion_acceptance_period: BlockNumber,
-	/// The maximum number of dispute spam slots
-	pub dispute_max_spam_slots: u32,
 	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
 	pub dispute_conclusion_by_time_out_period: BlockNumber,
 	/// The amount of consensus slots that must pass between submitting an assignment and
@@ -260,7 +261,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_validators: None,
 			dispute_period: 6,
 			dispute_post_conclusion_acceptance_period: 100.into(),
-			dispute_max_spam_slots: 2,
 			dispute_conclusion_by_time_out_period: 200.into(),
 			n_delay_tranches: Default::default(),
 			zeroth_delay_tranche_width: Default::default(),
@@ -282,7 +282,10 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
-			ump_max_individual_weight: 20 * WEIGHT_PER_MILLIS,
+			ump_max_individual_weight: Weight::from_parts(
+				20u64 * WEIGHT_REF_TIME_PER_MILLIS,
+				MAX_POV_SIZE as u64,
+			),
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
@@ -319,6 +322,12 @@ pub enum InconsistentError<BlockNumber> {
 	},
 	/// `validation_upgrade_delay` is less than or equal 1.
 	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
+	/// Maximum UMP message size (`MAX_UPWARD_MESSAGE_SIZE_BOUND`) exceeded.
+	MaxUpwardMessageSizeExceeded { max_message_size: u32 },
+	/// Maximum number of HRMP outbound channels exceeded.
+	MaxHrmpOutboundChannelsExceeded,
+	/// Maximum number of HRMP inbound channels exceeded.
+	MaxHrmpInboundChannelsExceeded,
 }
 
 impl<BlockNumber> HostConfiguration<BlockNumber>
@@ -381,6 +390,21 @@ where
 			})
 		}
 
+		if self.max_upward_message_size > crate::ump::MAX_UPWARD_MESSAGE_SIZE_BOUND {
+			return Err(MaxUpwardMessageSizeExceeded {
+				max_message_size: self.max_upward_message_size,
+			})
+		}
+
+		if self.hrmp_max_parachain_outbound_channels > crate::hrmp::HRMP_MAX_OUTBOUND_CHANNELS_BOUND
+		{
+			return Err(MaxHrmpOutboundChannelsExceeded)
+		}
+
+		if self.hrmp_max_parachain_inbound_channels > crate::hrmp::HRMP_MAX_INBOUND_CHANNELS_BOUND {
+			return Err(MaxHrmpInboundChannelsExceeded)
+		}
+
 		Ok(())
 	}
 
@@ -434,6 +458,7 @@ pub mod pallet {
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(migration::STORAGE_VERSION)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -453,13 +478,6 @@ pub mod pallet {
 	#[pallet::getter(fn config)]
 	pub(crate) type ActiveConfig<T: Config> =
 		StorageValue<_, HostConfiguration<T::BlockNumber>, ValueQuery>;
-
-	/// Pending configuration (if any) for the next session.
-	///
-	/// DEPRECATED: This is no longer used, and will be removed in the future.
-	#[pallet::storage]
-	pub(crate) type PendingConfig<T: Config> =
-		StorageMap<_, Twox64Concat, SessionIndex, migration::v1::HostConfiguration<T::BlockNumber>>;
 
 	/// Pending configuration changes.
 	///
@@ -500,6 +518,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Set the validation upgrade cooldown.
+		#[pallet::call_index(0)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -515,6 +534,7 @@ pub mod pallet {
 		}
 
 		/// Set the validation upgrade delay.
+		#[pallet::call_index(1)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -530,6 +550,7 @@ pub mod pallet {
 		}
 
 		/// Set the acceptance period for an included candidate.
+		#[pallet::call_index(2)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -545,6 +566,7 @@ pub mod pallet {
 		}
 
 		/// Set the max validation code size for incoming upgrades.
+		#[pallet::call_index(3)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -557,6 +579,7 @@ pub mod pallet {
 		}
 
 		/// Set the max POV block size for incoming upgrades.
+		#[pallet::call_index(4)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -569,6 +592,7 @@ pub mod pallet {
 		}
 
 		/// Set the max head data size for paras.
+		#[pallet::call_index(5)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -581,6 +605,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of parathread execution cores.
+		#[pallet::call_index(6)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -593,6 +618,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of retries for a particular parathread.
+		#[pallet::call_index(7)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -605,6 +631,7 @@ pub mod pallet {
 		}
 
 		/// Set the parachain validator-group rotation frequency
+		#[pallet::call_index(8)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -620,6 +647,7 @@ pub mod pallet {
 		}
 
 		/// Set the availability period for parachains.
+		#[pallet::call_index(9)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -635,6 +663,7 @@ pub mod pallet {
 		}
 
 		/// Set the availability period for parathreads.
+		#[pallet::call_index(10)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -650,6 +679,7 @@ pub mod pallet {
 		}
 
 		/// Set the scheduling lookahead, in expected number of blocks at peak throughput.
+		#[pallet::call_index(11)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -662,6 +692,7 @@ pub mod pallet {
 		}
 
 		/// Set the maximum number of validators to assign to any core.
+		#[pallet::call_index(12)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_option_u32(),
 			DispatchClass::Operational,
@@ -677,6 +708,7 @@ pub mod pallet {
 		}
 
 		/// Set the maximum number of validators to use in parachain consensus.
+		#[pallet::call_index(13)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_option_u32(),
 			DispatchClass::Operational,
@@ -689,6 +721,7 @@ pub mod pallet {
 		}
 
 		/// Set the dispute period, in number of sessions to keep for disputes.
+		#[pallet::call_index(14)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -701,6 +734,7 @@ pub mod pallet {
 		}
 
 		/// Set the dispute post conclusion acceptance period.
+		#[pallet::call_index(15)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -715,19 +749,8 @@ pub mod pallet {
 			})
 		}
 
-		/// Set the maximum number of dispute spam slots.
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_u32(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_dispute_max_spam_slots(origin: OriginFor<T>, new: u32) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.dispute_max_spam_slots = new;
-			})
-		}
-
 		/// Set the dispute conclusion by time out period.
+		#[pallet::call_index(17)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -744,6 +767,7 @@ pub mod pallet {
 
 		/// Set the no show slots, in number of number of consensus slots.
 		/// Must be at least 1.
+		#[pallet::call_index(18)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -756,6 +780,7 @@ pub mod pallet {
 		}
 
 		/// Set the total number of delay tranches.
+		#[pallet::call_index(19)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -768,6 +793,7 @@ pub mod pallet {
 		}
 
 		/// Set the zeroth delay tranche width.
+		#[pallet::call_index(20)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -780,6 +806,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of validators needed to approve a block.
+		#[pallet::call_index(21)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -792,6 +819,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of samples to do of the `RelayVRFModulo` approval assignment criterion.
+		#[pallet::call_index(22)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -804,6 +832,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum items that can present in a upward dispatch queue at once.
+		#[pallet::call_index(23)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -816,6 +845,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum total size of items that can present in a upward dispatch queue at once.
+		#[pallet::call_index(24)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -828,6 +858,7 @@ pub mod pallet {
 		}
 
 		/// Set the critical downward message size.
+		#[pallet::call_index(25)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -840,6 +871,7 @@ pub mod pallet {
 		}
 
 		/// Sets the soft limit for the phase of dispatching dispatchable upward messages.
+		#[pallet::call_index(26)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_weight(),
 			DispatchClass::Operational,
@@ -852,6 +884,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum size of an upward message that can be sent by a candidate.
+		#[pallet::call_index(27)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -864,6 +897,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of messages that a candidate can contain.
+		#[pallet::call_index(28)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -879,6 +913,7 @@ pub mod pallet {
 		}
 
 		/// Sets the number of sessions after which an HRMP open channel request expires.
+		#[pallet::call_index(29)]
 		#[pallet::weight((
 			T::WeightInfo::set_hrmp_open_request_ttl(),
 			DispatchClass::Operational,
@@ -890,6 +925,7 @@ pub mod pallet {
 		}
 
 		/// Sets the amount of funds that the sender should provide for opening an HRMP channel.
+		#[pallet::call_index(30)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_balance(),
 			DispatchClass::Operational,
@@ -903,6 +939,7 @@ pub mod pallet {
 
 		/// Sets the amount of funds that the recipient should provide for accepting opening an HRMP
 		/// channel.
+		#[pallet::call_index(31)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_balance(),
 			DispatchClass::Operational,
@@ -915,6 +952,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of messages allowed in an HRMP channel at once.
+		#[pallet::call_index(32)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -927,6 +965,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum total size of messages in bytes allowed in an HRMP channel at once.
+		#[pallet::call_index(33)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -939,6 +978,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of inbound HRMP channels a parachain is allowed to accept.
+		#[pallet::call_index(34)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -954,6 +994,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of inbound HRMP channels a parathread is allowed to accept.
+		#[pallet::call_index(35)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -969,6 +1010,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum size of a message that could ever be put into an HRMP channel.
+		#[pallet::call_index(36)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -981,6 +1023,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of outbound HRMP channels a parachain is allowed to open.
+		#[pallet::call_index(37)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -996,6 +1039,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of outbound HRMP channels a parathread is allowed to open.
+		#[pallet::call_index(38)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -1011,6 +1055,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of outbound HRMP messages can be sent by a candidate.
+		#[pallet::call_index(39)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -1026,6 +1071,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum amount of weight any individual upward message may consume.
+		#[pallet::call_index(40)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_weight(),
 			DispatchClass::Operational,
@@ -1038,6 +1084,7 @@ pub mod pallet {
 		}
 
 		/// Enable or disable PVF pre-checking. Consult the field documentation prior executing.
+		#[pallet::call_index(41)]
 		#[pallet::weight((
 			// Using u32 here is a little bit of cheating, but that should be fine.
 			T::WeightInfo::set_config_with_u32(),
@@ -1051,6 +1098,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of session changes after which a PVF pre-checking voting is rejected.
+		#[pallet::call_index(42)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -1066,6 +1114,7 @@ pub mod pallet {
 		/// upgrade taking place.
 		///
 		/// See the field documentation for information and constraints for the new value.
+		#[pallet::call_index(43)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -1082,6 +1131,7 @@ pub mod pallet {
 
 		/// Setting this to true will disable consistency checks for the configuration setters.
 		/// Use with caution.
+		#[pallet::call_index(44)]
 		#[pallet::weight((
 			T::DbWeight::get().writes(1),
 			DispatchClass::Operational,
@@ -1095,14 +1145,10 @@ pub mod pallet {
 
 	#[pallet::hooks]
 	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_runtime_upgrade() -> Weight {
-			migration::migrate_to_latest::<T>()
-		}
-
 		fn integrity_test() {
 			assert_eq!(
 				&ActiveConfig::<T>::hashed_key(),
-				primitives::v1::well_known_keys::ACTIVE_CONFIG,
+				primitives::well_known_keys::ACTIVE_CONFIG,
 				"`well_known_keys::ACTIVE_CONFIG` doesn't match key of `ActiveConfig`! Make sure that the name of the\
 				 configuration pallet is `Configuration` in the runtime!",
 			);
@@ -1122,7 +1168,7 @@ pub struct SessionChangeOutcome<BlockNumber> {
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the configuration pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		0
+		Weight::zero()
 	}
 
 	/// Called by the initializer to finalize the configuration pallet.
@@ -1285,567 +1331,5 @@ impl<T: Config> Pallet<T> {
 		<PendingConfigs<T>>::put(pending_configs);
 
 		Ok(())
-	}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::mock::{new_test_ext, Configuration, Origin, ParasShared, Test};
-	use frame_support::{assert_err, assert_ok};
-
-	fn on_new_session(
-		session_index: SessionIndex,
-	) -> (HostConfiguration<u32>, HostConfiguration<u32>) {
-		ParasShared::set_session_index(session_index);
-		let SessionChangeOutcome { prev_config, new_config } =
-			Configuration::initializer_on_new_session(&session_index);
-		let new_config = new_config.unwrap_or_else(|| prev_config.clone());
-		(prev_config, new_config)
-	}
-
-	#[test]
-	fn default_is_consistent() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Configuration::config().panic_if_not_consistent();
-		});
-	}
-
-	#[test]
-	fn scheduled_session_is_two_sessions_from_now() {
-		new_test_ext(Default::default()).execute_with(|| {
-			// The logic here is really tested only with scheduled_session = 2. It should work
-			// with other values, but that should receive a more rigorious testing.
-			on_new_session(1);
-			assert_eq!(Configuration::scheduled_session(), 3);
-		});
-	}
-
-	#[test]
-	fn initializer_on_new_session() {
-		new_test_ext(Default::default()).execute_with(|| {
-			let (prev_config, new_config) = on_new_session(1);
-			assert_eq!(prev_config, new_config);
-			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
-
-			let (prev_config, new_config) = on_new_session(2);
-			assert_eq!(prev_config, new_config);
-
-			let (prev_config, new_config) = on_new_session(3);
-			assert_eq!(prev_config, HostConfiguration::default());
-			assert_eq!(
-				new_config,
-				HostConfiguration { validation_upgrade_delay: 100, ..prev_config }
-			);
-		});
-	}
-
-	#[test]
-	fn config_changes_after_2_session_boundary() {
-		new_test_ext(Default::default()).execute_with(|| {
-			let old_config = Configuration::config();
-			let mut config = old_config.clone();
-			config.validation_upgrade_delay = 100;
-			assert!(old_config != config);
-
-			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
-
-			// Verify that the current configuration has not changed and that there is a scheduled
-			// change for the SESSION_DELAY sessions in advance.
-			assert_eq!(Configuration::config(), old_config);
-			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
-
-			on_new_session(1);
-
-			// One session has passed, we should be still waiting for the pending configuration.
-			assert_eq!(Configuration::config(), old_config);
-			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
-
-			on_new_session(2);
-
-			assert_eq!(Configuration::config(), config);
-			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
-		})
-	}
-
-	#[test]
-	fn consecutive_changes_within_one_session() {
-		new_test_ext(Default::default()).execute_with(|| {
-			let old_config = Configuration::config();
-			let mut config = old_config.clone();
-			config.validation_upgrade_delay = 100;
-			config.validation_upgrade_cooldown = 100;
-			assert!(old_config != config);
-
-			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
-			assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 100));
-			assert_eq!(Configuration::config(), old_config);
-			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
-
-			on_new_session(1);
-
-			assert_eq!(Configuration::config(), old_config);
-			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
-
-			on_new_session(2);
-
-			assert_eq!(Configuration::config(), config);
-			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
-		});
-	}
-
-	#[test]
-	fn pending_next_session_but_we_upgrade_once_more() {
-		new_test_ext(Default::default()).execute_with(|| {
-			let initial_config = Configuration::config();
-			let intermediate_config =
-				HostConfiguration { validation_upgrade_delay: 100, ..initial_config.clone() };
-			let final_config = HostConfiguration {
-				validation_upgrade_delay: 100,
-				validation_upgrade_cooldown: 99,
-				..initial_config.clone()
-			};
-
-			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
-			assert_eq!(Configuration::config(), initial_config);
-			assert_eq!(
-				<Configuration as Store>::PendingConfigs::get(),
-				vec![(2, intermediate_config.clone())]
-			);
-
-			on_new_session(1);
-
-			// We are still waiting until the pending configuration is applied and we add another
-			// update.
-			assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 99));
-
-			// This should result in yet another configiguration change scheduled.
-			assert_eq!(Configuration::config(), initial_config);
-			assert_eq!(
-				<Configuration as Store>::PendingConfigs::get(),
-				vec![(2, intermediate_config.clone()), (3, final_config.clone())]
-			);
-
-			on_new_session(2);
-
-			assert_eq!(Configuration::config(), intermediate_config);
-			assert_eq!(
-				<Configuration as Store>::PendingConfigs::get(),
-				vec![(3, final_config.clone())]
-			);
-
-			on_new_session(3);
-
-			assert_eq!(Configuration::config(), final_config);
-			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
-		});
-	}
-
-	#[test]
-	fn scheduled_session_config_update_while_next_session_pending() {
-		new_test_ext(Default::default()).execute_with(|| {
-			let initial_config = Configuration::config();
-			let intermediate_config =
-				HostConfiguration { validation_upgrade_delay: 100, ..initial_config.clone() };
-			let final_config = HostConfiguration {
-				validation_upgrade_delay: 100,
-				validation_upgrade_cooldown: 99,
-				code_retention_period: 98,
-				..initial_config.clone()
-			};
-
-			assert_ok!(Configuration::set_validation_upgrade_delay(Origin::root(), 100));
-			assert_eq!(Configuration::config(), initial_config);
-			assert_eq!(
-				<Configuration as Store>::PendingConfigs::get(),
-				vec![(2, intermediate_config.clone())]
-			);
-
-			on_new_session(1);
-
-			// The second call should fall into the case where we already have a pending config
-			// update for the scheduled_session, but we want to update it once more.
-			assert_ok!(Configuration::set_validation_upgrade_cooldown(Origin::root(), 99));
-			assert_ok!(Configuration::set_code_retention_period(Origin::root(), 98));
-
-			// This should result in yet another configiguration change scheduled.
-			assert_eq!(Configuration::config(), initial_config);
-			assert_eq!(
-				<Configuration as Store>::PendingConfigs::get(),
-				vec![(2, intermediate_config.clone()), (3, final_config.clone())]
-			);
-
-			on_new_session(2);
-
-			assert_eq!(Configuration::config(), intermediate_config);
-			assert_eq!(
-				<Configuration as Store>::PendingConfigs::get(),
-				vec![(3, final_config.clone())]
-			);
-
-			on_new_session(3);
-
-			assert_eq!(Configuration::config(), final_config);
-			assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
-		});
-	}
-
-	#[test]
-	fn invariants() {
-		new_test_ext(Default::default()).execute_with(|| {
-			assert_err!(
-				Configuration::set_max_code_size(Origin::root(), MAX_CODE_SIZE + 1),
-				Error::<Test>::InvalidNewValue
-			);
-
-			assert_err!(
-				Configuration::set_max_pov_size(Origin::root(), MAX_POV_SIZE + 1),
-				Error::<Test>::InvalidNewValue
-			);
-
-			assert_err!(
-				Configuration::set_max_head_data_size(Origin::root(), MAX_HEAD_DATA_SIZE + 1),
-				Error::<Test>::InvalidNewValue
-			);
-
-			assert_err!(
-				Configuration::set_chain_availability_period(Origin::root(), 0),
-				Error::<Test>::InvalidNewValue
-			);
-			assert_err!(
-				Configuration::set_thread_availability_period(Origin::root(), 0),
-				Error::<Test>::InvalidNewValue
-			);
-			assert_err!(
-				Configuration::set_no_show_slots(Origin::root(), 0),
-				Error::<Test>::InvalidNewValue
-			);
-
-			<Configuration as Store>::ActiveConfig::put(HostConfiguration {
-				chain_availability_period: 10,
-				thread_availability_period: 8,
-				minimum_validation_upgrade_delay: 11,
-				..Default::default()
-			});
-			assert_err!(
-				Configuration::set_chain_availability_period(Origin::root(), 12),
-				Error::<Test>::InvalidNewValue
-			);
-			assert_err!(
-				Configuration::set_thread_availability_period(Origin::root(), 12),
-				Error::<Test>::InvalidNewValue
-			);
-			assert_err!(
-				Configuration::set_minimum_validation_upgrade_delay(Origin::root(), 9),
-				Error::<Test>::InvalidNewValue
-			);
-
-			assert_err!(
-				Configuration::set_validation_upgrade_delay(Origin::root(), 0),
-				Error::<Test>::InvalidNewValue
-			);
-		});
-	}
-
-	#[test]
-	fn consistency_bypass_works() {
-		new_test_ext(Default::default()).execute_with(|| {
-			assert_err!(
-				Configuration::set_max_code_size(Origin::root(), MAX_CODE_SIZE + 1),
-				Error::<Test>::InvalidNewValue
-			);
-
-			assert_ok!(Configuration::set_bypass_consistency_check(Origin::root(), true));
-			assert_ok!(Configuration::set_max_code_size(Origin::root(), MAX_CODE_SIZE + 1));
-
-			assert_eq!(
-				Configuration::config().max_code_size,
-				HostConfiguration::<u32>::default().max_code_size
-			);
-
-			on_new_session(1);
-			on_new_session(2);
-
-			assert_eq!(Configuration::config().max_code_size, MAX_CODE_SIZE + 1);
-		});
-	}
-
-	#[test]
-	fn setting_pending_config_members() {
-		new_test_ext(Default::default()).execute_with(|| {
-			let new_config = HostConfiguration {
-				validation_upgrade_cooldown: 100,
-				validation_upgrade_delay: 10,
-				code_retention_period: 5,
-				max_code_size: 100_000,
-				max_pov_size: 1024,
-				max_head_data_size: 1_000,
-				parathread_cores: 2,
-				parathread_retries: 5,
-				group_rotation_frequency: 20,
-				chain_availability_period: 10,
-				thread_availability_period: 8,
-				scheduling_lookahead: 3,
-				max_validators_per_core: None,
-				max_validators: None,
-				dispute_period: 239,
-				dispute_post_conclusion_acceptance_period: 10,
-				dispute_max_spam_slots: 2,
-				dispute_conclusion_by_time_out_period: 512,
-				no_show_slots: 240,
-				n_delay_tranches: 241,
-				zeroth_delay_tranche_width: 242,
-				needed_approvals: 242,
-				relay_vrf_modulo_samples: 243,
-				max_upward_queue_count: 1337,
-				max_upward_queue_size: 228,
-				max_downward_message_size: 2048,
-				ump_service_total_weight: 20000,
-				max_upward_message_size: 448,
-				max_upward_message_num_per_candidate: 5,
-				hrmp_sender_deposit: 22,
-				hrmp_recipient_deposit: 4905,
-				hrmp_channel_max_capacity: 3921,
-				hrmp_channel_max_total_size: 7687,
-				hrmp_max_parachain_inbound_channels: 3722,
-				hrmp_max_parathread_inbound_channels: 1967,
-				hrmp_channel_max_message_size: 8192,
-				hrmp_max_parachain_outbound_channels: 100,
-				hrmp_max_parathread_outbound_channels: 200,
-				hrmp_max_message_num_per_candidate: 20,
-				ump_max_individual_weight: 909,
-				pvf_checking_enabled: true,
-				pvf_voting_ttl: 3,
-				minimum_validation_upgrade_delay: 20,
-			};
-
-			assert!(<Configuration as Store>::PendingConfig::get(shared::SESSION_DELAY).is_none());
-
-			Configuration::set_validation_upgrade_cooldown(
-				Origin::root(),
-				new_config.validation_upgrade_cooldown,
-			)
-			.unwrap();
-			Configuration::set_validation_upgrade_delay(
-				Origin::root(),
-				new_config.validation_upgrade_delay,
-			)
-			.unwrap();
-			Configuration::set_code_retention_period(
-				Origin::root(),
-				new_config.code_retention_period,
-			)
-			.unwrap();
-			Configuration::set_max_code_size(Origin::root(), new_config.max_code_size).unwrap();
-			Configuration::set_max_pov_size(Origin::root(), new_config.max_pov_size).unwrap();
-			Configuration::set_max_head_data_size(Origin::root(), new_config.max_head_data_size)
-				.unwrap();
-			Configuration::set_parathread_cores(Origin::root(), new_config.parathread_cores)
-				.unwrap();
-			Configuration::set_parathread_retries(Origin::root(), new_config.parathread_retries)
-				.unwrap();
-			Configuration::set_group_rotation_frequency(
-				Origin::root(),
-				new_config.group_rotation_frequency,
-			)
-			.unwrap();
-			// This comes out of order to satisfy the validity criteria for the chain and thread
-			// availability periods.
-			Configuration::set_minimum_validation_upgrade_delay(
-				Origin::root(),
-				new_config.minimum_validation_upgrade_delay,
-			)
-			.unwrap();
-			Configuration::set_chain_availability_period(
-				Origin::root(),
-				new_config.chain_availability_period,
-			)
-			.unwrap();
-			Configuration::set_thread_availability_period(
-				Origin::root(),
-				new_config.thread_availability_period,
-			)
-			.unwrap();
-			Configuration::set_scheduling_lookahead(
-				Origin::root(),
-				new_config.scheduling_lookahead,
-			)
-			.unwrap();
-			Configuration::set_max_validators_per_core(
-				Origin::root(),
-				new_config.max_validators_per_core,
-			)
-			.unwrap();
-			Configuration::set_max_validators(Origin::root(), new_config.max_validators).unwrap();
-			Configuration::set_dispute_period(Origin::root(), new_config.dispute_period).unwrap();
-			Configuration::set_dispute_post_conclusion_acceptance_period(
-				Origin::root(),
-				new_config.dispute_post_conclusion_acceptance_period,
-			)
-			.unwrap();
-			Configuration::set_dispute_max_spam_slots(
-				Origin::root(),
-				new_config.dispute_max_spam_slots,
-			)
-			.unwrap();
-			Configuration::set_dispute_conclusion_by_time_out_period(
-				Origin::root(),
-				new_config.dispute_conclusion_by_time_out_period,
-			)
-			.unwrap();
-			Configuration::set_no_show_slots(Origin::root(), new_config.no_show_slots).unwrap();
-			Configuration::set_n_delay_tranches(Origin::root(), new_config.n_delay_tranches)
-				.unwrap();
-			Configuration::set_zeroth_delay_tranche_width(
-				Origin::root(),
-				new_config.zeroth_delay_tranche_width,
-			)
-			.unwrap();
-			Configuration::set_needed_approvals(Origin::root(), new_config.needed_approvals)
-				.unwrap();
-			Configuration::set_relay_vrf_modulo_samples(
-				Origin::root(),
-				new_config.relay_vrf_modulo_samples,
-			)
-			.unwrap();
-			Configuration::set_max_upward_queue_count(
-				Origin::root(),
-				new_config.max_upward_queue_count,
-			)
-			.unwrap();
-			Configuration::set_max_upward_queue_size(
-				Origin::root(),
-				new_config.max_upward_queue_size,
-			)
-			.unwrap();
-			Configuration::set_max_downward_message_size(
-				Origin::root(),
-				new_config.max_downward_message_size,
-			)
-			.unwrap();
-			Configuration::set_ump_service_total_weight(
-				Origin::root(),
-				new_config.ump_service_total_weight,
-			)
-			.unwrap();
-			Configuration::set_max_upward_message_size(
-				Origin::root(),
-				new_config.max_upward_message_size,
-			)
-			.unwrap();
-			Configuration::set_max_upward_message_num_per_candidate(
-				Origin::root(),
-				new_config.max_upward_message_num_per_candidate,
-			)
-			.unwrap();
-			Configuration::set_hrmp_sender_deposit(Origin::root(), new_config.hrmp_sender_deposit)
-				.unwrap();
-			Configuration::set_hrmp_recipient_deposit(
-				Origin::root(),
-				new_config.hrmp_recipient_deposit,
-			)
-			.unwrap();
-			Configuration::set_hrmp_channel_max_capacity(
-				Origin::root(),
-				new_config.hrmp_channel_max_capacity,
-			)
-			.unwrap();
-			Configuration::set_hrmp_channel_max_total_size(
-				Origin::root(),
-				new_config.hrmp_channel_max_total_size,
-			)
-			.unwrap();
-			Configuration::set_hrmp_max_parachain_inbound_channels(
-				Origin::root(),
-				new_config.hrmp_max_parachain_inbound_channels,
-			)
-			.unwrap();
-			Configuration::set_hrmp_max_parathread_inbound_channels(
-				Origin::root(),
-				new_config.hrmp_max_parathread_inbound_channels,
-			)
-			.unwrap();
-			Configuration::set_hrmp_channel_max_message_size(
-				Origin::root(),
-				new_config.hrmp_channel_max_message_size,
-			)
-			.unwrap();
-			Configuration::set_hrmp_max_parachain_outbound_channels(
-				Origin::root(),
-				new_config.hrmp_max_parachain_outbound_channels,
-			)
-			.unwrap();
-			Configuration::set_hrmp_max_parathread_outbound_channels(
-				Origin::root(),
-				new_config.hrmp_max_parathread_outbound_channels,
-			)
-			.unwrap();
-			Configuration::set_hrmp_max_message_num_per_candidate(
-				Origin::root(),
-				new_config.hrmp_max_message_num_per_candidate,
-			)
-			.unwrap();
-			Configuration::set_ump_max_individual_weight(
-				Origin::root(),
-				new_config.ump_max_individual_weight,
-			)
-			.unwrap();
-			Configuration::set_pvf_checking_enabled(
-				Origin::root(),
-				new_config.pvf_checking_enabled,
-			)
-			.unwrap();
-			Configuration::set_pvf_voting_ttl(Origin::root(), new_config.pvf_voting_ttl).unwrap();
-
-			assert_eq!(
-				<Configuration as Store>::PendingConfigs::get(),
-				vec![(shared::SESSION_DELAY, new_config)],
-			);
-		})
-	}
-
-	#[test]
-	fn non_root_cannot_set_config() {
-		new_test_ext(Default::default()).execute_with(|| {
-			assert!(Configuration::set_validation_upgrade_delay(Origin::signed(1), 100).is_err());
-		});
-	}
-
-	#[test]
-	fn verify_externally_accessible() {
-		// This test verifies that the value can be accessed through the well known keys and the
-		// host configuration decodes into the abridged version.
-
-		use primitives::v1::{well_known_keys, AbridgedHostConfiguration};
-
-		new_test_ext(Default::default()).execute_with(|| {
-			let ground_truth = HostConfiguration::default();
-
-			// Make sure that the configuration is stored in the storage.
-			<Configuration as Store>::ActiveConfig::put(ground_truth.clone());
-
-			// Extract the active config via the well known key.
-			let raw_active_config = sp_io::storage::get(well_known_keys::ACTIVE_CONFIG)
-				.expect("config must be present in storage under ACTIVE_CONFIG");
-			let abridged_config = AbridgedHostConfiguration::decode(&mut &raw_active_config[..])
-				.expect("HostConfiguration must be decodable into AbridgedHostConfiguration");
-
-			assert_eq!(
-				abridged_config,
-				AbridgedHostConfiguration {
-					max_code_size: ground_truth.max_code_size,
-					max_head_data_size: ground_truth.max_head_data_size,
-					max_upward_queue_count: ground_truth.max_upward_queue_count,
-					max_upward_queue_size: ground_truth.max_upward_queue_size,
-					max_upward_message_size: ground_truth.max_upward_message_size,
-					max_upward_message_num_per_candidate: ground_truth
-						.max_upward_message_num_per_candidate,
-					hrmp_max_message_num_per_candidate: ground_truth
-						.hrmp_max_message_num_per_candidate,
-					validation_upgrade_cooldown: ground_truth.validation_upgrade_cooldown,
-					validation_upgrade_delay: ground_truth.validation_upgrade_delay,
-				},
-			);
-		});
 	}
 }

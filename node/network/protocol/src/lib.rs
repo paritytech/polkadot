@@ -20,7 +20,7 @@
 #![warn(missing_docs)]
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::v1::{BlockNumber, Hash};
+use polkadot_primitives::{BlockNumber, Hash};
 use std::{collections::HashMap, fmt};
 
 #[doc(hidden)]
@@ -40,9 +40,9 @@ pub mod request_response;
 
 /// Accessing authority discovery service
 pub mod authority_discovery;
+/// Grid topology support module
+pub mod grid_topology;
 
-/// A version of the protocol.
-pub type ProtocolVersion = u32;
 /// The minimum amount of peers to send gossip messages to.
 pub const MIN_GOSSIP_PEERS: usize = 25;
 
@@ -87,36 +87,6 @@ impl Into<sc_network::ObservedRole> for ObservedRole {
 			ObservedRole::Authority => sc_network::ObservedRole::Authority,
 		}
 	}
-}
-
-/// Implement `TryFrom` for one enum variant into the inner type.
-/// `$m_ty::$variant(inner) -> Ok(inner)`
-macro_rules! impl_try_from {
-	($m_ty:ident, $variant:ident, $out:ty) => {
-		impl TryFrom<$m_ty> for $out {
-			type Error = crate::WrongVariant;
-
-			fn try_from(x: $m_ty) -> Result<$out, Self::Error> {
-				#[allow(unreachable_patterns)] // when there is only one variant
-				match x {
-					$m_ty::$variant(y) => Ok(y),
-					_ => Err(crate::WrongVariant),
-				}
-			}
-		}
-
-		impl<'a> TryFrom<&'a $m_ty> for &'a $out {
-			type Error = crate::WrongVariant;
-
-			fn try_from(x: &'a $m_ty) -> Result<&'a $out, Self::Error> {
-				#[allow(unreachable_patterns)] // when there is only one variant
-				match *x {
-					$m_ty::$variant(ref y) => Ok(y),
-					_ => Err(crate::WrongVariant),
-				}
-			}
-		}
-	};
 }
 
 /// Specialized wrapper around [`View`].
@@ -169,7 +139,7 @@ impl std::ops::Deref for OurView {
 ///
 /// ```
 /// # use polkadot_node_network_protocol::our_view;
-/// # use polkadot_primitives::v1::Hash;
+/// # use polkadot_primitives::Hash;
 /// let our_view = our_view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
@@ -203,7 +173,7 @@ pub struct View {
 ///
 /// ```
 /// # use polkadot_node_network_protocol::view;
-/// # use polkadot_primitives::v1::Hash;
+/// # use polkadot_primitives::Hash;
 /// let view = view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
@@ -237,7 +207,7 @@ impl View {
 	}
 
 	/// Obtain an iterator over all heads.
-	pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Hash> {
+	pub fn iter(&self) -> impl Iterator<Item = &Hash> {
 		self.heads.iter()
 	}
 
@@ -279,12 +249,156 @@ impl View {
 	}
 }
 
-/// v1 protocol types.
+/// A protocol-versioned type.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Versioned<V1> {
+	/// V1 type.
+	V1(V1),
+}
+
+impl<V1: Clone> Versioned<&'_ V1> {
+	/// Convert to a fully-owned version of the message.
+	pub fn clone_inner(&self) -> Versioned<V1> {
+		match *self {
+			Versioned::V1(inner) => Versioned::V1(inner.clone()),
+		}
+	}
+}
+
+/// All supported versions of the validation protocol message.
+pub type VersionedValidationProtocol = Versioned<v1::ValidationProtocol>;
+
+impl From<v1::ValidationProtocol> for VersionedValidationProtocol {
+	fn from(v1: v1::ValidationProtocol) -> Self {
+		VersionedValidationProtocol::V1(v1)
+	}
+}
+
+/// All supported versions of the collation protocol message.
+pub type VersionedCollationProtocol = Versioned<v1::CollationProtocol>;
+
+impl From<v1::CollationProtocol> for VersionedCollationProtocol {
+	fn from(v1: v1::CollationProtocol) -> Self {
+		VersionedCollationProtocol::V1(v1)
+	}
+}
+
+macro_rules! impl_versioned_full_protocol_from {
+	($from:ty, $out:ty, $variant:ident) => {
+		impl From<$from> for $out {
+			fn from(versioned_from: $from) -> $out {
+				match versioned_from {
+					Versioned::V1(x) => Versioned::V1(x.into()),
+				}
+			}
+		}
+	};
+}
+
+/// Implement `TryFrom` for one versioned enum variant into the inner type.
+/// `$m_ty::$variant(inner) -> Ok(inner)`
+macro_rules! impl_versioned_try_from {
+	($from:ty, $out:ty, $v1_pat:pat => $v1_out:expr) => {
+		impl TryFrom<$from> for $out {
+			type Error = crate::WrongVariant;
+
+			fn try_from(x: $from) -> Result<$out, Self::Error> {
+				#[allow(unreachable_patterns)] // when there is only one variant
+				match x {
+					Versioned::V1($v1_pat) => Ok(Versioned::V1($v1_out)),
+					_ => Err(crate::WrongVariant),
+				}
+			}
+		}
+
+		impl<'a> TryFrom<&'a $from> for $out {
+			type Error = crate::WrongVariant;
+
+			fn try_from(x: &'a $from) -> Result<$out, Self::Error> {
+				#[allow(unreachable_patterns)] // when there is only one variant
+				match x {
+					Versioned::V1($v1_pat) => Ok(Versioned::V1($v1_out.clone())),
+					_ => Err(crate::WrongVariant),
+				}
+			}
+		}
+	};
+}
+
+/// Version-annotated messages used by the bitfield distribution subsystem.
+pub type BitfieldDistributionMessage = Versioned<v1::BitfieldDistributionMessage>;
+impl_versioned_full_protocol_from!(
+	BitfieldDistributionMessage,
+	VersionedValidationProtocol,
+	BitfieldDistribution
+);
+impl_versioned_try_from!(
+	VersionedValidationProtocol,
+	BitfieldDistributionMessage,
+	v1::ValidationProtocol::BitfieldDistribution(x) => x
+);
+
+/// Version-annotated messages used by the statement distribution subsystem.
+pub type StatementDistributionMessage = Versioned<v1::StatementDistributionMessage>;
+impl_versioned_full_protocol_from!(
+	StatementDistributionMessage,
+	VersionedValidationProtocol,
+	StatementDistribution
+);
+impl_versioned_try_from!(
+	VersionedValidationProtocol,
+	StatementDistributionMessage,
+	v1::ValidationProtocol::StatementDistribution(x) => x
+);
+
+/// Version-annotated messages used by the approval distribution subsystem.
+pub type ApprovalDistributionMessage = Versioned<v1::ApprovalDistributionMessage>;
+impl_versioned_full_protocol_from!(
+	ApprovalDistributionMessage,
+	VersionedValidationProtocol,
+	ApprovalDistribution
+);
+impl_versioned_try_from!(
+	VersionedValidationProtocol,
+	ApprovalDistributionMessage,
+	v1::ValidationProtocol::ApprovalDistribution(x) => x
+);
+
+/// Version-annotated messages used by the gossip-support subsystem (this is void).
+pub type GossipSupportNetworkMessage = Versioned<v1::GossipSupportNetworkMessage>;
+// This is a void enum placeholder, so never gets sent over the wire.
+impl TryFrom<VersionedValidationProtocol> for GossipSupportNetworkMessage {
+	type Error = WrongVariant;
+	fn try_from(_: VersionedValidationProtocol) -> Result<Self, Self::Error> {
+		Err(WrongVariant)
+	}
+}
+
+impl<'a> TryFrom<&'a VersionedValidationProtocol> for GossipSupportNetworkMessage {
+	type Error = WrongVariant;
+	fn try_from(_: &'a VersionedValidationProtocol) -> Result<Self, Self::Error> {
+		Err(WrongVariant)
+	}
+}
+
+/// Version-annotated messages used by the bitfield distribution subsystem.
+pub type CollatorProtocolMessage = Versioned<v1::CollatorProtocolMessage>;
+impl_versioned_full_protocol_from!(
+	CollatorProtocolMessage,
+	VersionedCollationProtocol,
+	CollatorProtocol
+);
+impl_versioned_try_from!(
+	VersionedCollationProtocol,
+	CollatorProtocolMessage,
+	v1::CollationProtocol::CollatorProtocol(x) => x
+);
+
+/// v1 notification protocol types.
 pub mod v1 {
 	use parity_scale_codec::{Decode, Encode};
-	use std::convert::TryFrom;
 
-	use polkadot_primitives::v1::{
+	use polkadot_primitives::{
 		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash,
 		Id as ParaId, UncheckedSignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature,
 	};
@@ -293,8 +407,6 @@ pub mod v1 {
 		approval::{IndirectAssignmentCert, IndirectSignedApprovalVote},
 		UncheckedSignedFullStatement,
 	};
-
-	use crate::WrongVariant;
 
 	/// Network messages used by the bitfield distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -332,19 +444,6 @@ pub mod v1 {
 	}
 
 	impl StatementDistributionMessage {
-		/// Get meta data of the given `StatementDistributionMessage`.
-		pub fn get_metadata(&self) -> StatementMetadata {
-			match self {
-				Self::Statement(relay_parent, statement) => StatementMetadata {
-					relay_parent: *relay_parent,
-					candidate_hash: statement.unchecked_payload().candidate_hash(),
-					signed_by: statement.unchecked_validator_index(),
-					signature: statement.unchecked_signature().clone(),
-				},
-				Self::LargeStatement(metadata) => metadata.clone(),
-			}
-		}
-
 		/// Get fingerprint describing the contained statement uniquely.
 		pub fn get_fingerprint(&self) -> (CompactStatement, ValidatorIndex) {
 			match self {
@@ -354,6 +453,14 @@ pub mod v1 {
 				),
 				Self::LargeStatement(meta) =>
 					(CompactStatement::Seconded(meta.candidate_hash), meta.signed_by),
+			}
+		}
+
+		/// Get the signature from the statement.
+		pub fn get_signature(&self) -> ValidatorSignature {
+			match self {
+				Self::Statement(_, statement) => statement.unchecked_signature().clone(),
+				Self::LargeStatement(metadata) => metadata.signature.clone(),
 			}
 		}
 
@@ -390,7 +497,7 @@ pub mod v1 {
 
 	/// Dummy network message type, so we will receive connect/disconnect events.
 	#[derive(Debug, Clone, PartialEq, Eq)]
-	pub enum GossipSuppportNetworkMessage {}
+	pub enum GossipSupportNetworkMessage {}
 
 	/// Network messages used by the collator protocol subsystem
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -409,46 +516,30 @@ pub mod v1 {
 	}
 
 	/// All network messages on the validation peer-set.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, derive_more::From)]
 	pub enum ValidationProtocol {
 		/// Bitfield distribution messages
 		#[codec(index = 1)]
+		#[from]
 		BitfieldDistribution(BitfieldDistributionMessage),
 		/// Statement distribution messages
 		#[codec(index = 3)]
+		#[from]
 		StatementDistribution(StatementDistributionMessage),
 		/// Approval distribution messages
 		#[codec(index = 4)]
+		#[from]
 		ApprovalDistribution(ApprovalDistributionMessage),
 	}
 
-	impl_try_from!(ValidationProtocol, BitfieldDistribution, BitfieldDistributionMessage);
-	impl_try_from!(ValidationProtocol, StatementDistribution, StatementDistributionMessage);
-	impl_try_from!(ValidationProtocol, ApprovalDistribution, ApprovalDistributionMessage);
-
-	impl TryFrom<ValidationProtocol> for GossipSuppportNetworkMessage {
-		type Error = WrongVariant;
-		fn try_from(_: ValidationProtocol) -> Result<Self, Self::Error> {
-			Err(WrongVariant)
-		}
-	}
-
-	impl<'a> TryFrom<&'a ValidationProtocol> for &'a GossipSuppportNetworkMessage {
-		type Error = WrongVariant;
-		fn try_from(_: &'a ValidationProtocol) -> Result<Self, Self::Error> {
-			Err(WrongVariant)
-		}
-	}
-
 	/// All network messages on the collation peer-set.
-	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, derive_more::From)]
 	pub enum CollationProtocol {
 		/// Collator protocol messages
 		#[codec(index = 0)]
+		#[from]
 		CollatorProtocol(CollatorProtocolMessage),
 	}
-
-	impl_try_from!(CollationProtocol, CollatorProtocol, CollatorProtocolMessage);
 
 	/// Get the payload that should be signed and included in a `Declare` message.
 	///

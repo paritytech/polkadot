@@ -1,21 +1,21 @@
 [package]
 name = "polkadot-runtime-common"
-version = "0.9.13"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-impl-trait-for-tuples = "0.2.0"
-bitvec = { version = "0.20.1", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "2.3.1", default-features = false, features = ["derive"] }
-log = { version = "0.4.13", default-features = false }
+impl-trait-for-tuples = "0.2.2"
+bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
+parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
+log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
-scale-info = { version = "1.0", default-features = false, features = ["derive"] }
-serde = { version = "1.0.132", default-features = false }
+scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
+serde = { version = "1.0.139", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, package = "sp-beefy" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -31,6 +31,7 @@ pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-staking-reward-fn = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -57,8 +58,7 @@ frame-support-test = { git = "https://github.com/paritytech/substrate", branch =
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-trie-db = "0.23.0"
-serde_json = "1.0.74"
+serde_json = "1.0.81"
 libsecp256k1 = "0.7.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../primitives/test-helpers" }
 
@@ -85,6 +85,7 @@ std = [
 	"pallet-beefy-mmr/std",
 	"pallet-session/std",
 	"pallet-staking/std",
+	"pallet-staking-reward-fn/std",
 	"pallet-timestamp/std",
 	"pallet-vesting/std",
 	"pallet-transaction-payment/std",
@@ -109,6 +110,7 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
+	"pallet-bags-list/runtime-benchmarks",
 ]
 try-runtime = [
 	"runtime-parachains/try-runtime",

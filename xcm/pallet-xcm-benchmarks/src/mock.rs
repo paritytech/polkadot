@@ -15,7 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::*;
-use frame_support::{parameter_types, weights::Weight};
+use frame_support::parameter_types;
+use xcm::latest::Weight as XCMWeight;
 use xcm_executor::traits::FilterAssetLocation;
 
 // An xcm sender/receiver akin to > /dev/null
@@ -30,7 +31,7 @@ impl xcm_executor::traits::OnResponse for DevNull {
 	fn expecting_response(_: &MultiLocation, _: u64) -> bool {
 		false
 	}
-	fn on_response(_: &MultiLocation, _: u64, _: Response, _: Weight) -> Weight {
+	fn on_response(_: &MultiLocation, _: u64, _: Response, _: XCMWeight) -> XCMWeight {
 		0
 	}
 }
@@ -52,7 +53,7 @@ impl xcm_executor::traits::Convert<MultiLocation, u64> for AccountIdConverter {
 
 parameter_types! {
 	pub Ancestry: MultiLocation = Junction::Parachain(101).into();
-	pub UnitWeightCost: Weight = 10;
+	pub UnitWeightCost: u64 = 10;
 	pub WeightPrice: (AssetId, u128) = (Concrete(Here.into()), 1_000_000);
 }
 

@@ -24,17 +24,15 @@
 //! f is the maximum number of faulty validators in the system.
 //! The data is coded so any f+1 chunks can be used to reconstruct the full data.
 
-use std::convert::TryFrom;
-
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::{AvailableData, Proof};
-use polkadot_primitives::v0::{self, BlakeTwo256, Hash as H256, HashT};
+use polkadot_primitives::{BlakeTwo256, Hash as H256, HashT};
 use sp_core::Blake2Hasher;
-use thiserror::Error;
-use trie::{
-	trie_types::{TrieDB, TrieDBMutV0 as TrieDBMut},
-	MemoryDB, Trie, TrieMut, EMPTY_PREFIX,
+use sp_trie::{
+	trie_types::{TrieDBBuilder, TrieDBMutBuilderV0 as TrieDBMutBuilder},
+	LayoutV0, MemoryDB, Trie, TrieMut, EMPTY_PREFIX,
 };
+use thiserror::Error;
 
 use novelpoly::{CodeParams, WrappedShard};
 
@@ -115,16 +113,6 @@ fn code_params(n_validators: usize) -> Result<CodeParams, Error> {
 	})
 }
 
-/// Obtain erasure-coded chunks for v0 `AvailableData`, one for each validator.
-///
-/// Works only up to 65536 validators, and `n_validators` must be non-zero.
-pub fn obtain_chunks_v0(
-	n_validators: usize,
-	data: &v0::AvailableData,
-) -> Result<Vec<Vec<u8>>, Error> {
-	obtain_chunks(n_validators, data)
-}
-
 /// Obtain erasure-coded chunks for v1 `AvailableData`, one for each validator.
 ///
 /// Works only up to 65536 validators, and `n_validators` must be non-zero.
@@ -149,20 +137,6 @@ pub fn obtain_chunks<T: Encode>(n_validators: usize, data: &T) -> Result<Vec<Vec
 		.expect("Payload non-empty, shard sizes are uniform, and validator numbers checked; qed");
 
 	Ok(shards.into_iter().map(|w: WrappedShard| w.into_inner()).collect())
-}
-
-/// Reconstruct the v0 available data from a set of chunks.
-///
-/// Provide an iterator containing chunk data and the corresponding index.
-/// The indices of the present chunks must be indicated. If too few chunks
-/// are provided, recovery is not possible.
-///
-/// Works only up to 65536 validators, and `n_validators` must be non-zero.
-pub fn reconstruct_v0<'a, I: 'a>(n_validators: usize, chunks: I) -> Result<v0::AvailableData, Error>
-where
-	I: IntoIterator<Item = (&'a [u8], usize)>,
-{
-	reconstruct(n_validators, chunks)
 }
 
 /// Reconstruct the v1 available data from a set of chunks.
@@ -242,7 +216,7 @@ pub struct Branches<'a, I> {
 impl<'a, I: AsRef<[u8]>> Branches<'a, I> {
 	/// Get the trie root.
 	pub fn root(&self) -> H256 {
-		self.root.clone()
+		self.root
 	}
 }
 
@@ -250,13 +224,16 @@ impl<'a, I: AsRef<[u8]>> Iterator for Branches<'a, I> {
 	type Item = (Proof, &'a [u8]);
 
 	fn next(&mut self) -> Option<Self::Item> {
-		use trie::Recorder;
+		use sp_trie::Recorder;
 
-		let trie = TrieDB::new(&self.trie_storage, &self.root)
-			.expect("`Branches` is only created with a valid memorydb that contains all nodes for the trie with given root; qed");
+		let mut recorder = Recorder::<LayoutV0<Blake2Hasher>>::new();
+		let res = {
+			let trie = TrieDBBuilder::new(&self.trie_storage, &self.root)
+				.with_recorder(&mut recorder)
+				.build();
 
-		let mut recorder = Recorder::new();
-		let res = (self.current_pos as u32).using_encoded(|s| trie.get_with(s, &mut recorder));
+			(self.current_pos as u32).using_encoded(|s| trie.get(s))
+		};
 
 		match res.expect("all nodes in trie present; qed") {
 			Some(_) => {
@@ -283,7 +260,7 @@ where
 
 	// construct trie mapping each chunk's index to its hash.
 	{
-		let mut trie = TrieDBMut::new(&mut trie_storage, &mut root);
+		let mut trie = TrieDBMutBuilder::new(&mut trie_storage, &mut root).build();
 		for (i, chunk) in chunks.as_ref().iter().enumerate() {
 			(i as u32).using_encoded(|encoded_index| {
 				let chunk_hash = BlakeTwo256::hash(chunk.as_ref());
@@ -301,10 +278,10 @@ where
 pub fn branch_hash(root: &H256, branch_nodes: &Proof, index: usize) -> Result<H256, Error> {
 	let mut trie_storage: MemoryDB<Blake2Hasher> = MemoryDB::default();
 	for node in branch_nodes.iter() {
-		(&mut trie_storage as &mut trie::HashDB<_>).insert(EMPTY_PREFIX, node);
+		(&mut trie_storage as &mut sp_trie::HashDB<_>).insert(EMPTY_PREFIX, node);
 	}
 
-	let trie = TrieDB::new(&trie_storage, &root).map_err(|_| Error::InvalidBranchProof)?;
+	let trie = TrieDBBuilder::new(&trie_storage, &root).build();
 	let res = (index as u32).using_encoded(|key| {
 		trie.get_with(key, |raw_hash: &[u8]| H256::decode(&mut &raw_hash[..]))
 	});
@@ -370,7 +347,7 @@ impl<'a, I: Iterator<Item = &'a [u8]>> parity_scale_codec::Input for ShardInput<
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::v0::{AvailableData, BlockData, OmittedValidationData, PoVBlock};
+	use polkadot_node_primitives::{AvailableData, BlockData, PoV};
 
 	// In order to adequately compute the number of entries in the Merkle
 	// trie, we must account for the fixed 16-ary trie structure.
@@ -383,10 +360,9 @@ mod tests {
 
 	#[test]
 	fn round_trip_works() {
-		let pov_block = PoVBlock { block_data: BlockData((0..255).collect()) };
+		let pov = PoV { block_data: BlockData((0..255).collect()) };
 
-		let available_data =
-			AvailableData { pov_block, omitted_validation: OmittedValidationData::default() };
+		let available_data = AvailableData { pov: pov.into(), validation_data: Default::default() };
 		let chunks = obtain_chunks(10, &available_data).unwrap();
 
 		assert_eq!(chunks.len(), 10);
@@ -411,11 +387,9 @@ mod tests {
 
 	fn generate_trie_and_generate_proofs(magnitude: u32) {
 		let n_validators = 2_u32.pow(magnitude) as usize;
-		let pov_block =
-			PoVBlock { block_data: BlockData(vec![2; n_validators / KEY_INDEX_NIBBLE_SIZE]) };
+		let pov = PoV { block_data: BlockData(vec![2; n_validators / KEY_INDEX_NIBBLE_SIZE]) };
 
-		let available_data =
-			AvailableData { pov_block, omitted_validation: OmittedValidationData::default() };
+		let available_data = AvailableData { pov: pov.into(), validation_data: Default::default() };
 
 		let chunks = obtain_chunks(magnitude as usize, &available_data).unwrap();
 

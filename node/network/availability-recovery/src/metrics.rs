@@ -14,12 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem_util::{
-	metrics,
-	metrics::{
-		prometheus,
-		prometheus::{Counter, CounterVec, Opts, PrometheusError, Registry, U64},
-	},
+use polkadot_node_subsystem_util::metrics::{
+	self,
+	prometheus::{self, Counter, CounterVec, Histogram, Opts, PrometheusError, Registry, U64},
 };
 
 /// Availability Distribution metrics.
@@ -42,8 +39,25 @@ struct MetricsInner {
 	/// - `invalid` ... Chunk was received, but not valid.
 	/// - `success`
 	chunk_requests_finished: CounterVec<U64>,
+
 	/// The duration of request to response.
-	time_chunk_request: prometheus::Histogram,
+	time_chunk_request: Histogram,
+
+	/// The duration between the pure recovery and verification.
+	time_erasure_recovery: Histogram,
+
+	/// Time of a full recovery, including erasure decoding or until we gave
+	/// up.
+	time_full_recovery: Histogram,
+
+	/// Number of full recoveries that have been finished one way or the other.
+	full_recoveries_finished: CounterVec<U64>,
+
+	/// Number of full recoveries that have been started on this subsystem.
+	///
+	/// Note: Those are only recoveries which could not get served locally already - so in other
+	/// words: Only real recoveries.
+	full_recoveries_started: Counter<U64>,
 }
 
 impl Metrics {
@@ -93,9 +107,48 @@ impl Metrics {
 			metrics.chunk_requests_finished.with_label_values(&["success"]).inc()
 		}
 	}
+
 	/// Get a timer to time request/response duration.
 	pub fn time_chunk_request(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.time_chunk_request.start_timer())
+	}
+
+	/// Get a timer to time erasure code recover.
+	pub fn time_erasure_recovery(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_erasure_recovery.start_timer())
+	}
+
+	/// Get a timer to measure the time of the complete recovery process.
+	pub fn time_full_recovery(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.time_full_recovery.start_timer())
+	}
+
+	/// A full recovery succeeded.
+	pub fn on_recovery_succeeded(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.full_recoveries_finished.with_label_values(&["success"]).inc()
+		}
+	}
+
+	/// A full recovery failed (data not available).
+	pub fn on_recovery_failed(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.full_recoveries_finished.with_label_values(&["failure"]).inc()
+		}
+	}
+
+	/// A full recovery failed (data was recovered, but invalid).
+	pub fn on_recovery_invalid(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.full_recoveries_finished.with_label_values(&["invalid"]).inc()
+		}
+	}
+
+	/// A recover was started.
+	pub fn on_recovery_started(&self) {
+		if let Some(metrics) = &self.0 {
+			metrics.full_recoveries_started.inc()
+		}
 	}
 }
 
@@ -124,6 +177,37 @@ impl metrics::Metrics for Metrics {
 					"polkadot_parachain_availability_recovery_time_chunk_request",
 					"Time spent waiting for a response to a chunk request",
 				))?,
+				registry,
+			)?,
+			time_erasure_recovery: prometheus::register(
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"polkadot_parachain_availability_recovery_time_erasure_recovery",
+					"Time spent to recover the erasure code and verify the merkle root by re-encoding as erasure chunks",
+				))?,
+				registry,
+			)?,
+			time_full_recovery: prometheus::register(
+				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
+					"polkadot_parachain_availability_recovery_time_total",
+					"Time a full recovery process took, either until failure or successful erasure decoding.",
+				))?,
+				registry,
+			)?,
+			full_recoveries_finished: prometheus::register(
+				CounterVec::new(
+					Opts::new(
+						"polkadot_parachain_availability_recovery_recoveries_finished",
+						"Total number of recoveries that finished.",
+					),
+					&["result"],
+				)?,
+				registry,
+			)?,
+			full_recoveries_started: prometheus::register(
+				Counter::new(
+					"polkadot_parachain_availability_recovery_recovieries_started",
+					"Total number of started recoveries.",
+				)?,
 				registry,
 			)?,
 		};

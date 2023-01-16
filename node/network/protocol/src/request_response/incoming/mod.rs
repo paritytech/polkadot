@@ -25,11 +25,11 @@ use parity_scale_codec::{Decode, Encode};
 
 use sc_network::{config as netconfig, config::RequestResponseConfig, PeerId};
 
-use super::IsRequest;
+use super::{IsRequest, ReqProtocolNames};
 use crate::UnifiedReputationChange;
 
 mod error;
-pub use error::{Error, Fatal, NonFatal, Result};
+pub use error::{Error, FatalError, JfyiError, Result};
 
 /// A request coming in, including a sender for sending responses.
 ///
@@ -55,8 +55,10 @@ where
 	///
 	/// This Register that config with substrate networking and receive incoming requests via the
 	/// returned `IncomingRequestReceiver`.
-	pub fn get_config_receiver() -> (IncomingRequestReceiver<Req>, RequestResponseConfig) {
-		let (raw, cfg) = Req::PROTOCOL.get_config();
+	pub fn get_config_receiver(
+		req_protocol_names: &ReqProtocolNames,
+	) -> (IncomingRequestReceiver<Req>, RequestResponseConfig) {
+		let (raw, cfg) = Req::PROTOCOL.get_config(req_protocol_names);
 		(IncomingRequestReceiver { raw, phantom: PhantomData {} }, cfg)
 	}
 
@@ -84,7 +86,7 @@ where
 	fn try_from_raw(
 		raw: sc_network::config::IncomingRequest,
 		reputation_changes: Vec<UnifiedReputationChange>,
-	) -> std::result::Result<Self, NonFatal> {
+	) -> std::result::Result<Self, JfyiError> {
 		let sc_network::config::IncomingRequest { payload, peer, pending_response } = raw;
 		let payload = match Req::decode(&mut payload.as_ref()) {
 			Ok(payload) => payload,
@@ -98,9 +100,9 @@ where
 				};
 
 				if let Err(_) = pending_response.send(response) {
-					return Err(NonFatal::DecodingErrorNoReputationChange(peer, err))
+					return Err(JfyiError::DecodingErrorNoReputationChange(peer, err))
 				}
-				return Err(NonFatal::DecodingError(peer, err))
+				return Err(JfyiError::DecodingError(peer, err))
 			},
 		};
 		Ok(Self::new(peer, payload, pending_response))
@@ -224,7 +226,7 @@ where
 		F: FnOnce() -> Vec<UnifiedReputationChange>,
 	{
 		let req = match self.raw.next().await {
-			None => return Err(Fatal::RequestChannelExhausted.into()),
+			None => return Err(FatalError::RequestChannelExhausted.into()),
 			Some(raw) => IncomingRequest::<Req>::try_from_raw(raw, reputation_changes())?,
 		};
 		Ok(req)

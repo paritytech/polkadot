@@ -172,7 +172,7 @@ fn generate_conversion_from_v0() -> TokenStream {
 							if #( #parent_idents.is_parent() )&&* =>
 							Ok(MultiLocation {
 								parents: #parent_count,
-								interior: #junction_variant( #( core::convert::TryInto::try_into(#junction_idents)? ),* ),
+								interior: #junction_variant( #( TryInto::try_into(#junction_idents)? ),* ),
 							}),
 					}
 				})
@@ -184,7 +184,7 @@ fn generate_conversion_from_v0() -> TokenStream {
 					Ok(MultiLocation::ancestor(#num_ancestors)),
 				#intermediate_match_arms
 				crate::v0::MultiLocation::#variant( #(#idents),* ) =>
-					Ok( #variant( #( core::convert::TryInto::try_into(#idents)? ),* ).into() ),
+					Ok( #variant( #( TryInto::try_into(#idents)? ),* ).into() ),
 			}
 		})
 		.collect::<TokenStream>();

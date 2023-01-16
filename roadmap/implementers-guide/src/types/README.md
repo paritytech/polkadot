@@ -32,7 +32,7 @@ digraph {
     CandidateDescriptor:persisted_validation_data_hash -> PersistedValidationDataHash
 
     Id [label="polkadot_parachain::primitives::Id"]
-    CollatorId [label="polkadot_primitives::v0::CollatorId"]
+    CollatorId [label="polkadot_primitives::v2::CollatorId"]
 
     PoVHash [label = "Hash", shape="doublecircle", fill="gray90"]
 
@@ -114,7 +114,7 @@ digraph {
         </table>
     >]
 
-    TransientValidationData:balance -> "polkadot_core_primitives::v1::Balance":w
+    TransientValidationData:balance -> "polkadot_core_primitives::v2::Balance":w
 
     CandidateCommitments [label = <
         <table>
@@ -129,7 +129,7 @@ digraph {
     >]
 
     CandidateCommitments:upward_messages -> "polkadot_parachain::primitives::UpwardMessage":w
-    CandidateCommitments:horizontal_messages -> "polkadot_core_primitives::v1::OutboundHrmpMessage":w
+    CandidateCommitments:horizontal_messages -> "polkadot_core_primitives::v2::OutboundHrmpMessage":w
     CandidateCommitments:head_data -> HeadData:w
     CandidateCommitments:horizontal_messages -> "polkadot_parachain::primitives::Id":w
     CandidateCommitments:new_validation_code -> "polkadot_parachain::primitives::ValidationCode":w
@@ -302,9 +302,9 @@ digraph {
     SessionInfo:discovery_keys -> AuthorityDiscoveryId:w
     SessionInfo:validator_groups -> ValidatorIndex:w
 
-    ValidatorId [label = "polkadot_primitives::v0::ValidatorId"]
+    ValidatorId [label = "polkadot_primitives::v2::ValidatorId"]
     AuthorityDiscoveryId [label = "sp_authority_discovery::AuthorityId"]
-    ValidatorIndex [label = "polkadot_primitives::v0::ValidatorIndex"]
+    ValidatorIndex [label = "polkadot_primitives::v2::ValidatorIndex"]
 
     AbridgedHostConfiguration [label = <
         <table>

@@ -1,0 +1,4 @@
+changelog.md
+*.json
+release*.md
+.env

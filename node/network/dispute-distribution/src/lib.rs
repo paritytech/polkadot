@@ -24,18 +24,21 @@
 //! The sender is responsible for getting our vote out, see [`sender`]. The receiver handles
 //! incoming [`DisputeRequest`]s and offers spam protection, see [`receiver`].
 
+use std::{num::NonZeroUsize, time::Duration};
+
 use futures::{channel::mpsc, FutureExt, StreamExt, TryFutureExt};
 
 use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
+use polkadot_node_subsystem_util::nesting_sender::NestingSender;
 use sp_keystore::SyncCryptoStorePtr;
 
 use polkadot_node_network_protocol::request_response::{incoming::IncomingRequestReceiver, v1};
 use polkadot_node_primitives::DISPUTE_WINDOW;
-use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
-use polkadot_subsystem::{
-	messages::DisputeDistributionMessage, overseer, FromOverseer, OverseerSignal, SpawnedSubsystem,
-	SubsystemContext, SubsystemError,
+use polkadot_node_subsystem::{
+	messages::DisputeDistributionMessage, overseer, FromOrchestra, OverseerSignal,
+	SpawnedSubsystem, SubsystemError,
 };
+use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
 /// ## The sender [`DisputeSender`]
 ///
@@ -49,30 +52,33 @@ use polkadot_subsystem::{
 /// to this subsystem, unknown dispute. This is to make sure, we get our vote out, even on
 /// restarts.
 ///
-///	The actual work of sending and keeping track of transmission attempts to each validator for a
-///	particular dispute are done by [`SendTask`].  The purpose of the `DisputeSender` is to keep
-///	track of all ongoing disputes and start and clean up `SendTask`s accordingly.
+/// The actual work of sending and keeping track of transmission attempts to each validator for a
+/// particular dispute are done by [`SendTask`].  The purpose of the `DisputeSender` is to keep
+/// track of all ongoing disputes and start and clean up `SendTask`s accordingly.
 mod sender;
-use self::sender::{DisputeSender, TaskFinish};
+use self::sender::{DisputeSender, DisputeSenderMessage};
 
-///	## The receiver [`DisputesReceiver`]
+/// ## The receiver [`DisputesReceiver`]
 ///
-///	The receiving side is implemented as `DisputesReceiver` and is run as a separate long running task within
-///	this subsystem ([`DisputesReceiver::run`]).
+/// The receiving side is implemented as `DisputesReceiver` and is run as a separate long running task within
+/// this subsystem ([`DisputesReceiver::run`]).
 ///
-///	Conceptually all the receiver has to do, is waiting for incoming requests which are passed in
-///	via a dedicated channel and forwarding them to the dispute coordinator via
-///	`DisputeCoordinatorMessage::ImportStatements`. Being the interface to the network and untrusted
-///	nodes, the reality is not that simple of course. Before importing statements the receiver will
-///	make sure as good as it can to filter out malicious/unwanted/spammy requests. For this it does
-///	the following:
+/// Conceptually all the receiver has to do, is waiting for incoming requests which are passed in
+/// via a dedicated channel and forwarding them to the dispute coordinator via
+/// `DisputeCoordinatorMessage::ImportStatements`. Being the interface to the network and untrusted
+/// nodes, the reality is not that simple of course. Before importing statements the receiver will
+/// batch up imports as well as possible for efficient imports while maintaining timely dispute
+/// resolution and handling of spamming validators:
 ///
-///	- Drop all messages from non validator nodes, for this it requires the [`AuthorityDiscovery`]
-///	service.
-///	- Drop messages from a node, if we are already importing a message from that node (flood).
-///	- Drop messages from nodes, that provided us messages where the statement import failed.
-///	- Drop any obviously invalid votes (invalid signatures for example).
-///	- Ban peers whose votes were deemed invalid.
+/// - Drop all messages from non validator nodes, for this it requires the [`AuthorityDiscovery`]
+/// service.
+/// - Drop messages from a node, if it sends at a too high rate.
+/// - Filter out duplicate messages (over some period of time).
+/// - Drop any obviously invalid votes (invalid signatures for example).
+/// - Ban peers whose votes were deemed invalid.
+///
+/// In general dispute-distribution works on limiting the work the dispute-coordinator will have to
+/// do, while at the same time making it aware of new disputes as fast as possible.
 ///
 /// For successfully imported votes, we will confirm the receipt of the message back to the sender.
 /// This way a received confirmation guarantees, that the vote has been stored to disk by the
@@ -82,7 +88,7 @@ use self::receiver::DisputesReceiver;
 
 /// Error and [`Result`] type for this subsystem.
 mod error;
-use error::{log_error, Fatal, FatalResult, Result};
+use error::{log_error, Error, FatalError, FatalResult, Result};
 
 #[cfg(test)]
 mod tests;
@@ -93,16 +99,30 @@ pub use metrics::Metrics;
 
 const LOG_TARGET: &'static str = "parachain::dispute-distribution";
 
+/// Rate limit on the `receiver` side.
+///
+/// If messages from one peer come in at a higher rate than every `RECEIVE_RATE_LIMIT` on average, we
+/// start dropping messages from that peer to enforce that limit.
+pub const RECEIVE_RATE_LIMIT: Duration = Duration::from_millis(100);
+
+/// Rate limit on the `sender` side.
+///
+/// In order to not hit the `RECEIVE_RATE_LIMIT` on the receiving side, we limit out sending rate as
+/// well.
+///
+/// We add 50ms extra, just to have some save margin to the `RECEIVE_RATE_LIMIT`.
+pub const SEND_RATE_LIMIT: Duration = RECEIVE_RATE_LIMIT.saturating_add(Duration::from_millis(50));
+
 /// The dispute distribution subsystem.
 pub struct DisputeDistributionSubsystem<AD> {
 	/// Easy and efficient runtime access for this subsystem.
 	runtime: RuntimeInfo,
 
 	/// Sender for our dispute requests.
-	disputes_sender: DisputeSender,
+	disputes_sender: DisputeSender<DisputeSenderMessage>,
 
-	/// Receive messages from `SendTask`.
-	sender_rx: mpsc::Receiver<TaskFinish>,
+	/// Receive messages from `DisputeSender` background tasks.
+	sender_rx: mpsc::Receiver<DisputeSenderMessage>,
 
 	/// Receiver for incoming requests.
 	req_receiver: Option<IncomingRequestReceiver<v1::DisputeRequest>>,
@@ -114,12 +134,11 @@ pub struct DisputeDistributionSubsystem<AD> {
 	metrics: Metrics,
 }
 
-impl<Context, AD> overseer::Subsystem<Context, SubsystemError> for DisputeDistributionSubsystem<AD>
+#[overseer::subsystem(DisputeDistribution, error = SubsystemError, prefix = self::overseer)]
+impl<Context, AD> DisputeDistributionSubsystem<AD>
 where
-	Context: SubsystemContext<Message = DisputeDistributionMessage>
-		+ overseer::SubsystemContext<Message = DisputeDistributionMessage>
-		+ Sync
-		+ Send,
+	<Context as overseer::DisputeDistributionContextTrait>::Sender:
+		overseer::DisputeDistributionSenderTrait + Sync + Send,
 	AD: AuthorityDiscovery + Clone,
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
@@ -132,11 +151,12 @@ where
 	}
 }
 
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
 impl<AD> DisputeDistributionSubsystem<AD>
 where
 	AD: AuthorityDiscovery + Clone,
 {
-	/// Create a new instance of the availability distribution.
+	/// Create a new instance of the dispute distribution.
 	pub fn new(
 		keystore: SyncCryptoStorePtr,
 		req_receiver: IncomingRequestReceiver<v1::DisputeRequest>,
@@ -145,9 +165,10 @@ where
 	) -> Self {
 		let runtime = RuntimeInfo::new_with_config(runtime::Config {
 			keystore: Some(keystore),
-			session_cache_lru_size: DISPUTE_WINDOW.get() as usize,
+			session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+				.expect("Dispute window can not be 0; qed"),
 		});
-		let (tx, sender_rx) = mpsc::channel(1);
+		let (tx, sender_rx) = NestingSender::new_root(1);
 		let disputes_sender = DisputeSender::new(tx, metrics.clone());
 		Self {
 			runtime,
@@ -160,13 +181,7 @@ where
 	}
 
 	/// Start processing work as passed on from the Overseer.
-	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), Fatal>
-	where
-		Context: SubsystemContext<Message = DisputeDistributionMessage>
-			+ overseer::SubsystemContext<Message = DisputeDistributionMessage>
-			+ Sync
-			+ Send,
-	{
+	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
 		let receiver = DisputesReceiver::new(
 			ctx.sender().clone(),
 			self.req_receiver
@@ -176,36 +191,49 @@ where
 			self.metrics.clone(),
 		);
 		ctx.spawn("disputes-receiver", receiver.run().boxed())
-			.map_err(Fatal::SpawnTask)?;
+			.map_err(FatalError::SpawnTask)?;
 
+		// Process messages for sending side.
+		//
+		// Note: We want the sender to be rate limited and we are currently taking advantage of the
+		// fact that the root task of this subsystem is only concerned with sending: Functions of
+		// `DisputeSender` might back pressure if the rate limit is hit, which will slow down this
+		// loop. If this fact ever changes, we will likely need another task.
 		loop {
 			let message = MuxedMessage::receive(&mut ctx, &mut self.sender_rx).await;
 			match message {
 				MuxedMessage::Subsystem(result) => {
 					let result = match result? {
-						FromOverseer::Signal(signal) => {
+						FromOrchestra::Signal(signal) => {
 							match self.handle_signals(&mut ctx, signal).await {
 								Ok(SignalResult::Conclude) => return Ok(()),
 								Ok(SignalResult::Continue) => Ok(()),
 								Err(f) => Err(f),
 							}
 						},
-						FromOverseer::Communication { msg } =>
+						FromOrchestra::Communication { msg } =>
 							self.handle_subsystem_message(&mut ctx, msg).await,
 					};
-					log_error(result, "on FromOverseer")?;
+					log_error(result, "on FromOrchestra")?;
 				},
 				MuxedMessage::Sender(result) => {
-					self.disputes_sender
-						.on_task_message(result.ok_or(Fatal::SenderExhausted)?)
-						.await;
+					let result = self
+						.disputes_sender
+						.on_message(
+							&mut ctx,
+							&mut self.runtime,
+							result.ok_or(FatalError::SenderExhausted)?,
+						)
+						.await
+						.map_err(Error::Sender);
+					log_error(result, "on_message")?;
 				},
 			}
 		}
 	}
 
 	/// Handle overseer signals.
-	async fn handle_signals<Context: SubsystemContext>(
+	async fn handle_signals<Context>(
 		&mut self,
 		ctx: &mut Context,
 		signal: OverseerSignal,
@@ -221,7 +249,7 @@ where
 	}
 
 	/// Handle `DisputeDistributionMessage`s.
-	async fn handle_subsystem_message<Context: SubsystemContext>(
+	async fn handle_subsystem_message<Context>(
 		&mut self,
 		ctx: &mut Context,
 		msg: DisputeDistributionMessage,
@@ -238,24 +266,25 @@ where
 #[derive(Debug)]
 enum MuxedMessage {
 	/// Messages from other subsystems.
-	Subsystem(FatalResult<FromOverseer<DisputeDistributionMessage>>),
+	Subsystem(FatalResult<FromOrchestra<DisputeDistributionMessage>>),
 	/// Messages from spawned sender background tasks.
-	Sender(Option<TaskFinish>),
+	Sender(Option<DisputeSenderMessage>),
 }
 
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
 impl MuxedMessage {
-	async fn receive(
-		ctx: &mut (impl SubsystemContext<Message = DisputeDistributionMessage>
-		          + overseer::SubsystemContext<Message = DisputeDistributionMessage>),
-		from_sender: &mut mpsc::Receiver<TaskFinish>,
+	async fn receive<Context>(
+		ctx: &mut Context,
+		from_sender: &mut mpsc::Receiver<DisputeSenderMessage>,
 	) -> Self {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream
 		// ends.
 		let from_overseer = ctx.recv().fuse();
 		futures::pin_mut!(from_overseer, from_sender);
-		futures::select!(
-			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(Fatal::SubsystemReceive)),
+		// We select biased to make sure we finish up loose ends, before starting new work.
+		futures::select_biased!(
 			msg = from_sender.next() => MuxedMessage::Sender(msg),
+			msg = from_overseer => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
 		)
 	}
 }

@@ -14,9 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::weights::Weight;
 use sp_std::result::Result;
-use xcm::latest::{MultiLocation, Xcm};
+use xcm::latest::{MultiLocation, Weight, Xcm};
 
 /// Trait to determine whether the execution engine should actually execute a given XCM.
 ///
@@ -31,9 +30,9 @@ pub trait ShouldExecute {
 	/// - `weight_credit`: The pre-established amount of weight that the system has determined this
 	///   message may utilize in its execution. Typically non-zero only because of prior fee
 	///   payment, but could in principle be due to other factors.
-	fn should_execute<Call>(
+	fn should_execute<RuntimeCall>(
 		origin: &MultiLocation,
-		message: &mut Xcm<Call>,
+		message: &mut Xcm<RuntimeCall>,
 		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()>;
@@ -41,9 +40,9 @@ pub trait ShouldExecute {
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
 impl ShouldExecute for Tuple {
-	fn should_execute<Call>(
+	fn should_execute<RuntimeCall>(
 		origin: &MultiLocation,
-		message: &mut Xcm<Call>,
+		message: &mut Xcm<RuntimeCall>,
 		max_weight: Weight,
 		weight_credit: &mut Weight,
 	) -> Result<(), ()> {

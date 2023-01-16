@@ -16,7 +16,7 @@
 
 //! Prometheus metrics related to the validation host.
 
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_metrics::metrics::{self, prometheus};
 
 /// Validation host metrics.
 #[derive(Default, Clone)]
@@ -155,17 +155,22 @@ impl metrics::Metrics for Metrics {
 						"Time spent in preparing PVF artifacts in seconds",
 					)
 					.buckets(vec![
-						// This is synchronized with COMPILATION_TIMEOUT=60s constant found in
+						// This is synchronized with the PRECHECK_PREPARATION_TIMEOUT=60s
+						// and LENIENT_PREPARATION_TIMEOUT=360s constants found in
 						// src/prepare/worker.rs
 						0.1,
 						0.5,
 						1.0,
+						2.0,
+						3.0,
 						10.0,
 						20.0,
 						30.0,
-						40.0,
-						50.0,
 						60.0,
+						120.0,
+						240.0,
+						360.0,
+						480.0,
 					]),
 				)?,
 				registry,
@@ -175,7 +180,25 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_pvf_execution_time",
 						"Time spent in executing PVFs",
-					)
+					).buckets(vec![
+						// This is synchronized with `APPROVAL_EXECUTION_TIMEOUT`  and
+						// `BACKING_EXECUTION_TIMEOUT` constants in `node/primitives/src/lib.rs`
+						0.01,
+						0.025,
+						0.05,
+						0.1,
+						0.25,
+						0.5,
+						1.0,
+						2.0,
+						3.0,
+						4.0,
+						5.0,
+						6.0,
+						8.0,
+						10.0,
+						12.0,
+					]),
 				)?,
 				registry,
 			)?,

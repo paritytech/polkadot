@@ -31,9 +31,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "std")]
 use sp_core::bytes;
 
-#[cfg(feature = "std")]
-use parity_util_mem::MallocSizeOf;
-
 use polkadot_core_primitives::{Hash, OutboundHrmpMessage};
 
 /// Block number type used by the relay chain.
@@ -43,7 +40,7 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 #[derive(
 	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
 )]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf, Default))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, Default))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 impl HeadData {
@@ -55,7 +52,7 @@ impl HeadData {
 
 /// Parachain validation code.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 impl ValidationCode {
@@ -65,13 +62,12 @@ impl ValidationCode {
 	}
 }
 
-/// Unit type wrapper around [`Hash`] that represents a validation code hash.
+/// Unit type wrapper around [`type@Hash`] that represents a validation code hash.
 ///
 /// This type is produced by [`ValidationCode::hash`].
 ///
 /// This type makes it easy to enforce that a hash is a validation code hash on the type level.
 #[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, PartialOrd, Ord, TypeInfo)]
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct ValidationCodeHash(Hash);
 
 impl sp_std::fmt::Display for ValidationCodeHash {
@@ -113,8 +109,8 @@ impl sp_std::fmt::LowerHex for ValidationCodeHash {
 /// Parachain block data.
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
-#[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Debug, MallocSizeOf))]
+#[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From, TypeInfo, RuntimeDebug)]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 /// Unique identifier of a parachain.
@@ -134,10 +130,7 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec
 	RuntimeDebug,
 	TypeInfo,
 )]
-#[cfg_attr(
-	feature = "std",
-	derive(serde::Serialize, serde::Deserialize, derive_more::Display, MallocSizeOf)
-)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, derive_more::Display))]
 pub struct Id(u32);
 
 impl TypeId for Id {
@@ -158,7 +151,6 @@ impl From<u32> for Id {
 
 impl From<usize> for Id {
 	fn from(x: usize) -> Self {
-		use sp_std::convert::TryInto;
 		// can't panic, so need to truncate
 		let x = x.try_into().unwrap_or(u32::MAX);
 		Id(x)
@@ -275,59 +267,6 @@ impl IsSystem for Sibling {
 	}
 }
 
-/// This type can be converted into and possibly from an [`AccountId`] (which itself is generic).
-pub trait AccountIdConversion<AccountId>: Sized {
-	/// Convert into an account ID. This is infallible.
-	fn into_account(&self) -> AccountId;
-
-	/// Try to convert an account ID into this type. Might not succeed.
-	fn try_from_account(a: &AccountId) -> Option<Self>;
-}
-
-// TODO: Remove all of this, move sp-runtime::AccountIdConversion to own crate and and use that.
-// #360
-struct TrailingZeroInput<'a>(&'a [u8]);
-impl<'a> parity_scale_codec::Input for TrailingZeroInput<'a> {
-	fn remaining_len(&mut self) -> Result<Option<usize>, parity_scale_codec::Error> {
-		Ok(None)
-	}
-
-	fn read(&mut self, into: &mut [u8]) -> Result<(), parity_scale_codec::Error> {
-		let len = into.len().min(self.0.len());
-		into[..len].copy_from_slice(&self.0[..len]);
-		for i in &mut into[len..] {
-			*i = 0;
-		}
-		self.0 = &self.0[len..];
-		Ok(())
-	}
-}
-
-/// Format is b"para" ++ encode(parachain ID) ++ 00.... where 00... is indefinite trailing
-/// zeroes to fill [`AccountId`].
-impl<T: Encode + Decode + Default> AccountIdConversion<T> for Id {
-	fn into_account(&self) -> T {
-		(b"para", self)
-			.using_encoded(|b| T::decode(&mut TrailingZeroInput(b)))
-			.unwrap_or_default()
-	}
-
-	fn try_from_account(x: &T) -> Option<Self> {
-		x.using_encoded(|d| {
-			if &d[0..4] != b"para" {
-				return None
-			}
-			let mut cursor = &d[4..];
-			let result = Decode::decode(&mut cursor).ok()?;
-			if cursor.iter().all(|x| *x == 0) {
-				Some(result)
-			} else {
-				None
-			}
-		})
-	}
-}
-
 /// A type that uniquely identifies an HRMP channel. An HRMP channel is established between two paras.
 /// In text, we use the notation `(A, B)` to specify a channel between A and B. The channels are
 /// unidirectional, meaning that `(A, B)` and `(B, A)` refer to different channels. The convention is
@@ -370,7 +309,7 @@ impl DmpMessageHandler for () {
 		_max_weight: Weight,
 	) -> Weight {
 		iter.for_each(drop);
-		0
+		Weight::zero()
 	}
 }
 
@@ -403,7 +342,7 @@ impl XcmpMessageHandler for () {
 		_max_weight: Weight,
 	) -> Weight {
 		for _ in iter {}
-		0
+		Weight::zero()
 	}
 }
 

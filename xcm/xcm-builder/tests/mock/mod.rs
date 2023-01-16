@@ -17,7 +17,6 @@
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, Nothing},
-	weights::Weight,
 };
 use sp_core::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
@@ -62,8 +61,8 @@ parameter_types! {
 }
 
 impl frame_system::Config for Runtime {
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
@@ -71,7 +70,7 @@ impl frame_system::Config for Runtime {
 	type AccountId = AccountId;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type BlockWeights = ();
 	type BlockLength = ();
@@ -97,7 +96,7 @@ parameter_types! {
 impl pallet_balances::Config for Runtime {
 	type MaxLocks = MaxLocks;
 	type Balance = Balance;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
@@ -123,7 +122,7 @@ parameter_types! {
 pub type SovereignAccountOf =
 	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<KusamaNetwork, AccountId>);
 
-pub type LocalAssetTransactor = XcmCurrencyAdapter<
+pub type LocalCurrencyAdapter = XcmCurrencyAdapter<
 	Balances,
 	IsConcrete<KsmLocation>,
 	SovereignAccountOf,
@@ -131,15 +130,17 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	CheckAccount,
 >;
 
+pub type LocalAssetTransactor = (LocalCurrencyAdapter,);
+
 type LocalOriginConverter = (
-	SovereignSignedViaLocation<SovereignAccountOf, Origin>,
-	ChildParachainAsNative<origin::Origin, Origin>,
-	SignedAccountId32AsNative<KusamaNetwork, Origin>,
-	ChildSystemParachainAsSuperuser<ParaId, Origin>,
+	SovereignSignedViaLocation<SovereignAccountOf, RuntimeOrigin>,
+	ChildParachainAsNative<origin::Origin, RuntimeOrigin>,
+	SignedAccountId32AsNative<KusamaNetwork, RuntimeOrigin>,
+	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
 );
 
 parameter_types! {
-	pub const BaseXcmWeight: Weight = 1_000_000_000;
+	pub const BaseXcmWeight: u64 = 1_000_000_000;
 	pub KsmPerSecond: (AssetId, u128) = (KsmLocation::get().into(), 1);
 }
 
@@ -159,7 +160,7 @@ pub type TrustedTeleporters = (xcm_builder::Case<KusamaForStatemine>,);
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type XcmSender = TestSendXcm;
 	type AssetTransactor = LocalAssetTransactor;
 	type OriginConverter = LocalOriginConverter;
@@ -167,7 +168,7 @@ impl xcm_executor::Config for XcmConfig {
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = LocationInverter<Ancestry>;
 	type Barrier = Barrier;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	type Trader = FixedRateOfFungible<KsmPerSecond, ()>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
@@ -175,22 +176,22 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 }
 
-pub type LocalOriginToLocation = SignedToAccountId32<Origin, AccountId, KusamaNetwork>;
+pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, KusamaNetwork>;
 
 impl pallet_xcm::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type LocationInverter = LocationInverter<Ancestry>;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmRouter = TestSendXcm;
 	// Anyone can execute XCM messages locally...
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
+	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
 	type XcmExecuteFilter = Nothing;
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 	type XcmTeleportFilter = Everything;
 	type XcmReserveTransferFilter = Everything;
-	type Weigher = FixedWeightBounds<BaseXcmWeight, Call, MaxInstructions>;
-	type Call = Call;
-	type Origin = Origin;
+	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
+	type RuntimeCall = RuntimeCall;
+	type RuntimeOrigin = RuntimeOrigin;
 	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
 	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
 }

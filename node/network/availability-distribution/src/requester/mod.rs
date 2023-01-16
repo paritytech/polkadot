@@ -27,18 +27,22 @@ use std::{
 };
 
 use futures::{
-	channel::mpsc,
+	channel::{mpsc, oneshot},
 	task::{Context, Poll},
 	Stream,
 };
 
-use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
-use polkadot_primitives::v1::{CandidateHash, Hash, OccupiedCore};
-use polkadot_subsystem::{
-	messages::AllMessages, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus, SubsystemContext,
+use polkadot_node_subsystem::{
+	messages::{ChainApiMessage, RuntimeApiMessage},
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
+use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
+use polkadot_primitives::{CandidateHash, Hash, OccupiedCore, SessionIndex};
 
-use super::{Metrics, LOG_TARGET};
+use super::{FatalError, Metrics, Result, LOG_TARGET};
+
+#[cfg(test)]
+mod tests;
 
 /// Cache for session information.
 mod session_cache;
@@ -74,7 +78,11 @@ pub struct Requester {
 	metrics: Metrics,
 }
 
+#[overseer::contextbounds(AvailabilityDistribution, prefix = self::overseer)]
 impl Requester {
+	/// How many ancestors of the leaf should we consider along with it.
+	pub(crate) const LEAF_ANCESTRY_LEN_WITHIN_SESSION: usize = 3;
+
 	/// Create a new `Requester`.
 	///
 	/// You must feed it with `ActiveLeavesUpdate` via `update_fetching_heads` and make it progress
@@ -83,6 +91,7 @@ impl Requester {
 		let (tx, rx) = mpsc::channel(1);
 		Requester { fetches: HashMap::new(), session_cache: SessionCache::new(), tx, rx, metrics }
 	}
+
 	/// Update heads that need availability distribution.
 	///
 	/// For all active heads we will be fetching our chunks for availability distribution.
@@ -91,43 +100,57 @@ impl Requester {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		update: ActiveLeavesUpdate,
-	) -> super::Result<()>
-	where
-		Context: SubsystemContext,
-	{
-		tracing::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
+	) -> Result<()> {
+		gum::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
 		let ActiveLeavesUpdate { activated, deactivated } = update;
 		// Stale leaves happen after a reversion - we don't want to re-run availability there.
-		let activated = activated.and_then(|h| match h.status {
-			LeafStatus::Stale => None,
-			LeafStatus::Fresh => Some(h),
-		});
-		// Order important! We need to handle activated, prior to deactivated, otherwise we might
-		// cancel still needed jobs.
-		self.start_requesting_chunks(ctx, runtime, activated.into_iter()).await?;
+		if let Some(leaf) = activated.filter(|leaf| leaf.status == LeafStatus::Fresh) {
+			// Order important! We need to handle activated, prior to deactivated, otherwise we might
+			// cancel still needed jobs.
+			self.start_requesting_chunks(ctx, runtime, leaf).await?;
+		}
+
 		self.stop_requesting_chunks(deactivated.into_iter());
 		Ok(())
 	}
 
-	/// Start requesting chunks for newly imported heads.
+	/// Start requesting chunks for newly imported head.
+	///
+	/// This will also request [`SESSION_ANCESTRY_LEN`] leaf ancestors from the same session
+	/// and start requesting chunks for them too.
 	async fn start_requesting_chunks<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
-		new_heads: impl Iterator<Item = ActivatedLeaf>,
-	) -> super::Result<()>
-	where
-		Context: SubsystemContext,
-	{
-		for ActivatedLeaf { hash: leaf, .. } in new_heads {
-			let cores = get_occupied_cores(ctx, leaf).await?;
-			tracing::trace!(
+		new_head: ActivatedLeaf,
+	) -> Result<()> {
+		let sender = &mut ctx.sender().clone();
+		let ActivatedLeaf { hash: leaf, .. } = new_head;
+		let (leaf_session_index, ancestors_in_session) = get_block_ancestors_in_same_session(
+			sender,
+			runtime,
+			leaf,
+			Self::LEAF_ANCESTRY_LEN_WITHIN_SESSION,
+		)
+		.await?;
+		// Also spawn or bump tasks for candidates in ancestry in the same session.
+		for hash in std::iter::once(leaf).chain(ancestors_in_session) {
+			let cores = get_occupied_cores(sender, hash).await?;
+			gum::trace!(
 				target: LOG_TARGET,
 				occupied_cores = ?cores,
 				"Query occupied core"
 			);
-			self.add_cores(ctx, runtime, leaf, cores).await?;
+			// Important:
+			// We mark the whole ancestry as live in the **leaf** hash, so we don't need to track
+			// any tasks separately.
+			//
+			// The next time the subsystem receives leaf update, some of spawned task will be bumped
+			// to be live in fresh relay parent, while some might get dropped due to the current leaf
+			// being deactivated.
+			self.add_cores(ctx, runtime, leaf, leaf_session_index, cores).await?;
 		}
+
 		Ok(())
 	}
 
@@ -150,14 +173,12 @@ impl Requester {
 	/// passed in leaf might be some later block where the candidate is still pending availability.
 	async fn add_cores<Context>(
 		&mut self,
-		ctx: &mut Context,
+		context: &mut Context,
 		runtime: &mut RuntimeInfo,
 		leaf: Hash,
+		leaf_session_index: SessionIndex,
 		cores: impl IntoIterator<Item = OccupiedCore>,
-	) -> super::Result<()>
-	where
-		Context: SubsystemContext,
-	{
+	) -> Result<()> {
 		for core in cores {
 			match self.fetches.entry(core.candidate_hash) {
 				Entry::Occupied(mut e) =>
@@ -172,18 +193,28 @@ impl Requester {
 					let task_cfg = self
 						.session_cache
 						.with_session_info(
-							ctx,
+							context,
 							runtime,
-							// We use leaf here, as relay_parent must be in the same session as the
-							// leaf. (Cores are dropped at session boundaries.) At the same time,
-							// only leaves are guaranteed to be fetchable by the state trie.
+							// We use leaf here, the relay_parent must be in the same session as the
+							// leaf. This is guaranteed by runtime which ensures that cores are cleared
+							// at session boundaries. At the same time, only leaves are guaranteed to
+							// be fetchable by the state trie.
 							leaf,
+							leaf_session_index,
 							|info| FetchTaskConfig::new(leaf, &core, tx, metrics, info),
 						)
-						.await?;
+						.await
+						.map_err(|err| {
+							gum::warn!(
+								target: LOG_TARGET,
+								error = ?err,
+								"Failed to spawn a fetch task"
+							);
+							err
+						});
 
-					if let Some(task_cfg) = task_cfg {
-						e.insert(FetchTask::start(task_cfg, ctx).await?);
+					if let Ok(Some(task_cfg)) = task_cfg {
+						e.insert(FetchTask::start(task_cfg, context).await?);
 					}
 					// Not a validator, nothing to do.
 				},
@@ -194,9 +225,9 @@ impl Requester {
 }
 
 impl Stream for Requester {
-	type Item = AllMessages;
+	type Item = overseer::AvailabilityDistributionOutgoingMessages;
 
-	fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<AllMessages>> {
+	fn poll_next(mut self: Pin<&mut Self>, ctx: &mut Context) -> Poll<Option<Self::Item>> {
 		loop {
 			match Pin::new(&mut self.rx).poll_next(ctx) {
 				Poll::Ready(Some(FromFetchTask::Message(m))) => return Poll::Ready(Some(m)),
@@ -214,4 +245,77 @@ impl Stream for Requester {
 			}
 		}
 	}
+}
+
+/// Requests up to `limit` ancestor hashes of relay parent in the same session.
+///
+/// Also returns session index of the `head`.
+async fn get_block_ancestors_in_same_session<Sender>(
+	sender: &mut Sender,
+	runtime: &mut RuntimeInfo,
+	head: Hash,
+	limit: usize,
+) -> Result<(SessionIndex, Vec<Hash>)>
+where
+	Sender:
+		overseer::SubsystemSender<RuntimeApiMessage> + overseer::SubsystemSender<ChainApiMessage>,
+{
+	// The order is parent, grandparent, ...
+	//
+	// `limit + 1` since a session index for the last element in ancestry
+	// is obtained through its parent. It always gets truncated because
+	// `session_ancestry_len` can only be incremented `ancestors.len() - 1` times.
+	let mut ancestors = get_block_ancestors(sender, head, limit + 1).await?;
+	let mut ancestors_iter = ancestors.iter();
+
+	// `head` is the child of the first block in `ancestors`, request its session index.
+	let head_session_index = match ancestors_iter.next() {
+		Some(parent) => runtime.get_session_index_for_child(sender, *parent).await?,
+		None => {
+			// No first element, i.e. empty.
+			return Ok((0, ancestors))
+		},
+	};
+
+	let mut session_ancestry_len = 0;
+	// The first parent is skipped.
+	for parent in ancestors_iter {
+		// Parent is the i-th ancestor, request session index for its child -- (i-1)th element.
+		let session_index = runtime.get_session_index_for_child(sender, *parent).await?;
+		if session_index == head_session_index {
+			session_ancestry_len += 1;
+		} else {
+			break
+		}
+	}
+
+	// Drop the rest.
+	ancestors.truncate(session_ancestry_len);
+
+	Ok((head_session_index, ancestors))
+}
+
+/// Request up to `limit` ancestor hashes of relay parent from the Chain API.
+async fn get_block_ancestors<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+	limit: usize,
+) -> Result<Vec<Hash>>
+where
+	Sender: overseer::SubsystemSender<ChainApiMessage>,
+{
+	let (tx, rx) = oneshot::channel();
+	sender
+		.send_message(ChainApiMessage::Ancestors {
+			hash: relay_parent,
+			k: limit,
+			response_channel: tx,
+		})
+		.await;
+
+	let ancestors = rx
+		.await
+		.map_err(FatalError::ChainApiSenderDropped)?
+		.map_err(FatalError::ChainApi)?;
+	Ok(ancestors)
 }

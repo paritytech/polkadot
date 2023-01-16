@@ -16,18 +16,20 @@
 
 use crate::{
 	configuration, inclusion, initializer, paras,
+	paras::ParaKind,
 	paras_inherent::{self},
 	scheduler, session_info, shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
-use primitives::v1::{
+use primitives::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
 	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
-	HeadData, Id as ParaId, InherentData as ParachainsInherentData, InvalidDisputeStatementKind,
-	PersistedValidationData, SessionIndex, SigningContext, UncheckedSigned,
-	ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex, ValidityAttestation,
+	HeadData, Id as ParaId, IndexedVec, InherentData as ParachainsInherentData,
+	InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext,
+	UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex,
+	ValidityAttestation,
 };
 use sp_core::{sr25519, H256};
 use sp_runtime::{
@@ -35,7 +37,7 @@ use sp_runtime::{
 	traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_map::BTreeMap, convert::TryInto, prelude::Vec, vec};
+use sp_std::{collections::btree_map::BTreeMap, prelude::Vec, vec};
 
 fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
@@ -65,7 +67,7 @@ fn byte32_slice_from(n: u32) -> [u8; 32] {
 /// Paras inherent `enter` benchmark scenario builder.
 pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	/// Active validators. Validators should be declared prior to all other setup.
-	validators: Option<Vec<ValidatorId>>,
+	validators: Option<IndexedVec<ValidatorIndex, ValidatorId>>,
 	/// Starting block number; we expect it to get incremented on session setup.
 	block_number: T::BlockNumber,
 	/// Starting session; we expect it to get incremented on session setup.
@@ -257,7 +259,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		group_idx: GroupIndex,
 		core_idx: CoreIndex,
 		candidate_hash: CandidateHash,
-		availability_votes: BitVec<BitOrderLsb0, u8>,
+		availability_votes: BitVec<u8, BitOrderLsb0>,
 	) -> inclusion::CandidatePendingAvailability<T::Hash, T::BlockNumber> {
 		inclusion::CandidatePendingAvailability::<T::Hash, T::BlockNumber>::new(
 			core_idx,                          // core
@@ -280,7 +282,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		para_id: ParaId,
 		core_idx: CoreIndex,
 		group_idx: GroupIndex,
-		availability_votes: BitVec<BitOrderLsb0, u8>,
+		availability_votes: BitVec<u8, BitOrderLsb0>,
 		candidate_hash: CandidateHash,
 	) {
 		let candidate_availability = Self::candidate_availability_mock(
@@ -304,7 +306,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Create an `AvailabilityBitfield` where `concluding` is a map where each key is a core index
 	/// that is concluding and `cores` is the total number of cores in the system.
 	fn availability_bitvec(concluding: &BTreeMap<u32, u32>, cores: u32) -> AvailabilityBitfield {
-		let mut bitfields = bitvec::bitvec![bitvec::order::Lsb0, u8; 0; 0];
+		let mut bitfields = bitvec::bitvec![u8, bitvec::order::Lsb0; 0; 0];
 		for i in 0..cores {
 			if concluding.get(&(i as u32)).is_some() {
 				bitfields.push(true);
@@ -344,7 +346,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				paras::ParaGenesisArgs {
 					genesis_head: Self::mock_head_data(),
 					validation_code: mock_validation_code(),
-					parachain: true,
+					para_kind: ParaKind::Parachain,
 				},
 			)
 			.unwrap();
@@ -373,9 +375,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	}
 
 	/// Create a bitvec of `validators` length with all yes votes.
-	fn validator_availability_votes_yes(validators: usize) -> BitVec<bitvec::order::Lsb0, u8> {
+	fn validator_availability_votes_yes(validators: usize) -> BitVec<u8, bitvec::order::Lsb0> {
 		// every validator confirms availability.
-		bitvec::bitvec![bitvec::order::Lsb0, u8; 1; validators as usize]
+		bitvec::bitvec![u8, bitvec::order::Lsb0; 1; validators as usize]
 	}
 
 	/// Setup session 1 and create `self.validators_map` and `self.validators`.
@@ -400,17 +402,17 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let block_number = <T as frame_system::Config>::BlockNumber::from(block);
 		let header = Self::header(block_number.clone());
 
+		frame_system::Pallet::<T>::reset_events();
 		frame_system::Pallet::<T>::initialize(
 			&header.number(),
 			&header.hash(),
 			&Digest { logs: Vec::new() },
-			Default::default(),
 		);
 
 		assert_eq!(<shared::Pallet<T>>::session_index(), target_session);
 
 		// We need to refetch validators since they have been shuffled.
-		let validators_shuffled: Vec<_> = session_info::Pallet::<T>::session_info(target_session)
+		let validators_shuffled = session_info::Pallet::<T>::session_info(target_session)
 			.unwrap()
 			.validators
 			.clone();
@@ -549,7 +551,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					.iter()
 					.take(*num_votes as usize)
 					.map(|val_idx| {
-						let public = validators.get(val_idx.0 as usize).unwrap();
+						let public = validators.get(*val_idx).unwrap();
 						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
 							public,
 							CompactStatement::Valid(candidate_hash.clone()),
@@ -565,7 +567,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 				BackedCandidate::<T::Hash> {
 					candidate,
 					validity_votes,
-					validator_indices: bitvec::bitvec![bitvec::order::Lsb0, u8; 1; group_validators.len()],
+					validator_indices: bitvec::bitvec![u8, bitvec::order::Lsb0; 1; group_validators.len()],
 				}
 			})
 			.collect()
@@ -573,7 +575,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Fill cores `start..last` with dispute statement sets. The statement sets will have 3/4th of
 	/// votes be valid, and 1/4th of votes be invalid.
-	fn create_disputes_with_no_spam(
+	fn create_disputes(
 		&self,
 		start: u32,
 		last: u32,
@@ -606,7 +608,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 					self.dispute_statements.get(&seed).cloned().unwrap_or(validators.len() as u32);
 				let statements = (0..statements_len)
 					.map(|validator_index| {
-						let validator_public = &validators.get(validator_index as usize).unwrap();
+						let validator_public = &validators.get(ValidatorIndex::from(validator_index)).expect("Test case is not borked. `ValidatorIndex` out of bounds of `ValidatorId`s.");
 
 						// We need dispute statements on each side. And we don't want a revert log
 						// so we make sure that we have a super majority with valid statements.
@@ -638,7 +640,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	pub(crate) fn build(self) -> Bench<T> {
 		// Make sure relevant storage is cleared. This is just to get the asserts to work when
 		// running tests because it seems the storage is not cleared in between.
+		#[allow(deprecated)]
 		inclusion::PendingAvailabilityCommitments::<T>::remove_all(None);
+		#[allow(deprecated)]
 		inclusion::PendingAvailability::<T>::remove_all(None);
 
 		// We don't allow a core to have both disputes and be marked fully available at this block.
@@ -660,7 +664,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let backed_candidates = builder
 			.create_backed_candidates(&builder.backed_and_concluding_cores, builder.code_upgrade);
 
-		let disputes = builder.create_disputes_with_no_spam(
+		let disputes = builder.create_disputes(
 			builder.backed_and_concluding_cores.len() as u32,
 			used_cores,
 			builder.dispute_sessions.as_slice(),

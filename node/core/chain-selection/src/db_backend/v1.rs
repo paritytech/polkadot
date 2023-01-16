@@ -38,10 +38,10 @@ use crate::{
 };
 
 use polkadot_node_primitives::BlockWeight;
-use polkadot_primitives::v1::{BlockNumber, Hash};
+use polkadot_primitives::{BlockNumber, Hash};
 
-use kvdb::{DBTransaction, KeyValueDB};
 use parity_scale_codec::{Decode, Encode};
+use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 
 use std::sync::Arc;
 
@@ -194,14 +194,14 @@ pub struct Config {
 
 /// The database backend.
 pub struct DbBackend {
-	inner: Arc<dyn KeyValueDB>,
+	inner: Arc<dyn Database>,
 	config: Config,
 }
 
 impl DbBackend {
 	/// Create a new [`DbBackend`] with the supplied key-value store and
 	/// config.
-	pub fn new(db: Arc<dyn KeyValueDB>, config: Config) -> Self {
+	pub fn new(db: Arc<dyn Database>, config: Config) -> Self {
 		DbBackend { inner: db, config }
 	}
 }
@@ -229,19 +229,27 @@ impl Backend for DbBackend {
 	fn load_stagnant_at_up_to(
 		&self,
 		up_to: crate::Timestamp,
+		max_elements: usize,
 	) -> Result<Vec<(crate::Timestamp, Vec<Hash>)>, Error> {
 		let stagnant_at_iter =
 			self.inner.iter_with_prefix(self.config.col_data, &STAGNANT_AT_PREFIX[..]);
 
 		let val = stagnant_at_iter
-			.filter_map(|(k, v)| {
-				match (decode_stagnant_at_key(&mut &k[..]), <Vec<_>>::decode(&mut &v[..]).ok()) {
-					(Some(at), Some(stagnant_at)) => Some((at, stagnant_at)),
-					_ => None,
-				}
+			.filter_map(|r| match r {
+				Ok((k, v)) =>
+					match (decode_stagnant_at_key(&mut &k[..]), <Vec<_>>::decode(&mut &v[..]).ok())
+					{
+						(Some(at), Some(stagnant_at)) => Some(Ok((at, stagnant_at))),
+						_ => None,
+					},
+				Err(e) => Some(Err(e)),
 			})
-			.take_while(|(at, _)| *at <= up_to.into())
-			.collect::<Vec<_>>();
+			.enumerate()
+			.take_while(|(idx, r)| {
+				r.as_ref().map_or(true, |(at, _)| *at <= up_to.into() && *idx < max_elements)
+			})
+			.map(|(_, v)| v)
+			.collect::<Result<Vec<_>, _>>()?;
 
 		Ok(val)
 	}
@@ -251,10 +259,13 @@ impl Backend for DbBackend {
 			self.inner.iter_with_prefix(self.config.col_data, &BLOCK_HEIGHT_PREFIX[..]);
 
 		let val = blocks_at_height_iter
-			.filter_map(|(k, _)| decode_block_height_key(&k[..]))
+			.filter_map(|r| match r {
+				Ok((k, _)) => decode_block_height_key(&k[..]).map(Ok),
+				Err(e) => Some(Err(e)),
+			})
 			.next();
 
-		Ok(val)
+		val.transpose().map_err(Error::from)
 	}
 
 	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error> {
@@ -326,7 +337,7 @@ impl Backend for DbBackend {
 }
 
 fn load_decode<D: Decode>(
-	db: &dyn KeyValueDB,
+	db: &dyn Database,
 	col_data: u32,
 	key: &[u8],
 ) -> Result<Option<D>, Error> {
@@ -387,6 +398,13 @@ fn decode_stagnant_at_key(key: &[u8]) -> Option<Timestamp> {
 mod tests {
 	use super::*;
 
+	#[cfg(test)]
+	fn test_db() -> Arc<dyn Database> {
+		let db = kvdb_memorydb::create(1);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[0]);
+		Arc::new(db)
+	}
+
 	#[test]
 	fn block_height_key_decodes() {
 		let key = block_height_key(5);
@@ -425,7 +443,7 @@ mod tests {
 
 	#[test]
 	fn write_read_block_entry() {
-		let db = Arc::new(kvdb_memorydb::create(1));
+		let db = test_db();
 		let config = Config { col_data: 0 };
 
 		let mut backend = DbBackend::new(db, config);
@@ -455,7 +473,7 @@ mod tests {
 
 	#[test]
 	fn delete_block_entry() {
-		let db = Arc::new(kvdb_memorydb::create(1));
+		let db = test_db();
 		let config = Config { col_data: 0 };
 
 		let mut backend = DbBackend::new(db, config);
@@ -486,7 +504,7 @@ mod tests {
 
 	#[test]
 	fn earliest_block_number() {
-		let db = Arc::new(kvdb_memorydb::create(1));
+		let db = test_db();
 		let config = Config { col_data: 0 };
 
 		let mut backend = DbBackend::new(db, config);
@@ -515,13 +533,16 @@ mod tests {
 
 	#[test]
 	fn stagnant_at_up_to() {
-		let db = Arc::new(kvdb_memorydb::create(1));
+		let db = test_db();
 		let config = Config { col_data: 0 };
 
 		let mut backend = DbBackend::new(db, config);
 
 		// Prove that it's cheap
-		assert!(backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap().is_empty());
+		assert!(backend
+			.load_stagnant_at_up_to(Timestamp::max_value(), usize::MAX)
+			.unwrap()
+			.is_empty());
 
 		backend
 			.write(vec![
@@ -532,7 +553,7 @@ mod tests {
 			.unwrap();
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(Timestamp::max_value()).unwrap(),
+			backend.load_stagnant_at_up_to(Timestamp::max_value(), usize::MAX).unwrap(),
 			vec![
 				(2, vec![Hash::repeat_byte(1)]),
 				(5, vec![Hash::repeat_byte(2)]),
@@ -541,7 +562,7 @@ mod tests {
 		);
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(10).unwrap(),
+			backend.load_stagnant_at_up_to(10, usize::MAX).unwrap(),
 			vec![
 				(2, vec![Hash::repeat_byte(1)]),
 				(5, vec![Hash::repeat_byte(2)]),
@@ -550,28 +571,33 @@ mod tests {
 		);
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(9).unwrap(),
+			backend.load_stagnant_at_up_to(9, usize::MAX).unwrap(),
 			vec![(2, vec![Hash::repeat_byte(1)]), (5, vec![Hash::repeat_byte(2)]),]
+		);
+
+		assert_eq!(
+			backend.load_stagnant_at_up_to(9, 1).unwrap(),
+			vec![(2, vec![Hash::repeat_byte(1)]),]
 		);
 
 		backend.write(vec![BackendWriteOp::DeleteStagnantAt(2)]).unwrap();
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(5).unwrap(),
+			backend.load_stagnant_at_up_to(5, usize::MAX).unwrap(),
 			vec![(5, vec![Hash::repeat_byte(2)]),]
 		);
 
 		backend.write(vec![BackendWriteOp::WriteStagnantAt(5, vec![])]).unwrap();
 
 		assert_eq!(
-			backend.load_stagnant_at_up_to(10).unwrap(),
+			backend.load_stagnant_at_up_to(10, usize::MAX).unwrap(),
 			vec![(10, vec![Hash::repeat_byte(3)]),]
 		);
 	}
 
 	#[test]
 	fn write_read_blocks_at_height() {
-		let db = Arc::new(kvdb_memorydb::create(1));
+		let db = test_db();
 		let config = Config { col_data: 0 };
 
 		let mut backend = DbBackend::new(db, config);

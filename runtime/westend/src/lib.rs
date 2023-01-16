@@ -14,69 +14,51 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The Polkadot runtime. This can be compiled with `#[no_std]`, ready for Wasm.
+//! The Westend runtime. This can be compiled with `#[no_std]`, ready for Wasm.
 
 #![cfg_attr(not(feature = "std"), no_std)]
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
-use pallet_transaction_payment::CurrencyAdapter;
-use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
-use primitives::{
-	v1::{
-		AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-		CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-		InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
-		ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash, ValidatorId,
-		ValidatorIndex,
-	},
-	v2::SessionInfo,
-};
-use runtime_common::{
-	assigned_slots, auctions, crowdloan, impls::ToAuthor, paras_registrar, paras_sudo_wrapper,
-	slots, xcm_sender, BlockHashCount, BlockLength, BlockWeights, CurrencyToVote,
-	OffchainSolutionLengthLimit, OffchainSolutionWeightLimit, RocksDbWeight,
-	SlowAdjustingFeeUpdate,
-};
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
-
-use runtime_parachains::{
-	configuration as parachains_configuration, dmp as parachains_dmp, hrmp as parachains_hrmp,
-	inclusion as parachains_inclusion, initializer as parachains_initializer,
-	origin as parachains_origin, paras as parachains_paras,
-	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v1 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
-};
-
-use xcm::latest::prelude::*;
-use xcm_builder::{
-	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
-	AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom, ChildParachainAsNative,
-	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
-	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, LocationInverter,
-	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	UsingComponents, WeightInfoBounds,
-};
-use xcm_executor::XcmExecutor;
-
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::AuthorityId as BeefyId;
+use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{
-		Contains, Everything, InstanceFilter, KeyOwnerProofSystem, Nothing, OnRuntimeUpgrade,
-	},
-	weights::Weight,
-	PalletId, RuntimeDebug,
+	traits::{ConstU32, InstanceFilter, KeyOwnerProofSystem, WithdrawReasons},
+	weights::ConstantMultiplier,
+	PalletId,
 };
 use frame_system::EnsureRoot;
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
-use pallet_mmr_primitives as mmr;
 use pallet_session::historical as session_historical;
-use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
-use sp_core::OpaqueMetadata;
+use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
+use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use primitives::{
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionInfo, Signature,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+};
+use runtime_common::{
+	assigned_slots, auctions, crowdloan, elections::OnChainAccuracy, impl_runtime_weights,
+	impls::ToAuthor, paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BalanceToU256,
+	BlockHashCount, BlockLength, CurrencyToVote, SlowAdjustingFeeUpdate, U256ToBalance,
+};
+use runtime_parachains::{
+	configuration as parachains_configuration, disputes as parachains_disputes,
+	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
+	inclusion as parachains_inclusion, initializer as parachains_initializer,
+	origin as parachains_origin, paras as parachains_paras,
+	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
+	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+};
+use scale_info::TypeInfo;
+use sp_core::{OpaqueMetadata, RuntimeDebug};
+use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str,
 	curve::PiecewiseLinear,
@@ -86,50 +68,55 @@ use sp_runtime::{
 		OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId, Perbill,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill,
 };
 use sp_staking::SessionIndex;
+use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 #[cfg(any(feature = "std", test))]
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 
+pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 pub use pallet_election_provider_multi_phase::Call as EPMCall;
 #[cfg(feature = "std")]
 pub use pallet_staking::StakerStatus;
+use pallet_staking::UseValidatorsMap;
 pub use pallet_timestamp::Call as TimestampCall;
+use sp_runtime::traits::Get;
 #[cfg(any(feature = "std", test))]
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
 use westend_runtime_constants::{currency::*, fee::*, time::*};
 
-// Weights used in the runtime
-mod weights;
-
-// Voter bag threshold definitions.
 mod bag_thresholds;
+mod weights;
+pub mod xcm_config;
 
 #[cfg(test)]
 mod tests;
+
+impl_runtime_weights!(westend_runtime_constants);
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
 include!(concat!(env!("OUT_DIR"), "/wasm_binary.rs"));
 
 /// Runtime version (Westend).
+#[sp_version::runtime_version]
 pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("westend"),
 	impl_name: create_runtime_str!("parity-westend"),
 	authoring_version: 2,
-	spec_version: 9140,
+	spec_version: 9330,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
-	apis: version::create_apis_vec![[]],
-	transaction_version: 8,
-	state_version: 0,
+	apis: sp_version::create_apis_vec![[]],
+	transaction_version: 15,
+	state_version: 1,
 };
 
 /// The BABE epoch configuration at genesis.
@@ -145,25 +132,17 @@ pub fn native_version() -> NativeVersion {
 	NativeVersion { runtime_version: VERSION, can_author_with: Default::default() }
 }
 
-/// Allow everything.
-pub struct BaseFilter;
-impl Contains<Call> for BaseFilter {
-	fn contains(_: &Call) -> bool {
-		true
-	}
-}
-
 parameter_types! {
 	pub const Version: RuntimeVersion = VERSION;
 	pub const SS58Prefix: u8 = 42;
 }
 
 impl frame_system::Config for Runtime {
-	type BaseCallFilter = BaseFilter;
+	type BaseCallFilter = frame_support::traits::Everything;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = Nonce;
 	type BlockNumber = BlockNumber;
 	type Hash = Hash;
@@ -171,7 +150,7 @@ impl frame_system::Config for Runtime {
 	type AccountId = AccountId;
 	type Lookup = AccountIdLookup<AccountId, ()>;
 	type Header = generic::Header<BlockNumber, BlakeTwo256>;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type DbWeight = RocksDbWeight;
 	type Version = Version;
@@ -186,24 +165,23 @@ impl frame_system::Config for Runtime {
 }
 
 parameter_types! {
-	pub MaximumSchedulerWeight: Weight = Perbill::from_percent(80) *
+	pub MaximumSchedulerWeight: frame_support::weights::Weight = Perbill::from_percent(80) *
 		BlockWeights::get().max_block;
 	pub const MaxScheduledPerBlock: u32 = 50;
 	pub const NoPreimagePostponement: Option<u32> = Some(10);
 }
 
 impl pallet_scheduler::Config for Runtime {
-	type Event = Event;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeEvent = RuntimeEvent;
 	type PalletsOrigin = OriginCaller;
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type MaximumWeight = MaximumSchedulerWeight;
 	type ScheduleOrigin = EnsureRoot<AccountId>;
 	type MaxScheduledPerBlock = MaxScheduledPerBlock;
 	type WeightInfo = weights::pallet_scheduler::WeightInfo<Runtime>;
 	type OriginPrivilegeCmp = frame_support::traits::EqualPrivilegeOnly;
-	type PreimageProvider = Preimage;
-	type NoPreimagePostponement = NoPreimagePostponement;
+	type Preimages = Preimage;
 }
 
 parameter_types! {
@@ -214,16 +192,18 @@ parameter_types! {
 
 impl pallet_preimage::Config for Runtime {
 	type WeightInfo = weights::pallet_preimage::WeightInfo<Runtime>;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type ManagerOrigin = EnsureRoot<AccountId>;
-	type MaxSize = PreimageMaxSize;
 	type BaseDeposit = PreimageBaseDeposit;
 	type ByteDeposit = PreimageByteDeposit;
 }
 
 parameter_types! {
-	pub const EpochDuration: u64 = EPOCH_DURATION_IN_SLOTS as u64;
+	pub const EpochDuration: u64 = prod_or_fast!(
+		EPOCH_DURATION_IN_SLOTS as u64,
+		2 * MINUTES as u64
+	);
 	pub const ExpectedBlockTime: Moment = MILLISECS_PER_BLOCK;
 	pub const ReportLongevity: u64 =
 		BondingDuration::get() as u64 * SessionsPerEra::get() as u64 * EpochDuration::get();
@@ -266,7 +246,7 @@ impl pallet_indices::Config for Runtime {
 	type AccountIndex = AccountIndex;
 	type Currency = Balances;
 	type Deposit = IndexDeposit;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = weights::pallet_indices::WeightInfo<Runtime>;
 }
 
@@ -279,7 +259,7 @@ parameter_types! {
 impl pallet_balances::Config for Runtime {
 	type Balance = Balance;
 	type DustRemoval = ();
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type MaxLocks = MaxLocks;
@@ -296,10 +276,11 @@ parameter_types! {
 }
 
 impl pallet_transaction_payment::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
 	type OnChargeTransaction = CurrencyAdapter<Balances, ToAuthor<Runtime>>;
-	type TransactionByteFee = TransactionByteFee;
 	type OperationalFeeMultiplier = OperationalFeeMultiplier;
 	type WeightToFee = WeightToFee;
+	type LengthToFee = ConstantMultiplier<Balance, TransactionByteFee>;
 	type FeeMultiplierUpdate = SlowAdjustingFeeUpdate<Self>;
 }
 
@@ -341,7 +322,7 @@ impl_opaque_keys! {
 }
 
 impl pallet_session::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ValidatorId = AccountId;
 	type ValidatorIdOf = pallet_staking::StashOf<Self>;
 	type ShouldEndSession = Babe;
@@ -359,77 +340,136 @@ impl pallet_session::historical::Config for Runtime {
 
 parameter_types! {
 	// phase durations. 1/4 of the last session for each.
-	pub const SignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
-	pub const UnsignedPhase: u32 = EPOCH_DURATION_IN_SLOTS / 4;
+	pub SignedPhase: u32 = prod_or_fast!(
+		EPOCH_DURATION_IN_SLOTS / 4,
+		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2)
+	);
+	pub UnsignedPhase: u32 = prod_or_fast!(
+		EPOCH_DURATION_IN_SLOTS / 4,
+		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2)
+	);
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 128;
+	pub const SignedMaxRefunds: u32 = 128 / 4;
 	pub const SignedDepositBase: Balance = deposit(2, 0);
 	pub const SignedDepositByte: Balance = deposit(0, 10) / 1024;
 	// Each good submission will get 1 WND as reward
 	pub SignedRewardBase: Balance = 1 * UNITS;
-	pub SolutionImprovementThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
+	pub BetterUnsignedThreshold: Perbill = Perbill::from_rational(5u32, 10_000);
 
 	// 1 hour session, 15 minutes unsigned phase, 4 offchain executions.
 	pub OffchainRepeat: BlockNumber = UnsignedPhase::get() / 4;
 
-	/// Whilst `UseNominatorsAndUpdateBagsList` or `UseNominatorsMap` is in use, this can still be a
-	/// very large value. Once the `BagsList` is in full motion, staking might open its door to many
-	/// more nominators, and this value should instead be what is a "safe" number (e.g. 22500).
-	pub const VoterSnapshotPerBlock: u32 = 22_500;
+	/// We take the top 22500 nominators as electing voters..
+	pub const MaxElectingVoters: u32 = 22_500;
+	/// ... and all of the validators as electable targets. Whilst this is the case, we cannot and
+	/// shall not increase the size of the validator intentions.
+	pub const MaxElectableTargets: u16 = u16::MAX;
+	// Maximum winners that can be chosen as active validators
+	pub const MaxActiveValidators: u32 = 1000;
+
 }
 
-sp_npos_elections::generate_solution_type!(
+frame_election_provider_support::generate_solution_type!(
 	#[compact]
 	pub struct NposCompactSolution16::<
 		VoterIndex = u32,
 		TargetIndex = u16,
 		Accuracy = sp_runtime::PerU16,
+		MaxVoters = MaxElectingVoters,
 	>(16)
 );
 
+pub struct OnChainSeqPhragmen;
+impl onchain::Config for OnChainSeqPhragmen {
+	type System = Runtime;
+	type Solver = SequentialPhragmen<AccountId, OnChainAccuracy>;
+	type DataProvider = Staking;
+	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
+	type MaxWinners = MaxActiveValidators;
+	type VotersBound = MaxElectingVoters;
+	type TargetsBound = MaxElectableTargets;
+}
+
+impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
+	type AccountId = AccountId;
+	type MaxLength = OffchainSolutionLengthLimit;
+	type MaxWeight = OffchainSolutionWeightLimit;
+	type Solution = NposCompactSolution16;
+	type MaxVotesPerVoter = <
+		<Self as pallet_election_provider_multi_phase::Config>::DataProvider
+		as
+		frame_election_provider_support::ElectionDataProvider
+	>::MaxVotesPerVoter;
+
+	// The unsigned submissions have to respect the weight of the submit_unsigned call, thus their
+	// weight estimate function is wired to this call's weight.
+	fn solution_weight(v: u32, t: u32, a: u32, d: u32) -> Weight {
+		<
+			<Self as pallet_election_provider_multi_phase::Config>::WeightInfo
+			as
+			pallet_election_provider_multi_phase::WeightInfo
+		>::submit_unsigned(v, t, a, d)
+	}
+}
+
 impl pallet_election_provider_multi_phase::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type EstimateCallFee = TransactionPayment;
 	type SignedPhase = SignedPhase;
 	type UnsignedPhase = UnsignedPhase;
 	type SignedMaxSubmissions = SignedMaxSubmissions;
+	type SignedMaxRefunds = SignedMaxRefunds;
 	type SignedRewardBase = SignedRewardBase;
 	type SignedDepositBase = SignedDepositBase;
 	type SignedDepositByte = SignedDepositByte;
 	type SignedDepositWeight = ();
-	type SignedMaxWeight = Self::MinerMaxWeight;
+	type SignedMaxWeight =
+		<Self::MinerConfig as pallet_election_provider_multi_phase::MinerConfig>::MaxWeight;
+	type MinerConfig = Self;
 	type SlashHandler = (); // burn slashes
 	type RewardHandler = (); // nothing to do upon rewards
-	type SolutionImprovementThreshold = SolutionImprovementThreshold;
-	type MinerMaxWeight = OffchainSolutionWeightLimit; // For now use the one from staking.
-	type MinerMaxLength = OffchainSolutionLengthLimit;
+	type BetterUnsignedThreshold = BetterUnsignedThreshold;
+	type BetterSignedThreshold = ();
 	type OffchainRepeat = OffchainRepeat;
 	type MinerTxPriority = NposSolutionPriority;
 	type DataProvider = Staking;
-	type Solution = NposCompactSolution16;
-	type Fallback = pallet_election_provider_multi_phase::NoFallback<Self>;
-	type Solver = frame_election_provider_support::SequentialPhragmen<
+	#[cfg(any(feature = "fast-runtime", feature = "runtime-benchmarks"))]
+	type Fallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
+	#[cfg(not(any(feature = "fast-runtime", feature = "runtime-benchmarks")))]
+	type Fallback = frame_election_provider_support::NoElection<(
+		AccountId,
+		BlockNumber,
+		Staking,
+		MaxActiveValidators,
+	)>;
+	type GovernanceFallback = onchain::OnChainExecution<OnChainSeqPhragmen>;
+	type Solver = SequentialPhragmen<
 		AccountId,
 		pallet_election_provider_multi_phase::SolutionAccuracyOf<Self>,
-		runtime_common::elections::OffchainRandomBalancing,
+		(),
 	>;
 	type BenchmarkingConfig = runtime_common::elections::BenchmarkConfig;
 	type ForceOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_election_provider_multi_phase::WeightInfo<Self>;
-	type VoterSnapshotPerBlock = VoterSnapshotPerBlock;
+	type MaxElectingVoters = MaxElectingVoters;
+	type MaxElectableTargets = MaxElectableTargets;
+	type MaxWinners = MaxActiveValidators;
 }
 
 parameter_types! {
 	pub const BagThresholds: &'static [u64] = &bag_thresholds::THRESHOLDS;
 }
 
-impl pallet_bags_list::Config for Runtime {
-	type Event = Event;
-	type VoteWeightProvider = Staking;
+type VoterBagsListInstance = pallet_bags_list::Instance1;
+impl pallet_bags_list::Config<VoterBagsListInstance> for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type ScoreProvider = Staking;
 	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
 	type BagThresholds = BagThresholds;
+	type Score = sp_npos_elections::VoteWeight;
 }
 
 pallet_staking_reward_curve::build! {
@@ -445,61 +485,63 @@ pallet_staking_reward_curve::build! {
 
 parameter_types! {
 	// Six sessions in an era (6 hours).
-	pub const SessionsPerEra: SessionIndex = 6;
-	// 28 eras for unbonding (7 days).
-	pub const BondingDuration: pallet_staking::EraIndex = 28;
-	// 27 eras in which slashes can be cancelled (slightly less than 7 days).
-	pub const SlashDeferDuration: pallet_staking::EraIndex = 27;
+	pub const SessionsPerEra: SessionIndex = prod_or_fast!(6, 1);
+	// 2 eras for unbonding (12 hours).
+	pub const BondingDuration: sp_staking::EraIndex = 2;
+	// 1 era in which slashes can be cancelled (6 hours).
+	pub const SlashDeferDuration: sp_staking::EraIndex = 1;
 	pub const RewardCurve: &'static PiecewiseLinear<'static> = &REWARD_CURVE;
 	pub const MaxNominatorRewardedPerValidator: u32 = 64;
 	pub const OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
-}
-
-impl frame_election_provider_support::onchain::Config for Runtime {
-	type Accuracy = runtime_common::elections::OnOnChainAccuracy;
-	type DataProvider = Staking;
+	pub const MaxNominations: u32 = <NposCompactSolution16 as frame_election_provider_support::NposSolution>::LIMIT as u32;
 }
 
 impl pallet_staking::Config for Runtime {
-	const MAX_NOMINATIONS: u32 =
-		<NposCompactSolution16 as sp_npos_elections::NposSolution>::LIMIT as u32;
+	type MaxNominations = MaxNominations;
 	type Currency = Balances;
+	type CurrencyBalance = Balance;
 	type UnixTime = Timestamp;
 	type CurrencyToVote = CurrencyToVote;
 	type RewardRemainder = ();
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Slash = ();
 	type Reward = ();
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	// A majority of the council can cancel the slash.
-	type SlashCancelOrigin = EnsureRoot<AccountId>;
+	type AdminOrigin = EnsureRoot<AccountId>;
 	type SessionInterface = Self;
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
-	type GenesisElectionProvider = runtime_common::elections::GenesisElectionOf<Self>;
-	type SortedListProvider = BagsList;
+	type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
+	type VoterList = VoterList;
+	type TargetList = UseValidatorsMap<Self>;
+	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
+	type HistoryDepth = frame_support::traits::ConstU32<84>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
+	type OnStakerSlash = NominationPools;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
 }
 
+impl pallet_fast_unstake::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type BatchSize = frame_support::traits::ConstU32<64>;
+	type Deposit = frame_support::traits::ConstU128<{ UNITS }>;
+	type ControlOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = weights::pallet_fast_unstake::WeightInfo<Runtime>;
+	type Staking = Staking;
+}
+
 parameter_types! {
-	pub const LaunchPeriod: BlockNumber = 7 * DAYS;
-	pub const VotingPeriod: BlockNumber = 7 * DAYS;
-	pub const FastTrackVotingPeriod: BlockNumber = 3 * HOURS;
-	pub const MinimumDeposit: Balance = 100 * CENTS;
-	pub const EnactmentPeriod: BlockNumber = 8 * DAYS;
-	pub const CooloffPeriod: BlockNumber = 7 * DAYS;
-	pub const InstantAllowed: bool = true;
 	pub const MaxAuthorities: u32 = 100_000;
 }
 
 impl pallet_offences::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type IdentificationTuple = pallet_session::historical::IdentificationTuple<Self>;
 	type OnOffenceHandler = Staking;
 }
@@ -518,7 +560,7 @@ parameter_types! {
 
 impl pallet_im_online::Config for Runtime {
 	type AuthorityId = ImOnlineId;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ValidatorSet = Historical;
 	type NextSessionRotation = Babe;
 	type ReportUnresponsiveness = Offences;
@@ -530,8 +572,7 @@ impl pallet_im_online::Config for Runtime {
 }
 
 impl pallet_grandpa::Config for Runtime {
-	type Event = Event;
-	type Call = Call;
+	type RuntimeEvent = RuntimeEvent;
 
 	type KeyOwnerProofSystem = Historical;
 
@@ -557,14 +598,14 @@ impl pallet_grandpa::Config for Runtime {
 /// format of the chain.
 impl<LocalCall> frame_system::offchain::CreateSignedTransaction<LocalCall> for Runtime
 where
-	Call: From<LocalCall>,
+	RuntimeCall: From<LocalCall>,
 {
 	fn create_transaction<C: frame_system::offchain::AppCrypto<Self::Public, Self::Signature>>(
-		call: Call,
+		call: RuntimeCall,
 		public: <Signature as Verify>::Signer,
 		account: AccountId,
 		nonce: <Runtime as frame_system::Config>::Index,
-	) -> Option<(Call, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
+	) -> Option<(RuntimeCall, <UncheckedExtrinsic as ExtrinsicT>::SignaturePayload)> {
 		use sp_runtime::traits::StaticLookup;
 		// take the biggest period possible.
 		let period =
@@ -608,9 +649,9 @@ impl frame_system::offchain::SigningTypes for Runtime {
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Runtime
 where
-	Call: From<C>,
+	RuntimeCall: From<C>,
 {
-	type OverarchingCall = Call;
+	type OverarchingCall = RuntimeCall;
 	type Extrinsic = UncheckedExtrinsic;
 }
 
@@ -625,7 +666,7 @@ parameter_types! {
 }
 
 impl pallet_identity::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type Slashed = ();
 	type BasicDeposit = BasicDeposit;
@@ -640,8 +681,8 @@ impl pallet_identity::Config for Runtime {
 }
 
 impl pallet_utility::Config for Runtime {
-	type Event = Event;
-	type Call = Call;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
 	type PalletsOrigin = OriginCaller;
 	type WeightInfo = weights::pallet_utility::WeightInfo<Runtime>;
 }
@@ -651,12 +692,12 @@ parameter_types! {
 	pub const DepositBase: Balance = deposit(1, 88);
 	// Additional storage item size of 32 bytes.
 	pub const DepositFactor: Balance = deposit(0, 32);
-	pub const MaxSignatories: u16 = 100;
+	pub const MaxSignatories: u32 = 100;
 }
 
 impl pallet_multisig::Config for Runtime {
-	type Event = Event;
-	type Call = Call;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
 	type Currency = Balances;
 	type DepositBase = DepositBase;
 	type DepositFactor = DepositFactor;
@@ -672,8 +713,9 @@ parameter_types! {
 }
 
 impl pallet_recovery::Config for Runtime {
-	type Event = Event;
-	type Call = Call;
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = ();
+	type RuntimeCall = RuntimeCall;
 	type Currency = Balances;
 	type ConfigDepositBase = ConfigDepositBase;
 	type FriendDepositFactor = FriendDepositFactor;
@@ -683,20 +725,23 @@ impl pallet_recovery::Config for Runtime {
 
 parameter_types! {
 	pub const MinVestedTransfer: Balance = 100 * CENTS;
+	pub UnvestedFundsAllowedWithdrawReasons: WithdrawReasons =
+		WithdrawReasons::except(WithdrawReasons::TRANSFER | WithdrawReasons::RESERVE);
 }
 
 impl pallet_vesting::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type BlockNumberToBalance = ConvertInto;
 	type MinVestedTransfer = MinVestedTransfer;
 	type WeightInfo = weights::pallet_vesting::WeightInfo<Runtime>;
+	type UnvestedFundsAllowedWithdrawReasons = UnvestedFundsAllowedWithdrawReasons;
 	const MAX_VESTING_SCHEDULES: u32 = 28;
 }
 
 impl pallet_sudo::Config for Runtime {
-	type Event = Event;
-	type Call = Call;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
 }
 
 parameter_types! {
@@ -722,7 +767,7 @@ parameter_types! {
 	Decode,
 	RuntimeDebug,
 	MaxEncodedLen,
-	scale_info::TypeInfo,
+	TypeInfo,
 )]
 pub enum ProxyType {
 	Any,
@@ -738,70 +783,81 @@ impl Default for ProxyType {
 		Self::Any
 	}
 }
-impl InstanceFilter<Call> for ProxyType {
-	fn filter(&self, c: &Call) -> bool {
+impl InstanceFilter<RuntimeCall> for ProxyType {
+	fn filter(&self, c: &RuntimeCall) -> bool {
 		match self {
 			ProxyType::Any => true,
 			ProxyType::NonTransfer => matches!(
 				c,
-				Call::System(..) |
-				Call::Babe(..) |
-				Call::Timestamp(..) |
-				Call::Indices(pallet_indices::Call::claim{..}) |
-				Call::Indices(pallet_indices::Call::free{..}) |
-				Call::Indices(pallet_indices::Call::freeze{..}) |
+				RuntimeCall::System(..) |
+				RuntimeCall::Babe(..) |
+				RuntimeCall::Timestamp(..) |
+				RuntimeCall::Indices(pallet_indices::Call::claim{..}) |
+				RuntimeCall::Indices(pallet_indices::Call::free{..}) |
+				RuntimeCall::Indices(pallet_indices::Call::freeze{..}) |
 				// Specifically omitting Indices `transfer`, `force_transfer`
 				// Specifically omitting the entire Balances pallet
-				Call::Authorship(..) |
-				Call::Staking(..) |
-				Call::Session(..) |
-				Call::Grandpa(..) |
-				Call::ImOnline(..) |
-				Call::Utility(..) |
-				Call::Identity(..) |
-				Call::Recovery(pallet_recovery::Call::as_recovered{..}) |
-				Call::Recovery(pallet_recovery::Call::vouch_recovery{..}) |
-				Call::Recovery(pallet_recovery::Call::claim_recovery{..}) |
-				Call::Recovery(pallet_recovery::Call::close_recovery{..}) |
-				Call::Recovery(pallet_recovery::Call::remove_recovery{..}) |
-				Call::Recovery(pallet_recovery::Call::cancel_recovered{..}) |
+				RuntimeCall::Authorship(..) |
+				RuntimeCall::Staking(..) |
+				RuntimeCall::Session(..) |
+				RuntimeCall::Grandpa(..) |
+				RuntimeCall::ImOnline(..) |
+				RuntimeCall::Utility(..) |
+				RuntimeCall::Identity(..) |
+				RuntimeCall::Recovery(pallet_recovery::Call::as_recovered{..}) |
+				RuntimeCall::Recovery(pallet_recovery::Call::vouch_recovery{..}) |
+				RuntimeCall::Recovery(pallet_recovery::Call::claim_recovery{..}) |
+				RuntimeCall::Recovery(pallet_recovery::Call::close_recovery{..}) |
+				RuntimeCall::Recovery(pallet_recovery::Call::remove_recovery{..}) |
+				RuntimeCall::Recovery(pallet_recovery::Call::cancel_recovered{..}) |
 				// Specifically omitting Recovery `create_recovery`, `initiate_recovery`
-				Call::Vesting(pallet_vesting::Call::vest{..}) |
-				Call::Vesting(pallet_vesting::Call::vest_other{..}) |
+				RuntimeCall::Vesting(pallet_vesting::Call::vest{..}) |
+				RuntimeCall::Vesting(pallet_vesting::Call::vest_other{..}) |
 				// Specifically omitting Vesting `vested_transfer`, and `force_vested_transfer`
-				Call::Scheduler(..) |
+				RuntimeCall::Scheduler(..) |
 				// Specifically omitting Sudo pallet
-				Call::Proxy(..) |
-				Call::Multisig(..) |
-				Call::Registrar(paras_registrar::Call::register{..}) |
-				Call::Registrar(paras_registrar::Call::deregister{..}) |
+				RuntimeCall::Proxy(..) |
+				RuntimeCall::Multisig(..) |
+				RuntimeCall::Registrar(paras_registrar::Call::register{..}) |
+				RuntimeCall::Registrar(paras_registrar::Call::deregister{..}) |
 				// Specifically omitting Registrar `swap`
-				Call::Registrar(paras_registrar::Call::reserve{..}) |
-				Call::Crowdloan(..) |
-				Call::Slots(..) |
-				Call::Auctions(..) | // Specifically omitting the entire XCM Pallet
-				Call::BagsList(..)
+				RuntimeCall::Registrar(paras_registrar::Call::reserve{..}) |
+				RuntimeCall::Crowdloan(..) |
+				RuntimeCall::Slots(..) |
+				RuntimeCall::Auctions(..) | // Specifically omitting the entire XCM Pallet
+				RuntimeCall::VoterList(..) |
+				RuntimeCall::NominationPools(..) |
+				RuntimeCall::FastUnstake(..)
 			),
 			ProxyType::Staking => {
-				matches!(c, Call::Staking(..) | Call::Session(..) | Call::Utility(..))
+				matches!(
+					c,
+					RuntimeCall::Staking(..) |
+						RuntimeCall::Session(..) | RuntimeCall::Utility(..) |
+						RuntimeCall::FastUnstake(..)
+				)
 			},
 			ProxyType::SudoBalances => match c {
-				Call::Sudo(pallet_sudo::Call::sudo { call: ref x }) => {
-					matches!(x.as_ref(), &Call::Balances(..))
+				RuntimeCall::Sudo(pallet_sudo::Call::sudo { call: ref x }) => {
+					matches!(x.as_ref(), &RuntimeCall::Balances(..))
 				},
-				Call::Utility(..) => true,
+				RuntimeCall::Utility(..) => true,
 				_ => false,
 			},
 			ProxyType::IdentityJudgement => matches!(
 				c,
-				Call::Identity(pallet_identity::Call::provide_judgement { .. }) | Call::Utility(..)
+				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. }) |
+					RuntimeCall::Utility(..)
 			),
 			ProxyType::CancelProxy => {
-				matches!(c, Call::Proxy(pallet_proxy::Call::reject_announcement { .. }))
+				matches!(c, RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. }))
 			},
 			ProxyType::Auction => matches!(
 				c,
-				Call::Auctions(..) | Call::Crowdloan(..) | Call::Registrar(..) | Call::Slots(..)
+				RuntimeCall::Auctions(..) |
+					RuntimeCall::Crowdloan(..) |
+					RuntimeCall::Registrar(..) |
+					RuntimeCall::Slots(..)
 			),
 		}
 	}
@@ -817,8 +873,8 @@ impl InstanceFilter<Call> for ProxyType {
 }
 
 impl pallet_proxy::Config for Runtime {
-	type Event = Event;
-	type Call = Call;
+	type RuntimeEvent = RuntimeEvent;
+	type RuntimeCall = RuntimeCall;
 	type Currency = Balances;
 	type ProxyType = ProxyType;
 	type ProxyDepositBase = ProxyDepositBase;
@@ -839,11 +895,13 @@ impl parachains_configuration::Config for Runtime {
 
 impl parachains_shared::Config for Runtime {}
 
-impl parachains_session_info::Config for Runtime {}
+impl parachains_session_info::Config for Runtime {
+	type ValidatorSet = Historical;
+}
 
 impl parachains_inclusion::Config for Runtime {
-	type Event = Event;
-	type DisputesHandler = ();
+	type RuntimeEvent = RuntimeEvent;
+	type DisputesHandler = ParasDisputes;
 	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 }
 
@@ -852,7 +910,7 @@ parameter_types! {
 }
 
 impl parachains_paras::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = weights::runtime_parachains_paras::WeightInfo<Runtime>;
 	type UnsignedPriority = ParasUnsignedPriority;
 	type NextSessionRotation = Babe;
@@ -863,18 +921,21 @@ parameter_types! {
 }
 
 impl parachains_ump::Config for Runtime {
-	type Event = Event;
-	type UmpSink = crate::parachains_ump::XcmSink<XcmExecutor<XcmConfig>, Runtime>;
+	type RuntimeEvent = RuntimeEvent;
+	type UmpSink =
+		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
+	type WeightInfo = weights::runtime_parachains_ump::WeightInfo<Runtime>;
 }
 
 impl parachains_dmp::Config for Runtime {}
 
 impl parachains_hrmp::Config for Runtime {
-	type Event = Event;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
+	type WeightInfo = weights::runtime_parachains_hrmp::WeightInfo<Self>;
 }
 
 impl parachains_paras_inherent::Config for Runtime {
@@ -900,7 +961,7 @@ parameter_types! {
 }
 
 impl assigned_slots::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type AssignSlotOrigin = EnsureRoot<AccountId>;
 	type Leaser = Slots;
 	type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
@@ -910,14 +971,38 @@ impl assigned_slots::Config for Runtime {
 	type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
 }
 
+impl parachains_disputes::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
+	type SlashingHandler = parachains_slashing::SlashValidatorsForDisputes<ParasSlashing>;
+	type WeightInfo = weights::runtime_parachains_disputes::WeightInfo<Runtime>;
+}
+
+impl parachains_slashing::Config for Runtime {
+	type KeyOwnerProofSystem = Historical;
+	type KeyOwnerProof =
+		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, ValidatorId)>>::Proof;
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		ValidatorId,
+	)>>::IdentificationTuple;
+	type HandleReports = parachains_slashing::SlashingReportHandler<
+		Self::KeyOwnerIdentification,
+		Offences,
+		ReportLongevity,
+	>;
+	type WeightInfo = weights::runtime_parachains_disputes_slashing::WeightInfo<Runtime>;
+	type BenchmarkingConfig = parachains_slashing::BenchConfig<300>;
+}
+
 parameter_types! {
 	pub const ParaDeposit: Balance = 2000 * CENTS;
 	pub const DataDepositPerByte: Balance = deposit(0, 1);
 }
 
 impl paras_registrar::Config for Runtime {
-	type Event = Event;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type OnSwap = (Crowdloan, Slots);
 	type ParaDeposit = ParaDeposit;
@@ -930,7 +1015,7 @@ parameter_types! {
 }
 
 impl slots::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 	type Registrar = Registrar;
 	type LeasePeriod = LeasePeriod;
@@ -949,7 +1034,7 @@ parameter_types! {
 }
 
 impl crowdloan::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type PalletId = CrowdloanId;
 	type SubmissionDeposit = SubmissionDeposit;
 	type MinContribution = MinContribution;
@@ -969,7 +1054,7 @@ parameter_types! {
 }
 
 impl auctions::Config for Runtime {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type Leaser = Slots;
 	type Registrar = Registrar;
 	type EndingPeriod = EndingPeriod;
@@ -980,116 +1065,50 @@ impl auctions::Config for Runtime {
 }
 
 parameter_types! {
-	pub const WndLocation: MultiLocation = Here.into();
-	pub const Ancestry: MultiLocation = Here.into();
-	pub WestendNetwork: NetworkId = NetworkId::Named(b"Westend".to_vec());
-	pub CheckAccount: AccountId = XcmPallet::check_account();
+	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
+	pub const MaxPointsToBalance: u8 = 10;
 }
 
-pub type LocationConverter =
-	(ChildParachainConvertsVia<ParaId, AccountId>, AccountId32Aliases<WestendNetwork, AccountId>);
-
-pub type LocalAssetTransactor = XcmCurrencyAdapter<
-	// Use this currency:
-	Balances,
-	// Use this currency when it is a fungible asset matching the given location or name:
-	IsConcrete<WndLocation>,
-	// We can convert the MultiLocations with our converter above:
-	LocationConverter,
-	// Our chain's account ID type (we can't get away without mentioning it explicitly):
-	AccountId,
-	// It's a native asset so we keep track of the teleports to maintain total issuance.
-	CheckAccount,
->;
-
-type LocalOriginConverter = (
-	SovereignSignedViaLocation<LocationConverter, Origin>,
-	ChildParachainAsNative<parachains_origin::Origin, Origin>,
-	SignedAccountId32AsNative<WestendNetwork, Origin>,
-	ChildSystemParachainAsSuperuser<ParaId, Origin>,
-);
-
-/// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
-/// individual routers.
-pub type XcmRouter = (
-	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet>,
-);
+impl pallet_nomination_pools::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
+	type Currency = Balances;
+	type RewardCounter = FixedU128;
+	type BalanceToU256 = BalanceToU256;
+	type U256ToBalance = U256ToBalance;
+	type Staking = Staking;
+	type PostUnbondingPoolsWindow = ConstU32<4>;
+	type MaxMetadataLen = ConstU32<256>;
+	// we use the same number of allowed unlocking chunks as with staking.
+	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
+	type PalletId = PoolsPalletId;
+	type MaxPointsToBalance = MaxPointsToBalance;
+}
 
 parameter_types! {
-	pub const Westmint: MultiLocation = Parachain(1000).into();
-	pub const Encointer: MultiLocation = Parachain(1001).into();
-	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Westmint::get());
-	pub const WestendForEncointer: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Encointer::get());
-	pub const MaxInstructions: u32 = 100;
-}
-pub type TrustedTeleporters =
-	(xcm_builder::Case<WestendForWestmint>, xcm_builder::Case<WestendForEncointer>);
-
-/// The barriers one of which must be passed for an XCM message to be executed.
-pub type Barrier = (
-	// Weight that is paid for may be consumed.
-	TakeWeightCredit,
-	// If the message is one that immediately attemps to pay for execution, then allow it.
-	AllowTopLevelPaidExecutionFrom<Everything>,
-	// Messages coming from system parachains need not pay for execution.
-	AllowUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
-	// Expected responses are OK.
-	AllowKnownQueryResponses<XcmPallet>,
-	// Subscriptions for version tracking are OK.
-	AllowSubscriptionsFrom<Everything>,
-);
-
-pub struct XcmConfig;
-impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
-	type XcmSender = XcmRouter;
-	type AssetTransactor = LocalAssetTransactor;
-	type OriginConverter = LocalOriginConverter;
-	type IsReserve = ();
-	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = LocationInverter<Ancestry>;
-	type Barrier = Barrier;
-	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
-	type Trader = UsingComponents<WeightToFee, WndLocation, AccountId, Balances, ToAuthor<Runtime>>;
-	type ResponseHandler = XcmPallet;
-	type AssetTrap = XcmPallet;
-	type AssetClaims = XcmPallet;
-	type SubscriptionService = XcmPallet;
+	// The deposit configuration for the singed migration. Specially if you want to allow any signed account to do the migration (see `SignedFilter`, these deposits should be high)
+	pub const MigrationSignedDepositPerItem: Balance = 1 * CENTS;
+	pub const MigrationSignedDepositBase: Balance = 20 * CENTS * 100;
+	pub const MigrationMaxKeyLen: u32 = 512;
 }
 
-/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain.
-pub type LocalOriginToLocation = (
-	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<Origin, AccountId, WestendNetwork>,
-);
+impl pallet_state_trie_migration::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type SignedDepositPerItem = MigrationSignedDepositPerItem;
+	type SignedDepositBase = MigrationSignedDepositBase;
+	type ControlOrigin = EnsureRoot<AccountId>;
+	type SignedFilter = frame_support::traits::NeverEnsureOrigin<AccountId>;
 
-impl pallet_xcm::Config for Runtime {
-	type Event = Event;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	type XcmRouter = XcmRouter;
-	// Anyone can execute XCM messages locally...
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<Origin, LocalOriginToLocation>;
-	// ...but they must match our filter, which rejects everything.
-	type XcmExecuteFilter = Nothing;
-	type XcmExecutor = XcmExecutor<XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
-	type Weigher = WeightInfoBounds<weights::xcm::WestendXcmWeight<Call>, Call, MaxInstructions>;
-	type LocationInverter = LocationInverter<Ancestry>;
-	type Origin = Origin;
-	type Call = Call;
-	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
-	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
+	// Use same weights as substrate ones.
+	type WeightInfo = pallet_state_trie_migration::weights::SubstrateWeight<Runtime>;
+	type MaxKeyLen = MigrationMaxKeyLen;
 }
 
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::v1::Block,
+		NodeBlock = primitives::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -1101,7 +1120,7 @@ construct_runtime! {
 		Timestamp: pallet_timestamp::{Pallet, Call, Storage, Inherent} = 2,
 		Indices: pallet_indices::{Pallet, Call, Storage, Config<T>, Event<T>} = 3,
 		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>} = 4,
-		TransactionPayment: pallet_transaction_payment::{Pallet, Storage} = 26,
+		TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Event<T>} = 26,
 
 		// Consensus support.
 		// Authorship must be before session in order to note author in the correct session and era
@@ -1146,7 +1165,16 @@ construct_runtime! {
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 24,
 
 		// Provides a semi-sorted list of nominators for staking.
-		BagsList: pallet_bags_list::{Pallet, Call, Storage, Event<T>} = 25,
+		VoterList: pallet_bags_list::<Instance1>::{Pallet, Call, Storage, Event<T>} = 25,
+
+		// Nomination pools for staking.
+		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 29,
+
+		// Fast unstake pallet: extension to staking.
+		FastUnstake: pallet_fast_unstake = 30,
+
+		// State trie migration pallet, only temporary.
+		StateTrieMigration: pallet_state_trie_migration = 35,
 
 		// Parachains pallets. Start indices at 40 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 41,
@@ -1155,12 +1183,14 @@ construct_runtime! {
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>} = 44,
 		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent} = 45,
 		ParaScheduler: parachains_scheduler::{Pallet, Storage} = 46,
-		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config} = 47,
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config, ValidateUnsigned} = 47,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 48,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 49,
 		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 50,
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 51,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 52,
+		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 53,
+		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned} = 54,
 
 		// Parachain Onboarding Pallets. Start indices at 60 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config} = 60,
@@ -1196,8 +1226,32 @@ pub type SignedExtra = (
 	frame_system::CheckWeight<Runtime>,
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
+
+pub struct StakingMigrationV11OldPallet;
+impl Get<&'static str> for StakingMigrationV11OldPallet {
+	fn get() -> &'static str {
+		"VoterList"
+	}
+}
+
+/// All migrations that will run on the next runtime upgrade.
+///
+/// Should be cleared after every release.
+pub type Migrations = (
+	pallet_balances::migration::ResetInactive<Runtime>,
+	// We need to apply this migration again, because `ResetInactive` resets the state again.
+	pallet_balances::migration::MigrateToTrackInactive<Runtime, xcm_config::CheckAccount>,
+	crowdloan::migration::MigrateToTrackInactiveV2<Runtime>,
+	pallet_scheduler::migration::v4::CleanupAgendas<Runtime>,
+	pallet_staking::migrations::v13::MigrateToV13<Runtime>,
+	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
+	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
+	init_state_migration::InitMigrate,
+);
+
 /// Unchecked extrinsic type as expected by this runtime.
-pub type UncheckedExtrinsic = generic::UncheckedExtrinsic<Address, Call, Signature, SignedExtra>;
+pub type UncheckedExtrinsic =
+	generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
 	Runtime,
@@ -1205,49 +1259,60 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	(SessionHistoricalPalletPrefixMigration, SchedulerMigrationV3),
+	Migrations,
 >;
 /// The payload being signed in transactions.
-pub type SignedPayload = generic::SignedPayload<Call, SignedExtra>;
+pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
 
-// Migration for scheduler pallet to move from a plain Call to a CallOrHash.
-pub struct SchedulerMigrationV3;
+#[cfg(feature = "runtime-benchmarks")]
+#[macro_use]
+extern crate frame_benchmarking;
 
-impl OnRuntimeUpgrade for SchedulerMigrationV3 {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		Scheduler::migrate_v2_to_v3()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		Scheduler::pre_migrate_to_v3()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		Scheduler::post_migrate_to_v3()
-	}
-}
-
-/// Migrate session-historical from `Session` to the new pallet prefix `Historical`
-pub struct SessionHistoricalPalletPrefixMigration;
-
-impl OnRuntimeUpgrade for SessionHistoricalPalletPrefixMigration {
-	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		pallet_session::migrations::v1::migrate::<Runtime, Historical>()
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn pre_upgrade() -> Result<(), &'static str> {
-		pallet_session::migrations::v1::pre_migrate::<Runtime, Historical>();
-		Ok(())
-	}
-
-	#[cfg(feature = "try-runtime")]
-	fn post_upgrade() -> Result<(), &'static str> {
-		pallet_session::migrations::v1::post_migrate::<Runtime, Historical>();
-		Ok(())
-	}
+#[cfg(feature = "runtime-benchmarks")]
+mod benches {
+	define_benchmarks!(
+		// Polkadot
+		// NOTE: Make sure to prefix these with `runtime_common::` so
+		// the that path resolves correctly in the generated file.
+		[runtime_common::auctions, Auctions]
+		[runtime_common::crowdloan, Crowdloan]
+		[runtime_common::paras_registrar, Registrar]
+		[runtime_common::slots, Slots]
+		[runtime_parachains::configuration, Configuration]
+		[runtime_parachains::disputes, ParasDisputes]
+		[runtime_parachains::disputes::slashing, ParasSlashing]
+		[runtime_parachains::hrmp, Hrmp]
+		[runtime_parachains::initializer, Initializer]
+		[runtime_parachains::paras, Paras]
+		[runtime_parachains::paras_inherent, ParaInherent]
+		[runtime_parachains::ump, Ump]
+		// Substrate
+		[pallet_bags_list, VoterList]
+		[pallet_balances, Balances]
+		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
+		[frame_election_provider_support, ElectionProviderBench::<Runtime>]
+		[pallet_fast_unstake, FastUnstake]
+		[pallet_identity, Identity]
+		[pallet_im_online, ImOnline]
+		[pallet_indices, Indices]
+		[pallet_multisig, Multisig]
+		[pallet_nomination_pools, NominationPoolsBench::<Runtime>]
+		[pallet_offences, OffencesBench::<Runtime>]
+		[pallet_preimage, Preimage]
+		[pallet_proxy, Proxy]
+		[pallet_recovery, Recovery]
+		[pallet_scheduler, Scheduler]
+		[pallet_session, SessionBench::<Runtime>]
+		[pallet_staking, Staking]
+		[frame_system, SystemBench::<Runtime>]
+		[pallet_timestamp, Timestamp]
+		[pallet_utility, Utility]
+		[pallet_vesting, Vesting]
+		// XCM
+		// NOTE: Make sure you point to the individual modules below.
+		[pallet_xcm_benchmarks::fungible, XcmBalances]
+		[pallet_xcm_benchmarks::generic, XcmGeneric]
+	);
 }
 
 #[cfg(not(feature = "disable-runtime-api"))]
@@ -1309,7 +1374,8 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl primitives::v2::ParachainHost<Block, Hash, BlockNumber> for Runtime {
+	#[api_version(3)]
+	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()
 		}
@@ -1339,7 +1405,7 @@ sp_api::impl_runtime_apis! {
 
 		fn check_validation_outputs(
 			para_id: ParaId,
-			outputs: primitives::v1::CandidateCommitments,
+			outputs: primitives::CandidateCommitments,
 		) -> bool {
 			parachains_runtime_api_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
@@ -1360,7 +1426,7 @@ sp_api::impl_runtime_apis! {
 		fn candidate_events() -> Vec<CandidateEvent<Hash>> {
 			parachains_runtime_api_impl::candidate_events::<Runtime, _>(|ev| {
 				match ev {
-					Event::ParaInclusion(ev) => {
+					RuntimeEvent::ParaInclusion(ev) => {
 						Some(ev)
 					}
 					_ => None,
@@ -1391,8 +1457,8 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn submit_pvf_check_statement(
-			stmt: primitives::v2::PvfCheckStatement,
-			signature: primitives::v1::ValidatorSignature,
+			stmt: PvfCheckStatement,
+			signature: ValidatorSignature,
 		) {
 			parachains_runtime_api_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
 		}
@@ -1406,6 +1472,10 @@ sp_api::impl_runtime_apis! {
 		{
 			parachains_runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
 		}
+
+		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
+			runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
@@ -1415,28 +1485,36 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl pallet_mmr_primitives::MmrApi<Block, Hash> for Runtime {
-		fn generate_proof(_leaf_index: u64)
-			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
-		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::GenerateProof)
+	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
+		fn mmr_root() -> Result<Hash, mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
-		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
+		fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn generate_proof(
+			_block_numbers: Vec<BlockNumber>,
+			_best_known_block_number: Option<BlockNumber>,
+		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::Proof<Hash>), mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn verify_proof(_leaves: Vec<mmr::EncodableOpaqueLeaf>, _proof: mmr::Proof<Hash>)
 			-> Result<(), mmr::Error>
 		{
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+
+			Err(mmr::Error::PalletNotIncluded)
 		}
 
 		fn verify_proof_stateless(
 			_root: Hash,
-			_leaf: mmr::EncodableOpaqueLeaf,
+			_leaves: Vec<mmr::EncodableOpaqueLeaf>,
 			_proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
-			// dummy implementation due to lack of MMR pallet.
-			Err(mmr::Error::Verify)
+
+			Err(mmr::Error::PalletNotIncluded)
 		}
 	}
 
@@ -1477,19 +1555,15 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl babe_primitives::BabeApi<Block> for Runtime {
-		fn configuration() -> babe_primitives::BabeGenesisConfiguration {
-			// The choice of `c` parameter (where `1 - c` represents the
-			// probability of a slot being empty), is done in accordance to the
-			// slot duration and expected target block time, for safely
-			// resisting network delays of maximum two seconds.
-			// <https://research.web3.foundation/en/latest/polkadot/BABE/Babe/#6-practical-results>
-			babe_primitives::BabeGenesisConfiguration {
+		fn configuration() -> babe_primitives::BabeConfiguration {
+			let epoch_config = Babe::epoch_config().unwrap_or(BABE_GENESIS_EPOCH_CONFIG);
+			babe_primitives::BabeConfiguration {
 				slot_duration: Babe::slot_duration(),
 				epoch_length: EpochDuration::get(),
-				c: BABE_GENESIS_EPOCH_CONFIG.c,
-				genesis_authorities: Babe::authorities().to_vec(),
+				c: epoch_config.c,
+				authorities: Babe::authorities().to_vec(),
 				randomness: Babe::randomness(),
-				allowed_slots: BABE_GENESIS_EPOCH_CONFIG.allowed_slots,
+				allowed_slots: epoch_config.allowed_slots,
 			}
 		}
 
@@ -1565,15 +1639,44 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	impl pallet_transaction_payment_rpc_runtime_api::TransactionPaymentCallApi<Block, Balance, RuntimeCall>
+		for Runtime
+	{
+		fn query_call_info(call: RuntimeCall, len: u32) -> RuntimeDispatchInfo<Balance> {
+			TransactionPayment::query_call_info(call, len)
+		}
+		fn query_call_fee_details(call: RuntimeCall, len: u32) -> FeeDetails<Balance> {
+			TransactionPayment::query_call_fee_details(call, len)
+		}
+	}
+
+	impl pallet_nomination_pools_runtime_api::NominationPoolsApi<
+		Block,
+		AccountId,
+		Balance,
+	> for Runtime {
+		fn pending_rewards(member: AccountId) -> Balance {
+			NominationPools::pending_rewards(member).unwrap_or_default()
+		}
+	}
+
 	#[cfg(feature = "try-runtime")]
 	impl frame_try_runtime::TryRuntime<Block> for Runtime {
-		fn on_runtime_upgrade() -> (Weight, Weight) {
+		fn on_runtime_upgrade(checks: frame_try_runtime::UpgradeCheckSelect) -> (Weight, Weight) {
 			log::info!("try-runtime::on_runtime_upgrade westend.");
-			let weight = Executive::try_runtime_upgrade().unwrap();
+			let weight = Executive::try_runtime_upgrade(checks).unwrap();
 			(weight, BlockWeights::get().max_block)
 		}
-		fn execute_block_no_check(block: Block) -> Weight {
-			Executive::execute_block_no_check(block)
+
+		fn execute_block(
+			block: Block,
+			state_root_check: bool,
+			signature_check: bool,
+			select: frame_try_runtime::TryStateSelect,
+		) -> Weight {
+			// NOTE: intentional unwrap: we don't want to propagate the error backwards, and want to
+			// have a backtrace here.
+			Executive::try_execute_block(block, state_root_check, signature_check, select).unwrap()
 		}
 	}
 
@@ -1583,56 +1686,22 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkList>,
 			Vec<frame_support::traits::StorageInfo>,
 		) {
-			use frame_benchmarking::{list_benchmark, Benchmarking, BenchmarkList};
+			use frame_benchmarking::{Benchmarking, BenchmarkList};
 			use frame_support::traits::StorageInfoTrait;
 
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
 			type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet::<Runtime>;
 
 			let mut list = Vec::<BenchmarkList>::new();
-
-			// Polkadot
-			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
-			// in the generated file.
-			list_benchmark!(list, extra, runtime_common::auctions, Auctions);
-			list_benchmark!(list, extra, runtime_common::crowdloan, Crowdloan);
-			list_benchmark!(list, extra, runtime_common::paras_registrar, Registrar);
-			list_benchmark!(list, extra, runtime_common::slots, Slots);
-			list_benchmark!(list, extra, runtime_parachains::configuration, Configuration);
-			list_benchmark!(list, extra, runtime_parachains::initializer, Initializer);
-			list_benchmark!(list, extra, runtime_parachains::paras_inherent, ParaInherent);
-			list_benchmark!(list, extra, runtime_parachains::paras, Paras);
-
-			// Substrate
-			list_benchmark!(list, extra, pallet_bags_list, BagsList);
-			list_benchmark!(list, extra, pallet_balances, Balances);
-			list_benchmark!(list, extra, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
-			list_benchmark!(list, extra, pallet_identity, Identity);
-			list_benchmark!(list, extra, pallet_im_online, ImOnline);
-			list_benchmark!(list, extra, pallet_indices, Indices);
-			list_benchmark!(list, extra, pallet_multisig, Multisig);
-			list_benchmark!(list, extra, pallet_offences, OffencesBench::<Runtime>);
-			list_benchmark!(list, extra, pallet_preimage, Preimage);
-			list_benchmark!(list, extra, pallet_proxy, Proxy);
-			list_benchmark!(list, extra, pallet_scheduler, Scheduler);
-			list_benchmark!(list, extra, pallet_session, SessionBench::<Runtime>);
-			list_benchmark!(list, extra, pallet_staking, Staking);
-			list_benchmark!(list, extra, frame_system, SystemBench::<Runtime>);
-			list_benchmark!(list, extra, pallet_timestamp, Timestamp);
-			list_benchmark!(list, extra, pallet_utility, Utility);
-			list_benchmark!(list, extra, pallet_vesting, Vesting);
-
-			// XCM Benchmarks
-			// NOTE: Make sure you point to the individual modules below.
-			list_benchmark!(list, extra, pallet_xcm_benchmarks::fungible, XcmBalances);
-			list_benchmark!(list, extra, pallet_xcm_benchmarks::generic, XcmGeneric);
+			list_benchmarks!(list, extra);
 
 			let storage_info = AllPalletsWithSystem::storage_info();
-
 			return (list, storage_info)
 		}
 
@@ -1642,22 +1711,31 @@ sp_api::impl_runtime_apis! {
 			Vec<frame_benchmarking::BenchmarkBatch>,
 			sp_runtime::RuntimeString,
 		> {
-			use frame_benchmarking::{Benchmarking, BenchmarkBatch, add_benchmark, TrackedStorageKey, BenchmarkError};
+			use frame_benchmarking::{Benchmarking, BenchmarkBatch, TrackedStorageKey, BenchmarkError};
 			// Trying to add benchmarks directly to some pallets caused cyclic dependency issues.
 			// To get around that, we separated the benchmarks into its own crate.
 			use pallet_session_benchmarking::Pallet as SessionBench;
 			use pallet_offences_benchmarking::Pallet as OffencesBench;
+			use pallet_election_provider_support_benchmarking::Pallet as ElectionProviderBench;
 			use frame_system_benchmarking::Pallet as SystemBench;
+			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
+			impl pallet_election_provider_support_benchmarking::Config for Runtime {}
 			impl frame_system_benchmarking::Config for Runtime {}
+			impl pallet_nomination_pools_benchmarking::Config for Runtime {}
+			impl runtime_parachains::disputes::slashing::benchmarking::Config for Runtime {}
 
-			use xcm::latest::MultiAsset;
+			use xcm::latest::{
+				AssetId::*, Fungibility::*, Junctions::*, MultiAsset, MultiAssets, MultiLocation,
+				Response,
+			};
+			use xcm_config::{Westmint, WndLocation};
 
 			impl pallet_xcm_benchmarks::Config for Runtime {
-				type XcmConfig = XcmConfig;
-				type AccountIdConverter = LocationConverter;
+				type XcmConfig = xcm_config::XcmConfig;
+				type AccountIdConverter = xcm_config::LocationConverter;
 				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Westmint::get())
 				}
@@ -1675,13 +1753,18 @@ sp_api::impl_runtime_apis! {
 					Westmint::get(),
 					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(WndLocation::get()) },
 				));
+				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
+					Westmint::get(),
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(WndLocation::get()) },
+				));
 			}
 
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
 				type TransactAsset = Balances;
 
-				type CheckedAccount = CheckAccount;
+				type CheckedAccount = xcm_config::CheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
+				type TrustedReserve = TrustedReserve;
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {
@@ -1692,7 +1775,7 @@ sp_api::impl_runtime_apis! {
 			}
 
 			impl pallet_xcm_benchmarks::generic::Config for Runtime {
-				type Call = Call;
+				type RuntimeCall = RuntimeCall;
 
 				fn worst_case_response() -> (u64, Response) {
 					(0u64, Response::Version(Default::default()))
@@ -1736,48 +1819,94 @@ sp_api::impl_runtime_apis! {
 				hex_literal::hex!("63f78c98723ddc9073523ef3beefda0ca95dac46c07a40d91506e7637ec4ba57").to_vec().into(),
 				// Configuration ActiveConfig
 				hex_literal::hex!("06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385").to_vec().into(),
+				// The transactional storage limit.
+				hex_literal::hex!("3a7472616e73616374696f6e5f6c6576656c3a").to_vec().into(),
 			];
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
 
-			// Polkadot
-			// NOTE: Make sure to prefix these `runtime_common::` so that path resolves correctly
-			// in the generated file.
-			add_benchmark!(params, batches, runtime_common::auctions, Auctions);
-			add_benchmark!(params, batches, runtime_common::crowdloan, Crowdloan);
-			add_benchmark!(params, batches, runtime_common::paras_registrar, Registrar);
-			add_benchmark!(params, batches, runtime_common::slots, Slots);
-			add_benchmark!(params, batches, runtime_parachains::configuration, Configuration);
-			add_benchmark!(params, batches, runtime_parachains::initializer, Initializer);
-			add_benchmark!(params, batches, runtime_parachains::paras, Paras);
-			add_benchmark!(params, batches, runtime_parachains::paras_inherent, ParaInherent);
-
-			// Substrate
-			add_benchmark!(params, batches, pallet_bags_list, BagsList);
-			add_benchmark!(params, batches, pallet_balances, Balances);
-			add_benchmark!(params, batches, pallet_election_provider_multi_phase, ElectionProviderMultiPhase);
-			add_benchmark!(params, batches, pallet_identity, Identity);
-			add_benchmark!(params, batches, pallet_im_online, ImOnline);
-			add_benchmark!(params, batches, pallet_indices, Indices);
-			add_benchmark!(params, batches, pallet_multisig, Multisig);
-			add_benchmark!(params, batches, pallet_offences, OffencesBench::<Runtime>);
-			add_benchmark!(params, batches, pallet_preimage, Preimage);
-			add_benchmark!(params, batches, pallet_proxy, Proxy);
-			add_benchmark!(params, batches, pallet_scheduler, Scheduler);
-			add_benchmark!(params, batches, pallet_session, SessionBench::<Runtime>);
-			add_benchmark!(params, batches, pallet_staking, Staking);
-			add_benchmark!(params, batches, frame_system, SystemBench::<Runtime>);
-			add_benchmark!(params, batches, pallet_timestamp, Timestamp);
-			add_benchmark!(params, batches, pallet_utility, Utility);
-			add_benchmark!(params, batches, pallet_vesting, Vesting);
-
-			// XCM Benchmarks
-			// NOTE: Make sure you point to the individual modules below.
-			add_benchmark!(params, batches, pallet_xcm_benchmarks::fungible, XcmBalances);
-			add_benchmark!(params, batches, pallet_xcm_benchmarks::generic, XcmGeneric);
+			add_benchmarks!(params, batches);
 
 			Ok(batches)
+		}
+	}
+}
+
+#[cfg(all(test, feature = "try-runtime"))]
+mod remote_tests {
+	use super::*;
+	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use remote_externalities::{
+		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
+	};
+	use std::env::var;
+
+	#[tokio::test]
+	async fn run_migrations() {
+		sp_tracing::try_init_simple();
+		let transport: Transport =
+			var("WS").unwrap_or("wss://westend-rpc.polkadot.io:443".to_string()).into();
+		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
+		let mut ext = Builder::<Block>::default()
+			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
+				Mode::OfflineOrElseOnline(
+					OfflineConfig { state_snapshot: state_snapshot.clone() },
+					OnlineConfig {
+						transport,
+						state_snapshot: Some(state_snapshot),
+						..Default::default()
+					},
+				)
+			} else {
+				Mode::Online(OnlineConfig { transport, ..Default::default() })
+			})
+			.build()
+			.await
+			.unwrap();
+		ext.execute_with(|| Runtime::on_runtime_upgrade(true));
+	}
+}
+
+mod init_state_migration {
+	use super::Runtime;
+	use frame_support::traits::OnRuntimeUpgrade;
+	use pallet_state_trie_migration::{AutoLimits, MigrationLimits, MigrationProcess};
+	#[cfg(not(feature = "std"))]
+	use sp_std::prelude::*;
+
+	/// Initialize an automatic migration process.
+	pub struct InitMigrate;
+	impl OnRuntimeUpgrade for InitMigrate {
+		#[cfg(feature = "try-runtime")]
+		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+			frame_support::ensure!(
+				AutoLimits::<Runtime>::get().is_none(),
+				"Automigration already started."
+			);
+			Ok(Default::default())
+		}
+
+		fn on_runtime_upgrade() -> frame_support::weights::Weight {
+			if MigrationProcess::<Runtime>::get() == Default::default() &&
+				AutoLimits::<Runtime>::get().is_none()
+			{
+				AutoLimits::<Runtime>::put(Some(MigrationLimits { item: 160, size: 204800 }));
+				log::info!("Automatic trie migration started.");
+				<Runtime as frame_system::Config>::DbWeight::get().reads_writes(2, 1)
+			} else {
+				log::info!("Automatic trie migration not started.");
+				<Runtime as frame_system::Config>::DbWeight::get().reads(2)
+			}
+		}
+
+		#[cfg(feature = "try-runtime")]
+		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+			frame_support::ensure!(
+				AutoLimits::<Runtime>::get().is_some(),
+				"Automigration started."
+			);
+			Ok(())
 		}
 	}
 }

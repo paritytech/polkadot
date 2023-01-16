@@ -22,14 +22,12 @@ use polkadot_node_subsystem::{
 		AllMessages, CandidateValidationMessage, PreCheckOutcome, PvfCheckerMessage,
 		RuntimeApiMessage, RuntimeApiRequest,
 	},
-	ActivatedLeaf, ActiveLeavesUpdate, FromOverseer, LeafStatus, OverseerSignal, RuntimeApiError,
+	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal, RuntimeApiError,
 };
 use polkadot_node_subsystem_test_helpers::{make_subsystem_context, TestSubsystemContextHandle};
 use polkadot_primitives::{
-	v1::{
-		BlockNumber, Hash, Header, SessionIndex, ValidationCode, ValidationCodeHash, ValidatorId,
-	},
-	v2::PvfCheckStatement,
+	BlockNumber, Hash, Header, PvfCheckStatement, SessionIndex, ValidationCode, ValidationCodeHash,
+	ValidatorId,
 };
 use sp_application_crypto::AppKey;
 use sp_core::testing::TaskExecutor;
@@ -136,7 +134,7 @@ impl TestState {
 			},
 		}
 
-		handle.send(FromOverseer::Signal(OverseerSignal::Conclude)).await;
+		handle.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 	}
 
 	/// Convenience function to invoke [`active_leaves_update`] with the new leaf that starts a new
@@ -159,7 +157,7 @@ impl TestState {
 		self.active_leaves_update(handle, Some(leaf), None, &[]).await
 	}
 
-	async fn deactive_leaves(
+	async fn deactivate_leaves(
 		&mut self,
 		handle: &mut VirtualOverseer,
 		deactivated: impl IntoIterator<Item = &Hash>,
@@ -208,7 +206,7 @@ impl TestState {
 		};
 
 		handle
-			.send(FromOverseer::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+			.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated,
 				deactivated: deactivated.into_iter().cloned().collect(),
 			})))
@@ -372,7 +370,7 @@ fn test_harness(test: impl FnOnce(TestState, VirtualOverseer) -> BoxFuture<'stat
 	)
 	.expect("Generating keys for our node failed");
 
-	let subsystem_task = crate::run(ctx, keystore).map(|x| x.unwrap());
+	let subsystem_task = crate::run(ctx, keystore, crate::Metrics::default()).map(|x| x.unwrap());
 
 	let test_state = TestState::new();
 	let test_task = test(test_state, handle);
@@ -896,8 +894,8 @@ fn unexpected_pvf_check_judgement() {
 			// Catch the pre-check request, but don't reply just yet.
 			let pre_check = test_state.expect_candidate_precheck(&mut handle).await;
 
-			// Now deactive the leaf and reply to the precheck request.
-			test_state.deactive_leaves(&mut handle, &[block_1.block_hash]).await;
+			// Now deactivate the leaf and reply to the precheck request.
+			test_state.deactivate_leaves(&mut handle, &[block_1.block_hash]).await;
 			pre_check.reply(PreCheckOutcome::Invalid);
 
 			// the subsystem must remain silent.
@@ -908,14 +906,17 @@ fn unexpected_pvf_check_judgement() {
 	});
 }
 
+// Check that we do not abstain for a nondeterministic failure. Currently, this means the behavior
+// is the same as if the pre-check returned `PreCheckOutcome::Invalid`.
 #[test]
-fn abstain_for_nondeterministic_pvfcheck_failure() {
+fn dont_abstain_for_nondeterministic_pvfcheck_failure() {
 	test_harness(|mut test_state, mut handle| {
 		async move {
+			let block_1 = FakeLeaf::new(dummy_hash(), 1, vec![dummy_validation_code_hash(1)]);
 			test_state
 				.activate_leaf_with_session(
 					&mut handle,
-					FakeLeaf::new(dummy_hash(), 1, vec![dummy_validation_code_hash(1)]),
+					block_1.clone(),
 					StartsNewSession { session_index: 2, validators: vec![OUR_VALIDATOR] },
 				)
 				.await;
@@ -924,10 +925,14 @@ fn abstain_for_nondeterministic_pvfcheck_failure() {
 			test_state.expect_session_for_child(&mut handle).await;
 			test_state.expect_validators(&mut handle).await;
 
-			test_state
-				.expect_candidate_precheck(&mut handle)
-				.await
-				.reply(PreCheckOutcome::Failed);
+			// Catch the pre-check request, but don't reply just yet.
+			let pre_check = test_state.expect_candidate_precheck(&mut handle).await;
+
+			// Now deactivate the leaf and reply to the precheck request.
+			test_state.deactivate_leaves(&mut handle, &[block_1.block_hash]).await;
+			pre_check.reply(PreCheckOutcome::Failed);
+
+			// the subsystem must remain silent.
 
 			test_state.send_conclude(&mut handle).await;
 		}

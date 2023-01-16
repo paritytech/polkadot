@@ -28,9 +28,9 @@ There are 2 options to build a staking-miner Docker image:
 ### Building the injected image
 
 First build the binary as documented [above](#building).
-You may then inject the binary into a Docker base image usingfrom the root of the Polkadot repository:
+You may then inject the binary into a Docker base image from the root of the Polkadot repository:
 ```
-docker build -t staking-miner -f scripts/docker/staking-miner/staking-miner_injected.Dockerfile target/release
+docker build -t staking-miner -f scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile target/release
 ```
 
 ### Building the multi-stage image
@@ -39,7 +39,7 @@ Unlike the injected image that requires a Linux pre-built binary, this option do
 The trade-off however is that it takes a little longer to build and this option is less ideal for CI tasks.
 You may build the multi-stage image the root of the Polkadot repository with:
 ```
-docker build -t staking-miner -f scripts/docker/staking-miner/staking-miner_builder.Dockerfile .
+docker build -t staking-miner -f scripts/ci/dockerfiles/staking-miner/staking-miner_builder.Dockerfile .
 ```
 
 ### Running
@@ -59,3 +59,10 @@ docker run --rm -it \
     -e URI=wss://your-node:9944 \
     staking-miner dry-run
 ```
+
+### Test locally
+
+1. Modify `EPOCH_DURATION_IN_SLOTS` and `SessionsPerEra` to force an election
+   more often than once per day.
+2. $ polkadot --chain polkadot-dev --tmp --alice --execution Native -lruntime=debug --offchain-worker=Always --ws-port 9999
+3. $ staking-miner --uri ws://localhost:9999 --seed //Alice monitor phrag-mms

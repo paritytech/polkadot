@@ -16,43 +16,39 @@
 
 //! Remote tests for bags-list pallet.
 
-use clap::arg_enum;
-use std::convert::TryInto;
-use structopt::StructOpt;
+use clap::{Parser, ValueEnum};
 
-arg_enum! {
-	#[derive(Debug)]
-	enum Command {
-		CheckMigration,
-		SanityCheck,
-		Snapshot,
-	}
+#[derive(Clone, Debug, ValueEnum)]
+#[value(rename_all = "PascalCase")]
+enum Command {
+	CheckMigration,
+	SanityCheck,
+	Snapshot,
 }
 
-arg_enum! {
-	#[derive(Debug)]
-	enum Runtime {
-		Polkadot,
-		Kusama,
-		Westend,
-	}
+#[derive(Clone, Debug, ValueEnum)]
+#[value(rename_all = "PascalCase")]
+enum Runtime {
+	Polkadot,
+	Kusama,
+	Westend,
 }
 
-#[derive(StructOpt)]
+#[derive(Parser)]
 struct Cli {
-	#[structopt(long, short, default_value = "wss://kusama-rpc.polkadot.io:443")]
+	#[arg(long, short, default_value = "wss://kusama-rpc.polkadot.io:443")]
 	uri: String,
-	#[structopt(long, short, case_insensitive = true, possible_values = &Runtime::variants(), default_value = "kusama")]
+	#[arg(long, short, ignore_case = true, value_enum, default_value_t = Runtime::Kusama)]
 	runtime: Runtime,
-	#[structopt(long, short, case_insensitive = true, possible_values = &Command::variants(), default_value = "SanityCheck")]
+	#[arg(long, short, ignore_case = true, value_enum, default_value_t = Command::SanityCheck)]
 	command: Command,
-	#[structopt(long, short)]
+	#[arg(long, short)]
 	snapshot_limit: Option<usize>,
 }
 
 #[tokio::main]
 async fn main() {
-	let options = Cli::from_args();
+	let options = Cli::parse();
 	sp_tracing::try_init_simple();
 
 	log::info!(
@@ -90,7 +86,7 @@ async fn main() {
 		(Runtime::Kusama, Command::SanityCheck) => {
 			use kusama_runtime::{Block, Runtime};
 			use kusama_runtime_constants::currency::UNITS;
-			sanity_check::execute::<Runtime, Block>(UNITS as u64, "KSM", options.uri.clone()).await;
+			try_state::execute::<Runtime, Block>(UNITS as u64, "KSM", options.uri.clone()).await;
 		},
 		(Runtime::Kusama, Command::Snapshot) => {
 			use kusama_runtime::{Block, Runtime};
@@ -111,7 +107,7 @@ async fn main() {
 		(Runtime::Westend, Command::SanityCheck) => {
 			use westend_runtime::{Block, Runtime};
 			use westend_runtime_constants::currency::UNITS;
-			sanity_check::execute::<Runtime, Block>(UNITS as u64, "WND", options.uri.clone()).await;
+			try_state::execute::<Runtime, Block>(UNITS as u64, "WND", options.uri.clone()).await;
 		},
 		(Runtime::Westend, Command::Snapshot) => {
 			use westend_runtime::{Block, Runtime};
@@ -132,7 +128,7 @@ async fn main() {
 		(Runtime::Polkadot, Command::SanityCheck) => {
 			use polkadot_runtime::{Block, Runtime};
 			use polkadot_runtime_constants::currency::UNITS;
-			sanity_check::execute::<Runtime, Block>(UNITS as u64, "DOT", options.uri.clone()).await;
+			try_state::execute::<Runtime, Block>(UNITS as u64, "DOT", options.uri.clone()).await;
 		},
 		(Runtime::Polkadot, Command::Snapshot) => {
 			use polkadot_runtime::{Block, Runtime};

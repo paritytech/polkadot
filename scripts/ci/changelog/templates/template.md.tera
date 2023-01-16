@@ -1,0 +1,37 @@
+{# This is the entry point of the template -#}
+<!-- repository: {{ polkadot.repository.name }} -->
+{% include "pre_release.md.tera" -%}
+
+{% if env.PRE_RELEASE == "true" -%}
+This pre-release contains the changes from `{{ env.REF1 | replace(from="refs/tags/", to="") }}` to `{{ env.REF2 | replace(from="refs/tags/", to="") }}`.
+{%- else -%}
+This release contains the changes from `{{ env.REF1 | replace(from="refs/tags/", to="") }}` to `{{ env.REF2 | replace(from="refs/tags/", to="") }}`.
+{% endif -%}
+
+{%- set changes = polkadot.changes | concat(with=substrate.changes) -%}
+{%- include "debug.md.tera" -%}
+
+{%- set CML = "[C]" -%}
+{%- set DOT = "[P]" -%}
+{%- set SUB = "[S]" -%}
+
+{# -- Manual free notes section -- #}
+{% include "_free_notes.md.tera" -%}
+
+{# -- Important automatic section -- #}
+{% include "global_priority.md.tera" -%}
+
+{% include "host_functions.md.tera" -%}
+
+{% include "migrations-db.md.tera" -%}
+
+{% include "migrations-runtime.md.tera" -%}
+{# --------------------------------- #}
+
+{% include "compiler.md.tera" -%}
+
+{% include "runtimes.md.tera" -%}
+
+{% include "changes.md.tera" -%}
+
+{% include "docker_image.md.tera" -%}

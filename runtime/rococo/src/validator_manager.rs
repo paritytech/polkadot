@@ -30,16 +30,17 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::pallet]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	/// Configuration for the parachain proposer.
 	#[pallet::config]
 	pub trait Config: frame_system::Config + pallet_session::Config {
 		/// The overreaching event type.
-		type Event: From<Event<Self>> + IsType<<Self as frame_system::Config>::Event>;
+		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
 		/// Privileged origin that can add or remove validators.
-		type PrivilegedOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+		type PrivilegedOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 	}
 
 	#[pallet::event]
@@ -65,6 +66,7 @@ pub mod pallet {
 		/// Add new validators to the set.
 		///
 		/// The new validators will be active from current session + 2.
+		#[pallet::call_index(0)]
 		#[pallet::weight(100_000)]
 		pub fn register_validators(
 			origin: OriginFor<T>,
@@ -81,6 +83,7 @@ pub mod pallet {
 		/// Remove validators from the set.
 		///
 		/// The removed validators will be deactivated from current session + 2.
+		#[pallet::call_index(1)]
 		#[pallet::weight(100_000)]
 		pub fn deregister_validators(
 			origin: OriginFor<T>,

@@ -25,30 +25,37 @@ use futures::future::Future;
 use polkadot_node_primitives::{CollationGenerationConfig, CollatorFn};
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_overseer::Handle;
-use polkadot_primitives::v1::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
+use polkadot_primitives::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
 use polkadot_runtime_common::BlockHashCount;
-use polkadot_runtime_parachains::paras::ParaGenesisArgs;
-use polkadot_service::{ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull};
+use polkadot_runtime_parachains::paras::{ParaGenesisArgs, ParaKind};
+use polkadot_service::{
+	ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull, PrometheusConfig,
+};
 use polkadot_test_runtime::{
 	ParasSudoWrapperCall, Runtime, SignedExtra, SignedPayload, SudoCall, UncheckedExtrinsic,
 	VERSION,
 };
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
-use sc_network::{
-	config::{NetworkConfiguration, TransportConfig},
-	multiaddr,
-};
-use service::{
-	config::{DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod},
-	BasePath, Configuration, KeepBlocks, Role, RpcHandlers, TaskManager, TransactionStorageMode,
+use sc_network::{config::NetworkConfiguration, multiaddr};
+use sc_network_common::{config::TransportConfig, service::NetworkStateInfo};
+use sc_service::{
+	config::{
+		DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod,
+		WasmtimeInstantiationStrategy,
+	},
+	BasePath, BlocksPruning, Configuration, Role, RpcHandlers, TaskManager,
 };
 use sp_arithmetic::traits::SaturatedConversion;
 use sp_blockchain::HeaderBackend;
 use sp_keyring::Sr25519Keyring;
 use sp_runtime::{codec::Encode, generic, traits::IdentifyAccount, MultiSigner};
 use sp_state_machine::BasicExternalities;
-use std::{path::PathBuf, sync::Arc};
+use std::{
+	net::{Ipv4Addr, SocketAddr},
+	path::PathBuf,
+	sync::Arc,
+};
 use substrate_test_client::{
 	BlockchainEventsExt, RpcHandlersExt, RpcTransactionError, RpcTransactionOutput,
 };
@@ -89,7 +96,11 @@ pub fn new_full(
 		None,
 		None,
 		worker_program_path,
+		false,
 		polkadot_service::RealOverseerGen,
+		None,
+		None,
+		None,
 	)
 }
 
@@ -100,6 +111,14 @@ impl ClientHandle for TestClient {
 	fn execute_with<T: ExecuteWithClient>(&self, t: T) -> T::Output {
 		T::execute_with_client::<_, _, polkadot_service::FullBackend>(t, self.0.clone())
 	}
+}
+
+/// Returns a prometheus config usable for testing.
+pub fn test_prometheus_config(port: u16) -> PrometheusConfig {
+	PrometheusConfig::new_with_default_registry(
+		SocketAddr::new(Ipv4Addr::LOCALHOST.into(), port),
+		"test-chain".to_string(),
+	)
 }
 
 /// Create a Polkadot `Configuration`.
@@ -117,7 +136,7 @@ pub fn node_config(
 	is_validator: bool,
 ) -> Configuration {
 	let base_path = BasePath::new_temp_dir().expect("could not create temporary directory");
-	let root = base_path.path();
+	let root = base_path.path().join(key.to_string());
 	let role = if is_validator { Role::Authority } else { Role::Full };
 	let key_seed = key.to_seed();
 	let mut spec = polkadot_local_testnet_config();
@@ -154,13 +173,13 @@ pub fn node_config(
 		keystore: KeystoreConfig::InMemory,
 		keystore_remote: Default::default(),
 		database: DatabaseSource::RocksDb { path: root.join("db"), cache_size: 128 },
-		state_cache_size: 16777216,
-		state_cache_child_ratio: None,
+		trie_cache_maximum_size: Some(64 * 1024 * 1024),
 		state_pruning: Default::default(),
-		keep_blocks: KeepBlocks::All,
-		transaction_storage: TransactionStorageMode::BlockBody,
+		blocks_pruning: BlocksPruning::KeepFinalized,
 		chain_spec: Box::new(spec),
-		wasm_method: WasmExecutionMethod::Interpreted,
+		wasm_method: WasmExecutionMethod::Compiled {
+			instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
+		},
 		wasm_runtime_overrides: Default::default(),
 		// NOTE: we enforce the use of the native runtime to make the errors more debuggable
 		execution_strategies: ExecutionStrategies {
@@ -174,9 +193,13 @@ pub fn node_config(
 		rpc_ws: None,
 		rpc_ipc: None,
 		rpc_max_payload: None,
+		rpc_max_request_size: None,
+		rpc_max_response_size: None,
 		rpc_ws_max_connections: None,
 		rpc_cors: None,
 		rpc_methods: Default::default(),
+		rpc_id_provider: None,
+		rpc_max_subs_per_conn: None,
 		ws_max_out_buffer_capacity: None,
 		prometheus_config: None,
 		telemetry_endpoints: None,
@@ -195,21 +218,11 @@ pub fn node_config(
 	}
 }
 
-/// Run a test validator node that uses the test runtime.
-///
-/// The node will be using an in-memory socket, therefore you need to provide boot nodes if you
-/// want it to be connected to other nodes.
-///
-/// The `storage_update_func` function will be executed in an externalities provided environment
-/// and can be used to make adjustments to the runtime genesis storage.
+/// Run a test validator node that uses the test runtime and specified `config`.
 pub fn run_validator_node(
-	tokio_handle: tokio::runtime::Handle,
-	key: Sr25519Keyring,
-	storage_update_func: impl Fn(),
-	boot_nodes: Vec<MultiaddrWithPeerId>,
+	config: Configuration,
 	worker_program_path: Option<PathBuf>,
 ) -> PolkadotTestNode {
-	let config = node_config(storage_update_func, tokio_handle, key, boot_nodes, true);
 	let multiaddr = config.network.listen_addresses[0].clone();
 	let NewFull { task_manager, client, network, rpc_handlers, overseer_handle, .. } =
 		new_full(config, IsCollator::No, worker_program_path)
@@ -272,7 +285,7 @@ impl PolkadotTestNode {
 	/// Send an extrinsic to this node.
 	pub async fn send_extrinsic(
 		&self,
-		function: impl Into<polkadot_test_runtime::Call>,
+		function: impl Into<polkadot_test_runtime::RuntimeCall>,
 		caller: Sr25519Keyring,
 	) -> Result<RpcTransactionOutput, RpcTransactionError> {
 		let extrinsic = construct_extrinsic(&*self.client, function, caller, 0);
@@ -292,7 +305,7 @@ impl PolkadotTestNode {
 			genesis: ParaGenesisArgs {
 				genesis_head: genesis_head.into(),
 				validation_code: validation_code.into(),
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 			},
 		};
 
@@ -329,7 +342,7 @@ impl PolkadotTestNode {
 /// Construct an extrinsic that can be applied to the test runtime.
 pub fn construct_extrinsic(
 	client: &Client,
-	function: impl Into<polkadot_test_runtime::Call>,
+	function: impl Into<polkadot_test_runtime::RuntimeCall>,
 	caller: Sr25519Keyring,
 	nonce: u32,
 ) -> UncheckedExtrinsic {
@@ -368,7 +381,7 @@ pub fn construct_extrinsic(
 	UncheckedExtrinsic::new_signed(
 		function.clone(),
 		polkadot_test_runtime::Address::Id(caller.public().into()),
-		polkadot_primitives::v0::Signature::Sr25519(signature.clone()),
+		polkadot_primitives::Signature::Sr25519(signature.clone()),
 		extra.clone(),
 	)
 }
@@ -380,7 +393,7 @@ pub fn construct_transfer_extrinsic(
 	dest: sp_keyring::AccountKeyring,
 	value: Balance,
 ) -> UncheckedExtrinsic {
-	let function = polkadot_test_runtime::Call::Balances(pallet_balances::Call::transfer {
+	let function = polkadot_test_runtime::RuntimeCall::Balances(pallet_balances::Call::transfer {
 		dest: MultiSigner::from(dest.public()).into_account().into(),
 		value,
 	});

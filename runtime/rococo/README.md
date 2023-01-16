@@ -1,11 +1,11 @@
-# Rococo: v1
+# Rococo: v2.1
 
 Rococo is a testnet runtime with no stability guarantees.
 
-## How to run
+## How to run `rococo-local`
 
-> TODO: figure out how to run this properly.
+The [Cumulus Tutorial](https://docs.substrate.io/tutorials/v3/cumulus/start-relay/) details building, starting, and testing `rococo-local` and parachains connecting to it.
 
-### Alice
+## How to register a parachain on the Rococo testnet
 
-`cargo run --release -- --alice --tmp --validator --chain rococo-local`
+The [parachain registration process](https://docs.substrate.io/tutorials/v3/cumulus/rococo/) on the public Rococo testnet is also outlined.

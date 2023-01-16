@@ -18,26 +18,40 @@ use std::{collections::HashSet, convert::TryFrom};
 
 pub use sc_network::{PeerId, ReputationChange};
 
-use polkadot_node_network_protocol::{ObservedRole, OurView, View, WrongVariant};
-use polkadot_primitives::v1::AuthorityDiscoveryId;
+use polkadot_node_network_protocol::{
+	grid_topology::SessionGridTopology, peer_set::ProtocolVersion, ObservedRole, OurView, View,
+	WrongVariant,
+};
+use polkadot_primitives::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
+
+/// A struct indicating new gossip topology.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NewGossipTopology {
+	/// The session index this topology corresponds to.
+	pub session: SessionIndex,
+	/// The topology itself.
+	pub topology: SessionGridTopology,
+	/// The local validator index, if any.
+	pub local_index: Option<ValidatorIndex>,
+}
 
 /// Events from network.
 #[derive(Debug, Clone, PartialEq)]
 pub enum NetworkBridgeEvent<M> {
 	/// A peer has connected.
-	PeerConnected(PeerId, ObservedRole, Option<HashSet<AuthorityDiscoveryId>>),
+	PeerConnected(PeerId, ObservedRole, ProtocolVersion, Option<HashSet<AuthorityDiscoveryId>>),
 
 	/// A peer has disconnected.
 	PeerDisconnected(PeerId),
 
-	/// Our neighbors in the new gossip topology.
+	/// Our neighbors in the new gossip topology for the session.
 	/// We're not necessarily connected to all of them.
 	///
 	/// This message is issued only on the validation peer set.
 	///
 	/// Note, that the distribution subsystems need to handle the last
 	/// view update of the newly added gossip peers manually.
-	NewGossipTopology(HashSet<PeerId>),
+	NewGossipTopology(NewGossipTopology),
 
 	/// Peer has sent a message.
 	PeerMessage(PeerId, M),
@@ -68,19 +82,23 @@ impl<M> NetworkBridgeEvent<M> {
 	pub fn focus<'a, T>(&'a self) -> Result<NetworkBridgeEvent<T>, WrongVariant>
 	where
 		T: 'a + Clone,
-		&'a T: TryFrom<&'a M, Error = WrongVariant>,
+		T: TryFrom<&'a M, Error = WrongVariant>,
 	{
 		Ok(match *self {
 			NetworkBridgeEvent::PeerMessage(ref peer, ref msg) =>
-				NetworkBridgeEvent::PeerMessage(peer.clone(), <&'a T>::try_from(msg)?.clone()),
-			NetworkBridgeEvent::PeerConnected(ref peer, ref role, ref authority_id) =>
-				NetworkBridgeEvent::PeerConnected(peer.clone(), role.clone(), authority_id.clone()),
+				NetworkBridgeEvent::PeerMessage(*peer, T::try_from(msg)?),
+			NetworkBridgeEvent::PeerConnected(
+				ref peer,
+				ref role,
+				ref version,
+				ref authority_id,
+			) => NetworkBridgeEvent::PeerConnected(*peer, *role, *version, authority_id.clone()),
 			NetworkBridgeEvent::PeerDisconnected(ref peer) =>
-				NetworkBridgeEvent::PeerDisconnected(peer.clone()),
-			NetworkBridgeEvent::NewGossipTopology(ref peers) =>
-				NetworkBridgeEvent::NewGossipTopology(peers.clone()),
+				NetworkBridgeEvent::PeerDisconnected(*peer),
+			NetworkBridgeEvent::NewGossipTopology(ref topology) =>
+				NetworkBridgeEvent::NewGossipTopology(topology.clone()),
 			NetworkBridgeEvent::PeerViewChange(ref peer, ref view) =>
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
+				NetworkBridgeEvent::PeerViewChange(*peer, view.clone()),
 			NetworkBridgeEvent::OurViewChange(ref view) =>
 				NetworkBridgeEvent::OurViewChange(view.clone()),
 		})

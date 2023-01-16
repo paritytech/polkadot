@@ -18,26 +18,28 @@ use futures::{future, pin_mut, select, FutureExt};
 use polkadot_test_service::*;
 use sp_keyring::Sr25519Keyring;
 
-#[substrate_test_utils::test]
+#[substrate_test_utils::test(flavor = "multi_thread")]
 async fn ensure_test_service_build_blocks() {
 	let mut builder = sc_cli::LoggerBuilder::new("");
 	builder.with_colors(false);
 	builder.init().expect("Sets up logger");
-
-	let mut alice = run_validator_node(
+	let alice_config = node_config(
+		|| {},
 		tokio::runtime::Handle::current(),
 		Sr25519Keyring::Alice,
-		|| {},
 		Vec::new(),
-		None,
+		true,
 	);
-	let mut bob = run_validator_node(
+	let mut alice = run_validator_node(alice_config, None);
+
+	let bob_config = node_config(
+		|| {},
 		tokio::runtime::Handle::current(),
 		Sr25519Keyring::Bob,
-		|| {},
 		vec![alice.addr.clone()],
-		None,
+		true,
 	);
+	let mut bob = run_validator_node(bob_config, None);
 
 	{
 		let t1 = future::join(alice.wait_for_blocks(3), bob.wait_for_blocks(3)).fuse();

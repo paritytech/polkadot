@@ -21,277 +21,314 @@
 
 use bitvec::vec::BitVec;
 use futures::{
-	channel::{mpsc, oneshot},
-	prelude::*,
+	channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUnordered, FutureExt,
 };
 use futures_timer::Delay;
-use polkadot_node_primitives::CandidateVotes;
+
 use polkadot_node_subsystem::{
-	errors::{ChainApiError, RuntimeApiError},
 	jaeger,
 	messages::{
-		CandidateBackingMessage, ChainApiMessage, DisputeCoordinatorMessage, ProvisionableData,
-		ProvisionerInherentData, ProvisionerMessage,
+		CandidateBackingMessage, ChainApiMessage, ProvisionableData, ProvisionerInherentData,
+		ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	ActivatedLeaf, LeafStatus, PerLeafSpan, SubsystemSender,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
+	PerLeafSpan, RuntimeApiError, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::{
-	self as util, request_availability_cores, request_persisted_validation_data, JobSender,
-	JobSubsystem, JobTrait,
+	request_availability_cores, request_persisted_validation_data, TimeoutExt,
 };
-use polkadot_primitives::v1::{
-	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, DisputeStatement,
-	DisputeStatementSet, Hash, MultiDisputeStatementSet, OccupiedCoreAssumption, SessionIndex,
+use polkadot_primitives::{
+	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };
-use std::{
-	collections::{BTreeMap, HashSet},
-	pin::Pin,
-};
-use thiserror::Error;
+use std::collections::{BTreeMap, HashMap};
 
+mod disputes;
+mod error;
 mod metrics;
 
 pub use self::metrics::*;
+use error::{Error, FatalResult};
 
 #[cfg(test)]
 mod tests;
 
 /// How long to wait before proposing.
 const PRE_PROPOSE_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(2000);
+/// Some timeout to ensure task won't hang around in the background forever on issues.
+const SEND_INHERENT_DATA_TIMEOUT: std::time::Duration = core::time::Duration::from_millis(500);
 
 const LOG_TARGET: &str = "parachain::provisioner";
 
-enum InherentAfter {
-	Ready,
-	Wait(Delay),
+const PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT: u32 =
+	RuntimeApiRequest::DISPUTES_RUNTIME_REQUIREMENT;
+
+/// The provisioner subsystem.
+pub struct ProvisionerSubsystem {
+	metrics: Metrics,
 }
 
-impl InherentAfter {
-	fn new_from_now() -> Self {
-		InherentAfter::Wait(Delay::new(PRE_PROPOSE_TIMEOUT))
-	}
-
-	fn is_ready(&self) -> bool {
-		match *self {
-			InherentAfter::Ready => true,
-			InherentAfter::Wait(_) => false,
-		}
-	}
-
-	async fn ready(&mut self) {
-		match *self {
-			InherentAfter::Ready => {
-				// Make sure we never end the returned future.
-				// This is required because the `select!` that calls this future will end in a busy loop.
-				futures::pending!()
-			},
-			InherentAfter::Wait(ref mut d) => {
-				d.await;
-				*self = InherentAfter::Ready;
-			},
-		}
+impl ProvisionerSubsystem {
+	/// Create a new instance of the `ProvisionerSubsystem`.
+	pub fn new(metrics: Metrics) -> Self {
+		Self { metrics }
 	}
 }
 
-/// A per-relay-parent job for the provisioning subsystem.
-pub struct ProvisionerJob {
+/// A per-relay-parent state for the provisioning subsystem.
+pub struct PerRelayParent {
 	leaf: ActivatedLeaf,
-	receiver: mpsc::Receiver<ProvisionerMessage>,
 	backed_candidates: Vec<CandidateReceipt>,
 	signed_bitfields: Vec<SignedAvailabilityBitfield>,
-	metrics: Metrics,
-	inherent_after: InherentAfter,
+	is_inherent_ready: bool,
 	awaiting_inherent: Vec<oneshot::Sender<ProvisionerInherentData>>,
+	span: PerLeafSpan,
 }
 
-/// Errors in the provisioner.
-#[derive(Debug, Error)]
-#[allow(missing_docs)]
-pub enum Error {
-	#[error(transparent)]
-	Util(#[from] util::Error),
+impl PerRelayParent {
+	fn new(leaf: ActivatedLeaf) -> Self {
+		let span = PerLeafSpan::new(leaf.span.clone(), "provisioner");
 
-	#[error("failed to get availability cores")]
-	CanceledAvailabilityCores(#[source] oneshot::Canceled),
-
-	#[error("failed to get persisted validation data")]
-	CanceledPersistedValidationData(#[source] oneshot::Canceled),
-
-	#[error("failed to get block number")]
-	CanceledBlockNumber(#[source] oneshot::Canceled),
-
-	#[error("failed to get backed candidates")]
-	CanceledBackedCandidates(#[source] oneshot::Canceled),
-
-	#[error("failed to get votes on dispute")]
-	CanceledCandidateVotes(#[source] oneshot::Canceled),
-
-	#[error(transparent)]
-	ChainApi(#[from] ChainApiError),
-
-	#[error(transparent)]
-	Runtime(#[from] RuntimeApiError),
-
-	#[error("failed to send message to ChainAPI")]
-	ChainApiMessageSend(#[source] mpsc::SendError),
-
-	#[error("failed to send message to CandidateBacking to get backed candidates")]
-	GetBackedCandidatesSend(#[source] mpsc::SendError),
-
-	#[error("failed to send return message with Inherents")]
-	InherentDataReturnChannel,
-
-	#[error(
-		"backed candidate does not correspond to selected candidate; check logic in provisioner"
-	)]
-	BackedCandidateOrderingProblem,
-}
-
-/// Provisioner run arguments.
-#[derive(Debug, Clone, Copy)]
-pub struct ProvisionerConfig {
-	/// If enabled, dispute votes will be provided to `fn create_inherent`, otherwise not.
-	/// Long term we will obviously always want disputes to be enabled, this option exists for testing purposes
-	/// and will be removed in the near future.
-	pub disputes_enabled: bool,
-}
-
-impl JobTrait for ProvisionerJob {
-	type ToJob = ProvisionerMessage;
-	type Error = Error;
-	type RunArgs = ProvisionerConfig;
-	type Metrics = Metrics;
-
-	const NAME: &'static str = "provisioner-job";
-
-	/// Run a job for the parent block indicated
-	//
-	// this function is in charge of creating and executing the job's main loop
-	fn run<S: SubsystemSender>(
-		leaf: ActivatedLeaf,
-		run_args: Self::RunArgs,
-		metrics: Self::Metrics,
-		receiver: mpsc::Receiver<ProvisionerMessage>,
-		mut sender: JobSender<S>,
-	) -> Pin<Box<dyn Future<Output = Result<(), Self::Error>> + Send>> {
-		let span = leaf.span.clone();
-		async move {
-			let job = ProvisionerJob::new(leaf, metrics, receiver);
-
-			job.run_loop(
-				sender.subsystem_sender(),
-				run_args.disputes_enabled,
-				PerLeafSpan::new(span, "provisioner"),
-			)
-			.await
-		}
-		.boxed()
-	}
-}
-
-impl ProvisionerJob {
-	fn new(
-		leaf: ActivatedLeaf,
-		metrics: Metrics,
-		receiver: mpsc::Receiver<ProvisionerMessage>,
-	) -> Self {
 		Self {
 			leaf,
-			receiver,
 			backed_candidates: Vec::new(),
 			signed_bitfields: Vec::new(),
-			metrics,
-			inherent_after: InherentAfter::new_from_now(),
+			is_inherent_ready: false,
 			awaiting_inherent: Vec::new(),
+			span,
+		}
+	}
+}
+
+type InherentDelays = FuturesUnordered<BoxFuture<'static, Hash>>;
+
+#[overseer::subsystem(Provisioner, error=SubsystemError, prefix=self::overseer)]
+impl<Context> ProvisionerSubsystem {
+	fn start(self, ctx: Context) -> SpawnedSubsystem {
+		let future = async move {
+			run(ctx, self.metrics)
+				.await
+				.map_err(|e| SubsystemError::with_origin("provisioner", e))
+		}
+		.boxed();
+
+		SpawnedSubsystem { name: "provisioner-subsystem", future }
+	}
+}
+
+#[overseer::contextbounds(Provisioner, prefix = self::overseer)]
+async fn run<Context>(mut ctx: Context, metrics: Metrics) -> FatalResult<()> {
+	let mut inherent_delays = InherentDelays::new();
+	let mut per_relay_parent = HashMap::new();
+
+	loop {
+		let result =
+			run_iteration(&mut ctx, &mut per_relay_parent, &mut inherent_delays, &metrics).await;
+
+		match result {
+			Ok(()) => break,
+			err => crate::error::log_error(err)?,
 		}
 	}
 
-	async fn run_loop(
-		mut self,
-		sender: &mut impl SubsystemSender,
-		disputes_enabled: bool,
-		span: PerLeafSpan,
-	) -> Result<(), Error> {
-		use ProvisionerMessage::{ProvisionableData, RequestInherentData};
-		loop {
-			futures::select! {
-				msg = self.receiver.next() => match msg {
-					Some(RequestInherentData(_, return_sender)) => {
-						let _span = span.child("req-inherent-data");
-						let _timer = self.metrics.time_request_inherent_data();
+	Ok(())
+}
 
-						if self.inherent_after.is_ready() {
-							self.send_inherent_data(sender, vec![return_sender], disputes_enabled).await;
-						} else {
-							self.awaiting_inherent.push(return_sender);
-						}
-					}
-					Some(ProvisionableData(_, data)) => {
-						let span = span.child("provisionable-data");
-						let _timer = self.metrics.time_provisionable_data();
+#[overseer::contextbounds(Provisioner, prefix = self::overseer)]
+async fn run_iteration<Context>(
+	ctx: &mut Context,
+	per_relay_parent: &mut HashMap<Hash, PerRelayParent>,
+	inherent_delays: &mut InherentDelays,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	loop {
+		futures::select! {
+			from_overseer = ctx.recv().fuse() => {
+				match from_overseer? {
+					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) =>
+						handle_active_leaves_update(update, per_relay_parent, inherent_delays),
+					FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+					FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+					FromOrchestra::Communication { msg } => {
+						handle_communication(ctx, per_relay_parent, msg, metrics).await?;
+					},
+				}
+			},
+			hash = inherent_delays.select_next_some() => {
+				if let Some(state) = per_relay_parent.get_mut(&hash) {
+					state.is_inherent_ready = true;
 
-						self.note_provisionable_data(&span, data);
-					}
-					None => break,
-				},
-				_ = self.inherent_after.ready().fuse() => {
-					let _span = span.child("send-inherent-data");
-					let return_senders = std::mem::take(&mut self.awaiting_inherent);
+					gum::trace!(
+						target: LOG_TARGET,
+						relay_parent = ?hash,
+						"Inherent Data became ready"
+					);
+
+					let return_senders = std::mem::take(&mut state.awaiting_inherent);
 					if !return_senders.is_empty() {
-						self.send_inherent_data(sender, return_senders, disputes_enabled).await;
+						send_inherent_data_bg(ctx, &state, return_senders, metrics.clone()).await?;
 					}
 				}
 			}
 		}
-
-		Ok(())
-	}
-
-	async fn send_inherent_data(
-		&mut self,
-		sender: &mut impl SubsystemSender,
-		return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
-		disputes_enabled: bool,
-	) {
-		if let Err(err) = send_inherent_data(
-			&self.leaf,
-			&self.signed_bitfields,
-			&self.backed_candidates,
-			return_senders,
-			sender,
-			disputes_enabled,
-			&self.metrics,
-		)
-		.await
-		{
-			tracing::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
-			self.metrics.on_inherent_data_request(Err(()));
-		} else {
-			self.metrics.on_inherent_data_request(Ok(()));
-		}
-	}
-
-	fn note_provisionable_data(
-		&mut self,
-		span: &jaeger::Span,
-		provisionable_data: ProvisionableData,
-	) {
-		match provisionable_data {
-			ProvisionableData::Bitfield(_, signed_bitfield) =>
-				self.signed_bitfields.push(signed_bitfield),
-			ProvisionableData::BackedCandidate(backed_candidate) => {
-				let _span = span
-					.child("provisionable-backed")
-					.with_para_id(backed_candidate.descriptor().para_id);
-				self.backed_candidates.push(backed_candidate)
-			},
-			_ => {},
-		}
 	}
 }
 
-type CoreAvailability = BitVec<bitvec::order::Lsb0, u8>;
+fn handle_active_leaves_update(
+	update: ActiveLeavesUpdate,
+	per_relay_parent: &mut HashMap<Hash, PerRelayParent>,
+	inherent_delays: &mut InherentDelays,
+) {
+	for deactivated in &update.deactivated {
+		per_relay_parent.remove(deactivated);
+	}
+
+	if let Some(leaf) = update.activated {
+		let delay_fut = Delay::new(PRE_PROPOSE_TIMEOUT).map(move |_| leaf.hash).boxed();
+		per_relay_parent.insert(leaf.hash, PerRelayParent::new(leaf));
+		inherent_delays.push(delay_fut);
+	}
+}
+
+#[overseer::contextbounds(Provisioner, prefix = self::overseer)]
+async fn handle_communication<Context>(
+	ctx: &mut Context,
+	per_relay_parent: &mut HashMap<Hash, PerRelayParent>,
+	message: ProvisionerMessage,
+	metrics: &Metrics,
+) -> Result<(), Error> {
+	match message {
+		ProvisionerMessage::RequestInherentData(relay_parent, return_sender) => {
+			gum::trace!(target: LOG_TARGET, ?relay_parent, "Inherent data got requested.");
+
+			if let Some(state) = per_relay_parent.get_mut(&relay_parent) {
+				if state.is_inherent_ready {
+					gum::trace!(target: LOG_TARGET, ?relay_parent, "Calling send_inherent_data.");
+					send_inherent_data_bg(ctx, &state, vec![return_sender], metrics.clone())
+						.await?;
+				} else {
+					gum::trace!(
+						target: LOG_TARGET,
+						?relay_parent,
+						"Queuing inherent data request (inherent data not yet ready)."
+					);
+					state.awaiting_inherent.push(return_sender);
+				}
+			}
+		},
+		ProvisionerMessage::ProvisionableData(relay_parent, data) => {
+			if let Some(state) = per_relay_parent.get_mut(&relay_parent) {
+				let span = state.span.child("provisionable-data");
+				let _timer = metrics.time_provisionable_data();
+
+				gum::trace!(target: LOG_TARGET, ?relay_parent, "Received provisionable data.");
+
+				note_provisionable_data(state, &span, data);
+			}
+		},
+	}
+
+	Ok(())
+}
+
+#[overseer::contextbounds(Provisioner, prefix = self::overseer)]
+async fn send_inherent_data_bg<Context>(
+	ctx: &mut Context,
+	per_relay_parent: &PerRelayParent,
+	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
+	metrics: Metrics,
+) -> Result<(), Error> {
+	let leaf = per_relay_parent.leaf.clone();
+	let signed_bitfields = per_relay_parent.signed_bitfields.clone();
+	let backed_candidates = per_relay_parent.backed_candidates.clone();
+	let span = per_relay_parent.span.child("req-inherent-data");
+
+	let mut sender = ctx.sender().clone();
+
+	let bg = async move {
+		let _span = span;
+		let _timer = metrics.time_request_inherent_data();
+
+		gum::trace!(
+			target: LOG_TARGET,
+			relay_parent = ?leaf.hash,
+			"Sending inherent data in background."
+		);
+
+		let send_result = send_inherent_data(
+			&leaf,
+			&signed_bitfields,
+			&backed_candidates,
+			return_senders,
+			&mut sender,
+			&metrics,
+		) // Make sure call is not taking forever:
+		.timeout(SEND_INHERENT_DATA_TIMEOUT)
+		.map(|v| match v {
+			Some(r) => r,
+			None => Err(Error::SendInherentDataTimeout),
+		});
+
+		match send_result.await {
+			Err(err) => {
+				if let Error::CanceledBackedCandidates(_) = err {
+					gum::debug!(
+						target: LOG_TARGET,
+						err = ?err,
+						"Failed to assemble or send inherent data - block got likely obsoleted already."
+					);
+				} else {
+					gum::warn!(target: LOG_TARGET, err = ?err, "failed to assemble or send inherent data");
+				}
+				metrics.on_inherent_data_request(Err(()));
+			},
+			Ok(()) => {
+				metrics.on_inherent_data_request(Ok(()));
+				gum::debug!(
+					target: LOG_TARGET,
+					signed_bitfield_count = signed_bitfields.len(),
+					backed_candidates_count = backed_candidates.len(),
+					leaf_hash = ?leaf.hash,
+					"inherent data sent successfully"
+				);
+				metrics.observe_inherent_data_bitfields_count(signed_bitfields.len());
+			},
+		}
+	};
+
+	ctx.spawn("send-inherent-data", bg.boxed())
+		.map_err(|_| Error::FailedToSpawnBackgroundTask)?;
+
+	Ok(())
+}
+
+fn note_provisionable_data(
+	per_relay_parent: &mut PerRelayParent,
+	span: &jaeger::Span,
+	provisionable_data: ProvisionableData,
+) {
+	match provisionable_data {
+		ProvisionableData::Bitfield(_, signed_bitfield) =>
+			per_relay_parent.signed_bitfields.push(signed_bitfield),
+		ProvisionableData::BackedCandidate(backed_candidate) => {
+			let candidate_hash = backed_candidate.hash();
+			gum::trace!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				para = ?backed_candidate.descriptor().para_id,
+				"noted backed candidate",
+			);
+			let _span = span
+				.child("provisionable-backed")
+				.with_candidate(candidate_hash)
+				.with_para_id(backed_candidate.descriptor().para_id);
+			per_relay_parent.backed_candidates.push(backed_candidate)
+		},
+		_ => {},
+	}
+}
+
+type CoreAvailability = BitVec<u8, bitvec::order::Lsb0>;
 
 /// The provisioner is the subsystem best suited to choosing which specific
 /// backed candidates and availability bitfields should be assembled into the
@@ -315,29 +352,82 @@ async fn send_inherent_data(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[CandidateReceipt],
 	return_senders: Vec<oneshot::Sender<ProvisionerInherentData>>,
-	from_job: &mut impl SubsystemSender,
-	disputes_enabled: bool,
+	from_job: &mut impl overseer::ProvisionerSenderTrait,
 	metrics: &Metrics,
 ) -> Result<(), Error> {
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Requesting availability cores"
+	);
 	let availability_cores = request_availability_cores(leaf.hash, from_job)
 		.await
 		.await
 		.map_err(|err| Error::CanceledAvailabilityCores(err))??;
 
-	let disputes =
-		if disputes_enabled { select_disputes(from_job, metrics).await? } else { vec![] };
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selecting disputes"
+	);
+
+	let disputes = match has_required_runtime(
+		from_job,
+		leaf.hash,
+		PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT,
+	)
+	.await
+	{
+		true => disputes::prioritized_selection::select_disputes(from_job, metrics, leaf).await,
+		false => disputes::random_selection::select_disputes(from_job, metrics).await,
+	};
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selected disputes"
+	);
 
 	// Only include bitfields on fresh leaves. On chain reversions, we want to make sure that
 	// there will be at least one block, which cannot get disputed, so the chain can make progress.
 	let bitfields = match leaf.status {
-		LeafStatus::Fresh => select_availability_bitfields(&availability_cores, bitfields),
+		LeafStatus::Fresh =>
+			select_availability_bitfields(&availability_cores, bitfields, &leaf.hash),
 		LeafStatus::Stale => Vec::new(),
 	};
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selected bitfields"
+	);
 	let candidates =
 		select_candidates(&availability_cores, &bitfields, candidates, leaf.hash, from_job).await?;
 
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Selected candidates"
+	);
+
+	gum::debug!(
+		target: LOG_TARGET,
+		availability_cores_len = availability_cores.len(),
+		disputes_count = disputes.len(),
+		bitfields_count = bitfields.len(),
+		candidates_count = candidates.len(),
+		leaf_hash = ?leaf.hash,
+		"inherent data prepared",
+	);
+
 	let inherent_data =
 		ProvisionerInherentData { bitfields, backed_candidates: candidates, disputes };
+
+	gum::trace!(
+		target: LOG_TARGET,
+		relay_parent = ?leaf.hash,
+		"Sending back inherent data to requesters."
+	);
 
 	for return_sender in return_senders {
 		return_sender
@@ -361,11 +451,20 @@ async fn send_inherent_data(
 fn select_availability_bitfields(
 	cores: &[CoreState],
 	bitfields: &[SignedAvailabilityBitfield],
+	leaf_hash: &Hash,
 ) -> Vec<SignedAvailabilityBitfield> {
 	let mut selected: BTreeMap<ValidatorIndex, SignedAvailabilityBitfield> = BTreeMap::new();
 
+	gum::debug!(
+		target: LOG_TARGET,
+		bitfields_count = bitfields.len(),
+		?leaf_hash,
+		"bitfields count before selection"
+	);
+
 	'a: for bitfield in bitfields.iter().cloned() {
 		if bitfield.payload().0.len() != cores.len() {
+			gum::debug!(target: LOG_TARGET, ?leaf_hash, "dropping bitfield due to length mismatch");
 			continue
 		}
 
@@ -374,12 +473,24 @@ fn select_availability_bitfields(
 			.map_or(true, |b| b.payload().0.count_ones() < bitfield.payload().0.count_ones());
 
 		if !is_better {
+			gum::trace!(
+				target: LOG_TARGET,
+				val_idx = bitfield.validator_index().0,
+				?leaf_hash,
+				"dropping bitfield due to duplication - the better one is kept"
+			);
 			continue
 		}
 
 		for (idx, _) in cores.iter().enumerate().filter(|v| !v.1.is_occupied()) {
 			// Bit is set for an unoccupied core - invalid
 			if *bitfield.payload().0.get(idx).as_deref().unwrap_or(&false) {
+				gum::debug!(
+					target: LOG_TARGET,
+					val_idx = bitfield.validator_index().0,
+					?leaf_hash,
+					"dropping invalid bitfield - bit is set for an unoccupied core"
+				);
 				continue 'a
 			}
 		}
@@ -387,7 +498,15 @@ fn select_availability_bitfields(
 		let _ = selected.insert(bitfield.validator_index(), bitfield);
 	}
 
-	selected.into_iter().map(|(_, b)| b).collect()
+	gum::debug!(
+		target: LOG_TARGET,
+		?leaf_hash,
+		"selected {} of all {} bitfields (each bitfield is from a unique validator)",
+		selected.len(),
+		bitfields.len()
+	);
+
+	selected.into_values().collect()
 }
 
 /// Determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
@@ -396,12 +515,19 @@ async fn select_candidates(
 	bitfields: &[SignedAvailabilityBitfield],
 	candidates: &[CandidateReceipt],
 	relay_parent: Hash,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::ProvisionerSenderTrait,
 ) -> Result<Vec<BackedCandidate>, Error> {
 	let block_number = get_block_number_under_construction(relay_parent, sender).await?;
 
 	let mut selected_candidates =
 		Vec::with_capacity(candidates.len().min(availability_cores.len()));
+
+	gum::debug!(
+		target: LOG_TARGET,
+		leaf_hash=?relay_parent,
+		n_candidates = candidates.len(),
+		"Candidate receipts (before selection)",
+	);
 
 	for (core_idx, core) in availability_cores.iter().enumerate() {
 		let (scheduled_core, assumption) = match core {
@@ -451,12 +577,13 @@ async fn select_candidates(
 				descriptor.persisted_validation_data_hash == computed_validation_data_hash
 		}) {
 			let candidate_hash = candidate.hash();
-			tracing::trace!(
+			gum::trace!(
 				target: LOG_TARGET,
-				"Selecting candidate {}. para_id={} core={}",
-				candidate_hash,
-				candidate.descriptor.para_id,
-				core_idx,
+				leaf_hash=?relay_parent,
+				?candidate_hash,
+				para = ?candidate.descriptor.para_id,
+				core = core_idx,
+				"Selected candidate receipt",
 			);
 
 			selected_candidates.push(candidate_hash);
@@ -465,16 +592,11 @@ async fn select_candidates(
 
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();
-	sender
-		.send_message(
-			CandidateBackingMessage::GetBackedCandidates(
-				relay_parent,
-				selected_candidates.clone(),
-				tx,
-			)
-			.into(),
-		)
-		.await;
+	sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
+		relay_parent,
+		selected_candidates.clone(),
+		tx,
+	));
 	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
 
 	// `selected_candidates` is generated in ascending order by core index, and `GetBackedCandidates`
@@ -509,11 +631,12 @@ async fn select_candidates(
 		true
 	});
 
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
-		"Selected {} candidates for {} cores",
-		candidates.len(),
-		availability_cores.len()
+		n_candidates = candidates.len(),
+		n_cores = availability_cores.len(),
+		?relay_parent,
+		"Selected backed candidates",
 	);
 
 	Ok(candidates)
@@ -523,10 +646,10 @@ async fn select_candidates(
 /// in the event of an invalid `relay_parent`, returns `Ok(0)`
 async fn get_block_number_under_construction(
 	relay_parent: Hash,
-	sender: &mut impl SubsystemSender,
+	sender: &mut impl overseer::ProvisionerSenderTrait,
 ) -> Result<BlockNumber, Error> {
 	let (tx, rx) = oneshot::channel();
-	sender.send_message(ChainApiMessage::BlockNumber(relay_parent, tx).into()).await;
+	sender.send_message(ChainApiMessage::BlockNumber(relay_parent, tx)).await;
 
 	match rx.await.map_err(|err| Error::CanceledBlockNumber(err))? {
 		Ok(Some(n)) => Ok(n + 1),
@@ -556,7 +679,7 @@ fn bitfields_indicate_availability(
 				// in principle, this function might return a `Result<bool, Error>` so that we can more clearly express this error condition
 				// however, in practice, that would just push off an error-handling routine which would look a whole lot like this one.
 				// simpler to just handle the error internally here.
-				tracing::warn!(
+				gum::warn!(
 					target: LOG_TARGET,
 					validator_idx = %validator_idx,
 					availability_len = %availability_len,
@@ -574,153 +697,55 @@ fn bitfields_indicate_availability(
 	3 * availability.count_ones() >= 2 * availability.len()
 }
 
-#[derive(Debug)]
-enum RequestType {
-	/// Query recent disputes, could be an excessive amount.
-	Recent,
-	/// Query the currently active and very recently concluded disputes.
-	Active,
-}
+// If we have to be absolutely precise here, this method gets the version of the `ParachainHost` api.
+// For brevity we'll just call it 'runtime version'.
+async fn has_required_runtime(
+	sender: &mut impl overseer::ProvisionerSenderTrait,
+	relay_parent: Hash,
+	required_runtime_version: u32,
+) -> bool {
+	gum::trace!(target: LOG_TARGET, ?relay_parent, "Fetching ParachainHost runtime api version");
 
-/// Request open disputes identified by `CandidateHash` and the `SessionIndex`.
-async fn request_disputes(
-	sender: &mut impl SubsystemSender,
-	active_or_recent: RequestType,
-) -> Vec<(SessionIndex, CandidateHash)> {
-	let (tx, rx) = oneshot::channel();
-	let msg = match active_or_recent {
-		RequestType::Recent => DisputeCoordinatorMessage::RecentDisputes(tx),
-		RequestType::Active => DisputeCoordinatorMessage::ActiveDisputes(tx),
-	};
-	sender.send_message(msg.into()).await;
-
-	let recent_disputes = match rx.await {
-		Ok(r) => r,
-		Err(oneshot::Canceled) => {
-			tracing::warn!(target: LOG_TARGET, "Unable to gather {:?} disputes", active_or_recent);
-			Vec::new()
-		},
-	};
-	recent_disputes
-}
-
-/// Request the relevant dispute statements for a set of disputes identified by `CandidateHash` and the `SessionIndex`.
-async fn request_votes(
-	sender: &mut impl SubsystemSender,
-	disputes_to_query: Vec<(SessionIndex, CandidateHash)>,
-) -> Vec<(SessionIndex, CandidateHash, CandidateVotes)> {
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(DisputeCoordinatorMessage::QueryCandidateVotes(disputes_to_query, tx).into())
+		.send_message(RuntimeApiMessage::Request(relay_parent, RuntimeApiRequest::Version(tx)))
 		.await;
 
 	match rx.await {
-		Ok(v) => v,
-		Err(oneshot::Canceled) => {
-			tracing::warn!(target: LOG_TARGET, "Unable to query candidate votes");
-			Vec::new()
+		Result::Ok(Ok(runtime_version)) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?runtime_version,
+				?required_runtime_version,
+				"Fetched  ParachainHost runtime api version"
+			);
+			runtime_version >= required_runtime_version
+		},
+		Result::Ok(Err(RuntimeApiError::Execution { source: error, .. })) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?error,
+				"Execution error while fetching ParachainHost runtime api version"
+			);
+			false
+		},
+		Result::Ok(Err(RuntimeApiError::NotSupported { .. })) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"NotSupported error while fetching ParachainHost runtime api version"
+			);
+			false
+		},
+		Result::Err(_) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?relay_parent,
+				"Cancelled error while fetching ParachainHost runtime api version"
+			);
+			false
 		},
 	}
 }
-
-/// Extend `acc` by `n` random, picks of not-yet-present in `acc` items of `recent` without repetition and  additions of recent.
-fn extend_by_random_subset_without_repetition(
-	acc: &mut Vec<(SessionIndex, CandidateHash)>,
-	extension: Vec<(SessionIndex, CandidateHash)>,
-	n: usize,
-) {
-	use rand::Rng;
-
-	let lut = acc.iter().cloned().collect::<HashSet<(SessionIndex, CandidateHash)>>();
-
-	let mut unique_new =
-		extension.into_iter().filter(|recent| !lut.contains(recent)).collect::<Vec<_>>();
-
-	// we can simply add all
-	if unique_new.len() <= n {
-		acc.extend(unique_new)
-	} else {
-		acc.reserve(n);
-		let mut rng = rand::thread_rng();
-		for _ in 0..n {
-			let idx = rng.gen_range(0..unique_new.len());
-			acc.push(unique_new.swap_remove(idx));
-		}
-	}
-	// assure sorting stays candid according to session index
-	acc.sort_unstable_by(|a, b| a.0.cmp(&b.0));
-}
-
-async fn select_disputes(
-	sender: &mut impl SubsystemSender,
-	metrics: &metrics::Metrics,
-) -> Result<MultiDisputeStatementSet, Error> {
-	const MAX_DISPUTES_FORWARDED_TO_RUNTIME: usize = 10_000;
-
-	// We use `RecentDisputes` instead of `ActiveDisputes` because redundancy is fine.
-	// It's heavier than `ActiveDisputes` but ensures that everything from the dispute
-	// window gets on-chain, unlike `ActiveDisputes`.
-	// In case of an overload condition, we limit ourselves to active disputes, and fill up to the
-	// upper bound of disputes to pass to wasm `fn create_inherent_data`.
-	// If the active ones are already exceeding the bounds, randomly select a subset.
-	let recent = request_disputes(sender, RequestType::Recent).await;
-	let disputes = if recent.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-		tracing::warn!(
-			target: LOG_TARGET,
-			"Recent disputes are excessive ({} > {}), reduce to active ones, and selected",
-			recent.len(),
-			MAX_DISPUTES_FORWARDED_TO_RUNTIME
-		);
-		let mut active = request_disputes(sender, RequestType::Active).await;
-		let n_active = active.len();
-		let active = if active.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
-			let mut picked = Vec::with_capacity(MAX_DISPUTES_FORWARDED_TO_RUNTIME);
-			extend_by_random_subset_without_repetition(
-				&mut picked,
-				active,
-				MAX_DISPUTES_FORWARDED_TO_RUNTIME,
-			);
-			picked
-		} else {
-			extend_by_random_subset_without_repetition(
-				&mut active,
-				recent,
-				MAX_DISPUTES_FORWARDED_TO_RUNTIME.saturating_sub(n_active),
-			);
-			active
-		};
-		active
-	} else {
-		recent
-	};
-
-	// Load all votes for all disputes from the coordinator.
-	let dispute_candidate_votes = request_votes(sender, disputes).await;
-
-	// Transform all `CandidateVotes` into `MultiDisputeStatementSet`.
-	Ok(dispute_candidate_votes
-		.into_iter()
-		.map(|(session_index, candidate_hash, votes)| {
-			let valid_statements =
-				votes.valid.into_iter().map(|(s, i, sig)| (DisputeStatement::Valid(s), i, sig));
-
-			let invalid_statements = votes
-				.invalid
-				.into_iter()
-				.map(|(s, i, sig)| (DisputeStatement::Invalid(s), i, sig));
-
-			metrics.inc_valid_statements_by(valid_statements.len());
-			metrics.inc_invalid_statements_by(invalid_statements.len());
-			metrics.inc_dispute_statement_sets_by(1);
-
-			DisputeStatementSet {
-				candidate_hash,
-				session: session_index,
-				statements: valid_statements.chain(invalid_statements).collect(),
-			}
-		})
-		.collect())
-}
-
-/// The provisioner subsystem.
-pub type ProvisionerSubsystem<Spawner> = JobSubsystem<ProvisionerJob, Spawner>;

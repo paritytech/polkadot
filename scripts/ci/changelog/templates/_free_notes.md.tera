@@ -1,0 +1,10 @@
+
+{# This file uses the Markdown format with additional templating such as this comment. -#}
+{# Such a comment will not show up in the rendered release notes. -#}
+{# The content of this file (if any) will be inserted at the top of the release notes -#}
+{# and generated for each new release candidate. -#}
+{# Ensure you leave an empty line at both top and bottom of this file. -#}
+
+<!-- Such a comment will be rendered but remain invisible in the rendered markdown -->
+<!-- Edit below this line -->
+<!-- Edit above this line -->

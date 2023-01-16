@@ -28,23 +28,37 @@
 //!   development. It is intended to run this bot with a `restart = true` way, so that it reports it
 //!   crash, but resumes work thereafter.
 
+// Silence erroneous warning about unsafe not being required whereas it is
+// see https://github.com/rust-lang/rust/issues/49112
+#![allow(unused_unsafe)]
+
 mod dry_run;
 mod emergency_solution;
 mod monitor;
+mod opts;
 mod prelude;
-mod rpc_helpers;
+mod rpc;
+mod runtime_versions;
 mod signer;
 
 pub(crate) use prelude::*;
 pub(crate) use signer::get_account_info;
 
+use crate::opts::*;
+use clap::Parser;
 use frame_election_provider_support::NposSolver;
 use frame_support::traits::Get;
+use futures_util::StreamExt;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use remote_externalities::{Builder, Mode, OnlineConfig};
-use sp_npos_elections::ExtendedBalance;
+use rpc::{RpcApiClient, SharedRpcClient};
+use runtime_versions::RuntimeVersions;
+use signal_hook::consts::signal::*;
+use signal_hook_tokio::Signals;
+use sp_npos_elections::BalancingConfig;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
-use structopt::StructOpt;
+use std::{ops::Deref, sync::Arc, time::Duration};
+use tracing_subscriber::{fmt, EnvFilter};
 
 pub(crate) enum AnyRuntime {
 	Polkadot,
@@ -56,7 +70,6 @@ pub(crate) static mut RUNTIME: AnyRuntime = AnyRuntime::Polkadot;
 
 macro_rules! construct_runtime_prelude {
 	($runtime:ident) => { paste::paste! {
-		#[allow(unused_import)]
 		pub(crate) mod [<$runtime _runtime_exports>] {
 			pub(crate) use crate::prelude::EPM;
 			pub(crate) use [<$runtime _runtime>]::*;
@@ -69,7 +82,6 @@ macro_rules! construct_runtime_prelude {
 				use super::*;
 				pub(crate) fn [<create_uxt_ $runtime>](
 					raw_solution: EPM::RawSolution<EPM::SolutionOf<Runtime>>,
-					witness: u32,
 					signer: crate::signer::Signer,
 					nonce: crate::prelude::Index,
 					tip: crate::prelude::Balance,
@@ -81,8 +93,8 @@ macro_rules! construct_runtime_prelude {
 
 					let crate::signer::Signer { account, pair, .. } = signer;
 
-					let local_call = EPMCall::<Runtime>::submit { raw_solution: Box::new(raw_solution), num_signed_submissions: witness };
-					let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
+					let local_call = EPMCall::<Runtime>::submit { raw_solution: Box::new(raw_solution) };
+					let call: RuntimeCall = <EPMCall<Runtime> as std::convert::TryInto<RuntimeCall>>::try_into(local_call)
 						.expect("election provider pallet must exist in the runtime, thus \
 							inner call can be converted, qed."
 						);
@@ -90,10 +102,10 @@ macro_rules! construct_runtime_prelude {
 					let extra: SignedExtra = crate::[<signed_ext_builder_ $runtime>](nonce, tip, era);
 					let raw_payload = SignedPayload::new(call, extra).expect("creating signed payload infallible; qed.");
 					let signature = raw_payload.using_encoded(|payload| {
-						pair.clone().sign(payload)
+						pair.sign(payload)
 					});
 					let (call, extra, _) = raw_payload.deconstruct();
-					let address = <Runtime as frame_system::Config>::Lookup::unlookup(account.clone());
+					let address = <Runtime as frame_system::Config>::Lookup::unlookup(account);
 					let extrinsic = UncheckedExtrinsic::new_signed(call, address, signature.into(), extra);
 					log::debug!(
 						target: crate::LOG_TARGET, "constructed extrinsic {} with length {}",
@@ -228,18 +240,20 @@ macro_rules! any_runtime_unit {
 #[derive(frame_support::DebugNoBound, thiserror::Error)]
 enum Error<T: EPM::Config> {
 	Io(#[from] std::io::Error),
-	JsonRpsee(#[from] jsonrpsee::types::Error),
-	RpcHelperError(#[from] rpc_helpers::RpcHelperError),
+	JsonRpsee(#[from] jsonrpsee::core::Error),
+	RpcHelperError(#[from] rpc::RpcHelperError),
 	Codec(#[from] codec::Error),
 	Crypto(sp_core::crypto::SecretStringError),
 	RemoteExternalities(&'static str),
-	PalletMiner(EPM::unsigned::MinerError<T>),
+	PalletMiner(EPM::unsigned::MinerError),
 	PalletElection(EPM::ElectionError<T>),
 	PalletFeasibility(EPM::FeasibilityError),
 	AccountDoesNotExists,
 	IncorrectPhase,
 	AlreadySubmitted,
 	VersionMismatch,
+	StrategyNotSatisfied,
+	Other(String),
 }
 
 impl<T: EPM::Config> From<sp_core::crypto::SecretStringError> for Error<T> {
@@ -248,8 +262,8 @@ impl<T: EPM::Config> From<sp_core::crypto::SecretStringError> for Error<T> {
 	}
 }
 
-impl<T: EPM::Config> From<EPM::unsigned::MinerError<T>> for Error<T> {
-	fn from(e: EPM::unsigned::MinerError<T>) -> Error<T> {
+impl<T: EPM::Config> From<EPM::unsigned::MinerError> for Error<T> {
+	fn from(e: EPM::unsigned::MinerError) -> Error<T> {
 		Error::PalletMiner(e)
 	}
 }
@@ -272,108 +286,25 @@ impl<T: EPM::Config> std::fmt::Display for Error<T> {
 	}
 }
 
-#[derive(Debug, Clone, StructOpt)]
-enum Command {
-	/// Monitor for the phase being signed, then compute.
-	Monitor(MonitorConfig),
-	/// Just compute a solution now, and don't submit it.
-	DryRun(DryRunConfig),
-	/// Provide a solution that can be submitted to the chain as an emergency response.
-	EmergencySolution(EmergencySolutionConfig),
-}
-
-#[derive(Debug, Clone, StructOpt)]
-enum Solvers {
-	SeqPhragmen {
-		#[structopt(long, default_value = "10")]
-		iterations: usize,
-	},
-	PhragMMS {
-		#[structopt(long, default_value = "10")]
-		iterations: usize,
-	},
-}
-
 frame_support::parameter_types! {
 	/// Number of balancing iterations for a solution algorithm. Set based on the [`Solvers`] CLI
 	/// config.
 	pub static BalanceIterations: usize = 10;
-	pub static Balancing: Option<(usize, ExtendedBalance)> = Some((BalanceIterations::get(), 0));
-}
-
-#[derive(Debug, Clone, StructOpt)]
-struct MonitorConfig {
-	/// They type of event to listen to.
-	///
-	/// Typically, finalized is safer and there is no chance of anything going wrong, but it can be
-	/// slower. It is recommended to use finalized, if the duration of the signed phase is longer
-	/// than the the finality delay.
-	#[structopt(long, default_value = "head", possible_values = &["head", "finalized"])]
-	listen: String,
-
-	/// The solver algorithm to use.
-	#[structopt(subcommand)]
-	solver: Solvers,
-}
-
-#[derive(Debug, Clone, StructOpt)]
-struct EmergencySolutionConfig {
-	/// The block hash at which scraping happens. If none is provided, the latest head is used.
-	#[allow(dead_code)]
-	#[structopt(long)]
-	at: Option<Hash>,
-
-	/// The solver algorithm to use.
-	#[allow(dead_code)]
-	#[structopt(subcommand)]
-	solver: Solvers,
-
-	/// The number of top backed winners to take. All are taken, if not provided.
-	take: Option<usize>,
-}
-
-#[derive(Debug, Clone, StructOpt)]
-struct DryRunConfig {
-	/// The block hash at which scraping happens. If none is provided, the latest head is used.
-	#[structopt(long)]
-	at: Option<Hash>,
-
-	/// The solver algorithm to use.
-	#[structopt(subcommand)]
-	solver: Solvers,
-}
-
-#[derive(Debug, Clone, StructOpt)]
-struct SharedConfig {
-	/// The `ws` node to connect to.
-	#[structopt(long, short, default_value = DEFAULT_URI, env = "URI")]
-	uri: String,
-
-	/// The seed of a funded account in hex.
-	///
-	/// WARNING: Don't use an account with a large stash for this. Based on how the bot is
-	/// configured, it might re-try and lose funds through transaction fees/deposits.
-	#[structopt(long, short, env = "SEED")]
-	seed: String,
-}
-
-#[derive(Debug, Clone, StructOpt)]
-struct Opt {
-	/// The `ws` node to connect to.
-	#[structopt(flatten)]
-	shared: SharedConfig,
-
-	#[structopt(subcommand)]
-	command: Command,
+	pub static Balancing: Option<BalancingConfig> = Some( BalancingConfig { iterations: BalanceIterations::get(), tolerance: 0 } );
 }
 
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
 /// pallets.
-async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
-	uri: String,
+async fn create_election_ext<T, B>(
+	client: SharedRpcClient,
 	at: Option<B::Hash>,
 	additional: Vec<String>,
-) -> Result<Ext, Error<T>> {
+) -> Result<Ext, Error<T>>
+where
+	T: EPM::Config,
+	B: BlockT + DeserializeOwned,
+	B::Header: DeserializeOwned,
+{
 	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
 	use sp_core::hashing::twox_128;
 
@@ -383,16 +314,17 @@ async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
 	pallets.extend(additional);
 	Builder::<B>::new()
 		.mode(Mode::Online(OnlineConfig {
-			transport: uri.into(),
+			transport: client.into_inner().into(),
 			at,
 			pallets,
+			hashed_prefixes: vec![<frame_system::BlockHash<T>>::prefix_hash()],
+			hashed_keys: vec![[twox_128(b"System"), twox_128(b"Number")].concat()],
 			..Default::default()
 		}))
-		.inject_hashed_prefix(&<frame_system::BlockHash<T>>::prefix_hash())
-		.inject_hashed_key(&[twox_128(b"System"), twox_128(b"Number")].concat())
 		.build()
 		.await
 		.map_err(|why| Error::RemoteExternalities(why))
+		.map(|rx| rx.inner_ext)
 }
 
 /// Compute the election. It expects to NOT be `Phase::Off`. In other words, the snapshot must
@@ -400,7 +332,7 @@ async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
 fn mine_solution<T, S>(
 	ext: &mut Ext,
 	do_feasibility: bool,
-) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
+) -> Result<EPM::RawSolution<EPM::SolutionOf<T::MinerConfig>>, Error<T>>
 where
 	T: EPM::Config,
 	S: NposSolver<
@@ -409,25 +341,23 @@ where
 	>,
 {
 	ext.execute_with(|| {
-		let (solution, _) =
-			<EPM::Pallet<T>>::mine_solution::<S>().map_err::<Error<T>, _>(Into::into)?;
+		let (solution, _) = <EPM::Pallet<T>>::mine_solution().map_err::<Error<T>, _>(Into::into)?;
 		if do_feasibility {
 			let _ = <EPM::Pallet<T>>::feasibility_check(
 				solution.clone(),
 				EPM::ElectionCompute::Signed,
 			)?;
 		}
-		let witness = <EPM::SignedSubmissions<T>>::decode_len().unwrap_or_default();
-		Ok((solution, witness as u32))
+		Ok(solution)
 	})
 }
 
 /// Mine a solution with the given `solver`.
 fn mine_with<T>(
-	solver: &Solvers,
+	solver: &Solver,
 	ext: &mut Ext,
 	do_feasibility: bool,
-) -> Result<(EPM::RawSolution<EPM::SolutionOf<T>>, u32), Error<T>>
+) -> Result<EPM::RawSolution<EPM::SolutionOf<T::MinerConfig>>, Error<T>>
 where
 	T: EPM::Config,
 	T::Solver: NposSolver<Error = sp_npos_elections::Error>,
@@ -435,7 +365,7 @@ where
 	use frame_election_provider_support::{PhragMMS, SequentialPhragmen};
 
 	match solver {
-		Solvers::SeqPhragmen { iterations } => {
+		Solver::SeqPhragmen { iterations } => {
 			BalanceIterations::set(*iterations);
 			mine_solution::<
 				T,
@@ -446,7 +376,7 @@ where
 				>,
 			>(ext, do_feasibility)
 		},
-		Solvers::PhragMMS { iterations } => {
+		Solver::PhragMMS { iterations } => {
 			BalanceIterations::set(*iterations);
 			mine_solution::<
 				T,
@@ -495,18 +425,40 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 }
 
 pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
-	client: &WsClient,
+	rpc: &SharedRpcClient,
+	print: bool,
 ) -> Result<(), Error<T>> {
 	let linked_version = T::Version::get();
-	let on_chain_version =
-		rpc_helpers::rpc::<sp_version::RuntimeVersion>(client, "state_getRuntimeVersion", None)
-			.await
-			.expect("runtime version RPC should always work; qed");
+	let on_chain_version = rpc
+		.runtime_version(None)
+		.await
+		.expect("runtime version RPC should always work; qed");
 
-	log::debug!(target: LOG_TARGET, "linked version {:?}", linked_version);
-	log::debug!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
+	let do_print = || {
+		log::info!(
+			target: LOG_TARGET,
+			"linked version {:?}",
+			(&linked_version.spec_name, &linked_version.spec_version)
+		);
+		log::info!(
+			target: LOG_TARGET,
+			"on-chain version {:?}",
+			(&on_chain_version.spec_name, &on_chain_version.spec_version)
+		);
+	};
 
-	if linked_version != on_chain_version {
+	if print {
+		do_print();
+	}
+
+	// we relax the checking here a bit, which should not cause any issues in production (a chain
+	// that messes up its spec name is highly unlikely), but it allows us to do easier testing.
+	if linked_version.spec_name != on_chain_version.spec_name ||
+		linked_version.spec_version != on_chain_version.spec_version
+	{
+		if !print {
+			do_print();
+		}
 		log::error!(
 			target: LOG_TARGET,
 			"VERSION MISMATCH: any transaction will fail with bad-proof"
@@ -517,22 +469,65 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	}
 }
 
+/// Control how we exit the application
+fn controlled_exit(code: i32) {
+	log::info!(target: LOG_TARGET, "Exiting application");
+	std::process::exit(code);
+}
+
+/// Handles the various signal and exit the application
+/// when appropriate.
+async fn handle_signals(mut signals: Signals) {
+	let mut keyboard_sig_count: u8 = 0;
+	while let Some(signal) = signals.next().await {
+		match signal {
+			// Interrupts come from the keyboard
+			SIGQUIT | SIGINT => {
+				if keyboard_sig_count >= 1 {
+					log::info!(
+						target: LOG_TARGET,
+						"Received keyboard termination signal #{}/{}, quitting...",
+						keyboard_sig_count + 1,
+						2
+					);
+					controlled_exit(exitcode::OK);
+				}
+				keyboard_sig_count += 1;
+				log::warn!(
+					target: LOG_TARGET,
+					"Received keyboard termination signal #{}, if you keep doing that I will really quit",
+					keyboard_sig_count
+				);
+			},
+
+			SIGKILL | SIGTERM => {
+				log::info!(target: LOG_TARGET, "Received SIGKILL | SIGTERM, quitting...");
+				controlled_exit(exitcode::OK);
+			},
+			_ => unreachable!(),
+		}
+	}
+}
+
 #[tokio::main]
 async fn main() {
-	env_logger::Builder::from_default_env()
-		.format_module_path(true)
-		.format_level(true)
-		.init();
-	let Opt { shared, command } = Opt::from_args();
-	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", shared.uri);
+	fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
-	let client = loop {
-		let maybe_client = WsClientBuilder::default()
-			.connection_timeout(std::time::Duration::new(20, 0))
-			.max_request_body_size(u32::MAX)
-			.build(&shared.uri)
-			.await;
-		match maybe_client {
+	let Opt { uri, command, connection_timeout, request_timeout } = Opt::parse();
+	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
+
+	let signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT]).expect("Failed initializing Signals");
+	let handle = signals.handle();
+	let signals_task = tokio::spawn(handle_signals(signals));
+
+	let rpc = loop {
+		match SharedRpcClient::new(
+			&uri,
+			Duration::from_secs(connection_timeout as u64),
+			Duration::from_secs(request_timeout as u64),
+		)
+		.await
+		{
 			Ok(client) => break client,
 			Err(why) => {
 				log::warn!(
@@ -540,14 +535,12 @@ async fn main() {
 					"failed to connect to client due to {:?}, retrying soon..",
 					why
 				);
-				std::thread::sleep(std::time::Duration::from_millis(2500));
+				tokio::time::sleep(std::time::Duration::from_millis(2500)).await;
 			},
 		}
 	};
 
-	let chain = rpc_helpers::rpc::<String>(&client, "system_chain", None)
-		.await
-		.expect("system_chain infallible; qed.");
+	let chain: String = rpc.system_chain().await.expect("system_chain infallible; qed.");
 	match chain.to_lowercase().as_str() {
 		"polkadot" | "development" => {
 			sp_core::crypto::set_default_ss58_version(
@@ -593,32 +586,60 @@ async fn main() {
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
 	any_runtime_unit! {
-		check_versions::<Runtime>(&client).await
-	};
-
-	let signer_account = any_runtime! {
-		signer::signer_uri_from_string::<Runtime>(&shared.seed, &client)
-			.await
-			.expect("Provided account is invalid, terminating.")
+		check_versions::<Runtime>(&rpc, true).await
 	};
 
 	let outcome = any_runtime! {
-		match command.clone() {
-			Command::Monitor(c) => monitor_cmd(&client, shared, c, signer_account).await
+		match command {
+			Command::Monitor(monitor_config) =>
+			{
+				let signer_account = any_runtime! {
+					signer::signer_uri_from_string::<Runtime>(&monitor_config.seed_or_path , &rpc)
+						.await
+						.expect("Provided account is invalid, terminating.")
+				};
+				monitor_cmd(rpc, monitor_config, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "Monitor error: {:?}", e);
-				}),
-			Command::DryRun(c) => dry_run_cmd(&client, shared, c, signer_account).await
+				})},
+			Command::DryRun(dryrun_config) => {
+				let signer_account = any_runtime! {
+					signer::signer_uri_from_string::<Runtime>(&dryrun_config.seed_or_path , &rpc)
+						.await
+						.expect("Provided account is invalid, terminating.")
+				};
+				dry_run_cmd(rpc, dryrun_config, signer_account).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "DryRun error: {:?}", e);
-				}),
-			Command::EmergencySolution(c) => emergency_solution_cmd(shared.clone(), c).await
+				})},
+			Command::EmergencySolution(emergency_solution_config) =>
+				emergency_solution_cmd(rpc, emergency_solution_config).await
 				.map_err(|e| {
 					log::error!(target: LOG_TARGET, "EmergencySolution error: {:?}", e);
 				}),
+			Command::Info(info_opts) => {
+				let remote_runtime_version = rpc.runtime_version(None).await.expect("runtime_version infallible; qed.");
+
+				let builtin_version = any_runtime! {
+					Version::get()
+				};
+
+				let versions = RuntimeVersions::new(&remote_runtime_version, &builtin_version);
+
+				if !info_opts.json {
+					println!("{}", versions);
+				} else {
+					let versions = serde_json::to_string_pretty(&versions).expect("Failed serializing version info");
+					println!("{}", versions);
+				}
+				Ok(())
+			}
 		}
 	};
 	log::info!(target: LOG_TARGET, "round of execution finished. outcome = {:?}", outcome);
+
+	handle.close();
+	let _ = signals_task.await;
 }
 
 #[cfg(test)]

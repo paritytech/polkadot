@@ -16,10 +16,10 @@
 
 //! Polkadot CLI library.
 
-use structopt::StructOpt;
+use clap::Parser;
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub enum Subcommand {
 	/// Build a chain specification.
 	BuildSpec(sc_cli::BuildSpecCmd),
@@ -43,15 +43,16 @@ pub enum Subcommand {
 	Revert(sc_cli::RevertCmd),
 
 	#[allow(missing_docs)]
-	#[structopt(name = "prepare-worker", setting = structopt::clap::AppSettings::Hidden)]
+	#[command(name = "prepare-worker", hide = true)]
 	PvfPrepareWorker(ValidationWorkerCommand),
 
 	#[allow(missing_docs)]
-	#[structopt(name = "execute-worker", setting = structopt::clap::AppSettings::Hidden)]
+	#[command(name = "execute-worker", hide = true)]
 	PvfExecuteWorker(ValidationWorkerCommand),
 
-	/// The custom benchmark subcommand benchmarking runtime pallets.
-	#[structopt(name = "benchmark", about = "Benchmark runtime pallets.")]
+	/// Sub-commands concerned with benchmarking.
+	/// The pallet benchmarking moved to the `pallet` sub-command.
+	#[command(subcommand)]
 	Benchmark(frame_benchmarking_cli::BenchmarkCmd),
 
 	/// Runs performance checks such as PVF compilation in order to measure machine
@@ -67,33 +68,38 @@ pub enum Subcommand {
 	TryRuntime,
 
 	/// Key management CLI utilities
+	#[command(subcommand)]
 	Key(sc_cli::KeySubcommand),
+
+	/// Db meta columns information.
+	ChainInfo(sc_cli::ChainInfoCmd),
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct ValidationWorkerCommand {
 	/// The path to the validation host's socket.
 	pub socket_path: String,
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
+#[group(skip)]
 pub struct RunCmd {
 	#[allow(missing_docs)]
-	#[structopt(flatten)]
+	#[clap(flatten)]
 	pub base: sc_cli::RunCmd,
 
 	/// Force using Kusama native runtime.
-	#[structopt(long = "force-kusama")]
+	#[arg(long = "force-kusama")]
 	pub force_kusama: bool,
 
 	/// Force using Westend native runtime.
-	#[structopt(long = "force-westend")]
+	#[arg(long = "force-westend")]
 	pub force_westend: bool,
 
 	/// Force using Rococo native runtime.
-	#[structopt(long = "force-rococo")]
+	#[arg(long = "force-rococo")]
 	pub force_rococo: bool,
 
 	/// Setup a GRANDPA scheduled voting pause.
@@ -102,26 +108,49 @@ pub struct RunCmd {
 	/// blocks). After the given block number is finalized the GRANDPA voter
 	/// will temporarily stop voting for new blocks until the given delay has
 	/// elapsed (i.e. until a block at height `pause_block + delay` is imported).
-	#[structopt(long = "grandpa-pause", number_of_values(2))]
+	#[arg(long = "grandpa-pause", num_args = 2)]
 	pub grandpa_pause: Vec<u32>,
 
 	/// Enable the BEEFY gadget (only on Rococo or Wococo for now).
-	#[structopt(long)]
+	#[arg(long)]
 	pub beefy: bool,
 
 	/// Add the destination address to the jaeger agent.
 	///
 	/// Must be valid socket address, of format `IP:Port`
 	/// commonly `127.0.0.1:6831`.
-	#[structopt(long)]
-	pub jaeger_agent: Option<std::net::SocketAddr>,
+	#[arg(long)]
+	pub jaeger_agent: Option<String>,
+
+	/// Add the destination address to the `pyroscope` agent.
+	///
+	/// Must be valid socket address, of format `IP:Port`
+	/// commonly `127.0.0.1:4040`.
+	#[arg(long)]
+	pub pyroscope_server: Option<String>,
+
+	/// Disable automatic hardware benchmarks.
+	///
+	/// By default these benchmarks are automatically ran at startup and measure
+	/// the CPU speed, the memory bandwidth and the disk speed.
+	///
+	/// The results are then printed out in the logs, and also sent as part of
+	/// telemetry, if telemetry is enabled.
+	#[arg(long)]
+	pub no_hardware_benchmarks: bool,
+
+	/// Overseer message capacity override.
+	///
+	/// **Dangerous!** Do not touch unless explicitly adviced to.
+	#[arg(long)]
+	pub overseer_channel_capacity_override: Option<usize>,
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, StructOpt)]
+#[derive(Debug, Parser)]
 pub struct Cli {
-	#[structopt(subcommand)]
+	#[command(subcommand)]
 	pub subcommand: Option<Subcommand>,
-	#[structopt(flatten)]
+	#[clap(flatten)]
 	pub run: RunCmd,
 }

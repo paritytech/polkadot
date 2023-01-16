@@ -22,23 +22,21 @@
 
 #![deny(missing_docs)]
 
-use std::{convert::TryFrom, pin::Pin, time::Duration};
+use std::{pin::Pin, time::Duration};
 
 use bounded_vec::BoundedVec;
 use futures::Future;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
+use polkadot_primitives::{
+	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CollatorPair,
+	CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId,
+	OutboundHrmpMessage, PersistedValidationData, SessionIndex, Signed, UncheckedSigned,
+	UpwardMessage, ValidationCode, ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+};
 pub use sp_consensus_babe::{
 	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
-};
-pub use sp_core::traits::SpawnNamed;
-
-use polkadot_primitives::v1::{
-	BlakeTwo256, CandidateCommitments, CandidateHash, CollatorPair, CommittedCandidateReceipt,
-	CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId, OutboundHrmpMessage,
-	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, UpwardMessage, ValidationCode,
-	ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
 };
 
 pub use polkadot_parachain::primitives::BlockData;
@@ -48,8 +46,9 @@ pub mod approval;
 /// Disputes related types.
 pub mod disputes;
 pub use disputes::{
-	CandidateVotes, DisputeMessage, DisputeMessageCheckError, InvalidDisputeVote,
-	SignedDisputeStatement, UncheckedDisputeMessage, ValidDisputeVote,
+	dispute_is_inactive, CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
+	InvalidDisputeVote, SignedDisputeStatement, Timestamp, UncheckedDisputeMessage,
+	ValidDisputeVote, ACTIVE_DURATION_SECS,
 };
 
 // For a 16-ary Merkle Prefix Trie, we can expect at most 16 32-byte hashes per node
@@ -72,23 +71,46 @@ pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
 ///
 /// This is deliberately much longer than the backing execution timeout to
 /// ensure that in the absence of extremely large disparities between hardware,
-/// blocks that pass backing are considerd executable by approval checkers or
+/// blocks that pass backing are considered executable by approval checkers or
 /// dispute participants.
-pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(6);
+///
+/// NOTE: If this value is increased significantly, also check the dispute coordinator to consider
+/// candidates longer into finalization: `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION`.
+pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
+
+/// How many blocks after finalization an information about backed/included candidate should be
+/// kept.
+///
+/// We don't want to remove scraped candidates on finalization because we want to
+/// be sure that disputes will conclude on abandoned forks.
+/// Removing the candidate on finalization creates a possibility for an attacker to
+/// avoid slashing. If a bad fork is abandoned too quickly because another
+/// better one gets finalized the entries for the bad fork will be pruned and we
+/// might never participate in a dispute for it.
+///
+/// This value should consider the timeout we allow for participation in approval-voting. In
+/// particular, the following condition should hold:
+///
+/// slot time * `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` > `APPROVAL_EXECUTION_TIMEOUT`
+/// + slot time
+pub const DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION: BlockNumber = 10;
+
+/// Linked to `MAX_FINALITY_LAG` in relay chain selection,
+/// `MAX_HEADS_LOOK_BACK` in `approval-voting` and
+/// `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator`
+pub const MAX_FINALITY_LAG: u32 = 500;
 
 /// Type of a session window size.
 ///
 /// We are not using `NonZeroU32` here because `expect` and `unwrap` are not yet const, so global
 /// constants of `SessionWindowSize` would require `lazy_static` in that case.
 ///
-/// See: https://github.com/rust-lang/rust/issues/67441
+/// See: <https://github.com/rust-lang/rust/issues/67441>
 #[derive(Copy, Clone, Eq, PartialEq, Ord, PartialOrd)]
 pub struct SessionWindowSize(SessionIndex);
 
 #[macro_export]
-/// Create a new checked `SessionWindowSize`
-///
-/// which cannot be 0.
+/// Create a new checked `SessionWindowSize` which cannot be 0.
 macro_rules! new_session_window_size {
 	(0) => {
 		compile_error!("Must be non zero");
@@ -205,7 +227,7 @@ pub type UncheckedSignedFullStatement = UncheckedSigned<Statement, CompactStatem
 /// Candidate invalidity details
 #[derive(Debug)]
 pub enum InvalidCandidate {
-	/// Failed to execute.`validate_block`. This includes function panicking.
+	/// Failed to execute `validate_block`. This includes function panicking.
 	ExecutionError(String),
 	/// Validation outputs check doesn't pass.
 	InvalidOutputs,
@@ -231,6 +253,8 @@ pub enum InvalidCandidate {
 	ParaHeadHashMismatch,
 	/// Validation code hash does not match.
 	CodeHashMismatch,
+	/// Validation has generated different candidate commitments.
+	CommitmentsHashMismatch,
 }
 
 /// Result of the validation of the candidate.
@@ -257,6 +281,29 @@ impl PoV {
 	}
 }
 
+/// A type that represents a maybe compressed [`PoV`].
+#[derive(Clone, Encode, Decode)]
+#[cfg(not(target_os = "unknown"))]
+pub enum MaybeCompressedPoV {
+	/// A raw [`PoV`], aka not compressed.
+	Raw(PoV),
+	/// The given [`PoV`] is already compressed.
+	Compressed(PoV),
+}
+
+#[cfg(not(target_os = "unknown"))]
+impl MaybeCompressedPoV {
+	/// Convert into a compressed [`PoV`].
+	///
+	/// If `self == Raw` it is compressed using [`maybe_compress_pov`].
+	pub fn into_compressed(self) -> PoV {
+		match self {
+			Self::Raw(raw) => maybe_compress_pov(raw),
+			Self::Compressed(compressed) => compressed,
+		}
+	}
+}
+
 /// The output of a collator.
 ///
 /// This differs from `CandidateCommitments` in two ways:
@@ -264,7 +311,8 @@ impl PoV {
 /// - does not contain the erasure root; that's computed at the Polkadot level, not at Cumulus
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
-pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
+#[cfg(not(target_os = "unknown"))]
+pub struct Collation<BlockNumber = polkadot_primitives::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: Vec<UpwardMessage>,
 	/// The horizontal messages sent by the parachain.
@@ -274,7 +322,7 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 	/// The head-data produced as a result of execution.
 	pub head_data: HeadData,
 	/// Proof to verify the state transition of the parachain.
-	pub proof_of_validity: PoV,
+	pub proof_of_validity: MaybeCompressedPoV,
 	/// The number of messages processed from the DMQ.
 	pub processed_downward_messages: u32,
 	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
@@ -283,6 +331,7 @@ pub struct Collation<BlockNumber = polkadot_primitives::v1::BlockNumber> {
 
 /// Signal that is being returned when a collation was seconded by a validator.
 #[derive(Debug)]
+#[cfg(not(target_os = "unknown"))]
 pub struct CollationSecondedSignal {
 	/// The hash of the relay chain block that was used as context to sign [`Self::statement`].
 	pub relay_parent: Hash,
@@ -293,6 +342,7 @@ pub struct CollationSecondedSignal {
 }
 
 /// Result of the [`CollatorFn`] invocation.
+#[cfg(not(target_os = "unknown"))]
 pub struct CollationResult {
 	/// The collation that was build.
 	pub collation: Collation,
@@ -304,6 +354,7 @@ pub struct CollationResult {
 	pub result_sender: Option<futures::channel::oneshot::Sender<CollationSecondedSignal>>,
 }
 
+#[cfg(not(target_os = "unknown"))]
 impl CollationResult {
 	/// Convert into the inner values.
 	pub fn into_inner(
@@ -319,6 +370,7 @@ impl CollationResult {
 /// [`ValidationData`] that provides information about the state of the parachain on the relay chain.
 ///
 /// Returns an optional [`CollationResult`].
+#[cfg(not(target_os = "unknown"))]
 pub type CollatorFn = Box<
 	dyn Fn(
 			Hash,
@@ -329,6 +381,7 @@ pub type CollatorFn = Box<
 >;
 
 /// Configuration for the collation generator
+#[cfg(not(target_os = "unknown"))]
 pub struct CollationGenerationConfig {
 	/// Collator's authentication key, so it can sign things.
 	pub key: CollatorPair,
@@ -338,6 +391,7 @@ pub struct CollationGenerationConfig {
 	pub para_id: ParaId,
 }
 
+#[cfg(not(target_os = "unknown"))]
 impl std::fmt::Debug for CollationGenerationConfig {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "CollationGenerationConfig {{ ... }}")
@@ -349,7 +403,7 @@ impl std::fmt::Debug for CollationGenerationConfig {
 pub struct AvailableData {
 	/// The Proof-of-Validation of the candidate.
 	pub pov: std::sync::Arc<PoV>,
-	/// The persisted validation data needed for secondary checks.
+	/// The persisted validation data needed for approval checks.
 	pub validation_data: PersistedValidationData,
 }
 
@@ -371,8 +425,8 @@ impl Proof {
 	}
 }
 
+/// Possible errors when converting from `Vec<Vec<u8>>` into [`Proof`].
 #[derive(thiserror::Error, Debug)]
-///
 pub enum MerkleProofError {
 	#[error("Merkle max proof depth exceeded {0} > {} .", MERKLE_PROOF_MAX_DEPTH)]
 	/// This error signifies that the Proof length exceeds the trie's max depth

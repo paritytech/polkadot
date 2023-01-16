@@ -31,13 +31,13 @@ pub mod test_utils;
 mod location_conversion;
 pub use location_conversion::{
 	Account32Hash, AccountId32Aliases, AccountKey20Aliases, ChildParachainConvertsVia,
-	LocationInverter, ParentIsDefault, SiblingParachainConvertsVia,
+	LocationInverter, ParentIsPreset, SiblingParachainConvertsVia,
 };
 
 mod origin_conversion;
 pub use origin_conversion::{
 	BackingToPlurality, ChildParachainAsNative, ChildSystemParachainAsSuperuser, EnsureXcmOrigin,
-	ParentAsSuperuser, RelayChainAsNative, SiblingParachainAsNative,
+	OriginToPluralityVoice, ParentAsSuperuser, RelayChainAsNative, SiblingParachainAsNative,
 	SiblingSystemParachainAsSuperuser, SignedAccountId32AsNative, SignedAccountKey20AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation,
 };

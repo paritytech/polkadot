@@ -22,12 +22,12 @@
 
 use crate::{
 	artifacts::{ArtifactId, ArtifactPathId, ArtifactState, Artifacts},
+	error::PrepareError,
 	execute,
 	metrics::Metrics,
 	prepare, PrepareResult, Priority, Pvf, ValidationError, LOG_TARGET,
 };
 use always_assert::never;
-use async_std::path::{Path, PathBuf};
 use futures::{
 	channel::{mpsc, oneshot},
 	Future, FutureExt, SinkExt, StreamExt,
@@ -35,8 +35,30 @@ use futures::{
 use polkadot_parachain::primitives::ValidationResult;
 use std::{
 	collections::HashMap,
+	path::{Path, PathBuf},
 	time::{Duration, SystemTime},
 };
+
+/// For prechecking requests, the time period after which the preparation worker is considered
+/// unresponsive and will be killed.
+// NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
+pub const PRECHECK_PREPARATION_TIMEOUT: Duration = Duration::from_secs(60);
+
+/// For execution and heads-up requests, the time period after which the preparation worker is
+/// considered unresponsive and will be killed. More lenient than the timeout for prechecking to
+/// prevent honest validators from timing out on valid PVFs.
+// NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
+pub const LENIENT_PREPARATION_TIMEOUT: Duration = Duration::from_secs(360);
+
+/// The time period after which a failed preparation artifact is considered ready to be retried.
+/// Note that we will only retry if another request comes in after this cooldown has passed.
+#[cfg(not(test))]
+pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_secs(15 * 60);
+#[cfg(test)]
+pub const PREPARE_FAILURE_COOLDOWN: Duration = Duration::from_millis(200);
+
+/// The amount of times we will retry failed prepare jobs.
+pub const NUM_PREPARE_RETRIES: u32 = 5;
 
 /// An alias to not spell the type for the oneshot sender for the PVF execution result.
 pub(crate) type ResultSender = oneshot::Sender<Result<ValidationResult, ValidationError>>;
@@ -51,10 +73,11 @@ pub struct ValidationHost {
 }
 
 impl ValidationHost {
-	/// Precheck PVF with the given code, i.e. verify that it compiles within a reasonable time limit.
-	/// The result of execution will be sent to the provided result sender.
+	/// Precheck PVF with the given code, i.e. verify that it compiles within a reasonable time
+	/// limit. This will prepare the PVF. The result of preparation will be sent to the provided
+	/// result sender.
 	///
-	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// This is async to accommodate the possibility of back-pressure. In the vast majority of
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
@@ -72,7 +95,7 @@ impl ValidationHost {
 	/// Execute PVF with the given code, execution timeout, parameters and priority.
 	/// The result of execution will be sent to the provided result sender.
 	///
-	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// This is async to accommodate the possibility of back-pressure. In the vast majority of
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
@@ -85,14 +108,20 @@ impl ValidationHost {
 		result_tx: ResultSender,
 	) -> Result<(), String> {
 		self.to_host_tx
-			.send(ToHost::ExecutePvf { pvf, execution_timeout, params, priority, result_tx })
+			.send(ToHost::ExecutePvf(ExecutePvfInputs {
+				pvf,
+				execution_timeout,
+				params,
+				priority,
+				result_tx,
+			}))
 			.await
 			.map_err(|_| "the inner loop hung up".to_string())
 	}
 
 	/// Sends a signal to the validation host requesting to prepare a list of the given PVFs.
 	///
-	/// This is async to accommodate the fact a possibility of back-pressure. In the vast majority of
+	/// This is async to accommodate the possibility of back-pressure. In the vast majority of
 	/// situations this function should return immediately.
 	///
 	/// Returns an error if the request cannot be sent to the validation host, i.e. if it shut down.
@@ -105,20 +134,17 @@ impl ValidationHost {
 }
 
 enum ToHost {
-	PrecheckPvf {
-		pvf: Pvf,
-		result_tx: PrepareResultSender,
-	},
-	ExecutePvf {
-		pvf: Pvf,
-		execution_timeout: Duration,
-		params: Vec<u8>,
-		priority: Priority,
-		result_tx: ResultSender,
-	},
-	HeadsUp {
-		active_pvfs: Vec<Pvf>,
-	},
+	PrecheckPvf { pvf: Pvf, result_tx: PrepareResultSender },
+	ExecutePvf(ExecutePvfInputs),
+	HeadsUp { active_pvfs: Vec<Pvf> },
+}
+
+struct ExecutePvfInputs {
+	pvf: Pvf,
+	execution_timeout: Duration,
+	params: Vec<u8>,
+	priority: Priority,
+	result_tx: ResultSender,
 }
 
 /// Configuration for the validation host.
@@ -145,7 +171,7 @@ pub struct Config {
 impl Config {
 	/// Create a new instance of the configuration.
 	pub fn new(cache_path: std::path::PathBuf, program_path: std::path::PathBuf) -> Self {
-		// Do not contaminate the other parts of the codebase with the types from `async_std`.
+		// Do not contaminate the other parts of the codebase with the types from `tokio`.
 		let cache_path = PathBuf::from(cache_path);
 		let program_path = PathBuf::from(program_path);
 
@@ -192,7 +218,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 	);
 
 	let (to_execute_queue_tx, run_execute_queue) = execute::start(
-		metrics.clone(),
+		metrics,
 		config.execute_worker_program_path.to_owned(),
 		config.execute_workers_max_num,
 		config.execute_worker_spawn_timeout,
@@ -201,33 +227,36 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 	let (to_sweeper_tx, to_sweeper_rx) = mpsc::channel(100);
 	let run_sweeper = sweeper_task(to_sweeper_rx);
 
-	let run = async move {
+	let run_host = async move {
 		let artifacts = Artifacts::new(&config.cache_path).await;
 
-		futures::pin_mut!(run_prepare_queue, run_prepare_pool, run_execute_queue, run_sweeper);
-
-		run(
-			Inner {
-				cache_path: config.cache_path,
-				cleanup_pulse_interval: Duration::from_secs(3600),
-				artifact_ttl: Duration::from_secs(3600 * 24),
-				artifacts,
-				to_host_rx,
-				to_prepare_queue_tx,
-				from_prepare_queue_rx,
-				to_execute_queue_tx,
-				to_sweeper_tx,
-				awaiting_prepare: AwaitingPrepare::default(),
-			},
-			run_prepare_pool,
-			run_prepare_queue,
-			run_execute_queue,
-			run_sweeper,
-		)
+		run(Inner {
+			cache_path: config.cache_path,
+			cleanup_pulse_interval: Duration::from_secs(3600),
+			artifact_ttl: Duration::from_secs(3600 * 24),
+			artifacts,
+			to_host_rx,
+			to_prepare_queue_tx,
+			from_prepare_queue_rx,
+			to_execute_queue_tx,
+			to_sweeper_tx,
+			awaiting_prepare: AwaitingPrepare::default(),
+		})
 		.await
 	};
 
-	(validation_host, run)
+	let task = async move {
+		// Bundle the sub-components' tasks together into a single future.
+		futures::select! {
+			_ = run_host.fuse() => {},
+			_ = run_prepare_queue.fuse() => {},
+			_ = run_prepare_pool.fuse() => {},
+			_ = run_execute_queue.fuse() => {},
+			_ = run_sweeper.fuse() => {},
+		};
+	};
+
+	(validation_host, task)
 }
 
 /// An execution request that should execute the PVF (known in the context) and send the results
@@ -297,15 +326,18 @@ async fn run(
 		mut to_sweeper_tx,
 		mut awaiting_prepare,
 	}: Inner,
-	prepare_pool: impl Future<Output = ()> + Unpin,
-	prepare_queue: impl Future<Output = ()> + Unpin,
-	execute_queue: impl Future<Output = ()> + Unpin,
-	sweeper: impl Future<Output = ()> + Unpin,
 ) {
 	macro_rules! break_if_fatal {
 		($expr:expr) => {
 			match $expr {
-				Err(Fatal) => break,
+				Err(Fatal) => {
+					gum::error!(
+						target: LOG_TARGET,
+						"Fatal error occurred, terminating the host. Line: {}",
+						line!(),
+					);
+					break
+				},
 				Ok(v) => v,
 			}
 		};
@@ -317,31 +349,9 @@ async fn run(
 	let mut to_host_rx = to_host_rx.fuse();
 	let mut from_prepare_queue_rx = from_prepare_queue_rx.fuse();
 
-	// Make sure that the task-futures are fused.
-	let mut prepare_queue = prepare_queue.fuse();
-	let mut prepare_pool = prepare_pool.fuse();
-	let mut execute_queue = execute_queue.fuse();
-	let mut sweeper = sweeper.fuse();
-
 	loop {
 		// biased to make it behave deterministically for tests.
 		futures::select_biased! {
-			_ = prepare_queue => {
-				never!("prepare_pool: long-running task never concludes; qed");
-				break;
-			},
-			_ = prepare_pool => {
-				never!("prepare_pool: long-running task never concludes; qed");
-				break;
-			},
-			_ = execute_queue => {
-				never!("execute_queue: long-running task never concludes; qed");
-				break;
-			},
-			_ = sweeper => {
-				never!("sweeper: long-running task never concludes; qed");
-				break;
-			},
 			() = cleanup_pulse.select_next_some() => {
 				// `select_next_some` because we don't expect this to fail, but if it does, we
 				// still don't fail. The tradeoff is that the compiled cache will start growing
@@ -356,8 +366,17 @@ async fn run(
 				).await);
 			},
 			to_host = to_host_rx.next() => {
-				let to_host = break_if_fatal!(to_host.ok_or(Fatal));
+				let to_host = match to_host {
+					None => {
+						// The sending half of the channel has been closed, meaning the
+						// `ValidationHost` struct was dropped. Shutting down gracefully.
+						break;
+					},
+					Some(to_host) => to_host,
+				};
 
+				// If the artifact failed before, it could be re-scheduled for preparation here if
+				// the preparation failure cooldown has elapsed.
 				break_if_fatal!(handle_to_host(
 					&cache_path,
 					&mut artifacts,
@@ -371,12 +390,12 @@ async fn run(
 			from_prepare_queue = from_prepare_queue_rx.next() => {
 				let from_queue = break_if_fatal!(from_prepare_queue.ok_or(Fatal));
 
-				// Note that preparation always succeeds.
+				// Note that the preparation outcome is always reported as concluded.
 				//
 				// That's because the error conditions are written into the artifact and will be
-				// reported at the time of the  execution. It potentially, but not necessarily,
-				// can be scheduled as a result of this function call, in case there are pending
-				// executions.
+				// reported at the time of the execution. It potentially, but not necessarily, can
+				// be scheduled for execution as a result of this function call, in case there are
+				// pending executions.
 				//
 				// We could be eager in terms of reporting and plumb the result from the preparation
 				// worker but we don't for the sake of simplicity.
@@ -404,29 +423,29 @@ async fn handle_to_host(
 		ToHost::PrecheckPvf { pvf, result_tx } => {
 			handle_precheck_pvf(artifacts, prepare_queue, pvf, result_tx).await?;
 		},
-		ToHost::ExecutePvf { pvf, execution_timeout, params, priority, result_tx } => {
+		ToHost::ExecutePvf(inputs) => {
 			handle_execute_pvf(
 				cache_path,
 				artifacts,
 				prepare_queue,
 				execute_queue,
 				awaiting_prepare,
-				pvf,
-				execution_timeout,
-				params,
-				priority,
-				result_tx,
+				inputs,
 			)
 			.await?;
 		},
-		ToHost::HeadsUp { active_pvfs } => {
-			handle_heads_up(artifacts, prepare_queue, active_pvfs).await?;
-		},
+		ToHost::HeadsUp { active_pvfs } =>
+			handle_heads_up(artifacts, prepare_queue, active_pvfs).await?,
 	}
 
 	Ok(())
 }
 
+/// Handles PVF prechecking requests.
+///
+/// This tries to prepare the PVF by compiling the WASM blob within a given timeout ([`PRECHECK_PREPARATION_TIMEOUT`]).
+///
+/// If the prepare job failed previously, we may retry it under certain conditions.
 async fn handle_precheck_pvf(
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
@@ -437,43 +456,59 @@ async fn handle_precheck_pvf(
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
-			ArtifactState::Prepared { last_time_needed } => {
+			ArtifactState::Prepared { last_time_needed, cpu_time_elapsed } => {
 				*last_time_needed = SystemTime::now();
-				let _ = result_sender.send(Ok(()));
+				let _ = result_sender.send(Ok(*cpu_time_elapsed));
 			},
-			ArtifactState::Preparing { waiting_for_response } =>
+			ArtifactState::Preparing { waiting_for_response, num_failures: _ } =>
 				waiting_for_response.push(result_sender),
-			ArtifactState::FailedToProcess(result) => {
-				let _ = result_sender.send(PrepareResult::Err(result.clone()));
+			ArtifactState::FailedToProcess { error, .. } => {
+				// Do not retry failed preparation if another pre-check request comes in. We do not retry pre-checking,
+				// anyway.
+				let _ = result_sender.send(PrepareResult::Err(error.clone()));
 			},
 		}
 	} else {
 		artifacts.insert_preparing(artifact_id, vec![result_sender]);
-		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf })
-			.await?;
+		send_prepare(
+			prepare_queue,
+			prepare::ToQueue::Enqueue {
+				priority: Priority::Normal,
+				pvf,
+				preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
+			},
+		)
+		.await?;
 	}
 	Ok(())
 }
 
+/// Handles PVF execution.
+///
+/// This will try to prepare the PVF, if a prepared artifact does not already exist. If there is already a
+/// preparation job, we coalesce the two preparation jobs.
+///
+/// If the prepare job failed previously, we may retry it under certain conditions.
+///
+/// When preparing for execution, we use a more lenient timeout ([`EXECUTE_PREPARATION_TIMEOUT`])
+/// than when prechecking.
 async fn handle_execute_pvf(
 	cache_path: &Path,
 	artifacts: &mut Artifacts,
 	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
 	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
-	pvf: Pvf,
-	execution_timeout: Duration,
-	params: Vec<u8>,
-	priority: Priority,
-	result_tx: ResultSender,
+	inputs: ExecutePvfInputs,
 ) -> Result<(), Fatal> {
+	let ExecutePvfInputs { pvf, execution_timeout, params, priority, result_tx } = inputs;
 	let artifact_id = pvf.as_artifact_id();
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
-			ArtifactState::Prepared { ref mut last_time_needed } => {
+			ArtifactState::Prepared { last_time_needed, .. } => {
 				*last_time_needed = SystemTime::now();
 
+				// This artifact has already been prepared, send it to the execute queue.
 				send_execute(
 					execute_queue,
 					execute::ToQueue::Enqueue {
@@ -485,23 +520,64 @@ async fn handle_execute_pvf(
 				)
 				.await?;
 			},
-			ArtifactState::Preparing { waiting_for_response: _ } => {
+			ArtifactState::Preparing { .. } => {
 				awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 			},
-			ArtifactState::FailedToProcess(error) => {
-				let _ = result_tx.send(Err(ValidationError::from(error.clone())));
+			ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
+				if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
+					gum::warn!(
+						target: LOG_TARGET,
+						?pvf,
+						?artifact_id,
+						?last_time_failed,
+						%num_failures,
+						%error,
+						"handle_execute_pvf: Re-trying failed PVF preparation."
+					);
+
+					// If we are allowed to retry the failed prepare job, change the state to
+					// Preparing and re-queue this job.
+					*state = ArtifactState::Preparing {
+						waiting_for_response: Vec::new(),
+						num_failures: *num_failures,
+					};
+					send_prepare(
+						prepare_queue,
+						prepare::ToQueue::Enqueue {
+							priority,
+							pvf,
+							preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+						},
+					)
+					.await?;
+
+					// Add an execution request that will wait to run after this prepare job has
+					// finished.
+					awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
+				} else {
+					let _ = result_tx.send(Err(ValidationError::from(error.clone())));
+				}
 			},
 		}
 	} else {
 		// Artifact is unknown: register it and enqueue a job with the corresponding priority and
-		//
+		// PVF.
 		artifacts.insert_preparing(artifact_id.clone(), Vec::new());
-		send_prepare(prepare_queue, prepare::ToQueue::Enqueue { priority, pvf }).await?;
+		send_prepare(
+			prepare_queue,
+			prepare::ToQueue::Enqueue {
+				priority,
+				pvf,
+				preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+			},
+		)
+		.await?;
 
+		// Add an execution request that will wait to run after this prepare job has finished.
 		awaiting_prepare.add(artifact_id, execution_timeout, params, result_tx);
 	}
 
-	return Ok(())
+	Ok(())
 }
 
 async fn handle_heads_up(
@@ -518,10 +594,38 @@ async fn handle_heads_up(
 				ArtifactState::Prepared { last_time_needed, .. } => {
 					*last_time_needed = now;
 				},
-				ArtifactState::Preparing { waiting_for_response: _ } => {
+				ArtifactState::Preparing { .. } => {
 					// The artifact is already being prepared, so we don't need to do anything.
 				},
-				ArtifactState::FailedToProcess(_) => {},
+				ArtifactState::FailedToProcess { last_time_failed, num_failures, error } => {
+					if can_retry_prepare_after_failure(*last_time_failed, *num_failures, error) {
+						gum::warn!(
+							target: LOG_TARGET,
+							?active_pvf,
+							?artifact_id,
+							?last_time_failed,
+							%num_failures,
+							%error,
+							"handle_heads_up: Re-trying failed PVF preparation."
+						);
+
+						// If we are allowed to retry the failed prepare job, change the state to
+						// Preparing and re-queue this job.
+						*state = ArtifactState::Preparing {
+							waiting_for_response: vec![],
+							num_failures: *num_failures,
+						};
+						send_prepare(
+							prepare_queue,
+							prepare::ToQueue::Enqueue {
+								priority: Priority::Normal,
+								pvf: active_pvf,
+								preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+							},
+						)
+						.await?;
+					}
+				},
 			}
 		} else {
 			// It's not in the artifacts, so we need to enqueue a job to prepare it.
@@ -529,7 +633,11 @@ async fn handle_heads_up(
 
 			send_prepare(
 				prepare_queue,
-				prepare::ToQueue::Enqueue { priority: Priority::Normal, pvf: active_pvf },
+				prepare::ToQueue::Enqueue {
+					priority: Priority::Normal,
+					pvf: active_pvf,
+					preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+				},
 			)
 			.await?;
 		}
@@ -567,20 +675,26 @@ async fn handle_prepare_done(
 			never!("the artifact is already prepared: {:?}", artifact_id);
 			return Ok(())
 		},
-		Some(ArtifactState::FailedToProcess(_)) => {
+		Some(ArtifactState::FailedToProcess { .. }) => {
 			// The reasoning is similar to the above, the artifact cannot be
 			// processed at this point.
 			never!("the artifact is already processed unsuccessfully: {:?}", artifact_id);
 			return Ok(())
 		},
-		Some(state @ ArtifactState::Preparing { waiting_for_response: _ }) => state,
+		Some(state @ ArtifactState::Preparing { .. }) => state,
 	};
 
-	if let ArtifactState::Preparing { waiting_for_response } = state {
+	let num_failures = if let ArtifactState::Preparing { waiting_for_response, num_failures } =
+		state
+	{
 		for result_sender in waiting_for_response.drain(..) {
 			let _ = result_sender.send(result.clone());
 		}
-	}
+		num_failures
+	} else {
+		never!("The reasoning is similar to the above, the artifact can only be preparing at this point; qed");
+		return Ok(())
+	};
 
 	// It's finally time to dispatch all the execution requests that were waiting for this artifact
 	// to be prepared.
@@ -611,8 +725,22 @@ async fn handle_prepare_done(
 	}
 
 	*state = match result {
-		Ok(()) => ArtifactState::Prepared { last_time_needed: SystemTime::now() },
-		Err(error) => ArtifactState::FailedToProcess(error.clone()),
+		Ok(cpu_time_elapsed) =>
+			ArtifactState::Prepared { last_time_needed: SystemTime::now(), cpu_time_elapsed },
+		Err(error) => {
+			let last_time_failed = SystemTime::now();
+			let num_failures = *num_failures + 1;
+
+			gum::warn!(
+				target: LOG_TARGET,
+				?artifact_id,
+				time_failed = ?last_time_failed,
+				%num_failures,
+				"artifact preparation failed: {}",
+				error
+			);
+			ArtifactState::FailedToProcess { last_time_failed, num_failures, error }
+		},
 	};
 
 	Ok(())
@@ -639,13 +767,13 @@ async fn handle_cleanup_pulse(
 	artifact_ttl: Duration,
 ) -> Result<(), Fatal> {
 	let to_remove = artifacts.prune(artifact_ttl);
-	tracing::debug!(
+	gum::debug!(
 		target: LOG_TARGET,
 		"PVF pruning: {} artifacts reached their end of life",
 		to_remove.len(),
 	);
 	for artifact_id in to_remove {
-		tracing::debug!(
+		gum::debug!(
 			target: LOG_TARGET,
 			validation_code_hash = ?artifact_id.code_hash,
 			"pruning artifact",
@@ -663,8 +791,8 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 		match sweeper_rx.next().await {
 			None => break,
 			Some(condemned) => {
-				let result = async_std::fs::remove_file(&condemned).await;
-				tracing::trace!(
+				let result = tokio::fs::remove_file(&condemned).await;
+				gum::trace!(
 					target: LOG_TARGET,
 					?result,
 					"Sweeping the artifact file {}",
@@ -673,6 +801,23 @@ async fn sweeper_task(mut sweeper_rx: mpsc::Receiver<PathBuf>) {
 			},
 		}
 	}
+}
+
+/// Check if the conditions to retry a prepare job have been met.
+fn can_retry_prepare_after_failure(
+	last_time_failed: SystemTime,
+	num_failures: u32,
+	error: &PrepareError,
+) -> bool {
+	if error.is_deterministic() {
+		// This error is considered deterministic, so it will probably be reproducible. Don't retry.
+		return false
+	}
+
+	// Retry if the retry cooldown has elapsed and if we have already retried less than `NUM_PREPARE_RETRIES` times. IO
+	// errors may resolve themselves.
+	SystemTime::now() >= last_time_failed + PREPARE_FAILURE_COOLDOWN &&
+		num_failures <= NUM_PREPARE_RETRIES
 }
 
 /// A stream that yields a pulse continuously at a given interval.
@@ -695,7 +840,7 @@ mod tests {
 
 	const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn pulse_test() {
 		let pulse = pulse_every(Duration::from_millis(100));
 		futures::pin_mut!(pulse);
@@ -761,26 +906,18 @@ mod tests {
 			let (to_execute_queue_tx, to_execute_queue_rx) = mpsc::channel(10);
 			let (to_sweeper_tx, to_sweeper_rx) = mpsc::channel(10);
 
-			let mk_dummy_loop = || std::future::pending().boxed();
-
-			let run = run(
-				Inner {
-					cache_path,
-					cleanup_pulse_interval,
-					artifact_ttl,
-					artifacts,
-					to_host_rx,
-					to_prepare_queue_tx,
-					from_prepare_queue_rx,
-					to_execute_queue_tx,
-					to_sweeper_tx,
-					awaiting_prepare: AwaitingPrepare::default(),
-				},
-				mk_dummy_loop(),
-				mk_dummy_loop(),
-				mk_dummy_loop(),
-				mk_dummy_loop(),
-			)
+			let run = run(Inner {
+				cache_path,
+				cleanup_pulse_interval,
+				artifact_ttl,
+				artifacts,
+				to_host_rx,
+				to_prepare_queue_tx,
+				from_prepare_queue_rx,
+				to_execute_queue_tx,
+				to_sweeper_tx,
+				awaiting_prepare: AwaitingPrepare::default(),
+			})
 			.boxed();
 
 			Self {
@@ -798,6 +935,13 @@ mod tests {
 			ValidationHost { to_host_tx }
 		}
 
+		async fn poll_and_recv_result<T>(&mut self, result_rx: oneshot::Receiver<T>) -> T
+		where
+			T: Send,
+		{
+			run_until(&mut self.run, async { result_rx.await.unwrap() }.boxed()).await
+		}
+
 		async fn poll_and_recv_to_prepare_queue(&mut self) -> prepare::ToQueue {
 			let to_prepare_queue_rx = &mut self.to_prepare_queue_rx;
 			run_until(&mut self.run, async { to_prepare_queue_rx.next().await.unwrap() }.boxed())
@@ -810,6 +954,25 @@ mod tests {
 				.await
 		}
 
+		async fn poll_ensure_to_prepare_queue_is_empty(&mut self) {
+			use futures_timer::Delay;
+
+			let to_prepare_queue_rx = &mut self.to_prepare_queue_rx;
+			run_until(
+				&mut self.run,
+				async {
+					futures::select! {
+						_ = Delay::new(Duration::from_millis(500)).fuse() => (),
+						_ = to_prepare_queue_rx.next().fuse() => {
+							panic!("the prepare queue is supposed to be empty")
+						}
+					}
+				}
+				.boxed(),
+			)
+			.await
+		}
+
 		async fn poll_ensure_to_execute_queue_is_empty(&mut self) {
 			use futures_timer::Delay;
 
@@ -820,7 +983,7 @@ mod tests {
 					futures::select! {
 						_ = Delay::new(Duration::from_millis(500)).fuse() => (),
 						_ = to_execute_queue_rx.next().fuse() => {
-							panic!("the execute queue supposed to be empty")
+							panic!("the execute queue is supposed to be empty")
 						}
 					}
 				}
@@ -839,7 +1002,7 @@ mod tests {
 					futures::select! {
 						_ = Delay::new(Duration::from_millis(500)).fuse() => (),
 						msg = to_sweeper_rx.next().fuse() => {
-							panic!("the sweeper supposed to be empty, but received: {:?}", msg)
+							panic!("the sweeper is supposed to be empty, but received: {:?}", msg)
 						}
 					}
 				}
@@ -874,27 +1037,27 @@ mod tests {
 		}
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn shutdown_on_handle_drop() {
 		let test = Builder::default().build();
 
-		let join_handle = async_std::task::spawn(test.run);
+		let join_handle = tokio::task::spawn(test.run);
 
 		// Dropping the handle will lead to conclusion of the read part and thus will make the event
 		// loop to stop, which in turn will resolve the join handle.
 		drop(test.to_host_tx);
-		join_handle.await;
+		join_handle.await.unwrap();
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn pruning() {
 		let mock_now = SystemTime::now() - Duration::from_millis(1000);
 
 		let mut builder = Builder::default();
 		builder.cleanup_pulse_interval = Duration::from_millis(100);
 		builder.artifact_ttl = Duration::from_millis(500);
-		builder.artifacts.insert_prepared(artifact_id(1), mock_now);
-		builder.artifacts.insert_prepared(artifact_id(2), mock_now);
+		builder.artifacts.insert_prepared(artifact_id(1), mock_now, Duration::default());
+		builder.artifacts.insert_prepared(artifact_id(2), mock_now, Duration::default());
 		let mut test = builder.build();
 		let mut host = test.host_handle();
 
@@ -916,7 +1079,7 @@ mod tests {
 		test.poll_ensure_to_sweeper_is_empty().await;
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn execute_pvf_requests() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -964,7 +1127,10 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		let result_tx_pvf_1_1 = assert_matches!(
@@ -977,7 +1143,10 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(2), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(2),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		let result_tx_pvf_2 = assert_matches!(
@@ -1010,7 +1179,7 @@ mod tests {
 		);
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn precheck_pvf() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1026,13 +1195,16 @@ mod tests {
 		);
 		// Send `Ok` right away and poll the host.
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		// No pending execute requests.
 		test.poll_ensure_to_execute_queue_is_empty().await;
 		// Received the precheck result.
-		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
+		assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(_));
 
 		// Send multiple requests for the same PVF.
 		let mut precheck_receivers = Vec::new();
@@ -1062,7 +1234,7 @@ mod tests {
 		}
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn test_prepare_done() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1130,7 +1302,10 @@ mod tests {
 			prepare::ToQueue::Enqueue { .. }
 		);
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(2), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(2),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 		// The execute queue receives new request, preckecking is finished and we can
@@ -1140,11 +1315,298 @@ mod tests {
 			execute::ToQueue::Enqueue { .. }
 		);
 		for result_rx in precheck_receivers {
-			assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(()));
+			assert_matches!(result_rx.now_or_never().unwrap().unwrap(), Ok(_));
 		}
 	}
 
-	#[async_std::test]
+	// Test that multiple prechecking requests do not trigger preparation retries if the first one
+	// failed.
+	#[tokio::test]
+	async fn test_precheck_prepare_no_retry() {
+		let mut test = Builder::default().build();
+		let mut host = test.host_handle();
+
+		// Submit a precheck request that fails.
+		let (result_tx, result_rx) = oneshot::channel();
+		host.precheck_pvf(Pvf::from_discriminator(1), result_tx).await.unwrap();
+
+		// The queue received the prepare request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+		// Send a PrepareError.
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Err(PrepareError::TimedOut),
+			})
+			.await
+			.unwrap();
+
+		// The result should contain the error.
+		let result = test.poll_and_recv_result(result_rx).await;
+		assert_matches!(result, Err(PrepareError::TimedOut));
+
+		// Submit another precheck request.
+		let (result_tx_2, result_rx_2) = oneshot::channel();
+		host.precheck_pvf(Pvf::from_discriminator(1), result_tx_2).await.unwrap();
+
+		// Assert the prepare queue is empty.
+		test.poll_ensure_to_prepare_queue_is_empty().await;
+
+		// The result should contain the original error.
+		let result = test.poll_and_recv_result(result_rx_2).await;
+		assert_matches!(result, Err(PrepareError::TimedOut));
+
+		// Pause for enough time to reset the cooldown for this failed prepare request.
+		futures_timer::Delay::new(PREPARE_FAILURE_COOLDOWN).await;
+
+		// Submit another precheck request.
+		let (result_tx_3, result_rx_3) = oneshot::channel();
+		host.precheck_pvf(Pvf::from_discriminator(1), result_tx_3).await.unwrap();
+
+		// Assert the prepare queue is empty - we do not retry for precheck requests.
+		test.poll_ensure_to_prepare_queue_is_empty().await;
+
+		// The result should still contain the original error.
+		let result = test.poll_and_recv_result(result_rx_3).await;
+		assert_matches!(result, Err(PrepareError::TimedOut));
+	}
+
+	// Test that multiple execution requests trigger preparation retries if the first one failed due
+	// to a potentially non-reproducible error.
+	#[tokio::test]
+	async fn test_execute_prepare_retry() {
+		let mut test = Builder::default().build();
+		let mut host = test.host_handle();
+
+		// Submit a execute request that fails.
+		let (result_tx, result_rx) = oneshot::channel();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf".to_vec(),
+			Priority::Critical,
+			result_tx,
+		)
+		.await
+		.unwrap();
+
+		// The queue received the prepare request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+		// Send a PrepareError.
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Err(PrepareError::TimedOut),
+			})
+			.await
+			.unwrap();
+
+		// The result should contain the error.
+		let result = test.poll_and_recv_result(result_rx).await;
+		assert_matches!(result, Err(ValidationError::InternalError(_)));
+
+		// Submit another execute request. We shouldn't try to prepare again, yet.
+		let (result_tx_2, result_rx_2) = oneshot::channel();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf".to_vec(),
+			Priority::Critical,
+			result_tx_2,
+		)
+		.await
+		.unwrap();
+
+		// Assert the prepare queue is empty.
+		test.poll_ensure_to_prepare_queue_is_empty().await;
+
+		// The result should contain the original error.
+		let result = test.poll_and_recv_result(result_rx_2).await;
+		assert_matches!(result, Err(ValidationError::InternalError(_)));
+
+		// Pause for enough time to reset the cooldown for this failed prepare request.
+		futures_timer::Delay::new(PREPARE_FAILURE_COOLDOWN).await;
+
+		// Submit another execute request.
+		let (result_tx_3, result_rx_3) = oneshot::channel();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf".to_vec(),
+			Priority::Critical,
+			result_tx_3,
+		)
+		.await
+		.unwrap();
+
+		// Assert the prepare queue contains the request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Ok(Duration::default()),
+			})
+			.await
+			.unwrap();
+
+		// Preparation should have been retried and succeeded this time.
+		let result_tx_3 = assert_matches!(
+			test.poll_and_recv_to_execute_queue().await,
+			execute::ToQueue::Enqueue { result_tx, .. } => result_tx
+		);
+
+		// Send an error for the execution here, just so we can check the result receiver is still
+		// alive.
+		result_tx_3
+			.send(Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)))
+			.unwrap();
+		assert_matches!(
+			result_rx_3.now_or_never().unwrap().unwrap(),
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))
+		);
+	}
+
+	// Test that multiple execution requests don't trigger preparation retries if the first one
+	// failed due to a reproducible error (e.g. Prevalidation).
+	#[tokio::test]
+	async fn test_execute_prepare_no_retry() {
+		let mut test = Builder::default().build();
+		let mut host = test.host_handle();
+
+		// Submit an execute request that fails.
+		let (result_tx, result_rx) = oneshot::channel();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf".to_vec(),
+			Priority::Critical,
+			result_tx,
+		)
+		.await
+		.unwrap();
+
+		// The queue received the prepare request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+		// Send a PrepareError.
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Err(PrepareError::Prevalidation("reproducible error".into())),
+			})
+			.await
+			.unwrap();
+
+		// The result should contain the error.
+		let result = test.poll_and_recv_result(result_rx).await;
+		assert_matches!(
+			result,
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(_)))
+		);
+
+		// Submit another execute request.
+		let (result_tx_2, result_rx_2) = oneshot::channel();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf".to_vec(),
+			Priority::Critical,
+			result_tx_2,
+		)
+		.await
+		.unwrap();
+
+		// Assert the prepare queue is empty.
+		test.poll_ensure_to_prepare_queue_is_empty().await;
+
+		// The result should contain the original error.
+		let result = test.poll_and_recv_result(result_rx_2).await;
+		assert_matches!(
+			result,
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(_)))
+		);
+
+		// Pause for enough time to reset the cooldown for this failed prepare request.
+		futures_timer::Delay::new(PREPARE_FAILURE_COOLDOWN).await;
+
+		// Submit another execute request.
+		let (result_tx_3, result_rx_3) = oneshot::channel();
+		host.execute_pvf(
+			Pvf::from_discriminator(1),
+			TEST_EXECUTION_TIMEOUT,
+			b"pvf".to_vec(),
+			Priority::Critical,
+			result_tx_3,
+		)
+		.await
+		.unwrap();
+
+		// Assert the prepare queue is empty - we do not retry for prevalidation errors.
+		test.poll_ensure_to_prepare_queue_is_empty().await;
+
+		// The result should still contain the original error.
+		let result = test.poll_and_recv_result(result_rx_3).await;
+		assert_matches!(
+			result,
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(_)))
+		);
+	}
+
+	// Test that multiple heads-up requests trigger preparation retries if the first one failed.
+	#[tokio::test]
+	async fn test_heads_up_prepare_retry() {
+		let mut test = Builder::default().build();
+		let mut host = test.host_handle();
+
+		// Submit a heads-up request that fails.
+		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
+
+		// The queue received the prepare request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+		// Send a PrepareError.
+		test.from_prepare_queue_tx
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Err(PrepareError::TimedOut),
+			})
+			.await
+			.unwrap();
+
+		// Submit another heads-up request.
+		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
+
+		// Assert the prepare queue is empty.
+		test.poll_ensure_to_prepare_queue_is_empty().await;
+
+		// Pause for enough time to reset the cooldown for this failed prepare request.
+		futures_timer::Delay::new(PREPARE_FAILURE_COOLDOWN).await;
+
+		// Submit another heads-up request.
+		host.heads_up(vec![Pvf::from_discriminator(1)]).await.unwrap();
+
+		// Assert the prepare queue contains the request.
+		assert_matches!(
+			test.poll_and_recv_to_prepare_queue().await,
+			prepare::ToQueue::Enqueue { .. }
+		);
+	}
+
+	#[tokio::test]
 	async fn cancellation() {
 		let mut test = Builder::default().build();
 		let mut host = test.host_handle();
@@ -1166,7 +1628,10 @@ mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue { artifact_id: artifact_id(1), result: Ok(()) })
+			.send(prepare::FromQueue {
+				artifact_id: artifact_id(1),
+				result: Ok(Duration::default()),
+			})
 			.await
 			.unwrap();
 

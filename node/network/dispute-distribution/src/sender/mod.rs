@@ -14,40 +14,60 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{hash_map::Entry, HashMap, HashSet};
-
-use futures::channel::{mpsc, oneshot};
-
-use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
-use polkadot_node_primitives::{CandidateVotes, DisputeMessage, SignedDisputeStatement};
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v1::{CandidateHash, DisputeStatement, Hash, SessionIndex};
-use polkadot_subsystem::{
-	messages::{AllMessages, DisputeCoordinatorMessage},
-	ActiveLeavesUpdate, SubsystemContext,
+use std::{
+	collections::{HashMap, HashSet},
+	pin::Pin,
+	task::Poll,
+	time::Duration,
 };
+
+use futures::{channel::oneshot, future::poll_fn, Future};
+
+use futures_timer::Delay;
+use indexmap::{map::Entry, IndexMap};
+use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
+use polkadot_node_primitives::{DisputeMessage, DisputeStatus};
+use polkadot_node_subsystem::{
+	messages::DisputeCoordinatorMessage, overseer, ActiveLeavesUpdate, SubsystemSender,
+};
+use polkadot_node_subsystem_util::{nesting_sender::NestingSender, runtime::RuntimeInfo};
+use polkadot_primitives::{CandidateHash, Hash, SessionIndex};
 
 /// For each ongoing dispute we have a `SendTask` which takes care of it.
 ///
 /// It is going to spawn real tasks as it sees fit for getting the votes of the particular dispute
 /// out.
+///
+/// As we assume disputes have a priority, we start sending for disputes in the order
+/// `start_sender` got called.
 mod send_task;
 use send_task::SendTask;
 pub use send_task::TaskFinish;
 
-/// Error and [`Result`] type for sender
+/// Error and [`Result`] type for sender.
 mod error;
-pub use error::{Error, Fatal, NonFatal, Result};
+pub use error::{Error, FatalError, JfyiError, Result};
 
-use self::error::NonFatalResult;
-use crate::{Metrics, LOG_TARGET};
+use self::error::JfyiErrorResult;
+use crate::{Metrics, LOG_TARGET, SEND_RATE_LIMIT};
+
+/// Messages as sent by background tasks.
+#[derive(Debug)]
+pub enum DisputeSenderMessage {
+	/// A task finished.
+	TaskFinish(TaskFinish),
+	/// A request for active disputes to the dispute-coordinator finished.
+	ActiveDisputesReady(JfyiErrorResult<Vec<(SessionIndex, CandidateHash, DisputeStatus)>>),
+}
 
 /// The `DisputeSender` keeps track of all ongoing disputes we need to send statements out.
 ///
 /// For each dispute a `SendTask` is responsible for sending to the concerned validators for that
 /// particular dispute. The `DisputeSender` keeps track of those tasks, informs them about new
 /// sessions/validator sets and cleans them up when they become obsolete.
-pub struct DisputeSender {
+///
+/// The unit of work for the  `DisputeSender` is a dispute, represented by `SendTask`s.
+pub struct DisputeSender<M> {
 	/// All heads we currently consider active.
 	active_heads: Vec<Hash>,
 
@@ -57,29 +77,52 @@ pub struct DisputeSender {
 	active_sessions: HashMap<SessionIndex, Hash>,
 
 	/// All ongoing dispute sendings this subsystem is aware of.
-	disputes: HashMap<CandidateHash, SendTask>,
+	///
+	/// Using an `IndexMap` so items can be iterated in the order of insertion.
+	disputes: IndexMap<CandidateHash, SendTask<M>>,
 
 	/// Sender to be cloned for `SendTask`s.
-	tx: mpsc::Sender<TaskFinish>,
+	tx: NestingSender<M, DisputeSenderMessage>,
+
+	/// `Some` if we are waiting for a response `DisputeCoordinatorMessage::ActiveDisputes`.
+	waiting_for_active_disputes: Option<WaitForActiveDisputesState>,
+
+	/// Future for delaying too frequent creation of dispute sending tasks.
+	rate_limit: RateLimit,
 
 	/// Metrics for reporting stats about sent requests.
 	metrics: Metrics,
 }
 
-impl DisputeSender {
+/// State we keep while waiting for active disputes.
+///
+/// When we send `DisputeCoordinatorMessage::ActiveDisputes`, this is the state we keep while
+/// waiting for the response.
+struct WaitForActiveDisputesState {
+	/// Have we seen any new sessions since last refresh?
+	have_new_sessions: bool,
+}
+
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
+impl<M: 'static + Send + Sync> DisputeSender<M> {
 	/// Create a new `DisputeSender` which can be used to start dispute sendings.
-	pub fn new(tx: mpsc::Sender<TaskFinish>, metrics: Metrics) -> Self {
+	pub fn new(tx: NestingSender<M, DisputeSenderMessage>, metrics: Metrics) -> Self {
 		Self {
 			active_heads: Vec::new(),
 			active_sessions: HashMap::new(),
-			disputes: HashMap::new(),
+			disputes: IndexMap::new(),
 			tx,
+			waiting_for_active_disputes: None,
+			rate_limit: RateLimit::new(),
 			metrics,
 		}
 	}
 
 	/// Create a `SendTask` for a particular new dispute.
-	pub async fn start_sender<Context: SubsystemContext>(
+	///
+	/// This function is rate-limited by `SEND_RATE_LIMIT`. It will block if called too frequently
+	/// in order to maintain the limit.
+	pub async fn start_sender<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
@@ -89,19 +132,17 @@ impl DisputeSender {
 		let candidate_hash = req.0.candidate_receipt.hash();
 		match self.disputes.entry(candidate_hash) {
 			Entry::Occupied(_) => {
-				tracing::trace!(
-					target: LOG_TARGET,
-					?candidate_hash,
-					"Dispute sending already active."
-				);
+				gum::trace!(target: LOG_TARGET, ?candidate_hash, "Dispute sending already active.");
 				return Ok(())
 			},
 			Entry::Vacant(vacant) => {
+				self.rate_limit.limit("in start_sender", candidate_hash).await;
+
 				let send_task = SendTask::new(
 					ctx,
 					runtime,
 					&self.active_sessions,
-					self.tx.clone(),
+					NestingSender::new(self.tx.clone(), DisputeSenderMessage::TaskFinish),
 					req,
 					&self.metrics,
 				)
@@ -112,13 +153,48 @@ impl DisputeSender {
 		Ok(())
 	}
 
+	/// Receive message from a background task.
+	pub async fn on_message<Context>(
+		&mut self,
+		ctx: &mut Context,
+		runtime: &mut RuntimeInfo,
+		msg: DisputeSenderMessage,
+	) -> Result<()> {
+		match msg {
+			DisputeSenderMessage::TaskFinish(msg) => {
+				let TaskFinish { candidate_hash, receiver, result } = msg;
+
+				self.metrics.on_sent_request(result.as_metrics_label());
+
+				let task = match self.disputes.get_mut(&candidate_hash) {
+					None => {
+						// Can happen when a dispute ends, with messages still in queue:
+						gum::trace!(
+							target: LOG_TARGET,
+							?result,
+							"Received `FromSendingTask::Finished` for non existing dispute."
+						);
+						return Ok(())
+					},
+					Some(task) => task,
+				};
+				task.on_finished_send(&receiver, result);
+			},
+			DisputeSenderMessage::ActiveDisputesReady(result) => {
+				let state = self.waiting_for_active_disputes.take();
+				let have_new_sessions = state.map(|s| s.have_new_sessions).unwrap_or(false);
+				let active_disputes = result?;
+				self.handle_new_active_disputes(ctx, runtime, active_disputes, have_new_sessions)
+					.await?;
+			},
+		}
+		Ok(())
+	}
+
 	/// Take care of a change in active leaves.
 	///
-	/// - Initiate a retry of failed sends which are still active.
-	/// - Get new authorities to send messages to.
-	/// - Get rid of obsolete tasks and disputes.
-	/// - Get dispute sending started in case we missed one for some reason (e.g. on node startup)
-	pub async fn update_leaves<Context: SubsystemContext>(
+	/// Update our knowledge on sessions and initiate fetching for new active disputes.
+	pub async fn update_leaves<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
@@ -131,169 +207,96 @@ impl DisputeSender {
 
 		let have_new_sessions = self.refresh_sessions(ctx, runtime).await?;
 
-		let active_disputes = get_active_disputes(ctx).await?;
-		let unknown_disputes = {
-			let mut disputes = active_disputes.clone();
-			disputes.retain(|(_, c)| !self.disputes.contains_key(c));
-			disputes
-		};
+		// Not yet waiting for data, request an update:
+		match self.waiting_for_active_disputes.take() {
+			None => {
+				self.waiting_for_active_disputes =
+					Some(WaitForActiveDisputesState { have_new_sessions });
+				let mut sender = ctx.sender().clone();
+				let mut tx = self.tx.clone();
 
-		let active_disputes: HashSet<_> = active_disputes.into_iter().map(|(_, c)| c).collect();
+				let get_active_disputes_task = async move {
+					let result = get_active_disputes(&mut sender).await;
+					let result =
+						tx.send_message(DisputeSenderMessage::ActiveDisputesReady(result)).await;
+					if let Err(err) = result {
+						gum::debug!(
+							target: LOG_TARGET,
+							?err,
+							"Sending `DisputeSenderMessage` from background task failed."
+						);
+					}
+				};
 
-		// Cleanup obsolete senders:
-		self.disputes
-			.retain(|candidate_hash, _| active_disputes.contains(candidate_hash));
-
-		for dispute in self.disputes.values_mut() {
-			if have_new_sessions || dispute.has_failed_sends() {
-				dispute
-					.refresh_sends(ctx, runtime, &self.active_sessions, &self.metrics)
-					.await?;
-			}
-		}
-
-		// This should only be non-empty on startup, but if not - we got you covered:
-		for dispute in unknown_disputes {
-			self.start_send_for_dispute(ctx, runtime, dispute).await?
+				ctx.spawn("get_active_disputes", Box::pin(get_active_disputes_task))
+					.map_err(FatalError::SpawnTask)?;
+			},
+			Some(state) => {
+				let have_new_sessions = state.have_new_sessions || have_new_sessions;
+				let new_state = WaitForActiveDisputesState { have_new_sessions };
+				self.waiting_for_active_disputes = Some(new_state);
+				gum::debug!(
+					target: LOG_TARGET,
+					"Dispute coordinator slow? We are still waiting for data on next active leaves update."
+				);
+			},
 		}
 		Ok(())
 	}
 
-	/// Receive message from a sending task.
-	pub async fn on_task_message(&mut self, msg: TaskFinish) {
-		let TaskFinish { candidate_hash, receiver, result } = msg;
-
-		self.metrics.on_sent_request(result.as_metrics_label());
-
-		let task = match self.disputes.get_mut(&candidate_hash) {
-			None => {
-				// Can happen when a dispute ends, with messages still in queue:
-				tracing::trace!(
-					target: LOG_TARGET,
-					?result,
-					"Received `FromSendingTask::Finished` for non existing dispute."
-				);
-				return
-			},
-			Some(task) => task,
-		};
-		task.on_finished_send(&receiver, result);
-	}
-
-	/// Call `start_sender` on all passed in disputes.
+	/// Handle new active disputes response.
 	///
-	/// Recover necessary votes for building up `DisputeMessage` and start sending for all of them.
-	async fn start_send_for_dispute<Context: SubsystemContext>(
+	/// - Initiate a retry of failed sends which are still active.
+	/// - Get new authorities to send messages to.
+	/// - Get rid of obsolete tasks and disputes.
+	///
+	/// This function ensures the `SEND_RATE_LIMIT`, therefore it might block.
+	async fn handle_new_active_disputes<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
-		dispute: (SessionIndex, CandidateHash),
+		active_disputes: Vec<(SessionIndex, CandidateHash, DisputeStatus)>,
+		have_new_sessions: bool,
 	) -> Result<()> {
-		let (session_index, candidate_hash) = dispute;
-		// We need some relay chain head for context for receiving session info information:
-		let ref_head = self.active_sessions.values().next().ok_or(NonFatal::NoActiveHeads)?;
-		let info = runtime
-			.get_session_info_by_index(ctx.sender(), *ref_head, session_index)
-			.await?;
-		let our_index = match info.validator_info.our_index {
-			None => {
-				tracing::trace!(
-					target: LOG_TARGET,
-					"Not a validator in that session - not starting dispute sending."
-				);
-				return Ok(())
-			},
-			Some(index) => index,
-		};
+		let active_disputes: HashSet<_> = active_disputes.into_iter().map(|(_, c, _)| c).collect();
 
-		let votes = match get_candidate_votes(ctx, session_index, candidate_hash).await? {
-			None => {
-				tracing::debug!(
-					target: LOG_TARGET,
-					?session_index,
-					?candidate_hash,
-					"No votes for active dispute?! - possible, due to race."
-				);
-				return Ok(())
-			},
-			Some(votes) => votes,
-		};
+		// Cleanup obsolete senders (retain keeps order of remaining elements):
+		self.disputes
+			.retain(|candidate_hash, _| active_disputes.contains(candidate_hash));
 
-		let our_valid_vote = votes.valid.iter().find(|(_, i, _)| *i == our_index);
-
-		let our_invalid_vote = votes.invalid.iter().find(|(_, i, _)| *i == our_index);
-
-		let (valid_vote, invalid_vote) = if let Some(our_valid_vote) = our_valid_vote {
-			// Get some invalid vote as well:
-			let invalid_vote = votes.invalid.get(0).ok_or(NonFatal::MissingVotesFromCoordinator)?;
-			(our_valid_vote, invalid_vote)
-		} else if let Some(our_invalid_vote) = our_invalid_vote {
-			// Get some valid vote as well:
-			let valid_vote = votes.valid.get(0).ok_or(NonFatal::MissingVotesFromCoordinator)?;
-			(valid_vote, our_invalid_vote)
-		} else {
-			// There is no vote from us yet - nothing to do.
-			return Ok(())
-		};
-		let (kind, valid_index, signature) = valid_vote;
-		let valid_public = info
-			.session_info
-			.validators
-			.get(valid_index.0 as usize)
-			.ok_or(NonFatal::InvalidStatementFromCoordinator)?;
-		let valid_signed = SignedDisputeStatement::new_checked(
-			DisputeStatement::Valid(kind.clone()),
-			candidate_hash,
-			session_index,
-			valid_public.clone(),
-			signature.clone(),
-		)
-		.map_err(|()| NonFatal::InvalidStatementFromCoordinator)?;
-
-		let (kind, invalid_index, signature) = invalid_vote;
-		let invalid_public = info
-			.session_info
-			.validators
-			.get(invalid_index.0 as usize)
-			.ok_or(NonFatal::InvalidValidatorIndexFromCoordinator)?;
-		let invalid_signed = SignedDisputeStatement::new_checked(
-			DisputeStatement::Invalid(kind.clone()),
-			candidate_hash,
-			session_index,
-			invalid_public.clone(),
-			signature.clone(),
-		)
-		.map_err(|()| NonFatal::InvalidValidatorIndexFromCoordinator)?;
-
-		// Reconstructing the checked signed dispute statements is hardly useful here and wasteful,
-		// but I don't want to enable a bypass for the below smart constructor and this code path
-		// is supposed to be only hit on startup basically.
-		//
-		// Revisit this decision when the `from_signed_statements` is unneeded for the normal code
-		// path as well.
-		let message = DisputeMessage::from_signed_statements(
-			valid_signed,
-			*valid_index,
-			invalid_signed,
-			*invalid_index,
-			votes.candidate_receipt,
-			&info.session_info,
-		)
-		.map_err(NonFatal::InvalidDisputeFromCoordinator)?;
-
-		// Finally, get the party started:
-		self.start_sender(ctx, runtime, message).await
+		// Iterates in order of insertion:
+		let mut should_rate_limit = true;
+		for (candidate_hash, dispute) in self.disputes.iter_mut() {
+			if have_new_sessions || dispute.has_failed_sends() {
+				if should_rate_limit {
+					self.rate_limit
+						.limit("while going through new sessions/failed sends", *candidate_hash)
+						.await;
+				}
+				let sends_happened = dispute
+					.refresh_sends(ctx, runtime, &self.active_sessions, &self.metrics)
+					.await?;
+				// Only rate limit if we actually sent something out _and_ it was not just because
+				// of errors on previous sends.
+				//
+				// Reasoning: It would not be acceptable to slow down the whole subsystem, just
+				// because of a few bad peers having problems. It is actually better to risk
+				// running into their rate limit in that case and accept a minor reputation change.
+				should_rate_limit = sends_happened && have_new_sessions;
+			}
+		}
+		Ok(())
 	}
 
 	/// Make active sessions correspond to currently active heads.
 	///
 	/// Returns: true if sessions changed.
-	async fn refresh_sessions<Context: SubsystemContext>(
+	async fn refresh_sessions<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 	) -> Result<bool> {
-		let new_sessions = get_active_session_indeces(ctx, runtime, &self.active_heads).await?;
+		let new_sessions = get_active_session_indices(ctx, runtime, &self.active_heads).await?;
 		let new_sessions_raw: HashSet<_> = new_sessions.keys().collect();
 		let old_sessions_raw: HashSet<_> = self.active_sessions.keys().collect();
 		let updated = new_sessions_raw != old_sessions_raw;
@@ -303,46 +306,80 @@ impl DisputeSender {
 	}
 }
 
+/// Rate limiting logic.
+///
+/// Suitable for the sending side.
+struct RateLimit {
+	limit: Delay,
+}
+
+impl RateLimit {
+	/// Create new `RateLimit` that is immediately ready.
+	fn new() -> Self {
+		// Start with an empty duration, as there has not been any previous call.
+		Self { limit: Delay::new(Duration::new(0, 0)) }
+	}
+
+	/// Initialized with actual `SEND_RATE_LIMIT` duration.
+	fn new_limit() -> Self {
+		Self { limit: Delay::new(SEND_RATE_LIMIT) }
+	}
+
+	/// Wait until ready and prepare for next call.
+	///
+	/// String given as occasion and candidate hash are logged in case the rate limit hit.
+	async fn limit(&mut self, occasion: &'static str, candidate_hash: CandidateHash) {
+		// Wait for rate limit and add some logging:
+		let mut num_wakes: u32 = 0;
+		poll_fn(|cx| {
+			let old_limit = Pin::new(&mut self.limit);
+			match old_limit.poll(cx) {
+				Poll::Pending => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?occasion,
+						?candidate_hash,
+						?num_wakes,
+						"Sending rate limit hit, slowing down requests"
+					);
+					num_wakes += 1;
+					Poll::Pending
+				},
+				Poll::Ready(()) => Poll::Ready(()),
+			}
+		})
+		.await;
+		*self = Self::new_limit();
+	}
+}
+
 /// Retrieve the currently active sessions.
 ///
 /// List is all indices of all active sessions together with the head that was used for the query.
-async fn get_active_session_indeces<Context: SubsystemContext>(
+#[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
+async fn get_active_session_indices<Context>(
 	ctx: &mut Context,
 	runtime: &mut RuntimeInfo,
 	active_heads: &Vec<Hash>,
 ) -> Result<HashMap<SessionIndex, Hash>> {
 	let mut indeces = HashMap::new();
+	// Iterate all heads we track as active and fetch the child' session indices.
 	for head in active_heads {
-		let session_index = runtime.get_session_index(ctx.sender(), *head).await?;
+		let session_index = runtime.get_session_index_for_child(ctx.sender(), *head).await?;
 		indeces.insert(session_index, *head);
 	}
 	Ok(indeces)
 }
 
 /// Retrieve Set of active disputes from the dispute coordinator.
-async fn get_active_disputes<Context: SubsystemContext>(
-	ctx: &mut Context,
-) -> NonFatalResult<Vec<(SessionIndex, CandidateHash)>> {
+async fn get_active_disputes<Sender>(
+	sender: &mut Sender,
+) -> JfyiErrorResult<Vec<(SessionIndex, CandidateHash, DisputeStatus)>>
+where
+	Sender: SubsystemSender<DisputeCoordinatorMessage>,
+{
 	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ActiveDisputes(
-		tx,
-	)))
-	.await;
-	rx.await.map_err(|_| NonFatal::AskActiveDisputesCanceled)
-}
 
-/// Get all locally available dispute votes for a given dispute.
-async fn get_candidate_votes<Context: SubsystemContext>(
-	ctx: &mut Context,
-	session_index: SessionIndex,
-	candidate_hash: CandidateHash,
-) -> NonFatalResult<Option<CandidateVotes>> {
-	let (tx, rx) = oneshot::channel();
-	ctx.send_message(AllMessages::DisputeCoordinator(
-		DisputeCoordinatorMessage::QueryCandidateVotes(vec![(session_index, candidate_hash)], tx),
-	))
-	.await;
-	rx.await
-		.map(|v| v.get(0).map(|inner| inner.to_owned().2))
-		.map_err(|_| NonFatal::AskCandidateVotesCanceled)
+	sender.send_message(DisputeCoordinatorMessage::ActiveDisputes(tx)).await;
+	rx.await.map_err(|_| JfyiError::AskActiveDisputesCanceled)
 }

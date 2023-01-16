@@ -1,16 +1,17 @@
 [package]
 name = "polkadot-node-core-dispute-coordinator"
-version = "0.9.13"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2018"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
-futures = "0.3.19"
-tracing = "0.1.29"
-parity-scale-codec = "2"
-kvdb = "0.10.0"
-thiserror = "1.0.30"
-lru = "0.7.2"
+futures = "0.3.21"
+gum = { package = "tracing-gum", path = "../../gum" }
+parity-scale-codec = "3.1.5"
+kvdb = "0.13.0"
+thiserror = "1.0.31"
+lru = "0.8.0"
+fatality = "0.0.6"
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-primitives = { path = "../../primitives" }
@@ -19,14 +20,18 @@ polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
+
 [dev-dependencies]
-kvdb-memorydb = "0.10.0"
+kvdb-memorydb = "0.13.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 assert_matches = "1.4.0"
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }
+futures-timer = "3.0.2"
+sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 # If not enabled, the dispute coordinator will do nothing.

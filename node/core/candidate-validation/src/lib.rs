@@ -35,13 +35,12 @@ use polkadot_node_subsystem::{
 		CandidateValidationMessage, PreCheckOutcome, RuntimeApiMessage, RuntimeApiRequest,
 		ValidationFailed,
 	},
-	overseer, FromOverseer, OverseerSignal, SpawnedSubsystem, SubsystemContext, SubsystemError,
-	SubsystemResult, SubsystemSender,
+	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
+	SubsystemSender,
 };
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
-use polkadot_primitives::v1::{
-	CandidateCommitments, CandidateDescriptor, Hash, OccupiedCoreAssumption,
+use polkadot_primitives::{
+	CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash, OccupiedCoreAssumption,
 	PersistedValidationData, ValidationCode, ValidationCodeHash,
 };
 
@@ -53,10 +52,19 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 
+mod metrics;
+use self::metrics::Metrics;
+
 #[cfg(test)]
 mod tests;
 
 const LOG_TARGET: &'static str = "parachain::candidate-validation";
+
+/// The amount of time to wait before retrying after an AmbiguousWorkerDeath validation error.
+#[cfg(not(test))]
+const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(3);
+#[cfg(test)]
+const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(200);
 
 /// Configuration for the candidate validation subsystem
 #[derive(Clone)]
@@ -91,11 +99,8 @@ impl CandidateValidationSubsystem {
 	}
 }
 
-impl<Context> overseer::Subsystem<Context, SubsystemError> for CandidateValidationSubsystem
-where
-	Context: SubsystemContext<Message = CandidateValidationMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
-{
+#[overseer::subsystem(CandidateValidation, error=SubsystemError, prefix=self::overseer)]
+impl<Context> CandidateValidationSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		let future = run(
 			ctx,
@@ -110,17 +115,14 @@ where
 	}
 }
 
+#[overseer::contextbounds(CandidateValidation, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
 	metrics: Metrics,
 	pvf_metrics: polkadot_node_core_pvf::Metrics,
 	cache_path: PathBuf,
 	program_path: PathBuf,
-) -> SubsystemResult<()>
-where
-	Context: SubsystemContext<Message = CandidateValidationMessage>,
-	Context: overseer::SubsystemContext<Message = CandidateValidationMessage>,
-{
+) -> SubsystemResult<()> {
 	let (validation_host, task) = polkadot_node_core_pvf::start(
 		polkadot_node_core_pvf::Config::new(cache_path, program_path),
 		pvf_metrics,
@@ -129,12 +131,12 @@ where
 
 	loop {
 		match ctx.recv().await? {
-			FromOverseer::Signal(OverseerSignal::ActiveLeaves(_)) => {},
-			FromOverseer::Signal(OverseerSignal::BlockFinalized(..)) => {},
-			FromOverseer::Signal(OverseerSignal::Conclude) => return Ok(()),
-			FromOverseer::Communication { msg } => match msg {
+			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(_)) => {},
+			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
+			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+			FromOrchestra::Communication { msg } => match msg {
 				CandidateValidationMessage::ValidateFromChainState(
-					descriptor,
+					candidate_receipt,
 					pov,
 					timeout,
 					response_sender,
@@ -149,7 +151,7 @@ where
 							let res = validate_from_chain_state(
 								&mut sender,
 								validation_host,
-								descriptor,
+								candidate_receipt,
 								pov,
 								timeout,
 								&metrics,
@@ -166,7 +168,7 @@ where
 				CandidateValidationMessage::ValidateFromExhaustive(
 					persisted_validation_data,
 					validation_code,
-					descriptor,
+					candidate_receipt,
 					pov,
 					timeout,
 					response_sender,
@@ -181,7 +183,7 @@ where
 								validation_host,
 								persisted_validation_data,
 								validation_code,
-								descriptor,
+								candidate_receipt,
 								pov,
 								timeout,
 								&metrics,
@@ -233,7 +235,7 @@ async fn runtime_api_request<T, Sender>(
 	receiver: oneshot::Receiver<Result<T, RuntimeApiError>>,
 ) -> Result<T, RuntimeRequestFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	sender
 		.send_message(RuntimeApiMessage::Request(relay_parent, request).into())
@@ -242,13 +244,13 @@ where
 	receiver
 		.await
 		.map_err(|_| {
-			tracing::debug!(target: LOG_TARGET, ?relay_parent, "Runtime API request dropped");
+			gum::debug!(target: LOG_TARGET, ?relay_parent, "Runtime API request dropped");
 
 			RuntimeRequestFailed
 		})
 		.and_then(|res| {
 			res.map_err(|e| {
-				tracing::debug!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?relay_parent,
 					err = ?e,
@@ -266,7 +268,7 @@ async fn request_validation_code_by_hash<Sender>(
 	validation_code_hash: ValidationCodeHash,
 ) -> Result<Option<ValidationCode>, RuntimeRequestFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let (tx, rx) = oneshot::channel();
 	runtime_api_request(
@@ -285,7 +287,7 @@ async fn precheck_pvf<Sender>(
 	validation_code_hash: ValidationCodeHash,
 ) -> PreCheckOutcome
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let validation_code =
 		match request_validation_code_by_hash(sender, relay_parent, validation_code_hash).await {
@@ -293,9 +295,8 @@ where
 			_ => {
 				// The reasoning why this is "failed" and not invalid is because we assume that
 				// during pre-checking voting the relay-chain will pin the code. In case the code
-				// actually is not there, we issue failed since this looks more like a bug. This
-				// leads to us abstaining.
-				tracing::warn!(
+				// actually is not there, we issue failed since this looks more like a bug.
+				gum::warn!(
 					target: LOG_TARGET,
 					?relay_parent,
 					?validation_code_hash,
@@ -311,19 +312,19 @@ where
 	) {
 		Ok(code) => Pvf::from_code(code.into_owned()),
 		Err(e) => {
-			tracing::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
+			gum::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
 			return PreCheckOutcome::Invalid
 		},
 	};
 
 	match validation_backend.precheck_pvf(validation_code).await {
 		Ok(_) => PreCheckOutcome::Valid,
-		Err(prepare_err) => match prepare_err {
-			PrepareError::Prevalidation(_) |
-			PrepareError::Preparation(_) |
-			PrepareError::Panic(_) => PreCheckOutcome::Invalid,
-			PrepareError::TimedOut | PrepareError::DidNotMakeIt => PreCheckOutcome::Failed,
-		},
+		Err(prepare_err) =>
+			if prepare_err.is_deterministic() {
+				PreCheckOutcome::Invalid
+			} else {
+				PreCheckOutcome::Failed
+			},
 	}
 }
 
@@ -340,7 +341,7 @@ async fn check_assumption_validation_data<Sender>(
 	assumption: OccupiedCoreAssumption,
 ) -> AssumptionCheckOutcome
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	let validation_data = {
 		let (tx, rx) = oneshot::channel();
@@ -384,7 +385,7 @@ async fn find_assumed_validation_data<Sender>(
 	descriptor: &CandidateDescriptor,
 ) -> AssumptionCheckOutcome
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	// The candidate descriptor has a `persisted_validation_data_hash` which corresponds to
 	// one of up to two possible values that we can derive from the state of the
@@ -413,36 +414,51 @@ where
 	AssumptionCheckOutcome::DoesNotMatch
 }
 
+/// Returns validation data for a given candidate.
+pub async fn find_validation_data<Sender>(
+	sender: &mut Sender,
+	descriptor: &CandidateDescriptor,
+) -> Result<Option<(PersistedValidationData, ValidationCode)>, ValidationFailed>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	match find_assumed_validation_data(sender, &descriptor).await {
+		AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
+			Ok(Some((validation_data, validation_code))),
+		AssumptionCheckOutcome::DoesNotMatch => {
+			// If neither the assumption of the occupied core having the para included or the assumption
+			// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
+			// is not based on the relay parent and is thus invalid.
+			Ok(None)
+		},
+		AssumptionCheckOutcome::BadRequest =>
+			Err(ValidationFailed("Assumption Check: Bad request".into())),
+	}
+}
+
 async fn validate_from_chain_state<Sender>(
 	sender: &mut Sender,
 	validation_host: ValidationHost,
-	descriptor: CandidateDescriptor,
+	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 	timeout: Duration,
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed>
 where
-	Sender: SubsystemSender,
+	Sender: SubsystemSender<RuntimeApiMessage>,
 {
+	let mut new_sender = sender.clone();
 	let (validation_data, validation_code) =
-		match find_assumed_validation_data(sender, &descriptor).await {
-			AssumptionCheckOutcome::Matches(validation_data, validation_code) =>
-				(validation_data, validation_code),
-			AssumptionCheckOutcome::DoesNotMatch => {
-				// If neither the assumption of the occupied core having the para included or the assumption
-				// of the occupied core timing out are valid, then the persisted_validation_data_hash in the descriptor
-				// is not based on the relay parent and is thus invalid.
-				return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent))
-			},
-			AssumptionCheckOutcome::BadRequest =>
-				return Err(ValidationFailed("Assumption Check: Bad request".into())),
+		match find_validation_data(&mut new_sender, &candidate_receipt.descriptor).await? {
+			Some((validation_data, validation_code)) => (validation_data, validation_code),
+			None => return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent)),
 		};
 
 	let validation_result = validate_candidate_exhaustive(
 		validation_host,
 		validation_data,
 		validation_code,
-		descriptor.clone(),
+		candidate_receipt.clone(),
 		pov,
 		timeout,
 		metrics,
@@ -453,8 +469,12 @@ where
 		let (tx, rx) = oneshot::channel();
 		match runtime_api_request(
 			sender,
-			descriptor.relay_parent,
-			RuntimeApiRequest::CheckValidationOutputs(descriptor.para_id, outputs.clone(), tx),
+			candidate_receipt.descriptor.relay_parent,
+			RuntimeApiRequest::CheckValidationOutputs(
+				candidate_receipt.descriptor.para_id,
+				outputs.clone(),
+				tx,
+			),
 			rx,
 		)
 		.await
@@ -470,10 +490,10 @@ where
 }
 
 async fn validate_candidate_exhaustive(
-	mut validation_backend: impl ValidationBackend,
+	mut validation_backend: impl ValidationBackend + Send,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
-	descriptor: CandidateDescriptor,
+	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
 	timeout: Duration,
 	metrics: &Metrics,
@@ -481,19 +501,21 @@ async fn validate_candidate_exhaustive(
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
 	let validation_code_hash = validation_code.hash();
-	tracing::debug!(
+	let para_id = candidate_receipt.descriptor.para_id;
+	gum::debug!(
 		target: LOG_TARGET,
 		?validation_code_hash,
-		para_id = ?descriptor.para_id,
+		?para_id,
 		"About to validate a candidate.",
 	);
 
 	if let Err(e) = perform_basic_checks(
-		&descriptor,
+		&candidate_receipt.descriptor,
 		persisted_validation_data.max_pov_size,
-		&*pov,
+		&pov,
 		&validation_code_hash,
 	) {
+		gum::info!(target: LOG_TARGET, ?para_id, "Invalid candidate (basic checks)");
 		return Ok(ValidationResult::Invalid(e))
 	}
 
@@ -503,7 +525,7 @@ async fn validate_candidate_exhaustive(
 	) {
 		Ok(code) => code,
 		Err(e) => {
-			tracing::debug!(target: LOG_TARGET, err=?e, "Invalid validation code");
+			gum::info!(target: LOG_TARGET, ?para_id, err=?e, "Invalid candidate (validation code)");
 
 			// If the validation code is invalid, the candidate certainly is.
 			return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
@@ -514,7 +536,7 @@ async fn validate_candidate_exhaustive(
 		match sp_maybe_compressed_blob::decompress(&pov.block_data.0, POV_BOMB_LIMIT) {
 			Ok(block_data) => BlockData(block_data.to_vec()),
 			Err(e) => {
-				tracing::debug!(target: LOG_TARGET, err=?e, "Invalid PoV code");
+				gum::info!(target: LOG_TARGET, ?para_id, err=?e, "Invalid candidate (PoV code)");
 
 				// If the PoV is invalid, the candidate certainly is.
 				return Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
@@ -529,15 +551,11 @@ async fn validate_candidate_exhaustive(
 	};
 
 	let result = validation_backend
-		.validate_candidate(raw_validation_code.to_vec(), timeout, params)
+		.validate_candidate_with_retry(raw_validation_code.to_vec(), timeout, params)
 		.await;
 
-	if let Err(ref e) = result {
-		tracing::debug!(
-			target: LOG_TARGET,
-			error = ?e,
-			"Failed to validate candidate",
-		);
+	if let Err(ref error) = result {
+		gum::info!(target: LOG_TARGET, ?para_id, ?error, "Failed to validate candidate",);
 	}
 
 	match result {
@@ -555,7 +573,8 @@ async fn validate_candidate_exhaustive(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
 
 		Ok(res) =>
-			if res.head_data.hash() != descriptor.para_head {
+			if res.head_data.hash() != candidate_receipt.descriptor.para_head {
+				gum::info!(target: LOG_TARGET, ?para_id, "Invalid candidate (para_head)");
 				Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch))
 			} else {
 				let outputs = CandidateCommitments {
@@ -566,62 +585,103 @@ async fn validate_candidate_exhaustive(
 					processed_downward_messages: res.processed_downward_messages,
 					hrmp_watermark: res.hrmp_watermark,
 				};
-				Ok(ValidationResult::Valid(outputs, persisted_validation_data))
+				if candidate_receipt.commitments_hash != outputs.hash() {
+					gum::info!(
+						target: LOG_TARGET,
+						?para_id,
+						"Invalid candidate (commitments hash)"
+					);
+
+					// If validation produced a new set of commitments, we treat the candidate as invalid.
+					Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))
+				} else {
+					Ok(ValidationResult::Valid(outputs, persisted_validation_data))
+				}
 			},
 	}
 }
 
 #[async_trait]
 trait ValidationBackend {
+	/// Tries executing a PVF a single time (no retries).
 	async fn validate_candidate(
 		&mut self,
-		raw_validation_code: Vec<u8>,
+		pvf: Pvf,
 		timeout: Duration,
-		params: ValidationParams,
+		encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError>;
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError>;
-}
-
-#[async_trait]
-impl ValidationBackend for ValidationHost {
-	async fn validate_candidate(
+	/// Tries executing a PVF. Will retry once if an error is encountered that may have been
+	/// transient.
+	async fn validate_candidate_with_retry(
 		&mut self,
 		raw_validation_code: Vec<u8>,
 		timeout: Duration,
 		params: ValidationParams,
 	) -> Result<WasmValidationResult, ValidationError> {
-		let (tx, rx) = oneshot::channel();
-		if let Err(err) = self
-			.execute_pvf(
-				Pvf::from_code(raw_validation_code),
-				timeout,
-				params.encode(),
-				polkadot_node_core_pvf::Priority::Normal,
-				tx,
-			)
-			.await
+		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
+		let pvf = Pvf::from_code(raw_validation_code);
+
+		let mut validation_result =
+			self.validate_candidate(pvf.clone(), timeout, params.encode()).await;
+
+		// If we get an AmbiguousWorkerDeath error, retry once after a brief delay, on the
+		// assumption that the conditions that caused this error may have been transient. Note that
+		// this error is only a result of execution itself and not of preparation.
+		if let Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)) =
+			validation_result
 		{
+			// Wait a brief delay before retrying.
+			futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
+
+			gum::warn!(
+				target: LOG_TARGET,
+				?pvf,
+				"Re-trying failed candidate validation due to AmbiguousWorkerDeath."
+			);
+
+			// Encode the params again when re-trying. We expect the retry case to be relatively
+			// rare, and we want to avoid unconditionally cloning data.
+			validation_result = self.validate_candidate(pvf, timeout, params.encode()).await;
+		}
+
+		validation_result
+	}
+
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError>;
+}
+
+#[async_trait]
+impl ValidationBackend for ValidationHost {
+	/// Tries executing a PVF a single time (no retries).
+	async fn validate_candidate(
+		&mut self,
+		pvf: Pvf,
+		timeout: Duration,
+		encoded_params: Vec<u8>,
+	) -> Result<WasmValidationResult, ValidationError> {
+		let priority = polkadot_node_core_pvf::Priority::Normal;
+
+		let (tx, rx) = oneshot::channel();
+		if let Err(err) = self.execute_pvf(pvf, timeout, encoded_params, priority, tx).await {
 			return Err(ValidationError::InternalError(format!(
 				"cannot send pvf to the validation host: {:?}",
 				err
 			)))
 		}
 
-		let validation_result = rx
-			.await
-			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?;
-
-		validation_result
+		rx.await
+			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
 	}
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<(), PrepareError> {
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError> {
 		let (tx, rx) = oneshot::channel();
-		if let Err(_) = self.precheck_pvf(pvf, tx).await {
-			return Err(PrepareError::DidNotMakeIt)
+		if let Err(err) = self.precheck_pvf(pvf, tx).await {
+			// Return an IO error if there was an error communicating with the host.
+			return Err(PrepareError::IoErr(err))
 		}
 
-		let precheck_result = rx.await.or(Err(PrepareError::DidNotMakeIt))?;
+		let precheck_result = rx.await.map_err(|err| PrepareError::IoErr(err.to_string()))?;
 
 		precheck_result
 	}
@@ -655,96 +715,4 @@ fn perform_basic_checks(
 	}
 
 	Ok(())
-}
-
-#[derive(Clone)]
-struct MetricsInner {
-	validation_requests: prometheus::CounterVec<prometheus::U64>,
-	validate_from_chain_state: prometheus::Histogram,
-	validate_from_exhaustive: prometheus::Histogram,
-	validate_candidate_exhaustive: prometheus::Histogram,
-}
-
-/// Candidate validation metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
-
-impl Metrics {
-	fn on_validation_event(&self, event: &Result<ValidationResult, ValidationFailed>) {
-		if let Some(metrics) = &self.0 {
-			match event {
-				Ok(ValidationResult::Valid(_, _)) => {
-					metrics.validation_requests.with_label_values(&["valid"]).inc();
-				},
-				Ok(ValidationResult::Invalid(_)) => {
-					metrics.validation_requests.with_label_values(&["invalid"]).inc();
-				},
-				Err(_) => {
-					metrics.validation_requests.with_label_values(&["validation failure"]).inc();
-				},
-			}
-		}
-	}
-
-	/// Provide a timer for `validate_from_chain_state` which observes on drop.
-	fn time_validate_from_chain_state(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.validate_from_chain_state.start_timer())
-	}
-
-	/// Provide a timer for `validate_from_exhaustive` which observes on drop.
-	fn time_validate_from_exhaustive(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.validate_from_exhaustive.start_timer())
-	}
-
-	/// Provide a timer for `validate_candidate_exhaustive` which observes on drop.
-	fn time_validate_candidate_exhaustive(
-		&self,
-	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0
-			.as_ref()
-			.map(|metrics| metrics.validate_candidate_exhaustive.start_timer())
-	}
-}
-
-impl metrics::Metrics for Metrics {
-	fn try_register(registry: &prometheus::Registry) -> Result<Self, prometheus::PrometheusError> {
-		let metrics = MetricsInner {
-			validation_requests: prometheus::register(
-				prometheus::CounterVec::new(
-					prometheus::Opts::new(
-						"polkadot_parachain_validation_requests_total",
-						"Number of validation requests served.",
-					),
-					&["validity"],
-				)?,
-				registry,
-			)?,
-			validate_from_chain_state: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_validation_validate_from_chain_state",
-					"Time spent within `candidate_validation::validate_from_chain_state`",
-				))?,
-				registry,
-			)?,
-			validate_from_exhaustive: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_validation_validate_from_exhaustive",
-					"Time spent within `candidate_validation::validate_from_exhaustive`",
-				))?,
-				registry,
-			)?,
-			validate_candidate_exhaustive: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_candidate_validation_validate_candidate_exhaustive",
-					"Time spent within `candidate_validation::validate_candidate_exhaustive`",
-				))?,
-				registry,
-			)?,
-		};
-		Ok(Metrics(Some(metrics)))
-	}
 }

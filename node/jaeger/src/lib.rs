@@ -53,7 +53,7 @@ mod spans;
 pub use self::{
 	config::{JaegerConfig, JaegerConfigBuilder},
 	errors::JaegerError,
-	spans::{PerLeafSpan, Span, Stage},
+	spans::{hash_to_trace_identifier, PerLeafSpan, Span, Stage},
 };
 
 use self::spans::TraceIdentifier;
@@ -92,6 +92,21 @@ impl Jaeger {
 		Ok(())
 	}
 
+	/// Provide a no-thrills test setup helper.
+	#[cfg(test)]
+	pub fn test_setup() {
+		let mut instance = INSTANCE.write();
+		match *instance {
+			Self::Launched { .. } => {},
+			_ => {
+				let (traces_in, _traces_out) = mick_jaeger::init(mick_jaeger::Config {
+					service_name: "polkadot-jaeger-test".to_owned(),
+				});
+				*instance = Self::Launched { traces_in };
+			},
+		}
+	}
+
 	/// Spawn the background task in order to send the tracing information out via UDP
 	#[cfg(not(target_os = "unknown"))]
 	pub fn launch<S: SpawnNamed>(self, spawner: S) -> result::Result<(), JaegerError> {
@@ -114,7 +129,7 @@ impl Jaeger {
 			"jaeger-collector",
 			Some("jaeger"),
 			Box::pin(async move {
-				match async_std::net::UdpSocket::bind("0.0.0.0:0").await {
+				match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
 					Ok(udp_socket) => loop {
 						let buf = traces_out.next().await;
 						// UDP sending errors happen only either if the API is misused or in case of missing privilege.
@@ -133,6 +148,10 @@ impl Jaeger {
 		Ok(())
 	}
 
+	/// Create a span, but defer the evaluation/transformation into a `TraceIdentifier`.
+	///
+	/// The deferral allows to avoid the additional CPU runtime cost in case of
+	/// items that are not a pre-computed hash by themselves.
 	pub(crate) fn span<F>(&self, lazy_hash: F, span_name: &'static str) -> Option<mick_jaeger::Span>
 	where
 		F: Fn() -> TraceIdentifier,

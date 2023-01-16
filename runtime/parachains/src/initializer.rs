@@ -21,7 +21,7 @@
 
 use crate::{
 	configuration::{self, HostConfiguration},
-	disputes::DisputesHandler,
+	disputes::{self, DisputesHandler as _, SlashingHandler as _},
 	dmp, hrmp, inclusion, paras, scheduler, session_info, shared, ump,
 };
 use frame_support::{
@@ -30,9 +30,12 @@ use frame_support::{
 };
 use frame_system::limits::BlockWeights;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v1::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
+use primitives::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
+
+#[cfg(test)]
+mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
@@ -55,6 +58,9 @@ pub struct SessionChangeNotification<BlockNumber> {
 	/// New session index.
 	pub session_index: SessionIndex,
 }
+
+/// Number of validators (not only parachain) in a session.
+pub type ValidatorSetCount = u32;
 
 impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<BlockNumber> {
 	fn default() -> Self {
@@ -94,6 +100,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
@@ -105,6 +112,7 @@ pub mod pallet {
 		+ scheduler::Config
 		+ inclusion::Config
 		+ session_info::Config
+		+ disputes::Config
 		+ dmp::Config
 		+ ump::Config
 		+ hrmp::Config
@@ -112,7 +120,7 @@ pub mod pallet {
 		/// A randomness beacon.
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		/// An origin which is allowed to force updates to parachains.
-		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 	}
@@ -159,6 +167,7 @@ pub mod pallet {
 				inclusion::Pallet::<T>::initializer_initialize(now) +
 				session_info::Pallet::<T>::initializer_initialize(now) +
 				T::DisputesHandler::initializer_initialize(now) +
+				T::SlashingHandler::initializer_initialize(now) +
 				dmp::Pallet::<T>::initializer_initialize(now) +
 				ump::Pallet::<T>::initializer_initialize(now) +
 				hrmp::Pallet::<T>::initializer_initialize(now);
@@ -173,6 +182,7 @@ pub mod pallet {
 			hrmp::Pallet::<T>::initializer_finalize();
 			ump::Pallet::<T>::initializer_finalize();
 			dmp::Pallet::<T>::initializer_finalize();
+			T::SlashingHandler::initializer_finalize();
 			T::DisputesHandler::initializer_finalize();
 			session_info::Pallet::<T>::initializer_finalize();
 			inclusion::Pallet::<T>::initializer_finalize();
@@ -200,6 +210,7 @@ pub mod pallet {
 		/// Issue a signal to the consensus engine to forcibly act as though all parachain
 		/// blocks in all relay chain blocks up to and including the given number in the current
 		/// chain are valid and should be finalized.
+		#[pallet::call_index(0)]
 		#[pallet::weight((
 			<T as Config>::WeightInfo::force_approve(
 				frame_system::Pallet::<T>::digest().logs.len() as u32,
@@ -237,7 +248,7 @@ impl<T: Config> Pallet<T> {
 
 		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,
-			random_seed.clone(),
+			random_seed,
 			&new_config,
 			all_validators,
 		);
@@ -256,6 +267,7 @@ impl<T: Config> Pallet<T> {
 		inclusion::Pallet::<T>::initializer_on_new_session(&notification);
 		session_info::Pallet::<T>::initializer_on_new_session(&notification);
 		T::DisputesHandler::initializer_on_new_session(&notification);
+		T::SlashingHandler::initializer_on_new_session(session_index);
 		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		ump::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
@@ -326,139 +338,4 @@ impl<T: pallet_session::Config + Config> OneSessionHandler<T::AccountId> for Pal
 	}
 
 	fn on_disabled(_i: u32) {}
-}
-
-#[cfg(test)]
-mod tests {
-	use super::*;
-	use crate::mock::{
-		new_test_ext, Configuration, Dmp, Initializer, MockGenesisConfig, Paras, SessionInfo,
-		System,
-	};
-	use primitives::v1::{HeadData, Id as ParaId};
-	use test_helpers::dummy_validation_code;
-
-	use frame_support::{
-		assert_ok,
-		traits::{OnFinalize, OnInitialize},
-	};
-
-	#[test]
-	fn session_0_is_instantly_applied() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Initializer::on_new_session(
-				false,
-				0,
-				Vec::new().into_iter(),
-				Some(Vec::new().into_iter()),
-			);
-
-			let v = <Initializer as Store>::BufferedSessionChanges::get();
-			assert!(v.is_empty());
-
-			assert_eq!(SessionInfo::earliest_stored_session(), 0);
-			assert!(SessionInfo::session_info(0).is_some());
-		});
-	}
-
-	#[test]
-	fn session_change_before_initialize_is_still_buffered_after() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Initializer::on_new_session(
-				false,
-				1,
-				Vec::new().into_iter(),
-				Some(Vec::new().into_iter()),
-			);
-
-			let now = System::block_number();
-			Initializer::on_initialize(now);
-
-			let v = <Initializer as Store>::BufferedSessionChanges::get();
-			assert_eq!(v.len(), 1);
-		});
-	}
-
-	#[test]
-	fn session_change_applied_on_finalize() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Initializer::on_initialize(1);
-			Initializer::on_new_session(
-				false,
-				1,
-				Vec::new().into_iter(),
-				Some(Vec::new().into_iter()),
-			);
-
-			Initializer::on_finalize(1);
-
-			assert!(<Initializer as Store>::BufferedSessionChanges::get().is_empty());
-		});
-	}
-
-	#[test]
-	fn sets_flag_on_initialize() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Initializer::on_initialize(1);
-
-			assert!(<Initializer as Store>::HasInitialized::get().is_some());
-		})
-	}
-
-	#[test]
-	fn clears_flag_on_finalize() {
-		new_test_ext(Default::default()).execute_with(|| {
-			Initializer::on_initialize(1);
-			Initializer::on_finalize(1);
-
-			assert!(<Initializer as Store>::HasInitialized::get().is_none());
-		})
-	}
-
-	#[test]
-	fn scheduled_cleanup_performed() {
-		let a = ParaId::from(1312);
-		let b = ParaId::from(228);
-		let c = ParaId::from(123);
-
-		let mock_genesis = crate::paras::ParaGenesisArgs {
-			parachain: true,
-			genesis_head: HeadData(vec![4, 5, 6]),
-			validation_code: dummy_validation_code(),
-		};
-
-		new_test_ext(MockGenesisConfig {
-			configuration: crate::configuration::GenesisConfig {
-				config: crate::configuration::HostConfiguration {
-					max_downward_message_size: 1024,
-					..Default::default()
-				},
-			},
-			paras: crate::paras::GenesisConfig {
-				paras: vec![
-					(a, mock_genesis.clone()),
-					(b, mock_genesis.clone()),
-					(c, mock_genesis.clone()),
-				],
-				..Default::default()
-			},
-			..Default::default()
-		})
-		.execute_with(|| {
-			// enqueue downward messages to A, B and C.
-			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), a, vec![1, 2, 3]));
-			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), b, vec![4, 5, 6]));
-			assert_ok!(Dmp::queue_downward_message(&Configuration::config(), c, vec![7, 8, 9]));
-
-			assert_ok!(Paras::schedule_para_cleanup(a));
-			assert_ok!(Paras::schedule_para_cleanup(b));
-
-			// Apply session 2 in the future
-			Initializer::apply_new_session(2, vec![], vec![]);
-
-			assert!(Dmp::dmq_contents(a).is_empty());
-			assert!(Dmp::dmq_contents(b).is_empty());
-			assert!(!Dmp::dmq_contents(c).is_empty());
-		});
-	}
 }

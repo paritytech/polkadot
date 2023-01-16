@@ -70,7 +70,7 @@ dnf install polkadot
 Make sure you have the support software installed from the **Build from Source** section
 below this section.
 
-If you want to install Polkadot in your PATH, you can do so with with:
+If you want to install Polkadot in your PATH, you can do so with:
 
 ```bash
 cargo install --git https://github.com/paritytech/polkadot --tag <version> polkadot --locked
@@ -200,7 +200,7 @@ cargo build # Builds all native code
 You can run the tests if you like:
 
 ```bash
-cargo test --all
+cargo test --workspace --release
 ```
 
 You can start a development chain with:

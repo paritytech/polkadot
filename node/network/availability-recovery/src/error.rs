@@ -23,7 +23,7 @@ use thiserror::Error;
 #[derive(Debug, Error)]
 pub enum Error {
 	#[error(transparent)]
-	Subsystem(#[from] polkadot_subsystem::SubsystemError),
+	Subsystem(#[from] polkadot_node_subsystem::SubsystemError),
 
 	#[error("failed to query full data from store")]
 	CanceledQueryFullData(#[source] oneshot::Canceled),
@@ -35,7 +35,7 @@ pub enum Error {
 	CanceledResponseSender,
 
 	#[error(transparent)]
-	Runtime(#[from] polkadot_subsystem::errors::RuntimeApiError),
+	Runtime(#[from] polkadot_node_subsystem::errors::RuntimeApiError),
 
 	#[error(transparent)]
 	Erasure(#[from] polkadot_erasure_coding::Error),

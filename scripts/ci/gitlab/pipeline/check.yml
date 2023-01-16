@@ -1,0 +1,133 @@
+# This file is part of .gitlab-ci.yml
+# Here are all jobs that are executed during "check" stage
+
+check-runtime:
+  stage:                           check
+  image:                           paritytech/tools:latest
+  extends:
+    - .kubernetes-env
+  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^release-v[0-9]+\.[0-9]+.*$/      # i.e. release-v0.9.27
+  variables:
+    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
+    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
+  script:
+    - ./scripts/ci/gitlab/check_runtime.sh
+  allow_failure:                   true
+
+cargo-fmt:
+  stage:                           check
+  extends:
+    - .docker-env
+    - .test-refs
+  script:
+    - cargo +nightly --version
+    - cargo +nightly fmt --all -- --check
+  allow_failure:                   true
+
+spellcheck:
+  stage:                           check
+  extends:
+    - .docker-env
+    - .test-refs
+  script:
+    - cargo spellcheck --version
+    # compare with the commit parent to the PR, given it's from a default branch
+    - git fetch origin +${CI_DEFAULT_BRANCH}:${CI_DEFAULT_BRANCH}
+    - echo "___Spellcheck is going to check your diff___"
+    - cargo spellcheck list-files -vvv $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
+    - time cargo spellcheck check -vvv --cfg=scripts/ci/gitlab/spellcheck.toml --checkers hunspell --code 1
+        $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
+  allow_failure:                   true
+
+check-try-runtime:
+  stage:                           check
+  extends:
+    - .docker-env
+    - .test-refs
+    - .compiler-info
+  script:
+    # Check that everything compiles with `try-runtime` feature flag.
+    - cargo check --features try-runtime --all
+
+# More info can be found here: https://github.com/paritytech/polkadot/pull/5865
+# Works only in PRs with E1 label
+.check-runtime-migration:
+  stage:                           check
+  extends:
+    - .docker-env
+    - .test-pr-refs
+    - .compiler-info
+  script:
+    - |
+      export has_runtimemigration_label=$(curl -sS -H "Accept: application/vnd.github+json" \
+        -H "Authorization: token $GITHUB_PR_TOKEN" \
+        https://api.github.com/repos/paritytech/polkadot/issues/$CI_COMMIT_REF_NAME/labels | grep "E0-runtime_migration" | wc -l)
+    - |
+      if [[ $has_runtimemigration_label != 0 ]]; then
+        echo "Found label runtime_migration. Running tests"
+        export RUST_LOG=remote-ext=debug,runtime=debug
+        echo "---------- Running try-runtime for ${NETWORK} ----------"
+        time cargo build --release -p "$NETWORK"-runtime
+        time cargo run --release --features try-runtime try-runtime \
+            --runtime ./target/release/wbuild/"$NETWORK"-runtime/target/wasm32-unknown-unknown/release/"$NETWORK"_runtime.wasm \
+            -lruntime=debug \
+            --chain=${NETWORK}-dev \
+            on-runtime-upgrade live --uri wss://${NETWORK}-try-runtime-node.parity-chains.parity.io:443
+      else
+        echo "runtime_migration label not found. Skipping"
+      fi
+
+check-runtime-migration-polkadot:
+  stage:                           check
+  extends:
+    - .docker-env
+    - .test-pr-refs
+    - .compiler-info
+    - .check-runtime-migration
+  variables:
+    NETWORK:                       "polkadot"
+
+check-runtime-migration-kusama:
+  stage:                           check
+  extends:
+    - .docker-env
+    - .test-pr-refs
+    - .compiler-info
+    - .check-runtime-migration
+  variables:
+    NETWORK:                       "kusama"
+
+check-runtime-migration-westend:
+  stage:                           check
+  extends:
+    - .docker-env
+    - .test-pr-refs
+    - .compiler-info
+    - .check-runtime-migration
+  variables:
+    NETWORK:                       "westend"
+  allow_failure:                   true
+
+# is broken, need to fix
+check-no-default-features:
+  stage:                           check
+  extends:
+    - .docker-env
+    - .test-refs
+    - .compiler-info
+  script:
+    # Check that polkadot-cli will compile no default features.
+    - pushd ./node/service && cargo check --no-default-features && popd
+    - pushd ./cli && cargo check --no-default-features --features "service" && popd
+    - exit 0
+
+# this is artificial job to run some build and tests using DAG
+job-starter:
+  stage:                           check
+  image:                           paritytech/tools:latest
+  extends:
+    - .kubernetes-env
+    - .common-refs
+  script:
+    - echo ok

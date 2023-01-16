@@ -15,6 +15,13 @@ This design should result in a protocol that is:
 
 ## Protocol
 
+Distributing disputes needs to be a reliable protocol. We would like to make as
+sure as possible that our vote got properly delivered to all concerned
+validators. For this to work, this subsystem won't be gossip based, but instead
+will use a request/response protocol for application level confirmations. The
+request will be the payload (the actual votes/statements), the response will
+be the confirmation. See [below][#wire-format].
+
 ### Input
 
 [`DisputeDistributionMessage`][DisputeDistributionMessage]
@@ -30,7 +37,7 @@ This design should result in a protocol that is:
 
 #### Disputes
 
-Protocol: `"/polkadot/send_dispute/1"`
+Protocol: `"/<genesis_hash>/<fork_id>/send_dispute/1"`
 
 Request:
 
@@ -86,7 +93,7 @@ enum DisputeResponse {
 
 #### Vote Recovery
 
-Protocol: `"/polkadot/req_votes/1"`
+Protocol: `"/<genesis_hash>/<fork_id>/req_votes/1"`
 
 ```rust
 struct IHaveVotesRequest {
@@ -107,16 +114,7 @@ struct VotesResponse {
 }
 ```
 
-## Functionality
-
-Distributing disputes needs to be a reliable protocol. We would like to make as
-sure as possible that our vote got properly delivered to all concerned
-validators. For this to work, this subsystem won't be gossip based, but instead
-will use a request/response protocol for application level confirmations. The
-request will be the payload (the actual votes/statements), the response will
-be the confirmation. See [above][#wire-format].
-
-### Starting a Dispute
+## Starting a Dispute
 
 A dispute is initiated once a node sends the first `DisputeRequest` wire message,
 which must contain an "invalid" vote and a "valid" vote.
@@ -132,7 +130,7 @@ conflicting votes available, hence we have a valid dispute. Nodes will still
 need to check whether the disputing votes are somewhat current and not some
 stale ones.
 
-### Participating in a Dispute
+## Participating in a Dispute
 
 Upon receiving a `DisputeRequest` message, a dispute distribution will trigger the
 import of the received votes via the dispute coordinator
@@ -144,13 +142,13 @@ except that if the local node deemed the candidate valid, the `SendDispute`
 message will contain a valid vote signed by our node and will contain the
 initially received `Invalid` vote.
 
-Note, that we rely on the coordinator to check availability for spam protection
-(see below).
+Note, that we rely on `dispute-coordinator` to check validity of a dispute for spam
+protection (see below).
 
-### Sending of messages
+## Sending of messages
 
 Starting and participating in a dispute are pretty similar from the perspective
-of dispute distribution. Once we receive a `SendDispute` message we try to make
+of dispute distribution. Once we receive a `SendDispute` message, we try to make
 sure to get the data out. We keep track of all the parachain validators that
 should see the message, which are all the parachain validators of the session
 where the dispute happened as they will want to participate in the dispute.  In
@@ -159,122 +157,190 @@ session (which might be the same or not and may change during the dispute).
 Those authorities will not participate in the dispute, but need to see the
 statements so they can include them in blocks.
 
-We keep track of connected parachain validators and authorities and will issue
-warnings in the logs if connected nodes are less than two thirds of the
-corresponding sets. We also only consider a message transmitted, once we
-received a confirmation message. If not, we will keep retrying getting that
-message out as long as the dispute is deemed alive. To determine whether a
-dispute is still alive we will issue a
+### Reliability
+
+We only consider a message transmitted, once we received a confirmation message.
+If not, we will keep retrying getting that message out as long as the dispute is
+deemed alive. To determine whether a dispute is still alive we will ask the
+`dispute-coordinator` for a list of all still active disputes via a
 `DisputeCoordinatorMessage::ActiveDisputes` message before each retry run. Once
 a dispute is no longer live, we will clean up the state accordingly.
 
-### Reception & Spam Considerations
+### Order
 
-Because we are not forwarding foreign statements, spam is less of an issue in
-comparison to gossip based systems. Rate limiting should be implemented at the
-substrate level, see
-[#7750](https://github.com/paritytech/substrate/issues/7750). Still we should
-make sure that it is not possible via spamming to prevent a dispute concluding
-or worse from getting noticed.
+We assume `SendDispute` messages are coming in an order of importance, hence
+`dispute-distribution` will make sure to send out network messages in the same
+order, even on retry.
 
-Considered attack vectors:
+### Rate Limit
 
-1. Invalid disputes (candidate does not exist) could make us
-   run out of resources. E.g. if we recorded every statement, we could run out
-   of disk space eventually.
-2. An attacker can just flood us with notifications on any notification
-   protocol, assuming flood protection is not effective enough, our unbounded
-   buffers can fill up and we will run out of memory eventually.
-3. An attacker could participate in a valid dispute, but send its votes multiple
-   times.
-4. Attackers could spam us at a high rate with invalid disputes. Our incoming
-   queue of requests could get monopolized by those malicious requests and we
-   won't be able to import any valid disputes and we could run out of resources,
-   if we tried to process them all in parallel.
+For spam protection (see below), we employ an artificial rate limiting on sending
+out messages in order to not hit the rate limit at the receiving side, which
+would result in our messages getting dropped and our reputation getting reduced.
 
-For tackling 1, we make sure to not occupy resources before we don't know a
-candidate is available. So we will not record statements to disk until we
-recovered availability for the candidate or know by some other means that the
-dispute is legit.
+## Reception
 
-For 2, we will pick up on any dispute on restart, so assuming that any realistic
-memory filling attack will take some time, we should be able to participate in a
-dispute under such attacks.
+As we shall see the receiving side is mostly about handling spam and ensuring
+the dispute-coordinator learns about disputes as fast as possible.
 
-Importing/discarding redundant votes should be pretty quick, so measures with
-regards to 4 should suffice to prevent 3, from doing any real harm.
+Goals for the receiving side:
 
-For 4, full monopolization of the incoming queue should not be possible assuming
-substrate handles incoming requests in a somewhat fair way. Still we want some
-defense mechanisms, at the very least we need to make sure to not exhaust
-resources.
+1. Get new disputes to the dispute-coordinator as fast as possible, so
+  prioritization can happen properly.
+2. Batch votes per disputes as much as possible for good import performance.
+3. Prevent malicious nodes exhausting node resources by sending lots of messages.
+4. Prevent malicious nodes from sending so many messages/(fake) disputes,
+  preventing us from concluding good ones.
+5. Limit ability of malicious nodes of delaying the vote import due to batching
+   logic.
 
-The dispute coordinator will notify us on import about unavailable candidates or
-otherwise invalid imports and we can disconnect from such peers/decrease their
-reputation drastically. This alone should get us quite far with regards to queue
-monopolization, as availability recovery is expected to fail relatively quickly
-for unavailable data.
+Goal 1 and 2 seem to be conflicting, but an easy compromise is possible: When
+learning about a new dispute, we will import the vote immediately, making the
+dispute coordinator aware and also getting immediate feedback on the validity.
+Then if valid we can batch further incoming votes, with less time constraints as
+the dispute-coordinator already knows about the dispute.
 
-Still if those spam messages come at a very high rate, we might still run out of
-resources if we immediately call `DisputeCoordinatorMessage::ImportStatements`
-on each one of them. Secondly with our assumption of 1/3 dishonest validators,
-getting rid of all of them will take some time, depending on reputation timeouts
-some of them might even be able to reconnect eventually.
+Goal 3 and 4 are obviously very related and both can easily be solved via rate
+limiting as we shall see below. Rate limits should already be implemented at the
+substrate level, but [are not](https://github.com/paritytech/substrate/issues/7750)
+at the time of writing. But even if they were, the enforced substrate limits would
+likely not be configurable and thus would still be to high for our needs as we can
+rely on the following observations:
 
-To mitigate those issues we will process dispute messages with a maximum
-parallelism `N`. We initiate import processes for up to `N` candidates in
-parallel. Once we reached `N` parallel requests we will start back pressuring on
-the incoming requests. This saves us from resource exhaustion.
+1. Each honest validator will only send one message (apart from duplicates on
+  timeout) per candidate/dispute.
+2. An honest validator needs to fully recover availability and validate the
+  candidate for casting a vote.
 
-To reduce impact of malicious nodes further, we can keep track from which nodes the
-currently importing statements came from and will drop requests from nodes that
-already have imports in flight.
+With these two observations, we can conclude that honest validators will usually
+not send messages at a high rate. We can therefore enforce conservative rate
+limits and thus minimize harm spamming malicious nodes can have.
 
-Honest nodes are not expected to send dispute statements at a high rate, but
-even if they did:
+Before we dive into how rate limiting solves all spam issues elegantly, let's
+discuss that honest behaviour further:
 
-- we will import at least the first one and if it is valid it will trigger a
-  dispute, preventing finality.
-- Chances are good that the first sent candidate from a peer is indeed the
-  oldest one (if they differ in age at all).
-- for the dropped request any honest node will retry sending.
-- there will be other nodes notifying us about that dispute as well.
-- honest votes have a speed advantage on average. Apart from the very first
-  dispute statement for a candidate, which might cause the availability recovery
-  process, imports of honest votes will be super fast, while for spam imports
-  they will always take some time as we have to wait for availability to fail.
+What about session changes? Here we might have to inform a new validator set of
+lots of already existing disputes at once.
 
-So this general rate limit, that we drop requests from same peers if they come
-faster than we can import the statements should not cause any problems for
-honest nodes and is in their favor.
+With observation 1) and a rate limit that is per peer, we are still good:
 
-Size of `N`: The larger `N` the better we can handle distributed flood attacks
-(see previous paragraph), but we also get potentially more availability recovery
-processes happening at the same time, which slows down the individual processes.
-And we rather want to have one finish quickly than lots slowly at the same time.
-On the other hand, valid disputes are expected to be rare, so if we ever exhaust
-`N` it is very likely that this is caused by spam and spam recoveries don't cost
-too much bandwidth due to empty responses.
+Let's assume a rate limit of one message per 200ms per sender. This means 5
+messages from each validator per second. 5 messages means 5 disputes!
+Conclusively, we will be able to conclude 5 disputes per second - no matter what
+malicious actors are doing. This is assuming dispute messages are sent ordered,
+but even if not perfectly ordered: On average it will be 5 disputes per second.
 
-Considering that an attacker would need to attack many nodes in parallel to have
-any effect, an `N` of 10 seems to be a good compromise. For honest requests, most
-of those imports will likely concern the same candidate, and for dishonest ones
-we get to disconnect from up to ten colluding adversaries at a time.
+This is good enough! All those disputes are valid ones and will result in
+slashing and disabling of validators. Let's assume all of them conclude `valid`,
+and we disable validators only after 100 raised concluding valid disputes, we
+would still start disabling misbehaving validators in only 20 seconds.
 
-For the size of the channel for incoming requests: Due to dropping of repeated
-requests from same nodes we can make the channel relatively large without fear
-of lots of spam requests sitting there wasting our time, even after we already
-blocked a peer. For valid disputes, incoming requests can become bursty. On the
-other hand we will also be very quick in processing them. A channel size of 100
-requests seems plenty and should be able to handle bursts adequately.
+One could also think that in addition participation is expected to take longer,
+which means on average we can import/conclude disputes faster than they are
+generated - regardless of dispute spam. Unfortunately this is not necessarily
+true: There might be parachains with very light load where recovery and
+validation can be accomplished very quickly - maybe faster than we can import
+those disputes.
+
+This is probably an argument for not imposing a too low rate limit, although the
+issue is more general: Even without any rate limit, if an attacker generates
+disputes at a very high rate, nodes will be having trouble keeping participation
+up, hence the problem should be mitigated at a [more fundamental
+layer](https://github.com/paritytech/polkadot/issues/5898).
+
+For nodes that have been offline for a while, the same argument as for session
+changes holds, but matters even less: We assume 2/3 of nodes to be online, so
+even if the worst case 1/3 offline happens and they could not import votes fast
+enough (as argued above, they in fact can) it would not matter for consensus.
+
+### Rate Limiting
+
+As suggested previously, rate limiting allows to mitigate all threats that come
+from malicious actors trying to overwhelm the system in order to get away without
+a slash, when it comes to dispute-distribution. In this section we will explain
+how in greater detail.
+
+The idea is to open a queue with limited size for each peer. We will process
+incoming messages as fast as we can by doing the following:
+
+1. Check that the sending peer is actually a valid authority - otherwise drop
+   message and decrease reputation/disconnect.
+2. Put message on the peer's queue, if queue is full - drop it.
+
+Every `RATE_LIMIT` seconds (or rather milliseconds), we pause processing
+incoming requests to go a full circle and process one message from each queue.
+Processing means `Batching` as explained in the next section.
+
+### Batching
+
+To achieve goal 2 we will batch incoming votes/messages together before passing
+them on as a single batch to the `dispute-coordinator`. To adhere to goal 1 as
+well, we will do the following:
+
+1. For an incoming message, we check whether we have an existing batch for that
+   candidate, if not we import directly to the dispute-coordinator, as we have
+   to assume this is concerning a new dispute.
+2. We open a batch and start collecting incoming messages for that candidate,
+   instead of immediately forwarding.
+4. We keep collecting votes in the batch until we receive less than
+   `MIN_KEEP_BATCH_ALIVE_VOTES` unique votes in the last `BATCH_COLLECTING_INTERVAL`. This is
+   important to accommodate for goal 5 and also 3.
+5. We send the whole batch to the dispute-coordinator.
+
+This together with rate limiting explained above ensures we will be able to
+process valid disputes: We can limit the number of simultaneous existing batches
+to some high value, but can be rather certain that this limit will never be
+reached - hence we won't drop valid disputes:
+
+Let's assume `MIN_KEEP_BATCH_ALIVE_VOTES` is 10, `BATCH_COLLECTING_INTERVAL`
+is `500ms` and above `RATE_LIMIT` is `100ms`. 1/3 of validators are malicious,
+so for 1000 this means around 330 malicious actors worst case.
+
+All those actors can send a message every `100ms`, that is 10 per second. This
+means at the begining of an attack they can open up around 3300 batches. Each
+containing two votes. So memory usage is still negligible. In reality it is even
+less, as we also demand 10 new votes to trickle in per batch in order to keep it
+alive, every `500ms`. Hence for the first second, each batch requires 20 votes
+each. Each message is 2 votes, so this means 10 messages per batch. Hence to
+keep those batches alive 10 attackers are needed for each batch. This reduces
+the number of opened batches by a factor of 10: So we only have 330 batches in 1
+second - each containing 20 votes.
+
+The next second: In order to further grow memory usage, attackers have to
+maintain 10 messages per batch and second. Number of batches equals the number
+of attackers, each has 10 messages per second, all are needed to maintain the
+batches in memory. Therefore we have a hard cap of around 330 (number of
+malicious nodes) open batches. Each can be filled with number of malicious
+actor's votes. So 330 batches with each 330 votes: Let's assume approximately 100
+bytes per signature/vote. This results in a worst case memory usage of 330 * 330
+* 100 ~= 10 MiB.
+
+For 10_000 validators, we are already in the Gigabyte range, which means that
+with a validator set that large we might want to be more strict with the rate limit or
+require a larger rate of incoming votes per batch to keep them alive.
+
+For a thousand validators a limit on batches of around 1000 should never be
+reached in practice. Hence due to rate limiting we have a very good chance to
+not ever having to drop a potential valid dispute due to some resource limit.
+
+Further safe guards are possible: The dispute-coordinator actually
+confirms/denies imports. So once we receive a denial by the dispute-coordinator
+for the initial imported votes, we can opt into flushing the batch immediately
+and importing the votes. This swaps memory usage for more CPU usage, but if that
+import is deemed invalid again we can immediately decrease the reputation of the
+sending peers, so this should be a net win. For the time being we punt on this
+for simplicity.
+
+Instead of filling batches to maximize memory usage, attackers could also try to
+overwhelm the dispute coordinator by only sending votes for new candidates all
+the time. This attack vector is mitigated also by above rate limit and
+decreasing the peer's reputation on denial of the invalid imports by the
+coordinator.
 
 ### Node Startup
 
-On startup we need to check with the dispute coordinator for any ongoing
-disputes and assume we have not yet sent our statement for those. In case we
-find an explicit statement from ourselves via
-`DisputeCoordinatorMessage::QueryCandidateVotes` we will pretend to just have
-received a `SendDispute` message for that candidate.
+Nothing special happens on node startup. We expect the `dispute-coordinator` to
+inform us about any ongoing disputes via `SendDispute` messages.
 
 ## Backing and Approval Votes
 
@@ -297,6 +363,10 @@ cases we also want to have covered:
 - Nodes might have missed votes, especially backing or approval votes.
   Recovering them from chain is difficult and expensive, due to runtime upgrades
   and untyped extrinsics.
+- More importantly, on era changes the new authority set, from the perspective
+  of approval-voting have no need to see "old" approval votes, hence they might
+  not see them, can therefore not import them into the dispute coordinator and
+  therefore no authority will put them on chain.
 
 To cover those cases, we introduce a second request/response protocol, which can
 be handled on a lower priority basis as the one above. It consists of the

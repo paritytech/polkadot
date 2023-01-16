@@ -18,7 +18,7 @@
 
 use crate::{fungible as xcm_balances_benchmark, mock::*};
 use frame_benchmarking::BenchmarkError;
-use frame_support::{parameter_types, traits::Everything};
+use frame_support::{parameter_types, traits::Everything, weights::Weight};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -47,23 +47,25 @@ frame_support::construct_runtime!(
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(1024);
+		frame_system::limits::BlockWeights::simple_max(
+			Weight::from_ref_time(1024).set_proof_size(u64::MAX),
+		);
 }
 impl frame_system::Config for Test {
 	type BaseCallFilter = Everything;
 	type BlockWeights = ();
 	type BlockLength = ();
 	type DbWeight = ();
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type Index = u64;
 	type BlockNumber = u64;
 	type Hash = H256;
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type Hashing = BlakeTwo256;
 	type AccountId = u64;
 	type Lookup = IdentityLookup<Self::AccountId>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
@@ -86,7 +88,7 @@ impl pallet_balances::Config for Test {
 	type ReserveIdentifier = [u8; 8];
 	type Balance = u64;
 	type DustRemoval = ();
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
@@ -128,15 +130,15 @@ parameter_types! {
 
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
-	type Call = Call;
+	type RuntimeCall = RuntimeCall;
 	type XcmSender = DevNull;
 	type AssetTransactor = AssetTransactor;
 	type OriginConverter = ();
-	type IsReserve = ();
+	type IsReserve = TrustedReserves;
 	type IsTeleporter = TrustedTeleporters;
 	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
-	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, Call, MaxInstructions>;
+	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 	type AssetTrap = ();
@@ -159,6 +161,7 @@ impl crate::Config for Test {
 }
 
 pub type TrustedTeleporters = (xcm_builder::Case<TeleConcreteFung>,);
+pub type TrustedReserves = (xcm_builder::Case<RsrvConcreteFung>,);
 
 parameter_types! {
 	pub const CheckedAccount: Option<u64> = Some(100);
@@ -167,7 +170,13 @@ parameter_types! {
 		ChildTeleporter::get(),
 		MultiAsset { id: Concrete(Here.into()), fun: Fungible(100) },
 	));
+	pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
+		ChildTeleporter::get(),
+		MultiAsset { id: Concrete(Here.into()), fun: Fungible(100) },
+	));
 	pub const TeleConcreteFung: (MultiAssetFilter, MultiLocation) =
+		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into()) }), ChildTeleporter::get());
+	pub const RsrvConcreteFung: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into()) }), ChildTeleporter::get());
 }
 
@@ -175,6 +184,7 @@ impl xcm_balances_benchmark::Config for Test {
 	type TransactAsset = Balances;
 	type CheckedAccount = CheckedAccount;
 	type TrustedTeleporter = TrustedTeleporter;
+	type TrustedReserve = TrustedReserve;
 
 	fn get_multi_asset() -> MultiAsset {
 		let amount =

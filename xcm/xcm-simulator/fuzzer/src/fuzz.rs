@@ -65,7 +65,7 @@ decl_test_network! {
 }
 
 pub fn para_account_id(id: u32) -> relay_chain::AccountId {
-	ParaId::from(id).into_account()
+	ParaId::from(id).into_account_truncating()
 }
 
 pub fn para_ext(para_id: u32) -> sp_io::TestExternalities {
@@ -104,9 +104,9 @@ pub fn relay_ext() -> sp_io::TestExternalities {
 pub type RelayChainPalletXcm = pallet_xcm::Pallet<relay_chain::Runtime>;
 pub type ParachainPalletXcm = pallet_xcm::Pallet<parachain::Runtime>;
 
-fn run_one_input(data: &[u8]) {
+fn run_one_input(mut data: &[u8]) {
 	MockNet::reset();
-	if let Ok(m) = Xcm::decode_all_with_depth_limit(MAX_XCM_DECODE_DEPTH, data) {
+	if let Ok(m) = Xcm::decode_all_with_depth_limit(MAX_XCM_DECODE_DEPTH, &mut data) {
 		#[cfg(not(fuzzing))]
 		{
 			println!("Executing message {:?}", m);
@@ -122,7 +122,7 @@ fn main() {
 	#[cfg(fuzzing)]
 	{
 		loop {
-			fuzz!(|data: &[u8]| {
+			honggfuzz::fuzz!(|data: &[u8]| {
 				run_one_input(data);
 			});
 		}
