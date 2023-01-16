@@ -48,7 +48,7 @@ use self::metrics::Metrics;
 mod tests;
 
 /// Delay between starting a bitfield signing job and its attempting to create a bitfield.
-const SPAWNED_TASK_DELAY: Duration = Duration::from_millis(1500);
+const SPAWNED_TASK_DELAY: Duration = Duration::from_millis(1000);
 const LOG_TARGET: &str = "parachain::bitfield-signing";
 
 // TODO: use `fatality` (https://github.com/paritytech/polkadot/issues/5540).
