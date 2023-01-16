@@ -3394,7 +3394,6 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 				)
 				.await;
 
-			// Concluding dispute
 			let supermajority_threshold =
 				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
 

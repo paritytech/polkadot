@@ -176,7 +176,7 @@ fn propagate_viability_update(
 				*viability_pivots.entry(new_entry.parent_hash).or_insert(0) += 1;
 			}
 		}
-		
+
 		backend.write_block_entry(new_entry);
 
 		tree_frontier
@@ -358,37 +358,15 @@ fn apply_ancestor_reversions(
 	// Note: since revert numbers are  in ascending order, the expensive propagation
 	// of unviability is only heavy on the first log.
 	for revert_number in reversions {
-		let mut ancestor_entry =
-			match load_ancestor(backend, block_hash, block_number, revert_number)? {
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						?block_hash,
-						block_number,
-						revert_target = revert_number,
-						"The hammer has dropped. \
-					A block has indicated that its finalized ancestor be reverted. \
-					Please inform an adult.",
-					);
-
-					continue
-				},
-				Some(ancestor_entry) => {
-					gum::info!(
-						target: LOG_TARGET,
-						?block_hash,
-						block_number,
-						revert_target = revert_number,
-						revert_hash = ?ancestor_entry.block_hash,
-						"A block has signaled that its ancestor be reverted due to a bad parachain block.",
-					);
-
-					ancestor_entry
-				},
-			};
-
-		ancestor_entry.viability.explicitly_reverted = true;
-		propagate_viability_update(backend, ancestor_entry)?;
+		let maybe_block_entry = load_ancestor(backend, block_hash, block_number, revert_number)?;
+		revert_single_block_entry_if_present(
+			backend,
+			maybe_block_entry,
+			None,
+			revert_number,
+			Some(block_hash),
+			Some(block_number),
+		)?;
 	}
 
 	Ok(())
@@ -402,36 +380,54 @@ pub(crate) fn apply_single_reversion(
 	revert_hash: Hash,
 	revert_number: BlockNumber,
 ) -> Result<(), Error> {
-	let mut entry_to_revert = match backend.load_block_entry(&revert_hash)? {
+	let maybe_block_entry = backend.load_block_entry(&revert_hash)?;
+	revert_single_block_entry_if_present(
+		backend,
+		maybe_block_entry,
+		Some(revert_hash),
+		revert_number,
+		None,
+		None,
+	)?;
+	Ok(())
+}
+
+fn revert_single_block_entry_if_present(
+	backend: &mut OverlayedBackend<impl Backend>,
+	maybe_block_entry: Option<BlockEntry>,
+	maybe_revert_hash: Option<Hash>,
+	revert_number: BlockNumber,
+	maybe_reporting_hash: Option<Hash>,
+	maybe_reporting_number: Option<BlockNumber>,
+) -> Result<(), Error> {
+	match maybe_block_entry {
 		None => {
 			gum::warn!(
 				target: LOG_TARGET,
-				?revert_hash,
-				// We keep parent block numbers in the disputes subsystem just
-				// for this log
+				?maybe_revert_hash,
 				revert_target = revert_number,
+				?maybe_reporting_hash,
+				?maybe_reporting_number,
 				"The hammer has dropped. \
-				A dispute has concluded against a finalized block. \
+				The protocol has indicated that a finalized block be reverted. \
 				Please inform an adult.",
 			);
-
-			return Ok(())
 		},
-		Some(entry_to_revert) => {
+		Some(mut block_entry) => {
 			gum::info!(
 				target: LOG_TARGET,
-				?revert_hash,
+				?maybe_revert_hash,
 				revert_target = revert_number,
-				"A dispute has concluded against a block, causing it to be reverted.",
+				?maybe_reporting_hash,
+				?maybe_reporting_number,
+				"The reversion of a block including an invalid parachain block candidate has been called for.",
 			);
 
-			entry_to_revert
+			block_entry.viability.explicitly_reverted = true;
+			// Marks children of reverted block as non-viable
+			propagate_viability_update(backend, block_entry)?;
 		},
-	};
-	entry_to_revert.viability.explicitly_reverted = true;
-	// Marks children of reverted block as non-viable
-	propagate_viability_update(backend, entry_to_revert)?;
-
+	}
 	Ok(())
 }
 

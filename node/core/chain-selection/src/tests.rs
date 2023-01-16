@@ -2041,7 +2041,7 @@ fn revert_blocks_message_triggers_proper_reversion() {
 		let block_1_hash = backend.load_blocks_by_number(1).unwrap().get(0).unwrap().clone();
 		let block_2_hash = backend.load_blocks_by_number(2).unwrap().get(0).unwrap().clone();
 
-		// Sending dispute conculded against message
+		// Sending dispute concluded against message
 		let (_, write_rx) = backend.await_next_write();
 		virtual_overseer
 			.send(FromOrchestra::Communication {
@@ -2052,7 +2052,7 @@ fn revert_blocks_message_triggers_proper_reversion() {
 		write_rx.await.unwrap();
 
 		// Checking results:
-		// Block 2 should be explicitely reverted
+		// Block 2 should be explicitly reverted
 		assert_eq!(
 			backend
 				.load_block_entry(&block_2_hash)
@@ -2100,7 +2100,7 @@ fn revert_blocks_against_finalized_is_ignored() {
 		// Checking mini chain
 		assert_backend_contains(&backend, built_chain.iter().map(|&(ref h, _)| h));
 
-		// Sending dispute conculded against message
+		// Sending dispute concluded against message
 		virtual_overseer
 			.send(FromOrchestra::Communication {
 				msg: ChainSelectionMessage::RevertBlocks(Vec::from([(
