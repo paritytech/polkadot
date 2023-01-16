@@ -22,7 +22,7 @@ use codec::Encode;
 use frame_benchmarking::{account, BenchmarkError};
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
-use xcm_executor::traits::Convert;
+use xcm_executor::{traits::Convert, Config as XcmConfig};
 
 pub mod fungible;
 pub mod generic;
@@ -36,7 +36,7 @@ pub trait Config: frame_system::Config {
 	///
 	/// These might affect the execution of XCM messages, such as defining how the
 	/// `TransactAsset` is implemented.
-	type XcmConfig: xcm_executor::Config;
+	type XcmConfig: XcmConfig;
 
 	/// A converter between a multi-location to a sovereign account.
 	type AccountIdConverter: Convert<MultiLocation, Self::AccountId>;
@@ -56,9 +56,9 @@ pub type ExecutorOf<T> = xcm_executor::XcmExecutor<<T as Config>::XcmConfig>;
 /// The overarching call type.
 pub type OverArchingCallOf<T> = <T as frame_system::Config>::RuntimeCall;
 /// The asset transactor of our executor
-pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::AssetTransactor;
+pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as XcmConfig>::AssetTransactor;
 /// The call type of executor's config. Should eventually resolve to the same overarching call type.
-pub type XcmCallOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::RuntimeCall;
+pub type XcmCallOf<T> = <<T as Config>::XcmConfig as XcmConfig>::RuntimeCall;
 
 pub fn mock_worst_case_holding() -> MultiAssets {
 	const HOLDING_FUNGIBLES: u32 = 99;

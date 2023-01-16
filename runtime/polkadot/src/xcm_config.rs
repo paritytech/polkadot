@@ -38,7 +38,7 @@ parameter_types! {
 	/// The location of the DOT token, from the context of this chain. Since this token is native to this
 	/// chain, we make it synonymous with it and thus it is the `Here` location, which means "equivalent to
 	/// the context".
-	pub const DotLocation: MultiLocation = Here.into();
+	pub const TokenLocation: MultiLocation = Here.into();
 	/// The Polkadot network ID. This is named.
 	pub const PolkadotNetwork: NetworkId = NetworkId::Polkadot;
 	/// Our XCM location ancestry - i.e. what, if anything, `Parent` means evaluated in our context. Since
@@ -60,12 +60,12 @@ pub type SovereignAccountOf = (
 /// Our asset transactor. This is what allows us to interact with the runtime assets from the point of
 /// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
 ///
-/// Ours is only aware of the Balances pallet, which is mapped to `DotLocation`.
+/// Ours is only aware of the Balances pallet, which is mapped to `TokenLocation`.
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Use this currency:
 	Balances,
 	// Use this currency when it is a fungible asset matching the given location or name:
-	IsConcrete<DotLocation>,
+	IsConcrete<TokenLocation>,
 	// We can convert the MultiLocations with our converter above:
 	SovereignAccountOf,
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
@@ -105,14 +105,14 @@ pub type XcmRouter = (
 );
 
 parameter_types! {
-	pub const Polkadot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(DotLocation::get()) });
-	pub const PolkadotForStatemint: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1000).into());
-	pub const PolkadotForCollectives: (MultiAssetFilter, MultiLocation) = (Polkadot::get(), Parachain(1001).into());
+	pub const Dot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
+	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(1000).into());
+	pub const DotForCollectives: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(1001).into());
 }
 
-/// Polkadot Relay recognizes/respects System parachains as teleporters.
+/// Polkadot Relay recognizes/respects the Statemint chain as a teleporter.
 pub type TrustedTeleporters =
-	(xcm_builder::Case<PolkadotForStatemint>, xcm_builder::Case<PolkadotForCollectives>);
+	(xcm_builder::Case<DotForStatemint>, xcm_builder::Case<DotForCollectives>);
 
 match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
@@ -145,7 +145,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Barrier = Barrier;
 	type Weigher = FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
-	type Trader = UsingComponents<WeightToFee, DotLocation, AccountId, Balances, ToAuthor<Runtime>>;
+	type Trader = UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
