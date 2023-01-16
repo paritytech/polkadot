@@ -135,7 +135,7 @@ pub type Barrier = (
 	AllowKnownQueryResponses<XcmPallet>,
 	WithComputedOrigin<
 		(
-			// If the message is one that immediately attemps to pay for execution, then allow it.
+			// If the message is one that immediately attempts to pay for execution, then allow it.
 			AllowTopLevelPaidExecutionFrom<Everything>,
 			// Messages coming from system parachains need not pay for execution.
 			AllowExplicitUnpaidExecutionFrom<IsChildSystemParachain<ParaId>>,
