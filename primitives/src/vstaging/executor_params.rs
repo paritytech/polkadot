@@ -58,10 +58,7 @@ pub enum ExecutorParam {
 
 impl ExecutorParam {
 	fn is_environment(&self) -> bool {
-		match self {
-			ExecutorParam::Environment(_) => true,
-			_ => false,
-		}
+		matches!(self, ExecutorParam::Environment(_))
 	}
 }
 
@@ -117,7 +114,7 @@ impl ExecutorParams {
 		if let ExecutorParam::Environment(environment) = self.0[0] {
 			environment
 		} else {
-			unreachable!();
+			unreachable!("`ExecutorParam::Environment` is required to be the first parameter");
 		}
 	}
 
