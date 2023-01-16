@@ -680,6 +680,13 @@ struct DisputeStateImporter<BlockNumber> {
 	new_participants: bitvec::vec::BitVec<u8, BitOrderLsb0>,
 	pre_flags: DisputeStateFlags,
 	pre_state: DisputeState<BlockNumber>,
+	// The list of backing votes before importing the batch of votes. This field should be
+	// initialized as empty on the first import of the dispute votes and should remain non-empty
+	// afterwards.
+	//
+	// If a dispute has concluded and the candidate was found invalid, we may want to slash as many
+	// backers as possible. This list allows us to slash these backers once their votes have been
+	// imported post dispute conclusion.
 	pre_backers: BTreeSet<ValidatorIndex>,
 }
 
@@ -784,7 +791,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 
 		let pre_post_contains = |flags| (pre_flags.contains(flags), post_flags.contains(flags));
 
-		// 2. Check for FOR supermajority.
+		// 1. Check for FOR supermajority.
 		let slash_against = match pre_post_contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
 			(false, true) => {
 				if self.state.concluded_at.is_none() {
@@ -814,7 +821,7 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 			(false, false) => Vec::new(),
 		};
 
-		// 3. Check for AGAINST supermajority.
+		// 2. Check for AGAINST supermajority.
 		let slash_for = match pre_post_contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
 			(false, true) => {
 				if self.state.concluded_at.is_none() {
