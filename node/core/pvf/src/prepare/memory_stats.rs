@@ -14,6 +14,19 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! Memory stats for preparation.
+//!
+//! Right now we gather three measurements:
+//!
+//! - `ru_maxrss` (resident set size) from `getrusage`.
+//! - `resident` memory stat provided by `tikv-malloc-ctl`.
+//! - `allocated` memory stat also from `tikv-malloc-ctl`.
+//!
+//! Currently we are only logging these, and only on each successful pre-check. In the future, we
+//! may use these stats to reject PVFs during pre-checking. See
+//! <https://github.com/paritytech/polkadot/issues/6472#issuecomment-1381941762> for more
+//! background.
+
 use crate::{metrics::Metrics, LOG_TARGET};
 use parity_scale_codec::{Decode, Encode};
 use std::{
@@ -34,7 +47,7 @@ pub struct MemoryStats {
 	/// Memory stats from `tikv_jemalloc_ctl`.
 	pub memory_tracker_stats: Option<MemoryAllocationStats>,
 	/// `ru_maxrss` from `getrusage`. A string error since `io::Error` is not `Encode`able.
-	pub max_rss: Option<Result<i32, String>>,
+	pub max_rss: Option<Result<i64, String>>,
 }
 
 /// Statistics of collected memory metrics.
@@ -103,9 +116,10 @@ fn getrusage_thread() -> io::Result<rusage> {
 
 /// Gets the `ru_maxrss` for the current thread if the OS supports `getrusage`. Otherwise, just
 /// returns `None`.
-pub fn get_max_rss_thread() -> Option<io::Result<i32>> {
+pub fn get_max_rss_thread() -> Option<io::Result<i64>> {
+	// `c_long` is either `i32` or `i64` depending on architecture. `i64::from` always works.
 	#[cfg(target_os = "linux")]
-	let max_rss = Some(getrusage_thread().map(|rusage| rusage.ru_maxrss));
+	let max_rss = Some(getrusage_thread().map(|rusage| i64::from(rusage.ru_maxrss)));
 	#[cfg(not(target_os = "linux"))]
 	let max_rss = None;
 	max_rss
@@ -206,7 +220,7 @@ pub async fn get_memory_tracker_loop_stats(
 pub fn observe_memory_metrics(metrics: &Metrics, memory_stats: MemoryStats, pid: u32) {
 	if let Some(max_rss) = memory_stats.max_rss {
 		match max_rss {
-			Ok(max_rss) => metrics.observe_precheck_max_rss(f64::from(max_rss)),
+			Ok(max_rss) => metrics.observe_precheck_max_rss(max_rss as f64),
 			Err(err) => gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
