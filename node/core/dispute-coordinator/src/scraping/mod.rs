@@ -70,10 +70,8 @@ impl ScrapedUpdates {
 }
 
 /// A structure meant to facilitate chain reversions in the event of a dispute
-/// concluding against a candidate. Each candidate hash maps to a vector of block
-/// number + hash pairs for all blocks which included the candidate. The entries
-/// in each vector are ordered by decreasing parent block number to facilitate
-/// minimal cost pruning.
+/// concluding against a candidate. Each candidate hash maps to a number of 
+/// block heights, which in turn map to vectors of blocks at those heights. 
 pub struct Inclusions {
 	inclusions_inner: BTreeMap<CandidateHash, BTreeMap<BlockNumber, Vec<Hash>>>,
 }
@@ -83,8 +81,8 @@ impl Inclusions {
 		Self { inclusions_inner: BTreeMap::new() }
 	}
 
-	// Insert parent block into vector for the candidate hash it is including,
-	// maintaining ordering by decreasing parent block number.
+	// Add parent block to the vector which has CandidateHash as an outer key and 
+	// BlockNumber as an inner key
 	pub fn insert(
 		&mut self,
 		candidate_hash: CandidateHash,
