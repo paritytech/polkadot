@@ -36,7 +36,7 @@ parameter_types! {
 	/// The location of the ROC token, from the context of this chain. Since this token is native to this
 	/// chain, we make it synonymous with it and thus it is the `Here` location, which means "equivalent to
 	/// the context".
-	pub const RocLocation: MultiLocation = Here.into();
+	pub const TokenLocation: MultiLocation = Here.into();
 	/// The Rococo network ID. This is named.
 	pub RococoNetwork: NetworkId =
 		NetworkId::Named(b"Rococo".to_vec().try_into().expect("shorter than length limit; qed"));
@@ -59,12 +59,12 @@ pub type SovereignAccountOf = (
 /// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
 /// view of XCM-only concepts like `MultiLocation` and `MultiAsset`.
 ///
-/// Ours is only aware of the Balances pallet, which is mapped to `RocLocation`.
+/// Ours is only aware of the Balances pallet, which is mapped to `TokenLocation`.
 pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Use this currency:
 	Balances,
 	// Use this currency when it is a fungible asset matching the given location or name:
-	IsConcrete<RocLocation>,
+	IsConcrete<TokenLocation>,
 	// We can convert the MultiLocations with our converter above:
 	SovereignAccountOf,
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
@@ -100,7 +100,7 @@ pub type XcmRouter = (
 );
 
 parameter_types! {
-	pub const Rococo: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(RocLocation::get()) });
+	pub const Rococo: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
 	pub const Statemine: MultiLocation = Parachain(1000).into();
 	pub const Contracts: MultiLocation = Parachain(1002).into();
 	pub const Encointer: MultiLocation = Parachain(1003).into();
@@ -159,7 +159,7 @@ impl xcm_executor::Config for XcmConfig {
 		MaxInstructions,
 	>;
 	// The weight trader piggybacks on the existing transaction-fee conversion logic.
-	type Trader = UsingComponents<WeightToFee, RocLocation, AccountId, Balances, ToAuthor<Runtime>>;
+	type Trader = UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;

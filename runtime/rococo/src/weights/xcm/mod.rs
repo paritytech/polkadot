@@ -72,8 +72,8 @@ impl WeighMultiAssets for MultiAssets {
 	}
 }
 
-pub struct RococoXcmWeight<Call>(core::marker::PhantomData<Call>);
-impl<Call> XcmWeightInfo<Call> for RococoXcmWeight<Call> {
+pub struct RococoXcmWeight<RuntimeCall>(core::marker::PhantomData<RuntimeCall>);
+impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for RococoXcmWeight<RuntimeCall> {
 	fn withdraw_asset(assets: &MultiAssets) -> XCMWeight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::withdraw_asset())
 	}
@@ -99,7 +99,7 @@ impl<Call> XcmWeightInfo<Call> for RococoXcmWeight<Call> {
 	fn transact(
 		_origin_kind: &OriginKind,
 		_require_weight_at_most: &u64,
-		_call: &DoubleEncoded<Call>,
+		_call: &DoubleEncoded<RuntimeCall>,
 	) -> XCMWeight {
 		XcmGeneric::<Runtime>::transact().ref_time()
 	}
@@ -179,10 +179,10 @@ impl<Call> XcmWeightInfo<Call> for RococoXcmWeight<Call> {
 	fn refund_surplus() -> XCMWeight {
 		XcmGeneric::<Runtime>::refund_surplus().ref_time()
 	}
-	fn set_error_handler(_xcm: &Xcm<Call>) -> XCMWeight {
+	fn set_error_handler(_xcm: &Xcm<RuntimeCall>) -> XCMWeight {
 		XcmGeneric::<Runtime>::set_error_handler().ref_time()
 	}
-	fn set_appendix(_xcm: &Xcm<Call>) -> XCMWeight {
+	fn set_appendix(_xcm: &Xcm<RuntimeCall>) -> XCMWeight {
 		XcmGeneric::<Runtime>::set_appendix().ref_time()
 	}
 	fn clear_error() -> XCMWeight {

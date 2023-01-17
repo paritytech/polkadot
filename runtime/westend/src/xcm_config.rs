@@ -36,7 +36,7 @@ use xcm_builder::{
 };
 
 parameter_types! {
-	pub const WndLocation: MultiLocation = Here.into();
+	pub const TokenLocation: MultiLocation = Here.into();
 	pub const Ancestry: MultiLocation = Here.into();
 	pub WestendNetwork: NetworkId =
 		NetworkId::Named(b"Westend".to_vec().try_into().expect("shorter than length limit; qed"));
@@ -50,7 +50,7 @@ pub type LocalAssetTransactor = XcmCurrencyAdapter<
 	// Use this currency:
 	Balances,
 	// Use this currency when it is a fungible asset matching the given location or name:
-	IsConcrete<WndLocation>,
+	IsConcrete<TokenLocation>,
 	// We can convert the MultiLocations with our converter above:
 	LocationConverter,
 	// Our chain's account ID type (we can't get away without mentioning it explicitly):
@@ -77,9 +77,9 @@ parameter_types! {
 	pub const Westmint: MultiLocation = Parachain(1000).into();
 	pub const Collectives: MultiLocation = Parachain(1001).into();
 	pub const WestendForWestmint: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Westmint::get());
+		(Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) }), Westmint::get());
 	pub const WestendForCollectives: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(WndLocation::get()) }), Collectives::get());
+		(Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) }), Collectives::get());
 	pub const MaxInstructions: u32 = 100;
 }
 pub type TrustedTeleporters =
@@ -111,7 +111,7 @@ impl xcm_executor::Config for XcmConfig {
 	type Barrier = Barrier;
 	type Weigher =
 		WeightInfoBounds<weights::xcm::WestendXcmWeight<RuntimeCall>, RuntimeCall, MaxInstructions>;
-	type Trader = UsingComponents<WeightToFee, WndLocation, AccountId, Balances, ToAuthor<Runtime>>;
+	type Trader = UsingComponents<WeightToFee, TokenLocation, AccountId, Balances, ToAuthor<Runtime>>;
 	type ResponseHandler = XcmPallet;
 	type AssetTrap = XcmPallet;
 	type AssetClaims = XcmPallet;
