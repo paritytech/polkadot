@@ -480,7 +480,7 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 		}
 	}
 
-	fn storage_keys_iter<'a>(
+	fn storage_keys_iter(
 		&self,
 		hash: <Block as BlockT>::Hash,
 		prefix: Option<&StorageKey>,
@@ -527,7 +527,7 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 		}
 	}
 
-	fn child_storage_keys_iter<'a>(
+	fn child_storage_keys_iter(
 		&self,
 		hash: <Block as BlockT>::Hash,
 		child_info: ChildInfo,
