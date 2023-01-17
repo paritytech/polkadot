@@ -620,10 +620,10 @@ fn inclusions_per_candidate_properly_adds_and_prunes() {
 		// the candidate is included are recorded
 		assert_eq!(
 			scraper.get_blocks_including_candidate(&candidate.hash()),
-			Some(&Vec::from([
-				(TEST_TARGET_BLOCK_NUMBER_2, get_block_number_hash(TEST_TARGET_BLOCK_NUMBER_2)),
-				(TEST_TARGET_BLOCK_NUMBER, get_block_number_hash(TEST_TARGET_BLOCK_NUMBER))
-			]))
+			Vec::from([
+				(TEST_TARGET_BLOCK_NUMBER, get_block_number_hash(TEST_TARGET_BLOCK_NUMBER)),
+				(TEST_TARGET_BLOCK_NUMBER_2, get_block_number_hash(TEST_TARGET_BLOCK_NUMBER_2))
+			])
 		);
 
 		// After `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` blocks the earlier inclusion should be removed
@@ -634,10 +634,10 @@ fn inclusions_per_candidate_properly_adds_and_prunes() {
 		// The later inclusion should still be present, as we haven't exceeded its lifetime
 		assert_eq!(
 			scraper.get_blocks_including_candidate(&candidate.hash()),
-			Some(&Vec::from([(
+			Vec::from([(
 				TEST_TARGET_BLOCK_NUMBER_2,
 				get_block_number_hash(TEST_TARGET_BLOCK_NUMBER_2)
-			)]))
+			)])
 		);
 
 		finalized_block_number =
@@ -645,6 +645,6 @@ fn inclusions_per_candidate_properly_adds_and_prunes() {
 		process_finalized_block(&mut scraper, &finalized_block_number);
 
 		// Now both inclusions have exceeded their lifetimes after finalization and should be purged
-		assert_eq!(scraper.get_blocks_including_candidate(&candidate.hash()), None);
+		assert!(scraper.get_blocks_including_candidate(&candidate.hash()).len() == 0);
 	});
 }

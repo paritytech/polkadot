@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::HashMap, num::NonZeroUsize};
+use std::{collections::BTreeMap, num::NonZeroUsize};
 
 use futures::channel::oneshot;
 use lru::LruCache;
@@ -75,12 +75,12 @@ impl ScrapedUpdates {
 /// in each vector are ordered by decreasing parent block number to facilitate
 /// minimal cost pruning.
 pub struct Inclusions {
-	inclusions_inner: HashMap<CandidateHash, Vec<(BlockNumber, Hash)>>,
+	inclusions_inner: BTreeMap<CandidateHash, BTreeMap<BlockNumber, Vec<Hash>>>,
 }
 
 impl Inclusions {
 	pub fn new() -> Self {
-		Self { inclusions_inner: HashMap::new() }
+		Self { inclusions_inner: BTreeMap::new() }
 	}
 
 	// Insert parent block into vector for the candidate hash it is including,
@@ -92,24 +92,36 @@ impl Inclusions {
 		block_hash: Hash,
 	) {
 		if let Some(blocks_including) = self.inclusions_inner.get_mut(&candidate_hash) {
-			let first_lower_entry = blocks_including.partition_point(|(number_at_idx, _)| *number_at_idx >= block_number);
-			blocks_including.insert(first_lower_entry, (block_number, block_hash));
+			if let Some(blocks_at_height) = blocks_including.get_mut(&block_number) {
+				blocks_at_height.push(block_hash);
+			} else {
+				blocks_including.insert(block_number, Vec::from([block_hash]));
+			}
 		} else {
+			let mut blocks_including: BTreeMap<BlockNumber, Vec<Hash>> = BTreeMap::new();
+			blocks_including.insert(block_number, Vec::from([block_hash]));
 			self.inclusions_inner
-				.insert(candidate_hash, Vec::from([(block_number, block_hash)]));
+				.insert(candidate_hash, blocks_including);
 		}
 	}
 
 	pub fn remove_up_to_height(&mut self, height: &BlockNumber) {
-		for including_blocks in self.inclusions_inner.values_mut() {
-			let first_lower_entry = including_blocks.partition_point(|(number_at_idx, _)| *number_at_idx >= *height);
-			including_blocks.drain(first_lower_entry..);
+		for blocks_including in self.inclusions_inner.values_mut() {
+			*blocks_including = blocks_including.split_off(height);
 		}
-		self.inclusions_inner.retain(|_, including_blocks| including_blocks.len() > 0);
+		self.inclusions_inner.retain(|_, including_blocks| including_blocks.keys().len() > 0);
 	}
 
-	pub fn get(&mut self, candidate: &CandidateHash) -> Option<&Vec<(BlockNumber, Hash)>> {
-		self.inclusions_inner.get(candidate)
+	pub fn get(&mut self, candidate: &CandidateHash) -> Vec<(BlockNumber, Hash)> {
+		let mut inclusions_as_vec: Vec<(BlockNumber, Hash)> = Vec::new();
+		if let Some(blocks_including) = self.inclusions_inner.get(candidate) {
+			for (height, blocks_at_height) in blocks_including.iter() {
+				for block in blocks_at_height {
+					inclusions_as_vec.push((*height, *block));
+				}
+			}
+		}
+		inclusions_as_vec
 	}
 }
 
@@ -377,7 +389,7 @@ impl ChainScraper {
 	pub fn get_blocks_including_candidate(
 		&mut self,
 		candidate: &CandidateHash,
-	) -> Option<&Vec<(BlockNumber, Hash)>> {
+	) -> Vec<(BlockNumber, Hash)> {
 		self.inclusions.get(candidate)
 	}
 }
