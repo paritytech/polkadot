@@ -39,6 +39,7 @@ pub mod pallet_tips;
 pub mod pallet_treasury;
 pub mod pallet_utility;
 pub mod pallet_vesting;
+pub mod pallet_xcm;
 pub mod runtime_common_auctions;
 pub mod runtime_common_claims;
 pub mod runtime_common_crowdloan;

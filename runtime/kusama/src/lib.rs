@@ -1497,6 +1497,9 @@ pub type Migrations = (
 	pallet_staking::migrations::v13::MigrateToV13<Runtime>,
 	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
 	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
+	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
+	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
+	parachains_ump::migration::v1::MigrateToV1<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
@@ -1576,6 +1579,7 @@ mod benches {
 		[pallet_vesting, Vesting]
 		[pallet_whitelist, Whitelist]
 		// XCM
+		[pallet_xcm, XcmPallet]
 		[pallet_xcm_benchmarks::fungible, pallet_xcm_benchmarks::fungible::Pallet::<Runtime>]
 		[pallet_xcm_benchmarks::generic, pallet_xcm_benchmarks::generic::Pallet::<Runtime>]
 	);
@@ -1978,7 +1982,9 @@ sp_api::impl_runtime_apis! {
 			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 			use xcm::latest::prelude::*;
-			use xcm_config::{CheckAccount, KsmLocation, SovereignAccountOf, Statemine, XcmConfig};
+			use xcm_config::{
+				LocalCheckAccount, SovereignAccountOf, Statemine, TokenLocation, XcmConfig,
+			};
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
@@ -1993,10 +1999,10 @@ sp_api::impl_runtime_apis! {
 				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 					Ok(Statemine::get())
 				}
-				fn worst_case_holding() -> MultiAssets {
+				fn worst_case_holding(_depositable_count: u32) -> MultiAssets {
 					// Kusama only knows about KSM.
 					vec![MultiAsset{
-						id: Concrete(KsmLocation::get()),
+						id: Concrete(TokenLocation::get()),
 						fun: Fungible(1_000_000 * UNITS),
 					}].into()
 				}
@@ -2005,24 +2011,19 @@ sp_api::impl_runtime_apis! {
 			parameter_types! {
 				pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
 					Statemine::get(),
-					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(KsmLocation::get()) },
-				));
-				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
-					Statemine::get(),
-					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(KsmLocation::get()) },
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
 			}
 
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
 				type TransactAsset = Balances;
 
-				type CheckedAccount = CheckAccount;
+				type CheckedAccount = LocalCheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
-				type TrustedReserve = TrustedReserve;
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {
-						id: Concrete(KsmLocation::get()),
+						id: Concrete(TokenLocation::get()),
 						fun: Fungible(1 * UNITS),
 					}
 				}
@@ -2035,8 +2036,18 @@ sp_api::impl_runtime_apis! {
 					(0u64, Response::Version(Default::default()))
 				}
 
-				fn transact_origin() -> Result<MultiLocation, BenchmarkError> {
-					Ok(Statemine::get())
+				fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError> {
+					// Kusama doesn't support asset exchanges
+					Err(BenchmarkError::Skip)
+				}
+
+				fn universal_alias() -> Result<Junction, BenchmarkError> {
+					// The XCM executor of Kusama doesn't have a configured `UniversalAliases`
+					Err(BenchmarkError::Skip)
+				}
+
+				fn transact_origin_and_runtime_call() -> Result<(MultiLocation, RuntimeCall), BenchmarkError> {
+					Ok((Statemine::get(), frame_system::Call::remark_with_event { remark: vec![] }.into()))
 				}
 
 				fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
@@ -2045,9 +2056,14 @@ sp_api::impl_runtime_apis! {
 
 				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
 					let origin = Statemine::get();
-					let assets: MultiAssets = (Concrete(KsmLocation::get()), 1_000 * UNITS).into();
+					let assets: MultiAssets = (Concrete(TokenLocation::get()), 1_000 * UNITS).into();
 					let ticket = MultiLocation { parents: 0, interior: Here };
 					Ok((origin, ticket, assets))
+				}
+
+				fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
+					// Kusama doesn't support asset locking
+					Err(BenchmarkError::Skip)
 				}
 			}
 

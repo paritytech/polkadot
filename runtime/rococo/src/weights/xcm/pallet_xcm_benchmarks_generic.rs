@@ -51,7 +51,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Configuration ActiveConfig (r:1 w:0)
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
-	pub(crate) fn query_holding() -> Weight {
+	pub(crate) fn report_holding() -> Weight {
 		Weight::from_ref_time(21_822_000 as u64)
 			.saturating_add(T::DbWeight::get().reads(6 as u64))
 			.saturating_add(T::DbWeight::get().writes(3 as u64))
@@ -132,5 +132,55 @@ impl<T: frame_system::Config> WeightInfo<T> {
 		Weight::from_ref_time(22_809_000 as u64)
 			.saturating_add(T::DbWeight::get().reads(6 as u64))
 			.saturating_add(T::DbWeight::get().writes(3 as u64))
+	}
+	pub(crate) fn burn_asset() -> Weight {
+		Weight::from_ref_time(5_259_000 as u64)
+	}
+	pub(crate) fn expect_asset() -> Weight {
+		Weight::from_ref_time(3_745_000 as u64)
+	}
+	pub(crate) fn expect_origin() -> Weight {
+		Weight::from_ref_time(3_847_000 as u64)
+	}
+	pub(crate) fn expect_error() -> Weight {
+		Weight::from_ref_time(3_633_000 as u64)
+	}
+	// Storage: XcmPallet SupportedVersion (r:1 w:0)
+	// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
+	// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
+	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
+	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
+	pub(crate) fn query_pallet() -> Weight {
+		Weight::from_ref_time(21_645_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(5 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
+	}
+	pub(crate) fn expect_pallet() -> Weight {
+		Weight::from_ref_time(4_017_000 as u64)
+	}
+	// Storage: XcmPallet SupportedVersion (r:1 w:0)
+	// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
+	// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
+	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
+	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
+	pub(crate) fn report_transact_status() -> Weight {
+		Weight::from_ref_time(20_465_000 as u64)
+			.saturating_add(T::DbWeight::get().reads(5 as u64))
+			.saturating_add(T::DbWeight::get().writes(3 as u64))
+	}
+	pub(crate) fn clear_transact_status() -> Weight {
+		Weight::from_ref_time(3_723_000 as u64)
+	}
+	pub(crate) fn set_topic() -> Weight {
+		Weight::from_ref_time(3_687_000 as u64)
+	}
+	pub(crate) fn clear_topic() -> Weight {
+		Weight::from_ref_time(3_654_000 as u64)
+	}
+	pub(crate) fn set_fees_mode() -> Weight {
+		Weight::from_ref_time(3_721_000 as u64)
+	}
+	pub(crate) fn unpaid_execution() -> Weight {
+		Weight::from_ref_time(3_111_000 as u64)
 	}
 }

@@ -103,7 +103,7 @@ parameter_types! {
 	pub const BlockHashCount: u32 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
-			Weight::from_ref_time(4 * 1024 * 1024).set_proof_size(u64::MAX),
+			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
 		);
 }
 
