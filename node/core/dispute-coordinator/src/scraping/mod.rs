@@ -105,6 +105,7 @@ impl Inclusions {
 
 	pub fn remove_up_to_height(&mut self, height: &BlockNumber) {
 		for blocks_including in self.inclusions_inner.values_mut() {
+            // Returns everything after the given key, including the key. This works because the blocks are sorted in ascending order.
 			*blocks_including = blocks_including.split_off(height);
 		}
 		self.inclusions_inner.retain(|_, blocks_including| blocks_including.keys().len() > 0);
