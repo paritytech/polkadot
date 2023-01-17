@@ -22,7 +22,7 @@ use polkadot_node_core_pvf::PrepareError;
 use polkadot_node_subsystem::messages::AllMessages;
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::reexports::SubsystemContext;
-use polkadot_primitives::v2::{HeadData, Id as ParaId, UpwardMessage};
+use polkadot_primitives::{HeadData, Id as ParaId, UpwardMessage};
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 
@@ -1053,5 +1053,5 @@ fn precheck_properly_classifies_outcomes() {
 	inner(Err(PrepareError::Panic("baz".to_owned())), PreCheckOutcome::Invalid);
 
 	inner(Err(PrepareError::TimedOut), PreCheckOutcome::Failed);
-	inner(Err(PrepareError::IoErr), PreCheckOutcome::Failed);
+	inner(Err(PrepareError::IoErr("fizz".to_owned())), PreCheckOutcome::Failed);
 }
