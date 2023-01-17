@@ -899,12 +899,7 @@ async fn dispatch_validation_events_to_all<I>(
 	I::IntoIter: Send,
 {
 	for event in events {
-		sender
-			.send_messages(event.focus().map(StatementDistributionMessage::from))
-			.await;
-		sender.send_messages(event.focus().map(BitfieldDistributionMessage::from)).await;
-		sender.send_messages(event.focus().map(ApprovalDistributionMessage::from)).await;
-		sender.send_messages(event.focus().map(GossipSupportMessage::from)).await;
+		dispatch_validation_event_to_all_unbounded(event, sender);
 	}
 }
 
