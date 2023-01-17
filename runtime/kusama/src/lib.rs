@@ -1488,11 +1488,6 @@ pub type Migrations = (
 	// We need to apply this migration again, because `ResetInactive` resets the state again.
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, CheckAccount>,
 	crowdloan::migration::MigrateToTrackInactiveV2<Runtime>,
-	pallet_referenda::migration::v1::MigrateV0ToV1<Runtime>,
-	pallet_referenda::migration::v1::MigrateV0ToV1<
-		Runtime,
-		governance::FellowshipReferendaInstance,
-	>,
 	pallet_scheduler::migration::v4::CleanupAgendas<Runtime>,
 	pallet_staking::migrations::v13::MigrateToV13<Runtime>,
 	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
