@@ -109,7 +109,7 @@ impl Inclusions {
 		for blocks_including in self.inclusions_inner.values_mut() {
 			*blocks_including = blocks_including.split_off(height);
 		}
-		self.inclusions_inner.retain(|_, including_blocks| including_blocks.keys().len() > 0);
+		self.inclusions_inner.retain(|_, blocks_including| blocks_including.keys().len() > 0);
 	}
 
 	pub fn get(&mut self, candidate: &CandidateHash) -> Vec<(BlockNumber, Hash)> {
