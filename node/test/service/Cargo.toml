@@ -65,3 +65,4 @@ tokio = { version = "1.24.1", features = ["macros"] }
 
 [features]
 runtime-metrics=["polkadot-test-runtime/runtime-metrics"]
+runtime-benchmarks=["polkadot-test-runtime/runtime-benchmarks"]
