@@ -27,6 +27,9 @@ use sp_core::crypto::Ss58AddressFormatRegistry;
 use sp_keyring::Sr25519Keyring;
 use std::net::ToSocketAddrs;
 
+#[cfg(feature = "try-runtime")]
+use try_runtime_cli::block_building_info::timestamp_with_babe_info;
+
 pub use crate::{error::Error, service::BlockId};
 pub use polkadot_performance_test::PerfCheckError;
 
@@ -652,13 +655,16 @@ pub fn run() -> Result<()> {
 			let task_manager = TaskManager::new(runner.config().tokio_handle.clone(), *registry)
 				.map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
 
+			let info_provider = timestamp_with_babe_info(6000);
+
 			ensure_dev(chain_spec).map_err(Error::Other)?;
 
 			#[cfg(feature = "kusama-native")]
 			if chain_spec.is_kusama() {
 				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::kusama_runtime::Block, HostFunctionsOf<service::KusamaExecutorDispatch>>(
+						cmd.run::<service::kusama_runtime::Block, HostFunctionsOf<service::KusamaExecutorDispatch>, _>(
+							Some(info_provider)
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -670,7 +676,8 @@ pub fn run() -> Result<()> {
 			if chain_spec.is_westend() {
 				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::westend_runtime::Block, HostFunctionsOf<service::WestendExecutorDispatch>>(
+						cmd.run::<service::westend_runtime::Block, HostFunctionsOf<service::WestendExecutorDispatch>, _>(
+							Some(info_provider)
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -682,7 +689,8 @@ pub fn run() -> Result<()> {
 			{
 				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::polkadot_runtime::Block, HostFunctionsOf<service::PolkadotExecutorDispatch>>(
+						cmd.run::<service::polkadot_runtime::Block, HostFunctionsOf<service::PolkadotExecutorDispatch>, _>(
+							Some(info_provider)
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
