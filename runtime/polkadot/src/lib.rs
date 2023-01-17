@@ -1303,7 +1303,7 @@ impl parachains_ump::Config for Runtime {
 		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = parachains_ump::TestWeightInfo;
+	type WeightInfo = weights::runtime_parachains_ump::WeightInfo<Self>;
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -1609,6 +1609,9 @@ pub type Migrations = (
 	pallet_staking::migrations::v13::MigrateToV13<Runtime>,
 	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
 	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
+	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
+	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
+	parachains_ump::migration::v1::MigrateToV1<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
@@ -1680,6 +1683,8 @@ mod benches {
 		[pallet_treasury, Treasury]
 		[pallet_utility, Utility]
 		[pallet_vesting, Vesting]
+		// XCM
+		[pallet_xcm, XcmPallet]
 	);
 }
 

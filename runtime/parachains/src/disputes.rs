@@ -973,7 +973,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Handle a set of dispute statements corresponding to a single candidate.
 	///
-	/// Fails if the dispute data is invalid. Returns a boolean indicating whether the
+	/// Fails if the dispute data is invalid. Returns a Boolean indicating whether the
 	/// dispute is fresh.
 	fn process_checked_dispute_data(
 		set: CheckedDisputeStatementSet,

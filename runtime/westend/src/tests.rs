@@ -17,7 +17,7 @@
 //! Tests for the Westend Runtime Configuration
 
 use crate::*;
-use xcm::latest::{AssetId::*, Fungibility::*, MultiLocation};
+use xcm::latest::prelude::*;
 
 #[test]
 fn remove_keys_weight_is_sensible() {
@@ -57,9 +57,9 @@ fn sanity_check_teleport_assets_weight() {
 	// so this test will certainly ensure that this problem does not occur.
 	use frame_support::dispatch::GetDispatchInfo;
 	let weight = pallet_xcm::Call::<Runtime>::teleport_assets {
-		dest: Box::new(xcm::VersionedMultiLocation::V1(MultiLocation::here())),
-		beneficiary: Box::new(xcm::VersionedMultiLocation::V1(MultiLocation::here())),
-		assets: Box::new((Concrete(MultiLocation::here()), Fungible(200_000)).into()),
+		dest: Box::new(Here.into()),
+		beneficiary: Box::new(Here.into()),
+		assets: Box::new((Here, 200_000).into()),
 		fee_asset_item: 0,
 	}
 	.get_dispatch_info()
