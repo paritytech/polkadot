@@ -1036,7 +1036,7 @@ impl Initialized {
 				ctx.send_message(ChainSelectionMessage::RevertBlocks(blocks_to_revert.clone()))
 					.await;
 			} else {
-				gum::trace!(
+				gum::debug!(
 					target: LOG_TARGET,
 					?candidate_hash,
 					?session,

@@ -74,11 +74,11 @@ impl ScrapedUpdates {
 /// number + hash pairs for all blocks which included the candidate. The entries
 /// in each vector are ordered by decreasing parent block number to facilitate
 /// minimal cost pruning.
-pub struct InclusionsPerCandidate {
+pub struct Inclusions {
 	inclusions_inner: HashMap<CandidateHash, Vec<(BlockNumber, Hash)>>,
 }
 
-impl InclusionsPerCandidate {
+impl Inclusions {
 	pub fn new() -> Self {
 		Self { inclusions_inner: HashMap::new() }
 	}
@@ -146,7 +146,7 @@ pub struct ChainScraper {
 	/// These correspond to all the relay blocks which marked a candidate as included,
 	/// and are needed to apply reversions in case a dispute is concluded against the
 	/// candidate.
-	inclusions_per_candidate: InclusionsPerCandidate,
+	inclusions: Inclusions,
 }
 
 impl ChainScraper {
@@ -171,7 +171,7 @@ impl ChainScraper {
 			included_candidates: candidates::ScrapedCandidates::new(),
 			backed_candidates: candidates::ScrapedCandidates::new(),
 			last_observed_blocks: LruCache::new(LRU_OBSERVED_BLOCKS_CAPACITY),
-			inclusions_per_candidate: InclusionsPerCandidate::new(),
+			inclusions: Inclusions::new(),
 		};
 		let update =
 			ActiveLeavesUpdate { activated: Some(initial_head), deactivated: Default::default() };
@@ -249,7 +249,7 @@ impl ChainScraper {
 			Some(key_to_prune) => {
 				self.backed_candidates.remove_up_to_height(&key_to_prune);
 				self.included_candidates.remove_up_to_height(&key_to_prune);
-				self.inclusions_per_candidate.remove_up_to_height(&key_to_prune)
+				self.inclusions.remove_up_to_height(&key_to_prune)
 			},
 			None => {
 				// Nothing to prune. We are still in the beginning of the chain and there are not
@@ -287,7 +287,7 @@ impl ChainScraper {
 						"Processing included event"
 					);
 					self.included_candidates.insert(block_number, candidate_hash);
-					self.inclusions_per_candidate.insert(candidate_hash, block_number, block_hash);
+					self.inclusions.insert(candidate_hash, block_number, block_hash);
 					included_receipts.push(receipt);
 				},
 				CandidateEvent::CandidateBacked(receipt, _, _, _) => {
@@ -378,7 +378,7 @@ impl ChainScraper {
 		&mut self,
 		candidate: &CandidateHash,
 	) -> Option<&Vec<(BlockNumber, Hash)>> {
-		self.inclusions_per_candidate.get(candidate)
+		self.inclusions.get(candidate)
 	}
 }
 

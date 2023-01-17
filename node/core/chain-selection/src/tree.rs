@@ -420,7 +420,7 @@ fn revert_single_block_entry_if_present(
 				revert_target = revert_number,
 				?maybe_reporting_hash,
 				?maybe_reporting_number,
-				"The reversion of a block including an invalid parachain block candidate has been called for.",
+				"The reversion of an unfinalized block has been called for.",
 			);
 
 			block_entry.viability.explicitly_reverted = true;

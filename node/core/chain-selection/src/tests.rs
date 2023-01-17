@@ -2041,7 +2041,7 @@ fn revert_blocks_message_triggers_proper_reversion() {
 		let block_1_hash = backend.load_blocks_by_number(1).unwrap().get(0).unwrap().clone();
 		let block_2_hash = backend.load_blocks_by_number(2).unwrap().get(0).unwrap().clone();
 
-		// Sending dispute concluded against message
+		// Sending revert blocks message
 		let (_, write_rx) = backend.await_next_write();
 		virtual_overseer
 			.send(FromOrchestra::Communication {
