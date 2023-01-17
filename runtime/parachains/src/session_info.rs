@@ -29,7 +29,7 @@ use frame_support::{
 };
 use primitives::{
 	v3::SessionInfo,
-	vstaging::{ExecutionEnvironment, ExecutorParam, ExecutorParams},
+	vstaging::{ExecutorParam, ExecutorParams},
 	AssignmentId, AuthorityDiscoveryId, SessionIndex,
 };
 use sp_std::vec::Vec;
@@ -44,8 +44,7 @@ mod tests;
 // The order of tags should be deterministic, that is, one should not reorder them when changing
 // the array contents to avoid creating excessive pressure to PVF execution subsys.
 // `Environment` must always be present and must be the first one, that is asserted.
-const EXECUTOR_PARAMS: [ExecutorParam; 1] =
-	[ExecutorParam::Environment(ExecutionEnvironment::WasmtimeGeneric)];
+const EXECUTOR_PARAMS: [ExecutorParam; 0] = [];
 
 /// A type for representing the validator account id in a session.
 pub type AccountId<T> = <<T as Config>::ValidatorSet as ValidatorSet<

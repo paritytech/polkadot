@@ -27,20 +27,9 @@ use polkadot_core_primitives::Hash;
 use scale_info::TypeInfo;
 use sp_std::{ops::Deref, vec, vec::Vec};
 
-/// Execution environment type
-#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
-pub enum ExecutionEnvironment {
-	/// Generic Wasmtime executor
-	WasmtimeGeneric = 0,
-}
-
 /// A single executor parameter
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub enum ExecutorParam {
-	/// ## General parameters:
-	/// Execution environment type
-	Environment(ExecutionEnvironment),
-
 	/// ## Parameters setting the executuion environment semantics:
 	/// Max. memory size
 	MaxMemorySize(u32),
@@ -51,18 +40,6 @@ pub enum ExecutorParam {
 	/// Max. amount of memory the preparation worker is allowed to use during
 	/// pre-checking, in bytes
 	PrecheckingMaxMemory(u64),
-
-	/// Placeholder for any data not fitting into the semantics. It may be used to avoid
-	/// `SessionInfo` migration if fast adoption of a new parameter is needed. This is an
-	/// emergency measure, only use it if you ought to.
-	#[codec(index = 255)]
-	RawData(Vec<u8>),
-}
-
-impl ExecutorParam {
-	fn is_environment(&self) -> bool {
-		matches!(self, ExecutorParam::Environment(_))
-	}
 }
 
 /// Unit type wrapper around [`type@Hash`] that represents an execution parameter set hash.
@@ -99,26 +76,17 @@ impl sp_std::fmt::LowerHex for ExecutorParamsHash {
 /// # Deterministically serialized execution environment semantics
 /// Represents an arbitrary semantics of an arbitrary execution environment, so should be kept as
 /// abstract as possible.
-// ADR: For mandatory entries (like `ExecutorParam::Environment`), mandatoriness should be enforced
-// in code rather than separating them into individual fields of the structure. Thus, complex
-// migrations shall be avoided when adding new entries and removing old ones.
+// ADR: For mandatory entries, mandatoriness should be enforced in code rather than separating them
+// into individual fields of the structure. Thus, complex migrations shall be avoided when adding
+// new entries and removing old ones. At the moment, there's no mandatory parameters defined. If
+// they show up, they must be clearly documented as mandatory ones.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub struct ExecutorParams(Vec<ExecutorParam>);
 
 impl ExecutorParams {
 	/// Creates a new, empty executor parameter set
-	pub fn new(environment: ExecutionEnvironment) -> Self {
-		ExecutorParams(vec![ExecutorParam::Environment(environment)])
-	}
-
-	/// Returns execution environment type
-	pub fn environment(&self) -> ExecutionEnvironment {
-		debug_assert!(self.0.len() > 0);
-		if let ExecutorParam::Environment(environment) = self.0[0] {
-			environment
-		} else {
-			unreachable!("`ExecutorParam::Environment` is required to be the first parameter");
-		}
+	pub fn new() -> Self {
+		ExecutorParams(vec![])
 	}
 
 	/// Returns hash of the set of execution environment parameters
@@ -137,15 +105,12 @@ impl Deref for ExecutorParams {
 
 impl From<&[ExecutorParam]> for ExecutorParams {
 	fn from(arr: &[ExecutorParam]) -> Self {
-		let vec = arr.to_vec();
-		debug_assert!(vec.len() > 0);
-		debug_assert!(vec[0].is_environment());
-		ExecutorParams(vec)
+		ExecutorParams(arr.to_vec())
 	}
 }
 
 impl Default for ExecutorParams {
 	fn default() -> Self {
-		ExecutorParams(vec![ExecutorParam::Environment(ExecutionEnvironment::WasmtimeGeneric)])
+		ExecutorParams(vec![])
 	}
 }

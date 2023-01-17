@@ -21,7 +21,7 @@ use polkadot_node_core_pvf::{
 	ValidationHost, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 };
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
-use polkadot_primitives::vstaging::{ExecutionEnvironment, ExecutorParam, ExecutorParams};
+use polkadot_primitives::vstaging::{ExecutorParam, ExecutorParams};
 use std::time::Duration;
 use tokio::sync::Mutex;
 
@@ -197,15 +197,8 @@ async fn execute_queue_doesnt_stall_with_varying_executor_params() {
 		cfg.execute_workers_max_num = 2;
 	});
 
-	let executor_params_1 = ExecutorParams::from(
-		&[ExecutorParam::Environment(ExecutionEnvironment::WasmtimeGeneric)][..],
-	);
-	let executor_params_2 = ExecutorParams::from(
-		&[
-			ExecutorParam::Environment(ExecutionEnvironment::WasmtimeGeneric),
-			ExecutorParam::StackLogicalMax(1024),
-		][..],
-	);
+	let executor_params_1 = ExecutorParams::default();
+	let executor_params_2 = ExecutorParams::from(&[ExecutorParam::StackLogicalMax(1024)][..]);
 
 	// Here we spawn 6 validation jobs for the `halt` PVF and share those between 2 workers. Every
 	// 3rd job will have different set of executor parameters. All the workers should be killed

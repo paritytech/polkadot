@@ -16,9 +16,7 @@
 
 //! Interface to the Substrate Executor
 
-use polkadot_primitives::vstaging::executor_params::{
-	ExecutionEnvironment, ExecutorParam, ExecutorParams,
-};
+use polkadot_primitives::vstaging::executor_params::{ExecutorParam, ExecutorParams};
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{InvokeMethod, WasmModule as _},
@@ -118,15 +116,10 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 	};
 	for p in par.iter() {
 		match p {
-			ExecutorParam::Environment(env) =>
-				if *env != ExecutionEnvironment::WasmtimeGeneric {
-					return Err("Wrong execution environment type".to_owned())
-				},
 			ExecutorParam::MaxMemorySize(mms) => sem.max_memory_size = Some(*mms as usize),
 			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
 			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
 			ExecutorParam::PrecheckingMaxMemory(_) => (), // TODO: Not implemented yet
-			ExecutorParam::RawData(_) => (),
 		}
 	}
 	sem.deterministic_stack_limit = Some(stack_limit);
