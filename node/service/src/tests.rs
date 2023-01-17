@@ -40,7 +40,7 @@ use polkadot_node_subsystem::messages::{
 	ApprovalVotingMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
 	HighestApprovedAncestorBlock,
 };
-use polkadot_primitives::v2::{Block, BlockNumber, Hash, Header};
+use polkadot_primitives::{Block, BlockNumber, Hash, Header};
 
 use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
 use polkadot_overseer::{SubsystemContext, SubsystemSender};

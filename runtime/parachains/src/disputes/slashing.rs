@@ -51,7 +51,7 @@ use frame_support::{
 };
 
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
+use primitives::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::Convert,
@@ -488,7 +488,7 @@ pub mod pallet {
 			ensure_none(origin)?;
 
 			// check the membership proof to extract the offender's id
-			let key = (primitives::v2::PARACHAIN_KEY_TYPE_ID, dispute_proof.validator_id.clone());
+			let key = (primitives::PARACHAIN_KEY_TYPE_ID, dispute_proof.validator_id.clone());
 			let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof)
 				.ok_or(Error::<T>::InvalidKeyOwnershipProof)?;
 
@@ -640,7 +640,7 @@ fn is_known_offence<T: Config>(
 	key_owner_proof: &T::KeyOwnerProof,
 ) -> Result<(), TransactionValidityError> {
 	// check the membership proof to extract the offender's id
-	let key = (primitives::v2::PARACHAIN_KEY_TYPE_ID, dispute_proof.validator_id.clone());
+	let key = (primitives::PARACHAIN_KEY_TYPE_ID, dispute_proof.validator_id.clone());
 
 	let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof.clone())
 		.ok_or(InvalidTransaction::BadProof)?;

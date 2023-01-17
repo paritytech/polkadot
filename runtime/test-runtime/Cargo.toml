@@ -130,3 +130,7 @@ std = [
 	"frame-election-provider-support/std",
 	"pallet-sudo/std",
 ]
+
+runtime-benchmarks = [
+	"pallet-xcm/runtime-benchmarks",
+]
