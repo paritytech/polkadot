@@ -1978,7 +1978,7 @@ sp_api::impl_runtime_apis! {
 			use pallet_nomination_pools_benchmarking::Pallet as NominationPoolsBench;
 			use frame_benchmarking::baseline::Pallet as Baseline;
 			use xcm::latest::prelude::*;
-			use xcm_config::{CheckAccount, KsmLocation, SovereignAccountOf, Statemine, XcmConfig};
+			use xcm_config::{CheckAccount, TokenLocation, SovereignAccountOf, Statemine, XcmConfig};
 
 			impl pallet_session_benchmarking::Config for Runtime {}
 			impl pallet_offences_benchmarking::Config for Runtime {}
@@ -1996,7 +1996,7 @@ sp_api::impl_runtime_apis! {
 				fn worst_case_holding() -> MultiAssets {
 					// Kusama only knows about KSM.
 					vec![MultiAsset{
-						id: Concrete(KsmLocation::get()),
+						id: Concrete(TokenLocation::get()),
 						fun: Fungible(1_000_000 * UNITS),
 					}].into()
 				}
@@ -2005,11 +2005,11 @@ sp_api::impl_runtime_apis! {
 			parameter_types! {
 				pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
 					Statemine::get(),
-					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(KsmLocation::get()) },
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
 				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
 					Statemine::get(),
-					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(KsmLocation::get()) },
+					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
 			}
 
@@ -2022,7 +2022,7 @@ sp_api::impl_runtime_apis! {
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {
-						id: Concrete(KsmLocation::get()),
+						id: Concrete(TokenLocation::get()),
 						fun: Fungible(1 * UNITS),
 					}
 				}
@@ -2045,7 +2045,7 @@ sp_api::impl_runtime_apis! {
 
 				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
 					let origin = Statemine::get();
-					let assets: MultiAssets = (Concrete(KsmLocation::get()), 1_000 * UNITS).into();
+					let assets: MultiAssets = (Concrete(TokenLocation::get()), 1_000 * UNITS).into();
 					let ticket = MultiLocation { parents: 0, interior: Here };
 					Ok((origin, ticket, assets))
 				}
