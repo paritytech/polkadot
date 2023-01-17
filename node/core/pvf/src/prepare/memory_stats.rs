@@ -28,12 +28,12 @@ use tokio::task::JoinHandle;
 use libc::{getrusage, rusage, timeval, RUSAGE_THREAD};
 
 /// Helper struct to contain all the memory stats, including [`MemoryAllocationStats`] and, if
-/// supported by the OS, `max_rss`.
+/// supported by the OS, `ru_maxrss`.
 #[derive(Encode, Decode)]
 pub struct MemoryStats {
 	/// Memory stats from `tikv_jemalloc_ctl`.
 	pub memory_tracker_stats: Option<MemoryAllocationStats>,
-	/// `max_rss` from `getrusage`. A string error since `io::Error` is not `Encode`able.
+	/// `ru_maxrss` from `getrusage`. A string error since `io::Error` is not `Encode`able.
 	pub max_rss: Option<Result<i32, String>>,
 }
 
@@ -101,11 +101,11 @@ fn getrusage_thread() -> io::Result<rusage> {
 	Ok(result)
 }
 
-/// Gets the `max_rss` for the current thread if the OS supports `getrusage`. Otherwise, just
+/// Gets the `ru_maxrss` for the current thread if the OS supports `getrusage`. Otherwise, just
 /// returns `None`.
 pub fn get_max_rss_thread() -> Option<io::Result<i32>> {
 	#[cfg(target_os = "linux")]
-	let max_rss = Some(getrusage_thread().map(|rusage| rusage.max_rss));
+	let max_rss = Some(getrusage_thread().map(|rusage| rusage.ru_maxrss));
 	#[cfg(not(target_os = "linux"))]
 	let max_rss = None;
 	max_rss
@@ -210,7 +210,7 @@ pub fn observe_memory_metrics(metrics: &Metrics, memory_stats: MemoryStats, pid:
 			Err(err) => gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
-				"error getting `max_rss` in preparation thread: {}",
+				"error getting `ru_maxrss` in preparation thread: {}",
 				err
 			),
 		}
@@ -219,7 +219,7 @@ pub fn observe_memory_metrics(metrics: &Metrics, memory_stats: MemoryStats, pid:
 	if let Some(tracker_stats) = memory_stats.memory_tracker_stats {
 		// We convert these stats from B to KB for two reasons:
 		//
-		// 1. To match the unit of `max_rss` from `getrusage`.
+		// 1. To match the unit of `ru_maxrss` from `getrusage`.
 		//
 		// 2. To have less potential loss of precision when converting to `f64`. (These values are
 		// originally `usize`, which is 64 bits on 64-bit platforms).

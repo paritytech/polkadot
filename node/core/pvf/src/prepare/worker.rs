@@ -410,7 +410,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 				.spawn_blocking(move || {
 					let prepare_result = prepare_artifact(&code);
 
-					// Get the `max_rss` stat if we are pre-checking.
+					// Get the `ru_maxrss` stat if we are pre-checking.
 					let max_rss = if let PreparationKind::PreCheck = preparation_kind {
 						// If supported, call getrusage for the thread.
 						get_max_rss_thread()

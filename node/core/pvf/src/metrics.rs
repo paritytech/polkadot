@@ -230,7 +230,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::Histogram::with_opts(
 					prometheus::HistogramOpts::new(
 						"polkadot_pvf_precheck_max_rss",
-						"max_rss (maximum resident set size) observed for precheck preparation (in kilobytes)",
+						"ru_maxrss (maximum resident set size) observed for precheck preparation (in kilobytes)",
 					)
 				)?,
 				registry,
