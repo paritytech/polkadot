@@ -54,7 +54,7 @@ use runtime_parachains::{
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	scheduler_parathreads, session_info as parachains_session_info, shared as parachains_shared,
+	session_info as parachains_session_info, shared as parachains_shared,
 	ump as parachains_ump,
 };
 use scale_info::TypeInfo;
@@ -944,12 +944,8 @@ impl parachains_paras_inherent::Config for Runtime {
 }
 
 impl parachains_scheduler::Config for Runtime {
-	type CoreAssigners<T: runtime_parachains::scheduler::Config> = (
-		runtime_parachains::scheduler_parachains::ParachainsScheduler,
-		runtime_parachains::scheduler_parathreads::ParathreadsScheduler,
-	);
+	type CoreAssigners<T: runtime_parachains::scheduler::Config> = runtime_parachains::scheduler_parachains::ParachainsScheduler;
 }
-impl scheduler_parathreads::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -1175,7 +1171,6 @@ construct_runtime! {
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 52,
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 53,
 		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned} = 54,
-		SchedulerThreads: scheduler_parathreads::{Pallet, Storage} = 55,
 
 		// Parachain Onboarding Pallets. Start indices at 60 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config} = 60,
