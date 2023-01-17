@@ -38,7 +38,7 @@ parameter_types! {
 	/// the context".
 	pub const TokenLocation: MultiLocation = Here.into();
 	/// The Rococo network ID. This is named.
-	pub RococoNetwork: NetworkId =
+	pub ThisNetwork: NetworkId =
 		NetworkId::Named(b"Rococo".to_vec().try_into().expect("shorter than length limit; qed"));
 	/// Our XCM location ancestry - i.e. what, if anything, `Parent` means evaluated in our context. Since
 	/// Rococo is a top-level relay-chain, there is no ancestry.
@@ -53,7 +53,7 @@ pub type SovereignAccountOf = (
 	// We can convert a child parachain using the standard `AccountId` conversion.
 	ChildParachainConvertsVia<ParaId, AccountId>,
 	// We can directly alias an `AccountId32` into a local account.
-	AccountId32Aliases<RococoNetwork, AccountId>,
+	AccountId32Aliases<ThisNetwork, AccountId>,
 );
 
 /// Our asset transactor. This is what allows us to interest with the runtime facilities from the point of
@@ -80,7 +80,7 @@ type LocalOriginConverter = (
 	// A child parachain, natively expressed, has the `Parachain` origin.
 	ChildParachainAsNative<parachains_origin::Origin, RuntimeOrigin>,
 	// The AccountId32 location type can be expressed natively as a `Signed` origin.
-	SignedAccountId32AsNative<RococoNetwork, RuntimeOrigin>,
+	SignedAccountId32AsNative<ThisNetwork, RuntimeOrigin>,
 	// A system child parachain, expressed as a Superuser, converts to the `Root` origin.
 	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
 );
@@ -107,20 +107,20 @@ parameter_types! {
 	pub const Tick: MultiLocation = Parachain(100).into();
 	pub const Trick: MultiLocation = Parachain(110).into();
 	pub const Track: MultiLocation = Parachain(120).into();
-	pub const RococoForTick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Tick::get());
-	pub const RococoForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Trick::get());
-	pub const RococoForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Track::get());
-	pub const RococoForStatemine: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Statemine::get());
-	pub const RococoForContracts: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Contracts::get());
-	pub const RococoForEncointer: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Encointer::get());
+	pub const RocForTick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Tick::get());
+	pub const RocForTrick: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Trick::get());
+	pub const RocForTrack: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Track::get());
+	pub const RocForStatemine: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Statemine::get());
+	pub const RocForContracts: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Contracts::get());
+	pub const RocForEncointer: (MultiAssetFilter, MultiLocation) = (Rococo::get(), Encointer::get());
 }
 pub type TrustedTeleporters = (
-	xcm_builder::Case<RococoForTick>,
-	xcm_builder::Case<RococoForTrick>,
-	xcm_builder::Case<RococoForTrack>,
-	xcm_builder::Case<RococoForStatemine>,
-	xcm_builder::Case<RococoForContracts>,
-	xcm_builder::Case<RococoForEncointer>,
+	xcm_builder::Case<RocForTick>,
+	xcm_builder::Case<RocForTrick>,
+	xcm_builder::Case<RocForTrack>,
+	xcm_builder::Case<RocForStatemine>,
+	xcm_builder::Case<RocForContracts>,
+	xcm_builder::Case<RocForEncointer>,
 );
 
 match_types! {
@@ -188,7 +188,7 @@ pub type LocalOriginToLocation = (
 	// `Unit` body.
 	CouncilToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<RuntimeOrigin, AccountId, RococoNetwork>,
+	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
 );
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
