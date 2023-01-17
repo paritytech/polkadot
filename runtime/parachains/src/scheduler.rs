@@ -136,7 +136,7 @@ impl<T: Config> Pallet<T> {
 		let config = new_config;
 
 		let n_cores = core::cmp::max(
-			T::CoreAssigners::<T>::session_cores(),
+			T::CoreAssigners::<T>::session_core_count(),
 			match config.max_validators_per_core {
 				Some(x) if x != 0 => validators.len() as u32 / x,
 				_ => 0,
@@ -197,19 +197,31 @@ impl<T: Config> Pallet<T> {
 	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
 	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
 	pub(crate) fn free_cores(just_freed_cores: BTreeMap<CoreIndex, FreedReason>) {
-		let cores = AvailabilityCores::<T>::get();
-		T::CoreAssigners::<T>::free_cores(&just_freed_cores, &cores);
+		let (just_freed_cores_, freed_idxs) = Self::extract_relevant_freed_cores(just_freed_cores);
+
+		T::CoreAssigners::<T>::free_cores(just_freed_cores_.as_slice());
 
 		AvailabilityCores::<T>::mutate(|cores| {
-			let c_len = cores.len();
-			for freed_index in just_freed_cores
-				.keys()
-				.map(|free_idx| free_idx.0 as usize)
-				.filter(|free_idx| *free_idx < c_len)
-			{
+			for freed_index in freed_idxs {
 				cores[freed_index] = None;
 			}
-		})
+		});
+	}
+
+	fn extract_relevant_freed_cores(
+		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
+	) -> (Vec<(CoreOccupied, FreedReason)>, Vec<usize>) {
+		let cores = AvailabilityCores::<T>::get();
+
+		just_freed_cores
+			.into_iter()
+			.flat_map(|(freed_idx, freed_reason)| {
+				cores.get(freed_idx.0 as usize).map(|core_occupied| {
+					core_occupied.clone().map(|co| ((co, freed_reason), freed_idx.0 as usize))
+				})
+			})
+			.flatten()
+			.unzip()
 	}
 
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered

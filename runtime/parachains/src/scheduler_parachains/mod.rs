@@ -38,7 +38,6 @@
 use frame_support::pallet_prelude::*;
 use primitives::{CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ScheduledCore};
 use sp_runtime::traits::Saturating;
-use sp_std::collections::btree_map::BTreeMap;
 
 use crate::{
 	configuration,
@@ -54,7 +53,7 @@ use crate::scheduler_common::CoreAssigner;
 
 pub struct ParachainsScheduler;
 impl<T: crate::scheduler::pallet::Config> CoreAssigner<T> for ParachainsScheduler {
-	fn session_cores() -> u32 {
+	fn session_core_count() -> u32 {
 		<paras::Pallet<T>>::parachains().len() as u32
 	}
 
@@ -70,11 +69,7 @@ impl<T: crate::scheduler::pallet::Config> CoreAssigner<T> for ParachainsSchedule
 	) {
 	}
 
-	fn free_cores(
-		_just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
-		_cores: &[Option<CoreOccupied>],
-	) {
-	}
+	fn free_cores(_just_freed_cores: &[(CoreOccupied, FreedReason)]) {}
 
 	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment> {
 		let parachains = <paras::Pallet<T>>::parachains();

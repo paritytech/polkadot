@@ -41,7 +41,7 @@ use primitives::{
 	ParathreadEntry, ScheduledCore,
 };
 use scale_info::TypeInfo;
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::prelude::*;
 
 use crate::initializer::SessionChangeNotification;
 
@@ -106,10 +106,10 @@ impl CoreAssignment {
 // TODO: need to link CoreOccupied variants to CoreAssigner impls
 // TOOD: Change interface to remove CoreIndex and GroupIndex to not leak abstraction
 pub trait CoreAssigner<T: crate::scheduler::pallet::Config> {
-	fn session_cores() -> u32;
+	fn session_core_count() -> u32;
 
 	fn is_my_core(core_index: CoreIndex, offset: u32) -> bool {
-		let cores = Self::session_cores();
+		let cores = Self::session_core_count();
 		(offset..offset + cores).contains(&(core_index.0 as u32))
 	}
 
@@ -122,10 +122,7 @@ pub trait CoreAssigner<T: crate::scheduler::pallet::Config> {
 		cores: &[Option<CoreOccupied>],
 	);
 
-	fn free_cores(
-		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
-		cores: &[Option<CoreOccupied>],
-	);
+	fn free_cores(just_freed_cores: &[(CoreOccupied, FreedReason)]);
 
 	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment>;
 
@@ -154,8 +151,8 @@ where
 	A: CoreAssigner<T>,
 	B: CoreAssigner<T>,
 {
-	fn session_cores() -> u32 {
-		A::session_cores() + B::session_cores()
+	fn session_core_count() -> u32 {
+		A::session_core_count() + B::session_core_count()
 	}
 
 	fn initializer_initialize(now: T::BlockNumber) -> Weight {
@@ -175,12 +172,9 @@ where
 		B::initializer_on_new_session(notification, cores);
 	}
 
-	fn free_cores(
-		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
-		cores: &[Option<CoreOccupied>],
-	) {
-		A::free_cores(just_freed_cores, cores);
-		B::free_cores(just_freed_cores, cores);
+	fn free_cores(just_freed_cores: &[(CoreOccupied, FreedReason)]) {
+		A::free_cores(just_freed_cores);
+		B::free_cores(just_freed_cores);
 	}
 
 	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment> {
@@ -245,8 +239,8 @@ where
 	B: CoreAssigner<T>,
 	C: CoreAssigner<T>,
 {
-	fn session_cores() -> u32 {
-		A::session_cores() + B::session_cores() + C::session_cores()
+	fn session_core_count() -> u32 {
+		A::session_core_count() + B::session_core_count() + C::session_core_count()
 	}
 
 	fn initializer_initialize(now: T::BlockNumber) -> Weight {
@@ -270,19 +264,16 @@ where
 		C::initializer_on_new_session(notification, cores);
 	}
 
-	fn free_cores(
-		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
-		cores: &[Option<CoreOccupied>],
-	) {
-		A::free_cores(just_freed_cores, cores);
-		B::free_cores(just_freed_cores, cores);
-		C::free_cores(just_freed_cores, cores);
+	fn free_cores(just_freed_cores: &[(CoreOccupied, FreedReason)]) {
+		A::free_cores(just_freed_cores);
+		B::free_cores(just_freed_cores);
+		C::free_cores(just_freed_cores);
 	}
 
 	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment> {
 		if A::is_my_core(core_idx, 0) {
 			A::make_core_assignment(core_idx, group_idx)
-		} else if B::is_my_core(core_idx, A::session_cores()) {
+		} else if B::is_my_core(core_idx, A::session_core_count()) {
 			B::make_core_assignment(core_idx, group_idx)
 		} else {
 			C::make_core_assignment(core_idx, group_idx)
@@ -298,7 +289,7 @@ where
 	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
 		if A::is_my_core(core_idx, 0) {
 			A::core_para(core_idx, core_occupied)
-		} else if B::is_my_core(core_idx, A::session_cores()) {
+		} else if B::is_my_core(core_idx, A::session_core_count()) {
 			B::core_para(core_idx, core_occupied)
 		} else {
 			C::core_para(core_idx, core_occupied)
@@ -312,7 +303,7 @@ where
 	) -> bool {
 		if A::is_my_core(core_idx, 0) {
 			A::availability_timeout_predicate(core_idx, blocks_since_last_rotation, pending_since)
-		} else if B::is_my_core(core_idx, A::session_cores()) {
+		} else if B::is_my_core(core_idx, A::session_core_count()) {
 			B::availability_timeout_predicate(core_idx, blocks_since_last_rotation, pending_since)
 		} else {
 			C::availability_timeout_predicate(core_idx, blocks_since_last_rotation, pending_since)
@@ -322,7 +313,7 @@ where
 	fn next_up_on_available(core_idx: CoreIndex) -> Option<ScheduledCore> {
 		if A::is_my_core(core_idx, 0) {
 			A::next_up_on_available(core_idx)
-		} else if B::is_my_core(core_idx, A::session_cores()) {
+		} else if B::is_my_core(core_idx, A::session_core_count()) {
 			B::next_up_on_available(core_idx)
 		} else {
 			C::next_up_on_available(core_idx)
@@ -335,7 +326,7 @@ where
 	) -> Option<ScheduledCore> {
 		if A::is_my_core(core_idx, 0) {
 			A::next_up_on_time_out(core_idx, cores)
-		} else if B::is_my_core(core_idx, A::session_cores()) {
+		} else if B::is_my_core(core_idx, A::session_core_count()) {
 			B::next_up_on_time_out(core_idx, cores)
 		} else {
 			C::next_up_on_time_out(core_idx, cores)

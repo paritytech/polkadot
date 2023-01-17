@@ -42,7 +42,7 @@ use primitives::{
 };
 use scale_info::TypeInfo;
 use sp_runtime::Saturating;
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::prelude::*;
 
 use crate::{
 	configuration,
@@ -105,7 +105,7 @@ impl Default for ParathreadClaimQueue {
 
 pub struct ParathreadsScheduler;
 impl<T: crate::scheduler::pallet::Config> CoreAssigner<T> for ParathreadsScheduler {
-	fn session_cores() -> u32 {
+	fn session_core_count() -> u32 {
 		let config = <configuration::Pallet<T>>::config();
 		config.parathread_cores
 	}
@@ -133,13 +133,10 @@ impl<T: crate::scheduler::pallet::Config> CoreAssigner<T> for ParathreadsSchedul
 		);
 	}
 
-	fn free_cores(
-		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
-		cores: &[Option<CoreOccupied>],
-	) {
+	fn free_cores(just_freed_cores: &[(CoreOccupied, FreedReason)]) {
 		let config = <configuration::Pallet<T>>::config();
 
-		<self::Pallet<T>>::free_cores(just_freed_cores, cores, config.parathread_cores);
+		<self::Pallet<T>>::free_cores(just_freed_cores, config.parathread_cores);
 	}
 
 	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment> {
@@ -323,36 +320,32 @@ impl<T: Config> Pallet<T> {
 	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
 	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
 	pub(crate) fn free_cores(
-		just_freed_cores: &BTreeMap<CoreIndex, FreedReason>,
-		cores: &[Option<CoreOccupied>],
+		just_freed_cores: &[(CoreOccupied, FreedReason)],
 		n_parathread_cores: u32,
 	) {
-		for (freed_index, freed_reason) in just_freed_cores {
-			if (freed_index.0 as usize) < cores.len() {
-				match &cores[freed_index.0 as usize] {
-					None => continue,
-					Some(CoreOccupied::Parachain) => {},
-					Some(CoreOccupied::Parathread(entry)) => {
-						match freed_reason {
-							FreedReason::Concluded => {
-								// After a parathread candidate has successfully been included,
-								// open it up for further claims!
-								ParathreadClaimIndex::<T>::mutate(|index| {
-									if let Ok(i) = index.binary_search(&entry.claim.0) {
-										index.remove(i);
-									}
-								})
-							},
-							FreedReason::TimedOut => {
-								// If a parathread candidate times out, it's not the collator's fault,
-								// so we don't increment retries.
-								ParathreadQueue::<T>::mutate(|queue| {
-									queue.enqueue_entry(entry.clone(), n_parathread_cores);
-								})
-							},
-						}
-					},
-				}
+		for (core_occupied, freed_reason) in just_freed_cores {
+			match core_occupied {
+				CoreOccupied::Parachain => {},
+				CoreOccupied::Parathread(entry) => {
+					match freed_reason {
+						FreedReason::Concluded => {
+							// After a parathread candidate has successfully been included,
+							// open it up for further claims!
+							ParathreadClaimIndex::<T>::mutate(|index| {
+								if let Ok(i) = index.binary_search(&entry.claim.0) {
+									index.remove(i);
+								}
+							})
+						},
+						FreedReason::TimedOut => {
+							// If a parathread candidate times out, it's not the collator's fault,
+							// so we don't increment retries.
+							ParathreadQueue::<T>::mutate(|queue| {
+								queue.enqueue_entry(entry.clone(), n_parathread_cores);
+							})
+						},
+					}
+				},
 			}
 		}
 	}
