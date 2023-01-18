@@ -1032,8 +1032,7 @@ impl Initialized {
 		if import_result.is_freshly_concluded_against() {
 			let blocks_including = self.scraper.get_blocks_including_candidate(&candidate_hash);
 			if blocks_including.len() > 0 {
-				ctx.send_message(ChainSelectionMessage::RevertBlocks(blocks_including))
-					.await;
+				ctx.send_message(ChainSelectionMessage::RevertBlocks(blocks_including)).await;
 			} else {
 				gum::debug!(
 					target: LOG_TARGET,

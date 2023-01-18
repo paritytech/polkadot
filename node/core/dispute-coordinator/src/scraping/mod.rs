@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::BTreeMap, collections::HashSet, num::NonZeroUsize};
+use std::{
+	collections::{BTreeMap, HashSet},
+	num::NonZeroUsize,
+};
 
 use futures::channel::oneshot;
 use lru::LruCache;
@@ -70,8 +73,8 @@ impl ScrapedUpdates {
 }
 
 /// A structure meant to facilitate chain reversions in the event of a dispute
-/// concluding against a candidate. Each candidate hash maps to a number of 
-/// block heights, which in turn map to vectors of blocks at those heights. 
+/// concluding against a candidate. Each candidate hash maps to a number of
+/// block heights, which in turn map to vectors of blocks at those heights.
 pub struct Inclusions {
 	inclusions_inner: BTreeMap<CandidateHash, BTreeMap<BlockNumber, Vec<Hash>>>,
 }
@@ -81,7 +84,7 @@ impl Inclusions {
 		Self { inclusions_inner: BTreeMap::new() }
 	}
 
-	// Add parent block to the vector which has CandidateHash as an outer key and 
+	// Add parent block to the vector which has CandidateHash as an outer key and
 	// BlockNumber as an inner key
 	pub fn insert(
 		&mut self,
@@ -98,19 +101,23 @@ impl Inclusions {
 		} else {
 			let mut blocks_including: BTreeMap<BlockNumber, Vec<Hash>> = BTreeMap::new();
 			blocks_including.insert(block_number, Vec::from([block_hash]));
-			self.inclusions_inner
-				.insert(candidate_hash, blocks_including);
+			self.inclusions_inner.insert(candidate_hash, blocks_including);
 		}
 	}
 
-	pub fn remove_up_to_height(&mut self, height: &BlockNumber, candidates_modified: HashSet<CandidateHash>) {
+	pub fn remove_up_to_height(
+		&mut self,
+		height: &BlockNumber,
+		candidates_modified: HashSet<CandidateHash>,
+	) {
 		for candidate in candidates_modified {
-			if let Some(blocks_including) = self.inclusions_inner.get_mut(&candidate){
+			if let Some(blocks_including) = self.inclusions_inner.get_mut(&candidate) {
 				// Returns everything after the given key, including the key. This works because the blocks are sorted in ascending order.
 				*blocks_including = blocks_including.split_off(height);
 			}
 		}
-		self.inclusions_inner.retain(|_, blocks_including| blocks_including.keys().len() > 0);
+		self.inclusions_inner
+			.retain(|_, blocks_including| blocks_including.keys().len() > 0);
 	}
 
 	pub fn get(&mut self, candidate: &CandidateHash) -> Vec<(BlockNumber, Hash)> {
@@ -261,7 +268,8 @@ impl ChainScraper {
 		{
 			Some(key_to_prune) => {
 				self.backed_candidates.remove_up_to_height(&key_to_prune);
-				let candidates_modified = self.included_candidates.remove_up_to_height(&key_to_prune);
+				let candidates_modified =
+					self.included_candidates.remove_up_to_height(&key_to_prune);
 				self.inclusions.remove_up_to_height(&key_to_prune, candidates_modified);
 			},
 			None => {
