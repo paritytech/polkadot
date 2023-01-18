@@ -26,7 +26,7 @@
 use crate::{
 	slots::{self, Pallet as Slots, WeightInfo},
 	traits::{LeaseError, Leaser, Registrar},
-	MAXIMUM_BLOCK_WEIGHT,
+	BLOCK_WEIGHT_LIMIT,
 };
 use frame_support::{pallet_prelude::*, traits::Currency};
 use frame_system::pallet_prelude::*;
@@ -201,7 +201,7 @@ pub mod pallet {
 		// TODO: Benchmark this
 		/// Assign a permanent parachain slot and immediately create a lease for it.
 		#[pallet::call_index(0)]
-		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		#[pallet::weight(((BLOCK_WEIGHT_LIMIT.limited_or_max() / 10) as Weight, DispatchClass::Operational))]
 		pub fn assign_perm_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			T::AssignSlotOrigin::ensure_origin(origin)?;
 
@@ -260,7 +260,7 @@ pub mod pallet {
 		/// immediately if `SlotLeasePeriodStart::Current` is specified, and if the number
 		/// of currently active temporary slots is below `MaxTemporarySlotPerLeasePeriod`.
 		#[pallet::call_index(1)]
-		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		#[pallet::weight(((BLOCK_WEIGHT_LIMIT.limited_or_max() / 10) as Weight, DispatchClass::Operational))]
 		pub fn assign_temp_parachain_slot(
 			origin: OriginFor<T>,
 			id: ParaId,
@@ -344,7 +344,7 @@ pub mod pallet {
 		// TODO: Benchmark this
 		/// Unassign a permanent or temporary parachain slot
 		#[pallet::call_index(2)]
-		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		#[pallet::weight(((BLOCK_WEIGHT_LIMIT.limited_or_max() / 10) as Weight, DispatchClass::Operational))]
 		pub fn unassign_parachain_slot(origin: OriginFor<T>, id: ParaId) -> DispatchResult {
 			T::AssignSlotOrigin::ensure_origin(origin.clone())?;
 
