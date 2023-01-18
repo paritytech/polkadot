@@ -1602,9 +1602,10 @@ fn occupied_core_assignment() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
-			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(_, _)
-			)
+			AllMessages::ProspectiveParachains(ProspectiveParachainsMessage::CandidateSeconded(
+				_,
+				_
+			))
 		);
 
 		assert_matches!(

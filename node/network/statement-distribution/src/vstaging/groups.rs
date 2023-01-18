@@ -32,7 +32,10 @@ pub struct Groups {
 impl Groups {
 	/// Create a new [`Groups`] tracker with the groups and discovery keys
 	/// from the session.
-	pub fn new(groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>, discovery_keys: &[AuthorityDiscoveryId]) -> Self {
+	pub fn new(
+		groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
+		discovery_keys: &[AuthorityDiscoveryId],
+	) -> Self {
 		let mut by_validator_index = HashMap::new();
 		let mut by_discovery_key = HashMap::new();
 

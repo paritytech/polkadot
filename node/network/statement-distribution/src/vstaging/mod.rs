@@ -34,9 +34,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
 use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreState,
-	GroupIndex, Hash, Id as ParaId, PersistedValidationData, SessionIndex, SessionInfo,
+	GroupIndex, Hash, Id as ParaId, IndexedVec, PersistedValidationData, SessionIndex, SessionInfo,
 	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
-	IndexedVec,
 };
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -134,9 +133,11 @@ impl PerSessionState {
 			authority_lookup.insert(ad, ValidatorIndex(i as _));
 		}
 
-		let local_validator =
-			polkadot_node_subsystem_util::signing_key_and_index(session_info.validators.iter(), keystore)
-				.await;
+		let local_validator = polkadot_node_subsystem_util::signing_key_and_index(
+			session_info.validators.iter(),
+			keystore,
+		)
+		.await;
 
 		PerSessionState {
 			session_info,
@@ -1091,15 +1092,12 @@ fn handle_cluster_statement(
 	};
 
 	// Ensure the statement is correctly signed.
-	let checked_statement = match check_statement_signature(
-		session,
-		&session_info.validators,
-		relay_parent,
-		statement,
-	) {
-		Ok(s) => s,
-		Err(_) => return Err(COST_INVALID_SIGNATURE),
-	};
+	let checked_statement =
+		match check_statement_signature(session, &session_info.validators, relay_parent, statement)
+		{
+			Ok(s) => s,
+			Err(_) => return Err(COST_INVALID_SIGNATURE),
+		};
 
 	cluster_tracker.note_received(
 		cluster_sender_index,
