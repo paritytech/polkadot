@@ -110,7 +110,7 @@ mod tests {
 	// Test that the fee for `BLOCK_WEIGHT_LIMIT` of weight has sane bounds.
 	fn full_block_fee_is_correct() {
 		// A full block should cost between 10 and 100 UNITS.
-		let full_block = WeightToFee::weight_to_fee(&BLOCK_WEIGHT_LIMIT);
+		let full_block = WeightToFee::weight_to_fee(&BLOCK_WEIGHT_LIMIT.limited_or_max());
 		assert!(full_block >= 10 * UNITS);
 		assert!(full_block <= 100 * UNITS);
 	}
