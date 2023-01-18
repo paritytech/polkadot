@@ -924,6 +924,14 @@ pub enum HypotheticalCandidate {
 }
 
 impl HypotheticalCandidate {
+	/// Get the hash of the candidate.
+	pub fn candidate_hash(&self) -> CandidateHash {
+		match *self {
+			HypotheticalCandidate::Complete { ref candidate_hash, .. } => *candidate_hash,
+			HypotheticalCandidate::Incomplete { ref candidate_hash, .. } => *candidate_hash,
+		}
+	}
+
 	/// Get the `ParaId` of the hypothetical candidate.
 	pub fn candidate_para(&self) -> ParaId {
 		match *self {

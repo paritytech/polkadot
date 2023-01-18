@@ -122,7 +122,8 @@ impl Candidates {
 	/// yielding lists of peers which advertised it
 	/// both correctly and incorrectly.
 	///
-	/// This does no sanity-checking of input data.
+	/// This does no sanity-checking of input data, and will overwrite
+	/// already-confirmed canidates.
 	pub fn confirm_candidate(
 		&mut self,
 		candidate_hash: CandidateHash,
@@ -144,6 +145,10 @@ impl Candidates {
 				importable_under: HashSet::new(),
 			}),
 		);
+		let new_confirmed = match self.candidates.get_mut(&candidate_hash).expect("just inserted; qed") {
+			CandidateState::Confirmed(x) => x,
+			_ => panic!("just inserted as confirmed; qed"),
+		};
 
 		self.by_parent.entry((parent_hash, para_id)).or_default().insert(candidate_hash);
 
@@ -155,6 +160,12 @@ impl Candidates {
 					correct: HashSet::new(),
 					incorrect: HashSet::new(),
 				};
+
+				for (leaf_hash, x) in u.unconfirmed_importable_under {
+					if x.relay_parent == relay_parent && x.parent_hash == parent_hash && x.para_id == para_id {
+						new_confirmed.importable_under.insert(leaf_hash);
+					}
+				}
 
 				for (peer, claims) in u.claims {
 					// Update the by-parent-hash index not to store any outdated
@@ -215,8 +226,36 @@ impl Candidates {
 		candidate: &HypotheticalCandidate,
 		leaf_hash: Hash,
 	) {
-		// TODO [now]
-		unimplemented!()
+		match candidate {
+			HypotheticalCandidate::Incomplete {
+				candidate_hash,
+				candidate_para,
+				parent_head_data_hash,
+				candidate_relay_parent,
+			} => {
+				let u = UnconfirmedImportable {
+					relay_parent: *candidate_relay_parent,
+					parent_hash: *parent_head_data_hash,
+					para_id: *candidate_para,
+				};
+
+				if let Some(&mut CandidateState::Unconfirmed(ref mut c))
+					= self.candidates.get_mut(&candidate_hash)
+				{
+					c.note_maybe_importable_under(leaf_hash, u);
+				}
+			}
+			HypotheticalCandidate::Complete {
+				candidate_hash,
+				..
+			} => {
+				if let Some(&mut CandidateState::Confirmed(ref mut c))
+					= self.candidates.get_mut(&candidate_hash)
+				{
+					c.importable_under.insert(leaf_hash);
+				}
+			}
+		}
 	}
 
 	/// Get all hypothetical candidates which should be tested
