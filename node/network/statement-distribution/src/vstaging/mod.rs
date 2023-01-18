@@ -282,8 +282,13 @@ pub(crate) async fn handle_network_update<Context>(
 				per_session.supply_topology(&new_topology);
 			}
 
-			// TODO [now] for all relay-parents with this session, send all grid peers
+			// TODO [https://github.com/paritytech/polkadot/issues/6194]
+			// technically, we should account for the fact that the session topology might
+			// come late, and for all relay-parents with this session, send all grid peers
 			// any `BackedCandidateInv` messages they might need.
+			//
+			// in practice, this is a small issue & the API of receiving topologies could
+			// be altered to fix it altogether.
 		},
 		NetworkBridgeEvent::PeerMessage(peer_id, message) => {
 			match message {
