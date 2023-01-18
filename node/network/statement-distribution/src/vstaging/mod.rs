@@ -1241,21 +1241,21 @@ async fn handle_backable_and_importable_candidate<Context>(
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-async fn new_leaf_fragment_tree_updates<Context>(
+async fn fragment_tree_update_inner<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	leaf_hash: Hash,
+	active_leaf_hash: Option<Hash>,
+	required_parent_info: Option<(Hash, ParaId)>,
 ) {
-	// TODO [now]
 	// 1. get hypothetical candidates
-	let hypotheticals = state.candidates.frontier_hypotheticals(None);
+	let hypotheticals = state.candidates.frontier_hypotheticals(required_parent_info);
 	// 2. find out which are in the frontier
 	let frontier = {
 		let (tx, rx) = oneshot::channel();
 		ctx.send_message(ProspectiveParachainsMessage::GetHypotheticalFrontier(
 			HypotheticalFrontierRequest {
 				candidates: hypotheticals,
-				fragment_tree_relay_parent: Some(leaf_hash),
+				fragment_tree_relay_parent: active_leaf_hash,
 			},
 			tx,
 		)).await;
@@ -1320,16 +1320,32 @@ async fn new_leaf_fragment_tree_updates<Context>(
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn new_leaf_fragment_tree_updates<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	leaf_hash: Hash,
+) {
+	fragment_tree_update_inner(
+		ctx,
+		state,
+		Some(leaf_hash),
+		None,
+	).await
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn prospective_backed_notification_fragment_tree_updates<Context>(
 	ctx: &mut Context,
+	state: &mut State,
 	para_id: ParaId,
-	head_data_hash: Hash,
+	para_head: Hash,
 ) {
-	// TODO [now]
-	// 1. get hypothetical candidates
-	// 2. find out which are in the frontier
-	// 3. note that they are
-	// 4. schedule requests/import statements accordingly.
+	fragment_tree_update_inner(
+		ctx,
+		state,
+		None,
+		Some((para_head, para_id)),
+	).await
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
