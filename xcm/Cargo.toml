@@ -17,7 +17,6 @@ serde = { version = "1.0.136", optional = true, features = ["derive"] }
 xcm-procedural = { path = "procedural" }
 
 [dev-dependencies]
-hex-literal = "0.3.4"
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]

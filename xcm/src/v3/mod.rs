@@ -1335,16 +1335,6 @@ mod tests {
 	};
 
 	#[test]
-	fn message_from_v3_works() {
-		use crate::VersionedXcm;
-		use hex_literal::hex;
-		let message = hex!["0204060202286bee3d010a020052bc71c1eca5353749542dfdf0af97bf764f9c2f44e860cd485f1cd86400f649009e6eb74b0a6b39de36fb58d1fab20bc2b3fea96023ce5a47941c20480d99f92e1b000080f64ae1c7022d15"];
-		let xcm = VersionedXcm::<()>::decode(&mut &message[..]).unwrap();
-		assert_eq!(xcm, VersionedXcm::<()>::V2(OldXcm::<()>(vec![])));
-		panic!();
-	}
-
-	#[test]
 	fn basic_roundtrip_works() {
 		let xcm = Xcm::<()>(vec![TransferAsset {
 			assets: (Here, 1u128).into(),

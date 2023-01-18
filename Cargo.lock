@@ -13555,7 +13555,6 @@ name = "xcm"
 version = "0.9.33"
 dependencies = [
  "derivative",
- "hex-literal",
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
