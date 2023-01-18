@@ -1743,7 +1743,9 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
 		}
 
-		fn disputes() -> Vec<(u32, CandidateHash, DisputeState)> { todo!() }
+		fn disputes() -> Vec<(u32, CandidateHash, DisputeState)> {
+			runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {

@@ -224,7 +224,6 @@ sp_api::decl_runtime_apis! {
 		/***** STAGING *****/
 
 		/// Returns all onchain disputes.
-		#[api_version(3)]
 		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>;
 	}
 }
