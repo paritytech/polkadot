@@ -74,7 +74,7 @@ pub mod fee {
 	/// node's balance type.
 	///
 	/// This should typically create a mapping between the following ranges:
-	///   - [0, `MAXIMUM_BLOCK_WEIGHT`]
+	///   - [0, `BLOCK_WEIGHT_LIMIT`]
 	///   - [Balance::min, Balance::max]
 	///
 	/// Yet, it can be used for any other sort of change to weight-fee. Some examples being:
@@ -105,13 +105,13 @@ mod tests {
 	};
 	use crate::weights::ExtrinsicBaseWeight;
 	use frame_support::weights::WeightToFee as WeightToFeeT;
-	use runtime_common::MAXIMUM_BLOCK_WEIGHT;
+	use runtime_common::BLOCK_WEIGHT_LIMIT;
 
 	#[test]
-	// Test that the fee for `MAXIMUM_BLOCK_WEIGHT` of weight has sane bounds.
+	// Test that the fee for `BLOCK_WEIGHT_LIMIT` of weight has sane bounds.
 	fn full_block_fee_is_correct() {
 		// A full block should cost between 1,000 and 10,000 CENTS.
-		let full_block = WeightToFee::weight_to_fee(&MAXIMUM_BLOCK_WEIGHT);
+		let full_block = WeightToFee::weight_to_fee(&BLOCK_WEIGHT_LIMIT);
 		assert!(full_block >= 1_000 * CENTS);
 		assert!(full_block <= 10_000 * CENTS);
 	}

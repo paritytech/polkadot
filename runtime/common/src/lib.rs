@@ -40,7 +40,7 @@ mod mock;
 use frame_support::{
 	parameter_types,
 	traits::{ConstU32, Currency, OneSessionHandler},
-	weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
+	weights::{constants::WEIGHT_REF_TIME_PER_SECOND, WeightLimit},
 };
 use frame_system::limits;
 use primitives::{AssignmentId, Balance, BlockNumber, ValidatorId};
@@ -70,9 +70,14 @@ pub const AVERAGE_ON_INITIALIZE_RATIO: Perbill = Perbill::from_percent(1);
 /// by  Operational  extrinsics.
 pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 /// We allow for 2 seconds of compute with a 6 second average block time.
-/// The storage proof size is not limited so far.
-pub const MAXIMUM_BLOCK_WEIGHT: Weight =
-	Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_mul(2), u64::MAX);
+/// The storage proof size is not limited since this is the Relay chain config.
+// NOTE: Better not use `saturating` in const context, to avoid ignoring overflows.
+pub const BLOCK_WEIGHT_LIMIT: WeightLimit =
+	WeightLimit::from_time_limit(2 * WEIGHT_REF_TIME_PER_SECOND);
+/// The target Proof size that we aim for. This is not a hard limit and is currently only used to:
+/// - print a warning + emit an event on overflow
+/// - adjust the next block fee
+pub const BLOCK_POV_TARGET: u64 = 5 * 1024 * 1024;
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
 
@@ -117,7 +122,7 @@ macro_rules! impl_runtime_weights {
 		use frame_system::limits;
 		use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 		pub use runtime_common::{
-			impl_elections_weights, AVERAGE_ON_INITIALIZE_RATIO, MAXIMUM_BLOCK_WEIGHT,
+			impl_elections_weights, AVERAGE_ON_INITIALIZE_RATIO, BLOCK_WEIGHT_LIMIT,
 			NORMAL_DISPATCH_RATIO,
 		};
 		use sp_runtime::{FixedPointNumber, Perquintill};
@@ -138,15 +143,22 @@ macro_rules! impl_runtime_weights {
 					weights.base_extrinsic = $runtime::weights::ExtrinsicBaseWeight::get();
 				})
 				.for_class(DispatchClass::Normal, |weights| {
-					weights.max_total = Some(NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT);
+					weights.max_total = BLOCK_WEIGHT_LIMIT.map_limits(|limit| match limit {
+						// This case means that the component (time or proof) is not limited. We keep it that way by mapping to `None`.
+						None => None,
+						// Here we linearly scale the concrete limit down.
+						Some(limit) => Some(NORMAL_DISPATCH_RATIO * limit),
+					});
 				})
 				.for_class(DispatchClass::Operational, |weights| {
-					weights.max_total = Some(MAXIMUM_BLOCK_WEIGHT);
+					weights.max_total = BLOCK_WEIGHT_LIMIT.into();
 					// Operational transactions have an extra reserved space, so that they
-					// are included even if block reached `MAXIMUM_BLOCK_WEIGHT`.
-					weights.reserved = Some(
-						MAXIMUM_BLOCK_WEIGHT - NORMAL_DISPATCH_RATIO * MAXIMUM_BLOCK_WEIGHT,
-					);
+					// are included even if block reached `BLOCK_WEIGHT_LIMIT`.
+					weights.reserved = BLOCK_WEIGHT_LIMIT.map_limits(|limit| match limit {
+						None => None,
+						Some(limit) =>
+						Some(limit - NORMAL_DISPATCH_RATIO * limit),
+					});
 				})
 				.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 				.build_or_panic();
