@@ -1586,16 +1586,25 @@ fn occupied_core_assignment() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(
-					candidate_para,
-					candidate_receipt,
-					_pvd,
+				ProspectiveParachainsMessage::IntroduceCandidate(
+					req,
 					tx,
 				),
-			) if candidate_receipt == candidate && candidate_para == para_id && pvd == _pvd => {
+			) if
+				req.candidate_receipt == candidate
+				&& req.candidate_para == para_id
+				&& pvd == req.persisted_validation_data
+			=> {
 				// Any non-empty response will do.
 				tx.send(vec![(leaf_a_hash, vec![0, 1, 2, 3])]).unwrap();
 			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(
+				ProspectiveParachainsMessage::CandidateSeconded(_, _)
+			)
 		);
 
 		assert_matches!(
