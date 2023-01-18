@@ -39,7 +39,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
 };
 
@@ -570,6 +570,14 @@ async fn run_iteration<Context>(
 				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
 					let _timer = subsystem.metrics.time_process_block_finalized();
 
+					if !subsystem.known_blocks.is_known(&hash) {
+						// If we haven't processed this block yet,
+						// make sure we write the metadata about the
+						// candidates backed in this finalized block.
+						// Otherwise, we won't be able to store our chunk
+						// for these candidates.
+						process_block_activated(ctx, subsystem, hash).await?;
+					}
 					subsystem.finalized_number = Some(number);
 					subsystem.known_blocks.prune_finalized(number);
 					process_block_finalized(

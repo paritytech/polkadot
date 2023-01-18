@@ -20,7 +20,7 @@ pub mod weights;
 
 /// Money matters.
 pub mod currency {
-	use primitives::v2::Balance;
+	use primitives::Balance;
 
 	pub const DOTS: Balance = 1_000_000_000_000;
 	pub const DOLLARS: Balance = DOTS;
@@ -30,7 +30,7 @@ pub mod currency {
 
 /// Time and blocks.
 pub mod time {
-	use primitives::v2::{BlockNumber, Moment};
+	use primitives::{BlockNumber, Moment};
 	// Testnet
 	pub const MILLISECS_PER_BLOCK: Moment = 6000;
 	pub const SLOT_DURATION: Moment = MILLISECS_PER_BLOCK;
@@ -55,7 +55,7 @@ pub mod fee {
 	use frame_support::weights::{
 		WeightToFeeCoefficient, WeightToFeeCoefficients, WeightToFeePolynomial,
 	};
-	use primitives::v2::Balance;
+	use primitives::Balance;
 	use smallvec::smallvec;
 	pub use sp_runtime::Perbill;
 

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem_util::metrics::{prometheus, Metrics as MetricsTrait};
+use polkadot_node_metrics::metrics::{prometheus, Metrics as MetricsTrait};
 
 /// Approval Distribution metrics.
 #[derive(Default, Clone)]

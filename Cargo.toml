@@ -27,7 +27,7 @@ tikv-jemallocator = "0.5.0"
 assert_cmd = "2.0.4"
 nix = "0.24.1"
 tempfile = "3.2.0"
-tokio = "1.22.0"
+tokio = "1.24.1"
 substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
  

@@ -14,6 +14,6 @@ polkadot-node-primitives = { path = "../primitives" }
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.31"
-tokio = "1.22.0"
+tokio = "1.24.1"
 log = "0.4.17"
 parity-scale-codec = { version = "3.1.5", default-features = false }

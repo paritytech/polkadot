@@ -17,7 +17,7 @@
 //! Utilities that don't belong to any particular module but may draw
 //! on all modules.
 
-use primitives::v2::{Id as ParaId, PersistedValidationData, ValidatorIndex};
+use primitives::{Id as ParaId, PersistedValidationData, ValidatorIndex};
 use sp_std::{collections::btree_set::BTreeSet, vec::Vec};
 
 use crate::{configuration, hrmp, paras};
@@ -103,7 +103,7 @@ mod tests {
 	use sp_std::vec::Vec;
 
 	use crate::util::{split_active_subset, take_active_subset};
-	use primitives::v2::ValidatorIndex;
+	use primitives::ValidatorIndex;
 
 	#[test]
 	fn take_active_subset_is_compatible_with_split_active_subset() {
