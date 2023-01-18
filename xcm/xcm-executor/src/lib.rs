@@ -753,6 +753,10 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				ensure!(self.error == error, XcmError::ExpectationFalse);
 				Ok(())
 			},
+			ExpectTransactStatus(transact_status) => {
+				ensure!(self.transact_status == transact_status, XcmError::ExpectationFalse);
+				Ok(())
+			},
 			QueryPallet { module_name, response_info } => {
 				let pallets = Config::PalletInstancesInfo::infos()
 					.into_iter()
