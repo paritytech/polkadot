@@ -86,14 +86,48 @@ impl<T: frame_system::Config> pallet_nis::WeightInfo for WeightInfo<T> {
 	}
 	// Storage: Nis Receipts (r:1 w:1)
 	// Storage: Nis Summary (r:1 w:1)
-	// Storage: NisCounterpartBalances Account (r:1 w:1)
-	// Storage: NisCounterpartBalances TotalIssuance (r:1 w:1)
+	// Storage: System Account (r:1 w:0)
+	// Storage: Balances Reserves (r:1 w:1)
+	fn thaw_private() -> Weight {
+		// Minimum execution time: 84_000 nanoseconds.
+		Weight::from_ref_time(85_000_000)
+			.saturating_add(T::DbWeight::get().reads(4))
+			.saturating_add(T::DbWeight::get().writes(3))
+	}
+	// Storage: Nis Receipts (r:1 w:1)
+	// Storage: Nis Summary (r:1 w:1)
+	// Storage: Assets Asset (r:1 w:1)
+	// Storage: Assets Account (r:1 w:1)
 	// Storage: System Account (r:1 w:1)
-	fn thaw() -> Weight {
-		// Minimum execution time: 59_864 nanoseconds.
-		Weight::from_ref_time(60_602_000)
+	fn thaw_communal() -> Weight {
+		// Minimum execution time: 108_000 nanoseconds.
+		Weight::from_ref_time(115_000_000)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(5))
+	}
+	// Storage: Nis Receipts (r:1 w:1)
+	// Storage: Nis Summary (r:1 w:1)
+	// Storage: System Account (r:1 w:1)
+	// Storage: Assets Asset (r:1 w:1)
+	// Storage: Assets Account (r:1 w:1)
+	// Storage: Balances Reserves (r:1 w:1)
+	fn privatize() -> Weight {
+		// Minimum execution time: 107_000 nanoseconds.
+		Weight::from_ref_time(110_000_000)
+			.saturating_add(T::DbWeight::get().reads(6))
+			.saturating_add(T::DbWeight::get().writes(6))
+	}
+	// Storage: Nis Receipts (r:1 w:1)
+	// Storage: Balances Reserves (r:1 w:1)
+	// Storage: System Account (r:1 w:1)
+	// Storage: Nis Summary (r:1 w:1)
+	// Storage: Assets Asset (r:1 w:1)
+	// Storage: Assets Account (r:1 w:1)
+	fn communify() -> Weight {
+		// Minimum execution time: 89_000 nanoseconds.
+		Weight::from_ref_time(89_000_000)
+			.saturating_add(T::DbWeight::get().reads(6))
+			.saturating_add(T::DbWeight::get().writes(6))
 	}
 	// Storage: Nis Summary (r:1 w:1)
 	// Storage: System Account (r:1 w:0)
