@@ -35,7 +35,7 @@ pub mod v2 {
 	use sp_core::Get;
 
 	#[cfg(feature = "try-runtime")]
-	use primitives::vstaging::ExecutorParams;
+	use primitives::ExecutorParams;
 
 	#[cfg(feature = "try-runtime")]
 	use crate::session_info::Vec;
