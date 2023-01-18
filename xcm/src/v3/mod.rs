@@ -830,7 +830,7 @@ pub enum Instruction<Call> {
 	/// - `ExpectationFalse`: If the value of the Error Register is not equal to the parameter.
 	ExpectError(Option<(u32, Error)>),
 
-	/// Ensure that the Transact StatusError Register equals some given value and throw an error if
+	/// Ensure that the Transact Status Register equals some given value and throw an error if
 	/// not.
 	///
 	/// Kind: *Instruction*
