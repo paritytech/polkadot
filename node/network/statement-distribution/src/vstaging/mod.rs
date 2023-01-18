@@ -36,6 +36,7 @@ use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreState,
 	GroupIndex, Hash, Id as ParaId, PersistedValidationData, SessionIndex, SessionInfo,
 	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
+	IndexedVec,
 };
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -134,7 +135,7 @@ impl PerSessionState {
 		}
 
 		let local_validator =
-			polkadot_node_subsystem_util::signing_key_and_index(&session_info.validators, keystore)
+			polkadot_node_subsystem_util::signing_key_and_index(session_info.validators.iter(), keystore)
 				.await;
 
 		PerSessionState {
@@ -148,7 +149,7 @@ impl PerSessionState {
 
 	fn supply_topology(&mut self, topology: &SessionGridTopology) {
 		let grid_view = grid::build_session_topology(
-			&self.session_info.validator_groups[..],
+			self.session_info.validator_groups.iter(),
 			topology,
 			self.local_validator,
 		);
@@ -436,7 +437,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 
 fn find_local_validator_state(
 	validator_index: ValidatorIndex,
-	validators: &[ValidatorId],
+	validators: &IndexedVec<ValidatorIndex, ValidatorId>,
 	groups: &Groups,
 	availability_cores: &[CoreState],
 ) -> Option<LocalValidatorState> {
@@ -444,7 +445,7 @@ fn find_local_validator_state(
 		return None
 	}
 
-	let validator_id = validators.get(validator_index.0 as usize)?.clone();
+	let validator_id = validators.get(validator_index)?.clone();
 
 	let our_group = groups.by_validator_index(validator_index)?;
 
@@ -804,14 +805,14 @@ fn cluster_sendable_seconded_statement<'a>(
 /// Check a statement signature under this parent hash.
 fn check_statement_signature(
 	session_index: SessionIndex,
-	validators: &[ValidatorId],
+	validators: &IndexedVec<ValidatorIndex, ValidatorId>,
 	relay_parent: Hash,
 	statement: UncheckedSignedStatement,
 ) -> std::result::Result<SignedStatement, UncheckedSignedStatement> {
 	let signing_context = SigningContext { session_index, parent_hash: relay_parent };
 
 	validators
-		.get(statement.unchecked_validator_index().0 as usize)
+		.get(statement.unchecked_validator_index())
 		.ok_or_else(|| statement.clone())
 		.and_then(|v| statement.try_into_checked(&signing_context, v))
 }
@@ -1092,7 +1093,7 @@ fn handle_cluster_statement(
 	// Ensure the statement is correctly signed.
 	let checked_statement = match check_statement_signature(
 		session,
-		&session_info.validators[..],
+		&session_info.validators,
 		relay_parent,
 		statement,
 	) {
@@ -1125,7 +1126,7 @@ fn handle_grid_statement(
 	// Ensure the statement is correctly signed.
 	let checked_statement = match check_statement_signature(
 		session,
-		&per_session.session_info.validators[..],
+		&per_session.session_info.validators,
 		relay_parent,
 		statement,
 	) {

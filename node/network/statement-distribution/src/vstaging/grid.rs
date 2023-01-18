@@ -58,8 +58,8 @@ pub struct SessionTopologyView {
 ///    and send to the corresponding X/Y slice.
 ///    For any validators we don't share a slice with, we receive from the nodes
 ///    which share a slice with them.
-pub fn build_session_topology(
-	groups: &[Vec<ValidatorIndex>],
+pub fn build_session_topology<'a>(
+	groups: impl IntoIterator<Item = &'a Vec<ValidatorIndex>>,
 	topology: &SessionGridTopology,
 	our_index: Option<ValidatorIndex>,
 ) -> SessionTopologyView {

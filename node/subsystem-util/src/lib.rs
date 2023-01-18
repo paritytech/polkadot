@@ -222,7 +222,7 @@ specialize_requests! {
 
 /// From the given set of validators, find the first key we can sign with, if any.
 pub async fn signing_key(
-	validators: &[ValidatorId],
+	validators: impl IntoIterator<Item = &ValidatorId>,
 	keystore: &SyncCryptoStorePtr,
 ) -> Option<ValidatorId> {
 	signing_key_and_index(validators, keystore).await.map(|(k, _)| k)
@@ -231,10 +231,10 @@ pub async fn signing_key(
 /// From the given set of validators, find the first key we can sign with, if any, and return it
 /// along with the validator index.
 pub async fn signing_key_and_index(
-	validators: &[ValidatorId],
+	validators: impl IntoIterator<Item = &ValidatorId>,
 	keystore: &SyncCryptoStorePtr,
 ) -> Option<(ValidatorId, ValidatorIndex)> {
-	for (i, v) in validators.iter().enumerate() {
+	for (i, v) in validators.into_iter().enumerate() {
 		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
 			return Some((v.clone(), ValidatorIndex(i as _)))
 		}
