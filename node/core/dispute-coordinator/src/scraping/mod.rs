@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{collections::BTreeMap, num::NonZeroUsize};
+use std::{collections::BTreeMap, collections::HashSet, num::NonZeroUsize};
 
 use futures::channel::oneshot;
 use lru::LruCache;
@@ -103,10 +103,12 @@ impl Inclusions {
 		}
 	}
 
-	pub fn remove_up_to_height(&mut self, height: &BlockNumber) {
-		for blocks_including in self.inclusions_inner.values_mut() {
-            // Returns everything after the given key, including the key. This works because the blocks are sorted in ascending order.
-			*blocks_including = blocks_including.split_off(height);
+	pub fn remove_up_to_height(&mut self, height: &BlockNumber, candidates_modified: HashSet<CandidateHash>) {
+		for candidate in candidates_modified {
+			if let Some(blocks_including) = self.inclusions_inner.get_mut(&candidate){
+				// Returns everything after the given key, including the key. This works because the blocks are sorted in ascending order.
+				*blocks_including = blocks_including.split_off(height);
+			}
 		}
 		self.inclusions_inner.retain(|_, blocks_including| blocks_including.keys().len() > 0);
 	}
@@ -259,8 +261,8 @@ impl ChainScraper {
 		{
 			Some(key_to_prune) => {
 				self.backed_candidates.remove_up_to_height(&key_to_prune);
-				self.included_candidates.remove_up_to_height(&key_to_prune);
-				self.inclusions.remove_up_to_height(&key_to_prune)
+				let candidates_modified = self.included_candidates.remove_up_to_height(&key_to_prune);
+				self.inclusions.remove_up_to_height(&key_to_prune, candidates_modified);
 			},
 			None => {
 				// Nothing to prune. We are still in the beginning of the chain and there are not
