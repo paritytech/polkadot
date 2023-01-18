@@ -369,6 +369,25 @@ impl GridTracker {
 		}
 	}
 
+	/// Which validators we should request the fully attested candidates from.
+	/// If we already have successfully requested, then this will return an empty
+	/// set.
+	pub fn validators_to_request(
+		&self,
+		candidate_hash: CandidateHash,
+		group_index: GroupIndex,
+	) -> Vec<ValidatorIndex> {
+		let mut validators = Vec::new();
+		if let Some(unconfirmed) = self.unconfirmed.get(&candidate_hash) {
+			for (v, g) in unconfirmed {
+				if g == &group_index {
+					validators.push(*v);
+				}
+			}
+		}
+		validators
+	}
+
 	/// Whether we can acknowledge a remote's advertisement.
 	pub fn can_local_acknowledge(
 		&self,

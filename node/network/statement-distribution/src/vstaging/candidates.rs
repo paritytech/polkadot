@@ -208,6 +208,17 @@ impl Candidates {
 		self.get_confirmed(candidate_hash).map_or(false, |c| c.is_importable(None))
 	}
 
+	/// Note that a candidate is importable in a fragment tree indicated by the given
+	/// leaf hash.
+	pub fn note_importable_under(
+		&mut self,
+		candidate: &HypotheticalCandidate,
+		leaf_hash: Hash,
+	) {
+		// TODO [now]
+		unimplemented!()
+	}
+
 	/// Get all hypothetical candidates which should be tested
 	/// for inclusion in the frontier.
 	///

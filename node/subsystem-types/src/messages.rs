@@ -1012,6 +1012,13 @@ pub enum ProspectiveParachainsMessage {
 	/// Get the hypothetical frontier membership of candidates with the given properties
 	/// under the specified active leaves' fragment trees.
 	///
+	/// Specifically, when provided with a set of hypothetical candidates, which are either
+	/// complete or incomplete, this will return fragment tree memberships for each candidate.
+	///
+	/// These memberships are computed in relation only to what is already within the fragment
+	/// trees and not with respect to all candidates in the set. Therefore, the membership sets
+	/// may be incomplete.
+	///
 	/// For any candidate which is already known, this returns the depths the candidate
 	/// occupies.
 	GetHypotheticalFrontier(
