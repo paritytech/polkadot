@@ -23,6 +23,11 @@
 macro_rules! impl_elections_weights {
 	($runtime:ident) => {
 		parameter_types! {
+			/// The proof size limit that the off-chain solution submission can consume.
+			///
+			/// Since Polkadot does not have a maximal proof size, we hard-code 128 MiB instead of the default `u64::MAX`.
+			pub OffchainSolutionProofSizeLimit: u64 = 128 * 1024 * 1024;
+
 			/// A limit for off-chain phragmen unsigned solution submission.
 			///
 			/// We want to keep it as high as possible, but can't risk having it reject,
@@ -30,8 +35,12 @@ macro_rules! impl_elections_weights {
 			pub OffchainSolutionWeightLimit: Weight = BlockWeights::get()
 				.get(DispatchClass::Normal)
 				.max_extrinsic
-				.expect("Normal extrinsics have weight limit configured by default; qed")
-				.saturating_sub($runtime::weights::BlockExecutionWeight::get());
+				.map_proof_limit(|l|
+					Some(l.map_or(OffchainSolutionProofSizeLimit::get(), |l|
+						l.min(OffchainSolutionProofSizeLimit::get()))))
+				.saturating_sub($runtime::weights::BlockExecutionWeight::get())
+				.exact_limits()
+				.expect("There must be a maximal ref time limit; qed");
 
 			/// A limit for off-chain phragmen unsigned solution length.
 			///
