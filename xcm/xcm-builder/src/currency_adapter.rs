@@ -51,8 +51,8 @@ impl From<Error> for XcmError {
 /// use parity_scale_codec::Decode;
 /// use frame_support::{parameter_types, PalletId};
 /// use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
-/// use xcm::latest::prelude::*;
-/// use xcm_builder::{ParentIsPreset, CurrencyAdapter, IsConcrete};
+/// use xcmsg::latest::prelude::*;
+/// use xcmsg_builder::{ParentIsPreset, CurrencyAdapter, IsConcrete};
 ///
 /// /// Our chain's account id.
 /// type AccountId = sp_runtime::AccountId32;

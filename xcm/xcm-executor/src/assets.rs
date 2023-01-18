@@ -420,8 +420,8 @@ impl Assets {
 	/// Example:
 	///
 	/// ```
-	/// use xcm_executor::Assets;
-	/// use xcm::latest::prelude::*;
+	/// use xcmsg_executor::Assets;
+	/// use xcmsg::latest::prelude::*;
 	/// let assets_i_have: Assets = vec![ (Here, 100).into(), (vec![0], 100).into() ].into();
 	/// let assets_they_want: MultiAssetFilter = vec![ (Here, 200).into(), (vec![0], 50).into() ].into();
 	///

@@ -32,9 +32,9 @@ use xcm_executor::traits::MatchesFungible;
 /// # Example
 ///
 /// ```
-/// use xcm::latest::{MultiLocation, Parent};
-/// use xcm_builder::IsConcrete;
-/// use xcm_executor::traits::MatchesFungible;
+/// use xcmsg::latest::{MultiLocation, Parent};
+/// use xcmsg_builder::IsConcrete;
+/// use xcmsg_executor::traits::MatchesFungible;
 ///
 /// frame_support::parameter_types! {
 /// 	pub TargetLocation: MultiLocation = Parent.into();
@@ -62,9 +62,9 @@ impl<T: Get<MultiLocation>, B: TryFrom<u128>> MatchesFungible<B> for IsConcrete<
 /// # Example
 ///
 /// ```
-/// use xcm::latest::prelude::*;
-/// use xcm_builder::IsAbstract;
-/// use xcm_executor::traits::MatchesFungible;
+/// use xcmsg::latest::prelude::*;
+/// use xcmsg_builder::IsAbstract;
+/// use xcmsg_executor::traits::MatchesFungible;
 ///
 /// frame_support::parameter_types! {
 /// 	pub TargetLocation: &'static [u8] = &[7u8];

@@ -166,9 +166,9 @@ impl<Network: Get<NetworkId>, AccountId: From<[u8; 20]> + Into<[u8; 20]> + Clone
 /// ```
 /// ```rust
 /// # use frame_support::parameter_types;
-/// # use xcm::latest::{MultiLocation, Junction::*, Junctions::{self, *}, NetworkId::Any};
-/// # use xcm_builder::LocationInverter;
-/// # use xcm_executor::traits::InvertLocation;
+/// # use xcmsg::latest::{MultiLocation, Junction::*, Junctions::{self, *}, NetworkId::Any};
+/// # use xcmsg_builder::LocationInverter;
+/// # use xcmsg_executor::traits::InvertLocation;
 /// # fn main() {
 /// parameter_types!{
 ///     pub Ancestry: MultiLocation = X2(
