@@ -1271,7 +1271,7 @@ parameter_types! {
 	pub const MinBid: Balance = 100 * QUID;
 	pub MinReceipt: Perquintill = Perquintill::from_rational(1u64, 10_000_000u64);
 	pub const IntakePeriod: BlockNumber = 5 * MINUTES;
-	pub MaxIntakeWeight: Weight = BLOCK_WEIGHT_LIMIT / 10;
+	pub MaxIntakeWeight: Weight = BLOCK_WEIGHT_LIMIT.limited_or_max() / 10;
 	pub const ThawThrottle: (Perquintill, BlockNumber) = (Perquintill::from_percent(25), 5);
 	pub storage NisTarget: Perquintill = Perquintill::zero();
 	pub const NisPalletId: PalletId = PalletId(*b"py/nis  ");
