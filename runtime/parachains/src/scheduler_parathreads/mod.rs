@@ -103,8 +103,7 @@ impl Default for ParathreadClaimQueue {
 	}
 }
 
-pub struct ParathreadsScheduler;
-impl<T: crate::scheduler::pallet::Config> CoreAssigner<T> for ParathreadsScheduler {
+impl<T: crate::scheduler::pallet::Config> CoreAssigner<T> for Pallet<T> {
 	fn session_core_count() -> u32 {
 		let config = <configuration::Pallet<T>>::config();
 		config.parathread_cores

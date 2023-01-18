@@ -293,10 +293,8 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 }
 
 impl crate::scheduler::Config for Test {
-	type CoreAssigners<T: crate::scheduler::Config> = (
-		crate::scheduler_parachains::ParachainsScheduler,
-		crate::scheduler_parathreads::ParathreadsScheduler,
-	);
+	type CoreAssigners<T: crate::scheduler::Config> =
+		(crate::scheduler_parachains::ParachainsScheduler, crate::scheduler_parathreads::Pallet<T>);
 }
 impl crate::scheduler_parathreads::Config for Test {}
 
