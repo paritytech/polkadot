@@ -819,6 +819,7 @@ mod tests {
 			max_code_size: 1_000_000,
 			ump_remaining: 10,
 			ump_remaining_bytes: 1_000,
+			max_ump_num_per_candidate: 10,
 			dmp_remaining_messages: 10,
 			hrmp_inbound: InboundHrmpLimitations { valid_watermarks },
 			hrmp_channels_out: HashMap::new(),

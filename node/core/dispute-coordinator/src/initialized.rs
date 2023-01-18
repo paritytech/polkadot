@@ -26,8 +26,7 @@ use futures::{
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
-	SignedDisputeStatement, Timestamp, DISPUTE_WINDOW,
+	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -39,7 +38,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
 	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
@@ -48,6 +47,7 @@ use polkadot_primitives::v2::{
 use crate::{
 	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	import::{CandidateEnvironment, CandidateVoteState},
+	is_potential_spam,
 	metrics::Metrics,
 	status::{get_active_with_status, Clock},
 	DisputeCoordinatorSubsystem, LOG_TARGET,
@@ -55,7 +55,7 @@ use crate::{
 
 use super::{
 	backend::Backend,
-	db,
+	db, make_dispute_message,
 	participation::{
 		self, Participation, ParticipationPriority, ParticipationRequest, ParticipationStatement,
 		WorkerMessageReceiver,
@@ -269,8 +269,13 @@ impl Initialized {
 		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
-		let on_chain_votes =
+		let scraped_updates =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
+		log_error(
+			self.participation
+				.bump_to_priority_for_candidates(ctx, &scraped_updates.included_receipts)
+				.await,
+		)?;
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
@@ -299,7 +304,7 @@ impl Initialized {
 
 						self.highest_session = session;
 
-						db::v1::note_current_session(overlay_db, session)?;
+						db::v1::note_earliest_session(overlay_db, new_window_start)?;
 						self.spam_slots.prune_old(new_window_start);
 					}
 				},
@@ -308,7 +313,7 @@ impl Initialized {
 
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
 			// so there is no point in running these in parallel.
-			for votes in on_chain_votes {
+			for votes in scraped_updates.on_chain_votes {
 				let _ = self.process_on_chain_votes(ctx, overlay_db, votes, now).await.map_err(
 					|error| {
 						gum::warn!(
@@ -372,7 +377,7 @@ impl Initialized {
 				.filter_map(|(validator_index, attestation)| {
 					let validator_public: ValidatorId = session_info
 						.validators
-						.get(validator_index.0 as usize)
+						.get(validator_index)
 						.or_else(|| {
 							gum::error!(
 								target: LOG_TARGET,
@@ -391,19 +396,19 @@ impl Initialized {
 							CompactStatement::Valid(_) =>
 								ValidDisputeStatementKind::BackingValid(relay_parent),
 						};
-                    debug_assert!(
-                        SignedDisputeStatement::new_checked(
+					debug_assert!(
+						SignedDisputeStatement::new_checked(
 							DisputeStatement::Valid(valid_statement_kind),
 							candidate_hash,
 							session,
 							validator_public.clone(),
 							validator_signature.clone(),
-                        ).is_ok(),
-                        "Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}",
-                        candidate_hash,
-                        session,
-                        validator_public,
-                    );
+						).is_ok(),
+						"Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}",
+						candidate_hash,
+						session,
+						validator_public,
+					);
 					let signed_dispute_statement =
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
 							DisputeStatement::Valid(valid_statement_kind),
@@ -416,6 +421,8 @@ impl Initialized {
 				})
 				.collect();
 
+			// Importantly, handling import statements for backing votes also
+			// clears spam slots for any newly backed candidates
 			let import_result = self
 				.handle_import_statements(
 					ctx,
@@ -473,7 +480,7 @@ impl Initialized {
 
 					let validator_public: ValidatorId = session_info
 						.validators
-						.get(validator_index.0 as usize)
+						.get(validator_index)
 						.or_else(|| {
 							gum::error!(
 								target: LOG_TARGET,
@@ -485,20 +492,20 @@ impl Initialized {
 						})
 						.cloned()?;
 
-                    debug_assert!(
-                        SignedDisputeStatement::new_checked(
+					debug_assert!(
+						SignedDisputeStatement::new_checked(
 							dispute_statement.clone(),
 							candidate_hash,
 							session,
 							validator_public.clone(),
 							validator_signature.clone(),
-                        ).is_ok(),
-                        "Scraped dispute votes had invalid signature! candidate: {:?}, session: {:?}, dispute_statement: {:?}, validator_public: {:?}",
-                        candidate_hash,
-                        session,
+						).is_ok(),
+						"Scraped dispute votes had invalid signature! candidate: {:?}, session: {:?}, dispute_statement: {:?}, validator_public: {:?}",
+						candidate_hash,
+						session,
 						dispute_statement,
-                        validator_public,
-                    );
+						validator_public,
+					);
 
 					Some((
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
@@ -617,7 +624,9 @@ impl Initialized {
 
 				let _ = tx.send(
 					get_active_with_status(recent_disputes.into_iter(), now)
-						.map(|(k, _)| k)
+						.map(|((session_idx, candidate_hash), dispute_status)| {
+							(session_idx, candidate_hash, dispute_status)
+						})
 						.collect(),
 				);
 			},
@@ -706,25 +715,27 @@ impl Initialized {
 		now: Timestamp,
 	) -> Result<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
-		if session + DISPUTE_WINDOW.get() < self.highest_session {
-			// It is not valid to participate in an ancient dispute (spam?).
+		if !self.rolling_session_window.contains(session) {
+			// It is not valid to participate in an ancient dispute (spam?) or too new.
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
-		let env =
-			match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
-			{
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						session,
-						"We are lacking a `SessionInfo` for handling import of statements."
-					);
+		let env = match CandidateEnvironment::new(
+			&self.keystore,
+			&self.rolling_session_window,
+			session,
+		) {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					session,
+					"We are lacking a `SessionInfo` for handling import of statements."
+				);
 
-					return Ok(ImportStatementsResult::InvalidImport)
-				},
-				Some(env) => env,
-			};
+				return Ok(ImportStatementsResult::InvalidImport)
+			},
+			Some(env) => env,
+		};
 
 		let candidate_hash = candidate_receipt.hash();
 
@@ -748,7 +759,7 @@ impl Initialized {
 			.load_candidate_votes(session, &candidate_hash)?
 			.map(CandidateVotes::from)
 		{
-			Some(votes) => CandidateVoteState::new(votes, &env),
+			Some(votes) => CandidateVoteState::new(votes, &env, now),
 			None =>
 				if let MaybeCandidateReceipt::Provides(candidate_receipt) = candidate_receipt {
 					CandidateVoteState::new_from_receipt(candidate_receipt)
@@ -766,7 +777,7 @@ impl Initialized {
 		gum::trace!(target: LOG_TARGET, ?candidate_hash, ?session, "Loaded votes");
 
 		let import_result = {
-			let intermediate_result = old_state.import_statements(&env, statements);
+			let intermediate_result = old_state.import_statements(&env, statements, now);
 
 			// Handle approval vote import:
 			//
@@ -803,7 +814,14 @@ impl Initialized {
 						);
 						intermediate_result
 					},
-					Ok(votes) => intermediate_result.import_approval_votes(&env, votes),
+					Ok(votes) => {
+						gum::trace!(
+							target: LOG_TARGET,
+							count = votes.len(),
+							"Successfully received approval votes."
+						);
+						intermediate_result.import_approval_votes(&env, votes, now)
+					},
 				}
 			} else {
 				gum::trace!(
@@ -826,12 +844,17 @@ impl Initialized {
 		let new_state = import_result.new_state();
 
 		let is_included = self.scraper.is_candidate_included(&candidate_hash);
-
-		let potential_spam = !is_included && !new_state.is_confirmed() && !new_state.has_own_vote();
+		let is_backed = self.scraper.is_candidate_backed(&candidate_hash);
+		let own_vote_missing = new_state.own_vote_missing();
+		let is_disputed = new_state.is_disputed();
+		let is_confirmed = new_state.is_confirmed();
+		let potential_spam = is_potential_spam(&self.scraper, &new_state, &candidate_hash);
+		// We participate only in disputes which are not potential spam.
+		let allow_participation = !potential_spam;
 
 		gum::trace!(
 			target: LOG_TARGET,
-			has_own_vote = ?new_state.has_own_vote(),
+			?own_vote_missing,
 			?potential_spam,
 			?is_included,
 			?candidate_hash,
@@ -840,8 +863,11 @@ impl Initialized {
 			"Is spam?"
 		);
 
+		// This check is responsible for all clearing of spam slots. It runs
+		// whenever a vote is imported from on or off chain, and decrements
+		// slots whenever a candidate is newly backed, confirmed, or has our
+		// own vote.
 		if !potential_spam {
-			// Former spammers have not been spammers after all:
 			self.spam_slots.clear(&(session, candidate_hash));
 
 		// Potential spam:
@@ -870,11 +896,12 @@ impl Initialized {
 		}
 
 		// Participate in dispute if we did not cast a vote before and actually have keys to cast a
-		// local vote:
-		if !new_state.has_own_vote() &&
-			new_state.is_disputed() &&
-			!env.controlled_indices().is_empty()
-		{
+		// local vote. Disputes should fall in one of the categories below, otherwise we will refrain
+		// from participation:
+		// - `is_included` lands in prioritised queue
+		// - `is_confirmed` | `is_backed` lands in best effort queue
+		// We don't participate in disputes on finalized candidates.
+		if own_vote_missing && is_disputed && allow_participation {
 			let priority = ParticipationPriority::with_priority_if(is_included);
 			gum::trace!(
 				target: LOG_TARGET,
@@ -896,14 +923,29 @@ impl Initialized {
 				)
 				.await;
 			log_error(r)?;
+		} else {
+			gum::trace!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				?is_confirmed,
+				?own_vote_missing,
+				?is_disputed,
+				?allow_participation,
+				?is_included,
+				?is_backed,
+				"Will not queue participation for candidate"
+			);
+
+			if !allow_participation {
+				self.metrics.on_refrained_participation();
+			}
 		}
 
 		// Also send any already existing approval vote on new disputes:
 		if import_result.is_freshly_disputed() {
-			let no_votes = Vec::new();
-			let our_approval_votes = new_state.own_approval_votes().unwrap_or(&no_votes);
+			let our_approval_votes = new_state.own_approval_votes().into_iter().flatten();
 			for (validator_index, sig) in our_approval_votes {
-				let pub_key = match env.validators().get(validator_index.0 as usize) {
+				let pub_key = match env.validators().get(validator_index) {
 					None => {
 						gum::error!(
 							target: LOG_TARGET,
@@ -933,7 +975,7 @@ impl Initialized {
 					env.session_info(),
 					&new_state.votes(),
 					statement,
-					*validator_index,
+					validator_index,
 				) {
 					Err(err) => {
 						gum::error!(
@@ -951,43 +993,34 @@ impl Initialized {
 		}
 
 		// All good, update recent disputes if state has changed:
-		if import_result.dispute_state_changed() {
-			let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
+		if let Some(new_status) = new_state.dispute_status() {
+			// Only bother with db access, if there was an actual change.
+			if import_result.dispute_state_changed() {
+				let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
 
-			let status = recent_disputes.entry((session, candidate_hash)).or_insert_with(|| {
-				gum::info!(
+				let status =
+					recent_disputes.entry((session, candidate_hash)).or_insert_with(|| {
+						gum::info!(
+							target: LOG_TARGET,
+							?candidate_hash,
+							session,
+							"New dispute initiated for candidate.",
+						);
+						DisputeStatus::active()
+					});
+
+				*status = *new_status;
+
+				gum::trace!(
 					target: LOG_TARGET,
 					?candidate_hash,
-					session,
-					"New dispute initiated for candidate.",
+					?status,
+					has_concluded_for = ?new_state.has_concluded_for(),
+					has_concluded_against = ?new_state.has_concluded_against(),
+					"Writing recent disputes with updates for candidate"
 				);
-				DisputeStatus::active()
-			});
-
-			if new_state.is_confirmed() {
-				*status = status.confirm();
+				overlay_db.write_recent_disputes(recent_disputes);
 			}
-
-			// Note: concluded-invalid overwrites concluded-valid,
-			// so we do this check first. Dispute state machine is
-			// non-commutative.
-			if new_state.is_concluded_valid() {
-				*status = status.concluded_for(now);
-			}
-
-			if new_state.is_concluded_invalid() {
-				*status = status.concluded_against(now);
-			}
-
-			gum::trace!(
-				target: LOG_TARGET,
-				?candidate_hash,
-				?status,
-				is_concluded_valid = ?new_state.is_concluded_valid(),
-				is_concluded_invalid = ?new_state.is_concluded_invalid(),
-				"Writing recent disputes with updates for candidate"
-			);
-			overlay_db.write_recent_disputes(recent_disputes);
 		}
 
 		// Update metrics:
@@ -1003,14 +1036,14 @@ impl Initialized {
 			imported_approval_votes = ?import_result.imported_approval_votes(),
 			imported_valid_votes = ?import_result.imported_valid_votes(),
 			imported_invalid_votes = ?import_result.imported_invalid_votes(),
-			total_valid_votes = ?import_result.new_state().votes().valid.len(),
+			total_valid_votes = ?import_result.new_state().votes().valid.raw().len(),
 			total_invalid_votes = ?import_result.new_state().votes().invalid.len(),
 			confirmed = ?import_result.new_state().is_confirmed(),
 			"Import summary"
 		);
 
 		self.metrics.on_approval_votes(import_result.imported_approval_votes());
-		if import_result.is_freshly_concluded_valid() {
+		if import_result.is_freshly_concluded_for() {
 			gum::info!(
 				target: LOG_TARGET,
 				?candidate_hash,
@@ -1019,7 +1052,7 @@ impl Initialized {
 			);
 			self.metrics.on_concluded_valid();
 		}
-		if import_result.is_freshly_concluded_invalid() {
+		if import_result.is_freshly_concluded_against() {
 			gum::info!(
 				target: LOG_TARGET,
 				?candidate_hash,
@@ -1056,27 +1089,29 @@ impl Initialized {
 			"Issuing local statement for candidate!"
 		);
 		// Load environment:
-		let env =
-			match CandidateEnvironment::new(&*self.keystore, &self.rolling_session_window, session)
-			{
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						session,
-						"Missing info for session which has an active dispute",
-					);
+		let env = match CandidateEnvironment::new(
+			&self.keystore,
+			&self.rolling_session_window,
+			session,
+		) {
+			None => {
+				gum::warn!(
+					target: LOG_TARGET,
+					session,
+					"Missing info for session which has an active dispute",
+				);
 
-					return Ok(())
-				},
-				Some(env) => env,
-			};
+				return Ok(())
+			},
+			Some(env) => env,
+		};
 
 		let votes = overlay_db
 			.load_candidate_votes(session, &candidate_hash)?
 			.map(CandidateVotes::from)
 			.unwrap_or_else(|| CandidateVotes {
 				candidate_receipt: candidate_receipt.clone(),
-				valid: BTreeMap::new(),
+				valid: ValidCandidateVotes::new(),
 				invalid: BTreeMap::new(),
 			});
 
@@ -1097,7 +1132,10 @@ impl Initialized {
 				valid,
 				candidate_hash,
 				session,
-				env.validators()[index.0 as usize].clone(),
+				env.validators()
+					.get(*index)
+					.expect("`controlled_indices` are derived from `validators`; qed")
+					.clone(),
 			)
 			.await;
 
@@ -1108,9 +1146,9 @@ impl Initialized {
 				Ok(None) => {},
 				Err(e) => {
 					gum::error!(
-					target: LOG_TARGET,
-					err = ?e,
-					"Encountered keystore error while signing dispute statement",
+						target: LOG_TARGET,
+						err = ?e,
+						"Encountered keystore error while signing dispute statement",
 					);
 				},
 			}
@@ -1207,70 +1245,6 @@ impl MaybeCandidateReceipt {
 			Self::AssumeBackingVotePresent(hash) => *hash,
 		}
 	}
-}
-
-#[derive(Debug, thiserror::Error)]
-enum DisputeMessageCreationError {
-	#[error("There was no opposite vote available")]
-	NoOppositeVote,
-	#[error("Found vote had an invalid validator index that could not be found")]
-	InvalidValidatorIndex,
-	#[error("Statement found in votes had invalid signature.")]
-	InvalidStoredStatement,
-	#[error(transparent)]
-	InvalidStatementCombination(DisputeMessageCheckError),
-}
-
-fn make_dispute_message(
-	info: &SessionInfo,
-	votes: &CandidateVotes,
-	our_vote: SignedDisputeStatement,
-	our_index: ValidatorIndex,
-) -> std::result::Result<DisputeMessage, DisputeMessageCreationError> {
-	let validators = &info.validators;
-
-	let (valid_statement, valid_index, invalid_statement, invalid_index) =
-		if let DisputeStatement::Valid(_) = our_vote.statement() {
-			let (validator_index, (statement_kind, validator_signature)) =
-				votes.invalid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
-			let other_vote = SignedDisputeStatement::new_checked(
-				DisputeStatement::Invalid(*statement_kind),
-				our_vote.candidate_hash().clone(),
-				our_vote.session_index(),
-				validators
-					.get(validator_index.0 as usize)
-					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
-					.clone(),
-				validator_signature.clone(),
-			)
-			.map_err(|()| DisputeMessageCreationError::InvalidStoredStatement)?;
-			(our_vote, our_index, other_vote, *validator_index)
-		} else {
-			let (validator_index, (statement_kind, validator_signature)) =
-				votes.valid.iter().next().ok_or(DisputeMessageCreationError::NoOppositeVote)?;
-			let other_vote = SignedDisputeStatement::new_checked(
-				DisputeStatement::Valid(*statement_kind),
-				our_vote.candidate_hash().clone(),
-				our_vote.session_index(),
-				validators
-					.get(validator_index.0 as usize)
-					.ok_or(DisputeMessageCreationError::InvalidValidatorIndex)?
-					.clone(),
-				validator_signature.clone(),
-			)
-			.map_err(|()| DisputeMessageCreationError::InvalidStoredStatement)?;
-			(other_vote, *validator_index, our_vote, our_index)
-		};
-
-	DisputeMessage::from_signed_statements(
-		valid_statement,
-		valid_index,
-		invalid_statement,
-		invalid_index,
-		votes.candidate_receipt.clone(),
-		info,
-	)
-	.map_err(DisputeMessageCreationError::InvalidStatementCombination)
 }
 
 /// Determine the best block and its block number.

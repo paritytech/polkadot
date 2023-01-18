@@ -1,27 +1,31 @@
 [package]
 name = "xcm"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "The basic XCM datastructures."
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
+derivative = { version = "2.2.0", default-features = false, features = [ "use_core" ] }
 impl-trait-for-tuples = "0.2.2"
-parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive", "max-encoded-len"] }
-scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-derivative = {version = "2.2.0", default-features = false, features = [ "use_core" ] }
 log = { version = "0.4.17", default-features = false }
+parity-scale-codec = { version = "3.1.5", default-features = false, features = [ "derive", "max-encoded-len" ] }
+scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-weights = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+serde = { version = "1.0.136", optional = true, features = ["derive"] }
 xcm-procedural = { path = "procedural" }
+
+[dev-dependencies]
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]
 wasm-api = []
-runtime-benchmarks = [
-	"sp-runtime/runtime-benchmarks",
-]
 std = [
 	"parity-scale-codec/std",
 	"scale-info/std",
-	"sp-runtime/std",
+	"serde",
+	"sp-core/std",
+	"sp-weights/std",
 ]

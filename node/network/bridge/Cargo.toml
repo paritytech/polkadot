@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-network-bridge"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 always-assert = "0.1"
@@ -14,10 +14,10 @@ parity-scale-codec = { version = "3.1.5", default-features = false, features = [
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-node-metrics = { path = "../../metrics"}
+polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-subsystem = {path = "../../subsystem" }
 polkadot-overseer = { path = "../../overseer" }
-polkadot-node-network-protocol = { path = "../protocol" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util"}
 parking_lot = "0.12.0"
 bytes = "1"
 fatality = "0.0.6"
@@ -26,6 +26,7 @@ thiserror = "1"
 [dev-dependencies]
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util"}
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures-timer = "3"

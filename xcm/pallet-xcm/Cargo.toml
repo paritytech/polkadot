@@ -1,8 +1,9 @@
 [package]
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 name = "pallet-xcm"
-version = "0.9.29"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
+
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false, features = ["derive"] }
@@ -10,11 +11,13 @@ scale-info = { version = "2.1.2", default-features = false, features = ["derive"
 serde = { version = "1.0.137", optional = true, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 frame-support = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 frame-system = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false, branch = "master" }
 
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
@@ -22,9 +25,8 @@ xcm-executor = { path = "../xcm-executor", default-features = false }
 [dev-dependencies]
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-runtime-parachains = { path = "../../runtime/parachains" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-xcm-builder = { path = "../xcm-builder" }
 polkadot-parachain = { path = "../../parachain" }
+xcm-builder = { path = "../xcm-builder" }
 
 [features]
 default = ["std"]
@@ -34,13 +36,16 @@ std = [
 	"serde",
 	"sp-std/std",
 	"sp-core/std",
+	"sp-io/std",
 	"sp-runtime/std",
+	"frame-benchmarking?/std",
 	"frame-support/std",
 	"frame-system/std",
 	"xcm/std",
 	"xcm-executor/std",
 ]
 runtime-benchmarks = [
-	"frame-system/runtime-benchmarks"
+	"frame-benchmarking/runtime-benchmarks",
+	"frame-system/runtime-benchmarks",
 ]
 try-runtime = ["frame-support/try-runtime"]

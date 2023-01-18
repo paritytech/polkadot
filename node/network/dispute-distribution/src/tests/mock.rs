@@ -33,7 +33,7 @@ use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_primitives::{DisputeMessage, SignedDisputeStatement};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, SessionInfo,
 	ValidatorId, ValidatorIndex,
 };
@@ -84,7 +84,7 @@ pub static ref MOCK_SESSION_INFO: SessionInfo =
 			.map(|k| MOCK_VALIDATORS_DISCOVERY_KEYS.get(&k).unwrap().clone())
 			.collect(),
 		assignment_keys: vec![],
-		validator_groups: vec![],
+		validator_groups: Default::default(),
 		n_cores: 0,
 		zeroth_delay_tranche_width: 0,
 		relay_vrf_modulo_samples: 0,
@@ -104,9 +104,9 @@ pub static ref MOCK_NEXT_SESSION_INFO: SessionInfo =
 				.iter()
 				.map(|k| MOCK_VALIDATORS_DISCOVERY_KEYS.get(&k).unwrap().clone())
 				.collect(),
-		validators: vec![],
+		validators: Default::default(),
 		assignment_keys: vec![],
-		validator_groups: vec![],
+		validator_groups: Default::default(),
 		n_cores: 0,
 		zeroth_delay_tranche_width: 0,
 		relay_vrf_modulo_samples: 0,
@@ -210,7 +210,7 @@ impl MockAuthorityDiscovery {
 impl AuthorityDiscovery for MockAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
-		_authority: polkadot_primitives::v2::AuthorityDiscoveryId,
+		_authority: polkadot_primitives::AuthorityDiscoveryId,
 	) -> Option<HashSet<sc_network::Multiaddr>> {
 		panic!("Not implemented");
 	}
@@ -218,7 +218,7 @@ impl AuthorityDiscovery for MockAuthorityDiscovery {
 	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: polkadot_node_network_protocol::PeerId,
-	) -> Option<HashSet<polkadot_primitives::v2::AuthorityDiscoveryId>> {
+	) -> Option<HashSet<polkadot_primitives::AuthorityDiscoveryId>> {
 		for (a, p) in self.peer_ids.iter() {
 			if p == &peer_id {
 				let result =

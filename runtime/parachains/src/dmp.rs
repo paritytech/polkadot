@@ -19,7 +19,7 @@ use crate::{
 	initializer,
 };
 use frame_support::pallet_prelude::*;
-use primitives::v2::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
+use primitives::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_runtime::traits::{BlakeTwo256, Hash as HashT, SaturatedConversion};
 use sp_std::{fmt, prelude::*};
 use xcm::latest::SendError;
@@ -28,6 +28,8 @@ pub use pallet::*;
 
 #[cfg(test)]
 mod tests;
+
+pub const MAX_MESSAGE_QUEUE_SIZE: usize = 1024;
 
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
@@ -137,6 +139,28 @@ impl<T: Config> Pallet<T> {
 		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
 	}
 
+	/// Determine whether enqueuing a downward message to a specific recipient para would result
+	/// in an error. If this returns `Ok(())` the caller can be certain that a call to
+	/// `queue_downward_message` with the same parameters will be successful.
+	pub fn can_queue_downward_message(
+		config: &HostConfiguration<T::BlockNumber>,
+		para: &ParaId,
+		msg: &DownwardMessage,
+	) -> Result<(), QueueDownwardMessageError> {
+		let serialized_len = msg.len() as u32;
+		if serialized_len > config.max_downward_message_size {
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+		}
+
+		if <Self as Store>::DownwardMessageQueues::decode_len(para).unwrap_or(0) >
+			MAX_MESSAGE_QUEUE_SIZE
+		{
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+		}
+
+		Ok(())
+	}
+
 	/// Enqueue a downward message to a specific recipient para.
 	///
 	/// When encoded, the message should not exceed the `config.max_downward_message_size`.
@@ -152,6 +176,12 @@ impl<T: Config> Pallet<T> {
 	) -> Result<(), QueueDownwardMessageError> {
 		let serialized_len = msg.len() as u32;
 		if serialized_len > config.max_downward_message_size {
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+		}
+
+		if <Self as Store>::DownwardMessageQueues::decode_len(para).unwrap_or(0) >
+			MAX_MESSAGE_QUEUE_SIZE
+		{
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 

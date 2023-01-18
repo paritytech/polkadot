@@ -22,7 +22,6 @@ build-linux-stable:
     RUN_UI_TESTS: 1
   script:
     - time cargo build --profile testnet --features pyroscope --verbose --bin polkadot
-    - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - VERSION="${CI_COMMIT_REF_NAME}" # will be tag or branch name
@@ -40,24 +39,6 @@ build-linux-stable:
     - echo -n "v${RELEASE_VERSION}" > ./artifacts/BUILD_RELEASE_VERSION
     - cp -r scripts/* ./artifacts
 
-check-transaction-versions:
-  stage:                           build
-  extends:
-    - .docker-env
-    - .test-refs
-  image:                           node:15
-  needs:
-    - job:                         build-linux-stable
-      artifacts:                   true
-  before_script:
-    - apt-get -y update; apt-get -y install jq lsof
-    - npm install --ignore-scripts -g @polkadot/metadata-cmp
-    # Set git config
-    - git config remote.origin.url "https://github.com/paritytech/polkadot.git"
-    - git fetch origin release
-  script:
-    - ./scripts/ci/gitlab/check_extrinsics_ordering.sh
-
 build-test-collators:
   stage:                           build
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
@@ -73,7 +54,6 @@ build-test-collators:
   script:
     - time cargo build --profile testnet --verbose -p test-parachain-adder-collator
     - time cargo build --profile testnet --verbose -p test-parachain-undying-collator
-    - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/adder-collator ./artifacts/.
@@ -98,7 +78,6 @@ build-malus:
     - .collect-artifacts
   script:
     - time cargo build --profile testnet --verbose -p polkadot-test-malus
-    - sccache -s
     # pack artifacts
     - mkdir -p ./artifacts
     - mv ./target/testnet/malus ./artifacts/.
@@ -165,17 +144,18 @@ build-implementers-guide:
     - job:                         test-deterministic-wasm
       artifacts:                   false
   extends:
-    - .docker-env
+    - .kubernetes-env
     - .test-refs
     - .collect-artifacts-short
+  # git depth is set on purpose: https://github.com/paritytech/polkadot/issues/6284
+  variables:
+    GIT_STRATEGY:                  clone
+    GIT_DEPTH:                     0
+    CI_IMAGE:                      paritytech/mdbook-utils:e14aae4a-20221123
   script:
-    - apt-get -y update; apt-get install -y graphviz
-    - cargo install mdbook mdbook-mermaid mdbook-linkcheck mdbook-graphviz
     - mdbook build ./roadmap/implementers-guide
     - mkdir -p artifacts
     - mv roadmap/implementers-guide/book artifacts/
-    # FIXME: remove me after CI image gets nonroot
-    - chown -R nonroot:nonroot artifacts/
 
 build-short-benchmark:
   stage:                           build

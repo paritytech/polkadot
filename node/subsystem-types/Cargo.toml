@@ -1,9 +1,9 @@
 [package]
 name = "polkadot-node-subsystem-types"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 description = "Subsystem traits and message definitions"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 derive_more = "0.99.17"
@@ -13,7 +13,7 @@ polkadot-node-primitives = { path = "../primitives" }
 polkadot-node-network-protocol = { path = "../network/protocol" }
 polkadot-statement-table = { path = "../../statement-table" }
 polkadot-node-jaeger = { path = "../jaeger" }
-orchestra = "0.0.2"
+orchestra = "0.0.4"
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }

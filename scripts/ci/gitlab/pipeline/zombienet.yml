@@ -88,7 +88,7 @@ zombienet-tests-parachains-disputes:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --test="0002-parachains-disputes.zndsl"
-  allow_failure:                   true
+  allow_failure:                   false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
@@ -202,8 +202,7 @@ zombienet-tests-misc-upgrade-node:
     - echo "${PARACHAINS_IMAGE_NAME} ${PARACHAINS_IMAGE_TAG}"
     - echo "${GH_DIR}"
     - export DEBUG=zombie,zombie::network-node
-    - BUILD_RELEASE_VERSION="$(cat ./artifacts/BUILD_RELEASE_VERSION)"
-    - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:${BUILD_RELEASE_VERSION}"
+    - export ZOMBIENET_INTEGRATION_TEST_IMAGE="docker.io/parity/polkadot:latest"
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
     - BUILD_LINUX_JOB_ID="$(cat ./artifacts/BUILD_LINUX_JOB_ID)"
     - export POLKADOT_PR_BIN_URL="https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/${BUILD_LINUX_JOB_ID}/artifacts/raw/artifacts/polkadot"

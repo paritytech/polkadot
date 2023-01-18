@@ -37,7 +37,7 @@
 
 use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
-use primitives::v2::{
+use primitives::{
 	CollatorId, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
 	ParathreadClaim, ParathreadEntry, ScheduledCore, ValidatorIndex,
 };
@@ -489,7 +489,7 @@ impl<T: Config> Pallet<T> {
 					Some(CoreAssignment {
 						kind: AssignmentKind::Parachain,
 						para_id: parachains[core_index],
-						core: core.clone(),
+						core,
 					})
 				} else {
 					// parathread core offset, rel. to beginning.
@@ -498,7 +498,7 @@ impl<T: Config> Pallet<T> {
 					parathread_queue.take_next_on_core(core_offset).map(|entry| CoreAssignment {
 						kind: AssignmentKind::Parathread(entry.claim.1, entry.retries),
 						para_id: entry.claim.0,
-						core: core.clone(),
+						core,
 					})
 				};
 
@@ -608,11 +608,9 @@ impl<T: Config> Pallet<T> {
 			(at - session_start_block) / config.group_rotation_frequency.into();
 
 		let rotations_since_session_start =
-			match <T::BlockNumber as TryInto<u32>>::try_into(rotations_since_session_start) {
-				Ok(i) => i,
-				Err(_) => 0, // can only happen if rotations occur only once every u32::max(),
-				             // so functionally no difference in behavior.
-			};
+			<T::BlockNumber as TryInto<u32>>::try_into(rotations_since_session_start).unwrap_or(0);
+		// Error case can only happen if rotations occur only once every u32::max(),
+		// so functionally no difference in behavior.
 
 		let group_idx =
 			(core.0 as usize + rotations_since_session_start as usize) % validator_groups.len();

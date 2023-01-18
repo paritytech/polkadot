@@ -1,21 +1,20 @@
 [package]
 name = "polkadot-node-core-runtime-api"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
-memory-lru = "0.1.1"
-parity-util-mem = { version = "0.12.0", default-features = false }
+lru = "0.8"
 
 sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-types = { path = "../../subsystem-types" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 [dev-dependencies]
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }

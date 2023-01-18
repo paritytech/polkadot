@@ -30,7 +30,7 @@ use frame_support::{
 };
 use frame_system::limits::BlockWeights;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
+use primitives::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
 
@@ -210,6 +210,7 @@ pub mod pallet {
 		/// Issue a signal to the consensus engine to forcibly act as though all parachain
 		/// blocks in all relay chain blocks up to and including the given number in the current
 		/// chain are valid and should be finalized.
+		#[pallet::call_index(0)]
 		#[pallet::weight((
 			<T as Config>::WeightInfo::force_approve(
 				frame_system::Pallet::<T>::digest().logs.len() as u32,
@@ -247,7 +248,7 @@ impl<T: Config> Pallet<T> {
 
 		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,
-			random_seed.clone(),
+			random_seed,
 			&new_config,
 			all_validators,
 		);

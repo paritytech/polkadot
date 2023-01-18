@@ -42,7 +42,10 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
-use polkadot_node_subsystem_util::inclusion_emulator::staging::{Constraints, RelayChainBlockInfo};
+use polkadot_node_subsystem_util::{
+	inclusion_emulator::staging::{Constraints, RelayChainBlockInfo},
+	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
+};
 use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateHash, CoreState, Hash, Id as ParaId, PersistedValidationData,
 };
@@ -56,18 +59,6 @@ mod error;
 mod fragment_tree;
 
 const LOG_TARGET: &str = "parachain::prospective-parachains";
-
-// The maximum depth the subsystem will allow. 'depth' is defined as the
-// amount of blocks between the para head in a relay-chain block's state
-// and a candidate with a particular relay-parent.
-//
-// This value is chosen mostly for reasons of resource-limitation.
-// Without it, a malicious validator group could create arbitrarily long,
-// useless prospective parachains and DoS honest nodes.
-const MAX_DEPTH: usize = 4;
-
-// The maximum ancestry we support.
-const MAX_ANCESTRY: usize = 5;
 
 struct RelayBlockViewData {
 	// Scheduling info for paras and upcoming paras.
@@ -89,6 +80,13 @@ impl View {
 /// The prospective parachains subsystem.
 #[derive(Default)]
 pub struct ProspectiveParachainsSubsystem;
+
+impl ProspectiveParachainsSubsystem {
+	/// Create a new instance of the `ProspectiveParachainsSubsystem`.
+	pub fn new() -> Self {
+		Self
+	}
+}
 
 #[overseer::subsystem(ProspectiveParachains, error = SubsystemError, prefix = self::overseer)]
 impl<Context> ProspectiveParachainsSubsystem
@@ -169,10 +167,23 @@ async fn handle_active_leaves_update<Context>(
 	}
 
 	for activated in update.activated.into_iter() {
-		// TODO [now]: skip leaves which don't have prospective parachains
-		// enabled. This should be a runtime API version check.
-
 		let hash = activated.hash;
+
+		let mode = prospective_parachains_mode(ctx.sender(), hash)
+			.await
+			.map_err(JfyiError::Runtime)?;
+
+		let ProspectiveParachainsMode::Enabled { max_candidate_depth, allowed_ancestry_len } = mode else {
+			gum::trace!(
+				target: LOG_TARGET,
+				block_hash = ?hash,
+				"Skipping leaf activation since async backing is disabled"
+			);
+
+			// Not a part of any allowed ancestry.
+			return Ok(())
+		};
+
 		let scheduled_paras = fetch_upcoming_paras(&mut *ctx, hash).await?;
 
 		let block_info: RelayChainBlockInfo = match fetch_block_info(&mut *ctx, hash).await? {
@@ -191,7 +202,7 @@ async fn handle_active_leaves_update<Context>(
 			Some(info) => info,
 		};
 
-		let ancestry = fetch_ancestry(&mut *ctx, hash, MAX_ANCESTRY).await?;
+		let ancestry = fetch_ancestry(&mut *ctx, hash, allowed_ancestry_len).await?;
 
 		// Find constraints.
 		let mut fragment_trees = HashMap::new();
@@ -221,7 +232,7 @@ async fn handle_active_leaves_update<Context>(
 				para,
 				block_info.clone(),
 				constraints,
-				MAX_DEPTH,
+				max_candidate_depth,
 				ancestry.iter().cloned(),
 			)
 			.expect("ancestors are provided in reverse order and correctly; qed");
@@ -726,6 +737,10 @@ async fn fetch_ancestry<Context>(
 	relay_hash: Hash,
 	ancestors: usize,
 ) -> JfyiErrorResult<Vec<RelayChainBlockInfo>> {
+	if ancestors == 0 {
+		return Ok(Vec::new())
+	}
+
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(ChainApiMessage::Ancestors {
 		hash: relay_hash,

@@ -47,11 +47,11 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionInfo,
 	ValidatorIndex,
 };
-use test_helpers::{mock::make_ferdie_keystore, SingleItemSink};
+use test_helpers::mock::make_ferdie_keystore;
 
 use super::mock::{make_session_info, OccupiedCoreBuilder};
 use crate::LOG_TARGET;
@@ -295,7 +295,7 @@ impl TestState {
 }
 
 async fn overseer_signal(
-	mut tx: SingleItemSink<FromOrchestra<AvailabilityDistributionMessage>>,
+	mut tx: mpsc::Sender<FromOrchestra<AvailabilityDistributionMessage>>,
 	msg: impl Into<OverseerSignal>,
 ) {
 	let msg = msg.into();

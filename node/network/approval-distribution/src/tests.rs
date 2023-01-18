@@ -29,7 +29,7 @@ use polkadot_node_primitives::approval::{
 use polkadot_node_subsystem::messages::{network_bridge_event, AllMessages, ApprovalCheckError};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, BlakeTwo256, HashT};
+use polkadot_primitives::{AuthorityDiscoveryId, BlakeTwo256, HashT};
 use polkadot_primitives_test_helpers::dummy_signature;
 use rand::SeedableRng;
 use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
@@ -2398,4 +2398,149 @@ fn import_versioned_approval() {
 		);
 		virtual_overseer
 	});
+}
+
+fn batch_test_round(message_count: usize) {
+	use polkadot_node_subsystem::SubsystemContext;
+	let pool = sp_core::testing::TaskExecutor::new();
+	let mut state = State::default();
+
+	let (mut context, mut virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
+	let subsystem = ApprovalDistribution::new(Default::default());
+	let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(12345);
+	let mut sender = context.sender().clone();
+	let subsystem = subsystem.run_inner(context, &mut state, &mut rng);
+
+	let test_fut = async move {
+		let overseer = &mut virtual_overseer;
+		let validators = 0..message_count;
+		let assignments: Vec<_> = validators
+			.clone()
+			.map(|index| (fake_assignment_cert(Hash::zero(), ValidatorIndex(index as u32)), 0))
+			.collect();
+
+		let approvals: Vec<_> = validators
+			.map(|index| IndirectSignedApprovalVote {
+				block_hash: Hash::zero(),
+				candidate_index: 0,
+				validator: ValidatorIndex(index as u32),
+				signature: dummy_signature(),
+			})
+			.collect();
+
+		let peer = PeerId::random();
+		send_assignments_batched(&mut sender, assignments.clone(), peer, ValidationVersion::V1)
+			.await;
+		send_approvals_batched(&mut sender, approvals.clone(), peer, ValidationVersion::V1).await;
+
+		// Check expected assignments batches.
+		for assignment_index in (0..assignments.len()).step_by(super::MAX_ASSIGNMENT_BATCH_SIZE) {
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
+					peers,
+					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
+					))
+				)) => {
+					// Last batch should cover all remaining messages.
+					if sent_assignments.len() < super::MAX_ASSIGNMENT_BATCH_SIZE {
+						assert_eq!(sent_assignments.len() + assignment_index, assignments.len());
+					} else {
+						assert_eq!(sent_assignments.len(), super::MAX_ASSIGNMENT_BATCH_SIZE);
+					}
+
+					assert_eq!(peers.len(), 1);
+
+					for (message_index,  assignment) in sent_assignments.iter().enumerate() {
+						assert_eq!(assignment.0, assignments[assignment_index + message_index].0);
+						assert_eq!(assignment.1, 0);
+					}
+				}
+			);
+		}
+
+		// Check approval vote batching.
+		for approval_index in (0..approvals.len()).step_by(super::MAX_APPROVAL_BATCH_SIZE) {
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
+					peers,
+					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
+					))
+				)) => {
+					// Last batch should cover all remaining messages.
+					if sent_approvals.len() < super::MAX_APPROVAL_BATCH_SIZE {
+						assert_eq!(sent_approvals.len() + approval_index, approvals.len());
+					} else {
+						assert_eq!(sent_approvals.len(), super::MAX_APPROVAL_BATCH_SIZE);
+					}
+
+					assert_eq!(peers.len(), 1);
+
+					for (message_index,  approval) in sent_approvals.iter().enumerate() {
+						assert_eq!(approval, &approvals[approval_index + message_index]);
+					}
+				}
+			);
+		}
+		virtual_overseer
+	};
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(subsystem);
+
+	executor::block_on(future::join(
+		async move {
+			let mut overseer = test_fut.await;
+			overseer
+				.send(FromOrchestra::Signal(OverseerSignal::Conclude))
+				.timeout(TIMEOUT)
+				.await
+				.expect("Conclude send timeout");
+		},
+		subsystem,
+	));
+}
+
+#[test]
+fn batch_sending_1_msg() {
+	batch_test_round(1);
+}
+
+#[test]
+fn batch_sending_exactly_one_batch() {
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE);
+}
+
+#[test]
+fn batch_sending_partial_batch() {
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE * 2 + 4);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE * 2 + 4);
+}
+
+#[test]
+fn batch_sending_multiple_same_len() {
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE * 10);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE * 10);
+}
+
+#[test]
+fn batch_sending_half_batch() {
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE / 2);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE / 2);
+}
+
+#[test]
+#[should_panic]
+fn const_batch_size_panics_if_zero() {
+	crate::ensure_size_not_zero(0);
+}
+
+#[test]
+fn const_ensure_size_not_zero() {
+	crate::ensure_size_not_zero(super::MAX_ASSIGNMENT_BATCH_SIZE);
+	crate::ensure_size_not_zero(super::MAX_APPROVAL_BATCH_SIZE);
 }

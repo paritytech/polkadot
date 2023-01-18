@@ -34,12 +34,12 @@ pub(super) struct GenesisConfigBuilder {
 impl Default for GenesisConfigBuilder {
 	fn default() -> Self {
 		Self {
-			max_upward_message_size: 16,
+			max_upward_message_size: 32,
 			max_upward_message_num_per_candidate: 2,
 			max_upward_queue_count: 4,
 			max_upward_queue_size: 64,
-			ump_service_total_weight: Weight::from_ref_time(1000).set_proof_size(1000),
-			ump_max_individual_weight: Weight::from_ref_time(100).set_proof_size(100),
+			ump_service_total_weight: Weight::from_parts(1000, 1000),
+			ump_max_individual_weight: Weight::from_parts(100, 100),
 		}
 	}
 }
@@ -156,7 +156,7 @@ fn dispatch_resume_after_exceeding_dispatch_stage_weight() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(500).set_proof_size(500),
+			ump_service_total_weight: Weight::from_parts(500, 500),
 			..Default::default()
 		}
 		.build(),
@@ -203,8 +203,8 @@ fn dispatch_keeps_message_after_weight_exhausted() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(500).set_proof_size(500),
-			ump_max_individual_weight: Weight::from_ref_time(300).set_proof_size(300),
+			ump_service_total_weight: Weight::from_parts(500, 500),
+			ump_max_individual_weight: Weight::from_parts(300, 300),
 			..Default::default()
 		}
 		.build(),
@@ -243,7 +243,7 @@ fn dispatch_correctly_handle_remove_of_latest() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(900).set_proof_size(900),
+			ump_service_total_weight: Weight::from_parts(900, 900),
 			..Default::default()
 		}
 		.build(),
@@ -269,7 +269,7 @@ fn verify_relay_dispatch_queue_size_is_externally_accessible() {
 	// keys and is decodable into a (u32, u32).
 
 	use parity_scale_codec::Decode as _;
-	use primitives::v2::well_known_keys;
+	use primitives::well_known_keys;
 
 	let a = ParaId::from(228);
 	let msg = vec![1, 2, 3];
@@ -296,7 +296,7 @@ fn service_overweight_unknown() {
 	// the next test.
 	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 		assert_noop!(
-			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(1000)),
+			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_parts(1000, 1000)),
 			Error::<Test>::UnknownMessageIndex
 		);
 	});
@@ -312,8 +312,8 @@ fn overweight_queue_works() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(900).set_proof_size(900),
-			ump_max_individual_weight: Weight::from_ref_time(300).set_proof_size(300),
+			ump_service_total_weight: Weight::from_parts(900, 900),
+			ump_max_individual_weight: Weight::from_parts(300, 300),
 			..Default::default()
 		}
 		.build(),
@@ -338,7 +338,7 @@ fn overweight_queue_works() {
 				para_a,
 				upward_message_id(&a_msg_3[..]),
 				0,
-				Weight::from_ref_time(500),
+				Weight::from_parts(500, 500),
 			)
 			.into(),
 		);
@@ -346,18 +346,18 @@ fn overweight_queue_works() {
 		// Now verify that if we wanted to service this overweight message with less than enough
 		// weight it will fail.
 		assert_noop!(
-			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(499)),
+			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_parts(499, 499)),
 			Error::<Test>::WeightOverLimit
 		);
 
 		// ... and if we try to service it with just enough weight it will succeed as well.
-		assert_ok!(Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(500)));
-		assert_last_event(Event::OverweightServiced(0, Weight::from_ref_time(500)).into());
+		assert_ok!(Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_parts(500, 500)));
+		assert_last_event(Event::OverweightServiced(0, Weight::from_parts(500, 500)).into());
 
 		// ... and if we try to service a message with index that doesn't exist it will error
 		// out.
 		assert_noop!(
-			Ump::service_overweight(RuntimeOrigin::root(), 1, Weight::from_ref_time(1000)),
+			Ump::service_overweight(RuntimeOrigin::root(), 1, Weight::from_parts(1000, 1000)),
 			Error::<Test>::UnknownMessageIndex
 		);
 	});

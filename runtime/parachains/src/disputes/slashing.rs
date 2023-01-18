@@ -51,7 +51,7 @@ use frame_support::{
 };
 
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
+use primitives::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
 use scale_info::TypeInfo;
 use sp_runtime::{
 	traits::Convert,
@@ -257,7 +257,7 @@ where
 
 		let keys = losers
 			.into_iter()
-			.filter_map(|i| session_info.validators.get(i.0 as usize).cloned().map(|id| (i, id)))
+			.filter_map(|i| session_info.validators.get(i).cloned().map(|id| (i, id)))
 			.collect();
 		let unapplied = PendingSlashes { keys, kind };
 		<UnappliedSlashes<T>>::insert(session_index, candidate_hash, unapplied);
@@ -475,6 +475,7 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::report_dispute_lost(
 			key_owner_proof.validator_count()
 		))]
@@ -487,7 +488,7 @@ pub mod pallet {
 			ensure_none(origin)?;
 
 			// check the membership proof to extract the offender's id
-			let key = (primitives::v2::PARACHAIN_KEY_TYPE_ID, dispute_proof.validator_id.clone());
+			let key = (primitives::PARACHAIN_KEY_TYPE_ID, dispute_proof.validator_id.clone());
 			let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof)
 				.ok_or(Error::<T>::InvalidKeyOwnershipProof)?;
 
@@ -639,7 +640,7 @@ fn is_known_offence<T: Config>(
 	key_owner_proof: &T::KeyOwnerProof,
 ) -> Result<(), TransactionValidityError> {
 	// check the membership proof to extract the offender's id
-	let key = (primitives::v2::PARACHAIN_KEY_TYPE_ID, dispute_proof.validator_id.clone());
+	let key = (primitives::PARACHAIN_KEY_TYPE_ID, dispute_proof.validator_id.clone());
 
 	let offender = T::KeyOwnerProofSystem::check_proof(key, key_owner_proof.clone())
 		.ok_or(InvalidTransaction::BadProof)?;

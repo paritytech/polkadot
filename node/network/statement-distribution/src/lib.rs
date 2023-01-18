@@ -211,7 +211,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					crate::legacy_v1::handle_deactivate_leaf(legacy_v1_state, deactivated);
 				}
 
-				for activated in activated {
+				if let Some(activated) = activated {
 					// TODO [now]: legacy, activate only if no prospective parachains support.
 					crate::legacy_v1::handle_activated_leaf(ctx, legacy_v1_state, activated)
 						.await?;

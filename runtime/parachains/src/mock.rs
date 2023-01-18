@@ -30,7 +30,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
-use primitives::v2::{
+use primitives::{
 	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
 	UpwardMessage, ValidatorIndex,
 };
@@ -83,7 +83,7 @@ parameter_types! {
 	pub const BlockHashCount: u32 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
-			Weight::from_ref_time(4 * 1024 * 1024).set_proof_size(u64::MAX),
+			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
 		);
 }
 
@@ -377,7 +377,7 @@ std::thread_local! {
 	static PROCESSED: RefCell<Vec<(ParaId, UpwardMessage)>> = RefCell::new(vec![]);
 }
 
-/// Return which messages have been processed by `pocess_upward_message` and clear the buffer.
+/// Return which messages have been processed by `process_upward_message` and clear the buffer.
 pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
 	PROCESSED.with(|opt_hook| std::mem::take(&mut *opt_hook.borrow_mut()))
 }
@@ -394,7 +394,7 @@ impl UmpSink for TestUmpSink {
 		max_weight: Weight,
 	) -> Result<Weight, (MessageId, Weight)> {
 		let weight = match u32::decode(&mut &actual_msg[..]) {
-			Ok(w) => Weight::from_ref_time(w as u64),
+			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Ok(Weight::zero()), // same as the real `UmpSink`
 		};
 		if weight.any_gt(max_weight) {

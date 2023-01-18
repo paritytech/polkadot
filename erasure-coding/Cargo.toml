@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-erasure-coding"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 polkadot-primitives = { path = "../primitives" }
@@ -12,3 +12,10 @@ parity-scale-codec = { version = "3.1.5", default-features = false, features = [
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 thiserror = "1.0.31"
+
+[dev-dependencies]
+criterion = { version = "0.4.0", default-features = false, features = ["cargo_bench_support"] }
+
+[[bench]]
+name = "scaling_with_validators"
+harness = false

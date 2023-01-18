@@ -24,7 +24,6 @@ use crate::{
 	worker_common::{IdleWorker, WorkerHandle},
 	InvalidCandidate, ValidationError, LOG_TARGET,
 };
-use async_std::path::PathBuf;
 use futures::{
 	channel::mpsc,
 	future::BoxFuture,
@@ -32,7 +31,7 @@ use futures::{
 	Future, FutureExt,
 };
 use slotmap::HopSlotMap;
-use std::{collections::VecDeque, fmt, time::Duration};
+use std::{collections::VecDeque, fmt, path::PathBuf, time::Duration};
 
 slotmap::new_key_type! { struct Worker; }
 
@@ -224,36 +223,51 @@ fn handle_job_finish(
 	artifact_id: ArtifactId,
 	result_tx: ResultSender,
 ) {
-	let (idle_worker, result) = match outcome {
-		Outcome::Ok { result_descriptor, duration_ms, idle_worker } => {
+	let (idle_worker, result, duration) = match outcome {
+		Outcome::Ok { result_descriptor, duration, idle_worker } => {
 			// TODO: propagate the soft timeout
-			drop(duration_ms);
 
-			(Some(idle_worker), Ok(result_descriptor))
+			(Some(idle_worker), Ok(result_descriptor), Some(duration))
 		},
 		Outcome::InvalidCandidate { err, idle_worker } => (
 			Some(idle_worker),
 			Err(ValidationError::InvalidCandidate(InvalidCandidate::WorkerReportedError(err))),
+			None,
 		),
 		Outcome::InternalError { err, idle_worker } =>
-			(Some(idle_worker), Err(ValidationError::InternalError(err))),
+			(Some(idle_worker), Err(ValidationError::InternalError(err)), None),
 		Outcome::HardTimeout =>
-			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout))),
-		Outcome::IoErr =>
-			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath))),
+			(None, Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)), None),
+		Outcome::IoErr => (
+			None,
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)),
+			None,
+		),
 	};
 
 	queue.metrics.execute_finished();
-	gum::debug!(
-		target: LOG_TARGET,
-		validation_code_hash = ?artifact_id.code_hash,
-		worker_rip = idle_worker.is_none(),
-		?result,
-		"job finished.",
-	);
+	if let Err(ref err) = result {
+		gum::warn!(
+			target: LOG_TARGET,
+			?artifact_id,
+			?worker,
+			worker_rip = idle_worker.is_none(),
+			"execution worker concluded, error occurred: {:?}",
+			err
+		);
+	} else {
+		gum::debug!(
+			target: LOG_TARGET,
+			?artifact_id,
+			?worker,
+			worker_rip = idle_worker.is_none(),
+			?duration,
+			"execute worker concluded successfully",
+		);
+	}
 
-	// First we send the result. It may fail due the other end of the channel being dropped, that's
-	// legitimate and we don't treat that as an error.
+	// First we send the result. It may fail due to the other end of the channel being dropped,
+	// that's legitimate and we don't treat that as an error.
 	let _ = result_tx.send(result);
 
 	// Then, we should deal with the worker:
@@ -305,7 +319,7 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Qu
 			Err(err) => {
 				gum::warn!(target: LOG_TARGET, "failed to spawn an execute worker: {:?}", err);
 
-				// Assume that the failure intermittent and retry after a delay.
+				// Assume that the failure is intermittent and retry after a delay.
 				Delay::new(Duration::from_secs(3)).await;
 			},
 		}

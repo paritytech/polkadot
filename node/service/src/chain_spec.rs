@@ -25,7 +25,7 @@ use kusama_runtime as kusama;
 use kusama_runtime_constants::currency::UNITS as KSM;
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_staking::Forcing;
-use polkadot_primitives::v2::{AccountId, AccountPublic, AssignmentId, ValidatorId};
+use polkadot_primitives::{AccountId, AccountPublic, AssignmentId, ValidatorId};
 #[cfg(feature = "polkadot-native")]
 use polkadot_runtime as polkadot;
 #[cfg(feature = "polkadot-native")]
@@ -67,9 +67,9 @@ const DEFAULT_PROTOCOL_ID: &str = "dot";
 #[serde(rename_all = "camelCase")]
 pub struct Extensions {
 	/// Block numbers with known hashes.
-	pub fork_blocks: sc_client_api::ForkBlocks<polkadot_primitives::v2::Block>,
+	pub fork_blocks: sc_client_api::ForkBlocks<polkadot_primitives::Block>,
 	/// Known bad block hashes.
-	pub bad_blocks: sc_client_api::BadBlocks<polkadot_primitives::v2::Block>,
+	pub bad_blocks: sc_client_api::BadBlocks<polkadot_primitives::Block>,
 	/// The light sync state.
 	///
 	/// This value will be set by the `sync-state rpc` implementation.
@@ -172,10 +172,9 @@ pub fn wococo_config() -> Result<RococoChainSpec, String> {
 	feature = "polkadot-native"
 ))]
 fn default_parachains_host_configuration(
-) -> polkadot_runtime_parachains::configuration::HostConfiguration<
-	polkadot_primitives::v2::BlockNumber,
-> {
-	use polkadot_primitives::v2::{MAX_CODE_SIZE, MAX_POV_SIZE};
+) -> polkadot_runtime_parachains::configuration::HostConfiguration<polkadot_primitives::BlockNumber>
+{
+	use polkadot_primitives::{MAX_CODE_SIZE, MAX_POV_SIZE};
 
 	polkadot_runtime_parachains::configuration::HostConfiguration {
 		validation_upgrade_cooldown: 2u32,
@@ -190,8 +189,7 @@ fn default_parachains_host_configuration(
 		max_upward_queue_count: 8,
 		max_upward_queue_size: 1024 * 1024,
 		max_downward_message_size: 1024 * 1024,
-		ump_service_total_weight: Weight::from_ref_time(100_000_000_000)
-			.set_proof_size(MAX_POV_SIZE as u64),
+		ump_service_total_weight: Weight::from_parts(100_000_000_000, MAX_POV_SIZE as u64),
 		max_upward_message_size: 50 * 1024,
 		max_upward_message_num_per_candidate: 5,
 		hrmp_sender_deposit: 0,
@@ -570,7 +568,7 @@ fn westend_staging_testnet_config_genesis(wasm_binary: &[u8]) -> westend::Genesi
 		},
 		paras: Default::default(),
 		registrar: westend_runtime::RegistrarConfig {
-			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
+			next_free_para_id: polkadot_primitives::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
@@ -767,10 +765,10 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 		configuration: kusama::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
-		gilt: Default::default(),
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		nis_counterpart_balances: Default::default(),
 	}
 }
 
@@ -1073,11 +1071,11 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 		configuration: rococo_runtime::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
-		gilt: Default::default(),
 		registrar: rococo_runtime::RegistrarConfig {
-			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
+			next_free_para_id: polkadot_primitives::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
+		nis_counterpart_balances: Default::default(),
 	}
 }
 
@@ -1466,10 +1464,10 @@ pub fn kusama_testnet_genesis(
 		configuration: kusama::ConfigurationConfig {
 			config: default_parachains_host_configuration(),
 		},
-		gilt: Default::default(),
 		paras: Default::default(),
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
+		nis_counterpart_balances: Default::default(),
 	}
 }
 
@@ -1547,7 +1545,7 @@ pub fn westend_testnet_genesis(
 		},
 		paras: Default::default(),
 		registrar: westend_runtime::RegistrarConfig {
-			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
+			next_free_para_id: polkadot_primitives::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
 		nomination_pools: Default::default(),
@@ -1629,12 +1627,12 @@ pub fn rococo_testnet_genesis(
 				..default_parachains_host_configuration()
 			},
 		},
-		gilt: Default::default(),
 		paras: rococo_runtime::ParasConfig { paras: vec![] },
 		registrar: rococo_runtime::RegistrarConfig {
-			next_free_para_id: polkadot_primitives::v2::LOWEST_PUBLIC_ID,
+			next_free_para_id: polkadot_primitives::LOWEST_PUBLIC_ID,
 		},
 		xcm_pallet: Default::default(),
+		nis_counterpart_balances: Default::default(),
 	}
 }
 

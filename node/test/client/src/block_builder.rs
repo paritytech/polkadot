@@ -16,7 +16,7 @@
 
 use crate::{Client, FullBackend};
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::v2::{Block, InherentData as ParachainsInherentData};
+use polkadot_primitives::{Block, InherentData as ParachainsInherentData};
 use polkadot_test_runtime::{GetLastTimestamp, UncheckedExtrinsic};
 use sc_block_builder::{BlockBuilder, BlockBuilderProvider};
 use sp_api::ProvideRuntimeApi;
@@ -24,7 +24,7 @@ use sp_consensus_babe::{
 	digests::{PreDigest, SecondaryPlainPreDigest},
 	BABE_ENGINE_ID,
 };
-use sp_runtime::{generic::BlockId, Digest, DigestItem};
+use sp_runtime::{generic::BlockId, traits::Block as BlockT, Digest, DigestItem};
 use sp_state_machine::BasicExternalities;
 
 /// An extension for the test client to initialize a Polkadot specific block builder.
@@ -42,20 +42,21 @@ pub trait InitPolkadotBlockBuilder {
 	/// which should be the parent block of the block that is being build.
 	fn init_polkadot_block_builder_at(
 		&self,
-		at: &BlockId<Block>,
+		hash: <Block as BlockT>::Hash,
 	) -> sc_block_builder::BlockBuilder<Block, Client, FullBackend>;
 }
 
 impl InitPolkadotBlockBuilder for Client {
 	fn init_polkadot_block_builder(&self) -> BlockBuilder<Block, Client, FullBackend> {
 		let chain_info = self.chain_info();
-		self.init_polkadot_block_builder_at(&BlockId::Hash(chain_info.best_hash))
+		self.init_polkadot_block_builder_at(chain_info.best_hash)
 	}
 
 	fn init_polkadot_block_builder_at(
 		&self,
-		at: &BlockId<Block>,
+		hash: <Block as BlockT>::Hash,
 	) -> BlockBuilder<Block, Client, FullBackend> {
+		let at = BlockId::Hash(hash);
 		let last_timestamp =
 			self.runtime_api().get_last_timestamp(&at).expect("Get last timestamp");
 
@@ -87,7 +88,7 @@ impl InitPolkadotBlockBuilder for Client {
 		};
 
 		let mut block_builder = self
-			.new_block_at(at, digest, false)
+			.new_block_at(&at, digest, false)
 			.expect("Creates new block builder for test runtime");
 
 		let mut inherent_data = sp_inherents::InherentData::new();
@@ -97,7 +98,7 @@ impl InitPolkadotBlockBuilder for Client {
 			.expect("Put timestamp inherent data");
 
 		let parent_header = self
-			.header(at)
+			.header(hash)
 			.expect("Get the parent block header")
 			.expect("The target block header must exist");
 
@@ -110,7 +111,7 @@ impl InitPolkadotBlockBuilder for Client {
 
 		inherent_data
 			.put_data(
-				polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER,
+				polkadot_primitives::PARACHAINS_INHERENT_IDENTIFIER,
 				&parachains_inherent_data,
 			)
 			.expect("Put parachains inherent data");

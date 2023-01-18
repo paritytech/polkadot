@@ -24,7 +24,7 @@ use polkadot_node_subsystem::{
 	FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::database::Database;
-use polkadot_primitives::v2::{BlockNumber, ConsensusLog, Hash, Header};
+use polkadot_primitives::{BlockNumber, ConsensusLog, Hash, Header};
 
 use futures::{channel::oneshot, future::Either, prelude::*};
 use parity_scale_codec::Error as CodecError;
@@ -381,6 +381,7 @@ async fn run<Context, B>(
 ) where
 	B: Backend,
 {
+	#![allow(clippy::all)]
 	loop {
 		let res = run_until_error(
 			&mut ctx,
@@ -430,7 +431,7 @@ where
 						return Ok(())
 					}
 					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
-						for leaf in update.activated {
+						if let Some(leaf) = update.activated {
 							let write_ops = handle_active_leaf(
 								ctx.sender(),
 								&*backend,

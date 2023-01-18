@@ -24,15 +24,18 @@ use thiserror::Error;
 use parity_scale_codec::{Decode, Encode};
 
 use super::{InvalidDisputeVote, SignedDisputeStatement, ValidDisputeVote};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidatorIndex,
 };
 
-/// A dispute initiating/participating message that is guaranteed to have been built from signed
+/// A dispute initiating/participating message that have been built from signed
 /// statements.
 ///
 /// And most likely has been constructed correctly. This is used with
 /// `DisputeDistributionMessage::SendDispute` for sending out votes.
+///
+/// NOTE: This is sent over the wire, any changes are a change in protocol and need to be
+/// versioned.
 #[derive(Debug, Clone)]
 pub struct DisputeMessage(UncheckedDisputeMessage);
 
@@ -135,11 +138,11 @@ impl DisputeMessage {
 
 		let valid_id = session_info
 			.validators
-			.get(valid_index.0 as usize)
+			.get(valid_index)
 			.ok_or(Error::ValidStatementInvalidValidatorIndex)?;
 		let invalid_id = session_info
 			.validators
-			.get(invalid_index.0 as usize)
+			.get(invalid_index)
 			.ok_or(Error::InvalidStatementInvalidValidatorIndex)?;
 
 		if valid_id != valid_statement.validator_public() {
@@ -167,13 +170,13 @@ impl DisputeMessage {
 		let valid_vote = ValidDisputeVote {
 			validator_index: valid_index,
 			signature: valid_statement.validator_signature().clone(),
-			kind: valid_kind.clone(),
+			kind: *valid_kind,
 		};
 
 		let invalid_vote = InvalidDisputeVote {
 			validator_index: invalid_index,
 			signature: invalid_statement.validator_signature().clone(),
-			kind: invalid_kind.clone(),
+			kind: *invalid_kind,
 		};
 
 		Ok(DisputeMessage(UncheckedDisputeMessage {
@@ -223,8 +226,7 @@ impl UncheckedDisputeMessage {
 
 		let vote_valid = {
 			let ValidDisputeVote { validator_index, signature, kind } = valid_vote;
-			let validator_public =
-				session_info.validators.get(validator_index.0 as usize).ok_or(())?.clone();
+			let validator_public = session_info.validators.get(validator_index).ok_or(())?.clone();
 
 			(
 				SignedDisputeStatement::new_checked(
@@ -240,8 +242,7 @@ impl UncheckedDisputeMessage {
 
 		let vote_invalid = {
 			let InvalidDisputeVote { validator_index, signature, kind } = invalid_vote;
-			let validator_public =
-				session_info.validators.get(validator_index.0 as usize).ok_or(())?.clone();
+			let validator_public = session_info.validators.get(validator_index).ok_or(())?.clone();
 
 			(
 				SignedDisputeStatement::new_checked(

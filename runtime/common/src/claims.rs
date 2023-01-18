@@ -23,7 +23,7 @@ use frame_support::{
 };
 pub use pallet::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::ValidityError;
+use primitives::ValidityError;
 use scale_info::TypeInfo;
 #[cfg(feature = "std")]
 use serde::{self, Deserialize, Deserializer, Serialize, Serializer};
@@ -247,12 +247,9 @@ pub mod pallet {
 	impl<T: Config> GenesisBuild<T> for GenesisConfig<T> {
 		fn build(&self) {
 			// build `Claims`
-			self.claims
-				.iter()
-				.map(|(a, b, _, _)| (a.clone(), b.clone()))
-				.for_each(|(a, b)| {
-					Claims::<T>::insert(a, b);
-				});
+			self.claims.iter().map(|(a, b, _, _)| (*a, *b)).for_each(|(a, b)| {
+				Claims::<T>::insert(a, b);
+			});
 			// build `Total`
 			Total::<T>::put(
 				self.claims
@@ -266,17 +263,16 @@ pub mod pallet {
 			// build `Signing`
 			self.claims
 				.iter()
-				.filter_map(|(a, _, _, s)| Some((a.clone(), s.clone()?)))
+				.filter_map(|(a, _, _, s)| Some((*a, (*s)?)))
 				.for_each(|(a, s)| {
 					Signing::<T>::insert(a, s);
 				});
 			// build `Preclaims`
-			self.claims
-				.iter()
-				.filter_map(|(a, _, i, _)| Some((i.clone()?, a.clone())))
-				.for_each(|(i, a)| {
+			self.claims.iter().filter_map(|(a, _, i, _)| Some((i.clone()?, *a))).for_each(
+				|(i, a)| {
 					Preclaims::<T>::insert(i, a);
-				});
+				},
+			);
 		}
 	}
 
@@ -309,6 +305,7 @@ pub mod pallet {
 		///
 		/// Total Complexity: O(1)
 		/// </weight>
+		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::claim())]
 		pub fn claim(
 			origin: OriginFor<T>,
@@ -341,6 +338,7 @@ pub mod pallet {
 		///
 		/// Total Complexity: O(1)
 		/// </weight>
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::mint_claim())]
 		pub fn mint_claim(
 			origin: OriginFor<T>,
@@ -388,6 +386,7 @@ pub mod pallet {
 		///
 		/// Total Complexity: O(1)
 		/// </weight>
+		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::claim_attest())]
 		pub fn claim_attest(
 			origin: OriginFor<T>,
@@ -424,6 +423,7 @@ pub mod pallet {
 		///
 		/// Total Complexity: O(1)
 		/// </weight>
+		#[pallet::call_index(3)]
 		#[pallet::weight((
 			T::WeightInfo::attest(),
 			DispatchClass::Normal,
@@ -440,6 +440,7 @@ pub mod pallet {
 			Ok(())
 		}
 
+		#[pallet::call_index(4)]
 		#[pallet::weight(T::WeightInfo::move_claim())]
 		pub fn move_claim(
 			origin: OriginFor<T>,
@@ -538,7 +539,7 @@ impl<T: Config> Pallet<T> {
 		}
 		let mut v = b"\x19Ethereum Signed Message:\n".to_vec();
 		v.extend(rev.into_iter().rev());
-		v.extend_from_slice(&prefix[..]);
+		v.extend_from_slice(prefix);
 		v.extend_from_slice(what);
 		v.extend_from_slice(extra);
 		v
@@ -645,7 +646,7 @@ where
 		info: &DispatchInfoOf<Self::Call>,
 		len: usize,
 	) -> Result<Self::Pre, TransactionValidityError> {
-		Ok(self.validate(who, call, info, len).map(|_| ())?)
+		self.validate(who, call, info, len).map(|_| ())
 	}
 
 	// <weight>

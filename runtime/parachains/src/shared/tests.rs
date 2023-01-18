@@ -20,9 +20,37 @@ use crate::{
 	mock::{new_test_ext, MockGenesisConfig, ParasShared},
 };
 use keyring::Sr25519Keyring;
+use primitives::v2::Hash;
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
+}
+
+#[test]
+fn tracker_earliest_block_number() {
+	let mut tracker = AllowedRelayParentsTracker::default();
+
+	// Test it on an empty tracker.
+	let now: u32 = 1;
+	let max_ancestry_len = 5;
+	assert_eq!(tracker.hypothetical_earliest_block_number(now, max_ancestry_len), now);
+
+	// Push a single block into the tracker, suppose max capacity is 1.
+	let max_ancestry_len = 0;
+	tracker.update(Hash::zero(), Hash::zero(), 0, max_ancestry_len);
+	assert_eq!(tracker.hypothetical_earliest_block_number(now, max_ancestry_len), now);
+
+	// Test a greater capacity.
+	let max_ancestry_len = 4;
+	let now = 4;
+	for i in 1..now {
+		tracker.update(Hash::zero(), Hash::zero(), i, max_ancestry_len);
+		assert_eq!(tracker.hypothetical_earliest_block_number(i + 1, max_ancestry_len), 0);
+	}
+
+	// Capacity exceeded.
+	tracker.update(Hash::zero(), Hash::zero(), now, max_ancestry_len);
+	assert_eq!(tracker.hypothetical_earliest_block_number(now + 1, max_ancestry_len), 1);
 }
 
 #[test]
