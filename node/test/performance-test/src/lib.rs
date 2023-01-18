@@ -18,7 +18,7 @@
 
 use polkadot_erasure_coding::{obtain_chunks, reconstruct};
 use polkadot_node_core_pvf::{sc_executor_common, sp_maybe_compressed_blob};
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::ExecutorParams;
 use std::time::{Duration, Instant};
 
 mod constants;

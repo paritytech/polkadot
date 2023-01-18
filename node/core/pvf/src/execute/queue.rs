@@ -31,7 +31,7 @@ use futures::{
 	Future, FutureExt,
 };
 use polkadot_node_primitives::BACKING_EXECUTION_TIMEOUT;
-use polkadot_primitives::vstaging::{ExecutorParams, ExecutorParamsHash};
+use polkadot_primitives::{ExecutorParams, ExecutorParamsHash};
 use slotmap::HopSlotMap;
 use std::{
 	collections::VecDeque,

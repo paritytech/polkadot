@@ -28,8 +28,8 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
-	vstaging::ExecutorParams, BlockNumber, Hash, PvfCheckStatement, SessionIndex,
-	ValidationCodeHash, ValidatorId, ValidatorIndex,
+	BlockNumber, ExecutorParams, Hash, PvfCheckStatement, SessionIndex, ValidationCodeHash,
+	ValidatorId, ValidatorIndex,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use std::collections::HashSet;

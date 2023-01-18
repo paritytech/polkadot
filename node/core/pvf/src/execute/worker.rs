@@ -30,7 +30,7 @@ use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 
 use polkadot_parachain::primitives::ValidationResult;
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::ExecutorParams;
 use std::{
 	path::{Path, PathBuf},
 	sync::{mpsc::channel, Arc},

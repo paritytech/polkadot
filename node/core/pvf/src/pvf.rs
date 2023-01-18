@@ -16,7 +16,7 @@
 
 use crate::artifacts::ArtifactId;
 use polkadot_parachain::primitives::ValidationCodeHash;
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::ExecutorParams;
 use sp_core::blake2_256;
 use std::{fmt, sync::Arc};
 

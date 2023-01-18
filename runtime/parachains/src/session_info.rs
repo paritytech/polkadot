@@ -28,9 +28,8 @@ use frame_support::{
 	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
 };
 use primitives::{
-	v3::SessionInfo,
-	vstaging::{ExecutorParam, ExecutorParams},
-	AssignmentId, AuthorityDiscoveryId, SessionIndex,
+	v3::SessionInfo, AssignmentId, AuthorityDiscoveryId, ExecutorParam, ExecutorParams,
+	SessionIndex,
 };
 use sp_std::vec::Vec;
 

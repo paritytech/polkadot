@@ -49,10 +49,9 @@ use polkadot_node_subsystem_util::{
 	request_validators, runtime::RuntimeInfo, Validator,
 };
 use polkadot_primitives::{
-	vstaging::ExecutorParams, BackedCandidate, CandidateCommitments, CandidateHash,
-	CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreIndex, CoreState, Hash,
-	Id as ParaId, SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature,
-	ValidityAttestation,
+	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
+	CommittedCandidateReceipt, CoreIndex, CoreState, ExecutorParams, Hash, Id as ParaId,
+	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{

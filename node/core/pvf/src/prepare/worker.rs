@@ -27,7 +27,7 @@ use crate::{
 use cpu_time::ProcessTime;
 use futures::{pin_mut, select_biased, FutureExt};
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::ExecutorParams;
 use sp_core::hexdisplay::HexDisplay;
 use std::{
 	panic,

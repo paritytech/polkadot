@@ -39,9 +39,9 @@ use polkadot_node_primitives::{
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::{
-	v3::SessionInfo, vstaging::ExecutorParams, AuthorityDiscoveryId, BackedCandidate, BlockNumber,
-	CandidateEvent, CandidateHash, CandidateIndex, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupIndex, GroupRotationInfo, Hash,
+	v3::SessionInfo, AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent,
+	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
+	CoreState, DisputeState, ExecutorParams, GroupIndex, GroupRotationInfo, Hash,
 	Header as BlockHeader, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
 	MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
 	SessionIndex, SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,

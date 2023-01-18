@@ -19,7 +19,7 @@
 //! N.B. This is not guarded with some feature flag. Overexposing items here may affect the final
 //!      artifact even for production builds.
 
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::ExecutorParams;
 
 pub mod worker_common {
 	pub use crate::worker_common::{spawn_with_program_path, SpawnErr};

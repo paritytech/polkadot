@@ -16,7 +16,10 @@
 
 //! `V3` Primitives.
 
-use crate::{v2, vstaging::ExecutorParams};
+pub mod executor_params;
+
+use crate::v2;
+use executor_params::ExecutorParams;
 
 use bitvec::vec::BitVec;
 use parity_scale_codec::{Decode, Encode};

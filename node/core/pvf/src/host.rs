@@ -33,7 +33,7 @@ use futures::{
 	Future, FutureExt, SinkExt, StreamExt,
 };
 use polkadot_parachain::primitives::ValidationResult;
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::ExecutorParams;
 use std::{
 	collections::HashMap,
 	path::{Path, PathBuf},
