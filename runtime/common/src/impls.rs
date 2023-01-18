@@ -138,7 +138,7 @@ mod tests {
 				weight.base_extrinsic = Weight::from_ref_time(100);
 			})
 			.for_class(DispatchClass::non_mandatory(), |weight| {
-				weight.max_total = Some(Weight::from_parts(1024, u64::MAX));
+				weight.max_total = WeightLimit::from_time_limit(1024);
 			})
 			.build_or_panic();
 		pub BlockLength: limits::BlockLength = limits::BlockLength::max(2 * 1024);

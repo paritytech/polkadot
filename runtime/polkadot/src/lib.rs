@@ -2306,6 +2306,26 @@ mod test {
 			If the limit is too strong, maybe consider increase the limit",
 		);
 	}
+
+	#[test]
+	fn block_limit_correct() {
+		// FAIL-CI also put this into Kusama et al
+		for class in DispatchClass::all() {
+			assert!(
+				BlockWeights::get().get(*class).max_extrinsic.is_proof_unlimited(),
+				"Dispatch class should not have a PoV limit"
+			);
+			assert!(
+				BlockWeights::get().get(*class).max_total.is_proof_unlimited(),
+				"Dispatch class should not have a PoV limit"
+			);
+
+			assert_eq!(
+				BlockWeights::get().max_block,
+				Weight::from_parts(2_000_000_000_000, u64::MAX)
+			);
+		}
+	}
 }
 
 #[cfg(test)]
@@ -2334,7 +2354,7 @@ mod multiplier_tests {
 	fn multiplier_can_grow_from_zero() {
 		let minimum_multiplier = MinimumMultiplier::get();
 		let target = TargetBlockFullness::get() *
-			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+			BlockWeights::get().get(DispatchClass::Normal).max_total.limited_or_max();
 		// if the min is too small, then this will not change, and we are doomed forever.
 		// the weight is 1/100th bigger than target.
 		run_with_system_weight(target.saturating_mul(101) / 100, || {
@@ -2349,7 +2369,8 @@ mod multiplier_tests {
 		// assume the multiplier is initially set to its minimum. We update it with values twice the
 		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
 		let mut multiplier = MinimumMultiplier::get();
-		let block_weight = BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		let block_weight =
+			BlockWeights::get().get(DispatchClass::Normal).max_total.exact_limits().unwrap();
 		let mut blocks = 0;
 		let mut fees_paid = 0;
 
