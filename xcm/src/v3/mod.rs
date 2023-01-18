@@ -1097,6 +1097,7 @@ impl<Call> Instruction<Call> {
 			ExpectAsset(assets) => ExpectAsset(assets),
 			ExpectOrigin(origin) => ExpectOrigin(origin),
 			ExpectError(error) => ExpectError(error),
+			ExpectTransactStatus(transact_status) => ExpectTransactStatus(transact_status),
 			QueryPallet { module_name, response_info } =>
 				QueryPallet { module_name, response_info },
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>
@@ -1165,6 +1166,7 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			ExpectAsset(assets) => W::expect_asset(assets),
 			ExpectOrigin(origin) => W::expect_origin(origin),
 			ExpectError(error) => W::expect_error(error),
+			ExpectTransactStatus(transact_status) => W::expect_transact_status(transact_status),
 			QueryPallet { module_name, response_info } =>
 				W::query_pallet(module_name, response_info),
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>
