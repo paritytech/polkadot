@@ -1746,7 +1746,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn disputes() -> Vec<(u32, CandidateHash, DisputeState)> {
-			runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
+			parachains_runtime_api_impl::get_session_disputes::<Runtime>()
 		}
 	}
 
