@@ -836,7 +836,7 @@ pub enum Instruction<Call> {
 	/// Kind: *Instruction*
 	///
 	/// Errors:
-	/// - `ExpectationFalse`: If the value of the Error Register is not equal to the parameter.
+	/// - `ExpectationFalse`: If the value of the Transact Status Register is not equal to the parameter.
 	ExpectTransactStatus(MaybeErrorCode),
 
 	/// Query the existence of a particular pallet type.
