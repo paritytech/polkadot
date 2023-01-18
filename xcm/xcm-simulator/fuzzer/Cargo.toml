@@ -27,6 +27,11 @@ polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-runtime-parachains = { path = "../../../runtime/parachains" }
 polkadot-parachain = { path = "../../../parachain" }
 
+[features]
+runtime-benchmarks = [
+    "pallet-xcm/runtime-benchmarks",
+]
+
 [[bin]]
 path = "src/fuzz.rs"
 name = "xcm-fuzzer"
