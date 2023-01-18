@@ -1350,6 +1350,8 @@ construct_runtime! {
 		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
 		Offences: pallet_offences::{Pallet, Storage, Event} = 7,
 		Historical: session_historical::{Pallet} = 34,
+		// MMR leaf construction must be before session in order to have leaf contents
+		// refer to block<N-1> consistently. see substrate issue #11797 for details.
 		Mmr: pallet_mmr::{Pallet, Storage} = 241,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 8,
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 10,
