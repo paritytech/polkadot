@@ -110,7 +110,7 @@ impl ScrapedCandidates {
 		for candidates in stale.values() {
 			for c in candidates {
 				self.candidates.remove(c);
-				candidates_modified.insert(c.clone());
+				candidates_modified.insert(*c);
 			}
 		}
 		candidates_modified
