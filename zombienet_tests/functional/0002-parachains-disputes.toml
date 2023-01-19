@@ -8,8 +8,8 @@ timeout = 1000
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "rococo-local"
-chain_spec_command = "polkadot build-spec --chain rococo-local --disable-default-bootnode"
-default_command = "polkadot"
+chain_spec_command = "{{ZOMBIENET_NATIVE_BINARY_PREFIX}}polkadot build-spec --chain rococo-local --disable-default-bootnode"
+default_command = "{{ZOMBIENET_NATIVE_BINARY_PREFIX}}polkadot"
 
 [relaychain.default_resources]
 limits = { memory = "4G", cpu = "2" }
@@ -18,13 +18,13 @@ requests = { memory = "2G", cpu = "1" }
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "alice"
-  command = "malus dispute-ancestor --fake-validation approval-invalid"
+  command = "{{ZOMBIENET_NATIVE_BINARY_PREFIX}}malus dispute-ancestor --fake-validation approval-invalid"
   args = [ "--alice", " -lparachain=debug,MALUS=trace" ]
 
   [[relaychain.nodes]]
   image = "{{MALUS_IMAGE}}"
   name = "bob"
-  command = "malus dispute-ancestor --fake-validation approval-invalid"
+  command = "{{ZOMBIENET_NATIVE_BINARY_PREFIX}}malus dispute-ancestor --fake-validation approval-invalid"
   args = [ "--bob", "-lparachain=debug,MALUS=trace"]
 
   [[relaychain.nodes]]
@@ -55,12 +55,12 @@ requests = { memory = "2G", cpu = "1" }
 [[parachains]]
 id = {{id}}
 addToGenesis = true
-genesis_state_generator = "undying-collator export-genesis-state --pov-size={{25000*(id-1999)}} --pvf-complexity={{id - 1999}}"
+genesis_state_generator = "{{ZOMBIENET_NATIVE_BINARY_PREFIX}}undying-collator export-genesis-state --pov-size={{25000*(id-1999)}} --pvf-complexity={{id - 1999}}"
 
   [parachains.collator]
   image = "{{COL_IMAGE}}"
   name = "collator"
-  command = "undying-collator"
+  command = "{{ZOMBIENET_NATIVE_BINARY_PREFIX}}undying-collator"
   args = ["-lparachain=debug", "--pov-size={{25000*(id-1999)}}", "--parachain-id={{id}}", "--pvf-complexity={{id - 1999}}"]
 
 {% endfor %}
