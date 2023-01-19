@@ -2014,3 +2014,106 @@ fn stagnant_makes_childless_parent_leaf() {
 		virtual_overseer
 	})
 }
+
+#[test]
+fn revert_blocks_message_triggers_proper_reversion() {
+	test_harness(|backend, _, mut virtual_overseer| async move {
+		// Building mini chain with 1 finalized block and 3 unfinalized blocks
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		let (head_hash, built_chain) =
+			construct_chain_on_base(vec![1, 2, 3], finalized_number, finalized_hash, |_| {});
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			built_chain.clone(),
+		)
+		.await;
+
+		// Checking mini chain
+		assert_backend_contains(&backend, built_chain.iter().map(|&(ref h, _)| h));
+		assert_leaves(&backend, vec![head_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![head_hash]).await;
+
+		let block_1_hash = backend.load_blocks_by_number(1).unwrap().get(0).unwrap().clone();
+		let block_2_hash = backend.load_blocks_by_number(2).unwrap().get(0).unwrap().clone();
+
+		// Sending revert blocks message
+		let (_, write_rx) = backend.await_next_write();
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: ChainSelectionMessage::RevertBlocks(Vec::from([(2, block_2_hash)])),
+			})
+			.await;
+
+		write_rx.await.unwrap();
+
+		// Checking results:
+		// Block 2 should be explicitly reverted
+		assert_eq!(
+			backend
+				.load_block_entry(&block_2_hash)
+				.unwrap()
+				.unwrap()
+				.viability
+				.explicitly_reverted,
+			true
+		);
+		// Block 3 should be non-viable, with 2 as its earliest unviable ancestor
+		assert_eq!(
+			backend
+				.load_block_entry(&head_hash)
+				.unwrap()
+				.unwrap()
+				.viability
+				.earliest_unviable_ancestor,
+			Some(block_2_hash)
+		);
+		// Block 1 should be left as the only leaf
+		assert_leaves(&backend, vec![block_1_hash]);
+
+		virtual_overseer
+	})
+}
+
+#[test]
+fn revert_blocks_against_finalized_is_ignored() {
+	test_harness(|backend, _, mut virtual_overseer| async move {
+		// Building mini chain with 1 finalized block and 3 unfinalized blocks
+		let finalized_number = 0;
+		let finalized_hash = Hash::repeat_byte(0);
+
+		let (head_hash, built_chain) =
+			construct_chain_on_base(vec![1], finalized_number, finalized_hash, |_| {});
+
+		import_blocks_into(
+			&mut virtual_overseer,
+			&backend,
+			Some((finalized_number, finalized_hash)),
+			built_chain.clone(),
+		)
+		.await;
+
+		// Checking mini chain
+		assert_backend_contains(&backend, built_chain.iter().map(|&(ref h, _)| h));
+
+		// Sending dispute concluded against message
+		virtual_overseer
+			.send(FromOrchestra::Communication {
+				msg: ChainSelectionMessage::RevertBlocks(Vec::from([(
+					finalized_number,
+					finalized_hash,
+				)])),
+			})
+			.await;
+
+		// Leaf should be head if reversion of finalized was properly ignored
+		assert_leaves(&backend, vec![head_hash]);
+		assert_leaves_query(&mut virtual_overseer, vec![head_hash]).await;
+
+		virtual_overseer
+	})
+}
