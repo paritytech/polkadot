@@ -30,7 +30,7 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		ApprovalVotingMessage, BlockDescription, DisputeCoordinatorMessage,
+		ApprovalVotingMessage, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage,
 		DisputeDistributionMessage, ImportStatementsResult,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
@@ -1020,6 +1020,22 @@ impl Initialized {
 					"Writing recent disputes with updates for candidate"
 				);
 				overlay_db.write_recent_disputes(recent_disputes);
+			}
+		}
+
+		// Notify ChainSelection if a dispute has concluded against a candidate. ChainSelection
+		// will need to mark the candidate's relay parent as reverted.
+		if import_result.is_freshly_concluded_against() {
+			let blocks_including = self.scraper.get_blocks_including_candidate(&candidate_hash);
+			if blocks_including.len() > 0 {
+				ctx.send_message(ChainSelectionMessage::RevertBlocks(blocks_including)).await;
+			} else {
+				gum::debug!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"Could not find an including block for candidate against which a dispute has concluded."
+				);
 			}
 		}
 
