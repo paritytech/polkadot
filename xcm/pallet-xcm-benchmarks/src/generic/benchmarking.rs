@@ -360,6 +360,22 @@ benchmarks! {
 		})));
 	}
 
+	expect_transact_status {
+		let mut executor = new_executor::<T>(Default::default());
+		// 1024 is an overestimate but should be good enough until we have `max_encoded_len`.
+		// Eventually it should be replaced by `DispatchError::max_encoded_len()`.
+		let worst_error = || MaybeErrorCode::Error(vec![0; 1024]);
+		executor.set_transact_status(worst_error());
+
+		let instruction = Instruction::ExpectTransactStatus(worst_error());
+		let xcm = Xcm(vec![instruction]);
+		let mut _result = Ok(());
+	}: {
+		_result = executor.bench_process(xcm);
+	} verify {
+		assert!(matches!(_result, Ok(..)));
+	}
+
 	query_pallet {
 		let query_id = Default::default();
 		let destination = T::valid_destination().map_err(|_| BenchmarkError::Skip)?;
