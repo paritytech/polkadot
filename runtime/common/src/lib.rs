@@ -74,9 +74,7 @@ pub const NORMAL_DISPATCH_RATIO: Perbill = Perbill::from_percent(75);
 // NOTE: Better not use `saturating` in const context, to avoid ignoring overflows.
 pub const BLOCK_WEIGHT_LIMIT: WeightLimit =
 	WeightLimit::from_time_limit(2 * WEIGHT_REF_TIME_PER_SECOND);
-/// The target Proof size that we aim for. This is not a hard limit and is currently only used to:
-/// - print a warning + emit an event on overflow
-/// - adjust the next block fee
+/// The target Proof size that we aim for. This is not a hard limit and is currently only used to print a warning + emit an event on overflow.
 pub const BLOCK_POV_TARGET: u64 = 5 * 1024 * 1024;
 
 const_assert!(NORMAL_DISPATCH_RATIO.deconstruct() >= AVERAGE_ON_INITIALIZE_RATIO.deconstruct());
@@ -122,7 +120,7 @@ macro_rules! impl_runtime_weights {
 		use frame_system::limits;
 		use pallet_transaction_payment::{Multiplier, TargetedFeeAdjustment};
 		pub use runtime_common::{
-			impl_elections_weights, AVERAGE_ON_INITIALIZE_RATIO, BLOCK_WEIGHT_LIMIT,
+			impl_elections_weights, AVERAGE_ON_INITIALIZE_RATIO, BLOCK_POV_TARGET, BLOCK_WEIGHT_LIMIT,
 			NORMAL_DISPATCH_RATIO,
 		};
 		use sp_runtime::{FixedPointNumber, Perquintill};
@@ -160,6 +158,7 @@ macro_rules! impl_runtime_weights {
 						Some(limit - NORMAL_DISPATCH_RATIO * limit),
 					});
 				})
+				.pov_soft_limit(BLOCK_POV_TARGET)
 				.avg_block_initialization(AVERAGE_ON_INITIALIZE_RATIO)
 				.build_or_panic();
 		}
