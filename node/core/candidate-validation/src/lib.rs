@@ -39,9 +39,10 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 	SubsystemSender,
 };
+use polkadot_node_subsystem_util::executor_params_at_relay_parent;
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
 use polkadot_primitives::{
-	CandidateCommitments, CandidateDescriptor, CandidateReceipt, ExecutorParams, Hash,
+	vstaging::ExecutorParams, CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash,
 	OccupiedCoreAssumption, PersistedValidationData, ValidationCode, ValidationCodeHash,
 };
 
@@ -139,7 +140,6 @@ async fn run<Context>(
 				CandidateValidationMessage::ValidateFromChainState(
 					candidate_receipt,
 					pov,
-					executor_params,
 					timeout,
 					response_sender,
 				) => {
@@ -155,7 +155,6 @@ async fn run<Context>(
 								validation_host,
 								candidate_receipt,
 								pov,
-								executor_params,
 								timeout,
 								&metrics,
 							)
@@ -173,23 +172,23 @@ async fn run<Context>(
 					validation_code,
 					candidate_receipt,
 					pov,
-					executor_params,
 					timeout,
 					response_sender,
 				) => {
 					let bg = {
+						let mut sender = ctx.sender().clone();
 						let metrics = metrics.clone();
 						let validation_host = validation_host.clone();
 
 						async move {
 							let _timer = metrics.time_validate_from_exhaustive();
 							let res = validate_candidate_exhaustive(
+								&mut sender,
 								validation_host,
 								persisted_validation_data,
 								validation_code,
 								candidate_receipt,
 								pov,
-								executor_params,
 								timeout,
 								&metrics,
 							)
@@ -205,7 +204,6 @@ async fn run<Context>(
 				CandidateValidationMessage::PreCheck(
 					relay_parent,
 					validation_code_hash,
-					executor_params,
 					response_sender,
 				) => {
 					let bg = {
@@ -218,7 +216,6 @@ async fn run<Context>(
 								validation_host,
 								relay_parent,
 								validation_code_hash,
-								executor_params,
 							)
 							.await;
 
@@ -292,7 +289,6 @@ async fn precheck_pvf<Sender>(
 	mut validation_backend: impl ValidationBackend,
 	relay_parent: Hash,
 	validation_code_hash: ValidationCodeHash,
-	executor_params: ExecutorParams,
 ) -> PreCheckOutcome
 where
 	Sender: SubsystemSender<RuntimeApiMessage>,
@@ -312,6 +308,13 @@ where
 				);
 				return PreCheckOutcome::Failed
 			},
+		};
+
+	let executor_params =
+		if let Ok(executor_params) = executor_params_at_relay_parent(relay_parent, sender).await {
+			executor_params
+		} else {
+			return PreCheckOutcome::Invalid
 		};
 
 	let pvf_with_params = match sp_maybe_compressed_blob::decompress(
@@ -449,7 +452,6 @@ async fn validate_from_chain_state<Sender>(
 	validation_host: ValidationHost,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
-	executor_params: ExecutorParams,
 	timeout: Duration,
 	metrics: &Metrics,
 ) -> Result<ValidationResult, ValidationFailed>
@@ -464,12 +466,12 @@ where
 		};
 
 	let validation_result = validate_candidate_exhaustive(
+		sender,
 		validation_host,
 		validation_data,
 		validation_code,
 		candidate_receipt.clone(),
 		pov,
-		executor_params,
 		timeout,
 		metrics,
 	)
@@ -499,16 +501,19 @@ where
 	validation_result
 }
 
-async fn validate_candidate_exhaustive(
+async fn validate_candidate_exhaustive<Sender>(
+	sender: &mut Sender,
 	mut validation_backend: impl ValidationBackend + Send,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
 	candidate_receipt: CandidateReceipt,
 	pov: Arc<PoV>,
-	executor_params: ExecutorParams,
 	timeout: Duration,
 	metrics: &Metrics,
-) -> Result<ValidationResult, ValidationFailed> {
+) -> Result<ValidationResult, ValidationFailed>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
 	let validation_code_hash = validation_code.hash();
@@ -559,6 +564,14 @@ async fn validate_candidate_exhaustive(
 		block_data: raw_block_data,
 		relay_parent_number: persisted_validation_data.relay_parent_number,
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
+	};
+
+	let executor_params = if let Ok(executor_params) =
+		executor_params_at_relay_parent(candidate_receipt.descriptor.relay_parent, sender).await
+	{
+		executor_params
+	} else {
+		return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent))
 	};
 
 	let result = validation_backend

@@ -342,14 +342,12 @@ async fn participate(
 	// be run outside of backing and therefore should be subject to the
 	// same level of leeway.
 	let (validation_tx, validation_rx) = oneshot::channel();
-	let executor_params = req.executor_params().clone();
 	sender
 		.send_message(CandidateValidationMessage::ValidateFromExhaustive(
 			available_data.validation_data,
 			validation_code,
 			req.candidate_receipt().clone(),
 			available_data.pov,
-			executor_params,
 			APPROVAL_EXECUTION_TIMEOUT,
 			validation_tx,
 		))

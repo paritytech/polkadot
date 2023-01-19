@@ -33,7 +33,7 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::{
-	v3::SessionInfo, CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex,
+	CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;

@@ -217,7 +217,6 @@ impl TestState {
 				assert_eq!(session_index, self.session_index);
 
 				tx.send(Ok(Some(SessionInfo {
-					executor_params: Default::default(),
 					validators: self.validator_public.clone(),
 					discovery_keys: self.validator_authority_id.clone(),
 					// all validators in the same group.

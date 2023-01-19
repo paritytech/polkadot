@@ -15,3 +15,20 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Put implementations of functions from staging APIs here.
+
+use crate::{disputes, session_info};
+use primitives::{vstaging::ExecutorParams, CandidateHash, DisputeState, SessionIndex};
+use sp_std::prelude::*;
+
+/// Implementation for `get_session_disputes` function from the runtime API
+pub fn get_session_disputes<T: disputes::Config>(
+) -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
+	<disputes::Pallet<T>>::disputes()
+}
+
+/// Get session executor parameter set
+pub fn session_executor_params<T: session_info::Config>(
+	session_index: SessionIndex,
+) -> Option<ExecutorParams> {
+	<session_info::Pallet<T>>::session_executor_params(session_index)
+}

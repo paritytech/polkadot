@@ -23,11 +23,11 @@
 use pallet_nis::WithMaximumOf;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
-	v3::SessionInfo, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, ScrapedOnChainVotes, Signature, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, LOWEST_PUBLIC_ID,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
+	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
+	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	LOWEST_PUBLIC_ID,
 };
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
@@ -41,7 +41,7 @@ use runtime_parachains::{
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v3 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
@@ -1495,7 +1495,6 @@ pub type Migrations = (
 		Runtime,
 		governance::FellowshipReferendaInstance,
 	>,
-	parachains_session_info::migration::v2::MigrateToV2<Runtime>,
 	pallet_scheduler::migration::v4::CleanupAgendas<Runtime>,
 	pallet_staking::migrations::v13::MigrateToV13<Runtime>,
 	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
@@ -1743,10 +1742,6 @@ sp_api::impl_runtime_apis! {
 			-> Option<ValidationCodeHash>
 		{
 			parachains_runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
-		}
-
-		fn disputes() -> Vec<(u32, CandidateHash, DisputeState)> {
-			parachains_runtime_api_impl::get_session_disputes::<Runtime>()
 		}
 	}
 

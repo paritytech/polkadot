@@ -44,8 +44,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{
-	v3::SessionInfo, AuthorityDiscoveryId, CollatorPair, GroupIndex, GroupRotationInfo, IndexedVec,
-	ScheduledCore, SessionIndex, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId, CollatorPair, GroupIndex, GroupRotationInfo, IndexedVec, ScheduledCore,
+	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::TestCandidateBuilder;
 
@@ -106,7 +106,6 @@ impl Default for TestState {
 		Self {
 			para_id,
 			session_info: SessionInfo {
-				executor_params: Default::default(),
 				validators: validator_public,
 				discovery_keys,
 				validator_groups,

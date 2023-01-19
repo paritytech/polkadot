@@ -27,8 +27,8 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem::{messages::RuntimeApiMessage, overseer, SubsystemSender};
 use polkadot_primitives::{
-	v3::SessionInfo, CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash,
-	IndexedVec, OccupiedCore, ScrapedOnChainVotes, SessionIndex, Signed, SigningContext,
+	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, IndexedVec,
+	OccupiedCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed, SigningContext,
 	UncheckedSigned, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 

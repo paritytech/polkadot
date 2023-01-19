@@ -23,9 +23,9 @@ use sp_keyring::Sr25519Keyring;
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{AvailableData, BlockData, ErasureChunk, PoV, Proof};
 use polkadot_primitives::{
-	v3::SessionInfo, CandidateCommitments, CandidateDescriptor, CandidateHash,
-	CommittedCandidateReceipt, GroupIndex, Hash, HeadData, Id as ParaId, IndexedVec, OccupiedCore,
-	PersistedValidationData, ValidatorIndex,
+	CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
+	GroupIndex, Hash, HeadData, Id as ParaId, IndexedVec, OccupiedCore, PersistedValidationData,
+	SessionInfo, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_collator, dummy_collator_signature, dummy_hash, dummy_validation_code,
@@ -50,7 +50,6 @@ pub fn make_session_info() -> SessionInfo {
 			.collect();
 
 	SessionInfo {
-		executor_params: Default::default(),
 		discovery_keys: validators.iter().map(|k| k.public().into()).collect(),
 		// Not used:
 		n_cores: validator_groups.len() as u32,

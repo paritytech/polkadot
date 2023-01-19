@@ -25,7 +25,7 @@ use always_assert::never;
 use futures::{
 	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
 };
-use polkadot_primitives::ExecutorParams;
+use polkadot_primitives::vstaging::ExecutorParams;
 use slotmap::HopSlotMap;
 use std::{
 	fmt,

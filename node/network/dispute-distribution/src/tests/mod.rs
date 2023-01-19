@@ -57,7 +57,7 @@ use polkadot_node_subsystem_test_helpers::{
 	mock::make_ferdie_keystore, subsystem_test_harness, TestSubsystemContextHandle,
 };
 use polkadot_primitives::{
-	v3::SessionInfo, AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex,
+	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, SessionInfo,
 };
 
 use self::mock::{

@@ -72,7 +72,7 @@ async fn participate_with_commitments_hash<Context>(
 	};
 	let session = 1;
 
-	let req = ParticipationRequest::new(candidate_receipt, session, Default::default());
+	let req = ParticipationRequest::new(candidate_receipt, session);
 
 	participation
 		.queue_participation(ctx, ParticipationPriority::BestEffort, req)
@@ -119,7 +119,7 @@ pub async fn participation_full_happy_path(
 	assert_matches!(
 	ctx_handle.recv().await,
 	AllMessages::CandidateValidation(
-		CandidateValidationMessage::ValidateFromExhaustive(_, _, candidate_receipt, _, _, timeout, tx)
+		CandidateValidationMessage::ValidateFromExhaustive(_, _, candidate_receipt, _, timeout, tx)
 		) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
 			if expected_commitments_hash != candidate_receipt.commitments_hash {
 				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))).unwrap();
@@ -453,7 +453,7 @@ fn cast_invalid_vote_if_validation_fails_or_is_invalid() {
 		assert_matches!(
 			ctx_handle.recv().await,
 			AllMessages::CandidateValidation(
-				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, _, timeout, tx)
+				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
 			) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
 				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::Timeout))).unwrap();
 			},
@@ -490,7 +490,7 @@ fn cast_invalid_vote_if_commitments_dont_match() {
 		assert_matches!(
 			ctx_handle.recv().await,
 			AllMessages::CandidateValidation(
-				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, _, timeout, tx)
+				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
 			) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
 				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::CommitmentsHashMismatch))).unwrap();
 			},
@@ -527,7 +527,7 @@ fn cast_valid_vote_if_validation_passes() {
 		assert_matches!(
 			ctx_handle.recv().await,
 			AllMessages::CandidateValidation(
-				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, _, timeout, tx)
+				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)
 			) if timeout == APPROVAL_EXECUTION_TIMEOUT => {
 				tx.send(Ok(ValidationResult::Valid(dummy_candidate_commitments(None), PersistedValidationData::default()))).unwrap();
 			},

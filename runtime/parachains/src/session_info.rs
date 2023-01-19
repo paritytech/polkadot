@@ -28,8 +28,8 @@ use frame_support::{
 	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
 };
 use primitives::{
-	v3::SessionInfo, AssignmentId, AuthorityDiscoveryId, ExecutorParam, ExecutorParams,
-	SessionIndex,
+	vstaging::{ExecutorParam, ExecutorParams},
+	AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo,
 };
 use sp_std::vec::Vec;
 
@@ -110,6 +110,12 @@ pub mod pallet {
 	#[pallet::getter(fn account_keys)]
 	pub(crate) type AccountKeys<T: Config> =
 		StorageMap<_, Identity, SessionIndex, Vec<AccountId<T>>>;
+
+	/// Executor parameter set for a given session index
+	#[pallet::storage]
+	#[pallet::getter(fn session_executor_params)]
+	pub(crate) type SessionExecutorParams<T: Config> =
+		StorageMap<_, Identity, SessionIndex, ExecutorParams>;
 }
 
 /// An abstraction for the authority discovery pallet
@@ -161,6 +167,7 @@ impl<T: Config> Pallet<T> {
 				// Idx will be missing for a few sessions after the runtime upgrade.
 				// But it shouldn'be be a problem.
 				AccountKeys::<T>::remove(&idx);
+				SessionExecutorParams::<T>::remove(&idx);
 			}
 			// update `EarliestStoredSession` based on `config.dispute_period`
 			EarliestStoredSession::<T>::set(new_earliest_stored_session);
@@ -177,7 +184,6 @@ impl<T: Config> Pallet<T> {
 
 		// create a new entry in `Sessions` with information about the current session
 		let new_session_info = SessionInfo {
-			executor_params: ExecutorParams::from(&EXECUTOR_PARAMS[..]),
 			validators, // these are from the notification and are thus already correct.
 			discovery_keys: take_active_subset_and_inactive(&active_set, &discovery_keys),
 			assignment_keys: take_active_subset(&active_set, &assignment_keys),
@@ -193,6 +199,10 @@ impl<T: Config> Pallet<T> {
 			dispute_period,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
+		SessionExecutorParams::<T>::insert(
+			&new_session_index,
+			ExecutorParams::from(&EXECUTOR_PARAMS[..]),
+		);
 	}
 
 	/// Called by the initializer to initialize the session info pallet.

@@ -432,13 +432,17 @@ fn candidate_validation_ok_is_ok() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data.clone(),
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		polkadot_primitives::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -482,7 +486,12 @@ fn candidate_validation_bad_return_is_invalid() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Err(
 			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
 		)),
@@ -490,7 +499,6 @@ fn candidate_validation_bad_return_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		polkadot_primitives::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -546,7 +554,12 @@ fn candidate_validation_one_ambiguous_error_is_valid() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result_list(vec![
 			Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
 			Ok(validation_result),
@@ -555,7 +568,6 @@ fn candidate_validation_one_ambiguous_error_is_valid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		Default::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -599,7 +611,12 @@ fn candidate_validation_multiple_ambiguous_errors_is_invalid() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result_list(vec![
 			Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
 			Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)),
@@ -608,7 +625,6 @@ fn candidate_validation_multiple_ambiguous_errors_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		Default::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -645,7 +661,12 @@ fn candidate_validation_timeout_is_internal_error() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Err(
 			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
 		)),
@@ -653,7 +674,6 @@ fn candidate_validation_timeout_is_internal_error() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		polkadot_primitives::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	));
@@ -692,13 +712,17 @@ fn candidate_validation_commitment_hash_mismatch_is_invalid() {
 		hrmp_watermark: 12345,
 	};
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let result = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		polkadot_primitives::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -736,7 +760,12 @@ fn candidate_validation_code_mismatch_is_invalid() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Err(
 			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
 		)),
@@ -744,7 +773,6 @@ fn candidate_validation_code_mismatch_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		polkadot_primitives::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	))
@@ -795,13 +823,17 @@ fn compressed_code_works() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: commitments.hash() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		polkadot_primitives::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	));
@@ -843,13 +875,17 @@ fn code_decompression_failure_is_invalid() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		polkadot_primitives::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	));
@@ -892,13 +928,17 @@ fn pov_decompression_failure_is_invalid() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
+	let pool = TaskExecutor::new();
+	let (mut ctx, _ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+
 	let v = executor::block_on(validate_candidate_exhaustive(
+		ctx.sender(),
 		MockValidateCandidateBackend::with_hardcoded_result(Ok(validation_result)),
 		validation_data,
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		polkadot_primitives::ExecutorParams::default(),
 		Duration::from_secs(0),
 		&Default::default(),
 	));
@@ -950,7 +990,6 @@ fn precheck_works() {
 		MockPreCheckBackend::with_hardcoded_result(Ok(Duration::default())),
 		relay_parent,
 		validation_code_hash,
-		ExecutorParams::default(),
 	)
 	.remote_handle();
 
@@ -997,7 +1036,6 @@ fn precheck_invalid_pvf_blob_compression() {
 		MockPreCheckBackend::with_hardcoded_result(Ok(Duration::default())),
 		relay_parent,
 		validation_code_hash,
-		ExecutorParams::default(),
 	)
 	.remote_handle();
 
@@ -1040,7 +1078,6 @@ fn precheck_properly_classifies_outcomes() {
 			MockPreCheckBackend::with_hardcoded_result(prepare_result),
 			relay_parent,
 			validation_code_hash,
-			ExecutorParams::default(),
 		)
 		.remote_handle();
 

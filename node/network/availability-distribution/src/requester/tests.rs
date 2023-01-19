@@ -22,8 +22,8 @@ use polkadot_node_network_protocol::jaeger;
 use polkadot_node_primitives::{BlockData, ErasureChunk, PoV};
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
-	v3::SessionInfo, BlockNumber, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore,
-	SessionIndex,
+	BlockNumber, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionIndex,
+	SessionInfo,
 };
 use sp_core::traits::SpawnNamed;
 

@@ -36,11 +36,12 @@ use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
-	v3::SessionInfo, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, Signature, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	vstaging::ExecutorParams, AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent,
+	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use runtime_common::{
 	assigned_slots, auctions, crowdloan, elections::OnChainAccuracy, impl_runtime_weights,
@@ -49,12 +50,15 @@ use runtime_common::{
 };
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
-	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
-	inclusion as parachains_inclusion, initializer as parachains_initializer,
-	origin as parachains_origin, paras as parachains_paras,
+	disputes::slashing as parachains_slashing,
+	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
+	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v3 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+	runtime_api_impl::{
+		v2 as parachains_runtime_api_impl, vstaging as parachains_runtime_api_impl_staging,
+	},
+	scheduler as parachains_scheduler, session_info as parachains_session_info,
+	shared as parachains_shared, ump as parachains_ump,
 };
 use scale_info::TypeInfo;
 use sp_core::{OpaqueMetadata, RuntimeDebug};
@@ -1242,7 +1246,6 @@ pub type Migrations = (
 	// We need to apply this migration again, because `ResetInactive` resets the state again.
 	pallet_balances::migration::MigrateToTrackInactive<Runtime, xcm_config::CheckAccount>,
 	crowdloan::migration::MigrateToTrackInactiveV2<Runtime>,
-	parachains_session_info::migration::v2::MigrateToV2<Runtime>,
 	pallet_scheduler::migration::v4::CleanupAgendas<Runtime>,
 	pallet_staking::migrations::v13::MigrateToV13<Runtime>,
 	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
@@ -1443,6 +1446,10 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::session_info::<Runtime>(index)
 		}
 
+		fn session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams> {
+			parachains_runtime_api_impl_staging::session_executor_params::<Runtime>(session_index)
+		}
+
 		fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			parachains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
 		}
@@ -1479,7 +1486,7 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
-			parachains_runtime_api_impl::get_session_disputes::<Runtime>()
+			runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
 		}
 	}
 

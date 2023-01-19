@@ -49,9 +49,9 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::{
-	v3::SessionInfo, ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt,
-	DisputeStatement, ExecutorParams, GroupIndex, Hash, SessionIndex, ValidDisputeStatementKind,
-	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
+	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
+	ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -745,7 +745,6 @@ enum Action {
 		relay_block_hash: Hash,
 		candidate_index: CandidateIndex,
 		session: SessionIndex,
-		executor_params: ExecutorParams,
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
 	},
@@ -961,7 +960,6 @@ async fn handle_actions<Context>(
 				relay_block_hash,
 				candidate_index,
 				session,
-				executor_params,
 				candidate,
 				backing_group,
 			} => {
@@ -1002,7 +1000,6 @@ async fn handle_actions<Context>(
 										ctx,
 										metrics.clone(),
 										session,
-										executor_params,
 										candidate,
 										validator_index,
 										block_hash,
@@ -2241,7 +2238,6 @@ fn process_wakeup(
 				relay_block_hash: relay_block,
 				candidate_index: i as _,
 				session: block_entry.session(),
-				executor_params: session_info.executor_params.clone(),
 				candidate: candidate_receipt,
 				backing_group,
 			});
@@ -2275,7 +2271,6 @@ async fn launch_approval<Context>(
 	ctx: &mut Context,
 	metrics: Metrics,
 	session_index: SessionIndex,
-	executor_params: ExecutorParams,
 	candidate: CandidateReceipt,
 	validator_index: ValidatorIndex,
 	block_hash: Hash,
@@ -2404,7 +2399,6 @@ async fn launch_approval<Context>(
 				validation_code,
 				candidate.clone(),
 				available_data.pov,
-				executor_params,
 				APPROVAL_EXECUTION_TIMEOUT,
 				val_tx,
 			))

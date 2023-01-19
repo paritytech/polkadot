@@ -39,8 +39,8 @@ use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
 };
 use polkadot_primitives::{
-	v3::SessionInfo, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement,
-	DisputeStatement, DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex,
+	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
+	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
 };
 
@@ -919,11 +919,7 @@ impl Initialized {
 				.queue_participation(
 					ctx,
 					priority,
-					ParticipationRequest::new(
-						new_state.candidate_receipt().clone(),
-						session,
-						env.session_info().executor_params.clone(),
-					),
+					ParticipationRequest::new(new_state.candidate_receipt().clone(), session),
 				)
 				.await;
 			log_error(r)?;

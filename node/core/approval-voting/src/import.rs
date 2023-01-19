@@ -617,9 +617,7 @@ pub(crate) mod tests {
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
-	use polkadot_primitives::{
-		v3::SessionInfo, Id as ParaId, IndexedVec, ValidatorId, ValidatorIndex,
-	};
+	use polkadot_primitives::{Id as ParaId, IndexedVec, SessionInfo, ValidatorId, ValidatorIndex};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -714,7 +712,6 @@ pub(crate) mod tests {
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
 		SessionInfo {
-			executor_params: Default::default(),
 			validators: Default::default(),
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),
@@ -1169,7 +1166,6 @@ pub(crate) mod tests {
 		let irrelevant = 666;
 		let session_info =
 			SessionInfo {
-				executor_params: Default::default(),
 				validators: IndexedVec::<ValidatorIndex, ValidatorId>::from(
 					vec![Sr25519Keyring::Alice.public().into(); 6],
 				),

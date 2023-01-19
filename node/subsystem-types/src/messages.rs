@@ -39,15 +39,15 @@ use polkadot_node_primitives::{
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::{
-	v3::SessionInfo, AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent,
+	vstaging::ExecutorParams, AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent,
 	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
-	CoreState, DisputeState, ExecutorParams, GroupIndex, GroupRotationInfo, Hash,
-	Header as BlockHeader, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
-	SessionIndex, SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	CoreState, DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
+	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
-use polkadot_statement_table::v3::Misbehavior;
+use polkadot_statement_table::v2::Misbehavior;
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
 	sync::Arc,
@@ -119,7 +119,6 @@ pub enum CandidateValidationMessage {
 	ValidateFromChainState(
 		CandidateReceipt,
 		Arc<PoV>,
-		ExecutorParams,
 		/// Execution timeout
 		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
@@ -138,7 +137,6 @@ pub enum CandidateValidationMessage {
 		ValidationCode,
 		CandidateReceipt,
 		Arc<PoV>,
-		ExecutorParams,
 		/// Execution timeout
 		Duration,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
@@ -152,7 +150,6 @@ pub enum CandidateValidationMessage {
 		// Relay-parent
 		Hash,
 		ValidationCodeHash,
-		ExecutorParams,
 		oneshot::Sender<PreCheckOutcome>,
 	),
 }
@@ -577,6 +574,8 @@ pub enum RuntimeApiRequest {
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
+	/// Get the execution environment parameter set by session index
+	SessionExecutorParams(SessionIndex, RuntimeApiSender<Option<ExecutorParams>>),
 	/// Get the session info for the given session, if stored.
 	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
 	/// Get all the pending inbound messages in the downward message queue for a para.

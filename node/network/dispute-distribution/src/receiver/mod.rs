@@ -44,7 +44,7 @@ use polkadot_node_subsystem::{
 	messages::{DisputeCoordinatorMessage, ImportStatementsResult},
 	overseer,
 };
-use polkadot_node_subsystem_util::runtime::{self, RuntimeInfo};
+use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
 use crate::{
 	metrics::{FAILED, SUCCEEDED},

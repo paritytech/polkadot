@@ -21,8 +21,8 @@ use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
 use polkadot_primitives::{
-	v3::SessionInfo, AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex,
-	IndexedVec, ValidatorIndex,
+	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, IndexedVec, SessionInfo,
+	ValidatorIndex,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::ByteArray;

@@ -24,7 +24,7 @@ use kvdb::{DBKey, DBOp};
 
 use parity_scale_codec::{Decode, Encode};
 pub use polkadot_node_primitives::{new_session_window_size, SessionWindowSize};
-use polkadot_primitives::{v3::SessionInfo, BlockNumber, Hash, SessionIndex};
+use polkadot_primitives::{BlockNumber, Hash, SessionIndex, SessionInfo};
 use std::sync::Arc;
 
 use futures::channel::oneshot;
@@ -595,7 +595,6 @@ mod tests {
 	};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_primitives::Header;
-	use polkadot_primitives_test_helpers::dummy_session_info;
 	use sp_core::testing::TaskExecutor;
 
 	const SESSION_DATA_COL: u32 = 0;
@@ -607,6 +606,24 @@ mod tests {
 		let db = DbAdapter::new(db, &[]);
 		let db: Arc<dyn Database> = Arc::new(db);
 		DatabaseParams { db, db_column: SESSION_DATA_COL }
+	}
+
+	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
+		SessionInfo {
+			validators: Default::default(),
+			discovery_keys: Vec::new(),
+			assignment_keys: Vec::new(),
+			validator_groups: Default::default(),
+			n_cores: index as _,
+			zeroth_delay_tranche_width: index as _,
+			relay_vrf_modulo_samples: index as _,
+			n_delay_tranches: index as _,
+			no_show_slots: index as _,
+			needed_approvals: index as _,
+			active_validator_indices: Vec::new(),
+			dispute_period: 6,
+			random_seed: [0u8; 32],
+		}
 	}
 
 	fn cache_session_info_test(

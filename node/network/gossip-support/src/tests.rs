@@ -214,7 +214,6 @@ async fn overseer_signal_active_leaves(overseer: &mut VirtualOverseer, leaf: Has
 fn make_session_info() -> SessionInfo {
 	let all_validator_indices: Vec<_> = (0..6).map(ValidatorIndex::from).collect();
 	SessionInfo {
-		executor_params: Default::default(),
 		active_validator_indices: all_validator_indices.clone(),
 		random_seed: [0; 32],
 		dispute_period: 6,

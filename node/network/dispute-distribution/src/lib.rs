@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 	messages::DisputeDistributionMessage, overseer, FromOrchestra, OverseerSignal,
 	SpawnedSubsystem, SubsystemError,
 };
-use polkadot_node_subsystem_util::runtime::{self, RuntimeInfo};
+use polkadot_node_subsystem_util::{runtime, runtime::RuntimeInfo};
 
 /// ## The sender [`DisputeSender`]
 ///

@@ -48,7 +48,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::{
-	v3::SessionInfo, CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore,
+	CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionInfo,
 	ValidatorIndex,
 };
 use test_helpers::mock::make_ferdie_keystore;

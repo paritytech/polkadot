@@ -26,10 +26,9 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 	SubsystemResult, SubsystemSender,
 };
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
-	BlockNumber, ExecutorParams, Hash, PvfCheckStatement, SessionIndex, ValidationCodeHash,
-	ValidatorId, ValidatorIndex,
+	BlockNumber, Hash, PvfCheckStatement, SessionIndex, ValidationCodeHash, ValidatorId,
+	ValidatorIndex,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use std::collections::HashSet;
@@ -51,15 +50,13 @@ use self::{
 /// PVF pre-checking subsystem.
 pub struct PvfCheckerSubsystem {
 	enabled: bool,
-	runtime: RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
 }
 
 impl PvfCheckerSubsystem {
 	pub fn new(enabled: bool, keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
-		let runtime = RuntimeInfo::new(Some(keystore.clone()));
-		PvfCheckerSubsystem { enabled, runtime, keystore, metrics }
+		PvfCheckerSubsystem { enabled, keystore, metrics }
 	}
 }
 
@@ -67,7 +64,7 @@ impl PvfCheckerSubsystem {
 impl<Context> PvfCheckerSubsystem {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		if self.enabled {
-			let future = run(ctx, self.runtime, self.keystore, self.metrics)
+			let future = run(ctx, self.keystore, self.metrics)
 				.map_err(|e| SubsystemError::with_origin("pvf-checker", e))
 				.boxed();
 
@@ -126,7 +123,6 @@ struct State {
 #[overseer::contextbounds(PvfChecker, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
-	mut runtime: RuntimeInfo,
 	keystore: SyncCryptoStorePtr,
 	metrics: Metrics,
 ) -> SubsystemResult<()> {
@@ -161,7 +157,6 @@ async fn run<Context>(
 				let outcome = handle_from_overseer(
 					&mut state,
 					&mut sender,
-					&mut runtime,
 					&keystore,
 					&metrics,
 					from_overseer?,
@@ -249,7 +244,6 @@ struct Conclude;
 async fn handle_from_overseer(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	runtime: &mut RuntimeInfo,
 	keystore: &SyncCryptoStorePtr,
 	metrics: &Metrics,
 	from_overseer: FromOrchestra<PvfCheckerMessage>,
@@ -264,7 +258,7 @@ async fn handle_from_overseer(
 			None
 		},
 		FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
-			handle_leaves_update(state, sender, runtime, keystore, metrics, update).await;
+			handle_leaves_update(state, sender, keystore, metrics, update).await;
 			None
 		},
 		FromOrchestra::Communication { msg } => match msg {
@@ -276,7 +270,6 @@ async fn handle_from_overseer(
 async fn handle_leaves_update(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	runtime: &mut RuntimeInfo,
 	keystore: &SyncCryptoStorePtr,
 	metrics: &Metrics,
 	update: ActiveLeavesUpdate,
@@ -303,50 +296,8 @@ async fn handle_leaves_update(
 			.on_leaves_update(Some((activated.hash, pending_pvfs)), &update.deactivated);
 		metrics.on_pvf_observed(outcome.newcomers.len());
 		metrics.on_pvf_left(outcome.left_num);
-		if !outcome.newcomers.is_empty() {
-			let session_index = match (&new_session_index, &state.latest_session) {
-				(Some((nsi, _)), _) => *nsi,
-				(None, Some(lsi)) => *lsi,
-				(None, None) => {
-					// examine_activation() always returns new session index if latest session
-					// index is not known; thus, getting `None` here means an error to obtain a
-					// session index for an activated leaf. At the point we do not know if it's a
-					// permanent error or not, so just drop it on the floor and run.
-					gum::warn!(
-						target: LOG_TARGET,
-						relay_parent = ?activated.hash,
-						"Failed to obtain session index",
-					);
-					return
-				},
-			};
-			let ext_session_info = match runtime
-				.get_session_info_by_index(sender, activated.hash, session_index)
-				.await
-			{
-				Ok(esi) => esi,
-				Err(error) => {
-					gum::warn!(
-						target: LOG_TARGET,
-						relay_parent = ?activated.hash,
-						?error,
-						"Failed to obtain session info",
-					);
-					return
-				},
-			};
-			let executor_params = &ext_session_info.session_info.executor_params;
-			for newcomer in outcome.newcomers {
-				initiate_precheck(
-					state,
-					sender,
-					activated.hash,
-					newcomer,
-					executor_params.clone(),
-					metrics,
-				)
-				.await;
-			}
+		for newcomer in outcome.newcomers {
+			initiate_precheck(state, sender, recent_block_hash, newcomer, metrics).await;
 		}
 
 		if let Some((new_session_index, credentials)) = new_session_index {
@@ -583,19 +534,13 @@ async fn initiate_precheck(
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
 	relay_parent: Hash,
 	validation_code_hash: ValidationCodeHash,
-	executor_params: ExecutorParams,
 	metrics: &Metrics,
 ) {
 	gum::debug!(target: LOG_TARGET, ?validation_code_hash, ?relay_parent, "initiating a precheck",);
 
 	let (tx, rx) = oneshot::channel();
 	sender
-		.send_message(CandidateValidationMessage::PreCheck(
-			relay_parent,
-			validation_code_hash,
-			executor_params,
-			tx,
-		))
+		.send_message(CandidateValidationMessage::PreCheck(relay_parent, validation_code_hash, tx))
 		.await;
 
 	let timer = metrics.time_pre_check_judgement();

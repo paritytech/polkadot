@@ -115,7 +115,6 @@ where
 							candidate_receipt,
 							PoV { block_data: BlockData(Vec::new()) }.into(),
 							Default::default(),
-							Default::default(),
 							tx,
 						))
 						.await;
@@ -792,7 +791,6 @@ fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	CandidateValidationMessage::ValidateFromChainState(
 		candidate_receipt,
 		pov,
-		Default::default(),
 		Duration::default(),
 		sender,
 	)

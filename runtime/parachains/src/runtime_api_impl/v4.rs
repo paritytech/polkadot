@@ -11,23 +11,31 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
-//! A module exporting runtime API implementation functions for all runtime APIs using v3
+//! A module exporting runtime API implementation functions for all runtime APIs using v2
 //! primitives.
 //!
-//! Runtimes implementing the v3 runtime API are recommended to forward directly to these
+//! Runtimes implementing the v2 runtime API are recommended to forward directly to these
 //! functions.
 
 use crate::{
-	configuration, disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
+	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
 	session_info, shared,
 };
+<<<<<<<< HEAD:runtime/parachains/src/runtime_api_impl/v4.rs
 use primitives::{
-	v3::SessionInfo, AuthorityDiscoveryId, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreIndex, CoreOccupied, CoreState, DisputeState, GroupIndex,
-	GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	OccupiedCore, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
-	ScheduledCore, ScrapedOnChainVotes, SessionIndex, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	SessionInfo, AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex,
+	CoreOccupied, CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId,
+	InboundDownwardMessage, InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+========
+use primitives::v2::{
+	self, AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
+	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+>>>>>>>> parent of ce042c85b (Try to bump primitives and API version):runtime/parachains/src/runtime_api_impl/v2.rs
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -344,8 +352,8 @@ where
 }
 
 /// Get the session info for the given session, if stored.
-pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<SessionInfo> {
-	<session_info::Pallet<T>>::session_info(index)
+pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<v2::SessionInfo> {
+	<session_info::Pallet<T>>::session_info(index).map(|s| s.into())
 }
 
 /// Implementation for the `dmq_contents` function of the runtime API.
@@ -399,10 +407,4 @@ where
 	with_assumption::<T, _, _>(para_id, assumption, || {
 		<paras::Pallet<T>>::current_code_hash(&para_id)
 	})
-}
-
-/// Implementation for `get_session_disputes` function from the runtime API
-pub fn get_session_disputes<T: disputes::Config>(
-) -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
-	<disputes::Pallet<T>>::disputes()
 }

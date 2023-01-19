@@ -57,9 +57,8 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::request_session_info;
 use polkadot_primitives::{
-	v3::SessionInfo, AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash,
-	CandidateReceipt, GroupIndex, Hash, HashT, IndexedVec, SessionIndex, ValidatorId,
-	ValidatorIndex,
+	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
+	Hash, HashT, IndexedVec, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
 
 mod error;

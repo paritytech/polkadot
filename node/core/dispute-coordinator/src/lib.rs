@@ -42,7 +42,7 @@ use polkadot_node_subsystem_util::{
 	database::Database,
 	rolling_session_window::{DatabaseParams, RollingSessionWindow},
 };
-use polkadot_primitives::{v3::SessionInfo, DisputeStatement, ScrapedOnChainVotes, ValidatorIndex};
+use polkadot_primitives::{DisputeStatement, ScrapedOnChainVotes, SessionInfo, ValidatorIndex};
 
 use crate::{
 	error::{FatalResult, JfyiError, Result},
@@ -347,24 +347,11 @@ impl DisputeCoordinatorSubsystem {
 						?candidate_hash,
 						"Found valid dispute, with no vote from us on startup - participating."
 					);
-					let session_info = match rolling_session_window.session_info(session) {
-						None => {
-							gum::warn!(
-								target: LOG_TARGET,
-								?session,
-								?candidate_hash,
-								"Missing info for session which has an active dispute",
-							);
-							continue
-						},
-						Some(info) => info,
-					};
 					participation_requests.push((
 						ParticipationPriority::with_priority_if(is_included),
 						ParticipationRequest::new(
 							vote_state.votes().candidate_receipt.clone(),
 							session,
-							session_info.executor_params.clone(),
 						),
 					));
 				}

@@ -77,7 +77,6 @@ impl Subsystem1 {
 				candidate_receipt,
 				PoV { block_data: BlockData(Vec::new()) }.into(),
 				Default::default(),
-				Default::default(),
 				tx,
 			);
 			ctx.send_message(msg).await;

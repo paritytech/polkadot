@@ -22,9 +22,9 @@
 //! Note that `dummy_` prefixed values are meant to be fillers, that should not matter, and will
 //! contain randomness based data.
 use polkadot_primitives::{
-	v3::SessionInfo, CandidateCommitments, CandidateDescriptor, CandidateReceipt, CollatorId,
-	CollatorSignature, CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, SessionIndex,
-	ValidationCode, ValidationCodeHash, ValidatorId,
+	CandidateCommitments, CandidateDescriptor, CandidateReceipt, CollatorId, CollatorSignature,
+	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
+	ValidatorId,
 };
 pub use rand;
 use sp_application_crypto::sr25519;
@@ -119,26 +119,6 @@ pub fn dummy_candidate_descriptor<H: AsRef<[u8]>>(relay_parent: H) -> CandidateD
 		collator,
 	);
 	descriptor
-}
-
-/// Creates a dummy session info.
-pub fn dummy_session_info(index: SessionIndex) -> SessionInfo {
-	SessionInfo {
-		executor_params: Default::default(),
-		validators: Default::default(),
-		discovery_keys: Vec::new(),
-		assignment_keys: Vec::new(),
-		validator_groups: Default::default(),
-		n_cores: index as _,
-		zeroth_delay_tranche_width: index as _,
-		relay_vrf_modulo_samples: index as _,
-		n_delay_tranches: index as _,
-		no_show_slots: index as _,
-		needed_approvals: index as _,
-		active_validator_indices: Vec::new(),
-		dispute_period: 6,
-		random_seed: [0u8; 32],
-	}
 }
 
 /// Create meaningless validation code.
