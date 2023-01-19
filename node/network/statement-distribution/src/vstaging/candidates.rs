@@ -145,10 +145,11 @@ impl Candidates {
 				importable_under: HashSet::new(),
 			}),
 		);
-		let new_confirmed = match self.candidates.get_mut(&candidate_hash).expect("just inserted; qed") {
-			CandidateState::Confirmed(x) => x,
-			_ => panic!("just inserted as confirmed; qed"),
-		};
+		let new_confirmed =
+			match self.candidates.get_mut(&candidate_hash).expect("just inserted; qed") {
+				CandidateState::Confirmed(x) => x,
+				_ => panic!("just inserted as confirmed; qed"),
+			};
 
 		self.by_parent.entry((parent_hash, para_id)).or_default().insert(candidate_hash);
 
@@ -162,7 +163,10 @@ impl Candidates {
 				};
 
 				for (leaf_hash, x) in u.unconfirmed_importable_under {
-					if x.relay_parent == relay_parent && x.parent_hash == parent_hash && x.para_id == para_id {
+					if x.relay_parent == relay_parent &&
+						x.parent_hash == parent_hash &&
+						x.para_id == para_id
+					{
 						new_confirmed.importable_under.insert(leaf_hash);
 					}
 				}
@@ -221,11 +225,7 @@ impl Candidates {
 
 	/// Note that a candidate is importable in a fragment tree indicated by the given
 	/// leaf hash.
-	pub fn note_importable_under(
-		&mut self,
-		candidate: &HypotheticalCandidate,
-		leaf_hash: Hash,
-	) {
+	pub fn note_importable_under(&mut self, candidate: &HypotheticalCandidate, leaf_hash: Hash) {
 		match candidate {
 			HypotheticalCandidate::Incomplete {
 				candidate_hash,
@@ -239,22 +239,19 @@ impl Candidates {
 					para_id: *candidate_para,
 				};
 
-				if let Some(&mut CandidateState::Unconfirmed(ref mut c))
-					= self.candidates.get_mut(&candidate_hash)
+				if let Some(&mut CandidateState::Unconfirmed(ref mut c)) =
+					self.candidates.get_mut(&candidate_hash)
 				{
 					c.note_maybe_importable_under(leaf_hash, u);
 				}
-			}
-			HypotheticalCandidate::Complete {
-				candidate_hash,
-				..
-			} => {
-				if let Some(&mut CandidateState::Confirmed(ref mut c))
-					= self.candidates.get_mut(&candidate_hash)
+			},
+			HypotheticalCandidate::Complete { candidate_hash, .. } => {
+				if let Some(&mut CandidateState::Confirmed(ref mut c)) =
+					self.candidates.get_mut(&candidate_hash)
 				{
 					c.importable_under.insert(leaf_hash);
 				}
-			}
+			},
 		}
 	}
 
@@ -514,6 +511,16 @@ impl ConfirmedCandidate {
 	/// Get the para-id of the candidate.
 	pub fn para_id(&self) -> ParaId {
 		self.receipt.descriptor().para_id
+	}
+
+	/// Get the underlying candidate receipt.
+	pub fn candidate_receipt(&self) -> &Arc<CommittedCandidateReceipt> {
+		&self.receipt
+	}
+
+	/// Get the persisted validation data.
+	pub fn persisted_validation_data(&self) -> &PersistedValidationData {
+		&self.persisted_validation_data
 	}
 
 	/// Whether the candidate is importable.

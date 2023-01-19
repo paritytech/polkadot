@@ -28,14 +28,18 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem::{
 	jaeger,
-	messages::{CandidateBackingMessage, HypotheticalCandidate, NetworkBridgeEvent, NetworkBridgeTxMessage, ProspectiveParachainsMessage, HypotheticalFrontierRequest},
+	messages::{
+		CandidateBackingMessage, HypotheticalCandidate, HypotheticalFrontierRequest,
+		NetworkBridgeEvent, NetworkBridgeTxMessage, ProspectiveParachainsMessage,
+	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, PerLeafSpan, StatementDistributionSenderTrait,
 };
 use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
 use polkadot_primitives::vstaging::{
-	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreState,
-	GroupIndex, Hash, Id as ParaId, IndexedVec, PersistedValidationData, SessionIndex, SessionInfo,
-	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex, GroupRotationInfo, CoreIndex,
+	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreIndex,
+	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, IndexedVec,
+	PersistedValidationData, SessionIndex, SessionInfo, SignedStatement, SigningContext,
+	UncheckedSignedStatement, ValidatorId, ValidatorIndex,
 };
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -375,16 +379,13 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		.map_err(JfyiError::RuntimeApiUnavailable)?
 		.map_err(JfyiError::FetchAvailabilityCores)?;
 
-		let group_rotation_info = polkadot_node_subsystem_util::request_validator_groups(
-			*new_relay_parent,
-			ctx.sender(),
-		)
-		.await
-		.await
-		.map_err(JfyiError::RuntimeApiUnavailable)?
-		.map_err(JfyiError::FetchValidatorGroups)?
-		.1;
-
+		let group_rotation_info =
+			polkadot_node_subsystem_util::request_validator_groups(*new_relay_parent, ctx.sender())
+				.await
+				.await
+				.map_err(JfyiError::RuntimeApiUnavailable)?
+				.map_err(JfyiError::FetchValidatorGroups)?
+				.1;
 
 		if !state.per_session.contains_key(&session_index) {
 			let session_info = polkadot_node_subsystem_util::request_session_info(
@@ -991,7 +992,9 @@ async fn handle_incoming_statement<Context>(
 		.validator_group_index(originator_index)
 		.expect("validator confirmed to be known by statement_store.insert; qed");
 
-	// Insert an unconfirmed candidate entry if needed
+	// Insert an unconfirmed candidate entry if needed. Note that if the candidate is already confirmed,
+	// this ensures that the assigned group of the originator matches the expected group of the
+	// parachain.
 	{
 		let res = state.candidates.insert_unconfirmed(
 			peer.clone(),
@@ -1007,6 +1010,7 @@ async fn handle_incoming_statement<Context>(
 		}
 	}
 
+	let confirmed = state.candidates.get_confirmed(&candidate_hash);
 	let is_confirmed = state.candidates.is_confirmed(&candidate_hash);
 	if !is_confirmed {
 		// If the candidate is not confirmed, note that we should attempt
@@ -1051,8 +1055,22 @@ async fn handle_incoming_statement<Context>(
 		let is_backable =
 			per_relay_parent.statement_store.is_backable(originator_group, candidate_hash);
 		let is_importable = state.candidates.is_importable(&candidate_hash);
+
+		if let (true, &Some(confirmed)) = (is_importable, &confirmed) {
+			send_backing_fresh_statements(
+				ctx,
+				candidate_hash,
+				originator_group,
+				&relay_parent,
+				&mut *per_relay_parent,
+				confirmed,
+				&*per_session,
+			)
+			.await;
+		}
+
 		if !was_backable && is_backable && is_importable {
-			handle_backable_and_importable_candidate(
+			dispatch_announcements_and_acknowledgements(
 				ctx,
 				candidate_hash,
 				originator_group,
@@ -1063,10 +1081,6 @@ async fn handle_incoming_statement<Context>(
 				&state.peers,
 			)
 			.await;
-		} else if (is_backable || !is_confirmed) && is_importable {
-			// TODO [now]: this is either a grid statement on a candidate
-			// that was already backed _or_ a cluster statement.
-			// import statement into backing.
 		}
 
 		// We always circulate statements at this point.
@@ -1160,12 +1174,52 @@ fn handle_grid_statement(
 	Ok(checked_statement)
 }
 
-// For a candidate that is both backable and importable, this
-// 1) imports all known statements into the backing subsystem
-// 2) dispatches backable candidate announcements or acknowledgements
-//    via the grid topology. If the session topology is not yet
-//    available, this will be a no-op
-async fn handle_backable_and_importable_candidate<Context>(
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn send_backing_fresh_statements<Context>(
+	ctx: &mut Context,
+	candidate_hash: CandidateHash,
+	group_index: GroupIndex,
+	relay_parent: &Hash,
+	relay_parent_state: &mut PerRelayParentState,
+	confirmed: &candidates::ConfirmedCandidate,
+	per_session: &PerSessionState,
+) {
+	let group_validators = per_session.groups.get(group_index).unwrap_or(&[]);
+	let mut imported = Vec::new();
+
+	for statement in relay_parent_state
+		.statement_store
+		.fresh_statements_for_backing(group_validators, candidate_hash)
+	{
+		let v = statement.validator_index();
+		let compact = statement.payload().clone();
+		imported.push((v, compact));
+		let carrying_pvd = statement
+			.clone()
+			.convert_to_superpayload_with(|statement| match statement {
+				CompactStatement::Seconded(c_hash) => FullStatementWithPVD::Seconded(
+					(&**confirmed.candidate_receipt()).clone(),
+					confirmed.persisted_validation_data().clone(),
+				),
+				CompactStatement::Valid(c_hash) => FullStatementWithPVD::Valid(c_hash),
+			})
+			.expect("statements refer to same candidate; qed");
+
+		ctx.send_message(CandidateBackingMessage::Statement(*relay_parent, carrying_pvd))
+			.await;
+	}
+
+	for (v, s) in imported {
+		relay_parent_state.statement_store.note_known_by_backing(v, s);
+	}
+}
+
+// For a candidate that has just become both backable and importable, this
+// dispatches backable candidate announcements or acknowledgements
+// via the grid topology. If the session topology is not yet
+// available, this will be a no-op.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn dispatch_announcements_and_acknowledgements<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,
 	group_index: GroupIndex,
@@ -1179,8 +1233,6 @@ async fn handle_backable_and_importable_candidate<Context>(
 		Some(ref mut v) => v,
 		None => return,
 	};
-
-	// TODO [now]: dispatch all unknown statements to backing
 
 	let grid_view = match per_session.grid_view {
 		Some(ref t) => t,
@@ -1258,7 +1310,8 @@ async fn fragment_tree_update_inner<Context>(
 				fragment_tree_relay_parent: active_leaf_hash,
 			},
 			tx,
-		)).await;
+		))
+		.await;
 
 		match rx.await {
 			Ok(frontier) => frontier,
@@ -1268,53 +1321,70 @@ async fn fragment_tree_update_inner<Context>(
 	// 3. note that they are importable under a given leaf hash.
 	for (hypo, membership) in frontier {
 		// skip parablocks outside of the frontier
-		if membership.is_empty() { continue }
+		if membership.is_empty() {
+			continue
+		}
 
 		for (leaf_hash, depths) in membership {
 			state.candidates.note_importable_under(&hypo, leaf_hash);
 		}
 
 		match hypo {
-			HypotheticalCandidate::Complete { candidate_hash, receipt, persisted_validation_data } => {
+			HypotheticalCandidate::Complete {
+				candidate_hash,
+				receipt,
+				persisted_validation_data,
+			} => {
 				// 4a. for confirmed candidates, if the candidate has enough statements to
 				//    back, send all statements which are new to backing.
 				if let Some(prs) = state.per_relay_parent.get(&receipt.descriptor().relay_parent) {
-					let core_index = prs.availability_cores
+					let core_index = prs
+						.availability_cores
 						.iter()
 						.position(|c| c.para_id() == Some(receipt.descriptor().para_id));
 
-					let group_index = core_index.map(|c| prs.group_rotation_info.group_for_core(
-						CoreIndex(c as _),
-						prs.availability_cores.len(),
-					));
-					if let Some(true) = group_index.map(|g| prs.statement_store.is_backable(g, candidate_hash)) {
+					let group_index = core_index.map(|c| {
+						prs.group_rotation_info
+							.group_for_core(CoreIndex(c as _), prs.availability_cores.len())
+					});
+					if let Some(true) =
+						group_index.map(|g| prs.statement_store.is_backable(g, candidate_hash))
+					{
 						// TODO [now]: send statements to backing
 					}
 				}
-			}
+			},
 			HypotheticalCandidate::Incomplete {
-				candidate_hash, candidate_para, parent_head_data_hash, candidate_relay_parent,
+				candidate_hash,
+				candidate_para,
+				parent_head_data_hash,
+				candidate_relay_parent,
 			} => {
 				// 4b. for unconfirmed candidates, send requests to all advertising peers.
 				//    note that all unconfirmed hypothetical candidates are from the grid
 				if let Some(prs) = state.per_relay_parent.get(&candidate_relay_parent) {
-					let core_index = prs.availability_cores
+					let core_index = prs
+						.availability_cores
 						.iter()
 						.position(|c| c.para_id() == Some(candidate_para));
 
-					let group_index = core_index.map(|c| prs.group_rotation_info.group_for_core(
-						CoreIndex(c as _),
-						prs.availability_cores.len(),
-					));
+					let group_index = core_index.map(|c| {
+						prs.group_rotation_info
+							.group_for_core(CoreIndex(c as _), prs.availability_cores.len())
+					});
 
-					let request_from = prs.local_validator.as_ref()
+					let request_from = prs
+						.local_validator
+						.as_ref()
 						.zip(group_index)
-						.map(|(vs, group_index)| vs.grid_tracker.validators_to_request(candidate_hash, group_index))
+						.map(|(vs, group_index)| {
+							vs.grid_tracker.validators_to_request(candidate_hash, group_index)
+						})
 						.unwrap_or_default();
 
 					// TODO [now]: issue requests
 				}
-			}
+			},
 		}
 	}
 }
@@ -1325,12 +1395,7 @@ async fn new_leaf_fragment_tree_updates<Context>(
 	state: &mut State,
 	leaf_hash: Hash,
 ) {
-	fragment_tree_update_inner(
-		ctx,
-		state,
-		Some(leaf_hash),
-		None,
-	).await
+	fragment_tree_update_inner(ctx, state, Some(leaf_hash), None).await
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
@@ -1340,12 +1405,7 @@ async fn prospective_backed_notification_fragment_tree_updates<Context>(
 	para_id: ParaId,
 	para_head: Hash,
 ) {
-	fragment_tree_update_inner(
-		ctx,
-		state,
-		None,
-		Some((para_head, para_id)),
-	).await
+	fragment_tree_update_inner(ctx, state, None, Some((para_head, para_id))).await
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]

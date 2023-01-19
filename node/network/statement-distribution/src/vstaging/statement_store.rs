@@ -217,13 +217,12 @@ impl StatementStore {
 		&'a self,
 		validators: &'a [ValidatorIndex],
 		candidate_hash: CandidateHash,
-	)
-		-> impl IntoIterator<Item = &SignedStatement> + 'a
-	{
+	) -> impl IntoIterator<Item = &SignedStatement> + 'a {
 		let s_st = CompactStatement::Seconded(candidate_hash);
 		let v_st = CompactStatement::Valid(candidate_hash);
 
-		validators.iter()
+		validators
+			.iter()
 			.flat_map(move |v| {
 				let a = self.known_statements.get(&(*v, s_st.clone()));
 				let b = self.known_statements.get(&(*v, v_st.clone()));
@@ -235,7 +234,11 @@ impl StatementStore {
 	}
 
 	/// Note that a statement is known by the backing subsystem.
-	pub fn note_known_by_backing(&mut self, validator_index: ValidatorIndex, statement: CompactStatement) {
+	pub fn note_known_by_backing(
+		&mut self,
+		validator_index: ValidatorIndex,
+		statement: CompactStatement,
+	) {
 		if let Some(stored) = self.known_statements.get_mut(&(validator_index, statement)) {
 			stored.known_by_backing = true;
 		}
