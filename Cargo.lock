@@ -7625,7 +7625,6 @@ dependencies = [
  "polkadot-primitives",
  "polkadot-runtime-common",
  "polkadot-runtime-parachains",
- "polkadot-test-runtime-constants",
  "rustc-hex",
  "scale-info",
  "serde",
@@ -7651,23 +7650,11 @@ dependencies = [
  "sp-trie",
  "sp-version",
  "substrate-wasm-builder",
+ "test-runtime-constants",
  "tiny-keccak",
  "xcmsg",
  "xcmsg-builder",
  "xcmsg-executor",
-]
-
-[[package]]
-name = "polkadot-test-runtime-constants"
-version = "0.9.33"
-dependencies = [
- "frame-support",
- "polkadot-primitives",
- "polkadot-runtime-common",
- "smallvec",
- "sp-core",
- "sp-runtime",
- "sp-weights",
 ]
 
 [[package]]
@@ -7691,7 +7678,6 @@ dependencies = [
  "polkadot-runtime-parachains",
  "polkadot-service",
  "polkadot-test-runtime",
- "polkadot-test-runtime-constants",
  "rand 0.8.5",
  "sc-authority-discovery",
  "sc-chain-spec",
@@ -7721,6 +7707,7 @@ dependencies = [
  "substrate-test-client",
  "substrate-test-utils",
  "tempfile",
+ "test-runtime-constants",
  "tokio",
  "tracing-gum",
 ]
@@ -11523,6 +11510,19 @@ dependencies = [
  "test-parachain-adder",
  "test-parachain-halt",
  "tiny-keccak",
+]
+
+[[package]]
+name = "test-runtime-constants"
+version = "0.9.33"
+dependencies = [
+ "frame-support",
+ "polkadot-primitives",
+ "polkadot-runtime-common",
+ "smallvec",
+ "sp-core",
+ "sp-runtime",
+ "sp-weights",
 ]
 
 [[package]]
