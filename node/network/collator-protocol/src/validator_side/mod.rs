@@ -979,7 +979,7 @@ where
 	Sender: CollatorProtocolSenderTrait,
 	I: IntoIterator<Item = ((ParaId, Hash), Vec<BlockedAdvertisement>)>,
 {
-	state.metrics.time_request_unblocked_collations();
+	let _timer = state.metrics.time_request_unblocked_collations();
 
 	for (key, mut value) in blocked {
 		let (para_id, para_head) = key;
