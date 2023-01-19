@@ -3,6 +3,7 @@ name = "polkadot-performance-test"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+publish = false
 
 [dependencies]
 thiserror = "1.0.31"

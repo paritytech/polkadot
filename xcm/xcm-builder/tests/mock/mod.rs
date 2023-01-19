@@ -27,6 +27,7 @@ use polkadot_runtime_parachains::{configuration, origin, shared};
 use xcm::latest::{opaque, prelude::*};
 use xcm_executor::XcmExecutor;
 
+use xcmsg_builder as xcm_builder;
 use xcm_builder::{
 	AccountId32Aliases, AllowTopLevelPaidExecutionFrom, AllowUnpaidExecutionFrom,
 	ChildParachainAsNative, ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
@@ -34,7 +35,6 @@ use xcm_builder::{
 	IsChildSystemParachain, IsConcrete, LocationInverter, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 };
-use xcmsg_builder as xcm_builder;
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;

@@ -1,8 +1,9 @@
 [package]
-name = "polkadot-test-runtime-constants"
+name = "test-runtime-constants"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
+publish = false
 
 [dependencies]
 smallvec = "1.8.0"
