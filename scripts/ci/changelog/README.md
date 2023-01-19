@@ -44,9 +44,8 @@ Currently, the considered labels are:
 - E4 => new host function
 - E2 => database migration
 - B0 => silent, not showing up
-- B1-releasenotes (misc unless other labels)
+- B1-note_worthy (misc unless other labels)
 - B5-client (client changes)
-- B7-runtimenoteworthy (runtime changes)
 - T6-XCM
 
 Note that labels with the same letter are mutually exclusive.
