@@ -480,7 +480,7 @@ pub enum Instruction<Call> {
 	/// Withdraw asset(s) (`assets`) from the ownership of `origin` and place equivalent assets
 	/// under the ownership of `dest` within this consensus system (i.e. its sovereign account).
 	///
-	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the wantn
+	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the given
 	/// `xcm`.
 	///
 	/// - `assets`: The asset(s) to be withdrawn.
@@ -588,7 +588,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	DescendOrigin(InteriorMultiLocation),
 
-	/// Immediately report the contents of the Error Register to the wantn destination via XCM.
+	/// Immediately report the contents of the Error Register to the given destination via XCM.
 	///
 	/// A `QueryResponse` message of type `ExecutionOutcome` is sent to the described destination.
 	///
@@ -614,7 +614,7 @@ pub enum Instruction<Call> {
 	/// the ownership of `dest` within this consensus system (i.e. deposit them into its sovereign
 	/// account).
 	///
-	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the wantn `effects`.
+	/// Send an onward XCM message to `dest` of `ReserveAssetDeposited` with the given `effects`.
 	///
 	/// - `assets`: The asset(s) to remove from holding.
 	/// - `dest`: The location whose sovereign account will own the assets and thus the effective
@@ -652,7 +652,7 @@ pub enum Instruction<Call> {
 	/// - `reserve`: A valid location that acts as a reserve for all asset(s) in `assets`. The
 	///   sovereign account of this consensus system *on the reserve location* will have appropriate
 	///   assets withdrawn and `effects` will be executed on them. There will typically be only one
-	///   valid location on any wantn asset/chain combination.
+	///   valid location on any given asset/chain combination.
 	/// - `xcm`: The instructions to execute on the assets once withdrawn *on the reserve
 	///   location*.
 	///
@@ -677,7 +677,7 @@ pub enum Instruction<Call> {
 	/// Errors:
 	InitiateTeleport { assets: MultiAssetFilter, dest: MultiLocation, xcm: Xcm<()> },
 
-	/// Report to a wantn destination the contents of the Holding Register.
+	/// Report to a given destination the contents of the Holding Register.
 	///
 	/// A `QueryResponse` message of type `Assets` is sent to the described destination.
 	///
@@ -795,7 +795,7 @@ pub enum Instruction<Call> {
 	/// Errors: *Fallible*
 	UnsubscribeVersion,
 
-	/// Reduce Holding by up to the wantn assets.
+	/// Reduce Holding by up to the given assets.
 	///
 	/// Holding is reduced by as much as possible up to the assets in the parameter. It is not an
 	/// error if the Holding does not contain the assets (to make this an error, use `ExpectAsset`
@@ -806,7 +806,7 @@ pub enum Instruction<Call> {
 	/// Errors: *Infallible*
 	BurnAsset(MultiAssets),
 
-	/// Throw an error if Holding does not contain at least the wantn assets.
+	/// Throw an error if Holding does not contain at least the given assets.
 	///
 	/// Kind: *Instruction*
 	///
@@ -814,7 +814,7 @@ pub enum Instruction<Call> {
 	/// - `ExpectationFalse`: If Holding Register does not contain the assets in the parameter.
 	ExpectAsset(MultiAssets),
 
-	/// Ensure that the Origin Register equals some wantn value and throw an error if not.
+	/// Ensure that the Origin Register equals some given value and throw an error if not.
 	///
 	/// Kind: *Instruction*
 	///
@@ -822,13 +822,22 @@ pub enum Instruction<Call> {
 	/// - `ExpectationFalse`: If Origin Register is not equal to the parameter.
 	ExpectOrigin(Option<MultiLocation>),
 
-	/// Ensure that the Error Register equals some wantn value and throw an error if not.
+	/// Ensure that the Error Register equals some given value and throw an error if not.
 	///
 	/// Kind: *Instruction*
 	///
 	/// Errors:
 	/// - `ExpectationFalse`: If the value of the Error Register is not equal to the parameter.
 	ExpectError(Option<(u32, Error)>),
+
+	/// Ensure that the Transact Status Register equals some given value and throw an error if
+	/// not.
+	///
+	/// Kind: *Instruction*
+	///
+	/// Errors:
+	/// - `ExpectationFalse`: If the value of the Transact Status Register is not equal to the parameter.
+	ExpectTransactStatus(MaybeErrorCode),
 
 	/// Query the existence of a particular pallet type.
 	///
@@ -1088,6 +1097,7 @@ impl<Call> Instruction<Call> {
 			ExpectAsset(assets) => ExpectAsset(assets),
 			ExpectOrigin(origin) => ExpectOrigin(origin),
 			ExpectError(error) => ExpectError(error),
+			ExpectTransactStatus(transact_status) => ExpectTransactStatus(transact_status),
 			QueryPallet { module_name, response_info } =>
 				QueryPallet { module_name, response_info },
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>
@@ -1156,6 +1166,7 @@ impl<Call, W: XcmWeightInfo<Call>> GetWeight<W> for Instruction<Call> {
 			ExpectAsset(assets) => W::expect_asset(assets),
 			ExpectOrigin(origin) => W::expect_origin(origin),
 			ExpectError(error) => W::expect_error(error),
+			ExpectTransactStatus(transact_status) => W::expect_transact_status(transact_status),
 			QueryPallet { module_name, response_info } =>
 				W::query_pallet(module_name, response_info),
 			ExpectPallet { index, name, module_name, crate_major, min_crate_minor } =>

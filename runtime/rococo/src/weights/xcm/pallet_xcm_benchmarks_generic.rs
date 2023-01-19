@@ -145,6 +145,9 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	pub(crate) fn expect_error() -> Weight {
 		Weight::from_ref_time(3_633_000 as u64)
 	}
+	pub(crate) fn expect_transact_status() -> Weight {
+		Weight::from_ref_time(3_633_000 as u64)
+	}
 	// Storage: XcmPallet SupportedVersion (r:1 w:0)
 	// Storage: XcmPallet VersionDiscoveryQueue (r:1 w:1)
 	// Storage: XcmPallet SafeXcmVersion (r:1 w:0)
