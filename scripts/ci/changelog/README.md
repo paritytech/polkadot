@@ -44,10 +44,9 @@ Currently, the considered labels are:
 - E4 => new host function
 - E2 => database migration
 - B0 => silent, not showing up
-- B1-releasenotes (misc unless other labels)
-- B5-client (client changes)
-- B7-runtimenoteworthy (runtime changes)
-- T6-XCM
+- B1 => noteworthy
+- T0 => node
+- T1 => runtime
 
 Note that labels with the same letter are mutually exclusive.
 A PR should not have both `B0` and `B5`, or both `C1` and `C9`. In case of conflicts, the template will
