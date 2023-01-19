@@ -601,6 +601,7 @@ pub struct Overseer<SupportsParachains> {
 		ApprovalVotingMessage,
 		AvailabilityStoreMessage,
 		AvailabilityRecoveryMessage,
+		ChainSelectionMessage,
 	])]
 	dispute_coordinator: DisputeCoordinator,
 
