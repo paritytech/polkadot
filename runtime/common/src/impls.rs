@@ -102,7 +102,11 @@ pub fn era_payout(
 mod tests {
 	use super::*;
 	use frame_support::{
-		dispatch::DispatchClass, parameter_types, traits::FindAuthor, weights::{Weight, WeightLimit}, PalletId,
+		dispatch::DispatchClass,
+		parameter_types,
+		traits::FindAuthor,
+		weights::{Weight, WeightLimit},
+		PalletId,
 	};
 	use frame_system::limits;
 	use primitives::AccountId;

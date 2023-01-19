@@ -1271,7 +1271,7 @@ parameter_types! {
 	pub const MinBid: Balance = 100 * QUID;
 	pub MinReceipt: Perquintill = Perquintill::from_rational(1u64, 10_000_000u64);
 	pub const IntakePeriod: BlockNumber = 5 * MINUTES;
-	pub MaxIntakeWeight: Weight = BLOCK_WEIGHT_LIMIT.limited_or_max() / 10;
+	pub MaxIntakeWeight: Weight = MAXIMUM_BLOCK_WEIGHT.limited_or_max() / 10;
 	pub const ThawThrottle: (Perquintill, BlockNumber) = (Perquintill::from_percent(25), 5);
 	pub storage NisTarget: Perquintill = Perquintill::zero();
 	pub const NisPalletId: PalletId = PalletId(*b"py/nis  ");
@@ -2153,7 +2153,8 @@ mod multiplier_tests {
 		// assume the multiplier is initially set to its minimum. We update it with values twice the
 		//target (target is 25%, thus 50%) and we see at which point it reaches 1.
 		let mut multiplier = MinimumMultiplier::get();
-		let block_weight = BlockWeights::get().get(DispatchClass::Normal).max_total.limited_or_max();
+		let block_weight =
+			BlockWeights::get().get(DispatchClass::Normal).max_total.limited_or_max();
 		let mut blocks = 0;
 		let mut fees_paid = 0;
 
