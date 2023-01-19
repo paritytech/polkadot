@@ -2308,23 +2308,41 @@ mod test {
 	}
 
 	#[test]
-	fn block_limit_correct() {
-		// FAIL-CI also put this into Kusama et al
-		for class in DispatchClass::all() {
-			assert!(
-				BlockWeights::get().get(*class).max_extrinsic.is_proof_unlimited(),
-				"Dispatch class should not have a PoV limit"
-			);
-			assert!(
-				BlockWeights::get().get(*class).max_total.is_proof_unlimited(),
-				"Dispatch class should not have a PoV limit"
-			);
+	fn block_limits_locked() {
+		use frame_support::weights::constants::WEIGHT_REF_TIME_PER_SECOND as SECONDS;
+		use frame_support::weights::WeightLimit;
+		use frame_system::limits::WeightsPerClass;
+		use frame_support::dispatch::PerDispatchClass;
 
-			assert_eq!(
-				BlockWeights::get().max_block,
-				Weight::from_parts(2_000_000_000_000, u64::MAX)
-			);
-		}
+		assert_eq!(BlockWeights::get(), frame_system::limits::BlockWeights {
+			base_block: Weight::from_parts(6103588000, 0),
+			// There is no effective block proof size limit, it therefore calculates as `u64::MAX`.
+			max_block: Weight::from_parts(2 * SECONDS, u64::MAX),
+			per_class: PerDispatchClass::<WeightsPerClass>::new(|class|
+				match class {
+					DispatchClass::Normal =>
+					WeightsPerClass {
+						base_extrinsic: Weight::from_parts(95479000, 0),
+						max_extrinsic: WeightLimit::from_time_limit(1479904521000),
+						max_total: WeightLimit::from_time_limit(1500000000000),
+						reserved: WeightLimit::nothing(),
+					},
+					DispatchClass::Operational => WeightsPerClass {
+						base_extrinsic: Weight::from_parts(95479000, 0),
+						max_extrinsic: WeightLimit::from_time_limit(1979904521000),
+						max_total: WeightLimit::from_time_limit(2000000000000),
+						reserved: WeightLimit::from_time_limit(500000000000),
+					},
+					DispatchClass::Mandatory => WeightsPerClass {
+						base_extrinsic: Weight::from_parts(95479000, 0),
+						max_extrinsic: WeightLimit::unlimited(),
+						max_total: WeightLimit::unlimited(),
+						reserved: WeightLimit::unlimited(),
+					},
+				},
+			),
+			pov_soft_limit: Some(5 * 1024 * 1024),
+		});
 	}
 }
 
