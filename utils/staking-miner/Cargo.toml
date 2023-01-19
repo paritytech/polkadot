@@ -15,22 +15,22 @@ serde = "1.0.137"
 serde_json = "1.0"
 thiserror = "1.0.31"
 tokio = { version = "1.24.1", features = ["macros", "rt-multi-thread", "sync"] }
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-remote-externalities" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", package = "frame-remote-externalities" , branch = "oty-optional-pov-limit" }
 signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sc-transaction-pool-api = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
 
 core-primitives = { package = "polkadot-core-primitives", path = "../../core-primitives" }
 

@@ -10,13 +10,13 @@ codec = { package = "parity-scale-codec", version = "3.0.0" }
 honggfuzz = "0.5.55"
 scale-info = { version = "2.1.2", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }

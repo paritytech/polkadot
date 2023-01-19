@@ -28,15 +28,15 @@ polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-metrics = { path = "../../metrics"}
 
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
 
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
