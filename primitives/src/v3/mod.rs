@@ -1611,10 +1611,6 @@ pub fn supermajority_threshold(n: usize) -> usize {
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct SessionInfo {
-	/****** New in v3 *******/
-	/// Executor parameter set for the session.
-	pub executor_params: ExecutorParams,
-
 	/****** New in v2 *******/
 	/// All the validators actively participating in parachain consensus.
 	/// Indices are into the broader validator set.
@@ -1668,6 +1664,10 @@ pub struct SessionInfo {
 	pub no_show_slots: u32,
 	/// The number of validators needed to approve a block.
 	pub needed_approvals: u32,
+
+	/****** New in v3 *******/
+	/// Executor parameter set for the session.
+	pub executor_params: ExecutorParams,
 }
 
 // Structure upgrade
