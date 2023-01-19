@@ -7,6 +7,7 @@
 publish-polkadot-debug-image:
   stage:                           publish
   extends:
+    - .kubernetes-env
     - .build-push-image
   rules:
     # Don't run when triggered from another pipeline
@@ -18,6 +19,7 @@ publish-polkadot-debug-image:
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
     - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
   variables:
+    CI_IMAGE:                      ${BUILDAH_IMAGE}
     GIT_STRATEGY:                  none
     DOCKER_USER:                   ${PARITYPR_USER}
     DOCKER_PASS:                   ${PARITYPR_PASS}
@@ -42,9 +44,11 @@ publish-test-collators-image:
   # service image for Simnet
   stage:                           publish
   extends:
+    - .kubernetes-env
     - .build-push-image
     - .zombienet-refs
   variables:
+    CI_IMAGE:                      ${BUILDAH_IMAGE}
     GIT_STRATEGY:                  none
     DOCKER_USER:                   ${PARITYPR_USER}
     DOCKER_PASS:                   ${PARITYPR_PASS}
@@ -68,9 +72,11 @@ publish-malus-image:
   # service image for Simnet
   stage:                           publish
   extends:
+    - .kubernetes-env
     - .build-push-image
     - .zombienet-refs
   variables:
+    CI_IMAGE:                      ${BUILDAH_IMAGE}
     GIT_STRATEGY:                  none
     DOCKER_USER:                   ${PARITYPR_USER}
     DOCKER_PASS:                   ${PARITYPR_PASS}
@@ -93,9 +99,11 @@ publish-malus-image:
 publish-staking-miner-image:
   stage:                           publish
   extends:
+    - .kubernetes-env
     - .build-push-image
     - .publish-refs
   variables:
+    CI_IMAGE:                      ${BUILDAH_IMAGE}
     # scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
     DOCKERFILE:                    ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
     IMAGE_NAME:                    docker.io/paritytech/staking-miner
@@ -114,8 +122,8 @@ publish-s3-release:
   needs:
     - job:                         build-linux-stable
       artifacts:                   true
-  image:                           paritytech/awscli:latest
   variables:
+    CI_IMAGE:                      paritytech/awscli:latest
     GIT_STRATEGY:                  none
     PREFIX:                        "builds/polkadot/${ARCH}-${DOCKER_OS}"
   rules:
@@ -152,9 +160,8 @@ publish-rustdoc:
   stage:                           publish
   extends:
     - .kubernetes-env
-  image:                           paritytech/tools:latest
   variables:
-    GIT_DEPTH:                     100
+    CI_IMAGE:                      paritytech/tools:latest
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
@@ -207,3 +214,38 @@ publish-rustdoc:
     - echo "___Rustdoc was successfully published to https://paritytech.github.io/polkadot/___"
   after_script:
     - rm -rf .git/ ./*
+
+.update-substrate-template-repository:
+  stage:                           publish
+  extends:                         .kubernetes-env
+  variables:
+    GIT_STRATEGY:                  none
+  rules:
+    # The template is only updated for FINAL releases
+    # i.e. the rule should not cover RC or patch releases
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+$/                     # e.g. v1.0
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/             # e.g. v1.0.0
+  script:
+    - git clone --depth=1 --branch="$PIPELINE_SCRIPTS_TAG" https://github.com/paritytech/pipeline-scripts
+    - export POLKADOT_BRANCH="polkadot-v$CI_COMMIT_TAG"
+    - git clone --depth=1 --branch="$POLKADOT_BRANCH" https://github.com/paritytech/substrate
+    - cd substrate
+    - ../pipeline-scripts/update_substrate_template.sh
+      --repo-name "$TARGET_REPOSITORY"
+      --template-path "$TEMPLATE_PATH"
+      --github-api-token "$GITHUB_TOKEN"
+      --polkadot-branch "$POLKADOT_BRANCH"
+
+# Ref: https://github.com/paritytech/opstooling/issues/111
+update-node-template:
+  extends:                         .update-substrate-template-repository
+  variables:
+    TARGET_REPOSITORY:             substrate-node-template
+    TEMPLATE_PATH:                 bin/node-template
+
+# Ref: https://github.com/paritytech/opstooling/issues/111
+update-parachain-template:
+  extends:                         .update-substrate-template-repository
+  variables:
+    TARGET_REPOSITORY:             substrate-parachain-template
+    TEMPLATE_PATH:                 parachain-template

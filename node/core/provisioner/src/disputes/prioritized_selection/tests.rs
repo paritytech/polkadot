@@ -25,7 +25,7 @@ use polkadot_node_subsystem::messages::{
 	AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
 use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, DisputeState, InvalidDisputeStatementKind, SessionIndex,
 	ValidDisputeStatementKind, ValidatorSignature,
 };
@@ -393,7 +393,9 @@ impl TestDisputes {
 					ValidDisputeStatementKind::Explicit,
 					0,
 					local_votes_count,
-				),
+				)
+				.into_iter()
+				.collect(),
 				invalid: BTreeMap::new(),
 			},
 		);
@@ -426,7 +428,7 @@ impl TestDisputes {
 	pub fn add_unconfirmed_disputes_concluded_onchain(
 		&mut self,
 		dispute_count: usize,
-	) -> (u32, usize) {
+	) -> (SessionIndex, usize) {
 		let local_votes_count = self.validators_count * 90 / 100;
 		let onchain_votes_count = self.validators_count * 80 / 100;
 		let session_idx = 0;
@@ -444,7 +446,7 @@ impl TestDisputes {
 	pub fn add_unconfirmed_disputes_unconcluded_onchain(
 		&mut self,
 		dispute_count: usize,
-	) -> (u32, usize) {
+	) -> (SessionIndex, usize) {
 		let local_votes_count = self.validators_count * 90 / 100;
 		let onchain_votes_count = self.validators_count * 40 / 100;
 		let session_idx = 1;
@@ -459,22 +461,25 @@ impl TestDisputes {
 		(session_idx, (local_votes_count - onchain_votes_count) * dispute_count)
 	}
 
-	pub fn add_unconfirmed_disputes_unknown_onchain(
+	pub fn add_confirmed_disputes_unknown_onchain(
 		&mut self,
 		dispute_count: usize,
-	) -> (u32, usize) {
+	) -> (SessionIndex, usize) {
 		let local_votes_count = self.validators_count * 90 / 100;
 		let session_idx = 2;
 		let lf = leaf();
 		let dummy_receipt = test_helpers::dummy_candidate_receipt(lf.hash.clone());
 		for _ in 0..dispute_count {
-			let d = (session_idx, CandidateHash(Hash::random()), DisputeStatus::Active);
+			let d = (session_idx, CandidateHash(Hash::random()), DisputeStatus::Confirmed);
 			self.add_offchain_dispute(d.clone(), local_votes_count, dummy_receipt.clone());
 		}
 		(session_idx, local_votes_count * dispute_count)
 	}
 
-	pub fn add_concluded_disputes_known_onchain(&mut self, dispute_count: usize) -> (u32, usize) {
+	pub fn add_concluded_disputes_known_onchain(
+		&mut self,
+		dispute_count: usize,
+	) -> (SessionIndex, usize) {
 		let local_votes_count = self.validators_count * 90 / 100;
 		let onchain_votes_count = self.validators_count * 75 / 100;
 		let session_idx = 3;
@@ -488,7 +493,10 @@ impl TestDisputes {
 		(session_idx, (local_votes_count - onchain_votes_count) * dispute_count)
 	}
 
-	pub fn add_concluded_disputes_unknown_onchain(&mut self, dispute_count: usize) -> (u32, usize) {
+	pub fn add_concluded_disputes_unknown_onchain(
+		&mut self,
+		dispute_count: usize,
+	) -> (SessionIndex, usize) {
 		let local_votes_count = self.validators_count * 90 / 100;
 		let session_idx = 4;
 		let lf = leaf();
@@ -497,6 +505,40 @@ impl TestDisputes {
 			let d = (session_idx, CandidateHash(Hash::random()), DisputeStatus::ConcludedFor(0));
 			self.add_offchain_dispute(d.clone(), local_votes_count, dummy_receipt.clone());
 		}
+		(session_idx, local_votes_count * dispute_count)
+	}
+
+	pub fn add_unconfirmed_disputes_known_onchain(
+		&mut self,
+		dispute_count: usize,
+	) -> (SessionIndex, usize) {
+		let local_votes_count = self.validators_count * 10 / 100;
+		let onchain_votes_count = self.validators_count * 10 / 100;
+		let session_idx = 5;
+		let lf = leaf();
+		let dummy_receipt = test_helpers::dummy_candidate_receipt(lf.hash.clone());
+		for _ in 0..dispute_count {
+			let d = (session_idx, CandidateHash(Hash::random()), DisputeStatus::Active);
+			self.add_offchain_dispute(d.clone(), local_votes_count, dummy_receipt.clone());
+			self.add_onchain_dispute(d, onchain_votes_count);
+		}
+
+		(session_idx, (local_votes_count - onchain_votes_count) * dispute_count)
+	}
+
+	pub fn add_unconfirmed_disputes_unknown_onchain(
+		&mut self,
+		dispute_count: usize,
+	) -> (SessionIndex, usize) {
+		let local_votes_count = self.validators_count * 10 / 100;
+		let session_idx = 6;
+		let lf = leaf();
+		let dummy_receipt = test_helpers::dummy_candidate_receipt(lf.hash.clone());
+		for _ in 0..dispute_count {
+			let d = (session_idx, CandidateHash(Hash::random()), DisputeStatus::Active);
+			self.add_offchain_dispute(d.clone(), local_votes_count, dummy_receipt.clone());
+		}
+
 		(session_idx, local_votes_count * dispute_count)
 	}
 
@@ -554,9 +596,9 @@ fn normal_flow() {
 	// concluded disputes known onchain - these should be ignored
 	let (_, _) = input.add_concluded_disputes_known_onchain(DISPUTES_PER_BATCH);
 
-	// active disputes unknown onchain
+	// confirmed disputes unknown onchain
 	let (second_idx, second_votes) =
-		input.add_unconfirmed_disputes_unknown_onchain(DISPUTES_PER_BATCH);
+		input.add_confirmed_disputes_unknown_onchain(DISPUTES_PER_BATCH);
 
 	let metrics = metrics::Metrics::new_dummy();
 	let mut vote_queries: usize = 0;
@@ -635,8 +677,8 @@ fn many_batches() {
 	// concluded disputes known onchain
 	input.add_concluded_disputes_known_onchain(DISPUTES_PER_PARTITION);
 
-	// active disputes unknown onchain
-	input.add_unconfirmed_disputes_unknown_onchain(DISPUTES_PER_PARTITION);
+	// confirmed disputes unknown onchain
+	input.add_confirmed_disputes_unknown_onchain(DISPUTES_PER_PARTITION);
 
 	let metrics = metrics::Metrics::new_dummy();
 	let mut vote_queries: usize = 0;
@@ -718,5 +760,32 @@ fn votes_above_limit() {
 		"vote_queries: {} ACCEPTABLE_RUNTIME_VOTES_QUERIES_COUNT: {}",
 		vote_queries,
 		ACCEPTABLE_RUNTIME_VOTES_QUERIES_COUNT
+	);
+}
+
+#[test]
+fn unconfirmed_are_handled_correctly() {
+	const VALIDATOR_COUNT: usize = 10;
+	const DISPUTES_PER_PARTITION: usize = 50;
+
+	let mut input = TestDisputes::new(VALIDATOR_COUNT);
+
+	// Add unconfirmed known onchain -> this should be pushed
+	let (pushed_idx, _) = input.add_unconfirmed_disputes_known_onchain(DISPUTES_PER_PARTITION);
+
+	// Add unconfirmed unknown onchain -> this should be ignored
+	input.add_unconfirmed_disputes_unknown_onchain(DISPUTES_PER_PARTITION);
+
+	let metrics = metrics::Metrics::new_dummy();
+	let mut vote_queries: usize = 0;
+	test_harness(
+		|r| mock_overseer(r, &mut input, &mut vote_queries),
+		|mut tx: TestSubsystemSender| async move {
+			let lf = leaf();
+			let result = select_disputes(&mut tx, &metrics, &lf).await;
+
+			assert!(result.len() == DISPUTES_PER_PARTITION);
+			result.iter().for_each(|d| assert!(d.session == pushed_idx));
+		},
 	);
 }

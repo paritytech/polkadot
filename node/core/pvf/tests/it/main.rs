@@ -14,13 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use async_std::sync::Mutex;
+use assert_matches::assert_matches;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
 	start, Config, InvalidCandidate, Metrics, Pvf, ValidationError, ValidationHost,
+	JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 };
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
 use std::time::Duration;
+use tokio::sync::Mutex;
 
 mod adder;
 mod worker_common;
@@ -47,7 +49,7 @@ impl TestHost {
 		let mut config = Config::new(cache_dir.path().to_owned(), program_path);
 		f(&mut config);
 		let (host, task) = start(config, Metrics::default());
-		let _ = async_std::task::spawn(task);
+		let _ = tokio::task::spawn(task);
 		Self { _cache_dir: cache_dir, host: Mutex::new(host) }
 	}
 
@@ -77,10 +79,11 @@ impl TestHost {
 	}
 }
 
-#[async_std::test]
+#[tokio::test]
 async fn terminates_on_timeout() {
 	let host = TestHost::new();
 
+	let start = std::time::Instant::now();
 	let result = host
 		.validate_candidate(
 			halt::wasm_binary_unwrap(),
@@ -97,10 +100,15 @@ async fn terminates_on_timeout() {
 		Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)) => {},
 		r => panic!("{:?}", r),
 	}
+
+	let duration = std::time::Instant::now().duration_since(start);
+	assert!(duration >= TEST_EXECUTION_TIMEOUT);
+	assert!(duration < TEST_EXECUTION_TIMEOUT * JOB_TIMEOUT_WALL_CLOCK_FACTOR);
 }
 
-#[async_std::test]
-async fn parallel_execution() {
+#[tokio::test]
+async fn ensure_parallel_execution() {
+	// Run some jobs that do not complete, thus timing out.
 	let host = TestHost::new();
 	let execute_pvf_future_1 = host.validate_candidate(
 		halt::wasm_binary_unwrap(),
@@ -122,17 +130,27 @@ async fn parallel_execution() {
 	);
 
 	let start = std::time::Instant::now();
-	let (_, _) = futures::join!(execute_pvf_future_1, execute_pvf_future_2);
+	let (res1, res2) = futures::join!(execute_pvf_future_1, execute_pvf_future_2);
+	assert_matches!(
+		(res1, res2),
+		(
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout)),
+			Err(ValidationError::InvalidCandidate(InvalidCandidate::HardTimeout))
+		)
+	);
 
-	// total time should be < 2 x EXECUTION_TIMEOUT_SEC
-	const EXECUTION_TIMEOUT_SEC: u64 = 3;
+	// Total time should be < 2 x TEST_EXECUTION_TIMEOUT (two workers run in parallel).
+	let duration = std::time::Instant::now().duration_since(start);
+	let max_duration = 2 * TEST_EXECUTION_TIMEOUT;
 	assert!(
-		std::time::Instant::now().duration_since(start) <
-			std::time::Duration::from_secs(EXECUTION_TIMEOUT_SEC * 2)
+		duration < max_duration,
+		"Expected duration {}ms to be less than {}ms",
+		duration.as_millis(),
+		max_duration.as_millis()
 	);
 }
 
-#[async_std::test]
+#[tokio::test]
 async fn execute_queue_doesnt_stall_if_workers_died() {
 	let host = TestHost::new_with_config(|cfg| {
 		cfg.execute_workers_max_num = 5;
@@ -141,6 +159,7 @@ async fn execute_queue_doesnt_stall_if_workers_died() {
 	// Here we spawn 8 validation jobs for the `halt` PVF and share those between 5 workers. The
 	// first five jobs should timeout and the workers killed. For the next 3 jobs a new batch of
 	// workers should be spun up.
+	let start = std::time::Instant::now();
 	futures::future::join_all((0u8..=8).map(|_| {
 		host.validate_candidate(
 			halt::wasm_binary_unwrap(),
@@ -153,4 +172,15 @@ async fn execute_queue_doesnt_stall_if_workers_died() {
 		)
 	}))
 	.await;
+
+	// Total time should be >= 2 x TEST_EXECUTION_TIMEOUT (two separate sets of workers that should
+	// both timeout).
+	let duration = std::time::Instant::now().duration_since(start);
+	let max_duration = 2 * TEST_EXECUTION_TIMEOUT;
+	assert!(
+		duration >= max_duration,
+		"Expected duration {}ms to be greater than or equal to {}ms",
+		duration.as_millis(),
+		max_duration.as_millis()
+	);
 }

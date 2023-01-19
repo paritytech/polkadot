@@ -30,7 +30,7 @@ mod origins;
 pub use origins::{
 	pallet_custom_origins, AuctionAdmin, Fellows, FellowshipAdmin, FellowshipExperts,
 	FellowshipInitiates, FellowshipMasters, GeneralAdmin, LeaseAdmin, ReferendumCanceller,
-	ReferendumKiller, Spender, StakingAdmin, WhitelistedCaller,
+	ReferendumKiller, Spender, StakingAdmin, Treasurer, WhitelistedCaller,
 };
 mod tracks;
 pub use tracks::TracksInfo;
@@ -47,14 +47,15 @@ impl pallet_conviction_voting::Config for Runtime {
 	type Currency = Balances;
 	type VoteLockingPeriod = VoteLockingPeriod;
 	type MaxVotes = ConstU32<512>;
-	type MaxTurnout = frame_support::traits::TotalIssuanceOf<Balances, Self::AccountId>;
+	type MaxTurnout =
+		frame_support::traits::tokens::currency::ActiveIssuanceOf<Balances, Self::AccountId>;
 	type Polls = Referenda;
 }
 
 parameter_types! {
 	pub const AlarmInterval: BlockNumber = 1;
-	pub const SubmissionDeposit: Balance = 100 * UNITS;
-	pub const UndecidingTimeout: BlockNumber = 28 * DAYS;
+	pub const SubmissionDeposit: Balance = 1 * QUID;
+	pub const UndecidingTimeout: BlockNumber = 14 * DAYS;
 }
 
 parameter_types! {
@@ -71,7 +72,7 @@ impl pallet_whitelist::Config for Runtime {
 	type WhitelistOrigin =
 		EitherOf<EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>, Fellows>;
 	type DispatchWhitelistedOrigin = EitherOf<EnsureRoot<Self::AccountId>, WhitelistedCaller>;
-	type PreimageProvider = Preimage;
+	type Preimages = Preimage;
 }
 
 impl pallet_referenda::Config for Runtime {

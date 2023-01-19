@@ -31,7 +31,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
-use polkadot_primitives::v2::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
+use polkadot_primitives::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
 
 use crate::LOG_TARGET;
 
@@ -51,7 +51,10 @@ pub use queues::{ParticipationPriority, ParticipationRequest, QueueError};
 /// This should be a relatively low value, while we might have a speedup once we fetched the data,
 /// due to multi-core architectures, but the fetching itself can not be improved by parallel
 /// requests. This means that higher numbers make it harder for a single dispute to resolve fast.
+#[cfg(not(test))]
 const MAX_PARALLEL_PARTICIPATIONS: usize = 3;
+#[cfg(test)]
+pub(crate) const MAX_PARALLEL_PARTICIPATIONS: usize = 1;
 
 /// Keep track of disputes we need to participate in.
 ///
@@ -212,6 +215,19 @@ impl Participation {
 		Ok(())
 	}
 
+	/// Moving any request concerning the given candidates from best-effort to
+	/// priority, ignoring any candidates that don't have any queued participation requests.
+	pub async fn bump_to_priority_for_candidates<Context>(
+		&mut self,
+		ctx: &mut Context,
+		included_receipts: &Vec<CandidateReceipt>,
+	) -> Result<()> {
+		for receipt in included_receipts {
+			self.queue.prioritize_if_present(ctx.sender(), receipt).await?;
+		}
+		Ok(())
+	}
+
 	/// Dequeue until `MAX_PARALLEL_PARTICIPATIONS` is reached.
 	async fn dequeue_until_capacity<Context>(
 		&mut self,
@@ -235,7 +251,7 @@ impl Participation {
 		req: ParticipationRequest,
 		recent_head: Hash,
 	) -> FatalResult<()> {
-		if self.running_participations.insert(req.candidate_hash().clone()) {
+		if self.running_participations.insert(*req.candidate_hash()) {
 			let sender = ctx.sender().clone();
 			ctx.spawn(
 				"participation-worker",

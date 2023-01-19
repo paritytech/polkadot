@@ -22,7 +22,7 @@ use polkadot_node_network_protocol::{
 	PeerId,
 };
 use polkadot_node_primitives::SignedDisputeStatement;
-use polkadot_primitives::v2::{CandidateReceipt, ValidatorIndex};
+use polkadot_primitives::{CandidateReceipt, ValidatorIndex};
 
 use crate::receiver::{BATCH_COLLECTING_INTERVAL, MIN_KEEP_BATCH_ALIVE_VOTES};
 

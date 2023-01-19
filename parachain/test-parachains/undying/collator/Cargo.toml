@@ -1,9 +1,9 @@
 [package]
 name = "test-parachain-undying-collator"
-version = "0.9.31"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator for the undying test parachain"
-edition = "2021"
+edition.workspace = true
+version.workspace = true
+authors.workspace = true
 
 [[bin]]
 name = "undying-collator"
@@ -44,4 +44,4 @@ substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-tokio = { version = "1.19", features = ["macros"] }
+tokio = { version = "1.24.1", features = ["macros"] }

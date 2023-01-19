@@ -17,7 +17,7 @@
 use super::*;
 use frame_benchmarking::benchmarks;
 use frame_system::RawOrigin;
-use primitives::v2::ConsensusLog;
+use primitives::ConsensusLog;
 use sp_runtime::DigestItem;
 
 // Random large number for the digest
