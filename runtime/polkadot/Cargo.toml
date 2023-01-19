@@ -16,73 +16,73 @@ serde_derive = { version = "1.0.117", optional = true }
 static_assertions = "1.1.0"
 smallvec = "1.8.0"
 
-authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-beefy-primitives = { git = "https://github.com/paritytech/substrate", default-features = false, package = "sp-beefy" , branch = "oty-optional-pov-limit" }
-block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-sp-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-sp-version = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-sp-npos-elections = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
+authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, package = "sp-beefy" }
+block-builder-api = { package = "sp-block-builder", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+tx-pool-api = { package = "sp-transaction-pool", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
-pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-authorship = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-babe = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-bags-list = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-bounties = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-child-bounties = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-collective = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-democracy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-fast-unstake = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-frame-executive = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-grandpa = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-identity = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-indices = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-membership = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-multisig = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-nomination-pools = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-offences = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-preimage = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-proxy = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-scheduler = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-session = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-frame-system = {git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
+pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-child-bounties = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-democracy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-elections-phragmen = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-fast-unstake = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-executive = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-identity = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-indices = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-membership = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-multisig = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-nomination-pools = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-runtime-constants = { package = "polkadot-runtime-constants", path = "./constants", default-features = false }
-pallet-timestamp = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-tips = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-treasury = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-vesting = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-pallet-utility = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
-frame-election-provider-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
+pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-tips = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-vesting = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-utility = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-xcm = { path = "../../xcm/pallet-xcm", default-features = false }
 
-frame-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "oty-optional-pov-limit" }
-frame-try-runtime = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "oty-optional-pov-limit" }
-frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "oty-optional-pov-limit" }
-pallet-election-provider-support-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "oty-optional-pov-limit" }
-pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "oty-optional-pov-limit" }
-pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "oty-optional-pov-limit" }
-pallet-nomination-pools-benchmarking = { git = "https://github.com/paritytech/substrate", default-features = false, optional = true , branch = "oty-optional-pov-limit" }
+frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-try-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+frame-system-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-election-provider-support-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-offences-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-session-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+pallet-nomination-pools-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 hex-literal = { version = "0.3.4", optional = true }
 
 runtime-common = { package = "polkadot-runtime-common", path = "../common", default-features = false }
@@ -96,16 +96,16 @@ xcm-builder = { package = "xcm-builder", path = "../../xcm/xcm-builder", default
 [dev-dependencies]
 hex-literal = "0.3.4"
 tiny-keccak = { version = "2.0.2", features = ["keccak"] }
-keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 serde_json = "1.0.81"
 separator = "0.4.1"
-remote-externalities = { git = "https://github.com/paritytech/substrate", package = "frame-remote-externalities" , branch = "oty-optional-pov-limit" }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-remote-externalities" }
 tokio = { version = "1.24.1", features = ["macros"] }
-sp-tracing = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-optional-pov-limit" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [build-dependencies]
-substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+substrate-wasm-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]

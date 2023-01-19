@@ -25,20 +25,20 @@ polkadot-client = { path = "../node/client", optional = true }
 polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "oty-optional-pov-limit" }
-try-runtime-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "oty-optional-pov-limit" }
-sc-cli = { git = "https://github.com/paritytech/substrate", optional = true , branch = "oty-optional-pov-limit" }
-sc-service = { git = "https://github.com/paritytech/substrate", optional = true , branch = "oty-optional-pov-limit" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-service = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 polkadot-node-metrics = { path = "../node/metrics" }
-sc-tracing = { git = "https://github.com/paritytech/substrate", optional = true , branch = "oty-optional-pov-limit" }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
+sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["db", "cli", "hostperfcheck", "full-node", "polkadot-native"]

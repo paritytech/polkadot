@@ -7,26 +7,26 @@ edition.workspace = true
 [dependencies]
 jsonrpsee = { version = "0.16.2", features = ["server"] }
 polkadot-primitives = { path = "../primitives" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
-substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "oty-optional-pov-limit" }
+sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-finality-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-finality-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master" }
+mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
