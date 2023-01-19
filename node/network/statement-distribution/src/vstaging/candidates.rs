@@ -90,7 +90,7 @@ impl Candidates {
 				}
 
 				if let Some((claimed_parent_hash, claimed_id)) = claimed_parent_hash_and_id {
-					if c.parent_hash() != claimed_parent_hash {
+					if c.parent_head_data_hash() != claimed_parent_hash {
 						return Err(BadAdvertisement)
 					}
 
@@ -312,7 +312,7 @@ impl Candidates {
 		self.candidates.retain(|c_hash, state| match state {
 			CandidateState::Confirmed(ref mut c) =>
 				if !relay_parent_live(&c.relay_parent()) {
-					remove_parent_claims(*c_hash, c.parent_hash(), c.para_id());
+					remove_parent_claims(*c_hash, c.parent_head_data_hash(), c.para_id());
 					false
 				} else {
 					for leaf_hash in leaves {
@@ -531,12 +531,13 @@ impl ConfirmedCandidate {
 		}
 	}
 
-	fn group_index(&self) -> GroupIndex {
-		self.assigned_group
+	/// Get the parent head data hash.
+	pub fn parent_head_data_hash(&self) -> Hash {
+		self.parent_hash
 	}
 
-	fn parent_hash(&self) -> Hash {
-		self.parent_hash
+	fn group_index(&self) -> GroupIndex {
+		self.assigned_group
 	}
 
 	fn to_hypothetical(&self, candidate_hash: CandidateHash) -> HypotheticalCandidate {

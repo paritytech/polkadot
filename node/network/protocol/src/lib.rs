@@ -643,6 +643,30 @@ pub mod vstaging {
 		pub validated_in_group: BitVec<u8, bitvec::order::Lsb0>,
 	}
 
+	/// An acknowledgement of a backed candidate being known.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct BackedCandidateAcknowledgement {
+		/// The relay-parent of the candidate.
+		pub relay_parent: Hash,
+		/// The hash of the candidate.
+		pub candidate_hash: CandidateHash,
+		/// A bitfield which indicates which validators in the para's
+		/// group at the relay-parent have validated this candidate
+		/// and issued `Seconded` statements about it.
+		///
+		/// This MUST have exactly the minimum amount of bytes
+		/// necessary to represent the number of validators in the
+		/// assigned backing group as-of the relay-parent.
+		pub seconded_in_group: BitVec<u8, bitvec::order::Lsb0>,
+		/// A bitfield which indicates which validators in the para's
+		/// group at the relay-parent have validated this candidate
+		/// and issued `Valid` statements about it.
+		///
+		/// This MUST have exactly the minimum amount of bytes
+		/// necessary to represent the number of validators in the
+		/// assigned backing group as-of the relay-parent.
+		pub validated_in_group: BitVec<u8, bitvec::order::Lsb0>,
+	}
 	/// Network messages used by the statement distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum StatementDistributionMessage {
@@ -659,7 +683,7 @@ pub mod vstaging {
 		/// A notification of a backed candidate being known by the sending node,
 		/// for the purpose of informing a receiving node which already has the candidate.
 		#[codec(index = 2)]
-		BackedCandidateKnown(Hash, CandidateHash),
+		BackedCandidateKnown(BackedCandidateAcknowledgement),
 
 		/// All messages for V1 for compatibility with the statement distribution
 		/// protocol, for relay-parents that don't support asynchronous backing.

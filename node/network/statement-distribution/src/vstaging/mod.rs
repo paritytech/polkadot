@@ -315,10 +315,7 @@ pub(crate) async fn handle_network_update<Context>(
 					protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(inner),
 				) => {}, // TODO [now]
 				net_protocol::StatementDistributionMessage::VStaging(
-					protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(
-						relay_parent,
-						candidate_hash,
-					),
+					protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(inner),
 				) => {}, // TODO [now]
 			}
 		},
@@ -858,8 +855,6 @@ async fn report_peer(
 ///     all statements about the candidate have been sent to backing
 ///   - If the candidate is in-cluster and is importable,
 ///     the statement has been sent to backing
-///   - If the candidate just became backable, appropriate announcements
-///     and acknowledgement along the topology have been made.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn handle_incoming_statement<Context>(
 	ctx: &mut Context,
@@ -1069,20 +1064,6 @@ async fn handle_incoming_statement<Context>(
 			.await;
 		}
 
-		if !was_backable && is_backable && is_importable {
-			dispatch_announcements_and_acknowledgements(
-				ctx,
-				candidate_hash,
-				originator_group,
-				&relay_parent,
-				&mut *per_relay_parent,
-				&*per_session,
-				&state.authorities,
-				&state.peers,
-			)
-			.await;
-		}
-
 		// We always circulate statements at this point.
 		circulate_statement(ctx, state, relay_parent, originator_group, checked_statement).await;
 	} else {
@@ -1214,17 +1195,17 @@ async fn send_backing_fresh_statements<Context>(
 	}
 }
 
-// For a candidate that has just become both backable and importable, this
-// dispatches backable candidate announcements or acknowledgements
-// via the grid topology. If the session topology is not yet
+// This provides a backable candidate to the grid and dispatches backable candidate announcements
+// and acknowledgements via the grid topology. If the session topology is not yet
 // available, this will be a no-op.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-async fn dispatch_announcements_and_acknowledgements<Context>(
+async fn provide_candidate_to_grid<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,
 	group_index: GroupIndex,
 	relay_parent: &Hash,
 	relay_parent_state: &mut PerRelayParentState,
+	confirmed_candidate: &candidates::ConfirmedCandidate,
 	per_session: &PerSessionState,
 	authorities: &HashMap<AuthorityDiscoveryId, PeerId>,
 	peers: &HashMap<PeerId, PeerState>,
@@ -1270,6 +1251,41 @@ async fn dispatch_announcements_and_acknowledgements<Context>(
 		group_size,
 	);
 
+	let filter = {
+		let mut f = StatementFilter::new(group_size);
+		relay_parent_state.statement_store.fill_statement_filter(
+			group_index,
+			candidate_hash,
+			&mut f,
+		);
+		f
+	};
+
+	let manifest = protocol_vstaging::BackedCandidateManifest {
+		relay_parent: *relay_parent,
+		candidate_hash,
+		group_index,
+		para_id: confirmed_candidate.para_id(),
+		parent_head_data_hash: confirmed_candidate.parent_head_data_hash(),
+		seconded_in_group: filter.seconded_in_group.clone(),
+		validated_in_group: filter.validated_in_group.clone(),
+	};
+	let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
+		relay_parent: *relay_parent,
+		candidate_hash,
+		seconded_in_group: filter.seconded_in_group.clone(),
+		validated_in_group: filter.validated_in_group.clone(),
+	};
+
+	let inventory_message = Versioned::VStaging(
+		protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(manifest),
+	);
+	let ack_message = Versioned::VStaging(
+		protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(acknowledgement),
+	);
+
+	let mut inventory_peers = Vec::new();
+	let mut ack_peers = Vec::new();
 	for (v, action) in actions {
 		let p = match connected_validator_peer(authorities, per_session, v) {
 			None => continue,
@@ -1283,13 +1299,31 @@ async fn dispatch_announcements_and_acknowledgements<Context>(
 
 		match action {
 			grid::PostBackingAction::Advertise => {
-				// TODO [now]: send inventory message and `note_advertised_to`.
+				inventory_peers.push(p);
+				local_validator
+					.grid_tracker
+					.note_advertised_to(v, candidate_hash, filter.clone());
 			},
 			grid::PostBackingAction::Acknowledge => {
-				// TODO [now]: send acknowledgement message and `note_local_acknowledged`.
+				ack_peers.push(p);
+				// TODO [now]: send follow-up statements as well
+				local_validator.grid_tracker.note_local_acknowledged(
+					v,
+					candidate_hash,
+					filter.clone(),
+				);
 			},
 		}
 	}
+
+	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+		inventory_peers,
+		inventory_message.into(),
+	))
+	.await;
+
+	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(ack_peers, ack_message.into()))
+		.await;
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]

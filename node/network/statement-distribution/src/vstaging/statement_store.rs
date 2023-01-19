@@ -29,7 +29,7 @@ use polkadot_primitives::vstaging::{
 };
 use std::collections::hash_map::{Entry as HEntry, HashMap};
 
-use super::groups::Groups;
+use super::{grid::StatementFilter, groups::Groups};
 
 /// Possible origins of a statement.
 pub enum StatementOrigin {
@@ -175,6 +175,20 @@ impl StatementStore {
 				CompactStatement::Seconded(_) => &*g.seconded,
 				CompactStatement::Valid(_) => &*g.valid,
 			})
+	}
+
+	/// Fill a `StatementFilter` to be used in the grid topology with all statements
+	/// we are already aware of.
+	pub fn fill_statement_filter(
+		&self,
+		group_index: GroupIndex,
+		candidate_hash: CandidateHash,
+		statement_filter: &mut StatementFilter,
+	) {
+		if let Some(statements) = self.group_statements.get(&(group_index, candidate_hash)) {
+			statement_filter.seconded_in_group |= statements.seconded.as_bitslice();
+			statement_filter.validated_in_group |= statements.valid.as_bitslice();
+		}
 	}
 
 	// TODO [now]: this may not be useful.

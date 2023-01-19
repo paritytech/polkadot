@@ -666,6 +666,7 @@ enum StatementKind {
 
 /// Bitfields indicating the statements that are known or undesired
 /// about a candidate.
+#[derive(Clone)]
 pub struct StatementFilter {
 	/// Seconded statements. '1' is known or undesired.
 	pub seconded_in_group: BitVec<u8, Lsb0>,
