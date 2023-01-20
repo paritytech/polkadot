@@ -20,7 +20,7 @@
 
 use codec::Encode;
 use frame_benchmarking::{account, BenchmarkError};
-use sp_std::{prelude::*, vec};
+use sp_std::prelude::*;
 use xcm::latest::prelude::*;
 use xcm_executor::traits::Convert;
 

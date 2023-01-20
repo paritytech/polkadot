@@ -21,7 +21,7 @@ use frame_support::{
 	ensure,
 };
 use sp_runtime::traits::Saturating;
-use sp_std::{marker::PhantomData, prelude::*};
+use sp_std::{marker::PhantomData, prelude::*, vec};
 use xcm::latest::{
 	Error as XcmError, ExecuteXcm,
 	Instruction::{self, *},
