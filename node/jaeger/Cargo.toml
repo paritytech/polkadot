@@ -2,6 +2,7 @@
 name = "polkadot-node-jaeger"
 version.workspace = true
 authors.workspace = true
+license.workspace = true
 edition.workspace = true
 description = "Polkadot Jaeger primitives, but equally useful for Grafana/Tempo"
 

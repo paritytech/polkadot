@@ -2,6 +2,7 @@
 name = "tracing-gum-proc-macro"
 version.workspace = true
 authors.workspace = true
+license.workspace = true
 edition.workspace = true
 description = "Generate an overseer including builder pattern and message wrapper from a single annotated struct definition."
 

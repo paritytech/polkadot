@@ -2,6 +2,7 @@
 name = "polkadot-runtime-parachains"
 version.workspace = true
 authors.workspace = true
+license.workspace = true
 edition.workspace = true
 
 [dependencies]

@@ -3,6 +3,7 @@ name = "xcmsg"
 description = "The basic XCM datastructures."
 version.workspace = true
 authors.workspace = true
+license.workspace = true
 edition.workspace = true
 
 [dependencies]

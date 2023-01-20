@@ -3,6 +3,7 @@ name = "polkadot-node-metrics"
 description = "Subsystem metric helpers"
 version.workspace = true
 authors.workspace = true
+license.workspace = true
 edition.workspace = true
 
 [dependencies]

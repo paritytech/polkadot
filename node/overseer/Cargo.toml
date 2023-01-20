@@ -2,6 +2,7 @@
 name = "polkadot-overseer"
 version.workspace = true
 authors.workspace = true
+license.workspace = true
 edition.workspace = true
 
 [dependencies]

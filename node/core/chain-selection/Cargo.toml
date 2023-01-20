@@ -3,6 +3,7 @@ name = "polkadot-node-core-chain-selection"
 description = "Chain Selection Subsystem"
 version.workspace = true
 authors.workspace = true
+license.workspace = true
 edition.workspace = true
 
 [dependencies]

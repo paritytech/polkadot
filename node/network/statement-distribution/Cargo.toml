@@ -3,6 +3,7 @@ name = "polkadot-statement-distribution"
 description = "Statement Distribution Subsystem"
 version.workspace = true
 authors.workspace = true
+license.workspace = true
 edition.workspace = true
 
 [dependencies]
