@@ -246,7 +246,7 @@ pub enum Fungibility {
 }
 
 #[derive(Decode)]
-pub enum UncheckedFungibility {
+enum UncheckedFungibility {
 	Fungible(#[codec(compact)] u128),
 	NonFungible(AssetInstance),
 }
@@ -256,7 +256,8 @@ impl Decode for Fungibility {
 		match UncheckedFungibility::decode(input)? {
 			UncheckedFungibility::Fungible(a) if a != 0 => Ok(Self::Fungible(a)),
 			UncheckedFungibility::NonFungible(i) => Ok(Self::NonFungible(i)),
-			UncheckedFungibility::Fungible(_) => Err("Fungible asset of zero amount is not allowed".into()),
+			UncheckedFungibility::Fungible(_) =>
+				Err("Fungible asset of zero amount is not allowed".into()),
 		}
 	}
 }
