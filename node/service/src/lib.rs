@@ -986,6 +986,14 @@ where
 
 	if let Some(hwbench) = hwbench {
 		sc_sysinfo::print_hwbench(&hwbench);
+		if !SUBSTRATE_REFERENCE_HARDWARE.check_hardware(&hwbench) && role.is_authority() {
+			// Note using new-line here since line-breaks in links make it un-clickable (at least)
+			// in gnome terminals.
+			log::warn!(
+				"⚠️  The hardware does not meet the minimal requirements for role 'Authority' find out more at:\n\
+				https://wiki.polkadot.network/docs/maintain-guides-how-to-validate-polkadot#reference-hardware"
+			);
+		}
 
 		if let Some(ref mut telemetry) = telemetry {
 			let telemetry_handle = telemetry.handle();
