@@ -1377,62 +1377,34 @@ async fn fragment_tree_update_inner<Context>(
 			state.candidates.note_importable_under(&hypo, leaf_hash);
 		}
 
-		match hypo {
-			HypotheticalCandidate::Complete {
-				candidate_hash,
-				receipt,
-				persisted_validation_data,
-			} => {
-				// 4a. for confirmed candidates, send all statements which are new to backing.
-				let confirmed_candidate = state.candidates.get_confirmed(&candidate_hash);
-				let prs = state.per_relay_parent.get_mut(&receipt.descriptor().relay_parent);
-				if let (Some(confirmed), Some(prs)) = (confirmed_candidate, prs) {
-					let group_index = group_for_para(
-						&prs.availability_cores,
-						&prs.group_rotation_info,
-						receipt.descriptor().para_id,
-					);
+		// 4. for confirmed candidates, send all statements which are new to backing.
+		if let HypotheticalCandidate::Complete {
+			candidate_hash,
+			receipt,
+			persisted_validation_data,
+		} = hypo {
+			let confirmed_candidate = state.candidates.get_confirmed(&candidate_hash);
+			let prs = state.per_relay_parent.get_mut(&receipt.descriptor().relay_parent);
+			if let (Some(confirmed), Some(prs)) = (confirmed_candidate, prs) {
+				let group_index = group_for_para(
+					&prs.availability_cores,
+					&prs.group_rotation_info,
+					receipt.descriptor().para_id,
+				);
 
-					let per_session = state.per_session.get(&prs.session);
-					if let (Some(per_session), Some(group_index)) = (per_session, group_index) {
-						send_backing_fresh_statements(
-							ctx,
-							candidate_hash,
-							group_index,
-							&receipt.descriptor().relay_parent,
-							prs,
-							confirmed,
-							per_session,
-						).await;
-					}
+				let per_session = state.per_session.get(&prs.session);
+				if let (Some(per_session), Some(group_index)) = (per_session, group_index) {
+					send_backing_fresh_statements(
+						ctx,
+						candidate_hash,
+						group_index,
+						&receipt.descriptor().relay_parent,
+						prs,
+						confirmed,
+						per_session,
+					).await;
 				}
-			},
-			HypotheticalCandidate::Incomplete {
-				candidate_hash,
-				candidate_para,
-				parent_head_data_hash,
-				candidate_relay_parent,
-			} => {
-				// 4b. for unconfirmed candidates, send requests to all advertising peers.
-				if let Some(prs) = state.per_relay_parent.get(&candidate_relay_parent) {
-					let group_index = group_for_para(
-						&prs.availability_cores,
-						&prs.group_rotation_info,
-						candidate_para,
-					);
-
-					let request_from = prs
-						.local_validator
-						.as_ref()
-						.zip(group_index)
-						.map(|(vs, group_index)| {
-							vs.grid_tracker.validators_to_request(candidate_hash, group_index)
-						})
-						.unwrap_or_default();
-
-					// TODO [now]: issue requests
-				}
-			},
+			}
 		}
 	}
 }
