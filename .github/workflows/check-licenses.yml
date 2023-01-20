@@ -2,6 +2,7 @@ name: Check licenses
 
 on:
   pull_request:
+  push:
 
 jobs:
   check-licenses:
