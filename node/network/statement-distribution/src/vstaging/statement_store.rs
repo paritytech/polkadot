@@ -219,13 +219,6 @@ impl StatementStore {
 		self.known_statements.get(&(validator_index, statement)).map(|s| &s.statement)
 	}
 
-	/// Whether a candidate has enough statements to be backed.
-	pub fn is_backable(&self, group_index: GroupIndex, candidate_hash: CandidateHash) -> bool {
-		self.group_statements
-			.get(&(group_index, candidate_hash))
-			.map_or(false, |s| s.is_backable())
-	}
-
 	/// Get an iterator over all statements marked as being unknown by the backing subsystem.
 	pub fn fresh_statements_for_backing<'a>(
 		&'a self,
@@ -281,20 +274,6 @@ impl GroupStatements {
 			seconded: BitVec::repeat(false, group_size),
 			valid: BitVec::repeat(false, group_size),
 		}
-	}
-
-	fn is_backable(&self) -> bool {
-		let votes = self
-			.seconded
-			.iter()
-			.by_vals()
-			.zip(self.valid.iter().by_vals())
-			.filter(|&(s, v)| s || v) // no double-counting
-			.count();
-
-		let threshold = super::minimum_votes(self.valid.len());
-
-		votes >= threshold
 	}
 
 	fn note_seconded(&mut self, within_group_index: usize) {

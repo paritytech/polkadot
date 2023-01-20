@@ -143,6 +143,7 @@ impl Candidates {
 				assigned_group,
 				parent_hash,
 				importable_under: HashSet::new(),
+				backed: false,
 			}),
 		);
 		let new_confirmed =
@@ -223,6 +224,11 @@ impl Candidates {
 		self.get_confirmed(candidate_hash).map_or(false, |c| c.is_importable(None))
 	}
 
+	/// Whether the candidate is marked as backed.
+	pub fn is_backed(&self, candidate_hash: &CandidateHash) -> bool {
+		self.get_confirmed(candidate_hash).map_or(false, |c| c.is_backed())
+	}
+
 	/// Note that a candidate is importable in a fragment tree indicated by the given
 	/// leaf hash.
 	pub fn note_importable_under(&mut self, candidate: &HypotheticalCandidate, leaf_hash: Hash) {
@@ -252,6 +258,13 @@ impl Candidates {
 					c.importable_under.insert(leaf_hash);
 				}
 			},
+		}
+	}
+
+	/// Note that a candidate is backed. No-op if the candidate is not confirmed.
+	pub fn note_backed(&mut self, candidate_hash: &CandidateHash) {
+		if let Some(&mut CandidateState::Confirmed(ref mut c)) = self.candidates.get_mut(candidate_hash) {
+			c.backed = true;
 		}
 	}
 
@@ -500,6 +513,7 @@ pub struct ConfirmedCandidate {
 	parent_hash: Hash,
 	// active leaves statements about this candidate are importable under.
 	importable_under: HashSet<Hash>,
+	backed: bool,
 }
 
 impl ConfirmedCandidate {
@@ -529,6 +543,11 @@ impl ConfirmedCandidate {
 			Some(h) => self.importable_under.contains(h),
 			None => !self.importable_under.is_empty(),
 		}
+	}
+
+	/// Whether the candidate is marked as being backed.
+	pub fn is_backed(&self) -> bool {
+		self.backed
 	}
 
 	/// Get the parent head data hash.

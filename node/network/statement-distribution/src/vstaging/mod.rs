@@ -1022,9 +1022,6 @@ async fn handle_incoming_statement<Context>(
 		request_entry.get_mut().set_cluster_priority();
 	}
 
-	let was_backable =
-		per_relay_parent.statement_store.is_backable(originator_group, candidate_hash);
-
 	let was_fresh = match per_relay_parent.statement_store.insert(
 		&per_session.groups,
 		checked_statement.clone(),
@@ -1046,9 +1043,6 @@ async fn handle_incoming_statement<Context>(
 
 	if was_fresh {
 		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT_FIRST).await;
-
-		let is_backable =
-			per_relay_parent.statement_store.is_backable(originator_group, candidate_hash);
 		let is_importable = state.candidates.is_importable(&candidate_hash);
 
 		if let (true, &Some(confirmed)) = (is_importable, &confirmed) {
@@ -1155,6 +1149,8 @@ fn handle_grid_statement(
 	Ok(checked_statement)
 }
 
+/// Send backing fresh statements. This should only be performed on importable & confirmed
+/// candidates.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn send_backing_fresh_statements<Context>(
 	ctx: &mut Context,
@@ -1297,6 +1293,8 @@ async fn provide_candidate_to_grid<Context>(
 				},
 		};
 
+		// TODO [now]: only send if peer has relay parent in implicit view?
+
 		match action {
 			grid::PostBackingAction::Advertise => {
 				inventory_peers.push(p);
@@ -1324,6 +1322,22 @@ async fn provide_candidate_to_grid<Context>(
 
 	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(ack_peers, ack_message.into()))
 		.await;
+}
+
+fn group_for_para(
+	availability_cores: &[CoreState],
+	group_rotation_info: &GroupRotationInfo,
+	para_id: ParaId,
+) -> Option<GroupIndex> {
+	// Note: this won't work well for parathreads as it assumes that core assignments are fixed
+	// across blocks.
+	let core_index = availability_cores
+		.iter()
+		.position(|c| c.para_id() == Some(para_id));
+
+	core_index.map(|c| {
+		group_rotation_info.group_for_core(CoreIndex(c as _), availability_cores.len())
+	})
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
@@ -1369,22 +1383,27 @@ async fn fragment_tree_update_inner<Context>(
 				receipt,
 				persisted_validation_data,
 			} => {
-				// 4a. for confirmed candidates, if the candidate has enough statements to
-				//    back, send all statements which are new to backing.
-				if let Some(prs) = state.per_relay_parent.get(&receipt.descriptor().relay_parent) {
-					let core_index = prs
-						.availability_cores
-						.iter()
-						.position(|c| c.para_id() == Some(receipt.descriptor().para_id));
+				// 4a. for confirmed candidates, send all statements which are new to backing.
+				let confirmed_candidate = state.candidates.get_confirmed(&candidate_hash);
+				let prs = state.per_relay_parent.get_mut(&receipt.descriptor().relay_parent);
+				if let (Some(confirmed), Some(prs)) = (confirmed_candidate, prs) {
+					let group_index = group_for_para(
+						&prs.availability_cores,
+						&prs.group_rotation_info,
+						receipt.descriptor().para_id,
+					);
 
-					let group_index = core_index.map(|c| {
-						prs.group_rotation_info
-							.group_for_core(CoreIndex(c as _), prs.availability_cores.len())
-					});
-					if let Some(true) =
-						group_index.map(|g| prs.statement_store.is_backable(g, candidate_hash))
-					{
-						// TODO [now]: send statements to backing
+					let per_session = state.per_session.get(&prs.session);
+					if let (Some(per_session), Some(group_index)) = (per_session, group_index) {
+						send_backing_fresh_statements(
+							ctx,
+							candidate_hash,
+							group_index,
+							&receipt.descriptor().relay_parent,
+							prs,
+							confirmed,
+							per_session,
+						).await;
 					}
 				}
 			},
@@ -1395,17 +1414,12 @@ async fn fragment_tree_update_inner<Context>(
 				candidate_relay_parent,
 			} => {
 				// 4b. for unconfirmed candidates, send requests to all advertising peers.
-				//    note that all unconfirmed hypothetical candidates are from the grid
 				if let Some(prs) = state.per_relay_parent.get(&candidate_relay_parent) {
-					let core_index = prs
-						.availability_cores
-						.iter()
-						.position(|c| c.para_id() == Some(candidate_para));
-
-					let group_index = core_index.map(|c| {
-						prs.group_rotation_info
-							.group_for_core(CoreIndex(c as _), prs.availability_cores.len())
-					});
+					let group_index = group_for_para(
+						&prs.availability_cores,
+						&prs.group_rotation_info,
+						candidate_para,
+					);
 
 					let request_from = prs
 						.local_validator
