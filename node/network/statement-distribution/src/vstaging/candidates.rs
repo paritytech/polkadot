@@ -555,7 +555,9 @@ impl ConfirmedCandidate {
 		self.parent_hash
 	}
 
-	fn group_index(&self) -> GroupIndex {
+	/// Get the group index of the assigned group. Note that this is in the context
+	/// of the state of the chain at the candidate's relay parent and its para-id.
+	pub fn group_index(&self) -> GroupIndex {
 		self.assigned_group
 	}
 

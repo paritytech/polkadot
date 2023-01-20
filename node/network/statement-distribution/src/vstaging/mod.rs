@@ -17,6 +17,9 @@
 //! Implementation of the v2 statement distribution protocol,
 //! designed for asynchronous backing.
 
+// TODO [now]: remove before merging & fix warnings
+#![allow(unused)]
+
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RequiredRouting, SessionGridTopology},
@@ -1203,8 +1206,6 @@ async fn send_backing_fresh_statements<Context>(
 async fn provide_candidate_to_grid<Context>(
 	ctx: &mut Context,
 	candidate_hash: CandidateHash,
-	group_index: GroupIndex,
-	relay_parent: &Hash,
 	relay_parent_state: &mut PerRelayParentState,
 	confirmed_candidate: &candidates::ConfirmedCandidate,
 	per_session: &PerSessionState,
@@ -1215,6 +1216,9 @@ async fn provide_candidate_to_grid<Context>(
 		Some(ref mut v) => v,
 		None => return,
 	};
+
+	let relay_parent = confirmed_candidate.relay_parent();
+	let group_index = confirmed_candidate.group_index();
 
 	let grid_view = match per_session.grid_view {
 		Some(ref t) => t,
@@ -1263,7 +1267,7 @@ async fn provide_candidate_to_grid<Context>(
 	};
 
 	let manifest = protocol_vstaging::BackedCandidateManifest {
-		relay_parent: *relay_parent,
+		relay_parent,
 		candidate_hash,
 		group_index,
 		para_id: confirmed_candidate.para_id(),
@@ -1272,7 +1276,7 @@ async fn provide_candidate_to_grid<Context>(
 		validated_in_group: filter.validated_in_group.clone(),
 	};
 	let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
-		relay_parent: *relay_parent,
+		relay_parent,
 		candidate_hash,
 		seconded_in_group: filter.seconded_in_group.clone(),
 		validated_in_group: filter.validated_in_group.clone(),
@@ -1291,14 +1295,12 @@ async fn provide_candidate_to_grid<Context>(
 		let p = match connected_validator_peer(authorities, per_session, v) {
 			None => continue,
 			Some(p) =>
-				if peers.get(&p).map_or(false, |d| d.knows_relay_parent(relay_parent)) {
+				if peers.get(&p).map_or(false, |d| d.knows_relay_parent(&relay_parent)) {
 					p
 				} else {
 					continue
 				},
 		};
-
-		// TODO [now]: only send if peer has relay parent in implicit view?
 
 		match action {
 			grid::PostBackingAction::Advertise => {
@@ -1450,16 +1452,48 @@ async fn handle_incoming_manifest<Context>(
 	//    frontier, update candidates wrapper, add request entry if so.
 }
 
+/// Handle a notification of a candidate being backed.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-async fn handle_cluster_newly_backed<Context>(
+pub(crate) async fn handle_backed_candidate_message<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	relay_parent: Hash,
 	candidate_hash: CandidateHash,
 ) {
-	// TODO [now]
-	// 1. for confirmed & importable candidates only
-	// 2. send advertisements along the grid
+	// If the candidate is unknown or unconfirmed, it's a race (pruned before receiving message)
+	// or a bug. Ignore if so
+	state.candidates.note_backed(&candidate_hash);
+	let confirmed = match state.candidates.get_confirmed(&candidate_hash) {
+		None => {
+			gum::debug!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				"Received backed candidate notification for unknown or unconfirmed",
+			);
+
+			return
+		}
+		Some(c) => c,
+	};
+
+	let relay_parent_state = match state.per_relay_parent.get_mut(&confirmed.relay_parent()) {
+		None => return,
+		Some(s) => s,
+	};
+
+	let per_session = match state.per_session.get(&relay_parent_state.session) {
+		None => return,
+		Some(s) => s,
+	};
+
+	provide_candidate_to_grid(
+		ctx,
+		candidate_hash,
+		relay_parent_state,
+		confirmed,
+		per_session,
+		&state.authorities,
+		&state.peers,
+	).await;
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
