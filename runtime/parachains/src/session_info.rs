@@ -40,9 +40,8 @@ pub mod migration;
 #[cfg(test)]
 mod tests;
 
-// The order of tags should be deterministic, that is, one should not reorder them when changing
-// the array contents to avoid creating excessive pressure to PVF execution subsys.
-// `Environment` must always be present and must be the first one, that is asserted.
+// The order of parameters should be deterministic, that is, one should not reorder them when
+// changing the array contents to avoid creating excessive pressure to PVF execution subsys.
 const EXECUTOR_PARAMS: [ExecutorParam; 0] = [];
 
 /// A type for representing the validator account id in a session.

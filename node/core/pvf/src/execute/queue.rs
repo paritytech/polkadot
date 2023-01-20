@@ -43,6 +43,8 @@ use std::{
 /// The amount of time a job for which the queue does not have a compatible worker may wait in the
 /// queue. After that time passes, the queue will kill the first worker which becomes idle to
 /// re-spawn a new worker to execute the job immediately.
+/// To make any sense and not to break things, the value should be greater than minimal execution
+/// timeout in use, and less than the block time.
 const MAX_KEEP_WAITING: Duration =
 	Duration::from_millis(BACKING_EXECUTION_TIMEOUT.as_millis() as u64 * 2);
 
