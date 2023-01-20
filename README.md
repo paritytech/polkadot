@@ -31,7 +31,13 @@ the command-line.
 ### Debian-based (Debian, Ubuntu)
 
 Currently supports Debian 10 (Buster) and Ubuntu 20.04 (Focal), and
-derivatives. Run the following commands as the `root` user.
+derivatives. You can either run the installation as the root user or run the
+installation as a non-root user with elevated privileges. There are slight changes
+for each type of user when importing the gpg keys and when adding the Parity repo.
+
+#### Install using the root user
+
+Run the following commands as the `root` user.
 
 ```bash
 # Import the security@parity.io GPG key
@@ -47,6 +53,25 @@ apt install parity-keyring
 apt install polkadot
 
 ```
+
+#### Install using a user with elevated privileges (sudo)
+
+Run the following commands as a `non-root` user.
+
+```bash
+# Import the security@parity.io GPG key
+PARITY_SEC_KEY=9D4B2B6EB8F97156D19669A9FF0812D491B96798
+gpg --recv-keys --keyserver hkps://keys.mailvelope.com $PARITY_SEC_KEY
+sudo gpg --export $PARITY_SEC_KEY | sudo tee /usr/share/keyrings/parity.gpg
+# Add the Parity repository and update the package index
+echo 'deb [signed-by=/usr/share/keyrings/parity.gpg] https://releases.parity.io/deb release main' | sudo tee /etc/apt/sources.list.d/parity.list
+apt update
+# Install the `parity-keyring` package - This will ensure the GPG key
+# used by APT remains up-to-date
+apt install parity-keyring
+# Install polkadot
+apt install polkadot --version
+
 
 ### RPM-based (Fedora, CentOS)
 
