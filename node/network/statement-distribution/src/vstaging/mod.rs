@@ -590,6 +590,11 @@ pub(crate) async fn share_local_statement<Context>(
 			},
 			Ok(true) => (compact_statement, candidate_hash),
 		}
+
+		// TODO [now]: the candidate is confirmed, so
+		// a) cancel requests
+		// b) import previously-received statements.
+		// Probably: create a helper function that does all this + applies post-confirmation reckoning.
 	};
 
 	// send the compact version of the statement to any peers which need it.
