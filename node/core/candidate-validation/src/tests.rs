@@ -15,6 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use crate::overseer::SpawnGlue;
 use ::test_helpers::{dummy_hash, make_valid_candidate_descriptor};
 use assert_matches::assert_matches;
 use futures::executor;
@@ -458,8 +459,43 @@ fn candidate_validation_ok_is_ok() {
 	});
 }
 
+fn test_with_executor_params<'a, T: futures::Future<Output = R>, R>(test: impl FnOnce(&'a mut test_helpers::TestSubsystemContext<AllMessages, SpawnGlue<TaskExecutor>>) -> T) -> R
+{
+	let pool = TaskExecutor::new();
+	let (mut ctx, mut ctx_handle) =
+		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let test_fut = test(&mut ctx);
+
+	let overseer = async move {
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+			) => {
+				tx.send(Ok(1u32.into())).unwrap();
+			}
+		);
+		assert_matches!(
+			ctx_handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(_, tx))
+			) => {
+				tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+			}
+		);
+	};
+
+	// let overseer_fut = overseer(ctx_handle);
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(overseer);
+	let v = executor::block_on(future::join(test_fut, overseer));
+	v.0
+}
+
 #[test]
 fn candidate_validation_bad_return_is_invalid() {
+	sp_tracing::init_for_tests();
 	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
@@ -486,25 +522,49 @@ fn candidate_validation_bad_return_is_invalid() {
 
 	let candidate_receipt = CandidateReceipt { descriptor, commitments_hash: Hash::zero() };
 
-	let pool = TaskExecutor::new();
-	let (mut ctx, _ctx_handle) =
-		test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	// let pool = TaskExecutor::new();
+	// let (mut ctx, mut ctx_handle) =
+	// 	test_helpers::make_subsystem_context::<AllMessages, _>(pool.clone());
+	let metrics = Metrics::default();
 
-	let v = executor::block_on(validate_candidate_exhaustive(
-		ctx.sender(),
-		MockValidateCandidateBackend::with_hardcoded_result(Err(
-			ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
-		)),
-		validation_data,
-		validation_code,
-		candidate_receipt,
-		Arc::new(pov),
-		Duration::from_secs(0),
-		&Default::default(),
-	))
-	.unwrap();
+	let test = |ctx: &mut test_helpers::TestSubsystemContext<_, _>| {
+		validate_candidate_exhaustive(
+			ctx.sender(),
+			MockValidateCandidateBackend::with_hardcoded_result(Err(
+				ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout),
+			)),
+			validation_data,
+			validation_code,
+			candidate_receipt,
+			Arc::new(pov),
+			Duration::from_secs(0),
+			&metrics,
+		)
+	};
+	// let overseer = async move |ctx_handle| {
+	// 	assert_matches!(
+	// 		ctx_handle.recv().await,
+	// 		AllMessages::RuntimeApi(
+	// 			RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionIndexForChild(tx))
+	// 		) => {
+	// 			tx.send(Ok(1u32.into())).unwrap();
+	// 		}
+	// 	);
+	// 	assert_matches!(
+	// 		ctx_handle.recv().await,
+	// 		AllMessages::RuntimeApi(
+	// 			RuntimeApiMessage::Request(_, RuntimeApiRequest::SessionExecutorParams(_, tx))
+	// 		) => {
+	// 			tx.send(Ok(Some(ExecutorParams::default()))).unwrap();
+	// 		}
+	// 	);
+	// };
+	// futures::pin_mut!(test);
+	// futures::pin_mut!(overseer);
+	// let v = executor::block_on(future::join(test, overseer));
+	let v = test_with_executor_params(test);
 
-	assert_matches!(v, ValidationResult::Invalid(InvalidCandidate::Timeout));
+	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)));
 }
 
 #[test]

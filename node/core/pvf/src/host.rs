@@ -1238,7 +1238,7 @@ mod tests {
 		let mut precheck_receivers = Vec::new();
 		for _ in 0..3 {
 			let (result_tx, result_rx) = oneshot::channel();
-			host.precheck_pvf(PvfWithExecutorParams::from_discriminator(1), result_tx)
+			host.precheck_pvf(PvfWithExecutorParams::from_discriminator(2), result_tx)
 				.await
 				.unwrap();
 			precheck_receivers.push(result_rx);
