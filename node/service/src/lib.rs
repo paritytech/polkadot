@@ -118,6 +118,7 @@ pub use sp_runtime::{
 		self as runtime_traits, BlakeTwo256, Block as BlockT, HashFor, Header as HeaderT, NumberFor,
 	},
 };
+use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 
 #[cfg(feature = "kusama-native")]
 pub use kusama_runtime;
@@ -987,8 +988,6 @@ where
 	if let Some(hwbench) = hwbench {
 		sc_sysinfo::print_hwbench(&hwbench);
 		if !SUBSTRATE_REFERENCE_HARDWARE.check_hardware(&hwbench) && role.is_authority() {
-			// Note using new-line here since line-breaks in links make it un-clickable (at least)
-			// in gnome terminals.
 			log::warn!(
 				"⚠️  The hardware does not meet the minimal requirements for role 'Authority' find out more at:\n\
 				https://wiki.polkadot.network/docs/maintain-guides-how-to-validate-polkadot#reference-hardware"
