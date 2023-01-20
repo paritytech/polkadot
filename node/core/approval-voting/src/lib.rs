@@ -1808,6 +1808,14 @@ fn check_and_import_assignment(
 	Ok((res, actions))
 }
 
+pub(crate) struct ApprovalCheckJob {
+	pubkey: Public,
+ 	block_hash: Hash,
+ 	candidate_hash: Hash,
+ 	session: SessionIndex,
+ 	signature: Signature,
+}
+
 fn check_and_import_approval<T>(
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
@@ -1853,6 +1861,16 @@ fn check_and_import_approval<T>(
 			ApprovalCheckError::InvalidValidatorIndex(approval.validator),
 		)),
 	};
+
+	/// Notes for Approval check job defintion
+	/// ApprovalCheckJob {
+	/// 	pubkey: Public,
+	/// 	block_hash: Hash,
+	/// 	candidate_hash: Hash,
+	/// 	session: SessionIndex,
+	/// 	signature: Signature,
+	/// };
+	/// 
 
 	// Signature check:
 	match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking).check_signature(
