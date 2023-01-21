@@ -778,7 +778,7 @@ async fn circulate_statement<Context>(
 			},
 			DirectTargetKind::Grid => {
 				statement_to.push(peer_id);
-				local_validator.grid_tracker.note_sent_or_received_direct_statement(
+				local_validator.grid_tracker.sent_or_received_direct_statement(
 					&per_session.groups,
 					originator,
 					target,
@@ -1147,7 +1147,7 @@ fn handle_grid_statement(
 		Err(_) => return Err(COST_INVALID_SIGNATURE),
 	};
 
-	grid_tracker.note_sent_or_received_direct_statement(
+	grid_tracker.sent_or_received_direct_statement(
 		&per_session.groups,
 		checked_statement.validator_index(),
 		grid_sender_index,
@@ -1276,7 +1276,6 @@ async fn provide_candidate_to_grid<Context>(
 		validated_in_group: filter.validated_in_group.clone(),
 	};
 	let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
-		relay_parent,
 		candidate_hash,
 		seconded_in_group: filter.seconded_in_group.clone(),
 		validated_in_group: filter.validated_in_group.clone(),
@@ -1303,22 +1302,12 @@ async fn provide_candidate_to_grid<Context>(
 		};
 
 		match action {
-			grid::PostBackingAction::Advertise => {
-				inventory_peers.push(p);
-				local_validator
-					.grid_tracker
-					.note_advertised_to(v, candidate_hash, filter.clone());
-			},
-			grid::PostBackingAction::Acknowledge => {
-				ack_peers.push(p);
-				// TODO [now]: send follow-up statements as well
-				local_validator.grid_tracker.note_local_acknowledged(
-					v,
-					candidate_hash,
-					filter.clone(),
-				);
-			},
+			grid::ManifestKind::Full => inventory_peers.push(p),
+			grid::ManifestKind::Acknowledgement => ack_peers.push(p),
 		}
+
+		// TODO [now]: send follow-up statements as well
+		local_validator.grid_tracker.manifest_sent_to(v, candidate_hash, filter.clone());
 	}
 
 	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(

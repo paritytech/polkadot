@@ -646,8 +646,6 @@ pub mod vstaging {
 	/// An acknowledgement of a backed candidate being known.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub struct BackedCandidateAcknowledgement {
-		/// The relay-parent of the candidate.
-		pub relay_parent: Hash,
 		/// The hash of the candidate.
 		pub candidate_hash: CandidateHash,
 		/// A bitfield which indicates which validators in the para's
@@ -667,6 +665,7 @@ pub mod vstaging {
 		/// assigned backing group as-of the relay-parent.
 		pub validated_in_group: BitVec<u8, bitvec::order::Lsb0>,
 	}
+
 	/// Network messages used by the statement distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum StatementDistributionMessage {
