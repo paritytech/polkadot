@@ -3,7 +3,7 @@ timeout = 1000
 
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
-default_command = "{{ZOMBIENET_NATIVE_BINARY_PREFIX}}polkadot"
+default_command = "polkadot"
 chain = "rococo-local"
 
 
@@ -31,7 +31,7 @@ addToGenesis = true
   [parachains.collator]
   name = "collator01"
   image = "{{COL_IMAGE}}"
-  command = "{{ZOMBIENET_NATIVE_BINARY_PREFIX}}undying-collator"
+  command = "undying-collator"
   args = ["-lparachain=debug"]
 
 [[parachains]]
@@ -41,7 +41,7 @@ addToGenesis = true
   [parachains.collator]
   name = "collator02"
   image = "{{COL_IMAGE}}"
-  command = "{{ZOMBIENET_NATIVE_BINARY_PREFIX}}undying-collator"
+  command = "undying-collator"
   args = ["-lparachain=debug"]
 
 [types.Header]

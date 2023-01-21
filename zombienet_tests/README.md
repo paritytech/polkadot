@@ -14,9 +14,8 @@ _The content of this directory is meant to be used by Parity's private CI/CD inf
 
 ## Running tests locally
 
-To run any test locally use the native provider (`zombienet test -p native ...`) and set `ZOMBIENET_NATIVE_BINARY_PREFIX` environment variable with a full path to a directory containing polkadot/cumulus binaries. E.g. `ZOMBIENET_NATIVE_BINARY_PREFIX=/home/user/local-run/`. **The path should contain a trailing slash!**
+To run any test locally use the native provider (`zombienet test -p native ...`) and prepare a directory containing all required polkadot/cumulus binaries. They are:
 
-You need the following binaries:
 * adder-collator -> polkadot/target/testnet/adder-collator
 * malus -> polkadot/target/testnet/malus
 * polkadot -> polkadot/target/testnet/polkadot
@@ -40,7 +39,15 @@ lrwxrwxrwx. 1 ceco ceco  47 Jan 18 11:33 polkadot -> /home/user/src/polkadot/tar
 lrwxrwxrwx. 1 ceco ceco  56 Jan 19 15:53 polkadot-collator -> /home/user/src/cumulus/target/release/polkadot-parachain
 lrwxrwxrwx. 1 ceco ceco  55 Jan 18 13:58 undying-collator -> /home/user/src/polkadot/target/testnet/undying-collator
 ```
-And set `ZOMBIENET_NATIVE_BINARY_PREFIX` to the path of this directory. This way you won't have to copy files on each rebuild.
+
+Then when you execute a test you set PATH as `PATH=/your/zombienet/binaries/dir:$PATH`. It's important to put your dir at the beginning of PATH otherwise zombienet might pick another binary.
+
+Example:
+
+The directory with the zombienet binaries is `/home/user/zombienet_bins/`. You can run a test locally by executing:
+```
+PATH=/home/user/zombienet_bins:$PATH  zombienet test -p native 0001-parachains-pvf.zndsl
+```
 
 ## Questions / permissions
 
