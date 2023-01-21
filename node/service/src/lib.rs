@@ -95,6 +95,7 @@ pub use polkadot_client::PolkadotExecutorDispatch;
 
 pub use chain_spec::{KusamaChainSpec, PolkadotChainSpec, RococoChainSpec, WestendChainSpec};
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
+use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use mmr_gadget::MmrGadget;
 #[cfg(feature = "full-node")]
 pub use polkadot_client::{
@@ -118,7 +119,6 @@ pub use sp_runtime::{
 		self as runtime_traits, BlakeTwo256, Block as BlockT, HashFor, Header as HeaderT, NumberFor,
 	},
 };
-use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 
 #[cfg(feature = "kusama-native")]
 pub use kusama_runtime;
