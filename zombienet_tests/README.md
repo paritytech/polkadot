@@ -40,7 +40,8 @@ lrwxrwxrwx. 1 ceco ceco  47 Jan 18 11:33 polkadot -> /home/user/src/polkadot/tar
 lrwxrwxrwx. 1 ceco ceco  56 Jan 19 15:53 polkadot-collator -> /home/user/src/cumulus/target/release/polkadot-parachain
 lrwxrwxrwx. 1 ceco ceco  55 Jan 18 13:58 undying-collator -> /home/user/src/polkadot/target/testnet/undying-collator
 ```
-And set this directory in `ZOMBIENET_NATIVE_BINARY_PREFIX`. This way you won't have to copy files on each rebuild.
+And set `ZOMBIENET_NATIVE_BINARY_PREFIX` to the path of this directory. This way you won't have to copy files on each rebuild.
+
 ## Questions / permissions
 
 Ping in element Javier (@javier:matrix.parity.io) to ask questions or grant permission to run the test from your local setup.
