@@ -1310,5 +1310,10 @@ mod tests {
 		);
 	}
 
-	// TODO [now]: check that pending communication is set and cleared correctly.
+	// TODO [now]: test that senders can provide manifests in acknowledgement
+
+	// TODO [now]: check that pending communication is set correctly when receiving a manifest on a confirmed candidate
+	// It should also overwrite any existing `Full` ManifestKind
+
+	// TODO [now]: check that pending communication is cleared correctly in `manifest_sent_to`
 }
