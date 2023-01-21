@@ -11,7 +11,6 @@ sc-authority-discovery = { git = "https://github.com/paritytech/substrate", bran
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-beefy" }
 beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 mmr-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master"}
@@ -63,6 +62,8 @@ pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/parityt
 # Substrate Other
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 # External Crates
 futures = "0.3.21"
@@ -77,6 +78,7 @@ parity-db = { version = "0.4.2", optional = true }
 
 async-trait = "0.1.57"
 lru = "0.8"
+log = "0.4.17"
 
 # Polkadot
 polkadot-node-core-parachains-inherent = { path = "../core/parachains-inherent" }
@@ -131,7 +133,6 @@ polkadot-statement-distribution = { path = "../network/statement-distribution", 
 polkadot-test-client = { path = "../test/client" }
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 env_logger = "0.9.0"
-log = "0.4.17"
 assert_matches = "1.5.0"
 tempfile = "3.2"
 
