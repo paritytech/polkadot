@@ -26,7 +26,7 @@ type RuntimeOrigin<T> = <T as frame_system::Config>::RuntimeOrigin;
 
 benchmarks! {
 	send {
-		let send_origin = 
+		let send_origin =
 			T::SendXcmOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 		if T::SendXcmOrigin::try_origin(send_origin.clone()).is_err() {
 			return Err(BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))
@@ -41,7 +41,7 @@ benchmarks! {
 
 	teleport_assets {
 		let asset: MultiAsset = (Here, 10).into();
-		let send_origin = 
+		let send_origin =
 			T::ExecuteXcmOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 		let origin_location = T::ExecuteXcmOrigin::try_origin(send_origin.clone())
 			.map_err(|_| BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))?;
@@ -61,7 +61,7 @@ benchmarks! {
 
 	reserve_transfer_assets {
 		let asset: MultiAsset = (Here, 10).into();
-		let send_origin = 
+		let send_origin =
 			T::ExecuteXcmOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 		let origin_location = T::ExecuteXcmOrigin::try_origin(send_origin.clone())
 			.map_err(|_| BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))?;
@@ -80,7 +80,7 @@ benchmarks! {
 	}: _<RuntimeOrigin<T>>(send_origin, Box::new(versioned_dest), Box::new(versioned_beneficiary), Box::new(versioned_assets), 0)
 
 	execute {
-		let execute_origin = 
+		let execute_origin =
 			T::ExecuteXcmOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 		let origin_location = T::ExecuteXcmOrigin::try_origin(execute_origin.clone())
 			.map_err(|_| BenchmarkError::Override(BenchmarkResult::from_weight(Weight::MAX)))?;

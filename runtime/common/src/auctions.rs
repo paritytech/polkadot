@@ -1786,7 +1786,7 @@ mod benchmarking {
 		new_auction {
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::max_value();
-			let origin = 
+			let origin =
 				T::InitiateOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 		}: _<T::RuntimeOrigin>(origin, duration, lease_period_index)
 		verify {
@@ -1806,7 +1806,7 @@ mod benchmarking {
 			// Create a new auction
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
-			let origin = 
+			let origin =
 				T::InitiateOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
@@ -1859,7 +1859,7 @@ mod benchmarking {
 			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
-			let origin = 
+			let origin =
 				T::InitiateOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
@@ -1904,7 +1904,7 @@ mod benchmarking {
 			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
-			let origin = 
+			let origin =
 				T::InitiateOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
