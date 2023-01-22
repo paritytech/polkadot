@@ -27,17 +27,18 @@
 //! This also handles concerns such as the relay-chain being forkful,
 //! session changes, predicting validator group assignments.
 
-use std::borrow::Cow;
-use std::collections::{HashMap, HashSet};
+use std::{
+	borrow::Cow,
+	collections::{HashMap, HashSet},
+};
 
 use futures::{channel::oneshot, prelude::*};
 
 use polkadot_node_subsystem::{
 	messages::{
-		ChainApiMessage, FragmentTreeMembership, HypotheticalDepthRequest, HypotheticalFrontierRequest,
-		HypotheticalCandidate,
-		ProspectiveParachainsMessage, ProspectiveValidationDataRequest,
-		RuntimeApiMessage, RuntimeApiRequest,
+		ChainApiMessage, FragmentTreeMembership, HypotheticalCandidate, HypotheticalDepthRequest,
+		HypotheticalFrontierRequest, ProspectiveParachainsMessage,
+		ProspectiveValidationDataRequest, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -515,10 +516,7 @@ fn answer_hypothetical_frontier_request(
 				),
 			};
 
-			let depths = fragment_tree.hypothetical_depths(
-				c_hash,
-				hypothetical,
-			);
+			let depths = fragment_tree.hypothetical_depths(c_hash, hypothetical);
 
 			if !depths.is_empty() {
 				membership.push((*active_leaf, depths));
