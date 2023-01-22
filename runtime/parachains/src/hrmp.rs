@@ -21,12 +21,16 @@ use crate::{
 use frame_support::{pallet_prelude::*, traits::ReservableCurrency};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_parachain::primitives::MAX_HORIZONTAL_MESSAGE_NUM;
 use primitives::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
 	SessionIndex,
 };
 use scale_info::TypeInfo;
-use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash as HashT, UniqueSaturatedInto};
+use sp_core::bounded::BoundedVec;
+use sp_runtime::traits::{
+	AccountIdConversion, BlakeTwo256, ConstU32, Hash as HashT, UniqueSaturatedInto,
+};
 use sp_std::{
 	collections::{btree_map::BTreeMap, btree_set::BTreeSet},
 	fmt, mem,
@@ -1059,7 +1063,10 @@ impl<T: Config> Pallet<T> {
 	/// Returns the amount of weight consumed.
 	pub(crate) fn queue_outbound_hrmp(
 		sender: ParaId,
-		out_hrmp_msgs: Vec<OutboundHrmpMessage<ParaId>>,
+		out_hrmp_msgs: BoundedVec<
+			OutboundHrmpMessage<ParaId>,
+			ConstU32<MAX_HORIZONTAL_MESSAGE_NUM>,
+		>,
 	) -> Weight {
 		let mut weight = Weight::zero();
 		let now = <frame_system::Pallet<T>>::block_number();

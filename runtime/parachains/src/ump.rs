@@ -20,7 +20,10 @@ use crate::{
 };
 use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
+use polkadot_parachain::primitives::MAX_UPWARD_MESSAGE_NUM;
 use primitives::{Id as ParaId, UpwardMessage};
+use sp_core::bounded::BoundedVec;
+use sp_runtime::traits::ConstU32;
 use sp_std::{collections::btree_map::BTreeMap, fmt, marker::PhantomData, mem, prelude::*};
 use xcm::latest::Outcome;
 
@@ -28,7 +31,7 @@ pub use pallet::*;
 
 /// Maximum value that `config.max_upward_message_size` can be set to
 ///
-/// This is used for benchmarking sanely bounding relevant storate items. It is expected from the `configurations`
+/// This is used for benchmarking sanely bounding relevant storage items. It is expected from the `configurations`
 /// pallet to check these values before setting.
 pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 50 * 1024;
 /// Maximum amount of overweight messages that can exist in the queue at any given time.
@@ -472,7 +475,7 @@ impl<T: Config> Pallet<T> {
 	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
 	pub(crate) fn receive_upward_messages(
 		para: ParaId,
-		upward_messages: Vec<UpwardMessage>,
+		upward_messages: BoundedVec<UpwardMessage, ConstU32<MAX_UPWARD_MESSAGE_NUM>>,
 	) -> Weight {
 		let mut weight = Weight::zero();
 

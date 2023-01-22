@@ -28,8 +28,8 @@ use sp_std::{
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
-use primitives::RuntimeDebug;
-use runtime_primitives::traits::{AppVerify, Header as HeaderT};
+use primitives::{bounded::BoundedVec, RuntimeDebug};
+use runtime_primitives::traits::{AppVerify, ConstU32, Header as HeaderT};
 use sp_arithmetic::traits::{BaseArithmetic, Saturating};
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
@@ -44,7 +44,7 @@ pub use polkadot_core_primitives::{
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
 	HeadData, HrmpChannelId, Id, UpwardMessage, ValidationCode, ValidationCodeHash,
-	LOWEST_PUBLIC_ID, LOWEST_USER_ID,
+	LOWEST_PUBLIC_ID, LOWEST_USER_ID, MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM,
 };
 
 #[cfg(feature = "std")]
@@ -593,12 +593,13 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Hash, Default))]
+#[cfg_attr(feature = "std", derive(Default))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<UpwardMessage>,
+	pub upward_messages: BoundedVec<UpwardMessage, ConstU32<MAX_UPWARD_MESSAGE_NUM>>,
 	/// Horizontal messages sent by the parachain.
-	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
+	pub horizontal_messages:
+		BoundedVec<OutboundHrmpMessage<Id>, ConstU32<MAX_HORIZONTAL_MESSAGE_NUM>>,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
@@ -607,6 +608,19 @@ pub struct CandidateCommitments<N = BlockNumber> {
 	pub processed_downward_messages: u32,
 	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
 	pub hrmp_watermark: N,
+}
+
+// Custom implementation of `Hash`, since `BoundedVec` does not implement it.
+#[cfg(feature = "std")]
+impl sp_std::hash::Hash for CandidateCommitments {
+	fn hash<H: sp_std::hash::Hasher>(&self, state: &mut H) {
+		self.upward_messages.as_slice().hash(state);
+		self.horizontal_messages.as_slice().hash(state);
+		self.new_validation_code.hash(state);
+		sp_std::hash::Hash::hash(&self.head_data, state);
+		self.processed_downward_messages.hash(state);
+		self.hrmp_watermark.hash(state);
+	}
 }
 
 impl CandidateCommitments {

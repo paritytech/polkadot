@@ -22,8 +22,8 @@ use sp_std::vec::Vec;
 use frame_support::weights::Weight;
 use parity_scale_codec::{CompactAs, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use sp_core::{RuntimeDebug, TypeId};
-use sp_runtime::traits::Hash as _;
+use sp_core::{bounded::BoundedVec, RuntimeDebug, TypeId};
+use sp_runtime::traits::{ConstU32, Hash as _};
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -346,6 +346,17 @@ impl XcmpMessageHandler for () {
 	}
 }
 
+/// Maximum number of HRMP messages allowed per candidate.
+///
+/// We also use this as a generous limit, which still prevents possible memory exhaustion, from
+/// malicious parachains that may otherwise return a huge amount of messages in `ValidationResult`.
+pub const MAX_HORIZONTAL_MESSAGE_NUM: u32 = 16 * 1024;
+/// Maximum number of UMP messages allowed per candidate.
+///
+/// We also use this as a generous limit, which still prevents possible memory exhaustion, from
+/// malicious parachains that may otherwise return a huge amount of messages in `ValidationResult`.
+pub const MAX_UPWARD_MESSAGE_NUM: u32 = 16 * 1024;
+
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
 #[derive(PartialEq, Eq, Decode, Clone)]
@@ -371,9 +382,10 @@ pub struct ValidationResult {
 	/// An update to the validation code that should be scheduled in the relay chain.
 	pub new_validation_code: Option<ValidationCode>,
 	/// Upward messages send by the Parachain.
-	pub upward_messages: Vec<UpwardMessage>,
+	pub upward_messages: BoundedVec<UpwardMessage, ConstU32<MAX_UPWARD_MESSAGE_NUM>>,
 	/// Outbound horizontal messages sent by the parachain.
-	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
+	pub horizontal_messages:
+		BoundedVec<OutboundHrmpMessage<Id>, ConstU32<MAX_HORIZONTAL_MESSAGE_NUM>>,
 	/// Number of downward messages that were processed by the Parachain.
 	///
 	/// It is expected that the Parachain processes them from first to last.

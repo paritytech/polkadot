@@ -7085,6 +7085,7 @@ dependencies = [
  "sp-core",
  "sp-keystore",
  "sp-maybe-compressed-blob",
+ "sp-runtime",
  "thiserror",
  "zstd",
 ]
@@ -7498,6 +7499,7 @@ dependencies = [
  "pallet-timestamp",
  "pallet-vesting",
  "parity-scale-codec",
+ "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
  "polkadot-runtime-metrics",

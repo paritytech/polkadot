@@ -38,8 +38,12 @@ use polkadot_primitives::{
 pub use sp_consensus_babe::{
 	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 };
+use sp_core::bounded::BoundedVec as CoreBoundedVec;
+use sp_runtime::traits::ConstU32;
 
-pub use polkadot_parachain::primitives::BlockData;
+pub use polkadot_parachain::primitives::{
+	BlockData, MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM,
+};
 
 pub mod approval;
 
@@ -314,9 +318,10 @@ impl MaybeCompressedPoV {
 #[cfg(not(target_os = "unknown"))]
 pub struct Collation<BlockNumber = polkadot_primitives::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<UpwardMessage>,
+	pub upward_messages: CoreBoundedVec<UpwardMessage, ConstU32<MAX_UPWARD_MESSAGE_NUM>>,
 	/// The horizontal messages sent by the parachain.
-	pub horizontal_messages: Vec<OutboundHrmpMessage<ParaId>>,
+	pub horizontal_messages:
+		CoreBoundedVec<OutboundHrmpMessage<ParaId>, ConstU32<MAX_HORIZONTAL_MESSAGE_NUM>>,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
