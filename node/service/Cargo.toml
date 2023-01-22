@@ -77,7 +77,7 @@ kvdb-rocksdb = { version = "0.17.0", optional = true }
 parity-db = { version = "0.4.2", optional = true }
 
 async-trait = "0.1.57"
-lru = "0.8"
+lru = "0.9"
 log = "0.4.17"
 
 # Polkadot
