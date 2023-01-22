@@ -328,14 +328,12 @@ where
 	};
 
 	runner.run_node_until_exit(move |config| async move {
-		let hwbench = if !cli.run.no_hardware_benchmarks {
-			config.database.path().map(|database_path| {
+		let hwbench = (!cli.run.no_hardware_benchmarks)
+			.then_some(config.database.path().map(|database_path| {
 				let _ = std::fs::create_dir_all(&database_path);
 				sc_sysinfo::gather_hwbench(Some(database_path))
-			})
-		} else {
-			None
-		};
+			}))
+			.flatten();
 
 		service::build_full(
 			config,
