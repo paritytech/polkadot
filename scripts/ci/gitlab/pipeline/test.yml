@@ -88,10 +88,11 @@ cargo-clippy:
   script:
     - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo +nightly clippy --all-targets
 
-check-crate-publishing:
+test-crate-publishing:
   extends:
     - .test-refs
     - .crates-publishing-template
+  timeout: 5h
   script:
     - git clone
         --depth 1
