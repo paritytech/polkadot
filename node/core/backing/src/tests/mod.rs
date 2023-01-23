@@ -23,6 +23,7 @@ use assert_matches::assert_matches;
 use futures::{future, Future};
 use polkadot_node_primitives::{BlockData, InvalidCandidate, SignedFullStatement, Statement};
 use polkadot_node_subsystem::{
+	errors::RuntimeApiError,
 	jaeger,
 	messages::{
 		AllMessages, CollatorProtocolMessage, RuntimeApiMessage, RuntimeApiRequest,
@@ -31,7 +32,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal, TimeoutExt,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateDescriptor, GroupRotationInfo, HeadData, PersistedValidationData, ScheduledCore,
 	SessionIndex,
 };
@@ -44,7 +45,8 @@ use std::collections::HashMap;
 
 mod prospective_parachains;
 
-const API_VERSION_PROSPECTIVE_DISABLED: u32 = 2;
+const ASYNC_BACKING_DISABLED_ERROR: RuntimeApiError =
+	RuntimeApiError::NotSupported { runtime_api_name: "test-runtime" };
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
@@ -212,7 +214,7 @@ impl TestCandidateBuilder {
 				erasure_root: self.erasure_root,
 				collator: dummy_collator(),
 				signature: dummy_collator_signature(),
-				para_head: dummy_hash(),
+				para_head: self.head_data.hash(),
 				validation_code_hash: ValidationCode(self.validation_code).hash(),
 				persisted_validation_data_hash: self.persisted_validation_data_hash,
 			},
@@ -242,14 +244,12 @@ async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 		))))
 		.await;
 
-	// Prospective parachains mode is temporarily defined by the Runtime API version.
-	// Disable it for the test leaf.
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(parent, RuntimeApiRequest::Version(tx))
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
 		) if parent == test_state.relay_parent => {
-			tx.send(Ok(API_VERSION_PROSPECTIVE_DISABLED)).unwrap();
+			tx.send(Err(ASYNC_BACKING_DISABLED_ERROR)).unwrap();
 		}
 	);
 

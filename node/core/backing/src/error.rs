@@ -18,8 +18,8 @@ use fatality::Nested;
 use futures::channel::{mpsc, oneshot};
 
 use polkadot_node_subsystem::{messages::ValidationFailed, RuntimeApiError, SubsystemError};
-use polkadot_node_subsystem_util::Error as UtilError;
-use polkadot_primitives::v2::{BackedCandidate, ValidationCodeHash};
+use polkadot_node_subsystem_util::{runtime, Error as UtilError};
+use polkadot_primitives::{BackedCandidate, ValidationCodeHash};
 
 use crate::LOG_TARGET;
 
@@ -30,6 +30,18 @@ pub type FatalResult<T> = std::result::Result<T, FatalError>;
 #[allow(missing_docs)]
 #[fatality::fatality(splitable)]
 pub enum Error {
+	#[fatal]
+	#[error("Failed to spawn background task")]
+	FailedToSpawnBackgroundTask,
+
+	#[fatal(forward)]
+	#[error("Error while accessing runtime information")]
+	Runtime(#[from] runtime::Error),
+
+	#[fatal]
+	#[error(transparent)]
+	BackgroundValidationMpsc(#[from] mpsc::SendError),
+
 	#[error("Candidate is not found")]
 	CandidateNotFound,
 
@@ -54,10 +66,6 @@ pub enum Error {
 	#[error("Candidate rejected by prospective parachains subsystem")]
 	RejectedByProspectiveParachains,
 
-	#[fatal]
-	#[error("Failed to spawn background task")]
-	FailedToSpawnBackgroundTask,
-
 	#[error("ValidateFromExhaustive channel closed before receipt")]
 	ValidateFromExhaustive(#[source] oneshot::Canceled),
 
@@ -75,10 +83,6 @@ pub enum Error {
 
 	#[error(transparent)]
 	ValidationFailed(#[from] ValidationFailed),
-
-	#[fatal]
-	#[error(transparent)]
-	BackgroundValidationMpsc(#[from] mpsc::SendError),
 
 	#[error(transparent)]
 	UtilError(#[from] UtilError),

@@ -28,15 +28,16 @@
 //!    └─▶Advertised ─▶ Pending ─▶ Fetched ─▶ Validated
 
 use futures::channel::oneshot;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 
 use polkadot_node_network_protocol::PeerId;
 use polkadot_node_primitives::PoV;
+use polkadot_node_subsystem_util::runtime::ProspectiveParachainsMode;
 use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CollatorId, Hash, Id as ParaId, PersistedValidationData,
 };
 
-use crate::{error::SecondingError, ProspectiveParachainsMode, LOG_TARGET, MAX_CANDIDATE_DEPTH};
+use crate::{error::SecondingError, LOG_TARGET};
 
 /// Candidate supplied with a para head it's built on top of.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -111,6 +112,21 @@ impl PendingCollation {
 	}
 }
 
+/// vstaging advertisement that was rejected by the backing
+/// subsystem. Validator may fetch it later if its fragment
+/// membership gets recognized before relay parent goes out of view.
+#[derive(Debug, Clone)]
+pub struct BlockedAdvertisement {
+	/// Peer that advertised the collation.
+	pub peer_id: PeerId,
+	/// Collator id.
+	pub collator_id: CollatorId,
+	/// The relay-parent of the candidate.
+	pub candidate_relay_parent: Hash,
+	/// Hash of the candidate.
+	pub candidate_hash: CandidateHash,
+}
+
 /// Performs a sanity check between advertised and fetched collations.
 ///
 /// Since the persisted validation data is constructed using the advertised
@@ -183,14 +199,14 @@ pub struct Collations {
 	pub fetching_from: Option<(CollatorId, Option<CandidateHash>)>,
 	/// Collation that were advertised to us, but we did not yet fetch.
 	pub waiting_queue: VecDeque<(PendingCollation, CollatorId)>,
-	/// How many collations have been seconded per parachain.
-	pub seconded_count: HashMap<ParaId, usize>,
+	/// How many collations have been seconded.
+	pub seconded_count: usize,
 }
 
 impl Collations {
 	/// Note a seconded collation for a given para.
-	pub(super) fn note_seconded(&mut self, para_id: ParaId) {
-		*self.seconded_count.entry(para_id).or_insert(0) += 1
+	pub(super) fn note_seconded(&mut self) {
+		self.seconded_count += 1
 	}
 
 	/// Returns the next collation to fetch from the `waiting_queue`.
@@ -225,17 +241,12 @@ impl Collations {
 		match self.status {
 			// We don't need to fetch any other collation when we already have seconded one.
 			CollationStatus::Seconded => None,
-			CollationStatus::Waiting => {
-				while let Some(next) = self.waiting_queue.pop_front() {
-					let para_id = next.0.para_id;
-					if !self.is_seconded_limit_reached(relay_parent_mode, para_id) {
-						continue
-					}
-
-					return Some(next)
-				}
-				None
-			},
+			CollationStatus::Waiting =>
+				if !self.is_seconded_limit_reached(relay_parent_mode) {
+					None
+				} else {
+					self.waiting_queue.pop_front()
+				},
 			CollationStatus::WaitingOnValidation | CollationStatus::Fetching =>
 				unreachable!("We have reset the status above!"),
 		}
@@ -245,10 +256,15 @@ impl Collations {
 	pub(super) fn is_seconded_limit_reached(
 		&self,
 		relay_parent_mode: ProspectiveParachainsMode,
-		para_id: ParaId,
 	) -> bool {
 		let seconded_limit =
-			if relay_parent_mode.is_enabled() { MAX_CANDIDATE_DEPTH + 1 } else { 1 };
-		self.seconded_count.get(&para_id).map_or(true, |&num| num < seconded_limit)
+			if let ProspectiveParachainsMode::Enabled { max_candidate_depth, .. } =
+				relay_parent_mode
+			{
+				max_candidate_depth + 1
+			} else {
+				1
+			};
+		self.seconded_count < seconded_limit
 	}
 }

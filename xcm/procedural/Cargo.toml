@@ -1,8 +1,8 @@
 [package]
-authors = ["Parity Technologies <admin@parity.io>"]
 name = "xcm-procedural"
-version = "0.9.29"
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
 
 [lib]
 proc-macro = true

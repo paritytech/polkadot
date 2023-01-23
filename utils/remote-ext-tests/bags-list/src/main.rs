@@ -16,18 +16,18 @@
 
 //! Remote tests for bags-list pallet.
 
-use clap::{ArgEnum, Parser};
+use clap::{Parser, ValueEnum};
 
-#[derive(Clone, Debug, ArgEnum)]
-#[clap(rename_all = "PascalCase")]
+#[derive(Clone, Debug, ValueEnum)]
+#[value(rename_all = "PascalCase")]
 enum Command {
 	CheckMigration,
 	SanityCheck,
 	Snapshot,
 }
 
-#[derive(Clone, Debug, ArgEnum)]
-#[clap(rename_all = "PascalCase")]
+#[derive(Clone, Debug, ValueEnum)]
+#[value(rename_all = "PascalCase")]
 enum Runtime {
 	Polkadot,
 	Kusama,
@@ -36,13 +36,13 @@ enum Runtime {
 
 #[derive(Parser)]
 struct Cli {
-	#[clap(long, short, default_value = "wss://kusama-rpc.polkadot.io:443")]
+	#[arg(long, short, default_value = "wss://kusama-rpc.polkadot.io:443")]
 	uri: String,
-	#[clap(long, short, ignore_case = true, arg_enum, default_value = "kusama")]
+	#[arg(long, short, ignore_case = true, value_enum, default_value_t = Runtime::Kusama)]
 	runtime: Runtime,
-	#[clap(long, short, ignore_case = true, arg_enum, default_value = "SanityCheck")]
+	#[arg(long, short, ignore_case = true, value_enum, default_value_t = Command::SanityCheck)]
 	command: Command,
-	#[clap(long, short)]
+	#[arg(long, short)]
 	snapshot_limit: Option<usize>,
 }
 

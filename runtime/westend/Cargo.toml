@@ -1,9 +1,9 @@
 [package]
 name = "westend-runtime"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 build = "build.rs"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
@@ -11,13 +11,13 @@ parity-scale-codec = { version = "3.1.5", default-features = false, features = [
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
-serde = { version = "1.0.137", default-features = false }
+serde = { version = "1.0.139", default-features = false }
 serde_derive = { version = "1.0.117", optional = true }
 smallvec = "1.8.0"
 
 authority-discovery-primitives = { package = "sp-authority-discovery", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, package = "sp-beefy" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 offchain-primitives = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -65,6 +65,7 @@ pallet-session = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-society = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-state-trie-migration = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-transaction-payment = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -100,8 +101,8 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
 serde_json = "1.0.81"
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-tokio = { version = "1.19.2", features = ["macros"] }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-remote-externalities" }
+tokio = { version = "1.24.1", features = ["macros"] }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 [build-dependencies]
@@ -155,6 +156,7 @@ std = [
 	"pallet-session/std",
 	"pallet-society/std",
 	"pallet-staking/std",
+	"pallet-state-trie-migration/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
 	"pallet-treasury/std",
@@ -255,6 +257,7 @@ try-runtime = [
 	"pallet-session/try-runtime",
 	"pallet-society/try-runtime",
 	"pallet-staking/try-runtime",
+	"pallet-state-trie-migration/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-treasury/try-runtime",

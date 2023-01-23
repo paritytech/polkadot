@@ -20,7 +20,7 @@
 //! dependent on any of the other pallets.
 
 use frame_support::pallet_prelude::*;
-use primitives::v2::{SessionIndex, ValidatorId, ValidatorIndex};
+use primitives::{SessionIndex, ValidatorId, ValidatorIndex};
 use sp_runtime::traits::AtLeast32BitUnsigned;
 use sp_std::{collections::vec_deque::VecDeque, vec::Vec};
 
@@ -38,10 +38,6 @@ pub(crate) const SESSION_DELAY: SessionIndex = 2;
 
 #[cfg(test)]
 mod tests;
-
-/// The maximum amount of relay-parent lookback.
-// TODO: put this in the configuration module (https://github.com/paritytech/polkadot/issues/4841).
-pub const ALLOWED_RELAY_PARENT_LOOKBACK: usize = 4;
 
 /// Information about past relay-parents.
 #[derive(Encode, Decode, Default, TypeInfo)]
@@ -64,21 +60,22 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 	AllowedRelayParentsTracker<Hash, BlockNumber>
 {
 	/// Add a new relay-parent to the allowed relay parents, along with info about the header.
-	/// Provide a maximum length for the buffer, which will cause old relay-parents to be pruned.
+	/// Provide a maximum ancestry length for the buffer, which will cause old relay-parents to be pruned.
 	pub(crate) fn update(
 		&mut self,
 		relay_parent: Hash,
 		state_root: Hash,
 		number: BlockNumber,
-		max_len: usize,
+		max_ancestry_len: u32,
 	) {
+		// + 1 for the most recent block, which is always allowed.
+		let buffer_size_limit = max_ancestry_len as usize + 1;
+
 		self.buffer.push_back((relay_parent, state_root));
 		self.latest_number = number;
-		while self.buffer.len() > max_len {
+		while self.buffer.len() > buffer_size_limit {
 			let _ = self.buffer.pop_front();
 		}
-
-		// if max_len == 0, then latest_number is nonsensical. Otherwise, it's fine.
 
 		// We only allow relay parents within the same sessions, the buffer
 		// gets cleared on session changes.
@@ -104,9 +101,21 @@ impl<Hash: PartialEq + Copy, BlockNumber: AtLeast32BitUnsigned + Copy>
 		}
 
 		let age = (self.buffer.len() - 1) - pos;
-		let number = self.latest_number.clone() - BlockNumber::from(age as u32);
+		let number = self.latest_number - BlockNumber::from(age as u32);
 
 		Some((self.buffer[pos].1, number))
+	}
+
+	/// Returns block number of the earliest block the buffer would contain if
+	/// `now` is pushed into it.
+	pub(crate) fn hypothetical_earliest_block_number(
+		&self,
+		now: BlockNumber,
+		max_ancestry_len: u32,
+	) -> BlockNumber {
+		let allowed_ancestry_len = max_ancestry_len.min(self.buffer.len() as u32);
+
+		now - allowed_ancestry_len.into()
 	}
 }
 

@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_types::RuntimeApiSubsystemClient;
-use polkadot_primitives::v2::Hash;
+use polkadot_primitives::Hash;
 
 use cache::{RequestResult, RequestResultCache};
 use futures::{channel::oneshot, prelude::*, select, stream::FuturesUnordered};
@@ -151,15 +151,16 @@ where
 			ValidationCodeHash(relay_parent, para_id, assumption, hash) => self
 				.requests_cache
 				.cache_validation_code_hash((relay_parent, para_id, assumption), hash),
-
-			StagingValidityConstraints(relay_parent, para_id, constraints) => self
-				.requests_cache
-				.cache_staging_validity_constraints((relay_parent, para_id), constraints),
-
 			Version(relay_parent, version) =>
 				self.requests_cache.cache_version(relay_parent, version),
 			Disputes(relay_parent, disputes) =>
 				self.requests_cache.cache_disputes(relay_parent, disputes),
+
+			StagingValidityConstraints(relay_parent, para_id, constraints) => self
+				.requests_cache
+				.cache_staging_validity_constraints((relay_parent, para_id), constraints),
+			StagingAsyncBackingParameters(relay_parent, params) =>
+				self.requests_cache.cache_staging_async_backing_parameters(relay_parent, params),
 		}
 	}
 
@@ -261,11 +262,14 @@ where
 			Request::ValidationCodeHash(para, assumption, sender) =>
 				query!(validation_code_hash(para, assumption), sender)
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
+			Request::Disputes(sender) =>
+				query!(disputes(), sender).map(|sender| Request::Disputes(sender)),
 			Request::StagingValidityConstraints(para, sender) =>
 				query!(staging_validity_constraints(para), sender)
 					.map(|sender| Request::StagingValidityConstraints(para, sender)),
-			Request::Disputes(sender) =>
-				query!(disputes(), sender).map(|sender| Request::Disputes(sender)),
+			Request::StagingAsyncBackingParameters(sender) =>
+				query!(staging_async_backing_parameters(), sender)
+					.map(|sender| Request::StagingAsyncBackingParameters(sender)),
 		}
 	}
 
@@ -276,7 +280,7 @@ where
 		let (sender, receiver) = oneshot::channel();
 
 		// TODO: make the cache great again https://github.com/paritytech/polkadot/issues/5546
-		let request = match self.query_cache(relay_parent.clone(), request) {
+		let request = match self.query_cache(relay_parent, request) {
 			Some(request) => request,
 			None => return,
 		};
@@ -508,10 +512,23 @@ where
 		},
 		Request::ValidationCodeHash(para, assumption, sender) =>
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
-		Request::StagingValidityConstraints(para, sender) => {
-			query!(StagingValidityConstraints, staging_validity_constraints(para), ver = 2, sender)
-		},
 		Request::Disputes(sender) =>
 			query!(Disputes, disputes(), ver = Request::DISPUTES_RUNTIME_REQUIREMENT, sender),
+		Request::StagingValidityConstraints(para, sender) => {
+			query!(
+				StagingValidityConstraints,
+				staging_validity_constraints(para),
+				ver = Request::VALIDITY_CONSTRAINTS,
+				sender
+			)
+		},
+		Request::StagingAsyncBackingParameters(sender) => {
+			query!(
+				StagingAsyncBackingParameters,
+				staging_async_backing_parameters(),
+				ver = Request::VALIDITY_CONSTRAINTS,
+				sender
+			)
+		},
 	}
 }

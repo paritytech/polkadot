@@ -44,7 +44,7 @@ use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use polkadot_runtime_parachains::reward_points::RewardValidatorsWithEraPoints;
-use primitives::v2::{
+use primitives::{
 	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
 	CoreState, GroupRotationInfo, Hash as HashT, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData,
@@ -131,7 +131,7 @@ parameter_types! {
 }
 
 impl frame_system::Config for Runtime {
-	type BaseCallFilter = frame_support::traits::Everything;
+	type BaseCallFilter = Everything;
 	type BlockWeights = BlockWeights;
 	type BlockLength = BlockLength;
 	type DbWeight = ();
@@ -319,6 +319,9 @@ parameter_types! {
 	pub storage MaxNominatorRewardedPerValidator: u32 = 64;
 	pub storage OffendingValidatorsThreshold: Perbill = Perbill::from_percent(17);
 	pub const MaxAuthorities: u32 = 100_000;
+	pub const OnChainMaxWinners: u32 = u32::MAX;
+	pub const MaxElectingVoters: u32 = u32::MAX;
+	pub const MaxElectableTargets: u16 = u16::MAX;
 }
 
 pub struct OnChainSeqPhragmen;
@@ -327,6 +330,9 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type Solver = SequentialPhragmen<AccountId, runtime_common::elections::OnChainAccuracy>;
 	type DataProvider = Staking;
 	type WeightInfo = ();
+	type MaxWinners = OnChainMaxWinners;
+	type VotersBound = MaxElectingVoters;
+	type TargetsBound = MaxElectableTargets;
 }
 
 impl pallet_staking::Config for Runtime {
@@ -342,15 +348,14 @@ impl pallet_staking::Config for Runtime {
 	type SessionsPerEra = SessionsPerEra;
 	type BondingDuration = BondingDuration;
 	type SlashDeferDuration = SlashDeferDuration;
-	// A majority of the council can cancel the slash.
-	type SlashCancelOrigin = frame_system::EnsureNever<()>;
+	type AdminOrigin = frame_system::EnsureNever<()>;
 	type SessionInterface = Self;
 	type EraPayout = pallet_staking::ConvertCurve<RewardCurve>;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
 	type NextNewSession = Session;
-	type ElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
-	type GenesisElectionProvider = onchain::UnboundedExecution<OnChainSeqPhragmen>;
+	type ElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
+	type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
 	// Use the nominator map to iter voter AND no-ops for all SortedListProvider hooks. The migration
 	// to bags-list is a no-op, but the storage version will be updated.
 	type VoterList = pallet_staking::UseNominatorsAndValidatorsMap<Runtime>;
@@ -532,34 +537,6 @@ impl parachains_ump::Config for Runtime {
 	type WeightInfo = parachains_ump::TestWeightInfo;
 }
 
-parameter_types! {
-	pub const BaseXcmWeight: xcm::latest::Weight = 1_000;
-	pub const AnyNetwork: xcm::latest::NetworkId = xcm::latest::NetworkId::Any;
-	pub const MaxInstructions: u32 = 100;
-}
-
-pub type LocalOriginToLocation =
-	xcm_builder::SignedToAccountId32<RuntimeOrigin, AccountId, AnyNetwork>;
-
-impl pallet_xcm::Config for Runtime {
-	// The config types here are entirely configurable, since the only one that is sorely needed
-	// is `XcmExecutor`, which will be used in unit tests located in xcm-executor.
-	type RuntimeEvent = RuntimeEvent;
-	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
-	type LocationInverter = xcm_config::InvertNothing;
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
-	type Weigher = xcm_builder::FixedWeightBounds<BaseXcmWeight, RuntimeCall, MaxInstructions>;
-	type XcmRouter = xcm_config::DoNothingRouter;
-	type XcmExecuteFilter = Everything;
-	type XcmExecutor = xcm_executor::XcmExecutor<xcm_config::XcmConfig>;
-	type XcmTeleportFilter = Everything;
-	type XcmReserveTransferFilter = Everything;
-	type RuntimeOrigin = RuntimeOrigin;
-	type RuntimeCall = RuntimeCall;
-	const VERSION_DISCOVERY_QUEUE_SIZE: u32 = 100;
-	type AdvertisedXcmVersion = pallet_xcm::CurrentXcmVersion;
-}
-
 impl parachains_hrmp::Config for Runtime {
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeEvent = RuntimeEvent;
@@ -615,6 +592,7 @@ pub mod pallet_test_notifier {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
 		#[pallet::weight(1_000_000)]
 		pub fn prepare_new_query(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -622,13 +600,15 @@ pub mod pallet_test_notifier {
 				.using_encoded(|mut d| <[u8; 32]>::decode(&mut d))
 				.map_err(|_| Error::<T>::BadAccountFormat)?;
 			let qid = pallet_xcm::Pallet::<T>::new_query(
-				Junction::AccountId32 { network: Any, id }.into(),
+				Junction::AccountId32 { network: None, id },
 				100u32.into(),
+				Here,
 			);
 			Self::deposit_event(Event::<T>::QueryPrepared(qid));
 			Ok(())
 		}
 
+		#[pallet::call_index(1)]
 		#[pallet::weight(1_000_000)]
 		pub fn prepare_new_notify_query(origin: OriginFor<T>) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -638,14 +618,16 @@ pub mod pallet_test_notifier {
 			let call =
 				Call::<T>::notification_received { query_id: 0, response: Default::default() };
 			let qid = pallet_xcm::Pallet::<T>::new_notify_query(
-				Junction::AccountId32 { network: Any, id }.into(),
+				Junction::AccountId32 { network: None, id },
 				<T as Config>::RuntimeCall::from(call),
 				100u32.into(),
+				Here,
 			);
 			Self::deposit_event(Event::<T>::NotifyQueryPrepared(qid));
 			Ok(())
 		}
 
+		#[pallet::call_index(2)]
 		#[pallet::weight(1_000_000)]
 		pub fn notification_received(
 			origin: OriginFor<T>,
@@ -662,7 +644,7 @@ pub mod pallet_test_notifier {
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
-		NodeBlock = primitives::v2::Block,
+		NodeBlock = primitives::Block,
 		UncheckedExtrinsic = UncheckedExtrinsic
 	{
 		// Basic stuff; balances is uncallable initially.
@@ -696,7 +678,7 @@ construct_runtime! {
 		ParaInclusion: parachains_inclusion::{Pallet, Call, Storage, Event<T>},
 		ParaInherent: parachains_paras_inherent::{Pallet, Call, Storage, Inherent},
 		Initializer: parachains_initializer::{Pallet, Call, Storage},
-		Paras: parachains_paras::{Pallet, Call, Storage, Event},
+		Paras: parachains_paras::{Pallet, Call, Storage, Event, ValidateUnsigned},
 		ParasShared: parachains_shared::{Pallet, Call, Storage},
 		Scheduler: parachains_scheduler::{Pallet, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
@@ -738,6 +720,7 @@ pub type SignedExtra = (
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =
 	generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
+
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
 	Runtime,
@@ -847,7 +830,7 @@ sp_api::impl_runtime_apis! {
 
 		fn check_validation_outputs(
 			para_id: ParaId,
-			outputs: primitives::v2::CandidateCommitments,
+			outputs: primitives::CandidateCommitments,
 		) -> bool {
 			runtime_impl::check_validation_outputs::<Runtime>(para_id, outputs)
 		}
@@ -895,8 +878,8 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn submit_pvf_check_statement(
-			stmt: primitives::v2::PvfCheckStatement,
-			signature: primitives::v2::ValidatorSignature,
+			stmt: primitives::PvfCheckStatement,
+			signature: primitives::ValidatorSignature,
 		) {
 			runtime_impl::submit_pvf_check_statement::<Runtime>(stmt, signature)
 		}
@@ -910,10 +893,6 @@ sp_api::impl_runtime_apis! {
 		{
 			runtime_impl::validation_code_hash::<Runtime>(para_id, assumption)
 		}
-
-		fn staging_validity_constraints(_: ParaId) -> Option<primitives::vstaging::Constraints> {
-			unimplemented!("Staging API not implemented");
-		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
@@ -923,14 +902,23 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl mmr::MmrApi<Block, Hash> for Runtime {
-		fn generate_proof(_leaf_index: u64)
-			-> Result<(mmr::EncodableOpaqueLeaf, mmr::Proof<Hash>), mmr::Error>
-		{
+	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
+		fn mmr_root() -> Result<Hash, mmr::Error> {
 			Err(mmr::Error::PalletNotIncluded)
 		}
 
-		fn verify_proof(_leaf: mmr::EncodableOpaqueLeaf, _proof: mmr::Proof<Hash>)
+		fn mmr_leaf_count() -> Result<mmr::LeafIndex, mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn generate_proof(
+			_block_numbers: Vec<BlockNumber>,
+			_best_known_block_number: Option<BlockNumber>,
+		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::Proof<Hash>), mmr::Error> {
+			Err(mmr::Error::PalletNotIncluded)
+		}
+
+		fn verify_proof(_leaves: Vec<mmr::EncodableOpaqueLeaf>, _proof: mmr::Proof<Hash>)
 			-> Result<(), mmr::Error>
 		{
 			Err(mmr::Error::PalletNotIncluded)
@@ -938,39 +926,8 @@ sp_api::impl_runtime_apis! {
 
 		fn verify_proof_stateless(
 			_root: Hash,
-			_leaf: mmr::EncodableOpaqueLeaf,
-			_proof: mmr::Proof<Hash>
-		) -> Result<(), mmr::Error> {
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
-		fn mmr_root() -> Result<Hash, mmr::Error> {
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
-		fn generate_batch_proof(_leaf_indices: Vec<u64>)
-			-> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error>
-		{
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
-		fn generate_historical_batch_proof(
-			_leaf_indices: Vec<u64>,
-			_leaves_count: u64,
-		) -> Result<(Vec<mmr::EncodableOpaqueLeaf>, mmr::BatchProof<Hash>), mmr::Error> {
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
-		fn verify_batch_proof(_leaves: Vec<mmr::EncodableOpaqueLeaf>, _proof: mmr::BatchProof<Hash>)
-			-> Result<(), mmr::Error>
-		{
-			Err(mmr::Error::PalletNotIncluded)
-		}
-
-		fn verify_batch_proof_stateless(
-			_root: Hash,
 			_leaves: Vec<mmr::EncodableOpaqueLeaf>,
-			_proof: mmr::BatchProof<Hash>
+			_proof: mmr::Proof<Hash>
 		) -> Result<(), mmr::Error> {
 			Err(mmr::Error::PalletNotIncluded)
 		}

@@ -15,10 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use parity_scale_codec::{Decode, Encode};
-use std::any::Any;
+use std::{any::Any, fmt, time::Duration};
 
-/// Result of PVF preparation performed by the validation host.
-pub type PrepareResult = Result<(), PrepareError>;
+/// Result of PVF preparation performed by the validation host. Contains the elapsed CPU time if
+/// successful
+pub type PrepareResult = Result<Duration, PrepareError>;
 
 /// An error that occurred during the prepare part of the PVF pipeline.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -31,9 +32,46 @@ pub enum PrepareError {
 	Panic(String),
 	/// Failed to prepare the PVF due to the time limit.
 	TimedOut,
-	/// This state indicates that the process assigned to prepare the artifact wasn't responsible
-	/// or were killed. This state is reported by the validation host (not by the worker).
-	DidNotMakeIt,
+	/// An IO error occurred while receiving the result from the worker process. This state is reported by the
+	/// validation host (not by the worker).
+	IoErr(String),
+	/// The temporary file for the artifact could not be created at the given cache path. This state is reported by the
+	/// validation host (not by the worker).
+	CreateTmpFileErr(String),
+	/// The response from the worker is received, but the file cannot be renamed (moved) to the final destination
+	/// location. This state is reported by the validation host (not by the worker).
+	RenameTmpFileErr(String),
+}
+
+impl PrepareError {
+	/// Returns whether this is a deterministic error, i.e. one that should trigger reliably. Those
+	/// errors depend on the PVF itself and the sc-executor/wasmtime logic.
+	///
+	/// Non-deterministic errors can happen spuriously. Typically, they occur due to resource
+	/// starvation, e.g. under heavy load or memory pressure. Those errors are typically transient
+	/// but may persist e.g. if the node is run by overwhelmingly underpowered machine.
+	pub fn is_deterministic(&self) -> bool {
+		use PrepareError::*;
+		match self {
+			Prevalidation(_) | Preparation(_) | Panic(_) => true,
+			TimedOut | IoErr(_) | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
+		}
+	}
+}
+
+impl fmt::Display for PrepareError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		use PrepareError::*;
+		match self {
+			Prevalidation(err) => write!(f, "prevalidation: {}", err),
+			Preparation(err) => write!(f, "preparation: {}", err),
+			Panic(err) => write!(f, "panic: {}", err),
+			TimedOut => write!(f, "prepare: timeout"),
+			IoErr(err) => write!(f, "prepare: io error while receiving response: {}", err),
+			CreateTmpFileErr(err) => write!(f, "prepare: error creating tmp file: {}", err),
+			RenameTmpFileErr(err) => write!(f, "prepare: error renaming tmp file: {}", err),
+		}
+	}
 }
 
 /// A error raised during validation of the candidate.
@@ -80,32 +118,17 @@ pub enum InvalidCandidate {
 impl From<PrepareError> for ValidationError {
 	fn from(error: PrepareError) -> Self {
 		// Here we need to classify the errors into two errors: deterministic and non-deterministic.
+		// See [`PrepareError::is_deterministic`].
 		//
-		// Non-deterministic errors can happen spuriously. Typically, they occur due to resource
-		// starvation, e.g. under heavy load or memory pressure. Those errors are typically transient
-		// but may persist e.g. if the node is run by overwhelmingly underpowered machine.
-		//
-		// Deterministic errors should trigger reliably. Those errors depend on the PVF itself and
-		// the sc-executor/wasmtime logic.
-		//
-		// For now, at least until the PVF pre-checking lands, the deterministic errors will be
-		// treated as `InvalidCandidate`. Should those occur they could potentially trigger disputes.
+		// We treat the deterministic errors as `InvalidCandidate`. Should those occur they could
+		// potentially trigger disputes.
 		//
 		// All non-deterministic errors are qualified as `InternalError`s and will not trigger
 		// disputes.
-		match error {
-			PrepareError::Prevalidation(err) => ValidationError::InvalidCandidate(
-				InvalidCandidate::PrepareError(format!("prevalidation: {}", err)),
-			),
-			PrepareError::Preparation(err) => ValidationError::InvalidCandidate(
-				InvalidCandidate::PrepareError(format!("preparation: {}", err)),
-			),
-			PrepareError::Panic(err) => ValidationError::InvalidCandidate(
-				InvalidCandidate::PrepareError(format!("panic: {}", err)),
-			),
-			PrepareError::TimedOut => ValidationError::InternalError("prepare: timeout".to_owned()),
-			PrepareError::DidNotMakeIt =>
-				ValidationError::InternalError("prepare: did not make it".to_owned()),
+		if error.is_deterministic() {
+			ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
+		} else {
+			ValidationError::InternalError(error.to_string())
 		}
 	}
 }

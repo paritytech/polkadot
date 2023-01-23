@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-node-core-pvf-checker"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 futures = "0.3.21"

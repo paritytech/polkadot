@@ -45,7 +45,7 @@ use polkadot_node_network_protocol::{
 	request_response::{v1::DisputeResponse, Recipient, Requests},
 	IfDisconnected,
 };
-use polkadot_node_primitives::{CandidateVotes, UncheckedDisputeMessage};
+use polkadot_node_primitives::DisputeStatus;
 use polkadot_node_subsystem::{
 	messages::{
 		AllMessages, DisputeCoordinatorMessage, DisputeDistributionMessage, ImportStatementsResult,
@@ -56,7 +56,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{
 	mock::make_ferdie_keystore, subsystem_test_harness, TestSubsystemContextHandle,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, Hash, SessionIndex, SessionInfo,
 };
 
@@ -480,65 +480,6 @@ fn receive_rate_limit_is_enforced() {
 }
 
 #[test]
-fn disputes_are_recovered_at_startup() {
-	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>, _| async move {
-		let relay_parent = Hash::random();
-		let candidate = make_candidate_receipt(relay_parent);
-
-		let _ = handle_subsystem_startup(&mut handle, Some(candidate.hash())).await;
-
-		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
-		// Requests needed session info:
-		assert_matches!(
-			handle.recv().await,
-			AllMessages::DisputeCoordinator(
-				DisputeCoordinatorMessage::QueryCandidateVotes(
-					query,
-					tx,
-				)
-			) => {
-				let (session_index, candidate_hash) = query.get(0).unwrap().clone();
-				assert_eq!(session_index, MOCK_SESSION_INDEX);
-				assert_eq!(candidate_hash, candidate.hash());
-				let unchecked: UncheckedDisputeMessage = message.into();
-				tx.send(vec![(session_index, candidate_hash, CandidateVotes {
-					candidate_receipt: candidate,
-					valid: [(
-						unchecked.valid_vote.validator_index,
-						(unchecked.valid_vote.kind,
-						unchecked.valid_vote.signature
-						),
-					)].into_iter().collect(),
-					invalid: [(
-						unchecked.invalid_vote.validator_index,
-						(
-						unchecked.invalid_vote.kind,
-						unchecked.invalid_vote.signature
-						),
-					)].into_iter().collect(),
-				})])
-				.expect("Receiver should stay alive.");
-			}
-		);
-
-		let expected_receivers = {
-			let info = &MOCK_SESSION_INFO;
-			info.discovery_keys
-				.clone()
-				.into_iter()
-				.filter(|a| a != &Sr25519Keyring::Ferdie.public().into())
-				.collect()
-			// All validators are also authorities in the first session, so we are
-			// done here.
-		};
-		check_sent_requests(&mut handle, expected_receivers, true).await;
-
-		conclude(&mut handle).await;
-	};
-	test_harness(test);
-}
-
-#[test]
 fn send_dispute_gets_cleaned_up() {
 	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>, _| async move {
 		let old_head = handle_subsystem_startup(&mut handle, None).await;
@@ -605,6 +546,7 @@ fn send_dispute_gets_cleaned_up() {
 
 #[test]
 fn dispute_retries_and_works_across_session_boundaries() {
+	sp_tracing::try_init_simple();
 	let test = |mut handle: TestSubsystemContextHandle<DisputeDistributionMessage>, _| async move {
 		let old_head = handle_subsystem_startup(&mut handle, None).await;
 
@@ -658,7 +600,7 @@ fn dispute_retries_and_works_across_session_boundaries() {
 			Some(old_head),
 			MOCK_SESSION_INDEX,
 			None,
-			vec![(MOCK_SESSION_INDEX, candidate.hash())],
+			vec![(MOCK_SESSION_INDEX, candidate.hash(), DisputeStatus::Active)],
 		)
 		.await;
 
@@ -673,7 +615,7 @@ fn dispute_retries_and_works_across_session_boundaries() {
 			Some(old_head2),
 			MOCK_NEXT_SESSION_INDEX,
 			Some(MOCK_NEXT_SESSION_INFO.clone()),
-			vec![(MOCK_SESSION_INDEX, candidate.hash())],
+			vec![(MOCK_SESSION_INDEX, candidate.hash(), DisputeStatus::Active)],
 		)
 		.await;
 
@@ -832,7 +774,7 @@ async fn activate_leaf(
 	// New session if we expect the subsystem to request it.
 	new_session: Option<SessionInfo>,
 	// Currently active disputes to send to the subsystem.
-	active_disputes: Vec<(SessionIndex, CandidateHash)>,
+	active_disputes: Vec<(SessionIndex, CandidateHash, DisputeStatus)>,
 ) {
 	let has_active_disputes = !active_disputes.is_empty();
 	handle
@@ -934,7 +876,10 @@ async fn handle_subsystem_startup(
 		None,
 		MOCK_SESSION_INDEX,
 		Some(MOCK_SESSION_INFO.clone()),
-		ongoing_dispute.into_iter().map(|c| (MOCK_SESSION_INDEX, c)).collect(),
+		ongoing_dispute
+			.into_iter()
+			.map(|c| (MOCK_SESSION_INDEX, c, DisputeStatus::Active))
+			.collect(),
 	)
 	.await;
 	relay_parent

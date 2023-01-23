@@ -85,10 +85,11 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
-		CandidateValidationMessage, CollatorProtocolMessage, HypotheticalDepthRequest,
-		IntroduceCandidateRequest, ProspectiveParachainsMessage, ProvisionableData,
-		ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest, StatementDistributionMessage,
+		AvailabilityDistributionMessage, AvailabilityStoreMessage, CanSecondRequest,
+		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
+		HypotheticalDepthRequest, IntroduceCandidateRequest, ProspectiveParachainsMessage,
+		ProvisionableData, ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest,
+		StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -96,9 +97,11 @@ use polkadot_node_subsystem_util::{
 	self as util,
 	backing_implicit_view::{FetchError as ImplicitViewFetchError, View as ImplicitView},
 	request_from_runtime, request_session_index_for_child, request_validator_groups,
-	request_validators, Validator,
+	request_validators,
+	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
+	Validator,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt,
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PersistedValidationData,
 	SigningContext, ValidationCode, ValidatorId, ValidatorIndex, ValidatorSignature,
@@ -223,20 +226,6 @@ struct PerCandidateState {
 	seconded_locally: bool,
 	para_id: ParaId,
 	relay_parent: Hash,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum ProspectiveParachainsMode {
-	// v2 runtime API: no prospective parachains.
-	Disabled,
-	// vstaging runtime API: prospective parachains.
-	Enabled,
-}
-
-impl ProspectiveParachainsMode {
-	fn is_enabled(&self) -> bool {
-		self == &ProspectiveParachainsMode::Enabled
-	}
 }
 
 struct ActiveLeafState {
@@ -408,9 +397,7 @@ impl TableContextTrait for TableContext {
 	}
 
 	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
-		self.groups
-			.get(group)
-			.map_or(false, |g| g.iter().position(|a| a == authority).is_some())
+		self.groups.get(group).map_or(false, |g| g.iter().any(|a| a == authority))
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
@@ -425,7 +412,7 @@ struct InvalidErasureRoot;
 fn primitive_statement_to_table(s: &SignedFullStatementWithPVD) -> TableSignedStatement {
 	let statement = match s.payload() {
 		StatementWithPVD::Seconded(c, _) => TableStatement::Seconded(c.clone()),
-		StatementWithPVD::Valid(h) => TableStatement::Valid(h.clone()),
+		StatementWithPVD::Valid(h) => TableStatement::Valid(*h),
 	};
 
 	TableSignedStatement {
@@ -763,40 +750,11 @@ async fn handle_communication<Context>(
 					"Received `GetBackedCandidates` for an unknown relay parent."
 				);
 			},
+		CandidateBackingMessage::CanSecond(request, tx) =>
+			handle_can_second_request(ctx, state, request, tx).await,
 	}
 
 	Ok(())
-}
-
-#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn prospective_parachains_mode<Context>(
-	ctx: &mut Context,
-	leaf_hash: Hash,
-) -> Result<ProspectiveParachainsMode, Error> {
-	// TODO: call a Runtime API once staging version is available
-	// https://github.com/paritytech/substrate/discussions/11338
-
-	let (tx, rx) = oneshot::channel();
-	ctx.send_message(RuntimeApiMessage::Request(leaf_hash, RuntimeApiRequest::Version(tx)))
-		.await;
-
-	let version = rx
-		.await
-		.map_err(Error::RuntimeApiUnavailable)?
-		.map_err(Error::FetchRuntimeApiVersion)?;
-
-	if version >= RuntimeApiRequest::VALIDITY_CONSTRAINTS {
-		Ok(ProspectiveParachainsMode::Enabled)
-	} else {
-		if version < 2 {
-			gum::warn!(
-				target: LOG_TARGET,
-				"Runtime API version is {}, it is expected to be at least 2. Prospective parachains are disabled",
-				version
-			);
-		}
-		Ok(ProspectiveParachainsMode::Disabled)
-	}
 }
 
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
@@ -806,7 +764,7 @@ async fn handle_active_leaves_update<Context>(
 	state: &mut State,
 ) -> Result<(), Error> {
 	enum LeafHasProspectiveParachains {
-		Enabled(Result<Vec<ParaId>, ImplicitViewFetchError>),
+		Enabled(Result<ProspectiveParachainsMode, ImplicitViewFetchError>),
 		Disabled,
 	}
 
@@ -815,15 +773,15 @@ async fn handle_active_leaves_update<Context>(
 	let res = if let Some(leaf) = update.activated {
 		// Only activate in implicit view if prospective
 		// parachains are enabled.
-		let mode = prospective_parachains_mode(ctx, leaf.hash).await?;
+		let mode = prospective_parachains_mode(ctx.sender(), leaf.hash).await?;
 
 		let leaf_hash = leaf.hash;
 		Some((
 			leaf,
 			match mode {
 				ProspectiveParachainsMode::Disabled => LeafHasProspectiveParachains::Disabled,
-				ProspectiveParachainsMode::Enabled => LeafHasProspectiveParachains::Enabled(
-					state.implicit_view.activate_leaf(ctx.sender(), leaf_hash).await,
+				ProspectiveParachainsMode::Enabled { .. } => LeafHasProspectiveParachains::Enabled(
+					state.implicit_view.activate_leaf(ctx.sender(), leaf_hash).await.map(|_| mode),
 				),
 			},
 		))
@@ -858,7 +816,7 @@ async fn handle_active_leaves_update<Context>(
 
 	// Get relay parents which might be fresh but might be known already
 	// that are explicit or implicit from the new active leaf.
-	let fresh_relay_parents = match res {
+	let (fresh_relay_parents, leaf_mode) = match res {
 		None => return Ok(()),
 		Some((leaf, LeafHasProspectiveParachains::Disabled)) => {
 			// defensive in this case - for enabled, this manifests as an error.
@@ -878,9 +836,9 @@ async fn handle_active_leaves_update<Context>(
 				},
 			);
 
-			vec![leaf.hash]
+			(vec![leaf.hash], ProspectiveParachainsMode::Disabled)
 		},
-		Some((leaf, LeafHasProspectiveParachains::Enabled(Ok(_)))) => {
+		Some((leaf, LeafHasProspectiveParachains::Enabled(Ok(prospective_parachains_mode)))) => {
 			let fresh_relay_parents =
 				state.implicit_view.known_allowed_relay_parents_under(&leaf.hash, None);
 
@@ -941,13 +899,10 @@ async fn handle_active_leaves_update<Context>(
 
 			state.per_leaf.insert(
 				leaf.hash,
-				ActiveLeafState {
-					prospective_parachains_mode: ProspectiveParachainsMode::Enabled,
-					seconded_at_depth,
-				},
+				ActiveLeafState { prospective_parachains_mode, seconded_at_depth },
 			);
 
-			match fresh_relay_parents {
+			let fresh_relay_parent = match fresh_relay_parents {
 				Some(f) => f.to_vec(),
 				None => {
 					gum::warn!(
@@ -958,7 +913,8 @@ async fn handle_active_leaves_update<Context>(
 
 					vec![leaf.hash]
 				},
-			}
+			};
+			(fresh_relay_parent, prospective_parachains_mode)
 		},
 		Some((leaf, LeafHasProspectiveParachains::Enabled(Err(e)))) => {
 			gum::debug!(
@@ -985,7 +941,7 @@ async fn handle_active_leaves_update<Context>(
 				// subsystem that it is an ancestor of a leaf which
 				// has prospective parachains enabled and that the
 				// block itself did.
-				ProspectiveParachainsMode::Enabled
+				leaf_mode
 			},
 			Some(l) => l.prospective_parachains_mode,
 		};
@@ -1069,33 +1025,36 @@ async fn construct_per_relay_parent_state<Context>(
 	let mut assignment = None;
 
 	for (idx, core) in cores.into_iter().enumerate() {
-		// Ignore prospective assignments on occupied cores for the time being.
-		if let CoreState::Scheduled(scheduled) = core {
-			let core_index = CoreIndex(idx as _);
-			let group_index = group_rotation_info.group_for_core(core_index, n_cores);
-			if let Some(g) = validator_groups.get(group_index.0 as usize) {
-				if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
-					assignment = Some((scheduled.para_id, scheduled.collator));
-				}
-				groups.insert(scheduled.para_id, g.clone());
+		let core_para_id = match core {
+			CoreState::Scheduled(scheduled) => scheduled.para_id,
+			CoreState::Occupied(occupied) =>
+				if mode.is_enabled() {
+					// Async backing makes it legal to build on top of
+					// occupied core.
+					occupied.candidate_descriptor.para_id
+				} else {
+					continue
+				},
+			CoreState::Free => continue,
+		};
+
+		let core_index = CoreIndex(idx as _);
+		let group_index = group_rotation_info.group_for_core(core_index, n_cores);
+		if let Some(g) = validator_groups.get(group_index.0 as usize) {
+			if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
+				assignment = Some(core_para_id);
 			}
+			groups.insert(core_para_id, g.clone());
 		}
 	}
 
 	let table_context = TableContext { groups, validators, validator };
 	let table_config = TableConfig {
 		allow_multiple_seconded: match mode {
-			ProspectiveParachainsMode::Enabled => true,
+			ProspectiveParachainsMode::Enabled { .. } => true,
 			ProspectiveParachainsMode::Disabled => false,
 		},
 	};
-
-	// TODO [now]: I've removed the `required_collator` more broadly,
-	// because it's not used in practice and was intended for parathreads.
-	//
-	// We should attempt parathreads another way, I think, so it makes sense
-	// to remove.
-	let assignment = assignment.map(|(a, _required_collator)| a);
 
 	Ok(Some(PerRelayParentState {
 		prospective_parachains_mode: mode,
@@ -1126,22 +1085,8 @@ async fn seconding_sanity_check<Context>(
 	candidate_hash: CandidateHash,
 	candidate_para: ParaId,
 	parent_head_data_hash: Hash,
-	head_data_hash: Hash,
 	candidate_relay_parent: Hash,
 ) -> SecondingAllowed {
-	// Note that `GetHypotheticalDepths` doesn't account for recursion,
-	// i.e. candidates can appear at multiple depths in the tree and in fact
-	// at all depths, and we don't know what depths a candidate will ultimately occupy
-	// because that's dependent on other candidates we haven't yet received.
-	//
-	// The only way to effectively rule this out is to have candidate receipts
-	// directly commit to the parachain block number or some other incrementing
-	// counter. That requires a major primitives format upgrade, so for now
-	// we just rule out trivial cycles.
-	if parent_head_data_hash == head_data_hash {
-		return SecondingAllowed::No
-	}
-
 	let mut membership = Vec::new();
 	let mut responses = FuturesOrdered::<BoxFuture<'_, Result<_, oneshot::Canceled>>>::new();
 
@@ -1226,6 +1171,46 @@ async fn seconding_sanity_check<Context>(
 	SecondingAllowed::Yes(membership)
 }
 
+/// Performs seconding sanity check for an advertisement.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn handle_can_second_request<Context>(
+	ctx: &mut Context,
+	state: &State,
+	request: CanSecondRequest,
+	tx: oneshot::Sender<bool>,
+) {
+	let relay_parent = request.candidate_relay_parent;
+	let response = if state
+		.per_relay_parent
+		.get(&relay_parent)
+		.map_or(false, |pr_state| pr_state.prospective_parachains_mode.is_enabled())
+	{
+		let result = seconding_sanity_check(
+			ctx,
+			&state.per_leaf,
+			&state.implicit_view,
+			request.candidate_hash,
+			request.candidate_para_id,
+			request.parent_head_data_hash,
+			relay_parent,
+		)
+		.await;
+
+		match result {
+			SecondingAllowed::No => false,
+			SecondingAllowed::Yes(membership) => {
+				// Candidate should be recognized by at least some fragment tree.
+				membership.iter().any(|(_, m)| !m.is_empty())
+			},
+		}
+	} else {
+		// Relay parent is unknown or async backing is disabled.
+		false
+	};
+
+	let _ = tx.send(response);
+}
+
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn handle_validated_candidate_command<Context>(
 	ctx: &mut Context,
@@ -1252,6 +1237,19 @@ async fn handle_validated_candidate_command<Context>(
 							return Ok(())
 						}
 
+						let parent_head_data_hash = persisted_validation_data.parent_head.hash();
+						// Note that `GetHypotheticalDepths` doesn't account for recursion,
+						// i.e. candidates can appear at multiple depths in the tree and in fact
+						// at all depths, and we don't know what depths a candidate will ultimately occupy
+						// because that's dependent on other candidates we haven't yet received.
+						//
+						// The only way to effectively rule this out is to have candidate receipts
+						// directly commit to the parachain block number or some other incrementing
+						// counter. That requires a major primitives format upgrade, so for now
+						// we just rule out trivial cycles.
+						if parent_head_data_hash == commitments.head_data.hash() {
+							return Ok(())
+						}
 						// sanity check that we're allowed to second the candidate
 						// and that it doesn't conflict with other candidates we've
 						// seconded.
@@ -1262,7 +1260,6 @@ async fn handle_validated_candidate_command<Context>(
 							candidate_hash,
 							candidate.descriptor().para_id,
 							persisted_validation_data.parent_head.hash(),
-							commitments.head_data.hash(),
 							candidate.descriptor().relay_parent,
 						)
 						.await
@@ -1558,26 +1555,37 @@ async fn import_statement<Context>(
 					"Candidate backed",
 				);
 
-				// Inform the prospective parachains subsystem
-				// that the candidate is now backed.
 				if rp_state.prospective_parachains_mode.is_enabled() {
+					// Inform the prospective parachains subsystem
+					// that the candidate is now backed.
 					ctx.send_message(ProspectiveParachainsMessage::CandidateBacked(
 						para_id,
 						candidate_hash,
 					))
 					.await;
-				}
+					// Backed candidate potentially unblocks new advertisements,
+					// notify collator protocol.
+					ctx.send_message(CollatorProtocolMessage::Backed {
+						para_id,
+						para_head: backed.candidate.descriptor.para_head,
+					})
+					.await;
 
-				// The provisioner waits on candidate-backing, which means
-				// that we need to send unbounded messages to avoid cycles.
-				//
-				// Backed candidates are bounded by the number of validators,
-				// parachains, and the block production rate of the relay chain.
-				let message = ProvisionerMessage::ProvisionableData(
-					rp_state.parent,
-					ProvisionableData::BackedCandidate(backed.receipt()),
-				);
-				ctx.send_unbounded_message(message);
+					// TODO [now]: notify statement distribution of backed
+					// candidate. alter control flow so "Share" is always sent
+					// first.
+				} else {
+					// The provisioner waits on candidate-backing, which means
+					// that we need to send unbounded messages to avoid cycles.
+					//
+					// Backed candidates are bounded by the number of validators,
+					// parachains, and the block production rate of the relay chain.
+					let message = ProvisionerMessage::ProvisionableData(
+						rp_state.parent,
+						ProvisionableData::BackedCandidate(backed.receipt()),
+					);
+					ctx.send_unbounded_message(message);
+				}
 			}
 		}
 	}

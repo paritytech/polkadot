@@ -19,10 +19,13 @@
 //! Configuration can change only at session boundaries and is buffered until then.
 
 use crate::shared;
-use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_PER_MILLIS};
+use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
+use primitives::{
+	vstaging::AsyncBackingParameters, Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE,
+	MAX_POV_SIZE,
+};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
@@ -117,6 +120,8 @@ pub struct HostConfiguration<BlockNumber> {
 	 * The parameters that are not essential, but still may be of interest for parachains.
 	 */
 
+	/// Asynchronous backing parameters.
+	pub async_backing_parameters: AsyncBackingParameters,
 	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
@@ -192,8 +197,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub dispute_period: SessionIndex,
 	/// How long after dispute conclusion to accept statements.
 	pub dispute_post_conclusion_acceptance_period: BlockNumber,
-	/// The maximum number of dispute spam slots
-	pub dispute_max_spam_slots: u32,
 	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
 	pub dispute_conclusion_by_time_out_period: BlockNumber,
 	/// The amount of consensus slots that must pass between submitting an assignment and
@@ -246,6 +249,10 @@ pub struct HostConfiguration<BlockNumber> {
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
 	fn default() -> Self {
 		Self {
+			async_backing_parameters: AsyncBackingParameters {
+				max_candidate_depth: 0,
+				allowed_ancestry_len: 0,
+			},
 			group_rotation_frequency: 1u32.into(),
 			chain_availability_period: 1u32.into(),
 			thread_availability_period: 1u32.into(),
@@ -263,7 +270,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_validators: None,
 			dispute_period: 6,
 			dispute_post_conclusion_acceptance_period: 100.into(),
-			dispute_max_spam_slots: 2,
 			dispute_conclusion_by_time_out_period: 200.into(),
 			n_delay_tranches: Default::default(),
 			zeroth_delay_tranche_width: Default::default(),
@@ -285,8 +291,10 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			hrmp_max_parachain_outbound_channels: Default::default(),
 			hrmp_max_parathread_outbound_channels: Default::default(),
 			hrmp_max_message_num_per_candidate: Default::default(),
-			ump_max_individual_weight: (20u64 * WEIGHT_PER_MILLIS)
-				.set_proof_size(MAX_POV_SIZE as u64),
+			ump_max_individual_weight: Weight::from_parts(
+				20u64 * WEIGHT_REF_TIME_PER_MILLIS,
+				MAX_POV_SIZE as u64,
+			),
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
@@ -519,6 +527,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Set the validation upgrade cooldown.
+		#[pallet::call_index(0)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -534,6 +543,7 @@ pub mod pallet {
 		}
 
 		/// Set the validation upgrade delay.
+		#[pallet::call_index(1)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -549,6 +559,7 @@ pub mod pallet {
 		}
 
 		/// Set the acceptance period for an included candidate.
+		#[pallet::call_index(2)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -564,6 +575,7 @@ pub mod pallet {
 		}
 
 		/// Set the max validation code size for incoming upgrades.
+		#[pallet::call_index(3)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -576,6 +588,7 @@ pub mod pallet {
 		}
 
 		/// Set the max POV block size for incoming upgrades.
+		#[pallet::call_index(4)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -588,6 +601,7 @@ pub mod pallet {
 		}
 
 		/// Set the max head data size for paras.
+		#[pallet::call_index(5)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -600,6 +614,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of parathread execution cores.
+		#[pallet::call_index(6)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -612,6 +627,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of retries for a particular parathread.
+		#[pallet::call_index(7)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -624,6 +640,7 @@ pub mod pallet {
 		}
 
 		/// Set the parachain validator-group rotation frequency
+		#[pallet::call_index(8)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -639,6 +656,7 @@ pub mod pallet {
 		}
 
 		/// Set the availability period for parachains.
+		#[pallet::call_index(9)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -654,6 +672,7 @@ pub mod pallet {
 		}
 
 		/// Set the availability period for parathreads.
+		#[pallet::call_index(10)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -669,6 +688,7 @@ pub mod pallet {
 		}
 
 		/// Set the scheduling lookahead, in expected number of blocks at peak throughput.
+		#[pallet::call_index(11)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -681,6 +701,7 @@ pub mod pallet {
 		}
 
 		/// Set the maximum number of validators to assign to any core.
+		#[pallet::call_index(12)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_option_u32(),
 			DispatchClass::Operational,
@@ -696,6 +717,7 @@ pub mod pallet {
 		}
 
 		/// Set the maximum number of validators to use in parachain consensus.
+		#[pallet::call_index(13)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_option_u32(),
 			DispatchClass::Operational,
@@ -708,6 +730,7 @@ pub mod pallet {
 		}
 
 		/// Set the dispute period, in number of sessions to keep for disputes.
+		#[pallet::call_index(14)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -720,6 +743,7 @@ pub mod pallet {
 		}
 
 		/// Set the dispute post conclusion acceptance period.
+		#[pallet::call_index(15)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -734,19 +758,8 @@ pub mod pallet {
 			})
 		}
 
-		/// Set the maximum number of dispute spam slots.
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_u32(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_dispute_max_spam_slots(origin: OriginFor<T>, new: u32) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.dispute_max_spam_slots = new;
-			})
-		}
-
 		/// Set the dispute conclusion by time out period.
+		#[pallet::call_index(17)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -763,6 +776,7 @@ pub mod pallet {
 
 		/// Set the no show slots, in number of number of consensus slots.
 		/// Must be at least 1.
+		#[pallet::call_index(18)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -775,6 +789,7 @@ pub mod pallet {
 		}
 
 		/// Set the total number of delay tranches.
+		#[pallet::call_index(19)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -787,6 +802,7 @@ pub mod pallet {
 		}
 
 		/// Set the zeroth delay tranche width.
+		#[pallet::call_index(20)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -799,6 +815,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of validators needed to approve a block.
+		#[pallet::call_index(21)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -811,6 +828,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of samples to do of the `RelayVRFModulo` approval assignment criterion.
+		#[pallet::call_index(22)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -823,6 +841,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum items that can present in a upward dispatch queue at once.
+		#[pallet::call_index(23)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -835,6 +854,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum total size of items that can present in a upward dispatch queue at once.
+		#[pallet::call_index(24)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -847,6 +867,7 @@ pub mod pallet {
 		}
 
 		/// Set the critical downward message size.
+		#[pallet::call_index(25)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -859,6 +880,7 @@ pub mod pallet {
 		}
 
 		/// Sets the soft limit for the phase of dispatching dispatchable upward messages.
+		#[pallet::call_index(26)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_weight(),
 			DispatchClass::Operational,
@@ -871,6 +893,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum size of an upward message that can be sent by a candidate.
+		#[pallet::call_index(27)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -883,6 +906,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of messages that a candidate can contain.
+		#[pallet::call_index(28)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -898,6 +922,7 @@ pub mod pallet {
 		}
 
 		/// Sets the number of sessions after which an HRMP open channel request expires.
+		#[pallet::call_index(29)]
 		#[pallet::weight((
 			T::WeightInfo::set_hrmp_open_request_ttl(),
 			DispatchClass::Operational,
@@ -909,6 +934,7 @@ pub mod pallet {
 		}
 
 		/// Sets the amount of funds that the sender should provide for opening an HRMP channel.
+		#[pallet::call_index(30)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_balance(),
 			DispatchClass::Operational,
@@ -922,6 +948,7 @@ pub mod pallet {
 
 		/// Sets the amount of funds that the recipient should provide for accepting opening an HRMP
 		/// channel.
+		#[pallet::call_index(31)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_balance(),
 			DispatchClass::Operational,
@@ -934,6 +961,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of messages allowed in an HRMP channel at once.
+		#[pallet::call_index(32)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -946,6 +974,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum total size of messages in bytes allowed in an HRMP channel at once.
+		#[pallet::call_index(33)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -958,6 +987,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of inbound HRMP channels a parachain is allowed to accept.
+		#[pallet::call_index(34)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -973,6 +1003,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of inbound HRMP channels a parathread is allowed to accept.
+		#[pallet::call_index(35)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -988,6 +1019,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum size of a message that could ever be put into an HRMP channel.
+		#[pallet::call_index(36)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -1000,6 +1032,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of outbound HRMP channels a parachain is allowed to open.
+		#[pallet::call_index(37)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -1015,6 +1048,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of outbound HRMP channels a parathread is allowed to open.
+		#[pallet::call_index(38)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -1030,6 +1064,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum number of outbound HRMP messages can be sent by a candidate.
+		#[pallet::call_index(39)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -1045,6 +1080,7 @@ pub mod pallet {
 		}
 
 		/// Sets the maximum amount of weight any individual upward message may consume.
+		#[pallet::call_index(40)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_weight(),
 			DispatchClass::Operational,
@@ -1057,6 +1093,7 @@ pub mod pallet {
 		}
 
 		/// Enable or disable PVF pre-checking. Consult the field documentation prior executing.
+		#[pallet::call_index(41)]
 		#[pallet::weight((
 			// Using u32 here is a little bit of cheating, but that should be fine.
 			T::WeightInfo::set_config_with_u32(),
@@ -1070,6 +1107,7 @@ pub mod pallet {
 		}
 
 		/// Set the number of session changes after which a PVF pre-checking voting is rejected.
+		#[pallet::call_index(42)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_u32(),
 			DispatchClass::Operational,
@@ -1085,6 +1123,7 @@ pub mod pallet {
 		/// upgrade taking place.
 		///
 		/// See the field documentation for information and constraints for the new value.
+		#[pallet::call_index(43)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_block_number(),
 			DispatchClass::Operational,
@@ -1101,6 +1140,7 @@ pub mod pallet {
 
 		/// Setting this to true will disable consistency checks for the configuration setters.
 		/// Use with caution.
+		#[pallet::call_index(44)]
 		#[pallet::weight((
 			T::DbWeight::get().writes(1),
 			DispatchClass::Operational,
@@ -1110,6 +1150,24 @@ pub mod pallet {
 			<Self as Store>::BypassConsistencyCheck::put(new);
 			Ok(())
 		}
+
+		/// Set the asynchronous backing parameters.
+		#[pallet::call_index(45)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			DispatchClass::Operational,
+		))]
+		pub fn set_async_backing_parameters(
+			origin: OriginFor<T>,
+			max_candidate_depth: u32,
+			allowed_ancestry_len: u32,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.async_backing_parameters =
+					AsyncBackingParameters { max_candidate_depth, allowed_ancestry_len };
+			})
+		}
 	}
 
 	#[pallet::hooks]
@@ -1117,7 +1175,7 @@ pub mod pallet {
 		fn integrity_test() {
 			assert_eq!(
 				&ActiveConfig::<T>::hashed_key(),
-				primitives::v2::well_known_keys::ACTIVE_CONFIG,
+				primitives::well_known_keys::ACTIVE_CONFIG,
 				"`well_known_keys::ACTIVE_CONFIG` doesn't match key of `ActiveConfig`! Make sure that the name of the\
 				 configuration pallet is `Configuration` in the runtime!",
 			);

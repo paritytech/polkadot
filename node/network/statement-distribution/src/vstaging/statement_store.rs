@@ -29,7 +29,29 @@ use polkadot_primitives::vstaging::{
 };
 use std::collections::hash_map::{Entry as HEntry, HashMap};
 
-use super::groups::Groups;
+use super::{grid::StatementFilter, groups::Groups};
+
+/// Possible origins of a statement.
+pub enum StatementOrigin {
+	/// The statement originated locally.
+	Local,
+	/// The statement originated from a remote peer.
+	Remote,
+}
+
+impl StatementOrigin {
+	fn is_local(&self) -> bool {
+		match *self {
+			StatementOrigin::Local => true,
+			StatementOrigin::Remote => false,
+		}
+	}
+}
+
+struct StoredStatement {
+	statement: SignedStatement,
+	known_by_backing: bool,
+}
 
 /// Storage for statements. Intended to be used for statements signed under
 /// the same relay-parent. See module docs for more details.
@@ -40,7 +62,7 @@ pub struct StatementStore {
 	// producing statements about a candidate, until we have the candidate receipt
 	// itself, we can't tell which group that is.
 	group_statements: HashMap<(GroupIndex, CandidateHash), GroupStatements>,
-	known_statements: HashMap<Fingerprint, SignedStatement>,
+	known_statements: HashMap<Fingerprint, StoredStatement>,
 }
 
 impl StatementStore {
@@ -80,6 +102,7 @@ impl StatementStore {
 		&mut self,
 		groups: &Groups,
 		statement: SignedStatement,
+		origin: StatementOrigin,
 	) -> Result<bool, ValidatorUnknown> {
 		let validator_index = statement.validator_index();
 
@@ -91,9 +114,15 @@ impl StatementStore {
 		let compact = statement.payload().clone();
 		let fingerprint = (validator_index, compact.clone());
 		match self.known_statements.entry(fingerprint) {
-			HEntry::Occupied(_) => return Ok(false),
+			HEntry::Occupied(mut e) => {
+				if let StatementOrigin::Local = origin {
+					e.get_mut().known_by_backing = true;
+				}
+
+				return Ok(false)
+			},
 			HEntry::Vacant(mut e) => {
-				e.insert(statement);
+				e.insert(StoredStatement { statement, known_by_backing: origin.is_local() });
 			},
 		}
 
@@ -148,6 +177,20 @@ impl StatementStore {
 			})
 	}
 
+	/// Fill a `StatementFilter` to be used in the grid topology with all statements
+	/// we are already aware of.
+	pub fn fill_statement_filter(
+		&self,
+		group_index: GroupIndex,
+		candidate_hash: CandidateHash,
+		statement_filter: &mut StatementFilter,
+	) {
+		if let Some(statements) = self.group_statements.get(&(group_index, candidate_hash)) {
+			statement_filter.seconded_in_group |= statements.seconded.as_bitslice();
+			statement_filter.validated_in_group |= statements.valid.as_bitslice();
+		}
+	}
+
 	// TODO [now]: this may not be useful.
 	/// Get an iterator over signed statements of the given form by the given group.
 	pub fn group_statements<'a>(
@@ -164,6 +207,7 @@ impl StatementStore {
 			.flat_map(|v| v.iter_ones())
 			.filter_map(move |i| group_validators.as_ref().and_then(|g| g.get(i)))
 			.filter_map(move |v| self.known_statements.get(&(*v, statement.clone())))
+			.map(|s| &s.statement)
 	}
 
 	/// Get the full statement of this kind issued by this validator, if it is known.
@@ -172,7 +216,39 @@ impl StatementStore {
 		validator_index: ValidatorIndex,
 		statement: CompactStatement,
 	) -> Option<&SignedStatement> {
-		self.known_statements.get(&(validator_index, statement))
+		self.known_statements.get(&(validator_index, statement)).map(|s| &s.statement)
+	}
+
+	/// Get an iterator over all statements marked as being unknown by the backing subsystem.
+	pub fn fresh_statements_for_backing<'a>(
+		&'a self,
+		validators: &'a [ValidatorIndex],
+		candidate_hash: CandidateHash,
+	) -> impl IntoIterator<Item = &SignedStatement> + 'a {
+		let s_st = CompactStatement::Seconded(candidate_hash);
+		let v_st = CompactStatement::Valid(candidate_hash);
+
+		validators
+			.iter()
+			.flat_map(move |v| {
+				let a = self.known_statements.get(&(*v, s_st.clone()));
+				let b = self.known_statements.get(&(*v, v_st.clone()));
+
+				a.into_iter().chain(b)
+			})
+			.filter(|stored| !stored.known_by_backing)
+			.map(|stored| &stored.statement)
+	}
+
+	/// Note that a statement is known by the backing subsystem.
+	pub fn note_known_by_backing(
+		&mut self,
+		validator_index: ValidatorIndex,
+		statement: CompactStatement,
+	) {
+		if let Some(stored) = self.known_statements.get_mut(&(validator_index, statement)) {
+			stored.known_by_backing = true;
+		}
 	}
 }
 

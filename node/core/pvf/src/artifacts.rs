@@ -16,10 +16,10 @@
 
 use crate::{error::PrepareError, host::PrepareResultSender};
 use always_assert::always;
-use async_std::path::{Path, PathBuf};
 use polkadot_parachain::primitives::ValidationCodeHash;
 use std::{
 	collections::HashMap,
+	path::{Path, PathBuf},
 	time::{Duration, SystemTime},
 };
 
@@ -96,17 +96,31 @@ pub enum ArtifactState {
 	/// That means that the artifact should be accessible through the path obtained by the artifact
 	/// id (unless, it was removed externally).
 	Prepared {
-		/// The time when the artifact was the last time needed.
+		/// The time when the artifact was last needed.
 		///
 		/// This is updated when we get the heads up for this artifact or when we just discover
 		/// this file.
 		last_time_needed: SystemTime,
+		/// The CPU time that was taken preparing this artifact.
+		cpu_time_elapsed: Duration,
 	},
 	/// A task to prepare this artifact is scheduled.
-	Preparing { waiting_for_response: Vec<PrepareResultSender> },
+	Preparing {
+		/// List of result senders that are waiting for a response.
+		waiting_for_response: Vec<PrepareResultSender>,
+		/// The number of times this artifact has failed to prepare.
+		num_failures: u32,
+	},
 	/// The code couldn't be compiled due to an error. Such artifacts
 	/// never reach the executor and stay in the host's memory.
-	FailedToProcess(PrepareError),
+	FailedToProcess {
+		/// Keep track of the last time that processing this artifact failed.
+		last_time_failed: SystemTime,
+		/// The number of times this artifact has failed to prepare.
+		num_failures: u32,
+		/// The last error encountered for preparation.
+		error: PrepareError,
+	},
 }
 
 /// A container of all known artifact ids and their states.
@@ -120,10 +134,10 @@ impl Artifacts {
 	///
 	/// The recognized artifacts will be filled in the table and unrecognized will be removed.
 	pub async fn new(cache_path: &Path) -> Self {
-		// Make sure that the cache path directory and all it's parents are created.
+		// Make sure that the cache path directory and all its parents are created.
 		// First delete the entire cache. Nodes are long-running so this should populate shortly.
-		let _ = async_std::fs::remove_dir_all(cache_path).await;
-		let _ = async_std::fs::create_dir_all(cache_path).await;
+		let _ = tokio::fs::remove_dir_all(cache_path).await;
+		let _ = tokio::fs::create_dir_all(cache_path).await;
 
 		Self { artifacts: HashMap::new() }
 	}
@@ -150,7 +164,7 @@ impl Artifacts {
 		// See the precondition.
 		always!(self
 			.artifacts
-			.insert(artifact_id, ArtifactState::Preparing { waiting_for_response })
+			.insert(artifact_id, ArtifactState::Preparing { waiting_for_response, num_failures: 0 })
 			.is_none());
 	}
 
@@ -159,11 +173,16 @@ impl Artifacts {
 	/// This function must be used only for brand-new artifacts and should never be used for
 	/// replacing existing ones.
 	#[cfg(test)]
-	pub fn insert_prepared(&mut self, artifact_id: ArtifactId, last_time_needed: SystemTime) {
+	pub fn insert_prepared(
+		&mut self,
+		artifact_id: ArtifactId,
+		last_time_needed: SystemTime,
+		cpu_time_elapsed: Duration,
+	) {
 		// See the precondition.
 		always!(self
 			.artifacts
-			.insert(artifact_id, ArtifactState::Prepared { last_time_needed })
+			.insert(artifact_id, ArtifactState::Prepared { last_time_needed, cpu_time_elapsed })
 			.is_none());
 	}
 
@@ -195,9 +214,8 @@ impl Artifacts {
 #[cfg(test)]
 mod tests {
 	use super::{ArtifactId, Artifacts};
-	use async_std::path::Path;
 	use sp_core::H256;
-	use std::str::FromStr;
+	use std::{path::Path, str::FromStr};
 
 	#[test]
 	fn from_file_name() {
@@ -233,11 +251,9 @@ mod tests {
 		);
 	}
 
-	#[test]
-	fn artifacts_removes_cache_on_startup() {
-		let fake_cache_path = async_std::task::block_on(async move {
-			crate::worker_common::tmpfile("test-cache").await.unwrap()
-		});
+	#[tokio::test]
+	async fn artifacts_removes_cache_on_startup() {
+		let fake_cache_path = crate::worker_common::tmpfile("test-cache").await.unwrap();
 		let fake_artifact_path = {
 			let mut p = fake_cache_path.clone();
 			p.push("wasmtime_0x1234567890123456789012345678901234567890123456789012345678901234");
@@ -252,7 +268,7 @@ mod tests {
 		// this should remove it and re-create.
 
 		let p = &fake_cache_path;
-		async_std::task::block_on(async { Artifacts::new(p).await });
+		Artifacts::new(p).await;
 
 		assert_eq!(std::fs::read_dir(&fake_cache_path).unwrap().count(), 0);
 

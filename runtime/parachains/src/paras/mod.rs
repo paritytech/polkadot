@@ -73,13 +73,14 @@
 //!
 //! # PVF Pre-checking
 //!
-//! As was mentioned above, a brand new validation code should go through a process of approval.
-//! As part of this process, validators from the active set will take the validation code and
-//! check if it is malicious. Once they did that and have their judgement, either accept or reject,
-//! they issue a statement in a form of an unsigned extrinsic. This extrinsic is processed by this
-//! pallet. Once supermajority is gained for accept, then the process that initiated the check
-//! is resumed (as mentioned before this can be either upgrading of validation code or onboarding).
-//! If supermajority is gained for reject, then the process is canceled.
+//! As was mentioned above, a brand new validation code should go through a process of approval. As
+//! part of this process, validators from the active set will take the validation code and check if
+//! it is malicious. Once they did that and have their judgement, either accept or reject, they
+//! issue a statement in a form of an unsigned extrinsic. This extrinsic is processed by this
+//! pallet. Once supermajority is gained for accept, then the process that initiated the check is
+//! resumed (as mentioned before this can be either upgrading of validation code or onboarding). If
+//! getting a supermajority becomes impossible (>1/3 of validators have already voted against), then
+//! we reject.
 //!
 //! Below is a state diagram that depicts states of a single PVF pre-checking vote.
 //!
@@ -92,8 +93,8 @@
 //!         │      │   │
 //!         │  ┌───────┐
 //!         │  │       │
-//!         └─▶│ init  │────supermajority      ┌──────────┐
-//!            │       │       against         │          │
+//!         └─▶│ init  │──── >1/3 against      ┌──────────┐
+//!            │       │           │           │          │
 //!            └───────┘           └──────────▶│ rejected │
 //!             ▲  │                           │          │
 //!             │  │ session                   └──────────┘
@@ -111,11 +112,11 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{
+use primitives::{
 	ConsensusLog, HeadData, Id as ParaId, PvfCheckStatement, SessionIndex, UpgradeGoAhead,
 	UpgradeRestriction, ValidationCode, ValidationCodeHash, ValidatorSignature,
 };
-use scale_info::TypeInfo;
+use scale_info::{Type, TypeInfo};
 use sp_core::RuntimeDebug;
 use sp_runtime::{
 	traits::{AppVerify, One, Saturating},
@@ -158,7 +159,7 @@ pub struct ReplacementTimes<N> {
 #[cfg_attr(test, derive(Debug, Clone, PartialEq))]
 pub struct ParaPastCodeMeta<N> {
 	/// Block numbers where the code was expected to be replaced and where the code
-	/// was actually replaced, respectively. The first is used to do accurate lookups
+	/// was actually replaced, respectively. The first is used to do accurate look-ups
 	/// of historic code in historic contexts, whereas the second is used to do
 	/// pruning on an accurate timeframe. These can be used as indices
 	/// into the `PastCodeHash` map along with the `ParaId` to fetch the code itself.
@@ -291,8 +292,76 @@ pub struct ParaGenesisArgs {
 	pub genesis_head: HeadData,
 	/// The initial validation code to use.
 	pub validation_code: ValidationCode,
-	/// True if parachain, false if parathread.
-	pub parachain: bool,
+	/// Parachain or Parathread.
+	#[cfg_attr(feature = "std", serde(rename = "parachain"))]
+	pub para_kind: ParaKind,
+}
+
+/// Distinguishes between Parachain and Parathread
+#[derive(PartialEq, Eq, Clone, RuntimeDebug)]
+pub enum ParaKind {
+	Parathread,
+	Parachain,
+}
+
+#[cfg(feature = "std")]
+impl Serialize for ParaKind {
+	fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+	where
+		S: serde::Serializer,
+	{
+		match self {
+			ParaKind::Parachain => serializer.serialize_bool(true),
+			ParaKind::Parathread => serializer.serialize_bool(false),
+		}
+	}
+}
+
+#[cfg(feature = "std")]
+impl<'de> Deserialize<'de> for ParaKind {
+	fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+	where
+		D: serde::Deserializer<'de>,
+	{
+		match serde::de::Deserialize::deserialize(deserializer) {
+			Ok(true) => Ok(ParaKind::Parachain),
+			Ok(false) => Ok(ParaKind::Parathread),
+			_ => Err(serde::de::Error::custom("invalid ParaKind serde representation")),
+		}
+	}
+}
+
+// Manual encoding, decoding, and TypeInfo as the parakind field in ParaGenesisArgs used to be a bool
+impl Encode for ParaKind {
+	fn size_hint(&self) -> usize {
+		true.size_hint()
+	}
+
+	fn using_encoded<R, F: FnOnce(&[u8]) -> R>(&self, f: F) -> R {
+		match self {
+			ParaKind::Parachain => true.using_encoded(f),
+			ParaKind::Parathread => false.using_encoded(f),
+		}
+	}
+}
+
+impl Decode for ParaKind {
+	fn decode<I: parity_scale_codec::Input>(
+		input: &mut I,
+	) -> Result<Self, parity_scale_codec::Error> {
+		match bool::decode(input) {
+			Ok(true) => Ok(ParaKind::Parachain),
+			Ok(false) => Ok(ParaKind::Parathread),
+			_ => Err("Invalid ParaKind representation".into()),
+		}
+	}
+}
+
+impl TypeInfo for ParaKind {
+	type Identity = bool;
+	fn type_info() -> Type {
+		bool::type_info()
+	}
 }
 
 /// This enum describes a reason why a particular PVF pre-checking vote was initiated. When the
@@ -384,12 +453,14 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 
 	/// Returns `None` if the quorum is not reached, or the direction of the decision.
 	fn quorum(&self, n_validators: usize) -> Option<PvfCheckOutcome> {
-		let q_threshold = primitives::v2::supermajority_threshold(n_validators);
-		// NOTE: counting the reject votes is deliberately placed first. This is to err on the safe.
-		if self.votes_reject.count_ones() >= q_threshold {
-			Some(PvfCheckOutcome::Rejected)
-		} else if self.votes_accept.count_ones() >= q_threshold {
+		let accept_threshold = primitives::supermajority_threshold(n_validators);
+		// At this threshold, a supermajority is no longer possible, so we reject.
+		let reject_threshold = n_validators - accept_threshold;
+
+		if self.votes_accept.count_ones() >= accept_threshold {
 			Some(PvfCheckOutcome::Accepted)
+		} else if self.votes_reject.count_ones() > reject_threshold {
+			Some(PvfCheckOutcome::Rejected)
 		} else {
 			None
 		}
@@ -453,7 +524,7 @@ impl WeightInfo for TestWeightInfo {
 	}
 	fn include_pvf_check_statement() -> Weight {
 		// This special value is to distinguish from the finalizing variants above in tests.
-		Weight::MAX - Weight::from_ref_time(1)
+		Weight::MAX - Weight::from_parts(1, 1)
 	}
 }
 
@@ -601,7 +672,7 @@ pub mod pallet {
 
 	/// Past code of parachains. The parachains themselves may not be registered anymore,
 	/// but we also keep their code on-chain for the same amount of time as outdated code
-	/// to keep it available for secondary checkers.
+	/// to keep it available for approval checkers.
 	#[pallet::storage]
 	#[pallet::getter(fn past_code_meta)]
 	pub(super) type PastCodeMeta<T: Config> =
@@ -629,6 +700,7 @@ pub mod pallet {
 	///
 	/// Corresponding code can be retrieved with [`CodeByHash`].
 	#[pallet::storage]
+	#[pallet::getter(fn future_code_hash)]
 	pub(super) type FutureCodeHash<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ValidationCodeHash>;
 
@@ -655,6 +727,7 @@ pub mod pallet {
 	/// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
 	/// the format will require migration of parachains.
 	#[pallet::storage]
+	#[pallet::getter(fn upgrade_restriction_signal)]
 	pub(super) type UpgradeRestrictionSignal<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, UpgradeRestriction>;
 
@@ -730,6 +803,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Set the storage for the parachain validation code immediately.
+		#[pallet::call_index(0)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_code(new_code.0.len() as u32))]
 		pub fn force_set_current_code(
 			origin: OriginFor<T>,
@@ -757,6 +831,7 @@ pub mod pallet {
 		}
 
 		/// Set the storage for the current parachain head data immediately.
+		#[pallet::call_index(1)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_set_current_head(new_head.0.len() as u32))]
 		pub fn force_set_current_head(
 			origin: OriginFor<T>,
@@ -768,19 +843,8 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Set the storage for the current parachain head data immediately.
-		#[pallet::weight(<T as Config>::WeightInfo::force_set_most_recent_context())]
-		pub fn force_set_most_recent_context(
-			origin: OriginFor<T>,
-			para: ParaId,
-			context: T::BlockNumber,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			<Self as Store>::MostRecentContext::insert(&para, context);
-			Ok(())
-		}
-
 		/// Schedule an upgrade as if it was scheduled in the given relay parent block.
+		#[pallet::call_index(2)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_schedule_code_upgrade(new_code.0.len() as u32))]
 		pub fn force_schedule_code_upgrade(
 			origin: OriginFor<T>,
@@ -796,6 +860,7 @@ pub mod pallet {
 		}
 
 		/// Note a new block head for para within the context of the current block.
+		#[pallet::call_index(3)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_note_new_head(new_head.0.len() as u32))]
 		pub fn force_note_new_head(
 			origin: OriginFor<T>,
@@ -812,6 +877,7 @@ pub mod pallet {
 		/// Put a parachain directly into the next session's action queue.
 		/// We can't queue it any sooner than this without going into the
 		/// initializer...
+		#[pallet::call_index(4)]
 		#[pallet::weight(<T as Config>::WeightInfo::force_queue_action())]
 		pub fn force_queue_action(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			ensure_root(origin)?;
@@ -838,6 +904,7 @@ pub mod pallet {
 		///
 		/// This function is mainly meant to be used for upgrading parachains that do not follow
 		/// the go-ahead signal while the PVF pre-checking feature is enabled.
+		#[pallet::call_index(5)]
 		#[pallet::weight(<T as Config>::WeightInfo::add_trusted_validation_code(validation_code.0.len() as u32))]
 		pub fn add_trusted_validation_code(
 			origin: OriginFor<T>,
@@ -886,6 +953,7 @@ pub mod pallet {
 		/// This is better than removing the storage directly, because it will not remove the code
 		/// that was suddenly got used by some parachain while this dispatchable was pending
 		/// dispatching.
+		#[pallet::call_index(6)]
 		#[pallet::weight(<T as Config>::WeightInfo::poke_unused_validation_code())]
 		pub fn poke_unused_validation_code(
 			origin: OriginFor<T>,
@@ -900,6 +968,7 @@ pub mod pallet {
 
 		/// Includes a statement for a PVF pre-checking vote. Potentially, finalizes the vote and
 		/// enacts the results if that was the last vote before achieving the supermajority.
+		#[pallet::call_index(7)]
 		#[pallet::weight(
 			<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_accept()
 				.max(<T as Config>::WeightInfo::include_pvf_check_statement_finalize_upgrade_reject())
@@ -957,7 +1026,7 @@ pub mod pallet {
 			}
 
 			if let Some(outcome) = active_vote.quorum(validators.len()) {
-				// The supermajority quorum has been achieved.
+				// The quorum has been achieved.
 				//
 				// Remove the PVF vote from the active map and finalize the PVF checking according
 				// to the outcome.
@@ -993,6 +1062,19 @@ pub mod pallet {
 				PvfActiveVoteMap::<T>::insert(&stmt.subject, active_vote);
 				Ok(Some(<T as Config>::WeightInfo::include_pvf_check_statement()).into())
 			}
+		}
+
+		/// Set the storage for the current parachain head data immediately.
+		#[pallet::call_index(8)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_set_most_recent_context())]
+		pub fn force_set_most_recent_context(
+			origin: OriginFor<T>,
+			para: ParaId,
+			context: T::BlockNumber,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			<Self as Store>::MostRecentContext::insert(&para, context);
+			Ok(())
 		}
 	}
 
@@ -2045,11 +2127,12 @@ impl<T: Config> Pallet<T> {
 		id: ParaId,
 		genesis_data: &ParaGenesisArgs,
 	) {
-		if genesis_data.parachain {
-			parachains.add(id);
-			ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parachain);
-		} else {
-			ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parathread);
+		match genesis_data.para_kind {
+			ParaKind::Parachain => {
+				parachains.add(id);
+				ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parachain);
+			},
+			ParaKind::Parathread => ParaLifecycles::<T>::insert(&id, ParaLifecycle::Parathread),
 		}
 
 		// HACK: see the notice in `schedule_para_initialize`.

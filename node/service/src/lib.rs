@@ -95,12 +95,13 @@ pub use polkadot_client::PolkadotExecutorDispatch;
 
 pub use chain_spec::{KusamaChainSpec, PolkadotChainSpec, RococoChainSpec, WestendChainSpec};
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
+use mmr_gadget::MmrGadget;
 #[cfg(feature = "full-node")]
 pub use polkadot_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
 	RuntimeApiCollection,
 };
-pub use polkadot_primitives::v2::{Block, BlockId, BlockNumber, CollatorPair, Hash, Id as ParaId};
+pub use polkadot_primitives::{Block, BlockId, BlockNumber, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
 use sc_executor::NativeElseWasmExecutor;
@@ -160,10 +161,7 @@ where
 		&self,
 		hash: Block::Hash,
 	) -> sp_blockchain::Result<Option<<Block as BlockT>::Header>> {
-		<Self as sp_blockchain::HeaderBackend<Block>>::header(
-			self,
-			generic::BlockId::<Block>::Hash(hash),
-		)
+		<Self as sp_blockchain::HeaderBackend<Block>>::header(self, hash)
 	}
 	fn number(
 		&self,
@@ -700,7 +698,7 @@ where
 				return None
 			};
 
-			let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
+			let parent_hash = client.header(hash).ok()??.parent_hash;
 
 			Some(BlockInfo { hash, parent_hash, number })
 		})
@@ -758,6 +756,7 @@ where
 {
 	use polkadot_node_network_protocol::request_response::IncomingRequest;
 
+	let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
 	let role = config.role.clone();
 	let force_authoring = config.force_authoring;
 	let backoff_authoring_blocks = {
@@ -947,7 +946,8 @@ where
 	let parachains_db = open_database(&config.database)?;
 
 	let approval_voting_config = ApprovalVotingConfig {
-		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
+		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
+		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: slot_duration.as_millis() as u64,
 	};
 
@@ -970,7 +970,8 @@ where
 	};
 
 	let dispute_coordinator_config = DisputeCoordinatorConfig {
-		col_data: parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
+		col_dispute_data: parachains_db::REAL_COLUMNS.col_dispute_coordinator_data,
+		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 	};
 
 	let rpc_handlers = service::spawn_tasks(service::SpawnTasksParams {
@@ -1113,8 +1114,8 @@ where
 					pin_mut!(forward);
 
 					select! {
-						_ = forward => (),
-						_ = overseer_fut => (),
+						() = forward => (),
+						() = overseer_fut => (),
 						complete => (),
 					}
 				}),
@@ -1155,11 +1156,12 @@ where
 				let overseer_handle = overseer_handle.clone();
 
 				async move {
-					let parachain = polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::create(
-						&*client_clone,
-						overseer_handle,
-						parent,
-					).await.map_err(|e| Box::new(e))?;
+					let parachain =
+						polkadot_node_core_parachains_inherent::ParachainsInherentDataProvider::new(
+							client_clone,
+							overseer_handle,
+							parent,
+						);
 
 					let timestamp = sp_timestamp::InherentDataProvider::from_system_time();
 
@@ -1222,24 +1224,25 @@ where
 		} else {
 			task_manager.spawn_handle().spawn_blocking("beefy-gadget", None, gadget);
 		}
-	}
 
-	// Reduce grandpa load on Kusama and test networks. This will slow down finality by
-	// approximately one slot duration, but will reduce load. We would like to see the impact on
-	// Kusama, see: https://github.com/paritytech/polkadot/issues/5464
-	let gossip_duration = if chain_spec.is_versi() ||
-		chain_spec.is_wococo() ||
-		chain_spec.is_rococo() ||
-		chain_spec.is_kusama()
-	{
-		Duration::from_millis(2000)
-	} else {
-		Duration::from_millis(1000)
-	};
+		if is_offchain_indexing_enabled {
+			task_manager.spawn_handle().spawn_blocking(
+				"mmr-gadget",
+				None,
+				MmrGadget::start(
+					client.clone(),
+					backend.clone(),
+					sp_mmr_primitives::INDEXING_PREFIX.to_vec(),
+				),
+			);
+		}
+	}
 
 	let config = grandpa::Config {
 		// FIXME substrate#1578 make this available through chainspec
-		gossip_duration,
+		// Grandpa performance can be improved a bit by tuning this parameter, see:
+		// https://github.com/paritytech/polkadot/issues/5464
+		gossip_duration: Duration::from_millis(1000),
 		justification_period: 512,
 		name: Some(name),
 		observer_enabled: false,
@@ -1542,7 +1545,8 @@ fn revert_chain_selection(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::R
 
 fn revert_approval_voting(db: Arc<dyn Database>, hash: Hash) -> sp_blockchain::Result<()> {
 	let config = approval_voting_subsystem::Config {
-		col_data: parachains_db::REAL_COLUMNS.col_approval_data,
+		col_approval_data: parachains_db::REAL_COLUMNS.col_approval_data,
+		col_session_data: parachains_db::REAL_COLUMNS.col_session_window_data,
 		slot_duration_millis: Default::default(),
 	};
 

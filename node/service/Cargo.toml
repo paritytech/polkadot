@@ -1,18 +1,20 @@
 [package]
 name = "polkadot-service"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 rust-version = "1.60"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 # Substrate Client
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-beefy" }
 beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+mmr-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master"}
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -69,9 +71,10 @@ gum = { package = "tracing-gum", path = "../gum/" }
 serde = { version = "1.0.137", features = ["derive"] }
 serde_json = "1.0.81"
 thiserror = "1.0.31"
-kvdb = "0.12.0"
-kvdb-rocksdb = { version = "0.16.0", optional = true }
-parity-db = { version = "0.3.16", optional = true }
+kvdb = "0.13.0"
+kvdb-rocksdb = { version = "0.17.0", optional = true }
+parity-db = { version = "0.4.2", optional = true }
+
 async-trait = "0.1.57"
 lru = "0.8"
 
@@ -119,6 +122,7 @@ polkadot-node-core-candidate-validation = { path = "../core/candidate-validation
 polkadot-node-core-chain-api = { path = "../core/chain-api", optional = true }
 polkadot-node-core-chain-selection = { path = "../core/chain-selection", optional = true }
 polkadot-node-core-dispute-coordinator = { path = "../core/dispute-coordinator", optional = true }
+polkadot-node-core-prospective-parachains = { path = "../core/prospective-parachains", optional = true }
 polkadot-node-core-provisioner = { path = "../core/provisioner", optional = true }
 polkadot-node-core-pvf-checker = { path = "../core/pvf-checker", optional = true }
 polkadot-node-core-runtime-api = { path = "../core/runtime-api", optional = true }
@@ -157,6 +161,7 @@ full-node = [
 	"polkadot-node-core-chain-api",
 	"polkadot-node-core-chain-selection",
 	"polkadot-node-core-dispute-coordinator",
+    "polkadot-node-core-prospective-parachains",
 	"polkadot-node-core-provisioner",
 	"polkadot-node-core-runtime-api",
 	"polkadot-statement-distribution",

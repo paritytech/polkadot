@@ -70,6 +70,7 @@ pub use polkadot_node_core_candidate_validation::CandidateValidationSubsystem;
 pub use polkadot_node_core_chain_api::ChainApiSubsystem;
 pub use polkadot_node_core_chain_selection::ChainSelectionSubsystem;
 pub use polkadot_node_core_dispute_coordinator::DisputeCoordinatorSubsystem;
+pub use polkadot_node_core_prospective_parachains::ProspectiveParachainsSubsystem;
 pub use polkadot_node_core_provisioner::ProvisionerSubsystem;
 pub use polkadot_node_core_pvf_checker::PvfCheckerSubsystem;
 pub use polkadot_node_core_runtime_api::RuntimeApiSubsystem;
@@ -139,7 +140,7 @@ where
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
 /// with all default values.
-pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
+pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 	OverseerGenArgs {
 		leaves,
 		keystore,
@@ -166,7 +167,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		overseer_message_channel_capacity_override,
 		req_protocol_names,
 		peerset_protocol_names,
-	}: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+	}: OverseerGenArgs<Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
@@ -199,7 +200,7 @@ pub fn prepared_overseer_builder<'a, Spawner, RuntimeClient>(
 		DisputeCoordinatorSubsystem,
 		DisputeDistributionSubsystem<AuthorityDiscoveryService>,
 		ChainSelectionSubsystem,
-		polkadot_overseer::DummySubsystem, // TODO [now]: use real prospective parachains
+		ProspectiveParachainsSubsystem,
 	>,
 	Error,
 >
@@ -269,7 +270,7 @@ where
 		.collator_protocol({
 			let side = match is_collator {
 				IsCollator::Yes(collator_pair) => ProtocolSide::Collator {
-					peer_id: network_service.local_peer_id().clone(),
+					peer_id: network_service.local_peer_id(),
 					collator_pair,
 					request_receiver_v1: collation_req_v1_receiver,
 					request_receiver_vstaging: collation_req_vstaging_receiver,
@@ -321,7 +322,7 @@ where
 			Metrics::register(registry)?,
 		))
 		.chain_selection(ChainSelectionSubsystem::new(chain_selection_config, parachains_db))
-		.prospective_parachains(polkadot_overseer::DummySubsystem)
+		.prospective_parachains(ProspectiveParachainsSubsystem::new())
 		.leaves(Vec::from_iter(
 			leaves
 				.into_iter()
@@ -348,10 +349,10 @@ where
 /// would do.
 pub trait OverseerGen {
 	/// Overwrite the full generation of the overseer, including the subsystems.
-	fn generate<'a, Spawner, RuntimeClient>(
+	fn generate<Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
-		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+		args: OverseerGenArgs<Spawner, RuntimeClient>,
 	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,
@@ -372,10 +373,10 @@ use polkadot_overseer::KNOWN_LEAVES_CACHE_SIZE;
 pub struct RealOverseerGen;
 
 impl OverseerGen for RealOverseerGen {
-	fn generate<'a, Spawner, RuntimeClient>(
+	fn generate<Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
-		args: OverseerGenArgs<'a, Spawner, RuntimeClient>,
+		args: OverseerGenArgs<Spawner, RuntimeClient>,
 	) -> Result<(Overseer<SpawnGlue<Spawner>, Arc<RuntimeClient>>, OverseerHandle), Error>
 	where
 		RuntimeClient: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + AuxStore,

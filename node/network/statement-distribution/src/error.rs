@@ -75,6 +75,9 @@ pub enum Error {
 	#[error("Fetching availability cores failed {0:?}")]
 	FetchAvailabilityCores(RuntimeApiError),
 
+	#[error("Fetching validator groups failed {0:?}")]
+	FetchValidatorGroups(RuntimeApiError),
+
 	#[error("Attempted to share statement when not a validator or not assigned")]
 	InvalidShare,
 

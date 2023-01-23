@@ -6,25 +6,31 @@ path = "src/main.rs"
 name = "polkadot"
 description = "Implementation of a `https://polkadot.network` node in Rust based on the Substrate framework."
 license = "GPL-3.0-only"
-version = "0.9.29"
+rust-version = "1.64.0" # workspace properties
+readme = "README.md"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
+
+[workspace.package]
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-rust-version = "1.57.0" # custom profiles
-readme = "README.md"
+repository = "https://github.com/paritytech/polkadot.git"
+version = "0.9.33"
 
 [dependencies]
 polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
 color-eyre = { version = "0.6.1", default-features = false }
-parity-util-mem = { version = "0.12.0", default-features = false, features = ["jemalloc-global"] }
+tikv-jemallocator = "0.5.0"
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
 nix = "0.24.1"
 tempfile = "3.2.0"
-tokio = "1.19.2"
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tokio = "1.24.1"
+substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
-
+ 
 [workspace]
 members = [
 	"cli",
@@ -127,7 +133,6 @@ maintenance = { status = "actively-developed" }
 # This list is ordered alphabetically.
 [profile.dev.package]
 blake2 = { opt-level = 3 }
-blake2-rfc = { opt-level = 3 }
 blake2b_simd = { opt-level = 3 }
 chacha20poly1305 = { opt-level = 3 }
 cranelift-codegen = { opt-level = 3 }

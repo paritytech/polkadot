@@ -17,7 +17,7 @@
 //! A utility for tracking groups and their members within a session.
 
 use polkadot_node_primitives::minimum_votes;
-use polkadot_primitives::vstaging::{AuthorityDiscoveryId, GroupIndex, ValidatorIndex};
+use polkadot_primitives::vstaging::{AuthorityDiscoveryId, GroupIndex, IndexedVec, ValidatorIndex};
 
 use std::collections::HashMap;
 
@@ -25,7 +25,7 @@ use std::collections::HashMap;
 /// looking up groups by validator indices or authority discovery ID.
 #[derive(Debug, Clone)]
 pub struct Groups {
-	groups: Vec<Vec<ValidatorIndex>>,
+	groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	by_validator_index: HashMap<ValidatorIndex, GroupIndex>,
 	by_discovery_key: HashMap<AuthorityDiscoveryId, GroupIndex>,
 }
@@ -33,7 +33,10 @@ pub struct Groups {
 impl Groups {
 	/// Create a new [`Groups`] tracker with the groups and discovery keys
 	/// from the session.
-	pub fn new(groups: Vec<Vec<ValidatorIndex>>, discovery_keys: &[AuthorityDiscoveryId]) -> Self {
+	pub fn new(
+		groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
+		discovery_keys: &[AuthorityDiscoveryId],
+	) -> Self {
 		let mut by_validator_index = HashMap::new();
 		let mut by_discovery_key = HashMap::new();
 
@@ -52,13 +55,13 @@ impl Groups {
 	}
 
 	/// Access all the underlying groups.
-	pub fn all(&self) -> &[Vec<ValidatorIndex>] {
+	pub fn all(&self) -> &IndexedVec<GroupIndex, Vec<ValidatorIndex>> {
 		&self.groups
 	}
 
 	/// Get the underlying group validators by group index.
 	pub fn get(&self, group_index: GroupIndex) -> Option<&[ValidatorIndex]> {
-		self.groups.get(group_index.0 as usize).map(|x| &x[..])
+		self.groups.get(group_index).map(|x| &x[..])
 	}
 
 	/// Get the backing group size and backing threshold.
@@ -66,7 +69,7 @@ impl Groups {
 		&self,
 		group_index: GroupIndex,
 	) -> Option<(usize, usize)> {
-		self.get(group_index).map(|g| (g.len(), minimum_votes(g.len())))
+		self.get(group_index).map(|g| (g.len(), super::minimum_votes(g.len())))
 	}
 
 	/// Get the group index for a validator by index.

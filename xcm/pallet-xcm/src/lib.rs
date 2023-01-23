@@ -18,43 +18,137 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+#[cfg(feature = "runtime-benchmarks")]
+mod benchmarking;
 #[cfg(test)]
 mod mock;
 #[cfg(test)]
 mod tests;
 
+pub mod migration;
+
 use codec::{Decode, Encode, EncodeLike, MaxEncodedLen};
-use frame_support::traits::{Contains, EnsureOrigin, Get, OriginTrait};
+use frame_support::traits::{
+	Contains, ContainsPair, Currency, Defensive, EnsureOrigin, Get, LockableCurrency, OriginTrait,
+};
 use scale_info::TypeInfo;
 use sp_runtime::{
-	traits::{BadOrigin, Saturating},
+	traits::{
+		AccountIdConversion, BadOrigin, BlakeTwo256, BlockNumberProvider, Hash, Saturating, Zero,
+	},
 	RuntimeDebug,
 };
 use sp_std::{boxed::Box, marker::PhantomData, prelude::*, result::Result, vec};
-use xcm::{latest::Weight as XcmWeight, prelude::*};
-use xcm_executor::traits::ConvertOrigin;
+use xcm::{latest::QueryResponseInfo, prelude::*};
+use xcm_executor::traits::{Convert, ConvertOrigin};
 
-use frame_support::PalletId;
+use frame_support::{
+	dispatch::{Dispatchable, GetDispatchInfo},
+	pallet_prelude::*,
+	traits::WithdrawReasons,
+	PalletId,
+};
+use frame_system::pallet_prelude::*;
 pub use pallet::*;
+use xcm_executor::{
+	traits::{
+		ClaimAssets, DropAssets, MatchesFungible, OnResponse, VersionChangeNotifier, WeightBounds,
+	},
+	Assets,
+};
+
+pub trait WeightInfo {
+	fn send() -> Weight;
+	fn teleport_assets() -> Weight;
+	fn reserve_transfer_assets() -> Weight;
+	fn execute() -> Weight;
+	fn force_xcm_version() -> Weight;
+	fn force_default_xcm_version() -> Weight;
+	fn force_subscribe_version_notify() -> Weight;
+	fn force_unsubscribe_version_notify() -> Weight;
+	fn migrate_supported_version() -> Weight;
+	fn migrate_version_notifiers() -> Weight;
+	fn already_notified_target() -> Weight;
+	fn notify_current_targets() -> Weight;
+	fn notify_target_migration_fail() -> Weight;
+	fn migrate_version_notify_targets() -> Weight;
+	fn migrate_and_notify_old_targets() -> Weight;
+}
+
+/// fallback implementation
+pub struct TestWeightInfo;
+impl WeightInfo for TestWeightInfo {
+	fn send() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn teleport_assets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn reserve_transfer_assets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn execute() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn force_xcm_version() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn force_default_xcm_version() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn force_subscribe_version_notify() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn force_unsubscribe_version_notify() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_supported_version() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_version_notifiers() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn already_notified_target() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn notify_current_targets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn notify_target_migration_fail() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_version_notify_targets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+
+	fn migrate_and_notify_old_targets() -> Weight {
+		Weight::from_ref_time(100_000_000)
+	}
+}
 
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
 	use frame_support::{
 		dispatch::{Dispatchable, GetDispatchInfo, PostDispatchInfo},
-		pallet_prelude::*,
 		parameter_types,
 	};
-	use frame_system::{pallet_prelude::*, Config as SysConfig};
+	use frame_system::Config as SysConfig;
 	use sp_core::H256;
-	use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, BlockNumberProvider, Hash};
-	use xcm_executor::{
-		traits::{
-			ClaimAssets, DropAssets, InvertLocation, OnResponse, VersionChangeNotifier,
-			WeightBounds,
-		},
-		Assets,
-	};
+	use xcm_executor::traits::{MatchesFungible, WeightBounds};
 
 	parameter_types! {
 		/// An implementation of `Get<u32>` which just returns the latest XCM version which we can
@@ -64,14 +158,25 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
+
+	pub type BalanceOf<T> =
+		<<T as Config>::Currency as Currency<<T as frame_system::Config>::AccountId>>::Balance;
 
 	#[pallet::config]
 	/// The module configuration trait.
 	pub trait Config: frame_system::Config {
 		/// The overarching event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+		/// A lockable currency.
+		// TODO: We should really use a trait which can handle multiple currencies.
+		type Currency: LockableCurrency<Self::AccountId, Moment = Self::BlockNumber>;
+
+		/// The `MultiAsset` matcher for `Currency`.
+		type CurrencyMatcher: MatchesFungible<BalanceOf<Self>>;
 
 		/// Required origin for sending XCM messages. If successful, it resolves to `MultiLocation`
 		/// which exists as an interior location within this chain's XCM context.
@@ -106,13 +211,13 @@ pub mod pallet {
 		/// Means of measuring the weight consumed by an XCM message locally.
 		type Weigher: WeightBounds<<Self as SysConfig>::RuntimeCall>;
 
-		/// Means of inverting a location.
-		type LocationInverter: InvertLocation;
+		/// This chain's Universal Location.
+		type UniversalLocation: Get<InteriorMultiLocation>;
 
-		/// The outer `Origin` type.
+		/// The runtime `Origin` type.
 		type RuntimeOrigin: From<Origin> + From<<Self as SysConfig>::RuntimeOrigin>;
 
-		/// The outer `Call` type.
+		/// The runtime `Call` type.
 		type RuntimeCall: Parameter
 			+ GetDispatchInfo
 			+ IsType<<Self as frame_system::Config>::RuntimeCall>
@@ -126,10 +231,26 @@ pub mod pallet {
 		/// The latest supported version that we advertise. Generally just set it to
 		/// `pallet_xcm::CurrentXcmVersion`.
 		type AdvertisedXcmVersion: Get<XcmVersion>;
-	}
 
-	/// The maximum number of distinct assets allowed to be transferred in a single helper extrinsic.
-	const MAX_ASSETS_FOR_TRANSFER: usize = 2;
+		/// The assets which we consider a given origin is trusted if they claim to have placed a
+		/// lock.
+		type TrustedLockers: ContainsPair<MultiLocation, MultiAsset>;
+
+		/// How to get an `AccountId` value from a `MultiLocation`, useful for handling asset locks.
+		type SovereignAccountOf: Convert<MultiLocation, Self::AccountId>;
+
+		/// The maximum number of local XCM locks that a single account may have.
+		type MaxLockers: Get<u32>;
+
+		/// Weight information for extrinsics in this pallet.
+		type WeightInfo: WeightInfo;
+
+		/// A `MultiLocation` that can be reached via `XcmRouter`. Used only in benchmarks.
+		///
+		/// If `None`, the benchmarks that depend on a reachable destination will be skipped.
+		#[cfg(feature = "runtime-benchmarks")]
+		type ReachableDest: Get<Option<MultiLocation>>;
+	}
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -201,8 +322,10 @@ pub mod pallet {
 		AssetsTrapped(H256, MultiLocation, VersionedMultiAssets),
 		/// An XCM version change notification message has been attempted to be sent.
 		///
-		/// \[ destination, result \]
-		VersionChangeNotified(MultiLocation, XcmVersion),
+		/// The cost of sending it (borne by the chain) is included.
+		///
+		/// \[ destination, result, cost \]
+		VersionChangeNotified(MultiLocation, XcmVersion, MultiAssets),
 		/// The supported version of a location has been changed. This might be through an
 		/// automatic notification or a manual intervention.
 		///
@@ -218,6 +341,39 @@ pub mod pallet {
 		///
 		/// \[ location, query ID \]
 		NotifyTargetMigrationFail(VersionedMultiLocation, QueryId),
+		/// Expected query response has been received but the expected querier location placed in
+		/// storage by this runtime previously cannot be decoded. The query remains registered.
+		///
+		/// This is unexpected (since a location placed in storage in a previously executing
+		/// runtime should be readable prior to query timeout) and dangerous since the possibly
+		/// valid response will be dropped. Manual governance intervention is probably going to be
+		/// needed.
+		///
+		/// \[ origin location, id \]
+		InvalidQuerierVersion(MultiLocation, QueryId),
+		/// Expected query response has been received but the querier location of the response does
+		/// not match the expected. The query remains registered for a later, valid, response to
+		/// be received and acted upon.
+		///
+		/// \[ origin location, id, expected querier, maybe actual querier \]
+		InvalidQuerier(MultiLocation, QueryId, MultiLocation, Option<MultiLocation>),
+		/// A remote has requested XCM version change notification from us and we have honored it.
+		/// A version information message is sent to them and its cost is included.
+		///
+		/// \[ destination location, cost \]
+		VersionNotifyStarted(MultiLocation, MultiAssets),
+		/// We have requested that a remote chain sends us XCM version change notifications.
+		///
+		/// \[ destination location, cost \]
+		VersionNotifyRequested(MultiLocation, MultiAssets),
+		/// We have requested that a remote chain stops sending us XCM version change notifications.
+		///
+		/// \[ destination location, cost \]
+		VersionNotifyUnrequested(MultiLocation, MultiAssets),
+		/// Fees were paid from a location for an operation (often for using `SendXcm`).
+		///
+		/// \[ paying location, fees \]
+		FeesPaid(MultiLocation, MultiAssets),
 		/// Some assets have been claimed from an asset trap
 		///
 		/// \[ hash, origin, assets \]
@@ -269,6 +425,30 @@ pub mod pallet {
 		NoSubscription,
 		/// The location is invalid since it already has a subscription from us.
 		AlreadySubscribed,
+		/// Invalid asset for the operation.
+		InvalidAsset,
+		/// The owner does not own (all) of the asset that they wish to do the operation on.
+		LowBalance,
+		/// The asset owner has too many locks on the asset.
+		TooManyLocks,
+		/// The given account is not an identifiable sovereign account for any location.
+		AccountNotSovereign,
+		/// The operation required fees to be paid which the initiator could not meet.
+		FeesNotMet,
+		/// A remote lock with the corresponding data could not be found.
+		LockNotFound,
+		/// The unlock operation cannot succeed because there are still users of the lock.
+		InUse,
+	}
+
+	impl<T: Config> From<SendError> for Error<T> {
+		fn from(e: SendError) -> Self {
+			match e {
+				SendError::Fees => Error::<T>::FeesNotMet,
+				SendError::NotApplicable => Error::<T>::Unreachable,
+				_ => Error::<T>::SendFailure,
+			}
+		}
 	}
 
 	/// The status of a query.
@@ -276,7 +456,12 @@ pub mod pallet {
 	pub enum QueryStatus<BlockNumber> {
 		/// The query was sent but no response has yet been received.
 		Pending {
+			/// The `QueryResponse` XCM must have this origin to be considered a reply for this
+			/// query.
 			responder: VersionedMultiLocation,
+			/// The `QueryResponse` XCM must have this value as the `querier` field to be
+			/// considered a reply for this query. If `None` then the querier is ignored.
+			maybe_match_querier: Option<VersionedMultiLocation>,
 			maybe_notify: Option<(u8, u8)>,
 			timeout: BlockNumber,
 		},
@@ -368,7 +553,7 @@ pub mod pallet {
 		XcmVersion,
 		Blake2_128Concat,
 		VersionedMultiLocation,
-		(QueryId, u64, XcmVersion),
+		(QueryId, Weight, XcmVersion),
 		OptionQuery,
 	>;
 
@@ -393,6 +578,37 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type CurrentMigration<T: Config> =
 		StorageValue<_, VersionMigrationStage, OptionQuery>;
+
+	#[derive(Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, TypeInfo, MaxEncodedLen)]
+	pub struct RemoteLockedFungibleRecord {
+		pub amount: u128,
+		pub owner: VersionedMultiLocation,
+		pub locker: VersionedMultiLocation,
+		pub users: u32,
+	}
+
+	/// Fungible assets which we know are locked on a remote chain.
+	#[pallet::storage]
+	pub(super) type RemoteLockedFungibles<T: Config> = StorageNMap<
+		_,
+		(
+			NMapKey<Twox64Concat, XcmVersion>,
+			NMapKey<Blake2_128Concat, T::AccountId>,
+			NMapKey<Blake2_128Concat, VersionedAssetId>,
+		),
+		RemoteLockedFungibleRecord,
+		OptionQuery,
+	>;
+
+	/// Fungible assets which we know are locked on this chain.
+	#[pallet::storage]
+	pub(super) type LockedFungibles<T: Config> = StorageMap<
+		_,
+		Blake2_128Concat,
+		T::AccountId,
+		BoundedVec<(BalanceOf<T>, VersionedMultiLocation), T::MaxLockers>,
+		OptionQuery,
+	>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig {
@@ -456,9 +672,90 @@ pub mod pallet {
 		}
 	}
 
+	pub mod migrations {
+		use super::*;
+		use frame_support::traits::{PalletInfoAccess, StorageVersion};
+
+		#[derive(Clone, Eq, PartialEq, Encode, Decode, RuntimeDebug, TypeInfo)]
+		enum QueryStatusV0<BlockNumber> {
+			Pending {
+				responder: VersionedMultiLocation,
+				maybe_notify: Option<(u8, u8)>,
+				timeout: BlockNumber,
+			},
+			VersionNotifier {
+				origin: VersionedMultiLocation,
+				is_active: bool,
+			},
+			Ready {
+				response: VersionedResponse,
+				at: BlockNumber,
+			},
+		}
+		impl<B> From<QueryStatusV0<B>> for QueryStatus<B> {
+			fn from(old: QueryStatusV0<B>) -> Self {
+				use QueryStatusV0::*;
+				match old {
+					Pending { responder, maybe_notify, timeout } => QueryStatus::Pending {
+						responder,
+						maybe_notify,
+						timeout,
+						maybe_match_querier: Some(MultiLocation::here().into()),
+					},
+					VersionNotifier { origin, is_active } =>
+						QueryStatus::VersionNotifier { origin, is_active },
+					Ready { response, at } => QueryStatus::Ready { response, at },
+				}
+			}
+		}
+
+		pub fn migrate_to_v1<T: Config, P: GetStorageVersion + PalletInfoAccess>(
+		) -> frame_support::weights::Weight {
+			let on_chain_storage_version = <P as GetStorageVersion>::on_chain_storage_version();
+			log::info!(
+				target: "runtime::xcm",
+				"Running migration storage v1 for xcm with storage version {:?}",
+				on_chain_storage_version,
+			);
+
+			if on_chain_storage_version < 1 {
+				let mut count = 0;
+				Queries::<T>::translate::<QueryStatusV0<T::BlockNumber>, _>(|_key, value| {
+					count += 1;
+					Some(value.into())
+				});
+				StorageVersion::new(1).put::<P>();
+				log::info!(
+					target: "runtime::xcm",
+					"Running migration storage v1 for xcm with storage version {:?} was complete",
+					on_chain_storage_version,
+				);
+				// calculate and return migration weights
+				T::DbWeight::get().reads_writes(count as u64 + 1, count as u64 + 1)
+			} else {
+				log::warn!(
+					target: "runtime::xcm",
+					"Attempted to apply migration to v1 but failed because storage version is {:?}",
+					on_chain_storage_version,
+				);
+				T::DbWeight::get().reads(1)
+			}
+		}
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		#[pallet::weight(100_000_000)]
+		#[pallet::call_index(0)]
+		#[pallet::weight({
+			let maybe_msg: Result<Xcm<()>, ()> = (*message.clone()).try_into();
+			match maybe_msg {
+				Ok(msg) => {
+					T::Weigher::weight(&mut msg.into())
+						.map_or(Weight::MAX, |w| T::WeightInfo::send().saturating_add(w))
+				}
+				_ => Weight::MAX,
+			}
+		})]
 		pub fn send(
 			origin: OriginFor<T>,
 			dest: Box<VersionedMultiLocation>,
@@ -466,14 +763,11 @@ pub mod pallet {
 		) -> DispatchResult {
 			let origin_location = T::SendXcmOrigin::ensure_origin(origin)?;
 			let interior: Junctions =
-				origin_location.clone().try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
+				origin_location.try_into().map_err(|_| Error::<T>::InvalidOrigin)?;
 			let dest = MultiLocation::try_from(*dest).map_err(|()| Error::<T>::BadVersion)?;
 			let message: Xcm<()> = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
-			Self::send_xcm(interior, dest.clone(), message.clone()).map_err(|e| match e {
-				SendError::CannotReachDestination(..) => Error::<T>::Unreachable,
-				_ => Error::<T>::SendFailure,
-			})?;
+			Self::send_xcm(interior, dest, message.clone()).map_err(Error::<T>::from)?;
 			Self::deposit_event(Event::Sent(origin_location, dest, message));
 			Ok(())
 		}
@@ -493,18 +787,24 @@ pub mod pallet {
 		///   `dest` side. May not be empty.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
+		#[pallet::call_index(1)]
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
 			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
 			match (maybe_assets, maybe_dest) {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
+					let count = assets.len() as u32;
 					let mut message = Xcm(vec![
 						WithdrawAsset(assets),
-						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
+						InitiateTeleport {
+							assets: Wild(AllCounted(count)),
+							dest,
+							xcm: Xcm(vec![]),
+						},
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
-				},
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::teleport_assets().saturating_add(w))
+				}
 				_ => Weight::MAX,
 			}
 		})]
@@ -534,15 +834,18 @@ pub mod pallet {
 		///   `dest` side.
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
+		#[pallet::call_index(2)]
 		#[pallet::weight({
-			match ((*assets.clone()).try_into(), (*dest.clone()).try_into()) {
+			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
+			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
+			match (maybe_assets, maybe_dest) {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
 					let mut message = Xcm(vec![
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
-				},
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::reserve_transfer_assets().saturating_add(w))
+				}
 				_ => Weight::MAX,
 			}
 		})]
@@ -574,13 +877,15 @@ pub mod pallet {
 		///
 		/// NOTE: A successful return to this does *not* imply that the `msg` was executed successfully
 		/// to completion; only that *some* of it was executed.
-		#[pallet::weight(Weight::from_ref_time(max_weight.saturating_add(100_000_000u64)))]
+		#[pallet::call_index(3)]
+		#[pallet::weight(max_weight.saturating_add(T::WeightInfo::execute()))]
 		pub fn execute(
 			origin: OriginFor<T>,
 			message: Box<VersionedXcm<<T as SysConfig>::RuntimeCall>>,
-			max_weight: XcmWeight,
+			max_weight: Weight,
 		) -> DispatchResultWithPostInfo {
 			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+			let hash = message.using_encoded(sp_io::hashing::blake2_256);
 			let message = (*message).try_into().map_err(|()| Error::<T>::BadVersion)?;
 			let value = (origin_location, message);
 			ensure!(T::XcmExecuteFilter::contains(&value), Error::<T>::Filtered);
@@ -588,10 +893,12 @@ pub mod pallet {
 			let outcome = T::XcmExecutor::execute_xcm_in_credit(
 				origin_location,
 				message,
+				hash,
 				max_weight,
 				max_weight,
 			);
-			let result = Ok(Some(outcome.weight_used().saturating_add(100_000_000)).into());
+			let result =
+				Ok(Some(outcome.weight_used().saturating_add(T::WeightInfo::execute())).into());
 			Self::deposit_event(Event::Attempted(outcome));
 			result
 		}
@@ -602,7 +909,8 @@ pub mod pallet {
 		/// - `origin`: Must be Root.
 		/// - `location`: The destination that is being described.
 		/// - `xcm_version`: The latest version of XCM that `location` supports.
-		#[pallet::weight(100_000_000u64)]
+		#[pallet::call_index(4)]
+		#[pallet::weight(T::WeightInfo::force_xcm_version())]
 		pub fn force_xcm_version(
 			origin: OriginFor<T>,
 			location: Box<MultiLocation>,
@@ -624,7 +932,8 @@ pub mod pallet {
 		///
 		/// - `origin`: Must be Root.
 		/// - `maybe_xcm_version`: The default XCM encoding version, or `None` to disable.
-		#[pallet::weight(100_000_000u64)]
+		#[pallet::call_index(5)]
+		#[pallet::weight(T::WeightInfo::force_default_xcm_version())]
 		pub fn force_default_xcm_version(
 			origin: OriginFor<T>,
 			maybe_xcm_version: Option<XcmVersion>,
@@ -638,7 +947,8 @@ pub mod pallet {
 		///
 		/// - `origin`: Must be Root.
 		/// - `location`: The location to which we should subscribe for XCM version notifications.
-		#[pallet::weight(100_000_000u64)]
+		#[pallet::call_index(6)]
+		#[pallet::weight(T::WeightInfo::force_subscribe_version_notify())]
 		pub fn force_subscribe_version_notify(
 			origin: OriginFor<T>,
 			location: Box<VersionedMultiLocation>,
@@ -661,7 +971,8 @@ pub mod pallet {
 		/// - `origin`: Must be Root.
 		/// - `location`: The location to which we are currently subscribed for XCM version
 		///   notifications which we no longer desire.
-		#[pallet::weight(100_000_000u64)]
+		#[pallet::call_index(7)]
+		#[pallet::weight(T::WeightInfo::force_unsubscribe_version_notify())]
 		pub fn force_unsubscribe_version_notify(
 			origin: OriginFor<T>,
 			location: Box<VersionedMultiLocation>,
@@ -696,15 +1007,18 @@ pub mod pallet {
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
+		#[pallet::call_index(8)]
 		#[pallet::weight({
-			match ((*assets.clone()).try_into(), (*dest.clone()).try_into()) {
+			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
+			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
+			match (maybe_assets, maybe_dest) {
 				(Ok(assets), Ok(dest)) => {
 					use sp_std::vec;
 					let mut message = Xcm(vec![
 						TransferReserveAsset { assets, dest, xcm: Xcm(vec![]) }
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
-				},
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::reserve_transfer_assets().saturating_add(w))
+				}
 				_ => Weight::MAX,
 			}
 		})]
@@ -743,6 +1057,7 @@ pub mod pallet {
 		/// - `fee_asset_item`: The index into `assets` of the item which should be used to pay
 		///   fees.
 		/// - `weight_limit`: The remote-side weight limit, if any, for the XCM fee purchase.
+		#[pallet::call_index(9)]
 		#[pallet::weight({
 			let maybe_assets: Result<MultiAssets, ()> = (*assets.clone()).try_into();
 			let maybe_dest: Result<MultiLocation, ()> = (*dest.clone()).try_into();
@@ -753,8 +1068,8 @@ pub mod pallet {
 						WithdrawAsset(assets),
 						InitiateTeleport { assets: Wild(All), dest, xcm: Xcm(vec![]) },
 					]);
-					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| Weight::from_ref_time(100_000_000.saturating_add(w)))
-				},
+					T::Weigher::weight(&mut message).map_or(Weight::MAX, |w| T::WeightInfo::teleport_assets().saturating_add(w))
+				}
 				_ => Weight::MAX,
 			}
 		})]
@@ -776,703 +1091,947 @@ pub mod pallet {
 			)
 		}
 	}
+}
 
-	impl<T: Config> Pallet<T> {
-		fn do_reserve_transfer_assets(
-			origin: OriginFor<T>,
-			dest: Box<VersionedMultiLocation>,
-			beneficiary: Box<VersionedMultiLocation>,
-			assets: Box<VersionedMultiAssets>,
-			fee_asset_item: u32,
-			maybe_weight_limit: Option<WeightLimit>,
-		) -> DispatchResult {
-			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
-			let beneficiary: MultiLocation =
-				(*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
-			let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
+/// The maximum number of distinct assets allowed to be transferred in a single helper extrinsic.
+const MAX_ASSETS_FOR_TRANSFER: usize = 2;
 
-			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
-			let value = (origin_location, assets.drain());
-			ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
-			let (origin_location, assets) = value;
-			let ancestry = T::LocationInverter::ancestry();
-			let fees = assets
-				.get(fee_asset_item as usize)
-				.ok_or(Error::<T>::Empty)?
-				.clone()
-				.reanchored(&dest, &ancestry)
-				.map_err(|_| Error::<T>::CannotReanchor)?;
-			let max_assets = assets.len() as u32;
-			let assets: MultiAssets = assets.into();
-			let weight_limit = match maybe_weight_limit {
-				Some(weight_limit) => weight_limit,
-				None => {
-					let beneficiary = beneficiary.clone();
-					let fees = fees.clone();
-					let mut remote_message = Xcm(vec![
-						ReserveAssetDeposited(assets.clone()),
-						ClearOrigin,
-						BuyExecution { fees, weight_limit: Limited(0) },
-						DepositAsset { assets: Wild(All), max_assets, beneficiary },
-					]);
-					// use local weight for remote message and hope for the best.
-					let remote_weight = T::Weigher::weight(&mut remote_message)
-						.map_err(|()| Error::<T>::UnweighableMessage)?;
-					Limited(remote_weight)
-				},
-			};
-			let xcm = Xcm(vec![
-				BuyExecution { fees, weight_limit },
-				DepositAsset { assets: Wild(All), max_assets, beneficiary },
-			]);
-			let mut message = Xcm(vec![TransferReserveAsset { assets, dest, xcm }]);
-			let weight =
-				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
-			let outcome =
-				T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
-			Self::deposit_event(Event::Attempted(outcome));
-			Ok(())
-		}
+impl<T: Config> Pallet<T> {
+	fn do_reserve_transfer_assets(
+		origin: OriginFor<T>,
+		dest: Box<VersionedMultiLocation>,
+		beneficiary: Box<VersionedMultiLocation>,
+		assets: Box<VersionedMultiAssets>,
+		fee_asset_item: u32,
+		maybe_weight_limit: Option<WeightLimit>,
+	) -> DispatchResult {
+		let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+		let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
+		let beneficiary: MultiLocation =
+			(*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
+		let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
-		fn do_teleport_assets(
-			origin: OriginFor<T>,
-			dest: Box<VersionedMultiLocation>,
-			beneficiary: Box<VersionedMultiLocation>,
-			assets: Box<VersionedMultiAssets>,
-			fee_asset_item: u32,
-			maybe_weight_limit: Option<WeightLimit>,
-		) -> DispatchResult {
-			let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
-			let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
-			let beneficiary: MultiLocation =
-				(*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
-			let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
+		ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
+		let value = (origin_location, assets.into_inner());
+		ensure!(T::XcmReserveTransferFilter::contains(&value), Error::<T>::Filtered);
+		let (origin_location, assets) = value;
+		let context = T::UniversalLocation::get();
+		let fees = assets
+			.get(fee_asset_item as usize)
+			.ok_or(Error::<T>::Empty)?
+			.clone()
+			.reanchored(&dest, context)
+			.map_err(|_| Error::<T>::CannotReanchor)?;
+		let max_assets = assets.len() as u32;
+		let assets: MultiAssets = assets.into();
+		let weight_limit = match maybe_weight_limit {
+			Some(weight_limit) => weight_limit,
+			None => {
+				let fees = fees.clone();
+				let mut remote_message = Xcm(vec![
+					ReserveAssetDeposited(assets.clone()),
+					ClearOrigin,
+					BuyExecution { fees, weight_limit: Limited(Weight::zero()) },
+					DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
+				]);
+				// use local weight for remote message and hope for the best.
+				let remote_weight = T::Weigher::weight(&mut remote_message)
+					.map_err(|()| Error::<T>::UnweighableMessage)?;
+				Limited(remote_weight)
+			},
+		};
+		let xcm = Xcm(vec![
+			BuyExecution { fees, weight_limit },
+			DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
+		]);
+		let mut message = Xcm(vec![TransferReserveAsset { assets, dest, xcm }]);
+		let weight =
+			T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
+		let hash = message.using_encoded(sp_io::hashing::blake2_256);
+		let outcome =
+			T::XcmExecutor::execute_xcm_in_credit(origin_location, message, hash, weight, weight);
+		Self::deposit_event(Event::Attempted(outcome));
+		Ok(())
+	}
 
-			ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
-			let value = (origin_location, assets.drain());
-			ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
-			let (origin_location, assets) = value;
-			let ancestry = T::LocationInverter::ancestry();
-			let fees = assets
-				.get(fee_asset_item as usize)
-				.ok_or(Error::<T>::Empty)?
-				.clone()
-				.reanchored(&dest, &ancestry)
-				.map_err(|_| Error::<T>::CannotReanchor)?;
-			let max_assets = assets.len() as u32;
-			let assets: MultiAssets = assets.into();
-			let weight_limit = match maybe_weight_limit {
-				Some(weight_limit) => weight_limit,
-				None => {
-					let beneficiary = beneficiary.clone();
-					let fees = fees.clone();
-					let mut remote_message = Xcm(vec![
-						ReceiveTeleportedAsset(assets.clone()),
-						ClearOrigin,
-						BuyExecution { fees, weight_limit: Limited(0) },
-						DepositAsset { assets: Wild(All), max_assets, beneficiary },
-					]);
-					// use local weight for remote message and hope for the best.
-					let remote_weight = T::Weigher::weight(&mut remote_message)
-						.map_err(|()| Error::<T>::UnweighableMessage)?;
-					Limited(remote_weight)
-				},
-			};
-			let xcm = Xcm(vec![
-				BuyExecution { fees, weight_limit },
-				DepositAsset { assets: Wild(All), max_assets, beneficiary },
-			]);
-			let mut message =
-				Xcm(vec![WithdrawAsset(assets), InitiateTeleport { assets: Wild(All), dest, xcm }]);
-			let weight =
-				T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
-			let outcome =
-				T::XcmExecutor::execute_xcm_in_credit(origin_location, message, weight, weight);
-			Self::deposit_event(Event::Attempted(outcome));
-			Ok(())
-		}
+	fn do_teleport_assets(
+		origin: OriginFor<T>,
+		dest: Box<VersionedMultiLocation>,
+		beneficiary: Box<VersionedMultiLocation>,
+		assets: Box<VersionedMultiAssets>,
+		fee_asset_item: u32,
+		maybe_weight_limit: Option<WeightLimit>,
+	) -> DispatchResult {
+		let origin_location = T::ExecuteXcmOrigin::ensure_origin(origin)?;
+		let dest = (*dest).try_into().map_err(|()| Error::<T>::BadVersion)?;
+		let beneficiary: MultiLocation =
+			(*beneficiary).try_into().map_err(|()| Error::<T>::BadVersion)?;
+		let assets: MultiAssets = (*assets).try_into().map_err(|()| Error::<T>::BadVersion)?;
 
-		/// Will always make progress, and will do its best not to use much more than `weight_cutoff`
-		/// in doing so.
-		pub(crate) fn check_xcm_version_change(
-			mut stage: VersionMigrationStage,
-			weight_cutoff: Weight,
-		) -> (Weight, Option<VersionMigrationStage>) {
-			let mut weight_used = Weight::zero();
+		ensure!(assets.len() <= MAX_ASSETS_FOR_TRANSFER, Error::<T>::TooManyAssets);
+		let value = (origin_location, assets.into_inner());
+		ensure!(T::XcmTeleportFilter::contains(&value), Error::<T>::Filtered);
+		let (origin_location, assets) = value;
+		let context = T::UniversalLocation::get();
+		let fees = assets
+			.get(fee_asset_item as usize)
+			.ok_or(Error::<T>::Empty)?
+			.clone()
+			.reanchored(&dest, context)
+			.map_err(|_| Error::<T>::CannotReanchor)?;
+		let max_assets = assets.len() as u32;
+		let assets: MultiAssets = assets.into();
+		let weight_limit = match maybe_weight_limit {
+			Some(weight_limit) => weight_limit,
+			None => {
+				let fees = fees.clone();
+				let mut remote_message = Xcm(vec![
+					ReceiveTeleportedAsset(assets.clone()),
+					ClearOrigin,
+					BuyExecution { fees, weight_limit: Limited(Weight::zero()) },
+					DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
+				]);
+				// use local weight for remote message and hope for the best.
+				let remote_weight = T::Weigher::weight(&mut remote_message)
+					.map_err(|()| Error::<T>::UnweighableMessage)?;
+				Limited(remote_weight)
+			},
+		};
+		let xcm = Xcm(vec![
+			BuyExecution { fees, weight_limit },
+			DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
+		]);
+		let mut message =
+			Xcm(vec![WithdrawAsset(assets), InitiateTeleport { assets: Wild(All), dest, xcm }]);
+		let weight =
+			T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
+		let hash = message.using_encoded(sp_io::hashing::blake2_256);
+		let outcome =
+			T::XcmExecutor::execute_xcm_in_credit(origin_location, message, hash, weight, weight);
+		Self::deposit_event(Event::Attempted(outcome));
+		Ok(())
+	}
 
-			// TODO: Correct weights for the components of this:
-			let todo_sv_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-			let todo_vn_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-			let todo_vnt_already_notified_weight: Weight = T::DbWeight::get().reads(1);
-			let todo_vnt_notify_weight: Weight = T::DbWeight::get().reads_writes(1, 3);
-			let todo_vnt_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-			let todo_vnt_migrate_fail_weight: Weight = T::DbWeight::get().reads_writes(1, 1);
-			let todo_vnt_notify_migrate_weight: Weight = T::DbWeight::get().reads_writes(1, 3);
+	/// Will always make progress, and will do its best not to use much more than `weight_cutoff`
+	/// in doing so.
+	pub(crate) fn check_xcm_version_change(
+		mut stage: VersionMigrationStage,
+		weight_cutoff: Weight,
+	) -> (Weight, Option<VersionMigrationStage>) {
+		let mut weight_used = Weight::zero();
 
-			use VersionMigrationStage::*;
+		let sv_migrate_weight = T::WeightInfo::migrate_supported_version();
+		let vn_migrate_weight = T::WeightInfo::migrate_version_notifiers();
+		let vnt_already_notified_weight = T::WeightInfo::already_notified_target();
+		let vnt_notify_weight = T::WeightInfo::notify_current_targets();
+		let vnt_migrate_weight = T::WeightInfo::migrate_version_notify_targets();
+		let vnt_migrate_fail_weight = T::WeightInfo::notify_target_migration_fail();
+		let vnt_notify_migrate_weight = T::WeightInfo::migrate_and_notify_old_targets();
 
-			if stage == MigrateSupportedVersion {
-				// We assume that supported XCM version only ever increases, so just cycle through lower
-				// XCM versioned from the current.
-				for v in 0..XCM_VERSION {
-					for (old_key, value) in SupportedVersion::<T>::drain_prefix(v) {
-						if let Ok(new_key) = old_key.into_latest() {
-							SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
-						}
-						weight_used.saturating_accrue(todo_sv_migrate_weight);
-						if weight_used.any_gte(weight_cutoff) {
-							return (weight_used, Some(stage))
-						}
+		use VersionMigrationStage::*;
+
+		if stage == MigrateSupportedVersion {
+			// We assume that supported XCM version only ever increases, so just cycle through lower
+			// XCM versioned from the current.
+			for v in 0..XCM_VERSION {
+				for (old_key, value) in SupportedVersion::<T>::drain_prefix(v) {
+					if let Ok(new_key) = old_key.into_latest() {
+						SupportedVersion::<T>::insert(XCM_VERSION, new_key, value);
+					}
+					weight_used.saturating_accrue(sv_migrate_weight);
+					if weight_used.any_gte(weight_cutoff) {
+						return (weight_used, Some(stage))
 					}
 				}
-				stage = MigrateVersionNotifiers;
 			}
-			if stage == MigrateVersionNotifiers {
-				for v in 0..XCM_VERSION {
-					for (old_key, value) in VersionNotifiers::<T>::drain_prefix(v) {
-						if let Ok(new_key) = old_key.into_latest() {
-							VersionNotifiers::<T>::insert(XCM_VERSION, new_key, value);
-						}
-						weight_used.saturating_accrue(todo_vn_migrate_weight);
-						if weight_used.any_gte(weight_cutoff) {
-							return (weight_used, Some(stage))
-						}
+			stage = MigrateVersionNotifiers;
+		}
+		if stage == MigrateVersionNotifiers {
+			for v in 0..XCM_VERSION {
+				for (old_key, value) in VersionNotifiers::<T>::drain_prefix(v) {
+					if let Ok(new_key) = old_key.into_latest() {
+						VersionNotifiers::<T>::insert(XCM_VERSION, new_key, value);
+					}
+					weight_used.saturating_accrue(vn_migrate_weight);
+					if weight_used.any_gte(weight_cutoff) {
+						return (weight_used, Some(stage))
 					}
 				}
-				stage = NotifyCurrentTargets(None);
 			}
+			stage = NotifyCurrentTargets(None);
+		}
 
-			let xcm_version = T::AdvertisedXcmVersion::get();
+		let xcm_version = T::AdvertisedXcmVersion::get();
 
-			if let NotifyCurrentTargets(maybe_last_raw_key) = stage {
-				let mut iter = match maybe_last_raw_key {
-					Some(k) => VersionNotifyTargets::<T>::iter_prefix_from(XCM_VERSION, k),
-					None => VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION),
+		if let NotifyCurrentTargets(maybe_last_raw_key) = stage {
+			let mut iter = match maybe_last_raw_key {
+				Some(k) => VersionNotifyTargets::<T>::iter_prefix_from(XCM_VERSION, k),
+				None => VersionNotifyTargets::<T>::iter_prefix(XCM_VERSION),
+			};
+			while let Some((key, value)) = iter.next() {
+				let (query_id, max_weight, target_xcm_version) = value;
+				let new_key: MultiLocation = match key.clone().try_into() {
+					Ok(k) if target_xcm_version != xcm_version => k,
+					_ => {
+						// We don't early return here since we need to be certain that we
+						// make some progress.
+						weight_used.saturating_accrue(vnt_already_notified_weight);
+						continue
+					},
 				};
-				while let Some((key, value)) = iter.next() {
+				let response = Response::Version(xcm_version);
+				let message =
+					Xcm(vec![QueryResponse { query_id, response, max_weight, querier: None }]);
+				let event = match send_xcm::<T::XcmRouter>(new_key, message) {
+					Ok((_hash, cost)) => {
+						let value = (query_id, max_weight, xcm_version);
+						VersionNotifyTargets::<T>::insert(XCM_VERSION, key, value);
+						Event::VersionChangeNotified(new_key, xcm_version, cost)
+					},
+					Err(e) => {
+						VersionNotifyTargets::<T>::remove(XCM_VERSION, key);
+						Event::NotifyTargetSendFail(new_key, query_id, e.into())
+					},
+				};
+				Self::deposit_event(event);
+				weight_used.saturating_accrue(vnt_notify_weight);
+				if weight_used.any_gte(weight_cutoff) {
+					let last = Some(iter.last_raw_key().into());
+					return (weight_used, Some(NotifyCurrentTargets(last)))
+				}
+			}
+			stage = MigrateAndNotifyOldTargets;
+		}
+		if stage == MigrateAndNotifyOldTargets {
+			for v in 0..XCM_VERSION {
+				for (old_key, value) in VersionNotifyTargets::<T>::drain_prefix(v) {
 					let (query_id, max_weight, target_xcm_version) = value;
-					let new_key: MultiLocation = match key.clone().try_into() {
-						Ok(k) if target_xcm_version != xcm_version => k,
-						_ => {
-							// We don't early return here since we need to be certain that we
-							// make some progress.
-							weight_used.saturating_accrue(todo_vnt_already_notified_weight);
+					let new_key = match MultiLocation::try_from(old_key.clone()) {
+						Ok(k) => k,
+						Err(()) => {
+							Self::deposit_event(Event::NotifyTargetMigrationFail(old_key, value.0));
+							weight_used.saturating_accrue(vnt_migrate_fail_weight);
+							if weight_used.any_gte(weight_cutoff) {
+								return (weight_used, Some(stage))
+							}
 							continue
 						},
 					};
-					let response = Response::Version(xcm_version);
-					let message = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
-					let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
-						Ok(()) => {
-							let value = (query_id, max_weight, xcm_version);
-							VersionNotifyTargets::<T>::insert(XCM_VERSION, key, value);
-							Event::VersionChangeNotified(new_key, xcm_version)
-						},
-						Err(e) => {
-							VersionNotifyTargets::<T>::remove(XCM_VERSION, key);
-							Event::NotifyTargetSendFail(new_key, query_id, e.into())
-						},
-					};
-					Self::deposit_event(event);
-					weight_used.saturating_accrue(todo_vnt_notify_weight);
-					if weight_used.any_gte(weight_cutoff) {
-						let last = Some(iter.last_raw_key().into());
-						return (weight_used, Some(NotifyCurrentTargets(last)))
-					}
-				}
-				stage = MigrateAndNotifyOldTargets;
-			}
-			if stage == MigrateAndNotifyOldTargets {
-				for v in 0..XCM_VERSION {
-					for (old_key, value) in VersionNotifyTargets::<T>::drain_prefix(v) {
-						let (query_id, max_weight, target_xcm_version) = value;
-						let new_key = match MultiLocation::try_from(old_key.clone()) {
-							Ok(k) => k,
-							Err(()) => {
-								Self::deposit_event(Event::NotifyTargetMigrationFail(
-									old_key, value.0,
-								));
-								weight_used.saturating_accrue(todo_vnt_migrate_fail_weight);
-								if weight_used.any_gte(weight_cutoff) {
-									return (weight_used, Some(stage))
-								}
-								continue
+
+					let versioned_key = LatestVersionedMultiLocation(&new_key);
+					if target_xcm_version == xcm_version {
+						VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_key, value);
+						weight_used.saturating_accrue(vnt_migrate_weight);
+					} else {
+						// Need to notify target.
+						let response = Response::Version(xcm_version);
+						let message = Xcm(vec![QueryResponse {
+							query_id,
+							response,
+							max_weight,
+							querier: None,
+						}]);
+						let event = match send_xcm::<T::XcmRouter>(new_key, message) {
+							Ok((_hash, cost)) => {
+								VersionNotifyTargets::<T>::insert(
+									XCM_VERSION,
+									versioned_key,
+									(query_id, max_weight, xcm_version),
+								);
+								Event::VersionChangeNotified(new_key, xcm_version, cost)
 							},
+							Err(e) => Event::NotifyTargetSendFail(new_key, query_id, e.into()),
 						};
-
-						let versioned_key = LatestVersionedMultiLocation(&new_key);
-						if target_xcm_version == xcm_version {
-							VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_key, value);
-							weight_used.saturating_accrue(todo_vnt_migrate_weight);
-						} else {
-							// Need to notify target.
-							let response = Response::Version(xcm_version);
-							let message =
-								Xcm(vec![QueryResponse { query_id, response, max_weight }]);
-							let event = match T::XcmRouter::send_xcm(new_key.clone(), message) {
-								Ok(()) => {
-									VersionNotifyTargets::<T>::insert(
-										XCM_VERSION,
-										versioned_key,
-										(query_id, max_weight, xcm_version),
-									);
-									Event::VersionChangeNotified(new_key, xcm_version)
-								},
-								Err(e) => Event::NotifyTargetSendFail(new_key, query_id, e.into()),
-							};
-							Self::deposit_event(event);
-							weight_used.saturating_accrue(todo_vnt_notify_migrate_weight);
-						}
-						if weight_used.any_gte(weight_cutoff) {
-							return (weight_used, Some(stage))
-						}
+						Self::deposit_event(event);
+						weight_used.saturating_accrue(vnt_notify_migrate_weight);
+					}
+					if weight_used.any_gte(weight_cutoff) {
+						return (weight_used, Some(stage))
 					}
 				}
 			}
-			(weight_used, None)
 		}
-
-		/// Request that `dest` informs us of its version.
-		pub fn request_version_notify(dest: impl Into<MultiLocation>) -> XcmResult {
-			let dest = dest.into();
-			let versioned_dest = VersionedMultiLocation::from(dest.clone());
-			let already = VersionNotifiers::<T>::contains_key(XCM_VERSION, &versioned_dest);
-			ensure!(!already, XcmError::InvalidLocation);
-			let query_id = QueryCounter::<T>::mutate(|q| {
-				let r = *q;
-				q.saturating_inc();
-				r
-			});
-			// TODO #3735: Correct weight.
-			let instruction = SubscribeVersion { query_id, max_response_weight: 0 };
-			T::XcmRouter::send_xcm(dest, Xcm(vec![instruction]))?;
-			VersionNotifiers::<T>::insert(XCM_VERSION, &versioned_dest, query_id);
-			let query_status =
-				QueryStatus::VersionNotifier { origin: versioned_dest, is_active: false };
-			Queries::<T>::insert(query_id, query_status);
-			Ok(())
-		}
-
-		/// Request that `dest` ceases informing us of its version.
-		pub fn unrequest_version_notify(dest: impl Into<MultiLocation>) -> XcmResult {
-			let dest = dest.into();
-			let versioned_dest = LatestVersionedMultiLocation(&dest);
-			let query_id = VersionNotifiers::<T>::take(XCM_VERSION, versioned_dest)
-				.ok_or(XcmError::InvalidLocation)?;
-			T::XcmRouter::send_xcm(dest.clone(), Xcm(vec![UnsubscribeVersion]))?;
-			Queries::<T>::remove(query_id);
-			Ok(())
-		}
-
-		/// Relay an XCM `message` from a given `interior` location in this context to a given `dest`
-		/// location. A null `dest` is not handled.
-		pub fn send_xcm(
-			interior: impl Into<Junctions>,
-			dest: impl Into<MultiLocation>,
-			mut message: Xcm<()>,
-		) -> Result<(), SendError> {
-			let interior = interior.into();
-			let dest = dest.into();
-			if interior != Junctions::Here {
-				message.0.insert(0, DescendOrigin(interior))
-			};
-			log::trace!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
-			T::XcmRouter::send_xcm(dest, message)
-		}
-
-		pub fn check_account() -> T::AccountId {
-			const ID: PalletId = PalletId(*b"py/xcmch");
-			AccountIdConversion::<T::AccountId>::into_account_truncating(&ID)
-		}
-
-		fn do_new_query(
-			responder: impl Into<MultiLocation>,
-			maybe_notify: Option<(u8, u8)>,
-			timeout: T::BlockNumber,
-		) -> u64 {
-			QueryCounter::<T>::mutate(|q| {
-				let r = *q;
-				q.saturating_inc();
-				Queries::<T>::insert(
-					r,
-					QueryStatus::Pending {
-						responder: responder.into().into(),
-						maybe_notify,
-						timeout,
-					},
-				);
-				r
-			})
-		}
-
-		/// Consume `message` and return another which is equivalent to it except that it reports
-		/// back the outcome.
-		///
-		/// - `message`: The message whose outcome should be reported.
-		/// - `responder`: The origin from which a response should be expected.
-		/// - `timeout`: The block number after which it is permissible for `notify` not to be
-		///   called even if a response is received.
-		///
-		/// `report_outcome` may return an error if the `responder` is not invertible.
-		///
-		/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
-		/// value.
-		pub fn report_outcome(
-			message: &mut Xcm<()>,
-			responder: impl Into<MultiLocation>,
-			timeout: T::BlockNumber,
-		) -> Result<QueryId, XcmError> {
-			let responder = responder.into();
-			let dest = T::LocationInverter::invert_location(&responder)
-				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
-			let query_id = Self::new_query(responder, timeout);
-			let report_error = Xcm(vec![ReportError { dest, query_id, max_response_weight: 0 }]);
-			message.0.insert(0, SetAppendix(report_error));
-			Ok(query_id)
-		}
-
-		/// Consume `message` and return another which is equivalent to it except that it reports
-		/// back the outcome and dispatches `notify` on this chain.
-		///
-		/// - `message`: The message whose outcome should be reported.
-		/// - `responder`: The origin from which a response should be expected.
-		/// - `notify`: A dispatchable function which will be called once the outcome of `message`
-		///   is known. It may be a dispatchable in any pallet of the local chain, but other than
-		///   the usual origin, it must accept exactly two arguments: `query_id: QueryId` and
-		///   `outcome: Response`, and in that order. It should expect that the origin is
-		///   `Origin::Response` and will contain the responder's location.
-		/// - `timeout`: The block number after which it is permissible for `notify` not to be
-		///   called even if a response is received.
-		///
-		/// `report_outcome_notify` may return an error if the `responder` is not invertible.
-		///
-		/// NOTE: `notify` gets called as part of handling an incoming message, so it should be
-		/// lightweight. Its weight is estimated during this function and stored ready for
-		/// weighing `ReportOutcome` on the way back. If it turns out to be heavier once it returns
-		/// then reporting the outcome will fail. Futhermore if the estimate is too high, then it
-		/// may be put in the overweight queue and need to be manually executed.
-		pub fn report_outcome_notify(
-			message: &mut Xcm<()>,
-			responder: impl Into<MultiLocation>,
-			notify: impl Into<<T as Config>::RuntimeCall>,
-			timeout: T::BlockNumber,
-		) -> Result<(), XcmError> {
-			let responder = responder.into();
-			let dest = T::LocationInverter::invert_location(&responder)
-				.map_err(|()| XcmError::MultiLocationNotInvertible)?;
-			let notify: <T as Config>::RuntimeCall = notify.into();
-			let max_response_weight = notify.get_dispatch_info().weight;
-			let query_id = Self::new_notify_query(responder, notify, timeout);
-			let report_error = Xcm(vec![ReportError {
-				dest,
-				query_id,
-				max_response_weight: max_response_weight.ref_time(),
-			}]);
-			message.0.insert(0, SetAppendix(report_error));
-			Ok(())
-		}
-
-		/// Attempt to create a new query ID and register it as a query that is yet to respond.
-		pub fn new_query(responder: impl Into<MultiLocation>, timeout: T::BlockNumber) -> u64 {
-			Self::do_new_query(responder, None, timeout)
-		}
-
-		/// Attempt to create a new query ID and register it as a query that is yet to respond, and
-		/// which will call a dispatchable when a response happens.
-		pub fn new_notify_query(
-			responder: impl Into<MultiLocation>,
-			notify: impl Into<<T as Config>::RuntimeCall>,
-			timeout: T::BlockNumber,
-		) -> u64 {
-			let notify =
-				notify.into().using_encoded(|mut bytes| Decode::decode(&mut bytes)).expect(
-					"decode input is output of Call encode; Call guaranteed to have two enums; qed",
-				);
-			Self::do_new_query(responder, Some(notify), timeout)
-		}
-
-		/// Attempt to remove and return the response of query with ID `query_id`.
-		///
-		/// Returns `None` if the response is not (yet) available.
-		pub fn take_response(query_id: QueryId) -> Option<(Response, T::BlockNumber)> {
-			if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
-				let response = response.try_into().ok()?;
-				Queries::<T>::remove(query_id);
-				Self::deposit_event(Event::ResponseTaken(query_id));
-				Some((response, at))
-			} else {
-				None
-			}
-		}
-
-		/// Note that a particular destination to whom we would like to send a message is unknown
-		/// and queue it for version discovery.
-		fn note_unknown_version(dest: &MultiLocation) {
-			log::trace!(
-				target: "xcm::pallet_xcm::note_unknown_version",
-				"XCM version is unknown for destination: {:?}",
-				dest,
-			);
-			let versioned_dest = VersionedMultiLocation::from(dest.clone());
-			VersionDiscoveryQueue::<T>::mutate(|q| {
-				if let Some(index) = q.iter().position(|i| &i.0 == &versioned_dest) {
-					// exists - just bump the count.
-					q[index].1.saturating_inc();
-				} else {
-					let _ = q.try_push((versioned_dest, 1));
-				}
-			});
-		}
+		(weight_used, None)
 	}
 
-	impl<T: Config> WrapVersion for Pallet<T> {
-		fn wrap_version<RuntimeCall>(
-			dest: &MultiLocation,
-			xcm: impl Into<VersionedXcm<RuntimeCall>>,
-		) -> Result<VersionedXcm<RuntimeCall>, ()> {
-			SupportedVersion::<T>::get(XCM_VERSION, LatestVersionedMultiLocation(dest))
-				.or_else(|| {
-					Self::note_unknown_version(dest);
-					SafeXcmVersion::<T>::get()
-				})
-				.ok_or_else(|| {
-					log::trace!(
-						target: "xcm::pallet_xcm::wrap_version",
-						"Could not determine a version to wrap XCM for destination: {:?}",
-						dest,
-					);
-					()
-				})
-				.and_then(|v| xcm.into().into_version(v.min(XCM_VERSION)))
-		}
+	/// Request that `dest` informs us of its version.
+	pub fn request_version_notify(dest: impl Into<MultiLocation>) -> XcmResult {
+		let dest = dest.into();
+		let versioned_dest = VersionedMultiLocation::from(dest);
+		let already = VersionNotifiers::<T>::contains_key(XCM_VERSION, &versioned_dest);
+		ensure!(!already, XcmError::InvalidLocation);
+		let query_id = QueryCounter::<T>::mutate(|q| {
+			let r = *q;
+			q.saturating_inc();
+			r
+		});
+		// TODO #3735: Correct weight.
+		let instruction = SubscribeVersion { query_id, max_response_weight: Weight::zero() };
+		let (_hash, cost) = send_xcm::<T::XcmRouter>(dest, Xcm(vec![instruction]))?;
+		Self::deposit_event(Event::VersionNotifyRequested(dest, cost));
+		VersionNotifiers::<T>::insert(XCM_VERSION, &versioned_dest, query_id);
+		let query_status =
+			QueryStatus::VersionNotifier { origin: versioned_dest, is_active: false };
+		Queries::<T>::insert(query_id, query_status);
+		Ok(())
 	}
 
-	impl<T: Config> VersionChangeNotifier for Pallet<T> {
-		/// Start notifying `location` should the XCM version of this chain change.
-		///
-		/// When it does, this type should ensure a `QueryResponse` message is sent with the given
-		/// `query_id` & `max_weight` and with a `response` of `Repsonse::Version`. This should happen
-		/// until/unless `stop` is called with the correct `query_id`.
-		///
-		/// If the `location` has an ongoing notification and when this function is called, then an
-		/// error should be returned.
-		fn start(dest: &MultiLocation, query_id: QueryId, max_weight: u64) -> XcmResult {
-			let versioned_dest = LatestVersionedMultiLocation(dest);
-			let already = VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest);
-			ensure!(!already, XcmError::InvalidLocation);
-
-			let xcm_version = T::AdvertisedXcmVersion::get();
-			let response = Response::Version(xcm_version);
-			let instruction = QueryResponse { query_id, response, max_weight };
-			T::XcmRouter::send_xcm(dest.clone(), Xcm(vec![instruction]))?;
-
-			let value = (query_id, max_weight, xcm_version);
-			VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_dest, value);
-			Ok(())
-		}
-
-		/// Stop notifying `location` should the XCM change. This is a no-op if there was never a
-		/// subscription.
-		fn stop(dest: &MultiLocation) -> XcmResult {
-			VersionNotifyTargets::<T>::remove(XCM_VERSION, LatestVersionedMultiLocation(dest));
-			Ok(())
-		}
-
-		/// Return true if a location is subscribed to XCM version changes.
-		fn is_subscribed(dest: &MultiLocation) -> bool {
-			let versioned_dest = LatestVersionedMultiLocation(dest);
-			VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest)
-		}
+	/// Request that `dest` ceases informing us of its version.
+	pub fn unrequest_version_notify(dest: impl Into<MultiLocation>) -> XcmResult {
+		let dest = dest.into();
+		let versioned_dest = LatestVersionedMultiLocation(&dest);
+		let query_id = VersionNotifiers::<T>::take(XCM_VERSION, versioned_dest)
+			.ok_or(XcmError::InvalidLocation)?;
+		let (_hash, cost) = send_xcm::<T::XcmRouter>(dest, Xcm(vec![UnsubscribeVersion]))?;
+		Self::deposit_event(Event::VersionNotifyUnrequested(dest, cost));
+		Queries::<T>::remove(query_id);
+		Ok(())
 	}
 
-	impl<T: Config> DropAssets for Pallet<T> {
-		fn drop_assets(origin: &MultiLocation, assets: Assets) -> u64 {
-			if assets.is_empty() {
-				return 0
-			}
-			let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
-			let hash = BlakeTwo256::hash_of(&(&origin, &versioned));
-			AssetTraps::<T>::mutate(hash, |n| *n += 1);
-			Self::deposit_event(Event::AssetsTrapped(hash, origin.clone(), versioned));
-			// TODO #3735: Put the real weight in there.
-			0
+	/// Relay an XCM `message` from a given `interior` location in this context to a given `dest`
+	/// location. The `fee_payer` is charged for the delivery unless `None` in which case fees
+	/// are not charged (and instead borne by the chain).
+	pub fn send_xcm(
+		interior: impl Into<Junctions>,
+		dest: impl Into<MultiLocation>,
+		mut message: Xcm<()>,
+	) -> Result<XcmHash, SendError> {
+		let interior = interior.into();
+		let dest = dest.into();
+		let maybe_fee_payer = if interior != Junctions::Here {
+			message.0.insert(0, DescendOrigin(interior));
+			Some(interior.into())
+		} else {
+			None
+		};
+		log::debug!(target: "xcm::send_xcm", "dest: {:?}, message: {:?}", &dest, &message);
+		let (ticket, price) = validate_send::<T::XcmRouter>(dest, message)?;
+		if let Some(fee_payer) = maybe_fee_payer {
+			Self::charge_fees(fee_payer, price).map_err(|_| SendError::Fees)?;
 		}
+		T::XcmRouter::deliver(ticket)
 	}
 
-	impl<T: Config> ClaimAssets for Pallet<T> {
-		fn claim_assets(
-			origin: &MultiLocation,
-			ticket: &MultiLocation,
-			assets: &MultiAssets,
-		) -> bool {
-			let mut versioned = VersionedMultiAssets::from(assets.clone());
-			match (ticket.parents, &ticket.interior) {
-				(0, X1(GeneralIndex(i))) =>
-					versioned = match versioned.into_version(*i as u32) {
-						Ok(v) => v,
-						Err(()) => return false,
-					},
-				(0, Here) => (),
-				_ => return false,
-			};
-			let hash = BlakeTwo256::hash_of(&(origin, versioned.clone()));
-			match AssetTraps::<T>::get(hash) {
-				0 => return false,
-				1 => AssetTraps::<T>::remove(hash),
-				n => AssetTraps::<T>::insert(hash, n - 1),
-			}
-			Self::deposit_event(Event::AssetsClaimed(hash, origin.clone(), versioned));
-			return true
-		}
+	pub fn check_account() -> T::AccountId {
+		const ID: PalletId = PalletId(*b"py/xcmch");
+		AccountIdConversion::<T::AccountId>::into_account_truncating(&ID)
 	}
 
-	impl<T: Config> OnResponse for Pallet<T> {
-		fn expecting_response(origin: &MultiLocation, query_id: QueryId) -> bool {
-			match Queries::<T>::get(query_id) {
-				Some(QueryStatus::Pending { responder, .. }) =>
-					MultiLocation::try_from(responder).map_or(false, |r| origin == &r),
-				Some(QueryStatus::VersionNotifier { origin: r, .. }) =>
-					MultiLocation::try_from(r).map_or(false, |r| origin == &r),
-				_ => false,
-			}
-		}
-
-		fn on_response(
-			origin: &MultiLocation,
-			query_id: QueryId,
-			response: Response,
-			max_weight: u64,
-		) -> u64 {
-			match (response, Queries::<T>::get(query_id)) {
-				(
-					Response::Version(v),
-					Some(QueryStatus::VersionNotifier { origin: expected_origin, is_active }),
-				) => {
-					let origin: MultiLocation = match expected_origin.try_into() {
-						Ok(o) if &o == origin => o,
-						Ok(o) => {
-							Self::deposit_event(Event::InvalidResponder(
-								origin.clone(),
-								query_id,
-								Some(o),
-							));
-							return 0
-						},
-						_ => {
-							Self::deposit_event(Event::InvalidResponder(
-								origin.clone(),
-								query_id,
-								None,
-							));
-							// TODO #3735: Correct weight for this.
-							return 0
-						},
-					};
-					// TODO #3735: Check max_weight is correct.
-					if !is_active {
-						Queries::<T>::insert(
-							query_id,
-							QueryStatus::VersionNotifier {
-								origin: origin.clone().into(),
-								is_active: true,
-							},
-						);
-					}
-					// We're being notified of a version change.
-					SupportedVersion::<T>::insert(
-						XCM_VERSION,
-						LatestVersionedMultiLocation(&origin),
-						v,
-					);
-					Self::deposit_event(Event::SupportedVersionChanged(origin, v));
-					0
+	/// Create a new expectation of a query response with the querier being here.
+	fn do_new_query(
+		responder: impl Into<MultiLocation>,
+		maybe_notify: Option<(u8, u8)>,
+		timeout: T::BlockNumber,
+		match_querier: impl Into<MultiLocation>,
+	) -> u64 {
+		QueryCounter::<T>::mutate(|q| {
+			let r = *q;
+			q.saturating_inc();
+			Queries::<T>::insert(
+				r,
+				QueryStatus::Pending {
+					responder: responder.into().into(),
+					maybe_match_querier: Some(match_querier.into().into()),
+					maybe_notify,
+					timeout,
 				},
-				(response, Some(QueryStatus::Pending { responder, maybe_notify, .. })) => {
-					let responder = match MultiLocation::try_from(responder) {
-						Ok(r) => r,
+			);
+			r
+		})
+	}
+
+	/// Consume `message` and return another which is equivalent to it except that it reports
+	/// back the outcome.
+	///
+	/// - `message`: The message whose outcome should be reported.
+	/// - `responder`: The origin from which a response should be expected.
+	/// - `timeout`: The block number after which it is permissible for `notify` not to be
+	///   called even if a response is received.
+	///
+	/// `report_outcome` may return an error if the `responder` is not invertible.
+	///
+	/// It is assumed that the querier of the response will be `Here`.
+	///
+	/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
+	/// value.
+	pub fn report_outcome(
+		message: &mut Xcm<()>,
+		responder: impl Into<MultiLocation>,
+		timeout: T::BlockNumber,
+	) -> Result<QueryId, XcmError> {
+		let responder = responder.into();
+		let destination = T::UniversalLocation::get()
+			.invert_target(&responder)
+			.map_err(|()| XcmError::LocationNotInvertible)?;
+		let query_id = Self::new_query(responder, timeout, Here);
+		let response_info = QueryResponseInfo { destination, query_id, max_weight: Weight::zero() };
+		let report_error = Xcm(vec![ReportError(response_info)]);
+		message.0.insert(0, SetAppendix(report_error));
+		Ok(query_id)
+	}
+
+	/// Consume `message` and return another which is equivalent to it except that it reports
+	/// back the outcome and dispatches `notify` on this chain.
+	///
+	/// - `message`: The message whose outcome should be reported.
+	/// - `responder`: The origin from which a response should be expected.
+	/// - `notify`: A dispatchable function which will be called once the outcome of `message`
+	///   is known. It may be a dispatchable in any pallet of the local chain, but other than
+	///   the usual origin, it must accept exactly two arguments: `query_id: QueryId` and
+	///   `outcome: Response`, and in that order. It should expect that the origin is
+	///   `Origin::Response` and will contain the responder's location.
+	/// - `timeout`: The block number after which it is permissible for `notify` not to be
+	///   called even if a response is received.
+	///
+	/// `report_outcome_notify` may return an error if the `responder` is not invertible.
+	///
+	/// It is assumed that the querier of the response will be `Here`.
+	///
+	/// NOTE: `notify` gets called as part of handling an incoming message, so it should be
+	/// lightweight. Its weight is estimated during this function and stored ready for
+	/// weighing `ReportOutcome` on the way back. If it turns out to be heavier once it returns
+	/// then reporting the outcome will fail. Futhermore if the estimate is too high, then it
+	/// may be put in the overweight queue and need to be manually executed.
+	pub fn report_outcome_notify(
+		message: &mut Xcm<()>,
+		responder: impl Into<MultiLocation>,
+		notify: impl Into<<T as Config>::RuntimeCall>,
+		timeout: T::BlockNumber,
+	) -> Result<(), XcmError> {
+		let responder = responder.into();
+		let destination = T::UniversalLocation::get()
+			.invert_target(&responder)
+			.map_err(|()| XcmError::LocationNotInvertible)?;
+		let notify: <T as Config>::RuntimeCall = notify.into();
+		let max_weight = notify.get_dispatch_info().weight;
+		let query_id = Self::new_notify_query(responder, notify, timeout, Here);
+		let response_info = QueryResponseInfo { destination, query_id, max_weight };
+		let report_error = Xcm(vec![ReportError(response_info)]);
+		message.0.insert(0, SetAppendix(report_error));
+		Ok(())
+	}
+
+	/// Attempt to create a new query ID and register it as a query that is yet to respond.
+	pub fn new_query(
+		responder: impl Into<MultiLocation>,
+		timeout: T::BlockNumber,
+		match_querier: impl Into<MultiLocation>,
+	) -> u64 {
+		Self::do_new_query(responder, None, timeout, match_querier)
+	}
+
+	/// Attempt to create a new query ID and register it as a query that is yet to respond, and
+	/// which will call a dispatchable when a response happens.
+	pub fn new_notify_query(
+		responder: impl Into<MultiLocation>,
+		notify: impl Into<<T as Config>::RuntimeCall>,
+		timeout: T::BlockNumber,
+		match_querier: impl Into<MultiLocation>,
+	) -> u64 {
+		let notify = notify.into().using_encoded(|mut bytes| Decode::decode(&mut bytes)).expect(
+			"decode input is output of Call encode; Call guaranteed to have two enums; qed",
+		);
+		Self::do_new_query(responder, Some(notify), timeout, match_querier)
+	}
+
+	/// Attempt to remove and return the response of query with ID `query_id`.
+	///
+	/// Returns `None` if the response is not (yet) available.
+	pub fn take_response(query_id: QueryId) -> Option<(Response, T::BlockNumber)> {
+		if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
+			let response = response.try_into().ok()?;
+			Queries::<T>::remove(query_id);
+			Self::deposit_event(Event::ResponseTaken(query_id));
+			Some((response, at))
+		} else {
+			None
+		}
+	}
+
+	/// Note that a particular destination to whom we would like to send a message is unknown
+	/// and queue it for version discovery.
+	fn note_unknown_version(dest: &MultiLocation) {
+		log::trace!(
+			target: "xcm::pallet_xcm::note_unknown_version",
+			"XCM version is unknown for destination: {:?}",
+			dest,
+		);
+		let versioned_dest = VersionedMultiLocation::from(*dest);
+		VersionDiscoveryQueue::<T>::mutate(|q| {
+			if let Some(index) = q.iter().position(|i| &i.0 == &versioned_dest) {
+				// exists - just bump the count.
+				q[index].1.saturating_inc();
+			} else {
+				let _ = q.try_push((versioned_dest, 1));
+			}
+		});
+	}
+
+	/// Withdraw given `assets` from the given `location` and pay as XCM fees.
+	///
+	/// Fails if:
+	/// - the `assets` are not known on this chain;
+	/// - the `assets` cannot be withdrawn with that location as the Origin.
+	fn charge_fees(location: MultiLocation, assets: MultiAssets) -> DispatchResult {
+		T::XcmExecutor::charge_fees(location, assets.clone())
+			.map_err(|_| Error::<T>::FeesNotMet)?;
+		Self::deposit_event(Event::FeesPaid(location, assets));
+		Ok(())
+	}
+}
+
+pub struct LockTicket<T: Config> {
+	sovereign_account: T::AccountId,
+	amount: BalanceOf<T>,
+	unlocker: MultiLocation,
+	item_index: Option<usize>,
+}
+
+impl<T: Config> xcm_executor::traits::Enact for LockTicket<T> {
+	fn enact(self) -> Result<(), xcm_executor::traits::LockError> {
+		use xcm_executor::traits::LockError::UnexpectedState;
+		let mut locks = LockedFungibles::<T>::get(&self.sovereign_account).unwrap_or_default();
+		match self.item_index {
+			Some(index) => {
+				ensure!(locks.len() > index, UnexpectedState);
+				ensure!(locks[index].1.try_as::<_>() == Ok(&self.unlocker), UnexpectedState);
+				locks[index].0 = locks[index].0.max(self.amount);
+			},
+			None => {
+				locks
+					.try_push((self.amount, self.unlocker.into()))
+					.map_err(|(_balance, _location)| UnexpectedState)?;
+			},
+		}
+		LockedFungibles::<T>::insert(&self.sovereign_account, locks);
+		T::Currency::extend_lock(
+			*b"py/xcmlk",
+			&self.sovereign_account,
+			self.amount,
+			WithdrawReasons::all(),
+		);
+		Ok(())
+	}
+}
+
+pub struct UnlockTicket<T: Config> {
+	sovereign_account: T::AccountId,
+	amount: BalanceOf<T>,
+	unlocker: MultiLocation,
+}
+
+impl<T: Config> xcm_executor::traits::Enact for UnlockTicket<T> {
+	fn enact(self) -> Result<(), xcm_executor::traits::LockError> {
+		use xcm_executor::traits::LockError::UnexpectedState;
+		let mut locks =
+			LockedFungibles::<T>::get(&self.sovereign_account).ok_or(UnexpectedState)?;
+		let mut maybe_remove_index = None;
+		let mut locked = BalanceOf::<T>::zero();
+		let mut found = false;
+		// We could just as well do with with an into_iter, filter_map and collect, however this way
+		// avoids making an allocation.
+		for (i, x) in locks.iter_mut().enumerate() {
+			if x.1.try_as::<_>().defensive() == Ok(&self.unlocker) {
+				x.0 = x.0.saturating_sub(self.amount);
+				if x.0.is_zero() {
+					maybe_remove_index = Some(i);
+				}
+				found = true;
+			}
+			locked = locked.max(x.0);
+		}
+		ensure!(found, UnexpectedState);
+		if let Some(remove_index) = maybe_remove_index {
+			locks.swap_remove(remove_index);
+		}
+		LockedFungibles::<T>::insert(&self.sovereign_account, locks);
+		let reasons = WithdrawReasons::all();
+		T::Currency::set_lock(*b"py/xcmlk", &self.sovereign_account, locked, reasons);
+		Ok(())
+	}
+}
+
+pub struct ReduceTicket<T: Config> {
+	key: (u32, T::AccountId, VersionedAssetId),
+	amount: u128,
+	locker: VersionedMultiLocation,
+	owner: VersionedMultiLocation,
+}
+
+impl<T: Config> xcm_executor::traits::Enact for ReduceTicket<T> {
+	fn enact(self) -> Result<(), xcm_executor::traits::LockError> {
+		use xcm_executor::traits::LockError::UnexpectedState;
+		let mut record = RemoteLockedFungibles::<T>::get(&self.key).ok_or(UnexpectedState)?;
+		ensure!(self.locker == record.locker && self.owner == record.owner, UnexpectedState);
+		ensure!(record.users == 0, UnexpectedState);
+		record.amount = record.amount.checked_sub(self.amount).ok_or(UnexpectedState)?;
+		if record.amount == 0 {
+			RemoteLockedFungibles::<T>::remove(&self.key);
+		} else {
+			RemoteLockedFungibles::<T>::insert(&self.key, &record);
+		}
+		Ok(())
+	}
+}
+
+impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
+	type LockTicket = LockTicket<T>;
+	type UnlockTicket = UnlockTicket<T>;
+	type ReduceTicket = ReduceTicket<T>;
+
+	fn prepare_lock(
+		unlocker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+	) -> Result<LockTicket<T>, xcm_executor::traits::LockError> {
+		use xcm_executor::traits::LockError::*;
+		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(UnknownAsset)?;
+		ensure!(T::Currency::free_balance(&sovereign_account) >= amount, AssetNotOwned);
+		let locks = LockedFungibles::<T>::get(&sovereign_account).unwrap_or_default();
+		let item_index = locks.iter().position(|x| x.1.try_as::<_>() == Ok(&unlocker));
+		ensure!(item_index.is_some() || locks.len() < T::MaxLockers::get() as usize, NoResources);
+		Ok(LockTicket { sovereign_account, amount, unlocker, item_index })
+	}
+
+	fn prepare_unlock(
+		unlocker: MultiLocation,
+		asset: MultiAsset,
+		owner: MultiLocation,
+	) -> Result<UnlockTicket<T>, xcm_executor::traits::LockError> {
+		use xcm_executor::traits::LockError::*;
+		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let amount = T::CurrencyMatcher::matches_fungible(&asset).ok_or(UnknownAsset)?;
+		ensure!(T::Currency::free_balance(&sovereign_account) >= amount, AssetNotOwned);
+		let locks = LockedFungibles::<T>::get(&sovereign_account).unwrap_or_default();
+		let item_index =
+			locks.iter().position(|x| x.1.try_as::<_>() == Ok(&unlocker)).ok_or(NotLocked)?;
+		ensure!(locks[item_index].0 >= amount, NotLocked);
+		Ok(UnlockTicket { sovereign_account, amount, unlocker })
+	}
+
+	fn note_unlockable(
+		locker: MultiLocation,
+		asset: MultiAsset,
+		mut owner: MultiLocation,
+	) -> Result<(), xcm_executor::traits::LockError> {
+		use xcm_executor::traits::LockError::*;
+		ensure!(T::TrustedLockers::contains(&locker, &asset), NotTrusted);
+		let amount = match asset.fun {
+			Fungible(a) => a,
+			NonFungible(_) => return Err(Unimplemented),
+		};
+		owner.remove_network_id();
+		let account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let locker = locker.into();
+		let owner = owner.into();
+		let id: VersionedAssetId = asset.id.into();
+		let key = (XCM_VERSION, account, id);
+		let mut record = RemoteLockedFungibleRecord { amount, owner, locker, users: 0 };
+		if let Some(old) = RemoteLockedFungibles::<T>::get(&key) {
+			// Make sure that the new record wouldn't clobber any old data.
+			ensure!(old.locker == record.locker && old.owner == record.owner, WouldClobber);
+			record.users = old.users;
+			record.amount = record.amount.max(old.amount);
+		}
+		RemoteLockedFungibles::<T>::insert(&key, record);
+		Ok(())
+	}
+
+	fn prepare_reduce_unlockable(
+		locker: MultiLocation,
+		asset: MultiAsset,
+		mut owner: MultiLocation,
+	) -> Result<Self::ReduceTicket, xcm_executor::traits::LockError> {
+		use xcm_executor::traits::LockError::*;
+		let amount = match asset.fun {
+			Fungible(a) => a,
+			NonFungible(_) => return Err(Unimplemented),
+		};
+		owner.remove_network_id();
+		let sovereign_account = T::SovereignAccountOf::convert_ref(&owner).map_err(|_| BadOwner)?;
+		let locker = locker.into();
+		let owner = owner.into();
+		let id: VersionedAssetId = asset.id.into();
+		let key = (XCM_VERSION, sovereign_account, id);
+
+		let record = RemoteLockedFungibles::<T>::get(&key).ok_or(NotLocked)?;
+		// Make sure that the record contains what we expect and there's enough to unlock.
+		ensure!(locker == record.locker && owner == record.owner, WouldClobber);
+		ensure!(record.users == 0, InUse);
+		ensure!(record.amount >= amount, NotEnoughLocked);
+		Ok(ReduceTicket { key, amount, locker, owner })
+	}
+}
+
+impl<T: Config> WrapVersion for Pallet<T> {
+	fn wrap_version<RuntimeCall>(
+		dest: &MultiLocation,
+		xcm: impl Into<VersionedXcm<RuntimeCall>>,
+	) -> Result<VersionedXcm<RuntimeCall>, ()> {
+		SupportedVersion::<T>::get(XCM_VERSION, LatestVersionedMultiLocation(dest))
+			.or_else(|| {
+				Self::note_unknown_version(dest);
+				SafeXcmVersion::<T>::get()
+			})
+			.ok_or_else(|| {
+				log::trace!(
+					target: "xcm::pallet_xcm::wrap_version",
+					"Could not determine a version to wrap XCM for destination: {:?}",
+					dest,
+				);
+				()
+			})
+			.and_then(|v| xcm.into().into_version(v.min(XCM_VERSION)))
+	}
+}
+
+impl<T: Config> VersionChangeNotifier for Pallet<T> {
+	/// Start notifying `location` should the XCM version of this chain change.
+	///
+	/// When it does, this type should ensure a `QueryResponse` message is sent with the given
+	/// `query_id` & `max_weight` and with a `response` of `Response::Version`. This should happen
+	/// until/unless `stop` is called with the correct `query_id`.
+	///
+	/// If the `location` has an ongoing notification and when this function is called, then an
+	/// error should be returned.
+	fn start(
+		dest: &MultiLocation,
+		query_id: QueryId,
+		max_weight: Weight,
+		_context: &XcmContext,
+	) -> XcmResult {
+		let versioned_dest = LatestVersionedMultiLocation(dest);
+		let already = VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest);
+		ensure!(!already, XcmError::InvalidLocation);
+
+		let xcm_version = T::AdvertisedXcmVersion::get();
+		let response = Response::Version(xcm_version);
+		let instruction = QueryResponse { query_id, response, max_weight, querier: None };
+		let (_hash, cost) = send_xcm::<T::XcmRouter>(*dest, Xcm(vec![instruction]))?;
+		Self::deposit_event(Event::<T>::VersionNotifyStarted(*dest, cost));
+
+		let value = (query_id, max_weight, xcm_version);
+		VersionNotifyTargets::<T>::insert(XCM_VERSION, versioned_dest, value);
+		Ok(())
+	}
+
+	/// Stop notifying `location` should the XCM change. This is a no-op if there was never a
+	/// subscription.
+	fn stop(dest: &MultiLocation, _context: &XcmContext) -> XcmResult {
+		VersionNotifyTargets::<T>::remove(XCM_VERSION, LatestVersionedMultiLocation(dest));
+		Ok(())
+	}
+
+	/// Return true if a location is subscribed to XCM version changes.
+	fn is_subscribed(dest: &MultiLocation) -> bool {
+		let versioned_dest = LatestVersionedMultiLocation(dest);
+		VersionNotifyTargets::<T>::contains_key(XCM_VERSION, versioned_dest)
+	}
+}
+
+impl<T: Config> DropAssets for Pallet<T> {
+	fn drop_assets(origin: &MultiLocation, assets: Assets, _context: &XcmContext) -> Weight {
+		if assets.is_empty() {
+			return Weight::zero()
+		}
+		let versioned = VersionedMultiAssets::from(MultiAssets::from(assets));
+		let hash = BlakeTwo256::hash_of(&(&origin, &versioned));
+		AssetTraps::<T>::mutate(hash, |n| *n += 1);
+		Self::deposit_event(Event::AssetsTrapped(hash, *origin, versioned));
+		// TODO #3735: Put the real weight in there.
+		Weight::zero()
+	}
+}
+
+impl<T: Config> ClaimAssets for Pallet<T> {
+	fn claim_assets(
+		origin: &MultiLocation,
+		ticket: &MultiLocation,
+		assets: &MultiAssets,
+		_context: &XcmContext,
+	) -> bool {
+		let mut versioned = VersionedMultiAssets::from(assets.clone());
+		match (ticket.parents, &ticket.interior) {
+			(0, X1(GeneralIndex(i))) =>
+				versioned = match versioned.into_version(*i as u32) {
+					Ok(v) => v,
+					Err(()) => return false,
+				},
+			(0, Here) => (),
+			_ => return false,
+		};
+		let hash = BlakeTwo256::hash_of(&(origin, versioned.clone()));
+		match AssetTraps::<T>::get(hash) {
+			0 => return false,
+			1 => AssetTraps::<T>::remove(hash),
+			n => AssetTraps::<T>::insert(hash, n - 1),
+		}
+		Self::deposit_event(Event::AssetsClaimed(hash, *origin, versioned));
+		return true
+	}
+}
+
+impl<T: Config> OnResponse for Pallet<T> {
+	fn expecting_response(
+		origin: &MultiLocation,
+		query_id: QueryId,
+		querier: Option<&MultiLocation>,
+	) -> bool {
+		match Queries::<T>::get(query_id) {
+			Some(QueryStatus::Pending { responder, maybe_match_querier, .. }) =>
+				MultiLocation::try_from(responder).map_or(false, |r| origin == &r) &&
+					maybe_match_querier.map_or(true, |match_querier| {
+						MultiLocation::try_from(match_querier).map_or(false, |match_querier| {
+							querier.map_or(false, |q| q == &match_querier)
+						})
+					}),
+			Some(QueryStatus::VersionNotifier { origin: r, .. }) =>
+				MultiLocation::try_from(r).map_or(false, |r| origin == &r),
+			_ => false,
+		}
+	}
+
+	fn on_response(
+		origin: &MultiLocation,
+		query_id: QueryId,
+		querier: Option<&MultiLocation>,
+		response: Response,
+		max_weight: Weight,
+		_context: &XcmContext,
+	) -> Weight {
+		match (response, Queries::<T>::get(query_id)) {
+			(
+				Response::Version(v),
+				Some(QueryStatus::VersionNotifier { origin: expected_origin, is_active }),
+			) => {
+				let origin: MultiLocation = match expected_origin.try_into() {
+					Ok(o) if &o == origin => o,
+					Ok(o) => {
+						Self::deposit_event(Event::InvalidResponder(*origin, query_id, Some(o)));
+						return Weight::zero()
+					},
+					_ => {
+						Self::deposit_event(Event::InvalidResponder(*origin, query_id, None));
+						// TODO #3735: Correct weight for this.
+						return Weight::zero()
+					},
+				};
+				// TODO #3735: Check max_weight is correct.
+				if !is_active {
+					Queries::<T>::insert(
+						query_id,
+						QueryStatus::VersionNotifier { origin: origin.into(), is_active: true },
+					);
+				}
+				// We're being notified of a version change.
+				SupportedVersion::<T>::insert(
+					XCM_VERSION,
+					LatestVersionedMultiLocation(&origin),
+					v,
+				);
+				Self::deposit_event(Event::SupportedVersionChanged(origin, v));
+				Weight::zero()
+			},
+			(
+				response,
+				Some(QueryStatus::Pending { responder, maybe_notify, maybe_match_querier, .. }),
+			) => {
+				if let Some(match_querier) = maybe_match_querier {
+					let match_querier = match MultiLocation::try_from(match_querier) {
+						Ok(mq) => mq,
 						Err(_) => {
-							Self::deposit_event(Event::InvalidResponderVersion(
-								origin.clone(),
-								query_id,
-							));
-							return 0
+							Self::deposit_event(Event::InvalidQuerierVersion(*origin, query_id));
+							return Weight::zero()
 						},
 					};
-					if origin != &responder {
-						Self::deposit_event(Event::InvalidResponder(
-							origin.clone(),
+					if querier.map_or(true, |q| q != &match_querier) {
+						Self::deposit_event(Event::InvalidQuerier(
+							*origin,
 							query_id,
-							Some(responder),
+							match_querier,
+							querier.cloned(),
 						));
-						return 0
+						return Weight::zero()
 					}
-					return match maybe_notify {
-						Some((pallet_index, call_index)) => {
-							// This is a bit horrible, but we happen to know that the `Call` will
-							// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
-							// So we just encode that and then re-encode to a real Call.
-							let bare = (pallet_index, call_index, query_id, response);
-							if let Ok(call) = bare.using_encoded(|mut bytes| {
-								<T as Config>::RuntimeCall::decode(&mut bytes)
-							}) {
-								Queries::<T>::remove(query_id);
-								let weight = call.get_dispatch_info().weight;
-								let max_weight = Weight::from_ref_time(max_weight);
-								if weight.any_gt(max_weight) {
-									let e = Event::NotifyOverweight(
+				}
+				let responder = match MultiLocation::try_from(responder) {
+					Ok(r) => r,
+					Err(_) => {
+						Self::deposit_event(Event::InvalidResponderVersion(*origin, query_id));
+						return Weight::zero()
+					},
+				};
+				if origin != &responder {
+					Self::deposit_event(Event::InvalidResponder(
+						*origin,
+						query_id,
+						Some(responder),
+					));
+					return Weight::zero()
+				}
+				return match maybe_notify {
+					Some((pallet_index, call_index)) => {
+						// This is a bit horrible, but we happen to know that the `Call` will
+						// be built by `(pallet_index: u8, call_index: u8, QueryId, Response)`.
+						// So we just encode that and then re-encode to a real Call.
+						let bare = (pallet_index, call_index, query_id, response);
+						if let Ok(call) = bare.using_encoded(|mut bytes| {
+							<T as Config>::RuntimeCall::decode(&mut bytes)
+						}) {
+							Queries::<T>::remove(query_id);
+							let weight = call.get_dispatch_info().weight;
+							if weight.any_gt(max_weight) {
+								let e = Event::NotifyOverweight(
+									query_id,
+									pallet_index,
+									call_index,
+									weight,
+									max_weight,
+								);
+								Self::deposit_event(e);
+								return Weight::zero()
+							}
+							let dispatch_origin = Origin::Response(*origin).into();
+							match call.dispatch(dispatch_origin) {
+								Ok(post_info) => {
+									let e = Event::Notified(query_id, pallet_index, call_index);
+									Self::deposit_event(e);
+									post_info.actual_weight
+								},
+								Err(error_and_info) => {
+									let e = Event::NotifyDispatchError(
 										query_id,
 										pallet_index,
 										call_index,
-										weight,
-										max_weight,
 									);
 									Self::deposit_event(e);
-									return 0
-								}
-								let dispatch_origin = Origin::Response(origin.clone()).into();
-								match call.dispatch(dispatch_origin) {
-									Ok(post_info) => {
-										let e = Event::Notified(query_id, pallet_index, call_index);
-										Self::deposit_event(e);
-										post_info.actual_weight
-									},
-									Err(error_and_info) => {
-										let e = Event::NotifyDispatchError(
-											query_id,
-											pallet_index,
-											call_index,
-										);
-										Self::deposit_event(e);
-										// Not much to do with the result as it is. It's up to the parachain to ensure that the
-										// message makes sense.
-										error_and_info.post_info.actual_weight
-									},
-								}
-								.unwrap_or(weight)
-								.ref_time()
-							} else {
-								let e =
-									Event::NotifyDecodeFailed(query_id, pallet_index, call_index);
-								Self::deposit_event(e);
-								0
+									// Not much to do with the result as it is. It's up to the parachain to ensure that the
+									// message makes sense.
+									error_and_info.post_info.actual_weight
+								},
 							}
-						},
-						None => {
-							let e = Event::ResponseReady(query_id, response.clone());
+							.unwrap_or(weight)
+						} else {
+							let e = Event::NotifyDecodeFailed(query_id, pallet_index, call_index);
 							Self::deposit_event(e);
-							let at = frame_system::Pallet::<T>::current_block_number();
-							let response = response.into();
-							Queries::<T>::insert(query_id, QueryStatus::Ready { response, at });
-							0
-						},
-					}
-				},
-				_ => {
-					Self::deposit_event(Event::UnexpectedResponse(origin.clone(), query_id));
-					return 0
-				},
-			}
+							Weight::zero()
+						}
+					},
+					None => {
+						let e = Event::ResponseReady(query_id, response.clone());
+						Self::deposit_event(e);
+						let at = frame_system::Pallet::<T>::current_block_number();
+						let response = response.into();
+						Queries::<T>::insert(query_id, QueryStatus::Ready { response, at });
+						Weight::zero()
+					},
+				}
+			},
+			_ => {
+				Self::deposit_event(Event::UnexpectedResponse(*origin, query_id));
+				Weight::zero()
+			},
 		}
 	}
 }
@@ -1514,6 +2073,19 @@ impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
 	fn contains(l: &MultiLocation) -> bool {
 		let maybe_suffix = l.match_and_split(&Prefix::get());
 		matches!(maybe_suffix, Some(Plurality { id, part }) if id == &Body::get() && part.is_majority())
+	}
+}
+
+/// Filter for `MultiLocation` to find those which represent a voice of an identified plurality.
+///
+/// May reasonably be used with `EnsureXcm`.
+pub struct IsVoiceOfBody<Prefix, Body>(PhantomData<(Prefix, Body)>);
+impl<Prefix: Get<MultiLocation>, Body: Get<BodyId>> Contains<MultiLocation>
+	for IsVoiceOfBody<Prefix, Body>
+{
+	fn contains(l: &MultiLocation) -> bool {
+		let maybe_suffix = l.match_and_split(&Prefix::get());
+		matches!(maybe_suffix, Some(Plurality { id, part }) if id == &Body::get() && part == &BodyPart::Voice)
 	}
 }
 

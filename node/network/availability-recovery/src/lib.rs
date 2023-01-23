@@ -56,9 +56,9 @@ use polkadot_node_subsystem::{
 	SubsystemResult,
 };
 use polkadot_node_subsystem_util::request_session_info;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
-	Hash, HashT, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+	Hash, HashT, IndexedVec, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
 
 mod error;
@@ -134,7 +134,7 @@ struct RecoveryParams {
 	validator_authority_keys: Vec<AuthorityDiscoveryId>,
 
 	/// Validators relevant to this `RecoveryTask`.
-	validators: Vec<ValidatorId>,
+	validators: IndexedVec<ValidatorIndex, ValidatorId>,
 
 	/// The number of pieces needed.
 	threshold: usize,
@@ -338,8 +338,7 @@ impl RequestChunksFromValidators {
 					index: validator_index,
 				};
 
-				let (req, res) =
-					OutgoingRequest::new(Recipient::Authority(validator), raw_request.clone());
+				let (req, res) = OutgoingRequest::new(Recipient::Authority(validator), raw_request);
 				requests.push(Requests::ChunkFetchingV1(req));
 
 				params.metrics.on_chunk_request_issued();
@@ -362,7 +361,7 @@ impl RequestChunksFromValidators {
 		sender
 			.send_message(NetworkBridgeTxMessage::SendRequests(
 				requests,
-				IfDisconnected::ImmediateError,
+				IfDisconnected::TryConnect,
 			))
 			.await;
 	}
@@ -836,7 +835,7 @@ async fn handle_signal(state: &mut State, signal: OverseerSignal) -> SubsystemRe
 		OverseerSignal::Conclude => Ok(true),
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. }) => {
 			// if activated is non-empty, set state.live_block to the highest block in `activated`
-			for activated in activated {
+			if let Some(activated) = activated {
 				if activated.number > state.live_block.0 {
 					state.live_block = (activated.number, activated.hash)
 				}
@@ -871,7 +870,7 @@ async fn launch_recovery_task<Context>(
 	};
 
 	let phase = backing_group
-		.and_then(|g| session_info.validator_groups.get(g.0 as usize))
+		.and_then(|g| session_info.validator_groups.get(g))
 		.map(|group| Source::RequestFromBackers(RequestFromBackers::new(group.clone())))
 		.unwrap_or_else(|| {
 			Source::RequestChunks(RequestChunksFromValidators::new(params.validators.len() as _))
@@ -973,7 +972,7 @@ async fn query_full_data<Context>(
 	ctx.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx))
 		.await;
 
-	Ok(rx.await.map_err(error::Error::CanceledQueryFullData)?)
+	rx.await.map_err(error::Error::CanceledQueryFullData)
 }
 
 #[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]

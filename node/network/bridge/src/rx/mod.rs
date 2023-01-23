@@ -46,7 +46,7 @@ use polkadot_node_subsystem::{
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 };
 
-use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
+use polkadot_primitives::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 
 /// Peer set info for network initialization.
 ///
@@ -126,7 +126,7 @@ where
 		let future = run_network_in(self, ctx, network_stream)
 			.map_err(|e| SubsystemError::with_origin("network-bridge", e))
 			.boxed();
-		SpawnedSubsystem { name: "network-bridge-subsystem", future }
+		SpawnedSubsystem { name: "network-bridge-rx-subsystem", future }
 	}
 }
 
@@ -214,7 +214,7 @@ where
 						PeerSet::Collation => &mut shared.collation_peers,
 					};
 
-					match peer_map.entry(peer.clone()) {
+					match peer_map.entry(peer) {
 						hash_map::Entry::Occupied(_) => continue,
 						hash_map::Entry::Vacant(vacant) => {
 							vacant.insert(PeerData { view: View::default(), version });
@@ -235,12 +235,12 @@ where
 						dispatch_validation_events_to_all(
 							vec![
 								NetworkBridgeEvent::PeerConnected(
-									peer.clone(),
+									peer,
 									role,
 									version,
 									maybe_authority,
 								),
-								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+								NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 							],
 							&mut sender,
 						)
@@ -277,12 +277,12 @@ where
 						dispatch_collation_events_to_all(
 							vec![
 								NetworkBridgeEvent::PeerConnected(
-									peer.clone(),
+									peer,
 									role,
 									version,
 									maybe_authority,
 								),
-								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+								NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 							],
 							&mut sender,
 						)
@@ -455,7 +455,7 @@ where
 						Some(ValidationVersion::V1.into())
 					{
 						handle_peer_messages::<protocol_v1::ValidationProtocol, _>(
-							remote.clone(),
+							remote,
 							PeerSet::Validation,
 							&mut shared.0.lock().validation_peers,
 							v_messages,
@@ -465,7 +465,7 @@ where
 						Some(ValidationVersion::VStaging.into())
 					{
 						handle_peer_messages::<protocol_vstaging::ValidationProtocol, _>(
-							remote.clone(),
+							remote,
 							PeerSet::Validation,
 							&mut shared.0.lock().validation_peers,
 							v_messages,
@@ -486,7 +486,7 @@ where
 					};
 
 					for report in reports {
-						network_service.report_peer(remote.clone(), report);
+						network_service.report_peer(remote, report);
 					}
 
 					dispatch_validation_events_to_all(events, &mut sender).await;
@@ -497,7 +497,7 @@ where
 						Some(CollationVersion::V1.into())
 					{
 						handle_peer_messages::<protocol_v1::CollationProtocol, _>(
-							remote.clone(),
+							remote,
 							PeerSet::Collation,
 							&mut shared.0.lock().collation_peers,
 							c_messages,
@@ -507,7 +507,7 @@ where
 						Some(CollationVersion::VStaging.into())
 					{
 						handle_peer_messages::<protocol_vstaging::CollationProtocol, _>(
-							remote.clone(),
+							remote,
 							PeerSet::Collation,
 							&mut shared.0.lock().collation_peers,
 							c_messages,
@@ -528,7 +528,7 @@ where
 					};
 
 					for report in reports {
-						network_service.report_peer(remote.clone(), report);
+						network_service.report_peer(remote, report);
 					}
 
 					dispatch_collation_events_to_all(events, &mut sender).await;
@@ -619,7 +619,7 @@ where
 					num_deactivated = %deactivated.len(),
 				);
 
-				for activated in activated {
+				if let Some(activated) = activated {
 					let pos = live_heads
 						.binary_search_by(|probe| probe.number.cmp(&activated.number).reverse())
 						.unwrap_or_else(|i| i);
@@ -888,11 +888,11 @@ fn handle_peer_messages<RawMessage: Decode, OutMessage: From<RawMessage>>(
 				} else {
 					peer_data.view = new_view;
 
-					NetworkBridgeEvent::PeerViewChange(peer.clone(), peer_data.view.clone())
+					NetworkBridgeEvent::PeerViewChange(peer, peer_data.view.clone())
 				}
 			},
 			WireMessage::ProtocolMessage(message) =>
-				NetworkBridgeEvent::PeerMessage(peer.clone(), message.into()),
+				NetworkBridgeEvent::PeerMessage(peer, message.into()),
 		})
 	}
 

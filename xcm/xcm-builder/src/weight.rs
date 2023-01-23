@@ -17,7 +17,10 @@
 use frame_support::{
 	dispatch::GetDispatchInfo,
 	traits::{tokens::currency::Currency as CurrencyT, Get, OnUnbalanced as OnUnbalancedT},
-	weights::{constants::WEIGHT_PER_SECOND, WeightToFee as WeightToFeeT},
+	weights::{
+		constants::{WEIGHT_PROOF_SIZE_PER_MB, WEIGHT_REF_TIME_PER_SECOND},
+		WeightToFee as WeightToFeeT,
+	},
 };
 use parity_scale_codec::Decode;
 use sp_runtime::traits::{SaturatedConversion, Saturating, Zero};
@@ -44,10 +47,10 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M: Get<u32>> WeightBounds<C>
 
 impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M> FixedWeightBounds<T, C, M> {
 	fn weight_with_limit(message: &Xcm<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
-		let mut r: Weight = 0;
+		let mut r: Weight = Weight::zero();
 		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
 		for m in message.0.iter() {
-			r = r.checked_add(Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
+			r = r.checked_add(&Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
 		}
 		Ok(r)
 	}
@@ -55,14 +58,12 @@ impl<T: Get<Weight>, C: Decode + GetDispatchInfo, M> FixedWeightBounds<T, C, M> 
 		instruction: &Instruction<C>,
 		instrs_limit: &mut u32,
 	) -> Result<Weight, ()> {
-		T::get()
-			.checked_add(match instruction {
-				Transact { require_weight_at_most, .. } => *require_weight_at_most,
-				SetErrorHandler(xcm) | SetAppendix(xcm) =>
-					Self::weight_with_limit(xcm, instrs_limit)?,
-				_ => 0,
-			})
-			.ok_or(())
+		let instr_weight = match instruction {
+			Transact { require_weight_at_most, .. } => *require_weight_at_most,
+			SetErrorHandler(xcm) | SetAppendix(xcm) => Self::weight_with_limit(xcm, instrs_limit)?,
+			_ => Weight::zero(),
+		};
+		T::get().checked_add(&instr_weight).ok_or(())
 	}
 }
 
@@ -92,10 +93,10 @@ where
 	Instruction<C>: xcm::GetWeight<W>,
 {
 	fn weight_with_limit(message: &Xcm<C>, instrs_limit: &mut u32) -> Result<Weight, ()> {
-		let mut r: Weight = 0;
+		let mut r: Weight = Weight::zero();
 		*instrs_limit = instrs_limit.checked_sub(message.0.len() as u32).ok_or(())?;
 		for m in message.0.iter() {
-			r = r.checked_add(Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
+			r = r.checked_add(&Self::instr_weight_with_limit(m, instrs_limit)?).ok_or(())?;
 		}
 		Ok(r)
 	}
@@ -104,15 +105,12 @@ where
 		instrs_limit: &mut u32,
 	) -> Result<Weight, ()> {
 		use xcm::GetWeight;
-		instruction
-			.weight()
-			.checked_add(match instruction {
-				Transact { require_weight_at_most, .. } => *require_weight_at_most,
-				SetErrorHandler(xcm) | SetAppendix(xcm) =>
-					Self::weight_with_limit(xcm, instrs_limit)?,
-				_ => 0,
-			})
-			.ok_or(())
+		let instr_weight = match instruction {
+			Transact { require_weight_at_most, .. } => *require_weight_at_most,
+			SetErrorHandler(xcm) | SetAppendix(xcm) => Self::weight_with_limit(xcm, instrs_limit)?,
+			_ => Weight::zero(),
+		};
+		instruction.weight().checked_add(&instr_weight).ok_or(())
 	}
 }
 
@@ -128,74 +126,18 @@ impl TakeRevenue for () {
 	fn take_revenue(_revenue: MultiAsset) {}
 }
 
-/// Simple fee calculator that requires payment in a single concrete fungible at a fixed rate.
-///
-/// The constant `Get` type parameter should be the concrete fungible ID and the amount of it required for
-/// one second of weight.
-#[deprecated = "Use `FixedRateOfFungible` instead"]
-pub struct FixedRateOfConcreteFungible<T: Get<(MultiLocation, u128)>, R: TakeRevenue>(
-	Weight,
-	u128,
-	PhantomData<(T, R)>,
-);
-#[allow(deprecated)]
-impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> WeightTrader
-	for FixedRateOfConcreteFungible<T, R>
-{
-	fn new() -> Self {
-		Self(0, 0, PhantomData)
-	}
-
-	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
-		log::trace!(
-			target: "xcm::weight",
-			"FixedRateOfConcreteFungible::buy_weight weight: {:?}, payment: {:?}",
-			weight, payment,
-		);
-		let (id, units_per_second) = T::get();
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
-		let unused =
-			payment.checked_sub((id, amount).into()).map_err(|_| XcmError::TooExpensive)?;
-		self.0 = self.0.saturating_add(weight);
-		self.1 = self.1.saturating_add(amount);
-		Ok(unused)
-	}
-
-	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
-		log::trace!(target: "xcm::weight", "FixedRateOfConcreteFungible::refund_weight weight: {:?}", weight);
-		let (id, units_per_second) = T::get();
-		let weight = weight.min(self.0);
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
-		self.0 -= weight;
-		self.1 = self.1.saturating_sub(amount);
-		if amount > 0 {
-			Some((Concrete(id), amount).into())
-		} else {
-			None
-		}
-	}
-}
-#[allow(deprecated)]
-impl<T: Get<(MultiLocation, u128)>, R: TakeRevenue> Drop for FixedRateOfConcreteFungible<T, R> {
-	fn drop(&mut self) {
-		if self.1 > 0 {
-			R::take_revenue((Concrete(T::get().0), self.1).into());
-		}
-	}
-}
-
 /// Simple fee calculator that requires payment in a single fungible at a fixed rate.
 ///
-/// The constant `Get` type parameter should be the fungible ID and the amount of it required for
-/// one second of weight.
-pub struct FixedRateOfFungible<T: Get<(AssetId, u128)>, R: TakeRevenue>(
+/// The constant `Get` type parameter should be the fungible ID, the amount of it required for one
+/// second of weight and the amount required for 1 MB of proof.
+pub struct FixedRateOfFungible<T: Get<(AssetId, u128, u128)>, R: TakeRevenue>(
 	Weight,
 	u128,
 	PhantomData<(T, R)>,
 );
-impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungible<T, R> {
+impl<T: Get<(AssetId, u128, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungible<T, R> {
 	fn new() -> Self {
-		Self(0, 0, PhantomData)
+		Self(Weight::zero(), 0, PhantomData)
 	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
@@ -204,8 +146,10 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 			"FixedRateOfFungible::buy_weight weight: {:?}, payment: {:?}",
 			weight, payment,
 		);
-		let (id, units_per_second) = T::get();
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let (id, units_per_second, units_per_mb) = T::get();
+		let amount = (units_per_second * (weight.ref_time() as u128) /
+			(WEIGHT_REF_TIME_PER_SECOND as u128)) +
+			(units_per_mb * (weight.proof_size() as u128) / (WEIGHT_PROOF_SIZE_PER_MB as u128));
 		if amount == 0 {
 			return Ok(payment)
 		}
@@ -218,9 +162,11 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
 		log::trace!(target: "xcm::weight", "FixedRateOfFungible::refund_weight weight: {:?}", weight);
-		let (id, units_per_second) = T::get();
+		let (id, units_per_second, units_per_mb) = T::get();
 		let weight = weight.min(self.0);
-		let amount = units_per_second * (weight as u128) / (WEIGHT_PER_SECOND.ref_time() as u128);
+		let amount = (units_per_second * (weight.ref_time() as u128) /
+			(WEIGHT_REF_TIME_PER_SECOND as u128)) +
+			(units_per_mb * (weight.proof_size() as u128) / (WEIGHT_PROOF_SIZE_PER_MB as u128));
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		if amount > 0 {
@@ -231,7 +177,7 @@ impl<T: Get<(AssetId, u128)>, R: TakeRevenue> WeightTrader for FixedRateOfFungib
 	}
 }
 
-impl<T: Get<(AssetId, u128)>, R: TakeRevenue> Drop for FixedRateOfFungible<T, R> {
+impl<T: Get<(AssetId, u128, u128)>, R: TakeRevenue> Drop for FixedRateOfFungible<T, R> {
 	fn drop(&mut self) {
 		if self.1 > 0 {
 			R::take_revenue((T::get().0, self.1).into());
@@ -261,13 +207,12 @@ impl<
 	> WeightTrader for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced>
 {
 	fn new() -> Self {
-		Self(0, Zero::zero(), PhantomData)
+		Self(Weight::zero(), Zero::zero(), PhantomData)
 	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
 		log::trace!(target: "xcm::weight", "UsingComponents::buy_weight weight: {:?}, payment: {:?}", weight, payment);
-		let amount =
-			WeightToFee::weight_to_fee(&frame_support::weights::Weight::from_ref_time(weight));
+		let amount = WeightToFee::weight_to_fee(&weight);
 		let u128_amount: u128 = amount.try_into().map_err(|_| XcmError::Overflow)?;
 		let required = (Concrete(AssetId::get()), u128_amount).into();
 		let unused = payment.checked_sub(required).map_err(|_| XcmError::TooExpensive)?;
@@ -279,8 +224,7 @@ impl<
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
 		log::trace!(target: "xcm::weight", "UsingComponents::refund_weight weight: {:?}", weight);
 		let weight = weight.min(self.0);
-		let amount =
-			WeightToFee::weight_to_fee(&frame_support::weights::Weight::from_ref_time(weight));
+		let amount = WeightToFee::weight_to_fee(&weight);
 		self.0 -= weight;
 		self.1 = self.1.saturating_sub(amount);
 		let amount: u128 = amount.saturated_into();

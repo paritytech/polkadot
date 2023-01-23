@@ -21,7 +21,7 @@ use crate::{
 	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
 	session_info, shared,
 };
-use primitives::v2::{
+use primitives::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
@@ -107,7 +107,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 						<inclusion::Pallet<T>>::pending_availability(para_id)
 							.expect("Occupied core always has pending availability; qed");
 
-					let backed_in_number = pending_availability.backed_in_number().clone();
+					let backed_in_number = *pending_availability.backed_in_number();
 					OccupiedCore {
 						next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(
 							CoreIndex(i as u32),
@@ -135,7 +135,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 						<inclusion::Pallet<T>>::pending_availability(para_id)
 							.expect("Occupied core always has pending availability; qed");
 
-					let backed_in_number = pending_availability.backed_in_number().clone();
+					let backed_in_number = *pending_availability.backed_in_number();
 					OccupiedCore {
 						next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(
 							CoreIndex(i as u32),
@@ -256,7 +256,7 @@ pub fn assumed_validation_data<T: initializer::Config>(
 /// Implementation for the `check_validation_outputs` function of the runtime API.
 pub fn check_validation_outputs<T: initializer::Config>(
 	para_id: ParaId,
-	outputs: primitives::v2::CandidateCommitments,
+	outputs: primitives::CandidateCommitments,
 ) -> bool {
 	let relay_parent_number = <frame_system::Pallet<T>>::block_number();
 	<inclusion::Pallet<T>>::check_validation_outputs_for_runtime_api(

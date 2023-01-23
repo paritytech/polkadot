@@ -154,6 +154,8 @@ pub struct Constraints {
 	pub ump_remaining: usize,
 	/// The amount of UMP bytes remaining.
 	pub ump_remaining_bytes: usize,
+	/// The maximum number of UMP messages allowed per candidate.
+	pub max_ump_num_per_candidate: usize,
 	/// The amount of remaining DMP messages.
 	pub dmp_remaining_messages: usize,
 	/// The limitations of all registered inbound HRMP channels.
@@ -181,6 +183,7 @@ impl From<PrimitiveConstraints> for Constraints {
 			max_code_size: c.max_code_size as _,
 			ump_remaining: c.ump_remaining as _,
 			ump_remaining_bytes: c.ump_remaining_bytes as _,
+			max_ump_num_per_candidate: c.max_ump_num_per_candidate as _,
 			dmp_remaining_messages: c.dmp_remaining_messages as _,
 			hrmp_inbound: InboundHrmpLimitations {
 				valid_watermarks: c.hrmp_inbound.valid_watermarks,
@@ -590,6 +593,13 @@ pub enum FragmentValidityError {
 	///
 	/// Min allowed, current.
 	RelayParentTooOld(BlockNumber, BlockNumber),
+	/// Too many messages upward messages submitted.
+	UmpMessagesPerCandidateOverflow {
+		/// The amount of messages a single candidate can submit.
+		messages_allowed: usize,
+		/// The amount of messages sent to all HRMP channels.
+		messages_submitted: usize,
+	},
 	/// Too many messages submitted to all HRMP channels.
 	HrmpMessagesPerCandidateOverflow {
 		/// The amount of messages a single candidate can submit.
@@ -791,6 +801,13 @@ fn validate_against_constraints(
 		})
 	}
 
+	if candidate.commitments.upward_messages.len() > constraints.max_ump_num_per_candidate {
+		return Err(FragmentValidityError::UmpMessagesPerCandidateOverflow {
+			messages_allowed: constraints.max_ump_num_per_candidate,
+			messages_submitted: candidate.commitments.upward_messages.len(),
+		})
+	}
+
 	constraints
 		.check_modifications(&modifications)
 		.map_err(FragmentValidityError::OutputsInvalid)
@@ -915,6 +932,7 @@ mod tests {
 			max_code_size: 1000,
 			ump_remaining: 10,
 			ump_remaining_bytes: 1024,
+			max_ump_num_per_candidate: 5,
 			dmp_remaining_messages: 5,
 			hrmp_inbound: InboundHrmpLimitations { valid_watermarks: vec![6, 8] },
 			hrmp_channels_out: {
@@ -1290,6 +1308,33 @@ mod tests {
 			Err(FragmentValidityError::HrmpMessagesPerCandidateOverflow {
 				messages_allowed: max_hrmp,
 				messages_submitted: max_hrmp + 1,
+			}),
+		);
+	}
+
+	#[test]
+	fn fragment_ump_messages_overflow() {
+		let relay_parent = RelayChainBlockInfo {
+			number: 6,
+			hash: Hash::repeat_byte(0x0a),
+			storage_root: Hash::repeat_byte(0xff),
+		};
+
+		let constraints = make_constraints();
+		let mut candidate = make_candidate(&constraints, &relay_parent);
+
+		let max_ump = constraints.max_ump_num_per_candidate;
+
+		candidate
+			.commitments
+			.upward_messages
+			.extend((0..max_ump + 1).map(|i| vec![i as u8]));
+
+		assert_eq!(
+			Fragment::new(relay_parent, constraints, candidate),
+			Err(FragmentValidityError::UmpMessagesPerCandidateOverflow {
+				messages_allowed: max_ump,
+				messages_submitted: max_ump + 1,
 			}),
 		);
 	}

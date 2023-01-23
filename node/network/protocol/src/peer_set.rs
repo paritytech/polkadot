@@ -17,7 +17,7 @@
 //! All peersets and protocols used for parachains.
 
 use derive_more::Display;
-use polkadot_primitives::v2::Hash;
+use polkadot_primitives::Hash;
 use sc_network_common::{
 	config::{NonDefaultSetConfig, SetConfig},
 	protocol::ProtocolName,
@@ -36,7 +36,7 @@ const LEGACY_COLLATION_PROTOCOL_V1: &str = "/polkadot/collation/1";
 const LEGACY_PROTOCOL_VERSION_V1: u32 = 1;
 
 /// Max notification size is currently constant.
-const MAX_NOTIFICATION_SIZE: u64 = 100 * 1024;
+pub const MAX_NOTIFICATION_SIZE: u64 = 100 * 1024;
 
 /// The peer-sets and thus the protocols which are used for the network.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, EnumIter)]

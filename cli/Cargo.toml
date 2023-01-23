@@ -1,9 +1,9 @@
 [package]
 name = "polkadot-cli"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "Polkadot Relay-chain Client Node"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [package.metadata.wasm-pack.profile.release]
 # `wasm-opt` has some problems on Linux, see
@@ -14,7 +14,7 @@ wasm-opt = false
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-clap = { version = "3.1", features = ["derive"], optional = true }
+clap = { version = "4.0.9", features = ["derive"], optional = true }
 log = "0.4.17"
 thiserror = "1.0.31"
 futures = "0.3.21"
@@ -26,6 +26,7 @@ polkadot-node-core-pvf = { path = "../node/core/pvf", optional = true }
 polkadot-performance-test = { path = "../node/test/performance-test", optional = true }
 
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 try-runtime-cli = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
@@ -34,17 +35,13 @@ sc-service = { git = "https://github.com/paritytech/substrate", branch = "master
 polkadot-node-metrics = { path = "../node/metrics" }
 sc-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
-# this crate is used only to enable `trie-memory-tracker` feature
-# see https://github.com/paritytech/substrate/pull/6745
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [build-dependencies]
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = ["wasmtime", "db", "cli", "hostperfcheck", "full-node", "trie-memory-tracker", "polkadot-native"]
-wasmtime = ["sc-cli/wasmtime"]
+default = ["db", "cli", "hostperfcheck", "full-node", "polkadot-native"]
 db = ["service/db"]
 cli = [
 	"clap",
@@ -61,9 +58,8 @@ runtime-benchmarks = [
 	"polkadot-node-metrics/runtime-benchmarks",
 	"polkadot-performance-test?/runtime-benchmarks"
 ]
-trie-memory-tracker = ["sp-trie/memory-tracker"]
 full-node = ["service/full-node"]
-try-runtime = ["service/try-runtime"]
+try-runtime = ["service/try-runtime", "try-runtime-cli/try-runtime"]
 fast-runtime = ["service/fast-runtime"]
 pyroscope = ["pyro"]
 hostperfcheck = ["polkadot-performance-test"]

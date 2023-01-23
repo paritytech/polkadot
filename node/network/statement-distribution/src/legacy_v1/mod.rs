@@ -36,8 +36,8 @@ use polkadot_node_subsystem::{
 };
 use polkadot_primitives::v2::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
-	Id as ParaId, OccupiedCoreAssumption, PersistedValidationData, SignedStatement, SigningContext,
-	UncheckedSignedStatement, ValidatorId, ValidatorIndex, ValidatorSignature,
+	Id as ParaId, IndexedVec, OccupiedCoreAssumption, PersistedValidationData, SignedStatement,
+	SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 use futures::{
@@ -624,7 +624,7 @@ pub(crate) struct ActiveHeadData {
 	/// Large statements we are waiting for with associated meta data.
 	waiting_large_statements: HashMap<CandidateHash, LargeStatementStatus>,
 	/// The parachain validators at the head's child session index.
-	validators: Vec<ValidatorId>,
+	validators: IndexedVec<ValidatorIndex, ValidatorId>,
 	/// The current session index of this fork.
 	session_index: sp_staking::SessionIndex,
 	/// How many `Seconded` statements we've seen per validator.
@@ -635,7 +635,7 @@ pub(crate) struct ActiveHeadData {
 
 impl ActiveHeadData {
 	fn new(
-		validators: Vec<ValidatorId>,
+		validators: IndexedVec<ValidatorIndex, ValidatorId>,
 		session_index: sp_staking::SessionIndex,
 		span: PerLeafSpan,
 	) -> Self {
@@ -872,7 +872,7 @@ fn check_statement_signature(
 		SigningContext { session_index: head.session_index, parent_hash: relay_parent };
 
 	head.validators
-		.get(statement.unchecked_validator_index().0 as usize)
+		.get(statement.unchecked_validator_index())
 		.ok_or_else(|| statement.clone())
 		.and_then(|v| statement.try_into_checked(&signing_context, v))
 }
@@ -2074,7 +2074,10 @@ pub(crate) async fn share_local_statement<Context, R: Rng>(
 	// directly:
 	let group_peers = {
 		if let Some(our_group) = validator_info.our_group {
-			let our_group = &session_info.validator_groups[our_group.0 as usize];
+			let our_group = &session_info
+				.validator_groups
+				.get(our_group)
+				.expect("`our_group` is derived from `validator_groups`; qed");
 
 			our_group
 				.into_iter()

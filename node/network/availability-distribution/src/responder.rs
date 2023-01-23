@@ -27,7 +27,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
 use polkadot_node_subsystem::{jaeger, messages::AvailabilityStoreMessage, SubsystemSender};
-use polkadot_primitives::v2::{CandidateHash, ValidatorIndex};
+use polkadot_primitives::{CandidateHash, ValidatorIndex};
 
 use crate::{
 	error::{JfyiError, Result},

@@ -1,12 +1,13 @@
 [package]
 name = "polkadot-node-core-candidate-validation"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 async-trait = "0.1.57"
 futures = "0.3.21"
+futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../../gum" }
 
 sp-maybe-compressed-blob = { package = "sp-maybe-compressed-blob", git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -15,8 +16,8 @@ parity-scale-codec = { version = "3.1.5", default-features = false, features = [
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-node-primitives = { path = "../../primitives" }
-polkadot-node-subsystem = {path = "../../subsystem" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
+polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-node-metrics = { path = "../../metrics" }
 
 [target.'cfg(not(any(target_os = "android", target_os = "unknown")))'.dependencies]
 polkadot-node-core-pvf = { path = "../pvf" }
@@ -26,5 +27,6 @@ sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master
 futures = { version = "0.3.21", features = ["thread-pool"] }
 assert_matches = "1.4.0"
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../../primitives/test-helpers" }

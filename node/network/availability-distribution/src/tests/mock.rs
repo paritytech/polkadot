@@ -22,10 +22,10 @@ use sp_keyring::Sr25519Keyring;
 
 use polkadot_erasure_coding::{branches, obtain_chunks_v1 as obtain_chunks};
 use polkadot_node_primitives::{AvailableData, BlockData, ErasureChunk, PoV, Proof};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateCommitments, CandidateDescriptor, CandidateHash, CommittedCandidateReceipt,
-	GroupIndex, Hash, HeadData, Id as ParaId, OccupiedCore, PersistedValidationData, SessionInfo,
-	ValidatorIndex,
+	GroupIndex, Hash, HeadData, Id as ParaId, IndexedVec, OccupiedCore, PersistedValidationData,
+	SessionInfo, ValidatorIndex,
 };
 use polkadot_primitives_test_helpers::{
 	dummy_collator, dummy_collator_signature, dummy_hash, dummy_validation_code,
@@ -43,10 +43,11 @@ pub fn make_session_info() -> SessionInfo {
 		Sr25519Keyring::One,
 	];
 
-	let validator_groups: Vec<Vec<ValidatorIndex>> = [vec![5, 0, 3], vec![1, 6, 2, 4]]
-		.iter()
-		.map(|g| g.into_iter().map(|v| ValidatorIndex(*v)).collect())
-		.collect();
+	let validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>> =
+		[vec![5, 0, 3], vec![1, 6, 2, 4]]
+			.iter()
+			.map(|g| g.into_iter().map(|v| ValidatorIndex(*v)).collect())
+			.collect();
 
 	SessionInfo {
 		discovery_keys: validators.iter().map(|k| k.public().into()).collect(),

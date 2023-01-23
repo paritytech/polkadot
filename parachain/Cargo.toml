@@ -1,16 +1,15 @@
 [package]
 name = "polkadot-parachain"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "Types and utilities for creating and working with parachains"
-edition = "2021"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
 
 [dependencies]
 # note: special care is taken to avoid inclusion of `sp-io` externals when compiling
 # this crate for WASM. This is critical to avoid forcing all parachain WASM into implementing
 # various unnecessary Substrate-specific endpoints.
 parity-scale-codec = { version = "3.1.5", default-features = false, features = [ "derive" ] }
-parity-util-mem = { version = "0.12.0", default-features = false, optional = true }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -32,7 +31,6 @@ std = [
 	"sp-std/std",
 	"sp-runtime/std",
 	"sp-core/std",
-	"parity-util-mem",
 	"polkadot-core-primitives/std",
 	"frame-support/std",
 ]

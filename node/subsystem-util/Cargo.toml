@@ -1,13 +1,14 @@
 [package]
 name = "polkadot-node-subsystem-util"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 description = "Subsystem traits and message definitions"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 async-trait = "0.1.57"
 futures = "0.3.21"
+futures-channel = "0.3.23"
 itertools = "0.10"
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
 parking_lot = "0.11.2"
@@ -32,9 +33,8 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-kvdb = "0.12.0"
-parity-util-mem = { version = "0.12.0", default-features = false }
-parity-db = { version = "0.3.13" }
+kvdb = "0.13.0"
+parity-db = { version = "0.4.2"}
 
 [dev-dependencies]
 assert_matches = "1.4.0"
@@ -44,5 +44,6 @@ log = "0.4.17"
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
 lazy_static = "1.4.0"
 polkadot-primitives-test-helpers = { path = "../../primitives/test-helpers" }
-kvdb-shared-tests = "0.10.0"
+kvdb-shared-tests = "0.11.0"
 tempfile = "3.1.0"
+kvdb-memorydb = "0.13.0"

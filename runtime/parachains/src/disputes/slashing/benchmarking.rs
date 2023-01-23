@@ -21,7 +21,7 @@ use frame_benchmarking::{benchmarks, whitelist_account};
 use frame_support::traits::{OnFinalize, OnInitialize};
 use frame_system::RawOrigin;
 use pallet_staking::testing_utils::create_validators;
-use primitives::v2::{Hash, PARACHAIN_KEY_TYPE_ID};
+use primitives::{Hash, PARACHAIN_KEY_TYPE_ID};
 use sp_runtime::traits::{One, StaticLookup};
 use sp_session::MembershipProof;
 
@@ -80,7 +80,7 @@ where
 	let session_index = crate::shared::Pallet::<T>::session_index();
 	let session_info = crate::session_info::Pallet::<T>::session_info(session_index);
 	let session_info = session_info.unwrap();
-	let validator_id = session_info.validators[0].clone();
+	let validator_id = session_info.validators.get(ValidatorIndex::from(0)).unwrap().clone();
 	let key = (PARACHAIN_KEY_TYPE_ID, validator_id.clone());
 	let key_owner_proof = pallet_session::historical::Pallet::<T>::prove(key).unwrap();
 

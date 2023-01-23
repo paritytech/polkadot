@@ -1,21 +1,21 @@
 [package]
 name = "staking-miner"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.0.0" }
-clap = { version = "3.1", features = ["derive", "env"] }
+clap = { version = "4.0.9", features = ["derive", "env"] }
 tracing-subscriber = { version = "0.3.11", features = ["env-filter"] }
-jsonrpsee = { version = "0.15.1", features = ["ws-client", "macros"] }
+jsonrpsee = { version = "0.16.2", features = ["ws-client", "macros"] }
 log = "0.4.17"
 paste = "1.0.7"
 serde = "1.0.137"
 serde_json = "1.0"
 thiserror = "1.0.31"
-tokio = { version = "1.19.2", features = ["macros", "rt-multi-thread", "sync"] }
-remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+tokio = { version = "1.24.1", features = ["macros", "rt-multi-thread", "sync"] }
+remote-externalities = { git = "https://github.com/paritytech/substrate", branch = "master", package = "frame-remote-externalities" }
 signal-hook-tokio = { version = "0.3", features = ["futures-v0_3"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master" }

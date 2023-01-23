@@ -19,7 +19,7 @@ use fatality::Nested;
 use futures::channel::{mpsc, oneshot};
 use polkadot_node_subsystem::errors::{ChainApiError, RuntimeApiError, SubsystemError};
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v2::Hash;
+use polkadot_primitives::Hash;
 
 pub type FatalResult<T> = std::result::Result<T, FatalError>;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -28,6 +28,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 #[allow(missing_docs)]
 #[fatality::fatality(splitable)]
 pub enum Error {
+	#[fatal(forward)]
+	#[error("Error while accessing runtime information")]
+	Runtime(#[from] util::runtime::Error),
+
 	#[error(transparent)]
 	Util(#[from] util::Error),
 
@@ -49,14 +53,11 @@ pub enum Error {
 	#[error("failed to get backable candidate from prospective parachains")]
 	CanceledBackableCandidate(#[source] oneshot::Canceled),
 
-	#[error("failed to get Runtime API version")]
-	CanceledRuntimeApiVersion(#[source] oneshot::Canceled),
-
 	#[error(transparent)]
 	ChainApi(#[from] ChainApiError),
 
 	#[error(transparent)]
-	Runtime(#[from] RuntimeApiError),
+	RuntimeApi(#[from] RuntimeApiError),
 
 	#[error("failed to send message to ChainAPI")]
 	ChainApiMessageSend(#[source] mpsc::SendError),

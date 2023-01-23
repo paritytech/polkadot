@@ -211,7 +211,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					crate::legacy_v1::handle_deactivate_leaf(legacy_v1_state, deactivated);
 				}
 
-				for activated in activated {
+				if let Some(activated) = activated {
 					// TODO [now]: legacy, activate only if no prospective parachains support.
 					crate::legacy_v1::handle_activated_leaf(ctx, legacy_v1_state, activated)
 						.await?;
@@ -266,8 +266,12 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						// TODO [now]: pass to vstaging, but not if the message is
 						// v1 or the connecting peer is v1.
 					},
-					StatementDistributionMessage::Backed { para_id, para_head } => {
-						// TODO [now]: pass to vstaging
+					StatementDistributionMessage::Backed(candidate_hash) => {
+						crate::vstaging::handle_backed_candidate_message(
+							ctx,
+							unimplemented!(), // TODO [now] state
+							candidate_hash,
+						).await;
 					},
 				},
 		}

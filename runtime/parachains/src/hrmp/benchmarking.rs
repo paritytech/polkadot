@@ -17,7 +17,7 @@
 use crate::{
 	configuration::Pallet as Configuration,
 	hrmp::{Pallet as Hrmp, *},
-	paras::{Pallet as Paras, ParachainsCache},
+	paras::{Pallet as Paras, ParaKind, ParachainsCache},
 	shared::Pallet as Shared,
 };
 use frame_support::{assert_ok, traits::Currency};
@@ -31,7 +31,7 @@ fn register_parachain_with_balance<T: Config>(id: ParaId, balance: BalanceOf<T>)
 		&mut parachains,
 		id,
 		&crate::paras::ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: vec![1].into(),
 			validation_code: vec![1].into(),
 		},
@@ -295,6 +295,32 @@ frame_benchmarking::benchmarks! {
 		Hrmp::<T>::clean_open_channel_requests(&config, &outgoing);
 	} verify {
 		assert_eq!(HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32, 0);
+	}
+
+	force_open_hrmp_channel {
+		let sender_id: ParaId = 1u32.into();
+		let recipient_id: ParaId = 2u32.into();
+
+		// make sure para is registered, and has enough balance.
+		let sender_deposit: BalanceOf<T> =
+			Configuration::<T>::config().hrmp_sender_deposit.unique_saturated_into();
+		let recipient_deposit: BalanceOf<T> =
+			Configuration::<T>::config().hrmp_recipient_deposit.unique_saturated_into();
+		register_parachain_with_balance::<T>(sender_id, sender_deposit);
+		register_parachain_with_balance::<T>(recipient_id, recipient_deposit);
+
+		let capacity = Configuration::<T>::config().hrmp_channel_max_capacity;
+		let message_size = Configuration::<T>::config().hrmp_channel_max_message_size;
+
+		// make sure this channel doesn't exist
+		let channel_id = HrmpChannelId { sender: sender_id, recipient: recipient_id };
+		assert!(HrmpOpenChannelRequests::<T>::get(&channel_id).is_none());
+		assert!(HrmpChannels::<T>::get(&channel_id).is_none());
+	}: _(frame_system::Origin::<T>::Root, sender_id, recipient_id, capacity, message_size)
+	verify {
+		assert_last_event::<T>(
+			Event::<T>::HrmpChannelForceOpened(sender_id, recipient_id, capacity, message_size).into()
+		);
 	}
 }
 

@@ -1,8 +1,8 @@
 [package]
 name = "remote-ext-tests-bags-list"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 polkadot-runtime = { path = "../../../runtime/polkadot" }
@@ -17,6 +17,6 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-clap = { version = "3.1", features = ["derive"] }
+clap = { version = "4.0.9", features = ["derive"] }
 log = "0.4.17"
-tokio = { version = "1.19.2", features = ["macros"] }
+tokio = { version = "1.24.1", features = ["macros"] }

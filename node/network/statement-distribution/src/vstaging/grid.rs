@@ -58,8 +58,8 @@ pub struct SessionTopologyView {
 ///    and send to the corresponding X/Y slice.
 ///    For any validators we don't share a slice with, we receive from the nodes
 ///    which share a slice with them.
-pub fn build_session_topology(
-	groups: &[Vec<ValidatorIndex>],
+pub fn build_session_topology<'a>(
+	groups: impl IntoIterator<Item = &'a Vec<ValidatorIndex>>,
 	topology: &SessionGridTopology,
 	our_index: Option<ValidatorIndex>,
 ) -> SessionTopologyView {
@@ -156,10 +156,16 @@ pub fn build_session_topology(
 	view
 }
 
-/// Actions that can be taken once affirming that a candidate is backed.
-pub enum PostBackingAction {
-	Acknowledge,
-	Advertise,
+/// The kind of backed candidate manifest we should send to a remote peer.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ManifestKind {
+	/// Full manifests contain information about the candidate and should be sent
+	/// to peers which aren't guaranteed to have the candidate already.
+	Full,
+	/// Acknowledgement manifests omit information which is implicit in the candidate
+	/// itself, and should be sent to peers which are guaranteed to have the candidate
+	/// already.
+	Acknowledgement,
 }
 
 /// A tracker of knowledge from authorities within the grid for a particular
@@ -169,6 +175,7 @@ pub struct GridTracker {
 	received: HashMap<ValidatorIndex, ReceivedManifests>,
 	confirmed_backed: HashMap<CandidateHash, KnownBackedCandidate>,
 	unconfirmed: HashMap<CandidateHash, Vec<(ValidatorIndex, GroupIndex)>>,
+	pending_communication: HashMap<ValidatorIndex, HashMap<CandidateHash, ManifestKind>>,
 }
 
 impl GridTracker {
@@ -178,6 +185,9 @@ impl GridTracker {
 	/// about this group at this relay-parent. This also does sanity
 	/// checks on the format of the manifest and the amount of votes
 	/// it contains. It has effects on the stored state only when successful.
+	///
+	/// This returns an optional `ManifestKind` indicating the type of manifest
+	/// to be sent in response to the received manifest.
 	pub fn import_manifest(
 		&mut self,
 		session_topology: &SessionTopologyView,
@@ -185,15 +195,30 @@ impl GridTracker {
 		candidate_hash: CandidateHash,
 		seconding_limit: usize,
 		manifest: ManifestSummary,
+		kind: ManifestKind,
 		sender: ValidatorIndex,
-	) -> Result<(), ManifestImportError> {
+	) -> Result<Option<ManifestKind>, ManifestImportError> {
 		let claimed_group_index = manifest.claimed_group_index;
 
-		if session_topology
-			.group_views
-			.get(&manifest.claimed_group_index)
-			.map_or(true, |g| !g.receiving.contains(&sender))
-		{
+		let group_topology = match session_topology.group_views.get(&manifest.claimed_group_index) {
+			None => return Err(ManifestImportError::Disallowed),
+			Some(g) => g,
+		};
+
+		let is_receiver = group_topology.receiving.contains(&sender);
+		let is_sender = group_topology.sending.contains(&sender);
+		let manifest_allowed = match kind {
+			// Peers can send manifests _if_:
+			//   * They are in the receiving set for the group AND the manifest is full OR
+			//   * They are in the sending set for the group AND we have sent them
+			//     a manifest AND the received manifest is partial.
+			ManifestKind::Full => is_receiver,
+			ManifestKind::Acknowledgement => is_sender && self.confirmed_backed
+				.get(&candidate_hash)
+				.map_or(false, |c| c.has_sent_manifest_to(sender)),
+		};
+
+		if !manifest_allowed {
 			return Err(ManifestImportError::Disallowed)
 		}
 
@@ -238,9 +263,17 @@ impl GridTracker {
 			manifest,
 		)?;
 
+		let mut to_send = None;
 		if let Some(confirmed) = self.confirmed_backed.get_mut(&candidate_hash) {
-			// TODO [now]: send statements they need?
-			confirmed.note_remote_advertised(sender, remote_knowledge);
+			// TODO [now]: send statements they need if this is an ack
+			if is_receiver && !confirmed.has_sent_manifest_to(sender) {
+				self.pending_communication.entry(sender)
+					.or_default()
+					.insert(candidate_hash, ManifestKind::Acknowledgement);
+
+				to_send = Some(ManifestKind::Acknowledgement);
+			}
+			confirmed.manifest_received_from(sender, remote_knowledge);
 		} else {
 			// received prevents conflicting manifests so this is max 1 per validator.
 			self.unconfirmed
@@ -249,22 +282,22 @@ impl GridTracker {
 				.push((sender, claimed_group_index))
 		}
 
-		Ok(())
+		Ok(to_send)
 	}
 
 	/// Add a new backed candidate to the tracker. This yields
 	/// an iterator of validators which we should either advertise to
-	/// or signal that we know the candidate.
+	/// or signal that we know the candidate, along with the corresponding
+	/// type of manifest we should send.
 	pub fn add_backed_candidate(
 		&mut self,
 		session_topology: &SessionTopologyView,
 		candidate_hash: CandidateHash,
 		group_index: GroupIndex,
 		group_size: usize,
-	) -> Vec<(ValidatorIndex, PostBackingAction)> {
-		let mut actions = Vec::new();
+	) -> Vec<(ValidatorIndex, ManifestKind)> {
 		let c = match self.confirmed_backed.entry(candidate_hash) {
-			Entry::Occupied(_) => return actions,
+			Entry::Occupied(_) => return Vec::new(),
 			Entry::Vacant(v) =>
 				v.insert(KnownBackedCandidate { group_index, mutual_knowledge: HashMap::new() }),
 		};
@@ -284,115 +317,108 @@ impl GridTracker {
 				.and_then(|r| r.candidate_statement_filter(&candidate_hash))
 				.expect("unconfirmed is only populated by validators who have sent manifest; qed");
 
-			c.note_remote_advertised(v, statement_filter);
+
+			// No need to send direct statements, because our local knowledge is `None`
+			c.manifest_received_from(v, statement_filter);
 		}
 
 		let group_topology = match session_topology.group_views.get(&group_index) {
-			None => return actions,
+			None => return Vec::new(),
 			Some(g) => g,
 		};
 
 		// advertise onwards ad accept received advertisements
 
-		for &v in &group_topology.sending {
-			if c.should_advertise(v) {
-				actions.push((v, PostBackingAction::Advertise))
-			}
+		let sending_group_manifests = group_topology
+			.sending
+			.iter()
+			.map(|v| (*v, ManifestKind::Full));
+
+		let receiving_group_manifests = group_topology
+			.receiving
+			.iter()
+			.filter_map(|v| if c.has_received_manifest_from(*v) {
+				Some((*v, ManifestKind::Acknowledgement))
+			} else {
+				None
+			});
+
+		// Note that order is important: if a validator is part of both the sending
+		// and receiving groups, we may overwrite a `Full` manifest with a `Acknowledgement`
+		// one.
+		for (v, manifest_mode) in sending_group_manifests.chain(receiving_group_manifests) {
+			self.pending_communication.entry(v).or_default().insert(candidate_hash, manifest_mode);
 		}
 
-		for &v in &group_topology.receiving {
-			if c.can_local_acknowledge(v) {
-				actions.push((v, PostBackingAction::Acknowledge))
-			}
-		}
-
-		actions
+		self.pending_communication
+			.iter()
+			.filter_map(|(v, x)| x.get(&candidate_hash).map(|k| (*v, *k)))
+			.collect()
 	}
 
 	/// Note that a backed candidate has been advertised to a
 	/// given validator.
-	pub fn note_advertised_to(
+	pub fn manifest_sent_to(
 		&mut self,
 		validator_index: ValidatorIndex,
 		candidate_hash: CandidateHash,
 		local_knowledge: StatementFilter,
 	) {
 		if let Some(c) = self.confirmed_backed.get_mut(&candidate_hash) {
-			c.note_advertised_to(validator_index, local_knowledge);
+			c.manifest_sent_to(validator_index, local_knowledge);
+		}
+
+		if let Some(x) = self.pending_communication.get_mut(&validator_index) {
+			x.remove(&candidate_hash);
 		}
 	}
 
-	/// Provided a validator index, gives an iterator of candidate
-	/// hashes which may be advertised to the validator and have not yet
-	/// been.
-	pub fn advertisements<'a>(
-		&'a self,
-		session_topology: &SessionTopologyView,
-		validator_index: ValidatorIndex,
-	) -> impl IntoIterator<Item = CandidateHash> + 'a {
-		let allowed_groups: HashSet<_> = session_topology
-			.group_views
-			.iter()
-			.filter(|(_, x)| x.sending.contains(&validator_index))
-			.map(|(g, x)| *g)
-			.collect();
-
-		self.confirmed_backed
-			.iter()
-			.filter(move |(_, c)| allowed_groups.contains(c.group_index()))
-			.filter(move |(_, c)| c.should_advertise(validator_index))
-			.map(|(c_h, _)| *c_h)
-	}
-
-	/// Whether the given validator is allowed to acknowledge an advertisement
-	/// via request.
-	pub fn can_remote_acknowledge(
+	/// Whether we should send a manifest about a specific candidate to a validator,
+	/// and which kind of manifest.
+	pub fn is_manifest_pending_for(
 		&self,
 		validator_index: ValidatorIndex,
-		candidate_hash: CandidateHash,
-	) -> bool {
-		self.confirmed_backed
-			.get(&candidate_hash)
-			.map_or(false, |c| c.can_remote_acknowledge(validator_index))
+		candidate_hash: &CandidateHash,
+	) -> Option<ManifestKind> {
+		self.pending_communication
+			.get(&validator_index)
+			.and_then(|x| x.get(&candidate_hash))
+			.map(|x| *x)
 	}
 
-	/// Note that a validator peer we advertised a backed candidate to
-	/// has acknowledged the candidate directly or by requesting it.
-	pub fn note_remote_acknowledged(
-		&mut self,
-		validator_index: ValidatorIndex,
-		candidate_hash: CandidateHash,
-		remote_knowledge: StatementFilter,
-	) {
-		if let Some(c) = self.confirmed_backed.get_mut(&candidate_hash) {
-			c.note_remote_acknowledged(validator_index, remote_knowledge);
-		}
-	}
-
-	/// Whether we can acknowledge a remote's advertisement.
-	pub fn can_local_acknowledge(
+	/// Returns a vector of all candidates pending manifests for the specific validator, and
+	/// the type of manifest we should send.
+	pub fn pending_manifests_for(
 		&self,
 		validator_index: ValidatorIndex,
-		candidate_hash: CandidateHash,
-	) -> bool {
-		self.confirmed_backed
-			.get(&candidate_hash)
-			.map_or(false, |c| c.can_local_acknowledge(validator_index))
+	) -> Vec<(CandidateHash, ManifestKind)> {
+		self.pending_communication
+			.get(&validator_index)
+			.into_iter()
+			.flat_map(|pending| pending.iter().map(|(c, m)| (*c, *m)))
+			.collect()
 	}
 
-	/// Indicate that we've acknowledged a remote's advertisement.
-	pub fn note_local_acknowledged(
-		&mut self,
-		validator_index: ValidatorIndex,
+	/// Which validators we could request the fully attested candidates from.
+	/// If the candidate is already confirmed, then this will return an empty
+	/// set.
+	pub fn validators_to_request(
+		&self,
 		candidate_hash: CandidateHash,
-		local_knowledge: StatementFilter,
-	) {
-		if let Some(c) = self.confirmed_backed.get_mut(&candidate_hash) {
-			c.note_local_acknowledged(validator_index, local_knowledge);
+		group_index: GroupIndex,
+	) -> Vec<ValidatorIndex> {
+		let mut validators = Vec::new();
+		if let Some(unconfirmed) = self.unconfirmed.get(&candidate_hash) {
+			for (v, g) in unconfirmed {
+				if g == &group_index {
+					validators.push(*v);
+				}
+			}
 		}
+		validators
 	}
 
-	/// Determine the validators which can send a statement by direct broadcast.
+	/// Determine the validators which can send a statement to us by direct broadcast.
 	pub fn direct_statement_senders(
 		&self,
 		groups: &Groups,
@@ -411,7 +437,7 @@ impl GridTracker {
 			.unwrap_or_default()
 	}
 
-	/// Determine the validators which can receive a statement by direct
+	/// Determine the validators which can receive a statement from us by direct
 	/// broadcast.
 	pub fn direct_statement_recipients(
 		&self,
@@ -433,7 +459,7 @@ impl GridTracker {
 
 	/// Note that a direct statement about a given candidate was sent to or
 	/// received from the given validator.
-	pub fn note_sent_or_received_direct_statement(
+	pub fn sent_or_received_direct_statement(
 		&mut self,
 		groups: &Groups,
 		originator: ValidatorIndex,
@@ -444,7 +470,7 @@ impl GridTracker {
 			extract_statement_and_group_info(groups, originator, statement)
 		{
 			if let Some(known) = self.confirmed_backed.get_mut(&c_h) {
-				known.note_sent_or_received_direct_statement(counterparty, in_group, kind);
+				known.sent_or_received_direct_statement(counterparty, in_group, kind);
 			}
 		}
 	}
@@ -647,6 +673,7 @@ enum StatementKind {
 
 /// Bitfields indicating the statements that are known or undesired
 /// about a candidate.
+#[derive(Clone)]
 pub struct StatementFilter {
 	/// Seconded statements. '1' is known or undesired.
 	pub seconded_in_group: BitVec<u8, Lsb0>,
@@ -711,16 +738,19 @@ impl KnownBackedCandidate {
 		&self.group_index
 	}
 
-	// should only be invoked for validators which are known
-	// to be valid recipients of advertisement.
-	fn should_advertise(&self, validator: ValidatorIndex) -> bool {
+	fn has_received_manifest_from(&self, validator: ValidatorIndex) -> bool {
 		self.mutual_knowledge
 			.get(&validator)
-			.map_or(true, |k| k.local_knowledge.is_none())
+			.map_or(false, |k| k.remote_knowledge.is_some())
 	}
 
-	// is a no-op when either they or we have advertised.
-	fn note_advertised_to(&mut self, validator: ValidatorIndex, local_knowledge: StatementFilter) {
+	fn has_sent_manifest_to(&self, validator: ValidatorIndex) -> bool {
+		self.mutual_knowledge
+			.get(&validator)
+			.map_or(false, |k| k.local_knowledge.is_some())
+	}
+
+	fn manifest_sent_to(&mut self, validator: ValidatorIndex, local_knowledge: StatementFilter) {
 		let k = self
 			.mutual_knowledge
 			.entry(validator)
@@ -729,7 +759,7 @@ impl KnownBackedCandidate {
 		k.local_knowledge = Some(local_knowledge);
 	}
 
-	fn note_remote_advertised(
+	fn manifest_received_from(
 		&mut self,
 		validator: ValidatorIndex,
 		remote_knowledge: StatementFilter,
@@ -740,57 +770,6 @@ impl KnownBackedCandidate {
 			.or_insert_with(|| MutualKnowledge { remote_knowledge: None, local_knowledge: None });
 
 		k.remote_knowledge = Some(remote_knowledge);
-	}
-
-	// whether we are allowed to acknowledge or request a candidate from a remote validator.
-	fn can_local_acknowledge(&self, validator: ValidatorIndex) -> bool {
-		match self.mutual_knowledge.get(&validator) {
-			None => false,
-			Some(k) => k.remote_knowledge.is_some() && k.local_knowledge.is_none(),
-		}
-	}
-
-	// whether a remote is allowed to acknowledge or request a candidate from us
-	fn can_remote_acknowledge(&self, validator: ValidatorIndex) -> bool {
-		match self.mutual_knowledge.get(&validator) {
-			None => false,
-			Some(k) => k.remote_knowledge.is_none() && k.local_knowledge.is_some(),
-		}
-	}
-
-	fn note_local_acknowledged(
-		&mut self,
-		validator: ValidatorIndex,
-		local_knowledge: StatementFilter,
-	) {
-		if let Some(ref mut k) = self.mutual_knowledge.get_mut(&validator) {
-			k.local_knowledge = Some(local_knowledge);
-			// TODO [now]: return something for sending statements they need.
-		}
-	}
-
-	fn note_remote_acknowledged(
-		&mut self,
-		validator: ValidatorIndex,
-		remote_knowledge: StatementFilter,
-	) {
-		if let Some(ref mut k) = self.mutual_knowledge.get_mut(&validator) {
-			k.remote_knowledge = Some(remote_knowledge);
-			// TODO [now]: return something for sending statements they need.
-		}
-	}
-
-	fn can_send_direct_statement_to(
-		&self,
-		validator: ValidatorIndex,
-		statement_index_in_group: usize,
-		statement_kind: StatementKind,
-	) -> bool {
-		match self.mutual_knowledge.get(&validator) {
-			Some(MutualKnowledge { remote_knowledge: Some(r), local_knowledge: Some(_) }) =>
-				!r.contains(statement_index_in_group, statement_kind),
-			_ => false,
-		}
 	}
 
 	fn direct_statement_senders(
@@ -837,20 +816,7 @@ impl KnownBackedCandidate {
 			.collect()
 	}
 
-	fn can_receive_direct_statement_from(
-		&self,
-		validator: ValidatorIndex,
-		statement_index_in_group: usize,
-		statement_kind: StatementKind,
-	) -> bool {
-		match self.mutual_knowledge.get(&validator) {
-			Some(MutualKnowledge { remote_knowledge: Some(_), local_knowledge: Some(l) }) =>
-				!l.contains(statement_index_in_group, statement_kind),
-			_ => false,
-		}
-	}
-
-	fn note_sent_or_received_direct_statement(
+	fn sent_or_received_direct_statement(
 		&mut self,
 		validator: ValidatorIndex,
 		statement_index_in_group: usize,
@@ -1343,4 +1309,6 @@ mod tests {
 			Ok(())
 		);
 	}
+
+	// TODO [now]: check that pending communication is set and cleared correctly.
 }

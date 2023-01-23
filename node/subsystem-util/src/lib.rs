@@ -40,12 +40,12 @@ pub use polkadot_node_metrics::{metrics, Metronome};
 use futures::channel::{mpsc, oneshot};
 use parity_scale_codec::Encode;
 
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
-	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
-	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed,
-	SigningContext, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+use polkadot_primitives::{
+	vstaging as vstaging_primitives, AuthorityDiscoveryId, CandidateEvent,
+	CommittedCandidateReceipt, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash,
+	Id as ParaId, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, Signed, SigningContext, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 pub use rand;
 use sp_application_crypto::AppKey;
@@ -78,6 +78,12 @@ pub mod runtime;
 
 /// Database trait for subsystem.
 pub mod database;
+
+/// Nested message sending
+///
+/// Useful for having mostly synchronous code, with submodules spawning short lived asynchronous
+/// tasks, sending messages back.
+pub mod nesting_sender;
 
 mod determine_new_blocks;
 
@@ -195,6 +201,7 @@ macro_rules! specialize_requests {
 }
 
 specialize_requests! {
+	fn request_runtime_api_version() -> u32; Version;
 	fn request_authorities() -> Vec<AuthorityDiscoveryId>; Authorities;
 	fn request_validators() -> Vec<ValidatorId>; Validators;
 	fn request_validator_groups() -> (Vec<Vec<ValidatorIndex>>, GroupRotationInfo); ValidatorGroups;
@@ -210,11 +217,12 @@ specialize_requests! {
 	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
 		-> Option<ValidationCodeHash>; ValidationCodeHash;
 	fn request_on_chain_votes() -> Option<ScrapedOnChainVotes>; FetchOnChainVotes;
+	fn request_staging_async_backing_parameters() -> vstaging_primitives::AsyncBackingParameters; StagingAsyncBackingParameters;
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
 pub async fn signing_key(
-	validators: &[ValidatorId],
+	validators: impl IntoIterator<Item = &ValidatorId>,
 	keystore: &SyncCryptoStorePtr,
 ) -> Option<ValidatorId> {
 	signing_key_and_index(validators, keystore).await.map(|(k, _)| k)
@@ -223,10 +231,10 @@ pub async fn signing_key(
 /// From the given set of validators, find the first key we can sign with, if any, and return it
 /// along with the validator index.
 pub async fn signing_key_and_index(
-	validators: &[ValidatorId],
+	validators: impl IntoIterator<Item = &ValidatorId>,
 	keystore: &SyncCryptoStorePtr,
 ) -> Option<(ValidatorId, ValidatorIndex)> {
-	for (i, v) in validators.iter().enumerate() {
+	for (i, v) in validators.into_iter().enumerate() {
 		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
 			return Some((v.clone(), ValidatorIndex(i as _)))
 		}

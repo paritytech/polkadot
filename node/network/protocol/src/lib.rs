@@ -20,7 +20,7 @@
 #![warn(missing_docs)]
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::v2::{BlockNumber, Hash};
+use polkadot_primitives::{BlockNumber, Hash};
 use std::{collections::HashMap, fmt};
 
 #[doc(hidden)]
@@ -139,7 +139,7 @@ impl std::ops::Deref for OurView {
 ///
 /// ```
 /// # use polkadot_node_network_protocol::our_view;
-/// # use polkadot_primitives::v2::Hash;
+/// # use polkadot_primitives::Hash;
 /// let our_view = our_view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
@@ -173,7 +173,7 @@ pub struct View {
 ///
 /// ```
 /// # use polkadot_node_network_protocol::view;
-/// # use polkadot_primitives::v2::Hash;
+/// # use polkadot_primitives::Hash;
 /// let view = view![Hash::repeat_byte(1), Hash::repeat_byte(2)];
 /// ```
 #[macro_export]
@@ -207,7 +207,7 @@ impl View {
 	}
 
 	/// Obtain an iterator over all heads.
-	pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Hash> {
+	pub fn iter(&self) -> impl Iterator<Item = &Hash> {
 		self.heads.iter()
 	}
 
@@ -433,7 +433,7 @@ impl_versioned_try_from!(
 pub mod v1 {
 	use parity_scale_codec::{Decode, Encode};
 
-	use polkadot_primitives::v2::{
+	use polkadot_primitives::{
 		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, CompactStatement, Hash,
 		Id as ParaId, UncheckedSignedAvailabilityBitfield, ValidatorIndex, ValidatorSignature,
 	};
@@ -619,8 +619,35 @@ pub mod vstaging {
 		pub candidate_hash: CandidateHash,
 		/// The group index backing the candidate at the relay-parent.
 		pub group_index: GroupIndex,
+		/// The para ID of the candidate. It is illegal for this to
+		/// be a para ID which is not assigned to the group indicated
+		/// in this manifest.
+		pub para_id: ParaId,
 		/// The head-data corresponding to the candidate.
 		pub parent_head_data_hash: Hash,
+		/// A bitfield which indicates which validators in the para's
+		/// group at the relay-parent have validated this candidate
+		/// and issued `Seconded` statements about it.
+		///
+		/// This MUST have exactly the minimum amount of bytes
+		/// necessary to represent the number of validators in the
+		/// assigned backing group as-of the relay-parent.
+		pub seconded_in_group: BitVec<u8, bitvec::order::Lsb0>,
+		/// A bitfield which indicates which validators in the para's
+		/// group at the relay-parent have validated this candidate
+		/// and issued `Valid` statements about it.
+		///
+		/// This MUST have exactly the minimum amount of bytes
+		/// necessary to represent the number of validators in the
+		/// assigned backing group as-of the relay-parent.
+		pub validated_in_group: BitVec<u8, bitvec::order::Lsb0>,
+	}
+
+	/// An acknowledgement of a backed candidate being known.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct BackedCandidateAcknowledgement {
+		/// The hash of the candidate.
+		pub candidate_hash: CandidateHash,
 		/// A bitfield which indicates which validators in the para's
 		/// group at the relay-parent have validated this candidate
 		/// and issued `Seconded` statements about it.
@@ -655,7 +682,7 @@ pub mod vstaging {
 		/// A notification of a backed candidate being known by the sending node,
 		/// for the purpose of informing a receiving node which already has the candidate.
 		#[codec(index = 2)]
-		BackedCandidateKnown(Hash, CandidateHash),
+		BackedCandidateKnown(BackedCandidateAcknowledgement),
 
 		/// All messages for V1 for compatibility with the statement distribution
 		/// protocol, for relay-parents that don't support asynchronous backing.

@@ -36,7 +36,7 @@ use polkadot_node_subsystem::{
 	SpawnedSubsystem, SubsystemError, SubsystemResult, SubsystemSender,
 };
 use polkadot_node_subsystem_util::{self as util, Validator};
-use polkadot_primitives::v2::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
+use polkadot_primitives::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
 use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
 use std::{collections::HashMap, iter::FromIterator, time::Duration};
 use wasm_timer::{Delay, Instant};
@@ -225,7 +225,7 @@ async fn run<Context>(
 					}
 				}
 
-				for leaf in update.activated {
+				if let Some(leaf) = update.activated {
 					let sender = ctx.sender().clone();
 					let leaf_hash = leaf.hash;
 

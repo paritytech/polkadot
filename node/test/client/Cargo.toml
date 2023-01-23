@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-test-client"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
@@ -31,3 +31,6 @@ sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.21"
+
+[features]
+runtime-benchmarks=["polkadot-test-runtime/runtime-benchmarks"]

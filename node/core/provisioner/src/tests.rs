@@ -1,7 +1,7 @@
 use super::*;
 use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use bitvec::bitvec;
-use polkadot_primitives::v2::{OccupiedCore, ScheduledCore};
+use polkadot_primitives::{OccupiedCore, ScheduledCore};
 
 pub fn occupied_core(para_id: u32) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
@@ -41,7 +41,7 @@ pub fn scheduled_core(id: u32) -> ScheduledCore {
 mod select_availability_bitfields {
 	use super::{super::*, default_bitvec, occupied_core};
 	use futures::executor::block_on;
-	use polkadot_primitives::v2::{ScheduledCore, SigningContext, ValidatorId, ValidatorIndex};
+	use polkadot_primitives::{ScheduledCore, SigningContext, ValidatorId, ValidatorIndex};
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{testing::KeyStore, CryptoStore, SyncCryptoStorePtr};
 	use std::sync::Arc;
@@ -234,7 +234,8 @@ mod select_candidates {
 		},
 	};
 	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
-	use polkadot_primitives::v2::{
+	use polkadot_node_subsystem_util::runtime::ProspectiveParachainsMode;
+	use polkadot_primitives::{
 		BlockNumber, CandidateCommitments, CommittedCandidateReceipt, PersistedValidationData,
 	};
 
@@ -316,15 +317,10 @@ mod select_candidates {
 		]
 	}
 
-	enum TestProspectiveParachainsMode {
-		Enabled,
-		Disabled,
-	}
-
 	async fn mock_overseer(
 		mut receiver: mpsc::UnboundedReceiver<AllMessages>,
 		expected: Vec<BackedCandidate>,
-		prospective_parachains_mode: TestProspectiveParachainsMode,
+		prospective_parachains_mode: ProspectiveParachainsMode,
 	) {
 		use ChainApiMessage::BlockNumber;
 		use RuntimeApiMessage::Request;
@@ -354,10 +350,10 @@ mod select_candidates {
 				AllMessages::ProspectiveParachains(
 					ProspectiveParachainsMessage::GetBackableCandidate(.., tx),
 				) => match prospective_parachains_mode {
-					TestProspectiveParachainsMode::Enabled => {
+					ProspectiveParachainsMode::Enabled { .. } => {
 						let _ = tx.send(candidates.next());
 					},
-					TestProspectiveParachainsMode::Disabled =>
+					ProspectiveParachainsMode::Disabled =>
 						panic!("unexpected prospective parachains request"),
 				},
 				_ => panic!("Unexpected message: {:?}", from_job),
@@ -368,14 +364,14 @@ mod select_candidates {
 	#[test]
 	fn can_succeed() {
 		test_harness(
-			|r| mock_overseer(r, Vec::new(), TestProspectiveParachainsMode::Disabled),
+			|r| mock_overseer(r, Vec::new(), ProspectiveParachainsMode::Disabled),
 			|mut tx: TestSubsystemSender| async move {
-				let prospective_parachains_mode =
-					ProspectiveParachainsMode::Disabled { backed_candidates: Vec::new() };
+				let prospective_parachains_mode = ProspectiveParachainsMode::Disabled;
 				select_candidates(
 					&[],
 					&[],
-					&prospective_parachains_mode,
+					&[],
+					prospective_parachains_mode,
 					Default::default(),
 					&mut tx,
 				)
@@ -431,8 +427,7 @@ mod select_candidates {
 		// why those particular indices? see the comments on mock_availability_cores()
 		let expected_candidates: Vec<_> =
 			[1, 4, 7, 8, 10].iter().map(|&idx| candidates[idx].clone()).collect();
-		let prospective_parachains_mode =
-			ProspectiveParachainsMode::Disabled { backed_candidates: candidates };
+		let prospective_parachains_mode = ProspectiveParachainsMode::Disabled;
 
 		let expected_backed = expected_candidates
 			.iter()
@@ -447,12 +442,13 @@ mod select_candidates {
 			.collect();
 
 		test_harness(
-			|r| mock_overseer(r, expected_backed, TestProspectiveParachainsMode::Disabled),
+			|r| mock_overseer(r, expected_backed, ProspectiveParachainsMode::Disabled),
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,
 					&[],
-					&prospective_parachains_mode,
+					&candidates,
+					prospective_parachains_mode,
 					Default::default(),
 					&mut tx,
 				)
@@ -520,16 +516,16 @@ mod select_candidates {
 		let expected_backed_filtered: Vec<_> =
 			expected_cores.iter().map(|&idx| candidates[idx].clone()).collect();
 
-		let prospective_parachains_mode =
-			ProspectiveParachainsMode::Disabled { backed_candidates: candidates };
+		let prospective_parachains_mode = ProspectiveParachainsMode::Disabled;
 
 		test_harness(
-			|r| mock_overseer(r, expected_backed, TestProspectiveParachainsMode::Disabled),
+			|r| mock_overseer(r, expected_backed, ProspectiveParachainsMode::Disabled),
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,
 					&[],
-					&prospective_parachains_mode,
+					&candidates,
+					prospective_parachains_mode,
 					Default::default(),
 					&mut tx,
 				)
@@ -576,7 +572,8 @@ mod select_candidates {
 		let expected_candidates: Vec<_> =
 			[1, 4, 7, 8, 10].iter().map(|&idx| candidates[idx].clone()).collect();
 		// Expect prospective parachains subsystem requests.
-		let prospective_parachains_mode = ProspectiveParachainsMode::Enabled;
+		let prospective_parachains_mode =
+			ProspectiveParachainsMode::Enabled { max_candidate_depth: 0, allowed_ancestry_len: 0 };
 
 		let expected_backed = expected_candidates
 			.iter()
@@ -591,12 +588,22 @@ mod select_candidates {
 			.collect();
 
 		test_harness(
-			|r| mock_overseer(r, expected_backed, TestProspectiveParachainsMode::Enabled),
+			|r| {
+				mock_overseer(
+					r,
+					expected_backed,
+					ProspectiveParachainsMode::Enabled {
+						max_candidate_depth: 0,
+						allowed_ancestry_len: 0,
+					},
+				)
+			},
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,
 					&[],
-					&prospective_parachains_mode,
+					&[],
+					prospective_parachains_mode,
 					Default::default(),
 					&mut tx,
 				)
