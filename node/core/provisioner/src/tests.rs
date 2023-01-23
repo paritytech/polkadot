@@ -1,7 +1,7 @@
 use super::*;
 use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use bitvec::bitvec;
-use polkadot_primitives::v2::{OccupiedCore, ScheduledCore};
+use polkadot_primitives::{OccupiedCore, ScheduledCore};
 
 pub fn occupied_core(para_id: u32) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
@@ -41,7 +41,7 @@ pub fn scheduled_core(id: u32) -> ScheduledCore {
 mod select_availability_bitfields {
 	use super::{super::*, default_bitvec, occupied_core};
 	use futures::executor::block_on;
-	use polkadot_primitives::v2::{ScheduledCore, SigningContext, ValidatorId, ValidatorIndex};
+	use polkadot_primitives::{ScheduledCore, SigningContext, ValidatorId, ValidatorIndex};
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{testing::KeyStore, CryptoStore, SyncCryptoStorePtr};
 	use std::sync::Arc;
@@ -235,7 +235,7 @@ mod select_candidates {
 	};
 	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
 	use polkadot_node_subsystem_util::runtime::ProspectiveParachainsMode;
-	use polkadot_primitives::v2::{
+	use polkadot_primitives::{
 		BlockNumber, CandidateCommitments, CommittedCandidateReceipt, PersistedValidationData,
 	};
 
@@ -350,7 +350,7 @@ mod select_candidates {
 				AllMessages::ProspectiveParachains(
 					ProspectiveParachainsMessage::GetBackableCandidate(.., tx),
 				) => match prospective_parachains_mode {
-					ProspectiveParachainsMode::Enabled => {
+					ProspectiveParachainsMode::Enabled { .. } => {
 						let _ = tx.send(candidates.next());
 					},
 					ProspectiveParachainsMode::Disabled =>
@@ -572,7 +572,8 @@ mod select_candidates {
 		let expected_candidates: Vec<_> =
 			[1, 4, 7, 8, 10].iter().map(|&idx| candidates[idx].clone()).collect();
 		// Expect prospective parachains subsystem requests.
-		let prospective_parachains_mode = ProspectiveParachainsMode::Enabled;
+		let prospective_parachains_mode =
+			ProspectiveParachainsMode::Enabled { max_candidate_depth: 0, allowed_ancestry_len: 0 };
 
 		let expected_backed = expected_candidates
 			.iter()
@@ -587,7 +588,16 @@ mod select_candidates {
 			.collect();
 
 		test_harness(
-			|r| mock_overseer(r, expected_backed, ProspectiveParachainsMode::Enabled),
+			|r| {
+				mock_overseer(
+					r,
+					expected_backed,
+					ProspectiveParachainsMode::Enabled {
+						max_candidate_depth: 0,
+						allowed_ancestry_len: 0,
+					},
+				)
+			},
 			|mut tx: TestSubsystemSender| async move {
 				let result = select_candidates(
 					&mock_cores,

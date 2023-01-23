@@ -30,8 +30,7 @@ use crate::{
 	metrics::METRICS,
 	paras,
 	scheduler::{self, CoreAssignment, FreedReason},
-	shared::{self, ALLOWED_RELAY_PARENT_LOOKBACK},
-	ump, ParaId,
+	shared, ump, ParaId,
 };
 use bitvec::prelude::BitVec;
 use frame_support::{
@@ -41,7 +40,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use pallet_babe::{self, ParentBlockRandomness};
-use primitives::v2::{
+use primitives::{
 	BackedCandidate, CandidateHash, CandidateReceipt, CheckedDisputeStatementSet,
 	CheckedMultiDisputeStatementSet, CoreIndex, DisputeStatementSet,
 	InherentData as ParachainsInherentData, MultiDisputeStatementSet, ScrapedOnChainVotes,
@@ -279,6 +278,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
+		#[pallet::call_index(0)]
 		#[pallet::weight((
 			paras_inherent_total_weight::<T>(
 				data.backed_candidates.as_slice(),
@@ -332,18 +332,19 @@ impl<T: Config> Pallet<T> {
 		);
 
 		let now = <frame_system::Pallet<T>>::block_number();
+		let config = <configuration::Pallet<T>>::config();
 
 		// Before anything else, update the allowed relay-parents.
 		{
 			let parent_number = now - One::one();
-			let parent_storage_root = parent_header.state_root().clone();
+			let parent_storage_root = *parent_header.state_root();
 
 			shared::AllowedRelayParents::<T>::mutate(|tracker| {
 				tracker.update(
 					parent_hash,
 					parent_storage_root,
 					parent_number,
-					ALLOWED_RELAY_PARENT_LOOKBACK,
+					config.async_backing_parameters.allowed_ancestry_len,
 				);
 			});
 		}
@@ -364,9 +365,6 @@ impl<T: Config> Pallet<T> {
 			.map_err(|_e| Error::<T>::DisputeStatementsUnsortedOrDuplicates)?;
 
 		let (checked_disputes, total_consumed_weight) = {
-			// Obtain config params..
-			let config = <configuration::Pallet<T>>::config();
-			let max_spam_slots = config.dispute_max_spam_slots;
 			let post_conclusion_acceptance_period =
 				config.dispute_post_conclusion_acceptance_period;
 
@@ -380,7 +378,6 @@ impl<T: Config> Pallet<T> {
 			let dispute_set_validity_check = move |set| {
 				T::DisputesHandler::filter_dispute_data(
 					set,
-					max_spam_slots,
 					post_conclusion_acceptance_period,
 					verify_dispute_sigs,
 				)
@@ -586,6 +583,7 @@ impl<T: Config> Pallet<T> {
 			disputes.len()
 		);
 
+		let config = <configuration::Pallet<T>>::config();
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
 		let now = <frame_system::Pallet<T>>::block_number();
 
@@ -608,14 +606,14 @@ impl<T: Config> Pallet<T> {
 		// Update the allowed relay-parents
 		let allowed_relay_parents = {
 			let parent_number = now - One::one();
-			let parent_storage_root = parent_header.state_root().clone();
+			let parent_storage_root = *parent_header.state_root();
 			let mut tracker = <shared::Pallet<T>>::allowed_relay_parents();
 
 			tracker.update(
 				parent_hash,
 				parent_storage_root,
 				parent_number,
-				ALLOWED_RELAY_PARENT_LOOKBACK,
+				config.async_backing_parameters.allowed_ancestry_len,
 			);
 
 			tracker
@@ -626,8 +624,6 @@ impl<T: Config> Pallet<T> {
 			log::debug!(target: LOG_TARGET, "Found duplicate statement sets, retaining the first");
 		}
 
-		let config = <configuration::Pallet<T>>::config();
-		let max_spam_slots = config.dispute_max_spam_slots;
 		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
 		// TODO: Better if we can convert this to `with_transactional` and handle an error if
@@ -641,7 +637,6 @@ impl<T: Config> Pallet<T> {
 			let dispute_statement_set_valid = move |set: DisputeStatementSet| {
 				T::DisputesHandler::filter_dispute_data(
 					set,
-					max_spam_slots,
 					post_conclusion_acceptance_period,
 					// `DisputeCoordinator` on the node side only forwards
 					// valid dispute statement sets and hence this does not
@@ -1223,7 +1218,7 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	// known 2 epochs ago. it is marginally better than using the parent block
 	// hash since it's harder to influence the VRF output than the block hash.
 	let vrf_random = ParentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
-	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT.clone();
+	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT;
 	if let Some(vrf_random) = vrf_random {
 		entropy.as_mut().copy_from_slice(vrf_random.as_ref());
 	} else {

@@ -302,6 +302,12 @@ where
 
 		// Queue request:
 		if let Err((authority_id, req)) = self.peer_queues.push_req(authority_id, req) {
+			gum::debug!(
+				target: LOG_TARGET,
+				?authority_id,
+				?peer,
+				"Peer hit the rate limit - dropping message."
+			);
 			req.send_outgoing_response(OutgoingResponse {
 				result: Err(()),
 				reputation_changes: vec![COST_APPARENT_FLOOD],
@@ -424,7 +430,7 @@ where
 				);
 				return
 			},
-			Some(vote) => (vote.0.session_index(), vote.0.candidate_hash().clone()),
+			Some(vote) => (vote.0.session_index(), *vote.0.candidate_hash()),
 		};
 
 		let (pending_confirmation, confirmation_rx) = oneshot::channel();

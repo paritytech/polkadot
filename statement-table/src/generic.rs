@@ -30,7 +30,7 @@ use std::{
 	hash::Hash,
 };
 
-use primitives::v2::{ValidatorSignature, ValidityAttestation as PrimitiveValidityAttestation};
+use primitives::{ValidatorSignature, ValidityAttestation as PrimitiveValidityAttestation};
 
 use parity_scale_codec::{Decode, Encode};
 
@@ -426,7 +426,7 @@ impl<Ctx: Context> Table<Ctx> {
 
 					false
 				} else if self.config.allow_multiple_seconded &&
-					existing.proposals.iter().find(|(ref od, _)| od == &digest).is_some()
+					existing.proposals.iter().any(|(ref od, _)| od == &digest)
 				{
 					false
 				} else {

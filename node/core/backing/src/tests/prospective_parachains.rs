@@ -17,11 +17,15 @@
 //! Tests for the backing subsystem with enabled prospective parachains.
 
 use polkadot_node_subsystem::{messages::ChainApiMessage, TimeoutExt};
-use polkadot_primitives::v2::{BlockNumber, Header, OccupiedCore};
+use polkadot_primitives::{
+	v2::{BlockNumber, Header, OccupiedCore},
+	vstaging as vstaging_primitives,
+};
 
 use super::*;
 
-const API_VERSION_PROSPECTIVE_ENABLED: u32 = RuntimeApiRequest::VALIDITY_CONSTRAINTS;
+const ASYNC_BACKING_PARAMETERS: vstaging_primitives::AsyncBackingParameters =
+	vstaging_primitives::AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };
 
 struct TestLeaf {
 	activated: ActivatedLeaf,
@@ -52,9 +56,9 @@ async fn activate_leaf(
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(parent, RuntimeApiRequest::Version(tx))
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
 		) if parent == leaf_hash => {
-			tx.send(Ok(API_VERSION_PROSPECTIVE_ENABLED)).unwrap();
+			tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
 		}
 	);
 

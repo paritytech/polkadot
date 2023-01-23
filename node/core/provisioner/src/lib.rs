@@ -39,7 +39,7 @@ use polkadot_node_subsystem_util::{
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 	TimeoutExt,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BackedCandidate, BlockNumber, CandidateHash, CandidateReceipt, CoreState, Hash, Id as ParaId,
 	OccupiedCoreAssumption, SignedAvailabilityBitfield, ValidatorIndex,
 };
@@ -188,9 +188,8 @@ async fn handle_active_leaves_update(
 		per_relay_parent.remove(deactivated);
 	}
 
-	for leaf in update.activated {
+	if let Some(leaf) = update.activated {
 		let prospective_parachains_mode = prospective_parachains_mode(sender, leaf.hash).await?;
-
 		let delay_fut = Delay::new(PRE_PROPOSE_TIMEOUT).map(move |_| leaf.hash).boxed();
 		per_relay_parent.insert(leaf.hash, PerRelayParent::new(leaf, prospective_parachains_mode));
 		inherent_delays.push(delay_fut);
@@ -384,7 +383,7 @@ async fn send_inherent_data(
 
 	let disputes = match has_required_runtime(
 		from_job,
-		leaf.hash.clone(),
+		leaf.hash,
 		PRIORITIZED_SELECTION_RUNTIME_VERSION_REQUIREMENT,
 	)
 	.await
@@ -525,7 +524,7 @@ fn select_availability_bitfields(
 		bitfields.len()
 	);
 
-	selected.into_iter().map(|(_, b)| b).collect()
+	selected.into_values().collect()
 }
 
 /// Selects candidates from tracked ones to note in a relay chain block.
@@ -693,7 +692,7 @@ async fn select_candidates(
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 ) -> Result<Vec<BackedCandidate>, Error> {
 	let selected_candidates = match prospective_parachains_mode {
-		ProspectiveParachainsMode::Enabled =>
+		ProspectiveParachainsMode::Enabled { .. } =>
 			request_backable_candidates(availability_cores, bitfields, relay_parent, sender).await?,
 		ProspectiveParachainsMode::Disabled =>
 			select_candidate_hashes_from_tracked(

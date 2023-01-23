@@ -24,7 +24,7 @@
 use crate::{metrics, LOG_TARGET};
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::DisputeCoordinatorMessage, overseer};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, DisputeStatement, DisputeStatementSet, MultiDisputeStatementSet, SessionIndex,
 };
 use std::collections::HashSet;
@@ -42,51 +42,35 @@ enum RequestType {
 }
 
 /// Request open disputes identified by `CandidateHash` and the `SessionIndex`.
-async fn request_disputes(
+/// Returns only confirmed/concluded disputes. The rest are filtered out.
+async fn request_confirmed_disputes(
 	sender: &mut impl overseer::ProvisionerSenderTrait,
 	active_or_recent: RequestType,
 ) -> Vec<(SessionIndex, CandidateHash)> {
-	let disputes = match active_or_recent {
-		RequestType::Recent => {
-			let (tx, rx) = oneshot::channel();
-			let msg = DisputeCoordinatorMessage::RecentDisputes(tx);
-			sender.send_unbounded_message(msg);
-			let recent_disputes = match rx.await {
-				Ok(r) => r,
-				Err(oneshot::Canceled) => {
-					gum::warn!(
-						target: LOG_TARGET,
-						"Channel closed: unable to gather {:?} disputes",
-						active_or_recent
-					);
-					Vec::new()
-				},
-			};
-			recent_disputes
-				.into_iter()
-				.map(|(sesion_idx, candodate_hash, _)| (sesion_idx, candodate_hash))
-				.collect::<Vec<_>>()
-		},
-		RequestType::Active => {
-			let (tx, rx) = oneshot::channel();
-			let msg = DisputeCoordinatorMessage::ActiveDisputes(tx);
-			sender.send_unbounded_message(msg);
-			let active_disputes = match rx.await {
-				Ok(r) => r,
-				Err(oneshot::Canceled) => {
-					gum::warn!(
-						target: LOG_TARGET,
-						"Unable to gather {:?} disputes",
-						active_or_recent
-					);
-					Vec::new()
-				},
-			};
-			active_disputes
+	let (tx, rx) = oneshot::channel();
+	let msg = match active_or_recent {
+		RequestType::Recent => DisputeCoordinatorMessage::RecentDisputes(tx),
+		RequestType::Active => DisputeCoordinatorMessage::ActiveDisputes(tx),
+	};
+
+	sender.send_unbounded_message(msg);
+	let disputes = match rx.await {
+		Ok(r) => r,
+		Err(oneshot::Canceled) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				"Channel closed: unable to gather {:?} disputes",
+				active_or_recent
+			);
+			Vec::new()
 		},
 	};
 
 	disputes
+		.into_iter()
+		.filter(|d| d.2.is_confirmed_concluded())
+		.map(|d| (d.0, d.1))
+		.collect()
 }
 
 /// Extend `acc` by `n` random, picks of not-yet-present in `acc` items of `recent` without repetition and additions of recent.
@@ -132,7 +116,7 @@ where
 	// In case of an overload condition, we limit ourselves to active disputes, and fill up to the
 	// upper bound of disputes to pass to wasm `fn create_inherent_data`.
 	// If the active ones are already exceeding the bounds, randomly select a subset.
-	let recent = request_disputes(sender, RequestType::Recent).await;
+	let recent = request_confirmed_disputes(sender, RequestType::Recent).await;
 	let disputes = if recent.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
 		gum::warn!(
 			target: LOG_TARGET,
@@ -140,7 +124,7 @@ where
 			recent.len(),
 			MAX_DISPUTES_FORWARDED_TO_RUNTIME
 		);
-		let mut active = request_disputes(sender, RequestType::Active).await;
+		let mut active = request_confirmed_disputes(sender, RequestType::Active).await;
 		let n_active = active.len();
 		let active = if active.len() > MAX_DISPUTES_FORWARDED_TO_RUNTIME {
 			let mut picked = Vec::with_capacity(MAX_DISPUTES_FORWARDED_TO_RUNTIME);

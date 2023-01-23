@@ -1,6 +1,26 @@
 # This file is part of .gitlab-ci.yml
 # Here are all jobs that are executed during "test" stage
 
+# It's more like a check and it belongs to the previous stage, but we want to run this job with real tests in parallel
+find-fail-ci-phrase:
+  stage:                           test
+  variables:
+    CI_IMAGE:                      "paritytech/tools:latest"
+    ASSERT_REGEX:                  "FAIL-CI"
+    GIT_DEPTH:                     1
+  extends:
+    - .kubernetes-env
+  script:
+    - set +e
+    - rg --line-number --hidden --type rust --glob '!{.git,target}' "$ASSERT_REGEX" .; exit_status=$?
+    - if [ $exit_status -eq 0 ]; then 
+        echo "$ASSERT_REGEX was found, exiting with 1";
+        exit 1;
+      else
+        echo "No $ASSERT_REGEX was found, exiting with 0";
+        exit 0;
+      fi
+
 test-linux-stable:
   stage:                           test
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
@@ -72,3 +92,18 @@ test-deterministic-wasm:
     - .compiler-info
   script:
     - ./scripts/ci/gitlab/test_deterministic_wasm.sh
+
+cargo-clippy:
+  stage:                           test
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job:                         job-starter
+      artifacts:                   false
+  variables:
+    RUSTY_CACHIER_TOOLCHAIN: nightly
+  extends:
+    - .docker-env
+    - .test-refs
+  script:
+    - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo +nightly clippy --all-targets

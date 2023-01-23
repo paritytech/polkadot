@@ -34,7 +34,7 @@ use polkadot_node_network_protocol::{
 	request_response::{v1 as request_v1, vstaging as protocol_vstaging, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v2::CollatorPair;
+use polkadot_primitives::CollatorPair;
 
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::NetworkBridgeTxMessage, overseer, SpawnedSubsystem,
@@ -46,15 +46,6 @@ mod collator_side;
 mod validator_side;
 
 const LOG_TARGET: &'static str = "parachain::collator-protocol";
-
-/// The maximum depth a candidate can occupy for any relay parent.
-/// 'depth' is defined as the amount of blocks between the para
-/// head in a relay-chain block's state and a candidate with a
-/// particular relay-parent.
-///
-/// This value is only used for limiting the number of candidates
-/// we accept and distribute per relay parent.
-const MAX_CANDIDATE_DEPTH: usize = 4;
 
 /// A collator eviction policy - how fast to evict collators which are inactive.
 #[derive(Debug, Clone, Copy)]

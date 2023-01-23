@@ -31,9 +31,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "std")]
 use sp_core::bytes;
 
-#[cfg(feature = "std")]
-use parity_util_mem::MallocSizeOf;
-
 use polkadot_core_primitives::{Hash, OutboundHrmpMessage};
 
 /// Block number type used by the relay chain.
@@ -43,7 +40,7 @@ pub use polkadot_core_primitives::BlockNumber as RelayChainBlockNumber;
 #[derive(
 	PartialEq, Eq, Clone, PartialOrd, Ord, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo,
 )]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf, Default))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, Default))]
 pub struct HeadData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 impl HeadData {
@@ -55,7 +52,7 @@ impl HeadData {
 
 /// Parachain validation code.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, RuntimeDebug, derive_more::From, TypeInfo)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize, Hash))]
 pub struct ValidationCode(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 impl ValidationCode {
@@ -71,7 +68,6 @@ impl ValidationCode {
 ///
 /// This type makes it easy to enforce that a hash is a validation code hash on the type level.
 #[derive(Clone, Copy, Encode, Decode, Hash, Eq, PartialEq, PartialOrd, Ord, TypeInfo)]
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct ValidationCodeHash(Hash);
 
 impl sp_std::fmt::Display for ValidationCodeHash {
@@ -114,7 +110,7 @@ impl sp_std::fmt::LowerHex for ValidationCodeHash {
 ///
 /// Contains everything required to validate para-block, may contain block and witness data.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, derive_more::From, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Serialize, Deserialize, MallocSizeOf))]
+#[cfg_attr(feature = "std", derive(Serialize, Deserialize))]
 pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec<u8>);
 
 /// Unique identifier of a parachain.
@@ -134,10 +130,7 @@ pub struct BlockData(#[cfg_attr(feature = "std", serde(with = "bytes"))] pub Vec
 	RuntimeDebug,
 	TypeInfo,
 )]
-#[cfg_attr(
-	feature = "std",
-	derive(serde::Serialize, serde::Deserialize, derive_more::Display, MallocSizeOf)
-)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize, derive_more::Display))]
 pub struct Id(u32);
 
 impl TypeId for Id {

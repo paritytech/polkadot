@@ -29,7 +29,7 @@ use polkadot_node_subsystem_types::{
 	messages::{NetworkBridgeEvent, RuntimeApiRequest},
 	ActivatedLeaf, LeafStatus,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, CandidateReceipt, CollatorPair, Id as ParaId, InvalidDisputeStatementKind,
 	SessionIndex, ValidDisputeStatementKind, ValidatorIndex,
 };
@@ -241,7 +241,7 @@ fn overseer_metrics_work() {
 				.unwrap();
 
 		let mut handle = Handle::new(handle);
-		let overseer_fut = overseer.run().fuse();
+		let overseer_fut = overseer.run_inner().fuse();
 
 		pin_mut!(overseer_fut);
 
@@ -302,7 +302,7 @@ fn overseer_ends_on_subsystem_exit() {
 			.build()
 			.unwrap();
 
-		overseer.run().await.unwrap();
+		overseer.run_inner().await.unwrap();
 	})
 }
 
@@ -400,7 +400,7 @@ fn overseer_start_stop_works() {
 			.unwrap();
 		let mut handle = Handle::new(handle);
 
-		let overseer_fut = overseer.run().fuse();
+		let overseer_fut = overseer.run_inner().fuse();
 		pin_mut!(overseer_fut);
 
 		let mut ss5_results = Vec::new();
@@ -499,7 +499,7 @@ fn overseer_finalize_works() {
 			.unwrap();
 		let mut handle = Handle::new(handle);
 
-		let overseer_fut = overseer.run().fuse();
+		let overseer_fut = overseer.run_inner().fuse();
 		pin_mut!(overseer_fut);
 
 		let mut ss5_results = Vec::new();
@@ -595,7 +595,7 @@ fn overseer_finalize_leaf_preserves_it() {
 			.unwrap();
 		let mut handle = Handle::new(handle);
 
-		let overseer_fut = overseer.run().fuse();
+		let overseer_fut = overseer.run_inner().fuse();
 		pin_mut!(overseer_fut);
 
 		let mut ss5_results = Vec::new();
@@ -684,7 +684,7 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 
 		let mut handle = Handle::new(handle);
 
-		let overseer_fut = overseer.run().fuse();
+		let overseer_fut = overseer.run_inner().fuse();
 		pin_mut!(overseer_fut);
 
 		let mut ss5_results = Vec::new();
@@ -954,7 +954,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 				.unwrap();
 
 		let mut handle = Handle::new(handle);
-		let overseer_fut = overseer.run().fuse();
+		let overseer_fut = overseer.run_inner().fuse();
 
 		pin_mut!(overseer_fut);
 

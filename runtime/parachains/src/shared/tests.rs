@@ -32,25 +32,25 @@ fn tracker_earliest_block_number() {
 
 	// Test it on an empty tracker.
 	let now: u32 = 1;
-	let max_len = 5;
-	assert_eq!(tracker.hypothetical_earliest_block_number(now, max_len), now);
+	let max_ancestry_len = 5;
+	assert_eq!(tracker.hypothetical_earliest_block_number(now, max_ancestry_len), now);
 
 	// Push a single block into the tracker, suppose max capacity is 1.
-	let max_len = 1;
-	tracker.update(Hash::zero(), Hash::zero(), 0, max_len);
-	assert_eq!(tracker.hypothetical_earliest_block_number(now, max_len), now);
+	let max_ancestry_len = 0;
+	tracker.update(Hash::zero(), Hash::zero(), 0, max_ancestry_len);
+	assert_eq!(tracker.hypothetical_earliest_block_number(now, max_ancestry_len), now);
 
 	// Test a greater capacity.
-	let max_len = 5;
+	let max_ancestry_len = 4;
 	let now = 4;
 	for i in 1..now {
-		tracker.update(Hash::zero(), Hash::zero(), i, max_len);
-		assert_eq!(tracker.hypothetical_earliest_block_number(i + 1, max_len), 0);
+		tracker.update(Hash::zero(), Hash::zero(), i, max_ancestry_len);
+		assert_eq!(tracker.hypothetical_earliest_block_number(i + 1, max_ancestry_len), 0);
 	}
 
 	// Capacity exceeded.
-	tracker.update(Hash::zero(), Hash::zero(), now, max_len);
-	assert_eq!(tracker.hypothetical_earliest_block_number(now + 1, max_len), 1);
+	tracker.update(Hash::zero(), Hash::zero(), now, max_ancestry_len);
+	assert_eq!(tracker.hypothetical_earliest_block_number(now + 1, max_ancestry_len), 1);
 }
 
 #[test]

@@ -18,8 +18,10 @@
 
 use crate::{configuration, disputes, dmp, hrmp, initializer, paras, shared, ump};
 use primitives::{
-	v2::{CandidateHash, DisputeState, Id as ParaId, SessionIndex},
-	vstaging::{Constraints, InboundHrmpLimitations, OutboundHrmpChannelLimitations},
+	vstaging::{
+		AsyncBackingParameters, Constraints, InboundHrmpLimitations, OutboundHrmpChannelLimitations,
+	},
+	CandidateHash, DisputeState, Id as ParaId, SessionIndex,
 };
 use sp_std::prelude::*;
 
@@ -33,6 +35,7 @@ pub fn get_session_disputes<T: disputes::Config>(
 pub fn validity_constraints<T: initializer::Config>(
 	para_id: ParaId,
 ) -> Option<Constraints<T::BlockNumber>> {
+	let config = <configuration::Pallet<T>>::config();
 	// Async backing is only expected to be enabled with a tracker capacity of 1.
 	// Subsequent configuration update gets applied on new session, which always
 	// clears the buffer.
@@ -40,7 +43,10 @@ pub fn validity_constraints<T: initializer::Config>(
 	// Thus, minimum relay parent is ensured to have asynchronous backing enabled.
 	let now = <frame_system::Pallet<T>>::block_number();
 	let min_relay_parent_number = <shared::Pallet<T>>::allowed_relay_parents()
-		.hypothetical_earliest_block_number(now, shared::ALLOWED_RELAY_PARENT_LOOKBACK);
+		.hypothetical_earliest_block_number(
+			now,
+			config.async_backing_parameters.allowed_ancestry_len,
+		);
 
 	let required_parent = <paras::Pallet<T>>::para_head(para_id)?;
 	let validation_code_hash = <paras::Pallet<T>>::current_code_hash(para_id)?;
@@ -52,7 +58,6 @@ pub fn validity_constraints<T: initializer::Config>(
 			Some(block_num).zip(<paras::Pallet<T>>::future_code_hash(para_id))
 		});
 
-	let config = <configuration::Pallet<T>>::config();
 	let (ump_msg_count, ump_total_bytes) = <ump::Pallet<T>>::relay_dispatch_queue_size(para_id);
 	let ump_remaining = config.max_upward_queue_count - ump_msg_count;
 	let ump_remaining_bytes = config.max_upward_queue_size - ump_total_bytes;
@@ -84,4 +89,9 @@ pub fn validity_constraints<T: initializer::Config>(
 		upgrade_restriction,
 		future_validation_code,
 	})
+}
+
+/// Implementation for `StagingAsyncBackingParameters` function from the runtime API
+pub fn async_backing_parameters<T: configuration::Config>() -> AsyncBackingParameters {
+	<configuration::Pallet<T>>::config().async_backing_parameters
 }

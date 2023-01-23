@@ -39,7 +39,7 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	GroupIndex, Hash, HeadData, Id as ParaId, IndexedVec, SessionInfo, ValidationCode,
 };
 use polkadot_primitives_test_helpers::{

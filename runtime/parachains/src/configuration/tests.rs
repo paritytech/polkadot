@@ -293,6 +293,10 @@ fn consistency_bypass_works() {
 fn setting_pending_config_members() {
 	new_test_ext(Default::default()).execute_with(|| {
 		let new_config = HostConfiguration {
+			async_backing_parameters: AsyncBackingParameters {
+				max_candidate_depth: 0,
+				allowed_ancestry_len: 0,
+			},
 			validation_upgrade_cooldown: 100,
 			validation_upgrade_delay: 10,
 			code_retention_period: 5,
@@ -309,7 +313,6 @@ fn setting_pending_config_members() {
 			max_validators: None,
 			dispute_period: 239,
 			dispute_post_conclusion_acceptance_period: 10,
-			dispute_max_spam_slots: 2,
 			dispute_conclusion_by_time_out_period: 512,
 			no_show_slots: 240,
 			n_delay_tranches: 241,
@@ -319,7 +322,7 @@ fn setting_pending_config_members() {
 			max_upward_queue_count: 1337,
 			max_upward_queue_size: 228,
 			max_downward_message_size: 2048,
-			ump_service_total_weight: Weight::from_ref_time(20000),
+			ump_service_total_weight: Weight::from_parts(20000, 20000),
 			max_upward_message_size: 448,
 			max_upward_message_num_per_candidate: 5,
 			hrmp_sender_deposit: 22,
@@ -332,7 +335,7 @@ fn setting_pending_config_members() {
 			hrmp_max_parachain_outbound_channels: 10,
 			hrmp_max_parathread_outbound_channels: 20,
 			hrmp_max_message_num_per_candidate: 20,
-			ump_max_individual_weight: Weight::from_ref_time(909),
+			ump_max_individual_weight: Weight::from_parts(909, 909),
 			pvf_checking_enabled: true,
 			pvf_voting_ttl: 3,
 			minimum_validation_upgrade_delay: 20,
@@ -400,11 +403,6 @@ fn setting_pending_config_members() {
 		Configuration::set_dispute_post_conclusion_acceptance_period(
 			RuntimeOrigin::root(),
 			new_config.dispute_post_conclusion_acceptance_period,
-		)
-		.unwrap();
-		Configuration::set_dispute_max_spam_slots(
-			RuntimeOrigin::root(),
-			new_config.dispute_max_spam_slots,
 		)
 		.unwrap();
 		Configuration::set_dispute_conclusion_by_time_out_period(
@@ -539,7 +537,7 @@ fn verify_externally_accessible() {
 	// This test verifies that the value can be accessed through the well known keys and the
 	// host configuration decodes into the abridged version.
 
-	use primitives::v2::{well_known_keys, AbridgedHostConfiguration};
+	use primitives::{well_known_keys, AbridgedHostConfiguration};
 
 	new_test_ext(Default::default()).execute_with(|| {
 		let ground_truth = HostConfiguration::default();

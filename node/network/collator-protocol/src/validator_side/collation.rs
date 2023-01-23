@@ -37,7 +37,7 @@ use polkadot_primitives::v2::{
 	CandidateHash, CandidateReceipt, CollatorId, Hash, Id as ParaId, PersistedValidationData,
 };
 
-use crate::{error::SecondingError, LOG_TARGET, MAX_CANDIDATE_DEPTH};
+use crate::{error::SecondingError, LOG_TARGET};
 
 /// Candidate supplied with a para head it's built on top of.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -258,7 +258,13 @@ impl Collations {
 		relay_parent_mode: ProspectiveParachainsMode,
 	) -> bool {
 		let seconded_limit =
-			if relay_parent_mode.is_enabled() { MAX_CANDIDATE_DEPTH + 1 } else { 1 };
+			if let ProspectiveParachainsMode::Enabled { max_candidate_depth, .. } =
+				relay_parent_mode
+			{
+				max_candidate_depth + 1
+			} else {
+				1
+			};
 		self.seconded_count < seconded_limit
 	}
 }

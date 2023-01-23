@@ -24,15 +24,28 @@ use parity_scale_codec::{Decode, Encode};
 use primitives::RuntimeDebug;
 use scale_info::TypeInfo;
 
-#[cfg(feature = "std")]
-use parity_util_mem::MallocSizeOf;
-
 /// Useful type alias for Para IDs.
 pub type ParaId = Id;
 
+/// Candidate's acceptance limitations for asynchronous backing per relay parent.
+#[derive(RuntimeDebug, Copy, Clone, PartialEq, Encode, Decode, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+pub struct AsyncBackingParameters {
+	/// The maximum number of para blocks between the para head in a relay parent
+	/// and a new candidate. Restricts nodes from building arbitrary long chains
+	/// and spamming other validators.
+	///
+	/// When async backing is disabled, the only valid value is 0.
+	pub max_candidate_depth: u32,
+	/// How many ancestors of a relay parent are allowed to build candidates on top
+	/// of.
+	///
+	/// When async backing is disabled, the only valid value is 0.
+	pub allowed_ancestry_len: u32,
+}
+
 /// Constraints on inbound HRMP channels.
 #[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct InboundHrmpLimitations<N = BlockNumber> {
 	/// An exhaustive set of all valid watermarks, sorted ascending.
 	///
@@ -43,7 +56,6 @@ pub struct InboundHrmpLimitations<N = BlockNumber> {
 
 /// Constraints on outbound HRMP channels.
 #[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct OutboundHrmpChannelLimitations {
 	/// The maximum bytes that can be written to the channel.
 	pub bytes_remaining: u32,
@@ -55,7 +67,6 @@ pub struct OutboundHrmpChannelLimitations {
 /// block. These limitations are implicitly associated with some particular
 /// parachain, which should be apparent from usage.
 #[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(MallocSizeOf))]
 pub struct Constraints<N = BlockNumber> {
 	/// The minimum relay-parent number accepted under these constraints.
 	pub min_relay_parent_number: N,

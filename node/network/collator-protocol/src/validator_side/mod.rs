@@ -66,7 +66,7 @@ use polkadot_primitives::v2::{
 
 use crate::error::{Error, FetchError, Result, SecondingError};
 
-use super::{modify_reputation, tick_stream, LOG_TARGET, MAX_CANDIDATE_DEPTH};
+use super::{modify_reputation, tick_stream, LOG_TARGET};
 
 mod collation;
 mod metrics;
@@ -274,7 +274,10 @@ impl PeerData {
 							.advertisements
 							.insert(on_relay_parent, HashSet::from_iter(candidate_hash));
 					},
-					(ProspectiveParachainsMode::Enabled, Some(candidate_hash)) => {
+					(
+						ProspectiveParachainsMode::Enabled { max_candidate_depth, .. },
+						Some(candidate_hash),
+					) => {
 						if state
 							.advertisements
 							.get(&on_relay_parent)
@@ -284,7 +287,7 @@ impl PeerData {
 						}
 						let candidates = state.advertisements.entry(on_relay_parent).or_default();
 
-						if candidates.len() >= MAX_CANDIDATE_DEPTH + 1 {
+						if candidates.len() >= max_candidate_depth + 1 {
 							return Err(InsertAdvertisementError::PeerLimitReached)
 						}
 						candidates.insert(candidate_hash);
@@ -461,7 +464,7 @@ fn is_relay_parent_in_implicit_view(
 ) -> bool {
 	match relay_parent_mode {
 		ProspectiveParachainsMode::Disabled => active_leaves.contains_key(relay_parent),
-		ProspectiveParachainsMode::Enabled => active_leaves.iter().any(|(hash, mode)| {
+		ProspectiveParachainsMode::Enabled { .. } => active_leaves.iter().any(|(hash, mode)| {
 			mode.is_enabled() &&
 				implicit_view
 					.known_allowed_relay_parents_under(hash, Some(para_id))
@@ -571,9 +574,9 @@ fn collator_peer_id(
 	peer_data: &HashMap<PeerId, PeerData>,
 	collator_id: &CollatorId,
 ) -> Option<PeerId> {
-	peer_data.iter().find_map(|(peer, data)| {
-		data.collator_id().filter(|c| c == &collator_id).map(|_| peer.clone())
-	})
+	peer_data
+		.iter()
+		.find_map(|(peer, data)| data.collator_id().filter(|c| c == &collator_id).map(|_| *peer))
 }
 
 async fn disconnect_peer(sender: &mut impl overseer::CollatorProtocolSenderTrait, peer_id: PeerId) {
@@ -846,7 +849,7 @@ async fn process_incoming_peer_message<Context>(
 					"Declared as collator for unneeded para",
 				);
 
-				modify_reputation(ctx.sender(), origin.clone(), COST_UNNEEDED_COLLATOR).await;
+				modify_reputation(ctx.sender(), origin, COST_UNNEEDED_COLLATOR).await;
 				gum::trace!(target: LOG_TARGET, "Disconnecting unneeded collator");
 				disconnect_peer(ctx.sender(), origin).await;
 			}
@@ -1277,8 +1280,7 @@ where
 				.unwrap_or_default();
 			for block_hash in allowed_ancestry {
 				if let Entry::Vacant(entry) = state.per_relay_parent.entry(*block_hash) {
-					let mut per_relay_parent =
-						PerRelayParent::new(ProspectiveParachainsMode::Enabled);
+					let mut per_relay_parent = PerRelayParent::new(mode);
 					assign_incoming(
 						sender,
 						&mut per_relay_parent.assignment,
@@ -1646,7 +1648,7 @@ async fn poll_requests(
 			retained_requested.insert(pending_collation.clone());
 		}
 		if let CollationFetchResult::Error(Some(rep)) = result {
-			reputation_changes.push((pending_collation.peer_id.clone(), rep));
+			reputation_changes.push((pending_collation.peer_id, rep));
 		}
 	}
 	requested_collations.retain(|k, _| retained_requested.contains(k));
@@ -1763,7 +1765,7 @@ async fn kick_off_seconding<Context>(
 
 		let pvd = match (relay_parent_mode, collation_event.1.prospective_candidate) {
 			(
-				ProspectiveParachainsMode::Enabled,
+				ProspectiveParachainsMode::Enabled { .. },
 				Some(ProspectiveCandidate { parent_head_data_hash, .. }),
 			) =>
 				request_prospective_validation_data(
@@ -1818,7 +1820,7 @@ async fn disconnect_inactive_peers(
 	for (peer, peer_data) in peers {
 		if peer_data.is_inactive(&eviction_policy) {
 			gum::trace!(target: LOG_TARGET, "Disconnecting inactive peer");
-			disconnect_peer(sender, peer.clone()).await;
+			disconnect_peer(sender, *peer).await;
 		}
 	}
 }

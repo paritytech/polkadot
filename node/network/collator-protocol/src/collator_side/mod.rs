@@ -52,12 +52,12 @@ use polkadot_node_subsystem_util::{
 	},
 	TimeoutExt,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState,
 	GroupIndex, Hash, Id as ParaId, SessionIndex,
 };
 
-use super::{LOG_TARGET, MAX_CANDIDATE_DEPTH};
+use super::LOG_TARGET;
 use crate::{
 	error::{log_error, Error, FatalError, Result},
 	modify_reputation,
@@ -345,7 +345,7 @@ async fn distribute_collation<Context>(
 
 	let collations_limit = match relay_parent_mode {
 		ProspectiveParachainsMode::Disabled => 1,
-		ProspectiveParachainsMode::Enabled => MAX_CANDIDATE_DEPTH + 1,
+		ProspectiveParachainsMode::Enabled { max_candidate_depth, .. } => max_candidate_depth + 1,
 	};
 
 	if per_relay_parent.collations.len() >= collations_limit {
@@ -455,7 +455,7 @@ async fn distribute_collation<Context>(
 			.iter()
 			.filter(|(_, PeerData { view: v, .. })| match relay_parent_mode {
 				ProspectiveParachainsMode::Disabled => v.contains(&candidate_relay_parent),
-				ProspectiveParachainsMode::Enabled => v.iter().any(|block_hash| {
+				ProspectiveParachainsMode::Enabled { .. } => v.iter().any(|block_hash| {
 					state
 						.implicit_view
 						.known_allowed_relay_parents_under(block_hash, Some(id))
@@ -1063,7 +1063,7 @@ async fn handle_peer_view_change<Context>(
 			.map(|per_relay_parent| per_relay_parent.prospective_parachains_mode)
 		{
 			Some(ProspectiveParachainsMode::Disabled) => std::slice::from_ref(&added),
-			Some(ProspectiveParachainsMode::Enabled) => state
+			Some(ProspectiveParachainsMode::Enabled { .. }) => state
 				.implicit_view
 				.known_allowed_relay_parents_under(&added, state.collating_on)
 				.unwrap_or_default(),
@@ -1209,7 +1209,7 @@ where
 				state
 					.per_relay_parent
 					.entry(*block_hash)
-					.or_insert_with(|| PerRelayParent::new(ProspectiveParachainsMode::Enabled));
+					.or_insert_with(|| PerRelayParent::new(mode));
 			}
 		}
 	}
@@ -1345,7 +1345,7 @@ pub(crate) async fn run<Context>(
 						(ProspectiveParachainsMode::Disabled, VersionedCollationRequest::V1(_)) => {
 							per_relay_parent.collations.values().next()
 						},
-						(ProspectiveParachainsMode::Enabled, VersionedCollationRequest::VStaging(req)) => {
+						(ProspectiveParachainsMode::Enabled { .. }, VersionedCollationRequest::VStaging(req)) => {
 							per_relay_parent.collations.get(&req.payload.candidate_hash)
 						},
 						_ => {
