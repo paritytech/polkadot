@@ -13,7 +13,7 @@ find-fail-ci-phrase:
   script:
     - set +e
     - rg --line-number --hidden --type rust --glob '!{.git,target}' "$ASSERT_REGEX" .; exit_status=$?
-    - if [ $exit_status -eq 0 ]; then 
+    - if [ $exit_status -eq 0 ]; then
         echo "$ASSERT_REGEX was found, exiting with 1";
         exit 1;
       else
@@ -112,6 +112,11 @@ test-crate-publishing:
   extends:
     - .test-refs
     - .crates-publishing-template
+  # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
+  # the job can be found in check.yml
+  needs:
+    - job:                         job-starter
+      artifacts:                   false
   timeout: 5h
   script:
     - git clone
