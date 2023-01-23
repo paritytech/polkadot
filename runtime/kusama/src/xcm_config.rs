@@ -326,6 +326,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_nomination_pools::Call::update_roles { .. } |
 				pallet_nomination_pools::Call::chill { .. },
 			) |
+			RuntimeCall::Hrmp(..) |
 			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
 				..
 			}) => true,

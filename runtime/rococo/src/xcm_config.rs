@@ -261,6 +261,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_bounties::Call::close_bounty { .. },
 			) |
 			RuntimeCall::ChildBounties(..) |
+			RuntimeCall::Hrmp(..) |
 			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
 				..
 			}) => true,
