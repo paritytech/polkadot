@@ -17,15 +17,17 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 #![cfg(test)]
 
+use frame_support::{codec::Encode, dispatch::GetDispatchInfo, weights::Weight};
 use polkadot_test_client::{
 	BlockBuilderExt, ClientBlockImportExt, DefaultTestClientBuilderExt, ExecutionStrategy,
 	InitPolkadotBlockBuilder, TestClientBuilder, TestClientBuilderExt,
 };
-use polkadot_test_runtime::pallet_test_notifier;
+use polkadot_test_runtime::{pallet_test_notifier, xcm_config::XcmConfig};
 use polkadot_test_service::construct_extrinsic;
 use sp_runtime::traits::Block;
 use sp_state_machine::InspectState;
 use xcm::{latest::prelude::*, VersionedResponse, VersionedXcm};
+use xcm_executor::traits::WeightBounds;
 
 #[test]
 fn basic_buy_fees_message_executes() {
@@ -37,7 +39,7 @@ fn basic_buy_fees_message_executes() {
 	let msg = Xcm(vec![
 		WithdrawAsset((Parent, 100).into()),
 		BuyExecution { fees: (Parent, 1).into(), weight_limit: Unlimited },
-		DepositAsset { assets: Wild(All), max_assets: 1, beneficiary: Parent.into() },
+		DepositAsset { assets: Wild(AllCounted(1)), beneficiary: Parent.into() },
 	]);
 
 	let mut block_builder = client.init_polkadot_block_builder();
@@ -46,7 +48,7 @@ fn basic_buy_fees_message_executes() {
 		&client,
 		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: Box::new(VersionedXcm::from(msg)),
-			max_weight: 1_000_000_000,
+			max_weight: Weight::from_parts(1_000_000_000, 1024 * 1024),
 		}),
 		sp_keyring::Sr25519Keyring::Alice,
 		0,
@@ -65,6 +67,59 @@ fn basic_buy_fees_message_executes() {
 			r.event,
 			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted(
 				Outcome::Complete(_)
+			)),
+		)));
+	});
+}
+
+#[test]
+fn transact_recursion_limit_works() {
+	sp_tracing::try_init_simple();
+	let mut client = TestClientBuilder::new()
+		.set_execution_strategy(ExecutionStrategy::AlwaysWasm)
+		.build();
+
+	let mut msg = Xcm(vec![ClearOrigin]);
+	let max_weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut msg).unwrap();
+	let mut call = polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
+		message: Box::new(VersionedXcm::from(msg)),
+		max_weight,
+	});
+
+	for _ in 0..11 {
+		let mut msg = Xcm(vec![
+			WithdrawAsset((Parent, 1_000).into()),
+			BuyExecution { fees: (Parent, 1).into(), weight_limit: Unlimited },
+			Transact {
+				origin_kind: OriginKind::Native,
+				require_weight_at_most: call.get_dispatch_info().weight,
+				call: call.encode().into(),
+			},
+		]);
+		let max_weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut msg).unwrap();
+		call = polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
+			message: Box::new(VersionedXcm::from(msg)),
+			max_weight,
+		});
+	}
+
+	let mut block_builder = client.init_polkadot_block_builder();
+
+	let execute = construct_extrinsic(&client, call, sp_keyring::Sr25519Keyring::Alice, 0);
+
+	block_builder.push_polkadot_extrinsic(execute).expect("pushes extrinsic");
+
+	let block = block_builder.build().expect("Finalizes the block").block;
+	let block_hash = block.hash();
+
+	futures::executor::block_on(client.import(sp_consensus::BlockOrigin::Own, block))
+		.expect("imports the block");
+
+	client.state_at(block_hash).expect("state should exist").inspect_state(|| {
+		assert!(polkadot_test_runtime::System::events().iter().any(|r| matches!(
+			r.event,
+			polkadot_test_runtime::RuntimeEvent::Xcm(pallet_xcm::Event::Attempted(
+				Outcome::Incomplete(_, XcmError::ExceedsStackLimit)
 			)),
 		)));
 	});
@@ -114,15 +169,16 @@ fn query_response_fires() {
 	let mut block_builder = client.init_polkadot_block_builder();
 
 	let response = Response::ExecutionResult(None);
-	let max_weight = 1_000_000;
-	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+	let max_weight = Weight::from_parts(1_000_000, 1024 * 1024);
+	let querier = Some(Here.into());
+	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight, querier }]);
 	let msg = Box::new(VersionedXcm::from(msg));
 
 	let execute = construct_extrinsic(
 		&client,
 		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: msg,
-			max_weight: 1_000_000_000,
+			max_weight: Weight::from_parts(1_000_000_000, 1024 * 1024),
 		}),
 		sp_keyring::Sr25519Keyring::Alice,
 		1,
@@ -147,7 +203,7 @@ fn query_response_fires() {
 		assert_eq!(
 			polkadot_test_runtime::Xcm::query(query_id),
 			Some(QueryStatus::Ready {
-				response: VersionedResponse::V2(Response::ExecutionResult(None)),
+				response: VersionedResponse::V3(Response::ExecutionResult(None)),
 				at: 2u32.into()
 			}),
 		)
@@ -197,14 +253,15 @@ fn query_response_elicits_handler() {
 	let mut block_builder = client.init_polkadot_block_builder();
 
 	let response = Response::ExecutionResult(None);
-	let max_weight = 1_000_000;
-	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight }]);
+	let max_weight = Weight::from_parts(1_000_000, 1024 * 1024);
+	let querier = Some(Here.into());
+	let msg = Xcm(vec![QueryResponse { query_id, response, max_weight, querier }]);
 
 	let execute = construct_extrinsic(
 		&client,
 		polkadot_test_runtime::RuntimeCall::Xcm(pallet_xcm::Call::execute {
 			message: Box::new(VersionedXcm::from(msg)),
-			max_weight: 1_000_000_000,
+			max_weight: Weight::from_parts(1_000_000_000, 1024 * 1024),
 		}),
 		sp_keyring::Sr25519Keyring::Alice,
 		1,
