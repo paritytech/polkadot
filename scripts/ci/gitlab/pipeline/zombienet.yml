@@ -303,8 +303,9 @@ zombienet-tests-beefy-and-mmr:
 zombienet-tests-slashing:
   stage:                           stage3
   image:                           "${ZOMBIENET_IMAGE}"
-  <<:                              *kubernetes-env
-  <<:                              *zombienet-refs
+  extends:
+    - .kubernetes-env
+    - .zombienet-refs
   needs:
     - job:                         publish-polkadot-debug-image
     - job:                         publish-test-collators-image
