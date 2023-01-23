@@ -33,7 +33,7 @@ use xcm_executor::traits::{MatchesFungible, MatchesNonFungible};
 ///
 /// ```
 /// use xcm::latest::{MultiLocation, Parent};
-/// use xcm_builder::IsConcrete;
+/// use xcmsg_builder::IsConcrete;
 /// use xcm::traits::MatchesFungible;
 ///
 /// frame_support::parameter_types! {
@@ -71,7 +71,7 @@ impl<T: Get<MultiLocation>, I: TryFrom<AssetInstance>> MatchesNonFungible<I> for
 ///
 /// ```
 /// use xcm::latest::prelude::*;
-/// use xcm_builder::IsAbstract;
+/// use xcmsg_builder::IsAbstract;
 /// use xcm_executor::traits::{MatchesFungible, MatchesNonFungible};
 ///
 /// frame_support::parameter_types! {
