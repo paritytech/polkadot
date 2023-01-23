@@ -3,6 +3,7 @@ name = "polkadot-node-primitives"
 description = "Primitives types for the Node-side"
 version.workspace = true
 authors.workspace = true
+repository.workspace = true
 license.workspace = true
 edition.workspace = true
 

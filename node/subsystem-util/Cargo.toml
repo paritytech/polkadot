@@ -3,6 +3,7 @@ name = "polkadot-node-subsystem-util"
 description = "Subsystem traits and message definitions"
 version.workspace = true
 authors.workspace = true
+repository.workspace = true
 license.workspace = true
 edition.workspace = true
 

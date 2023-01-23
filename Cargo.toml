@@ -11,11 +11,12 @@ authors.workspace = true
 edition.workspace = true
 version.workspace = true
 license.workspace = true
+repository.workspace = true
 
 [workspace.package]
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
-repository = "https://github.com/paritytech/polkadot.git"
+repository = "https://github.com/paritytech/polkadot"
 version = "0.9.33"
 license = "GPL-3.0-only"
 

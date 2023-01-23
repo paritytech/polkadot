@@ -3,6 +3,7 @@ name = "polkadot-node-subsystem"
 description = "Subsystem traits and message definitions and the generated overseer"
 version.workspace = true
 authors.workspace = true
+repository.workspace = true
 license.workspace = true
 edition.workspace = true
 
