@@ -875,17 +875,6 @@ pub enum GossipSupportMessage {
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::GossipSupportNetworkMessage>),
 }
 
-/// Request introduction of a candidate into the prospective parachains subsystem.
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub struct IntroduceCandidateRequest {
-	/// The para-id of the candidate.
-	pub candidate_para: ParaId,
-	/// The candidate receipt itself.
-	pub candidate_receipt: CommittedCandidateReceipt,
-	/// The persisted validation data of the candidate.
-	pub persisted_validation_data: PersistedValidationData,
-}
-
 /// A hypothetical candidate to be evaluated for frontier membership
 /// in the prospective parachains subsystem.
 ///
