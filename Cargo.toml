@@ -16,7 +16,7 @@ version.workspace = true
 authors = ["Parity Technologies <admin@parity.io>"]
 edition = "2021"
 repository = "https://github.com/paritytech/polkadot.git"
-version = "0.9.33"
+version = "0.9.37"
 
 [dependencies]
 polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
@@ -27,7 +27,7 @@ tikv-jemallocator = "0.5.0"
 assert_cmd = "2.0.4"
 nix = "0.24.1"
 tempfile = "3.2.0"
-tokio = "1.22.0"
+tokio = "1.24.1"
 substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-core-primitives = { path = "core-primitives" }
  
@@ -208,7 +208,7 @@ pyroscope = ["polkadot-cli/pyroscope"]
 name = "polkadot"
 extended-description = "Implementation of a https://polkadot.network node in Rust based on the Substrate framework."
 section = "misc"
-maintainer = "martin@parity.io"
+maintainer = "security@parity.io"
 license-file = ["LICENSE", "0"]
 # https://www.debian.org/doc/debian-policy/ch-maintainerscripts.html
 maintainer-scripts = "scripts/packaging/deb-maintainer-scripts"
@@ -219,19 +219,6 @@ assets = [
 conf-files = [
 	"/etc/default/polkadot"
 ]
-
-# Configuration for building an .rpm package - for use with `cargo-rpm`
-[package.metadata.rpm]
-package = "polkadot"
-
-[package.metadata.rpm.cargo]
-buildflags = ["--release"]
-
-[package.metadata.rpm.targets]
-polkadot = { path = "/usr/bin/polkadot" }
-
-[package.metadata.rpm.files]
-"../scripts/packaging/polkadot.service" = { path = "/usr/lib/systemd/system/polkadot.service", mode = "644" }
 
 [package.metadata.spellcheck]
 config = "./scripts/ci/gitlab/spellcheck.toml"

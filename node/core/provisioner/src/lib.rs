@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, TimeoutExt,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BackedCandidate, BlockNumber, CandidateReceipt, CoreState, Hash, OccupiedCoreAssumption,
 	SignedAvailabilityBitfield, ValidatorIndex,
 };

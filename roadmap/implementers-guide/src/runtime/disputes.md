@@ -37,12 +37,6 @@ Disputes: double_map (SessionIndex, CandidateHash) -> Option<DisputeState>,
 // All included blocks on the chain, as well as the block number in this chain that
 // should be reverted back to if the candidate is disputed and determined to be invalid.
 Included: double_map (SessionIndex, CandidateHash) -> Option<BlockNumber>,
-// Maps session indices to a vector indicating the number of potentially-spam disputes 
-// each validator is participating in. Potentially-spam disputes are remote disputes which have
-// fewer than `byzantine_threshold + 1` validators.
-//
-// The i'th entry of the vector corresponds to the i'th validator in the session.
-SpamSlots: map SessionIndex -> Option<Vec<u32>>,
 // Whether the chain is frozen or not. Starts as `None`. When this is `Some`,
 // the chain will not accept any new parachain blocks for backing or inclusion,
 // and its value indicates the last valid block number in the chain.
@@ -55,50 +49,45 @@ Frozen: Option<BlockNumber>,
 ## Session Change
 
 1. If the current session is not greater than `config.dispute_period + 1`, nothing to do here.
-1. Set `pruning_target = current_session - config.dispute_period - 1`. We add the extra `1` because we want to keep things for `config.dispute_period` _full_ sessions. 
+1. Set `pruning_target = current_session - config.dispute_period - 1`. We add the extra `1` because we want to keep things for `config.dispute_period` _full_ sessions.
    The stuff at the end of the most recent session has been around for a little over 0 sessions, not a little over 1.
 1. If `LastPrunedSession` is `None`, then set `LastPrunedSession` to `Some(pruning_target)` and return.
-1. Otherwise, clear out all disputes, included candidates, and `SpamSlots` entries in the range `last_pruned..=pruning_target` and set `LastPrunedSession` to `Some(pruning_target)`.
+2. Otherwise, clear out all disputes and included candidates entries in the range `last_pruned..=pruning_target` and set `LastPrunedSession` to `Some(pruning_target)`.
 
 ## Block Initialization
 
-1. Iterate through all disputes. If any have not concluded and started more than `config.dispute_conclusion_by_timeout_period` blocks ago, set them to `Concluded` and mildly punish all validators associated, as they have failed to distribute available data. If the `Included` map does not contain the candidate and there are fewer than `byzantine_threshold + 1` participating validators, reduce `SpamSlots` for all participating validators.
+1. Iterate through all disputes. If any have not concluded and started more than `config.dispute_conclusion_by_timeout_period` blocks ago, set them to `Concluded` and mildly punish all validators associated, as they have failed to distribute available data.
 
 ## Routines
 
 * `filter_multi_dispute_data(MultiDisputeStatementSet) -> MultiDisputeStatementSet`:
   1. Takes a `MultiDisputeStatementSet` and filters it down to a `MultiDisputeStatementSet`
     that satisfies all the criteria of `provide_multi_dispute_data`. That is, eliminating
-    ancient votes, votes which overwhelm the maximum amount of spam slots, and duplicates. 
-    This can be used by block authors to create the final submission in a block which is 
+    ancient votes, duplicates and unconfirmed disputes.
+    This can be used by block authors to create the final submission in a block which is
     guaranteed to pass the `provide_multi_dispute_data` checks.
 
 * `provide_multi_dispute_data(MultiDisputeStatementSet) -> Vec<(SessionIndex, Hash)>`:
   1. Pass on each dispute statement set to `provide_dispute_data`, propagating failure.
-  1. Return a list of all candidates who just had disputes initiated.
+  2. Return a list of all candidates who just had disputes initiated.
 
 * `provide_dispute_data(DisputeStatementSet) -> bool`: Provide data to an ongoing dispute or initiate a dispute.
-  1. All statements must be issued under the correct session for the correct candidate. 
+  1. All statements must be issued under the correct session for the correct candidate.
   1. `SessionInfo` is used to check statement signatures and this function should fail if any signatures are invalid.
   1. If there is no dispute under `Disputes`, create a new `DisputeState` with blank bitfields.
   1. If `concluded_at` is `Some`, and is `concluded_at + config.post_conclusion_acceptance_period < now`, return false.
-  1. If the overlap of the validators in the `DisputeStatementSet` and those already present in the `DisputeState` is fewer in number than `byzantine_threshold + 1` and the candidate is not present in the `Included` map
-      1. increment `SpamSlots` for each validator in the `DisputeStatementSet` which is not already in the `DisputeState`. Initialize the `SpamSlots` to a zeroed vector first, if necessary. do not increment `SpamSlots` if the candidate is local.
-      1. If the value for any spam slot exceeds `config.dispute_max_spam_slots`, return false.
-  1. If the overlap of the validators in the `DisputeStatementSet` and those already present in the `DisputeState` is at least `byzantine_threshold + 1`, the `DisputeState` has fewer than `byzantine_threshold + 1` validators, and the candidate is not present in the `Included` map, then decrease `SpamSlots` by 1 for each validator in the `DisputeState`.
-  1. Import all statements into the dispute. This should fail if any statements are duplicate or if the corresponding bit for the corresponding validator is set in the dispute already.
-  1. If `concluded_at` is `None`, reward all statements.
-  1. If `concluded_at` is `Some`, reward all statements slightly less.
-  1. If either side now has supermajority and did not previously, slash the other side. This may be both sides, and we support this possibility in code, but note that this requires validators to participate on both sides which has negative expected value. Set `concluded_at` to `Some(now)` if it was `None`.
-  1. If just concluded against the candidate and the `Included` map contains `(session, candidate)`: invoke `revert_and_freeze` with the stored block number.
-  1. Return true if just initiated, false otherwise.
+  2. Import all statements into the dispute. This should fail if any statements are duplicate or if the corresponding bit for the corresponding validator is set in the dispute already.
+  3. If `concluded_at` is `None`, reward all statements.
+  4. If `concluded_at` is `Some`, reward all statements slightly less.
+  5. If either side now has supermajority and did not previously, slash the other side. This may be both sides, and we support this possibility in code, but note that this requires validators to participate on both sides which has negative expected value. Set `concluded_at` to `Some(now)` if it was `None`.
+  6. If just concluded against the candidate and the `Included` map contains `(session, candidate)`: invoke `revert_and_freeze` with the stored block number.
+  7. Return true if just initiated, false otherwise.
 
 * `disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState)>`: Get a list of all disputes and info about dispute state.
   1. Iterate over all disputes in `Disputes` and collect into a vector.
 
 * `note_included(SessionIndex, CandidateHash, included_in: BlockNumber)`:
   1. Add `(SessionIndex, CandidateHash)` to the `Included` map with `included_in - 1` as the value.
-  1. If there is a dispute under `(Sessionindex, CandidateHash)` with fewer than `byzantine_threshold + 1` participating validators, decrease `SpamSlots` by 1 for each validator in the `DisputeState`.
   1. If there is a dispute under `(SessionIndex, CandidateHash)` that has concluded against the candidate, invoke `revert_and_freeze` with the stored block number.
 
 * `concluded_invalid(SessionIndex, CandidateHash) -> bool`: Returns whether a candidate has already concluded a dispute in the negative.
@@ -111,3 +100,42 @@ Frozen: Option<BlockNumber>,
   1. If `is_frozen()` return.
   1. Set `Frozen` to `Some(BlockNumber)` to indicate a rollback to the block number.
   1. Issue a `Revert(BlockNumber + 1)` log to indicate a rollback of the block's child in the header chain, which is the same as a rollback to the block number.
+
+# Disputes filtering
+
+All disputes delivered to the runtime by the client are filtered before the actual import. In this context actual import
+means persisted in the runtime storage. The filtering has got two purposes:
+- Limit the amount of data saved onchain.
+- Prevent persisting malicious dispute data onchain.
+
+*Implementation note*: Filtering is performed in function `filter_dispute_data` from `Disputes` pallet.
+
+The filtering is performed on the whole statement set which is about to be imported onchain. The following filters are
+applied:
+1. Remove ancient disputes - if a dispute is concluded before the block number indicated in `OLDEST_ACCEPTED` parameter
+   it is removed from the set. `OLDEST_ACCEPTED` is a runtime configuration option.
+   *Implementation note*: `dispute_post_conclusion_acceptance_period` from
+   `HostConfiguration` is used in the current Polkadot/Kusama implementation.
+2. Remove votes from unknown validators. If there is a vote from a validator which wasn't an authority in the session
+   where the dispute was raised - they are removed. Please note that this step removes only single votes instead of
+   removing the whole dispute.
+3. Remove one sided disputes - if a dispute doesn't contain two opposing votes it is not imported onchain. This serves
+   as a measure not to import one sided disputes. A dispute is raised only if there are two opposing votes so if the
+   client is not sending them the dispute is a potential spam.
+4. Remove unconfirmed disputes - if a dispute contains less votes than the byzantine threshold it is removed. This is
+   also a spam precaution. A legitimate client will send only confirmed disputes to the runtime.
+
+# Rewards and slashing
+
+After the disputes are filtered the validators participating in the disputes are rewarded and more importantly the
+offenders are slashed. Generally there can be two types of punishments:
+* "against valid" - the offender claimed that a valid candidate is invalid.
+* "for invalid" - the offender claimed that an invalid candidate is valid.
+
+A dispute might be inconclusive. This means that it has timed out without being confirmed. A confirmed dispute is one
+containing votes more than the byzantine threshold (1/3 of the active validators). Validators participating in
+inconclusive disputes are not slashed. Thanks to the applied filtering (described in the previous section) one can be
+confident that there are no spam disputes in the runtime. So if a validator is not voting it is due to another reason
+(e.g. being under DoS attack). There is no reason to punish such validators with a slash.
+
+*Implementation note*: Slashing is performed in `process_checked_dispute_data` from `Disputes` pallet.

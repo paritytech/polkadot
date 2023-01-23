@@ -28,7 +28,7 @@ use futures::{select, FutureExt};
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::ProvisionerMessage, overseer::Handle,
 };
-use polkadot_primitives::v2::{Block, Hash, InherentData as ParachainsInherentData};
+use polkadot_primitives::{Block, Hash, InherentData as ParachainsInherentData};
 use std::{sync::Arc, time};
 
 pub(crate) const LOG_TARGET: &str = "parachain::parachains-inherent";
@@ -140,7 +140,7 @@ impl<C: sp_blockchain::HeaderBackend<Block>> sp_inherents::InherentDataProvider
 		.map_err(|e| sp_inherents::Error::Application(Box::new(e)))?;
 
 		dst_inherent_data
-			.put_data(polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER, &inherent_data)
+			.put_data(polkadot_primitives::PARACHAINS_INHERENT_IDENTIFIER, &inherent_data)
 	}
 
 	async fn try_handle_error(

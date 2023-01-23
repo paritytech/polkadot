@@ -22,7 +22,7 @@ use crate::shared;
 use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
+use primitives::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
@@ -192,8 +192,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub dispute_period: SessionIndex,
 	/// How long after dispute conclusion to accept statements.
 	pub dispute_post_conclusion_acceptance_period: BlockNumber,
-	/// The maximum number of dispute spam slots
-	pub dispute_max_spam_slots: u32,
 	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
 	pub dispute_conclusion_by_time_out_period: BlockNumber,
 	/// The amount of consensus slots that must pass between submitting an assignment and
@@ -263,7 +261,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_validators: None,
 			dispute_period: 6,
 			dispute_post_conclusion_acceptance_period: 100.into(),
-			dispute_max_spam_slots: 2,
 			dispute_conclusion_by_time_out_period: 200.into(),
 			n_delay_tranches: Default::default(),
 			zeroth_delay_tranche_width: Default::default(),
@@ -752,19 +749,6 @@ pub mod pallet {
 			})
 		}
 
-		/// Set the maximum number of dispute spam slots.
-		#[pallet::call_index(16)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_u32(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_dispute_max_spam_slots(origin: OriginFor<T>, new: u32) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.dispute_max_spam_slots = new;
-			})
-		}
-
 		/// Set the dispute conclusion by time out period.
 		#[pallet::call_index(17)]
 		#[pallet::weight((
@@ -1164,7 +1148,7 @@ pub mod pallet {
 		fn integrity_test() {
 			assert_eq!(
 				&ActiveConfig::<T>::hashed_key(),
-				primitives::v2::well_known_keys::ACTIVE_CONFIG,
+				primitives::well_known_keys::ACTIVE_CONFIG,
 				"`well_known_keys::ACTIVE_CONFIG` doesn't match key of `ActiveConfig`! Make sure that the name of the\
 				 configuration pallet is `Configuration` in the runtime!",
 			);

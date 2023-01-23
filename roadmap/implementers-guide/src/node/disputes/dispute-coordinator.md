@@ -9,7 +9,11 @@ In particular the dispute-coordinator is responsible for:
 
 - Ensuring that the node is able to raise a dispute in case an invalid candidate
   is found during approval checking.
-- Ensuring approval votes will be recorded.
+- Ensuring that backing and approval votes will be recorded on chain. With these 
+  votes on chain we can be certain that appropriate targets for slashing will be
+  available for concluded disputes. Also, scraping these votes during a dispute
+  is necessary for critical spam prevention measures.
+- Ensuring backing votes will never get overridden by explicit votes.
 - Coordinating actual participation in a dispute, ensuring that the node
   participates in any justified dispute in a way that ensures resolution of
   disputes on the network even in the case of many disputes raised (flood/DoS
@@ -17,15 +21,13 @@ In particular the dispute-coordinator is responsible for:
 - Ensuring disputes resolve, even for candidates on abandoned forks as much as
   reasonably possible, to rule out "free tries" and thus guarantee our gambler's
   ruin property.
-- Provide an API for chain selection, so we can prevent finalization of any
+- Providing an API for chain selection, so we can prevent finalization of any
   chain which has included candidates for which a dispute is either ongoing or
   concluded invalid and avoid building on chains with an included invalid
   candidate.
-- Provide an API for retrieving (resolved) disputes, including all votes, both
+- Providing an API for retrieving (resolved) disputes, including all votes, both
   implicit (approval, backing) and explicit dispute votes. So validators can get
   rewarded/slashed accordingly.
-- Ensure backing votes are recorded and will never get overridden by explicit
-  votes.
 
 ## Ensuring That Disputes Can Be Raised
 
@@ -400,12 +402,12 @@ and only if all of the following conditions are satisfied:
 
 Whenever any vote on a dispute is imported these conditions are checked. If the
 dispute is found not to be potential spam, then spam slots for the disputed candidate hash are cleared. This decrements the spam count for every validator
-which had voted invalid. 
+which had voted invalid.
 
-To keep spam slots from filling up unnecessarily we want to clear spam slots 
+To keep spam slots from filling up unnecessarily we want to clear spam slots
 whenever a candidate is seen to be backed or included. Fortunately this behavior
 is acheived by clearing slots on vote import as described above. Because on chain
-backing votes are processed when a block backing the disputed candidate is discovered, spam slots are cleared for every backed candidate. Included 
+backing votes are processed when a block backing the disputed candidate is discovered, spam slots are cleared for every backed candidate. Included
 candidates have also been seen as backed on the same fork, so decrementing spam
 slots is handled in that case as well.
 
@@ -681,12 +683,17 @@ struct State {
 ```
 
 ### On startup
-When the subsystem is initialised it waits for a new leaf (message `OverseerSignal::ActiveLeaves`).
-The leaf is used to initialise a `RollingSessionWindow` instance (contains leaf hash and
-`DISPUTE_WINDOW` which is a constant.
 
-Next the active disputes are loaded from the DB. The subsystem checks if there are disputes for
-which a local statement is not issued. A list of these is passed to the main loop.
+When the subsystem is initialised it waits for a new leaf (message
+`OverseerSignal::ActiveLeaves`). The leaf is used to initialise a
+`RollingSessionWindow` instance (contains leaf hash and `DISPUTE_WINDOW` which
+is a constant).
+
+Next the active disputes are loaded from the DB and initialize spam slots
+accordingly, then for each loaded dispute, we either send a
+`DisputeDistribution::SendDispute` if there is a local vote from us available or
+if there is none and participation is in order, we push the dispute to
+participation.
 
 ### The main loop
 
