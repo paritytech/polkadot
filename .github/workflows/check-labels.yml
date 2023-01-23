@@ -10,12 +10,12 @@ jobs:
     steps:
       - name: Pull image
         env:
-          IMAGE: paritytech/ruled_labels:0.3.2
+          IMAGE: paritytech/ruled_labels:0.4.0
         run: docker pull $IMAGE
 
       - name: Check labels
         env:
-          IMAGE: paritytech/ruled_labels:0.3.2
+          IMAGE: paritytech/ruled_labels:0.4.0
           MOUNT: /work
           GITHUB_PR: ${{ github.event.pull_request.number }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -32,8 +32,7 @@ jobs:
           labels=$( curl -H "Authorization: token ${GITHUB_TOKEN}" -s "$API_BASE/${REPO}/pulls/${GITHUB_PR}" | jq '.labels | .[] | .name' | tr "\n" ",")
 
           if [ -z "${labels}" ]; then
-            echo "No labels found. Please add labels A, B and C labels"
-            exit 1
+            docker run --rm -i -v $PWD/${RULES_PATH}/:$MOUNT $IMAGE check $MOUNT/$CHECK_SPECS --no-label
           fi
 
           labels_args=${labels: :-1}
