@@ -301,7 +301,7 @@ zombienet-tests-beefy-and-mmr:
     - zombienet-polkadot-integration-test
 
 zombienet-tests-slashing:
-  stage:                           stage3
+  stage:                           zombienet
   image:                           "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
