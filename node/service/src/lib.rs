@@ -95,6 +95,7 @@ pub use polkadot_client::PolkadotExecutorDispatch;
 
 pub use chain_spec::{KusamaChainSpec, PolkadotChainSpec, RococoChainSpec, WestendChainSpec};
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
+use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use mmr_gadget::MmrGadget;
 #[cfg(feature = "full-node")]
 pub use polkadot_client::{
@@ -986,6 +987,12 @@ where
 
 	if let Some(hwbench) = hwbench {
 		sc_sysinfo::print_hwbench(&hwbench);
+		if !SUBSTRATE_REFERENCE_HARDWARE.check_hardware(&hwbench) && role.is_authority() {
+			log::warn!(
+				"⚠️  The hardware does not meet the minimal requirements for role 'Authority' find out more at:\n\
+				https://wiki.polkadot.network/docs/maintain-guides-how-to-validate-polkadot#reference-hardware"
+			);
+		}
 
 		if let Some(ref mut telemetry) = telemetry {
 			let telemetry_handle = telemetry.handle();

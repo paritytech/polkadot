@@ -21,4 +21,5 @@ name = "gen-ref-constants"
 path = "src/gen_ref_constants.rs"
 
 [features]
+default = [ "runtime-benchmarks" ]
 runtime-benchmarks = ["kusama-runtime/runtime-benchmarks"]
