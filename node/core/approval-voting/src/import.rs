@@ -663,6 +663,7 @@ pub(crate) mod tests {
 			assignment_criteria: Box::new(MockAssignmentCriteria),
 			db,
 			db_config: TEST_CONFIG,
+			approval_check_jobs: Default::default(),
 		}
 	}
 

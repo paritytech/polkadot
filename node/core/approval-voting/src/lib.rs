@@ -639,6 +639,7 @@ struct State {
 	// Require for `RollingSessionWindow`.
 	db_config: DatabaseConfig,
 	db: Arc<dyn Database>,
+	approval_check_jobs: FuturesUnordered<ApprovalCheckJob>,
 }
 
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
@@ -777,6 +778,7 @@ where
 		assignment_criteria,
 		db_config: subsystem.db_config,
 		db: subsystem.db,
+		approval_check_jobs: Default::default(),
 	};
 
 	let mut wakeups = Wakeups::default();
@@ -797,7 +799,106 @@ where
 
 	loop {
 		let mut overlayed_db = OverlayedBackend::new(&backend);
+
 		let actions = futures::select! {
+			// Approval check completed by the pool.
+			approval_check_result = state.approval_check_jobs.select_next_some() => {
+				match approval_check_result {
+					Err(_) => {
+						res.send(ApprovalCheckResult::Bad(ApprovalCheckError::InvalidSignature(
+							approval_check_result.approval.validator
+						)));
+
+						return Ok(Vec::new())
+					},
+					Ok(()) => {},
+				};
+
+				// let block_entry = match db.load_block_entry(&approval.block_hash)? {
+				// 	Some(b) => b,
+				// 	None => {
+				// 		respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::UnknownBlock(
+				// 			approval.block_hash
+				// 		),))
+				// 	},
+				// };
+
+				// let session_info = match state.session_info(block_entry.session()) {
+				// 	Some(s) => s,
+				// 	None => {
+				// 		respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::UnknownSessionIndex(
+				// 			block_entry.session()
+				// 		),))
+				// 	},
+				// };
+
+				// let approved_candidate_hash = match block_entry.candidate(approval.candidate_index as usize) {
+				// 	Some((_, h)) => *h,
+				// 	None => respond_early!(ApprovalCheckResult::Bad(
+				// 		ApprovalCheckError::InvalidCandidateIndex(approval.candidate_index),
+				// 	)),
+				// };
+
+
+				let params = approval_check_result.params;
+				// pub pubkey: ValidatorId,
+				// pub block_hash: Hash,
+				// pub candidate_hash: Hash,
+				// pub session: SessionIndex,
+				// pub signature: ValidatorSignature,
+
+				// let candidate_entry = match overlayed_db.load_candidate_entry(&params.candidate_hash)? {
+				// 	Some(c) => c,
+				// 	None => {
+				// 		respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::InvalidCandidate(
+				// 			approval.candidate_index,
+				// 			approved_candidate_hash
+				// 		),))
+				// 	},
+				// };
+
+				// // Don't accept approvals until assignment.
+				// match candidate_entry.approval_entry(&approval.block_hash) {
+				// 	None => {
+				// 		respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::Internal(
+				// 			approval.block_hash,
+				// 			approved_candidate_hash
+				// 		),))
+				// 	},
+				// 	Some(e) if !e.is_assigned(approval.validator) => {
+				// 		respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::NoAssignment(
+				// 			approval.validator
+				// 		),))
+				// 	},
+				// 	_ => {},
+				// }
+
+				// // importing the approval can be heavy as it may trigger acceptance for a series of blocks.
+				// let t = with_response(ApprovalCheckResult::Accepted);
+
+				// gum::trace!(
+				// 	target: LOG_TARGET,
+				// 	validator_index = approval.validator.0,
+				// 	validator = ?pubkey,
+				// 	candidate_hash = ?approved_candidate_hash,
+				// 	para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
+				// 	"Importing approval vote",
+				// );
+
+				// let actions = advance_approval_state(
+				// 	state,
+				// 	db,
+				// 	&metrics,
+				// 	block_entry,
+				// 	approved_candidate_hash,
+				// 	candidate_entry,
+				// 	ApprovalStateTransition::RemoteApproval(approval.validator),
+				// );
+
+				Ok(Vec::new())
+
+				// Ok((actions, t))
+			},
 			(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
 				subsystem.metrics.on_wakeup();
 				process_wakeup(
@@ -1215,7 +1316,7 @@ async fn handle_from_overseer<Context>(
 				actions
 			},
 			ApprovalVotingMessage::CheckAndImportApproval(a, res) =>
-				check_and_import_approval(state, db, metrics, a, |r| {
+				check_and_import_approval(ctx, state, db, metrics, a, |r| {
 					let _ = res.send(r);
 				})?
 				.0,
@@ -1808,15 +1909,52 @@ fn check_and_import_assignment(
 	Ok((res, actions))
 }
 
-pub(crate) struct ApprovalCheckJob {
-	pubkey: Public,
- 	block_hash: Hash,
- 	candidate_hash: Hash,
- 	session: SessionIndex,
- 	signature: Signature,
+use futures::{
+	pin_mut,
+	task::{Context, Poll},
+};
+use std::pin::Pin;
+
+#[derive(Clone)]
+pub(crate) struct ApprovalCheckParams<T> {
+	pub pubkey: ValidatorId,
+	pub candidate_hash: Hash,
+	pub session: SessionIndex,
+	pub approval: IndirectSignedApprovalVote,
+	pub response_sender: impl FnOnce(ApprovalCheckResult) -> T,
 }
 
-fn check_and_import_approval<T>(
+pub(crate) struct ApprovalCheckJob {
+	pub params: ApprovalCheckParams,
+	pub receiver: oneshot::Receiver<Result<(), ()>>,
+}
+
+pub(crate) struct ApprovalCheckJobResult {
+	pub params: ApprovalCheckParams,
+	pub result: Result<(), ()>,
+}
+
+impl ApprovalCheckJob {
+	async fn wait_for_result(&mut self) -> Result<ApprovalCheckJobResult, ()> {
+		// TODO: proper error handling.
+		let result = (&mut self.receiver).await.map_err(|_| ())?;
+
+		Ok(ApprovalCheckJobResult { params: self.params.clone(), result })
+	}
+}
+
+impl Future for ApprovalCheckJob {
+	type Output = Result<ApprovalCheckJobResult, ()>;
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+		let fut = self.wait_for_result();
+		pin_mut!(fut);
+		fut.poll(cx)
+	}
+}
+
+#[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
+fn check_and_import_approval<Context, T>(
+	ctx: &mut Context,
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	metrics: &Metrics,
@@ -1862,78 +2000,37 @@ fn check_and_import_approval<T>(
 		)),
 	};
 
-	/// Notes for Approval check job defintion
-	/// ApprovalCheckJob {
-	/// 	pubkey: Public,
-	/// 	block_hash: Hash,
-	/// 	candidate_hash: Hash,
-	/// 	session: SessionIndex,
-	/// 	signature: Signature,
-	/// };
-	/// 
-
-	// Signature check:
-	match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking).check_signature(
-		&pubkey,
-		approved_candidate_hash,
-		block_entry.session(),
-		&approval.signature,
-	) {
-		Err(_) => respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::InvalidSignature(
-			approval.validator
-		),)),
-		Ok(()) => {},
+	let (tx, rx) = oneshot::channel();
+	let approval_check_job = ApprovalCheckJob {
+		params: ApprovalCheckParams {
+			candidate_hash: *approved_candidate_hash,
+			pubkey: pubkey.clone(),
+			session: block_entry.session(),
+			approval: approval.clone(),
+		},
+		receiver: rx,
 	};
 
-	let candidate_entry = match db.load_candidate_entry(&approved_candidate_hash)? {
-		Some(c) => c,
-		None => {
-			respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::InvalidCandidate(
-				approval.candidate_index,
-				approved_candidate_hash
-			),))
-		},
-	};
+	// Spawn signature check job on a separate blocking thread.
+	{
+		let session = block_entry.session();
+		let signature = approval.signature;
+		let pubkey = pubkey.clone();
+		let signature = approval.signature.clone();
 
-	// Don't accept approvals until assignment.
-	match candidate_entry.approval_entry(&approval.block_hash) {
-		None => {
-			respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::Internal(
-				approval.block_hash,
-				approved_candidate_hash
-			),))
-		},
-		Some(e) if !e.is_assigned(approval.validator) => {
-			respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::NoAssignment(
-				approval.validator
-			),))
-		},
-		_ => {},
+		ctx.spawn_blocking(
+			"approval-vote-sig-check",
+			Box::pin(async move {
+				let _ = tx.send(
+					DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking)
+						.check_signature(&pubkey, approved_candidate_hash, session, &signature),
+				);
+			}),
+		)
+		.expect("Spawn doesn't fail");
+		state.approval_check_jobs.push(approval_check_job);
 	}
-
-	// importing the approval can be heavy as it may trigger acceptance for a series of blocks.
-	let t = with_response(ApprovalCheckResult::Accepted);
-
-	gum::trace!(
-		target: LOG_TARGET,
-		validator_index = approval.validator.0,
-		validator = ?pubkey,
-		candidate_hash = ?approved_candidate_hash,
-		para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
-		"Importing approval vote",
-	);
-
-	let actions = advance_approval_state(
-		state,
-		db,
-		&metrics,
-		block_entry,
-		approved_candidate_hash,
-		candidate_entry,
-		ApprovalStateTransition::RemoteApproval(approval.validator),
-	);
-
-	Ok((actions, t))
+	Vec::new()
 }
 
 #[derive(Debug)]
