@@ -51,9 +51,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, Hash, SessionIndex, SessionInfo, ValidatorIndex,
-};
+use polkadot_primitives::{AuthorityDiscoveryId, Hash, SessionIndex, SessionInfo, ValidatorIndex};
 
 #[cfg(test)]
 mod tests;
@@ -249,11 +247,15 @@ where
 					let mut connections = authorities_past_present_future(sender, leaf).await?;
 
 					// Remove all of our locally controlled validator indices so we don't connect to ourself.
-					// If we control none of them, don't issue connection requests - we're outside
-					// of the 'clique' of recent validators.
-					if remove_all_controlled(&self.keystore, &mut connections).await != 0 {
-						self.issue_connection_request(sender, connections).await;
-					}
+					let connections =
+						if remove_all_controlled(&self.keystore, &mut connections).await != 0 {
+							connections
+						} else {
+							// If we control none of them, issue an empty connection request
+							// to clean up all connections.
+							Vec::new()
+						};
+					self.issue_connection_request(sender, connections).await;
 				}
 
 				if is_new_session {
@@ -353,7 +355,7 @@ where
 
 		// issue another request for the same session
 		// if at least a third of the authorities were not resolved.
-		if 3 * failures >= num {
+		if num != 0 && 3 * failures >= num {
 			let timestamp = Instant::now();
 			match self.failure_start {
 				None => self.failure_start = Some(timestamp),
@@ -521,71 +523,35 @@ async fn update_gossip_topology(
 		sp_core::blake2_256(&subject)
 	};
 
-	// shuffle the indices
-	let mut rng: ChaCha20Rng = SeedableRng::from_seed(random_seed);
-	let len = authorities.len();
-	let mut indices: Vec<usize> = (0..len).collect();
-	indices.shuffle(&mut rng);
-	let our_shuffled_position = indices
-		.iter()
-		.position(|i| *i == our_index)
-		.expect("our_index < len; indices contains it; qed");
+	// shuffle the validators and create the index mapping
+	let (shuffled_indices, canonical_shuffling) = {
+		let mut rng: ChaCha20Rng = SeedableRng::from_seed(random_seed);
+		let len = authorities.len();
+		let mut shuffled_indices = vec![0; len];
+		let mut canonical_shuffling: Vec<_> = authorities
+			.iter()
+			.enumerate()
+			.map(|(i, a)| (a.clone(), ValidatorIndex(i as _)))
+			.collect();
 
-	let neighbors = matrix_neighbors(our_shuffled_position, len);
-	let row_neighbors = neighbors
-		.row_neighbors
-		.map(|i| indices[i])
-		.map(|i| (authorities[i].clone(), ValidatorIndex::from(i as u32)))
-		.collect();
+		canonical_shuffling.shuffle(&mut rng);
+		for (i, (_, validator_index)) in canonical_shuffling.iter().enumerate() {
+			shuffled_indices[validator_index.0 as usize] = i;
+		}
 
-	let column_neighbors = neighbors
-		.column_neighbors
-		.map(|i| indices[i])
-		.map(|i| (authorities[i].clone(), ValidatorIndex::from(i as u32)))
-		.collect();
+		(shuffled_indices, canonical_shuffling)
+	};
 
 	sender
 		.send_message(NetworkBridgeRxMessage::NewGossipTopology {
 			session: session_index,
-			our_neighbors_x: row_neighbors,
-			our_neighbors_y: column_neighbors,
+			local_index: Some(ValidatorIndex(our_index as _)),
+			canonical_shuffling,
+			shuffled_indices,
 		})
 		.await;
 
 	Ok(())
-}
-
-struct MatrixNeighbors<R, C> {
-	row_neighbors: R,
-	column_neighbors: C,
-}
-
-/// Compute our row and column neighbors in a matrix
-fn matrix_neighbors(
-	our_index: usize,
-	len: usize,
-) -> MatrixNeighbors<impl Iterator<Item = usize>, impl Iterator<Item = usize>> {
-	assert!(our_index < len, "our_index is computed using `enumerate`; qed");
-
-	// e.g. for size 11 the matrix would be
-	//
-	// 0  1  2
-	// 3  4  5
-	// 6  7  8
-	// 9 10
-	//
-	// and for index 10, the neighbors would be 1, 4, 7, 9
-
-	let sqrt = (len as f64).sqrt() as usize;
-	let our_row = our_index / sqrt;
-	let our_column = our_index % sqrt;
-	let row_neighbors = our_row * sqrt..std::cmp::min(our_row * sqrt + sqrt, len);
-	let column_neighbors = (our_column..len).step_by(sqrt);
-
-	MatrixNeighbors {
-		row_neighbors: row_neighbors.filter(move |i| *i != our_index),
-		column_neighbors: column_neighbors.filter(move |i| *i != our_index),
-	}
 }
 
 #[overseer::subsystem(GossipSupport, error = SubsystemError, prefix = self::overseer)]

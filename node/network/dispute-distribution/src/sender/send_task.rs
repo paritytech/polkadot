@@ -16,7 +16,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use futures::{channel::mpsc, future::RemoteHandle, Future, FutureExt, SinkExt};
+use futures::{future::RemoteHandle, Future, FutureExt};
 
 use polkadot_node_network_protocol::{
 	request_response::{
@@ -27,8 +27,8 @@ use polkadot_node_network_protocol::{
 	IfDisconnected,
 };
 use polkadot_node_subsystem::{messages::NetworkBridgeTxMessage, overseer};
-use polkadot_node_subsystem_util::{metrics, runtime::RuntimeInfo};
-use polkadot_primitives::v2::{
+use polkadot_node_subsystem_util::{metrics, nesting_sender::NestingSender, runtime::RuntimeInfo};
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, Hash, SessionIndex, ValidatorIndex,
 };
 
@@ -42,13 +42,15 @@ use crate::{
 /// Delivery status for a particular dispute.
 ///
 /// Keeps track of all the validators that have to be reached for a dispute.
-pub struct SendTask {
-	/// The request we are supposed to get out to all parachain validators of the dispute's session
+///
+/// The unit of work for a `SendTask` is an authority/validator.
+pub struct SendTask<M> {
+	/// The request we are supposed to get out to all `parachain` validators of the dispute's session
 	/// and to all current authorities.
 	request: DisputeRequest,
 
 	/// The set of authorities we need to send our messages to. This set will change at session
-	/// boundaries. It will always be at least the parachain validators of the session where the
+	/// boundaries. It will always be at least the `parachain` validators of the session where the
 	/// dispute happened and the authorities of the current sessions as determined by active heads.
 	deliveries: HashMap<AuthorityDiscoveryId, DeliveryStatus>,
 
@@ -56,7 +58,7 @@ pub struct SendTask {
 	has_failed_sends: bool,
 
 	/// Sender to be cloned for tasks.
-	tx: mpsc::Sender<TaskFinish>,
+	tx: NestingSender<M, TaskFinish>,
 }
 
 /// Status of a particular vote/statement delivery to a particular validator.
@@ -98,13 +100,17 @@ impl TaskResult {
 }
 
 #[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
-impl SendTask {
+impl<M: 'static + Send + Sync> SendTask<M> {
 	/// Initiates sending a dispute message to peers.
+	///
+	/// Creation of new `SendTask`s is subject to rate limiting. As each `SendTask` will trigger
+	/// sending a message to each validator, hence for employing a per-peer rate limit, we need to
+	/// limit the construction of new `SendTask`s.
 	pub async fn new<Context>(
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		active_sessions: &HashMap<SessionIndex, Hash>,
-		tx: mpsc::Sender<TaskFinish>,
+		tx: NestingSender<M, TaskFinish>,
 		request: DisputeRequest,
 		metrics: &Metrics,
 	) -> Result<Self> {
@@ -118,35 +124,61 @@ impl SendTask {
 	///
 	/// This function is called at construction and should also be called whenever a session change
 	/// happens and on a regular basis to ensure we are retrying failed attempts.
+	///
+	/// This might resend to validators and is thus subject to any rate limiting we might want.
+	/// Calls to this function for different instances should be rate limited according to
+	/// `SEND_RATE_LIMIT`.
+	///
+	/// Returns: `True` if this call resulted in new requests.
 	pub async fn refresh_sends<Context>(
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		active_sessions: &HashMap<SessionIndex, Hash>,
 		metrics: &Metrics,
-	) -> Result<()> {
+	) -> Result<bool> {
 		let new_authorities = self.get_relevant_validators(ctx, runtime, active_sessions).await?;
 
-		let add_authorities = new_authorities
+		// Note this will also contain all authorities for which sending failed previously:
+		let add_authorities: Vec<_> = new_authorities
 			.iter()
 			.filter(|a| !self.deliveries.contains_key(a))
 			.map(Clone::clone)
 			.collect();
 
 		// Get rid of dead/irrelevant tasks/statuses:
+		gum::trace!(
+			target: LOG_TARGET,
+			already_running_deliveries = ?self.deliveries.len(),
+			"Cleaning up deliveries"
+		);
 		self.deliveries.retain(|k, _| new_authorities.contains(k));
 
 		// Start any new tasks that are needed:
+		gum::trace!(
+			target: LOG_TARGET,
+			new_and_failed_authorities = ?add_authorities.len(),
+			overall_authority_set_size = ?new_authorities.len(),
+			already_running_deliveries = ?self.deliveries.len(),
+			"Starting new send requests for authorities."
+		);
 		let new_statuses =
 			send_requests(ctx, self.tx.clone(), add_authorities, self.request.clone(), metrics)
 				.await?;
 
+		let was_empty = new_statuses.is_empty();
+		gum::trace!(
+			target: LOG_TARGET,
+			sent_requests = ?new_statuses.len(),
+			"Requests dispatched."
+		);
+
 		self.has_failed_sends = false;
 		self.deliveries.extend(new_statuses.into_iter());
-		Ok(())
+		Ok(!was_empty)
 	}
 
-	/// Whether any sends have failed since the last refreshed.
+	/// Whether any sends have failed since the last refresh.
 	pub fn has_failed_sends(&self) -> bool {
 		self.has_failed_sends
 	}
@@ -193,9 +225,8 @@ impl SendTask {
 
 	/// Determine all validators that should receive the given dispute requests.
 	///
-	/// This is all parachain validators of the session the candidate occurred and all authorities
+	/// This is all `parachain` validators of the session the candidate occurred and all authorities
 	/// of all currently active sessions, determined by currently active heads.
-
 	async fn get_relevant_validators<Context>(
 		&self,
 		ctx: &mut Context,
@@ -241,9 +272,9 @@ impl SendTask {
 ///
 /// And spawn tasks for handling the response.
 #[overseer::contextbounds(DisputeDistribution, prefix = self::overseer)]
-async fn send_requests<Context>(
+async fn send_requests<Context, M: 'static + Send + Sync>(
 	ctx: &mut Context,
-	tx: mpsc::Sender<TaskFinish>,
+	tx: NestingSender<M, TaskFinish>,
 	receivers: Vec<AuthorityDiscoveryId>,
 	req: DisputeRequest,
 	metrics: &Metrics,
@@ -276,11 +307,11 @@ async fn send_requests<Context>(
 }
 
 /// Future to be spawned in a task for awaiting a response.
-async fn wait_response_task(
+async fn wait_response_task<M: 'static + Send + Sync>(
 	pending_response: impl Future<Output = OutgoingResult<DisputeResponse>>,
 	candidate_hash: CandidateHash,
 	receiver: AuthorityDiscoveryId,
-	mut tx: mpsc::Sender<TaskFinish>,
+	mut tx: NestingSender<M, TaskFinish>,
 	_timer: Option<metrics::prometheus::prometheus::HistogramTimer>,
 ) {
 	let result = pending_response.await;
@@ -289,11 +320,11 @@ async fn wait_response_task(
 		Ok(DisputeResponse::Confirmed) =>
 			TaskFinish { candidate_hash, receiver, result: TaskResult::Succeeded },
 	};
-	if let Err(err) = tx.feed(msg).await {
+	if let Err(err) = tx.send_message(msg).await {
 		gum::debug!(
 			target: LOG_TARGET,
 			%err,
-			"Failed to notify susystem about dispute sending result."
+			"Failed to notify subsystem about dispute sending result."
 		);
 	}
 }

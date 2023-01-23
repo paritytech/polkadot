@@ -25,9 +25,9 @@ use futures::future::Future;
 use polkadot_node_primitives::{CollationGenerationConfig, CollatorFn};
 use polkadot_node_subsystem::messages::{CollationGenerationMessage, CollatorProtocolMessage};
 use polkadot_overseer::Handle;
-use polkadot_primitives::v2::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
+use polkadot_primitives::{Balance, CollatorPair, HeadData, Id as ParaId, ValidationCode};
 use polkadot_runtime_common::BlockHashCount;
-use polkadot_runtime_parachains::paras::ParaGenesisArgs;
+use polkadot_runtime_parachains::paras::{ParaGenesisArgs, ParaKind};
 use polkadot_service::{
 	ClientHandle, Error, ExecuteWithClient, FullClient, IsCollator, NewFull, PrometheusConfig,
 };
@@ -37,11 +37,8 @@ use polkadot_test_runtime::{
 };
 use sc_chain_spec::ChainSpec;
 use sc_client_api::execution_extensions::ExecutionStrategies;
-use sc_network::{
-	config::{NetworkConfiguration, TransportConfig},
-	multiaddr,
-};
-use sc_network_common::service::NetworkStateInfo;
+use sc_network::{config::NetworkConfiguration, multiaddr};
+use sc_network_common::{config::TransportConfig, service::NetworkStateInfo};
 use sc_service::{
 	config::{
 		DatabaseSource, KeystoreConfig, MultiaddrWithPeerId, WasmExecutionMethod,
@@ -178,7 +175,7 @@ pub fn node_config(
 		database: DatabaseSource::RocksDb { path: root.join("db"), cache_size: 128 },
 		trie_cache_maximum_size: Some(64 * 1024 * 1024),
 		state_pruning: Default::default(),
-		blocks_pruning: BlocksPruning::All,
+		blocks_pruning: BlocksPruning::KeepFinalized,
 		chain_spec: Box::new(spec),
 		wasm_method: WasmExecutionMethod::Compiled {
 			instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
@@ -308,7 +305,7 @@ impl PolkadotTestNode {
 			genesis: ParaGenesisArgs {
 				genesis_head: genesis_head.into(),
 				validation_code: validation_code.into(),
-				parachain: true,
+				para_kind: ParaKind::Parachain,
 			},
 		};
 
@@ -384,7 +381,7 @@ pub fn construct_extrinsic(
 	UncheckedExtrinsic::new_signed(
 		function.clone(),
 		polkadot_test_runtime::Address::Id(caller.public().into()),
-		polkadot_primitives::v2::Signature::Sr25519(signature.clone()),
+		polkadot_primitives::Signature::Sr25519(signature.clone()),
 		extra.clone(),
 	)
 }

@@ -555,14 +555,15 @@ enum NetworkBridgeMessage {
     /// Inform the distribution subsystems about the new
     /// gossip network topology formed.
     NewGossipTopology {
-        /// The session this topology corresponds to.
-        session: SessionIndex,
-        /// Ids of our neighbors in the X dimension of the new gossip topology.
-        /// We're not necessarily connected to all of them, but we should try to be.
-        our_neighbors_x: HashSet<AuthorityDiscoveryId>,
-        /// Ids of our neighbors in the Y dimension of the new gossip topology.
-        /// We're not necessarily connected to all of them, but we should try to be.
-        our_neighbors_y: HashSet<AuthorityDiscoveryId>,
+		/// The session info this gossip topology is concerned with.
+		session: SessionIndex,
+		/// Our validator index in the session, if any.
+		local_index: Option<ValidatorIndex>,
+		/// The canonical shuffling of validators for the session.
+		canonical_shuffling: Vec<(AuthorityDiscoveryId, ValidatorIndex)>,
+		/// The reverse mapping of `canonical_shuffling`: from validator index
+		/// to the index in `canonical_shuffling`
+		shuffled_indices: Vec<usize>,
     }
 }
 ```
@@ -680,9 +681,7 @@ enum ProvisionerMessage {
 
 The Runtime API subsystem is responsible for providing an interface to the state of the chain's runtime.
 
-This is fueled by an auxiliary type encapsulating all request types defined in the Runtime API section of the guide.
-
-> To do: link to the Runtime API section. Not possible currently because of https://github.com/Michael-F-Bryan/mdbook-linkcheck/issues/25. Once v0.7.1 is released it will work.
+This is fueled by an auxiliary type encapsulating all request types defined in the [Runtime API section](../runtime-api) of the guide.
 
 ```rust
 enum RuntimeApiRequest {
@@ -826,7 +825,7 @@ pub enum CandidateValidationMessage {
     ///
     /// This request doesn't involve acceptance criteria checking, therefore only useful for the
     /// cases where the validity of the candidate is established. This is the case for the typical
-    /// use-case: secondary checkers would use this request relying on the full prior checks
+    /// use-case: approval checkers would use this request relying on the full prior checks
     /// performed by the relay-chain.
     ValidateFromExhaustive(
         PersistedValidationData,

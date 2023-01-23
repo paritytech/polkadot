@@ -20,7 +20,7 @@ use crate::{
 };
 use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
-use primitives::v2::{Id as ParaId, UpwardMessage};
+use primitives::{Id as ParaId, UpwardMessage};
 use sp_std::{collections::btree_map::BTreeMap, fmt, marker::PhantomData, mem, prelude::*};
 use xcm::latest::Outcome;
 
@@ -107,7 +107,7 @@ impl<XcmExecutor: xcm::latest::ExecuteXcm<C::RuntimeCall>, C: Config> UmpSink
 			VersionedXcm,
 		};
 
-		let id = upward_message_id(&data[..]);
+		let id = upward_message_id(data);
 		let maybe_msg_and_weight = VersionedXcm::<C::RuntimeCall>::decode_all_with_depth_limit(
 			xcm::MAX_XCM_DECODE_DEPTH,
 			&mut data,
@@ -234,7 +234,7 @@ pub mod pallet {
 		type FirstMessageFactorPercent: Get<u64>;
 
 		/// Origin which is allowed to execute overweight messages.
-		type ExecuteOverweightOrigin: EnsureOrigin<Self::Origin>;
+		type ExecuteOverweightOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
@@ -349,6 +349,7 @@ pub mod pallet {
 		///
 		/// Events:
 		/// - `OverweightServiced`: On success.
+		#[pallet::call_index(0)]
 		#[pallet::weight(weight_limit.saturating_add(<T as Config>::WeightInfo::service_overweight()))]
 		pub fn service_overweight(
 			origin: OriginFor<T>,
@@ -524,7 +525,10 @@ impl<T: Config> Pallet<T> {
 			let max_weight = if weight_used == Weight::zero() {
 				// we increase the amount of weight that we're allowed to use on the first message to try to prevent
 				// the possibility of blockage of the queue.
-				config.ump_service_total_weight * T::FirstMessageFactorPercent::get() / 100
+				config
+					.ump_service_total_weight
+					.saturating_mul(T::FirstMessageFactorPercent::get()) /
+					100
 			} else {
 				config.ump_service_total_weight - weight_used
 			};

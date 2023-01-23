@@ -22,11 +22,41 @@
 // `v2` is currently the latest stable version of the runtime API.
 pub mod v2;
 
-// The 'staging' version is special - while other versions are set in stone,
-// the staging version is malleable. Once it's released, it gets the next
-// version number.
+// The 'staging' version is special - it contains primitives which are
+// still in development. Once they are considered stable, they will be
+// moved to a new versioned module.
 pub mod vstaging;
 
 // `runtime_api` contains the actual API implementation. It contains stable and
 // unstable functions.
 pub mod runtime_api;
+
+// Current primitives not requiring versioning are exported here.
+// Primitives requiring versioning must not be exported and must be referred by an exact version.
+pub use v2::{
+	byzantine_threshold, check_candidate_backing, collator_signature_payload, metric_definitions,
+	supermajority_threshold, well_known_keys, AbridgedHostConfiguration, AbridgedHrmpChannel,
+	AccountId, AccountIndex, AccountPublic, ApprovalVote, AssignmentId, AuthorityDiscoveryId,
+	AvailabilityBitfield, BackedCandidate, Balance, BlakeTwo256, Block, BlockId, BlockNumber,
+	CandidateCommitments, CandidateDescriptor, CandidateEvent, CandidateHash, CandidateIndex,
+	CandidateReceipt, CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CollatorId,
+	CollatorSignature, CommittedCandidateReceipt, CompactStatement, ConsensusLog, CoreIndex,
+	CoreOccupied, CoreState, DisputeState, DisputeStatement, DisputeStatementSet, DownwardMessage,
+	EncodeAs, ExplicitDisputeStatement, GroupIndex, GroupRotationInfo, Hash, HashT, HeadData,
+	Header, HrmpChannelId, Id, InboundDownwardMessage, InboundHrmpMessage, IndexedVec,
+	InherentData, InvalidDisputeStatementKind, Moment, MultiDisputeStatementSet, Nonce,
+	OccupiedCore, OccupiedCoreAssumption, OldV1SessionInfo, OutboundHrmpMessage, ParathreadClaim,
+	ParathreadEntry, PersistedValidationData, PvfCheckStatement, RuntimeMetricLabel,
+	RuntimeMetricLabelValue, RuntimeMetricLabelValues, RuntimeMetricLabels, RuntimeMetricOp,
+	RuntimeMetricUpdate, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signature,
+	Signed, SignedAvailabilityBitfield, SignedAvailabilityBitfields, SignedStatement,
+	SigningContext, Slot, UncheckedSigned, UncheckedSignedAvailabilityBitfield,
+	UncheckedSignedAvailabilityBitfields, UncheckedSignedStatement, UpgradeGoAhead,
+	UpgradeRestriction, UpwardMessage, ValidDisputeStatementKind, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
+	ValidityError, ASSIGNMENT_KEY_TYPE_ID, LOWEST_PUBLIC_ID, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE,
+	MAX_POV_SIZE, PARACHAINS_INHERENT_IDENTIFIER, PARACHAIN_KEY_TYPE_ID,
+};
+
+#[cfg(feature = "std")]
+pub use v2::{AssignmentPair, CollatorPair, ValidatorPair};

@@ -19,7 +19,7 @@ use fatality::Nested;
 use futures::channel::{mpsc, oneshot};
 use polkadot_node_subsystem::errors::{ChainApiError, RuntimeApiError, SubsystemError};
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v2::Hash;
+use polkadot_primitives::Hash;
 
 pub type FatalResult<T> = std::result::Result<T, FatalError>;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -88,9 +88,7 @@ pub enum GetOnchainDisputesError {
 	#[error("runtime execution error occurred while fetching onchain disputes for parent {1}")]
 	Execution(#[source] RuntimeApiError, Hash),
 
-	#[error(
-		"runtime doesn't support RuntimeApiRequest::Disputes/RuntimeApiRequest::StagingDisputes for parent {1}"
-	)]
+	#[error("runtime doesn't support RuntimeApiRequest::Disputes for parent {1}")]
 	NotSupported(#[source] RuntimeApiError, Hash),
 }
 

@@ -1,9 +1,9 @@
 [package]
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 name = "xcm-executor-integration-tests"
 description = "Integration tests for the XCM Executor"
-version = "0.9.29"
+authors.workspace = true
+edition.workspace = true
+version.workspace = true
 
 [dependencies]
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }

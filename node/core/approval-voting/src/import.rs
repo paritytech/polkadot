@@ -44,7 +44,7 @@ use polkadot_node_subsystem_util::{
 	determine_new_blocks,
 	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate},
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
 	GroupIndex, Hash, Header, SessionIndex,
 };
@@ -415,11 +415,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				Err(error) => {
 					// It's possible that we've lost a race with finality.
 					let (tx, rx) = oneshot::channel();
-					ctx.send_message(ChainApiMessage::FinalizedBlockHash(
-						block_header.number.clone(),
-						tx,
-					))
-					.await;
+					ctx.send_message(ChainApiMessage::FinalizedBlockHash(block_header.number, tx))
+						.await;
 
 					let lost_to_finality = match rx.await {
 						Ok(Ok(Some(h))) if h != block_hash => true,
@@ -620,7 +617,7 @@ pub(crate) mod tests {
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
-	use polkadot_primitives::v2::{Id as ParaId, SessionInfo, ValidatorIndex};
+	use polkadot_primitives::{Id as ParaId, IndexedVec, SessionInfo, ValidatorId, ValidatorIndex};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -630,14 +627,15 @@ pub(crate) mod tests {
 	pub(crate) use sp_runtime::{Digest, DigestItem};
 	use std::{pin::Pin, sync::Arc};
 
-	use crate::{
-		approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry, APPROVAL_SESSIONS,
-	};
+	use crate::{approval_db::v1::Config as DatabaseConfig, criteria, BlockEntry};
 
 	const DATA_COL: u32 = 0;
-	const NUM_COLUMNS: u32 = 1;
+	const SESSION_DATA_COL: u32 = 1;
 
-	const TEST_CONFIG: DatabaseConfig = DatabaseConfig { col_data: DATA_COL };
+	const NUM_COLUMNS: u32 = 2;
+
+	const TEST_CONFIG: DatabaseConfig =
+		DatabaseConfig { col_approval_data: DATA_COL, col_session_data: SESSION_DATA_COL };
 	#[derive(Default)]
 	struct MockClock;
 
@@ -652,22 +650,23 @@ pub(crate) mod tests {
 	}
 
 	fn blank_state() -> State {
+		let db = kvdb_memorydb::create(NUM_COLUMNS);
+		let db = polkadot_node_subsystem_util::database::kvdb_impl::DbAdapter::new(db, &[]);
+		let db: Arc<dyn Database> = Arc::new(db);
 		State {
 			session_window: None,
 			keystore: Arc::new(LocalKeystore::in_memory()),
 			slot_duration_millis: 6_000,
 			clock: Box::new(MockClock::default()),
 			assignment_criteria: Box::new(MockAssignmentCriteria),
+			db,
+			db_config: TEST_CONFIG,
 		}
 	}
 
 	fn single_session_state(index: SessionIndex, info: SessionInfo) -> State {
 		State {
-			session_window: Some(RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				index,
-				vec![info],
-			)),
+			session_window: Some(RollingSessionWindow::with_session_info(index, vec![info])),
 			..blank_state()
 		}
 	}
@@ -682,21 +681,21 @@ pub(crate) mod tests {
 			_config: &criteria::Config,
 			_leaving_cores: Vec<(
 				CandidateHash,
-				polkadot_primitives::v2::CoreIndex,
-				polkadot_primitives::v2::GroupIndex,
+				polkadot_primitives::CoreIndex,
+				polkadot_primitives::GroupIndex,
 			)>,
-		) -> HashMap<polkadot_primitives::v2::CoreIndex, criteria::OurAssignment> {
+		) -> HashMap<polkadot_primitives::CoreIndex, criteria::OurAssignment> {
 			HashMap::new()
 		}
 
 		fn check_assignment_cert(
 			&self,
-			_claimed_core_index: polkadot_primitives::v2::CoreIndex,
-			_validator_index: polkadot_primitives::v2::ValidatorIndex,
+			_claimed_core_index: polkadot_primitives::CoreIndex,
+			_validator_index: polkadot_primitives::ValidatorIndex,
 			_config: &criteria::Config,
 			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 			_assignment: &polkadot_node_primitives::approval::AssignmentCert,
-			_backing_group: polkadot_primitives::v2::GroupIndex,
+			_backing_group: polkadot_primitives::GroupIndex,
 		) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
 			Ok(0)
 		}
@@ -713,10 +712,10 @@ pub(crate) mod tests {
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
 		SessionInfo {
-			validators: Vec::new(),
+			validators: Default::default(),
 			discovery_keys: Vec::new(),
 			assignment_keys: Vec::new(),
-			validator_groups: Vec::new(),
+			validator_groups: Default::default(),
 			n_cores: index as _,
 			zeroth_delay_tranche_width: index as _,
 			relay_vrf_modulo_samples: index as _,
@@ -780,11 +779,8 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window = RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				session,
-				vec![session_info],
-			);
+			let session_window =
+				RollingSessionWindow::with_session_info(session, vec![session_info]);
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -889,11 +885,8 @@ pub(crate) mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = {
-			let session_window = RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				session,
-				vec![session_info],
-			);
+			let session_window =
+				RollingSessionWindow::with_session_info(session, vec![session_info]);
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1087,11 +1080,8 @@ pub(crate) mod tests {
 				.map(|(r, c, g)| (r.hash(), r.clone(), *c, *g))
 				.collect::<Vec<_>>();
 
-			let session_window = Some(RollingSessionWindow::with_session_info(
-				APPROVAL_SESSIONS,
-				session,
-				vec![session_info],
-			));
+			let session_window =
+				Some(RollingSessionWindow::with_session_info(session, vec![session_info]));
 
 			let header = header.clone();
 			Box::pin(async move {
@@ -1174,21 +1164,27 @@ pub(crate) mod tests {
 
 		let session = 5;
 		let irrelevant = 666;
-		let session_info = SessionInfo {
-			validators: vec![Sr25519Keyring::Alice.public().into(); 6],
-			discovery_keys: Vec::new(),
-			assignment_keys: Vec::new(),
-			validator_groups: vec![vec![ValidatorIndex(0); 5], vec![ValidatorIndex(0); 2]],
-			n_cores: 6,
-			needed_approvals: 2,
-			zeroth_delay_tranche_width: irrelevant,
-			relay_vrf_modulo_samples: irrelevant,
-			n_delay_tranches: irrelevant,
-			no_show_slots: irrelevant,
-			active_validator_indices: Vec::new(),
-			dispute_period: 6,
-			random_seed: [0u8; 32],
-		};
+		let session_info =
+			SessionInfo {
+				validators: IndexedVec::<ValidatorIndex, ValidatorId>::from(
+					vec![Sr25519Keyring::Alice.public().into(); 6],
+				),
+				discovery_keys: Vec::new(),
+				assignment_keys: Vec::new(),
+				validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
+					vec![ValidatorIndex(0); 5],
+					vec![ValidatorIndex(0); 2],
+				]),
+				n_cores: 6,
+				needed_approvals: 2,
+				zeroth_delay_tranche_width: irrelevant,
+				relay_vrf_modulo_samples: irrelevant,
+				n_delay_tranches: irrelevant,
+				no_show_slots: irrelevant,
+				active_validator_indices: Vec::new(),
+				dispute_period: 6,
+				random_seed: [0u8; 32],
+			};
 
 		let slot = Slot::from(10);
 

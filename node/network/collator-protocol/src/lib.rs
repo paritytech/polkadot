@@ -21,9 +21,12 @@
 #![deny(unused_crate_dependencies)]
 #![recursion_limit = "256"]
 
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-use futures::{FutureExt, TryFutureExt};
+use futures::{
+	stream::{FusedStream, StreamExt},
+	FutureExt, TryFutureExt,
+};
 
 use sp_keystore::SyncCryptoStorePtr;
 
@@ -31,7 +34,7 @@ use polkadot_node_network_protocol::{
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v2::CollatorPair;
+use polkadot_primitives::CollatorPair;
 
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::NetworkBridgeTxMessage, overseer, SpawnedSubsystem,
@@ -133,4 +136,24 @@ async fn modify_reputation(
 	);
 
 	sender.send_message(NetworkBridgeTxMessage::ReportPeer(peer, rep)).await;
+}
+
+/// Wait until tick and return the timestamp for the following one.
+async fn wait_until_next_tick(last_poll: Instant, period: Duration) -> Instant {
+	let now = Instant::now();
+	let next_poll = last_poll + period;
+
+	if next_poll > now {
+		futures_timer::Delay::new(next_poll - now).await
+	}
+
+	Instant::now()
+}
+
+/// Returns an infinite stream that yields with an interval of `period`.
+fn tick_stream(period: Duration) -> impl FusedStream<Item = ()> {
+	futures::stream::unfold(Instant::now(), move |next_check| async move {
+		Some(((), wait_until_next_tick(next_check, period).await))
+	})
+	.fuse()
 }

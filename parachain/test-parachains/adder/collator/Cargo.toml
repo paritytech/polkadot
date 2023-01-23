@@ -1,9 +1,9 @@
 [package]
 name = "test-parachain-adder-collator"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
 description = "Collator for the adder test parachain"
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [[bin]]
 name = "adder-collator"
@@ -15,7 +15,7 @@ path = "bin/puppet_worker.rs"
 
 [dependencies]
 parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
-clap = { version = "3.1", features = ["derive"] }
+clap = { version = "4.0.9", features = ["derive"] }
 futures = "0.3.21"
 futures-timer = "3.0.2"
 log = "0.4.17"
@@ -44,4 +44,4 @@ substrate-test-utils = { git = "https://github.com/paritytech/substrate", branch
 sc-service = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-tokio = { version = "1.19.2", features = ["macros"] }
+tokio = { version = "1.24.1", features = ["macros"] }

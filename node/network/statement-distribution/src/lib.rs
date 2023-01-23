@@ -27,7 +27,7 @@ use parity_scale_codec::Encode;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	grid_topology::{RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology},
+	grid_topology::{GridNeighbors, RequiredRouting, SessionBoundGridTopologyStorage},
 	peer_set::{IsAuthority, PeerSet},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
@@ -45,10 +45,10 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	SubsystemError,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
-	SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
-	ValidatorSignature,
+	IndexedVec, SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId,
+	ValidatorIndex, ValidatorSignature,
 };
 
 use futures::{
@@ -278,10 +278,10 @@ impl PeerRelayParentKnowledge {
 
 		let new_known = match fingerprint.0 {
 			CompactStatement::Seconded(ref h) => {
-				self.seconded_counts.entry(fingerprint.1).or_default().note_local(h.clone());
+				self.seconded_counts.entry(fingerprint.1).or_default().note_local(*h);
 
 				let was_known = self.is_known_candidate(h);
-				self.sent_candidates.insert(h.clone());
+				self.sent_candidates.insert(*h);
 				!was_known
 			},
 			CompactStatement::Valid(_) => false,
@@ -345,7 +345,7 @@ impl PeerRelayParentKnowledge {
 					.seconded_counts
 					.entry(fingerprint.1)
 					.or_insert_with(Default::default)
-					.note_remote(h.clone());
+					.note_remote(*h);
 
 				if !allowed_remote {
 					return Err(COST_UNEXPECTED_STATEMENT_REMOTE)
@@ -374,7 +374,7 @@ impl PeerRelayParentKnowledge {
 		}
 
 		self.received_statements.insert(fingerprint.clone());
-		self.received_candidates.insert(candidate_hash.clone());
+		self.received_candidates.insert(*candidate_hash);
 		Ok(fresh)
 	}
 
@@ -665,7 +665,7 @@ struct ActiveHeadData {
 	/// Large statements we are waiting for with associated meta data.
 	waiting_large_statements: HashMap<CandidateHash, LargeStatementStatus>,
 	/// The parachain validators at the head's child session index.
-	validators: Vec<ValidatorId>,
+	validators: IndexedVec<ValidatorIndex, ValidatorId>,
 	/// The current session index of this fork.
 	session_index: sp_staking::SessionIndex,
 	/// How many `Seconded` statements we've seen per validator.
@@ -676,7 +676,7 @@ struct ActiveHeadData {
 
 impl ActiveHeadData {
 	fn new(
-		validators: Vec<ValidatorId>,
+		validators: IndexedVec<ValidatorIndex, ValidatorId>,
 		session_index: sp_staking::SessionIndex,
 		span: PerLeafSpan,
 	) -> Self {
@@ -878,7 +878,7 @@ fn check_statement_signature(
 		SigningContext { session_index: head.session_index, parent_hash: relay_parent };
 
 	head.validators
-		.get(statement.unchecked_validator_index().0 as usize)
+		.get(statement.unchecked_validator_index())
 		.ok_or_else(|| statement.clone())
 		.and_then(|v| statement.try_into_checked(&signing_context, v))
 }
@@ -910,7 +910,10 @@ async fn circulate_statement_and_dependents<Context>(
 		.with_candidate(statement.payload().candidate_hash())
 		.with_stage(jaeger::Stage::StatementDistribution);
 
-	let topology = topology_store.get_topology_or_fallback(active_head.session_index);
+	let topology = topology_store
+		.get_topology_or_fallback(active_head.session_index)
+		.local_grid_neighbors();
+
 	// First circulate the statement directly to all peers needing it.
 	// The borrow of `active_head` needs to encompass only this (Rust) statement.
 	let outputs: Option<(CandidateHash, Vec<PeerId>)> = {
@@ -1009,7 +1012,7 @@ fn is_statement_large(statement: &SignedFullStatement) -> (bool, Option<usize>) 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn circulate_statement<'a, Context>(
 	required_routing: RequiredRouting,
-	topology: &SessionGridTopology,
+	topology: &GridNeighbors,
 	peers: &mut HashMap<PeerId, PeerData>,
 	ctx: &mut Context,
 	relay_parent: Hash,
@@ -1022,13 +1025,15 @@ async fn circulate_statement<'a, Context>(
 
 	let mut peers_to_send: Vec<PeerId> = peers
 		.iter()
-		.filter_map(|(peer, data)| {
-			if data.can_send(&relay_parent, &fingerprint) {
-				Some(peer.clone())
-			} else {
-				None
-			}
-		})
+		.filter_map(
+			|(peer, data)| {
+				if data.can_send(&relay_parent, &fingerprint) {
+					Some(*peer)
+				} else {
+					None
+				}
+			},
+		)
 		.collect();
 
 	let good_peers: HashSet<&PeerId> = peers_to_send.iter().collect();
@@ -1084,7 +1089,7 @@ async fn circulate_statement<'a, Context>(
 			"Sending statement",
 		);
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			peers_to_send.iter().map(|(p, _)| p.clone()).collect(),
+			peers_to_send.iter().map(|(p, _)| *p).collect(),
 			payload,
 		))
 		.await;
@@ -1123,11 +1128,8 @@ async fn send_statements_about<Context>(
 			statement = ?statement.statement,
 			"Sending statement",
 		);
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			vec![peer.clone()],
-			payload,
-		))
-		.await;
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(vec![peer], payload))
+			.await;
 
 		metrics.on_statement_distributed();
 	}
@@ -1158,11 +1160,8 @@ async fn send_statements<Context>(
 			statement = ?statement.statement,
 			"Sending statement"
 		);
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			vec![peer.clone()],
-			payload,
-		))
-		.await;
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(vec![peer], payload))
+			.await;
 
 		metrics.on_statement_distributed();
 	}
@@ -1352,7 +1351,8 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 
 		let session_index = runtime.get_session_index_for_child(ctx.sender(), relay_parent).await;
 		let topology = match session_index {
-			Ok(session_index) => topology_storage.get_topology_or_fallback(session_index),
+			Ok(session_index) =>
+				topology_storage.get_topology_or_fallback(session_index).local_grid_neighbors(),
 			Err(e) => {
 				gum::debug!(
 					target: LOG_TARGET,
@@ -1361,7 +1361,7 @@ async fn handle_incoming_message_and_circulate<'a, Context, R>(
 					e
 				);
 
-				topology_storage.get_current_topology()
+				topology_storage.get_current_topology().local_grid_neighbors()
 			},
 		};
 		let required_routing =
@@ -1427,7 +1427,7 @@ async fn handle_incoming_message<'a, Context>(
 	}
 
 	let fingerprint = message.get_fingerprint();
-	let candidate_hash = fingerprint.0.candidate_hash().clone();
+	let candidate_hash = *fingerprint.0.candidate_hash();
 	let handle_incoming_span = active_head
 		.span
 		.child("handle-incoming")
@@ -1547,7 +1547,7 @@ async fn handle_incoming_message<'a, Context>(
 			// Send the peer all statements concerning the candidate that we have,
 			// since it appears to have just learned about the candidate.
 			send_statements_about(
-				peer.clone(),
+				peer,
 				peer_data,
 				ctx,
 				relay_parent,
@@ -1588,7 +1588,7 @@ async fn handle_incoming_message<'a, Context>(
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 	peer: PeerId,
-	topology: &SessionGridTopology,
+	topology: &GridNeighbors,
 	peer_data: &mut PeerData,
 	ctx: &mut Context,
 	active_heads: &HashMap<Hash, ActiveHeadData>,
@@ -1623,7 +1623,7 @@ async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 			continue
 		}
 		if let Some(active_head) = active_heads.get(&new) {
-			send_statements(peer.clone(), peer_data, ctx, new, active_head, metrics).await;
+			send_statements(peer, peer_data, ctx, new, active_head, metrics).await;
 		}
 	}
 }
@@ -1673,16 +1673,22 @@ async fn handle_network_update<Context, R>(
 			let _ = metrics.time_network_bridge_update_v1("new_gossip_topology");
 
 			let new_session_index = topology.session;
-			let new_topology: SessionGridTopology = topology.into();
-			let old_topology = topology_storage.get_current_topology();
-			let newly_added = new_topology.peers_diff(old_topology);
-			topology_storage.update_topology(new_session_index, new_topology);
+			let new_topology = topology.topology;
+			let old_topology =
+				topology_storage.get_current_topology().local_grid_neighbors().clone();
+			topology_storage.update_topology(new_session_index, new_topology, topology.local_index);
+
+			let newly_added = topology_storage
+				.get_current_topology()
+				.local_grid_neighbors()
+				.peers_diff(&old_topology);
+
 			for peer in newly_added {
 				if let Some(data) = peers.get_mut(&peer) {
 					let view = std::mem::take(&mut data.view);
 					update_peer_view_and_maybe_send_unlocked(
 						peer,
-						topology_storage.get_current_topology(),
+						topology_storage.get_current_topology().local_grid_neighbors(),
 						data,
 						ctx,
 						&*active_heads,
@@ -1700,7 +1706,7 @@ async fn handle_network_update<Context, R>(
 				topology_storage,
 				peers,
 				active_heads,
-				&*recent_outdated_heads,
+				recent_outdated_heads,
 				ctx,
 				message,
 				req_sender,
@@ -1717,7 +1723,7 @@ async fn handle_network_update<Context, R>(
 				Some(data) =>
 					update_peer_view_and_maybe_send_unlocked(
 						peer,
-						topology_storage.get_current_topology(),
+						topology_storage.get_current_topology().local_grid_neighbors(),
 						data,
 						ctx,
 						&*active_heads,
@@ -2007,7 +2013,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					}
 				}
 
-				for activated in activated {
+				if let Some(activated) = activated {
 					let relay_parent = activated.hash;
 					let span = PerLeafSpan::new(activated.span, "statement-distribution");
 					gum::trace!(
@@ -2062,7 +2068,10 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					// directly:
 					let group_peers = {
 						if let Some(our_group) = validator_info.our_group {
-							let our_group = &session_info.validator_groups[our_group.0 as usize];
+							let our_group = &session_info
+								.validator_groups
+								.get(our_group)
+								.expect("`our_group` is derived from `validator_groups`; qed");
 
 							our_group
 								.into_iter()

@@ -16,14 +16,11 @@
 
 use async_trait::async_trait;
 use polkadot_primitives::{
-	runtime_api::ParachainHost,
-	v2::{
-		Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id,
-		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
-	},
+	runtime_api::ParachainHost, Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent,
+	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id,
+	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
+	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -157,7 +154,7 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 		index: SessionIndex,
-	) -> Result<Option<polkadot_primitives::v2::OldV1SessionInfo>, ApiError>;
+	) -> Result<Option<polkadot_primitives::OldV1SessionInfo>, ApiError>;
 
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	///
@@ -186,7 +183,7 @@ pub trait RuntimeApiSubsystemClient {
 
 	/// Returns all onchain disputes.
 	/// This is a staging method! Do not use on production runtimes!
-	async fn staging_get_disputes(
+	async fn disputes(
 		&self,
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
@@ -370,15 +367,15 @@ where
 		&self,
 		at: Hash,
 		index: SessionIndex,
-	) -> Result<Option<polkadot_primitives::v2::OldV1SessionInfo>, ApiError> {
+	) -> Result<Option<polkadot_primitives::OldV1SessionInfo>, ApiError> {
 		#[allow(deprecated)]
 		self.runtime_api().session_info_before_version_2(&BlockId::Hash(at), index)
 	}
 
-	async fn staging_get_disputes(
+	async fn disputes(
 		&self,
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError> {
-		self.runtime_api().staging_get_disputes(&BlockId::Hash(at))
+		self.runtime_api().disputes(&BlockId::Hash(at))
 	}
 }

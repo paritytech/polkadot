@@ -90,7 +90,7 @@ where
 		let future = run_network_out(self, ctx)
 			.map_err(|e| SubsystemError::with_origin("network-bridge", e))
 			.boxed();
-		SpawnedSubsystem { name: "network-bridge-subsystem", future }
+		SpawnedSubsystem { name: "network-bridge-tx-subsystem", future }
 	}
 }
 

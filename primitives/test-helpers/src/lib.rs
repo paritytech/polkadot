@@ -21,7 +21,7 @@
 //!
 //! Note that `dummy_` prefixed values are meant to be fillers, that should not matter, and will
 //! contain randomness based data.
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, CollatorId, CollatorSignature,
 	CommittedCandidateReceipt, Hash, HeadData, Id as ParaId, ValidationCode, ValidationCodeHash,
 	ValidatorId,
@@ -159,7 +159,7 @@ pub fn make_valid_candidate_descriptor<H: AsRef<[u8]>>(
 	collator: Sr25519Keyring,
 ) -> CandidateDescriptor<H> {
 	let validation_code_hash = validation_code_hash.into();
-	let payload = polkadot_primitives::v2::collator_signature_payload::<H>(
+	let payload = polkadot_primitives::collator_signature_payload::<H>(
 		&relay_parent,
 		&para_id,
 		&persisted_validation_data_hash,
@@ -190,7 +190,7 @@ pub fn resign_candidate_descriptor_with_collator<H: AsRef<[u8]>>(
 	collator: Sr25519Keyring,
 ) {
 	descriptor.collator = collator.public().into();
-	let payload = polkadot_primitives::v2::collator_signature_payload::<H>(
+	let payload = polkadot_primitives::collator_signature_payload::<H>(
 		&descriptor.relay_parent,
 		&descriptor.para_id,
 		&descriptor.persisted_validation_data_hash,
@@ -254,4 +254,8 @@ impl rand::RngCore for AlwaysZeroRng {
 		self.fill_bytes(dest);
 		Ok(())
 	}
+}
+
+pub fn dummy_signature() -> polkadot_primitives::ValidatorSignature {
+	sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64])
 }

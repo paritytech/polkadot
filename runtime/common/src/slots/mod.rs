@@ -31,7 +31,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
-use primitives::v2::Id as ParaId;
+use primitives::Id as ParaId;
 use sp_runtime::traits::{CheckedConversion, CheckedSub, Saturating, Zero};
 use sp_std::prelude::*;
 
@@ -91,7 +91,7 @@ pub mod pallet {
 		type LeaseOffset: Get<Self::BlockNumber>;
 
 		/// The origin which may forcibly create or clear leases. Root can always do this.
-		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 
 		/// Weight Information for the Extrinsics in the Pallet
 		type WeightInfo: WeightInfo;
@@ -165,6 +165,7 @@ pub mod pallet {
 		/// independently of any other on-chain mechanism to use it.
 		///
 		/// The dispatch origin for this call must match `T::ForceOrigin`.
+		#[pallet::call_index(0)]
 		#[pallet::weight(T::WeightInfo::force_lease())]
 		pub fn force_lease(
 			origin: OriginFor<T>,
@@ -183,6 +184,7 @@ pub mod pallet {
 		/// Clear all leases for a Para Id, refunding any deposits back to the original owners.
 		///
 		/// The dispatch origin for this call must match `T::ForceOrigin`.
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::clear_all_leases())]
 		pub fn clear_all_leases(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			T::ForceOrigin::ensure_origin(origin)?;
@@ -205,6 +207,7 @@ pub mod pallet {
 		/// let them onboard from here.
 		///
 		/// Origin must be signed, but can be called by anyone.
+		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::trigger_onboard())]
 		pub fn trigger_onboard(origin: OriginFor<T>, para: ParaId) -> DispatchResult {
 			let _ = ensure_signed(origin)?;
@@ -503,7 +506,7 @@ mod tests {
 	use frame_support::{assert_noop, assert_ok, parameter_types};
 	use frame_system::EnsureRoot;
 	use pallet_balances;
-	use primitives::v2::{BlockNumber, Header};
+	use primitives::{BlockNumber, Header};
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 
@@ -529,7 +532,7 @@ mod tests {
 		type BaseCallFilter = frame_support::traits::Everything;
 		type BlockWeights = ();
 		type BlockLength = ();
-		type Origin = Origin;
+		type RuntimeOrigin = RuntimeOrigin;
 		type RuntimeCall = RuntimeCall;
 		type Index = u64;
 		type BlockNumber = BlockNumber;
@@ -847,7 +850,7 @@ mod tests {
 				assert_eq!(Balances::reserved_balance(j), j * 10);
 			}
 
-			assert_ok!(Slots::clear_all_leases(Origin::root(), 1.into()));
+			assert_ok!(Slots::clear_all_leases(RuntimeOrigin::root(), 1.into()));
 
 			// Balances cleaned up correctly
 			for i in 1u32..=max_num {
@@ -925,21 +928,21 @@ mod tests {
 
 			// Para 1 should fail cause they don't have any leases
 			assert_noop!(
-				Slots::trigger_onboard(Origin::signed(1), 1.into()),
+				Slots::trigger_onboard(RuntimeOrigin::signed(1), 1.into()),
 				Error::<Test>::ParaNotOnboarding
 			);
 
 			// Para 2 should succeed
-			assert_ok!(Slots::trigger_onboard(Origin::signed(1), 2.into()));
+			assert_ok!(Slots::trigger_onboard(RuntimeOrigin::signed(1), 2.into()));
 
 			// Para 3 should fail cause their lease is in the future
 			assert_noop!(
-				Slots::trigger_onboard(Origin::signed(1), 3.into()),
+				Slots::trigger_onboard(RuntimeOrigin::signed(1), 3.into()),
 				Error::<Test>::ParaNotOnboarding
 			);
 
 			// Trying Para 2 again should fail cause they are not currently a parathread
-			assert!(Slots::trigger_onboard(Origin::signed(1), 2.into()).is_err());
+			assert!(Slots::trigger_onboard(RuntimeOrigin::signed(1), 2.into()).is_err());
 
 			assert_eq!(TestRegistrar::<Test>::operations(), vec![(2.into(), 1, true),]);
 		});
@@ -1025,7 +1028,7 @@ mod benchmarking {
 			let period_begin = 69u32.into();
 			let period_count = 3u32.into();
 			let origin = T::ForceOrigin::successful_origin();
-		}: _<T::Origin>(origin, para, leaser.clone(), amount, period_begin, period_count)
+		}: _<T::RuntimeOrigin>(origin, para, leaser.clone(), amount, period_begin, period_count)
 		verify {
 			assert_last_event::<T>(Event::<T>::Leased {
 				para_id: para,
@@ -1039,8 +1042,8 @@ mod benchmarking {
 		// Worst case scenario, T parathreads onboard, and C parachains offboard.
 		manage_lease_period_start {
 			// Assume reasonable maximum of 100 paras at any time
-			let c in 1 .. 100;
-			let t in 1 .. 100;
+			let c in 0 .. 100;
+			let t in 0 .. 100;
 
 			let period_begin = 1u32.into();
 			let period_count = 4u32.into();
@@ -1119,7 +1122,7 @@ mod benchmarking {
 			}
 
 			let origin = T::ForceOrigin::successful_origin();
-		}: _<T::Origin>(origin, para)
+		}: _<T::RuntimeOrigin>(origin, para)
 		verify {
 			for i in 0 .. max_people {
 				let leaser = account("lease_deposit", i, 0);

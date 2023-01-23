@@ -1,9 +1,9 @@
 [package]
 name = "polkadot-node-subsystem"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 description = "Subsystem traits and message definitions and the generated overseer"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 polkadot-overseer = { path = "../overseer" }

@@ -30,6 +30,7 @@ use sp_core::testing::TaskExecutor;
 
 use std::{
 	convert::Infallible,
+	future::Future,
 	pin::Pin,
 	sync::Arc,
 	task::{Context, Poll, Waker},
@@ -176,7 +177,7 @@ where
 /// A test subsystem context.
 pub struct TestSubsystemContext<M, S> {
 	tx: TestSubsystemSender,
-	rx: SingleItemStream<FromOrchestra<M>>,
+	rx: mpsc::Receiver<FromOrchestra<M>>,
 	spawn: S,
 }
 
@@ -238,7 +239,7 @@ pub struct TestSubsystemContextHandle<M> {
 	///
 	/// Useful for shared ownership situations (one can have multiple senders, but only one
 	/// receiver.
-	pub tx: SingleItemSink<FromOrchestra<M>>,
+	pub tx: mpsc::Sender<FromOrchestra<M>>,
 
 	/// Direct access to the receiver.
 	pub rx: mpsc::UnboundedReceiver<AllMessages>,
@@ -279,11 +280,22 @@ impl<M> TestSubsystemContextHandle<M> {
 	}
 }
 
-/// Make a test subsystem context.
+/// Make a test subsystem context with `buffer_size == 0`. This is used by most
+/// of the tests.
 pub fn make_subsystem_context<M, S>(
 	spawner: S,
 ) -> (TestSubsystemContext<M, SpawnGlue<S>>, TestSubsystemContextHandle<M>) {
-	let (overseer_tx, overseer_rx) = single_item_sink();
+	make_buffered_subsystem_context(spawner, 0)
+}
+
+/// Make a test subsystem context with buffered overseer channel. Some tests (e.g.
+/// `dispute-coordinator`) create too many parallel operations and deadlock unless
+/// the channel is buffered. Usually `buffer_size=1` is enough.
+pub fn make_buffered_subsystem_context<M, S>(
+	spawner: S,
+	buffer_size: usize,
+) -> (TestSubsystemContext<M, SpawnGlue<S>>, TestSubsystemContextHandle<M>) {
+	let (overseer_tx, overseer_rx) = mpsc::channel(buffer_size);
 	let (all_messages_tx, all_messages_rx) = mpsc::unbounded();
 
 	(
@@ -391,13 +403,41 @@ macro_rules! arbitrary_order {
 	};
 }
 
+/// Future that yields the execution once and resolves
+/// immediately after.
+///
+/// Useful when one wants to poll the background task to completion
+/// before sending messages to it in order to avoid races.
+pub struct Yield(bool);
+
+impl Yield {
+	/// Returns new `Yield` future.
+	pub fn new() -> Self {
+		Self(false)
+	}
+}
+
+impl Future for Yield {
+	type Output = ();
+
+	fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+		if !self.0 {
+			self.0 = true;
+			cx.waker().wake_by_ref();
+			Poll::Pending
+		} else {
+			Poll::Ready(())
+		}
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use futures::executor::block_on;
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
 	use polkadot_overseer::{dummy::dummy_overseer_builder, Handle, HeadSupportsParachains};
-	use polkadot_primitives::v2::Hash;
+	use polkadot_primitives::Hash;
 	use sp_core::traits::SpawnNamed;
 
 	struct AlwaysSupportsParachains;

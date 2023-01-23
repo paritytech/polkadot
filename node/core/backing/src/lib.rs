@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::{
 	self as util, request_from_runtime, request_session_index_for_child, request_validator_groups,
 	request_validators, Validator,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, SigningContext,
 	ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
@@ -482,9 +482,7 @@ impl TableContextTrait for TableContext {
 	}
 
 	fn is_member_of(&self, authority: &ValidatorIndex, group: &ParaId) -> bool {
-		self.groups
-			.get(group)
-			.map_or(false, |g| g.iter().position(|a| a == authority).is_some())
+		self.groups.get(group).map_or(false, |g| g.iter().any(|a| a == authority))
 	}
 
 	fn requisite_votes(&self, group: &ParaId) -> usize {
@@ -499,7 +497,7 @@ struct InvalidErasureRoot;
 fn primitive_statement_to_table(s: &SignedFullStatement) -> TableSignedStatement {
 	let statement = match s.payload() {
 		Statement::Seconded(c) => TableStatement::Seconded(c.clone()),
-		Statement::Valid(h) => TableStatement::Valid(h.clone()),
+		Statement::Valid(h) => TableStatement::Valid(*h),
 	};
 
 	TableSignedStatement {
@@ -589,7 +587,7 @@ async fn make_pov_available(
 	n_validators: usize,
 	pov: Arc<PoV>,
 	candidate_hash: CandidateHash,
-	validation_data: polkadot_primitives::v2::PersistedValidationData,
+	validation_data: polkadot_primitives::PersistedValidationData,
 	expected_erasure_root: Hash,
 	span: Option<&jaeger::Span>,
 ) -> Result<Result<(), InvalidErasureRoot>, Error> {
@@ -621,6 +619,7 @@ async fn request_pov(
 	sender: &mut impl overseer::CandidateBackingSenderTrait,
 	relay_parent: Hash,
 	from_validator: ValidatorIndex,
+	para_id: ParaId,
 	candidate_hash: CandidateHash,
 	pov_hash: Hash,
 ) -> Result<Arc<PoV>, Error> {
@@ -629,6 +628,7 @@ async fn request_pov(
 		.send_message(AvailabilityDistributionMessage::FetchPoV {
 			relay_parent,
 			from_validator,
+			para_id,
 			candidate_hash,
 			pov_hash,
 			tx,
@@ -697,8 +697,15 @@ async fn validate_and_make_available(
 		PoVData::Ready(pov) => pov,
 		PoVData::FetchFromValidator { from_validator, candidate_hash, pov_hash } => {
 			let _span = span.as_ref().map(|s| s.child("request-pov"));
-			match request_pov(&mut sender, relay_parent, from_validator, candidate_hash, pov_hash)
-				.await
+			match request_pov(
+				&mut sender,
+				relay_parent,
+				from_validator,
+				candidate.descriptor.para_id,
+				candidate_hash,
+				pov_hash,
+			)
+			.await
 			{
 				Err(Error::FetchPoV) => {
 					tx_command

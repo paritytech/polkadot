@@ -17,24 +17,26 @@
 use super::*;
 use assert_matches::assert_matches;
 use futures::{executor, future, Future};
-use polkadot_node_network_protocol::{our_view, peer_set::ValidationVersion, view, ObservedRole};
+use polkadot_node_network_protocol::{
+	grid_topology::{SessionGridTopology, TopologyPeerInfo},
+	our_view,
+	peer_set::ValidationVersion,
+	view, ObservedRole,
+};
 use polkadot_node_primitives::approval::{
 	AssignmentCertKind, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
 };
 use polkadot_node_subsystem::messages::{network_bridge_event, AllMessages, ApprovalCheckError};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, BlakeTwo256, HashT};
+use polkadot_primitives::{AuthorityDiscoveryId, BlakeTwo256, HashT};
+use polkadot_primitives_test_helpers::dummy_signature;
 use rand::SeedableRng;
 use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 use sp_core::crypto::Pair as PairT;
 use std::time::Duration;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<ApprovalDistributionMessage>;
-
-fn dummy_signature() -> polkadot_primitives::v2::ValidatorSignature {
-	sp_core::crypto::UncheckedFrom::unchecked_from([1u8; 64])
-}
 
 fn test_harness<T: Future<Output = VirtualOverseer>>(
 	mut state: State,
@@ -122,33 +124,79 @@ fn make_gossip_topology(
 	neighbors_x: &[usize],
 	neighbors_y: &[usize],
 ) -> network_bridge_event::NewGossipTopology {
-	let mut t = network_bridge_event::NewGossipTopology {
-		session,
-		our_neighbors_x: HashMap::new(),
-		our_neighbors_y: HashMap::new(),
+	// This builds a grid topology which is a square matrix.
+	// The local validator occupies the top left-hand corner.
+	// The X peers occupy the same row and the Y peers occupy
+	// the same column.
+
+	let local_index = 1;
+
+	assert_eq!(
+		neighbors_x.len(),
+		neighbors_y.len(),
+		"mocking grid topology only implemented for squares",
+	);
+
+	let d = neighbors_x.len() + 1;
+
+	let grid_size = d * d;
+	assert!(grid_size > 0);
+	assert!(all_peers.len() >= grid_size);
+
+	let peer_info = |i: usize| TopologyPeerInfo {
+		peer_ids: vec![all_peers[i].0.clone()],
+		validator_index: ValidatorIndex::from(i as u32),
+		discovery_id: all_peers[i].1.clone(),
 	};
 
-	for &i in neighbors_x {
-		t.our_neighbors_x.insert(
-			all_peers[i].1.clone(),
-			network_bridge_event::TopologyPeerInfo {
-				peer_ids: vec![all_peers[i].0.clone()],
-				validator_index: ValidatorIndex::from(i as u32),
-			},
-		);
+	let mut canonical_shuffling: Vec<_> = (0..)
+		.filter(|i| local_index != *i)
+		.filter(|i| !neighbors_x.contains(i))
+		.filter(|i| !neighbors_y.contains(i))
+		.take(grid_size)
+		.map(peer_info)
+		.collect();
+
+	// filled with junk except for own.
+	let mut shuffled_indices = vec![d + 1; grid_size];
+	shuffled_indices[local_index] = 0;
+	canonical_shuffling[0] = peer_info(local_index);
+
+	for (x_pos, v) in neighbors_x.iter().enumerate() {
+		let pos = 1 + x_pos;
+		canonical_shuffling[pos] = peer_info(*v);
 	}
 
-	for &i in neighbors_y {
-		t.our_neighbors_y.insert(
-			all_peers[i].1.clone(),
-			network_bridge_event::TopologyPeerInfo {
-				peer_ids: vec![all_peers[i].0.clone()],
-				validator_index: ValidatorIndex::from(i as u32),
-			},
-		);
+	for (y_pos, v) in neighbors_y.iter().enumerate() {
+		let pos = d * (1 + y_pos);
+		canonical_shuffling[pos] = peer_info(*v);
 	}
 
-	t
+	let topology = SessionGridTopology::new(shuffled_indices, canonical_shuffling);
+
+	// sanity check.
+	{
+		let g_n = topology
+			.compute_grid_neighbors_for(ValidatorIndex(local_index as _))
+			.expect("topology just constructed with this validator index");
+
+		assert_eq!(g_n.validator_indices_x.len(), neighbors_x.len());
+		assert_eq!(g_n.validator_indices_y.len(), neighbors_y.len());
+
+		for i in neighbors_x {
+			assert!(g_n.validator_indices_x.contains(&ValidatorIndex(*i as _)));
+		}
+
+		for i in neighbors_y {
+			assert!(g_n.validator_indices_y.contains(&ValidatorIndex(*i as _)));
+		}
+	}
+
+	network_bridge_event::NewGossipTopology {
+		session,
+		topology,
+		local_index: Some(ValidatorIndex(local_index as _)),
+	}
 }
 
 async fn setup_gossip_topology(
@@ -2227,4 +2275,148 @@ fn resends_messages_periodically() {
 		assert!(overseer.recv().timeout(TIMEOUT).await.is_none(), "no message should be sent");
 		virtual_overseer
 	});
+}
+
+fn batch_test_round(message_count: usize) {
+	use polkadot_node_subsystem::SubsystemContext;
+	let pool = sp_core::testing::TaskExecutor::new();
+	let mut state = State::default();
+
+	let (mut context, mut virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
+	let subsystem = ApprovalDistribution::new(Default::default());
+	let mut rng = rand_chacha::ChaCha12Rng::seed_from_u64(12345);
+	let mut sender = context.sender().clone();
+	let subsystem = subsystem.run_inner(context, &mut state, &mut rng);
+
+	let test_fut = async move {
+		let overseer = &mut virtual_overseer;
+		let validators = 0..message_count;
+		let assignments: Vec<_> = validators
+			.clone()
+			.map(|index| (fake_assignment_cert(Hash::zero(), ValidatorIndex(index as u32)), 0))
+			.collect();
+
+		let approvals: Vec<_> = validators
+			.map(|index| IndirectSignedApprovalVote {
+				block_hash: Hash::zero(),
+				candidate_index: 0,
+				validator: ValidatorIndex(index as u32),
+				signature: dummy_signature(),
+			})
+			.collect();
+
+		let peer = PeerId::random();
+		send_assignments_batched(&mut sender, assignments.clone(), peer).await;
+		send_approvals_batched(&mut sender, approvals.clone(), peer).await;
+
+		// Check expected assignments batches.
+		for assignment_index in (0..assignments.len()).step_by(super::MAX_ASSIGNMENT_BATCH_SIZE) {
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
+					peers,
+					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Assignments(sent_assignments)
+					))
+				)) => {
+					// Last batch should cover all remaining messages.
+					if sent_assignments.len() < super::MAX_ASSIGNMENT_BATCH_SIZE {
+						assert_eq!(sent_assignments.len() + assignment_index, assignments.len());
+					} else {
+						assert_eq!(sent_assignments.len(), super::MAX_ASSIGNMENT_BATCH_SIZE);
+					}
+
+					assert_eq!(peers.len(), 1);
+
+					for (message_index,  assignment) in sent_assignments.iter().enumerate() {
+						assert_eq!(assignment.0, assignments[assignment_index + message_index].0);
+						assert_eq!(assignment.1, 0);
+					}
+				}
+			);
+		}
+
+		// Check approval vote batching.
+		for approval_index in (0..approvals.len()).step_by(super::MAX_APPROVAL_BATCH_SIZE) {
+			assert_matches!(
+				overseer_recv(overseer).await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(
+					peers,
+					Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+						protocol_v1::ApprovalDistributionMessage::Approvals(sent_approvals)
+					))
+				)) => {
+					// Last batch should cover all remaining messages.
+					if sent_approvals.len() < super::MAX_APPROVAL_BATCH_SIZE {
+						assert_eq!(sent_approvals.len() + approval_index, approvals.len());
+					} else {
+						assert_eq!(sent_approvals.len(), super::MAX_APPROVAL_BATCH_SIZE);
+					}
+
+					assert_eq!(peers.len(), 1);
+
+					for (message_index,  approval) in sent_approvals.iter().enumerate() {
+						assert_eq!(approval, &approvals[approval_index + message_index]);
+					}
+				}
+			);
+		}
+		virtual_overseer
+	};
+
+	futures::pin_mut!(test_fut);
+	futures::pin_mut!(subsystem);
+
+	executor::block_on(future::join(
+		async move {
+			let mut overseer = test_fut.await;
+			overseer
+				.send(FromOrchestra::Signal(OverseerSignal::Conclude))
+				.timeout(TIMEOUT)
+				.await
+				.expect("Conclude send timeout");
+		},
+		subsystem,
+	));
+}
+
+#[test]
+fn batch_sending_1_msg() {
+	batch_test_round(1);
+}
+
+#[test]
+fn batch_sending_exactly_one_batch() {
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE);
+}
+
+#[test]
+fn batch_sending_partial_batch() {
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE * 2 + 4);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE * 2 + 4);
+}
+
+#[test]
+fn batch_sending_multiple_same_len() {
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE * 10);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE * 10);
+}
+
+#[test]
+fn batch_sending_half_batch() {
+	batch_test_round(super::MAX_APPROVAL_BATCH_SIZE / 2);
+	batch_test_round(super::MAX_ASSIGNMENT_BATCH_SIZE / 2);
+}
+
+#[test]
+#[should_panic]
+fn const_batch_size_panics_if_zero() {
+	crate::ensure_size_not_zero(0);
+}
+
+#[test]
+fn const_ensure_size_not_zero() {
+	crate::ensure_size_not_zero(super::MAX_ASSIGNMENT_BATCH_SIZE);
+	crate::ensure_size_not_zero(super::MAX_APPROVAL_BATCH_SIZE);
 }

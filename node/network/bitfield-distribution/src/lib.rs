@@ -27,7 +27,7 @@ use futures::{channel::oneshot, FutureExt};
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{
-		RandomRouting, RequiredRouting, SessionBoundGridTopologyStorage, SessionGridTopology,
+		GridNeighbors, RandomRouting, RequiredRouting, SessionBoundGridTopologyStorage,
 	},
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{self as util};
 
-use polkadot_primitives::v2::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
+use polkadot_primitives::{Hash, SignedAvailabilityBitfield, SigningContext, ValidatorId};
 use rand::{CryptoRng, Rng, SeedableRng};
 use std::collections::{HashMap, HashSet};
 
@@ -233,7 +233,7 @@ impl BitfieldDistribution {
 				})) => {
 					let _timer = self.metrics.time_active_leaves_update();
 
-					for activated in activated {
+					if let Some(activated) = activated {
 						let relay_parent = activated.hash;
 
 						gum::trace!(target: LOG_TARGET, ?relay_parent, "activated");
@@ -319,7 +319,7 @@ async fn handle_bitfield_distribution<Context>(
 	}
 
 	let validator_index = signed_availability.validator_index();
-	let validator = if let Some(validator) = validator_set.get(*&validator_index.0 as usize) {
+	let validator = if let Some(validator) = validator_set.get(validator_index.0 as usize) {
 		validator.clone()
 	} else {
 		gum::debug!(target: LOG_TARGET, validator_index = ?validator_index.0, "Could not find a validator for index");
@@ -327,7 +327,7 @@ async fn handle_bitfield_distribution<Context>(
 	};
 
 	let msg = BitfieldGossipMessage { relay_parent, signed_availability };
-	let topology = state.topologies.get_topology_or_fallback(session_idx);
+	let topology = state.topologies.get_topology_or_fallback(session_idx).local_grid_neighbors();
 	let required_routing = topology.required_routing_by_index(validator_index, true);
 
 	relay_message(
@@ -352,7 +352,7 @@ async fn handle_bitfield_distribution<Context>(
 async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
-	topology: &SessionGridTopology,
+	topology_neighbors: &GridNeighbors,
 	peer_views: &mut HashMap<PeerId, View>,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
@@ -384,7 +384,7 @@ async fn relay_message<Context>(
 				let message_needed =
 					job_data.message_from_validator_needed_by_peer(&peer, &validator);
 				if message_needed {
-					let in_topology = topology.route_to_peer(required_routing, &peer);
+					let in_topology = topology_neighbors.route_to_peer(required_routing, &peer);
 					let need_routing = in_topology || {
 						let route_random = random_routing.sample(total_peers, rng);
 						if route_random {
@@ -395,7 +395,7 @@ async fn relay_message<Context>(
 					};
 
 					if need_routing {
-						Some(peer.clone())
+						Some(*peer)
 					} else {
 						None
 					}
@@ -412,7 +412,7 @@ async fn relay_message<Context>(
 		// track the message as sent for this peer
 		job_data
 			.message_sent_to_peer
-			.entry(peer.clone())
+			.entry(*peer)
 			.or_default()
 			.insert(validator.clone());
 	});
@@ -497,7 +497,7 @@ async fn process_incoming_peer_message<Context>(
 	// Check if the peer already sent us a message for the validator denoted in the message earlier.
 	// Must be done after validator index verification, in order to avoid storing an unbounded
 	// number of set entries.
-	let received_set = job_data.message_received_from_peer.entry(origin.clone()).or_default();
+	let received_set = job_data.message_received_from_peer.entry(origin).or_default();
 
 	if !received_set.contains(&validator) {
 		received_set.insert(validator.clone());
@@ -533,7 +533,8 @@ async fn process_incoming_peer_message<Context>(
 
 	let topology = state
 		.topologies
-		.get_topology_or_fallback(job_data.signing_context.session_index);
+		.get_topology_or_fallback(job_data.signing_context.session_index)
+		.local_grid_neighbors();
 	let required_routing = topology.required_routing_by_index(validator_index, false);
 
 	metrics.on_bitfield_received();
@@ -579,14 +580,24 @@ async fn handle_network_msg<Context>(
 		},
 		NetworkBridgeEvent::NewGossipTopology(gossip_topology) => {
 			let session_index = gossip_topology.session;
-			let new_topology = SessionGridTopology::from(gossip_topology);
-			let newly_added = new_topology.peers_diff(&new_topology);
-			state.topologies.update_topology(session_index, new_topology);
+			let new_topology = gossip_topology.topology;
+			let prev_neighbors =
+				state.topologies.get_current_topology().local_grid_neighbors().clone();
+
+			state.topologies.update_topology(
+				session_index,
+				new_topology,
+				gossip_topology.local_index,
+			);
+			let current_topology = state.topologies.get_current_topology();
+
+			let newly_added = current_topology.local_grid_neighbors().peers_diff(&prev_neighbors);
+
 			gum::debug!(
 				target: LOG_TARGET,
 				?session_index,
-				"New gossip topology received {} unseen peers",
-				newly_added.len()
+				newly_added_peers = ?newly_added.len(),
+				"New gossip topology received",
 			);
 
 			for new_peer in newly_added {
@@ -645,13 +656,13 @@ async fn handle_peer_view_change<Context>(
 ) {
 	let added = state
 		.peer_views
-		.entry(origin.clone())
+		.entry(origin)
 		.or_default()
 		.replace_difference(view)
 		.cloned()
 		.collect::<Vec<_>>();
 
-	let topology = state.topologies.get_current_topology();
+	let topology = state.topologies.get_current_topology().local_grid_neighbors();
 	let is_gossip_peer = topology.route_to_peer(RequiredRouting::GridXY, &origin);
 	let lucky = is_gossip_peer ||
 		util::gen_ratio_rng(
@@ -670,11 +681,10 @@ async fn handle_peer_view_change<Context>(
 	let delta_set: Vec<(ValidatorId, BitfieldGossipMessage)> = added
 		.into_iter()
 		.filter_map(|new_relay_parent_interest| {
-			if let Some(job_data) = (&*state).per_relay_parent.get(&new_relay_parent_interest) {
+			if let Some(job_data) = state.per_relay_parent.get(&new_relay_parent_interest) {
 				// Send all jointly known messages for a validator (given the current relay parent)
 				// to the peer `origin`...
 				let one_per_validator = job_data.one_per_validator.clone();
-				let origin = origin.clone();
 				Some(one_per_validator.into_iter().filter(move |(validator, _message)| {
 					// ..except for the ones the peer already has.
 					job_data.message_from_validator_needed_by_peer(&origin, validator)
@@ -688,7 +698,7 @@ async fn handle_peer_view_change<Context>(
 		.collect();
 
 	for (validator, message) in delta_set.into_iter() {
-		send_tracked_gossip_message(ctx, state, origin.clone(), validator, message).await;
+		send_tracked_gossip_message(ctx, state, origin, validator, message).await;
 	}
 }
 
@@ -716,11 +726,7 @@ async fn send_tracked_gossip_message<Context>(
 		"Sending gossip message"
 	);
 
-	job_data
-		.message_sent_to_peer
-		.entry(dest.clone())
-		.or_default()
-		.insert(validator.clone());
+	job_data.message_sent_to_peer.entry(dest).or_default().insert(validator.clone());
 
 	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 		vec![dest],
@@ -749,14 +755,14 @@ async fn query_basics<Context>(
 
 	// query validators
 	ctx.send_message(RuntimeApiMessage::Request(
-		relay_parent.clone(),
+		relay_parent,
 		RuntimeApiRequest::Validators(validators_tx),
 	))
 	.await;
 
 	// query signing context
 	ctx.send_message(RuntimeApiMessage::Request(
-		relay_parent.clone(),
+		relay_parent,
 		RuntimeApiRequest::SessionIndexForChild(session_tx),
 	))
 	.await;

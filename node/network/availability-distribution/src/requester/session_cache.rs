@@ -14,16 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::HashSet;
+use std::{collections::HashSet, num::NonZeroUsize};
 
 use lru::LruCache;
 use rand::{seq::SliceRandom, thread_rng};
 
 use polkadot_node_subsystem::overseer;
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
-use polkadot_primitives::v2::{
-	AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex, ValidatorIndex,
-};
+use polkadot_primitives::{AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex, ValidatorIndex};
 
 use crate::{
 	error::{Error, Result},
@@ -85,7 +83,7 @@ impl SessionCache {
 	pub fn new() -> Self {
 		SessionCache {
 			// We need to cache the current and the last session the most:
-			session_info_cache: LruCache::new(2),
+			session_info_cache: LruCache::new(NonZeroUsize::new(2).unwrap()),
 		}
 	}
 

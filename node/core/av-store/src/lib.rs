@@ -39,7 +39,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
 };
 
@@ -61,7 +61,7 @@ const PRUNE_BY_TIME_PREFIX: &[u8; 13] = b"prune_by_time";
 
 // We have some keys we want to map to empty values because existence of the key is enough. We use this because
 // rocksdb doesn't support empty values.
-const TOMBSTONE_VALUE: &[u8] = &*b" ";
+const TOMBSTONE_VALUE: &[u8] = b" ";
 
 /// Unavailable blocks are kept for 1 hour.
 const KEEP_UNAVAILABLE_FOR: Duration = Duration::from_secs(60 * 60);
@@ -570,6 +570,14 @@ async fn run_iteration<Context>(
 				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
 					let _timer = subsystem.metrics.time_process_block_finalized();
 
+					if !subsystem.known_blocks.is_known(&hash) {
+						// If we haven't processed this block yet,
+						// make sure we write the metadata about the
+						// candidates backed in this finalized block.
+						// Otherwise, we won't be able to store our chunk
+						// for these candidates.
+						process_block_activated(ctx, subsystem, hash).await?;
+					}
 					subsystem.finalized_number = Some(number);
 					subsystem.known_blocks.prune_finalized(number);
 					process_block_finalized(
@@ -792,8 +800,9 @@ fn note_block_included(
 macro_rules! peek_num {
 	($iter:ident) => {
 		match $iter.peek() {
-			Some((k, _)) => decode_unfinalized_key(&k[..]).ok().map(|(b, _, _)| b),
-			None => None,
+			Some(Ok((k, _))) => Ok(decode_unfinalized_key(&k[..]).ok().map(|(b, _, _)| b)),
+			Some(Err(_)) => Err($iter.next().expect("peek returned Some(Err); qed").unwrap_err()),
+			None => Ok(None),
 		}
 	};
 }
@@ -819,10 +828,10 @@ async fn process_block_finalized<Context>(
 			let mut iter = subsystem
 				.db
 				.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
-				.take_while(|(k, _)| &k[..] < &end_prefix[..])
+				.take_while(|r| r.as_ref().map_or(true, |(k, _v)| &k[..] < &end_prefix[..]))
 				.peekable();
 
-			match peek_num!(iter) {
+			match peek_num!(iter)? {
 				None => break, // end of iterator.
 				Some(n) => n,
 			}
@@ -867,10 +876,10 @@ async fn process_block_finalized<Context>(
 		let iter = subsystem
 			.db
 			.iter_with_prefix(subsystem.config.col_meta, &start_prefix)
-			.take_while(|(k, _)| &k[..] < &end_prefix[..])
+			.take_while(|r| r.as_ref().map_or(true, |(k, _v)| &k[..] < &end_prefix[..]))
 			.peekable();
 
-		let batch = load_all_at_finalized_height(iter, batch_num, batch_finalized_hash);
+		let batch = load_all_at_finalized_height(iter, batch_num, batch_finalized_hash)?;
 
 		// Now that we've iterated over the entire batch at this finalized height,
 		// update the meta.
@@ -890,22 +899,22 @@ async fn process_block_finalized<Context>(
 // loads all candidates at the finalized height and maps them to `true` if finalized
 // and `false` if unfinalized.
 fn load_all_at_finalized_height(
-	mut iter: std::iter::Peekable<impl Iterator<Item = (Box<[u8]>, Box<[u8]>)>>,
+	mut iter: std::iter::Peekable<impl Iterator<Item = io::Result<util::database::DBKeyValue>>>,
 	block_number: BlockNumber,
 	finalized_hash: Hash,
-) -> impl IntoIterator<Item = (CandidateHash, bool)> {
+) -> io::Result<impl IntoIterator<Item = (CandidateHash, bool)>> {
 	// maps candidate hashes to true if finalized, false otherwise.
 	let mut candidates = HashMap::new();
 
 	// Load all candidates that were included at this height.
 	loop {
-		match peek_num!(iter) {
+		match peek_num!(iter)? {
 			None => break,                         // end of iterator.
 			Some(n) if n != block_number => break, // end of batch.
 			_ => {},
 		}
 
-		let (k, _v) = iter.next().expect("`peek` used to check non-empty; qed");
+		let (k, _v) = iter.next().expect("`peek` used to check non-empty; qed")?;
 		let (_, block_hash, candidate_hash) =
 			decode_unfinalized_key(&k[..]).expect("`peek_num` checks validity of key; qed");
 
@@ -916,7 +925,7 @@ fn load_all_at_finalized_height(
 		}
 	}
 
-	candidates
+	Ok(candidates)
 }
 
 fn update_blocks_at_finalized_height(
@@ -1214,9 +1223,10 @@ fn prune_all(db: &Arc<dyn Database>, config: &Config, clock: &dyn Clock) -> Resu
 	let mut tx = DBTransaction::new();
 	let iter = db
 		.iter_with_prefix(config.col_meta, &range_start[..])
-		.take_while(|(k, _)| &k[..] < &range_end[..]);
+		.take_while(|r| r.as_ref().map_or(true, |(k, _v)| &k[..] < &range_end[..]));
 
-	for (k, _v) in iter {
+	for r in iter {
+		let (k, _v) = r?;
 		tx.delete(config.col_meta, &k[..]);
 
 		let (_, candidate_hash) = match decode_pruning_key(&k[..]) {

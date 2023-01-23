@@ -16,7 +16,7 @@
 
 //! Database trait for polkadot db.
 
-pub use kvdb::{DBTransaction, DBValue, KeyValueDB};
+pub use kvdb::{DBKeyValue, DBTransaction, DBValue, KeyValueDB};
 
 /// Database trait with ordered key capacity.
 pub trait Database: KeyValueDB {
@@ -27,9 +27,8 @@ pub trait Database: KeyValueDB {
 
 /// Implementation for database supporting `KeyValueDB` already.
 pub mod kvdb_impl {
-	use super::{DBTransaction, DBValue, Database, KeyValueDB};
+	use super::{DBKeyValue, DBTransaction, DBValue, Database, KeyValueDB};
 	use kvdb::{DBOp, IoStats, IoStatsKind};
-	use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
 	use std::{collections::BTreeSet, io::Result};
 
 	/// Adapter implementing subsystem database
@@ -86,7 +85,7 @@ pub mod kvdb_impl {
 			self.db.get(col, key)
 		}
 
-		fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Option<Box<[u8]>> {
+		fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Result<Option<DBValue>> {
 			self.ensure_is_indexed(col);
 			self.db.get_by_prefix(col, prefix)
 		}
@@ -96,7 +95,7 @@ pub mod kvdb_impl {
 			self.db.write(transaction)
 		}
 
-		fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
+		fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = Result<DBKeyValue>> + 'a> {
 			self.ensure_is_indexed(col);
 			self.db.iter(col)
 		}
@@ -105,13 +104,9 @@ pub mod kvdb_impl {
 			&'a self,
 			col: u32,
 			prefix: &'a [u8],
-		) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
+		) -> Box<dyn Iterator<Item = Result<DBKeyValue>> + 'a> {
 			self.ensure_is_indexed(col);
 			self.db.iter_with_prefix(col, prefix)
-		}
-
-		fn restore(&self, _new_db: &str) -> Result<()> {
-			unimplemented!("restore is unsupported")
 		}
 
 		fn io_stats(&self, kind: IoStatsKind) -> IoStats {
@@ -122,24 +117,17 @@ pub mod kvdb_impl {
 			self.db.has_key(col, key)
 		}
 
-		fn has_prefix(&self, col: u32, prefix: &[u8]) -> bool {
+		fn has_prefix(&self, col: u32, prefix: &[u8]) -> Result<bool> {
 			self.ensure_is_indexed(col);
 			self.db.has_prefix(col, prefix)
-		}
-	}
-
-	impl<D: KeyValueDB> MallocSizeOf for DbAdapter<D> {
-		fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
-			// ignore filter set
-			self.db.size_of(ops)
 		}
 	}
 }
 
 /// Utilities for using parity-db database.
 pub mod paritydb_impl {
-	use super::{DBTransaction, DBValue, Database, KeyValueDB};
-	use kvdb::{DBOp, IoStats, IoStatsKind};
+	use super::{DBKeyValue, DBTransaction, DBValue, Database, KeyValueDB};
+	use kvdb::DBOp;
 	use parity_db::Db;
 	use parking_lot::Mutex;
 	use std::{collections::BTreeSet, io::Result, sync::Arc};
@@ -164,12 +152,6 @@ pub mod paritydb_impl {
 		write_lock: Arc<Mutex<()>>,
 	}
 
-	impl parity_util_mem::MallocSizeOf for DbAdapter {
-		fn size_of(&self, _ops: &mut parity_util_mem::MallocSizeOfOps) -> usize {
-			unimplemented!("size_of is not supported for parity_db")
-		}
-	}
-
 	impl KeyValueDB for DbAdapter {
 		fn transaction(&self) -> DBTransaction {
 			DBTransaction::new()
@@ -179,18 +161,20 @@ pub mod paritydb_impl {
 			map_err(self.db.get(col as u8, key))
 		}
 
-		fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Option<Box<[u8]>> {
-			self.iter_with_prefix(col, prefix).next().map(|(_, v)| v)
+		fn get_by_prefix(&self, col: u32, prefix: &[u8]) -> Result<Option<DBValue>> {
+			self.iter_with_prefix(col, prefix)
+				.next()
+				.transpose()
+				.map(|mb| mb.map(|(_, v)| v))
 		}
 
-		fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
-			let mut iter = handle_err(self.db.iter(col as u8));
+		fn iter<'a>(&'a self, col: u32) -> Box<dyn Iterator<Item = Result<DBKeyValue>> + 'a> {
+			let mut iter = match self.db.iter(col as u8) {
+				Ok(iter) => iter,
+				Err(e) => return Box::new(std::iter::once(map_err(Err(e)))),
+			};
 			Box::new(std::iter::from_fn(move || {
-				if let Some((key, value)) = handle_err(iter.next()) {
-					Some((key.into_boxed_slice(), value.into_boxed_slice()))
-				} else {
-					None
-				}
+				iter.next().transpose().map(|r| map_err(r.map(|(k, v)| (k.into(), v))))
 			}))
 		}
 
@@ -198,39 +182,26 @@ pub mod paritydb_impl {
 			&'a self,
 			col: u32,
 			prefix: &'a [u8],
-		) -> Box<dyn Iterator<Item = (Box<[u8]>, Box<[u8]>)> + 'a> {
+		) -> Box<dyn Iterator<Item = Result<DBKeyValue>> + 'a> {
 			if prefix.len() == 0 {
 				return self.iter(col)
 			}
-			let mut iter = handle_err(self.db.iter(col as u8));
-			handle_err(iter.seek(prefix));
+			let mut iter = match self.db.iter(col as u8) {
+				Ok(iter) => iter,
+				Err(e) => return Box::new(std::iter::once(map_err(Err(e)))),
+			};
+			if let Err(e) = iter.seek(prefix) {
+				return Box::new(std::iter::once(map_err(Err(e))))
+			}
 			Box::new(std::iter::from_fn(move || {
-				if let Some((key, value)) = handle_err(iter.next()) {
-					key.starts_with(prefix)
-						.then(|| (key.into_boxed_slice(), value.into_boxed_slice()))
-				} else {
-					None
-				}
+				iter.next().transpose().and_then(|r| {
+					map_err(r.map(|(k, v)| k.starts_with(prefix).then(|| (k.into(), v))))
+						.transpose()
+				})
 			}))
 		}
 
-		fn restore(&self, _new_db: &str) -> Result<()> {
-			unimplemented!("restore is unsupported")
-		}
-
-		fn io_stats(&self, _kind: IoStatsKind) -> IoStats {
-			unimplemented!("io_stats not supported by parity_db");
-		}
-
-		fn has_key(&self, col: u32, key: &[u8]) -> Result<bool> {
-			map_err(self.db.get_size(col as u8, key).map(|r| r.is_some()))
-		}
-
-		fn has_prefix(&self, col: u32, prefix: &[u8]) -> bool {
-			self.get_by_prefix(col, prefix).is_some()
-		}
-
-		fn write(&self, transaction: DBTransaction) -> std::io::Result<()> {
+		fn write(&self, transaction: DBTransaction) -> Result<()> {
 			let mut ops = transaction.ops.into_iter();
 			// TODO using a key iterator or native delete here would be faster.
 			let mut current_prefix_iter: Option<(parity_db::BTreeIterator, u8, Vec<u8>)> = None;

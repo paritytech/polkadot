@@ -16,7 +16,7 @@
 
 //! Convenient interface to runtime information.
 
-use std::cmp::max;
+use std::num::NonZeroUsize;
 
 use lru::LruCache;
 
@@ -26,10 +26,10 @@ use sp_core::crypto::ByteArray;
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_subsystem::{messages::RuntimeApiMessage, overseer, SubsystemSender};
-use polkadot_primitives::v2::{
-	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, OccupiedCore,
-	ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed, SigningContext, UncheckedSigned,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+use polkadot_primitives::{
+	CandidateEvent, CoreState, EncodeAs, GroupIndex, GroupRotationInfo, Hash, IndexedVec,
+	OccupiedCore, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed, SigningContext,
+	UncheckedSigned, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
 };
 
 use crate::{
@@ -52,7 +52,7 @@ pub struct Config {
 	pub keystore: Option<SyncCryptoStorePtr>,
 
 	/// How many sessions should we keep in the cache?
-	pub session_cache_lru_size: usize,
+	pub session_cache_lru_size: NonZeroUsize,
 }
 
 /// Caching of session info.
@@ -95,7 +95,7 @@ impl Default for Config {
 		Self {
 			keystore: None,
 			// Usually we need to cache the current and the last session.
-			session_cache_lru_size: 2,
+			session_cache_lru_size: NonZeroUsize::new(2).expect("2 is larger than 0; qed"),
 		}
 	}
 }
@@ -109,7 +109,10 @@ impl RuntimeInfo {
 	/// Create with more elaborate configuration options.
 	pub fn new_with_config(cfg: Config) -> Self {
 		Self {
-			session_index_cache: LruCache::new(max(10, cfg.session_cache_lru_size)),
+			session_index_cache: LruCache::new(
+				cfg.session_cache_lru_size
+					.max(NonZeroUsize::new(10).expect("10 is larger than 0; qed")),
+			),
 			session_info_cache: LruCache::new(cfg.session_cache_lru_size),
 			keystore: cfg.keystore,
 		}
@@ -225,7 +228,10 @@ impl RuntimeInfo {
 	/// Get our `ValidatorIndex`.
 	///
 	/// Returns: None if we are not a validator.
-	async fn get_our_index(&self, validators: &[ValidatorId]) -> Option<ValidatorIndex> {
+	async fn get_our_index(
+		&self,
+		validators: &IndexedVec<ValidatorIndex, ValidatorId>,
+	) -> Option<ValidatorIndex> {
 		let keystore = self.keystore.as_ref()?;
 		for (i, v) in validators.iter().enumerate() {
 			if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
@@ -251,7 +257,7 @@ where
 
 	session_info
 		.validators
-		.get(signed.unchecked_validator_index().0 as usize)
+		.get(signed.unchecked_validator_index())
 		.ok_or_else(|| signed.clone())
 		.and_then(|v| signed.try_into_checked(&signing_context, v))
 }

@@ -20,8 +20,9 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
-use polkadot_primitives::v2::{
-	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo, ValidatorIndex,
+use polkadot_primitives::{
+	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, IndexedVec, SessionInfo,
+	ValidatorIndex,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::ByteArray;
@@ -138,7 +139,7 @@ pub(crate) struct Config {
 	/// The assignment public keys for validators.
 	assignment_keys: Vec<AssignmentId>,
 	/// The groups of validators assigned to each core.
-	validator_groups: Vec<Vec<ValidatorIndex>>,
+	validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	n_cores: u32,
 	/// The zeroth delay tranche width.
@@ -154,10 +155,10 @@ impl<'a> From<&'a SessionInfo> for Config {
 		Config {
 			assignment_keys: s.assignment_keys.clone(),
 			validator_groups: s.validator_groups.clone(),
-			n_cores: s.n_cores.clone(),
-			zeroth_delay_tranche_width: s.zeroth_delay_tranche_width.clone(),
-			relay_vrf_modulo_samples: s.relay_vrf_modulo_samples.clone(),
-			n_delay_tranches: s.n_delay_tranches.clone(),
+			n_cores: s.n_cores,
+			zeroth_delay_tranche_width: s.zeroth_delay_tranche_width,
+			relay_vrf_modulo_samples: s.relay_vrf_modulo_samples,
+			n_delay_tranches: s.n_delay_tranches,
 		}
 	}
 }
@@ -541,18 +542,18 @@ pub(crate) fn check_assignment_cert(
 }
 
 fn is_in_backing_group(
-	validator_groups: &[Vec<ValidatorIndex>],
+	validator_groups: &IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	validator: ValidatorIndex,
 	group: GroupIndex,
 ) -> bool {
-	validator_groups.get(group.0 as usize).map_or(false, |g| g.contains(&validator))
+	validator_groups.get(group).map_or(false, |g| g.contains(&validator))
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
-	use polkadot_primitives::v2::{Hash, ASSIGNMENT_KEY_TYPE_ID};
+	use polkadot_primitives::{Hash, ASSIGNMENT_KEY_TYPE_ID};
 	use sp_application_crypto::sr25519;
 	use sp_core::crypto::Pair as PairT;
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
@@ -590,7 +591,10 @@ mod tests {
 			.collect()
 	}
 
-	fn basic_groups(n_validators: usize, n_groups: usize) -> Vec<Vec<ValidatorIndex>> {
+	fn basic_groups(
+		n_validators: usize,
+		n_groups: usize,
+	) -> IndexedVec<GroupIndex, Vec<ValidatorIndex>> {
 		let size = n_validators / n_groups;
 		let big_groups = n_validators % n_groups;
 		let scraps = n_groups * size;
@@ -631,10 +635,10 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![
+				validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 					vec![ValidatorIndex(0)],
 					vec![ValidatorIndex(1), ValidatorIndex(2)],
-				],
+				]),
 				n_cores: 2,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
@@ -666,10 +670,10 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![
+				validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 					vec![ValidatorIndex(0)],
 					vec![ValidatorIndex(1), ValidatorIndex(2)],
-				],
+				]),
 				n_cores: 2,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
@@ -696,7 +700,7 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![],
+				validator_groups: Default::default(),
 				n_cores: 0,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,

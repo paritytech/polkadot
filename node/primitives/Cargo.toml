@@ -1,9 +1,9 @@
 [package]
 name = "polkadot-node-primitives"
-version = "0.9.29"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
 description = "Primitives types for the Node-side"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 bounded-vec = "0.6"

@@ -27,6 +27,7 @@ use sp_consensus::SyncOracle;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
+	grid_topology::{SessionGridTopology, TopologyPeerInfo},
 	peer_set::{
 		CollationVersion, PeerSet, PeerSetProtocolNames, PerPeerSet, ProtocolVersion,
 		ValidationVersion,
@@ -37,15 +38,14 @@ use polkadot_node_network_protocol::{
 use polkadot_node_subsystem::{
 	errors::SubsystemError,
 	messages::{
-		network_bridge_event::{NewGossipTopology, TopologyPeerInfo},
-		ApprovalDistributionMessage, BitfieldDistributionMessage, CollatorProtocolMessage,
-		GossipSupportMessage, NetworkBridgeEvent, NetworkBridgeRxMessage,
-		StatementDistributionMessage,
+		network_bridge_event::NewGossipTopology, ApprovalDistributionMessage,
+		BitfieldDistributionMessage, CollatorProtocolMessage, GossipSupportMessage,
+		NetworkBridgeEvent, NetworkBridgeRxMessage, StatementDistributionMessage,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 };
 
-use polkadot_primitives::v2::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
+use polkadot_primitives::{AuthorityDiscoveryId, BlockNumber, Hash, ValidatorIndex};
 
 /// Peer set info for network initialization.
 ///
@@ -125,30 +125,8 @@ where
 		let future = run_network_in(self, ctx, network_stream)
 			.map_err(|e| SubsystemError::with_origin("network-bridge", e))
 			.boxed();
-		SpawnedSubsystem { name: "network-bridge-subsystem", future }
+		SpawnedSubsystem { name: "network-bridge-rx-subsystem", future }
 	}
-}
-
-async fn update_gossip_peers_1d<AD, N>(
-	ads: &mut AD,
-	neighbors: N,
-) -> HashMap<AuthorityDiscoveryId, TopologyPeerInfo>
-where
-	AD: validator_discovery::AuthorityDiscovery,
-	N: IntoIterator<Item = (AuthorityDiscoveryId, ValidatorIndex)>,
-	N::IntoIter: std::iter::ExactSizeIterator,
-{
-	let neighbors = neighbors.into_iter();
-	let mut peers = HashMap::with_capacity(neighbors.len());
-	for (authority, validator_index) in neighbors {
-		let addr = get_peer_id_by_authority_id(ads, authority.clone()).await;
-
-		if let Some(peer_id) = addr {
-			peers.insert(authority, TopologyPeerInfo { peer_ids: vec![peer_id], validator_index });
-		}
-	}
-
-	peers
 }
 
 async fn handle_network_messages<AD>(
@@ -235,7 +213,7 @@ where
 						PeerSet::Collation => &mut shared.collation_peers,
 					};
 
-					match peer_map.entry(peer.clone()) {
+					match peer_map.entry(peer) {
 						hash_map::Entry::Occupied(_) => continue,
 						hash_map::Entry::Vacant(vacant) => {
 							vacant.insert(PeerData { view: View::default(), version });
@@ -256,12 +234,12 @@ where
 						dispatch_validation_events_to_all(
 							vec![
 								NetworkBridgeEvent::PeerConnected(
-									peer.clone(),
+									peer,
 									role,
 									version,
 									maybe_authority,
 								),
-								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+								NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 							],
 							&mut sender,
 						)
@@ -281,12 +259,12 @@ where
 						dispatch_collation_events_to_all(
 							vec![
 								NetworkBridgeEvent::PeerConnected(
-									peer.clone(),
+									peer,
 									role,
 									version,
 									maybe_authority,
 								),
-								NetworkBridgeEvent::PeerViewChange(peer.clone(), View::default()),
+								NetworkBridgeEvent::PeerViewChange(peer, View::default()),
 							],
 							&mut sender,
 						)
@@ -443,7 +421,7 @@ where
 							Some(ValidationVersion::V1.into())
 						{
 							handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
-								remote.clone(),
+								remote,
 								PeerSet::Validation,
 								&mut shared.0.lock().validation_peers,
 								v_messages,
@@ -464,7 +442,7 @@ where
 						};
 
 					for report in reports {
-						network_service.report_peer(remote.clone(), report);
+						network_service.report_peer(remote, report);
 					}
 
 					dispatch_validation_events_to_all(events, &mut sender).await;
@@ -476,7 +454,7 @@ where
 							Some(CollationVersion::V1.into())
 						{
 							handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
-								remote.clone(),
+								remote,
 								PeerSet::Collation,
 								&mut shared.0.lock().collation_peers,
 								c_messages,
@@ -497,7 +475,7 @@ where
 						};
 
 					for report in reports {
-						network_service.report_peer(remote.clone(), report);
+						network_service.report_peer(remote, report);
 					}
 
 					dispatch_collation_events_to_all(events, &mut sender).await;
@@ -505,6 +483,26 @@ where
 			},
 		}
 	}
+}
+
+async fn flesh_out_topology_peers<AD, N>(ads: &mut AD, neighbors: N) -> Vec<TopologyPeerInfo>
+where
+	AD: validator_discovery::AuthorityDiscovery,
+	N: IntoIterator<Item = (AuthorityDiscoveryId, ValidatorIndex)>,
+	N::IntoIter: std::iter::ExactSizeIterator,
+{
+	let neighbors = neighbors.into_iter();
+	let mut peers = Vec::with_capacity(neighbors.len());
+	for (discovery_id, validator_index) in neighbors {
+		let addr = get_peer_id_by_authority_id(ads, discovery_id.clone()).await;
+		peers.push(TopologyPeerInfo {
+			peer_ids: addr.into_iter().collect(),
+			validator_index,
+			discovery_id,
+		});
+	}
+
+	peers
 }
 
 #[overseer::contextbounds(NetworkBridgeRx, prefix = self::overseer)]
@@ -532,29 +530,28 @@ where
 				msg:
 					NetworkBridgeRxMessage::NewGossipTopology {
 						session,
-						our_neighbors_x,
-						our_neighbors_y,
+						local_index,
+						canonical_shuffling,
+						shuffled_indices,
 					},
 			} => {
 				gum::debug!(
 					target: LOG_TARGET,
 					action = "NewGossipTopology",
-					neighbors_x = our_neighbors_x.len(),
-					neighbors_y = our_neighbors_y.len(),
+					?session,
+					?local_index,
 					"Gossip topology has changed",
 				);
 
-				let gossip_peers_x =
-					update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_x).await;
-
-				let gossip_peers_y =
-					update_gossip_peers_1d(&mut authority_discovery_service, our_neighbors_y).await;
+				let topology_peers =
+					flesh_out_topology_peers(&mut authority_discovery_service, canonical_shuffling)
+						.await;
 
 				dispatch_validation_event_to_all_unbounded(
 					NetworkBridgeEvent::NewGossipTopology(NewGossipTopology {
 						session,
-						our_neighbors_x: gossip_peers_x,
-						our_neighbors_y: gossip_peers_y,
+						topology: SessionGridTopology::new(shuffled_indices, topology_peers),
+						local_index,
 					}),
 					ctx.sender(),
 				);
@@ -569,7 +566,7 @@ where
 					num_deactivated = %deactivated.len(),
 				);
 
-				for activated in activated {
+				if let Some(activated) = activated {
 					let pos = live_heads
 						.binary_search_by(|probe| probe.number.cmp(&activated.number).reverse())
 						.unwrap_or_else(|i| i);
@@ -798,11 +795,11 @@ fn handle_v1_peer_messages<RawMessage: Decode, OutMessage: From<RawMessage>>(
 				} else {
 					peer_data.view = new_view;
 
-					NetworkBridgeEvent::PeerViewChange(peer.clone(), peer_data.view.clone())
+					NetworkBridgeEvent::PeerViewChange(peer, peer_data.view.clone())
 				}
 			},
 			WireMessage::ProtocolMessage(message) =>
-				NetworkBridgeEvent::PeerMessage(peer.clone(), message.into()),
+				NetworkBridgeEvent::PeerMessage(peer, message.into()),
 		})
 	}
 

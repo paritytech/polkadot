@@ -30,7 +30,7 @@ use frame_support::{
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
-use primitives::v2::{
+use primitives::{
 	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
 	UpwardMessage, ValidatorIndex,
 };
@@ -82,7 +82,9 @@ where
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(4 * 1024 * 1024));
+		frame_system::limits::BlockWeights::simple_max(
+			Weight::from_ref_time(4 * 1024 * 1024).set_proof_size(u64::MAX),
+		);
 }
 
 pub type AccountId = u64;
@@ -92,7 +94,7 @@ impl frame_system::Config for Test {
 	type BlockWeights = BlockWeights;
 	type BlockLength = ();
 	type DbWeight = ();
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = BlockNumber;
@@ -234,8 +236,8 @@ impl crate::ump::Config for Test {
 }
 
 impl crate::hrmp::Config for Test {
+	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeEvent = RuntimeEvent;
-	type Origin = Origin;
 	type Currency = pallet_balances::Pallet<Test>;
 	type WeightInfo = crate::hrmp::TestWeightInfo;
 }
@@ -251,6 +253,7 @@ thread_local! {
 	pub static REWARD_VALIDATORS: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_AGAINST: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
+	pub static PUNISH_BACKERS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 }
 
 impl crate::disputes::RewardValidators for Test {
@@ -267,14 +270,18 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 		session: SessionIndex,
 		_: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		PUNISH_VALIDATORS_FOR.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
+		PUNISH_VALIDATORS_FOR
+			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())));
+		PUNISH_BACKERS_FOR.with(|r| r.borrow_mut().push((session, backers.into_iter().collect())));
 	}
 
 	fn punish_against_valid(
 		session: SessionIndex,
 		_: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		_backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_AGAINST
 			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
@@ -375,7 +382,7 @@ std::thread_local! {
 	static PROCESSED: RefCell<Vec<(ParaId, UpwardMessage)>> = RefCell::new(vec![]);
 }
 
-/// Return which messages have been processed by `pocess_upward_message` and clear the buffer.
+/// Return which messages have been processed by `process_upward_message` and clear the buffer.
 pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
 	PROCESSED.with(|opt_hook| std::mem::take(&mut *opt_hook.borrow_mut()))
 }

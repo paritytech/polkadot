@@ -22,15 +22,18 @@ use crate::{
 	ops::{add_block_entry, canonicalize, force_approve, NewCandidateInfo},
 };
 use polkadot_node_subsystem_util::database::Database;
-use polkadot_primitives::v2::Id as ParaId;
+use polkadot_primitives::Id as ParaId;
 use std::{collections::HashMap, sync::Arc};
 
 use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};
 
 const DATA_COL: u32 = 0;
-const NUM_COLUMNS: u32 = 1;
+const SESSION_DATA_COL: u32 = 1;
 
-const TEST_CONFIG: Config = Config { col_data: DATA_COL };
+const NUM_COLUMNS: u32 = 2;
+
+const TEST_CONFIG: Config =
+	Config { col_approval_data: DATA_COL, col_session_data: SESSION_DATA_COL };
 
 fn make_db() -> (DbBackend, Arc<dyn Database>) {
 	let db = kvdb_memorydb::create(NUM_COLUMNS);

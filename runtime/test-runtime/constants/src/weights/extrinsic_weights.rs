@@ -23,7 +23,8 @@ pub mod constants {
 
 	parameter_types! {
 		/// Executing a NO-OP `System::remarks` Extrinsic.
-		pub const ExtrinsicBaseWeight: Weight = constants::WEIGHT_PER_NANOS.saturating_mul(125_000);
+		pub const ExtrinsicBaseWeight: Weight =
+			Weight::from_ref_time(constants::WEIGHT_REF_TIME_PER_NANOS.saturating_mul(125_000));
 	}
 
 	#[cfg(test)]
@@ -39,12 +40,12 @@ pub mod constants {
 
 			// At least 10 µs.
 			assert!(
-				w.ref_time() >= 10u64 * constants::WEIGHT_PER_MICROS.ref_time(),
+				w.ref_time() >= 10u64 * constants::WEIGHT_REF_TIME_PER_MICROS,
 				"Weight should be at least 10 µs."
 			);
 			// At most 1 ms.
 			assert!(
-				w.ref_time() <= constants::WEIGHT_PER_MILLIS.ref_time(),
+				w.ref_time() <= constants::WEIGHT_REF_TIME_PER_MILLIS,
 				"Weight should be at most 1 ms."
 			);
 		}

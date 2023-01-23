@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 };
 use polkadot_node_subsystem_types::RuntimeApiSubsystemClient;
-use polkadot_primitives::v2::Hash;
+use polkadot_primitives::Hash;
 
 use cache::{RequestResult, RequestResultCache};
 use futures::{channel::oneshot, prelude::*, select, stream::FuturesUnordered};
@@ -153,7 +153,7 @@ where
 				.cache_validation_code_hash((relay_parent, para_id, assumption), hash),
 			Version(relay_parent, version) =>
 				self.requests_cache.cache_version(relay_parent, version),
-			StagingDisputes(relay_parent, disputes) =>
+			Disputes(relay_parent, disputes) =>
 				self.requests_cache.cache_disputes(relay_parent, disputes),
 		}
 	}
@@ -256,8 +256,8 @@ where
 			Request::ValidationCodeHash(para, assumption, sender) =>
 				query!(validation_code_hash(para, assumption), sender)
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
-			Request::StagingDisputes(sender) =>
-				query!(disputes(), sender).map(|sender| Request::StagingDisputes(sender)),
+			Request::Disputes(sender) =>
+				query!(disputes(), sender).map(|sender| Request::Disputes(sender)),
 		}
 	}
 
@@ -268,7 +268,7 @@ where
 		let (sender, receiver) = oneshot::channel();
 
 		// TODO: make the cache great again https://github.com/paritytech/polkadot/issues/5546
-		let request = match self.query_cache(relay_parent.clone(), request) {
+		let request = match self.query_cache(relay_parent, request) {
 			Some(request) => request,
 			None => return,
 		};
@@ -351,8 +351,9 @@ where
 	let _timer = metrics.time_make_runtime_api_request();
 
 	macro_rules! query {
-		($req_variant:ident, $api_name:ident ($($param:expr),*), ver = $version:literal, $sender:expr) => {{
+		($req_variant:ident, $api_name:ident ($($param:expr),*), ver = $version:expr, $sender:expr) => {{
 			let sender = $sender;
+			let version: u32 = $version;	// enforce type for the version expression
 			let runtime_version = client.api_version_parachain_host(relay_parent).await
 				.unwrap_or_else(|e| {
 					gum::warn!(
@@ -370,7 +371,7 @@ where
 					0
 				});
 
-			let res = if runtime_version >= $version {
+			let res = if runtime_version >= version {
 				client.$api_name(relay_parent $(, $param.clone() )*).await
 					.map_err(|e| RuntimeApiError::Execution {
 						runtime_api_name: stringify!($api_name),
@@ -499,7 +500,7 @@ where
 		},
 		Request::ValidationCodeHash(para, assumption, sender) =>
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
-		Request::StagingDisputes(sender) =>
-			query!(StagingDisputes, staging_get_disputes(), ver = 2, sender),
+		Request::Disputes(sender) =>
+			query!(Disputes, disputes(), ver = Request::DISPUTES_RUNTIME_REQUIREMENT, sender),
 	}
 }
