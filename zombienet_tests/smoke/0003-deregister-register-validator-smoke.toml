@@ -4,7 +4,7 @@ timeout = 1000
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "rococo-local"
-default_command = "polkadot"
+command = "polkadot"
 
   [[relaychain.nodes]]
   name = "alice"

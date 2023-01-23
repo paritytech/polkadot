@@ -3,7 +3,6 @@ timeout = 1000
 
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
-default_command = "polkadot"
 chain = "rococo-local"
 
 
