@@ -1062,8 +1062,7 @@ mod benchmarking {
 			// T parathread are upgrading to parachains
 			for (para, leaser) in paras_info {
 				let amount = T::Currency::minimum_balance();
-				let origin =
-					T::ForceOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
+				let origin = T::ForceOrigin::try_successful_origin().unwrap();
 				Slots::<T>::force_lease(origin, para, leaser, amount, period_begin, period_count)?;
 			}
 
@@ -1114,8 +1113,7 @@ mod benchmarking {
 				// Average slot has 4 lease periods.
 				let period_count: LeasePeriodOf<T> = 4u32.into();
 				let period_begin = period_count * i.into();
-				let origin =
-					T::ForceOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
+				let origin = T::ForceOrigin::try_successful_origin().unwrap();
 				Slots::<T>::force_lease(origin, para, leaser, amount, period_begin, period_count)?;
 			}
 
