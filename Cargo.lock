@@ -3533,7 +3533,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67c21572b4949434e4fc1e1978b99c5f77064153c59d998bf13ecd96fb5ecba7"
 
 [[package]]
-name = "kusama-runtime"
+name = "kusama-chain-runtime"
 version = "0.9.37"
 dependencies = [
  "bitvec",
@@ -3631,9 +3631,9 @@ dependencies = [
  "substrate-wasm-builder",
  "tiny-keccak",
  "tokio",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -6030,9 +6030,9 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -6055,9 +6055,9 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-tracing",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -6499,7 +6499,7 @@ dependencies = [
  "frame-system",
  "frame-system-rpc-runtime-api",
  "futures",
- "kusama-runtime",
+ "kusama-chain-runtime",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
  "polkadot-core-primitives",
@@ -7237,7 +7237,7 @@ name = "polkadot-performance-test"
 version = "0.9.37"
 dependencies = [
  "env_logger 0.9.0",
- "kusama-runtime",
+ "kusama-chain-runtime",
  "log",
  "polkadot-erasure-coding",
  "polkadot-node-core-pvf",
@@ -7405,9 +7405,9 @@ dependencies = [
  "substrate-wasm-builder",
  "tiny-keccak",
  "tokio",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -7459,7 +7459,7 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "static_assertions",
- "xcm",
+ "xcmsg",
 ]
 
 [[package]]
@@ -7534,8 +7534,8 @@ dependencies = [
  "sp-tracing",
  "static_assertions",
  "thousands",
- "xcm",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -7551,7 +7551,7 @@ dependencies = [
  "frame-system-rpc-runtime-api",
  "futures",
  "hex-literal",
- "kusama-runtime",
+ "kusama-chain-runtime",
  "kusama-runtime-constants",
  "kvdb",
  "kvdb-rocksdb",
@@ -7807,9 +7807,9 @@ dependencies = [
  "substrate-wasm-builder",
  "test-runtime-constants",
  "tiny-keccak",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -7873,7 +7873,7 @@ version = "0.9.37"
 dependencies = [
  "clap 4.0.15",
  "generate-bags",
- "kusama-runtime",
+ "kusama-chain-runtime",
  "polkadot-runtime",
  "sp-io",
  "westend-runtime",
@@ -8500,7 +8500,7 @@ version = "0.9.37"
 dependencies = [
  "clap 4.0.15",
  "frame-system",
- "kusama-runtime",
+ "kusama-chain-runtime",
  "kusama-runtime-constants",
  "log",
  "pallet-bags-list-remote-tests",
@@ -8693,9 +8693,9 @@ dependencies = [
  "substrate-wasm-builder",
  "tiny-keccak",
  "tokio",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -11149,7 +11149,7 @@ dependencies = [
  "frame-system",
  "futures-util",
  "jsonrpsee",
- "kusama-runtime",
+ "kusama-chain-runtime",
  "log",
  "pallet-balances",
  "pallet-election-provider-multi-phase",
@@ -13255,9 +13255,9 @@ dependencies = [
  "tiny-keccak",
  "tokio",
  "westend-runtime-constants",
- "xcm",
- "xcm-builder",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -13594,66 +13594,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xcm"
-version = "0.9.37"
-dependencies = [
- "derivative",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "scale-info",
- "serde",
- "sp-core",
- "sp-io",
- "sp-weights",
- "xcm-procedural",
-]
-
-[[package]]
-name = "xcm-builder"
-version = "0.9.37"
-dependencies = [
- "assert_matches",
- "frame-support",
- "frame-system",
- "impl-trait-for-tuples",
- "log",
- "pallet-balances",
- "pallet-transaction-payment",
- "pallet-xcm",
- "parity-scale-codec",
- "polkadot-parachain",
- "polkadot-runtime-parachains",
- "scale-info",
- "sp-arithmetic",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "xcm",
- "xcm-executor",
-]
-
-[[package]]
-name = "xcm-executor"
-version = "0.9.37"
-dependencies = [
- "environmental",
- "frame-benchmarking",
- "frame-support",
- "impl-trait-for-tuples",
- "log",
- "parity-scale-codec",
- "sp-arithmetic",
- "sp-core",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "sp-weights",
- "xcm",
-]
-
-[[package]]
 name = "xcm-executor-integration-tests"
 version = "0.9.37"
 dependencies = [
@@ -13669,8 +13609,8 @@ dependencies = [
  "sp-runtime",
  "sp-state-machine",
  "sp-tracing",
- "xcm",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -13695,8 +13635,8 @@ dependencies = [
  "polkadot-runtime-parachains",
  "sp-io",
  "sp-std",
- "xcm",
- "xcm-executor",
+ "xcmsg",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -13719,10 +13659,10 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-tracing",
- "xcm",
- "xcm-builder",
- "xcm-executor",
  "xcm-simulator",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
 ]
 
 [[package]]
@@ -13743,10 +13683,70 @@ dependencies = [
  "sp-io",
  "sp-runtime",
  "sp-std",
- "xcm",
- "xcm-builder",
- "xcm-executor",
  "xcm-simulator",
+ "xcmsg",
+ "xcmsg-builder",
+ "xcmsg-executor",
+]
+
+[[package]]
+name = "xcmsg"
+version = "0.9.37"
+dependencies = [
+ "derivative",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-io",
+ "sp-weights",
+ "xcm-procedural",
+]
+
+[[package]]
+name = "xcmsg-builder"
+version = "0.9.37"
+dependencies = [
+ "assert_matches",
+ "frame-support",
+ "frame-system",
+ "impl-trait-for-tuples",
+ "log",
+ "pallet-balances",
+ "pallet-transaction-payment",
+ "pallet-xcm",
+ "parity-scale-codec",
+ "polkadot-parachain",
+ "polkadot-runtime-parachains",
+ "scale-info",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xcmsg",
+ "xcmsg-executor",
+]
+
+[[package]]
+name = "xcmsg-executor"
+version = "0.9.37"
+dependencies = [
+ "environmental",
+ "frame-benchmarking",
+ "frame-support",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-weights",
+ "xcmsg",
 ]
 
 [[package]]
