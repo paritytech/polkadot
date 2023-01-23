@@ -69,7 +69,7 @@ impl Groups {
 		&self,
 		group_index: GroupIndex,
 	) -> Option<(usize, usize)> {
-		self.get(group_index).map(|g| (g.len(), super::minimum_votes(g.len())))
+		self.get(group_index).map(|g| (g.len(), minimum_votes(g.len())))
 	}
 
 	/// Get the group index for a validator by index.
