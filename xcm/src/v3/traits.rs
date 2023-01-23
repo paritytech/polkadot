@@ -391,8 +391,8 @@ impl<T> Unwrappable for Option<T> {
 /// # Example
 /// ```rust
 /// # use parity_scale_codec::Encode;
-/// # use xcm::v3::{prelude::*, Weight};
-/// # use xcm::VersionedXcm;
+/// # use xcmsg::v3::{prelude::*, Weight};
+/// # use xcmsg::VersionedXcm;
 /// # use std::convert::Infallible;
 ///
 /// /// A sender that only passes the message through and does nothing.
