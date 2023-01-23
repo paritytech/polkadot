@@ -24,7 +24,7 @@ use frame_support::{
 	parameter_types,
 	traits::{Contains, Everything, Nothing},
 };
-use runtime_common::{xcm_sender, ToAuthor};
+use runtime_common::{paras_registrar, xcm_sender, ToAuthor};
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -202,6 +202,13 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_nomination_pools::Call::chill { .. },
 			) |
 			RuntimeCall::Hrmp(..) |
+			RuntimeCall::Registrar(
+				paras_registrar::Call::deregister { .. } |
+				paras_registrar::Call::swap { .. } |
+				paras_registrar::Call::remove_lock { .. } |
+				paras_registrar::Call::reserve { .. } |
+				paras_registrar::Call::add_lock { .. },
+			) |
 			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
 				..
 			}) => true,
