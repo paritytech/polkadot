@@ -36,6 +36,7 @@ use xcm_builder::{
 	IsChildSystemParachain, IsConcrete, MintLocation, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
 };
+use xcmsg_builder as xcm_builder;
 
 pub type AccountId = AccountId32;
 pub type Balance = u128;
