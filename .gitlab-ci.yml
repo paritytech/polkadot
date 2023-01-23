@@ -204,6 +204,7 @@ check-crate-publishing:
   extends:
     - .test-refs
     - .crates-publishing-template
+  timeout: 5h
   script:
     - git clone
         --depth 1
