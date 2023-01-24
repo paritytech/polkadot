@@ -314,41 +314,20 @@ pub(crate) async fn handle_network_update<Context>(
 			// in practice, this is a small issue & the API of receiving topologies could
 			// be altered to fix it altogether.
 		},
-		NetworkBridgeEvent::PeerMessage(peer_id, message) => {
-			match message {
-				net_protocol::StatementDistributionMessage::V1(_) => return,
-				net_protocol::StatementDistributionMessage::VStaging(
-					protocol_vstaging::StatementDistributionMessage::V1Compatibility(_),
-				) => return,
-				net_protocol::StatementDistributionMessage::VStaging(
-					protocol_vstaging::StatementDistributionMessage::Statement(
-						relay_parent,
-						statement,
-					),
-				) => handle_incoming_statement(
-					ctx,
-					state,
-					peer_id,
-					relay_parent,
-					statement,
-				).await,
-				net_protocol::StatementDistributionMessage::VStaging(
-					protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(inner),
-				) => handle_incoming_manifest(
-					ctx,
-					state,
-					peer_id,
-					inner,
-				).await,
-				net_protocol::StatementDistributionMessage::VStaging(
-					protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(inner),
-				) => handle_incoming_acknowledgement(
-					ctx,
-					state,
-					peer_id,
-					inner,
-				).await,
-			}
+		NetworkBridgeEvent::PeerMessage(peer_id, message) => match message {
+			net_protocol::StatementDistributionMessage::V1(_) => return,
+			net_protocol::StatementDistributionMessage::VStaging(
+				protocol_vstaging::StatementDistributionMessage::V1Compatibility(_),
+			) => return,
+			net_protocol::StatementDistributionMessage::VStaging(
+				protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, statement),
+			) => handle_incoming_statement(ctx, state, peer_id, relay_parent, statement).await,
+			net_protocol::StatementDistributionMessage::VStaging(
+				protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(inner),
+			) => handle_incoming_manifest(ctx, state, peer_id, inner).await,
+			net_protocol::StatementDistributionMessage::VStaging(
+				protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(inner),
+			) => handle_incoming_acknowledgement(ctx, state, peer_id, inner).await,
 		},
 		NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
 			// TODO [now] update explicit and implicit views
@@ -1232,11 +1211,7 @@ fn local_knowledge_filter(
 	statement_store: &StatementStore,
 ) -> StatementFilter {
 	let mut f = StatementFilter::new(group_size);
-	statement_store.fill_statement_filter(
-		group_index,
-		candidate_hash,
-		&mut f,
-	);
+	statement_store.fill_statement_filter(group_index, candidate_hash, &mut f);
 	f
 }
 
@@ -1536,7 +1511,7 @@ async fn handle_incoming_manifest_common<'a, Context>(
 	let relay_parent_state = match per_relay_parent.get_mut(&relay_parent) {
 		None => {
 			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE).await;
-			return None;
+			return None
 		},
 		Some(s) => s,
 	};
@@ -1562,7 +1537,7 @@ async fn handle_incoming_manifest_common<'a, Context>(
 
 	if expected_group != Some(manifest_summary.claimed_group_index) {
 		report_peer(ctx.sender(), peer, COST_MALFORMED_MANIFEST).await;
-		return None;
+		return None
 	}
 
 	let grid_topology = match per_session.grid_view.as_ref() {
@@ -1580,7 +1555,7 @@ async fn handle_incoming_manifest_common<'a, Context>(
 	let sender_index = match sender_index {
 		None => {
 			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_DISALLOWED).await;
-			return None;
+			return None
 		},
 		Some(s) => s,
 	};
@@ -1627,15 +1602,10 @@ async fn handle_incoming_manifest_common<'a, Context>(
 		Some((manifest_summary.claimed_parent_hash, para_id)),
 	) {
 		report_peer(ctx.sender(), peer, COST_INACCURATE_ADVERTISEMENT).await;
-		return None;
+		return None
 	}
 
-	Some(ManifestImportSuccess {
-		relay_parent_state,
-		per_session,
-		acknowledge,
-		sender_index,
-	})
+	Some(ManifestImportSuccess { relay_parent_state, per_session, acknowledge, sender_index })
 }
 
 /// Produce a list of network messages to send to a peer, following acknowledgement of a manifest.
@@ -1703,7 +1673,9 @@ async fn handle_incoming_manifest<Context>(
 			validated_in_group: manifest.validated_in_group,
 		},
 		grid::ManifestKind::Full,
-	).await {
+	)
+	.await
+	{
 		Some(x) => x,
 		None => return,
 	};
@@ -1792,16 +1764,12 @@ async fn handle_incoming_acknowledgement<Context>(
 	let candidate_hash = acknowledgement.candidate_hash;
 	let (relay_parent, parent_head_data_hash, group_index, para_id) = {
 		match state.candidates.get_confirmed(&candidate_hash) {
-			Some(c) => (
-				c.relay_parent(),
-				c.parent_head_data_hash(),
-				c.group_index(),
-				c.para_id(),
-			),
+			Some(c) => (c.relay_parent(), c.parent_head_data_hash(), c.group_index(), c.para_id()),
 			None => {
-				report_peer(ctx.sender(), peer, COST_UNEXPECTED_ACKNOWLEDGEMENT_UNKNOWN_CANDIDATE).await;
-				return;
-			}
+				report_peer(ctx.sender(), peer, COST_UNEXPECTED_ACKNOWLEDGEMENT_UNKNOWN_CANDIDATE)
+					.await;
+				return
+			},
 		}
 	};
 
@@ -1822,7 +1790,9 @@ async fn handle_incoming_acknowledgement<Context>(
 			validated_in_group: acknowledgement.validated_in_group,
 		},
 		grid::ManifestKind::Acknowledgement,
-	).await {
+	)
+	.await
+	{
 		Some(x) => x,
 		None => return,
 	};
