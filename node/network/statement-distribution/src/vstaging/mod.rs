@@ -366,7 +366,8 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		None => return Ok(()),
 	};
 
-	for new_relay_parent in state.implicit_view.all_allowed_relay_parents() {
+	let new_relay_parents = state.implicit_view.all_allowed_relay_parents().collect::<Vec<_>>();
+	for new_relay_parent in new_relay_parents.iter().cloned() {
 		if state.per_relay_parent.contains_key(new_relay_parent) {
 			continue
 		}
@@ -459,8 +460,6 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 	// TODO [now]: update peers which have the leaf in their view.
 	// update their implicit view. send any messages accordingly.
 
-	// TODO [now]: determine which candidates are importable under the given
-	// active leaf
 	new_leaf_fragment_tree_updates(ctx, state, leaf.hash).await;
 
 	Ok(())
@@ -1210,6 +1209,21 @@ async fn send_backing_fresh_statements<Context>(
 	}
 }
 
+fn local_knowledge_filter(
+	group_size: usize,
+	group_index: GroupIndex,
+	candidate_hash: CandidateHash,
+	statement_store: &StatementStore,
+) -> StatementFilter {
+	let mut f = StatementFilter::new(group_size);
+	statement_store.fill_statement_filter(
+		group_index,
+		candidate_hash,
+		&mut f,
+	);
+	f
+}
+
 // This provides a backable candidate to the grid and dispatches backable candidate announcements
 // and acknowledgements via the grid topology. If the session topology is not yet
 // available, this will be a no-op.
@@ -1267,15 +1281,12 @@ async fn provide_candidate_to_grid<Context>(
 		group_size,
 	);
 
-	let filter = {
-		let mut f = StatementFilter::new(group_size);
-		relay_parent_state.statement_store.fill_statement_filter(
-			group_index,
-			candidate_hash,
-			&mut f,
-		);
-		f
-	};
+	let filter = local_knowledge_filter(
+		group_size,
+		group_index,
+		candidate_hash,
+		&relay_parent_state.statement_store,
+	);
 
 	let manifest = protocol_vstaging::BackedCandidateManifest {
 		relay_parent,
@@ -1696,13 +1707,12 @@ async fn handle_incoming_manifest<Context>(
 				Some(x) => x.len(),
 			};
 
-			let mut f = StatementFilter::new(group_size);
-			relay_parent_state.statement_store.fill_statement_filter(
+			local_knowledge_filter(
+				group_size,
 				manifest.group_index,
 				manifest.candidate_hash,
-				&mut f,
-			);
-			f
+				&relay_parent_state.statement_store,
+			)
 		};
 		let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
 			candidate_hash: manifest.candidate_hash,
@@ -1816,13 +1826,12 @@ async fn handle_incoming_acknowledgement<Context>(
 			Some(x) => x.len(),
 		};
 
-		let mut f = StatementFilter::new(group_size);
-		relay_parent_state.statement_store.fill_statement_filter(
+		local_knowledge_filter(
+			group_size,
 			group_index,
 			candidate_hash,
-			&mut f,
-		);
-		f
+			&relay_parent_state.statement_store,
+		)
 	};
 
 	let messages = post_acknowledgement_statement_messages(
