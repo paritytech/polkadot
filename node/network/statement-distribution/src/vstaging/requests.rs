@@ -717,18 +717,28 @@ mod tests {
 		let mut request_manager = RequestManager::new();
 
 		// Add some entries, set a couple of them to cluster (high) priority.
-		let entry = request_manager.get_or_insert(parent_a, candidate_a1, 1.into());
-		let identifier_a1 = entry.identifier;
-		let mut entry = request_manager.get_or_insert(parent_a, candidate_a2, 1.into());
-		let identifier_a2 = entry.identifier;
-		entry.get_mut().set_cluster_priority();
-		let entry = request_manager.get_or_insert(parent_b, candidate_b1, 1.into());
-		let identifier_b1 = entry.identifier;
-		let entry = request_manager.get_or_insert(parent_b, candidate_b2, 2.into());
-		let identifier_b2 = entry.identifier;
-		let mut entry = request_manager.get_or_insert(parent_c, candidate_c1, 2.into());
-		let identifier_c1 = entry.identifier;
-		entry.get_mut().set_cluster_priority();
+		let identifier_a1 = request_manager
+			.get_or_insert(parent_a, candidate_a1, 1.into())
+			.identifier
+			.clone();
+		let identifier_a2 = {
+			let mut entry = request_manager.get_or_insert(parent_a, candidate_a2, 1.into());
+			entry.get_mut().set_cluster_priority();
+			entry.identifier.clone()
+		};
+		let identifier_b1 = request_manager
+			.get_or_insert(parent_b, candidate_b1, 1.into())
+			.identifier
+			.clone();
+		let identifier_b2 = request_manager
+			.get_or_insert(parent_b, candidate_b2, 2.into())
+			.identifier
+			.clone();
+		let identifier_c1 = {
+			let mut entry = request_manager.get_or_insert(parent_c, candidate_c1, 2.into());
+			entry.get_mut().set_cluster_priority();
+			entry.identifier.clone()
+		};
 
 		let attempts = 0;
 		assert_eq!(
