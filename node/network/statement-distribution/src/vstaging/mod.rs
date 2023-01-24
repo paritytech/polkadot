@@ -1020,7 +1020,7 @@ async fn handle_incoming_statement<Context>(
 
 		// We only successfully accept statements from the grid on unconfirmed
 		// candidates, therefore this check only passes if the statement is from the cluster
-		request_entry.get_mut().set_cluster_priority();
+		request_entry.set_cluster_priority();
 	}
 
 	let was_fresh = match per_relay_parent.statement_store.insert(

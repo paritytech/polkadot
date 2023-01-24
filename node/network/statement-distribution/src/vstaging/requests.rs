@@ -96,11 +96,6 @@ impl RequestedCandidate {
 			self.known_by.push_back(peer);
 		}
 	}
-
-	/// Note that the candidate is required for the cluster.
-	pub fn set_cluster_priority(&mut self) {
-		self.priority.origin = Origin::Cluster;
-	}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -128,10 +123,11 @@ impl<'a> Entry<'a> {
 	pub fn get_mut(&mut self) -> &mut RequestedCandidate {
 		&mut self.requested
 	}
-}
 
-impl<'a> Drop for Entry<'a> {
-	fn drop(&mut self) {
+	/// Note that the candidate is required for the cluster.
+	pub fn set_cluster_priority(&mut self) {
+		self.requested.priority.origin = Origin::Cluster;
+
 		insert_or_update_priority(
 			&mut *self.by_priority,
 			Some(self.prev_index),
@@ -723,7 +719,7 @@ mod tests {
 			.clone();
 		let identifier_a2 = {
 			let mut entry = request_manager.get_or_insert(parent_a, candidate_a2, 1.into());
-			entry.get_mut().set_cluster_priority();
+			entry.set_cluster_priority();
 			entry.identifier.clone()
 		};
 		let identifier_b1 = request_manager
@@ -736,7 +732,7 @@ mod tests {
 			.clone();
 		let identifier_c1 = {
 			let mut entry = request_manager.get_or_insert(parent_c, candidate_c1, 2.into());
-			entry.get_mut().set_cluster_priority();
+			entry.set_cluster_priority();
 			entry.identifier.clone()
 		};
 
