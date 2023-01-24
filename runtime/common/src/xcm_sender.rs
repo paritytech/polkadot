@@ -21,7 +21,7 @@ use parity_scale_codec::Encode;
 use primitives::v2::Id as ParaId;
 use runtime_parachains::{
 	configuration::{self, HostConfiguration},
-	dmp,
+	inclusion,
 };
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::prelude::*;
@@ -50,8 +50,11 @@ impl<T: Get<MultiAssets>> PriceForParachainDelivery for ConstantPrice<T> {
 /// XCM sender for relay chain. It only sends downward message.
 pub struct ChildParachainRouter<T, W, P>(PhantomData<(T, W, P)>);
 
-impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion, P: PriceForParachainDelivery>
-	SendXcm for ChildParachainRouter<T, W, P>
+impl<
+		T: configuration::Config + inclusion::Config,
+		W: xcm::WrapVersion,
+		P: PriceForParachainDelivery,
+	> SendXcm for ChildParachainRouter<T, W, P>
 {
 	type Ticket = (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>);
 
@@ -73,7 +76,7 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion, P: PriceForPar
 		let para = id.into();
 		let price = P::price_for_parachain_delivery(para, &xcm);
 		let blob = W::wrap_version(&d, xcm).map_err(|()| DestinationUnsupported)?.encode();
-		<dmp::Pallet<T>>::can_queue_downward_message(&config, &para, &blob)
+		<inclusion::Pallet<T>>::check_downward_messages(&config, &para, &[&blob])
 			.map_err(Into::<SendError>::into)?;
 
 		Ok(((config, para, blob), price))
@@ -83,8 +86,11 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion, P: PriceForPar
 		(config, para, blob): (HostConfiguration<T::BlockNumber>, ParaId, Vec<u8>),
 	) -> Result<XcmHash, SendError> {
 		let hash = sp_io::hashing::blake2_256(&blob[..]);
-		<dmp::Pallet<T>>::queue_downward_message(&config, para, blob)
-			.map(|()| hash)
-			.map_err(|_| SendError::Transport(&"Error placing into DMP queue"))
+		<inclusion::Pallet<T>>::try_receive_downward_message(&config, para, blob)
+			.map(|_weight| hash)
+			.map_err(|_| {
+				frame_support::defensive!("Should have been checked before receiving.");
+				SendError::Transport(&"Error placing into DMP queue")
+			})
 	}
 }

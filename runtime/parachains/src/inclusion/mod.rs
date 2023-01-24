@@ -22,24 +22,25 @@
 
 use crate::{
 	configuration::{self, HostConfiguration},
-	disputes, dmp, hrmp, paras,
+	disputes, hrmp, paras,
 	paras_inherent::DisputedBitfield,
 	scheduler::CoreAssignment,
 	shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::{
+	defensive,
 	pallet_prelude::*,
-	traits::{Defensive, EnqueueMessage},
+	traits::{Defensive, EnqueueMessage, OnQueueChanged},
 	BoundedSlice,
 };
-use pallet_message_queue::OnQueueChanged;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{
 	well_known_keys, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex,
-	GroupIndex, Hash, HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields,
-	UpwardMessage, ValidatorId, ValidatorIndex, ValidityAttestation,
+	DownwardMessage, GroupIndex, Hash, HeadData, HrmpChannelId, Id as ParaId, SigningContext,
+	UncheckedSignedAvailabilityBitfields, UpwardMessage, ValidatorId, ValidatorIndex,
+	ValidityAttestation,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{traits::One, DispatchError, SaturatedConversion};
@@ -218,25 +219,40 @@ pub fn minimum_backing_votes(n_validators: usize) -> usize {
 /// NOTE Ideally we want the queue pallet to be sub-queue aware since currently we waste PoV by introducing a lot of few-element queues by doing this.
 ///
 /// Changing this requires a migration of the queue pallet.
-#[derive(Encode, Decode, Clone, Copy, Debug, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
+#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
 pub enum SubQueue {
-	UMP,
-	HRMP,
-	DMP,
+	UMP { from: ParaId },
+	HRMP { channel: HrmpChannelId },
+	DMP { to: ParaId },
 }
 
 /// Over which `queue` and `from` which para-chain a message came in from.
 ///
 /// Changing this requires a migration of the queue pallet.
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
-pub struct MessageOrigin {
-	pub queue: SubQueue,
-	pub para: ParaId,
+pub enum MessageOrigin {
+	/// A message in on of the UMP/DMP/HRMP queues.
+	MQ(SubQueue),
+	// Can be extended here for none-MP use-cases.
 }
 
 impl MessageOrigin {
-	pub const fn ump(para: ParaId) -> Self {
-		Self { queue: SubQueue::UMP, para }
+	pub const fn ump(from: ParaId) -> Self {
+		Self::MQ(SubQueue::UMP { from })
+	}
+	pub const fn dmp(to: ParaId) -> Self {
+		Self::MQ(SubQueue::DMP { to })
+	}
+	pub const fn hrmp(channel: HrmpChannelId) -> Self {
+		Self::MQ(SubQueue::HRMP { channel })
+	}
+}
+
+use sp_runtime::traits::Convert;
+pub struct HrmpToMessageOriginConverter;
+impl Convert<HrmpChannelId, MessageOrigin> for HrmpToMessageOriginConverter {
+	fn convert(channel_id: HrmpChannelId) -> MessageOrigin {
+		MessageOrigin::hrmp(channel_id)
 	}
 }
 
@@ -251,12 +267,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config:
-		frame_system::Config
-		+ shared::Config
-		+ paras::Config
-		+ dmp::Config
-		+ hrmp::Config
-		+ configuration::Config
+		frame_system::Config + shared::Config + paras::Config + hrmp::Config + configuration::Config
 	{
 		type WeightInfo: WeightInfo;
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
@@ -280,6 +291,8 @@ pub mod pallet {
 		CandidateTimedOut(CandidateReceipt<T::Hash>, HeadData, CoreIndex),
 		/// Some upward messages have been received and will be processed.
 		UpwardMessagesReceived { from: ParaId, count: u32 },
+		/// Some downward messages have been received and will be processed.
+		DownwardMessagesReceived { to: ParaId, count: u32 },
 	}
 
 	#[pallet::error]
@@ -332,6 +345,8 @@ pub mod pallet {
 		IncorrectDownwardMessageHandling,
 		/// At least one upward message sent does not pass the acceptance criteria.
 		InvalidUpwardMessages,
+		/// At least one downward message sent does not pass the acceptance criteria.
+		InvalidDownwardMessages,
 		/// The candidate didn't follow the rules of HRMP watermark advancement.
 		HrmpWatermarkMishandling,
 		/// The HRMP messages sent by the candidate is not valid.
@@ -373,8 +388,9 @@ enum AcceptanceCheckErr<BlockNumber> {
 	HeadDataTooLarge,
 	PrematureCodeUpgrade,
 	NewCodeTooLarge,
-	ProcessedDownwardMessages(dmp::ProcessedDownwardMessagesAcceptanceErr),
+	ProcessedDownwardMessages(ProcessedDownwardMessagesAcceptanceErr),
 	UpwardMessages(UmpAcceptanceCheckErr),
+	DownwardMessages(DmpAcceptanceCheckErr),
 	HrmpWatermark(hrmp::HrmpWatermarkAcceptanceErr<BlockNumber>),
 	OutboundHrmp(hrmp::OutboundHrmpAcceptanceErr),
 }
@@ -391,6 +407,42 @@ pub enum UmpAcceptanceCheckErr {
 	CapacityExceeded { count: u64, limit: u64 },
 	/// The allowed combined message size in the queue was exceeded.
 	TotalSizeExceeded { total_size: u64, limit: u64 },
+}
+
+/// An error returned by [`check_downward_messages`] that indicates a violation of one of acceptance
+/// criteria rules.
+#[derive(Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub enum DmpAcceptanceCheckErr {
+	/// The maximal number of messages that can be submitted in one batch was exceeded.
+	MoreMessagesThanPermitted { sent: u32, permitted: u32 },
+	/// The maximal size of a single message was exceeded.
+	MessageSize { idx: u32, msg_size: u32, max_size: u32 },
+	/// The allowed number of messages in the queue was exceeded.
+	CapacityExceeded { count: u64, limit: u64 },
+	/// The allowed combined message size in the queue was exceeded.
+	TotalSizeExceeded { total_size: u64, limit: u64 },
+}
+
+use xcm::latest::SendError;
+impl From<DmpAcceptanceCheckErr> for SendError {
+	fn from(err: DmpAcceptanceCheckErr) -> Self {
+		match err {
+			// FAIL-CI todo
+			_ => SendError::ExceedsMaxMessageSize,
+		}
+	}
+}
+
+/// An error returned by [`check_processed_downward_messages`] that indicates an acceptance check
+/// didn't pass.
+#[derive(derive_more::From, Debug)]
+#[cfg_attr(test, derive(PartialEq))]
+pub enum ProcessedDownwardMessagesAcceptanceErr {
+	/// If there are pending messages then `processed_downward_messages` should be at least 1,
+	AdvancementRule,
+	/// `processed_downward_messages` should not be greater than the number of pending messages.
+	Underflow { processed_downward_messages: u32, dmq_length: u32 },
 }
 
 impl fmt::Debug for UmpAcceptanceCheckErr {
@@ -879,20 +931,21 @@ impl<T: Config> Pallet<T> {
 			);
 		}
 
-		// enact the messaging facet of the candidate.
-		weight += <dmp::Pallet<T>>::prune_dmq(
-			receipt.descriptor.para_id,
-			commitments.processed_downward_messages,
-		);
+		// FAIL-CI remove Now done by the message queue
+		//weight += <dmp::Pallet<T>>::prune_dmq(
+		//	receipt.descriptor.para_id,
+		//	commitments.processed_downward_messages,
+		//);
 		weight += Self::receive_upward_messages(
 			&config,
 			receipt.descriptor.para_id,
 			commitments.upward_messages,
 		);
-		weight += <hrmp::Pallet<T>>::prune_hrmp(
-			receipt.descriptor.para_id,
-			T::BlockNumber::from(commitments.hrmp_watermark),
-		);
+		// FAIL-CI remove Now done by the queue pallet
+		//weight += <hrmp::Pallet<T>>::prune_hrmp(
+		//	receipt.descriptor.para_id,
+		//	T::BlockNumber::from(commitments.hrmp_watermark),
+		//);
 		weight += <hrmp::Pallet<T>>::queue_outbound_hrmp(
 			receipt.descriptor.para_id,
 			commitments.horizontal_messages,
@@ -929,7 +982,7 @@ impl<T: Config> Pallet<T> {
 			})
 		}
 
-		let fp = T::MessageQueue::footprint(MessageOrigin::ump(para));
+		let fp = <T as Config>::MessageQueue::footprint(MessageOrigin::ump(para));
 		let (para_queue_count, mut para_queue_size) = (fp.count, fp.size);
 
 		if para_queue_count
@@ -983,8 +1036,98 @@ impl<T: Config> Pallet<T> {
 		let count = upward_messages.len() as u32;
 		Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
 		let messages = upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
-		T::MessageQueue::enqueue_messages(messages, MessageOrigin::ump(para));
+		<T as Config>::MessageQueue::enqueue_messages(messages, MessageOrigin::ump(para));
 		<T as Config>::WeightInfo::receive_upward_messages(count)
+	}
+
+	pub fn try_receive_downward_message(
+		config: &HostConfiguration<T::BlockNumber>,
+		para: ParaId,
+		downward_messages: DownwardMessage,
+	) -> Result<Weight, DmpAcceptanceCheckErr> {
+		if let Err(err) = Self::check_downward_message(config, &para, &downward_messages) {
+			return Err(err)
+		}
+		Ok(Self::receive_downward_message(config, para, downward_messages))
+	}
+
+	/// Determine whether enqueuing these downward messages to a specific recipient para would result
+	/// in an error. If this returns `Ok(())` the caller can be certain that a call to
+	/// `receive_downward_message` with the same parameters will be successful.
+	pub fn check_downward_messages(
+		config: &HostConfiguration<T::BlockNumber>,
+		para: &ParaId,
+		downward_messages: &[&DownwardMessage],
+	) -> Result<(), DmpAcceptanceCheckErr> {
+		// FAIL-CI: TODO merge this with `check_upward_messages`
+		let additional_msgs = downward_messages.len();
+		if additional_msgs > config.max_downward_message_num_per_candidate as usize {
+			return Err(DmpAcceptanceCheckErr::MoreMessagesThanPermitted {
+				sent: additional_msgs as u32,
+				permitted: config.max_downward_message_num_per_candidate,
+			})
+		}
+
+		let fp = <T as Config>::MessageQueue::footprint(MessageOrigin::dmp(para.clone()));
+		let (para_queue_count, mut para_queue_size) = (fp.count, fp.size);
+
+		if para_queue_count
+			.checked_add(additional_msgs as u64)
+			.map(|want| want > config.max_downward_queue_count as u64)
+			.unwrap_or(true)
+		{
+			return Err(DmpAcceptanceCheckErr::CapacityExceeded {
+				count: para_queue_count.saturating_add(additional_msgs as u64),
+				limit: config.max_downward_queue_count as u64,
+			})
+		}
+
+		for (idx, msg) in downward_messages.into_iter().enumerate() {
+			let msg_size = msg.len();
+			if msg_size > config.max_downward_message_size as usize {
+				return Err(DmpAcceptanceCheckErr::MessageSize {
+					idx: idx as u32,
+					msg_size: msg_size as u32,
+					max_size: config.max_downward_message_size,
+				})
+			}
+			// make sure that the queue is not overfilled.
+			// we do it here only once since returning false invalidates the whole relay-chain block.
+			if para_queue_size
+				.checked_add(msg_size as u64)
+				.map(|want| want > config.max_downward_queue_size as u64)
+				.unwrap_or(true)
+			{
+				return Err(DmpAcceptanceCheckErr::TotalSizeExceeded {
+					total_size: para_queue_size.saturating_add(msg_size as u64),
+					limit: config.max_downward_queue_size as u64,
+				})
+			}
+			para_queue_size += msg_size as u64;
+		}
+
+		Ok(())
+	}
+
+	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
+	///
+	/// ALWAYS CHECK [`check_downward_messages`] BEFORE CALLING THIS.
+	pub fn receive_downward_messages(
+		config: &HostConfiguration<T::BlockNumber>,
+		para: ParaId,
+		downward_messages: &[DownwardMessage],
+	) -> Weight {
+		if downward_messages.is_empty() {
+			return Weight::zero()
+		}
+
+		let count = downward_messages.len() as u32;
+		Self::deposit_event(Event::DownwardMessagesReceived { to: para, count });
+		// FAIL-CI bubble up bounded requirement
+		let messages = downward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
+		<T as Config>::MessageQueue::enqueue_messages(messages, MessageOrigin::dmp(para));
+		// FAIL-CI<T as Config>::WeightInfo::receive_downward_messages(count)
+		Weight::zero()
 	}
 
 	/// Cleans up all paras pending availability that the predicate returns true for.
@@ -1026,6 +1169,38 @@ impl<T: Config> Pallet<T> {
 		}
 
 		cleaned_up_cores
+	}
+
+	pub(crate) fn check_dmp_advancement(
+		para: ParaId,
+		processed_downward_messages: u32,
+	) -> Result<(), ProcessedDownwardMessagesAcceptanceErr> {
+		let dmq_length = <T as Config>::MessageQueue::footprint(MessageOrigin::dmp(para)).count;
+
+		if dmq_length > 0 && processed_downward_messages == 0 {
+			log::error!(
+				target: LOG_TARGET,
+				"Parachain {:?} processed none of its {} DMP messages",
+				para,
+				dmq_length,
+			);
+			return Err(ProcessedDownwardMessagesAcceptanceErr::AdvancementRule)
+		}
+		if processed_downward_messages as u64 > dmq_length {
+			log::error!(
+				target: LOG_TARGET,
+				"Parachain {:?} processed more DMP messages than available, {} > {}",
+				para,
+				processed_downward_messages,
+				dmq_length,
+			);
+			return Err(ProcessedDownwardMessagesAcceptanceErr::Underflow {
+				processed_downward_messages,
+				dmq_length: dmq_length as u32,
+			})
+		}
+
+		Ok(())
 	}
 
 	/// Cleans up all paras pending availability that are in the given list of disputed candidates.
@@ -1111,6 +1286,7 @@ impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 			NewCodeTooLarge => Error::<T>::NewCodeTooLarge,
 			ProcessedDownwardMessages(_) => Error::<T>::IncorrectDownwardMessageHandling,
 			UpwardMessages(_) => Error::<T>::InvalidUpwardMessages,
+			DownwardMessages(_) => Error::<T>::InvalidDownwardMessages,
 			HrmpWatermark(_) => Error::<T>::HrmpWatermarkMishandling,
 			OutboundHrmp(_) => Error::<T>::InvalidOutboundHrmp,
 		}
@@ -1118,20 +1294,21 @@ impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 }
 
 impl<T: Config> OnQueueChanged<MessageOrigin> for Pallet<T> {
-	fn on_queue_changed(queue: MessageOrigin, count: u64, size: u64) {
-		match queue {
-			MessageOrigin { queue: SubQueue::UMP, para } => {
-				// TODO maybe migrate this to u64
-				let (count, size) = (count.saturated_into(), size.saturated_into());
-				// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
-				#[allow(deprecated)]
-				well_known_keys::relay_dispatch_queue_size_typed(para).set((count, size));
+	fn on_queue_changed(queue: MessageOrigin, items_count: u64, items_size: u64) {
+		let MessageOrigin::MQ(queue) = queue else {
+			defensive!("Unexpected message origin: {:?}", queue);
+			return;
+		};
 
-				let config = <configuration::Pallet<T>>::config();
-				let remaining_count = config.max_upward_queue_count.saturating_sub(count);
-				let remaining_size = config.max_upward_queue_size.saturating_sub(size);
-				well_known_keys::relay_dispatch_queue_remaining_capacity(para)
-					.set((remaining_count, remaining_size));
+		match queue {
+			SubQueue::UMP { from: para } => {
+				todo!("Implement UMP message handling");
+			},
+			SubQueue::DMP { to: para } => {
+				todo!("Implement DMP message handling");
+			},
+			SubQueue::HRMP { channel } => {
+				hrmp::Pallet::<T>::on_queue_changed(channel, items_count, items_size);
 			},
 			_ => todo!(),
 		}
@@ -1267,11 +1444,61 @@ impl<T: Config> CandidateCheckContext<T> {
 		}
 
 		// check if the candidate passes the messaging acceptance criteria
-		<dmp::Pallet<T>>::check_processed_downward_messages(para_id, processed_downward_messages)?;
+		Pallet::<T>::check_dmp_advancement(para_id, processed_downward_messages)?;
 		Pallet::<T>::check_upward_messages(&self.config, para_id, upward_messages)?;
-		<hrmp::Pallet<T>>::check_hrmp_watermark(para_id, self.relay_parent_number, hrmp_watermark)?;
+		<hrmp::Pallet<T>>::check_hrmp_advancement(
+			para_id,
+			self.relay_parent_number,
+			hrmp_watermark,
+		)?;
 		<hrmp::Pallet<T>>::check_outbound_hrmp(&self.config, para_id, horizontal_messages)?;
 
 		Ok(())
+	}
+}
+
+pub trait DmpLink<BlockNumber> {
+	fn check_downward_message(
+		config: &HostConfiguration<BlockNumber>,
+		para: &ParaId,
+		downward_messages: &DownwardMessage,
+	) -> Result<(), DmpAcceptanceCheckErr>;
+
+	fn receive_downward_message(
+		config: &HostConfiguration<BlockNumber>,
+		para: ParaId,
+		downward_messages: DownwardMessage,
+	) -> Weight;
+
+	fn try_receive_downward_message(
+		config: &HostConfiguration<BlockNumber>,
+		para: ParaId,
+		downward_messages: DownwardMessage,
+	) -> Result<Weight, DmpAcceptanceCheckErr>;
+}
+
+impl<T: Config> DmpLink<<T as frame_system::Config>::BlockNumber> for Pallet<T> {
+	fn check_downward_message(
+		config: &HostConfiguration<T::BlockNumber>,
+		para: &ParaId,
+		downward_messages: &DownwardMessage,
+	) -> Result<(), DmpAcceptanceCheckErr> {
+		Self::check_downward_messages(config, para, &[downward_messages])
+	}
+
+	fn receive_downward_message(
+		config: &HostConfiguration<T::BlockNumber>,
+		para: ParaId,
+		downward_messages: DownwardMessage,
+	) -> Weight {
+		Self::receive_downward_messages(config, para, &[downward_messages])
+	}
+
+	fn try_receive_downward_message(
+		config: &HostConfiguration<T::BlockNumber>,
+		para: ParaId,
+		downward_messages: DownwardMessage,
+	) -> Result<Weight, DmpAcceptanceCheckErr> {
+		Self::try_receive_downward_message(config, para, downward_messages)
 	}
 }

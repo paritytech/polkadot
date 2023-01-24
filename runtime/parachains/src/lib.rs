@@ -25,7 +25,7 @@
 
 pub mod configuration;
 pub mod disputes;
-pub mod dmp;
+//pub mod dmp;
 pub mod hrmp;
 pub mod inclusion;
 pub mod initializer;

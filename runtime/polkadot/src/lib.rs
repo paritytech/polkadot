@@ -28,7 +28,7 @@ use runtime_common::{
 
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
-	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
+	hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
@@ -1302,11 +1302,14 @@ impl sp_runtime::traits::Convert<parachains_inclusion::MessageOrigin, xcm::lates
 	for ParaIdToJunction
 {
 	fn convert(o: parachains_inclusion::MessageOrigin) -> xcm::latest::Junction {
-		match o {
-			parachains_inclusion::MessageOrigin {
-				para,
-				queue: parachains_inclusion::SubQueue::UMP,
-			} => xcm::latest::Junction::Parachain(para.into()),
+		let parachains_inclusion::MessageOrigin::MQ(queue) = o else {
+			unreachable!("Wrong origin type");
+		};
+		match queue {
+			parachains_inclusion::SubQueue::UMP { from } =>
+				xcm::latest::Junction::Parachain(from.into()),
+			parachains_inclusion::SubQueue::DMP { to } =>
+				xcm::latest::Junction::Parachain(to.into()),
 			// FAIL-CI: Should be similar for the other *MP queues but check this as a TODO
 			_ => todo!(),
 		}
@@ -1336,12 +1339,31 @@ impl pallet_message_queue::Config for Runtime {
 	type WeightInfo = (); // FAIL-CI: TODO
 }
 
-impl parachains_dmp::Config for Runtime {}
+use frame_support::traits::TransformOrigin;
+use primitives::HrmpChannelId;
+use runtime_parachains::inclusion::{DmpLink, HrmpToMessageOriginConverter, MessageOrigin};
+
+// FAIL-CI clean this up
+pub struct MockedQueueIntrospect;
+impl frame_support::traits::QueueIntrospect<HrmpChannelId> for MockedQueueIntrospect {
+	type MaxMessageLen = pallet_message_queue::MaxMessageLenOf<Runtime>;
+
+	fn messages(
+		origin: HrmpChannelId,
+	) -> Result<Vec<frame_support::BoundedVec<u8, Self::MaxMessageLen>>, ()> {
+		Err(())
+	}
+}
 
 impl parachains_hrmp::Config for Runtime {
 	type RuntimeOrigin = RuntimeOrigin;
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
+	type MessageQueue =
+		TransformOrigin<MessageQueue, MessageOrigin, HrmpChannelId, HrmpToMessageOriginConverter>;
+	type MessageQueueReader = MockedQueueIntrospect; // FAIL-CI only needed for runtime-API
+												 // The inclusion pallet manages the DMP queue.
+	type DmpLink = ParaInclusion;
 	type WeightInfo = weights::runtime_parachains_hrmp::WeightInfo<Self>;
 }
 
@@ -1580,7 +1602,7 @@ construct_runtime! {
 		ParaScheduler: parachains_scheduler::{Pallet, Storage} = 55,
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config, ValidateUnsigned} = 56,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
-		Dmp: parachains_dmp::{Pallet, Call, Storage} = 58,
+		// Dmp 58
 		// Ump 59
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
@@ -1850,7 +1872,8 @@ sp_api::impl_runtime_apis! {
 		}
 
 		fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumber>> {
-			parachains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
+			//parachains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
+			unimplemented!() // FAIL-CI
 		}
 
 		fn inbound_hrmp_channels_contents(

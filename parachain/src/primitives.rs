@@ -274,7 +274,9 @@ impl IsSystem for Sibling {
 /// is allowed between two participants in one direction, i.e. there cannot be 2 different channels
 /// identified by `(A, B)`. A channel with the same para id in sender and recipient is invalid. That
 /// is, however, not enforced.
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, RuntimeDebug, TypeInfo)]
+#[derive(
+	Clone, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, MaxEncodedLen, RuntimeDebug, TypeInfo,
+)]
 #[cfg_attr(feature = "std", derive(Hash))]
 pub struct HrmpChannelId {
 	/// The para that acts as the sender in this channel.

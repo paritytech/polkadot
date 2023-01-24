@@ -119,6 +119,9 @@ pub struct HostConfiguration<BlockNumber> {
 
 	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
+
+	pub max_downward_queue_count: u32,
+	pub max_downward_queue_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
 	///
 	/// Since we require receiving at least one DMP message the obvious upper bound of the size is
@@ -126,6 +129,7 @@ pub struct HostConfiguration<BlockNumber> {
 	/// decide to do with its PoV so this value in practice will be picked as a fraction of the PoV
 	/// size.
 	pub max_downward_message_size: u32,
+	pub max_downward_message_num_per_candidate: u32,
 	/// The maximum number of outbound HRMP channels a parachain is allowed to open.
 	pub hrmp_max_parachain_outbound_channels: u32,
 	/// The maximum number of outbound HRMP channels a parathread is allowed to open.
@@ -260,9 +264,12 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			relay_vrf_modulo_samples: Default::default(),
 			max_upward_queue_count: Default::default(),
 			max_upward_queue_size: Default::default(),
-			max_downward_message_size: Default::default(),
 			max_upward_message_size: Default::default(),
 			max_upward_message_num_per_candidate: Default::default(),
+			max_downward_queue_count: Default::default(),
+			max_downward_queue_size: Default::default(),
+			max_downward_message_size: Default::default(),
+			max_downward_message_num_per_candidate: Default::default(),
 			hrmp_sender_deposit: Default::default(),
 			hrmp_recipient_deposit: Default::default(),
 			hrmp_channel_max_capacity: Default::default(),
