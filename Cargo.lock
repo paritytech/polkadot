@@ -3705,9 +3705,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.126"
+version = "0.2.139"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "349d5a591cd28b49e1d1037471617a32ddcda5731b99419008085f72d5a53836"
+checksum = "201de327520df007757c1f0adce6e827fe8562fbc28bfd9c15571c66ca1f5f79"
 
 [[package]]
 name = "libgit2-sys"
@@ -6062,9 +6062,9 @@ dependencies = [
 
 [[package]]
 name = "parity-db"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3a7511a0bec4a336b5929999d02b560d2439c993cccf98c26481484e811adc43"
+checksum = "dd684a725651d9588ef21f140a328b6b4f64e646b2e931f3e6f14f75eedf9980"
 dependencies = [
  "blake2",
  "crc32fast",
@@ -12335,7 +12335,7 @@ checksum = "97fee6b57c6a41524a810daee9286c02d7752c4253064d0b05472833a438f675"
 dependencies = [
  "cfg-if",
  "digest 0.10.3",
- "rand 0.8.5",
+ "rand 0.7.3",
  "static_assertions",
 ]
 
