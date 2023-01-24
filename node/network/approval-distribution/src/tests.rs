@@ -2429,7 +2429,8 @@ fn batch_test_round(message_count: usize) {
 			.collect();
 
 		let peer = PeerId::random();
-		send_assignments_batched(&mut sender, assignments.clone(), peer, ValidationVersion::V1).await;
+		send_assignments_batched(&mut sender, assignments.clone(), peer, ValidationVersion::V1)
+			.await;
 		send_approvals_batched(&mut sender, approvals.clone(), peer, ValidationVersion::V1).await;
 
 		// Check expected assignments batches.
