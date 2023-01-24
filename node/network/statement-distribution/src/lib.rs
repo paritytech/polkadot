@@ -33,7 +33,10 @@ use polkadot_node_subsystem::{
 	messages::{NetworkBridgeEvent, StatementDistributionMessage},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
-use polkadot_node_subsystem_util::rand;
+use polkadot_node_subsystem_util::{
+	rand,
+	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
+};
 
 use futures::{channel::mpsc, prelude::*};
 use sp_keystore::SyncCryptoStorePtr;
@@ -208,9 +211,12 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				}
 
 				if let Some(activated) = activated {
-					// TODO [now]: legacy, activate only if no prospective parachains support.
-					crate::legacy_v1::handle_activated_leaf(ctx, legacy_v1_state, activated)
-						.await?;
+					// Legacy, activate only if no prospective parachains support.
+					let mode = prospective_parachains_mode(ctx.sender(), activated.hash).await?;
+					if let ProspectiveParachainsMode::Disabled = mode {
+						crate::legacy_v1::handle_activated_leaf(ctx, legacy_v1_state, activated)
+							.await?;
+					}
 				}
 			},
 			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {
@@ -239,13 +245,13 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						// pass to legacy, but not if the message isn't
 						// v1.
 						let legacy = match &event {
-						&NetworkBridgeEvent::PeerMessage(_, ref message) => match message {
-							Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::V1Compatibility(_)) => true,
-							Versioned::V1(_) => true,
-							// TODO [now]: _ => false,
-						},
-						_ => true,
-					};
+							&NetworkBridgeEvent::PeerMessage(_, ref message) => match message {
+								Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::V1Compatibility(_)) => true,
+								Versioned::V1(_) => true,
+								// TODO [now]: _ => false,
+							},
+							_ => true,
+						};
 
 						if legacy {
 							crate::legacy_v1::handle_network_update(
