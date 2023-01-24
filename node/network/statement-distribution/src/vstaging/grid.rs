@@ -391,7 +391,7 @@ impl GridTracker {
 	pub fn pending_manifests_for(
 		&self,
 		validator_index: ValidatorIndex,
-	) -> Vec<(CandidateHash, ManifestKind)> {
+) -> Vec<(CandidateHash, ManifestKind)> {
 		self.pending_communication
 			.get(&validator_index)
 			.into_iter()

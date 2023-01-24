@@ -59,7 +59,7 @@ use crate::{
 	error::{JfyiError, JfyiErrorResult},
 	LOG_TARGET,
 };
-use candidates::{BadAdvertisement, Candidates};
+use candidates::{BadAdvertisement, Candidates, PostConfirmation};
 use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as ClusterRejectIncoming};
 use grid::{GridTracker, ManifestSummary, StatementFilter};
 use groups::Groups;
@@ -81,6 +81,19 @@ const COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE: Rep =
 const COST_UNEXPECTED_STATEMENT_REMOTE: Rep =
 	Rep::CostMinor("Unexpected Statement, remote not allowed");
 const COST_EXCESSIVE_SECONDED: Rep = Rep::CostMinor("Sent Excessive `Seconded` Statements");
+
+const COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE: Rep =
+	Rep::CostMinor("Unexpected Manifest, missing knowlege for relay parent");
+const COST_UNEXPECTED_MANIFEST_DISALLOWED: Rep =
+	Rep::CostMinor("Unexpected Manifest, Peer Disallowed");
+const COST_CONFLICTING_MANIFEST: Rep =
+	Rep::CostMajor("Manifest conflicts with previous");
+const COST_INSUFFICIENT_MANIFEST: Rep =
+	Rep::CostMajor("Manifest statements insufficient to back candidate");
+const COST_MALFORMED_MANIFEST: Rep =
+	Rep::CostMajor("Manifest is malformed");
+const COST_DUPLICATE_MANIFEST: Rep =
+	Rep::CostMinor("Duplicate Manifest");
 
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
 const COST_IMPROPERLY_DECODED_RESPONSE: Rep =
@@ -562,20 +575,20 @@ pub(crate) async fn share_local_statement<Context>(
 		return Err(JfyiError::InvalidShare)
 	}
 
+	let mut post_confirmation = None;
+
 	// Insert candidate if unknown + more sanity checks.
 	let (compact_statement, candidate_hash) = {
 		let compact_statement = FullStatementWithPVD::signed_to_compact(statement.clone());
 		let candidate_hash = CandidateHash(*statement.payload().candidate_hash());
 
 		if let FullStatementWithPVD::Seconded(ref c, ref pvd) = statement.payload() {
-			if let Some(reckoning) = state.candidates.confirm_candidate(
+			post_confirmation = state.candidates.confirm_candidate(
 				candidate_hash,
 				c.clone(),
 				pvd.clone(),
 				local_group,
-			) {
-				apply_post_confirmation_reckoning(ctx, reckoning).await;
-			}
+			);
 		};
 
 		match per_relay_parent.statement_store.insert(
@@ -594,11 +607,11 @@ pub(crate) async fn share_local_statement<Context>(
 			Ok(true) => (compact_statement, candidate_hash),
 		}
 
-		// TODO [now]: the candidate is confirmed, so
-		// a) cancel requests
-		// b) import previously-received statements.
-		// Probably: create a helper function that does all this + applies post-confirmation reckoning.
 	};
+
+	if let Some(post_confirmation) = post_confirmation {
+		apply_post_confirmation(ctx, state, post_confirmation);
+	}
 
 	// send the compact version of the statement to any peers which need it.
 	circulate_statement(ctx, state, relay_parent, local_group, compact_statement).await;
@@ -1025,7 +1038,7 @@ async fn handle_incoming_statement<Context>(
 
 		request_entry.get_mut().add_peer(peer);
 
-		// We only successfully accept statements from the grid on unconfirmed
+		// We only successfully accept statements from the grid on confirmed
 		// candidates, therefore this check only passes if the statement is from the cluster
 		request_entry.get_mut().set_cluster_priority();
 	}
@@ -1342,9 +1355,14 @@ async fn fragment_tree_update_inner<Context>(
 	state: &mut State,
 	active_leaf_hash: Option<Hash>,
 	required_parent_info: Option<(Hash, ParaId)>,
+	known_hypotheticals: Option<Vec<HypotheticalCandidate>>,
 ) {
 	// 1. get hypothetical candidates
-	let hypotheticals = state.candidates.frontier_hypotheticals(required_parent_info);
+	let hypotheticals = match known_hypotheticals {
+		None => state.candidates.frontier_hypotheticals(required_parent_info),
+		Some(h) => h,
+	};
+
 	// 2. find out which are in the frontier
 	let frontier = {
 		let (tx, rx) = oneshot::channel();
@@ -1411,7 +1429,7 @@ async fn new_leaf_fragment_tree_updates<Context>(
 	state: &mut State,
 	leaf_hash: Hash,
 ) {
-	fragment_tree_update_inner(ctx, state, Some(leaf_hash), None).await
+	fragment_tree_update_inner(ctx, state, Some(leaf_hash), None, None).await
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
@@ -1421,7 +1439,16 @@ async fn prospective_backed_notification_fragment_tree_updates<Context>(
 	para_id: ParaId,
 	para_head: Hash,
 ) {
-	fragment_tree_update_inner(ctx, state, None, Some((para_head, para_id))).await
+	fragment_tree_update_inner(ctx, state, None, Some((para_head, para_id)), None).await
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn new_confirmed_candidate_fragment_tree_updates<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	candidate: HypotheticalCandidate,
+) {
+	fragment_tree_update_inner(ctx, state, None, None, Some(vec![candidate])).await
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
@@ -1431,12 +1458,104 @@ async fn handle_incoming_manifest<Context>(
 	peer: PeerId,
 	manifest: net_protocol::vstaging::BackedCandidateManifest,
 ) {
+	// 1. sanity checks: relay-parent in state, para ID matches group index,
+	let relay_parent_state = match state.per_relay_parent.get_mut(&manifest.relay_parent) {
+		None => {
+			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE).await;
+			return;
+		},
+		Some(s) => s,
+	};
+
+	let per_session = match state.per_session.get(&relay_parent_state.session) {
+		None => return,
+		Some(s) => s,
+	};
+
+	let local_validator = match relay_parent_state.local_validator.as_mut() {
+		None => {
+			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE).await;
+			return;
+		},
+		Some(x) => x,
+
+	};
+
+	let grid_topology = match per_session.grid_view.as_ref() {
+		None => return,
+		Some(x) => x,
+	};
+
+	// TODO [now]: validate that para Id matches group index.
+
+	// 2. sanity checks: peer is validator, bitvec size, import into grid tracker
+	let maybe_respond = match local_validator.grid_tracker.import_manifest(
+		grid_topology,
+		&per_session.groups,
+		manifest.candidate_hash,
+		todo!(), // TODO [now]: seconding limit
+		grid::ManifestSummary {
+			claimed_parent_hash: manifest.parent_head_data_hash,
+			claimed_group_index: manifest.group_index,
+			seconded_in_group: manifest.seconded_in_group,
+			validated_in_group: manifest.validated_in_group,
+		},
+		grid::ManifestKind::Full,
+		todo!(), // TODO [now]: validator index
+	) {
+		Ok(x) => x,
+		Err(grid::ManifestImportError::Conflicting) => {
+			report_peer(ctx.sender(), peer, COST_CONFLICTING_MANIFEST).await;
+			return;
+		}
+		Err(grid::ManifestImportError::Overflow) => {
+			report_peer(ctx.sender(), peer, COST_EXCESSIVE_SECONDED).await;
+			return;
+		}
+		Err(grid::ManifestImportError::Insufficient) => {
+			report_peer(ctx.sender(), peer, COST_INSUFFICIENT_MANIFEST).await;
+			return;
+		}
+		Err(grid::ManifestImportError::Malformed) => {
+			report_peer(ctx.sender(), peer, COST_MALFORMED_MANIFEST).await;
+			return;
+		}
+		Err(grid::ManifestImportError::Disallowed) => {
+			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_DISALLOWED).await;
+			return;
+		}
+	};
+
+	// 3. if accepted by grid, insert as unconfirmed.
+	if let Err(BadAdvertisement) = state.candidates.insert_unconfirmed(
+		peer.clone(),
+		manifest.candidate_hash,
+		manifest.relay_parent,
+		manifest.group_index,
+		Some((manifest.parent_head_data_hash, manifest.para_id)),
+	) {
+		report_peer(ctx.sender(), peer, COST_INACCURATE_ADVERTISEMENT).await;
+		return;
+	}
+
+	// TODO [now]
+	// 4. if already confirmed & known within grid, acknowledge candidate
+	// 5. if unconfirmed, add request entry
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn handle_incoming_acknowledgement<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	peer: PeerId,
+	manifest: net_protocol::vstaging::BackedCandidateAcknowledgement,
+) {
 	// TODO [now]:
 	// 1. sanity checks: relay-parent in state, para ID matches group index,
 	// 2. sanity checks: peer is validator, bitvec size, import into grid tracker
 	// 3. if accepted by grid, insert as unconfirmed.
 	// 4. if already confirmed, acknowledge candidate
-	// 5. if already unconfirmed, add request entry (if importable)
+	// 5. if unconfirmed, add request entry (if importable)
 	// 6. if fresh unconfirmed, determine whether it's in the hypothetical
 	//    frontier, update candidates wrapper, add request entry if so.
 }
@@ -1485,12 +1604,23 @@ pub(crate) async fn handle_backed_candidate_message<Context>(
 	).await;
 }
 
+/// Applies state & p2p updates as a result of a newly confirmed candidate.
+///
+/// This punishes who advertised the candidate incorrectly, as well as
+/// doing an importability analysis of the confirmed candidate and providing
+/// statements to the backing subsystem if importable. It also cleans up
+/// any pending requests for the candidate.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-async fn apply_post_confirmation_reckoning<Context>(
+async fn apply_post_confirmation<Context>(
 	ctx: &mut Context,
-	reckoning: candidates::PostConfirmationReckoning,
+	state: &mut State,
+	post_confirmation: PostConfirmation,
 ) {
-	for peer in reckoning.incorrect {
+	for peer in post_confirmation.reckoning.incorrect {
 		report_peer(ctx.sender(), peer, COST_INACCURATE_ADVERTISEMENT).await;
 	}
+
+	let candidate_hash = post_confirmation.hypothetical.candidate_hash();
+	state.request_manager.remove_for(candidate_hash);
+	new_confirmed_candidate_fragment_tree_updates(ctx, state, post_confirmation.hypothetical).await;
 }
