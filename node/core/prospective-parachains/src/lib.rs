@@ -36,7 +36,7 @@ use futures::{channel::oneshot, prelude::*};
 
 use polkadot_node_subsystem::{
 	messages::{
-		ChainApiMessage, FragmentTreeMembership, HypotheticalCandidate, HypotheticalDepthRequest,
+		ChainApiMessage, FragmentTreeMembership, HypotheticalCandidate,
 		HypotheticalFrontierRequest, ProspectiveParachainsMessage,
 		ProspectiveValidationDataRequest, RuntimeApiMessage, RuntimeApiRequest,
 	},

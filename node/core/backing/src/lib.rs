@@ -85,9 +85,9 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		AvailabilityDistributionMessage, AvailabilityStoreMessage, CandidateBackingMessage,
-		CandidateValidationMessage, CollatorProtocolMessage, HypotheticalCandidate,
-		HypotheticalFrontierRequest, IntroduceCandidateRequest, ProspectiveParachainsMessage,
+		AvailabilityDistributionMessage, AvailabilityStoreMessage, CanSecondRequest,
+		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
+		HypotheticalCandidate, HypotheticalFrontierRequest, ProspectiveParachainsMessage,
 		ProvisionableData, ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest,
 		StatementDistributionMessage,
 	},
@@ -101,8 +101,8 @@ use polkadot_node_subsystem_util::{
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 	Validator,
 };
-use polkadot_primitives::v2::{
-	BackedCandidate, CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
+use polkadot_primitives::{
+	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt,
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PersistedValidationData,
 	SigningContext, ValidationCode, ValidatorId, ValidatorIndex, ValidatorSignature,
 	ValidityAttestation,
@@ -1086,38 +1086,21 @@ async fn seconding_sanity_check<Context>(
 	ctx: &mut Context,
 	active_leaves: &HashMap<Hash, ActiveLeafState>,
 	implicit_view: &ImplicitView,
-	candidate_hash: CandidateHash,
-	receipt: CommittedCandidateReceipt,
-	persisted_validation_data: PersistedValidationData,
+	hypothetical_candidate: HypotheticalCandidate,
 ) -> SecondingAllowed {
-	let CandidateDescriptor {
-		para_id: candidate_para, relay_parent: candidate_relay_parent, ..
-	} = &receipt.descriptor;
-	let parent_head_data_hash = persisted_validation_data.parent_head.hash();
-	let head_data_hash = receipt.commitments.head_data.hash();
-
-	// Note that `GetHypotheticalFrontiers` doesn't account for recursion,
-	// i.e. candidates can appear at multiple depths in the tree and in fact
-	// at all depths, and we don't know what depths a candidate will ultimately occupy
-	// because that's dependent on other candidates we haven't yet received.
-	//
-	// The only way to effectively rule this out is to have candidate receipts
-	// directly commit to the parachain block number or some other incrementing
-	// counter. That requires a major primitives format upgrade, so for now
-	// we just rule out trivial cycles.
-	if parent_head_data_hash == head_data_hash {
-		return SecondingAllowed::No
-	}
-
 	let mut membership = Vec::new();
 	let mut responses = FuturesOrdered::<BoxFuture<'_, Result<_, oneshot::Canceled>>>::new();
+
+	let candidate_para = hypothetical_candidate.candidate_para();
+	let candidate_relay_parent = hypothetical_candidate.relay_parent();
+	let candidate_hash = hypothetical_candidate.candidate_hash();
 
 	for (head, leaf_state) in active_leaves {
 		if leaf_state.prospective_parachains_mode.is_enabled() {
 			// Check that the candidate relay parent is allowed for para, skip the
 			// leaf otherwise.
 			let allowed_parents_for_para =
-				implicit_view.known_allowed_relay_parents_under(head, Some(*candidate_para));
+				implicit_view.known_allowed_relay_parents_under(head, Some(candidate_para));
 			if !allowed_parents_for_para.unwrap_or_default().contains(&candidate_relay_parent) {
 				continue
 			}
@@ -1125,11 +1108,7 @@ async fn seconding_sanity_check<Context>(
 			let (tx, rx) = oneshot::channel();
 			ctx.send_message(ProspectiveParachainsMessage::GetHypotheticalFrontier(
 				HypotheticalFrontierRequest {
-					candidates: vec![HypotheticalCandidate::Complete {
-						candidate_hash,
-						receipt: Arc::new(receipt.clone()),
-						persisted_validation_data: persisted_validation_data.clone(),
-					}],
+					candidates: vec![hypothetical_candidate.clone()],
 					fragment_tree_relay_parent: Some(*head),
 				},
 				tx,
@@ -1150,7 +1129,7 @@ async fn seconding_sanity_check<Context>(
 			});
 			responses.push_back(response.boxed());
 		} else {
-			if head == candidate_relay_parent {
+			if *head == candidate_relay_parent {
 				if leaf_state
 					.seconded_at_depth
 					.get(&candidate_para)
@@ -1221,14 +1200,18 @@ async fn handle_can_second_request<Context>(
 		.get(&relay_parent)
 		.map_or(false, |pr_state| pr_state.prospective_parachains_mode.is_enabled())
 	{
+		let hypothetical_candidate = HypotheticalCandidate::Incomplete {
+			candidate_hash: request.candidate_hash,
+			candidate_para: request.candidate_para_id,
+			parent_head_data_hash: request.parent_head_data_hash,
+			candidate_relay_parent: relay_parent,
+		};
+
 		let result = seconding_sanity_check(
 			ctx,
 			&state.per_leaf,
 			&state.implicit_view,
-			request.candidate_hash,
-			request.candidate_para_id,
-			request.parent_head_data_hash,
-			relay_parent,
+			hypothetical_candidate,
 		)
 		.await;
 
@@ -1278,6 +1261,24 @@ async fn handle_validated_candidate_command<Context>(
 							commitments,
 						};
 
+						let parent_head_data_hash = persisted_validation_data.parent_head.hash();
+						// Note that `GetHypotheticalFrontier` doesn't account for recursion,
+						// i.e. candidates can appear at multiple depths in the tree and in fact
+						// at all depths, and we don't know what depths a candidate will ultimately occupy
+						// because that's dependent on other candidates we haven't yet received.
+						//
+						// The only way to effectively rule this out is to have candidate receipts
+						// directly commit to the parachain block number or some other incrementing
+						// counter. That requires a major primitives format upgrade, so for now
+						// we just rule out trivial cycles.
+						if parent_head_data_hash == receipt.commitments.head_data.hash() {
+							return Ok(())
+						}
+						let hypothetical_candidate = HypotheticalCandidate::Complete {
+							candidate_hash,
+							receipt: Arc::new(receipt.clone()),
+							persisted_validation_data: persisted_validation_data.clone(),
+						};
 						// sanity check that we're allowed to second the candidate
 						// and that it doesn't conflict with other candidates we've
 						// seconded.
@@ -1285,9 +1286,7 @@ async fn handle_validated_candidate_command<Context>(
 							ctx,
 							&state.per_leaf,
 							&state.implicit_view,
-							candidate_hash,
-							receipt.clone(),
-							persisted_validation_data.clone(),
+							hypothetical_candidate,
 						)
 						.await
 						{

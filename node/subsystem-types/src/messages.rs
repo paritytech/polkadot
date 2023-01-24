@@ -924,6 +924,26 @@ impl HypotheticalCandidate {
 			HypotheticalCandidate::Incomplete { candidate_para, .. } => candidate_para,
 		}
 	}
+
+	/// Get parent head data hash of the hypothetical candidate.
+	pub fn parent_head_data_hash(&self) -> Hash {
+		match *self {
+			HypotheticalCandidate::Complete { ref persisted_validation_data, .. } =>
+				persisted_validation_data.parent_head.hash(),
+			HypotheticalCandidate::Incomplete { parent_head_data_hash, .. } =>
+				parent_head_data_hash,
+		}
+	}
+
+	/// Get candidate's relay parent.
+	pub fn relay_parent(&self) -> Hash {
+		match *self {
+			HypotheticalCandidate::Complete { ref receipt, .. } =>
+				receipt.descriptor().relay_parent,
+			HypotheticalCandidate::Incomplete { candidate_relay_parent, .. } =>
+				candidate_relay_parent,
+		}
+	}
 }
 
 /// Request specifying which candidates are either already included

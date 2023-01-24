@@ -20,7 +20,7 @@ use polkadot_node_subsystem::{
 	messages::{ChainApiMessage, FragmentTreeMembership},
 	TimeoutExt,
 };
-use polkadot_primitives::v2::{BlockNumber, Header};
+use polkadot_primitives::{vstaging as vstaging_primitives, BlockNumber, Header, OccupiedCore};
 
 use super::*;
 
@@ -1568,18 +1568,23 @@ fn occupied_core_assignment() {
 		.await;
 
 		// `seconding_sanity_check`
-		let expected_request = HypotheticalDepthRequest {
+		let hypothetical_candidate = HypotheticalCandidate::Complete {
 			candidate_hash: candidate.hash(),
-			candidate_para: para_id,
-			parent_head_data_hash: pvd.parent_head.hash(),
-			candidate_relay_parent: leaf_a_parent,
-			fragment_tree_relay_parent: leaf_a_hash,
+			receipt: Arc::new(candidate.clone()),
+			persisted_validation_data: pvd.clone(),
 		};
-		assert_hypothetical_depth_requests(
-			&mut virtual_overseer,
-			vec![(expected_request, vec![0, 1, 2, 3])],
-		)
-		.await;
+		let expected_request = vec![(
+			HypotheticalFrontierRequest {
+				candidates: vec![hypothetical_candidate.clone()],
+				fragment_tree_relay_parent: Some(leaf_a_hash),
+			},
+			make_hypothetical_frontier_response(
+				vec![0, 1, 2, 3],
+				hypothetical_candidate,
+				leaf_a_hash,
+			),
+		)];
+		assert_hypothetical_frontier_requests(&mut virtual_overseer, expected_request).await;
 		// Prospective parachains are notified.
 		assert_matches!(
 			virtual_overseer.recv().await,
