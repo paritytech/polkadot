@@ -248,13 +248,29 @@ impl PeerState {
 		fresh_implicit
 	}
 
+	// Attempt to reconcile the view with new information about the implicit relay parents
+	// under an active leaf.
+	fn reconcile_active_leaf(&mut self, leaf_hash: Hash, implicit: &[Hash]) -> Vec<Hash> {
+		if !self.view.contains(&leaf_hash) {
+			return Vec::new()
+		}
+
+		let mut v = Vec::with_capacity(implicit.len());
+		for i in implicit {
+			if self.implicit_view.insert(*i) {
+				v.push(*i);
+			}
+		}
+		v
+	}
+
 	// Whether we know that a peer knows a relay-parent.
 	// The peer knows the relay-parent if it is either implicit or explicit
 	// in their view. However, if it is implicit via an active-leaf we don't
 	// recognize, we will not accurately be able to recognize them as 'knowing'
 	// the relay-parent.
 	fn knows_relay_parent(&self, relay_parent: &Hash) -> bool {
-		self.implicit_view.contains(relay_parent)
+		self.implicit_view.contains(relay_parent) || self.view.contains(relay_parent)
 	}
 
 	fn is_authority(&self, authority_id: &AuthorityDiscoveryId) -> bool {
@@ -382,16 +398,17 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		None => return Ok(()),
 	};
 
-	let new_relay_parents = state.implicit_view.all_allowed_relay_parents().collect::<Vec<_>>();
+	let new_relay_parents =
+		state.implicit_view.all_allowed_relay_parents().cloned().collect::<Vec<_>>();
 	for new_relay_parent in new_relay_parents.iter().cloned() {
-		if state.per_relay_parent.contains_key(new_relay_parent) {
+		if state.per_relay_parent.contains_key(&new_relay_parent) {
 			continue
 		}
 
 		// New leaf: fetch info from runtime API and initialize
 		// `per_relay_parent`.
 		let session_index = polkadot_node_subsystem_util::request_session_index_for_child(
-			*new_relay_parent,
+			new_relay_parent,
 			ctx.sender(),
 		)
 		.await
@@ -400,7 +417,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		.map_err(JfyiError::FetchSessionIndex)?;
 
 		let availability_cores = polkadot_node_subsystem_util::request_availability_cores(
-			*new_relay_parent,
+			new_relay_parent,
 			ctx.sender(),
 		)
 		.await
@@ -409,7 +426,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		.map_err(JfyiError::FetchAvailabilityCores)?;
 
 		let group_rotation_info =
-			polkadot_node_subsystem_util::request_validator_groups(*new_relay_parent, ctx.sender())
+			polkadot_node_subsystem_util::request_validator_groups(new_relay_parent, ctx.sender())
 				.await
 				.await
 				.map_err(JfyiError::RuntimeApiUnavailable)?
@@ -418,7 +435,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 
 		if !state.per_session.contains_key(&session_index) {
 			let session_info = polkadot_node_subsystem_util::request_session_info(
-				*new_relay_parent,
+				new_relay_parent,
 				session_index,
 				ctx.sender(),
 			)
@@ -461,7 +478,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		});
 
 		state.per_relay_parent.insert(
-			*new_relay_parent,
+			new_relay_parent,
 			PerRelayParentState {
 				validator_state: HashMap::new(),
 				local_validator,
@@ -473,8 +490,25 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		);
 	}
 
-	// TODO [now]: update peers which have the leaf in their view.
-	// update their implicit view. send any messages accordingly.
+	// Reconcile all peers' views with the active leaf and any relay parents
+	// it implies. If they learned about the block before we did, this reconciliation will give non-empty
+	// results and we should send them messages concerning all activated relay-parents.
+	{
+		let mut update_peers = Vec::new();
+		for (peer, peer_state) in state.peers.iter_mut() {
+			let fresh = peer_state.reconcile_active_leaf(leaf.hash, &new_relay_parents);
+			if !fresh.is_empty() {
+				update_peers.push((peer.clone(), fresh));
+			}
+		}
+
+		for (peer, fresh) in update_peers {
+			for fresh_relay_parent in fresh {
+				send_peer_messages_for_relay_parent(ctx, state, peer.clone(), fresh_relay_parent)
+					.await;
+			}
+		}
+	}
 
 	new_leaf_fragment_tree_updates(ctx, state, leaf.hash).await;
 
@@ -557,8 +591,22 @@ async fn handle_peer_view_update<Context>(
 	};
 
 	for new_relay_parent in fresh_implicit {
-		// TODO [now]: send all direct statements, manifests, or acknowledgements they need.
+		send_peer_messages_for_relay_parent(ctx, state, peer.clone(), new_relay_parent).await;
 	}
+}
+
+/// Send a peer, apparently just becoming aware of a relay-parent, all messages
+/// concerning that relay-parent.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn send_peer_messages_for_relay_parent<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	peer: PeerId,
+	relay_parent: Hash,
+) {
+	// TODO [now] determine validator index
+	// send cluster statements
+	// send grid manifests & acknowledgements
 }
 
 // Imports a locally originating statement and distributes it to peers.
