@@ -325,13 +325,29 @@ pub(crate) async fn handle_network_update<Context>(
 						relay_parent,
 						statement,
 					),
-				) => {}, // TODO [now]
+				) => handle_incoming_statement(
+					ctx,
+					state,
+					peer_id,
+					relay_parent,
+					statement,
+				).await,
 				net_protocol::StatementDistributionMessage::VStaging(
 					protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(inner),
-				) => {}, // TODO [now]
+				) => handle_incoming_manifest(
+					ctx,
+					state,
+					peer_id,
+					inner,
+				).await,
 				net_protocol::StatementDistributionMessage::VStaging(
 					protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(inner),
-				) => {}, // TODO [now]
+				) => handle_incoming_acknowledgement(
+					ctx,
+					state,
+					peer_id,
+					inner,
+				).await,
 			}
 		},
 		NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
