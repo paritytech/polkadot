@@ -39,9 +39,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config:
-		configuration::Config + paras::Config + inclusion::Config + hrmp::Config
-	{
+	pub trait Config: configuration::Config + paras::Config + hrmp::Config {
 		/// Link to the DMP queue as provided by `pallet-parachain-inclusion`.
 		///
 		/// This is a weaker coupling than inheriting the `inclusion::Config` which makes it easier for mocking.

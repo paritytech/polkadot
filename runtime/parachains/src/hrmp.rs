@@ -265,8 +265,8 @@ pub mod pallet {
 		type Currency: ReservableCurrency<Self::AccountId>;
 
 		/// Contains the contents of all HRMP channels.
-		/// FAIL-CI use the convert here
-		/// Formerly known as `HrmpChannelContents`. The origin here is a `HrmpChannelId` instead of `MessageOrigin` as in the inclusion pallet. You can use the adapter type `EnqueueMessageOriginConvert` to plug it in here.
+		///
+		/// Formerly known as `HrmpChannelContents`. The origin here is a `HrmpChannelId` instead of `MessageOrigin` as in the inclusion pallet. You can use the `TransformOrigin` adapter to plug it in here.
 		type MessageQueue: EnqueueMessage<HrmpChannelId>;
 
 		type MessageQueueReader: QueueIntrospect<HrmpChannelId>;
@@ -908,7 +908,6 @@ impl<T: Config> Pallet<T> {
 			);
 		}
 
-		//<Self as Store>::HrmpChannelContents::remove(channel_id);
 		// FAIL-CI TODO force remove of queues
 		T::MessageQueue::sweep_queue(channel_id.clone());
 
@@ -1056,41 +1055,6 @@ impl<T: Config> Pallet<T> {
 		});
 		weight += T::DbWeight::get().reads_writes(1, 1);
 
-		// having all senders we can trivially find out the channels which we need to prune.
-		/*let channels_to_prune =
-			senders.into_iter().map(|sender| HrmpChannelId { sender, recipient });
-		for channel_id in channels_to_prune {
-			// prune each channel up to the new watermark keeping track how many messages we removed
-			// and what is the total byte size of them.
-			let (mut pruned_cnt, mut pruned_size) = (0, 0);
-
-			let contents = <Self as Store>::HrmpChannelContents::get(&channel_id);
-			let mut leftover = Vec::with_capacity(contents.len());
-			for msg in contents {
-				if msg.sent_at <= new_hrmp_watermark {
-					pruned_cnt += 1;
-					pruned_size += msg.data.len();
-				} else {
-					leftover.push(msg);
-				}
-			}
-			if !leftover.is_empty() {
-				<Self as Store>::HrmpChannelContents::insert(&channel_id, leftover);
-			} else {
-				<Self as Store>::HrmpChannelContents::remove(&channel_id);
-			}
-
-			// update the channel metadata.
-			<Self as Store>::HrmpChannels::mutate(&channel_id, |channel| {
-				if let Some(ref mut channel) = channel {
-					channel.msg_count -= pruned_cnt as u32;
-					channel.total_size -= pruned_size as u32;
-				}
-			});
-
-			weight += T::DbWeight::get().reads_writes(2, 2);
-		}*/
-
 		<Self as Store>::HrmpWatermarks::insert(&recipient, new_hrmp_watermark);
 		weight += T::DbWeight::get().reads_writes(0, 1);
 
@@ -1109,35 +1073,7 @@ impl<T: Config> Pallet<T> {
 		// FAIL-CI chunk this by channel-id
 		for out_msg in out_hrmp_msgs {
 			let channel_id = HrmpChannelId { sender, recipient: out_msg.recipient };
-
-			// FAIL-CI remove now done by on_queue_changed
-			//let mut channel = match <Self as Store>::HrmpChannels::get(&channel_id) {
-			//	Some(channel) => channel,
-			//	None => {
-			//		// apparently, that since acceptance of this candidate the recipient was
-			//		// offboarded and the channel no longer exists.
-			//		// FAIL-CI test this in invariant try_state
-			//		continue
-			//	},
-			//};
-			//
 			let inbound = InboundHrmpMessage { sent_at: now, data: out_msg.data };
-			//
-			//// book keeping
-			//channel.msg_count += 1;
-			//channel.total_size += inbound.data.len() as u32;
-			//
-			//// compute the new MQC head of the channel
-			//let prev_head = channel.mqc_head.unwrap_or(Default::default());
-			//let new_head = BlakeTwo256::hash_of(&(
-			//	prev_head,
-			//	inbound.sent_at,
-			//	T::Hashing::hash_of(&inbound.data),
-			//));
-			//channel.mqc_head = Some(new_head);
-			//
-			//<Self as Store>::HrmpChannels::insert(&channel_id, channel);
-			//<Self as Store>::HrmpChannelContents::append(&channel_id, inbound);
 			let encoded = inbound.encode();
 			let Ok(bounded_message) = BoundedSlice::try_from(&encoded[..]) else {
 				defensive!("inbound HRMP message is too large");
@@ -1477,7 +1413,8 @@ impl<T: Config> Pallet<T> {
 		}
 
 		inbound_hrmp_channels_contents*/
-		BTreeMap::new()
+		// FAIL-CI
+		unimplemented!()
 	}
 }
 
