@@ -1,3 +1,236 @@
+- Top level responsibilities of the scheduler
+- Interfaces
+- Considerations async backing (see ticket)
+
+# Interfaces for parathreads
+
+## User Interface
+
+The entry point for the user twofold:
+
+1. Registering a PVF with some deposit
+2. Actually bidding for a slot.
+
+### Registering a PVF with some deposit
+
+This can very likely be equal or very similar to what we have for parachains.
+
+TODO: Figure out how this works for parachains or whether there even is a
+separate deposit for the PVF. I believe parachains just have locked DOTs for
+their lease period, which also covers PVF storage.
+
+### Bidding for a slot/Auctioning System
+
+#### Goals
+
+1. Price finding
+2. Be efficient ... we are talking about slots for single blocks, the overhead
+   of assignment should be minimal.
+3. Maximize utilization: Avoid empty slots, as long as there is demand from
+   parathread willing to pay the minimum price.
+4. DoS resistance: We should not be able to get flooded with dubious bids, that
+   just fill up runtime resources.
+5. Lifetime/Update: Bids should have some lifetime or alternatively need to be
+   upgradeable. E.g. someone puts in a bid, but it is too low and is constantly
+   outbid by other bids ... eventually we either no longer care ... would like
+   to remove the bid or increase it, so it will finally make it.
+6. The user needs to know whether their bid made it through or not and when.
+
+#### General Interface
+
+The user can apply for a slot by placing a bid extrinsic. This bid will contain
+some price the user is willing to pay for a core. These extrinsic go into a
+transaction pool, as other extrinsics.
+
+There should be no reason to place bids long before we want to claim a slot. If
+spam protection mechanism are effective you should just send the bid, when you
+want to have a core in the near future ... bids will have some lifetime
+specified. If they don't manage to win a slot within that lifetime, they are
+dropped. The user would then need to bid again.
+
+
+1. Realistic price to pay right now. (E.g. expose recent max/lowest
+   prices/average.
+2. Actual utilization - related to price, but nevertheless good to know
+   explicit. If there are lots of free cores right now, it is "safe" to go with
+   the minimum bid.
+3. Some form of lifetime ... Some time frame the user can expect to either get a
+   core or know for sure he won't get any. Needs to be exposed somehow? - HOW?
+4. The user does not need to be able to specify a start ... once he submits a
+   bid, we treat this as "get me a core asap". No need to be able to schedule in
+   advance.
+
+I think it is fine for the lifetime to be implicit (determined by the system,
+e.g. by a 10 block auction mechanism), but we need to expose what happened to
+the bid. The actual auction mechanism used, should not be exposed.
+
+#### Node Side Implementation
+
+On the node side validators should be able to do some pre-processing on bids,
+for handling spam. In particular this is only relevant, if there are lots of
+bids. Ideally on the node side we would already:
+
+1. Check signatures, remove invalid bids and disconnect peers providing such
+   bids.
+2. If a certain threshold of pending bids is reached, we can start dropping
+   lowest bids.
+
+TODO: How does this work with transactions? Can we even check signatures on the
+node side? If we don't check signatures on the node side, then how can we be
+spam resistant?
+
+Then the block producer should put bids into the block, limited by some maximum
+amount (don't overflow runtime memory). Higher bids take precendence obviously.
+
+If exposed how many parathread cores are available, that information can be
+taken into account by the block producer: E.g. if there are 3 cores available,
+10 blocks would mean approximately 30 bids are useful to have in the runtime
+right now. It would be useful to put 10000 bids into a block for example. Block
+producers should then likely expire bids in the transaction pool already, if
+they don't after some to be specified lifetime.
+
+Expiring bids makes sense to keep resource usage down, but also helps with
+keeping expectations: If we say you bid now for a block asap, it would be out of
+expectations if your bid finally gets accepted two days later. This aspect would
+not need to be implemented on the node side though, but is already an
+optimization. We could also just import everything into the runtime and let the
+runtime drop what is too low (if resource limits allow for it).
+
+#### Runtime Implementation
+
+More details on auctioning
+[here](https://www.notion.so/paritytechnologies/Exotic-Scheduling-Auctions-53148e8d90d74411ab445b7d1dd6cfc8).
+
+Risks of spam:
+Fees for bids: Do we need them? Goal
+- Bid has fee on top of bid- spam protection - fee can be quite low, it should
+  not harm the sender much, if losing a bid and a resend is necessary. Just high
+  enough so spam protection is maintained. I think a fee is necessary/a good
+  idea because even though there is a minimum bid, assuming we have lot's of
+  bids a spammer could provide lot's of
+- Minumum bid - configurable.
+- Lifetimes
+
+-> sees won bid, by seeing claim queue on the collator.
+
+#### Possible Optimizations
+
+With the above, a user has to place an individual bid for each and every core
+desired. This is quite wasteful, if multiple cores are needed as a point in
+time. As each of these bids would likely be identical and each of them would
+need to be signed. What we can do is extend the format of the extrinsic slightly
+to contain a number specifying how many cores are desired and whether parallel
+cores are allowed (winning two cores in a single block). Likely a `max_parallel`
+parameter. Then the user can submit a single extrinsic, with only a single
+signature biding for e.g. 10 cores. Internally we treat those as indidivual
+equal bids (all the same price), competing individually with all the other bids.
+Therefore it is possible that only a fraction of the desired cores will actually
+be won. E.g. just one or two out of the ten desired.
+
+
+## Where is the money going?
+Bids and fees - where are they spent, what pallet do we need to interact here
+with?
+
+## Scheduler/Collators/Validators
+
+1. Collators need to know in advance when they should connect to which validator
+   group to prepare and send a collation.
+2. Collators need to know in advance what collators for which
+   parachains/parathreads they should accept connections and collations from.
+3. Users need to know whether the won a slot or not - seeing assigned cores
+   could be one way of achieving that goal. (Likely not very suitable though).
+
+### Interface to the scheduler
+
+Once we found claims for cores, we need to get them to the scheduler. This
+interface will roughly be:
+
+Give me claims for this claim queue size for this number of cores.
+
+Basically the scheduler needs to be able to provide core assignments for the
+look ahead period required by asynchronous backing. The assignment providers
+(like the parathread one above) need to be able to provide those, given a number
+of available cores to the provider.
+
+Assuming we treat cores separately and sequentially (see questions below), an
+assignment provider could return an enum like this:
+
+```rust
+enum Assignment {
+  // Parathreads
+  List(Vec<Claim>),
+  // slot sharing/slow parachains:
+  // Useful for parachains, which want a 12 second block time. - With async
+  backing, all parachains will be of this type in the beginning:
+  Alternating2(Claim, Claim),
+  // 18 second parachains ... cost a third.
+  Alternating3(Claim, Claim, Claim),
+  // For parachains/booster
+  Single(Claim),
+}
+```
+
+per core.
+
+So the interface could look something like this WIP:
+
+```rust
+trait AssignmentProvider {
+// sequential nature - we need time to pass between asking for assignments and
+retrieving the results - two calls:
+pub fn new(num_cores: usize)
+pub fn start_new_round(round_id: RoundId, num_cores: usize);
+pub fn get_round_assignments() -> RoundAssignments
+}
+
+struct RoundAssignments {
+  assignments: Vec<Assignment>,
+  next_round_id: RoundId,
+}
+
+// no copy - move semantics & no clone.
+struct RoundId(u32);
+
+```
+
+^^ To initiate a new round `set_num_cores`... needs to be called with a
+`RoundId`, can only be called once per round.
+
+Questions:
+
+Can different cores in a block and cores across blocks be treated the same? E.g.
+if a parathread a parachain has two claims, would it be legal to give it two
+cores in the same block?
+
+Good point brought up by Alex: We assume that everything is working clock worky
+once backed, but what if availability is taking longer? What does happen to the
+assignments?
+
+-> I guess we need to be able to overflow: If some assignments could not be
+served, we need to be able to tell the assignment provider. The assignment
+provider should then consider those left overs in the next round of assignments.
+
+E.g. Either refund/ replace assignments in the next batch.
+
+-> Other questions? Demand driven variation: E.g. demand on parathreads is very
+low, but demand for parachain boost exists - re-assign cores to different
+assignment provider?
+
+
+
+# Parathreads - other areas:
+
+## Cumulus Integration
+
+### Key Management
+
+Collators need to be able to bid securely in auctions for getting a slot. Idea:
+Have restricted (proxy) accounts which are restricted to bidding on parathread
+auctions for a specific `ParaId`. This can further be restricted to just a bid
+per day/per hour/.... whatever is suitable for the parathread and greatly
+reduces possible damage if keys are leaked/lost.
+
 # Scheduler Module
 
 > TODO: this section is still heavily under construction. key questions about availability cores and validator assignment are still open and the flow of the the section may be contradictory or inconsistent
@@ -163,7 +396,7 @@ ParathreadClaimIndex: Vec<ParaId>;
 /// The block number where the session start occurred. Used to track how many group rotations have occurred.
 SessionStartBlock: BlockNumber;
 /// Currently scheduled cores - free but up to be occupied.
-/// The value contained here will not be valid after the end of a block. 
+/// The value contained here will not be valid after the end of a block.
 /// Runtime APIs should be used to determine scheduled cores
 /// for the upcoming block.
 Scheduled: Vec<CoreAssignment>, // sorted ascending by CoreIndex.
@@ -191,7 +424,7 @@ Actions:
    - Also prune all parathread claims corresponding to de-registered parathreads.
    - all pruned claims should have their entry removed from the parathread index.
    - assign all non-pruned claims to new cores if the number of parathread cores has changed between the `new_config` and `old_config` of the `SessionChangeNotification`.
-   - Assign claims in equal balance across all cores if rebalancing, and set the `next_core` of the `ParathreadQueue` by incrementing the relative index of the last assigned core and taking it modulo the number of parathread cores. 
+   - Assign claims in equal balance across all cores if rebalancing, and set the `next_core` of the `ParathreadQueue` by incrementing the relative index of the last assigned core and taking it modulo the number of parathread cores.
 
 ## Initialization
 
