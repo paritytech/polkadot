@@ -161,22 +161,6 @@ impl StatementStore {
 		Ok(true)
 	}
 
-	/// Get a bit-slice of validators in the group which have issued statements of the
-	/// given form about the candidate. If unavailable, returns `None`.
-	pub fn group_statement_bitslice(
-		&self,
-		group_index: GroupIndex,
-		statement: CompactStatement,
-	) -> Option<&BitSlice<usize, BitOrderLsb0>> {
-		let candidate_hash = *statement.candidate_hash();
-		self.group_statements
-			.get(&(group_index, candidate_hash))
-			.map(|g| match statement {
-				CompactStatement::Seconded(_) => &*g.seconded,
-				CompactStatement::Valid(_) => &*g.valid,
-			})
-	}
-
 	/// Fill a `StatementFilter` to be used in the grid topology with all statements
 	/// we are already aware of.
 	pub fn fill_statement_filter(
@@ -191,23 +175,30 @@ impl StatementStore {
 		}
 	}
 
-	// TODO [now]: this may not be useful.
-	/// Get an iterator over signed statements of the given form by the given group.
+	/// Get an iterator over stored signed statements by the group conforming to the
+	/// given filter.
 	pub fn group_statements<'a>(
 		&'a self,
 		groups: &'a Groups,
 		group_index: GroupIndex,
-		statement: CompactStatement,
+		candidate_hash: CandidateHash,
+		filter: &'a StatementFilter,
 	) -> impl Iterator<Item = &'a SignedStatement> + 'a {
-		let bitslice = self.group_statement_bitslice(group_index, statement.clone());
 		let group_validators = groups.get(group_index);
 
-		bitslice
-			.into_iter()
-			.flat_map(|v| v.iter_ones())
+		let seconded_statements = filter.seconded_in_group
+			.iter_ones()
 			.filter_map(move |i| group_validators.as_ref().and_then(|g| g.get(i)))
-			.filter_map(move |v| self.known_statements.get(&(*v, statement.clone())))
-			.map(|s| &s.statement)
+			.filter_map(move |v| self.known_statements.get(&(*v, CompactStatement::Seconded(candidate_hash))))
+			.map(|s| &s.statement);
+
+		let valid_statements = filter.validated_in_group
+			.iter_ones()
+			.filter_map(move |i| group_validators.as_ref().and_then(|g| g.get(i)))
+			.filter_map(move |v| self.known_statements.get(&(*v, CompactStatement::Valid(candidate_hash))))
+			.map(|s| &s.statement);
+
+		seconded_statements.chain(valid_statements)
 	}
 
 	/// Get the full statement of this kind issued by this validator, if it is known.
@@ -264,8 +255,8 @@ struct ValidatorMeta {
 }
 
 struct GroupStatements {
-	seconded: BitVec<usize, BitOrderLsb0>,
-	valid: BitVec<usize, BitOrderLsb0>,
+	seconded: BitVec<u8, BitOrderLsb0>,
+	valid: BitVec<u8, BitOrderLsb0>,
 }
 
 impl GroupStatements {

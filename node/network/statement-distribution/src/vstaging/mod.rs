@@ -1458,7 +1458,13 @@ async fn handle_incoming_manifest<Context>(
 	peer: PeerId,
 	manifest: net_protocol::vstaging::BackedCandidateManifest,
 ) {
-	// 1. sanity checks: relay-parent in state, para ID matches group index,
+	// 1. sanity checks: peer is connected, relay-parent in state, para ID matches group index.
+
+	let peer_state = match state.peers.get(&peer) {
+		None => return,
+		Some(p) => p,
+	};
+
 	let relay_parent_state = match state.per_relay_parent.get_mut(&manifest.relay_parent) {
 		None => {
 			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE).await;
@@ -1478,18 +1484,41 @@ async fn handle_incoming_manifest<Context>(
 			return;
 		},
 		Some(x) => x,
-
 	};
+
+	let expected_group = group_for_para(
+		&relay_parent_state.availability_cores,
+		&relay_parent_state.group_rotation_info,
+		manifest.para_id,
+	);
+
+	if expected_group != Some(manifest.group_index) {
+		report_peer(ctx.sender(), peer, COST_MALFORMED_MANIFEST).await;
+		return;
+	}
 
 	let grid_topology = match per_session.grid_view.as_ref() {
 		None => return,
 		Some(x) => x,
 	};
 
-	// TODO [now]: validate that para Id matches group index.
+	let sender_index = grid_topology
+		.iter_group_senders(manifest.group_index)
+		.filter_map(|i| per_session.session_info.discovery_keys.get(i.0 as usize).map(|ad| (i, ad)))
+		.filter(|(_, ad)| peer_state.is_authority(ad))
+		.map(|(i, _)| i)
+		.next();
+
+	let sender_index = match sender_index {
+		None => {
+			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_DISALLOWED).await;
+			return;
+		}
+		Some(s) => s,
+	};
 
 	// 2. sanity checks: peer is validator, bitvec size, import into grid tracker
-	let maybe_respond = match local_validator.grid_tracker.import_manifest(
+	let acknowledge = match local_validator.grid_tracker.import_manifest(
 		grid_topology,
 		&per_session.groups,
 		manifest.candidate_hash,
@@ -1501,7 +1530,7 @@ async fn handle_incoming_manifest<Context>(
 			validated_in_group: manifest.validated_in_group,
 		},
 		grid::ManifestKind::Full,
-		todo!(), // TODO [now]: validator index
+		sender_index,
 	) {
 		Ok(x) => x,
 		Err(grid::ManifestImportError::Conflicting) => {
@@ -1538,9 +1567,96 @@ async fn handle_incoming_manifest<Context>(
 		return;
 	}
 
-	// TODO [now]
-	// 4. if already confirmed & known within grid, acknowledge candidate
-	// 5. if unconfirmed, add request entry
+	if acknowledge {
+		// 4. if already confirmed & known within grid, acknowledge candidate
+		let local_knowledge = {
+			let group_size = match per_session.groups.get(manifest.group_index) {
+				None => return, // sanity
+				Some(x) => x.len(),
+			};
+
+			let mut f = StatementFilter::new(group_size);
+			relay_parent_state.statement_store.fill_statement_filter(
+				manifest.group_index,
+				manifest.candidate_hash,
+				&mut f,
+			);
+			f
+		};
+		let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
+			candidate_hash: manifest.candidate_hash,
+			seconded_in_group: local_knowledge.seconded_in_group.clone(),
+			validated_in_group: local_knowledge.validated_in_group.clone(),
+		};
+
+		let msg = Versioned::VStaging(
+			protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(manifest),
+		);
+
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(vec![peer.clone()], msg.into())).await;
+		local_validator.grid_tracker.manifest_sent_to(sender_index, manifest.candidate_hash, local_knowledge);
+
+		post_acknowledgement_send_statements(
+			ctx,
+			sender_index,
+			peer,
+			manifest.relay_parent,
+			&mut local_validator.grid_tracker,
+			&relay_parent_state.statement_store,
+			&per_session.groups,
+			manifest.group_index,
+			manifest.candidate_hash,
+		).await;
+	} else if !state.candidates.is_confirmed(&manifest.candidate_hash) {
+		// 5. if unconfirmed, add request entry
+		state.request_manager
+			.get_or_insert(
+				manifest.relay_parent,
+				manifest.candidate_hash,
+				manifest.group_index
+			)
+			.get_mut()
+			.add_peer(peer);
+	}
+}
+
+/// Send any follow-up direct statements to a peer, following acknowledgement of a manifest.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn post_acknowledgement_send_statements<Context>(
+	ctx: &mut Context,
+	recipient: ValidatorIndex,
+	recipient_peer_id: PeerId,
+	relay_parent: Hash,
+	grid_tracker: &mut GridTracker,
+	statement_store: &StatementStore,
+	groups: &Groups,
+	group_index: GroupIndex,
+	candidate_hash: CandidateHash,
+) {
+	let sending_filter = match grid_tracker
+		.pending_statements_for(recipient, candidate_hash)
+	{
+		None => return,
+		Some(f) => f,
+	};
+
+	let mut messages = Vec::new();
+	for statement in statement_store.group_statements(groups, group_index, candidate_hash, &sending_filter) {
+		grid_tracker.sent_or_received_direct_statement(
+			groups,
+			statement.validator_index(),
+			recipient,
+			statement.payload(),
+		);
+
+		let msg = Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::Statement(
+			relay_parent,
+			statement.as_unchecked().clone(),
+		).into());
+		messages.push((vec![recipient_peer_id.clone()], msg));
+	}
+
+	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(messages)).await;
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
