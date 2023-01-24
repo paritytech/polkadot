@@ -1303,6 +1303,8 @@ async fn provide_candidate_to_grid<Context>(
 
 	let mut inventory_peers = Vec::new();
 	let mut ack_peers = Vec::new();
+
+	let mut post_statements = Vec::new();
 	for (v, action) in actions {
 		let p = match connected_validator_peer(authorities, per_session, v) {
 			None => continue,
@@ -1319,18 +1321,35 @@ async fn provide_candidate_to_grid<Context>(
 			grid::ManifestKind::Acknowledgement => ack_peers.push(p),
 		}
 
-		// TODO [now]: send follow-up statements as well
 		local_validator.grid_tracker.manifest_sent_to(v, candidate_hash, filter.clone());
+		post_statements.extend(post_acknowledgement_statement_messages(
+			v,
+			relay_parent,
+			&mut local_validator.grid_tracker,
+			&relay_parent_state.statement_store,
+			&per_session.groups,
+			group_index,
+			candidate_hash,
+			&filter,
+		).into_iter().map(|m| (vec![p], m)));
 	}
 
-	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-		inventory_peers,
-		inventory_message.into(),
-	))
-	.await;
-
-	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(ack_peers, ack_message.into()))
+	if !inventory_peers.is_empty() {
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			inventory_peers,
+			inventory_message.into(),
+		))
 		.await;
+	}
+
+	if !ack_peers.is_empty() {
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(ack_peers, ack_message.into()))
+			.await;
+	}
+
+	if !post_statements.is_empty() {
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(post_statements)).await;
+	}
 }
 
 fn group_for_para(
@@ -1596,17 +1615,22 @@ async fn handle_incoming_manifest<Context>(
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(vec![peer.clone()], msg.into())).await;
 		local_validator.grid_tracker.manifest_sent_to(sender_index, manifest.candidate_hash, local_knowledge);
 
-		post_acknowledgement_send_statements(
-			ctx,
+		let messages = post_acknowledgement_statement_messages(
 			sender_index,
-			peer,
 			manifest.relay_parent,
 			&mut local_validator.grid_tracker,
 			&relay_parent_state.statement_store,
 			&per_session.groups,
 			manifest.group_index,
 			manifest.candidate_hash,
-		).await;
+			&local_knowledge,
+		);
+
+		if !messages.is_empty() {
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(
+				messages.into_iter().map(|m| (vec![peer.clone()], m)).collect()
+			)).await;
+		}
 	} else if !state.candidates.is_confirmed(&manifest.candidate_hash) {
 		// 5. if unconfirmed, add request entry
 		state.request_manager
@@ -1620,23 +1644,22 @@ async fn handle_incoming_manifest<Context>(
 	}
 }
 
-/// Send any follow-up direct statements to a peer, following acknowledgement of a manifest.
-#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-async fn post_acknowledgement_send_statements<Context>(
-	ctx: &mut Context,
+/// Produce a list of network messages to send to a peer, following acknowledgement of a manifest.
+/// This notes the messages as sent within the grid state.
+fn post_acknowledgement_statement_messages(
 	recipient: ValidatorIndex,
-	recipient_peer_id: PeerId,
 	relay_parent: Hash,
 	grid_tracker: &mut GridTracker,
 	statement_store: &StatementStore,
 	groups: &Groups,
 	group_index: GroupIndex,
 	candidate_hash: CandidateHash,
-) {
+	local_knowledge: &StatementFilter,
+) -> Vec<net_protocol::VersionedValidationProtocol> {
 	let sending_filter = match grid_tracker
-		.pending_statements_for(recipient, candidate_hash)
+		.pending_statements_for(recipient, candidate_hash, local_knowledge)
 	{
-		None => return,
+		None => return Vec::new(),
 		Some(f) => f,
 	};
 
@@ -1649,14 +1672,13 @@ async fn post_acknowledgement_send_statements<Context>(
 			statement.payload(),
 		);
 
-		let msg = Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::Statement(
+		messages.push(Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::Statement(
 			relay_parent,
 			statement.as_unchecked().clone(),
-		).into());
-		messages.push((vec![recipient_peer_id.clone()], msg));
+		).into()));
 	}
 
-	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(messages)).await;
+	messages
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
@@ -1669,11 +1691,7 @@ async fn handle_incoming_acknowledgement<Context>(
 	// TODO [now]:
 	// 1. sanity checks: relay-parent in state, para ID matches group index,
 	// 2. sanity checks: peer is validator, bitvec size, import into grid tracker
-	// 3. if accepted by grid, insert as unconfirmed.
-	// 4. if already confirmed, acknowledge candidate
-	// 5. if unconfirmed, add request entry (if importable)
-	// 6. if fresh unconfirmed, determine whether it's in the hypothetical
-	//    frontier, update candidates wrapper, add request entry if so.
+	// 3. if accepted by grid, send follow-up statements.
 }
 
 /// Handle a notification of a candidate being backed.

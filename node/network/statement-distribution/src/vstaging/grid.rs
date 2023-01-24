@@ -415,10 +415,11 @@ impl GridTracker {
 		&self,
 		validator_index: ValidatorIndex,
 		candidate_hash: CandidateHash,
+		full_local_knowledge: &StatementFilter,
 	) -> Option<StatementFilter> {
 		self.confirmed_backed
 			.get(&candidate_hash)
-			.and_then(|x| x.pending_statements(validator_index))
+			.and_then(|x| x.pending_statements(validator_index, full_local_knowledge))
 	}
 
 	/// Which validators we could request the fully attested candidates from.
@@ -855,16 +856,19 @@ impl KnownBackedCandidate {
 	fn pending_statements(
 		&self,
 		validator: ValidatorIndex,
+		full_local: &StatementFilter,
 	) -> Option<StatementFilter> {
 		// existence of both remote & local knowledge indicate we have exchanged
 		// manifests.
 		// then, everything that is not in the remote knowledge is pending, and we
-		// further limit this by what is in the local knowledge itself.
+		// further limit this by what is in the local knowledge itself. we use the
+		// full local knowledge, as the local knowledge stored here may be outdated.
 		self.mutual_knowledge.get(&validator)
-			.and_then(|k| k.local_knowledge.as_ref().zip(k.remote_knowledge.as_ref()))
-			.map(|(local, remote)| StatementFilter {
-				seconded_in_group: local.seconded_in_group.clone() & !remote.seconded_in_group.clone(),
-				validated_in_group: local.validated_in_group.clone() & !remote.validated_in_group.clone(),
+			.filter(|k| k.local_knowledge.is_some())
+			.and_then(|k| k.remote_knowledge.as_ref())
+			.map(|remote| StatementFilter {
+				seconded_in_group: full_local.seconded_in_group.clone() & !remote.seconded_in_group.clone(),
+				validated_in_group: full_local.validated_in_group.clone() & !remote.validated_in_group.clone(),
 			})
 	}
 }
