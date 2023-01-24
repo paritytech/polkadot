@@ -101,13 +101,9 @@ runtime drop what is too low (if resource limits allow for it).
 More details on auctioning
 [here](https://www.notion.so/paritytechnologies/Exotic-Scheduling-Auctions-53148e8d90d74411ab445b7d1dd6cfc8).
 
-Risks of spam:
-Fees for bids: Do we need them? Goal
-- Bid has fee on top of bid- spam protection - fee can be quite low, it should
+- Bid has fee on top of bid for spam protection - fee can be quite low, it should
   not harm the sender much, if losing a bid and a resend is necessary. Just high
-  enough so spam protection is maintained. I think a fee is necessary/a good
-  idea because even though there is a minimum bid, assuming we have lot's of
-  bids a spammer could provide lot's of
+  enough so spam protection is maintained.
 - Minumum bid - configurable.
 - Lifetimes
 
@@ -179,7 +175,7 @@ So the interface could look something like this WIP:
 trait AssignmentProvider {
 // sequential nature - we need time to pass between asking for assignments and
 retrieving the results - two calls:
-pub fn new(num_cores: usize)
+pub fn new(num_cores: usize);
 pub fn start_new_round(round_id: RoundId, num_cores: usize);
 pub fn get_round_assignments() -> RoundAssignments
 }
