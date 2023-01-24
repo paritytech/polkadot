@@ -9,7 +9,7 @@ futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
 lru = "0.9"
 
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
 
 polkadot-primitives = { path = "../../../primitives" }
 polkadot-node-metrics = { path = "../../metrics" }
@@ -17,10 +17,10 @@ polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-types = { path = "../../subsystem-types" }
 
 [dev-dependencies]
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
+sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
 futures = { version = "0.3.21", features = ["thread-pool"] }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 polkadot-node-primitives = { path = "../../primitives" }
