@@ -335,7 +335,8 @@ where
 			}))
 			.flatten();
 
-		service::build_full(
+		let database_source = config.database.clone();
+		let task_manager = service::build_full(
 			config,
 			service::IsCollator::No,
 			grandpa_pause,
@@ -349,7 +350,16 @@ where
 			hwbench,
 		)
 		.map(|full| full.task_manager)
-		.map_err(Into::into)
+		.map_err(Into::<Error>::into)?;
+
+		sc_storage_monitor::StorageMonitorService::try_spawn(
+			cli.storage_monitor,
+			database_source,
+			&task_manager.spawn_essential_handle(),
+		)
+		.map_err(Into::<Error>::into)?;
+
+		Ok(task_manager)
 	})
 }
 
