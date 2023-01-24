@@ -55,8 +55,14 @@ pub struct SessionTopologyView {
 impl SessionTopologyView {
 	/// Returns an iterator over all validator indices from the group who are allowed to
 	/// send us manifests.
-	pub fn iter_group_senders<'a>(&'a self, group: GroupIndex) -> impl Iterator<Item = ValidatorIndex> + 'a {
-		self.group_views.get(&group).into_iter().flat_map(|sub| sub.sending.iter().cloned())
+	pub fn iter_group_senders<'a>(
+		&'a self,
+		group: GroupIndex,
+	) -> impl Iterator<Item = ValidatorIndex> + 'a {
+		self.group_views
+			.get(&group)
+			.into_iter()
+			.flat_map(|sub| sub.sending.iter().cloned())
 	}
 }
 
@@ -222,9 +228,11 @@ impl GridTracker {
 			//   * They are in the sending set for the group AND we have sent them
 			//     a manifest AND the received manifest is partial.
 			ManifestKind::Full => receiving_from,
-			ManifestKind::Acknowledgement => sending_to && self.confirmed_backed
-				.get(&candidate_hash)
-				.map_or(false, |c| c.has_sent_manifest_to(sender)),
+			ManifestKind::Acknowledgement =>
+				sending_to &&
+					self.confirmed_backed
+						.get(&candidate_hash)
+						.map_or(false, |c| c.has_sent_manifest_to(sender)),
 		};
 
 		if !manifest_allowed {
@@ -276,7 +284,8 @@ impl GridTracker {
 		if let Some(confirmed) = self.confirmed_backed.get_mut(&candidate_hash) {
 			if receiving_from && !confirmed.has_sent_manifest_to(sender) {
 				// due to checks above, the manifest `kind` is guaranteed to be `Full`
-				self.pending_communication.entry(sender)
+				self.pending_communication
+					.entry(sender)
 					.or_default()
 					.insert(candidate_hash, ManifestKind::Acknowledgement);
 
@@ -326,7 +335,6 @@ impl GridTracker {
 				.and_then(|r| r.candidate_statement_filter(&candidate_hash))
 				.expect("unconfirmed is only populated by validators who have sent manifest; qed");
 
-
 			// No need to send direct statements, because our local knowledge is `None`
 			c.manifest_received_from(v, statement_filter);
 		}
@@ -338,25 +346,25 @@ impl GridTracker {
 
 		// advertise onwards ad accept received advertisements
 
-		let sending_group_manifests = group_topology
-			.sending
-			.iter()
-			.map(|v| (*v, ManifestKind::Full));
+		let sending_group_manifests =
+			group_topology.sending.iter().map(|v| (*v, ManifestKind::Full));
 
-		let receiving_group_manifests = group_topology
-			.receiving
-			.iter()
-			.filter_map(|v| if c.has_received_manifest_from(*v) {
+		let receiving_group_manifests = group_topology.receiving.iter().filter_map(|v| {
+			if c.has_received_manifest_from(*v) {
 				Some((*v, ManifestKind::Acknowledgement))
 			} else {
 				None
-			});
+			}
+		});
 
 		// Note that order is important: if a validator is part of both the sending
 		// and receiving groups, we may overwrite a `Full` manifest with a `Acknowledgement`
 		// one.
 		for (v, manifest_mode) in sending_group_manifests.chain(receiving_group_manifests) {
-			self.pending_communication.entry(v).or_default().insert(candidate_hash, manifest_mode);
+			self.pending_communication
+				.entry(v)
+				.or_default()
+				.insert(candidate_hash, manifest_mode);
 		}
 
 		self.pending_communication
@@ -400,7 +408,7 @@ impl GridTracker {
 	pub fn pending_manifests_for(
 		&self,
 		validator_index: ValidatorIndex,
-) -> Vec<(CandidateHash, ManifestKind)> {
+	) -> Vec<(CandidateHash, ManifestKind)> {
 		self.pending_communication
 			.get(&validator_index)
 			.into_iter()
@@ -863,12 +871,15 @@ impl KnownBackedCandidate {
 		// then, everything that is not in the remote knowledge is pending, and we
 		// further limit this by what is in the local knowledge itself. we use the
 		// full local knowledge, as the local knowledge stored here may be outdated.
-		self.mutual_knowledge.get(&validator)
+		self.mutual_knowledge
+			.get(&validator)
 			.filter(|k| k.local_knowledge.is_some())
 			.and_then(|k| k.remote_knowledge.as_ref())
 			.map(|remote| StatementFilter {
-				seconded_in_group: full_local.seconded_in_group.clone() & !remote.seconded_in_group.clone(),
-				validated_in_group: full_local.validated_in_group.clone() & !remote.validated_in_group.clone(),
+				seconded_in_group: full_local.seconded_in_group.clone() &
+					!remote.seconded_in_group.clone(),
+				validated_in_group: full_local.validated_in_group.clone() &
+					!remote.validated_in_group.clone(),
 			})
 	}
 }

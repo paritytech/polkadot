@@ -86,14 +86,11 @@ const COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE: Rep =
 	Rep::CostMinor("Unexpected Manifest, missing knowlege for relay parent");
 const COST_UNEXPECTED_MANIFEST_DISALLOWED: Rep =
 	Rep::CostMinor("Unexpected Manifest, Peer Disallowed");
-const COST_CONFLICTING_MANIFEST: Rep =
-	Rep::CostMajor("Manifest conflicts with previous");
+const COST_CONFLICTING_MANIFEST: Rep = Rep::CostMajor("Manifest conflicts with previous");
 const COST_INSUFFICIENT_MANIFEST: Rep =
 	Rep::CostMajor("Manifest statements insufficient to back candidate");
-const COST_MALFORMED_MANIFEST: Rep =
-	Rep::CostMajor("Manifest is malformed");
-const COST_DUPLICATE_MANIFEST: Rep =
-	Rep::CostMinor("Duplicate Manifest");
+const COST_MALFORMED_MANIFEST: Rep = Rep::CostMajor("Manifest is malformed");
+const COST_DUPLICATE_MANIFEST: Rep = Rep::CostMinor("Duplicate Manifest");
 
 const COST_INVALID_SIGNATURE: Rep = Rep::CostMajor("Invalid Statement Signature");
 const COST_IMPROPERLY_DECODED_RESPONSE: Rep =
@@ -606,7 +603,6 @@ pub(crate) async fn share_local_statement<Context>(
 			},
 			Ok(true) => (compact_statement, candidate_hash),
 		}
-
 	};
 
 	if let Some(post_confirmation) = post_confirmation {
@@ -1322,16 +1318,20 @@ async fn provide_candidate_to_grid<Context>(
 		}
 
 		local_validator.grid_tracker.manifest_sent_to(v, candidate_hash, filter.clone());
-		post_statements.extend(post_acknowledgement_statement_messages(
-			v,
-			relay_parent,
-			&mut local_validator.grid_tracker,
-			&relay_parent_state.statement_store,
-			&per_session.groups,
-			group_index,
-			candidate_hash,
-			&filter,
-		).into_iter().map(|m| (vec![p], m)));
+		post_statements.extend(
+			post_acknowledgement_statement_messages(
+				v,
+				relay_parent,
+				&mut local_validator.grid_tracker,
+				&relay_parent_state.statement_store,
+				&per_session.groups,
+				group_index,
+				candidate_hash,
+				&filter,
+			)
+			.into_iter()
+			.map(|m| (vec![p], m)),
+		);
 	}
 
 	if !inventory_peers.is_empty() {
@@ -1343,12 +1343,16 @@ async fn provide_candidate_to_grid<Context>(
 	}
 
 	if !ack_peers.is_empty() {
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(ack_peers, ack_message.into()))
-			.await;
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			ack_peers,
+			ack_message.into(),
+		))
+		.await;
 	}
 
 	if !post_statements.is_empty() {
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(post_statements)).await;
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(post_statements))
+			.await;
 	}
 }
 
@@ -1359,13 +1363,10 @@ fn group_for_para(
 ) -> Option<GroupIndex> {
 	// Note: this won't work well for parathreads as it assumes that core assignments are fixed
 	// across blocks.
-	let core_index = availability_cores
-		.iter()
-		.position(|c| c.para_id() == Some(para_id));
+	let core_index = availability_cores.iter().position(|c| c.para_id() == Some(para_id));
 
-	core_index.map(|c| {
-		group_rotation_info.group_for_core(CoreIndex(c as _), availability_cores.len())
-	})
+	core_index
+		.map(|c| group_rotation_info.group_for_core(CoreIndex(c as _), availability_cores.len()))
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
@@ -1415,7 +1416,8 @@ async fn fragment_tree_update_inner<Context>(
 			candidate_hash,
 			receipt,
 			persisted_validation_data,
-		} = hypo {
+		} = hypo
+		{
 			let confirmed_candidate = state.candidates.get_confirmed(&candidate_hash);
 			let prs = state.per_relay_parent.get_mut(&receipt.descriptor().relay_parent);
 			if let (Some(confirmed), Some(prs)) = (confirmed_candidate, prs) {
@@ -1435,7 +1437,8 @@ async fn fragment_tree_update_inner<Context>(
 						prs,
 						confirmed,
 						per_session,
-					).await;
+					)
+					.await;
 				}
 			}
 		}
@@ -1487,7 +1490,7 @@ async fn handle_incoming_manifest<Context>(
 	let relay_parent_state = match state.per_relay_parent.get_mut(&manifest.relay_parent) {
 		None => {
 			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE).await;
-			return;
+			return
 		},
 		Some(s) => s,
 	};
@@ -1500,7 +1503,7 @@ async fn handle_incoming_manifest<Context>(
 	let local_validator = match relay_parent_state.local_validator.as_mut() {
 		None => {
 			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE).await;
-			return;
+			return
 		},
 		Some(x) => x,
 	};
@@ -1513,7 +1516,7 @@ async fn handle_incoming_manifest<Context>(
 
 	if expected_group != Some(manifest.group_index) {
 		report_peer(ctx.sender(), peer, COST_MALFORMED_MANIFEST).await;
-		return;
+		return
 	}
 
 	let grid_topology = match per_session.grid_view.as_ref() {
@@ -1531,8 +1534,8 @@ async fn handle_incoming_manifest<Context>(
 	let sender_index = match sender_index {
 		None => {
 			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_DISALLOWED).await;
-			return;
-		}
+			return
+		},
 		Some(s) => s,
 	};
 
@@ -1554,24 +1557,24 @@ async fn handle_incoming_manifest<Context>(
 		Ok(x) => x,
 		Err(grid::ManifestImportError::Conflicting) => {
 			report_peer(ctx.sender(), peer, COST_CONFLICTING_MANIFEST).await;
-			return;
-		}
+			return
+		},
 		Err(grid::ManifestImportError::Overflow) => {
 			report_peer(ctx.sender(), peer, COST_EXCESSIVE_SECONDED).await;
-			return;
-		}
+			return
+		},
 		Err(grid::ManifestImportError::Insufficient) => {
 			report_peer(ctx.sender(), peer, COST_INSUFFICIENT_MANIFEST).await;
-			return;
-		}
+			return
+		},
 		Err(grid::ManifestImportError::Malformed) => {
 			report_peer(ctx.sender(), peer, COST_MALFORMED_MANIFEST).await;
-			return;
-		}
+			return
+		},
 		Err(grid::ManifestImportError::Disallowed) => {
 			report_peer(ctx.sender(), peer, COST_UNEXPECTED_MANIFEST_DISALLOWED).await;
-			return;
-		}
+			return
+		},
 	};
 
 	// 3. if accepted by grid, insert as unconfirmed.
@@ -1583,7 +1586,7 @@ async fn handle_incoming_manifest<Context>(
 		Some((manifest.parent_head_data_hash, manifest.para_id)),
 	) {
 		report_peer(ctx.sender(), peer, COST_INACCURATE_ADVERTISEMENT).await;
-		return;
+		return
 	}
 
 	if acknowledge {
@@ -1612,8 +1615,16 @@ async fn handle_incoming_manifest<Context>(
 			protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(manifest),
 		);
 
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(vec![peer.clone()], msg.into())).await;
-		local_validator.grid_tracker.manifest_sent_to(sender_index, manifest.candidate_hash, local_knowledge);
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			vec![peer.clone()],
+			msg.into(),
+		))
+		.await;
+		local_validator.grid_tracker.manifest_sent_to(
+			sender_index,
+			manifest.candidate_hash,
+			local_knowledge,
+		);
 
 		let messages = post_acknowledgement_statement_messages(
 			sender_index,
@@ -1628,17 +1639,15 @@ async fn handle_incoming_manifest<Context>(
 
 		if !messages.is_empty() {
 			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(
-				messages.into_iter().map(|m| (vec![peer.clone()], m)).collect()
-			)).await;
+				messages.into_iter().map(|m| (vec![peer.clone()], m)).collect(),
+			))
+			.await;
 		}
 	} else if !state.candidates.is_confirmed(&manifest.candidate_hash) {
 		// 5. if unconfirmed, add request entry
-		state.request_manager
-			.get_or_insert(
-				manifest.relay_parent,
-				manifest.candidate_hash,
-				manifest.group_index
-			)
+		state
+			.request_manager
+			.get_or_insert(manifest.relay_parent, manifest.candidate_hash, manifest.group_index)
 			.get_mut()
 			.add_peer(peer);
 	}
@@ -1656,15 +1665,16 @@ fn post_acknowledgement_statement_messages(
 	candidate_hash: CandidateHash,
 	local_knowledge: &StatementFilter,
 ) -> Vec<net_protocol::VersionedValidationProtocol> {
-	let sending_filter = match grid_tracker
-		.pending_statements_for(recipient, candidate_hash, local_knowledge)
-	{
-		None => return Vec::new(),
-		Some(f) => f,
-	};
+	let sending_filter =
+		match grid_tracker.pending_statements_for(recipient, candidate_hash, local_knowledge) {
+			None => return Vec::new(),
+			Some(f) => f,
+		};
 
 	let mut messages = Vec::new();
-	for statement in statement_store.group_statements(groups, group_index, candidate_hash, &sending_filter) {
+	for statement in
+		statement_store.group_statements(groups, group_index, candidate_hash, &sending_filter)
+	{
 		grid_tracker.sent_or_received_direct_statement(
 			groups,
 			statement.validator_index(),
@@ -1672,10 +1682,13 @@ fn post_acknowledgement_statement_messages(
 			statement.payload(),
 		);
 
-		messages.push(Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::Statement(
-			relay_parent,
-			statement.as_unchecked().clone(),
-		).into()));
+		messages.push(Versioned::VStaging(
+			protocol_vstaging::StatementDistributionMessage::Statement(
+				relay_parent,
+				statement.as_unchecked().clone(),
+			)
+			.into(),
+		));
 	}
 
 	messages
@@ -1713,7 +1726,7 @@ pub(crate) async fn handle_backed_candidate_message<Context>(
 			);
 
 			return
-		}
+		},
 		Some(c) => c,
 	};
 
@@ -1735,7 +1748,8 @@ pub(crate) async fn handle_backed_candidate_message<Context>(
 		per_session,
 		&state.authorities,
 		&state.peers,
-	).await;
+	)
+	.await;
 }
 
 /// Applies state & p2p updates as a result of a newly confirmed candidate.

@@ -285,7 +285,9 @@ impl Candidates {
 
 	/// Note that a candidate is backed. No-op if the candidate is not confirmed.
 	pub fn note_backed(&mut self, candidate_hash: &CandidateHash) {
-		if let Some(&mut CandidateState::Confirmed(ref mut c)) = self.candidates.get_mut(candidate_hash) {
+		if let Some(&mut CandidateState::Confirmed(ref mut c)) =
+			self.candidates.get_mut(candidate_hash)
+		{
 			c.backed = true;
 		}
 	}

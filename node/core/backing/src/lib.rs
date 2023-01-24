@@ -1579,9 +1579,9 @@ async fn import_statement<Context>(
 					})
 					.await;
 
-					// TODO [now]: notify statement distribution of backed
-					// candidate. alter control flow so "Share" is always sent
-					// first.
+				// TODO [now]: notify statement distribution of backed
+				// candidate. alter control flow so "Share" is always sent
+				// first.
 				} else {
 					// The provisioner waits on candidate-backing, which means
 					// that we need to send unbounded messages to avoid cycles.

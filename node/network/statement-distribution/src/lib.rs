@@ -271,7 +271,8 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 							ctx,
 							unimplemented!(), // TODO [now] state
 							candidate_hash,
-						).await;
+						)
+						.await;
 					},
 				},
 		}

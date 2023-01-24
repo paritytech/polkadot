@@ -186,16 +186,22 @@ impl StatementStore {
 	) -> impl Iterator<Item = &'a SignedStatement> + 'a {
 		let group_validators = groups.get(group_index);
 
-		let seconded_statements = filter.seconded_in_group
+		let seconded_statements = filter
+			.seconded_in_group
 			.iter_ones()
 			.filter_map(move |i| group_validators.as_ref().and_then(|g| g.get(i)))
-			.filter_map(move |v| self.known_statements.get(&(*v, CompactStatement::Seconded(candidate_hash))))
+			.filter_map(move |v| {
+				self.known_statements.get(&(*v, CompactStatement::Seconded(candidate_hash)))
+			})
 			.map(|s| &s.statement);
 
-		let valid_statements = filter.validated_in_group
+		let valid_statements = filter
+			.validated_in_group
 			.iter_ones()
 			.filter_map(move |i| group_validators.as_ref().and_then(|g| g.get(i)))
-			.filter_map(move |v| self.known_statements.get(&(*v, CompactStatement::Valid(candidate_hash))))
+			.filter_map(move |v| {
+				self.known_statements.get(&(*v, CompactStatement::Valid(candidate_hash)))
+			})
 			.map(|s| &s.statement);
 
 		seconded_statements.chain(valid_statements)
