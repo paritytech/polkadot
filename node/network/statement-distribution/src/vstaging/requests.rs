@@ -13,7 +13,18 @@
 
 //! A requester for full information on candidates.
 //!
-// TODO [now]: some module docs.
+//! 1. We use `RequestManager::get_or_insert().get_mut()` to add and mutate [`RequestedCandidate`]s, either setting the
+//! priority or adding a peer we know has the candidate. We currently prioritize "cluster" candidates (those from our
+//! own group, although the cluster mechanism could be made to include multiple groups in the future) over "grid"
+//! candidates (those from other groups).
+//!
+//! 2. The main loop of the module will invoke [`RequestManager::next_request`] in a loop until it returns `None`,
+//! dispatching all requests with the `NetworkBridgeTxMessage`. The receiving half of the channel is owned by the
+//! [`RequestManager`].
+//!
+//! 3. The main loop of the module will also select over [`RequestManager::await_incoming`] to receive
+//! [`UnhandledResponse`]s, which it then validates using [`UnhandledResponse::validate_response`] (which requires state
+//! not owned by the request manager).
 
 use super::{
 	BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT, COST_IMPROPERLY_DECODED_RESPONSE,
@@ -641,16 +652,16 @@ mod tests {
 
 	#[test]
 	fn test_remove_by_relay_parent() {
-		let parent_a = Hash::from_low_u64_le(10);
-		let parent_b = Hash::from_low_u64_le(11);
-		let parent_c = Hash::from_low_u64_le(12);
+		let parent_a = Hash::from_low_u64_le(1);
+		let parent_b = Hash::from_low_u64_le(2);
+		let parent_c = Hash::from_low_u64_le(3);
 
-		let candidate_a1 = CandidateHash(Hash::from_low_u64_le(101));
-		let candidate_a2 = CandidateHash(Hash::from_low_u64_le(102));
-		let candidate_b1 = CandidateHash(Hash::from_low_u64_le(111));
-		let candidate_b2 = CandidateHash(Hash::from_low_u64_le(112));
-		let candidate_c1 = CandidateHash(Hash::from_low_u64_le(121));
-		let duplicate_hash = CandidateHash(Hash::from_low_u64_le(121));
+		let candidate_a1 = CandidateHash(Hash::from_low_u64_le(11));
+		let candidate_a2 = CandidateHash(Hash::from_low_u64_le(12));
+		let candidate_b1 = CandidateHash(Hash::from_low_u64_le(21));
+		let candidate_b2 = CandidateHash(Hash::from_low_u64_le(22));
+		let candidate_c1 = CandidateHash(Hash::from_low_u64_le(31));
+		let duplicate_hash = CandidateHash(Hash::from_low_u64_le(31));
 
 		let mut request_manager = RequestManager::new();
 		request_manager.get_or_insert(parent_a, candidate_a1, 1.into());
@@ -691,5 +702,44 @@ mod tests {
 		assert!(request_manager.unique_identifiers.is_empty());
 	}
 
-	// TODO [now]: test priority ordering.
+	#[test]
+	fn test_priority_ordering() {
+		let parent_a = Hash::from_low_u64_le(1);
+		let parent_b = Hash::from_low_u64_le(2);
+		let parent_c = Hash::from_low_u64_le(3);
+
+		let candidate_a1 = CandidateHash(Hash::from_low_u64_le(11));
+		let candidate_a2 = CandidateHash(Hash::from_low_u64_le(12));
+		let candidate_b1 = CandidateHash(Hash::from_low_u64_le(21));
+		let candidate_b2 = CandidateHash(Hash::from_low_u64_le(22));
+		let candidate_c1 = CandidateHash(Hash::from_low_u64_le(31));
+
+		let mut request_manager = RequestManager::new();
+
+		// Add some entries, set a couple of them to cluster (high) priority.
+		let entry = request_manager.get_or_insert(parent_a, candidate_a1, 1.into());
+		let identifier_a1 = entry.identifier;
+		let mut entry = request_manager.get_or_insert(parent_a, candidate_a2, 1.into());
+		let identifier_a2 = entry.identifier;
+		entry.get_mut().set_cluster_priority();
+		let entry = request_manager.get_or_insert(parent_b, candidate_b1, 1.into());
+		let identifier_b1 = entry.identifier;
+		let entry = request_manager.get_or_insert(parent_b, candidate_b2, 2.into());
+		let identifier_b2 = entry.identifier;
+		let mut entry = request_manager.get_or_insert(parent_c, candidate_c1, 2.into());
+		let identifier_c1 = entry.identifier;
+		entry.get_mut().set_cluster_priority();
+
+		let attempts = 0;
+		assert_eq!(
+			request_manager.by_priority,
+			vec![
+				(Priority { origin: Origin::Cluster, attempts }, identifier_a2),
+				(Priority { origin: Origin::Cluster, attempts }, identifier_c1),
+				(Priority { origin: Origin::Unspecified, attempts }, identifier_a1),
+				(Priority { origin: Origin::Unspecified, attempts }, identifier_b1),
+				(Priority { origin: Origin::Unspecified, attempts }, identifier_b2),
+			]
+		);
+	}
 }
