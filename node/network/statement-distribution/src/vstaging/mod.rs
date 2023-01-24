@@ -226,6 +226,28 @@ struct PeerState {
 }
 
 impl PeerState {
+	// Update the view, returning a vector of implicit relay-parents which weren't previously
+	// part of the view.
+	fn update_view(&mut self, new_view: View, local_implicit: &ImplicitView) -> Vec<Hash> {
+		let next_implicit = new_view
+			.iter()
+			.flat_map(|x| local_implicit.known_allowed_relay_parents_under(x, None))
+			.flat_map(|x| x)
+			.cloned()
+			.collect::<HashSet<_>>();
+
+		let fresh_implicit = next_implicit
+			.iter()
+			.filter(|x| !self.implicit_view.contains(x))
+			.cloned()
+			.collect();
+
+		self.view = new_view;
+		self.implicit_view = next_implicit;
+
+		fresh_implicit
+	}
+
 	// Whether we know that a peer knows a relay-parent.
 	// The peer knows the relay-parent if it is either implicit or explicit
 	// in their view. However, if it is implicit via an active-leaf we don't
@@ -329,9 +351,8 @@ pub(crate) async fn handle_network_update<Context>(
 				protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(inner),
 			) => handle_incoming_acknowledgement(ctx, state, peer_id, inner).await,
 		},
-		NetworkBridgeEvent::PeerViewChange(peer_id, view) => {
-			// TODO [now] update explicit and implicit views
-		},
+		NetworkBridgeEvent::PeerViewChange(peer_id, view) =>
+			handle_peer_view_update(ctx, state, peer_id, view).await,
 		NetworkBridgeEvent::OurViewChange(_view) => {
 			// handled by `handle_activated_leaf`
 		},
@@ -517,6 +538,27 @@ fn handle_deactivate_leaves(state: &mut State, leaves: &[Hash]) {
 	// clean up sessions based on everything remaining.
 	let sessions: HashSet<_> = state.per_relay_parent.values().map(|r| r.session).collect();
 	state.per_session.retain(|s, _| sessions.contains(s));
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn handle_peer_view_update<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	peer: PeerId,
+	new_view: View,
+) {
+	let fresh_implicit = {
+		let peer_data = match state.peers.get_mut(&peer) {
+			None => return,
+			Some(p) => p,
+		};
+
+		peer_data.update_view(new_view, &state.implicit_view)
+	};
+
+	for new_relay_parent in fresh_implicit {
+		// TODO [now]: send all direct statements, manifests, or acknowledgements they need.
+	}
 }
 
 // Imports a locally originating statement and distributes it to peers.
