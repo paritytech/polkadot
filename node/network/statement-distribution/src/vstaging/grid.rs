@@ -213,9 +213,11 @@ impl GridTracker {
 			//   * They are in the sending set for the group AND we have sent them
 			//     a manifest AND the received manifest is partial.
 			ManifestKind::Full => is_receiver,
-			ManifestKind::Acknowledgement => is_sender && self.confirmed_backed
-				.get(&candidate_hash)
-				.map_or(false, |c| c.has_sent_manifest_to(sender)),
+			ManifestKind::Acknowledgement =>
+				is_sender &&
+					self.confirmed_backed
+						.get(&candidate_hash)
+						.map_or(false, |c| c.has_sent_manifest_to(sender)),
 		};
 
 		if !manifest_allowed {
@@ -267,7 +269,8 @@ impl GridTracker {
 		if let Some(confirmed) = self.confirmed_backed.get_mut(&candidate_hash) {
 			// TODO [now]: send statements they need if this is an ack
 			if is_receiver && !confirmed.has_sent_manifest_to(sender) {
-				self.pending_communication.entry(sender)
+				self.pending_communication
+					.entry(sender)
 					.or_default()
 					.insert(candidate_hash, ManifestKind::Acknowledgement);
 
@@ -317,7 +320,6 @@ impl GridTracker {
 				.and_then(|r| r.candidate_statement_filter(&candidate_hash))
 				.expect("unconfirmed is only populated by validators who have sent manifest; qed");
 
-
 			// No need to send direct statements, because our local knowledge is `None`
 			c.manifest_received_from(v, statement_filter);
 		}
@@ -329,25 +331,25 @@ impl GridTracker {
 
 		// advertise onwards ad accept received advertisements
 
-		let sending_group_manifests = group_topology
-			.sending
-			.iter()
-			.map(|v| (*v, ManifestKind::Full));
+		let sending_group_manifests =
+			group_topology.sending.iter().map(|v| (*v, ManifestKind::Full));
 
-		let receiving_group_manifests = group_topology
-			.receiving
-			.iter()
-			.filter_map(|v| if c.has_received_manifest_from(*v) {
+		let receiving_group_manifests = group_topology.receiving.iter().filter_map(|v| {
+			if c.has_received_manifest_from(*v) {
 				Some((*v, ManifestKind::Acknowledgement))
 			} else {
 				None
-			});
+			}
+		});
 
 		// Note that order is important: if a validator is part of both the sending
 		// and receiving groups, we may overwrite a `Full` manifest with a `Acknowledgement`
 		// one.
 		for (v, manifest_mode) in sending_group_manifests.chain(receiving_group_manifests) {
-			self.pending_communication.entry(v).or_default().insert(candidate_hash, manifest_mode);
+			self.pending_communication
+				.entry(v)
+				.or_default()
+				.insert(candidate_hash, manifest_mode);
 		}
 
 		self.pending_communication

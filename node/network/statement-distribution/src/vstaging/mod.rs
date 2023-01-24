@@ -1327,13 +1327,10 @@ fn group_for_para(
 ) -> Option<GroupIndex> {
 	// Note: this won't work well for parathreads as it assumes that core assignments are fixed
 	// across blocks.
-	let core_index = availability_cores
-		.iter()
-		.position(|c| c.para_id() == Some(para_id));
+	let core_index = availability_cores.iter().position(|c| c.para_id() == Some(para_id));
 
-	core_index.map(|c| {
-		group_rotation_info.group_for_core(CoreIndex(c as _), availability_cores.len())
-	})
+	core_index
+		.map(|c| group_rotation_info.group_for_core(CoreIndex(c as _), availability_cores.len()))
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
@@ -1378,7 +1375,8 @@ async fn fragment_tree_update_inner<Context>(
 			candidate_hash,
 			receipt,
 			persisted_validation_data,
-		} = hypo {
+		} = hypo
+		{
 			let confirmed_candidate = state.candidates.get_confirmed(&candidate_hash);
 			let prs = state.per_relay_parent.get_mut(&receipt.descriptor().relay_parent);
 			if let (Some(confirmed), Some(prs)) = (confirmed_candidate, prs) {
@@ -1398,7 +1396,8 @@ async fn fragment_tree_update_inner<Context>(
 						prs,
 						confirmed,
 						per_session,
-					).await;
+					)
+					.await;
 				}
 			}
 		}
@@ -1460,7 +1459,7 @@ pub(crate) async fn handle_backed_candidate_message<Context>(
 			);
 
 			return
-		}
+		},
 		Some(c) => c,
 	};
 
@@ -1482,7 +1481,8 @@ pub(crate) async fn handle_backed_candidate_message<Context>(
 		per_session,
 		&state.authorities,
 		&state.peers,
-	).await;
+	)
+	.await;
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
