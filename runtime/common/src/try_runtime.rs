@@ -14,7 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! common try-runtime only tests for runtimes.
+//! Common try-runtime only tests for runtimes.
+
+use frame_support::{
+	dispatch::RawOrigin,
+	traits::{Get, Hooks},
+};
+use pallet_fast_unstake::{Pallet as FastUnstake, *};
+use pallet_staking::*;
+use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
 /// register all inactive nominators for fast-unstake, and progress until they have all been
 /// processed.
@@ -22,14 +30,6 @@ pub fn migrate_all_inactive_nominators<T: pallet_fast_unstake::Config + pallet_s
 where
 	<T as frame_system::Config>::RuntimeEvent: TryInto<pallet_fast_unstake::Event<T>>,
 {
-	use frame_support::{
-		dispatch::RawOrigin,
-		traits::{Get, Hooks},
-	};
-	use pallet_fast_unstake::{Pallet as FastUnstake, *};
-	use pallet_staking::*;
-	use sp_std::{collections::btree_set::BTreeSet, prelude::*};
-
 	let mut unstaked_ok = 0;
 	let mut unstaked_err = 0;
 	let mut unstaked_slashed = 0;
@@ -38,14 +38,12 @@ where
 	let mut all_exposed = BTreeSet::new();
 	ErasStakers::<T>::iter().for_each(|(_, val, expo)| {
 		all_exposed.insert(val);
-		expo.others.iter().for_each(|ie| {
-			all_exposed.insert(ie.who.clone());
-		})
+		all_exposed.extend(expo.others.iter().map(|ie| ie.who.clone()))
 	});
 
 	let eligible = all_stakers
 		.iter()
-		.filter_map(|(ctrl, stash)| if all_exposed.contains(stash) { None } else { Some(ctrl) })
+		.filter_map(|(ctrl, stash)| all_exposed.then_some(ctrl))
 		.collect::<Vec<_>>();
 
 	log::info!(
@@ -62,9 +60,13 @@ where
 		}
 	}
 
-	log::info!(target: "runtime::test", "registered {} successfully, starting at {:?}.", Queue::<T>::count(), frame_system::Pallet::<T>::block_number());
+	log::info!(
+		target: "runtime::test",
+		"registered {} successfully, starting at {:?}.",
+		Queue::<T>::count(),
+		frame_system::Pallet::<T>::block_number(),
+	);
 	while Queue::<T>::count() != 0 || Head::<T>::get().is_some() {
-		// assume half of the block weight is available.
 		let now = frame_system::Pallet::<T>::block_number();
 		let weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 		let consumed = FastUnstake::<T>::on_idle(now, weight);
