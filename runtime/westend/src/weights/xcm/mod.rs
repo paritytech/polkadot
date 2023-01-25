@@ -201,6 +201,9 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for WestendXcmWeight<RuntimeCall> {
 	fn expect_error(_error: &Option<(u32, XcmError)>) -> Weight {
 		XcmGeneric::<Runtime>::expect_error()
 	}
+	fn expect_transact_status(_transact_status: &MaybeErrorCode) -> Weight {
+		XcmGeneric::<Runtime>::expect_transact_status()
+	}
 	fn query_pallet(_module_name: &Vec<u8>, _response_info: &QueryResponseInfo) -> Weight {
 		XcmGeneric::<Runtime>::query_pallet()
 	}

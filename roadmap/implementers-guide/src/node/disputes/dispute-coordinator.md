@@ -9,7 +9,11 @@ In particular the dispute-coordinator is responsible for:
 
 - Ensuring that the node is able to raise a dispute in case an invalid candidate
   is found during approval checking.
-- Ensuring approval votes will be recorded.
+- Ensuring that backing and approval votes will be recorded on chain. With these 
+  votes on chain we can be certain that appropriate targets for slashing will be
+  available for concluded disputes. Also, scraping these votes during a dispute
+  is necessary for critical spam prevention measures.
+- Ensuring backing votes will never get overridden by explicit votes.
 - Coordinating actual participation in a dispute, ensuring that the node
   participates in any justified dispute in a way that ensures resolution of
   disputes on the network even in the case of many disputes raised (flood/DoS
@@ -17,15 +21,13 @@ In particular the dispute-coordinator is responsible for:
 - Ensuring disputes resolve, even for candidates on abandoned forks as much as
   reasonably possible, to rule out "free tries" and thus guarantee our gambler's
   ruin property.
-- Provide an API for chain selection, so we can prevent finalization of any
+- Providing an API for chain selection, so we can prevent finalization of any
   chain which has included candidates for which a dispute is either ongoing or
   concluded invalid and avoid building on chains with an included invalid
   candidate.
-- Provide an API for retrieving (resolved) disputes, including all votes, both
+- Providing an API for retrieving (resolved) disputes, including all votes, both
   implicit (approval, backing) and explicit dispute votes. So validators can get
   rewarded/slashed accordingly.
-- Ensure backing votes are recorded and will never get overridden by explicit
-  votes.
 
 ## Ensuring That Disputes Can Be Raised
 
