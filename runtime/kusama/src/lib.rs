@@ -109,7 +109,6 @@ use governance::{
 	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, Fellows, GeneralAdmin, LeaseAdmin,
 	StakingAdmin, Treasurer, TreasurySpender,
 };
-use xcm_config::CheckAccount;
 
 #[cfg(test)]
 mod tests;
