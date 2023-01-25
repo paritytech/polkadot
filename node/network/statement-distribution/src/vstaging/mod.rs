@@ -1110,7 +1110,7 @@ async fn handle_incoming_statement<Context>(
 				.request_manager
 				.get_or_insert(relay_parent, candidate_hash, originator_group);
 
-		request_entry.get_mut().add_peer(peer);
+		request_entry.add_peer(peer);
 
 		// We only successfully accept statements from the grid on confirmed
 		// candidates, therefore this check only passes if the statement is from the cluster
@@ -1827,7 +1827,6 @@ async fn handle_incoming_manifest<Context>(
 		state
 			.request_manager
 			.get_or_insert(manifest.relay_parent, manifest.candidate_hash, manifest.group_index)
-			.get_mut()
 			.add_peer(peer);
 	}
 }

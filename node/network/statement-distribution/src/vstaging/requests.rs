@@ -89,15 +89,6 @@ pub struct RequestedCandidate {
 	in_flight: bool,
 }
 
-impl RequestedCandidate {
-	/// Add a peer to the set of known peers.
-	pub fn add_peer(&mut self, peer: PeerId) {
-		if !self.known_by.contains(&peer) {
-			self.known_by.push_back(peer);
-		}
-	}
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Origin {
 	Cluster = 0,
@@ -119,9 +110,11 @@ pub struct Entry<'a> {
 }
 
 impl<'a> Entry<'a> {
-	/// Access the underlying requested candidate.
-	pub fn get_mut(&mut self) -> &mut RequestedCandidate {
-		&mut self.requested
+	/// Add a peer to the set of known peers.
+	pub fn add_peer(&mut self, peer: PeerId) {
+		if !self.requested.known_by.contains(&peer) {
+			self.requested.known_by.push_back(peer);
+		}
 	}
 
 	/// Note that the candidate is required for the cluster.
