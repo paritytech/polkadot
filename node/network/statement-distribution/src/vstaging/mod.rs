@@ -190,9 +190,8 @@ pub(crate) struct State {
 	request_manager: RequestManager,
 }
 
-// For the provided validator index, if there is a connected peer
-// controlling the given authority ID,
-// TODO [now]: finish above doc.
+// For the provided validator index, if there is a connected peer controlling the given authority
+// ID, then return that peer's `PeerId`.
 fn connected_validator_peer(
 	authorities: &HashMap<AuthorityDiscoveryId, PeerId>,
 	per_session: &PerSessionState,

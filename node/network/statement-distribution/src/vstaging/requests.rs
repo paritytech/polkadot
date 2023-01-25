@@ -222,21 +222,32 @@ impl RequestManager {
 
 	/// Remove based on relay-parent.
 	pub fn remove_by_relay_parent(&mut self, relay_parent: Hash) {
+		let mut candidate_hashes = HashSet::new();
+
 		// Remove from `by_priority` and `requests`.
 		self.by_priority.retain(|(_priority, id)| {
 			let retain = relay_parent != id.relay_parent;
 			if !retain {
 				self.requests.remove(id);
+				candidate_hashes.insert(id.candidate_hash);
 			}
 			retain
 		});
+
 		// Remove from `unique_identifiers`.
-		for (_, candidate_identifier_set) in self.unique_identifiers.iter_mut() {
-			candidate_identifier_set.retain(|id| relay_parent != id.relay_parent);
+		for candidate_hash in candidate_hashes {
+			match self.unique_identifiers.entry(candidate_hash) {
+				HEntry::Occupied(mut entry) => {
+					entry.get_mut().retain(|id| relay_parent != id.relay_parent);
+					if entry.get().is_empty() {
+						entry.remove();
+					}
+				},
+				// We can expect to encounter vacant entries, but only if nodes are misbehaving and
+				// we don't use a deduplicating collection; there are no issues from ignoring it.
+				HEntry::Vacant(entry) => (),
+			}
 		}
-		// TODO: is this necessary?
-		// If any candidates don't have unique identifiers, remove them.
-		self.unique_identifiers.retain(|_, set| !set.is_empty());
 	}
 
 	/// Yields the next request to dispatch, if there is any.
