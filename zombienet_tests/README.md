@@ -14,7 +14,7 @@ _The content of this directory is meant to be used by Parity's private CI/CD inf
 
 ## Running tests locally
 
-To run any test locally use the native provider (`zombienet test -p native ...`) and prepare a directory containing all required polkadot/cumulus binaries. They are:
+To run any test locally use the native provider (`zombienet test -p native ...`) you need first build the binaries. They are:
 
 * adder-collator -> polkadot/target/testnet/adder-collator
 * malus -> polkadot/target/testnet/malus
@@ -28,25 +28,31 @@ To build them use:
 * malus -> cargo build --profile testnet -p polkadot-test-malus
 * polkadot (in polkadot repo) and polkadot-collator (in cumulus repo) -> `cargo build --profile testnet`
 
-One solution is to have a directory with symlinks to the corresponding binaries in your source tree. E.g.:
+One solution is to use the `.set_env` file (from this directory) and fill the `CUSTOM_PATHS` before *source* it to patch the PATH of your system to find the binaries you just built.
+
+E.g.:
 ```
-$ ls -l
-total 24
-lrwxrwxrwx. 1 ceco ceco  53 Jan 19 15:03 adder-collator -> /home/ceco/src/polkadot/target/testnet/adder-collator
--rw-r--r--. 1 ceco ceco 221 Jan 18 16:35 build_cmds.txt
-lrwxrwxrwx. 1 ceco ceco  44 Jan 18 16:47 malus -> /home/user/src/polkadot/target/testnet/malus
-lrwxrwxrwx. 1 ceco ceco  47 Jan 18 11:33 polkadot -> /home/user/src/polkadot/target/testnet/polkadot
-lrwxrwxrwx. 1 ceco ceco  56 Jan 19 15:53 polkadot-collator -> /home/user/src/cumulus/target/release/polkadot-parachain
-lrwxrwxrwx. 1 ceco ceco  55 Jan 18 13:58 undying-collator -> /home/user/src/polkadot/target/testnet/undying-collator
+$ cat .set_env
+(...)
+# by the order of this array
+CUSTOM_PATHS=(
+  "<path>/polkadot/target/release"
+  "<path>/polkadot/target/testnet"
+  "<path>/cumulus/target/release"
+)
+(...)
+
+source .set_env
 ```
 
-Then when you execute a test you set PATH as `PATH=/your/zombienet/binaries/dir:$PATH`. It's important to put your dir at the beginning of PATH otherwise zombienet might pick another binary.
+Then you have your `PATH` customized and ready to run `zombienet`.
+ **NOTE**: You should need to do this ones per terminal session, since we are patching the `PATH` and re-exporting.
 
 Example:
 
-The directory with the zombienet binaries is `/home/user/zombienet_bins/`. You can run a test locally by executing:
-```
-PATH=/home/user/zombienet_bins:$PATH  zombienet test -p native 0001-parachains-pvf.zndsl
+You can run a test locally by executing:
+```sh
+zombienet test -p native 0001-parachains-pvf.zndsl
 ```
 
 ## Questions / permissions
