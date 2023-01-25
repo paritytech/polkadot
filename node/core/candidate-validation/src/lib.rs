@@ -527,8 +527,9 @@ async fn validate_candidate_exhaustive(
 		Err(e) => {
 			gum::info!(target: LOG_TARGET, ?para_id, err=?e, "Invalid candidate (validation code)");
 
-			// If the validation code is invalid, the candidate certainly is.
-			return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
+			// Code already passed pre-checking, if decompression fails now this most likley means
+			// some local corruption happened.
+			return Err(ValidationFailed("Code decompression failed".to_string()))
 		},
 	};
 
@@ -560,7 +561,6 @@ async fn validate_candidate_exhaustive(
 
 	match result {
 		Err(ValidationError::InternalError(e)) => Err(ValidationFailed(e)),
-
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
@@ -569,9 +569,13 @@ async fn validate_candidate_exhaustive(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
 				"ambiguous worker death".to_string(),
 			))),
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) =>
-			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
-
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) => {
+			// In principle if preparation of the `WASM` fails, the current candidate can not be the
+			// reason for that. So we can't say whether it is invalid or not in addition with
+			// pre-checking enabled only valid runtimes should ever get enacted, so we can be
+			// reasonably sure that this is some local problem on the current node.
+			Err(ValidationFailed(e))
+		},
 		Ok(res) =>
 			if res.head_data.hash() != candidate_receipt.descriptor.para_head {
 				gum::info!(target: LOG_TARGET, ?para_id, "Invalid candidate (para_head)");
