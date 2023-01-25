@@ -1881,7 +1881,7 @@ mod remote_tests {
 			.build()
 			.await
 			.unwrap();
-		ext.execute_with(|| Runtime::on_runtime_upgrade(true));
+		ext.execute_with(|| Runtime::on_runtime_upgrade(frame_try_runtime::UpgradeCheckSelect::All));
 	}
 }
 
