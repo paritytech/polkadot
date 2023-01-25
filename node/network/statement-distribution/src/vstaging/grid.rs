@@ -1117,7 +1117,7 @@ mod tests {
 		};
 
 		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]],
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
 			&[
 				AuthorityDiscoveryPair::generate().0.public(),
 				AuthorityDiscoveryPair::generate().0.public(),
@@ -1143,6 +1143,7 @@ mod tests {
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
 					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
 				},
+				ManifestKind::Full,
 				ValidatorIndex(1),
 			),
 			Err(ManifestImportError::Disallowed)
@@ -1162,6 +1163,7 @@ mod tests {
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
 					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
 				},
+				ManifestKind::Full,
 				ValidatorIndex(0),
 			),
 			Err(ManifestImportError::Disallowed)
@@ -1184,7 +1186,7 @@ mod tests {
 		};
 
 		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]],
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
 			&[
 				AuthorityDiscoveryPair::generate().0.public(),
 				AuthorityDiscoveryPair::generate().0.public(),
@@ -1208,6 +1210,7 @@ mod tests {
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0, 1],
 					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
 				},
+				ManifestKind::Full,
 				ValidatorIndex(0),
 			),
 			Err(ManifestImportError::Malformed)
@@ -1225,6 +1228,7 @@ mod tests {
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
 					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1, 0],
 				},
+				ManifestKind::Full,
 				ValidatorIndex(0),
 			),
 			Err(ManifestImportError::Malformed)
@@ -1247,7 +1251,7 @@ mod tests {
 		};
 
 		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]],
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
 			&[
 				AuthorityDiscoveryPair::generate().0.public(),
 				AuthorityDiscoveryPair::generate().0.public(),
@@ -1271,6 +1275,7 @@ mod tests {
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
 					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
 				},
+				ManifestKind::Full,
 				ValidatorIndex(0),
 			),
 			Err(ManifestImportError::Malformed)
@@ -1293,7 +1298,7 @@ mod tests {
 		};
 
 		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]],
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
 			&[
 				AuthorityDiscoveryPair::generate().0.public(),
 				AuthorityDiscoveryPair::generate().0.public(),
@@ -1319,6 +1324,7 @@ mod tests {
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
 					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
 				},
+				ManifestKind::Full,
 				ValidatorIndex(0),
 			),
 			Err(ManifestImportError::Malformed)
@@ -1338,6 +1344,7 @@ mod tests {
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
 					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
 				},
+				ManifestKind::Full,
 				ValidatorIndex(0),
 			),
 			Err(ManifestImportError::Malformed)
@@ -1357,9 +1364,10 @@ mod tests {
 					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
 					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
 				},
+				ManifestKind::Full,
 				ValidatorIndex(0),
 			),
-			Ok(())
+			Ok(None)
 		);
 	}
 
