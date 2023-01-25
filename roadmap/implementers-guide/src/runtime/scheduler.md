@@ -6,7 +6,7 @@
 
 ## User Interface
 
-The entry point for the user twofold:
+The entry point for the user is twofold:
 
 1. Registering a PVF with some deposit
 2. Actually bidding for a slot.
@@ -48,11 +48,12 @@ want to have a core in the near future ... bids will have some lifetime
 specified. If they don't manage to win a slot within that lifetime, they are
 dropped. The user would then need to bid again.
 
+Needs:
 
-1. Realistic price to pay right now. (E.g. expose recent max/lowest
-   prices/average.
+1. Expose: Realistic price to pay right now. (E.g. expose recent max/lowest
+   prices/average).
 2. Actual utilization - related to price, but nevertheless good to know
-   explicit. If there are lots of free cores right now, it is "safe" to go with
+   explicitly. If there are lots of free cores right now, it is "safe" to go with
    the minimum bid.
 3. Some form of lifetime ... Some time frame the user can expect to either get a
    core or know for sure he won't get any. Needs to be exposed somehow? - HOW?
@@ -80,14 +81,14 @@ node side? If we don't check signatures on the node side, then how can we be
 spam resistant?
 
 Then the block producer should put bids into the block, limited by some maximum
-amount (don't overflow runtime memory). Higher bids take precendence obviously.
+amount (don't overflow runtime memory). Higher bids take precedence obviously.
 
 If exposed how many parathread cores are available, that information can be
 taken into account by the block producer: E.g. if there are 3 cores available,
 10 blocks would mean approximately 30 bids are useful to have in the runtime
-right now. It would be useful to put 10000 bids into a block for example. Block
-producers should then likely expire bids in the transaction pool already, if
-they don't after some to be specified lifetime.
+right now. It would not be useful to put 10000 bids into a block for example.
+Block producers should then likely expire bids in the transaction pool already,
+if they don't make it after some to be specified lifetime.
 
 Expiring bids makes sense to keep resource usage down, but also helps with
 keeping expectations: If we say you bid now for a block asap, it would be out of
@@ -104,10 +105,8 @@ More details on auctioning
 - Bid has fee on top of bid for spam protection - fee can be quite low, it should
   not harm the sender much, if losing a bid and a resend is necessary. Just high
   enough so spam protection is maintained.
-- Minumum bid - configurable.
+- Minimum bid - configurable.
 - Lifetimes
-
--> sees won bid, by seeing claim queue on the collator.
 
 #### Possible Optimizations
 
@@ -125,7 +124,8 @@ be won. E.g. just one or two out of the ten desired.
 
 
 ## Where is the money going?
-Bids and fees - where are they spent, what pallet do we need to interact here
+
+TODO: Bids and fees - where are they spent, what pallet do we need to interact here
 with?
 
 ## Scheduler/Collators/Validators
@@ -134,7 +134,7 @@ with?
    group to prepare and send a collation.
 2. Collators need to know in advance what collators for which
    parachains/parathreads they should accept connections and collations from.
-3. Users need to know whether the won a slot or not - seeing assigned cores
+3. Users need to know whether they won a slot or not - seeing assigned cores
    could be one way of achieving that goal. (Likely not very suitable though).
 
 ### Interface to the scheduler
@@ -142,12 +142,14 @@ with?
 Once we found claims for cores, we need to get them to the scheduler. This
 interface will roughly be:
 
-Give me claims for this claim queue size for this number of cores.
+Give me claims for this claim queue size for this number of cores. For
+simplicity we make the number of cores per assignment provider a configuration
+that can only be changed on session boundaries.
 
 Basically the scheduler needs to be able to provide core assignments for the
 look ahead period required by asynchronous backing. The assignment providers
-(like the parathread one above) need to be able to provide those, given a number
-of available cores to the provider.
+(like the parathread one above) need to be able to provide those, given a
+configured number of available cores to the provider.
 
 Assuming we treat cores separately and sequentially (see questions below), an
 assignment provider could return an enum like this:
@@ -169,24 +171,17 @@ enum Assignment {
 
 per core.
 
-So the interface could look something like this WIP:
+So the interface could look something like this:
 
 ```rust
 trait AssignmentProvider {
-// sequential nature - we need time to pass between asking for assignments and
-retrieving the results - two calls:
-pub fn new(num_cores: usize);
-pub fn start_new_round(round_id: RoundId, num_cores: usize);
-pub fn get_round_assignments() -> RoundAssignments
+  /// Upcoming assignments that are ready from the provider.
+  pub fn lookahead(&self) -> UpcomingAssignments
+  /// Tell provider that an item in the claim queue at the given index has been
+  served (or timed out) - in any case core became free.
+  pub fn pop_assignment(index: AssignmentIndex);
 }
 
-struct RoundAssignments {
-  assignments: Vec<Assignment>,
-  next_round_id: RoundId,
-}
-
-// no copy - move semantics & no clone.
-struct RoundId(u32);
 
 ```
 
