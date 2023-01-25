@@ -223,9 +223,20 @@ satisfy a lookahead on assignments. It could look something like this:
 struct ClaimQueue {
   /// Actual queue:
   queue: Vec<ParaId>
-  /// Whether or not the head of the queue is already pending availability
-  /// (successfully backed).
-  head_backed: bool,
+  /// A claim previously in queue directly, that is now pending availability.
+  ///
+  /// It is counting towards the queue size, in the sense that we only request
+  /// another assignment once the core is freed again.
+  pending_availability: PendingAvailabilityClam,
+
+}
+
+struct PendingAvailabilityClaim {
+  /// The para that is currently occupying the core.
+  para: ParaId,
+  /// The position in the queue the claim had, when it got backed.
+  /// Used to determine validator era points.
+  pos_in_queue: usize,
 }
 ```
 
@@ -234,12 +245,11 @@ queue for each core. What we will expose here is all the claims, except the head
 if it is already backed. Therefore we would expose actual viable claims for
 upcoming blocks, once the core is free again.
 
-The above defined `ClaimQueue` might fall short in providing the means for
-allowing later claims to be backed before claims further up the list, as
-described
-[here](https://github.com/paritytech/polkadot/issues/5492#issuecomment-1362941241)
-as then it could actually be that the head is still a valid claim, but the second
-entry is pending availability.
+The above defined `ClaimQueue` already provides the means to allow later claims
+to be backed before claims further up the list, as described
+[here](https://github.com/paritytech/polkadot/issues/5492#issuecomment-1362941241).
+By tracking the position the para had in the list, also adjusting the rewards
+accordingly should be straight forward.
 
 
 # Parathreads - other areas:
