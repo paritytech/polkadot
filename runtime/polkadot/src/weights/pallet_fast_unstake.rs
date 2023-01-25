@@ -60,12 +60,12 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 	// Storage: Balances Locks (r:1 w:1)
 	// Storage: Staking Ledger (r:0 w:1)
 	// Storage: Staking Payee (r:0 w:1)
-	/// The range of component `b` is `[1, 64]`.
+	/// The range of component `b` is `[1, 16]`.
 	fn on_idle_unstake(b: u32, ) -> Weight {
-		// Minimum execution time: 89_186 nanoseconds.
-		Weight::from_ref_time(81_064_737)
-			// Standard Error: 35_660
-			.saturating_add(Weight::from_ref_time(33_538_270).saturating_mul(b.into()))
+		// Minimum execution time: 76_468 nanoseconds.
+		Weight::from_ref_time(47_557_097)
+			// Standard Error: 32_963
+			.saturating_add(Weight::from_ref_time(33_837_395).saturating_mul(b.into()))
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().reads((6_u64).saturating_mul(b.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -78,15 +78,15 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 	// Storage: ElectionProviderMultiPhase CurrentPhase (r:1 w:0)
 	// Storage: Staking CurrentEra (r:1 w:0)
 	// Storage: Staking ErasStakers (r:2 w:0)
-	/// The range of component `v` is `[1, 1000]`.
-	/// The range of component `b` is `[1, 64]`.
+	/// The range of component `v` is `[1, 256]`.
+	/// The range of component `b` is `[1, 16]`.
 	fn on_idle_check(v: u32, b: u32, ) -> Weight {
-		// Minimum execution time: 2_466_451 nanoseconds.
-		Weight::from_ref_time(2_482_162_000)
-			// Standard Error: 25_800_482
-			.saturating_add(Weight::from_ref_time(833_589_133).saturating_mul(v.into()))
-			// Standard Error: 403_324_394
-			.saturating_add(Weight::from_ref_time(12_683_971_547).saturating_mul(b.into()))
+		// Minimum execution time: 665_245 nanoseconds.
+		Weight::from_ref_time(668_032_000)
+			// Standard Error: 6_419_133
+			.saturating_add(Weight::from_ref_time(213_945_440).saturating_mul(v.into()))
+			// Standard Error: 103_007_811
+			.saturating_add(Weight::from_ref_time(3_200_709_428).saturating_mul(b.into()))
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(v.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -99,14 +99,15 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 	// Storage: Staking Validators (r:1 w:0)
 	// Storage: Staking Nominators (r:1 w:1)
 	// Storage: Staking CounterForNominators (r:1 w:1)
-	// Storage: VoterList ListNodes (r:3 w:3)
+	// Storage: VoterList ListNodes (r:2 w:2)
+	// Storage: VoterList ListBags (r:1 w:1)
 	// Storage: VoterList CounterForListNodes (r:1 w:1)
 	// Storage: Staking CurrentEra (r:1 w:0)
 	// Storage: Balances Locks (r:1 w:1)
 	// Storage: FastUnstake CounterForQueue (r:1 w:1)
 	fn register_fast_unstake() -> Weight {
-		// Minimum execution time: 125_878 nanoseconds.
-		Weight::from_ref_time(129_289_000)
+		// Minimum execution time: 109_570 nanoseconds.
+		Weight::from_ref_time(110_644_000)
 			.saturating_add(T::DbWeight::get().reads(15))
 			.saturating_add(T::DbWeight::get().writes(10))
 	}
@@ -116,15 +117,15 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 	// Storage: FastUnstake Head (r:1 w:0)
 	// Storage: FastUnstake CounterForQueue (r:1 w:1)
 	fn deregister() -> Weight {
-		// Minimum execution time: 51_516 nanoseconds.
-		Weight::from_ref_time(52_357_000)
+		// Minimum execution time: 43_608 nanoseconds.
+		Weight::from_ref_time(44_278_000)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
 	// Storage: FastUnstake ErasToCheckPerBlock (r:0 w:1)
 	fn control() -> Weight {
-		// Minimum execution time: 4_145 nanoseconds.
-		Weight::from_ref_time(4_410_000)
+		// Minimum execution time: 4_091 nanoseconds.
+		Weight::from_ref_time(4_285_000)
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 }
