@@ -108,19 +108,34 @@ cargo-clippy:
   script:
     - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo +nightly clippy --all-targets
 
-test-crate-publishing:
-  extends:
-    - .test-refs
-    - .crates-publishing-template
+.test-crate-publishing-template:
+  extends: .crates-publishing-template
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   # the job can be found in check.yml
   needs:
     - job:                         job-starter
       artifacts:                   false
-  timeout: 5h
   script:
     - git clone
         --depth 1
         --branch "$RELENG_SCRIPTS_BRANCH"
         https://github.com/paritytech/releng-scripts.git
     - CRATESIO_TARGET_INSTANCE=local ./releng-scripts/publish-crates
+
+test-crate-publishing-on-prs:
+  extends: .test-crate-publishing-template
+  rules:
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
+  variables:
+    # The WORST CASE scenario for this check currently takes a very long time
+    # (example: https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/2313567)
+    # due to a combination of:
+    #   - Polkadot being inherently slow to compile fully
+    #   - No `rusty-cachier` instrumentation yet
+    # Therefore we don't run the check all the way through for PRs
+    SPUB_STOP_AT_STEP:             validation
+
+test-crate-publishing:
+  extends: .test-crate-publishing-template
+  rules:
+    - if: $CI_COMMIT_REF_NAME == "master"
