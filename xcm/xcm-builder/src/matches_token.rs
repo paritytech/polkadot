@@ -34,7 +34,7 @@ use xcm_executor::traits::{MatchesFungible, MatchesNonFungible};
 /// ```
 /// use xcm::latest::{MultiLocation, Parent};
 /// use xcmsg_builder::IsConcrete;
-/// use xcm::traits::MatchesFungible;
+/// use xcm_executor::traits::MatchesFungible;
 ///
 /// frame_support::parameter_types! {
 /// 	pub TargetLocation: MultiLocation = Parent.into();
