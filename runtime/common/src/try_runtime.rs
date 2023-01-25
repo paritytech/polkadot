@@ -43,7 +43,7 @@ where
 
 	let eligible = all_stakers
 		.iter()
-		.filter_map(|(ctrl, stash)| all_exposed.then_some(ctrl))
+		.filter_map(|(ctrl, stash)| all_exposed.contains(stash).then_some(ctrl))
 		.collect::<Vec<_>>();
 
 	log::info!(
