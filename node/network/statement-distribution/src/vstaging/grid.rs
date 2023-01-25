@@ -52,6 +52,20 @@ pub struct SessionTopologyView {
 	group_views: HashMap<GroupIndex, GroupSubView>,
 }
 
+impl SessionTopologyView {
+	/// Returns an iterator over all validator indices from the group who are allowed to
+	/// send us manifests.
+	pub fn iter_group_senders<'a>(
+		&'a self,
+		group: GroupIndex,
+	) -> impl Iterator<Item = ValidatorIndex> + 'a {
+		self.group_views
+			.get(&group)
+			.into_iter()
+			.flat_map(|sub| sub.sending.iter().cloned())
+	}
+}
+
 /// Build a view of the topology for the session.
 /// For groups that we are part of: we receive from nobody and send to our X/Y peers.
 /// For groups that we are not part of: we receive from any validator in the group we share a slice with.
@@ -186,8 +200,9 @@ impl GridTracker {
 	/// checks on the format of the manifest and the amount of votes
 	/// it contains. It has effects on the stored state only when successful.
 	///
-	/// This returns an optional `ManifestKind` indicating the type of manifest
-	/// to be sent in response to the received manifest.
+	/// This returns a `bool` on success, which if true indicates that an acknowledgement is
+	/// to be sent in response to the received manifest. This only occurs when the
+	/// candidate is already known to be confirmed and backed.
 	pub fn import_manifest(
 		&mut self,
 		session_topology: &SessionTopologyView,
@@ -197,7 +212,7 @@ impl GridTracker {
 		manifest: ManifestSummary,
 		kind: ManifestKind,
 		sender: ValidatorIndex,
-	) -> Result<Option<ManifestKind>, ManifestImportError> {
+	) -> Result<bool, ManifestImportError> {
 		let claimed_group_index = manifest.claimed_group_index;
 
 		let group_topology = match session_topology.group_views.get(&manifest.claimed_group_index) {
@@ -205,16 +220,16 @@ impl GridTracker {
 			Some(g) => g,
 		};
 
-		let is_receiver = group_topology.receiving.contains(&sender);
-		let is_sender = group_topology.sending.contains(&sender);
+		let receiving_from = group_topology.receiving.contains(&sender);
+		let sending_to = group_topology.sending.contains(&sender);
 		let manifest_allowed = match kind {
 			// Peers can send manifests _if_:
 			//   * They are in the receiving set for the group AND the manifest is full OR
 			//   * They are in the sending set for the group AND we have sent them
 			//     a manifest AND the received manifest is partial.
-			ManifestKind::Full => is_receiver,
+			ManifestKind::Full => receiving_from,
 			ManifestKind::Acknowledgement =>
-				is_sender &&
+				sending_to &&
 					self.confirmed_backed
 						.get(&candidate_hash)
 						.map_or(false, |c| c.has_sent_manifest_to(sender)),
@@ -265,16 +280,16 @@ impl GridTracker {
 			manifest,
 		)?;
 
-		let mut to_send = None;
+		let mut ack = false;
 		if let Some(confirmed) = self.confirmed_backed.get_mut(&candidate_hash) {
-			// TODO [now]: send statements they need if this is an ack
-			if is_receiver && !confirmed.has_sent_manifest_to(sender) {
+			if receiving_from && !confirmed.has_sent_manifest_to(sender) {
+				// due to checks above, the manifest `kind` is guaranteed to be `Full`
 				self.pending_communication
 					.entry(sender)
 					.or_default()
 					.insert(candidate_hash, ManifestKind::Acknowledgement);
 
-				to_send = Some(ManifestKind::Acknowledgement);
+				ack = true;
 			}
 			confirmed.manifest_received_from(sender, remote_knowledge);
 		} else {
@@ -285,7 +300,7 @@ impl GridTracker {
 				.push((sender, claimed_group_index))
 		}
 
-		Ok(to_send)
+		Ok(ack)
 	}
 
 	/// Add a new backed candidate to the tracker. This yields
@@ -399,6 +414,20 @@ impl GridTracker {
 			.into_iter()
 			.flat_map(|pending| pending.iter().map(|(c, m)| (*c, *m)))
 			.collect()
+	}
+
+	/// Returns a statement filter indicating statements that a given peer
+	/// is awaiting concerning the given candidate, constrained by the statements
+	/// we have ourselves.
+	pub fn pending_statements_for(
+		&self,
+		validator_index: ValidatorIndex,
+		candidate_hash: CandidateHash,
+		full_local_knowledge: &StatementFilter,
+	) -> Option<StatementFilter> {
+		self.confirmed_backed
+			.get(&candidate_hash)
+			.and_then(|x| x.pending_statements(validator_index, full_local_knowledge))
 	}
 
 	/// Which validators we could request the fully attested candidates from.
@@ -830,6 +859,28 @@ impl KnownBackedCandidate {
 				l.set(statement_index_in_group, statement_kind);
 			}
 		}
+	}
+
+	fn pending_statements(
+		&self,
+		validator: ValidatorIndex,
+		full_local: &StatementFilter,
+	) -> Option<StatementFilter> {
+		// existence of both remote & local knowledge indicate we have exchanged
+		// manifests.
+		// then, everything that is not in the remote knowledge is pending, and we
+		// further limit this by what is in the local knowledge itself. we use the
+		// full local knowledge, as the local knowledge stored here may be outdated.
+		self.mutual_knowledge
+			.get(&validator)
+			.filter(|k| k.local_knowledge.is_some())
+			.and_then(|k| k.remote_knowledge.as_ref())
+			.map(|remote| StatementFilter {
+				seconded_in_group: full_local.seconded_in_group.clone() &
+					!remote.seconded_in_group.clone(),
+				validated_in_group: full_local.validated_in_group.clone() &
+					!remote.validated_in_group.clone(),
+			})
 	}
 }
 
@@ -1320,5 +1371,10 @@ mod tests {
 		);
 	}
 
-	// TODO [now]: check that pending communication is set and cleared correctly.
+	// TODO [now]: test that senders can provide manifests in acknowledgement
+
+	// TODO [now]: check that pending communication is set correctly when receiving a manifest on a confirmed candidate
+	// It should also overwrite any existing `Full` ManifestKind
+
+	// TODO [now]: check that pending communication is cleared correctly in `manifest_sent_to`
 }

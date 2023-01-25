@@ -145,6 +145,8 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		)
 		.map_err(FatalError::SpawnTask)?;
 
+		// TODO [now]: handle vstaging req/res: dispatch pending statements & handling responses.
+
 		loop {
 			let message =
 				MuxedMessage::receive(&mut ctx, &mut v1_req_receiver, &mut v1_res_receiver).await;
