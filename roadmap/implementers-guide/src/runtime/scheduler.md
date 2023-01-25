@@ -117,7 +117,7 @@ need to be signed. What we can do is extend the format of the extrinsic slightly
 to contain a number specifying how many cores are desired and whether parallel
 cores are allowed (winning two cores in a single block). Likely a `max_parallel`
 parameter. Then the user can submit a single extrinsic, with only a single
-signature biding for e.g. 10 cores. Internally we treat those as indidivual
+signature biding for e.g. 10 cores. Internally we treat those as individual
 equal bids (all the same price), competing individually with all the other bids.
 Therefore it is possible that only a fraction of the desired cores will actually
 be won. E.g. just one or two out of the ten desired.
@@ -128,85 +128,121 @@ be won. E.g. just one or two out of the ten desired.
 TODO: Bids and fees - where are they spent, what pallet do we need to interact here
 with?
 
+We should probably be interacting with the Balances pallet via the ReservableCurrency trait.
+
 ## Scheduler/Collators/Validators
 
 1. Collators need to know in advance when they should connect to which validator
    group to prepare and send a collation.
-2. Collators need to know in advance what collators for which
+2. Validators need to know in advance what collators for which
    parachains/parathreads they should accept connections and collations from.
 3. Users need to know whether they won a slot or not - seeing assigned cores
    could be one way of achieving that goal. (Likely not very suitable though).
+4. We need to be able to "back-pressure" on individual cores, in case
+   availability is taking longer.
 
-### Interface to the scheduler
+### Interface from assignment providers to the scheduler
 
-Once we found claims for cores, we need to get them to the scheduler. This
-interface will roughly be:
+The scheduler needs to be able to map `ParaId`s to `CoreIds` for each relay
+chain block, for asynchronous backing in advance. The `AssignmentProvider` can
+provide suitable `ParaId`s for the scheduler to assign to cores.
 
-Give me claims for this claim queue size for this number of cores. For
-simplicity we make the number of cores per assignment provider a configuration
-that can only be changed on session boundaries.
+For this the scheduler maintains a claim queue for each core of some size.
+This queue allows for the needed lookahead. The scheduler tries to maintain a
+desired (configured) size. Whenever a core gets free (became available or timed
+out), the scheduler will ask its assignment provider for another
+assignment for that core.
 
-Basically the scheduler needs to be able to provide core assignments for the
-look ahead period required by asynchronous backing. The assignment providers
-(like the parathread one above) need to be able to provide those, given a
-configured number of available cores to the provider.
-
-Assuming we treat cores separately and sequentially (see questions below), an
-assignment provider could return an enum like this:
-
-```rust
-enum Assignment {
-  // Parathreads
-  List(Vec<Claim>),
-  // slot sharing/slow parachains:
-  // Useful for parachains, which want a 12 second block time. - With async
-  backing, all parachains will be of this type in the beginning:
-  Alternating2(Claim, Claim),
-  // 18 second parachains ... cost a third.
-  Alternating3(Claim, Claim, Claim),
-  // For parachains/booster
-  Single(Claim),
-}
-```
-
-per core.
-
-So the interface could look something like this:
+I am therefore suggesting an interface looking like this:
 
 ```rust
 trait AssignmentProvider {
-  /// Upcoming assignments that are ready from the provider.
-  pub fn lookahead(&self) -> UpcomingAssignments
-  /// Tell provider that an item in the claim queue at the given index has been
-  served (or timed out) - in any case core became free.
-  pub fn pop_assignment(index: AssignmentIndex);
+  /// Get and consume the next assignment for the core, if available.
+  ///
+  /// Returns an error, if index is out of bounds. Returns `Ok(None)` if no
+  /// furhter assignments are available for that core.
+  pub fn pop_assignment_for_core(&mut self, core_id: CoreId) -> Result<Option<ParaId>>;
 }
-
-
 ```
 
-^^ To initiate a new round `set_num_cores`... needs to be called with a
-`RoundId`, can only be called once per round.
+On each block, the scheduler will check its claim queue sizes for each core.
+Then it calls `pop_assignment_for_core` on its given `AssignmentProvider` for
+each core where the claim queue size is smaller than desired, until the queue is
+either full or `pop_assignment_for_core` returns `None`.
 
-Questions:
+Whenever a core becomes free, we reduce the corresponding `ClaimQueue` size by
+one.
 
-Can different cores in a block and cores across blocks be treated the same? E.g.
-if a parathread a parachain has two claims, would it be legal to give it two
-cores in the same block?
+A single implementation of `AssignmentProvider` needs to be passed to the
+scheduler, internally the given `AssignmentProvider` can delegate to other providers
+handling sub areas, but that is completely transparent to the scheduler. E.g.:
 
-Good point brought up by Alex: We assume that everything is working clock worky
-once backed, but what if availability is taking longer? What does happen to the
-assignments?
+```rust
+struct PolkadotAssignmentProvider {
+  parathread_provider: ParathreadProvider,
+  parachain_provider: ParachainProvider,
+}
 
--> I guess we need to be able to overflow: If some assignments could not be
-served, we need to be able to tell the assignment provider. The assignment
-provider should then consider those left overs in the next round of assignments.
+impl AssignmentProvider for PolkadotAssignmentProvider {
+  fn pop_assignment_for_core(&mut self, core_id: CoreId) -> Result<Option<ParaId>> {
+     match self.get_sub_index(core_id) {
+       SubIndex::Parathread(thread_id) =>
+         self.parathread_provider.pop_assignment(thread_id),
+       SubIndex::Parachain(chain_id) =>
+         self.parachain_provider.pop_assignment(chain_id),
+     }
+   }
+}
+// What core ranges belong to which provider will be configurable and can change
+// at session boundaries.
+```
 
-E.g. Either refund/ replace assignments in the next batch.
+The providers need to be able to handle some cores moving faster than others.
+For example, if availability is slower on one core for some reason, then the
+scheduler will call `pop_assignment_for_core` less on that core ... it will
+impose some back pressure. The provider needs to be able to handle this.
 
--> Other questions? Demand driven variation: E.g. demand on parathreads is very
-low, but demand for parachain boost exists - re-assign cores to different
-assignment provider?
+Open questions:
+
+With this interface we will charge parathreads fully once
+`pop_assignment_for_core` got called, no matter what happens next. That is even
+on error. This adds to simplicity, great if acceptable ... I think at least for
+a first run it is. This is one of those things that can be improved, once it is
+actually causing problems. -> Especially with async backing it is actually quite
+unlikely that things fail.
+
+
+### Interface from the scheduler to the node size (collators/validators)
+
+We have been a bit fuzzy with the claim queue here, time to make it more
+concrete. The claim queue is used internally by the scheduler to be able to
+satisfy a lookahead on assignments. It could look something like this:
+
+```rust
+/// A claim queue for a single core:
+struct ClaimQueue {
+  /// Actual queue:
+  queue: Vec<ParaId>
+  /// Whether or not the head of the queue is already pending availability
+  /// (successfully backed).
+  head_backed: bool,
+}
+```
+
+We can then provide a runtime API to the node, for retrieving the current claim
+queue for each core. What we will expose here is all the claims, except the head
+if it is already backed. Therefore we would expose actual viable claims for
+upcoming blocks, once the core is free again.
+
+The above defined `ClaimQueue` might fall short in providing the means for
+allowing later claims to be backed before claims further up the list, as
+described
+[here](https://github.com/paritytech/polkadot/issues/5492#issuecomment-1362941241)
+as then it could actually be that the head is still a valid claim, but the second
+entry is pending availability. For the lower reward in that case (as described
+in the referenced comment) we would actually also need some interface back to
+the claim queue provider. So I guess, we do need that complication ... but
+again, maybe not already for the very first iteration.
 
 
 
