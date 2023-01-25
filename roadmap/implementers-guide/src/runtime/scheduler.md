@@ -239,11 +239,7 @@ allowing later claims to be backed before claims further up the list, as
 described
 [here](https://github.com/paritytech/polkadot/issues/5492#issuecomment-1362941241)
 as then it could actually be that the head is still a valid claim, but the second
-entry is pending availability. For the lower reward in that case (as described
-in the referenced comment) we would actually also need some interface back to
-the claim queue provider. So I guess, we do need that complication ... but
-again, maybe not already for the very first iteration.
-
+entry is pending availability.
 
 
 # Parathreads - other areas:
