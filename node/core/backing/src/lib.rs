@@ -1535,7 +1535,7 @@ async fn import_statement<Context>(
 
 	let stmt = primitive_statement_to_table(statement);
 
-	rp_state.table.import_statement(&rp_state.table_context, stmt);
+	Ok(rp_state.table.import_statement(&rp_state.table_context, stmt))
 }
 
 /// If an import summary is passed in, distribute it to the necessary subsystems. Also check for any
@@ -1545,12 +1545,14 @@ async fn distribute_statement<Context>(
 	ctx: &mut Context,
 	rp_state: &mut PerRelayParentState,
 	per_candidate: &mut HashMap<CandidateHash, PerCandidateState>,
-	summary: Option<TableSummary>,
+	summary: Option<&TableSummary>,
 ) -> Result<(), Error> {
 	if let Some(attested) = summary
 		.as_ref()
 		.and_then(|s| rp_state.table.attested_candidate(&s.candidate, &rp_state.table_context))
 	{
+		let candidate_hash = attested.candidate.hash();
+
 		// `HashSet::insert` returns true if the thing wasn't in there already.
 		if rp_state.backed.insert(candidate_hash) {
 			if let Some(backed) = table_attested_to_backed(attested, &rp_state.table_context) {
@@ -1598,7 +1600,7 @@ async fn distribute_statement<Context>(
 
 	issue_new_misbehaviors(ctx, rp_state.parent, &mut rp_state.table);
 
-	Ok(summary)
+	Ok(())
 }
 
 /// Check if there have happened any new misbehaviors and issue necessary messages.
@@ -1640,7 +1642,7 @@ async fn sign_import_and_distribute_statement<Context>(
 		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
 		ctx.send_unbounded_message(smsg);
 
-		distribute_statement(ctx, rp_state, per_candidate, summary).await?;
+		distribute_statement(ctx, rp_state, per_candidate, summary.as_ref()).await?;
 
 		Ok(Some(signed_statement))
 	} else {
@@ -1767,7 +1769,7 @@ async fn maybe_validate_and_import<Context>(
 
 	if let Some(summary) = res? {
 		// Take care of communicating with the prospective parachains subsystem.
-		distribute_statement(ctx, rp_state, &mut state.per_candidate, Some(summary));
+		distribute_statement(ctx, rp_state, &mut state.per_candidate, Some(&summary));
 
 		// At this point, the candidate has already been accepted into the fragment trees.
 
