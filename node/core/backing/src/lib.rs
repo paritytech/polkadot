@@ -1538,13 +1538,12 @@ async fn import_statement<Context>(
 	Ok(rp_state.table.import_statement(&rp_state.table_context, stmt))
 }
 
-/// If an import summary is passed in, distribute it to the necessary subsystems. Also check for any
-/// new misbehaviors and issue necessary messages.
+/// Handles a summary received from [`import_statement`] and dispatches `Backed` notifications and
+/// misbehaviors as a result of importing a statement.
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
-async fn distribute_statement<Context>(
+async fn post_import_statement_actions<Context>(
 	ctx: &mut Context,
 	rp_state: &mut PerRelayParentState,
-	per_candidate: &mut HashMap<CandidateHash, PerCandidateState>,
 	summary: Option<&TableSummary>,
 ) -> Result<(), Error> {
 	if let Some(attested) = summary
@@ -1642,7 +1641,7 @@ async fn sign_import_and_distribute_statement<Context>(
 		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
 		ctx.send_unbounded_message(smsg);
 
-		distribute_statement(ctx, rp_state, per_candidate, summary.as_ref()).await?;
+		post_import_statement_actions(ctx, rp_state, summary.as_ref()).await?;
 
 		Ok(Some(signed_statement))
 	} else {
@@ -1767,11 +1766,13 @@ async fn maybe_validate_and_import<Context>(
 		return Ok(())
 	}
 
-	if let Some(summary) = res? {
-		// Take care of communicating with the prospective parachains subsystem.
-		distribute_statement(ctx, rp_state, &mut state.per_candidate, Some(&summary));
+	let summary = res?;
+	post_import_statement_actions(ctx, rp_state, summary.as_ref()).await?;
 
-		// At this point, the candidate has already been accepted into the fragment trees.
+	if let Some(summary) = summary {
+		// import_statement already takes care of communicating with the
+		// prospective parachains subsystem. At this point, the candidate
+		// has already been accepted into the fragment trees.
 
 		let candidate_hash = summary.candidate;
 
