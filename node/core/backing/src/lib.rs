@@ -1637,7 +1637,8 @@ async fn sign_import_and_distribute_statement<Context>(
 	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
 		let summary = import_statement(ctx, rp_state, per_candidate, &signed_statement).await?;
 
-		// `Share` must always be sent before `Backed`, which we send in `distribute_statement`.
+		// `Share` must always be sent before `Backed`. We send the latter in
+		// `post_import_statement_action` below.
 		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
 		ctx.send_unbounded_message(smsg);
 
