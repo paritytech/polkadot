@@ -247,8 +247,8 @@ impl Collator {
 			let pov = PoV { block_data: block_data.encode().into() };
 
 			let collation = Collation {
-				upward_messages: Vec::new(),
-				horizontal_messages: Vec::new(),
+				upward_messages: vec![].try_into().unwrap(),
+				horizontal_messages: vec![].try_into().unwrap(),
 				new_validation_code: None,
 				head_data: head_data.encode().into(),
 				proof_of_validity: MaybeCompressedPoV::Raw(pov.clone()),

@@ -167,8 +167,8 @@ pub fn create_fake_candidate_commitments(
 	persisted_validation_data: &PersistedValidationData,
 ) -> CandidateCommitments {
 	CandidateCommitments {
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Vec::new().try_into().unwrap(),
+		horizontal_messages: Vec::new().try_into().unwrap(),
 		new_validation_code: None,
 		head_data: persisted_validation_data.parent_head.clone(),
 		processed_downward_messages: 0,
