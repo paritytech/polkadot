@@ -346,17 +346,6 @@ impl XcmpMessageHandler for () {
 	}
 }
 
-/// Maximum number of HRMP messages allowed per candidate.
-///
-/// We also use this as a generous limit, which still prevents possible memory exhaustion, from
-/// malicious parachains that may otherwise return a huge amount of messages in `ValidationResult`.
-pub const MAX_HORIZONTAL_MESSAGE_NUM: u32 = 16 * 1024;
-/// Maximum number of UMP messages allowed per candidate.
-///
-/// We also use this as a generous limit, which still prevents possible memory exhaustion, from
-/// malicious parachains that may otherwise return a huge amount of messages in `ValidationResult`.
-pub const MAX_UPWARD_MESSAGE_NUM: u32 = 16 * 1024;
-
 /// Validation parameters for evaluating the parachain validity function.
 // TODO: balance downloads (https://github.com/paritytech/polkadot/issues/220)
 #[derive(PartialEq, Eq, Decode, Clone)]
@@ -372,6 +361,22 @@ pub struct ValidationParams {
 	pub relay_parent_storage_root: Hash,
 }
 
+/// Maximum number of HRMP messages allowed per candidate.
+///
+/// We also use this as a generous limit, which still prevents possible memory exhaustion, from
+/// malicious parachains that may otherwise return a huge amount of messages in `ValidationResult`.
+pub const MAX_HORIZONTAL_MESSAGE_NUM: u32 = 16 * 1024;
+/// Maximum number of UMP messages allowed per candidate.
+///
+/// We also use this as a generous limit, which still prevents possible memory exhaustion, from
+/// malicious parachains that may otherwise return a huge amount of messages in `ValidationResult`.
+pub const MAX_UPWARD_MESSAGE_NUM: u32 = 16 * 1024;
+
+pub type UpwardMessages = BoundedVec<UpwardMessage, ConstU32<MAX_UPWARD_MESSAGE_NUM>>;
+
+pub type HorizontalMessages =
+	BoundedVec<OutboundHrmpMessage<Id>, ConstU32<MAX_HORIZONTAL_MESSAGE_NUM>>;
+
 /// The result of parachain validation.
 // TODO: balance uploads (https://github.com/paritytech/polkadot/issues/220)
 #[derive(PartialEq, Eq, Clone, Encode)]
@@ -382,10 +387,9 @@ pub struct ValidationResult {
 	/// An update to the validation code that should be scheduled in the relay chain.
 	pub new_validation_code: Option<ValidationCode>,
 	/// Upward messages send by the Parachain.
-	pub upward_messages: BoundedVec<UpwardMessage, ConstU32<MAX_UPWARD_MESSAGE_NUM>>,
+	pub upward_messages: UpwardMessages,
 	/// Outbound horizontal messages sent by the parachain.
-	pub horizontal_messages:
-		BoundedVec<OutboundHrmpMessage<Id>, ConstU32<MAX_HORIZONTAL_MESSAGE_NUM>>,
+	pub horizontal_messages: HorizontalMessages,
 	/// Number of downward messages that were processed by the Parachain.
 	///
 	/// It is expected that the Parachain processes them from first to last.

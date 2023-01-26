@@ -28,8 +28,8 @@ use sp_std::{
 
 use application_crypto::KeyTypeId;
 use inherents::InherentIdentifier;
-use primitives::{bounded::BoundedVec, RuntimeDebug};
-use runtime_primitives::traits::{AppVerify, ConstU32, Header as HeaderT};
+use primitives::RuntimeDebug;
+use runtime_primitives::traits::{AppVerify, Header as HeaderT};
 use sp_arithmetic::traits::{BaseArithmetic, Saturating};
 
 pub use runtime_primitives::traits::{BlakeTwo256, Hash as HashT};
@@ -43,8 +43,8 @@ pub use polkadot_core_primitives::{
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	HeadData, HrmpChannelId, Id, UpwardMessage, ValidationCode, ValidationCodeHash,
-	LOWEST_PUBLIC_ID, LOWEST_USER_ID, MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM,
+	HeadData, HorizontalMessages, HrmpChannelId, Id, UpwardMessage, UpwardMessages, ValidationCode,
+	ValidationCodeHash, LOWEST_PUBLIC_ID, LOWEST_USER_ID,
 };
 
 #[cfg(feature = "std")]
@@ -596,10 +596,9 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 #[cfg_attr(feature = "std", derive(Default))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: BoundedVec<UpwardMessage, ConstU32<MAX_UPWARD_MESSAGE_NUM>>,
+	pub upward_messages: UpwardMessages,
 	/// Horizontal messages sent by the parachain.
-	pub horizontal_messages:
-		BoundedVec<OutboundHrmpMessage<Id>, ConstU32<MAX_HORIZONTAL_MESSAGE_NUM>>,
+	pub horizontal_messages: HorizontalMessages,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.

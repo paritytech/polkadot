@@ -20,10 +20,8 @@ use crate::{
 };
 use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
-use polkadot_parachain::primitives::MAX_UPWARD_MESSAGE_NUM;
+use polkadot_parachain::primitives::UpwardMessages;
 use primitives::{Id as ParaId, UpwardMessage};
-use sp_core::bounded::BoundedVec;
-use sp_runtime::traits::ConstU32;
 use sp_std::{collections::btree_map::BTreeMap, fmt, marker::PhantomData, mem, prelude::*};
 use xcm::latest::Outcome;
 
@@ -473,10 +471,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
-	pub(crate) fn receive_upward_messages(
-		para: ParaId,
-		upward_messages: BoundedVec<UpwardMessage, ConstU32<MAX_UPWARD_MESSAGE_NUM>>,
-	) -> Weight {
+	pub(crate) fn receive_upward_messages(para: ParaId, upward_messages: UpwardMessages) -> Weight {
 		let mut weight = Weight::zero();
 
 		if !upward_messages.is_empty() {
