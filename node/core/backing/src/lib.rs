@@ -1535,8 +1535,18 @@ async fn import_statement<Context>(
 
 	let stmt = primitive_statement_to_table(statement);
 
-	let summary = rp_state.table.import_statement(&rp_state.table_context, stmt);
+	rp_state.table.import_statement(&rp_state.table_context, stmt);
+}
 
+/// If an import summary is passed in, distribute it to the necessary subsystems. Also check for any
+/// new misbehaviors and issue necessary messages.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn distribute_statement<Context>(
+	ctx: &mut Context,
+	rp_state: &mut PerRelayParentState,
+	per_candidate: &mut HashMap<CandidateHash, PerCandidateState>,
+	summary: Option<TableSummary>,
+) -> Result<(), Error> {
 	if let Some(attested) = summary
 		.as_ref()
 		.and_then(|s| rp_state.table.attested_candidate(&s.candidate, &rp_state.table_context))
@@ -1568,6 +1578,8 @@ async fn import_statement<Context>(
 						para_head: backed.candidate.descriptor.para_head,
 					})
 					.await;
+					// Notify statement distribution of backed candidate.
+					ctx.send_message(StatementDistributionMessage::Backed(candidate_hash)).await;
 				} else {
 					// The provisioner waits on candidate-backing, which means
 					// that we need to send unbounded messages to avoid cycles.
@@ -1622,10 +1634,13 @@ async fn sign_import_and_distribute_statement<Context>(
 	metrics: &Metrics,
 ) -> Result<Option<SignedFullStatementWithPVD>, Error> {
 	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
-		import_statement(ctx, rp_state, per_candidate, &signed_statement).await?;
+		let summary = import_statement(ctx, rp_state, per_candidate, &signed_statement).await?;
 
+		// `Share` must always be sent before `Backed`, which we send in `distribute_statement`.
 		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
 		ctx.send_unbounded_message(smsg);
+
+		distribute_statement(ctx, rp_state, per_candidate, summary).await?;
 
 		Ok(Some(signed_statement))
 	} else {
@@ -1751,9 +1766,10 @@ async fn maybe_validate_and_import<Context>(
 	}
 
 	if let Some(summary) = res? {
-		// import_statement already takes care of communicating with the
-		// prospective parachains subsystem. At this point, the candidate
-		// has already been accepted into the fragment trees.
+		// Take care of communicating with the prospective parachains subsystem.
+		distribute_statement(ctx, rp_state, &mut state.per_candidate, Some(summary));
+
+		// At this point, the candidate has already been accepted into the fragment trees.
 
 		let candidate_hash = summary.candidate;
 
