@@ -1481,6 +1481,27 @@ pub type SignedExtra = (
 pub type UncheckedExtrinsic =
 	generic::UncheckedExtrinsic<Address, RuntimeCall, Signature, SignedExtra>;
 
+/// # WARNING
+///
+/// Do not use on any value-bearing chain. This is just meant to fix a test-net.
+///
+/// Deletes and re-deploy the scheduler to version 4. Re-deploying in this sense is a No-OP since the scheduler does not have any init migration or genesis config.
+pub struct RedeploySchedulerV4;
+impl frame_support::traits::OnRuntimeUpgrade for RedeploySchedulerV4 {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		use frame_support::pallet_prelude::*;
+
+		#[allow(deprecated)]
+		frame_support::storage::migration::remove_storage_prefix(
+			Scheduler::name().as_bytes(),
+			&[],
+			&[],
+		);
+		StorageVersion::new(4).put::<Scheduler>();
+		Weight::default()
+	}
+}
+
 /// All migrations that will run on the next runtime upgrade.
 ///
 /// Should be cleared after every release.
@@ -2096,37 +2117,5 @@ sp_api::impl_runtime_apis! {
 	}
 }
 
-#[cfg(all(test, feature = "try-runtime"))]
-mod remote_tests {
-	use super::*;
-	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
-	use remote_externalities::{
-		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
-	};
-	use std::env::var;
-
-	#[tokio::test]
-	async fn run_migrations() {
-		sp_tracing::try_init_simple();
-		let transport: Transport =
-			var("WS").unwrap_or("wss://rococo-rpc.polkadot.io:443".to_string()).into();
-		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
-		let mut ext = Builder::<Block>::default()
-			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
-				Mode::OfflineOrElseOnline(
-					OfflineConfig { state_snapshot: state_snapshot.clone() },
-					OnlineConfig {
-						transport,
-						state_snapshot: Some(state_snapshot),
-						..Default::default()
-					},
-				)
-			} else {
-				Mode::Online(OnlineConfig { transport, ..Default::default() })
-			})
-			.build()
-			.await
-			.unwrap();
-		ext.execute_with(|| Runtime::on_runtime_upgrade(true));
-	}
-}
+//runtime_common::impl_runtime_migration_tests!("wss://rococo-try-runtime-node.parity-chains.parity.io:443".to_string());
+runtime_common::impl_runtime_migration_tests!("wss://rococo-rpc.polkadot.io:443".to_string());

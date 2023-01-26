@@ -271,3 +271,57 @@ macro_rules! prod_or_fast {
 		}
 	};
 }
+
+#[macro_export]
+macro_rules! impl_runtime_migration_tests {
+	($url:expr) => {
+		#[cfg(all(test, feature = "try-runtime"))]
+		mod remote_tests {
+			use super::*;
+			use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+			use remote_externalities::{
+				Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
+			};
+			use std::env::var;
+		
+			#[tokio::test]
+			async fn run_migrations() {
+				sp_tracing::try_init_simple();
+				let transport: Transport = var("WS")
+					.unwrap_or($url)
+					.into();
+				let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
+				let mut ext = Builder::<Block>::default()
+					.mode(if let Some(state_snapshot) = maybe_state_snapshot {
+						Mode::OfflineOrElseOnline(
+							OfflineConfig { state_snapshot: state_snapshot.clone() },
+							OnlineConfig {
+								transport,
+								state_snapshot: Some(state_snapshot),
+								..Default::default()
+							},
+						)
+					} else {
+						Mode::Online(OnlineConfig { transport, ..Default::default() })
+					})
+					.build()
+					.await
+					.unwrap();
+		
+				let code_version = crate::VERSION.spec_version;
+				ext.execute_with(|| {
+					let chain_version = frame_system::Pallet::<Runtime>::runtime_version().spec_version;
+					if code_version != chain_version {
+						log::error!(
+							target: "CheckPalletVersions","Chain spec version differs from code version: {:?} != {:?}\n\
+						Errors about pallet version mismatch do not apply.", chain_version, code_version);
+					} else {
+						log::info!(target: "CheckPalletVersions","Chain spec version is correct: {:?}", chain_version);
+					}
+		
+					Runtime::on_runtime_upgrade(frame_try_runtime::UpgradeCheckSelect::PreAndPost);
+				});
+			}
+		}		
+	};
+}
