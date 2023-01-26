@@ -7,7 +7,7 @@
         {%- if pr.meta.B.value == 0 -%}
         {#- We skip silent ones -#}
         {%- else -%}
-            {%- if pr.meta.B and pr.meta.B.value != 5 and pr.meta.B.value != 7 or pr.meta.C or not pr.meta.B %}
+            {%- if pr.meta.T and pr.meta.T.value == 0 %}
 {%- set_global misc_count = misc_count + 1 -%}
             {%- endif -%}
         {% endif -%}
@@ -27,7 +27,7 @@ There are other misc. changes. You can expand the list below to view them all.
         {%- if pr.meta.B.value == 0 %}
         {#- We skip silent ones -#}
         {%- else -%}
-            {%- if pr.meta.B and pr.meta.B.value != 5 and pr.meta.B.value != 7 or pr.meta.C or not pr.meta.B %}
+            {%- if pr.meta.T and pr.meta.T.value == 0 %}
 - {{ m_c::change(c=pr) }}
             {%- endif -%}
         {% endif -%}
