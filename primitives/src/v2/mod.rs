@@ -614,12 +614,21 @@ pub struct CandidateCommitments<N = BlockNumber> {
 #[cfg(feature = "std")]
 impl sp_std::hash::Hash for CandidateCommitments {
 	fn hash<H: sp_std::hash::Hasher>(&self, state: &mut H) {
-		self.upward_messages.as_slice().hash(state);
-		self.horizontal_messages.as_slice().hash(state);
-		self.new_validation_code.hash(state);
-		sp_std::hash::Hash::hash(&self.head_data, state);
-		self.processed_downward_messages.hash(state);
-		self.hrmp_watermark.hash(state);
+		let Self {
+			upward_messages,
+			horizontal_messages,
+			new_validation_code,
+			head_data,
+			processed_downward_messages,
+			hrmp_watermark,
+		} = self;
+
+		upward_messages.as_slice().hash(state);
+		horizontal_messages.as_slice().hash(state);
+		new_validation_code.hash(state);
+		sp_std::hash::Hash::hash(&head_data, state);
+		processed_downward_messages.hash(state);
+		hrmp_watermark.hash(state);
 	}
 }
 
