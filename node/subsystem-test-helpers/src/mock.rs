@@ -21,7 +21,7 @@ use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 
-use polkadot_primitives::v2::{AuthorityDiscoveryId, ValidatorId};
+use polkadot_primitives::{AuthorityDiscoveryId, ValidatorId};
 
 /// Get mock keystore with `Ferdie` key.
 pub fn make_ferdie_keystore() -> SyncCryptoStorePtr {

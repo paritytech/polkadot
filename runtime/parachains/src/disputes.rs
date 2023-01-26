@@ -21,7 +21,7 @@ use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{
+use primitives::{
 	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash,
 	CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CompactStatement, ConsensusLog,
 	DisputeState, DisputeStatement, DisputeStatementSet, ExplicitDisputeStatement,
@@ -973,7 +973,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Handle a set of dispute statements corresponding to a single candidate.
 	///
-	/// Fails if the dispute data is invalid. Returns a boolean indicating whether the
+	/// Fails if the dispute data is invalid. Returns a Boolean indicating whether the
 	/// dispute is fresh.
 	fn process_checked_dispute_data(
 		set: CheckedDisputeStatementSet,

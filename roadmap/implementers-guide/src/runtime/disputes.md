@@ -124,3 +124,18 @@ applied:
    client is not sending them the dispute is a potential spam.
 4. Remove unconfirmed disputes - if a dispute contains less votes than the byzantine threshold it is removed. This is
    also a spam precaution. A legitimate client will send only confirmed disputes to the runtime.
+
+# Rewards and slashing
+
+After the disputes are filtered the validators participating in the disputes are rewarded and more importantly the
+offenders are slashed. Generally there can be two types of punishments:
+* "against valid" - the offender claimed that a valid candidate is invalid.
+* "for invalid" - the offender claimed that an invalid candidate is valid.
+
+A dispute might be inconclusive. This means that it has timed out without being confirmed. A confirmed dispute is one
+containing votes more than the byzantine threshold (1/3 of the active validators). Validators participating in
+inconclusive disputes are not slashed. Thanks to the applied filtering (described in the previous section) one can be
+confident that there are no spam disputes in the runtime. So if a validator is not voting it is due to another reason
+(e.g. being under DoS attack). There is no reason to punish such validators with a slash.
+
+*Implementation note*: Slashing is performed in `process_checked_dispute_data` from `Disputes` pallet.

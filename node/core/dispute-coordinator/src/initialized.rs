@@ -30,7 +30,7 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		ApprovalVotingMessage, BlockDescription, DisputeCoordinatorMessage,
+		ApprovalVotingMessage, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage,
 		DisputeDistributionMessage, ImportStatementsResult,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
@@ -38,7 +38,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::rolling_session_window::{
 	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
 	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
@@ -198,59 +198,62 @@ impl Initialized {
 			gum::trace!(target: LOG_TARGET, "Waiting for message");
 			let mut overlay_db = OverlayedBackend::new(backend);
 			let default_confirm = Box::new(|| Ok(()));
-			let confirm_write =
-				match MuxedMessage::receive(ctx, &mut self.participation_receiver).await? {
-					MuxedMessage::Participation(msg) => {
-						gum::trace!(target: LOG_TARGET, "MuxedMessage::Participation");
-						let ParticipationStatement {
-							session,
+			let confirm_write = match MuxedMessage::receive(ctx, &mut self.participation_receiver)
+				.await?
+			{
+				MuxedMessage::Participation(msg) => {
+					gum::trace!(target: LOG_TARGET, "MuxedMessage::Participation");
+					let ParticipationStatement {
+						session,
+						candidate_hash,
+						candidate_receipt,
+						outcome,
+					} = self.participation.get_participation_result(ctx, msg).await?;
+					if let Some(valid) = outcome.validity() {
+						gum::trace!(
+							target: LOG_TARGET,
+							?session,
+							?candidate_hash,
+							?valid,
+							"Issuing local statement based on participation outcome."
+						);
+						self.issue_local_statement(
+							ctx,
+							&mut overlay_db,
 							candidate_hash,
 							candidate_receipt,
-							outcome,
-						} = self.participation.get_participation_result(ctx, msg).await?;
-						if let Some(valid) = outcome.validity() {
-							gum::trace!(
-								target: LOG_TARGET,
-								?session,
-								?candidate_hash,
-								?valid,
-								"Issuing local statement based on participation outcome."
-							);
-							self.issue_local_statement(
-								ctx,
-								&mut overlay_db,
-								candidate_hash,
-								candidate_receipt,
-								session,
-								valid,
-								clock.now(),
-							)
-							.await?;
-						}
+							session,
+							valid,
+							clock.now(),
+						)
+						.await?;
+					} else {
+						gum::warn!(target: LOG_TARGET, ?outcome, "Dispute participation failed");
+					}
+					default_confirm
+				},
+				MuxedMessage::Subsystem(msg) => match msg {
+					FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
+					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
+						gum::trace!(target: LOG_TARGET, "OverseerSignal::ActiveLeaves");
+						self.process_active_leaves_update(
+							ctx,
+							&mut overlay_db,
+							update,
+							clock.now(),
+						)
+						.await?;
 						default_confirm
 					},
-					MuxedMessage::Subsystem(msg) => match msg {
-						FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
-						FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
-							gum::trace!(target: LOG_TARGET, "OverseerSignal::ActiveLeaves");
-							self.process_active_leaves_update(
-								ctx,
-								&mut overlay_db,
-								update,
-								clock.now(),
-							)
-							.await?;
-							default_confirm
-						},
-						FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, n)) => {
-							gum::trace!(target: LOG_TARGET, "OverseerSignal::BlockFinalized");
-							self.scraper.process_finalized_block(&n);
-							default_confirm
-						},
-						FromOrchestra::Communication { msg } =>
-							self.handle_incoming(ctx, &mut overlay_db, msg, clock.now()).await?,
+					FromOrchestra::Signal(OverseerSignal::BlockFinalized(_, n)) => {
+						gum::trace!(target: LOG_TARGET, "OverseerSignal::BlockFinalized");
+						self.scraper.process_finalized_block(&n);
+						default_confirm
 					},
-				};
+					FromOrchestra::Communication { msg } =>
+						self.handle_incoming(ctx, &mut overlay_db, msg, clock.now()).await?,
+				},
+			};
 
 			if !overlay_db.is_empty() {
 				let ops = overlay_db.into_write_ops();
@@ -1020,6 +1023,22 @@ impl Initialized {
 					"Writing recent disputes with updates for candidate"
 				);
 				overlay_db.write_recent_disputes(recent_disputes);
+			}
+		}
+
+		// Notify ChainSelection if a dispute has concluded against a candidate. ChainSelection
+		// will need to mark the candidate's relay parent as reverted.
+		if import_result.is_freshly_concluded_against() {
+			let blocks_including = self.scraper.get_blocks_including_candidate(&candidate_hash);
+			if blocks_including.len() > 0 {
+				ctx.send_message(ChainSelectionMessage::RevertBlocks(blocks_including)).await;
+			} else {
+				gum::debug!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?session,
+					"Could not find an including block for candidate against which a dispute has concluded."
+				);
 			}
 		}
 

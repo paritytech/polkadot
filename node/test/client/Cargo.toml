@@ -31,3 +31,6 @@ sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "
 [dev-dependencies]
 sp-keyring = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures = "0.3.21"
+
+[features]
+runtime-benchmarks=["polkadot-test-runtime/runtime-benchmarks"]

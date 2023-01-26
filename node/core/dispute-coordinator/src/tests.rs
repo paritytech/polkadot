@@ -36,7 +36,7 @@ use polkadot_node_primitives::{
 };
 use polkadot_node_subsystem::{
 	messages::{
-		ApprovalVotingMessage, ChainApiMessage, DisputeCoordinatorMessage,
+		ApprovalVotingMessage, ChainApiMessage, ChainSelectionMessage, DisputeCoordinatorMessage,
 		DisputeDistributionMessage, ImportStatementsResult,
 	},
 	overseer::FromOrchestra,
@@ -60,7 +60,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers::{
 	make_buffered_subsystem_context, TestSubsystemContextHandle,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	ApprovalVote, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
 	CandidateReceipt, CoreIndex, DisputeStatement, GroupIndex, Hash, HeadData, Header, IndexedVec,
 	MultiDisputeStatementSet, ScrapedOnChainVotes, SessionIndex, SessionInfo, SigningContext,
@@ -85,7 +85,7 @@ fn make_keystore(seeds: impl Iterator<Item = String>) -> LocalKeystore {
 
 	for s in seeds {
 		store
-			.sr25519_generate_new(polkadot_primitives::v2::PARACHAIN_KEY_TYPE_ID, Some(&s))
+			.sr25519_generate_new(polkadot_primitives::PARACHAIN_KEY_TYPE_ID, Some(&s))
 			.unwrap();
 	}
 
@@ -1803,7 +1803,7 @@ fn supermajority_valid_dispute_may_be_finalized() {
 				.await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::supermajority_threshold(test_state.validators.len());
 
 			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
 				&test_state,
@@ -1942,7 +1942,7 @@ fn concluded_supermajority_for_non_active_after_time() {
 				.await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::supermajority_threshold(test_state.validators.len());
 
 			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
 				&test_state,
@@ -2059,7 +2059,7 @@ fn concluded_supermajority_against_non_active_after_time() {
 				.await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::supermajority_threshold(test_state.validators.len());
 
 			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
 				&test_state,
@@ -3276,6 +3276,155 @@ fn participation_requests_reprioritized_for_newly_included() {
 
 			// Wrap up
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+
+			test_state
+		})
+	});
+}
+
+// When a dispute has concluded against a parachain block candidate we want to notify
+// the chain selection subsystem. Then chain selection can revert the relay parents of
+// the disputed candidate and mark all descendants as non-viable. This direct
+// notification saves time compared to letting chain selection learn about a dispute
+// conclusion from an on chain revert log.
+#[test]
+fn informs_chain_selection_when_dispute_concluded_against() {
+	test_harness(|mut test_state, mut virtual_overseer| {
+		Box::pin(async move {
+			let session = 1;
+
+			test_state.handle_resume_sync(&mut virtual_overseer, session).await;
+
+			let candidate_receipt = make_invalid_candidate_receipt();
+			let parent_1_number = 1;
+			let parent_2_number = 2;
+
+			let candidate_hash = candidate_receipt.hash();
+
+			// Including test candidate in 2 different parent blocks
+			let block_1_header = Header {
+				parent_hash: test_state.last_block,
+				number: parent_1_number,
+				digest: dummy_digest(),
+				state_root: dummy_hash(),
+				extrinsics_root: dummy_hash(),
+			};
+			let parent_1_hash = block_1_header.hash();
+
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					parent_1_number,
+					vec![make_candidate_included_event(candidate_receipt.clone())],
+				)
+				.await;
+
+			let block_2_header = Header {
+				parent_hash: test_state.last_block,
+				number: parent_2_number,
+				digest: dummy_digest(),
+				state_root: dummy_hash(),
+				extrinsics_root: dummy_hash(),
+			};
+			let parent_2_hash = block_2_header.hash();
+
+			test_state
+				.activate_leaf_at_session(
+					&mut virtual_overseer,
+					session,
+					parent_2_number,
+					vec![make_candidate_included_event(candidate_receipt.clone())],
+				)
+				.await;
+
+			let supermajority_threshold =
+				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
+
+			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
+				&test_state,
+				ValidatorIndex(2),
+				ValidatorIndex(1),
+				candidate_hash,
+				session,
+				VoteType::Explicit,
+			)
+			.await;
+
+			let (pending_confirmation, confirmation_rx) = oneshot::channel();
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements: vec![
+							(valid_vote, ValidatorIndex(2)),
+							(invalid_vote, ValidatorIndex(1)),
+						],
+						pending_confirmation: Some(pending_confirmation),
+					},
+				})
+				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
+			assert_matches!(confirmation_rx.await.unwrap(),
+				ImportStatementsResult::ValidImport => {}
+			);
+
+			// Use a different expected commitments hash to ensure the candidate validation returns invalid.
+			participation_with_distribution(
+				&mut virtual_overseer,
+				&candidate_hash,
+				CandidateCommitments::default().hash(),
+			)
+			.await;
+
+			let mut statements = Vec::new();
+			// minus 2, because of local vote and one previously imported invalid vote.
+			for i in (0_u32..supermajority_threshold as u32 - 2).map(|i| i + 3) {
+				let vote = test_state
+					.issue_explicit_statement_with_index(
+						ValidatorIndex(i),
+						candidate_hash,
+						session,
+						false,
+					)
+					.await;
+
+				statements.push((vote, ValidatorIndex(i as _)));
+			}
+
+			virtual_overseer
+				.send(FromOrchestra::Communication {
+					msg: DisputeCoordinatorMessage::ImportStatements {
+						candidate_receipt: candidate_receipt.clone(),
+						session,
+						statements,
+						pending_confirmation: None,
+					},
+				})
+				.await;
+			handle_approval_vote_request(&mut virtual_overseer, &candidate_hash, HashMap::new())
+				.await;
+
+			// Checking that concluded dispute has signaled the reversion of all parent blocks.
+			assert_matches!(
+				virtual_overseer.recv().await,
+				AllMessages::ChainSelection(
+					ChainSelectionMessage::RevertBlocks(revert_set)
+				) => {
+					assert!(revert_set.contains(&(parent_1_number, parent_1_hash)));
+					assert!(revert_set.contains(&(parent_2_number, parent_2_hash)));
+				},
+				"Overseer did not receive `ChainSelectionMessage::RevertBlocks` message"
+			);
+
+			// Wrap up
+			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
+			assert_matches!(
+				virtual_overseer.try_recv().await,
+				None => {}
+			);
 
 			test_state
 		})

@@ -26,7 +26,7 @@ use polkadot_node_subsystem::{
 	messages::{DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest},
 	overseer, ActivatedLeaf,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	supermajority_threshold, CandidateHash, DisputeState, DisputeStatement, DisputeStatementSet,
 	Hash, MultiDisputeStatementSet, SessionIndex, ValidDisputeStatementKind, ValidatorIndex,
 };
