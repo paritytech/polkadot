@@ -16,10 +16,7 @@
 
 //! A queue that handles requests for PVF preparation.
 
-use super::{
-	pool::{self, Worker},
-	PreparationKind,
-};
+use super::pool::{self, Worker};
 use crate::{artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, Pvf, LOG_TARGET};
 use always_assert::{always, never};
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
@@ -36,12 +33,7 @@ pub enum ToQueue {
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue`] response.
-	Enqueue {
-		priority: Priority,
-		pvf: Pvf,
-		preparation_timeout: Duration,
-		preparation_kind: PreparationKind,
-	},
+	Enqueue { priority: Priority, pvf: Pvf, preparation_timeout: Duration },
 }
 
 /// A response from queue.
@@ -89,8 +81,6 @@ struct JobData {
 	pvf: Pvf,
 	/// The timeout for the preparation job.
 	preparation_timeout: Duration,
-	/// Are we preparing because of a pre-check, execution, or heads-up request?
-	preparation_kind: PreparationKind,
 	worker: Option<Worker>,
 }
 
@@ -218,8 +208,8 @@ impl Queue {
 
 async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fatal> {
 	match to_queue {
-		ToQueue::Enqueue { priority, pvf, preparation_timeout, preparation_kind } => {
-			handle_enqueue(queue, priority, pvf, preparation_timeout, preparation_kind).await?;
+		ToQueue::Enqueue { priority, pvf, preparation_timeout } => {
+			handle_enqueue(queue, priority, pvf, preparation_timeout).await?;
 		},
 	}
 	Ok(())
@@ -230,7 +220,6 @@ async fn handle_enqueue(
 	priority: Priority,
 	pvf: Pvf,
 	preparation_timeout: Duration,
-	preparation_kind: PreparationKind,
 ) -> Result<(), Fatal> {
 	gum::debug!(
 		target: LOG_TARGET,
@@ -258,13 +247,7 @@ async fn handle_enqueue(
 		return Ok(())
 	}
 
-	let job = queue.jobs.insert(JobData {
-		priority,
-		pvf,
-		preparation_timeout,
-		preparation_kind,
-		worker: None,
-	});
+	let job = queue.jobs.insert(JobData { priority, pvf, preparation_timeout, worker: None });
 	queue.artifact_id_to_job.insert(artifact_id, job);
 
 	if let Some(available) = find_idle_worker(queue) {
@@ -455,7 +438,6 @@ async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal
 			code: job_data.pvf.code.clone(),
 			artifact_path,
 			preparation_timeout: job_data.preparation_timeout,
-			preparation_kind: job_data.preparation_kind,
 		},
 	)
 	.await?;
@@ -632,7 +614,6 @@ mod tests {
 			priority: Priority::Normal,
 			pvf: pvf(1),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
-			preparation_kind: PreparationKind::PreCheck,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
@@ -653,25 +634,13 @@ mod tests {
 
 		let priority = Priority::Normal;
 		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
-		let preparation_kind = PreparationKind::PreCheck;
-		test.send_queue(ToQueue::Enqueue {
-			priority,
-			pvf: pvf(1),
-			preparation_timeout,
-			preparation_kind,
-		});
-		test.send_queue(ToQueue::Enqueue {
-			priority,
-			pvf: pvf(2),
-			preparation_timeout,
-			preparation_kind,
-		});
+		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(1), preparation_timeout });
+		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(2), preparation_timeout });
 		// Start a non-precheck preparation for this one.
 		test.send_queue(ToQueue::Enqueue {
 			priority,
 			pvf: pvf(3),
 			preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
-			preparation_kind: PreparationKind::FromExecutionRequest,
 		});
 
 		// Receive only two spawns.
@@ -701,7 +670,6 @@ mod tests {
 			priority: Priority::Critical,
 			pvf: pvf(4),
 			preparation_timeout,
-			preparation_kind,
 		});
 
 		// 2 out of 2 are working, but there is a critical job incoming. That means that spawning
@@ -713,13 +681,11 @@ mod tests {
 	async fn cull_unwanted() {
 		let mut test = Test::new(1, 2);
 		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
-		let preparation_kind = PreparationKind::PreCheck;
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
 			pvf: pvf(1),
 			preparation_timeout,
-			preparation_kind,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 		let w1 = test.workers.insert(());
@@ -731,7 +697,6 @@ mod tests {
 			priority: Priority::Critical,
 			pvf: pvf(2),
 			preparation_timeout,
-			preparation_kind,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
@@ -756,25 +721,13 @@ mod tests {
 
 		let priority = Priority::Normal;
 		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
-		let preparation_kind = PreparationKind::PreCheck;
-		test.send_queue(ToQueue::Enqueue {
-			priority,
-			pvf: pvf(1),
-			preparation_timeout,
-			preparation_kind,
-		});
-		test.send_queue(ToQueue::Enqueue {
-			priority,
-			pvf: pvf(2),
-			preparation_timeout,
-			preparation_kind,
-		});
+		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(1), preparation_timeout });
+		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(2), preparation_timeout });
 		// Start a non-precheck preparation for this one.
 		test.send_queue(ToQueue::Enqueue {
 			priority,
 			pvf: pvf(3),
 			preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
-			preparation_kind: PreparationKind::FromExecutionRequest,
 		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -810,7 +763,6 @@ mod tests {
 			priority: Priority::Normal,
 			pvf: pvf(1),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
-			preparation_kind: PreparationKind::PreCheck,
 		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -836,7 +788,6 @@ mod tests {
 			priority: Priority::Normal,
 			pvf: pvf(1),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
-			preparation_kind: PreparationKind::PreCheck,
 		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);

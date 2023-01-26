@@ -30,12 +30,3 @@ mod worker;
 pub use pool::start as start_pool;
 pub use queue::{start as start_queue, FromQueue, ToQueue};
 pub use worker::worker_entrypoint;
-
-use parity_scale_codec::{Decode, Encode};
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq, Encode, Decode)]
-pub enum PreparationKind {
-	PreCheck,
-	FromExecutionRequest,
-	FromHeadsUpRequest,
-}

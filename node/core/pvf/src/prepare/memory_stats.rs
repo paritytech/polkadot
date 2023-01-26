@@ -22,8 +22,8 @@
 //! - `resident` memory stat provided by `tikv-malloc-ctl`.
 //! - `allocated` memory stat also from `tikv-malloc-ctl`.
 //!
-//! Currently we are only logging these, and only on each successful pre-check. In the future, we
-//! may use these stats to reject PVFs during pre-checking. See
+//! Currently we are only logging these for the purposes of gathering data. In the future, we may
+//! use these stats to reject PVFs during pre-checking. See
 //! <https://github.com/paritytech/polkadot/issues/6472#issuecomment-1381941762> for more
 //! background.
 
@@ -125,8 +125,8 @@ pub fn get_max_rss_thread() -> Option<io::Result<i64>> {
 	max_rss
 }
 
-/// Runs a thread in the background that observes memory statistics. The goal is to try to get an
-/// accurate stats during pre-checking.
+/// Runs a thread in the background that observes memory statistics. The goal is to try to get
+/// accurate stats during preparation.
 ///
 /// # Algorithm
 ///
@@ -220,7 +220,7 @@ pub async fn get_memory_tracker_loop_stats(
 pub fn observe_memory_metrics(metrics: &Metrics, memory_stats: MemoryStats, pid: u32) {
 	if let Some(max_rss) = memory_stats.max_rss {
 		match max_rss {
-			Ok(max_rss) => metrics.observe_precheck_max_rss(max_rss as f64),
+			Ok(max_rss) => metrics.observe_preparation_max_rss(max_rss as f64),
 			Err(err) => gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
@@ -231,16 +231,11 @@ pub fn observe_memory_metrics(metrics: &Metrics, memory_stats: MemoryStats, pid:
 	}
 
 	if let Some(tracker_stats) = memory_stats.memory_tracker_stats {
-		// We convert these stats from B to KB for two reasons:
-		//
-		// 1. To match the unit of `ru_maxrss` from `getrusage`.
-		//
-		// 2. To have less potential loss of precision when converting to `f64`. (These values are
-		// originally `usize`, which is 64 bits on 64-bit platforms).
-		let resident_kb = (tracker_stats.resident / 1000) as f64;
-		let allocated_kb = (tracker_stats.allocated / 1000) as f64;
+		// We convert these stats from B to KB to match the unit of `ru_maxrss` from `getrusage`.
+		let resident_kb = (tracker_stats.resident / 1024) as f64;
+		let allocated_kb = (tracker_stats.allocated / 1024) as f64;
 
-		metrics.observe_precheck_max_resident(resident_kb);
-		metrics.observe_precheck_max_allocated(allocated_kb);
+		metrics.observe_preparation_max_resident(resident_kb);
+		metrics.observe_preparation_max_allocated(allocated_kb);
 	}
 }

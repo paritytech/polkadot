@@ -22,7 +22,6 @@ use crate::{
 	artifacts::CompiledArtifact,
 	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
-	prepare::PreparationKind,
 	worker_common::{
 		bytes_to_path, cpu_time_monitor_loop, framed_recv, framed_send, path_to_bytes,
 		spawn_with_program_path, tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
@@ -85,7 +84,6 @@ pub async fn start_work(
 	cache_path: &Path,
 	artifact_path: PathBuf,
 	preparation_timeout: Duration,
-	preparation_kind: PreparationKind,
 ) -> Outcome {
 	let IdleWorker { stream, pid } = worker;
 
@@ -97,9 +95,7 @@ pub async fn start_work(
 	);
 
 	with_tmp_file(stream, pid, cache_path, |tmp_file, mut stream| async move {
-		if let Err(err) =
-			send_request(&mut stream, code, &tmp_file, preparation_timeout, preparation_kind).await
-		{
+		if let Err(err) = send_request(&mut stream, code, &tmp_file, preparation_timeout).await {
 			gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
@@ -278,18 +274,14 @@ async fn send_request(
 	code: Arc<Vec<u8>>,
 	tmp_file: &Path,
 	preparation_timeout: Duration,
-	preparation_kind: PreparationKind,
 ) -> io::Result<()> {
 	framed_send(stream, &code).await?;
 	framed_send(stream, path_to_bytes(tmp_file)).await?;
 	framed_send(stream, &preparation_timeout.encode()).await?;
-	framed_send(stream, &preparation_kind.encode()).await?;
 	Ok(())
 }
 
-async fn recv_request(
-	stream: &mut UnixStream,
-) -> io::Result<(Vec<u8>, PathBuf, Duration, PreparationKind)> {
+async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, Duration)> {
 	let code = framed_recv(stream).await?;
 	let tmp_file = framed_recv(stream).await?;
 	let tmp_file = bytes_to_path(&tmp_file).ok_or_else(|| {
@@ -305,14 +297,7 @@ async fn recv_request(
 			format!("prepare pvf recv_request: failed to decode duration: {:?}", e),
 		)
 	})?;
-	let preparation_kind = framed_recv(stream).await?;
-	let preparation_kind = PreparationKind::decode(&mut &preparation_kind[..]).map_err(|e| {
-		io::Error::new(
-			io::ErrorKind::Other,
-			format!("prepare pvf recv_request: failed to decode preparation kind: {:?}", e),
-		)
-	})?;
-	Ok((code, tmp_file, preparation_timeout, preparation_kind))
+	Ok((code, tmp_file, preparation_timeout))
 }
 
 async fn send_response(
@@ -362,14 +347,14 @@ async fn recv_response(
 ///
 ///	1. Get the code and parameters for preparation from the host.
 ///
-///	2. If we are pre-checking, start a memory tracker in a separate thread.
+///	2. Start a memory tracker in a separate thread.
 ///
 ///	3. Start the CPU time monitor loop and the actual preparation in two separate threads.
 ///
 ///	4. Select on the two threads created in step 3. If the CPU timeout was hit, the CPU time monitor
 ///	   thread will trigger first.
 ///
-///	5. If we are pre-checking, stop the memory tracker and get the stats.
+///	5. Stop the memory tracker and get the stats.
 ///
 /// 6. If compilation succeeded, write the compiled artifact into a temporary file.
 ///
@@ -378,8 +363,7 @@ async fn recv_response(
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("prepare", socket_path, |rt_handle, mut stream| async move {
 		loop {
-			let (code, dest, preparation_timeout, preparation_kind) =
-				recv_request(&mut stream).await?;
+			let (code, dest, preparation_timeout) = recv_request(&mut stream).await?;
 			gum::debug!(
 				target: LOG_TARGET,
 				worker_pid = %std::process::id(),
@@ -388,15 +372,10 @@ pub fn worker_entrypoint(socket_path: &str) {
 
 			let cpu_time_start = ProcessTime::now();
 
-			// If we are pre-checking, run the memory tracker.
-			let memory_tracker_info = if let PreparationKind::PreCheck = preparation_kind {
-				let (memory_tracker_tx, memory_tracker_rx) = channel::<()>();
-				let memory_tracker_fut =
-					rt_handle.spawn_blocking(move || memory_tracker_loop(memory_tracker_rx));
-				Some((memory_tracker_fut, memory_tracker_tx))
-			} else {
-				None
-			};
+			// Run the memory tracker.
+			let (memory_tracker_tx, memory_tracker_rx) = channel::<()>();
+			let memory_tracker_fut =
+				rt_handle.spawn_blocking(move || memory_tracker_loop(memory_tracker_rx));
 
 			// Spawn a new thread that runs the CPU time monitor.
 			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
@@ -410,13 +389,8 @@ pub fn worker_entrypoint(socket_path: &str) {
 				.spawn_blocking(move || {
 					let prepare_result = prepare_artifact(&code);
 
-					// Get the `ru_maxrss` stat if we are pre-checking.
-					let max_rss = if let PreparationKind::PreCheck = preparation_kind {
-						// If supported, call getrusage for the thread.
-						get_max_rss_thread()
-					} else {
-						None
-					};
+					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
+					let max_rss = get_max_rss_thread();
 
 					(prepare_result, max_rss)
 				})
@@ -458,11 +432,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 						(Ok(compiled_artifact), max_rss) => {
 							// Stop the memory stats worker and get its observed memory stats.
 							let memory_tracker_stats =
-								if let Some((memory_tracker_fut, memory_tracker_tx)) = memory_tracker_info {
-									get_memory_tracker_loop_stats(memory_tracker_fut, memory_tracker_tx).await
-								} else {
-									None
-								};
+								get_memory_tracker_loop_stats(memory_tracker_fut, memory_tracker_tx).await;
 							let memory_stats = MemoryStats {
 								memory_tracker_stats,
 								max_rss: max_rss.map(|inner| inner.map_err(|e| e.to_string())),
