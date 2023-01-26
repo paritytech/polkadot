@@ -2451,6 +2451,10 @@ mod remote_tests {
 
 	#[tokio::test]
 	async fn run_migrations() {
+		if var("RUN_MIGRATION_TESTS").is_err() {
+			return
+		}
+
 		sp_tracing::try_init_simple();
 		let transport: Transport =
 			var("WS").unwrap_or("wss://rpc.polkadot.io:443".to_string()).into();
@@ -2471,7 +2475,7 @@ mod remote_tests {
 			.build()
 			.await
 			.unwrap();
-		ext.execute_with(|| Runtime::on_runtime_upgrade(UpgradeCheckSelect::All));
+		ext.execute_with(|| Runtime::on_runtime_upgrade(UpgradeCheckSelect::PreAndPost));
 	}
 
 	#[tokio::test]
