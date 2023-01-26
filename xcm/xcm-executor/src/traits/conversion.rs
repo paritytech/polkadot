@@ -141,7 +141,7 @@ impl<T: Clone + Encode + Decode> Convert<Vec<u8>, T> for Decoded {
 /// which is passed to the next convert item.
 ///
 /// ```rust
-/// # use xcmsg::latest::{MultiLocation, Junctions, Junction, OriginKind};
+/// # use xcm::latest::{MultiLocation, Junctions, Junction, OriginKind};
 /// # use xcmsg_executor::traits::ConvertOrigin;
 /// // A convertor that will bump the para id and pass it to the next one.
 /// struct BumpParaId;
