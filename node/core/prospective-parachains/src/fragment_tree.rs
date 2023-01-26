@@ -77,8 +77,11 @@ pub enum CandidateStorageInsertionError {
 }
 
 pub(crate) struct CandidateStorage {
-	// Index from parent head hash to candidate hashes.
+	// Index from head data hash to candidate hashes with that head data as a parent.
 	by_parent_head: HashMap<Hash, HashSet<CandidateHash>>,
+
+	// Index from head data hash to candidate hashes outputting that head data.
+	by_output_head: HashMap<Hash, HashSet<CandidateHash>>,
 
 	// Index from candidate hash to fragment node.
 	by_candidate_hash: HashMap<CandidateHash, CandidateEntry>,
@@ -87,7 +90,11 @@ pub(crate) struct CandidateStorage {
 impl CandidateStorage {
 	/// Create a new `CandidateStorage`.
 	pub fn new() -> Self {
-		CandidateStorage { by_parent_head: HashMap::new(), by_candidate_hash: HashMap::new() }
+		CandidateStorage {
+			by_parent_head: HashMap::new(),
+			by_output_head: HashMap::new(),
+			by_candidate_hash: HashMap::new(),
+		}
 	}
 
 	/// Introduce a new candidate. The candidate passed to this function
@@ -108,7 +115,7 @@ impl CandidateStorage {
 		}
 
 		let parent_head_hash = persisted_validation_data.parent_head.hash();
-
+		let output_head_hash = candidate.commitments.head_data.hash();
 		let entry = CandidateEntry {
 			candidate_hash,
 			relay_parent: candidate.descriptor.relay_parent,
@@ -124,6 +131,7 @@ impl CandidateStorage {
 		};
 
 		self.by_parent_head.entry(parent_head_hash).or_default().insert(candidate_hash);
+		self.by_output_head.entry(output_head_hash).or_default().insert(candidate_hash);
 		// sanity-checked already.
 		self.by_candidate_hash.insert(candidate_hash, entry);
 
@@ -155,18 +163,32 @@ impl CandidateStorage {
 		self.by_parent_head.retain(|_parent, children| {
 			children.retain(|h| pred(h));
 			!children.is_empty()
-		})
+		});
+		self.by_output_head.retain(|_output, candidates| {
+			candidates.retain(|h| pred(h));
+			!candidates.is_empty()
+		});
 	}
 
 	/// Get head-data by hash.
 	pub(crate) fn head_data_by_hash(&self, hash: &Hash) -> Option<&HeadData> {
-		// Get some candidate which has a parent-head with the same hash as requested.
-		let a_candidate_hash = self.by_parent_head.get(hash).and_then(|m| m.iter().next())?;
-
-		// Extract the full parent head from that candidate's `PersistedValidationData`.
-		self.by_candidate_hash
-			.get(a_candidate_hash)
-			.map(|e| &e.candidate.persisted_validation_data.parent_head)
+		// First, search for candidates outputting this head data and extract the head data
+		// from their commitments if they exist.
+		//
+		// Otherwise, search for candidates building upon this head data and extract the head data
+		// from their persisted validation data if they exist.
+		self.by_output_head
+			.get(hash)
+			.and_then(|m| m.iter().next())
+			.and_then(|a_candidate| self.by_candidate_hash.get(a_candidate))
+			.map(|e| &e.candidate.commitments.head_data)
+			.or_else(|| {
+				self.by_parent_head
+					.get(hash)
+					.and_then(|m| m.iter().next())
+					.and_then(|a_candidate| self.by_candidate_hash.get(a_candidate))
+					.map(|e| &e.candidate.persisted_validation_data.parent_head)
+			})
 	}
 
 	fn iter_para_children<'a>(
