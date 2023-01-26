@@ -11,9 +11,9 @@ pathprepend() {
 # paths are prepend in order, so you can manage with version will run
 # by the order of this array
 CUSTOM_PATHS=(
-  "<path>/polkadot/target/release"
-  "<path>/polkadot/target/testnet"
-  "<path>/cumulus/target/release"
+  "~/polkadot/target/release"
+  "~/polkadot/target/testnet"
+  "~/cumulus/target/release"
 )
 
 pathprepend $CUSTOM_PATHS

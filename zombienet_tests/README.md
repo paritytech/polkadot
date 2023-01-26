@@ -36,9 +36,9 @@ $ cat .set_env
 (...)
 # by the order of this array
 CUSTOM_PATHS=(
-  "<path>/polkadot/target/release"
-  "<path>/polkadot/target/testnet"
-  "<path>/cumulus/target/release"
+  "~/polkadot/target/release"
+  "~/polkadot/target/testnet"
+  "~/cumulus/target/release"
 )
 (...)
 
@@ -46,7 +46,7 @@ source .set_env
 ```
 
 Then you have your `PATH` customized and ready to run `zombienet`.
- **NOTE**: You should need to do this ones per terminal session, since we are patching the `PATH` and re-exporting.
+ **NOTE**: You should need to do this ones per terminal session, since we are patching the `PATH` and re-exporting. **Or** you can also `source` this file in your `.bashrc` file to get executed automatically in each new session.
 
 Example:
 
