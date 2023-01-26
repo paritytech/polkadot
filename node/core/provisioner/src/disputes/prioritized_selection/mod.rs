@@ -128,6 +128,15 @@ where
 			);
 			HashMap::new()
 		},
+		Err(GetOnchainDisputesError::UnknownBlock(runtime_api_err, parent_hash)) => {
+			gum::warn!(
+				target: LOG_TARGET,
+				?runtime_api_err,
+				?parent_hash,
+				"Trying to fetch onchain disputes for unknown block.",
+			);
+			HashMap::new()
+		},
 	};
 
 	let recent_disputes = request_disputes(sender).await;
