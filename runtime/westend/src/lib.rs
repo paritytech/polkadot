@@ -1860,7 +1860,7 @@ sp_api::impl_runtime_apis! {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
-	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use frame_try_runtime::{runtime_decl_for_TryRuntime::TryRuntime, UpgradeCheckSelect};
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
 	};
@@ -1868,6 +1868,10 @@ mod remote_tests {
 
 	#[tokio::test]
 	async fn run_migrations() {
+		if var("RUN_MIGRATION_TESTS").is_err() {
+			return
+		}
+
 		sp_tracing::try_init_simple();
 		let transport: Transport =
 			var("WS").unwrap_or("wss://westend-rpc.polkadot.io:443".to_string()).into();
@@ -1888,7 +1892,7 @@ mod remote_tests {
 			.build()
 			.await
 			.unwrap();
-		ext.execute_with(|| Runtime::on_runtime_upgrade(true));
+		ext.execute_with(|| Runtime::on_runtime_upgrade(UpgradeCheckSelect::PreAndPost));
 	}
 }
 
