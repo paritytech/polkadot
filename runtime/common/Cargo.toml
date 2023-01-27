@@ -28,6 +28,7 @@ sp-npos-elections = { git = "https://github.com/paritytech/substrate", branch = 
 
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-fast-unstake = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -84,6 +85,7 @@ std = [
 	"pallet-balances/std",
 	"pallet-beefy-mmr/std",
 	"pallet-session/std",
+	"pallet-fast-unstake/std",
 	"pallet-staking/std",
 	"pallet-staking-reward-fn/std",
 	"pallet-timestamp/std",
@@ -111,6 +113,7 @@ runtime-benchmarks = [
 	"runtime-parachains/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
 	"pallet-bags-list/runtime-benchmarks",
+	"pallet-fast-unstake/runtime-benchmarks"
 ]
 try-runtime = [
 	"runtime-parachains/try-runtime",
@@ -122,4 +125,5 @@ try-runtime = [
 	"pallet-vesting/try-runtime",
 	"pallet-transaction-payment/try-runtime",
 	"pallet-treasury/try-runtime",
+	"pallet-fast-unstake/try-runtime",
 ]
