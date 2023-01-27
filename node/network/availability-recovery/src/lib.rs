@@ -886,7 +886,7 @@ async fn launch_recovery_task<Context>(
 		awaiting: vec![response_sender],
 	});
 
-	if let Err(e) = ctx.spawn("recovery-task", Box::pin(remote)) {
+	if let Err(e) = ctx.spawn_blocking("recovery-task", Box::pin(remote)) {
 		gum::warn!(
 			target: LOG_TARGET,
 			err = ?e,
