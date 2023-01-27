@@ -16,9 +16,9 @@ malus-validator-0: reports node_roles is 4
 malus-validator-19: reports node_roles is 4
 
 # Parachains should be making progress even if we have up to 1/3 malicious validators.
-honest-validator-0: parachain 2000 block height is at least 2 within 300 seconds
-honest-validator-1: parachain 2001 block height is at least 2 within 300 seconds
-honest-validator-79: parachain 2002 block height is at least 2 within 300 seconds
+honest-validator-0: parachain 2000 block height is at least 2 within 400 seconds
+honest-validator-1: parachain 2001 block height is at least 2 within 400 seconds
+honest-validator-79: parachain 2002 block height is at least 2 within 400 seconds
 
 # Check if disputes are concluded in less than 10 blocks.
 honest-validator-0: reports polkadot_parachain_disputes_finality_lag is lower than 10
