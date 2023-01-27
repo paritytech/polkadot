@@ -1485,13 +1485,6 @@ pub type UncheckedExtrinsic =
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
-	pallet_balances::migration::ResetInactive<Runtime>,
-	// We need to apply this migration again, because `ResetInactive` resets the state again.
-	pallet_balances::migration::MigrateToTrackInactive<Runtime, xcm_config::CheckAccount>,
-	crowdloan::migration::MigrateToTrackInactiveV2<Runtime>,
-	pallet_scheduler::migration::v4::CleanupAgendas<Runtime>,
-	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
-	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
 	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	parachains_ump::migration::v1::MigrateToV1<Runtime>,
@@ -2105,7 +2098,7 @@ sp_api::impl_runtime_apis! {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
-	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use frame_try_runtime::{runtime_decl_for_TryRuntime::TryRuntime, UpgradeCheckSelect};
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
 	};
@@ -2113,6 +2106,10 @@ mod remote_tests {
 
 	#[tokio::test]
 	async fn run_migrations() {
+		if var("RUN_MIGRATION_TESTS").is_err() {
+			return
+		}
+
 		sp_tracing::try_init_simple();
 		let transport: Transport =
 			var("WS").unwrap_or("wss://rococo-rpc.polkadot.io:443".to_string()).into();
@@ -2133,6 +2130,6 @@ mod remote_tests {
 			.build()
 			.await
 			.unwrap();
-		ext.execute_with(|| Runtime::on_runtime_upgrade(true));
+		ext.execute_with(|| Runtime::on_runtime_upgrade(UpgradeCheckSelect::PreAndPost));
 	}
 }
