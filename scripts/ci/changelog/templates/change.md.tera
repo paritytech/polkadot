@@ -33,10 +33,5 @@
 {%- set repo = "   " -%}
 {%- endif -%}
 
-{%- if c.meta.T and c.meta.T.value == 6 -%}
-{%- set xcm = " [✉️ XCM]" -%}
-{%- else -%}
-{%- set xcm = "" -%}
-{%- endif -%}
 {{- repo }} {{ audit }}[`#{{c.number}}`]({{c.html_url}}) {{- prio }} - {{ c.title | capitalize | truncate(length=120, end="…") }}{{xcm }}
 {%- endmacro change -%}
