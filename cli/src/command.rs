@@ -349,15 +349,13 @@ where
 			maybe_malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.task_manager)
-		.map_err(Into::<Error>::into)?;
+		.map(|full| full.task_manager)?;
 
 		sc_storage_monitor::StorageMonitorService::try_spawn(
 			cli.storage_monitor,
 			database_source,
 			&task_manager.spawn_essential_handle(),
-		)
-		.map_err(Into::<Error>::into)?;
+		)?;
 
 		Ok(task_manager)
 	})
