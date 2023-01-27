@@ -109,7 +109,6 @@ use governance::{
 	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, Fellows, GeneralAdmin, LeaseAdmin,
 	StakingAdmin, Treasurer, TreasurySpender,
 };
-use xcm_config::CheckAccount;
 
 #[cfg(test)]
 mod tests;
@@ -1486,19 +1485,6 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
-	pallet_balances::migration::ResetInactive<Runtime>,
-	// We need to apply this migration again, because `ResetInactive` resets the state again.
-	pallet_balances::migration::MigrateToTrackInactive<Runtime, CheckAccount>,
-	crowdloan::migration::MigrateToTrackInactiveV2<Runtime>,
-	pallet_referenda::migration::v1::MigrateV0ToV1<Runtime>,
-	pallet_referenda::migration::v1::MigrateV0ToV1<
-		Runtime,
-		governance::FellowshipReferendaInstance,
-	>,
-	pallet_scheduler::migration::v4::CleanupAgendas<Runtime>,
-	pallet_staking::migrations::v13::MigrateToV13<Runtime>,
-	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
-	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
 	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	parachains_ump::migration::v1::MigrateToV1<Runtime>,
