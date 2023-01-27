@@ -1550,12 +1550,23 @@ async fn import_statement<Context>(
 
 	let stmt = primitive_statement_to_table(statement);
 
-	let summary = rp_state.table.import_statement(&rp_state.table_context, stmt);
+	Ok(rp_state.table.import_statement(&rp_state.table_context, stmt))
+}
 
+/// Handles a summary received from [`import_statement`] and dispatches `Backed` notifications and
+/// misbehaviors as a result of importing a statement.
+#[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
+async fn post_import_statement_actions<Context>(
+	ctx: &mut Context,
+	rp_state: &mut PerRelayParentState,
+	summary: Option<&TableSummary>,
+) -> Result<(), Error> {
 	if let Some(attested) = summary
 		.as_ref()
 		.and_then(|s| rp_state.table.attested_candidate(&s.candidate, &rp_state.table_context))
 	{
+		let candidate_hash = attested.candidate.hash();
+
 		// `HashSet::insert` returns true if the thing wasn't in there already.
 		if rp_state.backed.insert(candidate_hash) {
 			if let Some(backed) = table_attested_to_backed(attested, &rp_state.table_context) {
@@ -1583,6 +1594,8 @@ async fn import_statement<Context>(
 						para_head: backed.candidate.descriptor.para_head,
 					})
 					.await;
+					// Notify statement distribution of backed candidate.
+					ctx.send_message(StatementDistributionMessage::Backed(candidate_hash)).await;
 				} else {
 					// The provisioner waits on candidate-backing, which means
 					// that we need to send unbounded messages to avoid cycles.
@@ -1601,7 +1614,7 @@ async fn import_statement<Context>(
 
 	issue_new_misbehaviors(ctx, rp_state.parent, &mut rp_state.table);
 
-	Ok(summary)
+	Ok(())
 }
 
 /// Check if there have happened any new misbehaviors and issue necessary messages.
@@ -1637,10 +1650,14 @@ async fn sign_import_and_distribute_statement<Context>(
 	metrics: &Metrics,
 ) -> Result<Option<SignedFullStatementWithPVD>, Error> {
 	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
-		import_statement(ctx, rp_state, per_candidate, &signed_statement).await?;
+		let summary = import_statement(ctx, rp_state, per_candidate, &signed_statement).await?;
 
+		// `Share` must always be sent before `Backed`. We send the latter in
+		// `post_import_statement_action` below.
 		let smsg = StatementDistributionMessage::Share(rp_state.parent, signed_statement.clone());
 		ctx.send_unbounded_message(smsg);
+
+		post_import_statement_actions(ctx, rp_state, summary.as_ref()).await?;
 
 		Ok(Some(signed_statement))
 	} else {
@@ -1765,7 +1782,10 @@ async fn maybe_validate_and_import<Context>(
 		return Ok(())
 	}
 
-	if let Some(summary) = res? {
+	let summary = res?;
+	post_import_statement_actions(ctx, rp_state, summary.as_ref()).await?;
+
+	if let Some(summary) = summary {
 		// import_statement already takes care of communicating with the
 		// prospective parachains subsystem. At this point, the candidate
 		// has already been accepted into the fragment trees.

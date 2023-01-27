@@ -1089,6 +1089,15 @@ fn backing_works() {
 		)
 		.await;
 
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(
+				StatementDistributionMessage::Share(hash, _stmt)
+			) => {
+				assert_eq!(leaf_parent, hash);
+			}
+		);
+
 		// Prospective parachains and collator protocol are notified about candidate backed.
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -1105,14 +1114,11 @@ fn backing_works() {
 				para_head,
 			}) if para_id == _para_id && candidate_a_para_head == para_head
 		);
-
 		assert_matches!(
 			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::Share(hash, _stmt)
-			) => {
-				assert_eq!(leaf_parent, hash);
-			}
+			AllMessages::StatementDistribution(StatementDistributionMessage::Backed (
+				candidate_hash
+			)) if candidate_a_hash == candidate_hash
 		);
 
 		let statement = CandidateBackingMessage::Statement(leaf_parent, signed_b.clone());
@@ -1251,6 +1257,7 @@ fn concurrent_dependent_candidates() {
 			.start_send_unpin(FromOrchestra::Communication { msg: statement_b });
 
 		let mut valid_statements = HashSet::new();
+		let mut backed_statements = HashSet::new();
 
 		loop {
 			let msg = virtual_overseer
@@ -1332,8 +1339,13 @@ fn concurrent_dependent_candidates() {
 							assert!(valid_statements.insert(hash));
 						}
 					);
+				},
+				AllMessages::StatementDistribution(StatementDistributionMessage::Backed(hash)) => {
+					// Ensure that `Share` was received first for the candidate.
+					assert!(valid_statements.contains(&hash));
+					backed_statements.insert(hash);
 
-					if valid_statements.len() == 2 {
+					if backed_statements.len() == 2 {
 						break
 					}
 				},
@@ -1341,10 +1353,10 @@ fn concurrent_dependent_candidates() {
 			}
 		}
 
-		assert!(
-			valid_statements.contains(&candidate_a_hash) &&
-				valid_statements.contains(&candidate_b_hash)
-		);
+		assert!(valid_statements.contains(&candidate_a_hash));
+		assert!(valid_statements.contains(&candidate_b_hash));
+		assert!(backed_statements.contains(&candidate_a_hash));
+		assert!(backed_statements.contains(&candidate_b_hash));
 
 		virtual_overseer
 	});

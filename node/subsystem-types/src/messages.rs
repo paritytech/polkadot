@@ -669,6 +669,13 @@ pub enum StatementDistributionMessage {
 	/// We have originated a signed statement in the context of
 	/// given relay-parent hash and it should be distributed to other validators.
 	Share(Hash, SignedFullStatementWithPVD),
+	/// The candidate received enough validity votes from the backing group.
+	///
+	/// If the candidate is backed as a result of a local statement, this message MUST
+	/// be preceded by a `Share` message for that statement. This ensures that Statement Distribution
+	/// is always aware of full candidates prior to receiving the `Backed` notification, even
+	/// when the group size is 1 and the candidate is seconded locally.
+	Backed(CandidateHash),
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::StatementDistributionMessage>),
