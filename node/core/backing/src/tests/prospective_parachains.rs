@@ -16,11 +16,11 @@
 
 //! Tests for the backing subsystem with enabled prospective parachains.
 
-use polkadot_node_subsystem::{messages::ChainApiMessage, TimeoutExt};
-use polkadot_primitives::{
-	v2::{BlockNumber, Header, OccupiedCore},
-	vstaging as vstaging_primitives,
+use polkadot_node_subsystem::{
+	messages::{ChainApiMessage, FragmentTreeMembership},
+	TimeoutExt,
 };
+use polkadot_primitives::{vstaging as vstaging_primitives, BlockNumber, Header, OccupiedCore};
 
 use super::*;
 
@@ -266,9 +266,12 @@ async fn assert_validate_seconded_candidate(
 	);
 }
 
-async fn assert_hypothetical_depth_requests(
+async fn assert_hypothetical_frontier_requests(
 	virtual_overseer: &mut VirtualOverseer,
-	mut expected_requests: Vec<(HypotheticalDepthRequest, Vec<usize>)>,
+	mut expected_requests: Vec<(
+		HypotheticalFrontierRequest,
+		Vec<(HypotheticalCandidate, FragmentTreeMembership)>,
+	)>,
 ) {
 	// Requests come with no particular order.
 	let requests_num = expected_requests.len();
@@ -277,12 +280,12 @@ async fn assert_hypothetical_depth_requests(
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx),
+				ProspectiveParachainsMessage::GetHypotheticalFrontier(request, tx),
 			) => {
 				let idx = match expected_requests.iter().position(|r| r.0 == request) {
 					Some(idx) => idx,
 					None => panic!(
-						"unexpected hypothetical depth request, no match found for {:?}",
+						"unexpected hypothetical frontier request, no match found for {:?}",
 						request
 					),
 				};
@@ -293,6 +296,14 @@ async fn assert_hypothetical_depth_requests(
 			}
 		);
 	}
+}
+
+fn make_hypothetical_frontier_response(
+	depths: Vec<usize>,
+	hypothetical_candidate: HypotheticalCandidate,
+	relay_parent_hash: Hash,
+) -> Vec<(HypotheticalCandidate, FragmentTreeMembership)> {
+	vec![(hypothetical_candidate, vec![(relay_parent_hash, depths)])]
 }
 
 // Test that `seconding_sanity_check` works when a candidate is allowed
@@ -375,23 +386,32 @@ fn seconding_sanity_check_allowed() {
 		.await;
 
 		// `seconding_sanity_check`
-		let expected_request_a = HypotheticalDepthRequest {
+		let hypothetical_candidate = HypotheticalCandidate::Complete {
 			candidate_hash: candidate.hash(),
-			candidate_para: para_id,
-			parent_head_data_hash: pvd.parent_head.hash(),
-			candidate_relay_parent: leaf_a_parent,
-			fragment_tree_relay_parent: leaf_a_hash,
+			receipt: Arc::new(candidate.clone()),
+			persisted_validation_data: pvd.clone(),
 		};
-		let expected_request_b = HypotheticalDepthRequest {
-			candidate_hash: candidate.hash(),
-			candidate_para: para_id,
-			parent_head_data_hash: pvd.parent_head.hash(),
-			candidate_relay_parent: leaf_a_parent,
-			fragment_tree_relay_parent: leaf_b_hash,
+		let expected_request_a = HypotheticalFrontierRequest {
+			candidates: vec![hypothetical_candidate.clone()],
+			fragment_tree_relay_parent: Some(leaf_a_hash),
 		};
-		assert_hypothetical_depth_requests(
+		let expected_response_a = make_hypothetical_frontier_response(
+			vec![0, 1, 2, 3],
+			hypothetical_candidate.clone(),
+			leaf_a_hash,
+		);
+		let expected_request_b = HypotheticalFrontierRequest {
+			candidates: vec![hypothetical_candidate.clone()],
+			fragment_tree_relay_parent: Some(leaf_b_hash),
+		};
+		let expected_response_b =
+			make_hypothetical_frontier_response(vec![3], hypothetical_candidate, leaf_b_hash);
+		assert_hypothetical_frontier_requests(
 			&mut virtual_overseer,
-			vec![(expected_request_a, vec![0, 1, 2, 3]), (expected_request_b, vec![3])],
+			vec![
+				(expected_request_a, expected_response_a),
+				(expected_request_b, expected_response_b),
+			],
 		)
 		.await;
 		// Prospective parachains are notified.
@@ -511,16 +531,23 @@ fn seconding_sanity_check_disallowed() {
 		.await;
 
 		// `seconding_sanity_check`
-		let expected_request_a = HypotheticalDepthRequest {
+		let hypothetical_candidate = HypotheticalCandidate::Complete {
 			candidate_hash: candidate.hash(),
-			candidate_para: para_id,
-			parent_head_data_hash: pvd.parent_head.hash(),
-			candidate_relay_parent: leaf_a_parent,
-			fragment_tree_relay_parent: leaf_a_hash,
+			receipt: Arc::new(candidate.clone()),
+			persisted_validation_data: pvd.clone(),
 		};
-		assert_hypothetical_depth_requests(
+		let expected_request_a = HypotheticalFrontierRequest {
+			candidates: vec![hypothetical_candidate.clone()],
+			fragment_tree_relay_parent: Some(leaf_a_hash),
+		};
+		let expected_response_a = make_hypothetical_frontier_response(
+			vec![0, 1, 2, 3],
+			hypothetical_candidate,
+			leaf_a_hash,
+		);
+		assert_hypothetical_frontier_requests(
 			&mut virtual_overseer,
-			vec![(expected_request_a, vec![0, 1, 2, 3])],
+			vec![(expected_request_a, expected_response_a)],
 		)
 		.await;
 		// Prospective parachains are notified.
@@ -596,25 +623,32 @@ fn seconding_sanity_check_disallowed() {
 		.await;
 
 		// `seconding_sanity_check`
-		let expected_request_a = HypotheticalDepthRequest {
+
+		let hypothetical_candidate = HypotheticalCandidate::Complete {
 			candidate_hash: candidate.hash(),
-			candidate_para: para_id,
-			parent_head_data_hash: pvd.parent_head.hash(),
-			candidate_relay_parent: leaf_a_grandparent,
-			fragment_tree_relay_parent: leaf_a_hash,
+			receipt: Arc::new(candidate),
+			persisted_validation_data: pvd,
 		};
-		let expected_request_b = HypotheticalDepthRequest {
-			candidate_hash: candidate.hash(),
-			candidate_para: para_id,
-			parent_head_data_hash: pvd.parent_head.hash(),
-			candidate_relay_parent: leaf_a_grandparent,
-			fragment_tree_relay_parent: leaf_b_hash,
+		let expected_request_a = HypotheticalFrontierRequest {
+			candidates: vec![hypothetical_candidate.clone()],
+			fragment_tree_relay_parent: Some(leaf_a_hash),
 		};
-		assert_hypothetical_depth_requests(
+		let expected_response_a = make_hypothetical_frontier_response(
+			vec![3],
+			hypothetical_candidate.clone(),
+			leaf_a_hash,
+		);
+		let expected_request_b = HypotheticalFrontierRequest {
+			candidates: vec![hypothetical_candidate.clone()],
+			fragment_tree_relay_parent: Some(leaf_b_hash),
+		};
+		let expected_response_b =
+			make_hypothetical_frontier_response(vec![1], hypothetical_candidate, leaf_b_hash);
+		assert_hypothetical_frontier_requests(
 			&mut virtual_overseer,
 			vec![
-				(expected_request_a, vec![3]), // All depths are occupied.
-				(expected_request_b, vec![1]),
+				(expected_request_a, expected_response_a), // All depths are occupied.
+				(expected_request_b, expected_response_b),
 			],
 		)
 		.await;
@@ -694,17 +728,24 @@ fn prospective_parachains_reject_candidate() {
 		.await;
 
 		// `seconding_sanity_check`
+		let hypothetical_candidate = HypotheticalCandidate::Complete {
+			candidate_hash: candidate.hash(),
+			receipt: Arc::new(candidate.clone()),
+			persisted_validation_data: pvd.clone(),
+		};
 		let expected_request_a = vec![(
-			HypotheticalDepthRequest {
-				candidate_hash: candidate.hash(),
-				candidate_para: para_id,
-				parent_head_data_hash: pvd.parent_head.hash(),
-				candidate_relay_parent: leaf_a_parent,
-				fragment_tree_relay_parent: leaf_a_hash,
+			HypotheticalFrontierRequest {
+				candidates: vec![hypothetical_candidate.clone()],
+				fragment_tree_relay_parent: Some(leaf_a_hash),
 			},
-			vec![0, 1, 2, 3],
+			make_hypothetical_frontier_response(
+				vec![0, 1, 2, 3],
+				hypothetical_candidate,
+				leaf_a_hash,
+			),
 		)];
-		assert_hypothetical_depth_requests(&mut virtual_overseer, expected_request_a.clone()).await;
+		assert_hypothetical_frontier_requests(&mut virtual_overseer, expected_request_a.clone())
+			.await;
 
 		// Prospective parachains are notified.
 		assert_matches!(
@@ -756,7 +797,7 @@ fn prospective_parachains_reject_candidate() {
 		.await;
 
 		// `seconding_sanity_check`
-		assert_hypothetical_depth_requests(&mut virtual_overseer, expected_request_a).await;
+		assert_hypothetical_frontier_requests(&mut virtual_overseer, expected_request_a).await;
 		// Prospective parachains are notified.
 		assert_matches!(
 			virtual_overseer.recv().await,
@@ -867,18 +908,27 @@ fn second_multiple_candidates_per_relay_parent() {
 			.await;
 
 			// `seconding_sanity_check`
+			let hypothetical_candidate = HypotheticalCandidate::Complete {
+				candidate_hash: candidate.hash(),
+				receipt: Arc::new(candidate.clone()),
+				persisted_validation_data: pvd.clone(),
+			};
 			let expected_request_a = vec![(
-				HypotheticalDepthRequest {
-					candidate_hash: candidate.hash(),
-					candidate_para: para_id,
-					parent_head_data_hash: pvd.parent_head.hash(),
-					candidate_relay_parent: candidate.descriptor().relay_parent,
-					fragment_tree_relay_parent: leaf_hash,
+				HypotheticalFrontierRequest {
+					candidates: vec![hypothetical_candidate.clone()],
+					fragment_tree_relay_parent: Some(leaf_hash),
 				},
-				vec![*depth],
+				make_hypothetical_frontier_response(
+					vec![*depth],
+					hypothetical_candidate,
+					leaf_hash,
+				),
 			)];
-			assert_hypothetical_depth_requests(&mut virtual_overseer, expected_request_a.clone())
-				.await;
+			assert_hypothetical_frontier_requests(
+				&mut virtual_overseer,
+				expected_request_a.clone(),
+			)
+			.await;
 
 			// Prospective parachains are notified.
 			assert_matches!(
@@ -1381,19 +1431,25 @@ fn seconding_sanity_check_occupy_same_depth() {
 			.await;
 
 			// `seconding_sanity_check`
+			let hypothetical_candidate = HypotheticalCandidate::Complete {
+				candidate_hash: candidate.hash(),
+				receipt: Arc::new(candidate.clone()),
+				persisted_validation_data: pvd.clone(),
+			};
 			let expected_request_a = vec![(
-				HypotheticalDepthRequest {
-					candidate_hash: candidate.hash(),
-					candidate_para: *para_id,
-					parent_head_data_hash: pvd.parent_head.hash(),
-					candidate_relay_parent: candidate.descriptor().relay_parent,
-					fragment_tree_relay_parent: leaf_hash,
+				HypotheticalFrontierRequest {
+					candidates: vec![hypothetical_candidate.clone()],
+					fragment_tree_relay_parent: Some(leaf_hash),
 				},
-				vec![0, 1], // Send the same membership for both candidates.
+				// Send the same membership for both candidates.
+				make_hypothetical_frontier_response(vec![0, 1], hypothetical_candidate, leaf_hash),
 			)];
 
-			assert_hypothetical_depth_requests(&mut virtual_overseer, expected_request_a.clone())
-				.await;
+			assert_hypothetical_frontier_requests(
+				&mut virtual_overseer,
+				expected_request_a.clone(),
+			)
+			.await;
 
 			// Prospective parachains are notified.
 			assert_matches!(
@@ -1512,18 +1568,23 @@ fn occupied_core_assignment() {
 		.await;
 
 		// `seconding_sanity_check`
-		let expected_request = HypotheticalDepthRequest {
+		let hypothetical_candidate = HypotheticalCandidate::Complete {
 			candidate_hash: candidate.hash(),
-			candidate_para: para_id,
-			parent_head_data_hash: pvd.parent_head.hash(),
-			candidate_relay_parent: leaf_a_parent,
-			fragment_tree_relay_parent: leaf_a_hash,
+			receipt: Arc::new(candidate.clone()),
+			persisted_validation_data: pvd.clone(),
 		};
-		assert_hypothetical_depth_requests(
-			&mut virtual_overseer,
-			vec![(expected_request, vec![0, 1, 2, 3])],
-		)
-		.await;
+		let expected_request = vec![(
+			HypotheticalFrontierRequest {
+				candidates: vec![hypothetical_candidate.clone()],
+				fragment_tree_relay_parent: Some(leaf_a_hash),
+			},
+			make_hypothetical_frontier_response(
+				vec![0, 1, 2, 3],
+				hypothetical_candidate,
+				leaf_a_hash,
+			),
+		)];
+		assert_hypothetical_frontier_requests(&mut virtual_overseer, expected_request).await;
 		// Prospective parachains are notified.
 		assert_matches!(
 			virtual_overseer.recv().await,

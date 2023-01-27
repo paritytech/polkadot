@@ -909,11 +909,39 @@ pub enum HypotheticalCandidate {
 }
 
 impl HypotheticalCandidate {
+	/// Get the `CandidateHash` of the hypothetical candidate.
+	pub fn candidate_hash(&self) -> CandidateHash {
+		match *self {
+			HypotheticalCandidate::Complete { candidate_hash, .. } => candidate_hash,
+			HypotheticalCandidate::Incomplete { candidate_hash, .. } => candidate_hash,
+		}
+	}
+
 	/// Get the `ParaId` of the hypothetical candidate.
 	pub fn candidate_para(&self) -> ParaId {
 		match *self {
 			HypotheticalCandidate::Complete { ref receipt, .. } => receipt.descriptor().para_id,
 			HypotheticalCandidate::Incomplete { candidate_para, .. } => candidate_para,
+		}
+	}
+
+	/// Get parent head data hash of the hypothetical candidate.
+	pub fn parent_head_data_hash(&self) -> Hash {
+		match *self {
+			HypotheticalCandidate::Complete { ref persisted_validation_data, .. } =>
+				persisted_validation_data.parent_head.hash(),
+			HypotheticalCandidate::Incomplete { parent_head_data_hash, .. } =>
+				parent_head_data_hash,
+		}
+	}
+
+	/// Get candidate's relay parent.
+	pub fn relay_parent(&self) -> Hash {
+		match *self {
+			HypotheticalCandidate::Complete { ref receipt, .. } =>
+				receipt.descriptor().relay_parent,
+			HypotheticalCandidate::Incomplete { candidate_relay_parent, .. } =>
+				candidate_relay_parent,
 		}
 	}
 }
@@ -928,25 +956,6 @@ pub struct HypotheticalFrontierRequest {
 	pub candidates: Vec<HypotheticalCandidate>,
 	/// Either a specific fragment tree to check, otherwise all.
 	pub fragment_tree_relay_parent: Option<Hash>,
-}
-
-/// A request for the depths a hypothetical candidate would occupy within
-/// some fragment tree. Note that this is not an absolute indication of whether
-/// a candidate can be added to a fragment tree, as the commitments are not
-/// considered in this request.
-// TODO [now]: file issue making this obsolete in favor of `HypotheticalFrontierRequest`
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct HypotheticalDepthRequest {
-	/// The hash of the potential candidate.
-	pub candidate_hash: CandidateHash,
-	/// The para of the candidate.
-	pub candidate_para: ParaId,
-	/// The hash of the parent head-data of the candidate.
-	pub parent_head_data_hash: Hash,
-	/// The relay-parent of the candidate.
-	pub candidate_relay_parent: Hash,
-	/// The relay-parent of the fragment tree we are comparing to.
-	pub fragment_tree_relay_parent: Hash,
 }
 
 /// A request for the persisted validation data stored in the prospective
@@ -986,15 +995,6 @@ pub enum ProspectiveParachainsMessage {
 	/// which is a descendant of the given candidate hashes. Returns `None` on the channel
 	/// if no such candidate exists.
 	GetBackableCandidate(Hash, ParaId, Vec<CandidateHash>, oneshot::Sender<Option<CandidateHash>>),
-	/// Get the hypothetical depths that a candidate with the given properties would
-	/// occupy in the fragment tree for the given relay-parent.
-	///
-	/// If the candidate is already known, this returns the depths the candidate
-	/// occupies.
-	///
-	/// Returns an empty vector either if there is no such depth or the fragment tree relay-parent
-	/// is unknown.
-	GetHypotheticalDepth(HypotheticalDepthRequest, oneshot::Sender<Vec<usize>>),
 	/// Get the hypothetical frontier membership of candidates with the given properties
 	/// under the specified active leaves' fragment trees.
 	///
