@@ -451,7 +451,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	event=Event,
 	signal=OverseerSignal,
 	error=SubsystemError,
-	message_capacity=131072,
+	message_capacity=2048,
 )]
 pub struct Overseer<SupportsParachains> {
 	#[subsystem(blocking, CandidateValidationMessage, sends: [
@@ -560,7 +560,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(blocking, ApprovalDistributionMessage, sends: [
+	#[subsystem(blocking, message_capacity: 131072, ApprovalDistributionMessage, sends: [
 		NetworkBridgeTxMessage,
 		ApprovalVotingMessage,
 	])]
