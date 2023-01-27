@@ -273,23 +273,14 @@ impl<T: frame_system::Config> pallet_referenda::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
-	// Storage: Referenda ReferendumInfoFor (r:1 w:1)
-	// Storage: Balances InactiveIssuance (r:1 w:0)
-	// Storage: Scheduler Agenda (r:2 w:2)
-	// Storage: Scheduler Lookup (r:1 w:1)
-	fn nudge_referendum_approved() -> Weight {
-		// Minimum execution time: 51_267 nanoseconds.
-		Weight::from_ref_time(54_875_000)
-			.saturating_add(T::DbWeight::get().reads(5))
-			.saturating_add(T::DbWeight::get().writes(4))
+	fn set_some_metadata() -> Weight {
+		Weight::from_parts(20_490_000, 5407)
+			.saturating_add(RocksDbWeight::get().reads(2_u64))
+			.saturating_add(RocksDbWeight::get().writes(1_u64))
 	}
-	// Storage: Referenda ReferendumInfoFor (r:1 w:1)
-	// Storage: Balances InactiveIssuance (r:1 w:0)
-	// Storage: Scheduler Agenda (r:1 w:1)
-	fn nudge_referendum_rejected() -> Weight {
-		// Minimum execution time: 41_099 nanoseconds.
-		Weight::from_ref_time(43_408_000)
-			.saturating_add(T::DbWeight::get().reads(3))
-			.saturating_add(T::DbWeight::get().writes(2))
+	fn clear_metadata() -> Weight {
+		Weight::from_parts(19_917_000, 5368)
+			.saturating_add(RocksDbWeight::get().reads(2_u64))
+			.saturating_add(RocksDbWeight::get().writes(1_u64))
 	}
 }
