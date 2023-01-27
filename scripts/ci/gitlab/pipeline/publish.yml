@@ -249,22 +249,3 @@ update-parachain-template:
   variables:
     TARGET_REPOSITORY:             substrate-parachain-template
     TEMPLATE_PATH:                 parachain-template
-
-publish-crates:
-  extends:                         .crates-publishing-template
-  stage:                           publish
-  rules:
-    - if: $PIPELINE == "publish-crates"
-  # We don't want multiple jobs racing to publish crates as it's redundant and they might overwrite
-  # the releases of one another. Use resource_group to ensure that at most one instance of this job
-  # is running at any given time.
-  resource_group:                  crates-publishing
-  # A custom publishing environment is used for us to be able to set up protected secrets
-  # specifically for it
-  environment:                     publish-crates
-  script:
-    - git clone
-        --depth 1
-        --branch "$RELENG_SCRIPTS_BRANCH"
-        https://github.com/paritytech/releng-scripts.git
-    - CRATESIO_TARGET_INSTANCE=default ./releng-scripts/publish-crates
