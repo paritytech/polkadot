@@ -63,7 +63,7 @@ use core::{fmt::Debug, result};
 use derivative::Derivative;
 use parity_scale_codec::{self, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use sp_core::{bounded::WeakBoundedVec, ConstU32};
+use bounded_collections::{ConstU32, WeakBoundedVec};
 
 mod junction;
 mod multiasset;
