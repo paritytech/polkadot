@@ -1283,15 +1283,15 @@ fn concurrent_dependent_candidates() {
 							assert!(valid_statements.insert(hash));
 						}
 					);
-
-					if valid_statements.len() == 2 {
-						break
-					}
 				},
 				AllMessages::StatementDistribution(StatementDistributionMessage::Backed(hash)) => {
 					// Ensure that `Share` was received first for the candidate.
 					assert!(valid_statements.contains(&hash));
 					backed_statements.insert(hash);
+
+					if backed_statements.len() == 2 {
+						break
+					}
 				},
 				_ => panic!("unexpected message received from overseer: {:?}", msg),
 			}
