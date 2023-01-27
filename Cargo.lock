@@ -6516,6 +6516,7 @@ dependencies = [
  "sc-cli",
  "sc-executor",
  "sc-service",
+ "sc-storage-monitor",
  "sc-sysinfo",
  "sc-tracing",
  "sp-core",
