@@ -22,7 +22,7 @@ use super::v2::{
 };
 use crate::{DoubleEncoded, GetWeight};
 use alloc::{vec, vec::Vec};
-use bounded_collections::{BoundedVec, parameter_types};
+use bounded_collections::{parameter_types, BoundedVec};
 use core::{
 	convert::{TryFrom, TryInto},
 	fmt::Debug,
@@ -252,10 +252,9 @@ impl From<Vec<u8>> for MaybeErrorCode {
 			Ok(error) => MaybeErrorCode::Error(error),
 			Err(mut error) => {
 				error.truncate(MaxDispatchErrorLen::get() as usize);
-				let error =
-					BoundedVec::try_from(error).expect("length of vec was truncated; qed");
+				let error = BoundedVec::try_from(error).expect("length of vec was truncated; qed");
 				MaybeErrorCode::TruncatedError(error)
-			}
+			},
 		}
 	}
 }
