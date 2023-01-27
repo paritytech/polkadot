@@ -1064,6 +1064,12 @@ fn backing_works() {
 				para_head,
 			}) if para_id == _para_id && candidate_a_para_head == para_head
 		);
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(StatementDistributionMessage::Backed (
+				candidate_hash
+			)) if candidate_a_hash == candidate_hash
+		);
 
 		let statement = CandidateBackingMessage::Statement(leaf_parent, signed_b.clone());
 
