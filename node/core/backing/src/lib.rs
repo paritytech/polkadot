@@ -878,15 +878,13 @@ async fn handle_active_leaves_update<Context>(
 			}
 
 			let mut seconded_at_depth = HashMap::new();
-			for response in membership_answers.next().await {
+			if let Some(response) = membership_answers.next().await {
 				match response {
 					Err(oneshot::Canceled) => {
 						gum::warn!(
 							target: LOG_TARGET,
 							"Prospective parachains subsystem unreachable for membership request",
 						);
-
-						continue
 					},
 					Ok((para_id, candidate_hash, membership)) => {
 						// This request gives membership in all fragment trees. We have some
