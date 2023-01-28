@@ -95,13 +95,14 @@ pub use polkadot_client::PolkadotExecutorDispatch;
 
 pub use chain_spec::{KusamaChainSpec, PolkadotChainSpec, RococoChainSpec, WestendChainSpec};
 pub use consensus_common::{block_validation::Chain, Proposal, SelectChain};
+use frame_benchmarking_cli::SUBSTRATE_REFERENCE_HARDWARE;
 use mmr_gadget::MmrGadget;
 #[cfg(feature = "full-node")]
 pub use polkadot_client::{
 	AbstractClient, Client, ClientHandle, ExecuteWithClient, FullBackend, FullClient,
 	RuntimeApiCollection,
 };
-pub use polkadot_primitives::v2::{Block, BlockId, BlockNumber, CollatorPair, Hash, Id as ParaId};
+pub use polkadot_primitives::{Block, BlockId, BlockNumber, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
 use sc_executor::NativeElseWasmExecutor;
@@ -161,10 +162,7 @@ where
 		&self,
 		hash: Block::Hash,
 	) -> sp_blockchain::Result<Option<<Block as BlockT>::Header>> {
-		<Self as sp_blockchain::HeaderBackend<Block>>::header(
-			self,
-			generic::BlockId::<Block>::Hash(hash),
-		)
+		<Self as sp_blockchain::HeaderBackend<Block>>::header(self, hash)
 	}
 	fn number(
 		&self,
@@ -701,7 +699,7 @@ where
 				return None
 			};
 
-			let parent_hash = client.header(&BlockId::Hash(hash)).ok()??.parent_hash;
+			let parent_hash = client.header(hash).ok()??.parent_hash;
 
 			Some(BlockInfo { hash, parent_hash, number })
 		})
@@ -989,6 +987,12 @@ where
 
 	if let Some(hwbench) = hwbench {
 		sc_sysinfo::print_hwbench(&hwbench);
+		if !SUBSTRATE_REFERENCE_HARDWARE.check_hardware(&hwbench) && role.is_authority() {
+			log::warn!(
+				"⚠️  The hardware does not meet the minimal requirements for role 'Authority' find out more at:\n\
+				https://wiki.polkadot.network/docs/maintain-guides-how-to-validate-polkadot#reference-hardware"
+			);
+		}
 
 		if let Some(ref mut telemetry) = telemetry {
 			let telemetry_handle = telemetry.handle();
@@ -1112,8 +1116,8 @@ where
 					pin_mut!(forward);
 
 					select! {
-						_ = forward => (),
-						_ = overseer_fut => (),
+						() = forward => (),
+						() = overseer_fut => (),
 						complete => (),
 					}
 				}),

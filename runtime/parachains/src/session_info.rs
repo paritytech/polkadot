@@ -27,7 +27,7 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
 };
-use primitives::v2::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
+use primitives::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
 use sp_std::vec::Vec;
 
 pub use pallet::*;

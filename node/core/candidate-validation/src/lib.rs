@@ -39,7 +39,7 @@ use polkadot_node_subsystem::{
 	SubsystemSender,
 };
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash, OccupiedCoreAssumption,
 	PersistedValidationData, ValidationCode, ValidationCodeHash,
 };
@@ -295,8 +295,7 @@ where
 			_ => {
 				// The reasoning why this is "failed" and not invalid is because we assume that
 				// during pre-checking voting the relay-chain will pin the code. In case the code
-				// actually is not there, we issue failed since this looks more like a bug. This
-				// leads to us abstaining.
+				// actually is not there, we issue failed since this looks more like a bug.
 				gum::warn!(
 					target: LOG_TARGET,
 					?relay_parent,
@@ -320,12 +319,12 @@ where
 
 	match validation_backend.precheck_pvf(validation_code).await {
 		Ok(_) => PreCheckOutcome::Valid,
-		Err(prepare_err) => match prepare_err {
-			PrepareError::Prevalidation(_) |
-			PrepareError::Preparation(_) |
-			PrepareError::Panic(_) => PreCheckOutcome::Invalid,
-			PrepareError::TimedOut | PrepareError::DidNotMakeIt => PreCheckOutcome::Failed,
-		},
+		Err(prepare_err) =>
+			if prepare_err.is_deterministic() {
+				PreCheckOutcome::Invalid
+			} else {
+				PreCheckOutcome::Failed
+			},
 	}
 }
 
@@ -528,10 +527,12 @@ async fn validate_candidate_exhaustive(
 		Err(e) => {
 			gum::info!(target: LOG_TARGET, ?para_id, err=?e, "Invalid candidate (validation code)");
 
-			// If the validation code is invalid, the candidate certainly is.
-			return Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure))
+			// Code already passed pre-checking, if decompression fails now this most likley means
+			// some local corruption happened.
+			return Err(ValidationFailed("Code decompression failed".to_string()))
 		},
 	};
+	metrics.observe_code_size(raw_validation_code.len());
 
 	let raw_block_data =
 		match sp_maybe_compressed_blob::decompress(&pov.block_data.0, POV_BOMB_LIMIT) {
@@ -543,6 +544,7 @@ async fn validate_candidate_exhaustive(
 				return Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
 			},
 		};
+	metrics.observe_pov_size(raw_block_data.0.len());
 
 	let params = ValidationParams {
 		parent_head: persisted_validation_data.parent_head.clone(),
@@ -561,7 +563,6 @@ async fn validate_candidate_exhaustive(
 
 	match result {
 		Err(ValidationError::InternalError(e)) => Err(ValidationFailed(e)),
-
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::HardTimeout)) =>
 			Ok(ValidationResult::Invalid(InvalidCandidate::Timeout)),
 		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::WorkerReportedError(e))) =>
@@ -570,9 +571,13 @@ async fn validate_candidate_exhaustive(
 			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(
 				"ambiguous worker death".to_string(),
 			))),
-		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) =>
-			Ok(ValidationResult::Invalid(InvalidCandidate::ExecutionError(e))),
-
+		Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::PrepareError(e))) => {
+			// In principle if preparation of the `WASM` fails, the current candidate can not be the
+			// reason for that. So we can't say whether it is invalid or not in addition with
+			// pre-checking enabled only valid runtimes should ever get enacted, so we can be
+			// reasonably sure that this is some local problem on the current node.
+			Err(ValidationFailed(e))
+		},
 		Ok(res) =>
 			if res.head_data.hash() != candidate_receipt.descriptor.para_head {
 				gum::info!(target: LOG_TARGET, ?para_id, "Invalid candidate (para_head)");
@@ -604,6 +609,7 @@ async fn validate_candidate_exhaustive(
 
 #[async_trait]
 trait ValidationBackend {
+	/// Tries executing a PVF a single time (no retries).
 	async fn validate_candidate(
 		&mut self,
 		pvf: Pvf,
@@ -611,6 +617,8 @@ trait ValidationBackend {
 		encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError>;
 
+	/// Tries executing a PVF. Will retry once if an error is encountered that may have been
+	/// transient.
 	async fn validate_candidate_with_retry(
 		&mut self,
 		raw_validation_code: Vec<u8>,
@@ -620,22 +628,30 @@ trait ValidationBackend {
 		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
 		let pvf = Pvf::from_code(raw_validation_code);
 
-		let validation_result =
+		let mut validation_result =
 			self.validate_candidate(pvf.clone(), timeout, params.encode()).await;
 
 		// If we get an AmbiguousWorkerDeath error, retry once after a brief delay, on the
-		// assumption that the conditions that caused this error may have been transient.
+		// assumption that the conditions that caused this error may have been transient. Note that
+		// this error is only a result of execution itself and not of preparation.
 		if let Err(ValidationError::InvalidCandidate(WasmInvalidCandidate::AmbiguousWorkerDeath)) =
 			validation_result
 		{
 			// Wait a brief delay before retrying.
 			futures_timer::Delay::new(PVF_EXECUTION_RETRY_DELAY).await;
+
+			gum::warn!(
+				target: LOG_TARGET,
+				?pvf,
+				"Re-trying failed candidate validation due to AmbiguousWorkerDeath."
+			);
+
 			// Encode the params again when re-trying. We expect the retry case to be relatively
 			// rare, and we want to avoid unconditionally cloning data.
-			self.validate_candidate(pvf, timeout, params.encode()).await
-		} else {
-			validation_result
+			validation_result = self.validate_candidate(pvf, timeout, params.encode()).await;
 		}
+
+		validation_result
 	}
 
 	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError>;
@@ -666,11 +682,12 @@ impl ValidationBackend for ValidationHost {
 
 	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError> {
 		let (tx, rx) = oneshot::channel();
-		if let Err(_) = self.precheck_pvf(pvf, tx).await {
-			return Err(PrepareError::DidNotMakeIt)
+		if let Err(err) = self.precheck_pvf(pvf, tx).await {
+			// Return an IO error if there was an error communicating with the host.
+			return Err(PrepareError::IoErr(err))
 		}
 
-		let precheck_result = rx.await.or(Err(PrepareError::DidNotMakeIt))?;
+		let precheck_result = rx.await.map_err(|err| PrepareError::IoErr(err.to_string()))?;
 
 		precheck_result
 	}
