@@ -1327,6 +1327,7 @@ mod tests {
 
 		candidate
 			.commitments
+			.to_mut()
 			.upward_messages
 			.extend((0..max_ump + 1).map(|i| vec![i as u8]));
 
