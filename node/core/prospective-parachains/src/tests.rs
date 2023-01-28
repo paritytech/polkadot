@@ -1171,15 +1171,15 @@ fn check_pvd_query() {
 		)
 		.await;
 
-		// TODO: Get pvd of candidate B before adding it.
-		// get_pvd(
-		// 	&mut virtual_overseer,
-		// 	1.into(),
-		// 	leaf_a.hash,
-		// 	HeadData(vec![1]),
-		// 	Some(pvd_b.clone()),
-		// )
-		// .await;
+		// Get pvd of candidate B before adding it.
+		get_pvd(
+			&mut virtual_overseer,
+			1.into(),
+			leaf_a.hash,
+			HeadData(vec![1]),
+			Some(pvd_b.clone()),
+		)
+		.await;
 
 		// Add candidate B.
 		second_candidate(&mut virtual_overseer, candidate_b, pvd_b.clone(), response_b.clone())
@@ -1195,15 +1195,15 @@ fn check_pvd_query() {
 		)
 		.await;
 
-		// TODO: Get pvd of candidate C before adding it.
-		// get_pvd(
-		// 	&mut virtual_overseer,
-		// 	1.into(),
-		// 	leaf_a.hash,
-		// 	HeadData(vec![2]),
-		// 	Some(pvd_c.clone()),
-		// )
-		// .await;
+		// Get pvd of candidate C before adding it.
+		get_pvd(
+			&mut virtual_overseer,
+			1.into(),
+			leaf_a.hash,
+			HeadData(vec![2]),
+			Some(pvd_c.clone()),
+		)
+		.await;
 
 		// Add candidate C.
 		second_candidate(&mut virtual_overseer, candidate_c, pvd_c.clone(), response_c.clone())
