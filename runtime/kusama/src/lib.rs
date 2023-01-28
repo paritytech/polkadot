@@ -519,6 +519,19 @@ impl pallet_bags_list::Config<VoterBagsListInstance> for Runtime {
 	type Score = sp_npos_elections::VoteWeight;
 }
 
+parameter_types! {
+	pub const BagThresholdsBalances: &'static [u64] = &bag_thresholds::THRESHOLDS_BALANCES;
+}
+
+type TargetBagsListInstance = pallet_bags_list::Instance2;
+impl pallet_bags_list::Config<TargetBagsListInstance> for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type ScoreProvider = StakeTracker;
+	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
+	type BagThresholds = BagThresholdsBalances;
+	type Score = Balance;
+}
+
 pub struct EraPayout;
 impl pallet_staking::EraPayout<Balance> for EraPayout {
 	fn era_payout(
@@ -604,6 +617,7 @@ impl pallet_stake_tracker::Config for Runtime {
 	type Currency = Balances;
 	type Staking = Staking;
 	type VoterList = VoterList;
+	type TargetList = TargetList;
 }
 
 impl pallet_fast_unstake::Config for Runtime {
@@ -1427,6 +1441,9 @@ construct_runtime! {
 
 		// Provides a semi-sorted list of nominators for staking.
 		VoterList: pallet_bags_list::<Instance1>::{Pallet, Call, Storage, Event<T>} = 39,
+
+		// Provides a semi-sorted list of validators for staking.
+		TargetList: pallet_bags_list::<Instance2>::{Pallet, Call, Storage, Event<T>} = 100,
 
 		// nomination pools: extension to staking.
 		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 41,
