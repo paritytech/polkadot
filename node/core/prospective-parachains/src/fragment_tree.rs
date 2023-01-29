@@ -913,16 +913,19 @@ mod tests {
 		);
 
 		let candidate_hash = candidate.hash();
+		let output_head_hash = candidate.commitments.head_data.hash();
 		let parent_head_hash = pvd.parent_head.hash();
 
 		storage.add_candidate(candidate, pvd).unwrap();
 		storage.retain(|_| true);
 		assert!(storage.contains(&candidate_hash));
 		assert_eq!(storage.iter_para_children(&parent_head_hash).count(), 1);
+		assert!(storage.head_data_by_hash(&output_head_hash).is_some());
 
 		storage.retain(|_| false);
 		assert!(!storage.contains(&candidate_hash));
 		assert_eq!(storage.iter_para_children(&parent_head_hash).count(), 0);
+		assert!(storage.head_data_by_hash(&output_head_hash).is_none());
 	}
 
 	#[test]
