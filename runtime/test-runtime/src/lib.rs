@@ -653,7 +653,7 @@ construct_runtime! {
 		TransactionPayment: pallet_transaction_payment::{Pallet, Storage, Event<T>},
 
 		// Consensus support.
-		Authorship: pallet_authorship::{Pallet, Call, Storage},
+		Authorship: pallet_authorship::{Pallet, Storage},
 		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>},
 		Offences: pallet_offences::{Pallet, Storage, Event},
 		Historical: session_historical::{Pallet},

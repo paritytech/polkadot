@@ -791,7 +791,6 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Indices(pallet_indices::Call::freeze{..}) |
 				// Specifically omitting Indices `transfer`, `force_transfer`
 				// Specifically omitting the entire Balances pallet
-				RuntimeCall::Authorship(..) |
 				RuntimeCall::Staking(..) |
 				RuntimeCall::Session(..) |
 				RuntimeCall::Grandpa(..) |
@@ -1119,7 +1118,7 @@ construct_runtime! {
 		// Consensus support.
 		// Authorship must be before session in order to note author in the correct session and era
 		// for im-online and staking.
-		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
+		Authorship: pallet_authorship::{Pallet, Storage} = 5,
 		Staking: pallet_staking::{Pallet, Call, Storage, Config<T>, Event<T>} = 6,
 		Offences: pallet_offences::{Pallet, Storage, Event} = 7,
 		Historical: session_historical::{Pallet} = 27,
