@@ -468,7 +468,7 @@ impl FragmentTree {
 
 	/// Returns an O(n) iterator over the hashes of candidates contained in the
 	/// tree.
-	pub(crate) fn candidates<'a>(&'a self) -> impl Iterator<Item = CandidateHash> + 'a {
+	pub(crate) fn candidates(&self) -> impl Iterator<Item = CandidateHash> + '_ {
 		self.candidates.keys().cloned()
 	}
 
@@ -514,10 +514,10 @@ impl FragmentTree {
 	///
 	/// If the candidate is already known, this returns the actual depths where this
 	/// candidate is part of the tree.
-	pub(crate) fn hypothetical_depths<'a>(
+	pub(crate) fn hypothetical_depths(
 		&self,
 		hash: CandidateHash,
-		candidate: HypotheticalCandidate<'a>,
+		candidate: HypotheticalCandidate,
 	) -> Vec<usize> {
 		// if known.
 		if let Some(depths) = self.candidates.get(&hash) {
@@ -656,11 +656,7 @@ impl FragmentTree {
 		}
 	}
 
-	fn populate_from_bases<'a>(
-		&mut self,
-		storage: &'a CandidateStorage,
-		initial_bases: Vec<NodePointer>,
-	) {
+	fn populate_from_bases(&mut self, storage: &CandidateStorage, initial_bases: Vec<NodePointer>) {
 		// Populate the tree breadth-first.
 		let mut last_sweep_start = None;
 
@@ -766,7 +762,7 @@ impl FragmentTree {
 					let node = FragmentNode {
 						parent: parent_pointer,
 						fragment,
-						candidate_hash: candidate.candidate_hash.clone(),
+						candidate_hash: candidate.candidate_hash,
 						depth: child_depth,
 						cumulative_modifications,
 						children: Vec::new(),

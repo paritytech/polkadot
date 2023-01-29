@@ -470,8 +470,8 @@ fn answer_hypothetical_frontier_request(
 				} => (
 					*candidate_hash,
 					fragment_tree::HypotheticalCandidate::Complete {
-						receipt: Cow::Borrowed(&*receipt),
-						persisted_validation_data: Cow::Borrowed(&*persisted_validation_data),
+						receipt: Cow::Borrowed(receipt),
+						persisted_validation_data: Cow::Borrowed(persisted_validation_data),
 					},
 				),
 				HypotheticalCandidate::Incomplete {

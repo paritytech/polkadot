@@ -105,7 +105,7 @@ impl PendingCollation {
 		Self {
 			relay_parent,
 			para_id,
-			peer_id: peer_id.clone(),
+			peer_id: *peer_id,
 			prospective_candidate,
 			commitments_hash: None,
 		}

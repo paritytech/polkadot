@@ -287,7 +287,7 @@ impl PeerData {
 						}
 						let candidates = state.advertisements.entry(on_relay_parent).or_default();
 
-						if candidates.len() >= max_candidate_depth + 1 {
+						if candidates.len() > max_candidate_depth {
 							return Err(InsertAdvertisementError::PeerLimitReached)
 						}
 						candidates.insert(candidate_hash);
@@ -867,7 +867,7 @@ async fn process_incoming_peer_message<Context>(
 				);
 
 				if let Some(rep) = err.reputation_changes() {
-					modify_reputation(ctx.sender(), origin.clone(), rep).await;
+					modify_reputation(ctx.sender(), origin, rep).await;
 				}
 			},
 		Versioned::VStaging(VStaging::AdvertiseCollation {
@@ -894,7 +894,7 @@ async fn process_incoming_peer_message<Context>(
 				);
 
 				if let Some(rep) = err.reputation_changes() {
-					modify_reputation(ctx.sender(), origin.clone(), rep).await;
+					modify_reputation(ctx.sender(), origin, rep).await;
 				}
 			},
 		Versioned::V1(V1::CollationSeconded(..)) |
@@ -1241,7 +1241,7 @@ where
 {
 	let current_leaves = state.active_leaves.clone();
 
-	let removed = current_leaves.iter().filter(|(h, _)| !view.contains(*h));
+	let removed = current_leaves.iter().filter(|(h, _)| !view.contains(h));
 	let added = view.iter().filter(|h| !current_leaves.contains_key(h));
 
 	for leaf in added {
@@ -1352,7 +1352,7 @@ where
 					?para_id,
 					"Disconnecting peer on view change (not current parachain id)"
 				);
-				disconnect_peer(sender, peer_id.clone()).await;
+				disconnect_peer(sender, *peer_id).await;
 			}
 		}
 	}
@@ -1645,7 +1645,7 @@ async fn poll_requests(
 				.await;
 
 		if !result.is_ready() {
-			retained_requested.insert(pending_collation.clone());
+			retained_requested.insert(*pending_collation);
 		}
 		if let CollationFetchResult::Error(Some(rep)) = result {
 			reputation_changes.push((pending_collation.peer_id, rep));

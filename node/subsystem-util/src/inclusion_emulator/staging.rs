@@ -268,13 +268,7 @@ impl Constraints {
 	) -> Result<(), ModificationError> {
 		if let Some(HrmpWatermarkUpdate::Trunk(hrmp_watermark)) = modifications.hrmp_watermark {
 			// head updates are always valid.
-			if self
-				.hrmp_inbound
-				.valid_watermarks
-				.iter()
-				.position(|w| w == &hrmp_watermark)
-				.is_none()
-			{
+			if self.hrmp_inbound.valid_watermarks.iter().any(|w| w == &hrmp_watermark) {
 				return Err(ModificationError::DisallowedHrmpWatermark(hrmp_watermark))
 			}
 		}
@@ -509,7 +503,7 @@ impl ConstraintModifications {
 		}
 
 		for (id, mods) in &other.outbound_hrmp {
-			let record = self.outbound_hrmp.entry(id.clone()).or_default();
+			let record = self.outbound_hrmp.entry(*id).or_default();
 			record.messages_submitted += mods.messages_submitted;
 			record.bytes_submitted += mods.bytes_submitted;
 		}
@@ -551,14 +545,14 @@ impl<'a> ProspectiveCandidate<'a> {
 
 	/// Partially clone the prospective candidate, but borrow the
 	/// parts which are potentially heavy.
-	pub fn partial_clone<'b>(&'b self) -> ProspectiveCandidate<'b> {
+	pub fn partial_clone(&self) -> ProspectiveCandidate {
 		ProspectiveCandidate {
 			commitments: Cow::Borrowed(self.commitments.borrow()),
 			collator: self.collator.clone(),
 			collator_signature: self.collator_signature.clone(),
 			persisted_validation_data: self.persisted_validation_data.clone(),
-			pov_hash: self.pov_hash.clone(),
-			validation_code_hash: self.validation_code_hash.clone(),
+			pov_hash: self.pov_hash,
+			validation_code_hash: self.validation_code_hash,
 		}
 	}
 }
@@ -672,7 +666,7 @@ impl<'a> Fragment<'a> {
 						}
 
 						last_recipient = Some(message.recipient);
-						let record = outbound_hrmp.entry(message.recipient.clone()).or_default();
+						let record = outbound_hrmp.entry(message.recipient).or_default();
 
 						record.bytes_submitted += message.data.len();
 						record.messages_submitted += 1;

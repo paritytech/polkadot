@@ -245,7 +245,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						// pass to legacy, but not if the message isn't
 						// v1.
 						let legacy = match &event {
-							&NetworkBridgeEvent::PeerMessage(_, ref message) => match message {
+							NetworkBridgeEvent::PeerMessage(_, message) => match message {
 								Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::V1Compatibility(_)) => true,
 								Versioned::V1(_) => true,
 								// TODO [now]: _ => false,

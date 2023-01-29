@@ -62,7 +62,7 @@ fn visit_and_remove_block_entry(
 	};
 
 	overlayed_db.delete_block_entry(&block_hash);
-	for &(_, ref candidate_hash) in block_entry.candidates() {
+	for (_, candidate_hash) in block_entry.candidates() {
 		let candidate = match visited_candidates.entry(*candidate_hash) {
 			Entry::Occupied(e) => e.into_mut(),
 			Entry::Vacant(e) => {
@@ -227,7 +227,7 @@ pub fn add_block_entry(
 
 	// read and write all updated entries.
 	{
-		for &(_, ref candidate_hash) in entry.candidates() {
+		for (_, candidate_hash) in entry.candidates() {
 			let NewCandidateInfo { candidate, backing_group, our_assignment } =
 				match candidate_info(candidate_hash) {
 					None => return Ok(Vec::new()),

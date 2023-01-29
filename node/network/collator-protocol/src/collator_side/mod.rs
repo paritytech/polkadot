@@ -713,7 +713,7 @@ async fn advertise_collation<Context>(
 		};
 
 		ctx.send_message(NetworkBridgeTxMessage::SendCollationMessage(
-			vec![peer.clone()],
+			vec![*peer],
 			collation_message,
 		))
 		.await;
@@ -1180,7 +1180,7 @@ where
 {
 	let current_leaves = state.active_leaves.clone();
 
-	let removed = current_leaves.iter().filter(|(h, _)| !view.contains(*h));
+	let removed = current_leaves.iter().filter(|(h, _)| !view.contains(h));
 	let added = view.iter().filter(|h| !current_leaves.contains_key(h));
 
 	for leaf in added {
