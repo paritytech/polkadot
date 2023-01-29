@@ -202,7 +202,7 @@ pub mod prelude {
 }
 
 parameter_types! {
-	pub MaxNameLen: u32 = 48;
+	pub MaxPalletNameLen: u32 = 48;
 	/// Maximum size of the encoded error code coming from a `Dispatch` result, used for
 	/// `MaybeErrorCode`. This is not (yet) enforced, so it's just an indication of expectation.
 	pub MaxDispatchErrorLen: u32 = 128;
@@ -213,8 +213,8 @@ parameter_types! {
 pub struct PalletInfo {
 	#[codec(compact)]
 	index: u32,
-	name: BoundedVec<u8, MaxNameLen>,
-	module_name: BoundedVec<u8, MaxNameLen>,
+	name: BoundedVec<u8, MaxPalletNameLen>,
+	module_name: BoundedVec<u8, MaxPalletNameLen>,
 	#[codec(compact)]
 	major: u32,
 	#[codec(compact)]
@@ -250,11 +250,7 @@ impl From<Vec<u8>> for MaybeErrorCode {
 	fn from(v: Vec<u8>) -> Self {
 		match BoundedVec::try_from(v) {
 			Ok(error) => MaybeErrorCode::Error(error),
-			Err(mut error) => {
-				error.truncate(MaxDispatchErrorLen::get() as usize);
-				let error = BoundedVec::try_from(error).expect("length of vec was truncated; qed");
-				MaybeErrorCode::TruncatedError(error)
-			},
+			Err(error) => MaybeErrorCode::TruncatedError(BoundedVec::truncate_from(error)),
 		}
 	}
 }
