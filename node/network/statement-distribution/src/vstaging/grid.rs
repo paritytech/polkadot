@@ -1367,7 +1367,7 @@ mod tests {
 				ManifestKind::Full,
 				ValidatorIndex(0),
 			),
-			Ok(None)
+			Ok(false)
 		);
 	}
 
