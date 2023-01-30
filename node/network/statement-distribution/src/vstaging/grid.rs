@@ -1379,3 +1379,4 @@ mod tests {
 	// TODO [now]: check that pending communication is cleared correctly in `manifest_sent_to`
 
 	// TODO [now]: test a scenario where manifest import returns `Ok(true)`.
+}

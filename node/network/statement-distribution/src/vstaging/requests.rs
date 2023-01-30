@@ -370,6 +370,9 @@ impl<'a> UnhandledResponse<'a> {
 		// this could happen if we requested the candidate under two
 		// different identifiers at the same time, and received a valid
 		// response on the other.
+		//
+		// it could also happen in the case that we had a request in-flight
+		// and the request entry was garbage-collected on outdated relay parent.
 		let entry = match manager.requests.get_mut(&identifier) {
 			None =>
 				return ResponseValidationOutput {
@@ -752,4 +755,8 @@ mod tests {
 			]
 		);
 	}
+
+	// TODO [now]: test that outdated responses are handled correctly.
+
+	// TODO [now]: test clean up by relay parent.
 }

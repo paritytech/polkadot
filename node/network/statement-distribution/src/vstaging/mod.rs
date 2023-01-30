@@ -219,8 +219,6 @@ fn connected_validator_peer(
 
 struct PeerState {
 	view: View,
-	// TODO [now]: actually keep track of remote implicit views
-	// in a smooth manner
 	implicit_view: HashSet<Hash>,
 	discovery_ids: Option<HashSet<AuthorityDiscoveryId>>,
 }
@@ -558,7 +556,11 @@ fn handle_deactivate_leaves(state: &mut State, leaves: &[Hash]) {
 	// clean up per-relay-parent data based on everything removed.
 	state.per_relay_parent.retain(|r, x| relay_parents.contains(r));
 
-	// TODO [now]: clean up requests
+	// Clean up all requests
+	for leaf in leaves {
+		state.request_manager.remove_by_relay_parent(*leaf);
+	}
+
 	state.candidates.on_deactivate_leaves(&leaves, |h| relay_parents.contains(h));
 
 	// clean up sessions based on everything remaining.
