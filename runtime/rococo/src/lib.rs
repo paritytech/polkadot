@@ -654,6 +654,10 @@ impl pallet_im_online::Config for Runtime {
 	type MaxPeerDataEncodingSize = MaxPeerDataEncodingSize;
 }
 
+parameter_types! {
+	pub const MaxSetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
+}
+
 impl pallet_grandpa::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 
@@ -675,6 +679,7 @@ impl pallet_grandpa::Config for Runtime {
 
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
+	type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
 }
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
@@ -1481,6 +1486,10 @@ pub type Migrations = (
 	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	parachains_ump::migration::v1::MigrateToV1<Runtime>,
+	// Remove stale entries in the set id -> session index storage map (after
+	// this release they will be properly pruned after the bonding duration has
+	// elapsed)
+	pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
 );
 
 /// Executive: handles dispatch to the various modules.
