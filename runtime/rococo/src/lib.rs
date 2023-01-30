@@ -112,13 +112,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9330,
+	spec_version: 9370,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 15,
+	transaction_version: 18,
 	state_version: 1,
 };
 
@@ -327,14 +327,8 @@ impl pallet_timestamp::Config for Runtime {
 	type WeightInfo = weights::pallet_timestamp::WeightInfo<Runtime>;
 }
 
-parameter_types! {
-	pub const UncleGenerations: u32 = 0;
-}
-
 impl pallet_authorship::Config for Runtime {
 	type FindAuthor = pallet_session::FindAccountFromAuthorIndex<Self, Babe>;
-	type UncleGenerations = UncleGenerations;
-	type FilterUncle = ();
 	type EventHandler = ImOnline;
 }
 
@@ -928,7 +922,6 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Indices(pallet_indices::Call::freeze {..}) |
 				// Specifically omitting Indices `transfer`, `force_transfer`
 				// Specifically omitting the entire Balances pallet
-				RuntimeCall::Authorship(..) |
 				RuntimeCall::Session(..) |
 				RuntimeCall::Grandpa(..) |
 				RuntimeCall::ImOnline(..) |
@@ -1352,9 +1345,12 @@ construct_runtime! {
 		// Consensus support.
 		// Authorship must be before session in order to note author in the correct session and era
 		// for im-online.
-		Authorship: pallet_authorship::{Pallet, Call, Storage} = 5,
+		Authorship: pallet_authorship::{Pallet, Storage} = 5,
 		Offences: pallet_offences::{Pallet, Storage, Event} = 7,
 		Historical: session_historical::{Pallet} = 34,
+		// MMR leaf construction must be before session in order to have leaf contents
+		// refer to block<N-1> consistently. see substrate issue #11797 for details.
+		Mmr: pallet_mmr::{Pallet, Storage} = 241,
 		Session: pallet_session::{Pallet, Call, Storage, Event, Config<T>} = 8,
 		Grandpa: pallet_grandpa::{Pallet, Call, Storage, Config, Event, ValidateUnsigned} = 10,
 		ImOnline: pallet_im_online::{Pallet, Call, Storage, Event<T>, ValidateUnsigned, Config<T>} = 11,
@@ -1439,7 +1435,6 @@ construct_runtime! {
 		//
 		// BEEFY Bridges support.
 		Beefy: pallet_beefy::{Pallet, Storage, Config<T>} = 240,
-		Mmr: pallet_mmr::{Pallet, Storage} = 241,
 		MmrLeaf: pallet_beefy_mmr::{Pallet, Storage} = 242,
 
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 250,
@@ -1486,13 +1481,6 @@ pub type UncheckedExtrinsic =
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
-	pallet_balances::migration::ResetInactive<Runtime>,
-	// We need to apply this migration again, because `ResetInactive` resets the state again.
-	pallet_balances::migration::MigrateToTrackInactive<Runtime, xcm_config::CheckAccount>,
-	crowdloan::migration::MigrateToTrackInactiveV2<Runtime>,
-	pallet_scheduler::migration::v4::CleanupAgendas<Runtime>,
-	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
-	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
 	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	parachains_ump::migration::v1::MigrateToV1<Runtime>,
@@ -1931,6 +1919,12 @@ sp_api::impl_runtime_apis! {
 		fn query_fee_details(uxt: <Block as BlockT>::Extrinsic, len: u32) -> FeeDetails<Balance> {
 			TransactionPayment::query_fee_details(uxt, len)
 		}
+		fn query_weight_to_fee(weight: Weight) -> Balance {
+			TransactionPayment::weight_to_fee(weight)
+		}
+		fn query_length_to_fee(length: u32) -> Balance {
+			TransactionPayment::length_to_fee(length)
+		}
 	}
 
 	impl beefy_merkle_tree::BeefyMmrApi<Block, Hash> for RuntimeApi {
@@ -2104,7 +2098,7 @@ sp_api::impl_runtime_apis! {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
-	use frame_try_runtime::runtime_decl_for_TryRuntime::TryRuntime;
+	use frame_try_runtime::{runtime_decl_for_TryRuntime::TryRuntime, UpgradeCheckSelect};
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
 	};
@@ -2112,6 +2106,10 @@ mod remote_tests {
 
 	#[tokio::test]
 	async fn run_migrations() {
+		if var("RUN_MIGRATION_TESTS").is_err() {
+			return
+		}
+
 		sp_tracing::try_init_simple();
 		let transport: Transport =
 			var("WS").unwrap_or("wss://rococo-rpc.polkadot.io:443".to_string()).into();
@@ -2132,6 +2130,6 @@ mod remote_tests {
 			.build()
 			.await
 			.unwrap();
-		ext.execute_with(|| Runtime::on_runtime_upgrade(true));
+		ext.execute_with(|| Runtime::on_runtime_upgrade(UpgradeCheckSelect::PreAndPost));
 	}
 }
