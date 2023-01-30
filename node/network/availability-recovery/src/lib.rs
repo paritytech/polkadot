@@ -878,7 +878,7 @@ async fn launch_recovery_task<Context>(
 
 	let recovery_task = RecoveryTask { sender: ctx.sender().clone(), params, source: phase };
 
-	let (remote, remote_handle) = tokio::task::unconstrained(recovery_task.run()).remote_handle();
+	let (remote, remote_handle) = recovery_task.run().remote_handle();
 
 	state.ongoing_recoveries.push(RecoveryHandle {
 		candidate_hash,
