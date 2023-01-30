@@ -102,15 +102,18 @@ impl ScrapedCandidates {
 	}
 
 	// Removes all candidates up to a given height. The candidates at the block height are NOT removed.
-	pub fn remove_up_to_height(&mut self, height: &BlockNumber) {
+	pub fn remove_up_to_height(&mut self, height: &BlockNumber) -> HashSet<CandidateHash> {
+		let mut candidates_modified: HashSet<CandidateHash> = HashSet::new();
 		let not_stale = self.candidates_by_block_number.split_off(&height);
 		let stale = std::mem::take(&mut self.candidates_by_block_number);
 		self.candidates_by_block_number = not_stale;
 		for candidates in stale.values() {
 			for c in candidates {
 				self.candidates.remove(c);
+				candidates_modified.insert(*c);
 			}
 		}
+		candidates_modified
 	}
 
 	pub fn insert(&mut self, block_number: BlockNumber, candidate_hash: CandidateHash) {

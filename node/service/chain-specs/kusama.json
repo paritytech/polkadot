@@ -25,7 +25,9 @@
     "/dns/boot-node.helikon.io/tcp/7060/p2p/12D3KooWL4KPqfAsPE2aY1g5Zo1CxsDwcdJ7mmAghK7cg6M2fdbD",
     "/dns/boot-node.helikon.io/tcp/7062/wss/p2p/12D3KooWL4KPqfAsPE2aY1g5Zo1CxsDwcdJ7mmAghK7cg6M2fdbD",
     "/dns/kusama.bootnode.amforc.com/tcp/30333/p2p/12D3KooWLx6nsj6Fpd8biP1VDyuCUjazvRiGWyBam8PsqRJkbUb9",
-    "/dns/kusama.bootnode.amforc.com/tcp/30334/wss/p2p/12D3KooWLx6nsj6Fpd8biP1VDyuCUjazvRiGWyBam8PsqRJkbUb9"
+    "/dns/kusama.bootnode.amforc.com/tcp/30334/wss/p2p/12D3KooWLx6nsj6Fpd8biP1VDyuCUjazvRiGWyBam8PsqRJkbUb9",
+    "/dns/kusama-bootnode.polkadotters.com/tcp/30333/p2p/12D3KooWLxZmPqzC1itd2hCDLX2Ai8x8ArHbSrMF7wdbkg2CaEej",
+    "/dns/kusama-bootnode.polkadotters.com/tcp/30334/wss/p2p/12D3KooWLxZmPqzC1itd2hCDLX2Ai8x8ArHbSrMF7wdbkg2CaEej"
   ],
   "telemetryEndpoints": [
     [
