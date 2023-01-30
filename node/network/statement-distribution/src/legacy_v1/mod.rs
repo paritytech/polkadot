@@ -265,10 +265,10 @@ impl PeerRelayParentKnowledge {
 
 		let new_known = match fingerprint.0 {
 			CompactStatement::Seconded(ref h) => {
-				self.seconded_counts.entry(fingerprint.1).or_default().note_local(h.clone());
+				self.seconded_counts.entry(fingerprint.1).or_default().note_local(*h);
 
 				let was_known = self.is_known_candidate(h);
-				self.sent_candidates.insert(h.clone());
+				self.sent_candidates.insert(*h);
 				!was_known
 			},
 			CompactStatement::Valid(_) => false,
@@ -332,7 +332,7 @@ impl PeerRelayParentKnowledge {
 					.seconded_counts
 					.entry(fingerprint.1)
 					.or_insert_with(Default::default)
-					.note_remote(h.clone());
+					.note_remote(*h);
 
 				if !allowed_remote {
 					return Err(COST_UNEXPECTED_STATEMENT_REMOTE)
@@ -361,7 +361,7 @@ impl PeerRelayParentKnowledge {
 		}
 
 		self.received_statements.insert(fingerprint.clone());
-		self.received_candidates.insert(candidate_hash.clone());
+		self.received_candidates.insert(*candidate_hash);
 		Ok(fresh)
 	}
 
@@ -1016,13 +1016,15 @@ async fn circulate_statement<'a, Context>(
 
 	let mut peers_to_send: Vec<PeerId> = peers
 		.iter()
-		.filter_map(|(peer, data)| {
-			if data.can_send(&relay_parent, &fingerprint) {
-				Some(peer.clone())
-			} else {
-				None
-			}
-		})
+		.filter_map(
+			|(peer, data)| {
+				if data.can_send(&relay_parent, &fingerprint) {
+					Some(*peer)
+				} else {
+					None
+				}
+			},
+		)
 		.collect();
 
 	let good_peers: HashSet<&PeerId> = peers_to_send.iter().collect();
@@ -1060,13 +1062,13 @@ async fn circulate_statement<'a, Context>(
 
 	let (v1_peers_to_send, vstaging_peers_to_send) = peers_to_send
 		.into_iter()
-		.filter_map(|peer_id| {
+		.map(|peer_id| {
 			let peer_data =
 				peers.get_mut(&peer_id).expect("a subset is taken above, so it exists; qed");
 
 			let new = peer_data.send(&relay_parent, &fingerprint);
 
-			Some((peer_id, new, peer_data.protocol_version))
+			(peer_id, new, peer_data.protocol_version)
 		})
 		.partition::<Vec<_>, _>(|(_, _, version)| match version {
 			ValidationVersion::V1 => true,
@@ -1085,7 +1087,7 @@ async fn circulate_statement<'a, Context>(
 			"Sending statement to v1 peers",
 		);
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			v1_peers_to_send.iter().map(|(p, _, _)| p.clone()).collect(),
+			v1_peers_to_send.iter().map(|(p, _, _)| *p).collect(),
 			compatible_v1_message(ValidationVersion::V1, payload.clone()).into(),
 		))
 		.await;
@@ -1099,7 +1101,7 @@ async fn circulate_statement<'a, Context>(
 			"Sending statement to vstaging peers",
 		);
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			vstaging_peers_to_send.iter().map(|(p, _, _)| p.clone()).collect(),
+			vstaging_peers_to_send.iter().map(|(p, _, _)| *p).collect(),
 			compatible_v1_message(ValidationVersion::VStaging, payload.clone()).into(),
 		))
 		.await;
@@ -1140,7 +1142,7 @@ async fn send_statements_about<Context>(
 			"Sending statement",
 		);
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			vec![peer.clone()],
+			vec![peer],
 			compatible_v1_message(peer_data.protocol_version, payload).into(),
 		))
 		.await;
@@ -1175,7 +1177,7 @@ async fn send_statements<Context>(
 			"Sending statement"
 		);
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			vec![peer.clone()],
+			vec![peer],
 			compatible_v1_message(peer_data.protocol_version, payload).into(),
 		))
 		.await;
@@ -1477,7 +1479,7 @@ async fn handle_incoming_message<'a, Context>(
 	}
 
 	let fingerprint = message.get_fingerprint();
-	let candidate_hash = fingerprint.0.candidate_hash().clone();
+	let candidate_hash = *fingerprint.0.candidate_hash();
 	let handle_incoming_span = active_head
 		.span
 		.child("handle-incoming")
@@ -1604,7 +1606,7 @@ async fn handle_incoming_message<'a, Context>(
 			// Send the peer all statements concerning the candidate that we have,
 			// since it appears to have just learned about the candidate.
 			send_statements_about(
-				peer.clone(),
+				peer,
 				peer_data,
 				ctx,
 				relay_parent,
@@ -1714,7 +1716,7 @@ async fn update_peer_view_and_maybe_send_unlocked<Context, R>(
 			continue
 		}
 		if let Some(active_head) = active_heads.get(&new) {
-			send_statements(peer.clone(), peer_data, ctx, new, active_head, metrics).await;
+			send_statements(peer, peer_data, ctx, new, active_head, metrics).await;
 		}
 	}
 }
@@ -1815,7 +1817,7 @@ pub(crate) async fn handle_network_update<Context, R>(
 				topology_storage,
 				peers,
 				active_heads,
-				&*recent_outdated_heads,
+				recent_outdated_heads,
 				ctx,
 				message,
 				req_sender,

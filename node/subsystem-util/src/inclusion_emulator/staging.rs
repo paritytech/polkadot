@@ -64,9 +64,8 @@
 //! A fragment tree is a mental model for thinking about a forking series of predictions
 //! about a single parachain. There may be one or more fragment trees per parachain.
 //!
-//! In expectation, most parachains will have a plausibly-unique authorship method
-//! which means that they should really be much closer to fragment-chains, maybe
-//! maybe with an occasional fork.
+//! In expectation, most parachains will have a plausibly-unique authorship method which means that
+//! they should really be much closer to fragment-chains, maybe with an occasional fork.
 //!
 //! Avoiding fragment-tree blowup is beyond the scope of this module.
 //!
@@ -99,7 +98,7 @@
 //! As predictions fade into the past, new ones should be stacked on top.
 //!
 //! Every new relay-chain block is an opportunity to make a new prediction about the future.
-//! higher-level logic should select the leaves of the fragment-trees to build upon or whether
+//! Higher-level logic should select the leaves of the fragment-trees to build upon or whether
 //! to create a new fragment-tree.
 //!
 //! ### Code Upgrades
@@ -268,13 +267,7 @@ impl Constraints {
 	) -> Result<(), ModificationError> {
 		if let Some(HrmpWatermarkUpdate::Trunk(hrmp_watermark)) = modifications.hrmp_watermark {
 			// head updates are always valid.
-			if self
-				.hrmp_inbound
-				.valid_watermarks
-				.iter()
-				.position(|w| w == &hrmp_watermark)
-				.is_none()
-			{
+			if self.hrmp_inbound.valid_watermarks.iter().any(|w| w == &hrmp_watermark) {
 				return Err(ModificationError::DisallowedHrmpWatermark(hrmp_watermark))
 			}
 		}
@@ -509,7 +502,7 @@ impl ConstraintModifications {
 		}
 
 		for (id, mods) in &other.outbound_hrmp {
-			let record = self.outbound_hrmp.entry(id.clone()).or_default();
+			let record = self.outbound_hrmp.entry(*id).or_default();
 			record.messages_submitted += mods.messages_submitted;
 			record.bytes_submitted += mods.bytes_submitted;
 		}
@@ -557,8 +550,8 @@ impl<'a> ProspectiveCandidate<'a> {
 			collator: self.collator.clone(),
 			collator_signature: self.collator_signature.clone(),
 			persisted_validation_data: self.persisted_validation_data.clone(),
-			pov_hash: self.pov_hash.clone(),
-			validation_code_hash: self.validation_code_hash.clone(),
+			pov_hash: self.pov_hash,
+			validation_code_hash: self.validation_code_hash,
 		}
 	}
 }
@@ -672,7 +665,7 @@ impl<'a> Fragment<'a> {
 						}
 
 						last_recipient = Some(message.recipient);
-						let record = outbound_hrmp.entry(message.recipient.clone()).or_default();
+						let record = outbound_hrmp.entry(message.recipient).or_default();
 
 						record.bytes_submitted += message.data.len();
 						record.messages_submitted += 1;
@@ -1327,6 +1320,7 @@ mod tests {
 
 		candidate
 			.commitments
+			.to_mut()
 			.upward_messages
 			.extend((0..max_ump + 1).map(|i| vec![i as u8]));
 

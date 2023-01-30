@@ -772,22 +772,18 @@ fn update_our_view<Net, Context>(
 			shared
 				.validation_peers
 				.iter()
-				.map(|(peer_id, data)| (peer_id.clone(), data.version))
+				.map(|(peer_id, data)| (*peer_id, data.version))
 				.collect::<Vec<_>>(),
 			shared
 				.collation_peers
 				.iter()
-				.map(|(peer_id, data)| (peer_id.clone(), data.version))
+				.map(|(peer_id, data)| (*peer_id, data.version))
 				.collect::<Vec<_>>(),
 		)
 	};
 
 	let filter_by_version = |peers: &[(PeerId, ProtocolVersion)], version| {
-		peers
-			.iter()
-			.filter(|(_, v)| v == &version)
-			.map(|(p, _)| p.clone())
-			.collect::<Vec<_>>()
+		peers.iter().filter(|(_, v)| v == &version).map(|(p, _)| *p).collect::<Vec<_>>()
 	};
 
 	let v1_validation_peers = filter_by_version(&validation_peers, ValidationVersion::V1.into());

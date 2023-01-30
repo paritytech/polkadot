@@ -101,7 +101,7 @@ struct BlockInfo {
 
 impl View {
 	/// Get an iterator over active leaves in the view.
-	pub fn leaves<'a>(&'a self) -> impl Iterator<Item = &'a Hash> + 'a {
+	pub fn leaves(&self) -> impl Iterator<Item = &Hash> {
 		self.leaves.keys()
 	}
 
@@ -193,7 +193,7 @@ impl View {
 	///
 	/// For getting relay-parents that are valid for parachain candidates use
 	/// [`View::known_allowed_relay_parents_under`].
-	pub fn all_allowed_relay_parents<'a>(&'a self) -> impl Iterator<Item = &'a Hash> + 'a {
+	pub fn all_allowed_relay_parents(&self) -> impl Iterator<Item = &Hash> {
 		self.block_info_storage.keys()
 	}
 

@@ -83,8 +83,11 @@ pub enum CandidateStorageInsertionError {
 }
 
 pub(crate) struct CandidateStorage {
-	// Index from parent head hash to candidate hashes.
+	// Index from head data hash to candidate hashes with that head data as a parent.
 	by_parent_head: HashMap<Hash, HashSet<CandidateHash>>,
+
+	// Index from head data hash to candidate hashes outputting that head data.
+	by_output_head: HashMap<Hash, HashSet<CandidateHash>>,
 
 	// Index from candidate hash to fragment node.
 	by_candidate_hash: HashMap<CandidateHash, CandidateEntry>,
@@ -93,7 +96,11 @@ pub(crate) struct CandidateStorage {
 impl CandidateStorage {
 	/// Create a new `CandidateStorage`.
 	pub fn new() -> Self {
-		CandidateStorage { by_parent_head: HashMap::new(), by_candidate_hash: HashMap::new() }
+		CandidateStorage {
+			by_parent_head: HashMap::new(),
+			by_output_head: HashMap::new(),
+			by_candidate_hash: HashMap::new(),
+		}
 	}
 
 	/// Introduce a new candidate.
@@ -113,7 +120,7 @@ impl CandidateStorage {
 		}
 
 		let parent_head_hash = persisted_validation_data.parent_head.hash();
-
+		let output_head_hash = candidate.commitments.head_data.hash();
 		let entry = CandidateEntry {
 			candidate_hash,
 			relay_parent: candidate.descriptor.relay_parent,
@@ -129,6 +136,7 @@ impl CandidateStorage {
 		};
 
 		self.by_parent_head.entry(parent_head_hash).or_default().insert(candidate_hash);
+		self.by_output_head.entry(output_head_hash).or_default().insert(candidate_hash);
 		// sanity-checked already.
 		self.by_candidate_hash.insert(candidate_hash, entry);
 
@@ -136,6 +144,8 @@ impl CandidateStorage {
 	}
 
 	/// Remove a candidate from the store.
+	// TODO [now]: make it used or remove.
+	#[allow(dead_code)]
 	pub fn remove_candidate(&mut self, candidate_hash: &CandidateHash) {
 		if let Some(entry) = self.by_candidate_hash.remove(candidate_hash) {
 			let parent_head_hash = entry.candidate.persisted_validation_data.parent_head.hash();
@@ -149,6 +159,8 @@ impl CandidateStorage {
 	}
 
 	/// Note that an existing candidate has been seconded.
+	// TODO [now]: make it used or remove
+	#[allow(dead_code)]
 	pub fn mark_seconded(&mut self, candidate_hash: &CandidateHash) {
 		if let Some(entry) = self.by_candidate_hash.get_mut(candidate_hash) {
 			if entry.state != CandidateState::Backed {
@@ -182,18 +194,32 @@ impl CandidateStorage {
 		self.by_parent_head.retain(|_parent, children| {
 			children.retain(|h| pred(h));
 			!children.is_empty()
-		})
+		});
+		self.by_output_head.retain(|_output, candidates| {
+			candidates.retain(|h| pred(h));
+			!candidates.is_empty()
+		});
 	}
 
 	/// Get head-data by hash.
 	pub(crate) fn head_data_by_hash(&self, hash: &Hash) -> Option<&HeadData> {
-		// Get some candidate which has a parent-head with the same hash as requested.
-		let a_candidate_hash = self.by_parent_head.get(hash).and_then(|m| m.iter().next())?;
-
-		// Extract the full parent head from that candidate's `PersistedValidationData`.
-		self.by_candidate_hash
-			.get(a_candidate_hash)
-			.map(|e| &e.candidate.persisted_validation_data.parent_head)
+		// First, search for candidates outputting this head data and extract the head data
+		// from their commitments if they exist.
+		//
+		// Otherwise, search for candidates building upon this head data and extract the head data
+		// from their persisted validation data if they exist.
+		self.by_output_head
+			.get(hash)
+			.and_then(|m| m.iter().next())
+			.and_then(|a_candidate| self.by_candidate_hash.get(a_candidate))
+			.map(|e| &e.candidate.commitments.head_data)
+			.or_else(|| {
+				self.by_parent_head
+					.get(hash)
+					.and_then(|m| m.iter().next())
+					.and_then(|a_candidate| self.by_candidate_hash.get(a_candidate))
+					.map(|e| &e.candidate.persisted_validation_data.parent_head)
+			})
 	}
 
 	fn iter_para_children<'a>(
@@ -211,6 +237,11 @@ impl CandidateStorage {
 	fn get(&'_ self, candidate_hash: &CandidateHash) -> Option<&'_ CandidateEntry> {
 		self.by_candidate_hash.get(candidate_hash)
 	}
+
+	#[cfg(test)]
+	pub fn len(&self) -> (usize, usize) {
+		(self.by_parent_head.len(), self.by_candidate_hash.len())
+	}
 }
 
 /// The state of a candidate.
@@ -222,11 +253,13 @@ enum CandidateState {
 	/// is not necessarily backed.
 	Introduced,
 	/// The candidate has been seconded.
+	#[allow(dead_code)]
 	Seconded,
 	/// The candidate has been completely backed by the group.
 	Backed,
 }
 
+#[derive(Debug)]
 struct CandidateEntry {
 	candidate_hash: CandidateHash,
 	relay_parent: Hash,
@@ -248,7 +281,12 @@ pub(crate) struct Scope {
 /// An error variant indicating that ancestors provided to a scope
 /// had unexpected order.
 #[derive(Debug)]
-pub struct UnexpectedAncestor;
+pub struct UnexpectedAncestor {
+	/// The block number that this error occurred at.
+	pub number: BlockNumber,
+	/// The previous seen block number, which did not match `number`.
+	pub prev: BlockNumber,
+}
 
 impl Scope {
 	/// Define a new [`Scope`].
@@ -280,9 +318,9 @@ impl Scope {
 			let mut prev = relay_parent.number;
 			for ancestor in ancestors {
 				if prev == 0 {
-					return Err(UnexpectedAncestor)
+					return Err(UnexpectedAncestor { number: ancestor.number, prev })
 				} else if ancestor.number != prev - 1 {
-					return Err(UnexpectedAncestor)
+					return Err(UnexpectedAncestor { number: ancestor.number, prev })
 				} else if prev == base_constraints.min_relay_parent_number {
 					break
 				} else {
@@ -465,7 +503,7 @@ impl FragmentTree {
 
 	/// Returns an O(n) iterator over the hashes of candidates contained in the
 	/// tree.
-	pub(crate) fn candidates<'a>(&'a self) -> impl Iterator<Item = CandidateHash> + 'a {
+	pub(crate) fn candidates(&self) -> impl Iterator<Item = CandidateHash> + '_ {
 		self.candidates.keys().cloned()
 	}
 
@@ -653,11 +691,7 @@ impl FragmentTree {
 		}
 	}
 
-	fn populate_from_bases<'a>(
-		&mut self,
-		storage: &'a CandidateStorage,
-		initial_bases: Vec<NodePointer>,
-	) {
+	fn populate_from_bases(&mut self, storage: &CandidateStorage, initial_bases: Vec<NodePointer>) {
 		// Populate the tree breadth-first.
 		let mut last_sweep_start = None;
 
@@ -763,7 +797,7 @@ impl FragmentTree {
 					let node = FragmentNode {
 						parent: parent_pointer,
 						fragment,
-						candidate_hash: candidate.candidate_hash.clone(),
+						candidate_hash: candidate.candidate_hash,
 						depth: child_depth,
 						cumulative_modifications,
 						children: Vec::new(),
@@ -890,8 +924,8 @@ mod tests {
 		let base_constraints = make_constraints(8, vec![8, 9], vec![1, 2, 3].into());
 
 		assert_matches!(
-			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
-			Err(UnexpectedAncestor)
+			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors),
+			Err(UnexpectedAncestor { number: 8, prev: 10 })
 		);
 	}
 
@@ -915,7 +949,7 @@ mod tests {
 
 		assert_matches!(
 			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
-			Err(UnexpectedAncestor)
+			Err(UnexpectedAncestor { number: 99999, prev: 0 })
 		);
 	}
 
@@ -992,16 +1026,19 @@ mod tests {
 		);
 
 		let candidate_hash = candidate.hash();
+		let output_head_hash = candidate.commitments.head_data.hash();
 		let parent_head_hash = pvd.parent_head.hash();
 
 		storage.add_candidate(candidate, pvd).unwrap();
 		storage.retain(|_| true);
 		assert!(storage.contains(&candidate_hash));
 		assert_eq!(storage.iter_para_children(&parent_head_hash).count(), 1);
+		assert!(storage.head_data_by_hash(&output_head_hash).is_some());
 
 		storage.retain(|_| false);
 		assert!(!storage.contains(&candidate_hash));
 		assert_eq!(storage.iter_para_children(&parent_head_hash).count(), 0);
+		assert!(storage.head_data_by_hash(&output_head_hash).is_none());
 	}
 
 	#[test]

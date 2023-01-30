@@ -83,7 +83,7 @@ async fn get_core_availability(
 	sender: &Mutex<&mut impl SubsystemSender<overseer::BitfieldSigningOutgoingMessages>>,
 	span: &jaeger::Span,
 ) -> Result<bool, Error> {
-	if let &CoreState::Occupied(ref core) = core {
+	if let CoreState::Occupied(core) = core {
 		let _span = span.child("query-chunk-availability");
 
 		let (tx, rx) = oneshot::channel();

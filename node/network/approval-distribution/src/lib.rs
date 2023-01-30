@@ -1256,7 +1256,7 @@ impl State {
 				.iter()
 				.filter_map(|(p, k)| peer_data.get(&p).map(|pd| (p, k, pd.version)))
 				.filter(|(p, k, _)| peer_filter(p, k))
-				.map(|(p, _, v)| (p.clone(), v))
+				.map(|(p, _, v)| (*p, v))
 				.collect::<Vec<_>>();
 
 			// Add the metadata of the assignment to the knowledge of each peer.

@@ -403,7 +403,7 @@ impl<Ctx: Context> Table<Ctx> {
 				let existing = occ.get_mut();
 
 				if !self.config.allow_multiple_seconded && existing.proposals.len() == 1 {
-					let &(ref old_digest, ref old_sig) = &existing.proposals[0];
+					let (old_digest, old_sig) = &existing.proposals[0];
 
 					if old_digest != &digest {
 						const EXISTENCE_PROOF: &str =

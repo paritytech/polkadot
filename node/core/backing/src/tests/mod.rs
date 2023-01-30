@@ -547,6 +547,15 @@ fn backing_works() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(
+				StatementDistributionMessage::Share(hash, _stmt)
+			) => {
+				assert_eq!(test_state.relay_parent, hash);
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::Provisioner(
 				ProvisionerMessage::ProvisionableData(
 					_,
@@ -554,15 +563,6 @@ fn backing_works() {
 				)
 			) => {
 				assert_eq!(candidate_receipt, candidate_a.to_plain());
-			}
-		);
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::Share(hash, _stmt)
-			) => {
-				assert_eq!(test_state.relay_parent, hash);
 			}
 		);
 
@@ -909,6 +909,18 @@ fn backing_misbehavior_works() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(
+				StatementDistributionMessage::Share(
+					relay_parent,
+					signed_statement,
+				)
+			) if relay_parent == test_state.relay_parent => {
+				assert_eq!(*signed_statement.payload(), StatementWithPVD::Valid(candidate_a_hash));
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::Provisioner(
 				ProvisionerMessage::ProvisionableData(
 					_,
@@ -918,18 +930,6 @@ fn backing_misbehavior_works() {
 					})
 				)
 			) if descriptor == candidate_a.descriptor
-		);
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::Share(
-					relay_parent,
-					signed_statement,
-				)
-			) if relay_parent == test_state.relay_parent => {
-				assert_eq!(*signed_statement.payload(), StatementWithPVD::Valid(candidate_a_hash));
-			}
 		);
 
 		// This `Valid` statement is redundant after the `Seconded` statement already sent.
