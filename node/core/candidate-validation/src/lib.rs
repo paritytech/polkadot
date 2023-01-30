@@ -532,6 +532,7 @@ async fn validate_candidate_exhaustive(
 			return Err(ValidationFailed("Code decompression failed".to_string()))
 		},
 	};
+	metrics.observe_code_size(raw_validation_code.len());
 
 	let raw_block_data =
 		match sp_maybe_compressed_blob::decompress(&pov.block_data.0, POV_BOMB_LIMIT) {
@@ -543,6 +544,7 @@ async fn validate_candidate_exhaustive(
 				return Ok(ValidationResult::Invalid(InvalidCandidate::PoVDecompressionFailure))
 			},
 		};
+	metrics.observe_pov_size(raw_block_data.0.len());
 
 	let params = ValidationParams {
 		parent_head: persisted_validation_data.parent_head.clone(),
