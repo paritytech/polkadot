@@ -64,9 +64,8 @@
 //! A fragment tree is a mental model for thinking about a forking series of predictions
 //! about a single parachain. There may be one or more fragment trees per parachain.
 //!
-//! In expectation, most parachains will have a plausibly-unique authorship method
-//! which means that they should really be much closer to fragment-chains, maybe
-//! maybe with an occasional fork.
+//! In expectation, most parachains will have a plausibly-unique authorship method which means that
+//! they should really be much closer to fragment-chains, maybe with an occasional fork.
 //!
 //! Avoiding fragment-tree blowup is beyond the scope of this module.
 //!
@@ -99,7 +98,7 @@
 //! As predictions fade into the past, new ones should be stacked on top.
 //!
 //! Every new relay-chain block is an opportunity to make a new prediction about the future.
-//! higher-level logic should select the leaves of the fragment-trees to build upon or whether
+//! Higher-level logic should select the leaves of the fragment-trees to build upon or whether
 //! to create a new fragment-tree.
 //!
 //! ### Code Upgrades
