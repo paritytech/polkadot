@@ -468,14 +468,11 @@ fn answer_hypothetical_frontier_request(
 
 			let candidate_hash = c.candidate_hash();
 			let hypothetical = match c {
-				HypotheticalCandidate::Complete {
-					receipt,
-					persisted_validation_data,
-					..
-				} => fragment_tree::HypotheticalCandidate::Complete {
-					receipt: Cow::Borrowed(receipt),
-					persisted_validation_data: Cow::Borrowed(persisted_validation_data),
-				},
+				HypotheticalCandidate::Complete { receipt, persisted_validation_data, .. } =>
+					fragment_tree::HypotheticalCandidate::Complete {
+						receipt: Cow::Borrowed(receipt),
+						persisted_validation_data: Cow::Borrowed(persisted_validation_data),
+					},
 				HypotheticalCandidate::Incomplete {
 					parent_head_data_hash,
 					candidate_relay_parent,
