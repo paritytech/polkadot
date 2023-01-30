@@ -538,6 +538,7 @@ impl pallet_stake_tracker::Config for Runtime {
 	type Currency = Balances;
 	type Staking = Staking;
 	type VoterList = VoterList;
+	type TargetList = TargetList;
 }
 
 impl pallet_fast_unstake::Config for Runtime {
