@@ -116,6 +116,9 @@ pub enum Error {
 	/// Already forwarding errors to another sender
 	#[error("AlreadyForwarding")]
 	AlreadyForwarding,
+	/// Data that are supposed to be there a not there
+	#[error("Data are not available")]
+	DataNotAvailable,
 }
 
 impl From<OverseerError> for Error {
@@ -232,7 +235,7 @@ pub async fn executor_params_at_relay_parent(
 			Err(Error::Oneshot(err))
 		},
 		Ok(Err(err)) => {
-			// Runtime has failed to obtain a session index at the relay-parent; should never happen
+			// Runtime has failed to obtain a session index at the relay-parent.
 			Err(Error::RuntimeApi(err))
 		},
 		Ok(Ok(session_index)) => {
@@ -241,17 +244,19 @@ pub async fn executor_params_at_relay_parent(
 					// Failed to communicate with the runtime
 					Err(Error::Oneshot(err))
 				},
-				Ok(Err(_)) => {
+				Ok(Err(RuntimeApiError::NotSupported { .. })) => {
 					// Runtime doesn't yet support the api requested, should execute anyway
 					// with default set of parameters
 					Ok(ExecutorParams::default())
 				},
+				Ok(Err(err)) => {
+					// Runtime failed to execute the request
+					Err(Error::RuntimeApi(err))
+				},
 				Ok(Ok(None)) => {
 					// Storage doesn't contain a parameter set for the given session; should
 					// never happen
-					Err(Error::RuntimeApi(RuntimeApiError::NotSupported {
-						runtime_api_name: "SessionExecutorParams",
-					}))
+					Err(Error::DataNotAvailable)
 				},
 				Ok(Ok(Some(executor_params))) => Ok(executor_params),
 			}
