@@ -1377,4 +1377,5 @@ mod tests {
 	// It should also overwrite any existing `Full` ManifestKind
 
 	// TODO [now]: check that pending communication is cleared correctly in `manifest_sent_to`
-}
+
+	// TODO [now]: test a scenario where manifest import returns `Ok(true)`.
