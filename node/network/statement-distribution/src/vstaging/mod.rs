@@ -75,7 +75,7 @@ mod statement_store;
 
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE: Rep =
-	Rep::CostMinor("Unexpected Statement, missing knowlege for relay parent");
+	Rep::CostMinor("Unexpected Statement, missing knowledge for relay parent");
 const COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE: Rep =
 	Rep::CostMinor("Unexpected Statement, unknown candidate");
 const COST_UNEXPECTED_STATEMENT_REMOTE: Rep =
@@ -202,8 +202,8 @@ pub(crate) struct State {
 	request_manager: RequestManager,
 }
 
-// For the provided validator index, if there is a connected peer
-// controlling the given authority ID,
+// For the provided validator index, if there is a connected peer controlling the given authority
+// ID, then return that peer's `PeerId`.
 fn connected_validator_peer(
 	authorities: &HashMap<AuthorityDiscoveryId, PeerId>,
 	per_session: &PerSessionState,
@@ -276,14 +276,6 @@ impl PeerState {
 	fn is_authority(&self, authority_id: &AuthorityDiscoveryId) -> bool {
 		self.discovery_ids.as_ref().map_or(false, |x| x.contains(authority_id))
 	}
-}
-
-/// How many votes we need to consider a candidate backed.
-///
-/// WARNING: This has to be kept in sync with the runtime check in the inclusion module.
-// TODO [now]: extract to shared primitives
-fn minimum_votes(n_validators: usize) -> usize {
-	std::cmp::min(2, n_validators)
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
@@ -1118,11 +1110,11 @@ async fn handle_incoming_statement<Context>(
 				.request_manager
 				.get_or_insert(relay_parent, candidate_hash, originator_group);
 
-		request_entry.get_mut().add_peer(peer);
+		request_entry.add_peer(peer);
 
 		// We only successfully accept statements from the grid on confirmed
 		// candidates, therefore this check only passes if the statement is from the cluster
-		request_entry.get_mut().set_cluster_priority();
+		request_entry.set_cluster_priority();
 	}
 
 	let was_fresh = match per_relay_parent.statement_store.insert(
@@ -1835,7 +1827,6 @@ async fn handle_incoming_manifest<Context>(
 		state
 			.request_manager
 			.get_or_insert(manifest.relay_parent, manifest.candidate_hash, manifest.group_index)
-			.get_mut()
 			.add_peer(peer);
 	}
 }
