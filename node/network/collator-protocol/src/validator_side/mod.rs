@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2020-2023 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -979,6 +979,8 @@ where
 	Sender: CollatorProtocolSenderTrait,
 	I: IntoIterator<Item = ((ParaId, Hash), Vec<BlockedAdvertisement>)>,
 {
+	let _timer = state.metrics.time_request_unblocked_collations();
+
 	for (key, mut value) in blocked {
 		let (para_id, para_head) = key;
 		let blocked = std::mem::take(&mut value);

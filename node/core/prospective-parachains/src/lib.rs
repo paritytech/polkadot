@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright 2022-2023 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -61,6 +61,9 @@ mod fragment_tree;
 #[cfg(test)]
 mod tests;
 
+mod metrics;
+use self::metrics::Metrics;
+
 const LOG_TARGET: &str = "parachain::prospective-parachains";
 
 struct RelayBlockViewData {
@@ -82,12 +85,14 @@ impl View {
 
 /// The prospective parachains subsystem.
 #[derive(Default)]
-pub struct ProspectiveParachainsSubsystem;
+pub struct ProspectiveParachainsSubsystem {
+	metrics: Metrics,
+}
 
 impl ProspectiveParachainsSubsystem {
 	/// Create a new instance of the `ProspectiveParachainsSubsystem`.
-	pub fn new() -> Self {
-		Self
+	pub fn new(metrics: Metrics) -> Self {
+		Self { metrics }
 	}
 }
 
@@ -98,7 +103,7 @@ where
 {
 	fn start(self, ctx: Context) -> SpawnedSubsystem {
 		SpawnedSubsystem {
-			future: run(ctx)
+			future: run(ctx, self.metrics)
 				.map_err(|e| SubsystemError::with_origin("prospective-parachains", e))
 				.boxed(),
 			name: "prospective-parachains-subsystem",
@@ -107,23 +112,27 @@ where
 }
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
-async fn run<Context>(mut ctx: Context) -> FatalResult<()> {
+async fn run<Context>(mut ctx: Context, metrics: Metrics) -> FatalResult<()> {
 	let mut view = View::new();
 	loop {
 		crate::error::log_error(
-			run_iteration(&mut ctx, &mut view).await,
+			run_iteration(&mut ctx, &mut view, &metrics).await,
 			"Encountered issue during run iteration",
 		)?;
 	}
 }
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
-async fn run_iteration<Context>(ctx: &mut Context, view: &mut View) -> Result<()> {
+async fn run_iteration<Context>(
+	ctx: &mut Context,
+	view: &mut View,
+	metrics: &Metrics,
+) -> Result<()> {
 	loop {
 		match ctx.recv().await.map_err(FatalError::SubsystemReceive)? {
 			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(()),
 			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
-				handle_active_leaves_update(&mut *ctx, view, update).await?;
+				handle_active_leaves_update(&mut *ctx, view, update, metrics).await?;
 			},
 			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOrchestra::Communication { msg } => match msg {
@@ -155,6 +164,7 @@ async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	view: &mut View,
 	update: ActiveLeavesUpdate,
+	metrics: &Metrics,
 ) -> JfyiErrorResult<()> {
 	// 1. clean up inactive leaves
 	// 2. determine all scheduled para at new block
@@ -245,13 +255,15 @@ async fn handle_active_leaves_update<Context>(
 
 	if !update.deactivated.is_empty() {
 		// This has potential to be a hotspot.
-		prune_view_candidate_storage(view);
+		prune_view_candidate_storage(view, metrics);
 	}
 
 	Ok(())
 }
 
-fn prune_view_candidate_storage(view: &mut View) {
+fn prune_view_candidate_storage(view: &mut View, metrics: &Metrics) {
+	metrics.time_prune_view_candidate_storage();
+
 	let active_leaves = &view.active_leaves;
 	view.candidate_storage.retain(|para_id, storage| {
 		let mut coverage = HashSet::new();
@@ -721,10 +733,3 @@ async fn fetch_block_info<Context>(
 		storage_root: header.state_root,
 	}))
 }
-
-#[derive(Clone)]
-struct MetricsInner;
-
-/// Prospective parachain metrics.
-#[derive(Default, Clone)]
-pub struct Metrics(Option<MetricsInner>);
