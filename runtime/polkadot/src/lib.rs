@@ -508,6 +508,19 @@ impl pallet_bags_list::Config<VoterBagsListInstance> for Runtime {
 	type Score = sp_npos_elections::VoteWeight;
 }
 
+parameter_types! {
+	pub const BagThresholdsBalances: &'static [u64] = &bag_thresholds::THRESHOLDS_BALANCES;
+}
+
+type TargetBagsListInstance = pallet_bags_list::Instance2;
+impl pallet_bags_list::Config<TargetBagsListInstance> for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type ScoreProvider = StakeTracker;
+	type WeightInfo = weights::pallet_bags_list::WeightInfo<Runtime>;
+	type BagThresholds = BagThresholdsBalances;
+	type Score = Balance;
+}
+
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
 // re-built in case input parameters have changed. The `ideal_stake` should be determined by the
 // amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
@@ -600,13 +613,21 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type ElectionProvider = ElectionProviderMultiPhase;
 	type GenesisElectionProvider = onchain::OnChainExecution<OnChainSeqPhragmen>;
-	type VoterList = VoterList;
+	type VoterList = <Runtime as pallet_stake_tracker::Config>::VoterList;
 	type TargetList = UseValidatorsMap<Self>;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type HistoryDepth = frame_support::traits::ConstU32<84>;
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type OnStakerSlash = NominationPools;
 	type WeightInfo = weights::pallet_staking::WeightInfo<Runtime>;
+	type EventListener = StakeTracker;
+}
+
+impl pallet_stake_tracker::Config for Runtime {
+	type Currency = Balances;
+	type Staking = Staking;
+	type VoterList = VoterList;
+	type TargetList = TargetList;
 }
 
 impl pallet_fast_unstake::Config for Runtime {
@@ -1531,11 +1552,17 @@ construct_runtime! {
 		// Provides a semi-sorted list of nominators for staking.
 		VoterList: pallet_bags_list::<Instance1>::{Pallet, Call, Storage, Event<T>} = 37,
 
+		// Provides a semi-sorted list of validators for staking.
+		TargetList: pallet_bags_list::<Instance2>::{Pallet, Call, Storage, Event<T>} = 100,
+
 		// Nomination pools: extension to staking.
 		NominationPools: pallet_nomination_pools::{Pallet, Call, Storage, Event<T>, Config<T>} = 39,
 
 		// Fast unstake pallet: extension to staking.
 		FastUnstake: pallet_fast_unstake = 40,
+
+		// Stake tracker pallet: staking event listener.
+		StakeTracker: pallet_stake_tracker = 41,
 
 		// Parachains pallets. Start indices at 50 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 50,

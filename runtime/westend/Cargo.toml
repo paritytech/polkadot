@@ -65,6 +65,7 @@ pallet-session = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-society = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-stake-tracker = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-state-trie-migration = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
