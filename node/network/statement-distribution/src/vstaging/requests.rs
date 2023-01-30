@@ -13,7 +13,18 @@
 
 //! A requester for full information on candidates.
 //!
-// TODO [now]: some module docs.
+//! 1. We use `RequestManager::get_or_insert().get_mut()` to add and mutate [`RequestedCandidate`]s, either setting the
+//! priority or adding a peer we know has the candidate. We currently prioritize "cluster" candidates (those from our
+//! own group, although the cluster mechanism could be made to include multiple groups in the future) over "grid"
+//! candidates (those from other groups).
+//!
+//! 2. The main loop of the module will invoke [`RequestManager::next_request`] in a loop until it returns `None`,
+//! dispatching all requests with the `NetworkBridgeTxMessage`. The receiving half of the channel is owned by the
+//! [`RequestManager`].
+//!
+//! 3. The main loop of the module will also select over [`RequestManager::await_incoming`] to receive
+//! [`UnhandledResponse`]s, which it then validates using [`UnhandledResponse::validate_response`] (which requires state
+//! not owned by the request manager).
 
 use super::{
 	BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT, COST_IMPROPERLY_DECODED_RESPONSE,
@@ -78,20 +89,6 @@ pub struct RequestedCandidate {
 	in_flight: bool,
 }
 
-impl RequestedCandidate {
-	/// Add a peer to the set of known peers.
-	pub fn add_peer(&mut self, peer: PeerId) {
-		if !self.known_by.contains(&peer) {
-			self.known_by.push_back(peer);
-		}
-	}
-
-	/// Note that the candidate is required for the cluster.
-	pub fn set_cluster_priority(&mut self) {
-		self.priority.origin = Origin::Cluster;
-	}
-}
-
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 enum Origin {
 	Cluster = 0,
@@ -113,14 +110,17 @@ pub struct Entry<'a> {
 }
 
 impl<'a> Entry<'a> {
-	/// Access the underlying requested candidate.
-	pub fn get_mut(&mut self) -> &mut RequestedCandidate {
-		&mut self.requested
+	/// Add a peer to the set of known peers.
+	pub fn add_peer(&mut self, peer: PeerId) {
+		if !self.requested.known_by.contains(&peer) {
+			self.requested.known_by.push_back(peer);
+		}
 	}
-}
 
-impl<'a> Drop for Entry<'a> {
-	fn drop(&mut self) {
+	/// Note that the candidate is required for the cluster.
+	pub fn set_cluster_priority(&mut self) {
+		self.requested.priority.origin = Origin::Cluster;
+
 		insert_or_update_priority(
 			&mut *self.by_priority,
 			Some(self.prev_index),
@@ -213,7 +213,35 @@ impl RequestManager {
 		}
 	}
 
-	// TODO [now]: removal based on relay-parent.
+	/// Remove based on relay-parent.
+	pub fn remove_by_relay_parent(&mut self, relay_parent: Hash) {
+		let mut candidate_hashes = HashSet::new();
+
+		// Remove from `by_priority` and `requests`.
+		self.by_priority.retain(|(_priority, id)| {
+			let retain = relay_parent != id.relay_parent;
+			if !retain {
+				self.requests.remove(id);
+				candidate_hashes.insert(id.candidate_hash);
+			}
+			retain
+		});
+
+		// Remove from `unique_identifiers`.
+		for candidate_hash in candidate_hashes {
+			match self.unique_identifiers.entry(candidate_hash) {
+				HEntry::Occupied(mut entry) => {
+					entry.get_mut().retain(|id| relay_parent != id.relay_parent);
+					if entry.get().is_empty() {
+						entry.remove();
+					}
+				},
+				// We can expect to encounter vacant entries, but only if nodes are misbehaving and
+				// we don't use a deduplicating collection; there are no issues from ignoring it.
+				HEntry::Vacant(entry) => (),
+			}
+		}
+	}
 
 	/// Yields the next request to dispatch, if there is any.
 	///
@@ -622,5 +650,106 @@ fn insert_or_update_priority(
 mod tests {
 	use super::*;
 
-	// TODO [now]: test priority ordering.
+	#[test]
+	fn test_remove_by_relay_parent() {
+		let parent_a = Hash::from_low_u64_le(1);
+		let parent_b = Hash::from_low_u64_le(2);
+		let parent_c = Hash::from_low_u64_le(3);
+
+		let candidate_a1 = CandidateHash(Hash::from_low_u64_le(11));
+		let candidate_a2 = CandidateHash(Hash::from_low_u64_le(12));
+		let candidate_b1 = CandidateHash(Hash::from_low_u64_le(21));
+		let candidate_b2 = CandidateHash(Hash::from_low_u64_le(22));
+		let candidate_c1 = CandidateHash(Hash::from_low_u64_le(31));
+		let duplicate_hash = CandidateHash(Hash::from_low_u64_le(31));
+
+		let mut request_manager = RequestManager::new();
+		request_manager.get_or_insert(parent_a, candidate_a1, 1.into());
+		request_manager.get_or_insert(parent_a, candidate_a2, 1.into());
+		request_manager.get_or_insert(parent_b, candidate_b1, 1.into());
+		request_manager.get_or_insert(parent_b, candidate_b2, 2.into());
+		request_manager.get_or_insert(parent_c, candidate_c1, 2.into());
+		request_manager.get_or_insert(parent_a, duplicate_hash, 1.into());
+
+		assert_eq!(request_manager.requests.len(), 6);
+		assert_eq!(request_manager.by_priority.len(), 6);
+		assert_eq!(request_manager.unique_identifiers.len(), 5);
+
+		request_manager.remove_by_relay_parent(parent_a);
+
+		assert_eq!(request_manager.requests.len(), 3);
+		assert_eq!(request_manager.by_priority.len(), 3);
+		assert_eq!(request_manager.unique_identifiers.len(), 3);
+
+		assert!(!request_manager.unique_identifiers.contains_key(&candidate_a1));
+		assert!(!request_manager.unique_identifiers.contains_key(&candidate_a2));
+		// Duplicate hash should still be there (under a different parent).
+		assert!(request_manager.unique_identifiers.contains_key(&duplicate_hash));
+
+		request_manager.remove_by_relay_parent(parent_b);
+
+		assert_eq!(request_manager.requests.len(), 1);
+		assert_eq!(request_manager.by_priority.len(), 1);
+		assert_eq!(request_manager.unique_identifiers.len(), 1);
+
+		assert!(!request_manager.unique_identifiers.contains_key(&candidate_b1));
+		assert!(!request_manager.unique_identifiers.contains_key(&candidate_b2));
+
+		request_manager.remove_by_relay_parent(parent_c);
+
+		assert!(request_manager.requests.is_empty());
+		assert!(request_manager.by_priority.is_empty());
+		assert!(request_manager.unique_identifiers.is_empty());
+	}
+
+	#[test]
+	fn test_priority_ordering() {
+		let parent_a = Hash::from_low_u64_le(1);
+		let parent_b = Hash::from_low_u64_le(2);
+		let parent_c = Hash::from_low_u64_le(3);
+
+		let candidate_a1 = CandidateHash(Hash::from_low_u64_le(11));
+		let candidate_a2 = CandidateHash(Hash::from_low_u64_le(12));
+		let candidate_b1 = CandidateHash(Hash::from_low_u64_le(21));
+		let candidate_b2 = CandidateHash(Hash::from_low_u64_le(22));
+		let candidate_c1 = CandidateHash(Hash::from_low_u64_le(31));
+
+		let mut request_manager = RequestManager::new();
+
+		// Add some entries, set a couple of them to cluster (high) priority.
+		let identifier_a1 = request_manager
+			.get_or_insert(parent_a, candidate_a1, 1.into())
+			.identifier
+			.clone();
+		let identifier_a2 = {
+			let mut entry = request_manager.get_or_insert(parent_a, candidate_a2, 1.into());
+			entry.set_cluster_priority();
+			entry.identifier.clone()
+		};
+		let identifier_b1 = request_manager
+			.get_or_insert(parent_b, candidate_b1, 1.into())
+			.identifier
+			.clone();
+		let identifier_b2 = request_manager
+			.get_or_insert(parent_b, candidate_b2, 2.into())
+			.identifier
+			.clone();
+		let identifier_c1 = {
+			let mut entry = request_manager.get_or_insert(parent_c, candidate_c1, 2.into());
+			entry.set_cluster_priority();
+			entry.identifier.clone()
+		};
+
+		let attempts = 0;
+		assert_eq!(
+			request_manager.by_priority,
+			vec![
+				(Priority { origin: Origin::Cluster, attempts }, identifier_a2),
+				(Priority { origin: Origin::Cluster, attempts }, identifier_c1),
+				(Priority { origin: Origin::Unspecified, attempts }, identifier_a1),
+				(Priority { origin: Origin::Unspecified, attempts }, identifier_b1),
+				(Priority { origin: Origin::Unspecified, attempts }, identifier_b2),
+			]
+		);
+	}
 }
