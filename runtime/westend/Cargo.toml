@@ -66,6 +66,7 @@ pallet-society = { git = "https://github.com/paritytech/substrate", branch = "ma
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking-reward-curve = { package = "pallet-staking-reward-curve", git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-stake-tracker = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-stake-tracker-initializer = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-state-trie-migration = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-sudo = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -157,6 +158,8 @@ std = [
 	"pallet-session/std",
 	"pallet-society/std",
 	"pallet-staking/std",
+	"pallet-stake-tracker/std",
+	"pallet-stake-tracker-initializer/std",
 	"pallet-state-trie-migration/std",
 	"pallet-sudo/std",
 	"pallet-timestamp/std",
@@ -258,6 +261,8 @@ try-runtime = [
 	"pallet-session/try-runtime",
 	"pallet-society/try-runtime",
 	"pallet-staking/try-runtime",
+	"pallet-stake-tracker/try-runtime",
+	"pallet-stake-tracker-initializer/try-runtime",
 	"pallet-state-trie-migration/try-runtime",
 	"pallet-sudo/try-runtime",
 	"pallet-timestamp/try-runtime",

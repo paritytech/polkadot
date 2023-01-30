@@ -509,7 +509,7 @@ impl pallet_bags_list::Config<VoterBagsListInstance> for Runtime {
 }
 
 parameter_types! {
-	pub const BagThresholdsBalances: &'static [u64] = &bag_thresholds::THRESHOLDS_BALANCES;
+	pub const BagThresholdsBalances: &'static [Balance] = &bag_thresholds::THRESHOLDS_BALANCES;
 }
 
 type TargetBagsListInstance = pallet_bags_list::Instance2;
@@ -1627,6 +1627,7 @@ pub type Migrations = (
 	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	parachains_ump::migration::v1::MigrateToV1<Runtime>,
+	pallet_stake_tracker_initializer::v1::InjectValidatorsApprovalStakeIntoTargetList<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.

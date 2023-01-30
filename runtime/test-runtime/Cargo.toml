@@ -114,6 +114,7 @@ std = [
 	"sp-staking/std",
 	"pallet-session/std",
 	"pallet-staking/std",
+	"pallet-stake-tracker/std",
 	"frame-system/std",
 	"frame-system-rpc-runtime-api/std",
 	"test-runtime-constants/std",

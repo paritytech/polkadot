@@ -73,6 +73,7 @@ pallet-society = { git = "https://github.com/paritytech/substrate", branch = "ma
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-stake-tracker = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+pallet-stake-tracker-initializer = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -234,6 +235,8 @@ runtime-benchmarks = [
 	"pallet-society/runtime-benchmarks",
 	"pallet-recovery/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
+	"pallet-stake-tracker/std",
+	"pallet-stake-tracker-initializer/std",
 	"pallet-timestamp/runtime-benchmarks",
 	"pallet-tips/runtime-benchmarks",
 	"pallet-treasury/runtime-benchmarks",
@@ -286,6 +289,8 @@ try-runtime = [
 	"pallet-session/try-runtime",
 	"pallet-society/try-runtime",
 	"pallet-staking/try-runtime",
+	"pallet-stake-tracker/try-runtime",
+	"pallet-stake-tracker-initializer/try-runtime",
 	"pallet-timestamp/try-runtime",
 	"pallet-tips/try-runtime",
 	"pallet-treasury/try-runtime",
