@@ -461,34 +461,37 @@ fn answer_hypothetical_frontier_request(
 				None => continue,
 				Some(f) => f,
 			};
+			let candidate_storage = match view.candidate_storage.get(&c.candidate_para()) {
+				None => continue,
+				Some(storage) => storage,
+			};
 
-			let (c_hash, hypothetical) = match c {
+			let candidate_hash = c.candidate_hash();
+			let hypothetical = match c {
 				HypotheticalCandidate::Complete {
-					candidate_hash,
 					receipt,
 					persisted_validation_data,
-				} => (
-					*candidate_hash,
-					fragment_tree::HypotheticalCandidate::Complete {
-						receipt: Cow::Borrowed(receipt),
-						persisted_validation_data: Cow::Borrowed(persisted_validation_data),
-					},
-				),
+					..
+				} => fragment_tree::HypotheticalCandidate::Complete {
+					receipt: Cow::Borrowed(receipt),
+					persisted_validation_data: Cow::Borrowed(persisted_validation_data),
+				},
 				HypotheticalCandidate::Incomplete {
-					candidate_hash,
 					parent_head_data_hash,
 					candidate_relay_parent,
 					..
-				} => (
-					*candidate_hash,
-					fragment_tree::HypotheticalCandidate::Incomplete {
-						relay_parent: *candidate_relay_parent,
-						parent_head_data_hash: *parent_head_data_hash,
-					},
-				),
+				} => fragment_tree::HypotheticalCandidate::Incomplete {
+					relay_parent: *candidate_relay_parent,
+					parent_head_data_hash: *parent_head_data_hash,
+				},
 			};
 
-			let depths = fragment_tree.hypothetical_depths(c_hash, hypothetical);
+			let depths = fragment_tree.hypothetical_depths(
+				candidate_hash,
+				hypothetical,
+				candidate_storage,
+				request.backed_in_path_only,
+			);
 
 			if !depths.is_empty() {
 				membership.push((*active_leaf, depths));

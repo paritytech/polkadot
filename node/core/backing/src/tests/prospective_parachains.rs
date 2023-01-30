@@ -394,6 +394,7 @@ fn seconding_sanity_check_allowed() {
 		let expected_request_a = HypotheticalFrontierRequest {
 			candidates: vec![hypothetical_candidate.clone()],
 			fragment_tree_relay_parent: Some(leaf_a_hash),
+			backed_in_path_only: false,
 		};
 		let expected_response_a = make_hypothetical_frontier_response(
 			vec![0, 1, 2, 3],
@@ -403,6 +404,7 @@ fn seconding_sanity_check_allowed() {
 		let expected_request_b = HypotheticalFrontierRequest {
 			candidates: vec![hypothetical_candidate.clone()],
 			fragment_tree_relay_parent: Some(leaf_b_hash),
+			backed_in_path_only: false,
 		};
 		let expected_response_b =
 			make_hypothetical_frontier_response(vec![3], hypothetical_candidate, leaf_b_hash);
@@ -539,6 +541,7 @@ fn seconding_sanity_check_disallowed() {
 		let expected_request_a = HypotheticalFrontierRequest {
 			candidates: vec![hypothetical_candidate.clone()],
 			fragment_tree_relay_parent: Some(leaf_a_hash),
+			backed_in_path_only: false,
 		};
 		let expected_response_a = make_hypothetical_frontier_response(
 			vec![0, 1, 2, 3],
@@ -632,6 +635,7 @@ fn seconding_sanity_check_disallowed() {
 		let expected_request_a = HypotheticalFrontierRequest {
 			candidates: vec![hypothetical_candidate.clone()],
 			fragment_tree_relay_parent: Some(leaf_a_hash),
+			backed_in_path_only: false,
 		};
 		let expected_response_a = make_hypothetical_frontier_response(
 			vec![3],
@@ -641,6 +645,7 @@ fn seconding_sanity_check_disallowed() {
 		let expected_request_b = HypotheticalFrontierRequest {
 			candidates: vec![hypothetical_candidate.clone()],
 			fragment_tree_relay_parent: Some(leaf_b_hash),
+			backed_in_path_only: false,
 		};
 		let expected_response_b =
 			make_hypothetical_frontier_response(vec![1], hypothetical_candidate, leaf_b_hash);
@@ -737,6 +742,7 @@ fn prospective_parachains_reject_candidate() {
 			HypotheticalFrontierRequest {
 				candidates: vec![hypothetical_candidate.clone()],
 				fragment_tree_relay_parent: Some(leaf_a_hash),
+				backed_in_path_only: false,
 			},
 			make_hypothetical_frontier_response(
 				vec![0, 1, 2, 3],
@@ -917,6 +923,7 @@ fn second_multiple_candidates_per_relay_parent() {
 				HypotheticalFrontierRequest {
 					candidates: vec![hypothetical_candidate.clone()],
 					fragment_tree_relay_parent: Some(leaf_hash),
+					backed_in_path_only: false,
 				},
 				make_hypothetical_frontier_response(
 					vec![*depth],
@@ -1452,6 +1459,7 @@ fn seconding_sanity_check_occupy_same_depth() {
 				HypotheticalFrontierRequest {
 					candidates: vec![hypothetical_candidate.clone()],
 					fragment_tree_relay_parent: Some(leaf_hash),
+					backed_in_path_only: false,
 				},
 				// Send the same membership for both candidates.
 				make_hypothetical_frontier_response(vec![0, 1], hypothetical_candidate, leaf_hash),
@@ -1589,6 +1597,7 @@ fn occupied_core_assignment() {
 			HypotheticalFrontierRequest {
 				candidates: vec![hypothetical_candidate.clone()],
 				fragment_tree_relay_parent: Some(leaf_a_hash),
+				backed_in_path_only: false,
 			},
 			make_hypothetical_frontier_response(
 				vec![0, 1, 2, 3],

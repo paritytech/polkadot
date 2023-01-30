@@ -1087,6 +1087,7 @@ async fn seconding_sanity_check<Context>(
 	active_leaves: &HashMap<Hash, ActiveLeafState>,
 	implicit_view: &ImplicitView,
 	hypothetical_candidate: HypotheticalCandidate,
+	backed_in_path_only: bool,
 ) -> SecondingAllowed {
 	let mut membership = Vec::new();
 	let mut responses = FuturesOrdered::<BoxFuture<'_, Result<_, oneshot::Canceled>>>::new();
@@ -1110,6 +1111,7 @@ async fn seconding_sanity_check<Context>(
 				HypotheticalFrontierRequest {
 					candidates: vec![hypothetical_candidate.clone()],
 					fragment_tree_relay_parent: Some(*head),
+					backed_in_path_only,
 				},
 				tx,
 			))
@@ -1212,6 +1214,7 @@ async fn handle_can_second_request<Context>(
 			&state.per_leaf,
 			&state.implicit_view,
 			hypothetical_candidate,
+			true,
 		)
 		.await;
 
@@ -1287,6 +1290,7 @@ async fn handle_validated_candidate_command<Context>(
 							&state.per_leaf,
 							&state.implicit_view,
 							hypothetical_candidate,
+							false,
 						)
 						.await
 						{
