@@ -63,7 +63,7 @@ eve: reports histogram polkadot_pvf_preparation_time has at least 1 samples in b
 one: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 10 seconds
 two: reports histogram polkadot_pvf_preparation_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2", "3", "10"] within 10 seconds
 
-# Check all buckets >= 20.             
+# Check all buckets >= 20.
 alice: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "180", "+Inf"] within 10 seconds
 bob: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "180", "+Inf"] within 10 seconds
 charlie: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["20", "30", "60", "180", "+Inf"] within 10 seconds
@@ -78,8 +78,8 @@ two: reports histogram polkadot_pvf_preparation_time has 0 samples in buckets ["
 # APPROVAL_EXECUTION_TIMEOUT(6s). Currently these are not differentiated by metrics
 # because the metrics are defined in `polkadot-node-core-pvf` which is a level below
 # the relevant subsystems.
-# That being said, we will take the simplifying assumption of testing only the 
-# 2s timeout. 
+# That being said, we will take the simplifying assumption of testing only the
+# 2s timeout.
 # We do this check by ensuring all executions fall into bucket le="2" or lower.
 # First, check if we have at least 1 sample, but we should have many more.
 alice: reports histogram polkadot_pvf_execution_time has at least 1 samples in buckets ["0.1", "0.5", "1", "2"] within 10 seconds
