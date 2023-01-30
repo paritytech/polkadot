@@ -536,6 +536,9 @@ impl FragmentTree {
 	///
 	/// If the candidate is already known, this returns the actual depths where this
 	/// candidate is part of the tree.
+	///
+	/// Setting `backed_in_path_only` to `true` ensures this function only returns such membership
+	/// that every candidate in the path from the root is backed.
 	pub(crate) fn hypothetical_depths(
 		&self,
 		hash: CandidateHash,
