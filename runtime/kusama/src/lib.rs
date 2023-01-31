@@ -2283,11 +2283,8 @@ mod remote_tests {
 	}
 
 	#[tokio::test]
+	#[ignore = "this test is meant to be executed manually"]
 	async fn try_fast_unstake_all() {
-		if var("RUN_MIGRATION_TESTS").is_err() {
-			return
-		}
-
 		sp_tracing::try_init_simple();
 		let transport: Transport =
 			var("WS").unwrap_or("wss://kusama-rpc.polkadot.io:443".to_string()).into();
