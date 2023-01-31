@@ -25,7 +25,7 @@ pub mod v2 {
 	use super::STORAGE_VERSION;
 	#[cfg(feature = "try-runtime")]
 	use crate::session_info::Vec;
-	use crate::{session_info, session_info::Pallet, shared};
+	use crate::{configuration, session_info, session_info::Pallet, shared};
 	use frame_support::{
 		pallet_prelude::Weight,
 		traits::{OnRuntimeUpgrade, StorageVersion},
@@ -48,13 +48,19 @@ pub mod v2 {
 			let mut weight = db_weight.reads(1);
 			if StorageVersion::get::<Pallet<T>>() == 1 {
 				log::info!(target: LOG_TARGET, "Upgrading storage v1 -> v2");
-				let session_index = <shared::Pallet<T>>::session_index();
-				session_info::pallet::SessionExecutorParams::<T>::insert(
-					&session_index,
-					ExecutorParams::default(),
-				);
+				let current_session = <shared::Pallet<T>>::session_index();
+				let first_session = current_session
+					.saturating_sub(<configuration::Pallet<T>>::config().dispute_period);
+
+				for session_index in first_session..=current_session {
+					session_info::pallet::SessionExecutorParams::<T>::insert(
+						&session_index,
+						ExecutorParams::default(),
+					);
+				}
+
 				STORAGE_VERSION.put::<Pallet<T>>();
-				weight += db_weight.reads(1) + db_weight.writes(2);
+				weight += db_weight.reads_writes(2, (current_session - first_session + 2) as u64);
 			} else {
 				log::warn!(target: LOG_TARGET, "Can only upgrade from version 1");
 			}
