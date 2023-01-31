@@ -110,7 +110,12 @@
 //! All staging API functions should use primitives from `vstaging`. They should be clearly separated
 //! from the stable primitives.
 
-use crate::*;
+use crate::{
+	v2, vstaging, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
+};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives as pcp;
 use polkadot_parachain::primitives as ppp;
