@@ -852,7 +852,7 @@ mod tests {
 			ump_remaining: 10,
 			ump_remaining_bytes: 1_000,
 			max_ump_num_per_candidate: 10,
-			dmp_remaining_messages: 10,
+			dmp_remaining_messages: [0; 10].into(),
 			hrmp_inbound: InboundHrmpLimitations { valid_watermarks },
 			hrmp_channels_out: HashMap::new(),
 			max_hrmp_num_per_candidate: 0,
@@ -895,7 +895,7 @@ mod tests {
 				horizontal_messages: Vec::new(),
 				new_validation_code: None,
 				head_data: para_head,
-				processed_downward_messages: 0,
+				processed_downward_messages: 1,
 				hrmp_watermark,
 			},
 		};
