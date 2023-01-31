@@ -35,90 +35,66 @@
 //! number of groups as availability cores. Validator groups will be assigned to different availability cores
 //! over time.
 
-use frame_support::pallet_prelude::*;
-use primitives::{CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ScheduledCore};
-use sp_runtime::traits::Saturating;
+use primitives::{CoreIndex, CoreOccupied, Id as ParaId};
 
 use crate::{
 	configuration,
-	initializer::SessionChangeNotification,
+	//initializer::SessionChangeNotification,
 	paras,
-	scheduler_common::{AssignmentKind, CoreAssignment, FreedReason},
+	scheduler_common::Assignment,
 };
 
-use crate::scheduler_common::CoreAssigner;
+pub use pallet::*;
+
+use crate::scheduler_common::AssignmentProvider;
 
 //#[cfg(test)]
 //mod tests;
 
-pub struct ParachainsScheduler;
-impl<T: crate::scheduler::pallet::Config> CoreAssigner<T> for ParachainsScheduler {
+#[frame_support::pallet]
+pub mod pallet {
+	use super::*;
+
+	#[pallet::pallet]
+	#[pallet::generate_store(pub(super) trait Store)]
+	#[pallet::without_storage_info]
+	pub struct Pallet<T>(_);
+
+	#[pallet::config]
+	pub trait Config:
+		frame_system::Config
+		+ configuration::Config
+		+ paras::Config
+		+ crate::scheduler::pallet::Config
+	{
+	}
+}
+
+impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
+	fn on_new_session(_n_lookahead: u32) {}
+
 	fn session_core_count() -> u32 {
 		<paras::Pallet<T>>::parachains().len() as u32
 	}
 
-	fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		Weight::zero()
+	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
+		<paras::Pallet<T>>::parachains()
+			.get(core_idx.0 as usize)
+			.copied()
+			.map(Assignment::Parachain)
 	}
 
-	fn initializer_finalize() {}
-
-	fn initializer_on_new_session(
-		_notification: &SessionChangeNotification<T::BlockNumber>,
-		_cores: &[Option<CoreOccupied>],
-	) {
-	}
-
-	fn free_cores(_just_freed_cores: &[(CoreOccupied, FreedReason)]) {}
-
-	fn make_core_assignment(core_idx: CoreIndex, group_idx: GroupIndex) -> Option<CoreAssignment> {
-		let parachains = <paras::Pallet<T>>::parachains();
-
-		Some(CoreAssignment {
-			kind: AssignmentKind::Parachain,
-			para_id: parachains[core_idx.0 as usize],
-			core: core_idx,
-			group_idx,
-		})
-	}
-
-	fn clear(_scheduled: &[CoreAssignment]) {}
-
-	fn core_para(core_index: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
+	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
 		match core_occupied {
+			CoreOccupied::Parathread(_) => panic!("impossible"),
 			CoreOccupied::Parachain => {
 				let parachains = <paras::Pallet<T>>::parachains();
-				parachains[core_index.0 as usize]
+				parachains[core_idx.0 as usize]
 			},
-			CoreOccupied::Parathread(_) => panic!("impossible"),
 		}
 	}
 
-	fn availability_timeout_predicate(
-		_core_index: CoreIndex,
-		blocks_since_last_rotation: T::BlockNumber,
-		pending_since: T::BlockNumber,
-	) -> bool {
-		let config = <configuration::Pallet<T>>::config();
-
-		if blocks_since_last_rotation >= config.chain_availability_period {
-			false // no pruning except recently after rotation.
-		} else {
-			let now = <frame_system::Pallet<T>>::block_number();
-			now.saturating_sub(pending_since) >= config.chain_availability_period
-		}
-	}
-
-	fn next_up_on_available(core_idx: CoreIndex) -> Option<ScheduledCore> {
-		let parachains = <paras::Pallet<T>>::parachains();
-		Some(ScheduledCore { para_id: parachains[core_idx.0 as usize], collator: None })
-	}
-
-	fn next_up_on_time_out(
-		core_idx: CoreIndex,
-		_cores: &[Option<CoreOccupied>],
-	) -> Option<ScheduledCore> {
-		let parachains = <paras::Pallet<T>>::parachains();
-		Some(ScheduledCore { para_id: parachains[core_idx.0 as usize], collator: None })
+	fn get_availability_period(_core_idx: CoreIndex) -> T::BlockNumber {
+		<configuration::Pallet<T>>::config().chain_availability_period
 	}
 }

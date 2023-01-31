@@ -1084,8 +1084,7 @@ impl parachains_paras_inherent::Config for Runtime {
 }
 
 impl parachains_scheduler::Config for Runtime {
-	type CoreAssigners<T: runtime_parachains::scheduler::Config> =
-		(scheduler_parachains::ParachainsScheduler, scheduler_parathreads::Pallet<T>);
+	type AssignmentProvider = scheduler_parachains::Pallet<Runtime>;
 }
 impl scheduler_parathreads::Config for Runtime {}
 

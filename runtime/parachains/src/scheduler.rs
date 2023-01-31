@@ -51,7 +51,7 @@ use crate::{
 	scheduler_parathreads,
 };
 
-use crate::scheduler_common::CoreAssigner;
+use crate::scheduler_common::{Assignment, AssignmentProvider};
 pub use pallet::*;
 
 #[cfg(test)]
@@ -60,6 +60,7 @@ mod tests;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
+	use crate::scheduler_common::AssignmentProvider;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -70,8 +71,7 @@ pub mod pallet {
 	pub trait Config:
 		frame_system::Config + configuration::Config + paras::Config + scheduler_parathreads::Config
 	{
-		// I believe having a Vec<CoreAssigner> would be nicer
-		type CoreAssigners<T: Config>: CoreAssigner<T>;
+		type AssignmentProvider: AssignmentProvider<Self>;
 	}
 
 	/// All the validator groups. One for each core. Indices are into `ActiveValidators` - not the
@@ -94,7 +94,6 @@ pub mod pallet {
 	///   * The number of validators divided by `configuration.max_validators_per_core`.
 	#[pallet::storage]
 	#[pallet::getter(fn availability_cores)]
-	// TODO(?): macro here to check if there is a CoreAssigners impl for every CoreOccupied variant
 	pub(crate) type AvailabilityCores<T> = StorageValue<_, Vec<Option<CoreOccupied>>, ValueQuery>;
 
 	/// The block number where the session start occurred. Used to track how many group rotations have occurred.
@@ -117,6 +116,10 @@ pub mod pallet {
 	#[pallet::getter(fn scheduled)]
 	pub(crate) type Scheduled<T> = StorageValue<_, Vec<CoreAssignment>, ValueQuery>;
 	// sorted ascending by CoreIndex.
+
+	#[pallet::storage]
+	#[pallet::getter(fn lookahead)]
+	pub(crate) type Lookahead<T> = StorageValue<_, Vec<Vec<Assignment>>, ValueQuery>;
 }
 
 impl<T: Config> Pallet<T> {
@@ -136,16 +139,13 @@ impl<T: Config> Pallet<T> {
 		let config = new_config;
 
 		let n_cores = core::cmp::max(
-			T::CoreAssigners::<T>::session_core_count(),
+			T::AssignmentProvider::session_core_count(),
 			match config.max_validators_per_core {
 				Some(x) if x != 0 => validators.len() as u32 / x,
 				_ => 0,
 			},
 		);
-
-		// TODO: Can we map assigners to cores in particular? Can we actually iterate over assigners?
-		let cores = AvailabilityCores::<T>::get();
-		T::CoreAssigners::<T>::initializer_on_new_session(notification, &cores);
+		T::AssignmentProvider::on_new_session(config.scheduling_lookahead);
 
 		AvailabilityCores::<T>::mutate(|cores| {
 			// clear all occupied cores.
@@ -197,31 +197,25 @@ impl<T: Config> Pallet<T> {
 	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
 	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
 	pub(crate) fn free_cores(just_freed_cores: BTreeMap<CoreIndex, FreedReason>) {
-		let (just_freed_cores_, freed_idxs) = Self::extract_relevant_freed_cores(just_freed_cores);
-
-		T::CoreAssigners::<T>::free_cores(just_freed_cores_.as_slice());
-
 		AvailabilityCores::<T>::mutate(|cores| {
-			for freed_index in freed_idxs {
-				cores[freed_index] = None;
+			for (freed_index, freed_reason) in just_freed_cores {
+				if (freed_index.0 as usize) < cores.len() {
+					match cores[freed_index.0 as usize].take() {
+						None => continue,
+						Some(CoreOccupied::Parachain) => {},
+						Some(CoreOccupied::Parathread(entry)) => match freed_reason {
+							FreedReason::Concluded => {},
+							FreedReason::TimedOut => Lookahead::<T>::mutate(|la| {
+								match la.get_mut(freed_index.0 as usize) {
+									None => {},
+									Some(v) => v.push(Assignment::ParathreadA(entry.claim)),
+								}
+							}),
+						},
+					}
+				}
 			}
-		});
-	}
-
-	fn extract_relevant_freed_cores(
-		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
-	) -> (Vec<(CoreOccupied, FreedReason)>, Vec<usize>) {
-		let cores = AvailabilityCores::<T>::get();
-
-		just_freed_cores
-			.into_iter()
-			.flat_map(|(freed_idx, freed_reason)| {
-				cores.get(freed_idx.0 as usize).map(|core_occupied| {
-					core_occupied.clone().map(|co| ((co, freed_reason), freed_idx.0 as usize))
-				})
-			})
-			.flatten()
-			.unzip()
+		})
 	}
 
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
@@ -286,9 +280,15 @@ impl<T: Config> Pallet<T> {
 			);
 
 			if let Some(assignment) =
-				T::CoreAssigners::<T>::make_core_assignment(core_idx, group_idx)
+				Lookahead::<T>::mutate(|la| la.get_mut(core_index).and_then(|v| v.pop()))
 			{
-				scheduled_updates.push((schedule_and_insert_at, assignment))
+				let core_assignment = CoreAssignment {
+					core: core_idx,
+					para_id: assignment.clone().para_id(),
+					kind: assignment.kind(),
+					group_idx,
+				};
+				scheduled_updates.push((schedule_and_insert_at, core_assignment))
 			}
 		}
 
@@ -354,7 +354,7 @@ impl<T: Config> Pallet<T> {
 		let cores = AvailabilityCores::<T>::get();
 		match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
 			None => None,
-			Some(x) => Some(T::CoreAssigners::<T>::core_para(core_index, x)),
+			Some(x) => Some(T::AssignmentProvider::core_para(core_index, x)),
 		}
 	}
 
@@ -427,11 +427,17 @@ impl<T: Config> Pallet<T> {
 				match availability_cores.get(core_index.0 as usize) {
 					None => true,       // out-of-bounds, doesn't really matter what is returned.
 					Some(None) => true, // core not occupied, still doesn't really matter.
-					Some(Some(_)) => T::CoreAssigners::<T>::availability_timeout_predicate(
-						core_index,
-						blocks_since_last_rotation,
-						pending_since,
-					),
+					Some(Some(_)) => {
+						// core not occupied, still doesn't really matter.
+						let availability_period =
+							T::AssignmentProvider::get_availability_period(core_index);
+						if blocks_since_last_rotation >= availability_period {
+							false // no pruning except recently after rotation.
+						} else {
+							let now = <frame_system::Pallet<T>>::block_number();
+							now.saturating_sub(pending_since) >= availability_period
+						}
+					},
 				}
 			};
 
@@ -455,7 +461,17 @@ impl<T: Config> Pallet<T> {
 	/// For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that
 	/// core, and is None if there isn't one.
 	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
-		T::CoreAssigners::<T>::next_up_on_available(core)
+		Lookahead::<T>::get()
+			.get(core.0 as usize)
+			.and_then(|a| a.first().map(Self::assignment_to_scheduled_core))
+	}
+
+	fn assignment_to_scheduled_core(assignment: &Assignment) -> ScheduledCore {
+		match assignment {
+			Assignment::Parachain(para_id) => ScheduledCore { para_id: *para_id, collator: None },
+			Assignment::ParathreadA(claim) =>
+				ScheduledCore { para_id: claim.0, collator: Some(claim.1.clone()) },
+		}
 	}
 
 	/// Return the next thing that will be scheduled on this core assuming it is currently
@@ -466,8 +482,7 @@ impl<T: Config> Pallet<T> {
 	/// core, or if there isn't one, the claim that is currently occupying the core, as long
 	/// as the claim's retries would not exceed the limit. Otherwise None.
 	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {
-		let cores = AvailabilityCores::<T>::get();
-		T::CoreAssigners::<T>::next_up_on_time_out(core, &cores)
+		Self::next_up_on_available(core)
 	}
 
 	// Free all scheduled cores and return parathread claims to queue, with retries incremented.
@@ -477,6 +492,6 @@ impl<T: Config> Pallet<T> {
 			vec.push(core_assignment);
 		}
 
-		T::CoreAssigners::<T>::clear(&vec);
+		//T::CoreAssigners::<T>::clear(&vec);
 	}
 }
