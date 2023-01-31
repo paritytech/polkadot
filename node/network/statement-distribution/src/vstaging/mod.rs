@@ -1862,70 +1862,93 @@ async fn handle_incoming_manifest<Context>(
 
 	let ManifestImportSuccess { relay_parent_state, per_session, acknowledge, sender_index } = x;
 
-	let local_validator = match relay_parent_state.local_validator.as_mut() {
-		None => return,
-		Some(l) => l,
-	};
-
 	if acknowledge {
 		// 4. if already confirmed & known within grid, acknowledge candidate
-		let local_knowledge = {
-			let group_size = match per_session.groups.get(manifest.group_index) {
-				None => return, // sanity
-				Some(x) => x.len(),
-			};
-
-			local_knowledge_filter(
-				group_size,
-				manifest.group_index,
-				manifest.candidate_hash,
-				&relay_parent_state.statement_store,
-			)
-		};
-		let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
-			candidate_hash: manifest.candidate_hash,
-			seconded_in_group: local_knowledge.seconded_in_group.clone(),
-			validated_in_group: local_knowledge.validated_in_group.clone(),
-		};
-
-		let msg = Versioned::VStaging(
-			protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(acknowledgement),
-		);
-
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			vec![peer.clone()],
-			msg.into(),
-		))
-		.await;
-		local_validator.grid_tracker.manifest_sent_to(
+		send_acknowledgement_and_statements(
+			ctx,
+			peer,
 			sender_index,
-			manifest.candidate_hash,
-			local_knowledge.clone(),
-		);
-
-		let messages = post_acknowledgement_statement_messages(
-			sender_index,
+			per_session,
+			relay_parent_state,
 			manifest.relay_parent,
-			&mut local_validator.grid_tracker,
-			&relay_parent_state.statement_store,
-			&per_session.groups,
 			manifest.group_index,
 			manifest.candidate_hash,
-			&local_knowledge,
-		);
-
-		if !messages.is_empty() {
-			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(
-				messages.into_iter().map(|m| (vec![peer.clone()], m)).collect(),
-			))
-			.await;
-		}
+		).await;
 	} else if !state.candidates.is_confirmed(&manifest.candidate_hash) {
 		// 5. if unconfirmed, add request entry
 		state
 			.request_manager
 			.get_or_insert(manifest.relay_parent, manifest.candidate_hash, manifest.group_index)
 			.add_peer(peer);
+	}
+}
+
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn send_acknowledgement_and_statements<Context>(
+	ctx: &mut Context,
+	peer: PeerId,
+	validator_index: ValidatorIndex,
+	per_session: &PerSessionState,
+	relay_parent_state: &mut PerRelayParentState,
+	relay_parent: Hash,
+	group_index: GroupIndex,
+	candidate_hash: CandidateHash,
+) {
+	let local_validator = match relay_parent_state.local_validator.as_mut() {
+		None => return,
+		Some(l) => l,
+	};
+
+	let local_knowledge = {
+		let group_size = match per_session.groups.get(group_index) {
+			None => return, // sanity
+			Some(x) => x.len(),
+		};
+
+		local_knowledge_filter(
+			group_size,
+			group_index,
+			candidate_hash,
+			&relay_parent_state.statement_store,
+		)
+	};
+	let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
+		candidate_hash: candidate_hash,
+		seconded_in_group: local_knowledge.seconded_in_group.clone(),
+		validated_in_group: local_knowledge.validated_in_group.clone(),
+	};
+
+	let msg = Versioned::VStaging(
+		protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(acknowledgement),
+	);
+
+	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+		vec![peer.clone()],
+		msg.into(),
+	)).await;
+
+	local_validator.grid_tracker.manifest_sent_to(
+		validator_index,
+		candidate_hash,
+		local_knowledge.clone(),
+	);
+
+	let messages = post_acknowledgement_statement_messages(
+		validator_index,
+		relay_parent,
+		&mut local_validator.grid_tracker,
+		&relay_parent_state.statement_store,
+		&per_session.groups,
+		group_index,
+		candidate_hash,
+		&local_knowledge,
+	);
+
+	if !messages.is_empty() {
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(
+			messages.into_iter().map(|m| (vec![peer.clone()], m)).collect(),
+		))
+		.await;
 	}
 }
 
