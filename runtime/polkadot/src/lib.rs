@@ -1609,6 +1609,8 @@ pub type Migrations = (
 	// this release they will be properly pruned after the bonding duration has
 	// elapsed)
 	pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
+	// won't work as it is already upgraded. Just looking to trigger CI pre-upgrade test.
+	pallet_staking::migrations::v13::MigrateToV13<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
