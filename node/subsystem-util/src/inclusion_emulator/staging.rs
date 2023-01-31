@@ -267,7 +267,7 @@ impl Constraints {
 	) -> Result<(), ModificationError> {
 		if let Some(HrmpWatermarkUpdate::Trunk(hrmp_watermark)) = modifications.hrmp_watermark {
 			// head updates are always valid.
-			if self.hrmp_inbound.valid_watermarks.iter().any(|w| w == &hrmp_watermark) {
+			if self.hrmp_inbound.valid_watermarks.iter().all(|w| w != &hrmp_watermark) {
 				return Err(ModificationError::DisallowedHrmpWatermark(hrmp_watermark))
 			}
 		}
