@@ -47,6 +47,10 @@ const EXTRA_HEAP_PAGES: u64 = 2048;
 /// The number of bytes devoted for the stack during wasm execution of a PVF.
 const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
 
+// VALUES OF THE DEFAULT CONFIGURATION SHOULD NEVER BE CHANGED
+// They are used as base values for the execution environment parametrization.
+// To overwrite them, add new ones to `EXECUTOR_PARAMS` in the `session_info` pallet and perform
+// a runtime upgrade to make them active.
 const DEFAULT_CONFIG: Config = Config {
 	allow_missing_func_imports: true,
 	cache_path: None,
