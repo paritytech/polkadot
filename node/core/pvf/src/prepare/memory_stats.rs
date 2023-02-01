@@ -38,7 +38,7 @@ use tikv_jemalloc_ctl::{epoch, stats, Error};
 use tokio::task::JoinHandle;
 
 #[cfg(target_os = "linux")]
-use libc::{getrusage, rusage, timeval, RUSAGE_THREAD};
+use libc::{getrusage, rusage, timeval, RUSAGE_SELF};
 
 /// Helper struct to contain all the memory stats, including [`MemoryAllocationStats`] and, if
 /// supported by the OS, `ru_maxrss`.
@@ -108,7 +108,7 @@ fn getrusage_thread() -> io::Result<rusage> {
 		ru_nvcsw: 0,
 		ru_nivcsw: 0,
 	};
-	if unsafe { getrusage(RUSAGE_THREAD, &mut result) } == -1 {
+	if unsafe { getrusage(RUSAGE_SELF, &mut result) } == -1 {
 		return Err(io::Error::last_os_error())
 	}
 	Ok(result)
