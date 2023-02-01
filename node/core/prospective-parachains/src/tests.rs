@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use ::polkadot_primitives_test_helpers::{dummy_candidate_receipt_bad_sig, dummy_hash};
+use ::polkadot_primitives_test_helpers::make_candidate;
 use assert_matches::assert_matches;
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
@@ -27,11 +27,9 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::{
-	v2::{
-		CandidateCommitments, HeadData, Header, PersistedValidationData, ScheduledCore,
-		ValidationCodeHash,
-	},
 	vstaging::{AsyncBackingParameters, Constraints, InboundHrmpLimitations},
+	CommittedCandidateReceipt, HeadData, Header, PersistedValidationData, ScheduledCore,
+	ValidationCodeHash,
 };
 use std::sync::Arc;
 
@@ -68,42 +66,6 @@ fn dummy_constraints(
 		upgrade_restriction: None,
 		future_validation_code: None,
 	}
-}
-
-fn dummy_pvd(parent_head: HeadData, relay_parent_number: u32) -> PersistedValidationData {
-	PersistedValidationData {
-		parent_head,
-		relay_parent_number,
-		max_pov_size: MAX_POV_SIZE,
-		relay_parent_storage_root: dummy_hash(),
-	}
-}
-
-fn make_candidate(
-	leaf: &TestLeaf,
-	para_id: ParaId,
-	parent_head: HeadData,
-	head_data: HeadData,
-	validation_code_hash: ValidationCodeHash,
-) -> (CommittedCandidateReceipt, PersistedValidationData) {
-	let pvd = dummy_pvd(parent_head, leaf.number);
-	let commitments = CandidateCommitments {
-		head_data,
-		horizontal_messages: Vec::new(),
-		upward_messages: Vec::new(),
-		new_validation_code: None,
-		processed_downward_messages: 0,
-		hrmp_watermark: leaf.number,
-	};
-
-	let mut candidate = dummy_candidate_receipt_bad_sig(leaf.hash, Some(Default::default()));
-	candidate.commitments_hash = commitments.hash();
-	candidate.descriptor.para_id = para_id;
-	candidate.descriptor.persisted_validation_data_hash = pvd.hash();
-	candidate.descriptor.validation_code_hash = validation_code_hash;
-	let candidate = CommittedCandidateReceipt { descriptor: candidate.descriptor, commitments };
-
-	(candidate, pvd)
 }
 
 struct TestState {
@@ -536,7 +498,8 @@ fn send_candidates_and_check_if_found() {
 
 		// Candidate A1
 		let (candidate_a1, pvd_a1) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
@@ -547,7 +510,8 @@ fn send_candidates_and_check_if_found() {
 
 		// Candidate A2
 		let (candidate_a2, pvd_a2) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			2.into(),
 			HeadData(vec![2, 3, 4]),
 			HeadData(vec![2]),
@@ -558,7 +522,8 @@ fn send_candidates_and_check_if_found() {
 
 		// Candidate B
 		let (candidate_b, pvd_b) = make_candidate(
-			&leaf_b,
+			leaf_b.hash,
+			leaf_b.number,
 			1.into(),
 			HeadData(vec![3, 4, 5]),
 			HeadData(vec![3]),
@@ -569,7 +534,8 @@ fn send_candidates_and_check_if_found() {
 
 		// Candidate C
 		let (candidate_c, pvd_c) = make_candidate(
-			&leaf_c,
+			leaf_c.hash,
+			leaf_c.number,
 			2.into(),
 			HeadData(vec![6, 7, 8]),
 			HeadData(vec![4]),
@@ -646,7 +612,8 @@ fn check_candidate_parent_leaving_view() {
 
 		// Candidate A1
 		let (candidate_a1, pvd_a1) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
@@ -657,7 +624,8 @@ fn check_candidate_parent_leaving_view() {
 
 		// Candidate A2
 		let (candidate_a2, pvd_a2) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			2.into(),
 			HeadData(vec![2, 3, 4]),
 			HeadData(vec![2]),
@@ -668,7 +636,8 @@ fn check_candidate_parent_leaving_view() {
 
 		// Candidate B
 		let (candidate_b, pvd_b) = make_candidate(
-			&leaf_b,
+			leaf_b.hash,
+			leaf_b.number,
 			1.into(),
 			HeadData(vec![3, 4, 5]),
 			HeadData(vec![3]),
@@ -679,7 +648,8 @@ fn check_candidate_parent_leaving_view() {
 
 		// Candidate C
 		let (candidate_c, pvd_c) = make_candidate(
-			&leaf_c,
+			leaf_c.hash,
+			leaf_c.number,
 			2.into(),
 			HeadData(vec![6, 7, 8]),
 			HeadData(vec![4]),
@@ -768,7 +738,8 @@ fn check_candidate_on_multiple_forks() {
 
 		// Candidate on leaf A.
 		let (candidate_a, pvd_a) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
@@ -779,7 +750,8 @@ fn check_candidate_on_multiple_forks() {
 
 		// Candidate on leaf B.
 		let (candidate_b, pvd_b) = make_candidate(
-			&leaf_b,
+			leaf_b.hash,
+			leaf_b.number,
 			1.into(),
 			HeadData(vec![3, 4, 5]),
 			HeadData(vec![1]),
@@ -790,7 +762,8 @@ fn check_candidate_on_multiple_forks() {
 
 		// Candidate on leaf C.
 		let (candidate_c, pvd_c) = make_candidate(
-			&leaf_c,
+			leaf_c.hash,
+			leaf_c.number,
 			1.into(),
 			HeadData(vec![5, 6, 7]),
 			HeadData(vec![1]),
@@ -857,7 +830,8 @@ fn check_backable_query() {
 
 		// Candidate A
 		let (candidate_a, pvd_a) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
@@ -868,7 +842,8 @@ fn check_backable_query() {
 
 		// Candidate B
 		let (mut candidate_b, pvd_b) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1]),
 			HeadData(vec![2]),
@@ -967,7 +942,8 @@ fn check_depth_query() {
 
 		// Candidate A.
 		let (candidate_a, pvd_a) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
@@ -978,7 +954,8 @@ fn check_depth_query() {
 
 		// Candidate B.
 		let (candidate_b, pvd_b) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1]),
 			HeadData(vec![2]),
@@ -989,7 +966,8 @@ fn check_depth_query() {
 
 		// Candidate C.
 		let (candidate_c, pvd_c) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![2]),
 			HeadData(vec![3]),
@@ -1113,7 +1091,8 @@ fn check_pvd_query() {
 
 		// Candidate A.
 		let (candidate_a, pvd_a) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
@@ -1123,7 +1102,8 @@ fn check_pvd_query() {
 
 		// Candidate B.
 		let (candidate_b, pvd_b) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1]),
 			HeadData(vec![2]),
@@ -1133,7 +1113,8 @@ fn check_pvd_query() {
 
 		// Candidate C.
 		let (candidate_c, pvd_c) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![2]),
 			HeadData(vec![3]),

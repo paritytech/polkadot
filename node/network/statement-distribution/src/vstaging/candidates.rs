@@ -20,7 +20,7 @@
 //! Due to the request-oriented nature of this protocol, we often learn
 //! about candidates just as a hash, alongside claimed properties that the
 //! receipt would commit to. However, it is only later on that we can
-//! confirm those claimed properties. This store lets us keep track of the
+//! confirm those claimed properties. This store lets us keep track of
 //! all candidates which are currently 'relevant' after spam-protection, and
 //! gives us the ability to detect mis-advertisements after the fact
 //! and punish them accordingly.
@@ -138,11 +138,12 @@ impl Candidates {
 		Ok(())
 	}
 
-	/// Note that a candidate has been confirmed. If the candidate has just been
-	/// confirmed, then
+	/// Note that a candidate has been confirmed.
 	///
-	/// This does no sanity-checking of input data, and will overwrite
-	/// already-confirmed canidates.
+	/// If the candidate has just been confirmed, then remove any outdated claims, and generate a
+	/// reckoning of which peers advertised correctly and incorrectly.
+	///
+	/// This does no sanity-checking of input data, and will overwrite already-confirmed candidates.
 	pub fn confirm_candidate(
 		&mut self,
 		candidate_hash: CandidateHash,
@@ -370,9 +371,10 @@ impl Candidates {
 }
 
 /// A bad advertisement was recognized.
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct BadAdvertisement;
 
+#[derive(Debug, PartialEq)]
 enum CandidateState {
 	Unconfirmed(UnconfirmedCandidate),
 	Confirmed(ConfirmedCandidate),
@@ -405,7 +407,7 @@ impl CandidateClaims {
 }
 
 // properties of an unconfirmed but hypothetically importable candidate.
-#[derive(Hash, PartialEq, Eq)]
+#[derive(Debug, Hash, PartialEq, Eq)]
 struct UnconfirmedImportable {
 	relay_parent: Hash,
 	parent_hash: Hash,
@@ -415,6 +417,7 @@ struct UnconfirmedImportable {
 // An unconfirmed candidate may have have been advertised under
 // multiple identifiers. We track here, on the basis of unique identifier,
 // the peers which advertised each candidate in a specific way.
+#[derive(Debug, PartialEq)]
 struct UnconfirmedCandidate {
 	claims: Vec<(PeerId, CandidateClaims)>,
 	// ref-counted
@@ -521,6 +524,7 @@ impl UnconfirmedCandidate {
 }
 
 /// A confirmed candidate.
+#[derive(Debug, PartialEq)]
 pub struct ConfirmedCandidate {
 	receipt: Arc<CommittedCandidateReceipt>,
 	persisted_validation_data: PersistedValidationData,
@@ -588,12 +592,298 @@ impl ConfirmedCandidate {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use polkadot_primitives::HeadData;
+	use polkadot_primitives_test_helpers::make_candidate;
 
-	// TODO [now]: test that inserting unconfirmed rejects if claims are
-	// incomptable.
+	#[test]
+	fn inserting_unconfirmed_rejects_on_incompatible_claims() {
+		let relay_head_data_a = HeadData(vec![1, 2, 3]);
+		let relay_head_data_b = HeadData(vec![4, 5, 6]);
+		let relay_hash_a = relay_head_data_a.hash();
+		let relay_hash_b = relay_head_data_b.hash();
 
-	// TODO [now]: test that confirming correctly maintains the parent hash index
+		let para_id_a = 1.into();
+		let para_id_b = 2.into();
 
-	// TODO [now]: test that pruning unconfirmed claims correctly maintains the parent hash
-	// index
+		let (candidate_a, pvd_a) = make_candidate(
+			relay_hash_a,
+			1,
+			para_id_a,
+			relay_head_data_a,
+			HeadData(vec![1]),
+			Hash::from_low_u64_be(1000).into(),
+		);
+
+		let candidate_hash_a = candidate_a.hash();
+
+		let peer = PeerId::random();
+
+		let group_index_a = 100.into();
+		let group_index_b = 200.into();
+
+		let mut candidates = Candidates::default();
+
+		// Confirm a candidate first.
+		candidates.confirm_candidate(candidate_hash_a, candidate_a, pvd_a, group_index_a);
+
+		// Relay parent does not match.
+		assert_eq!(
+			candidates.insert_unconfirmed(
+				peer,
+				candidate_hash_a,
+				relay_hash_b,
+				group_index_a,
+				Some((relay_hash_a, para_id_a)),
+			),
+			Err(BadAdvertisement)
+		);
+
+		// Group index does not match.
+		assert_eq!(
+			candidates.insert_unconfirmed(
+				peer,
+				candidate_hash_a,
+				relay_hash_a,
+				group_index_b,
+				Some((relay_hash_a, para_id_a)),
+			),
+			Err(BadAdvertisement)
+		);
+
+		// Parent head data does not match.
+		assert_eq!(
+			candidates.insert_unconfirmed(
+				peer,
+				candidate_hash_a,
+				relay_hash_a,
+				group_index_a,
+				Some((relay_hash_b, para_id_a)),
+			),
+			Err(BadAdvertisement)
+		);
+
+		// Para ID does not match.
+		assert_eq!(
+			candidates.insert_unconfirmed(
+				peer,
+				candidate_hash_a,
+				relay_hash_a,
+				group_index_a,
+				Some((relay_hash_a, para_id_b)),
+			),
+			Err(BadAdvertisement)
+		);
+
+		// Everything matches.
+		assert_eq!(
+			candidates.insert_unconfirmed(
+				peer,
+				candidate_hash_a,
+				relay_hash_a,
+				group_index_a,
+				Some((relay_hash_a, para_id_a)),
+			),
+			Ok(())
+		);
+	}
+
+	#[test]
+	fn confirming_maintains_parent_hash_index() {
+		let relay_head_data = HeadData(vec![1, 2, 3]);
+		let relay_hash = relay_head_data.hash();
+
+		let candidate_head_data_a = HeadData(vec![1]);
+		let candidate_head_data_b = HeadData(vec![2]);
+		let candidate_head_data_c = HeadData(vec![3]);
+		let candidate_head_data_d = HeadData(vec![4]);
+		let candidate_head_data_hash_a = candidate_head_data_a.hash();
+		let candidate_head_data_hash_b = candidate_head_data_b.hash();
+		let candidate_head_data_hash_c = candidate_head_data_c.hash();
+		let candidate_head_data_hash_d = candidate_head_data_d.hash();
+
+		let (candidate_a, pvd_a) = make_candidate(
+			relay_hash,
+			1,
+			1.into(),
+			relay_head_data,
+			candidate_head_data_a.clone(),
+			Hash::from_low_u64_be(1000).into(),
+		);
+		let (candidate_b, pvd_b) = make_candidate(
+			relay_hash,
+			1,
+			1.into(),
+			candidate_head_data_a,
+			candidate_head_data_b.clone(),
+			Hash::from_low_u64_be(2000).into(),
+		);
+		let (candidate_c, pvd_c) = make_candidate(
+			relay_hash,
+			1,
+			1.into(),
+			candidate_head_data_b.clone(),
+			candidate_head_data_c.clone(),
+			Hash::from_low_u64_be(3000).into(),
+		);
+		let (candidate_d, pvd_d) = make_candidate(
+			relay_hash,
+			1,
+			1.into(),
+			candidate_head_data_c.clone(),
+			candidate_head_data_d,
+			Hash::from_low_u64_be(4000).into(),
+		);
+
+		let candidate_hash_a = candidate_a.hash();
+		let candidate_hash_b = candidate_b.hash();
+		let candidate_hash_c = candidate_c.hash();
+		let candidate_hash_d = candidate_d.hash();
+
+		let peer = PeerId::random();
+		let group_index = 100.into();
+
+		let mut candidates = Candidates::default();
+
+		// Insert some unconfirmed candidates.
+
+		// Advertise A without parent hash.
+		candidates.insert_unconfirmed(peer, candidate_hash_a, relay_hash, group_index, None);
+		assert_eq!(candidates.by_parent, HashMap::default());
+
+		// Advertise A with parent hash and ID.
+		candidates.insert_unconfirmed(
+			peer,
+			candidate_hash_a,
+			relay_hash,
+			group_index,
+			Some((relay_hash, 1.into())),
+		);
+		assert_eq!(
+			candidates.by_parent,
+			HashMap::from([((relay_hash, 1.into()), HashSet::from([candidate_hash_a]))])
+		);
+
+		// Advertise B with parent A.
+		candidates.insert_unconfirmed(
+			peer,
+			candidate_hash_b,
+			relay_hash,
+			group_index,
+			Some((candidate_head_data_hash_a, 1.into())),
+		);
+		assert_eq!(
+			candidates.by_parent,
+			HashMap::from([
+				((relay_hash, 1.into()), HashSet::from([candidate_hash_a])),
+				((candidate_head_data_hash_a, 1.into()), HashSet::from([candidate_hash_b]))
+			])
+		);
+
+		// Advertise C with parent A.
+		candidates.insert_unconfirmed(
+			peer,
+			candidate_hash_c,
+			relay_hash,
+			group_index,
+			Some((candidate_head_data_hash_a, 1.into())),
+		);
+		assert_eq!(
+			candidates.by_parent,
+			HashMap::from([
+				((relay_hash, 1.into()), HashSet::from([candidate_hash_a])),
+				(
+					(candidate_head_data_hash_a, 1.into()),
+					HashSet::from([candidate_hash_b, candidate_hash_c])
+				)
+			])
+		);
+
+		// Advertise D with parent A.
+		candidates.insert_unconfirmed(
+			peer,
+			candidate_hash_d,
+			relay_hash,
+			group_index,
+			Some((candidate_head_data_hash_a, 1.into())),
+		);
+		assert_eq!(
+			candidates.by_parent,
+			HashMap::from([
+				((relay_hash, 1.into()), HashSet::from([candidate_hash_a])),
+				(
+					(candidate_head_data_hash_a, 1.into()),
+					HashSet::from([candidate_hash_b, candidate_hash_c, candidate_hash_d])
+				)
+			])
+		);
+
+		// Insert confirmed candidates and check parent hash index.
+
+		// Confirmation matches advertisement. Index should be unchanged.
+		candidates.confirm_candidate(candidate_hash_a, candidate_a, pvd_a, group_index);
+		assert_eq!(
+			candidates.by_parent,
+			HashMap::from([
+				((relay_hash, 1.into()), HashSet::from([candidate_hash_a])),
+				(
+					(candidate_head_data_hash_a, 1.into()),
+					HashSet::from([candidate_hash_b, candidate_hash_c, candidate_hash_d])
+				)
+			])
+		);
+		candidates.confirm_candidate(candidate_hash_b, candidate_b, pvd_b, group_index);
+		assert_eq!(
+			candidates.by_parent,
+			HashMap::from([
+				((relay_hash, 1.into()), HashSet::from([candidate_hash_a])),
+				(
+					(candidate_head_data_hash_a, 1.into()),
+					HashSet::from([candidate_hash_b, candidate_hash_c, candidate_hash_d])
+				)
+			])
+		);
+
+		// Confirmation does not match advertisement. Index should be updated.
+		candidates.confirm_candidate(candidate_hash_d, candidate_d, pvd_d, group_index);
+		assert_eq!(
+			candidates.by_parent,
+			HashMap::from([
+				((relay_hash, 1.into()), HashSet::from([candidate_hash_a])),
+				(
+					(candidate_head_data_hash_a, 1.into()),
+					HashSet::from([candidate_hash_b, candidate_hash_c])
+				),
+				((candidate_head_data_hash_c, 1.into()), HashSet::from([candidate_hash_d]))
+			])
+		);
+
+		// Make a new candidate for C with a different para ID.
+		let (new_candidate_c, new_pvd_c) = make_candidate(
+			relay_hash,
+			1,
+			2.into(),
+			candidate_head_data_b,
+			candidate_head_data_c.clone(),
+			Hash::from_low_u64_be(3000).into(),
+		);
+		candidates.confirm_candidate(candidate_hash_c, new_candidate_c, new_pvd_c, group_index);
+		assert_eq!(
+			candidates.by_parent,
+			HashMap::from([
+				((relay_hash, 1.into()), HashSet::from([candidate_hash_a])),
+				((candidate_head_data_hash_a, 1.into()), HashSet::from([candidate_hash_b])),
+				((candidate_head_data_hash_b, 2.into()), HashSet::from([candidate_hash_c])),
+				((candidate_head_data_hash_c, 1.into()), HashSet::from([candidate_hash_d]))
+			])
+		);
+	}
+
+	#[test]
+	fn pruning_unconfirmed_claims_maintains_parent_hash_index() {
+		todo!()
+	}
+
+	// TODO: Test post confirmation.
+
+	// TODO: Test hypothetical frontiers based on `Candidates`.
 }
