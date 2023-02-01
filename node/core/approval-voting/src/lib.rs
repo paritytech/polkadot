@@ -1142,19 +1142,20 @@ async fn handle_from_overseer<Context>(
 			let mut actions = Vec::new();
 			if let Some(activated) = update.activated {
 				let head = activated.hash;
-				let mut span = jaeger::PerLeafSpan::new(activated.span, "approval-voting");
+				let mut span = jaeger::Span::new(&head, "approval-voting");
 				match import::handle_new_head(
 					ctx,
 					state,
 					db,
 					head,
 					&*last_finalized_height,
-					Some(&mut span),
+					&mut span,
 				)
 				.await
 				{
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
 					Ok(block_imported_candidates) => {
+						let mut block_import_span = span.child("block-import");
 						// Schedule wakeups for all imported candidates.
 						for block_batch in block_imported_candidates {
 							gum::debug!(
