@@ -48,9 +48,10 @@ jobs:
       - name: Pull xbuilder image for ${{ matrix.target }}
         env:
           IMAGE_NAME_TMP: DOCKER_IMAGE_${{ matrix.target }}
-          IMAGE_NAME: ${IMAGE_NAME_TMP//-/_}
-          IMAGE: ${!IMAGE_NAME}
         run: |
+          IMAGE_NAME=${IMAGE_NAME_TMP//-/_}
+          IMAGE: ${!IMAGE_NAME}
+
           echo "image name: $IMAGE_NAME"
           echo "Pulling image: $IMAGE"
           docker pull "IMAGE"
