@@ -155,8 +155,8 @@ pub struct Constraints {
 	pub ump_remaining_bytes: usize,
 	/// The maximum number of UMP messages allowed per candidate.
 	pub max_ump_num_per_candidate: usize,
-	/// The amount of remaining DMP messages.
-	pub dmp_remaining_messages: usize,
+	/// Remaining DMP queue. Only includes sent-at block numbers.
+	pub dmp_remaining_messages: Vec<BlockNumber>,
 	/// The limitations of all registered inbound HRMP channels.
 	pub hrmp_inbound: InboundHrmpLimitations,
 	/// The limitations of all registered outbound HRMP channels.
@@ -183,7 +183,7 @@ impl From<PrimitiveConstraints> for Constraints {
 			ump_remaining: c.ump_remaining as _,
 			ump_remaining_bytes: c.ump_remaining_bytes as _,
 			max_ump_num_per_candidate: c.max_ump_num_per_candidate as _,
-			dmp_remaining_messages: c.dmp_remaining_messages as _,
+			dmp_remaining_messages: c.dmp_remaining_messages,
 			hrmp_inbound: InboundHrmpLimitations {
 				valid_watermarks: c.hrmp_inbound.valid_watermarks,
 			},
@@ -267,7 +267,7 @@ impl Constraints {
 	) -> Result<(), ModificationError> {
 		if let Some(HrmpWatermarkUpdate::Trunk(hrmp_watermark)) = modifications.hrmp_watermark {
 			// head updates are always valid.
-			if self.hrmp_inbound.valid_watermarks.iter().any(|w| w == &hrmp_watermark) {
+			if self.hrmp_inbound.valid_watermarks.iter().all(|w| w != &hrmp_watermark) {
 				return Err(ModificationError::DisallowedHrmpWatermark(hrmp_watermark))
 			}
 		}
@@ -310,9 +310,10 @@ impl Constraints {
 		)?;
 
 		self.dmp_remaining_messages
+			.len()
 			.checked_sub(modifications.dmp_messages_processed)
 			.ok_or(ModificationError::DmpMessagesUnderflow {
-				messages_remaining: self.dmp_remaining_messages,
+				messages_remaining: self.dmp_remaining_messages.len(),
 				messages_processed: modifications.dmp_messages_processed,
 			})?;
 
@@ -393,13 +394,15 @@ impl Constraints {
 				bytes_submitted: modifications.ump_bytes_sent,
 			})?;
 
-		new.dmp_remaining_messages = new
-			.dmp_remaining_messages
-			.checked_sub(modifications.dmp_messages_processed)
-			.ok_or(ModificationError::DmpMessagesUnderflow {
-				messages_remaining: new.dmp_remaining_messages,
+		if modifications.dmp_messages_processed > new.dmp_remaining_messages.len() {
+			return Err(ModificationError::DmpMessagesUnderflow {
+				messages_remaining: new.dmp_remaining_messages.len(),
 				messages_processed: modifications.dmp_messages_processed,
-			})?;
+			})
+		} else {
+			new.dmp_remaining_messages =
+				new.dmp_remaining_messages[modifications.dmp_messages_processed..].to_vec();
+		}
 
 		if modifications.code_upgrade_applied {
 			new.validation_code_hash = new
@@ -586,6 +589,8 @@ pub enum FragmentValidityError {
 	///
 	/// Min allowed, current.
 	RelayParentTooOld(BlockNumber, BlockNumber),
+	/// Para is required to process at least one DMP message from the queue.
+	DmpAdvancementRule,
 	/// Too many messages upward messages submitted.
 	UmpMessagesPerCandidateOverflow {
 		/// The amount of messages a single candidate can submit.
@@ -787,6 +792,16 @@ fn validate_against_constraints(
 		))
 	}
 
+	if modifications.dmp_messages_processed == 0 {
+		if constraints
+			.dmp_remaining_messages
+			.get(0)
+			.map_or(false, |&msg_sent_at| msg_sent_at <= relay_parent.number)
+		{
+			return Err(FragmentValidityError::DmpAdvancementRule)
+		}
+	}
+
 	if candidate.commitments.horizontal_messages.len() > constraints.max_hrmp_num_per_candidate {
 		return Err(FragmentValidityError::HrmpMessagesPerCandidateOverflow {
 			messages_allowed: constraints.max_hrmp_num_per_candidate,
@@ -926,7 +941,7 @@ mod tests {
 			ump_remaining: 10,
 			ump_remaining_bytes: 1024,
 			max_ump_num_per_candidate: 5,
-			dmp_remaining_messages: 5,
+			dmp_remaining_messages: Vec::new(),
 			hrmp_inbound: InboundHrmpLimitations { valid_watermarks: vec![6, 8] },
 			hrmp_channels_out: {
 				let mut map = HashMap::new();
@@ -1115,14 +1130,17 @@ mod tests {
 
 	#[test]
 	fn constraints_dmp_messages() {
-		let constraints = make_constraints();
+		let mut constraints = make_constraints();
 		let mut modifications = ConstraintModifications::identity();
+		assert!(constraints.check_modifications(&modifications).is_ok());
+		assert!(constraints.apply_modifications(&modifications).is_ok());
+
 		modifications.dmp_messages_processed = 6;
 
 		assert_eq!(
 			constraints.check_modifications(&modifications),
 			Err(ModificationError::DmpMessagesUnderflow {
-				messages_remaining: 5,
+				messages_remaining: 0,
 				messages_processed: 6,
 			}),
 		);
@@ -1130,10 +1148,19 @@ mod tests {
 		assert_eq!(
 			constraints.apply_modifications(&modifications),
 			Err(ModificationError::DmpMessagesUnderflow {
-				messages_remaining: 5,
+				messages_remaining: 0,
 				messages_processed: 6,
 			}),
 		);
+
+		constraints.dmp_remaining_messages = vec![1, 4, 8, 10];
+		modifications.dmp_messages_processed = 2;
+		assert!(constraints.check_modifications(&modifications).is_ok());
+		let constraints = constraints
+			.apply_modifications(&modifications)
+			.expect("modifications are valid");
+
+		assert_eq!(&constraints.dmp_remaining_messages, &[8, 10]);
 	}
 
 	#[test]
@@ -1303,6 +1330,36 @@ mod tests {
 				messages_submitted: max_hrmp + 1,
 			}),
 		);
+	}
+
+	#[test]
+	fn fragment_dmp_advancement_rule() {
+		let relay_parent = RelayChainBlockInfo {
+			number: 6,
+			hash: Hash::repeat_byte(0x0a),
+			storage_root: Hash::repeat_byte(0xff),
+		};
+
+		let mut constraints = make_constraints();
+		let mut candidate = make_candidate(&constraints, &relay_parent);
+
+		// Empty dmp queue is ok.
+		assert!(Fragment::new(relay_parent.clone(), constraints.clone(), candidate.clone()).is_ok());
+		// Unprocessed message that was sent later is ok.
+		constraints.dmp_remaining_messages = vec![relay_parent.number + 1];
+		assert!(Fragment::new(relay_parent.clone(), constraints.clone(), candidate.clone()).is_ok());
+
+		for block_number in 0..=relay_parent.number {
+			constraints.dmp_remaining_messages = vec![block_number];
+
+			assert_eq!(
+				Fragment::new(relay_parent.clone(), constraints.clone(), candidate.clone()),
+				Err(FragmentValidityError::DmpAdvancementRule),
+			);
+		}
+
+		candidate.commitments.processed_downward_messages = 1;
+		assert!(Fragment::new(relay_parent, constraints, candidate).is_ok());
 	}
 
 	#[test]
