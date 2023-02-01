@@ -524,8 +524,8 @@ fn answer_hypothetical_frontier_request(
 			let hypothetical = match c {
 				HypotheticalCandidate::Complete { receipt, persisted_validation_data, .. } =>
 					fragment_tree::HypotheticalCandidate::Complete {
-						receipt: Cow::Borrowed(&*receipt),
-						persisted_validation_data: Cow::Borrowed(&*persisted_validation_data),
+						receipt: Cow::Borrowed(receipt),
+						persisted_validation_data: Cow::Borrowed(persisted_validation_data),
 					},
 				HypotheticalCandidate::Incomplete {
 					parent_head_data_hash,

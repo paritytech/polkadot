@@ -547,7 +547,7 @@ impl<'a> ProspectiveCandidate<'a> {
 
 	/// Partially clone the prospective candidate, but borrow the
 	/// parts which are potentially heavy.
-	pub fn partial_clone<'b>(&'b self) -> ProspectiveCandidate<'b> {
+	pub fn partial_clone(&self) -> ProspectiveCandidate {
 		ProspectiveCandidate {
 			commitments: Cow::Borrowed(self.commitments.borrow()),
 			collator: self.collator.clone(),
