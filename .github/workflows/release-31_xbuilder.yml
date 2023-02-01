@@ -14,18 +14,18 @@ env:
   DOCKER_ORG: chevdor
 
 jobs:
-  get-rust-versions:
-    runs-on: ubuntu-latest
-    container:
-      image: paritytech/ci-linux:production
-    outputs:
-      rustc-stable: ${{ steps.get-rust-versions.outputs.stable }}
-      rustc-nightly: ${{ steps.get-rust-versions.outputs.nightly }}
-    steps:
-      - id: get-rust-versions
-        run: |
-          echo "stable=$(rustc +stable --version)" >> $GITHUB_OUTPUT
-          echo "nightly=$(rustc +nightly --version)" >> $GITHUB_OUTPUT
+  # get-rust-versions:
+  #   runs-on: ubuntu-latest
+  #   container:
+  #     image: paritytech/ci-linux:production
+  #   outputs:
+  #     rustc-stable: ${{ steps.get-rust-versions.outputs.stable }}
+  #     rustc-nightly: ${{ steps.get-rust-versions.outputs.nightly }}
+  #   steps:
+  #     - id: get-rust-versions
+  #       run: |
+  #         echo "stable=$(rustc +stable --version)" >> $GITHUB_OUTPUT
+  #         echo "nightly=$(rustc +nightly --version)" >> $GITHUB_OUTPUT
 
   xbuild:
     runs-on: ubuntu-latest
@@ -52,9 +52,9 @@ jobs:
           IMAGE_NAME=${IMAGE_NAME_TMP//-/_}
           IMAGE=${!IMAGE_NAME}
 
-          echo "image name: $IMAGE_NAME"
+          echo "image var: $IMAGE_NAME"
           echo "Pulling image: $IMAGE"
-          docker pull "IMAGE"
+          docker pull ${IMAGE}
 
       - name: Build ${{ matrix.binary }} for target ${{ matrix.target }} using profile ${{ matrix.profile }}
         env:
