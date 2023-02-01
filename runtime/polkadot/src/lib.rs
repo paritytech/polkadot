@@ -42,7 +42,7 @@ use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
 		ConstU32, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
-		PrivilegeCmp, WithdrawReasons,
+		PrivilegeCmp, ProcessMessage, ProcessMessageError, WithdrawReasons,
 	},
 	weights::{constants::WEIGHT_REF_TIME_PER_MILLIS, ConstantMultiplier},
 	PalletId, RuntimeDebug,
@@ -79,6 +79,7 @@ use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
+use xcm::latest::Junction;
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
@@ -1302,29 +1303,21 @@ parameter_types! {
 	pub const MessageQueueServiceWeight: Weight = Weight::from_parts(100 * WEIGHT_REF_TIME_PER_MILLIS, u64::MAX);
 }
 
-use frame_support::traits::ProcessMessage;
-use parachains_inclusion::ProcessQueue;
-use frame_support::traits::ProcessMessageError;
-
 pub struct MessageProcessor;
 impl ProcessMessage for MessageProcessor {
-	type Origin = ProcessQueue;
+	type Origin = ParaId;
 
 	fn process_message(
 		message: &[u8],
 		origin: Self::Origin,
 		weight_limit: Weight,
 	) -> Result<(bool, Weight), ProcessMessageError> {
-		match origin {
-			// Delegate all UMP messages to the XCM executor.
-			ProcessQueue::UMP(from_para) => {
-				xcm_builder::ProcessXcmMessage::<
-					xcm::v3::Junction,
-					xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
-					RuntimeCall,
-				>::process_message(message, from_para.into(), weight_limit)
-			},
-		}
+		xcm_builder::ProcessXcmMessage::<
+			Junction,
+			xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
+			RuntimeCall,
+			// FAIL-CI why does `Parachain` not accept a `ParaId`?
+		>::process_message(message, Junction::Parachain(origin.into()), weight_limit)
 	}
 }
 
@@ -1336,7 +1329,8 @@ impl pallet_message_queue::Config for Runtime {
 	type ServiceWeight = MessageQueueServiceWeight;
 	type MessageProcessor = MessageProcessor;
 	type QueueChangeHandler = ();
-	type WeightInfo = weights::pallet_message_queue::WeightInfo<Runtime>;
+	// FAIL-CI
+	type WeightInfo = ();
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -1634,17 +1628,7 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 /// All migrations that will run on the next runtime upgrade.
 ///
 /// Should be cleared after every release.
-pub type Migrations = (
-	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
-	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
-	parachains_ump::migration::v1::MigrateToV1<Runtime>,
-	// Remove stale entries in the set id -> session index storage map (after
-	// this release they will be properly pruned after the bonding duration has
-	// elapsed)
-	pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
-
-	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-);
+pub type Migrations = (parachains_configuration::migration::v5::MigrateToV5<Runtime>,);
 
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =

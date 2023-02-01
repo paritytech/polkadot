@@ -17,7 +17,6 @@
 //! Polkadot chain configurations.
 
 use beefy_primitives::crypto::AuthorityId as BeefyId;
-use frame_support::weights::Weight;
 use grandpa::AuthorityId as GrandpaId;
 #[cfg(feature = "kusama-native")]
 use kusama_runtime as kusama;

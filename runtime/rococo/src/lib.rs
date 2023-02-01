@@ -43,7 +43,7 @@ use runtime_parachains::{
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
 	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+	session_info as parachains_session_info, shared as parachains_shared,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -68,6 +68,9 @@ use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{CurrencyAdapter, FeeDetails, RuntimeDispatchInfo};
 use sp_core::{ConstU128, OpaqueMetadata, H256};
 use sp_mmr_primitives as mmr;
+use frame_support::traits::{ProcessMessage, ProcessMessageError};
+use frame_support::weights::constants::WEIGHT_REF_TIME_PER_MILLIS;
+use xcm::latest::Junction;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
@@ -1041,6 +1044,8 @@ impl parachains_inclusion::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = ParasDisputes;
 	type RewardValidators = RewardValidators;
+	type MessageQueue = MessageQueue;
+	type WeightInfo = (); // FAIL-CI: TODO
 }
 
 parameter_types! {
@@ -1055,16 +1060,39 @@ impl parachains_paras::Config for Runtime {
 }
 
 parameter_types! {
-	pub const FirstMessageFactorPercent: u64 = 100;
+	/// Amount of weigh which can be spent per block to service messages.
+	/// FAIL-CI: Pretty random value. Should eventually be the sum of `UMP+DMP+HRMP`.
+	pub const MessageQueueServiceWeight: Weight = Weight::from_parts(100 * WEIGHT_REF_TIME_PER_MILLIS, u64::MAX);
 }
 
-impl parachains_ump::Config for Runtime {
+pub struct MessageProcessor;
+impl ProcessMessage for MessageProcessor {
+	type Origin = ParaId;
+
+	fn process_message(
+		message: &[u8],
+		origin: Self::Origin,
+		weight_limit: Weight,
+	) -> Result<(bool, Weight), ProcessMessageError> {
+		xcm_builder::ProcessXcmMessage::<
+			Junction,
+			xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
+			RuntimeCall,
+			// FAIL-CI why does `Parachain` not accept a `ParaId`?
+		>::process_message(message, Junction::Parachain(origin.into()), weight_limit)
+	}
+}
+
+impl pallet_message_queue::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	type UmpSink =
-		crate::parachains_ump::XcmSink<xcm_executor::XcmExecutor<xcm_config::XcmConfig>, Runtime>;
-	type FirstMessageFactorPercent = FirstMessageFactorPercent;
-	type ExecuteOverweightOrigin = EnsureRoot<AccountId>;
-	type WeightInfo = weights::runtime_parachains_ump::WeightInfo<Runtime>;
+	type Size = u32;
+	type HeapSize = ConstU32<65_536>;
+	type MaxStale = ConstU32<8>;
+	type ServiceWeight = MessageQueueServiceWeight;
+	type MessageProcessor = MessageProcessor;
+	type QueueChangeHandler = ();
+	// FAIL-CI
+	type WeightInfo = ();
 }
 
 impl parachains_dmp::Config for Runtime {}
@@ -1418,11 +1446,12 @@ construct_runtime! {
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, Config, ValidateUnsigned} = 56,
 		Initializer: parachains_initializer::{Pallet, Call, Storage} = 57,
 		Dmp: parachains_dmp::{Pallet, Call, Storage} = 58,
-		Ump: parachains_ump::{Pallet, Call, Storage, Event} = 59,
+		// RIP Ump 59
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned} = 63,
+		MessageQueue: pallet_message_queue::{Pallet, Call, Storage, Event<T>} = 64,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config} = 70,
@@ -1483,13 +1512,6 @@ pub type UncheckedExtrinsic =
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
-	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
-	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
-	parachains_ump::migration::v1::MigrateToV1<Runtime>,
-	// Remove stale entries in the set id -> session index storage map (after
-	// this release they will be properly pruned after the bonding duration has
-	// elapsed)
-	pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
 );
 
 /// Executive: handles dispatch to the various modules.

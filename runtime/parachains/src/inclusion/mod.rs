@@ -213,15 +213,6 @@ pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	sp_std::cmp::min(n_validators, 2)
 }
 
-/// The queues of the [Config::MessageQueue].
-///
-/// Changes to this necessitate a migration.
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, TypeInfo, MaxEncodedLen)]
-pub enum ProcessQueue {
-	/// UMP messages from `inner` awaiting dispatch.
-	UMP(ParaId),
-}
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -248,7 +239,7 @@ pub mod pallet {
 		/// The system message queue.
 		///
 		/// The message queue provides general queueing and processing functionality. Currently it replaces the old `UMP` dispatch queue. Other use-cases can be implemented as well.
-		type MessageQueue: EnqueueMessage<ProcessQueue>;
+		type MessageQueue: EnqueueMessage<ParaId>;
 	}
 
 	#[pallet::event]
@@ -911,7 +902,7 @@ impl<T: Config> Pallet<T> {
 			})
 		}
 
-		let fp = T::MessageQueue::footprint(ProcessQueue::UMP(para));
+		let fp = T::MessageQueue::footprint(para);
 		let (para_queue_count, mut para_queue_size) = (fp.count, fp.size);
 
 		if para_queue_count
@@ -965,7 +956,7 @@ impl<T: Config> Pallet<T> {
 		let count = upward_messages.len() as u32;
 		Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
 		let messages = upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
-		T::MessageQueue::enqueue_messages(messages, ProcessQueue::UMP(para));
+		T::MessageQueue::enqueue_messages(messages, para);
 		<T as Config>::WeightInfo::receive_upward_messages(count)
 	}
 
@@ -1099,23 +1090,19 @@ impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 	}
 }
 
-impl<T: Config> OnQueueChanged<ProcessQueue> for Pallet<T> {
-	fn on_queue_changed(queue: ProcessQueue, count: u64, size: u64) {
-		match queue {
-			ProcessQueue::UMP(para) => {
-				// TODO maybe migrate this to u64
-				let (count, size) = (count.saturated_into(), size.saturated_into());
-				// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
-				#[allow(deprecated)]
-				well_known_keys::relay_dispatch_queue_size_typed(para).set((count, size));
+impl<T: Config> OnQueueChanged<ParaId> for Pallet<T> {
+	fn on_queue_changed(para: ParaId, count: u64, size: u64) {
+		// TODO maybe migrate this to u64
+		let (count, size) = (count.saturated_into(), size.saturated_into());
+		// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`
+		#[allow(deprecated)]
+		well_known_keys::relay_dispatch_queue_size_typed(para).set((count, size));
 
-				let config = <configuration::Pallet<T>>::config();
-				let remaining_count = config.max_upward_queue_count.saturating_sub(count);
-				let remaining_size = config.max_upward_queue_size.saturating_sub(size);
-				well_known_keys::relay_dispatch_queue_remaining_capacity(para)
-					.set((remaining_count, remaining_size));
-			},
-		}
+		let config = <configuration::Pallet<T>>::config();
+		let remaining_count = config.max_upward_queue_count.saturating_sub(count);
+		let remaining_size = config.max_upward_queue_size.saturating_sub(size);
+		well_known_keys::relay_dispatch_queue_remaining_capacity(para)
+			.set((remaining_count, remaining_size));
 	}
 }
 
