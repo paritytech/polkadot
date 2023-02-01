@@ -58,10 +58,12 @@ jobs:
 
       - name: Build ${{ matrix.binary }} for target ${{ matrix.target }} using profile ${{ matrix.profile }}
         env:
-          IMAGE_NAME: DOCKER_IMAGE_${{ matrix.target }}
-          IMAGE: ${!IMAGE_NAME}
+          IMAGE_NAME_TMP: DOCKER_IMAGE_${{ matrix.target }}
         run: |
-          docker run --rm -ti \
+          IMAGE_NAME=${IMAGE_NAME_TMP//-/_}
+          IMAGE=${!IMAGE_NAME}
+
+          docker run --rm --name builder \
             -v $PWD:/app ${IMAGE} \
             -p ${{ matrix.binary }} \
             --profile ${{ matrix.profile }}
