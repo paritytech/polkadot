@@ -594,6 +594,7 @@ mod tests {
 	use super::*;
 	use polkadot_primitives::HeadData;
 	use polkadot_primitives_test_helpers::make_candidate;
+	use pretty_assertions::assert_eq;
 
 	#[test]
 	fn inserting_unconfirmed_rejects_on_incompatible_claims() {
@@ -885,5 +886,157 @@ mod tests {
 
 	// TODO: Test post confirmation.
 
-	// TODO: Test hypothetical frontiers based on `Candidates`.
+	#[test]
+	fn test_hypothetical_frontiers() {
+		let relay_head_data = HeadData(vec![1, 2, 3]);
+		let relay_hash = relay_head_data.hash();
+
+		let candidate_head_data_a = HeadData(vec![1]);
+		let candidate_head_data_b = HeadData(vec![2]);
+		let candidate_head_data_c = HeadData(vec![3]);
+		let candidate_head_data_d = HeadData(vec![4]);
+		let candidate_head_data_hash_a = candidate_head_data_a.hash();
+		let candidate_head_data_hash_b = candidate_head_data_b.hash();
+		let candidate_head_data_hash_c = candidate_head_data_c.hash();
+		let candidate_head_data_hash_d = candidate_head_data_d.hash();
+
+		let (candidate_a, pvd_a) = make_candidate(
+			relay_hash,
+			1,
+			1.into(),
+			relay_head_data,
+			candidate_head_data_a.clone(),
+			Hash::from_low_u64_be(1000).into(),
+		);
+		let (candidate_b, pvd_b) = make_candidate(
+			relay_hash,
+			1,
+			1.into(),
+			candidate_head_data_a.clone(),
+			candidate_head_data_b.clone(),
+			Hash::from_low_u64_be(2000).into(),
+		);
+		let (candidate_c, pvd_c) = make_candidate(
+			relay_hash,
+			1,
+			1.into(),
+			candidate_head_data_a.clone(),
+			candidate_head_data_c.clone(),
+			Hash::from_low_u64_be(3000).into(),
+		);
+		let (candidate_d, pvd_d) = make_candidate(
+			relay_hash,
+			1,
+			1.into(),
+			candidate_head_data_b.clone(),
+			candidate_head_data_d,
+			Hash::from_low_u64_be(4000).into(),
+		);
+
+		let candidate_hash_a = candidate_a.hash();
+		let candidate_hash_b = candidate_b.hash();
+		let candidate_hash_c = candidate_c.hash();
+		let candidate_hash_d = candidate_d.hash();
+
+		let peer = PeerId::random();
+		let group_index = 100.into();
+
+		let mut candidates = Candidates::default();
+
+		// Confirm A.
+		candidates.confirm_candidate(
+			candidate_hash_a,
+			candidate_a.clone(),
+			pvd_a.clone(),
+			group_index,
+		);
+
+		// Advertise B with parent A.
+		candidates.insert_unconfirmed(
+			peer,
+			candidate_hash_b,
+			relay_hash,
+			group_index,
+			Some((candidate_head_data_hash_a, 1.into())),
+		);
+
+		// Advertise C with parent A.
+		candidates.insert_unconfirmed(
+			peer,
+			candidate_hash_c,
+			relay_hash,
+			group_index,
+			Some((candidate_head_data_hash_a, 1.into())),
+		);
+
+		// Advertise D with parent B.
+		candidates.insert_unconfirmed(
+			peer,
+			candidate_hash_d,
+			relay_hash,
+			group_index,
+			Some((candidate_head_data_hash_b, 1.into())),
+		);
+
+		assert_eq!(
+			candidates.by_parent,
+			HashMap::from([
+				((relay_hash, 1.into()), HashSet::from([candidate_hash_a])),
+				(
+					(candidate_head_data_hash_a, 1.into()),
+					HashSet::from([candidate_hash_b, candidate_hash_c])
+				),
+				((candidate_head_data_hash_b, 1.into()), HashSet::from([candidate_hash_d]))
+			])
+		);
+
+		let hypothetical_a = HypotheticalCandidate::Complete {
+			candidate_hash: candidate_hash_a,
+			receipt: Arc::new(candidate_a),
+			persisted_validation_data: pvd_a,
+		};
+		let hypothetical_b = HypotheticalCandidate::Incomplete {
+			candidate_hash: candidate_hash_b,
+			candidate_para: 1.into(),
+			parent_head_data_hash: candidate_head_data_hash_a,
+			candidate_relay_parent: relay_hash,
+		};
+		let hypothetical_c = HypotheticalCandidate::Incomplete {
+			candidate_hash: candidate_hash_c,
+			candidate_para: 1.into(),
+			parent_head_data_hash: candidate_head_data_hash_a,
+			candidate_relay_parent: relay_hash,
+		};
+		let hypothetical_d = HypotheticalCandidate::Incomplete {
+			candidate_hash: candidate_hash_d,
+			candidate_para: 1.into(),
+			parent_head_data_hash: candidate_head_data_hash_b,
+			candidate_relay_parent: relay_hash,
+		};
+
+		let hypotheticals = candidates.frontier_hypotheticals(Some((relay_hash, 1.into())));
+		assert_eq!(hypotheticals.len(), 1);
+		assert!(hypotheticals.contains(&hypothetical_a));
+
+		let hypotheticals =
+			candidates.frontier_hypotheticals(Some((candidate_head_data_hash_a, 2.into())));
+		assert_eq!(hypotheticals.len(), 0);
+
+		let hypotheticals =
+			candidates.frontier_hypotheticals(Some((candidate_head_data_hash_a, 1.into())));
+		assert_eq!(hypotheticals.len(), 2);
+		assert!(hypotheticals.contains(&hypothetical_b));
+		assert!(hypotheticals.contains(&hypothetical_c));
+
+		let hypotheticals =
+			candidates.frontier_hypotheticals(Some((candidate_head_data_hash_d, 1.into())));
+		assert_eq!(hypotheticals.len(), 0);
+
+		let hypotheticals = candidates.frontier_hypotheticals(None);
+		assert_eq!(hypotheticals.len(), 4);
+		assert!(hypotheticals.contains(&hypothetical_a));
+		assert!(hypotheticals.contains(&hypothetical_b));
+		assert!(hypotheticals.contains(&hypothetical_c));
+		assert!(hypotheticals.contains(&hypothetical_d));
+	}
 }
