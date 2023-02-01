@@ -20,11 +20,11 @@ use lru::LruCache;
 use sp_consensus_babe::Epoch;
 
 use polkadot_primitives::{
-	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	vstaging, AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
+	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 /// For consistency we have the same capacity for all caches. We use 128 as we'll only need that
@@ -62,6 +62,8 @@ pub(crate) struct RequestResultCache {
 		LruCache<(Hash, ParaId, OccupiedCoreAssumption), Option<ValidationCodeHash>>,
 	version: LruCache<Hash, u32>,
 	disputes: LruCache<Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
+	unapplied_slashes:
+		LruCache<Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>>,
 }
 
 impl Default for RequestResultCache {
@@ -88,6 +90,7 @@ impl Default for RequestResultCache {
 			validation_code_hash: LruCache::new(DEFAULT_CACHE_CAP),
 			version: LruCache::new(DEFAULT_CACHE_CAP),
 			disputes: LruCache::new(DEFAULT_CACHE_CAP),
+			unapplied_slashes: LruCache::new(DEFAULT_CACHE_CAP),
 		}
 	}
 }
@@ -368,6 +371,21 @@ impl RequestResultCache {
 	) {
 		self.disputes.put(relay_parent, value);
 	}
+
+	pub(crate) fn unapplied_slashes(
+		&mut self,
+		relay_parent: &Hash,
+	) -> Option<&Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>> {
+		self.unapplied_slashes.get(relay_parent)
+	}
+
+	pub(crate) fn cache_unapplied_slashes(
+		&mut self,
+		relay_parent: Hash,
+		value: Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>,
+	) {
+		self.unapplied_slashes.put(relay_parent, value);
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -404,4 +422,5 @@ pub(crate) enum RequestResult {
 	ValidationCodeHash(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCodeHash>),
 	Version(Hash, u32),
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
+	UnappliedSlashes(Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>),
 }

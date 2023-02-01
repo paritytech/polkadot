@@ -17,3 +17,5 @@
 //! Staging Primitives.
 
 // Put any primitives used by staging APIs functions here
+
+pub mod slashing;

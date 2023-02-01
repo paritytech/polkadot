@@ -17,11 +17,17 @@
 //! Put implementations of functions from staging APIs here.
 
 use crate::disputes;
-use primitives::{CandidateHash, DisputeState, SessionIndex};
+use primitives::{vstaging, CandidateHash, DisputeState, SessionIndex};
 use sp_std::prelude::*;
 
 /// Implementation for `get_session_disputes` function from the runtime API
 pub fn get_session_disputes<T: disputes::Config>(
 ) -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
 	<disputes::Pallet<T>>::disputes()
+}
+
+/// Implementation of `unapplied_slashes` runtime API
+pub fn unapplied_slashes<T: disputes::slashing::Config>(
+) -> Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)> {
+	<disputes::slashing::Pallet<T>>::unapplied_slashes()
 }

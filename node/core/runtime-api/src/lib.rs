@@ -155,6 +155,8 @@ where
 				self.requests_cache.cache_version(relay_parent, version),
 			Disputes(relay_parent, disputes) =>
 				self.requests_cache.cache_disputes(relay_parent, disputes),
+			UnappliedSlashes(relay_parent, unapplied_slashes) =>
+				self.requests_cache.cache_unapplied_slashes(relay_parent, unapplied_slashes),
 		}
 	}
 
@@ -258,6 +260,8 @@ where
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
 			Request::Disputes(sender) =>
 				query!(disputes(), sender).map(|sender| Request::Disputes(sender)),
+			Request::UnappliedSlashes(sender) =>
+				query!(unapplied_slashes(), sender).map(|sender| Request::UnappliedSlashes(sender)),
 		}
 	}
 
@@ -502,5 +506,11 @@ where
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
 		Request::Disputes(sender) =>
 			query!(Disputes, disputes(), ver = Request::DISPUTES_RUNTIME_REQUIREMENT, sender),
+		Request::UnappliedSlashes(sender) => query!(
+			UnappliedSlashes,
+			unapplied_slashes(),
+			ver = Request::UNAPPLIED_SLASHES_RUNTIME_REQUIREMENT,
+			sender
+		),
 	}
 }

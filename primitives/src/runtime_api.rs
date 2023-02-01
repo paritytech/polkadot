@@ -110,7 +110,7 @@
 //! All staging API functions should use primitives from `vstaging`. They should be clearly separated
 //! from the stable primitives.
 
-use crate::v2;
+use crate::{v2, vstaging};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives as pcp;
 use polkadot_parachain::primitives as ppp;
@@ -221,5 +221,9 @@ sp_api::decl_runtime_apis! {
 		/// Returns all onchain disputes.
 		#[api_version(3)]
 		fn disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
+
+		/// Returns a list of validators that lost a past session dispute and need to be slashed.
+		#[api_version(1000)]
+		fn unapplied_slashes() -> Vec<(v2::SessionIndex, v2::CandidateHash, vstaging::slashing::PendingSlashes)>;
 	}
 }

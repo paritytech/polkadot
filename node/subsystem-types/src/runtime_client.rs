@@ -16,11 +16,12 @@
 
 use async_trait::async_trait;
 use polkadot_primitives::{
-	runtime_api::ParachainHost, Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent,
-	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id,
-	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	runtime_api::ParachainHost, vstaging, Block, BlockId, BlockNumber, CandidateCommitments,
+	CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState,
+	GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -187,6 +188,14 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
+
+	/// Returns a list of validators that lost a past session dispute and need to be slashed.
+	///
+	/// WARNING: This is a staging method! Do not use on production runtimes!
+	async fn unapplied_slashes(
+		&self,
+		at: Hash,
+	) -> Result<Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>, ApiError>;
 
 	// === BABE API ===
 
@@ -377,5 +386,12 @@ where
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError> {
 		self.runtime_api().disputes(&BlockId::Hash(at))
+	}
+
+	async fn unapplied_slashes(
+		&self,
+		at: Hash,
+	) -> Result<Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>, ApiError> {
+		self.runtime_api().unapplied_slashes(&BlockId::Hash(at))
 	}
 }
