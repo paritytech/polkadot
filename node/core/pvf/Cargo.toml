@@ -28,15 +28,15 @@ polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
 polkadot-node-metrics = { path = "../../metrics"}
 
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }

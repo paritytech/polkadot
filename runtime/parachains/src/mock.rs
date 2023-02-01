@@ -17,7 +17,7 @@
 //! Mocks for all the traits.
 
 use crate::{
-	configuration, disputes, hrmp,
+	configuration, disputes, dmp, hrmp,
 	inclusion::{self, MessageOrigin, SubQueue},
 	initializer, origin, paras, paras_inherent, scheduler, session_info, shared, ParaId,
 };

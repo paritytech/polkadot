@@ -16,16 +16,9 @@
 
 use crate::{
 	configuration::{self, HostConfiguration},
-	ensure_parachain, inclusion,
-	inclusion::{DmpAcceptanceCheckErr, DmpLink, MessageOrigin},
-	initializer, paras,
+	dmp, ensure_parachain, initializer, paras,
 };
-use frame_support::{
-	defensive,
-	pallet_prelude::*,
-	traits::{EnqueueMessage, OnQueueChanged, QueueIntrospect, ReservableCurrency},
-	BoundedSlice,
-};
+use frame_support::{pallet_prelude::*, traits::ReservableCurrency};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{
@@ -55,8 +48,6 @@ pub(crate) mod tests;
 
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
-
-const LOG_TARGET: &str = "runtime::hrmp";
 
 pub trait WeightInfo {
 	fn hrmp_init_open_channel() -> Weight;
@@ -143,15 +134,14 @@ pub struct HrmpChannel {
 	/// The total size in bytes of all message payloads in the channel.
 	/// Invariant: should be less or equal to `max_total_size`.
 	pub total_size: u32,
-	// FAIL-CI remove
-	// A head of the Message Queue Chain for this channel. Each link in this chain has a form:
-	// `(prev_head, B, H(M))`, where
-	// - `prev_head`: is the previous value of `mqc_head` or zero if none.
-	// - `B`: is the [relay-chain] block number in which a message was appended
-	// - `H(M)`: is the hash of the message being appended.
-	// This value is initialized to a special value that consists of all zeroes which indicates
-	// that no messages were previously added.
-	//pub mqc_head: Option<Hash>,
+	/// A head of the Message Queue Chain for this channel. Each link in this chain has a form:
+	/// `(prev_head, B, H(M))`, where
+	/// - `prev_head`: is the previous value of `mqc_head` or zero if none.
+	/// - `B`: is the [relay-chain] block number in which a message was appended
+	/// - `H(M)`: is the hash of the message being appended.
+	/// This value is initialized to a special value that consists of all zeroes which indicates
+	/// that no messages were previously added.
+	pub mqc_head: Option<Hash>,
 	/// The amount that the sender supplied as a deposit when opening this channel.
 	pub sender_deposit: Balance,
 	/// The amount that the recipient supplied as a deposit when accepting opening this channel.
@@ -249,7 +239,9 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + configuration::Config + paras::Config {
+	pub trait Config:
+		frame_system::Config + configuration::Config + paras::Config + dmp::Config
+	{
 		/// The outer event type.
 		type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
 
@@ -263,15 +255,6 @@ pub mod pallet {
 		/// `Configuration` pallet. Specifically, that means that the `Balance` of the `Currency`
 		/// implementation should be the same as `Balance` as used in the `Configuration`.
 		type Currency: ReservableCurrency<Self::AccountId>;
-
-		/// Contains the contents of all HRMP channels.
-		///
-		/// Formerly known as `HrmpChannelContents`. The origin here is a `HrmpChannelId` instead of `MessageOrigin` as in the inclusion pallet. You can use the `TransformOrigin` adapter to plug it in here.
-		type MessageQueue: EnqueueMessage<HrmpChannelId>;
-
-		type MessageQueueReader: QueueIntrospect<HrmpChannelId>;
-
-		type DmpLink: inclusion::DmpLink<Self::BlockNumber>;
 
 		/// Something that provides the weight of this pallet.
 		type WeightInfo: WeightInfo;
@@ -315,30 +298,18 @@ pub mod pallet {
 		OpenHrmpChannelAlreadyRequested,
 		/// The sender already has the maximum number of allowed outbound channels.
 		OpenHrmpChannelLimitExceeded,
-		/// The recipient's DMP queue is full.
-		OpenHrmpChannelDmpFull,
-		/// The recipient's DMP queue rejected the request because it was too long.
-		OpenHrmpChannelDmpMessageSizeExceeded,
 		/// The channel from the sender to the origin doesn't exist.
 		AcceptHrmpChannelDoesntExist,
 		/// The channel is already confirmed.
 		AcceptHrmpChannelAlreadyConfirmed,
 		/// The recipient already has the maximum number of allowed inbound channels.
 		AcceptHrmpChannelLimitExceeded,
-		/// The recipient's DMP queue is full.
-		AcceptHrmpChannelDmpFull,
-		/// The recipient's DMP queue rejected the request because it was too long.
-		AcceptHrmpChannelDmpMessageSizeExceeded,
 		/// The origin tries to close a channel where it is neither the sender nor the recipient.
 		CloseHrmpChannelUnauthorized,
 		/// The channel to be closed doesn't exist.
 		CloseHrmpChannelDoesntExist,
 		/// The channel close request is already requested.
 		CloseHrmpChannelAlreadyUnderway,
-		/// The recipient's DMP queue is full.
-		CloseHrmpChannelDmpFull,
-		/// The recipient's DMP queue rejected the request because it was too long.
-		CloseHrmpChannelDmpMessageSizeExceeded,
 		/// Canceling is requested by neither the sender nor recipient of the open channel request.
 		CancelHrmpOpenChannelUnauthorized,
 		/// The open request doesn't exist.
@@ -430,15 +401,15 @@ pub mod pallet {
 		StorageMap<_, Twox64Concat, ParaId, Vec<ParaId>, ValueQuery>;
 
 	/// Storage for the messages for each channel.
-	/// Invariant: must be empty if the corresponding channel in `HrmpChannels` is `None`.
-	//#[pallet::storage]
-	//pub type HrmpChannelContents<T: Config> = StorageMap<
-	//	_,
-	//	Twox64Concat,
-	//	HrmpChannelId,
-	//	Vec<InboundHrmpMessage<T::BlockNumber>>,
-	//	ValueQuery,
-	//>;
+	/// Invariant: cannot be non-empty if the corresponding channel in `HrmpChannels` is `None`.
+	#[pallet::storage]
+	pub type HrmpChannelContents<T: Config> = StorageMap<
+		_,
+		Twox64Concat,
+		HrmpChannelId,
+		Vec<InboundHrmpMessage<T::BlockNumber>>,
+		ValueQuery,
+	>;
 
 	/// Maintains a mapping that can be used to answer the question: What paras sent a message at
 	/// the given block number for a given receiver. Invariants:
@@ -479,19 +450,6 @@ pub mod pallet {
 	impl<T: Config> GenesisBuild<T> for GenesisConfig {
 		fn build(&self) {
 			initialize_storage::<T>(&self.preopen_hrmp_channels);
-		}
-	}
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn integrity_test() {
-			todo!();
-		}
-
-		#[cfg(feature = "try-runtime")]
-		fn try_state(_: BlockNumberFor<T>) -> Result<(), &'static str> {
-			todo!("Test that the msg_count is equal to the footprint");
-			todo!("Test that there exists a queue iff HrmpChannels is Some");
 		}
 	}
 
@@ -853,6 +811,7 @@ impl<T: Config> Pallet<T> {
 							max_message_size: request.max_message_size,
 							msg_count: 0,
 							total_size: 0,
+							mqc_head: None,
 						},
 					);
 
@@ -908,8 +867,7 @@ impl<T: Config> Pallet<T> {
 			);
 		}
 
-		// FAIL-CI TODO force remove of queues
-		T::MessageQueue::sweep_queue(channel_id.clone());
+		<Self as Store>::HrmpChannelContents::remove(channel_id);
 
 		<Self as Store>::HrmpEgressChannelsIndex::mutate(&channel_id.sender, |v| {
 			if let Ok(i) = v.binary_search(&channel_id.recipient) {
@@ -924,7 +882,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Check that the candidate of the given recipient controls the HRMP watermark properly.
-	pub(crate) fn check_hrmp_advancement(
+	pub(crate) fn check_hrmp_watermark(
 		recipient: ParaId,
 		relay_chain_parent_number: T::BlockNumber,
 		new_hrmp_watermark: T::BlockNumber,
@@ -1055,6 +1013,41 @@ impl<T: Config> Pallet<T> {
 		});
 		weight += T::DbWeight::get().reads_writes(1, 1);
 
+		// having all senders we can trivially find out the channels which we need to prune.
+		let channels_to_prune =
+			senders.into_iter().map(|sender| HrmpChannelId { sender, recipient });
+		for channel_id in channels_to_prune {
+			// prune each channel up to the new watermark keeping track how many messages we removed
+			// and what is the total byte size of them.
+			let (mut pruned_cnt, mut pruned_size) = (0, 0);
+
+			let contents = <Self as Store>::HrmpChannelContents::get(&channel_id);
+			let mut leftover = Vec::with_capacity(contents.len());
+			for msg in contents {
+				if msg.sent_at <= new_hrmp_watermark {
+					pruned_cnt += 1;
+					pruned_size += msg.data.len();
+				} else {
+					leftover.push(msg);
+				}
+			}
+			if !leftover.is_empty() {
+				<Self as Store>::HrmpChannelContents::insert(&channel_id, leftover);
+			} else {
+				<Self as Store>::HrmpChannelContents::remove(&channel_id);
+			}
+
+			// update the channel metadata.
+			<Self as Store>::HrmpChannels::mutate(&channel_id, |channel| {
+				if let Some(ref mut channel) = channel {
+					channel.msg_count -= pruned_cnt as u32;
+					channel.total_size -= pruned_size as u32;
+				}
+			});
+
+			weight += T::DbWeight::get().reads_writes(2, 2);
+		}
+
 		<Self as Store>::HrmpWatermarks::insert(&recipient, new_hrmp_watermark);
 		weight += T::DbWeight::get().reads_writes(0, 1);
 
@@ -1068,18 +1061,38 @@ impl<T: Config> Pallet<T> {
 		sender: ParaId,
 		out_hrmp_msgs: Vec<OutboundHrmpMessage<ParaId>>,
 	) -> Weight {
+		let mut weight = Weight::zero();
 		let now = <frame_system::Pallet<T>>::block_number();
 
-		// FAIL-CI chunk this by channel-id
 		for out_msg in out_hrmp_msgs {
 			let channel_id = HrmpChannelId { sender, recipient: out_msg.recipient };
-			let inbound = InboundHrmpMessage { sent_at: now, data: out_msg.data };
-			let encoded = inbound.encode();
-			let Ok(bounded_message) = BoundedSlice::try_from(&encoded[..]) else {
-				defensive!("inbound HRMP message is too large");
-				continue;
+
+			let mut channel = match <Self as Store>::HrmpChannels::get(&channel_id) {
+				Some(channel) => channel,
+				None => {
+					// apparently, that since acceptance of this candidate the recipient was
+					// offboarded and the channel no longer exists.
+					continue
+				},
 			};
-			T::MessageQueue::enqueue_message(bounded_message, channel_id.clone());
+
+			let inbound = InboundHrmpMessage { sent_at: now, data: out_msg.data };
+
+			// book keeping
+			channel.msg_count += 1;
+			channel.total_size += inbound.data.len() as u32;
+
+			// compute the new MQC head of the channel
+			let prev_head = channel.mqc_head.unwrap_or(Default::default());
+			let new_head = BlakeTwo256::hash_of(&(
+				prev_head,
+				inbound.sent_at,
+				T::Hashing::hash_of(&inbound.data),
+			));
+			channel.mqc_head = Some(new_head);
+
+			<Self as Store>::HrmpChannels::insert(&channel_id, channel);
+			<Self as Store>::HrmpChannelContents::append(&channel_id, inbound);
 
 			// The digests are sorted in ascending by block number order. Assuming absence of
 			// contextual execution, there are only two possible scenarios here:
@@ -1105,9 +1118,11 @@ impl<T: Config> Pallet<T> {
 				recipient_digest.push((now, vec![sender]));
 			}
 			<Self as Store>::HrmpChannelDigests::insert(&channel_id.recipient, recipient_digest);
+
+			weight += T::DbWeight::get().reads_writes(2, 2);
 		}
 
-		Weight::zero() // FAIL-CI benchmark
+		weight
 	}
 
 	/// Initiate opening a channel from a parachain to a given recipient with given channel
@@ -1194,28 +1209,17 @@ impl<T: Config> Pallet<T> {
 			}]))
 			.encode()
 		};
-
-		use DmpAcceptanceCheckErr::*;
-		match T::DmpLink::check_downward_message(&config, &recipient, &notification_bytes) {
-			Ok(()) => (),
-			Err(MessageSize { .. }) => {
-				defensive!("DMP message size to small to accept HRMP channel");
-				return Err(Error::<T>::OpenHrmpChannelDmpMessageSizeExceeded.into())
-			},
-			Err(
-				TotalSizeExceeded { .. } |
-				MoreMessagesThanPermitted { .. } |
-				CapacityExceeded { .. },
-			) => {
-				log::info!(
-					target: LOG_TARGET,
-					"DMP queue cannot accept HRMP channel. Please retry.",
-				);
-				return Err(Error::<T>::OpenHrmpChannelDmpFull.into())
-			},
+		if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
+			<dmp::Pallet<T>>::queue_downward_message(&config, recipient, notification_bytes)
+		{
+			// this should never happen unless the max downward message size is configured to an
+			// jokingly small number.
+			log::error!(
+				target: "runtime::hrmp",
+				"sending 'init_open_channel::notification_bytes' failed."
+			);
+			debug_assert!(false);
 		}
-
-		T::DmpLink::receive_downward_message(&config, recipient, notification_bytes);
 
 		Ok(())
 	}
@@ -1263,28 +1267,17 @@ impl<T: Config> Pallet<T> {
 			let xcm = Xcm(vec![HrmpChannelAccepted { recipient: u32::from(origin) }]);
 			VersionedXcm::from(xcm).encode()
 		};
-		use DmpAcceptanceCheckErr::*;
-		match T::DmpLink::check_downward_message(&config, &sender, &notification_bytes) {
-			Ok(()) => (),
-			Err(MessageSize { .. }) => {
-				// This is a configuration error.
-				defensive!("DMP message size to small to ever HRMP channel");
-				return Err(Error::<T>::AcceptHrmpChannelDmpMessageSizeExceeded.into())
-			},
-			Err(
-				TotalSizeExceeded { .. } |
-				MoreMessagesThanPermitted { .. } |
-				CapacityExceeded { .. },
-			) => {
-				log::info!(
-					target: LOG_TARGET,
-					"DMP queue cannot accept HRMP channel. Please retry.",
-				);
-				return Err(Error::<T>::AcceptHrmpChannelDmpFull.into())
-			},
+		if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
+			<dmp::Pallet<T>>::queue_downward_message(&config, sender, notification_bytes)
+		{
+			// this should never happen unless the max downward message size is configured to an
+			// jokingly small number.
+			log::error!(
+				target: "runtime::hrmp",
+				"sending 'accept_open_channel::notification_bytes' failed."
+			);
+			debug_assert!(false);
 		}
-
-		T::DmpLink::receive_downward_message(&config, sender, notification_bytes);
 
 		Ok(())
 	}
@@ -1352,27 +1345,17 @@ impl<T: Config> Pallet<T> {
 		};
 		let opposite_party =
 			if origin == channel_id.sender { channel_id.recipient } else { channel_id.sender };
-		use DmpAcceptanceCheckErr::*;
-		match T::DmpLink::check_downward_message(&config, &opposite_party, &notification_bytes) {
-			Ok(()) => (),
-			Err(MessageSize { .. }) => {
-				defensive!("DMP message size to small to close HRMP channel");
-				return Err(Error::<T>::CloseHrmpChannelDmpMessageSizeExceeded.into())
-			},
-			Err(
-				TotalSizeExceeded { .. } |
-				MoreMessagesThanPermitted { .. } |
-				CapacityExceeded { .. },
-			) => {
-				log::info!(
-					target: LOG_TARGET,
-					"DMP queue cannot close HRMP channel. Please retry."
-				);
-				return Err(Error::<T>::CloseHrmpChannelDmpFull.into())
-			},
+		if let Err(dmp::QueueDownwardMessageError::ExceedsMaxMessageSize) =
+			<dmp::Pallet<T>>::queue_downward_message(&config, opposite_party, notification_bytes)
+		{
+			// this should never happen unless the max downward message size is configured to an
+			// jokingly small number.
+			log::error!(
+				target: "runtime::hrmp",
+				"sending 'close_channel::notification_bytes' failed."
+			);
+			debug_assert!(false);
 		}
-
-		T::DmpLink::receive_downward_message(&config, opposite_party, notification_bytes);
 
 		Ok(())
 	}
@@ -1403,18 +1386,16 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn inbound_hrmp_channels_contents(
 		recipient: ParaId,
 	) -> BTreeMap<ParaId, Vec<InboundHrmpMessage<T::BlockNumber>>> {
-		/*let sender_set = <Self as Store>::HrmpIngressChannelsIndex::get(&recipient);
+		let sender_set = <Self as Store>::HrmpIngressChannelsIndex::get(&recipient);
 
 		let mut inbound_hrmp_channels_contents = BTreeMap::new();
 		for sender in sender_set {
 			let channel_contents =
-				//<Self as Store>::HrmpChannelContents::get(&HrmpChannelId { sender, recipient });
+				<Self as Store>::HrmpChannelContents::get(&HrmpChannelId { sender, recipient });
 			inbound_hrmp_channels_contents.insert(sender, channel_contents);
 		}
 
-		inbound_hrmp_channels_contents*/
-		// FAIL-CI
-		unimplemented!()
+		inbound_hrmp_channels_contents
 	}
 }
 
@@ -1604,18 +1585,5 @@ impl<T: Config> Pallet<T> {
 				);
 			}
 		}
-	}
-}
-
-impl<T: Config> OnQueueChanged<HrmpChannelId> for Pallet<T> {
-	fn on_queue_changed(channel_id: HrmpChannelId, items_count: u64, items_size: u64) {
-		// Update the HrmpChannelDigests
-		let Some(mut channel) = HrmpChannels::<T>::get(&channel_id) else {
-			defensive!("HRMP Channel {:?} is not registered", channel_id);
-			return;
-		};
-		channel.msg_count = items_count as u32; // FAIL-CI: defensive_saturated_into
-		channel.total_size = items_size as u32;
-		HrmpChannels::<T>::insert(&channel_id, channel);
 	}
 }

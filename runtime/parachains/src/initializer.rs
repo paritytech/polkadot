@@ -22,7 +22,7 @@
 use crate::{
 	configuration::{self, HostConfiguration},
 	disputes::{self, DisputesHandler as _, SlashingHandler as _},
-	hrmp, inclusion, paras, scheduler, session_info, shared,
+	dmp, hrmp, inclusion, paras, scheduler, session_info, shared,
 };
 use frame_support::{
 	traits::{OneSessionHandler, Randomness},
@@ -113,6 +113,7 @@ pub mod pallet {
 		+ inclusion::Config
 		+ session_info::Config
 		+ disputes::Config
+		+ dmp::Config
 		+ hrmp::Config
 	{
 		/// A randomness beacon.
@@ -166,6 +167,7 @@ pub mod pallet {
 				session_info::Pallet::<T>::initializer_initialize(now) +
 				T::DisputesHandler::initializer_initialize(now) +
 				T::SlashingHandler::initializer_initialize(now) +
+				dmp::Pallet::<T>::initializer_initialize(now) +
 				hrmp::Pallet::<T>::initializer_initialize(now);
 
 			HasInitialized::<T>::set(Some(()));
@@ -176,6 +178,7 @@ pub mod pallet {
 		fn on_finalize(now: T::BlockNumber) {
 			// reverse initialization order.
 			hrmp::Pallet::<T>::initializer_finalize();
+			dmp::Pallet::<T>::initializer_finalize();
 			T::SlashingHandler::initializer_finalize();
 			T::DisputesHandler::initializer_finalize();
 			session_info::Pallet::<T>::initializer_finalize();
@@ -262,7 +265,7 @@ impl<T: Config> Pallet<T> {
 		session_info::Pallet::<T>::initializer_on_new_session(&notification);
 		T::DisputesHandler::initializer_on_new_session(&notification);
 		T::SlashingHandler::initializer_on_new_session(session_index);
-		//dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		//		ump::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 	}

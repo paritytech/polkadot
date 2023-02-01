@@ -11,13 +11,13 @@ impl-trait-for-tuples = "0.2.2"
 log = { version = "0.4.17", default-features = false }
 parity-scale-codec = { version = "3.1.5", default-features = false, features = [ "derive", "max-encoded-len" ] }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-mp-queue" }
-sp-weights = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "oty-mp-queue" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-weights = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 serde = { version = "1.0.136", optional = true, features = ["derive"] }
 xcm-procedural = { path = "procedural" }
 
 [dev-dependencies]
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "oty-mp-queue" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
 default = ["std"]

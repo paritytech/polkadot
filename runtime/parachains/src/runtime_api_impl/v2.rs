@@ -18,8 +18,8 @@
 //! functions.
 
 use crate::{
-	configuration, hrmp, inclusion, initializer, paras, paras_inherent, scheduler, session_info,
-	shared,
+	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
+	session_info, shared,
 };
 use primitives::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
@@ -340,8 +340,6 @@ where
 					CandidateEvent::CandidateTimedOut(c, h, core),
 				// Not needed for candidate events.
 				RawEvent::<T>::UpwardMessagesReceived { .. } => return None,
-				// FAIL-CI: correct?
-				RawEvent::<T>::DownwardMessagesReceived { .. } => return None,
 				RawEvent::<T>::__Ignore(_, _) => unreachable!("__Ignore cannot be used"),
 			})
 		})
@@ -353,12 +351,12 @@ pub fn session_info<T: session_info::Config>(index: SessionIndex) -> Option<Sess
 	<session_info::Pallet<T>>::session_info(index)
 }
 
-// Implementation for the `dmq_contents` function of the runtime API.
-//pub fn dmq_contents<T: dmp::Config>(
-//	recipient: ParaId,
-//) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-//	<dmp::Pallet<T>>::dmq_contents(recipient)
-//}
+/// Implementation for the `dmq_contents` function of the runtime API.
+pub fn dmq_contents<T: dmp::Config>(
+	recipient: ParaId,
+) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
+	<dmp::Pallet<T>>::dmq_contents(recipient)
+}
 
 /// Implementation for the `inbound_hrmp_channels_contents` function of the runtime API.
 pub fn inbound_hrmp_channels_contents<T: hrmp::Config>(

@@ -22,8 +22,7 @@ pub use pallet::*;
 use parity_scale_codec::Encode;
 use primitives::Id as ParaId;
 use runtime_parachains::{
-	configuration, hrmp, inclusion,
-	inclusion::DmpLink,
+	configuration, dmp, hrmp,
 	paras::{self, ParaGenesisArgs},
 	ParaLifecycle,
 };
@@ -39,12 +38,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	#[pallet::disable_frame_system_supertrait_check]
-	pub trait Config: configuration::Config + paras::Config + hrmp::Config {
-		/// Link to the DMP queue as provided by `pallet-parachain-inclusion`.
-		///
-		/// This is a weaker coupling than inheriting the `inclusion::Config` which makes it easier for mocking.
-		type DmpLink: inclusion::DmpLink<Self::BlockNumber>;
-	}
+	pub trait Config: configuration::Config + paras::Config + dmp::Config + hrmp::Config {}
 
 	#[pallet::error]
 	pub enum Error<T> {
@@ -146,15 +140,11 @@ pub mod pallet {
 			ensure_root(origin)?;
 			ensure!(<paras::Pallet<T>>::is_valid_para(id), Error::<T>::ParaDoesntExist);
 			let config = <configuration::Pallet<T>>::config();
-			use inclusion::DmpAcceptanceCheckErr::*;
-			<T as Config>::DmpLink::try_receive_downward_message(&config, id, xcm.encode())
-				.map_err(|e| match e {
-					MoreMessagesThanPermitted { .. } |
-					MessageSize { .. } |
-					CapacityExceeded { .. } |
-					TotalSizeExceeded { .. } => Error::<T>::ExceedsMaxMessageSize.into(),
-				})
-				.map(|_| ())
+			<dmp::Pallet<T>>::queue_downward_message(&config, id, xcm.encode()).map_err(|e| match e
+			{
+				dmp::QueueDownwardMessageError::ExceedsMaxMessageSize =>
+					Error::<T>::ExceedsMaxMessageSize.into(),
+			})
 		}
 
 		/// Forcefully establish a channel from the sender to the recipient.
