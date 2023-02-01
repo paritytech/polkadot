@@ -987,7 +987,7 @@ mod benchmarking {
 	use frame_system::RawOrigin;
 	use sp_runtime::traits::{Bounded, One};
 
-	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
+	use frame_benchmarking::{account, benchmarks, whitelisted_caller, BenchmarkError};
 
 	use crate::slots::Pallet as Slots;
 
@@ -1027,7 +1027,8 @@ mod benchmarking {
 			let amount = T::Currency::minimum_balance();
 			let period_begin = 69u32.into();
 			let period_count = 3u32.into();
-			let origin = T::ForceOrigin::successful_origin();
+			let origin =
+				T::ForceOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 		}: _<T::RuntimeOrigin>(origin, para, leaser.clone(), amount, period_begin, period_count)
 		verify {
 			assert_last_event::<T>(Event::<T>::Leased {
@@ -1061,7 +1062,8 @@ mod benchmarking {
 			// T parathread are upgrading to parachains
 			for (para, leaser) in paras_info {
 				let amount = T::Currency::minimum_balance();
-				let origin = T::ForceOrigin::successful_origin();
+				let origin = T::ForceOrigin::try_successful_origin()
+					.expect("ForceOrigin has no successful origin required for the benchmark");
 				Slots::<T>::force_lease(origin, para, leaser, amount, period_begin, period_count)?;
 			}
 
@@ -1112,7 +1114,8 @@ mod benchmarking {
 				// Average slot has 4 lease periods.
 				let period_count: LeasePeriodOf<T> = 4u32.into();
 				let period_begin = period_count * i.into();
-				let origin = T::ForceOrigin::successful_origin();
+				let origin = T::ForceOrigin::try_successful_origin()
+					.expect("ForceOrigin has no successful origin required for the benchmark");
 				Slots::<T>::force_lease(origin, para, leaser, amount, period_begin, period_count)?;
 			}
 
@@ -1121,7 +1124,8 @@ mod benchmarking {
 				assert_eq!(T::Currency::reserved_balance(&leaser), T::Currency::minimum_balance());
 			}
 
-			let origin = T::ForceOrigin::successful_origin();
+			let origin =
+				T::ForceOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 		}: _<T::RuntimeOrigin>(origin, para)
 		verify {
 			for i in 0 .. max_people {
