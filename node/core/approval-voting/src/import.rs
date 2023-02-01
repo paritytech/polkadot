@@ -367,6 +367,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 	// Update session info based on most recent head.
 	let mut cache_session_span = handle_new_head_span.child("cache-session-info");
+	cache_session_span.add_string_tag("head", format!("{:?}", head));
 	match state.cache_session_info_for_head(ctx, head).await {
 		Err(e) => {
 			gum::debug!(
