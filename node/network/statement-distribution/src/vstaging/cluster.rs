@@ -99,6 +99,9 @@ pub struct ClusterTracker {
 	validators: Vec<ValidatorIndex>,
 	seconding_limit: usize,
 	knowledge: HashMap<ValidatorIndex, HashSet<TaggedKnowledge>>,
+	// Statements known locally which haven't been sent to particular validators.
+	// maps target validator to (originator, statement) pairs.
+	pending: HashMap<ValidatorIndex, HashSet<(ValidatorIndex, CompactStatement)>>,
 }
 
 impl ClusterTracker {
@@ -111,6 +114,7 @@ impl ClusterTracker {
 			validators: cluster_validators,
 			seconding_limit,
 			knowledge: HashMap::new(),
+			pending: HashMap::new(),
 		})
 	}
 
@@ -180,6 +184,21 @@ impl ClusterTracker {
 		originator: ValidatorIndex,
 		statement: CompactStatement,
 	) {
+		for cluster_member in &self.validators {
+			if cluster_member == &sender {
+				if let Some(pending) = self.pending.get_mut(&sender) {
+					pending.remove(&(originator, statement.clone()));
+				}
+			} else if !self.they_know_statement(sender, originator, statement.clone()) {
+				// add the statement to pending knowledge for all peers
+				// which don't know the statement.
+				self.pending
+					.entry(*cluster_member)
+					.or_default()
+					.insert((originator, statement.clone()));
+			}
+		}
+
 		{
 			let mut sender_knowledge = self.knowledge.entry(sender).or_default();
 			sender_knowledge.insert(TaggedKnowledge::IncomingP2P(Knowledge::Specific(
@@ -214,11 +233,7 @@ impl ClusterTracker {
 			return Err(RejectOutgoing::NotInGroup)
 		}
 
-		if self.we_sent(target, Knowledge::Specific(statement.clone(), originator)) {
-			return Err(RejectOutgoing::Known)
-		}
-
-		if self.they_sent(target, Knowledge::Specific(statement.clone(), originator)) {
+		if self.they_know_statement(target, originator, statement.clone()) {
 			return Err(RejectOutgoing::Known)
 		}
 
@@ -267,6 +282,10 @@ impl ClusterTracker {
 			let mut originator_knowledge = self.knowledge.entry(originator).or_default();
 			originator_knowledge.insert(TaggedKnowledge::Seconded(candidate_hash));
 		}
+
+		if let Some(pending) = self.pending.get_mut(&target) {
+			pending.remove(&(originator, statement));
+		}
 	}
 
 	/// Get all targets as validator-indices. This doesn't attempt to filter
@@ -314,6 +333,28 @@ impl ClusterTracker {
 		None
 	}
 
+	/// Returns a Vec of pending statements to be sent to a particular validator
+	/// index. `Seconded` statements are sorted to the front of the vector.
+	///
+	/// Pending statements have the form (originator, compact statement).
+	pub fn pending_statements_for(
+		&self,
+		target: ValidatorIndex,
+	) -> Vec<(ValidatorIndex, CompactStatement)> {
+		let mut v = self
+			.pending
+			.get(&target)
+			.map(|x| x.iter().cloned().collect::<Vec<_>>())
+			.unwrap_or_default();
+
+		v.sort_by_key(|(_, s)| match s {
+			CompactStatement::Seconded(_) => 0u8,
+			CompactStatement::Valid(_) => 1u8,
+		});
+
+		v
+	}
+
 	// returns true if it's legal to accept a new `Seconded` message from this validator.
 	// This is either
 	//   1. because we've already accepted it.
@@ -337,6 +378,16 @@ impl ClusterTracker {
 		// This fulfills both properties by under-counting when the validator is at the limit
 		// but _has_ seconded the candidate already.
 		seconded_other_candidates < self.seconding_limit
+	}
+
+	fn they_know_statement(
+		&self,
+		validator: ValidatorIndex,
+		originator: ValidatorIndex,
+		statement: CompactStatement,
+	) -> bool {
+		let knowledge = Knowledge::Specific(statement, originator);
+		self.we_sent(validator, knowledge.clone()) || self.they_sent(validator, knowledge)
 	}
 
 	fn they_sent(&self, validator: ValidatorIndex, knowledge: Knowledge) -> bool {
@@ -800,4 +851,13 @@ mod tests {
 			Ok(()),
 		);
 	}
+
+	// TODO [now]: test that `pending_statements` are set whenever we receive
+	// a fresh statement.
+
+	// TODO [now]: test the `pending_statements` are updated when we send or receive
+	// statements from others in the cluster.
+
+	// TODO [now]: test that pending statements are sorted, with `Seconded` statements
+	// in the front.
 }

@@ -274,6 +274,12 @@ impl PeerState {
 	fn is_authority(&self, authority_id: &AuthorityDiscoveryId) -> bool {
 		self.discovery_ids.as_ref().map_or(false, |x| x.contains(authority_id))
 	}
+
+	fn iter_known_discovery_ids<'a>(
+		&'a self,
+	) -> impl Iterator<Item = &'a AuthorityDiscoveryId> + 'a {
+		self.discovery_ids.as_ref().into_iter().flat_map(|inner| inner)
+	}
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
@@ -394,6 +400,9 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		if state.per_relay_parent.contains_key(&new_relay_parent) {
 			continue
 		}
+
+		// TODO [now]: request prospective parachains mode, skip disabled relay-parents
+		// (there should not be any) and set `seconding_limit = max_candidate_depth`.
 
 		// New leaf: fetch info from runtime API and initialize
 		// `per_relay_parent`.
@@ -589,8 +598,27 @@ async fn handle_peer_view_update<Context>(
 	}
 }
 
+// Returns an iterator over known validator indices, given an iterator over discovery IDs
+// and a mapping from discovery IDs to validator indices.
+fn find_validator_ids<'a>(
+	known_discovery_ids: impl IntoIterator<Item = &'a AuthorityDiscoveryId>,
+	discovery_mapping: impl Fn(&AuthorityDiscoveryId) -> Option<&'a ValidatorIndex>,
+) -> impl IntoIterator<Item = ValidatorIndex> {
+	known_discovery_ids.into_iter().filter_map(discovery_mapping).cloned()
+}
+
 /// Send a peer, apparently just becoming aware of a relay-parent, all messages
 /// concerning that relay-parent.
+///
+/// In particular, we send all statements pertaining to our common cluster,
+/// as well as all manifests, acknowledgements, or other grid statements.
+///
+/// Note that due to the way we handle views, our knowledge of peers' relay parents
+/// may "oscillate" with relay parents repeatedly leaving and entering the
+/// view of a peer based on the implicit view of active leaves.
+///
+/// This function is designed to be cheap and not to send duplicate messages in repeated
+/// cases.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn send_peer_messages_for_relay_parent<Context>(
 	ctx: &mut Context,
@@ -598,9 +626,183 @@ async fn send_peer_messages_for_relay_parent<Context>(
 	peer: PeerId,
 	relay_parent: Hash,
 ) {
-	// TODO [now] determine validator index
-	// send cluster statements
-	// send grid manifests & acknowledgements
+	let peer_data = match state.peers.get_mut(&peer) {
+		None => return,
+		Some(p) => p,
+	};
+
+	let relay_parent_state = match state.per_relay_parent.get_mut(&relay_parent) {
+		None => return,
+		Some(s) => s,
+	};
+
+	let per_session_state = match state.per_session.get(&relay_parent_state.session) {
+		None => return,
+		Some(s) => s,
+	};
+
+	for validator_id in find_validator_ids(peer_data.iter_known_discovery_ids(), |a| {
+		per_session_state.authority_lookup.get(a)
+	}) {
+		if let Some(local_validator_state) = relay_parent_state.local_validator.as_mut() {
+			send_pending_cluster_statements(
+				ctx,
+				relay_parent,
+				&peer,
+				validator_id,
+				&mut local_validator_state.cluster_tracker,
+				&relay_parent_state.statement_store,
+			)
+			.await;
+		}
+
+		send_pending_grid_messages(
+			ctx,
+			relay_parent,
+			&peer,
+			validator_id,
+			&per_session_state.groups,
+			relay_parent_state,
+			&state.candidates,
+		)
+		.await;
+	}
+}
+
+/// Send a peer all pending cluster statements for a relay parent.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn send_pending_cluster_statements<Context>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+	peer_id: &PeerId,
+	peer_validator_id: ValidatorIndex,
+	cluster_tracker: &mut ClusterTracker,
+	statement_store: &StatementStore,
+) {
+	let pending_statements = cluster_tracker.pending_statements_for(peer_validator_id);
+	if pending_statements.is_empty() {
+		return
+	}
+
+	let network_messages = pending_statements
+		.into_iter()
+		.filter_map(|(originator, compact)| {
+			let res = statement_store.validator_statement(originator, compact.clone());
+			if res.is_some() {
+				cluster_tracker.note_sent(peer_validator_id, originator, compact);
+			}
+
+			res
+		})
+		.map(|s| s.as_unchecked().clone())
+		.map(|signed| {
+			protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, signed)
+		})
+		.map(|msg| (vec![peer_id.clone()], Versioned::VStaging(msg).into()))
+		.collect::<Vec<_>>();
+
+	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(network_messages))
+		.await;
+}
+
+/// Send a peer all pending grid messages / acknowledgements / follow up statements
+/// upon learning about a new relay parent.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn send_pending_grid_messages<Context>(
+	ctx: &mut Context,
+	relay_parent: Hash,
+	peer_id: &PeerId,
+	peer_validator_id: ValidatorIndex,
+	groups: &Groups,
+	relay_parent_state: &mut PerRelayParentState,
+	candidates: &Candidates,
+) {
+	let pending_manifests = {
+		let local_validator = match relay_parent_state.local_validator.as_mut() {
+			None => return,
+			Some(l) => l,
+		};
+
+		let grid_tracker = &mut local_validator.grid_tracker;
+		grid_tracker.pending_manifests_for(peer_validator_id)
+	};
+
+	let mut messages: Vec<(Vec<PeerId>, net_protocol::VersionedValidationProtocol)> = Vec::new();
+	for (candidate_hash, kind) in pending_manifests {
+		let confirmed_candidate = match candidates.get_confirmed(&candidate_hash) {
+			None => continue, // sanity
+			Some(c) => c,
+		};
+
+		let group_index = confirmed_candidate.group_index();
+
+		let local_knowledge = {
+			let group_size = match groups.get(group_index) {
+				None => return, // sanity
+				Some(x) => x.len(),
+			};
+
+			local_knowledge_filter(
+				group_size,
+				group_index,
+				candidate_hash,
+				&relay_parent_state.statement_store,
+			)
+		};
+
+		match kind {
+			grid::ManifestKind::Full => {
+				let manifest = protocol_vstaging::BackedCandidateManifest {
+					relay_parent,
+					candidate_hash,
+					group_index,
+					para_id: confirmed_candidate.para_id(),
+					parent_head_data_hash: confirmed_candidate.parent_head_data_hash(),
+					seconded_in_group: local_knowledge.seconded_in_group.clone(),
+					validated_in_group: local_knowledge.validated_in_group.clone(),
+				};
+
+				let grid = &mut relay_parent_state
+					.local_validator
+					.as_mut()
+					.expect("determined to be some earlier in this function; qed")
+					.grid_tracker;
+
+				grid.manifest_sent_to(peer_validator_id, candidate_hash, local_knowledge.clone());
+
+				messages.push((
+					vec![peer_id.clone()],
+					Versioned::VStaging(
+						protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(
+							manifest,
+						),
+					)
+					.into(),
+				));
+			},
+			grid::ManifestKind::Acknowledgement => {
+				messages.extend(acknowledgement_and_statement_messages(
+					peer_id.clone(),
+					peer_validator_id,
+					groups,
+					relay_parent_state,
+					relay_parent,
+					group_index,
+					candidate_hash,
+					local_knowledge,
+				));
+			},
+		}
+	}
+
+	// TODO [now] we need a way to get all pending statements for a validator, not just
+	// those for the acknowledgements we've sent
+	//
+	// otherwise, we might receive statements while the grid peer is "out of view" and then
+	// not send them when they get back "in view". problem! checking for these needs to be
+	// cheap as well.
+
+	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(messages)).await;
 }
 
 // Imports a locally originating statement and distributes it to peers.
@@ -1766,13 +1968,9 @@ async fn handle_incoming_manifest<Context>(
 
 	let ManifestImportSuccess { relay_parent_state, per_session, acknowledge, sender_index } = x;
 
-	let local_validator = match relay_parent_state.local_validator.as_mut() {
-		None => return,
-		Some(l) => l,
-	};
-
 	if acknowledge {
 		// 4. if already confirmed & known within grid, acknowledge candidate
+
 		let local_knowledge = {
 			let group_size = match per_session.groups.get(manifest.group_index) {
 				None => return, // sanity
@@ -1786,43 +1984,20 @@ async fn handle_incoming_manifest<Context>(
 				&relay_parent_state.statement_store,
 			)
 		};
-		let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
-			candidate_hash: manifest.candidate_hash,
-			seconded_in_group: local_knowledge.seconded_in_group.clone(),
-			validated_in_group: local_knowledge.validated_in_group.clone(),
-		};
 
-		let msg = Versioned::VStaging(
-			protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(acknowledgement),
-		);
-
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			vec![peer.clone()],
-			msg.into(),
-		))
-		.await;
-		local_validator.grid_tracker.manifest_sent_to(
+		let messages = acknowledgement_and_statement_messages(
+			peer,
 			sender_index,
-			manifest.candidate_hash,
-			local_knowledge.clone(),
-		);
-
-		let messages = post_acknowledgement_statement_messages(
-			sender_index,
-			manifest.relay_parent,
-			&mut local_validator.grid_tracker,
-			&relay_parent_state.statement_store,
 			&per_session.groups,
+			relay_parent_state,
+			manifest.relay_parent,
 			manifest.group_index,
 			manifest.candidate_hash,
-			&local_knowledge,
+			local_knowledge,
 		);
 
 		if !messages.is_empty() {
-			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(
-				messages.into_iter().map(|m| (vec![peer.clone()], m)).collect(),
-			))
-			.await;
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(messages)).await;
 		}
 	} else if !state.candidates.is_confirmed(&manifest.candidate_hash) {
 		// 5. if unconfirmed, add request entry
@@ -1831,6 +2006,57 @@ async fn handle_incoming_manifest<Context>(
 			.get_or_insert(manifest.relay_parent, manifest.candidate_hash, manifest.group_index)
 			.add_peer(peer);
 	}
+}
+
+/// Produces acknowledgement and statement messages to be sent over the network,
+/// noting that they have been sent within the grid topology tracker as well.
+fn acknowledgement_and_statement_messages(
+	peer: PeerId,
+	validator_index: ValidatorIndex,
+	groups: &Groups,
+	relay_parent_state: &mut PerRelayParentState,
+	relay_parent: Hash,
+	group_index: GroupIndex,
+	candidate_hash: CandidateHash,
+	local_knowledge: StatementFilter,
+) -> Vec<(Vec<PeerId>, net_protocol::VersionedValidationProtocol)> {
+	let local_validator = match relay_parent_state.local_validator.as_mut() {
+		None => return Vec::new(),
+		Some(l) => l,
+	};
+
+	let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
+		candidate_hash,
+		seconded_in_group: local_knowledge.seconded_in_group.clone(),
+		validated_in_group: local_knowledge.validated_in_group.clone(),
+	};
+
+	let msg = Versioned::VStaging(
+		protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(acknowledgement),
+	);
+
+	let mut messages = vec![(vec![peer.clone()], msg.into())];
+
+	local_validator.grid_tracker.manifest_sent_to(
+		validator_index,
+		candidate_hash,
+		local_knowledge.clone(),
+	);
+
+	let statement_messages = post_acknowledgement_statement_messages(
+		validator_index,
+		relay_parent,
+		&mut local_validator.grid_tracker,
+		&relay_parent_state.statement_store,
+		&groups,
+		group_index,
+		candidate_hash,
+		&local_knowledge,
+	);
+
+	messages.extend(statement_messages.into_iter().map(|m| (vec![peer.clone()], m)));
+
+	messages
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
