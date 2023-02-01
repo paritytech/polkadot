@@ -359,7 +359,7 @@ impl<'a> UnhandledResponse<'a> {
 		group: &[ValidatorIndex],
 		session: SessionIndex,
 		validator_key_lookup: impl Fn(ValidatorIndex) -> ValidatorId,
-		allowed_para_lookup: impl Fn(ParaId) -> bool,
+		allowed_para_lookup: impl Fn(ParaId, GroupIndex) -> bool,
 	) -> ResponseValidationOutput {
 		let UnhandledResponse {
 			manager,
@@ -434,12 +434,11 @@ impl<'a> UnhandledResponse<'a> {
 			group,
 			session,
 			validator_key_lookup,
+			allowed_para_lookup,
 		);
 
 		if let CandidateRequestStatus::Complete { .. } = output.request_status {
-			// TODO [now]: clean up everything else to do with the candidate.
-			// add reputation punishments for all peers advertising the candidate under
-			// different identifiers.
+			manager.remove_for(identifier.candidate_hash);
 		}
 
 		output
@@ -454,6 +453,7 @@ fn validate_complete_response(
 	group: &[ValidatorIndex],
 	session: SessionIndex,
 	validator_key_lookup: impl Fn(ValidatorIndex) -> ValidatorId,
+	allowed_para_lookup: impl Fn(ParaId, GroupIndex) -> bool,
 ) -> ResponseValidationOutput {
 	// sanity check bitmask size. this is based entirely on
 	// local logic here.
@@ -485,6 +485,13 @@ fn validate_complete_response(
 		if response.candidate_receipt.descriptor.persisted_validation_data_hash !=
 			response.persisted_validation_data.hash()
 		{
+			return invalid_candidate_output()
+		}
+
+		if !allowed_para_lookup(
+			response.candidate_receipt.descriptor.para_id,
+			identifier.group_index,
+		) {
 			return invalid_candidate_output()
 		}
 
@@ -601,10 +608,6 @@ pub enum CandidateRequestStatus {
 	/// expected may not be present, and higher-level code should
 	/// evaluate whether the candidate is still worth storing and whether
 	/// the sender should be punished.
-	///
-	/// This also does not indicate that the para has actually been checked
-	/// to be one that the group is assigned under. Higher-level code should
-	/// verify that this is the case and ignore the candidate accordingly if so.
 	Complete {
 		candidate: CommittedCandidateReceipt,
 		persisted_validation_data: PersistedValidationData,
@@ -758,5 +761,5 @@ mod tests {
 
 	// TODO [now]: test that outdated responses are handled correctly.
 
-	// TODO [now]: test clean up by relay parent.
+	// TODO [now]: test that successful requests lead to clean up.
 }
