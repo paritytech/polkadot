@@ -119,7 +119,6 @@ use crate::{
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives as pcp;
 use polkadot_parachain::primitives as ppp;
-use sp_staking;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 sp_api::decl_runtime_apis! {
@@ -160,7 +159,7 @@ sp_api::decl_runtime_apis! {
 		/// Returns the session index expected at a child of the block.
 		///
 		/// This can be used to instantiate a `SigningContext`.
-		fn session_index_for_child() -> sp_staking::SessionIndex;
+		fn session_index_for_child() -> SessionIndex;
 
 		/// Fetch the validation code used by a para, making the given `OccupiedCoreAssumption`.
 		///
@@ -196,7 +195,7 @@ sp_api::decl_runtime_apis! {
 		/// Get the session info for the given session, if stored.
 		///
 		/// NOTE: This function is only available since parachain host version 2.
-		fn session_info(index: sp_staking::SessionIndex) -> Option<SessionInfo>;
+		fn session_info(index: SessionIndex) -> Option<SessionInfo>;
 
 		/// Submits a PVF pre-checking statement into the transaction pool.
 		///
@@ -218,7 +217,7 @@ sp_api::decl_runtime_apis! {
 
 		/// Old method to fetch v1 session info.
 		#[changed_in(2)]
-		fn session_info(index: sp_staking::SessionIndex) -> Option<v2::OldV1SessionInfo>;
+		fn session_info(index: SessionIndex) -> Option<v2::OldV1SessionInfo>;
 
 		/***** STAGING *****/
 
@@ -228,6 +227,6 @@ sp_api::decl_runtime_apis! {
 
 		/// Returns execution parameters for the session.
 		#[api_version(3)]
-		fn session_executor_params(session_index: sp_staking::SessionIndex) -> Option<vstaging::ExecutorParams>;
+		fn session_executor_params(session_index: SessionIndex) -> Option<vstaging::ExecutorParams>;
 	}
 }
