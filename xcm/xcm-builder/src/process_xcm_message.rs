@@ -16,7 +16,7 @@
 
 //! Implementation of `ProcessMessage` for an `ExecuteXcm` implementation.
 
-use frame_support::traits::{ProcessMessage, ProcessMessageError};
+use frame_support::{ensure, traits::{ProcessMessage, ProcessMessageError}};
 use parity_scale_codec::{Decode, FullCodec, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_io::hashing::blake2_256;
@@ -24,15 +24,14 @@ use sp_std::{fmt::Debug, marker::PhantomData};
 use sp_weights::Weight;
 use xcm::prelude::*;
 
-pub struct ProcessXcmMessage<MessageOrigin, XcmExecutor, Call, MessageToDispatchOrigin>(
-	PhantomData<(MessageOrigin, XcmExecutor, Call, MessageToDispatchOrigin)>,
+pub struct ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>(
+	PhantomData<(MessageOrigin, XcmExecutor, Call)>,
 );
 impl<
-		MessageOrigin: FullCodec + MaxEncodedLen + Clone + Eq + PartialEq + TypeInfo + Debug,
+		MessageOrigin: Into<MultiLocation> + FullCodec + MaxEncodedLen + Clone + Eq + PartialEq + TypeInfo + Debug,
 		XcmExecutor: ExecuteXcm<Call>,
 		Call,
-		MessageToDispatchOrigin: sp_runtime::traits::Convert<MessageOrigin, Junction>,
-	> ProcessMessage for ProcessXcmMessage<MessageOrigin, XcmExecutor, Call, MessageToDispatchOrigin>
+	> ProcessMessage for ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>
 {
 	type Origin = MessageOrigin;
 
@@ -48,11 +47,11 @@ impl<
 		let message = Xcm::<Call>::try_from(versioned_message)
 			.map_err(|_| ProcessMessageError::Unsupported)?;
 		let pre = XcmExecutor::prepare(message).map_err(|_| ProcessMessageError::Unsupported)?;
-		let weight = Weight::from_ref_time(pre.weight_of());
+		let weight = pre.weight_of();
 		ensure!(weight.all_lte(weight_limit), ProcessMessageError::Overweight(weight));
-		match XcmExecutor::execute(origin.into(), pre, hash, 0) {
-			Outcome::Complete(w) => Ok((true, Weight::from_ref_time(w))),
-			Outcome::Incomplete(w, _) => Ok((false, Weight::from_ref_time(w))),
+		match XcmExecutor::execute(origin.into(), pre, hash, Weight::zero()) {
+			Outcome::Complete(w) => Ok((true, w)),
+			Outcome::Incomplete(w, _) => Ok((false, w)),
 			Outcome::Error(_) => Err(ProcessMessageError::Unsupported),
 		}
 	}

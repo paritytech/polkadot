@@ -1296,27 +1296,36 @@ impl parachains_paras::Config for Runtime {
 	type NextSessionRotation = Babe;
 }
 
-// TODO does this make the slightest amount of sense?
-pub struct ParaIdToJunction;
-impl sp_runtime::traits::Convert<parachains_inclusion::MessageOrigin, xcm::latest::Junction>
-	for ParaIdToJunction
-{
-	fn convert(o: parachains_inclusion::MessageOrigin) -> xcm::latest::Junction {
-		match o {
-			parachains_inclusion::MessageOrigin {
-				para,
-				queue: parachains_inclusion::SubQueue::UMP,
-			} => xcm::latest::Junction::Parachain(para.into()),
-			// FAIL-CI: Should be similar for the other *MP queues but check this as a TODO
-			_ => todo!(),
-		}
-	}
-}
-
 parameter_types! {
 	/// Amount of weigh which can be spent per block to service messages.
 	/// FAIL-CI: Pretty random value. Should eventually be the sum of `UMP+DMP+HRMP`.
 	pub const MessageQueueServiceWeight: Weight = Weight::from_parts(100 * WEIGHT_REF_TIME_PER_MILLIS, u64::MAX);
+}
+
+use frame_support::traits::ProcessMessage;
+use parachains_inclusion::ProcessQueue;
+use frame_support::traits::ProcessMessageError;
+
+pub struct MessageProcessor;
+impl ProcessMessage for MessageProcessor {
+	type Origin = ProcessQueue;
+
+	fn process_message(
+		message: &[u8],
+		origin: Self::Origin,
+		weight_limit: Weight,
+	) -> Result<(bool, Weight), ProcessMessageError> {
+		match origin {
+			// Delegate all UMP messages to the XCM executor.
+			ProcessQueue::UMP(from_para) => {
+				xcm_builder::ProcessXcmMessage::<
+					xcm::v3::Junction,
+					xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
+					RuntimeCall,
+				>::process_message(message, from_para.into(), weight_limit)
+			},
+		}
+	}
 }
 
 impl pallet_message_queue::Config for Runtime {
@@ -1325,15 +1334,9 @@ impl pallet_message_queue::Config for Runtime {
 	type HeapSize = ConstU32<65_536>;
 	type MaxStale = ConstU32<8>;
 	type ServiceWeight = MessageQueueServiceWeight;
-	// TODO Is `ParaIdToJunction` correct here?
-	type MessageProcessor = xcm_builder::ProcessXcmMessage<
-		parachains_inclusion::MessageOrigin,
-		xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
-		RuntimeCall,
-		ParaIdToJunction,
-	>;
+	type MessageProcessor = MessageProcessor;
 	type QueueChangeHandler = ();
-	type WeightInfo = (); // FAIL-CI: TODO
+	type WeightInfo = weights::pallet_message_queue::WeightInfo<Runtime>;
 }
 
 impl parachains_dmp::Config for Runtime {}
