@@ -16,7 +16,6 @@
 
 //! The parathread assignment pallet
 //!
-use crate::initializer::SessionChangeNotification;
 use frame_support::{
 	pallet_prelude::*,
 	traits::{Currency, ReservableCurrency},
@@ -60,7 +59,9 @@ pub mod pallet {
 		/// The runtime's definition of a Currency.
 		type Currency: ReservableCurrency<Self::AccountId>;
 
-		/// The exotic scheduling module that is associated with this instance of the auctioneer.
+		/// An origin which is allowed to set the base price of parathreads.
+		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
+
 		type ClaimQueueProvider: ClaimQueue;
 
 		/// The maximum number of orders stored by the price controller. This should be bounded by the
@@ -78,9 +79,15 @@ pub mod pallet {
 		max_amount: BalanceOf<T>,
 	}
 
+	#[pallet::storage]
+	#[pallet::getter(fn get_base_spot_price)]
+	pub(super) type BaseSpotPrice<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
-	pub enum Event<T: Config> {}
+	pub enum Event<T: Config> {
+		BaseSpotPriceSet { amount: BalanceOf<T> },
+	}
 
 	#[pallet::error]
 	pub enum Error<T> {}
@@ -101,16 +108,38 @@ pub mod pallet {
 			let _res = ensure_signed(origin);
 			Ok(())
 		}
+
+		/// Set the base spot price
+		///
+		/// Parameters:
+		/// - `origin`: Must be root
+		/// - `amount`: The price to set as the base
+		///
+		/// Errors:
+		/// -
+		/// Events:
+		/// - `BaseSpotPriceSet(amount)`
+		/// TODO weights
+		#[pallet::call_index(1)]
+		#[pallet::weight(1_000)]
+		pub fn set_base_spot_price(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
+			// Ensure the proper origin authority
+			T::ForceOrigin::ensure_origin(origin)?;
+
+			BaseSpotPrice::<T>::set(amount);
+			Self::deposit_event(Event::BaseSpotPriceSet { amount });
+			Ok(())
+		}
 	}
 
 	/**
 	*  impl<T: Config> Pallet<T> {
-	*		/// Called by the initializer to initialize the auctioneer pallet.
+	*		/// Called by the initializer to initialize the pallet.
 	*		pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
 	*			Weight::zero()
 	*		}
 
-	*		/// Called by the initializer to finalize the auctioneer pallet.
+	*		/// Called by the initializer to finalize the pallet.
 	*		pub(crate) fn initializer_finalize() {}
 
 	*		/// Called by the initializer to note that a new session has started.
