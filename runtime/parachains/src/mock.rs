@@ -84,7 +84,7 @@ parameter_types! {
 	pub const BlockHashCount: u32 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
-			Weight::from_ref_time(4 * 1024 * 1024).set_proof_size(u64::MAX),
+			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
 		);
 }
 
@@ -254,6 +254,7 @@ thread_local! {
 	pub static REWARD_VALIDATORS: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_AGAINST: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
+	pub static PUNISH_BACKERS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 }
 
 impl crate::disputes::RewardValidators for Test {
@@ -270,14 +271,18 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 		session: SessionIndex,
 		_: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		PUNISH_VALIDATORS_FOR.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
+		PUNISH_VALIDATORS_FOR
+			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())));
+		PUNISH_BACKERS_FOR.with(|r| r.borrow_mut().push((session, backers.into_iter().collect())));
 	}
 
 	fn punish_against_valid(
 		session: SessionIndex,
 		_: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		_backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_AGAINST
 			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
@@ -398,7 +403,7 @@ impl UmpSink for TestUmpSink {
 		max_weight: Weight,
 	) -> Result<Weight, (MessageId, Weight)> {
 		let weight = match u32::decode(&mut &actual_msg[..]) {
-			Ok(w) => Weight::from_ref_time(w as u64),
+			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Ok(Weight::zero()), // same as the real `UmpSink`
 		};
 		if weight.any_gt(max_weight) {
