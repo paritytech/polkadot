@@ -277,7 +277,7 @@ impl<T: Config> Pallet<T> {
 			};
 
 			let core_idx = CoreIndex(core_index as u32);
-			for _ in 0.. 2 {
+			for _ in 0..2 {
 				// fill it for next_up_on_* to not starve(?)
 				match T::AssignmentProvider::pop_assignment_for_core(core_idx) {
 					None => (),
