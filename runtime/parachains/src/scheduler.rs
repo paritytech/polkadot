@@ -277,12 +277,15 @@ impl<T: Config> Pallet<T> {
 			};
 
 			let core_idx = CoreIndex(core_index as u32);
-			match T::AssignmentProvider::pop_assignment_for_core(core_idx) {
-				None => (),
-				Some(popped) => Lookahead::<T>::mutate(|la| match la.get_mut(core_index) {
-					None => la.insert(core_index, vec![popped]),
-					Some(v) => v.push(popped),
-				}),
+			for _ in 0.. 2 {
+				// fill it for next_up_on_* to not starve(?)
+				match T::AssignmentProvider::pop_assignment_for_core(core_idx) {
+					None => (),
+					Some(popped) => Lookahead::<T>::mutate(|la| match la.get_mut(core_index) {
+						None => la.insert(core_index, vec![popped]),
+						Some(v) => v.push(popped),
+					}),
+				}
 			}
 			let group_idx = Self::group_assigned_to_core(core_idx, now).expect(
 				"core is not out of bounds and we are guaranteed \
