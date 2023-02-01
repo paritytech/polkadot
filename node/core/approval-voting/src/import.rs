@@ -327,17 +327,12 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	db: &mut OverlayedBackend<'_, B>,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
-	span: Option<&mut jaeger::PerLeafSpan>,
+	span: &mut jaeger::Span,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
-
-	let mut handle_new_head_span = match span {
-		Some(ref span) => span.child("handle-new-head"),
-		None => jaeger::Span::Disabled,
-	};
-
+	let mut handle_new_head_span = span.child("handle-new-head");
 	let header = {
-		let mut get_header_span = handle_new_head_span.child("get-header");
+		let mut get_header_span = handle_new_head_span.child("get-block-header");
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
 		match h_rx.await? {
@@ -348,14 +343,15 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					e,
 				);
 				// May be a better way of handling errors here.
-				get_header_span.add_string_tag("error", format!("{:?}", e));
+				get_header_span
+					.add_string_tag("header", format!("Error from Chain API subsystem: {:?}", e));
 				return Ok(Vec::new())
 			},
 			Ok(None) => {
 				gum::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
 				// May be a better way of handling warnings here.
 				get_header_span
-					.add_string_tag("warn", format!("Missing header for new head {}", head));
+					.add_string_tag("header", format!("Missing header for new head {}", head));
 				return Ok(Vec::new())
 			},
 			Ok(Some(h)) => {
@@ -370,6 +366,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	};
 
 	// Update session info based on most recent head.
+	let mut cache_session_span = handle_new_head_span.child("cache-session-info");
 	match state.cache_session_info_for_head(ctx, head).await {
 		Err(e) => {
 			gum::debug!(
@@ -378,7 +375,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				?e,
 				"Could not cache session info when processing head.",
 			);
-
+			drop(cache_session_span);
 			return Ok(Vec::new())
 		},
 		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
@@ -387,8 +384,11 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				update = ?a,
 				"Advanced session window for approvals",
 			);
+			drop(cache_session_span);
 		},
-		Ok(_) => {},
+		Ok(_) => {
+			drop(cache_session_span);
+		},
 	}
 
 	// If we've just started the node and are far behind,
@@ -402,11 +402,10 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		head,
 		&header,
 		lower_bound_number,
+		Some(&mut handle_new_head_span),
 	)
 	.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 	.await?;
-
-	handle_new_head_span.add_uint_tag("new-blocks-count", new_blocks.len() as u64);
 
 	if new_blocks.is_empty() {
 		return Ok(Vec::new())
@@ -423,6 +422,9 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
 		for (block_hash, block_header) in new_blocks.into_iter().rev() {
 			let mut candidate_span = imported_blocks_and_info_span.child("candidate");
+			candidate_span.add_string_tag("candidate-hash", format!("{:?}", block_hash));
+			candidate_span.add_uint_tag("candidate-number", block_header.number as u64);
+
 			let env = ImportedBlockInfoEnv {
 				session_window: &state.session_window,
 				assignment_criteria: &*state.assignment_criteria,
@@ -431,16 +433,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 			match imported_block_info(ctx, env, block_hash, &block_header).await {
 				Ok(i) => {
-					candidate_span.add_string_tag("candidate-hash", format!("{:?}", &block_hash));
-					candidate_span
-						.add_string_tag("parent-hash", format!("{:?}", &block_header.parent_hash));
-					candidate_span.add_string_tag("number", format!("{:?}", &block_header.number));
-					candidate_span
-						.add_string_tag("state-root", format!("{:?}", &block_header.state_root));
-					candidate_span.add_string_tag(
-						"extrinsics-root",
-						format!("{:?}", &block_header.extrinsics_root),
-					);
 					imported_blocks_and_info.push((block_hash, block_header, i));
 				},
 				Err(error) => {
@@ -452,8 +444,16 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 						.await;
 
 					let lost_to_finality = match rx.await {
-						Ok(Ok(Some(h))) if h != block_hash => true,
-						_ => false,
+						Ok(Ok(Some(h))) if h != block_hash => {
+							candidate_span
+								.add_string_tag("lost-to-finality", format!("{:?}", true));
+							true
+						},
+						_ => {
+							candidate_span
+								.add_string_tag("lost-to-finality", format!("{:?}", false));
+							false
+						},
 					};
 
 					if !lost_to_finality {
@@ -480,8 +480,9 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		imported_blocks = imported_blocks_and_info.len(),
 		"Inserting imported blocks into database"
 	);
+	let mut db_insertion_span = handle_new_head_span.child("block-db-insertion");
+
 	for (block_hash, block_header, imported_block_info) in imported_blocks_and_info {
-		let mut db_insertion_span = handle_new_head_span.child("block-db-insertion");
 		let ImportedBlockInfo {
 			included_candidates,
 			session_index,
@@ -508,13 +509,11 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		};
 
 		let needed_approvals = session_info.needed_approvals;
-		db_insertion_span.add_uint_tag("needed-approvals", needed_approvals as u64);
 		let validator_group_lens: Vec<usize> =
 			session_info.validator_groups.iter().map(|v| v.len()).collect();
 		// insta-approve candidates on low-node testnets:
 		// cf. https://github.com/paritytech/polkadot/issues/2411
 		let num_candidates = included_candidates.len();
-		db_insertion_span.add_uint_tag("num-candidates", num_candidates as u64);
 		let approved_bitfield = {
 			if needed_approvals == 0 {
 				gum::debug!(
@@ -526,14 +525,10 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			} else {
 				let mut result = bitvec::bitvec![u8, BitOrderLsb0; 0; num_candidates];
 				for (i, &(_, _, _, backing_group)) in included_candidates.iter().enumerate() {
-					let mut bitfield_span = db_insertion_span.child("bitfield");
-					bitfield_span.add_uint_tag("candidate-index", i as u64);
 					let backing_group_size =
 						validator_group_lens.get(backing_group.0 as usize).copied().unwrap_or(0);
-					bitfield_span.add_uint_tag("backing-group-size", backing_group_size as u64);
 					let needed_approvals =
 						usize::try_from(needed_approvals).expect("usize is at least u32; qed");
-					bitfield_span.add_uint_tag("needed-approvals", needed_approvals as u64);
 					if n_validators.saturating_sub(backing_group_size) < needed_approvals {
 						result.set(i, true);
 					}
@@ -550,8 +545,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				result
 			}
 		};
-		db_insertion_span
-			.add_uint_tag("approved-bitfields", approved_bitfield.count_ones() as u64);
+		db_insertion_span.add_uint_tag("approved-bitfields", approved_bitfield.count_ones() as u64);
 		// If all bits are already set, then send an approve message.
 		if approved_bitfield.count_ones() == approved_bitfield.len() {
 			ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
@@ -571,13 +565,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			approved_bitfield,
 			children: Vec::new(),
 		};
-		db_insertion_span.add_string_tag("block-hash", format!("{:?}", block_hash));
-		db_insertion_span.add_string_tag("parent-hash", format!("{:?}", block_header.parent_hash));
-		db_insertion_span.add_uint_tag("block-number", block_header.number as u64);
-		db_insertion_span.add_uint_tag("session", session_index as u64);
-		db_insertion_span.add_uint_tag("slot", *slot);
-		db_insertion_span.add_string_tag("candidates", format!("{:?}", block_entry.candidates));
-		db_insertion_span.add_string_tag("approved-bitfield", format!("{:?}", block_entry.approved_bitfield));
 
 		gum::trace!(
 			target: LOG_TARGET,
