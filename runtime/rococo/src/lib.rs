@@ -43,8 +43,8 @@ use runtime_parachains::{
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
 	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	scheduler_parachains, scheduler_parathreads, session_info as parachains_session_info, shared as parachains_shared,
-	ump as parachains_ump,
+	scheduler_parachains, scheduler_parathreads, session_info as parachains_session_info,
+	shared as parachains_shared, ump as parachains_ump,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
