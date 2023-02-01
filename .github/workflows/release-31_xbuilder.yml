@@ -39,7 +39,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v3
 
-      - name: Set env for $ {{ matrix.target }}
+      - name: Set env for ${{ matrix.target }}
         run: |
           image="${DOCKER_ORG}/parity-xbuilder-${{ matrix.target }}"
           echo "DOCKER_IMAGE-${{ matrix.target }}=$image" >> $GITHUB_ENV
