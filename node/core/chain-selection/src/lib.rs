@@ -577,6 +577,7 @@ async fn handle_active_leaf(
 		hash,
 		&header,
 		lower_bound,
+		None,
 	)
 	.await?;
 
