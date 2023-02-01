@@ -50,7 +50,7 @@ jobs:
           IMAGE_NAME_TMP: DOCKER_IMAGE_${{ matrix.target }}
         run: |
           IMAGE_NAME=${IMAGE_NAME_TMP//-/_}
-          IMAGE: ${!IMAGE_NAME}
+          IMAGE=${!IMAGE_NAME}
 
           echo "image name: $IMAGE_NAME"
           echo "Pulling image: $IMAGE"
