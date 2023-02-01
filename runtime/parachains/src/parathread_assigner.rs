@@ -28,8 +28,9 @@ use sp_runtime::{FixedI64, Perbill};
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "runtime-benchmarks")]
-mod benchmarking;
+// TODO enable benchmarks maybe?
+// #[cfg(feature = "runtime-benchmarks")]
+// mod benchmarking;
 
 // TODO shim for now.
 pub trait ClaimQueue {
