@@ -207,7 +207,10 @@ impl<T: Config> Pallet<T> {
 							FreedReason::Concluded => {},
 							FreedReason::TimedOut => Lookahead::<T>::mutate(|la| {
 								match la.get_mut(freed_index.0 as usize) {
-									None => la.insert(freed_index.0 as usize, vec![Assignment::ParathreadA(entry.claim)]),
+									None => la.insert(
+										freed_index.0 as usize,
+										vec![Assignment::ParathreadA(entry.claim)],
+									),
 									Some(v) => v.push(Assignment::ParathreadA(entry.claim)),
 								}
 							}),
@@ -276,11 +279,10 @@ impl<T: Config> Pallet<T> {
 			let core_idx = CoreIndex(core_index as u32);
 			match T::AssignmentProvider::pop_assignment_for_core(core_idx) {
 				None => (),
-				Some(popped) => Lookahead::<T>::mutate(|la|
-					match la.get_mut(core_index) {
-						None => la.insert(core_index, vec![popped]),
-						Some(v) => v.push(popped),
-				})
+				Some(popped) => Lookahead::<T>::mutate(|la| match la.get_mut(core_index) {
+					None => la.insert(core_index, vec![popped]),
+					Some(v) => v.push(popped),
+				}),
 			}
 			let group_idx = Self::group_assigned_to_core(core_idx, now).expect(
 				"core is not out of bounds and we are guaranteed \
