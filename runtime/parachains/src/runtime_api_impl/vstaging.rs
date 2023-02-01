@@ -62,7 +62,10 @@ pub fn validity_constraints<T: initializer::Config>(
 	let ump_remaining = config.max_upward_queue_count - ump_msg_count;
 	let ump_remaining_bytes = config.max_upward_queue_size - ump_total_bytes;
 
-	let dmp_remaining_messages = <dmp::Pallet<T>>::dmq_length(para_id);
+	let dmp_remaining_messages = <dmp::Pallet<T>>::dmq_contents(para_id)
+		.into_iter()
+		.map(|msg| msg.sent_at)
+		.collect();
 
 	let valid_watermarks = <hrmp::Pallet<T>>::valid_watermarks(para_id);
 	let hrmp_inbound = InboundHrmpLimitations { valid_watermarks };

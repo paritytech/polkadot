@@ -975,6 +975,9 @@ pub struct HypotheticalFrontierRequest {
 	pub candidates: Vec<HypotheticalCandidate>,
 	/// Either a specific fragment tree to check, otherwise all.
 	pub fragment_tree_relay_parent: Option<Hash>,
+	/// Only return membership if all candidates in the path from the
+	/// root are backed.
+	pub backed_in_path_only: bool,
 }
 
 /// A request for the persisted validation data stored in the prospective

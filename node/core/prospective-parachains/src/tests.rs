@@ -20,7 +20,7 @@ use assert_matches::assert_matches;
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
 	messages::{
-		AllMessages, HypotheticalDepthRequest, ProspectiveParachainsMessage,
+		AllMessages, HypotheticalFrontierRequest, ProspectiveParachainsMessage,
 		ProspectiveValidationDataRequest,
 	},
 };
@@ -140,7 +140,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let mut view = View::new();
 	let subsystem = async move {
 		loop {
-			match run_iteration(&mut context, &mut view).await {
+			match run_iteration(&mut context, &mut view, &Metrics(None)).await {
 				Ok(()) => break,
 				Err(e) => panic!("{:?}", e),
 			}
@@ -408,30 +408,33 @@ async fn get_backable_candidate(
 	assert_eq!(resp, expected_candidate_hash);
 }
 
-async fn get_hypothetical_depth(
+async fn get_hypothetical_frontier(
 	virtual_overseer: &mut VirtualOverseer,
 	candidate_hash: CandidateHash,
-	para_id: ParaId,
-	parent_head_data: HeadData,
-	candidate_relay_parent: Hash,
+	receipt: CommittedCandidateReceipt,
+	persisted_validation_data: PersistedValidationData,
 	fragment_tree_relay_parent: Hash,
 	expected_depths: Vec<usize>,
 ) {
-	let request = HypotheticalDepthRequest {
+	let hypothetical_candidate = HypotheticalCandidate::Complete {
 		candidate_hash,
-		candidate_para: para_id,
-		parent_head_data_hash: parent_head_data.hash(),
-		candidate_relay_parent,
-		fragment_tree_relay_parent,
+		receipt: Arc::new(receipt),
+		persisted_validation_data,
+	};
+	let request = HypotheticalFrontierRequest {
+		candidates: vec![hypothetical_candidate.clone()],
+		fragment_tree_relay_parent: Some(fragment_tree_relay_parent),
 	};
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
 		.send(overseer::FromOrchestra::Communication {
-			msg: ProspectiveParachainsMessage::GetHypotheticalDepth(request, tx),
+			msg: ProspectiveParachainsMessage::GetHypotheticalFrontier(request, tx),
 		})
 		.await;
 	let resp = rx.await.unwrap();
-	assert_eq!(resp, expected_depths);
+	let expected_frontier =
+		vec![(hypothetical_candidate, vec![(fragment_tree_relay_parent, expected_depths)])];
+	assert_eq!(resp, expected_frontier);
 }
 
 async fn get_pvd(
@@ -998,13 +1001,12 @@ fn check_depth_query() {
 		let candidate_hash_c = candidate_c.hash();
 		let response_c = vec![(leaf_a.hash, vec![2])];
 
-		// Get hypothetical depth of candidate A before adding it.
-		get_hypothetical_depth(
+		// Get hypothetical frontier of candidate A before adding it.
+		get_hypothetical_frontier(
 			&mut virtual_overseer,
 			candidate_hash_a,
-			1.into(),
-			leaf_a.para_data(1.into()).head_data.clone(),
-			leaf_a.hash,
+			candidate_a.clone(),
+			pvd_a.clone(),
 			leaf_a.hash,
 			vec![0],
 		)
@@ -1019,69 +1021,74 @@ fn check_depth_query() {
 		)
 		.await;
 
-		// Get depth of candidate A after adding it.
-		get_hypothetical_depth(
+		// Get frontier of candidate A after adding it.
+		get_hypothetical_frontier(
 			&mut virtual_overseer,
 			candidate_hash_a,
-			1.into(),
-			HeadData(vec![1, 2, 3]),
-			leaf_a.hash,
+			candidate_a.clone(),
+			pvd_a.clone(),
 			leaf_a.hash,
 			vec![0],
 		)
 		.await;
 
-		// Get hypothetical depth of candidate B before adding it.
-		get_hypothetical_depth(
+		// Get hypothetical frontier of candidate B before adding it.
+		get_hypothetical_frontier(
 			&mut virtual_overseer,
 			candidate_hash_b,
-			1.into(),
-			HeadData(vec![1]),
-			leaf_a.hash,
+			candidate_b.clone(),
+			pvd_b.clone(),
 			leaf_a.hash,
 			vec![1],
 		)
 		.await;
 
 		// Add candidate B.
-		second_candidate(&mut virtual_overseer, candidate_b, pvd_b.clone(), response_b.clone())
-			.await;
+		second_candidate(
+			&mut virtual_overseer,
+			candidate_b.clone(),
+			pvd_b.clone(),
+			response_b.clone(),
+		)
+		.await;
 
-		// Get depth of candidate B after adding it.
-		get_hypothetical_depth(
+		// Get frontier of candidate B after adding it.
+		get_hypothetical_frontier(
 			&mut virtual_overseer,
 			candidate_hash_b,
-			1.into(),
-			HeadData(vec![1]),
-			leaf_a.hash,
+			candidate_b,
+			pvd_b.clone(),
 			leaf_a.hash,
 			vec![1],
 		)
 		.await;
 
-		// Get hypothetical depth of candidate C before adding it.
-		get_hypothetical_depth(
+		// Get hypothetical frontier of candidate C before adding it.
+		get_hypothetical_frontier(
 			&mut virtual_overseer,
 			candidate_hash_c,
-			1.into(),
-			HeadData(vec![1]),
+			candidate_c.clone(),
+			pvd_c.clone(),
 			leaf_a.hash,
-			leaf_a.hash,
-			vec![1],
+			vec![2],
 		)
 		.await;
 
 		// Add candidate C.
-		second_candidate(&mut virtual_overseer, candidate_c, pvd_c.clone(), response_c.clone())
-			.await;
+		second_candidate(
+			&mut virtual_overseer,
+			candidate_c.clone(),
+			pvd_c.clone(),
+			response_c.clone(),
+		)
+		.await;
 
-		// Get depth of candidate C after adding it.
-		get_hypothetical_depth(
+		// Get frontier of candidate C after adding it.
+		get_hypothetical_frontier(
 			&mut virtual_overseer,
 			candidate_hash_c,
-			1.into(),
-			HeadData(vec![2]),
-			leaf_a.hash,
+			candidate_c,
+			pvd_c.clone(),
 			leaf_a.hash,
 			vec![2],
 		)
@@ -1185,7 +1192,7 @@ fn check_pvd_query() {
 		second_candidate(&mut virtual_overseer, candidate_b, pvd_b.clone(), response_b.clone())
 			.await;
 
-		// Get depth and pvd of candidate B after adding it.
+		// Get pvd of candidate B after adding it.
 		get_pvd(
 			&mut virtual_overseer,
 			1.into(),
@@ -1209,7 +1216,7 @@ fn check_pvd_query() {
 		second_candidate(&mut virtual_overseer, candidate_c, pvd_c.clone(), response_c.clone())
 			.await;
 
-		// Get depth and pvd of candidate C after adding it.
+		// Get pvd of candidate C after adding it.
 		get_pvd(
 			&mut virtual_overseer,
 			1.into(),
