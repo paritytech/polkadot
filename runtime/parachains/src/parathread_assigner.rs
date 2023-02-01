@@ -121,6 +121,7 @@ pub mod pallet {
 	*/
 
 	/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#setting-transaction-fees
+	/// Returns `None` if any one of the checked arithmetic fails
 	pub fn calculate_spot_price(
 		traffic: FixedI64,
 		queue_capacity: u32,
@@ -128,14 +129,26 @@ pub mod pallet {
 		target_queue_utilization: Perbill,
 		variability: Perbill,
 	) -> Option<FixedI64> {
-		let queue_utilization = FixedI64::from_rational(queue_size.into(), queue_capacity.into());
-		let queue_util_diff = queue_utilization.sub(target_queue_utilization.into());
-		let util_diff_pow = queue_util_diff.const_checked_mul(queue_util_diff).expect("The queue_util_diff is bounded by the ratio of two u32 numbers subtracted by a percentage and will therefore never overflow QED");
-		let vpow = FixedI64::from(variability.square());
-
-		traffic.const_checked_mul(
-			(FixedI64::from_float(1.0) + queue_util_diff) +
-				((vpow * util_diff_pow) / FixedI64::from_float(2.0)),
-		)
+		if queue_capacity > 0 {
+			// queue_size / queue_capacity
+			let queue_utilization =
+				FixedI64::from_rational(queue_size.into(), queue_capacity.into());
+			// queue_utilization - target_queue_utilization
+			let queue_util_diff = queue_utilization.sub(target_queue_utilization.into());
+			// queue_util_diff^2
+			if let Some(util_diff_pow) = queue_util_diff.const_checked_mul(queue_util_diff) {
+				// variability^2
+				let vpow = FixedI64::from(variability.square());
+				// variability^2 * queue_util_diff^2
+				if let Some(vpow_times_utildiffpow) = util_diff_pow.const_checked_mul(vpow) {
+					// (variability^2 * queue_util_diff^2)/2
+					if let Some(div_by_two) = vpow_times_utildiffpow.const_checked_div(2.into()) {
+						// traffic * (1 + queue_util_diff) + div_by_two
+						return traffic.const_checked_mul(queue_util_diff.add(1.into()) + div_by_two)
+					}
+				}
+			}
+		}
+		None
 	}
 }
