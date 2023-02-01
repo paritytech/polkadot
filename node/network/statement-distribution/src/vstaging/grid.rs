@@ -189,7 +189,10 @@ pub struct GridTracker {
 	received: HashMap<ValidatorIndex, ReceivedManifests>,
 	confirmed_backed: HashMap<CandidateHash, KnownBackedCandidate>,
 	unconfirmed: HashMap<CandidateHash, Vec<(ValidatorIndex, GroupIndex)>>,
-	pending_communication: HashMap<ValidatorIndex, HashMap<CandidateHash, ManifestKind>>,
+	pending_manifests: HashMap<ValidatorIndex, HashMap<CandidateHash, ManifestKind>>,
+
+	// maps target to (originator, statement) pairs.
+	pending_statements: HashMap<ValidatorIndex, HashSet<(ValidatorIndex, CompactStatement)>>,
 }
 
 impl GridTracker {
@@ -284,14 +287,28 @@ impl GridTracker {
 		if let Some(confirmed) = self.confirmed_backed.get_mut(&candidate_hash) {
 			if receiving_from && !confirmed.has_sent_manifest_to(sender) {
 				// due to checks above, the manifest `kind` is guaranteed to be `Full`
-				self.pending_communication
+				self.pending_manifests
 					.entry(sender)
 					.or_default()
 					.insert(candidate_hash, ManifestKind::Acknowledgement);
 
 				ack = true;
 			}
+
+			// add all statements in local_knowledge & !remote_knowledge
+			// to `pending_statements` for this validator.
 			confirmed.manifest_received_from(sender, remote_knowledge);
+			if let Some(pending_statements) = confirmed.pending_statements(sender) {
+				self.pending_statements
+					.entry(sender)
+					.or_default()
+					.extend(decompose_statement_filter(
+						groups,
+						claimed_group_index,
+						candidate_hash,
+						&pending_statements,
+					));
+			}
 		} else {
 			// received prevents conflicting manifests so this is max 1 per validator.
 			self.unconfirmed
@@ -313,11 +330,15 @@ impl GridTracker {
 		candidate_hash: CandidateHash,
 		group_index: GroupIndex,
 		group_size: usize,
+		local_knowledge: StatementFilter,
 	) -> Vec<(ValidatorIndex, ManifestKind)> {
 		let c = match self.confirmed_backed.entry(candidate_hash) {
 			Entry::Occupied(_) => return Vec::new(),
-			Entry::Vacant(v) =>
-				v.insert(KnownBackedCandidate { group_index, mutual_knowledge: HashMap::new() }),
+			Entry::Vacant(v) => v.insert(KnownBackedCandidate {
+				group_index,
+				mutual_knowledge: HashMap::new(),
+				local_knowledge,
+			}),
 		};
 
 		// Populate the entry with previously unconfirmed manifests.
@@ -361,13 +382,13 @@ impl GridTracker {
 		// and receiving groups, we may overwrite a `Full` manifest with a `Acknowledgement`
 		// one.
 		for (v, manifest_mode) in sending_group_manifests.chain(receiving_group_manifests) {
-			self.pending_communication
+			self.pending_manifests
 				.entry(v)
 				.or_default()
 				.insert(candidate_hash, manifest_mode);
 		}
 
-		self.pending_communication
+		self.pending_manifests
 			.iter()
 			.filter_map(|(v, x)| x.get(&candidate_hash).map(|k| (*v, *k)))
 			.collect()
@@ -377,15 +398,28 @@ impl GridTracker {
 	/// given validator.
 	pub fn manifest_sent_to(
 		&mut self,
+		groups: &Groups,
 		validator_index: ValidatorIndex,
 		candidate_hash: CandidateHash,
 		local_knowledge: StatementFilter,
 	) {
 		if let Some(c) = self.confirmed_backed.get_mut(&candidate_hash) {
 			c.manifest_sent_to(validator_index, local_knowledge);
+
+			if let Some(pending_statements) = c.pending_statements(validator_index) {
+				self.pending_statements
+					.entry(validator_index)
+					.or_default()
+					.extend(decompose_statement_filter(
+						groups,
+						c.group_index,
+						candidate_hash,
+						&pending_statements,
+					));
+			}
 		}
 
-		if let Some(x) = self.pending_communication.get_mut(&validator_index) {
+		if let Some(x) = self.pending_manifests.get_mut(&validator_index) {
 			x.remove(&candidate_hash);
 		}
 	}
@@ -397,7 +431,7 @@ impl GridTracker {
 		validator_index: ValidatorIndex,
 		candidate_hash: &CandidateHash,
 	) -> Option<ManifestKind> {
-		self.pending_communication
+		self.pending_manifests
 			.get(&validator_index)
 			.and_then(|x| x.get(&candidate_hash))
 			.map(|x| *x)
@@ -409,7 +443,7 @@ impl GridTracker {
 		&self,
 		validator_index: ValidatorIndex,
 	) -> Vec<(CandidateHash, ManifestKind)> {
-		self.pending_communication
+		self.pending_manifests
 			.get(&validator_index)
 			.into_iter()
 			.flat_map(|pending| pending.iter().map(|(c, m)| (*c, *m)))
@@ -423,11 +457,30 @@ impl GridTracker {
 		&self,
 		validator_index: ValidatorIndex,
 		candidate_hash: CandidateHash,
-		full_local_knowledge: &StatementFilter,
 	) -> Option<StatementFilter> {
 		self.confirmed_backed
 			.get(&candidate_hash)
-			.and_then(|x| x.pending_statements(validator_index, full_local_knowledge))
+			.and_then(|x| x.pending_statements(validator_index))
+	}
+
+	/// Returns a vector of all pending statements to the validator, sorted with
+	/// `Seconded` statements at the front.
+	///
+	/// Statements are in the form `(Originator, Statement Kind)`.
+	pub fn all_pending_statements_for(
+		&self,
+		validator_index: ValidatorIndex,
+	) -> Vec<(ValidatorIndex, CompactStatement)> {
+		let mut v = self.pending_statements
+			.get(&validator_index).map(|x| x.iter().cloned().collect())
+			.unwrap_or(Vec::new());
+
+		v.sort_by_key(|(_, s)| match s {
+			CompactStatement::Seconded(_) => 0u32,
+			CompactStatement::Valid(_) => 1u32,
+		});
+
+		v
 	}
 
 	/// Which validators we could request the fully attested candidates from.
@@ -450,7 +503,7 @@ impl GridTracker {
 	}
 
 	/// Determine the validators which can send a statement to us by direct broadcast.
-	pub fn direct_statement_senders(
+	pub fn direct_statement_providers(
 		&self,
 		groups: &Groups,
 		originator: ValidatorIndex,
@@ -470,7 +523,7 @@ impl GridTracker {
 
 	/// Determine the validators which can receive a statement from us by direct
 	/// broadcast.
-	pub fn direct_statement_recipients(
+	pub fn direct_statement_targets(
 		&self,
 		groups: &Groups,
 		originator: ValidatorIndex,
@@ -488,6 +541,45 @@ impl GridTracker {
 			.unwrap_or_default()
 	}
 
+	/// Note that we have learned about a statement. This will update
+	/// `pending_statements_for` for any relevant validators if actually
+	/// fresh.
+	pub fn learned_fresh_statement(
+		&mut self,
+		groups: &Groups,
+		session_topology: &SessionTopologyView,
+		originator: ValidatorIndex,
+		statement: &CompactStatement,
+	) {
+		let (g, c_h, kind, in_group) = match extract_statement_and_group_info(groups, originator, statement) {
+			None => return,
+			Some(x) => x,
+		};
+
+		let known = match self.confirmed_backed.get_mut(&c_h) {
+			None => return,
+			Some(x) => x,
+		};
+
+		if !known.note_fresh_statement(in_group, kind) { return }
+
+		// Add to `pending_statements` for all valdiators we communicate with
+		// who have exchanged manifests.
+		let all_group_validators = session_topology.group_views
+			.get(&g)
+			.into_iter()
+			.flat_map(|g| g.sending.iter().chain(g.receiving.iter()));
+
+		for v in all_group_validators {
+			if known.is_pending_statement(*v, in_group, kind) {
+				self.pending_statements
+					.entry(*v)
+					.or_default()
+					.insert((originator, statement.clone()));
+			}
+		}
+	}
+
 	/// Note that a direct statement about a given candidate was sent to or
 	/// received from the given validator.
 	pub fn sent_or_received_direct_statement(
@@ -502,6 +594,10 @@ impl GridTracker {
 		{
 			if let Some(known) = self.confirmed_backed.get_mut(&c_h) {
 				known.sent_or_received_direct_statement(counterparty, in_group, kind);
+
+				if let Some(pending) = self.pending_statements.get_mut(&counterparty) {
+					pending.remove(&(originator, statement.clone()));
+				}
 			}
 		}
 	}
@@ -525,6 +621,25 @@ fn extract_statement_and_group_info(
 	let index_in_group = groups.get(group)?.iter().position(|v| v == &originator)?;
 
 	Some((group, *candidate_hash, statement_kind, index_in_group))
+}
+
+fn decompose_statement_filter<'a> (
+	groups: &'a Groups,
+	group_index: GroupIndex,
+	candidate_hash: CandidateHash,
+	statement_filter: &'a StatementFilter,
+) -> impl Iterator<Item = (ValidatorIndex, CompactStatement)> + 'a {
+	groups.get(group_index).into_iter().flat_map(move |g| {
+		let s = statement_filter.seconded_in_group.iter_ones()
+			.map(|i| g[i].clone())
+			.map(move |i| (i, CompactStatement::Seconded(candidate_hash)));
+
+		let v = statement_filter.validated_in_group.iter_ones()
+			.map(|i| g[i].clone())
+			.map(move |i| (i, CompactStatement::Valid(candidate_hash)));
+
+		s.chain(v)
+	})
 }
 
 /// A summary of a manifest being sent by a counterparty.
@@ -754,6 +869,7 @@ struct MutualKnowledge {
 // we have confirmed as having been backed.
 struct KnownBackedCandidate {
 	group_index: GroupIndex,
+	local_knowledge: StatementFilter,
 	mutual_knowledge: HashMap<ValidatorIndex, MutualKnowledge>,
 }
 
@@ -847,6 +963,17 @@ impl KnownBackedCandidate {
 			.collect()
 	}
 
+	fn note_fresh_statement(
+		&mut self,
+		statement_index_in_group: usize,
+		statement_kind: StatementKind,
+	) -> bool {
+		let really_fresh = !self.local_knowledge.contains(statement_index_in_group, statement_kind);
+		self.local_knowledge.set(statement_index_in_group, statement_kind);
+
+		really_fresh
+	}
+
 	fn sent_or_received_direct_statement(
 		&mut self,
 		validator: ValidatorIndex,
@@ -861,16 +988,34 @@ impl KnownBackedCandidate {
 		}
 	}
 
+	fn is_pending_statement(
+		&self,
+		validator: ValidatorIndex,
+		statement_index_in_group: usize,
+		statement_kind: StatementKind,
+	) -> bool {
+		// existence of both remote & local knowledge indicate we have exchanged
+		// manifests.
+		// then, everything that is not in the remote knowledge is pending
+		self.mutual_knowledge
+			.get(&validator)
+			.filter(|k| k.local_knowledge.is_some())
+			.and_then(|k| k.remote_knowledge.as_ref())
+			.map(|k| !k.contains(statement_index_in_group, statement_kind))
+			.unwrap_or(false)
+	}
+
 	fn pending_statements(
 		&self,
 		validator: ValidatorIndex,
-		full_local: &StatementFilter,
 	) -> Option<StatementFilter> {
 		// existence of both remote & local knowledge indicate we have exchanged
 		// manifests.
 		// then, everything that is not in the remote knowledge is pending, and we
 		// further limit this by what is in the local knowledge itself. we use the
 		// full local knowledge, as the local knowledge stored here may be outdated.
+		let full_local = &self.local_knowledge;
+
 		self.mutual_knowledge
 			.get(&validator)
 			.filter(|k| k.local_knowledge.is_some())
@@ -882,6 +1027,8 @@ impl KnownBackedCandidate {
 					!remote.validated_in_group.clone(),
 			})
 	}
+
+
 }
 
 #[cfg(test)]
@@ -1379,4 +1526,12 @@ mod tests {
 	// TODO [now]: check that pending communication is cleared correctly in `manifest_sent_to`
 
 	// TODO [now]: test a scenario where manifest import returns `Ok(true)`.
+
+	// TODO [now]: test that pending statements are updated after manifest exchange
+
+	// TODO [now]: test that pending statements are updated when importing a fresh statement
+
+	// TODO [now]: test that pending statements respect remote knowledge
+
+	// TODO [now]: test that pending statements are cleared when sending/receiving.
 }
