@@ -46,14 +46,14 @@ jobs:
 
       - name: Pull xbuilder image for ${{ matrix.target }}
         env:
-          IMAGE=${{ env.DOCKER_IMAGE }}-${{ matrix.target }}
+          IMAGE=DOCKER_IMAGE-${{ matrix.target }}
         run: |
           echo "Pulling image: $IMAGE"
           docker pull "IMAGE"
 
       - name: Build ${{ matrix.binary }} for target ${{ matrix.target }} using profile ${{ matrix.profile }}
         env:
-          IMAGE=${{ env.DOCKER_IMAGE }}-${{ matrix.target }}
+          IMAGE=DOCKER_IMAGE-${{ matrix.target }}
         run: |
           docker run --rm -ti \
             -v $PWD:/app ${IMAGE} \
