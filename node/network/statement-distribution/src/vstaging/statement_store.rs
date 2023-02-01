@@ -97,7 +97,6 @@ impl StatementStore {
 
 	/// Insert a statement. Returns `true` if was not known already, `false` if it was.
 	/// Ignores statements by unknown validators and returns an error.
-	// TODO [now]: perhaps reject over-seconded statements.
 	pub fn insert(
 		&mut self,
 		groups: &Groups,
@@ -235,6 +234,11 @@ impl StatementStore {
 			})
 			.filter(|stored| !stored.known_by_backing)
 			.map(|stored| &stored.statement)
+	}
+
+	/// Get the amount of known `Seconded` statements by the given validator index.
+	pub fn seconded_count(&self, validator_index: &ValidatorIndex) -> usize {
+		self.validator_meta.get(validator_index).map_or(0, |m| m.seconded_count)
 	}
 
 	/// Note that a statement is known by the backing subsystem.

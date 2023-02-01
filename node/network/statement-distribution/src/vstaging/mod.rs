@@ -37,7 +37,10 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, PerLeafSpan, StatementDistributionSenderTrait,
 };
-use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
+use polkadot_node_subsystem_util::{
+	backing_implicit_view::{FetchError, View as ImplicitView},
+	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
+};
 use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreIndex,
 	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, IndexedVec,
@@ -114,6 +117,7 @@ struct PerRelayParentState {
 	statement_store: StatementStore,
 	availability_cores: Vec<CoreState>,
 	group_rotation_info: GroupRotationInfo,
+	seconding_limit: usize,
 	session: SessionIndex,
 }
 
@@ -401,11 +405,19 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 			continue
 		}
 
-		// TODO [now]: request prospective parachains mode, skip disabled relay-parents
-		// (there should not be any) and set `seconding_limit = max_candidate_depth`.
-
 		// New leaf: fetch info from runtime API and initialize
 		// `per_relay_parent`.
+
+		let mode = prospective_parachains_mode(ctx.sender(), new_relay_parent).await;
+
+		// request prospective parachains mode, skip disabled relay-parents
+		// (there should not be any) and set `seconding_limit = max_candidate_depth`.
+		let seconding_limit = match mode {
+			Ok(ProspectiveParachainsMode::Disabled) | Err(_) => continue,
+			Ok(ProspectiveParachainsMode::Enabled { max_candidate_depth, .. }) =>
+				max_candidate_depth,
+		};
+
 		let session_index = polkadot_node_subsystem_util::request_session_index_for_child(
 			new_relay_parent,
 			ctx.sender(),
@@ -473,6 +485,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 				&per_session.groups,
 				&availability_cores,
 				&group_rotation_info,
+				seconding_limit,
 			)
 		});
 
@@ -484,6 +497,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 				statement_store: StatementStore::new(&per_session.groups),
 				availability_cores,
 				group_rotation_info,
+				seconding_limit,
 				session: session_index,
 			},
 		);
@@ -520,6 +534,7 @@ fn find_local_validator_state(
 	groups: &Groups,
 	availability_cores: &[CoreState],
 	group_rotation_info: &GroupRotationInfo,
+	seconding_limit: usize,
 ) -> Option<LocalValidatorState> {
 	if groups.all().is_empty() {
 		return None
@@ -540,11 +555,8 @@ fn find_local_validator_state(
 		index: validator_index,
 		group: our_group,
 		assignment: para,
-		cluster_tracker: ClusterTracker::new(
-			group_validators,
-			todo!(), // TODO [now]: seconding limit?
-		)
-		.expect("group is non-empty because we are in it; qed"),
+		cluster_tracker: ClusterTracker::new(group_validators, seconding_limit)
+			.expect("group is non-empty because we are in it; qed"),
 		grid_tracker: GridTracker::default(),
 	})
 }
@@ -676,9 +688,12 @@ fn pending_statement_network_message(
 	originator: ValidatorIndex,
 	compact: CompactStatement,
 ) -> Option<(Vec<PeerId>, net_protocol::VersionedValidationProtocol)> {
-	statement_store.validator_statement(originator, compact)
+	statement_store
+		.validator_statement(originator, compact)
 		.map(|s| s.as_unchecked().clone())
-		.map(|signed| protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, signed))
+		.map(|signed| {
+			protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, signed)
+		})
 		.map(|msg| (vec![peer.clone()], Versioned::VStaging(msg).into()))
 }
 
@@ -712,7 +727,9 @@ async fn send_pending_cluster_statements<Context>(
 		})
 		.collect::<Vec<_>>();
 
-	if network_messages.is_empty() { return }
+	if network_messages.is_empty() {
+		return
+	}
 
 	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(network_messages))
 		.await;
@@ -781,7 +798,12 @@ async fn send_pending_grid_messages<Context>(
 					.expect("determined to be some earlier in this function; qed")
 					.grid_tracker;
 
-				grid.manifest_sent_to(groups, peer_validator_id, candidate_hash, local_knowledge.clone());
+				grid.manifest_sent_to(
+					groups,
+					peer_validator_id,
+					candidate_hash,
+					local_knowledge.clone(),
+				);
 
 				messages.push((
 					vec![peer_id.clone()],
@@ -814,15 +836,16 @@ async fn send_pending_grid_messages<Context>(
 	// otherwise, we might receive statements while the grid peer is "out of view" and then
 	// not send them when they get back "in view". problem!
 	{
-		let grid_tracker = &mut relay_parent_state.local_validator.as_mut()
+		let grid_tracker = &mut relay_parent_state
+			.local_validator
+			.as_mut()
 			.expect("checked earlier; qed")
 			.grid_tracker;
 
 		let pending_statements = grid_tracker.all_pending_statements_for(peer_validator_id);
 
-		let extra_statements = pending_statements
-			.into_iter()
-			.filter_map(|(originator, compact)| {
+		let extra_statements =
+			pending_statements.into_iter().filter_map(|(originator, compact)| {
 				let res = pending_statement_network_message(
 					&relay_parent_state.statement_store,
 					relay_parent,
@@ -846,7 +869,9 @@ async fn send_pending_grid_messages<Context>(
 		messages.extend(extra_statements);
 	}
 
-	if messages.is_empty() { return }
+	if messages.is_empty() {
+		return
+	}
 	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(messages)).await;
 }
 
@@ -892,8 +917,16 @@ pub(crate) async fn share_local_statement<Context>(
 		return Err(JfyiError::InvalidShare)
 	}
 
-	// TODO [now]: ensure seconded_count isn't too high. Needs our definition
-	// of 'too high' i.e. max_depth, which isn't done yet.
+	if per_relay_parent.statement_store.seconded_count(&local_index) ==
+		per_relay_parent.seconding_limit
+	{
+		gum::warn!(
+			target: LOG_TARGET,
+			limit = ?per_relay_parent.seconding_limit,
+			"Local node has issued too many `Seconded` statements",
+		);
+		return Err(JfyiError::InvalidShare)
+	}
 
 	if local_assignment != Some(expected_para) || relay_parent != expected_relay_parent {
 		return Err(JfyiError::InvalidShare)
@@ -1674,7 +1707,12 @@ async fn provide_candidate_to_grid<Context>(
 			grid::ManifestKind::Acknowledgement => ack_peers.push(p),
 		}
 
-		local_validator.grid_tracker.manifest_sent_to(&per_session.groups, v, candidate_hash, filter.clone());
+		local_validator.grid_tracker.manifest_sent_to(
+			&per_session.groups,
+			v,
+			candidate_hash,
+			filter.clone(),
+		);
 		post_statements.extend(
 			post_acknowledgement_statement_messages(
 				v,
@@ -1746,6 +1784,7 @@ async fn fragment_tree_update_inner<Context>(
 			HypotheticalFrontierRequest {
 				candidates: hypotheticals,
 				fragment_tree_relay_parent: active_leaf_hash,
+				backed_in_path_only: false,
 			},
 			tx,
 		))
@@ -1913,11 +1952,13 @@ async fn handle_incoming_manifest_common<'a, Context>(
 	};
 
 	// 2. sanity checks: peer is validator, bitvec size, import into grid tracker
+	let group_index = manifest_summary.claimed_group_index;
+	let claimed_parent_hash = manifest_summary.claimed_parent_hash;
 	let acknowledge = match local_validator.grid_tracker.import_manifest(
 		grid_topology,
 		&per_session.groups,
 		candidate_hash,
-		todo!(), // TODO [now]: seconding limit
+		relay_parent_state.seconding_limit,
 		manifest_summary,
 		manifest_kind,
 		sender_index,
@@ -1950,8 +1991,8 @@ async fn handle_incoming_manifest_common<'a, Context>(
 		peer.clone(),
 		candidate_hash,
 		relay_parent,
-		manifest_summary.claimed_group_index,
-		Some((manifest_summary.claimed_parent_hash, para_id)),
+		group_index,
+		Some((claimed_parent_hash, para_id)),
 	) {
 		report_peer(ctx.sender(), peer, COST_INACCURATE_ADVERTISEMENT).await;
 		return None
@@ -1971,11 +2012,10 @@ fn post_acknowledgement_statement_messages(
 	group_index: GroupIndex,
 	candidate_hash: CandidateHash,
 ) -> Vec<net_protocol::VersionedValidationProtocol> {
-	let sending_filter =
-		match grid_tracker.pending_statements_for(recipient, candidate_hash) {
-			None => return Vec::new(),
-			Some(f) => f,
-		};
+	let sending_filter = match grid_tracker.pending_statements_for(recipient, candidate_hash) {
+		None => return Vec::new(),
+		Some(f) => f,
+	};
 
 	let mut messages = Vec::new();
 	for statement in
