@@ -37,6 +37,28 @@ pub trait ClaimQueue {
 	fn clear();
 }
 
+
+/// Interfaces we might want to support:
+///
+/// # Collators placing orders directly (via their CollatorId).
+///
+/// For this we need two extrinsics:
+///
+/// 1. A signed extrinsic for setting the current `CollatorId` for an account.
+/// 2. An unsigned extrinisc, with a collator signature provided as the payload for actually
+///    placing an order. Only valid if the collator id has been registered by an account first,
+///    which has enough funds.
+///
+/// # Placing bids via a proxy account
+///
+/// There we need to define a new kind of proxy which is only allowed to place orders for a
+/// particular `ParaId`, then a collator can use signed extrinsics (signed by that proxy account)
+/// to order a core.
+///
+/// # Combination of both
+///
+/// The limited proxy account could be the one getting associated with the `CollatorId`.
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -99,6 +121,46 @@ pub mod pallet {
 		pub fn place_order(origin: OriginFor<T>) -> DispatchResult {
 			let _res = ensure_signed(origin);
 			Ok(())
+		}
+        /// Associate a `CollatorId` with an account.
+		///
+		/// The registered `CollatorId` will then be allowed to place orders on behalf of that
+		/// account via `collator_place_bid`.
+        /// TODO: 
+		/// - [ ] take a deposit 
+		/// - [ ] make it restricted to a given para id
+		/// - [ ] weights
+		///
+		#[pallet::call_index(1)]
+		#[pallet::weight(1_000)]
+        pub fn register_collator_id(origin: OriginFor<T>, para_id: ParaId, collator_id: CollatorId) -> DispatchResult {
+			let account_id = ensure_signed(origin);
+			Ok(())
+        }
+        /// Disassociate a `CollatorId` from an account.
+		///
+		/// The registered `CollatorId` will then be allowed to place orders on behalv of that
+		/// account via `collator_place_bid`.
+        /// TODO: weights
+		#[pallet::call_index(1)]
+		#[pallet::weight(1_000)]
+        pub fn deregister_collator_id(origin: OriginFor<T>, collator_id: CollatorId) -> DispatchResult {
+			let account_id = ensure_signed(origin);
+			Ok(())
+        }
+
+		/// Accept an order by a collator that has been registered previously.
+        /// TODO: weights
+		#[pallet::call_index(2)]
+		#[pallet::weight(1_000)]
+        pub fn collator_place_order(collator_id: CollatorId, order: CoreOrder) -> DispatchResult {
+			Ok(())
+		}
+
+		/// Place the actual order, charging the given account without authorization.
+		///
+		/// Authorization has to be handled by the caller. 
+		fn place_order_unchecked(account: AccountId, order: CoreOrder) -> DispatchResult {
 		}
 	}
 
