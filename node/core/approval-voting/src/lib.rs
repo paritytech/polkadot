@@ -1156,6 +1156,7 @@ async fn handle_from_overseer<Context>(
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
 					Ok(block_imported_candidates) => {
 						let mut block_import_span = span.child("block-import");
+						block_import_span.add_uint_tag("num-candidates", block_imported_candidates.len() as u64);
 						// Schedule wakeups for all imported candidates.
 						for block_batch in block_imported_candidates {
 							gum::debug!(
