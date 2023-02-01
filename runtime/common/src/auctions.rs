@@ -242,6 +242,15 @@ pub mod pallet {
 				weight = weight.saturating_add(T::WeightInfo::on_initialize());
 			}
 
+			// Auctions automatically start on a 5 minute rolling basis, starting 
+			// the first auction in block 1. These auctions are all targeted 
+			// towards lease period index 0, where the lease period is 24 hours.
+			// A parathread winning a slot auction for index within that 24 hour
+			// time frame will be automatically onboarded as a parachain
+			if (n % 50u32.into()) == BlockNumberFor::<T>::from(1u32) {
+				let _ = Self::do_new_auction(49u32.into(), 0u32.into());
+			}
+
 			weight
 		}
 	}

@@ -1166,9 +1166,9 @@ impl crowdloan::Config for Runtime {
 parameter_types! {
 	// The average auction is 7 days long, so this will be 70% for ending period.
 	// 5 Days = 72000 Blocks @ 6 sec per block
-	pub const EndingPeriod: BlockNumber = 5 * DAYS;
+	pub const EndingPeriod: BlockNumber = 35;
 	// ~ 1000 samples per day -> ~ 20 blocks per sample -> 2 minute samples
-	pub const SampleLength: BlockNumber = 2 * MINUTES;
+	pub const SampleLength: BlockNumber = 3;
 }
 
 type AuctionInitiate = EitherOfDiverse<
