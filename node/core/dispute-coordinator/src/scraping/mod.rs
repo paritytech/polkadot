@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::num::NonZeroUsize;
+use std::{
+	collections::{BTreeMap, HashSet},
+	num::NonZeroUsize,
+};
 
 use futures::channel::oneshot;
 use lru::LruCache;
@@ -25,7 +28,7 @@ use polkadot_node_subsystem::{
 	SubsystemSender,
 };
 use polkadot_node_subsystem_util::runtime::{get_candidate_events, get_on_chain_votes};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, ScrapedOnChainVotes,
 };
 
@@ -69,9 +72,73 @@ impl ScrapedUpdates {
 	}
 }
 
+/// A structure meant to facilitate chain reversions in the event of a dispute
+/// concluding against a candidate. Each candidate hash maps to a number of
+/// block heights, which in turn map to vectors of blocks at those heights.
+pub struct Inclusions {
+	inclusions_inner: BTreeMap<CandidateHash, BTreeMap<BlockNumber, Vec<Hash>>>,
+}
+
+impl Inclusions {
+	pub fn new() -> Self {
+		Self { inclusions_inner: BTreeMap::new() }
+	}
+
+	// Add parent block to the vector which has CandidateHash as an outer key and
+	// BlockNumber as an inner key
+	pub fn insert(
+		&mut self,
+		candidate_hash: CandidateHash,
+		block_number: BlockNumber,
+		block_hash: Hash,
+	) {
+		if let Some(blocks_including) = self.inclusions_inner.get_mut(&candidate_hash) {
+			if let Some(blocks_at_height) = blocks_including.get_mut(&block_number) {
+				blocks_at_height.push(block_hash);
+			} else {
+				blocks_including.insert(block_number, Vec::from([block_hash]));
+			}
+		} else {
+			let mut blocks_including: BTreeMap<BlockNumber, Vec<Hash>> = BTreeMap::new();
+			blocks_including.insert(block_number, Vec::from([block_hash]));
+			self.inclusions_inner.insert(candidate_hash, blocks_including);
+		}
+	}
+
+	pub fn remove_up_to_height(
+		&mut self,
+		height: &BlockNumber,
+		candidates_modified: HashSet<CandidateHash>,
+	) {
+		for candidate in candidates_modified {
+			if let Some(blocks_including) = self.inclusions_inner.get_mut(&candidate) {
+				// Returns everything after the given key, including the key. This works because the blocks are sorted in ascending order.
+				*blocks_including = blocks_including.split_off(height);
+			}
+		}
+		self.inclusions_inner
+			.retain(|_, blocks_including| blocks_including.keys().len() > 0);
+	}
+
+	pub fn get(&mut self, candidate: &CandidateHash) -> Vec<(BlockNumber, Hash)> {
+		let mut inclusions_as_vec: Vec<(BlockNumber, Hash)> = Vec::new();
+		if let Some(blocks_including) = self.inclusions_inner.get(candidate) {
+			for (height, blocks_at_height) in blocks_including.iter() {
+				for block in blocks_at_height {
+					inclusions_as_vec.push((*height, *block));
+				}
+			}
+		}
+		inclusions_as_vec
+	}
+}
+
 /// Chain scraper
 ///
-/// Scrapes unfinalized chain in order to collect information from blocks.
+/// Scrapes unfinalized chain in order to collect information from blocks. Chain scraping
+/// during disputes enables critical spam prevention. It does so by updating two important
+/// criteria determining whether a vote sent during dispute distribution is potential
+/// spam. Namely, whether the candidate being voted on is backed or included.
 ///
 /// Concretely:
 ///
@@ -95,6 +162,11 @@ pub struct ChainScraper {
 	/// We assume that ancestors of cached blocks are already processed, i.e. we have saved
 	/// corresponding included candidates.
 	last_observed_blocks: LruCache<Hash, ()>,
+	/// Maps included candidate hashes to one or more relay block heights and hashes.
+	/// These correspond to all the relay blocks which marked a candidate as included,
+	/// and are needed to apply reversions in case a dispute is concluded against the
+	/// candidate.
+	inclusions: Inclusions,
 }
 
 impl ChainScraper {
@@ -119,6 +191,7 @@ impl ChainScraper {
 			included_candidates: candidates::ScrapedCandidates::new(),
 			backed_candidates: candidates::ScrapedCandidates::new(),
 			last_observed_blocks: LruCache::new(LRU_OBSERVED_BLOCKS_CAPACITY),
+			inclusions: Inclusions::new(),
 		};
 		let update =
 			ActiveLeavesUpdate { activated: Some(initial_head), deactivated: Default::default() };
@@ -195,7 +268,9 @@ impl ChainScraper {
 		{
 			Some(key_to_prune) => {
 				self.backed_candidates.remove_up_to_height(&key_to_prune);
-				self.included_candidates.remove_up_to_height(&key_to_prune);
+				let candidates_modified =
+					self.included_candidates.remove_up_to_height(&key_to_prune);
+				self.inclusions.remove_up_to_height(&key_to_prune, candidates_modified);
 			},
 			None => {
 				// Nothing to prune. We are still in the beginning of the chain and there are not
@@ -233,6 +308,7 @@ impl ChainScraper {
 						"Processing included event"
 					);
 					self.included_candidates.insert(block_number, candidate_hash);
+					self.inclusions.insert(candidate_hash, block_number, block_hash);
 					included_receipts.push(receipt);
 				},
 				CandidateEvent::CandidateBacked(receipt, _, _, _) => {
@@ -317,6 +393,13 @@ impl ChainScraper {
 			}
 		}
 		return Ok(ancestors)
+	}
+
+	pub fn get_blocks_including_candidate(
+		&mut self,
+		candidate: &CandidateHash,
+	) -> Vec<(BlockNumber, Hash)> {
+		self.inclusions.get(candidate)
 	}
 }
 

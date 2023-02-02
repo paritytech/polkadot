@@ -22,7 +22,7 @@ use crate::{
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
-use primitives::v2::{
+use primitives::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
 	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
@@ -595,6 +595,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 				let (para_id, core_idx, group_idx) = self.create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
+				let relay_parent = H256::from(byte32_slice_from(seed));
 
 				Self::add_availability(
 					para_id,
@@ -614,9 +615,12 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						// so we make sure that we have a super majority with valid statements.
 						let dispute_statement = if validator_index % 4 == 0 {
 							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
+						} else if validator_index < 3 {
+							// Set two votes as backing for the dispute set to be accepted
+							DisputeStatement::Valid(
+								ValidDisputeStatementKind::BackingValid(relay_parent)
+							)
 						} else {
-							// Note that in the future we could use some availability votes as an
-							// implicit valid kind.
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
 						let data = dispute_statement.payload_data(candidate_hash.clone(), session);

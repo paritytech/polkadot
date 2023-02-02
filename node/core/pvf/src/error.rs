@@ -34,7 +34,7 @@ pub enum PrepareError {
 	TimedOut,
 	/// An IO error occurred while receiving the result from the worker process. This state is reported by the
 	/// validation host (not by the worker).
-	IoErr,
+	IoErr(String),
 	/// The temporary file for the artifact could not be created at the given cache path. This state is reported by the
 	/// validation host (not by the worker).
 	CreateTmpFileErr(String),
@@ -54,7 +54,7 @@ impl PrepareError {
 		use PrepareError::*;
 		match self {
 			Prevalidation(_) | Preparation(_) | Panic(_) => true,
-			TimedOut | IoErr | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
+			TimedOut | IoErr(_) | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
 		}
 	}
 }
@@ -67,7 +67,7 @@ impl fmt::Display for PrepareError {
 			Preparation(err) => write!(f, "preparation: {}", err),
 			Panic(err) => write!(f, "panic: {}", err),
 			TimedOut => write!(f, "prepare: timeout"),
-			IoErr => write!(f, "prepare: io error while receiving response"),
+			IoErr(err) => write!(f, "prepare: io error while receiving response: {}", err),
 			CreateTmpFileErr(err) => write!(f, "prepare: error creating tmp file: {}", err),
 			RenameTmpFileErr(err) => write!(f, "prepare: error renaming tmp file: {}", err),
 		}
