@@ -56,7 +56,7 @@ const WESTEND_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/
 #[cfg(feature = "rococo-native")]
 const ROCOCO_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 #[cfg(feature = "rococo-native")]
-const VERSI_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
+const BUENOS_STAGING_TELEMETRY_URL: &str = "wss://telemetry.polkadot.io/submit/";
 const DEFAULT_PROTOCOL_ID: &str = "dot";
 
 /// Node `ChainSpec` extensions.
@@ -109,10 +109,10 @@ pub type WestendChainSpec = DummyChainSpec;
 #[cfg(feature = "rococo-native")]
 pub type RococoChainSpec = service::GenericChainSpec<RococoGenesisExt, Extensions>;
 
-/// The `ChainSpec` parameterized for the `versi` runtime.
+/// The `ChainSpec` parameterized for the `buenos` runtime.
 ///
-/// As of now `Versi` will just be a clone of `Rococo`, until we need it to differ.
-pub type VersiChainSpec = RococoChainSpec;
+/// As of now `Buenos` will just be a clone of `Rococo`, until we need it to differ.
+pub type BuenosChainSpec = RococoChainSpec;
 
 /// The `ChainSpec` parameterized for the rococo runtime.
 // Dummy chain spec, but that is fine when we don't have the native runtime.
@@ -1186,7 +1186,7 @@ pub fn rococo_staging_testnet_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
-pub fn versi_chain_spec_properties() -> serde_json::map::Map<String, serde_json::Value> {
+pub fn buenos_chain_spec_properties() -> serde_json::map::Map<String, serde_json::Value> {
 	serde_json::json!({
 		"ss58Format": 42,
 		"tokenDecimals": 12,
@@ -1197,15 +1197,15 @@ pub fn versi_chain_spec_properties() -> serde_json::map::Map<String, serde_json:
 	.clone()
 }
 
-/// Versi staging testnet config.
+/// Buenos staging testnet config.
 #[cfg(feature = "rococo-native")]
-pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
+pub fn buenos_staging_testnet_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Buenos development wasm not available")?;
 	let boot_nodes = vec![];
 
 	Ok(RococoChainSpec::from_genesis(
-		"Versi Staging Testnet",
-		"versi_staging_testnet",
+		"Buenos Staging Testnet",
+		"buenos_staging_testnet",
 		ChainType::Live,
 		move || RococoGenesisExt {
 			runtime_genesis_config: rococo_staging_testnet_config_genesis(wasm_binary),
@@ -1213,12 +1213,12 @@ pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
 		},
 		boot_nodes,
 		Some(
-			TelemetryEndpoints::new(vec![(VERSI_STAGING_TELEMETRY_URL.to_string(), 0)])
-				.expect("Versi Staging telemetry url is valid; qed"),
+			TelemetryEndpoints::new(vec![(BUENOS_STAGING_TELEMETRY_URL.to_string(), 0)])
+				.expect("Buenos Staging telemetry url is valid; qed"),
 		),
-		Some("versi"),
+		Some("buenos"),
 		None,
-		Some(versi_chain_spec_properties()),
+		Some(buenos_chain_spec_properties()),
 		Default::default(),
 	))
 }
@@ -1758,14 +1758,14 @@ pub fn rococo_development_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
-/// `Versi` development config (single validator Alice)
+/// `Buenos` development config (single validator Alice)
 #[cfg(feature = "rococo-native")]
-pub fn versi_development_config() -> Result<RococoChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
+pub fn buenos_development_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Buenos development wasm not available")?;
 
 	Ok(RococoChainSpec::from_genesis(
 		"Development",
-		"versi_dev",
+		"buenos_dev",
 		ChainType::Development,
 		move || RococoGenesisExt {
 			runtime_genesis_config: rococo_development_config_genesis(wasm_binary),
@@ -1774,7 +1774,7 @@ pub fn versi_development_config() -> Result<RococoChainSpec, String> {
 		},
 		vec![],
 		None,
-		Some("versi"),
+		Some("buenos"),
 		None,
 		None,
 		Default::default(),
@@ -1973,9 +1973,9 @@ pub fn wococo_local_testnet_config() -> Result<RococoChainSpec, String> {
 	))
 }
 
-/// `Versi` is a temporary testnet that uses the same runtime as rococo.
+/// `Buenos` is a temporary testnet that uses the same runtime as rococo.
 #[cfg(feature = "rococo-native")]
-fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
+fn buenos_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
 	rococo_testnet_genesis(
 		wasm_binary,
 		vec![
@@ -1989,23 +1989,23 @@ fn versi_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisCon
 	)
 }
 
-/// `Versi` local testnet config (multivalidator Alice + Bob + Charlie + Dave)
+/// `Buenos` local testnet config (multivalidator Alice + Bob + Charlie + Dave)
 #[cfg(feature = "rococo-native")]
-pub fn versi_local_testnet_config() -> Result<RococoChainSpec, String> {
-	let wasm_binary = rococo::WASM_BINARY.ok_or("Versi development wasm not available")?;
+pub fn buenos_local_testnet_config() -> Result<RococoChainSpec, String> {
+	let wasm_binary = rococo::WASM_BINARY.ok_or("Buenos development wasm not available")?;
 
 	Ok(RococoChainSpec::from_genesis(
-		"Versi Local Testnet",
-		"versi_local_testnet",
+		"Buenos Local Testnet",
+		"buenos_local_testnet",
 		ChainType::Local,
 		move || RococoGenesisExt {
-			runtime_genesis_config: versi_local_testnet_genesis(wasm_binary),
+			runtime_genesis_config: buenos_local_testnet_genesis(wasm_binary),
 			// Use 1 minute session length.
 			session_length_in_blocks: Some(10),
 		},
 		vec![],
 		None,
-		Some("versi"),
+		Some("buenos"),
 		None,
 		None,
 		Default::default(),

@@ -258,8 +258,8 @@ pub trait IdentifyVariant {
 	/// Returns if this is a configuration for the `Wococo` test network.
 	fn is_wococo(&self) -> bool;
 
-	/// Returns if this is a configuration for the `Versi` test network.
-	fn is_versi(&self) -> bool;
+	/// Returns if this is a configuration for the `Buenos` test network.
+	fn is_buenos(&self) -> bool;
 
 	/// Returns true if this configuration is for a development network.
 	fn is_dev(&self) -> bool;
@@ -281,8 +281,8 @@ impl IdentifyVariant for Box<dyn ChainSpec> {
 	fn is_wococo(&self) -> bool {
 		self.id().starts_with("wococo") || self.id().starts_with("wco")
 	}
-	fn is_versi(&self) -> bool {
-		self.id().starts_with("versi") || self.id().starts_with("vrs")
+	fn is_buenos(&self) -> bool {
+		self.id().starts_with("buenos") || self.id().starts_with("vrs")
 	}
 	fn is_dev(&self) -> bool {
 		self.id().ends_with("dev")
@@ -764,7 +764,7 @@ where
 
 		if config.chain_spec.is_rococo() ||
 			config.chain_spec.is_wococo() ||
-			config.chain_spec.is_versi()
+			config.chain_spec.is_buenos()
 		{
 			// it's a testnet that's in flux, finality has stalled sometimes due
 			// to operational issues and it's annoying to slow down block
@@ -779,7 +779,7 @@ where
 	if enable_beefy &&
 		!config.chain_spec.is_rococo() &&
 		!config.chain_spec.is_wococo() &&
-		!config.chain_spec.is_versi()
+		!config.chain_spec.is_buenos()
 	{
 		gum::warn!("BEEFY is still experimental, usage on a production network is discouraged.");
 	}
@@ -1353,7 +1353,7 @@ pub fn new_chain_ops(
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() ||
 		config.chain_spec.is_wococo() ||
-		config.chain_spec.is_versi()
+		config.chain_spec.is_buenos()
 	{
 		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; rococo_runtime, RococoExecutorDispatch, Rococo)
 	}
@@ -1401,7 +1401,7 @@ pub fn build_full(
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() ||
 		config.chain_spec.is_wococo() ||
-		config.chain_spec.is_versi()
+		config.chain_spec.is_buenos()
 	{
 		return new_full::<rococo_runtime::RuntimeApi, RococoExecutorDispatch, _>(
 			config,
