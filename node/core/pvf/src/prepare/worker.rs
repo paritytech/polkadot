@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::memory_stats::{
-	get_max_rss_thread, get_memory_tracker_loop_stats, memory_tracker_loop, observe_memory_metrics,
-	MemoryStats,
+	get_max_rss_process, get_memory_tracker_loop_stats, memory_tracker_loop,
+	observe_memory_metrics, MemoryStats,
 };
 use crate::{
 	artifacts::CompiledArtifact,
@@ -389,8 +389,8 @@ pub fn worker_entrypoint(socket_path: &str) {
 				.spawn_blocking(move || {
 					let prepare_result = prepare_artifact(&code);
 
-					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
-					let max_rss = get_max_rss_thread();
+					// Get the `ru_maxrss` stat. If supported, call getrusage for the process.
+					let max_rss = get_max_rss_process();
 
 					(prepare_result, max_rss)
 				})
