@@ -331,16 +331,15 @@ where
 	};
 
 	runner.run_node_until_exit(move |config| async move {
-		let hwbench = if !cli.run.no_hardware_benchmarks {
-			config.database.path().map(|database_path| {
+		let hwbench = (!cli.run.no_hardware_benchmarks)
+			.then_some(config.database.path().map(|database_path| {
 				let _ = std::fs::create_dir_all(&database_path);
 				sc_sysinfo::gather_hwbench(Some(database_path))
-			})
-		} else {
-			None
-		};
+			}))
+			.flatten();
 
-		service::build_full(
+		let database_source = config.database.clone();
+		let task_manager = service::build_full(
 			config,
 			service::IsCollator::No,
 			grandpa_pause,
@@ -353,8 +352,15 @@ where
 			maybe_malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.task_manager)
-		.map_err(Into::into)
+		.map(|full| full.task_manager)?;
+
+		sc_storage_monitor::StorageMonitorService::try_spawn(
+			cli.storage_monitor,
+			database_source,
+			&task_manager.spawn_essential_handle(),
+		)?;
+
+		Ok(task_manager)
 	})
 }
 

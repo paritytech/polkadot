@@ -18,7 +18,11 @@
 
 use crate::{fungible as xcm_balances_benchmark, mock::*};
 use frame_benchmarking::BenchmarkError;
-use frame_support::{parameter_types, traits::Everything, weights::Weight};
+use frame_support::{
+	parameter_types,
+	traits::{Everything, Nothing},
+	weights::Weight,
+};
 use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
@@ -26,7 +30,7 @@ use sp_runtime::{
 	BuildStorage,
 };
 use xcm::latest::prelude::*;
-use xcm_builder::AllowUnpaidExecutionFrom;
+use xcm_builder::{AllowUnpaidExecutionFrom, MintLocation};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -47,9 +51,7 @@ frame_support::construct_runtime!(
 parameter_types! {
 	pub const BlockHashCount: u64 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(
-			Weight::from_ref_time(1024).set_proof_size(u64::MAX),
-		);
+		frame_system::limits::BlockWeights::simple_max(Weight::from_parts(1024, u64::MAX));
 }
 impl frame_system::Config for Test {
 	type BaseCallFilter = Everything;
@@ -119,13 +121,14 @@ pub type AssetTransactor = xcm_builder::CurrencyAdapter<
 	MatchAnyFungible,
 	AccountIdConverter,
 	u64,
-	CheckedAccount,
+	CheckingAccount,
 >;
 
 parameter_types! {
 	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
 	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;
+	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
 pub struct XcmConfig;
@@ -134,16 +137,25 @@ impl xcm_executor::Config for XcmConfig {
 	type XcmSender = DevNull;
 	type AssetTransactor = AssetTransactor;
 	type OriginConverter = ();
-	type IsReserve = TrustedReserves;
+	type IsReserve = ();
 	type IsTeleporter = TrustedTeleporters;
-	type LocationInverter = xcm_builder::LocationInverter<Ancestry>;
+	type UniversalLocation = UniversalLocation;
 	type Barrier = AllowUnpaidExecutionFrom<Everything>;
 	type Weigher = xcm_builder::FixedWeightBounds<UnitWeightCost, RuntimeCall, MaxInstructions>;
 	type Trader = xcm_builder::FixedRateOfFungible<WeightPrice, ()>;
 	type ResponseHandler = DevNull;
 	type AssetTrap = ();
+	type AssetLocker = ();
+	type AssetExchanger = ();
 	type AssetClaims = ();
 	type SubscriptionService = ();
+	type PalletInstancesInfo = AllPalletsWithSystem;
+	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
+	type FeeManager = ();
+	type MessageExporter = ();
+	type UniversalAliases = Nothing;
+	type CallDispatcher = RuntimeCall;
+	type SafeCallFilter = Everything;
 }
 
 impl crate::Config for Test {
@@ -151,40 +163,37 @@ impl crate::Config for Test {
 	type AccountIdConverter = AccountIdConverter;
 	fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
 		let valid_destination: MultiLocation =
-			X1(AccountId32 { network: NetworkId::Any, id: [0u8; 32] }).into();
+			X1(AccountId32 { network: None, id: [0u8; 32] }).into();
 
 		Ok(valid_destination)
 	}
-	fn worst_case_holding() -> MultiAssets {
-		crate::mock_worst_case_holding()
+	fn worst_case_holding(depositable_count: u32) -> MultiAssets {
+		crate::mock_worst_case_holding(
+			depositable_count,
+			<XcmConfig as xcm_executor::Config>::MaxAssetsIntoHolding::get(),
+		)
 	}
 }
 
-pub type TrustedTeleporters = (xcm_builder::Case<TeleConcreteFung>,);
-pub type TrustedReserves = (xcm_builder::Case<RsrvConcreteFung>,);
+pub type TrustedTeleporters = (xcm_builder::Case<TeleportConcreteFungible>,);
 
 parameter_types! {
-	pub const CheckedAccount: Option<u64> = Some(100);
-	pub const ChildTeleporter: MultiLocation = Parachain(1000).into();
+	pub const CheckingAccount: Option<(u64, MintLocation)> = Some((100, MintLocation::Local));
+	pub const ChildTeleporter: MultiLocation = Parachain(1000).into_location();
 	pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
 		ChildTeleporter::get(),
-		MultiAsset { id: Concrete(Here.into()), fun: Fungible(100) },
+		MultiAsset { id: Concrete(Here.into_location()), fun: Fungible(100) },
 	));
-	pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
-		ChildTeleporter::get(),
-		MultiAsset { id: Concrete(Here.into()), fun: Fungible(100) },
-	));
-	pub const TeleConcreteFung: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into()) }), ChildTeleporter::get());
-	pub const RsrvConcreteFung: (MultiAssetFilter, MultiLocation) =
-		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into()) }), ChildTeleporter::get());
+	pub const TeleportConcreteFungible: (MultiAssetFilter, MultiLocation) =
+		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into_location()) }), ChildTeleporter::get());
+	pub const ReserveConcreteFungible: (MultiAssetFilter, MultiLocation) =
+		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into_location()) }), ChildTeleporter::get());
 }
 
 impl xcm_balances_benchmark::Config for Test {
 	type TransactAsset = Balances;
-	type CheckedAccount = CheckedAccount;
+	type CheckedAccount = CheckingAccount;
 	type TrustedTeleporter = TrustedTeleporter;
-	type TrustedReserve = TrustedReserve;
 
 	fn get_multi_asset() -> MultiAsset {
 		let amount =
