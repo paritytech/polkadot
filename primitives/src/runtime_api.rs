@@ -232,5 +232,13 @@ sp_api::decl_runtime_apis! {
 			session_index: v2::SessionIndex,
 			validator_id: v2::ValidatorId,
 		) -> vstaging::slashing::OpaqueKeyOwnershipProof;
+
+		/// Submit an unsigned extrinsic to slash validators who lost a dispute about
+		/// a candidate of a past session.
+		#[api_version(1000)]
+		fn submit_report_dispute_lost(
+			dispute_prool: vstaging::slashing::DisputeProof,
+			key_owner_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+		) -> Option<()>;
 	}
 }
