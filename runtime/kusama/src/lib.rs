@@ -1514,12 +1514,8 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
-	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
-	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
-	// Remove stale entries in the set id -> session index storage map (after
-	// this release they will be properly pruned after the bonding duration has
-	// elapsed)
-	pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
+	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
+	parachains_configuration::migration::MigrateV4ToV5<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.

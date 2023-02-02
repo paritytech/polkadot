@@ -1628,7 +1628,10 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 /// All migrations that will run on the next runtime upgrade.
 ///
 /// Should be cleared after every release.
-pub type Migrations = (parachains_configuration::migration::v5::MigrateToV5<Runtime>,);
+pub type Migrations = (
+	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
+	parachains_configuration::migration::MigrateV4ToV5<Runtime>,
+);
 
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =

@@ -18,7 +18,7 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp,
-	inclusion::{self, MessageOrigin, SubQueue},
+	inclusion::{self},
 	initializer, origin, paras, paras_inherent, scheduler, session_info, shared, ParaId,
 };
 
@@ -424,23 +424,23 @@ parameter_types! {
 /// `u32`.
 pub struct TestProcessMessage;
 impl ProcessMessage for TestProcessMessage {
-	type Origin = MessageOrigin;
+	type Origin = ParaId;
+
 	fn process_message(
 		message: &[u8],
-		origin: MessageOrigin,
+		origin: ParaId,
 		weight_limit: Weight,
 	) -> Result<(bool, Weight), ProcessMessageError> {
 		let weight = match u32::decode(&mut &message[..]) {
 			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Err(ProcessMessageError::Corrupt), // same as the real `ProcessMessage`
 		};
-		debug_assert!(origin.queue == SubQueue::UMP);
 		if weight.any_gt(weight_limit) {
 			return Err(ProcessMessageError::Overweight(weight))
 		}
 
 		let mut processed = Processed::get();
-		processed.push((origin.para, message.to_vec()));
+		processed.push((origin, message.to_vec()));
 		Processed::set(processed);
 		Ok((true, weight))
 	}

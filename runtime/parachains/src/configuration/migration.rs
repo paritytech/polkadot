@@ -20,15 +20,16 @@ use crate::configuration::{self, Config, Pallet, Store};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
 
+pub use v5::MigrateV4ToV5;
+
 /// The current storage version.
 ///
 /// v0-v1: <https://github.com/paritytech/polkadot/pull/3575>
 /// v1-v2: <https://github.com/paritytech/polkadot/pull/4420>
-/// v2-v3: <https://github.com/paritytech/polkadot/pull/6091>
-/// v3-v4: (remove weights) <https://github.com/paritytech/polkadot/pull/???>
-/// v3-v4: <https://github.com/paritytech/polkadot/pull/6345>
-// TODO
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(4);
+/// v2-v3: <https://github.com/paritytech/polkadot/pull/6091> (remove weights)
+/// v3-v4: <https://github.com/paritytech/polkadot/pull/6345> (remove spam slots)
+/// v4-v5: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
 
 pub mod v5 {
 	use super::*;
@@ -37,10 +38,8 @@ pub mod v5 {
 	#[cfg(feature = "try-runtime")]
 	use sp_std::prelude::*;
 
-	// Copied over from configuration.rs @ de9e147695b9f1be8bd44e07861a31e483c8343a and removed
-	// all the comments, and changed the Weight struct to Weight
 	#[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug)]
-	pub struct OldHostConfiguration<BlockNumber> {
+	pub struct V4HostConfiguration<BlockNumber> {
 		pub max_code_size: u32,
 		pub max_head_data_size: u32,
 		pub max_upward_queue_count: u32,
@@ -86,7 +85,7 @@ pub mod v5 {
 		pub minimum_validation_upgrade_delay: BlockNumber,
 	}
 
-	impl<BlockNumber: Default + From<u32>> Default for OldHostConfiguration<BlockNumber> {
+	impl<BlockNumber: Default + From<u32>> Default for V4HostConfiguration<BlockNumber> {
 		fn default() -> Self {
 			Self {
 				group_rotation_frequency: 1u32.into(),
@@ -136,26 +135,29 @@ pub mod v5 {
 		}
 	}
 
-	pub struct MigrateToV5<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Config> OnRuntimeUpgrade for MigrateToV5<T> {
+	pub struct MigrateV4ToV5<T>(sp_std::marker::PhantomData<T>);
+	impl<T: Config> OnRuntimeUpgrade for MigrateV4ToV5<T> {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
 			log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
 
-			ensure!(StorageVersion::get::<Pallet<T>>() == 3, "The migration requires version 3");
+			ensure!(StorageVersion::get::<Pallet<T>>() == 4, "The migration requires version 4");
 			Ok(Vec::new())
 		}
 
 		fn on_runtime_upgrade() -> Weight {
-			if StorageVersion::get::<Pallet<T>>() == 3 {
-				let weight_consumed = migrate_to_v5::<T>();
+			if StorageVersion::get::<Pallet<T>>() == 4 {
+				let weight_consumed = migrate_v4_to_v5::<T>();
 
-				log::info!(target: configuration::LOG_TARGET, "MigrateToV4 executed successfully");
+				log::info!(
+					target: configuration::LOG_TARGET,
+					"MigrateV4ToV5 executed successfully"
+				);
 				STORAGE_VERSION.put::<Pallet<T>>();
 
 				weight_consumed
 			} else {
-				log::warn!(target: configuration::LOG_TARGET, "MigrateToV4 should be removed.");
+				log::warn!(target: configuration::LOG_TARGET, "MigrateV4ToV5 should be removed.");
 				T::DbWeight::get().reads(1)
 			}
 		}
@@ -165,7 +167,7 @@ pub mod v5 {
 			log::trace!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
-				"Storage version should be 4 after the migration"
+				"Storage version should be 5 after the migration"
 			);
 
 			Ok(())
@@ -173,14 +175,14 @@ pub mod v5 {
 	}
 }
 
-fn migrate_to_v5<T: Config>() -> Weight {
+fn migrate_v4_to_v5<T: Config>() -> Weight {
 	// Unusual formatting is justified:
 	// - make it easier to verify that fields assign what they supposed to assign.
 	// - this code is transient and will be removed after all migrations are done.
 	// - this code is important enough to optimize for legibility sacrificing consistency.
 	#[rustfmt::skip]
 	let translate =
-		|pre: v5::OldHostConfiguration<BlockNumberFor<T>>| ->
+		|pre: v5::V4HostConfiguration<BlockNumberFor<T>>| ->
 configuration::HostConfiguration<BlockNumberFor<T>>
 	{
 		super::HostConfiguration {
@@ -244,31 +246,33 @@ minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 
 #[cfg(test)]
 mod tests {
+	use frame_support::weights::constants::{WEIGHT_PROOF_SIZE_PER_MB, WEIGHT_REF_TIME_PER_MILLIS};
+
 	use super::*;
 	use crate::mock::{new_test_ext, Test};
 
 	#[test]
-	fn v3_deserialized_from_actual_data() {
+	fn v4_deserialized_from_actual_data() {
 		// Example how to get new `raw_config`:
-		// We'll obtain the raw_config hes for block
-		// 15,772,152 (0xf89d3ab5312c5f70d396dc59612f0aa65806c798346f9db4b35278baed2e0e53) on Kusama.
+		// We'll obtain the raw_config for block
+		// 16,459,112 (0x6e19600753afca856aa6222e18d49abe8bcd9ac219d526ee07a119a8f5ef6d52) on Kusama.
 		// Steps:
 		// 1. Go to Polkadot.js -> Developer -> Chain state -> Storage: https://polkadot.js.org/apps/#/chainstate
 		// 2. Set these parameters:
 		//   2.1. selected state query: configuration; activeConfig(): PolkadotRuntimeParachainsConfigurationHostConfiguration
-		//   2.2. blockhash to query at: 0xf89d3ab5312c5f70d396dc59612f0aa65806c798346f9db4b35278baed2e0e53 (the hash of the block)
+		//   2.2. blockhash to query at: 0x6e19600753afca856aa6222e18d49abe8bcd9ac219d526ee07a119a8f5ef6d52 (the hash of the block)
 		//   2.3. Note the value of encoded storage key -> 0x06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385 for the referenced block.
 		//   2.4. You'll also need the decoded values to update the test.
 		// 3. Go to Polkadot.js -> Developer -> Chain state -> Raw storage
 		//   3.1 Enter the encoded storage key and you get the raw config.
 
-		// Fetched at Kusama 15,772,152 (0xf89d3ab5312c5f70d396dc59612f0aa65806c798346f9db4b35278baed2e0e53)
+		// Fetched at Kusama 16,459,112 (0x6e19600753afca856aa6222e18d49abe8bcd9ac219d526ee07a119a8f5ef6d52)
 		//
 		// This exceeds the maximal line width length, but that's fine, since this is not code and
 		// doesn't need to be read and also leaving it as one line allows to easily copy it.
 		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c800000700e8764817020040011e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c8000000060000005802000002000000580200000200000059000000000000001e000000280000000700c817a80402004001000200000014000000"];
 
-		let v4 = v5::OldHostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..])
+		let v4 = v5::V4HostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..])
 			.unwrap();
 
 		// We check only a sample of the values here. If we missed any fields or messed up data types
@@ -278,12 +282,15 @@ mod tests {
 		assert_eq!(v4.max_pov_size, 5_242_880);
 		assert_eq!(v4.hrmp_channel_max_message_size, 102_400);
 		assert_eq!(v4.n_delay_tranches, 89);
-		assert_eq!(v4.ump_max_individual_weight, Weight::zero());
+		assert_eq!(
+			v4.ump_max_individual_weight,
+			Weight::from_parts(20 * WEIGHT_REF_TIME_PER_MILLIS, 5 * WEIGHT_PROOF_SIZE_PER_MB)
+		);
 		assert_eq!(v4.minimum_validation_upgrade_delay, 20);
 	}
 
 	#[test]
-	fn test_migrate_to_v5() {
+	fn test_migrate_v4_to_v5() {
 		// Host configuration has lots of fields. However, in this migration we add only a couple of
 		// fields. The most important part to check are a couple of the last fields. We also pick
 		// extra fields to check arbitrarily, e.g. depending on their position (i.e. the middle) and
@@ -292,7 +299,7 @@ mod tests {
 		// We specify only the picked fields and the rest should be provided by the `Default`
 		// implementation. That implementation is copied over between the two types and should work
 		// fine.
-		let v4 = v5::OldHostConfiguration::<primitives::BlockNumber> {
+		let v4 = v5::V4HostConfiguration::<primitives::BlockNumber> {
 			ump_max_individual_weight: Weight::from_parts(0x71616e6f6e0au64, 0x71616e6f6e0au64),
 			needed_approvals: 69,
 			thread_availability_period: 55,
@@ -310,7 +317,7 @@ mod tests {
 				&v4.encode(),
 			);
 
-			migrate_to_v5::<Test>();
+			migrate_v4_to_v5::<Test>();
 
 			let v5 = configuration::ActiveConfig::<Test>::get();
 
