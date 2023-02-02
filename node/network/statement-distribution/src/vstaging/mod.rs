@@ -25,6 +25,8 @@ use polkadot_node_network_protocol::{
 	grid_topology::{RequiredRouting, SessionGridTopology},
 	peer_set::ValidationVersion,
 	vstaging as protocol_vstaging, PeerId, UnifiedReputationChange as Rep, Versioned, View,
+	request_response::Requests,
+	IfDisconnected,
 };
 use polkadot_node_primitives::{
 	SignedFullStatementWithPVD, StatementWithPVD as FullStatementWithPVD,
@@ -68,6 +70,8 @@ use grid::{GridTracker, ManifestSummary, StatementFilter};
 use groups::Groups;
 use requests::RequestManager;
 use statement_store::{StatementOrigin, StatementStore};
+
+pub use requests::UnhandledResponse;
 
 mod candidates;
 mod cluster;
@@ -2300,4 +2304,57 @@ async fn apply_post_confirmation<Context>(
 	let candidate_hash = post_confirmation.hypothetical.candidate_hash();
 	state.request_manager.remove_for(candidate_hash);
 	new_confirmed_candidate_fragment_tree_updates(ctx, state, post_confirmation.hypothetical).await;
+}
+
+/// Dispatch pending requests for candidate data & statements.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+pub(crate) async fn dispatch_requests<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+) {
+	let peers = &state.peers;
+	let peer_connected = |id: &_| peers.contains_key(id);
+	let seconded_mask = |identifier: &requests::CandidateIdentifier| {
+		let &requests::CandidateIdentifier {
+			relay_parent, candidate_hash, group_index,
+		} = identifier;
+
+		let relay_parent_state = state.per_relay_parent.get(&relay_parent)?;
+		let per_session = state.per_session.get(&relay_parent_state.session)?;
+		let group_size = per_session.groups.get(group_index).map(|x| x.len())?;
+
+		let knowledge = local_knowledge_filter(
+			group_size,
+			group_index,
+			candidate_hash,
+			&relay_parent_state.statement_store,
+		);
+
+		// We request the opposite of what we know.
+		Some(!knowledge.seconded_in_group)
+	};
+
+	while let Some(request) = state.request_manager.next_request(
+		peer_connected,
+		seconded_mask,
+	) {
+		// Peer is supposedly connected.
+		ctx.send_message(NetworkBridgeTxMessage::SendRequests(
+			vec![Requests::AttestedCandidateV2(request)],
+			IfDisconnected::ImmediateError,
+		)).await;
+	}
+}
+
+/// Wait on the next incoming response. If there are no requests pending, this
+/// future never resolves. It is the responsibility of the user of this API
+/// to interrupt the future.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+pub(crate) async fn receive_response(
+	state: &mut State,
+) -> UnhandledResponse {
+	match state.request_manager.await_incoming().await {
+		Some(r) => r,
+		None => futures::future::pending().await,
+	}
 }

@@ -248,20 +248,25 @@ impl RequestManager {
 	/// This function accepts two closures as an argument.
 	/// The first closure indicates whether a peer is still connected.
 	/// The second closure is used to construct a mask for limiting the
-	/// `Seconded` statements the response is allowed to contain.
+	/// `Seconded` statements the response is allowed to contain. The mask
+	/// has `AND` semantics.
 	pub fn next_request(
 		&mut self,
 		peer_connected: impl Fn(&PeerId) -> bool,
-		seconded_mask: impl Fn(&CandidateIdentifier) -> BitVec<u8, Lsb0>,
+		seconded_mask: impl Fn(&CandidateIdentifier) -> Option<BitVec<u8, Lsb0>>,
 	) -> Option<OutgoingRequest<AttestedCandidateRequest>> {
 		if self.pending_responses.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
 			return None
 		}
 
+		let mut res = None;
+
 		// loop over all requests, in order of priority.
 		// do some active maintenance of the connected peers.
 		// dispatch the first request which is not in-flight already.
-		for (_priority, id) in &self.by_priority {
+
+		let mut cleanup_outdated = Vec::new();
+		for (i, (_priority, id)) in self.by_priority.iter().enumerate() {
 			let entry = match self.requests.get_mut(&id) {
 				None => {
 					gum::error!(
@@ -288,7 +293,14 @@ impl RequestManager {
 
 			entry.known_by.push_back(recipient.clone());
 
-			let seconded_mask = seconded_mask(&id);
+			let seconded_mask = match seconded_mask(&id) {
+				None => {
+					cleanup_outdated.push((i, id.clone()));
+					continue
+				}
+				Some(s) => s,
+			};
+
 			let (request, response_fut) = OutgoingRequest::new(
 				RequestRecipient::Peer(recipient.clone()),
 				AttestedCandidateRequest {
@@ -309,10 +321,22 @@ impl RequestManager {
 
 			entry.in_flight = true;
 
-			return Some(request)
+			res = Some(request);
+			break;
 		}
 
-		None
+		for (priority_index, identifier) in cleanup_outdated.into_iter().rev() {
+			self.by_priority.remove(priority_index);
+			self.requests.remove(&identifier);
+			if let HEntry::Occupied(mut e) = self.unique_identifiers.entry(identifier.candidate_hash) {
+				e.get_mut().remove(&identifier);
+				if e.get().is_empty() {
+					e.remove();
+				}
+			}
+		}
+
+		res
 	}
 
 	/// Await the next incoming response to a sent request, or immediately
