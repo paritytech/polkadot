@@ -197,6 +197,16 @@ pub trait RuntimeApiSubsystemClient {
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>, ApiError>;
 
+	/// Returns a merkle proof of a validator session key in a past session.
+	///
+	/// WARNING: This is a staging method! Do not use on production runtimes!
+	async fn key_ownership_proof(
+		&self,
+		at: Hash,
+		session_index: SessionIndex,
+		validator_id: ValidatorId,
+	) -> Result<vstaging::slashing::OpaqueKeyOwnershipProof, ApiError>;
+
 	// === BABE API ===
 
 	/// Returns information regarding the current epoch.
@@ -393,5 +403,15 @@ where
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>, ApiError> {
 		self.runtime_api().unapplied_slashes(&BlockId::Hash(at))
+	}
+
+	async fn key_ownership_proof(
+		&self,
+		at: Hash,
+		session_index: SessionIndex,
+		validator_id: ValidatorId,
+	) -> Result<vstaging::slashing::OpaqueKeyOwnershipProof, ApiError> {
+		self.runtime_api()
+			.key_ownership_proof(&BlockId::Hash(at), session_index, validator_id)
 	}
 }

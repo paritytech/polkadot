@@ -64,6 +64,8 @@ pub(crate) struct RequestResultCache {
 	disputes: LruCache<Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
 	unapplied_slashes:
 		LruCache<Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>>,
+	key_ownership_proof:
+		LruCache<(Hash, SessionIndex, ValidatorId), vstaging::slashing::OpaqueKeyOwnershipProof>,
 }
 
 impl Default for RequestResultCache {
@@ -91,6 +93,7 @@ impl Default for RequestResultCache {
 			version: LruCache::new(DEFAULT_CACHE_CAP),
 			disputes: LruCache::new(DEFAULT_CACHE_CAP),
 			unapplied_slashes: LruCache::new(DEFAULT_CACHE_CAP),
+			key_ownership_proof: LruCache::new(DEFAULT_CACHE_CAP),
 		}
 	}
 }
@@ -386,6 +389,21 @@ impl RequestResultCache {
 	) {
 		self.unapplied_slashes.put(relay_parent, value);
 	}
+
+	pub(crate) fn key_ownership_proof(
+		&mut self,
+		key: (Hash, SessionIndex, ValidatorId),
+	) -> Option<&vstaging::slashing::OpaqueKeyOwnershipProof> {
+		self.key_ownership_proof.get(&key)
+	}
+
+	pub(crate) fn cache_key_ownership_proof(
+		&mut self,
+		key: (Hash, SessionIndex, ValidatorId),
+		value: vstaging::slashing::OpaqueKeyOwnershipProof,
+	) {
+		self.key_ownership_proof.put(key, value);
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -423,4 +441,5 @@ pub(crate) enum RequestResult {
 	Version(Hash, u32),
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
 	UnappliedSlashes(Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>),
+	KeyOwnershipProof(Hash, SessionIndex, ValidatorId, vstaging::slashing::OpaqueKeyOwnershipProof),
 }

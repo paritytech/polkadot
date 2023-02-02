@@ -19,7 +19,7 @@
 use crate::v2::{CandidateHash, SessionIndex, ValidatorId, ValidatorIndex};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
-use sp_std::collections::btree_map::BTreeMap;
+use sp_std::{collections::btree_map::BTreeMap, vec::Vec};
 
 /// The kind of the dispute offence.
 #[derive(PartialEq, Eq, Clone, Copy, Encode, Decode, TypeInfo, Debug)]
@@ -73,4 +73,27 @@ pub struct PendingSlashes {
 	pub keys: BTreeMap<ValidatorIndex, ValidatorId>,
 	/// The dispute outcome.
 	pub kind: SlashingOffenceKind,
+}
+
+// TODO: can we reuse this type between BABE, GRANDPA and disputes?
+/// An opaque type used to represent the key ownership proof at the runtime API
+/// boundary. The inner value is an encoded representation of the actual key
+/// ownership proof which will be parameterized when defining the runtime. At
+/// the runtime API boundary this type is unknown and as such we keep this
+/// opaque representation, implementors of the runtime API will have to make
+/// sure that all usages of `OpaqueKeyOwnershipProof` refer to the same type.
+#[derive(Decode, Encode, PartialEq, Eq, Debug, Clone)]
+pub struct OpaqueKeyOwnershipProof(Vec<u8>);
+impl OpaqueKeyOwnershipProof {
+	/// Create a new `OpaqueKeyOwnershipProof` using the given encoded
+	/// representation.
+	pub fn new(inner: Vec<u8>) -> OpaqueKeyOwnershipProof {
+		OpaqueKeyOwnershipProof(inner)
+	}
+
+	/// Try to decode this `OpaqueKeyOwnershipProof` into the given concrete key
+	/// ownership proof type.
+	pub fn decode<T: Decode>(self) -> Option<T> {
+		Decode::decode(&mut &self.0[..]).ok()
+	}
 }

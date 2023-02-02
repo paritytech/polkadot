@@ -49,7 +49,6 @@ use frame_support::{
 	weights::Weight,
 };
 
-use parity_scale_codec::Decode;
 use primitives::{
 	vstaging::slashing::{DisputeProof, DisputesTimeSlot, PendingSlashes, SlashingOffenceKind},
 	CandidateHash, SessionIndex, ValidatorId, ValidatorIndex,

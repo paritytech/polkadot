@@ -225,5 +225,12 @@ sp_api::decl_runtime_apis! {
 		/// Returns a list of validators that lost a past session dispute and need to be slashed.
 		#[api_version(1000)]
 		fn unapplied_slashes() -> Vec<(v2::SessionIndex, v2::CandidateHash, vstaging::slashing::PendingSlashes)>;
+
+		/// Returns a list of validators that lost a past session dispute and need to be slashed.
+		#[api_version(1000)]
+		fn key_ownership_proof(
+			session_index: v2::SessionIndex,
+			validator_id: v2::ValidatorId,
+		) -> vstaging::slashing::OpaqueKeyOwnershipProof;
 	}
 }

@@ -606,6 +606,13 @@ pub enum RuntimeApiRequest {
 	UnappliedSlashes(
 		RuntimeApiSender<Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>>,
 	),
+	/// Returns a merkle proof of a validator session key in a past session.
+	/// `VStaging`
+	KeyOwnershipProof(
+		SessionIndex,
+		ValidatorId,
+		RuntimeApiSender<vstaging::slashing::OpaqueKeyOwnershipProof>,
+	),
 }
 
 impl RuntimeApiRequest {
@@ -616,6 +623,9 @@ impl RuntimeApiRequest {
 
 	/// `UnappliedSlashes`
 	pub const UNAPPLIED_SLASHES_RUNTIME_REQUIREMENT: u32 = 1000;
+
+	/// `KeyOwnershipProof`
+	pub const KEY_OWNERSHIP_PROOF_RUNTIME_REQUIREMENT: u32 = 1000;
 }
 
 /// A message to the Runtime API subsystem.
