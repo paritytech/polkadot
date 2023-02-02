@@ -16,11 +16,57 @@
 
 use frame_support::traits::Get;
 use parity_scale_codec::{Decode, Encode};
+use sp_core::blake2_256;
 use sp_io::hashing::blake2_256;
 use sp_runtime::traits::{AccountIdConversion, TrailingZeroInput};
 use sp_std::{borrow::Borrow, marker::PhantomData};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::Convert;
+
+// Prefix to increase the entropy of the resulting bytes of the hash
+pub const REMOTE_SALT: [u8; 6] = *b"remote";
+
+// To be used as a converter in `SovereignSignedViaLocation`
+pub struct RemoteAccount<AccountId>(PhantomData<(AccountId)>);
+impl<AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone> Convert<MultiLocation, AccountId>
+	for RemoteAccount<AccountId>
+{
+	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
+		let entropy = match location.borrow() {
+			// Used on the relay chain for sending paras that use 32 byte accounts
+			MultiLocation {
+				parents: 0,
+				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
+			} => (REMOTE_SALT, para_id, id).using_encoded(blake2_256),
+			// Used on the relay chain for sending paras that use 20 byte accounts
+			MultiLocation {
+				parents: 0,
+				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
+			} => (REMOTE_SALT, para_id, key).using_encoded(blake2_256),
+			// Used on parachain for sending paras that use 32 byte accounts
+			MultiLocation {
+				parents: 1,
+				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
+			} => (REMOTE_SALT, para_id, id).using_encoded(blake2_256),
+			// Used on parachain for sending paras that use 20 byte accounts
+			MultiLocation {
+				parents: 1,
+				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
+			} => (REMOTE_SALT, para_id, key).using_encoded(blake2_256),
+			// Used on parachain for sending from the relay-chain
+			MultiLocation { parents: 1, interior: X2(Here, AccountId32 { id, .. }) } =>
+				(REMOTE_SALT, id).using_encoded(blake2_256),
+			// No other conversions provided
+			_ => return Err(()),
+		};
+
+		Ok((entropy.into()))
+	}
+
+	fn reverse_ref(_: impl Borrow<AccountId>) -> Result<MultiLocation, ()> {
+		Err(())
+	}
+}
 
 pub struct Account32Hash<Network, AccountId>(PhantomData<(Network, AccountId)>);
 impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 32]> + Into<[u8; 32]> + Clone>
