@@ -422,9 +422,9 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		imported_blocks_and_info_span.add_uint_tag("new-blocks-count", new_blocks.len() as u64);
 		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
 		for (block_hash, block_header) in new_blocks.into_iter().rev() {
-			let mut candidate_span = imported_blocks_and_info_span.child("candidate");
-			candidate_span.add_string_tag("candidate-hash", format!("{:?}", block_hash));
-			candidate_span.add_uint_tag("candidate-number", block_header.number as u64);
+			let mut new_block_span = imported_blocks_and_info_span.child("new-block");
+			new_block_span.add_string_tag("block-hash", format!("{:?}", block_hash));
+			new_block_span.add_uint_tag("block-number", block_header.number as u64);
 
 			let env = ImportedBlockInfoEnv {
 				session_window: &state.session_window,
@@ -437,7 +437,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					imported_blocks_and_info.push((block_hash, block_header, i));
 				},
 				Err(error) => {
-					candidate_span
+					new_block_span
 						.add_string_tag("imported-block-info-error", format!("{:?}", error));
 					// It's possible that we've lost a race with finality.
 					let (tx, rx) = oneshot::channel();
@@ -446,12 +446,12 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 					let lost_to_finality = match rx.await {
 						Ok(Ok(Some(h))) if h != block_hash => {
-							candidate_span
+							new_block_span
 								.add_string_tag("lost-to-finality", format!("{:?}", true));
 							true
 						},
 						_ => {
-							candidate_span
+							new_block_span
 								.add_string_tag("lost-to-finality", format!("{:?}", false));
 							false
 						},
