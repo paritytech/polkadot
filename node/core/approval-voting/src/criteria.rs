@@ -786,7 +786,7 @@ mod tests {
 
 			counted += 1;
 
-			let is_good = check_assignment_cert(
+			let _is_good = check_assignment_cert(
 				mutated.core,
 				mutated.val_index,
 				&mutated.config,
