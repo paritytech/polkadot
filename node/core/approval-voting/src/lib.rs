@@ -1170,7 +1170,7 @@ async fn handle_from_overseer<Context>(
 							for (c_hash, c_entry) in block_batch.imported_candidates {
 								let mut candidate_import_span = block_import_span.child("candidate-import");
 								candidate_import_span.add_string_tag("candidate-hash", format!("{:?}", c_hash));
-								candidate_import_span.add_uint_tag("num-approvals", c_entry.num_approvals() as u64);
+								candidate_import_span.add_uint_tag("bitvec-len", c_entry.approvals.len() as u64);
 								metrics.on_candidate_imported();
 
 								let our_tranche = c_entry
