@@ -231,7 +231,10 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_pvf_preparation_max_rss",
 						"ru_maxrss (maximum resident set size) observed for preparation (in kilobytes)",
-					)
+					).buckets(
+						prometheus::exponential_buckets(8192.0, 2.0, 10)
+							.expect("arguments are always valid; qed"),
+					),
 				)?,
 				registry,
 			)?,
@@ -240,7 +243,10 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_pvf_preparation_max_resident",
 						"max resident memory observed for preparation (in kilobytes)",
-					)
+					).buckets(
+						prometheus::exponential_buckets(8192.0, 2.0, 10)
+							.expect("arguments are always valid; qed"),
+					),
 				)?,
 				registry,
 			)?,
@@ -249,7 +255,10 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_pvf_preparation_max_allocated",
 						"max allocated memory observed for preparation (in kilobytes)",
-					)
+					).buckets(
+						prometheus::exponential_buckets(8192.0, 2.0, 10)
+							.expect("arguments are always valid; qed"),
+					),
 				)?,
 				registry,
 			)?,
