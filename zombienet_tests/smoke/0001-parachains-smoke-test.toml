@@ -21,7 +21,7 @@ addToGenesis = false
   [parachains.collator]
   name = "collator01"
   image = "{{COL_IMAGE}}"
-  command = "/usr/local/bin/adder-collator"
+  command = "adder-collator"
   args = [ "-lruntime=debug,parachain=trace" ]
 
 [types.Header]

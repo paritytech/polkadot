@@ -62,8 +62,6 @@ pub enum FakeCandidateValidationError {
 	ParamsTooLarge,
 	/// Code size is over the limit.
 	CodeTooLarge,
-	/// Code does not decompress correctly.
-	CodeDecompressionFailure,
 	/// PoV does not decompress correctly.
 	POVDecompressionFailure,
 	/// Validation function returned invalid data.
@@ -89,8 +87,6 @@ impl Into<InvalidCandidate> for FakeCandidateValidationError {
 			FakeCandidateValidationError::Timeout => InvalidCandidate::Timeout,
 			FakeCandidateValidationError::ParamsTooLarge => InvalidCandidate::ParamsTooLarge(666),
 			FakeCandidateValidationError::CodeTooLarge => InvalidCandidate::CodeTooLarge(666),
-			FakeCandidateValidationError::CodeDecompressionFailure =>
-				InvalidCandidate::CodeDecompressionFailure,
 			FakeCandidateValidationError::POVDecompressionFailure =>
 				InvalidCandidate::PoVDecompressionFailure,
 			FakeCandidateValidationError::BadReturn => InvalidCandidate::BadReturn,

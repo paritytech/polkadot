@@ -799,7 +799,7 @@ fn compressed_code_works() {
 }
 
 #[test]
-fn code_decompression_failure_is_invalid() {
+fn code_decompression_failure_is_error() {
 	let validation_data = PersistedValidationData { max_pov_size: 1024, ..Default::default() };
 	let pov = PoV { block_data: BlockData(vec![1; 32]) };
 	let head_data = HeadData(vec![1, 1, 1]);
@@ -842,7 +842,7 @@ fn code_decompression_failure_is_invalid() {
 		&Default::default(),
 	));
 
-	assert_matches!(v, Ok(ValidationResult::Invalid(InvalidCandidate::CodeDecompressionFailure)));
+	assert_matches!(v, Err(_));
 }
 
 #[test]
