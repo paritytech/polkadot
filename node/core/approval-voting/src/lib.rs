@@ -1142,7 +1142,7 @@ async fn handle_from_overseer<Context>(
 			let mut actions = Vec::new();
 			if let Some(activated) = update.activated {
 				let head = activated.hash;
-				let mut span = jaeger::Span::new(&head, "approval-voting");
+				let mut span = jaeger::PerLeafSpan::new(activated.span, "approval-voting");
 				match import::handle_new_head(
 					ctx,
 					state,
