@@ -595,7 +595,6 @@ mod tests {
 	use super::*;
 	use polkadot_primitives::HeadData;
 	use polkadot_primitives_test_helpers::make_candidate;
-	use pretty_assertions::assert_eq;
 
 	#[test]
 	fn inserting_unconfirmed_rejects_on_incompatible_claims() {
