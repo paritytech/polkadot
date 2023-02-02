@@ -63,5 +63,7 @@ impl<
 #[cfg(test)]
 mod tests {
 	#[test]
-	fn process_message_works() {}
+	fn process_message_works() {
+		// FAIL-CI todo
+	}
 }

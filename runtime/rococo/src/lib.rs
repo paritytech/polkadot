@@ -1058,7 +1058,7 @@ impl parachains_paras::Config for Runtime {
 }
 
 parameter_types! {
-	/// Amount of weigh which can be spent per block to service messages.
+	/// Amount of weight that can be spent per block to service messages.
 	/// FAIL-CI: Pretty random value. Should eventually be the sum of `UMP+DMP+HRMP`.
 	pub const MessageQueueServiceWeight: Weight = Weight::from_parts(100 * WEIGHT_REF_TIME_PER_MILLIS, u64::MAX);
 }
@@ -1549,12 +1549,8 @@ frame_support::ord_parameter_types! {
 }
 
 #[cfg(feature = "runtime-benchmarks")]
-#[macro_use]
-extern crate frame_benchmarking;
-
-#[cfg(feature = "runtime-benchmarks")]
 mod benches {
-	define_benchmarks!(
+	frame_benchmarking::define_benchmarks!(
 		// Polkadot
 		// NOTE: Make sure to prefix these with `runtime_common::` so
 		// the that path resolves correctly in the generated file.
