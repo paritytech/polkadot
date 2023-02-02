@@ -17,7 +17,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 derive_more = "0.99.11"
-bounded-collections = "0.1.4"
+bounded-collections = { version = "0.1.4", default-features = false }
 
 # all optional crates.
 serde = { version = "1.0.137", default-features = false, features = [ "derive" ], optional = true }
@@ -26,6 +26,7 @@ serde = { version = "1.0.137", default-features = false, features = [ "derive" ]
 default = ["std"]
 wasm-api = []
 std = [
+	"bounded-collections/std",
 	"parity-scale-codec/std",
 	"scale-info/std",
 	"serde/std",
