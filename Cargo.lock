@@ -7718,7 +7718,6 @@ dependencies = [
  "polkadot-node-subsystem-util",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "pretty_assertions",
  "sc-keystore",
  "sc-network",
  "sp-application-crypto",
