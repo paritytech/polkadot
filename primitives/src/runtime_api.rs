@@ -223,21 +223,20 @@ sp_api::decl_runtime_apis! {
 		fn disputes() -> Vec<(v2::SessionIndex, v2::CandidateHash, v2::DisputeState<v2::BlockNumber>)>;
 
 		/// Returns a list of validators that lost a past session dispute and need to be slashed.
-		#[api_version(1000)]
+		#[api_version(4)]
 		fn unapplied_slashes() -> Vec<(v2::SessionIndex, v2::CandidateHash, vstaging::slashing::PendingSlashes)>;
 
-		/// Returns a list of validators that lost a past session dispute and need to be slashed.
-		#[api_version(1000)]
+		/// Returns a merkle proof of a validator session key.
+		#[api_version(4)]
 		fn key_ownership_proof(
-			session_index: v2::SessionIndex,
 			validator_id: v2::ValidatorId,
-		) -> vstaging::slashing::OpaqueKeyOwnershipProof;
+		) -> Option<vstaging::slashing::OpaqueKeyOwnershipProof>;
 
 		/// Submit an unsigned extrinsic to slash validators who lost a dispute about
 		/// a candidate of a past session.
-		#[api_version(1000)]
+		#[api_version(4)]
 		fn submit_report_dispute_lost(
-			dispute_prool: vstaging::slashing::DisputeProof,
+			dispute_proof: vstaging::slashing::DisputeProof,
 			key_owner_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
 		) -> Option<()>;
 	}

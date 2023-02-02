@@ -558,6 +558,13 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn unapplied_slashes() -> Vec<(SessionIndex, CandidateHash, PendingSlashes)> {
 		<UnappliedSlashes<T>>::iter().collect()
 	}
+
+	pub fn submit_unsigned_slashing_report(
+		dispute_proof: DisputeProof,
+		key_ownership_proof: <T as Config>::KeyOwnerProof,
+	) -> Option<()> {
+		T::HandleReports::submit_unsigned_slashing_report(dispute_proof, key_ownership_proof).ok()
+	}
 }
 
 /// Methods for the `ValidateUnsigned` implementation:

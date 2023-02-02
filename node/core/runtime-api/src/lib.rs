@@ -157,11 +157,9 @@ where
 				self.requests_cache.cache_disputes(relay_parent, disputes),
 			UnappliedSlashes(relay_parent, unapplied_slashes) =>
 				self.requests_cache.cache_unapplied_slashes(relay_parent, unapplied_slashes),
-			KeyOwnershipProof(relay_parent, session_index, validator_id, key_ownership_proof) =>
-				self.requests_cache.cache_key_ownership_proof(
-					(relay_parent, session_index, validator_id),
-					key_ownership_proof,
-				),
+			KeyOwnershipProof(relay_parent, validator_id, key_ownership_proof) => self
+				.requests_cache
+				.cache_key_ownership_proof((relay_parent, validator_id), key_ownership_proof),
 		}
 	}
 
@@ -267,9 +265,9 @@ where
 				query!(disputes(), sender).map(|sender| Request::Disputes(sender)),
 			Request::UnappliedSlashes(sender) =>
 				query!(unapplied_slashes(), sender).map(|sender| Request::UnappliedSlashes(sender)),
-			Request::KeyOwnershipProof(session_index, validator_id, sender) =>
-				query!(key_ownership_proof(session_index, validator_id), sender)
-					.map(|sender| Request::KeyOwnershipProof(session_index, validator_id, sender)),
+			Request::KeyOwnershipProof(validator_id, sender) =>
+				query!(key_ownership_proof(validator_id), sender)
+					.map(|sender| Request::KeyOwnershipProof(validator_id, sender)),
 		}
 	}
 
@@ -520,9 +518,9 @@ where
 			ver = Request::UNAPPLIED_SLASHES_RUNTIME_REQUIREMENT,
 			sender
 		),
-		Request::KeyOwnershipProof(session_index, validator_id, sender) => query!(
+		Request::KeyOwnershipProof(validator_id, sender) => query!(
 			KeyOwnershipProof,
-			key_ownership_proof(session_index, validator_id),
+			key_ownership_proof(validator_id),
 			ver = Request::KEY_OWNERSHIP_PROOF_RUNTIME_REQUIREMENT,
 			sender
 		),

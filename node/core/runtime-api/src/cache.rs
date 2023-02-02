@@ -65,7 +65,7 @@ pub(crate) struct RequestResultCache {
 	unapplied_slashes:
 		LruCache<Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>>,
 	key_ownership_proof:
-		LruCache<(Hash, SessionIndex, ValidatorId), vstaging::slashing::OpaqueKeyOwnershipProof>,
+		LruCache<(Hash, ValidatorId), Option<vstaging::slashing::OpaqueKeyOwnershipProof>>,
 }
 
 impl Default for RequestResultCache {
@@ -392,15 +392,15 @@ impl RequestResultCache {
 
 	pub(crate) fn key_ownership_proof(
 		&mut self,
-		key: (Hash, SessionIndex, ValidatorId),
-	) -> Option<&vstaging::slashing::OpaqueKeyOwnershipProof> {
+		key: (Hash, ValidatorId),
+	) -> Option<&Option<vstaging::slashing::OpaqueKeyOwnershipProof>> {
 		self.key_ownership_proof.get(&key)
 	}
 
 	pub(crate) fn cache_key_ownership_proof(
 		&mut self,
-		key: (Hash, SessionIndex, ValidatorId),
-		value: vstaging::slashing::OpaqueKeyOwnershipProof,
+		key: (Hash, ValidatorId),
+		value: Option<vstaging::slashing::OpaqueKeyOwnershipProof>,
 	) {
 		self.key_ownership_proof.put(key, value);
 	}
@@ -441,5 +441,5 @@ pub(crate) enum RequestResult {
 	Version(Hash, u32),
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
 	UnappliedSlashes(Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>),
-	KeyOwnershipProof(Hash, SessionIndex, ValidatorId, vstaging::slashing::OpaqueKeyOwnershipProof),
+	KeyOwnershipProof(Hash, ValidatorId, Option<vstaging::slashing::OpaqueKeyOwnershipProof>),
 }

@@ -203,9 +203,8 @@ pub trait RuntimeApiSubsystemClient {
 	async fn key_ownership_proof(
 		&self,
 		at: Hash,
-		session_index: SessionIndex,
 		validator_id: ValidatorId,
-	) -> Result<vstaging::slashing::OpaqueKeyOwnershipProof, ApiError>;
+	) -> Result<Option<vstaging::slashing::OpaqueKeyOwnershipProof>, ApiError>;
 
 	// === BABE API ===
 
@@ -408,10 +407,8 @@ where
 	async fn key_ownership_proof(
 		&self,
 		at: Hash,
-		session_index: SessionIndex,
 		validator_id: ValidatorId,
-	) -> Result<vstaging::slashing::OpaqueKeyOwnershipProof, ApiError> {
-		self.runtime_api()
-			.key_ownership_proof(&BlockId::Hash(at), session_index, validator_id)
+	) -> Result<Option<vstaging::slashing::OpaqueKeyOwnershipProof>, ApiError> {
+		self.runtime_api().key_ownership_proof(&BlockId::Hash(at), validator_id)
 	}
 }
