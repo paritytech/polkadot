@@ -1299,7 +1299,7 @@ impl parachains_paras::Config for Runtime {
 
 parameter_types! {
 	/// Amount of weight that can be spent per block to service messages.
-	/// FAIL-CI: Pretty random value. Should eventually be the sum of `UMP+DMP+HRMP`.
+	/// FAIL-CI: Pretty random value.
 	pub const MessageQueueServiceWeight: Weight = Weight::from_parts(100 * WEIGHT_REF_TIME_PER_MILLIS, u64::MAX);
 }
 

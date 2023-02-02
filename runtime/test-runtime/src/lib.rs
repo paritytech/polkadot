@@ -30,7 +30,7 @@ use polkadot_runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, runtime_api_impl::v2 as runtime_impl,
 	scheduler as parachains_scheduler, session_info as parachains_session_info,
-	shared as parachains_shared, ump as parachains_ump,
+	shared as parachains_shared,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -488,6 +488,8 @@ impl parachains_inclusion::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = ParasDisputes;
 	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
+	type MessageQueue = ();
+	type WeightInfo = (); // FAIL-CI todo
 }
 
 impl parachains_disputes::Config for Runtime {
@@ -526,14 +528,6 @@ impl parachains_dmp::Config for Runtime {}
 
 parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;
-}
-
-impl parachains_ump::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type UmpSink = ();
-	type FirstMessageFactorPercent = FirstMessageFactorPercent;
-	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
-	type WeightInfo = parachains_ump::TestWeightInfo;
 }
 
 impl parachains_hrmp::Config for Runtime {
