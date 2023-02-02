@@ -27,9 +27,6 @@ use sp_core::crypto::Ss58AddressFormatRegistry;
 use sp_keyring::Sr25519Keyring;
 use std::net::ToSocketAddrs;
 
-#[cfg(feature = "try-runtime")]
-use try_runtime_cli::block_building_info::timestamp_with_babe_info;
-
 pub use crate::{error::Error, service::BlockId};
 pub use polkadot_performance_test::PerfCheckError;
 
@@ -648,6 +645,9 @@ pub fn run() -> Result<()> {
 		#[cfg(feature = "try-runtime")]
 		Some(Subcommand::TryRuntime(cmd)) => {
 			use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
+			use sc_service::TaskManager;
+			use try_runtime_cli::block_building_info::timestamp_with_babe_info;
+
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
 			set_default_ss58_version(chain_spec);
@@ -656,7 +656,6 @@ pub fn run() -> Result<()> {
 				<E as NativeExecutionDispatch>::ExtendHostFunctions,
 			>;
 
-			use sc_service::TaskManager;
 			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
 			let task_manager = TaskManager::new(runner.config().tokio_handle.clone(), *registry)
 				.map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
