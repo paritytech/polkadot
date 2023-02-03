@@ -13,11 +13,8 @@ The entry point for the user is twofold:
 
 ### Registering a PVF with some deposit
 
-This can very likely be equal or very similar to what we have for parachains.
-
-TODO: Figure out how this works for parachains or whether there even is a
-separate deposit for the PVF. I believe parachains just have locked DOTs for
-their lease period, which also covers PVF storage.
+This is the same as for parachains. In fact parachains start as a parathread
+exactly this way.
 
 ### Bidding for a slot/Auctioning System
 
@@ -37,6 +34,9 @@ their lease period, which also covers PVF storage.
 6. The user needs to know whether their bid made it through or not and when.
 
 #### General Interface
+
+
+TODO: Obsolete
 
 The user can apply for a slot by placing a bid extrinsic. This bid will contain
 some price the user is willing to pay for a core. These extrinsic go into a
@@ -99,14 +99,7 @@ runtime drop what is too low (if resource limits allow for it).
 
 #### Runtime Implementation
 
-More details on auctioning
-[here](https://www.notion.so/paritytechnologies/Exotic-Scheduling-Auctions-53148e8d90d74411ab445b7d1dd6cfc8).
-
-- Bid has fee on top of bid for spam protection - fee can be quite low, it should
-  not harm the sender much, if losing a bid and a resend is necessary. Just high
-  enough so spam protection is maintained.
-- Minimum bid - configurable.
-- Lifetimes
+TODO: Update.
 
 #### Possible Optimizations
 
@@ -142,6 +135,8 @@ We should probably be interacting with the Balances pallet via the ReservableCur
    availability is taking longer.
 
 ### Interface from assignment providers to the scheduler
+
+TODO: Interface still correct, considerations have changed a bit.
 
 The scheduler needs to be able to map `ParaId`s to `CoreIds` for each relay
 chain block, for asynchronous backing in advance. The `AssignmentProvider` can
