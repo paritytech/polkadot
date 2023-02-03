@@ -895,6 +895,11 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
+		fn beefy_genesis() -> Option<BlockNumber> {
+			// dummy implementation due to lack of BEEFY pallet.
+			None
+		}
+
 		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			// dummy implementation due to lack of BEEFY pallet.
 			None
