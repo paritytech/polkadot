@@ -20,7 +20,7 @@
 //! on, performing those approval checks, and tracking the assignments and approvals
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
-#![allow(unused_imports)]
+
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
@@ -1855,17 +1855,17 @@ fn check_and_import_approval<T>(
 	};
 
 	// Signature check:
-	// match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking).check_signature(
-	// 	&pubkey,
-	// 	approved_candidate_hash,
-	// 	block_entry.session(),
-	// 	&approval.signature,
-	// ) {
-	// 	Err(_) => respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::InvalidSignature(
-	// 		approval.validator
-	// 	),)),
-	// 	Ok(()) => {},
-	// };
+	match DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking).check_signature(
+		&pubkey,
+		approved_candidate_hash,
+		block_entry.session(),
+		&approval.signature,
+	) {
+		Err(_) => respond_early!(ApprovalCheckResult::Bad(ApprovalCheckError::InvalidSignature(
+			approval.validator
+		),)),
+		Ok(()) => {},
+	};
 
 	let candidate_entry = match db.load_candidate_entry(&approved_candidate_hash)? {
 		Some(c) => c,

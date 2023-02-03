@@ -448,10 +448,10 @@ pub(crate) enum InvalidAssignmentReason {
 	CoreIndexOutOfBounds,
 	InvalidAssignmentKey,
 	IsInBackingGroup,
-	//VRFModuloCoreIndexMismatch,
-	//VRFModuloOutputMismatch,
+	VRFModuloCoreIndexMismatch,
+	VRFModuloOutputMismatch,
 	VRFDelayCoreIndexMismatch,
-	//VRFDelayOutputMismatch,
+	VRFDelayOutputMismatch,
 }
 
 /// Checks the crypto of an assignment cert. Failure conditions:
@@ -469,7 +469,7 @@ pub(crate) fn check_assignment_cert(
 	claimed_core_index: CoreIndex,
 	validator_index: ValidatorIndex,
 	config: &Config,
-	_relay_vrf_story: RelayVRFStory,
+	relay_vrf_story: RelayVRFStory,
 	assignment: &AssignmentCert,
 	backing_group: GroupIndex,
 ) -> Result<DelayTranche, InvalidAssignment> {
@@ -496,50 +496,42 @@ pub(crate) fn check_assignment_cert(
 		return Err(InvalidAssignment(Reason::IsInBackingGroup))
 	}
 
-	let &(ref vrf_output, ref _vrf_proof) = &assignment.vrf;
+	let &(ref vrf_output, ref vrf_proof) = &assignment.vrf;
 	match assignment.kind {
 		AssignmentCertKind::RelayVRFModulo { sample } => {
 			if sample >= config.relay_vrf_modulo_samples {
 				return Err(InvalidAssignment(Reason::SampleOutOfBounds))
 			}
 
-			// let (vrf_in_out, _) = public
-			// 	.vrf_verify_extra(
-			// 		relay_vrf_modulo_transcript(relay_vrf_story, sample),
-			// 		&vrf_output.0,
-			// 		&vrf_proof.0,
-			// 		assigned_core_transcript(claimed_core_index),
-			// 	)
-			// 	.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
+			let (vrf_in_out, _) = public
+				.vrf_verify_extra(
+					relay_vrf_modulo_transcript(relay_vrf_story, sample),
+					&vrf_output.0,
+					&vrf_proof.0,
+					assigned_core_transcript(claimed_core_index),
+				)
+				.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
 
-			// // ensure that the `vrf_in_out` actually gives us the claimed core.
-			// if relay_vrf_modulo_core(&vrf_in_out, config.n_cores) == claimed_core_index {
-			// 	Ok(0)
-			// } else {
-			// 	Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
-			// }
-
-			Ok(0)
+			// ensure that the `vrf_in_out` actually gives us the claimed core.
+			if relay_vrf_modulo_core(&vrf_in_out, config.n_cores) == claimed_core_index {
+				Ok(0)
+			} else {
+				Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
+			}
 		},
 		AssignmentCertKind::RelayVRFDelay { core_index } => {
 			if core_index != claimed_core_index {
 				return Err(InvalidAssignment(Reason::VRFDelayCoreIndexMismatch))
 			}
 
-			// let (vrf_in_out, _) = public
-			// 	.vrf_verify(
-			// 		relay_vrf_delay_transcript(relay_vrf_story, core_index),
-			// 		&vrf_output.0,
-			// 		&vrf_proof.0,
-			// 	)
-			// 	.map_err(|_| InvalidAssignment(Reason::VRFDelayOutputMismatch))?;
+			let (vrf_in_out, _) = public
+				.vrf_verify(
+					relay_vrf_delay_transcript(relay_vrf_story, core_index),
+					&vrf_output.0,
+					&vrf_proof.0,
+				)
+				.map_err(|_| InvalidAssignment(Reason::VRFDelayOutputMismatch))?;
 
-			let vrf_in_out = vrf_output
-				.0
-				.attach_input_hash(&public, Transcript::new(b"VRF"))
-				.expect("never fails; qed");
-			// let vrf_in_out = SecretKey::vrf_create_from_compressed_point(&vrf_output.0)
-			// 	.expect("create from compressed always works; qed");
 			Ok(relay_vrf_delay_tranche(
 				&vrf_in_out,
 				config.n_delay_tranches,
@@ -779,7 +771,7 @@ mod tests {
 				config: config.clone(),
 			};
 
-			let _expected = match f(&mut mutated) {
+			let expected = match f(&mut mutated) {
 				None => continue,
 				Some(e) => e,
 			};
@@ -796,7 +788,7 @@ mod tests {
 			)
 			.is_ok();
 
-			// assert_eq!(expected, is_good)
+			assert_eq!(expected, is_good)
 		}
 
 		assert!(counted > 0);
