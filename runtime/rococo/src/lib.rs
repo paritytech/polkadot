@@ -1765,13 +1765,11 @@ sp_api::impl_runtime_apis! {
 
 		fn submit_report_dispute_lost(
 			dispute_proof: vstaging::slashing::DisputeProof,
-			key_owner_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+			key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
-			let key_owner_proof = key_owner_proof.decode()?;
-
-			ParasSlashing::submit_unsigned_slashing_report(
+			runtime_parachains::runtime_api_impl::vstaging::submit_unsigned_slashing_report::<Runtime>(
 				dispute_proof,
-				key_owner_proof,
+				key_ownership_proof,
 			)
 		}
 	}

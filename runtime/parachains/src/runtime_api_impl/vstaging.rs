@@ -1,4 +1,4 @@
-// Copyright 2017-2022 Parity Technologies (UK) Ltd.
+// Copyright 2017-2023 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -30,4 +30,17 @@ pub fn get_session_disputes<T: disputes::Config>(
 pub fn unapplied_slashes<T: disputes::slashing::Config>(
 ) -> Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)> {
 	<disputes::slashing::Pallet<T>>::unapplied_slashes()
+}
+
+/// Implementation of `submit_report_dispute_lost` runtime API
+pub fn submit_unsigned_slashing_report<T: disputes::slashing::Config>(
+	dispute_proof: vstaging::slashing::DisputeProof,
+	key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+) -> Option<()> {
+	let key_ownership_proof = key_ownership_proof.decode()?;
+
+	<disputes::slashing::Pallet<T>>::submit_unsigned_slashing_report(
+		dispute_proof,
+		key_ownership_proof,
+	)
 }

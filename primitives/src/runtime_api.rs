@@ -237,7 +237,7 @@ sp_api::decl_runtime_apis! {
 		#[api_version(4)]
 		fn submit_report_dispute_lost(
 			dispute_proof: vstaging::slashing::DisputeProof,
-			key_owner_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+			key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
 		) -> Option<()>;
 	}
 }

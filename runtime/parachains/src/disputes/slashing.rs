@@ -559,7 +559,7 @@ impl<T: Config> Pallet<T> {
 		<UnappliedSlashes<T>>::iter().collect()
 	}
 
-	pub fn submit_unsigned_slashing_report(
+	pub(crate) fn submit_unsigned_slashing_report(
 		dispute_proof: DisputeProof,
 		key_ownership_proof: <T as Config>::KeyOwnerProof,
 	) -> Option<()> {
