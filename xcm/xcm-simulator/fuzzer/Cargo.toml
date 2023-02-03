@@ -6,7 +6,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.0.0" }
+codec = { package = "parity-scale-codec", version = "3.3.0" }
 honggfuzz = "0.5.55"
 scale-info = { version = "2.1.2", features = ["derive"] }
 
