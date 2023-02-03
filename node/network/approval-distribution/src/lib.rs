@@ -728,7 +728,7 @@ impl State {
 	) where
 		R: CryptoRng + Rng,
 	{
-		// TODO: implement check to not import gossip assignments.
+		// TODO: implement checking to match authority against message validator index to not process gossiped assignments.
 		let block_hash = assignment.block_hash;
 		let validator_index = assignment.validator;
 
