@@ -9,7 +9,9 @@ polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
+polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-primitives = { path = "../../../primitives" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
 rand = "0.8"
 
 futures = "0.3.21"

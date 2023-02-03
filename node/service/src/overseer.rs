@@ -282,7 +282,7 @@ where
 			Metrics::register(registry)?,
 			rand::rngs::StdRng::from_entropy(),
 		))
-		.approval_distribution(ApprovalDistributionSubsystem::new(Metrics::register(registry)?))
+		.approval_distribution(ApprovalDistributionSubsystem::new(Metrics::register(registry)?, keystore.clone()))
 		.approval_voting(ApprovalVotingSubsystem::with_config(
 			approval_voting_config,
 			parachains_db.clone(),
