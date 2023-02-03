@@ -676,9 +676,12 @@ fn pending_statement_network_message(
 	originator: ValidatorIndex,
 	compact: CompactStatement,
 ) -> Option<(Vec<PeerId>, net_protocol::VersionedValidationProtocol)> {
-	statement_store.validator_statement(originator, compact)
+	statement_store
+		.validator_statement(originator, compact)
 		.map(|s| s.as_unchecked().clone())
-		.map(|signed| protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, signed))
+		.map(|signed| {
+			protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, signed)
+		})
 		.map(|msg| (vec![peer.clone()], Versioned::VStaging(msg).into()))
 }
 
@@ -712,7 +715,9 @@ async fn send_pending_cluster_statements<Context>(
 		})
 		.collect::<Vec<_>>();
 
-	if network_messages.is_empty() { return }
+	if network_messages.is_empty() {
+		return
+	}
 
 	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(network_messages))
 		.await;
@@ -781,7 +786,12 @@ async fn send_pending_grid_messages<Context>(
 					.expect("determined to be some earlier in this function; qed")
 					.grid_tracker;
 
-				grid.manifest_sent_to(groups, peer_validator_id, candidate_hash, local_knowledge.clone());
+				grid.manifest_sent_to(
+					groups,
+					peer_validator_id,
+					candidate_hash,
+					local_knowledge.clone(),
+				);
 
 				messages.push((
 					vec![peer_id.clone()],
@@ -814,15 +824,16 @@ async fn send_pending_grid_messages<Context>(
 	// otherwise, we might receive statements while the grid peer is "out of view" and then
 	// not send them when they get back "in view". problem!
 	{
-		let grid_tracker = &mut relay_parent_state.local_validator.as_mut()
+		let grid_tracker = &mut relay_parent_state
+			.local_validator
+			.as_mut()
 			.expect("checked earlier; qed")
 			.grid_tracker;
 
 		let pending_statements = grid_tracker.all_pending_statements_for(peer_validator_id);
 
-		let extra_statements = pending_statements
-			.into_iter()
-			.filter_map(|(originator, compact)| {
+		let extra_statements =
+			pending_statements.into_iter().filter_map(|(originator, compact)| {
 				let res = pending_statement_network_message(
 					&relay_parent_state.statement_store,
 					relay_parent,
@@ -846,7 +857,9 @@ async fn send_pending_grid_messages<Context>(
 		messages.extend(extra_statements);
 	}
 
-	if messages.is_empty() { return }
+	if messages.is_empty() {
+		return
+	}
 	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(messages)).await;
 }
 
@@ -1674,7 +1687,12 @@ async fn provide_candidate_to_grid<Context>(
 			grid::ManifestKind::Acknowledgement => ack_peers.push(p),
 		}
 
-		local_validator.grid_tracker.manifest_sent_to(&per_session.groups, v, candidate_hash, filter.clone());
+		local_validator.grid_tracker.manifest_sent_to(
+			&per_session.groups,
+			v,
+			candidate_hash,
+			filter.clone(),
+		);
 		post_statements.extend(
 			post_acknowledgement_statement_messages(
 				v,
@@ -1971,11 +1989,10 @@ fn post_acknowledgement_statement_messages(
 	group_index: GroupIndex,
 	candidate_hash: CandidateHash,
 ) -> Vec<net_protocol::VersionedValidationProtocol> {
-	let sending_filter =
-		match grid_tracker.pending_statements_for(recipient, candidate_hash) {
-			None => return Vec::new(),
-			Some(f) => f,
-		};
+	let sending_filter = match grid_tracker.pending_statements_for(recipient, candidate_hash) {
+		None => return Vec::new(),
+		Some(f) => f,
+	};
 
 	let mut messages = Vec::new();
 	for statement in
