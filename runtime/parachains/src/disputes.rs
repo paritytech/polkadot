@@ -33,7 +33,7 @@ use sp_runtime::{
 	traits::{AppVerify, One, Saturating, Zero},
 	DispatchError, RuntimeDebug, SaturatedConversion,
 };
-use sp_std::{cmp::Ordering, prelude::*};
+use sp_std::{cmp::Ordering, collections::btree_set::BTreeSet, prelude::*};
 
 #[cfg(test)]
 #[allow(unused_imports)]
@@ -85,6 +85,7 @@ pub trait SlashingHandler<BlockNumber> {
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		backers: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
 	/// Punish a series of validators who were against a valid parablock. This
@@ -93,6 +94,7 @@ pub trait SlashingHandler<BlockNumber> {
 		session: SessionIndex,
 		candidate_hash: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		backers: impl IntoIterator<Item = ValidatorIndex>,
 	);
 
 	/// Called by the initializer to initialize the slashing pallet.
@@ -110,12 +112,14 @@ impl<BlockNumber> SlashingHandler<BlockNumber> for () {
 		_: SessionIndex,
 		_: CandidateHash,
 		_: impl IntoIterator<Item = ValidatorIndex>,
+		_: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 	}
 
 	fn punish_against_valid(
 		_: SessionIndex,
 		_: CandidateHash,
+		_: impl IntoIterator<Item = ValidatorIndex>,
 		_: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 	}
@@ -459,6 +463,18 @@ pub mod pallet {
 		DisputeState<T::BlockNumber>,
 	>;
 
+	/// Backing votes stored for each dispute.
+	/// This storage is used for slashing.
+	#[pallet::storage]
+	pub(super) type BackersOnDisputes<T: Config> = StorageDoubleMap<
+		_,
+		Twox64Concat,
+		SessionIndex,
+		Blake2_128Concat,
+		CandidateHash,
+		BTreeSet<ValidatorIndex>,
+	>;
+
 	/// All included blocks on the chain, as well as the block number in this chain that
 	/// should be reverted back to if the candidate is disputed and determined to be invalid.
 	#[pallet::storage]
@@ -511,7 +527,11 @@ pub mod pallet {
 		DuplicateStatement,
 		/// A dispute where there are only votes on one side.
 		SingleSidedDispute,
-		/// Unconfirmed dispute statement sets provided
+		/// A dispute vote from a malicious backer.
+		MaliciousBacker,
+		/// No backing votes were provides along dispute statements.
+		MissingBackingVotes,
+		/// Unconfirmed dispute statement sets provided.
 		UnconfirmedDispute,
 	}
 
@@ -569,6 +589,8 @@ impl DisputeStateFlags {
 struct ImportSummary<BlockNumber> {
 	/// The new state, with all votes imported.
 	state: DisputeState<BlockNumber>,
+	/// List of validators who backed the candidate being disputed.
+	backers: BTreeSet<ValidatorIndex>,
 	/// Validators to slash for being (wrongly) on the AGAINST side.
 	slash_against: Vec<ValidatorIndex>,
 	/// Validators to slash for being (wrongly) on the FOR side.
@@ -585,6 +607,48 @@ enum VoteImportError {
 	ValidatorIndexOutOfBounds,
 	/// Found a duplicate statement in the dispute statement set.
 	DuplicateStatement,
+	/// Found an explicit valid statement after backing statement.
+	/// Backers should not participate in explicit voting so this is
+	/// only possible on malicious backers.
+	MaliciousBacker,
+}
+
+#[derive(RuntimeDebug, Copy, Clone, PartialEq, Eq)]
+enum VoteKind {
+	/// A backing vote that is counted as "for" vote in dispute resolution.
+	Backing,
+	/// Either an approval vote or and explicit dispute "for" vote.
+	ExplicitValid,
+	/// An explicit dispute "against" vote.
+	Invalid,
+}
+
+impl From<&DisputeStatement> for VoteKind {
+	fn from(statement: &DisputeStatement) -> Self {
+		if statement.is_backing() {
+			Self::Backing
+		} else if statement.indicates_validity() {
+			Self::ExplicitValid
+		} else {
+			Self::Invalid
+		}
+	}
+}
+
+impl VoteKind {
+	fn is_valid(&self) -> bool {
+		match self {
+			Self::Backing | Self::ExplicitValid => true,
+			Self::Invalid => false,
+		}
+	}
+
+	fn is_backing(&self) -> bool {
+		match self {
+			Self::Backing => true,
+			Self::Invalid | Self::ExplicitValid => false,
+		}
+	}
 }
 
 impl<T: Config> From<VoteImportError> for Error<T> {
@@ -592,6 +656,7 @@ impl<T: Config> From<VoteImportError> for Error<T> {
 		match e {
 			VoteImportError::ValidatorIndexOutOfBounds => Error::<T>::ValidatorIndexOutOfBounds,
 			VoteImportError::DuplicateStatement => Error::<T>::DuplicateStatement,
+			VoteImportError::MaliciousBacker => Error::<T>::MaliciousBacker,
 		}
 	}
 }
@@ -601,8 +666,8 @@ impl<T: Config> From<VoteImportError> for Error<T> {
 struct ImportUndo {
 	/// The validator index to which to associate the statement import.
 	validator_index: ValidatorIndex,
-	/// The direction of the vote, for block validity (`true`) or invalidity (`false`).
-	valid: bool,
+	/// The kind and direction of the vote.
+	vote_kind: VoteKind,
 	/// Has the validator participated before, i.e. in backing or
 	/// with an opposing vote.
 	new_participant: bool,
@@ -610,25 +675,53 @@ struct ImportUndo {
 
 struct DisputeStateImporter<BlockNumber> {
 	state: DisputeState<BlockNumber>,
+	backers: BTreeSet<ValidatorIndex>,
 	now: BlockNumber,
 	new_participants: bitvec::vec::BitVec<u8, BitOrderLsb0>,
 	pre_flags: DisputeStateFlags,
+	pre_state: DisputeState<BlockNumber>,
+	// The list of backing votes before importing the batch of votes. This field should be
+	// initialized as empty on the first import of the dispute votes and should remain non-empty
+	// afterwards.
+	//
+	// If a dispute has concluded and the candidate was found invalid, we may want to slash as many
+	// backers as possible. This list allows us to slash these backers once their votes have been
+	// imported post dispute conclusion.
+	pre_backers: BTreeSet<ValidatorIndex>,
 }
 
 impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
-	fn new(state: DisputeState<BlockNumber>, now: BlockNumber) -> Self {
+	fn new(
+		state: DisputeState<BlockNumber>,
+		backers: BTreeSet<ValidatorIndex>,
+		now: BlockNumber,
+	) -> Self {
 		let pre_flags = DisputeStateFlags::from_state(&state);
 		let new_participants = bitvec::bitvec![u8, BitOrderLsb0; 0; state.validators_for.len()];
+		// consistency checks
+		for i in backers.iter() {
+			debug_assert_eq!(state.validators_for.get(i.0 as usize).map(|b| *b), Some(true));
+		}
+		let pre_state = state.clone();
+		let pre_backers = backers.clone();
 
-		DisputeStateImporter { state, now, new_participants, pre_flags }
+		DisputeStateImporter {
+			state,
+			backers,
+			now,
+			new_participants,
+			pre_flags,
+			pre_state,
+			pre_backers,
+		}
 	}
 
 	fn import(
 		&mut self,
 		validator: ValidatorIndex,
-		valid: bool,
+		kind: VoteKind,
 	) -> Result<ImportUndo, VoteImportError> {
-		let (bits, other_bits) = if valid {
+		let (bits, other_bits) = if kind.is_valid() {
 			(&mut self.state.validators_for, &mut self.state.validators_against)
 		} else {
 			(&mut self.state.validators_against, &mut self.state.validators_for)
@@ -637,18 +730,31 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 		// out of bounds or already participated
 		match bits.get(validator.0 as usize).map(|b| *b) {
 			None => return Err(VoteImportError::ValidatorIndexOutOfBounds),
-			Some(true) => return Err(VoteImportError::DuplicateStatement),
+			Some(true) => {
+				// We allow backing statements to be imported after an
+				// explicit "for" vote, but not the other way around.
+				match (kind.is_backing(), self.backers.contains(&validator)) {
+					(true, true) | (false, false) =>
+						return Err(VoteImportError::DuplicateStatement),
+					(false, true) => return Err(VoteImportError::MaliciousBacker),
+					(true, false) => {},
+				}
+			},
 			Some(false) => {},
 		}
 
-		// inefficient, and just for extra sanity.
-		if validator.0 as usize >= self.new_participants.len() {
-			return Err(VoteImportError::ValidatorIndexOutOfBounds)
-		}
+		// consistency check
+		debug_assert!((validator.0 as usize) < self.new_participants.len());
 
-		let mut undo = ImportUndo { validator_index: validator, valid, new_participant: false };
+		let mut undo =
+			ImportUndo { validator_index: validator, vote_kind: kind, new_participant: false };
 
 		bits.set(validator.0 as usize, true);
+		if kind.is_backing() {
+			let is_new = self.backers.insert(validator);
+			// invariant check
+			debug_assert!(is_new);
+		}
 
 		// New participants tracks those validators by index, which didn't appear on either
 		// side of the dispute until now (so they make a first appearance).
@@ -663,10 +769,14 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 
 	/// Revert a done transaction.
 	fn undo(&mut self, undo: ImportUndo) {
-		if undo.valid {
+		if undo.vote_kind.is_valid() {
 			self.state.validators_for.set(undo.validator_index.0 as usize, false);
 		} else {
 			self.state.validators_against.set(undo.validator_index.0 as usize, false);
+		}
+
+		if undo.vote_kind.is_backing() {
+			self.backers.remove(&undo.validator_index);
 		}
 
 		if undo.new_participant {
@@ -681,9 +791,9 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 
 		let pre_post_contains = |flags| (pre_flags.contains(flags), post_flags.contains(flags));
 
-		// 1. Check for fresh FOR supermajority. Only if not already concluded.
-		let slash_against =
-			if let (false, true) = pre_post_contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
+		// 1. Check for FOR supermajority.
+		let slash_against = match pre_post_contains(DisputeStateFlags::FOR_SUPERMAJORITY) {
+			(false, true) => {
 				if self.state.concluded_at.is_none() {
 					self.state.concluded_at = Some(self.now.clone());
 				}
@@ -694,25 +804,59 @@ impl<BlockNumber: Clone> DisputeStateImporter<BlockNumber> {
 					.iter_ones()
 					.map(|i| ValidatorIndex(i as _))
 					.collect()
-			} else {
+			},
+			(true, true) => {
+				// provide new AGAINST voters to slash.
+				self.state
+					.validators_against
+					.iter_ones()
+					.filter(|i| self.pre_state.validators_against.get(*i).map_or(false, |b| !*b))
+					.map(|i| ValidatorIndex(i as _))
+					.collect()
+			},
+			(true, false) => {
+				log::error!("Dispute statements are never removed. This is a bug");
 				Vec::new()
-			};
+			},
+			(false, false) => Vec::new(),
+		};
 
-		// 2. Check for fresh AGAINST supermajority.
-		let slash_for =
-			if let (false, true) = pre_post_contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+		// 2. Check for AGAINST supermajority.
+		let slash_for = match pre_post_contains(DisputeStateFlags::AGAINST_SUPERMAJORITY) {
+			(false, true) => {
 				if self.state.concluded_at.is_none() {
 					self.state.concluded_at = Some(self.now.clone());
 				}
 
 				// provide FOR voters to slash.
 				self.state.validators_for.iter_ones().map(|i| ValidatorIndex(i as _)).collect()
-			} else {
+			},
+			(true, true) => {
+				// provide new FOR voters to slash including new backers
+				// who might have voted FOR before
+				let new_backing_vote = |i: &ValidatorIndex| -> bool {
+					!self.pre_backers.contains(i) && self.backers.contains(i)
+				};
+				self.state
+					.validators_for
+					.iter_ones()
+					.filter(|i| {
+						self.pre_state.validators_for.get(*i).map_or(false, |b| !*b) ||
+							new_backing_vote(&ValidatorIndex(*i as _))
+					})
+					.map(|i| ValidatorIndex(i as _))
+					.collect()
+			},
+			(true, false) => {
+				log::error!("Dispute statements are never removed. This is a bug");
 				Vec::new()
-			};
+			},
+			(false, false) => Vec::new(),
+		};
 
 		ImportSummary {
 			state: self.state,
+			backers: self.backers,
 			slash_against,
 			slash_for,
 			new_participants: self.new_participants,
@@ -815,6 +959,8 @@ impl<T: Config> Pallet<T> {
 				// This should be small, as disputes are rare, so `None` is fine.
 				#[allow(deprecated)]
 				<Disputes<T>>::remove_prefix(to_prune, None);
+				#[allow(deprecated)]
+				<BackersOnDisputes<T>>::remove_prefix(to_prune, None);
 
 				// This is larger, and will be extracted to the `shared` pallet for more proper pruning.
 				// TODO: https://github.com/paritytech/polkadot/issues/3469
@@ -903,11 +1049,15 @@ impl<T: Config> Pallet<T> {
 			}
 		};
 
+		let backers =
+			<BackersOnDisputes<T>>::get(&set.session, &set.candidate_hash).unwrap_or_default();
+
 		// Check and import all votes.
 		let summary = {
-			let mut importer = DisputeStateImporter::new(dispute_state, now);
+			let mut importer = DisputeStateImporter::new(dispute_state, backers, now);
 			for (i, (statement, validator_index, signature)) in set.statements.iter().enumerate() {
-				// assure the validator index and is present in the session info
+				// ensure the validator index is present in the session info
+				// and the signature is valid
 				let validator_public = match session_info.validators.get(*validator_index) {
 					None => {
 						filter.remove_index(i);
@@ -916,9 +1066,9 @@ impl<T: Config> Pallet<T> {
 					Some(v) => v,
 				};
 
-				let valid = statement.indicates_validity();
+				let kind = VoteKind::from(statement);
 
-				let undo = match importer.import(*validator_index, valid) {
+				let undo = match importer.import(*validator_index, kind) {
 					Ok(u) => u,
 					Err(_) => {
 						filter.remove_index(i);
@@ -1016,13 +1166,16 @@ impl<T: Config> Pallet<T> {
 			}
 		};
 
+		let backers =
+			<BackersOnDisputes<T>>::get(&set.session, &set.candidate_hash).unwrap_or_default();
+
 		// Import all votes. They were pre-checked.
 		let summary = {
-			let mut importer = DisputeStateImporter::new(dispute_state, now);
+			let mut importer = DisputeStateImporter::new(dispute_state, backers, now);
 			for (statement, validator_index, _signature) in &set.statements {
-				let valid = statement.indicates_validity();
+				let kind = VoteKind::from(statement);
 
-				importer.import(*validator_index, valid).map_err(Error::<T>::from)?;
+				importer.import(*validator_index, kind).map_err(Error::<T>::from)?;
 			}
 
 			importer.finish()
@@ -1041,6 +1194,11 @@ impl<T: Config> Pallet<T> {
 				byzantine_threshold(summary.state.validators_for.len()),
 			Error::<T>::UnconfirmedDispute,
 		);
+		let backers = summary.backers;
+		// Reject statements with no accompanying backing votes.
+		ensure!(!backers.is_empty(), Error::<T>::MissingBackingVotes);
+		<BackersOnDisputes<T>>::insert(&set.session, &set.candidate_hash, backers.clone());
+		// AUDIT: from now on, no error should be returned.
 
 		let DisputeStatementSet { ref session, ref candidate_hash, .. } = set;
 		let session = *session;
@@ -1085,10 +1243,16 @@ impl<T: Config> Pallet<T> {
 				session,
 				candidate_hash,
 				summary.slash_against,
+				backers.clone(),
 			);
 
 			// an invalid candidate, according to 2/3. Punish those on the 'for' side.
-			T::SlashingHandler::punish_for_invalid(session, candidate_hash, summary.slash_for);
+			T::SlashingHandler::punish_for_invalid(
+				session,
+				candidate_hash,
+				summary.slash_for,
+				backers,
+			);
 		}
 
 		<Disputes<T>>::insert(&session, &candidate_hash, &summary.state);
