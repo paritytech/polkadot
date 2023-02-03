@@ -612,6 +612,13 @@ pub enum RuntimeApiRequest {
 		ValidatorId,
 		RuntimeApiSender<Option<vstaging::slashing::OpaqueKeyOwnershipProof>>,
 	),
+	/// Submits an unsigned extrinsic to slash validator who lost a past session dispute.
+	/// `VStaging``
+	SubmitReportDisputeLost(
+		vstaging::slashing::DisputeProof,
+		vstaging::slashing::OpaqueKeyOwnershipProof,
+		RuntimeApiSender<Option<()>>,
+	),
 }
 
 impl RuntimeApiRequest {
@@ -625,6 +632,9 @@ impl RuntimeApiRequest {
 
 	/// `KeyOwnershipProof`
 	pub const KEY_OWNERSHIP_PROOF_RUNTIME_REQUIREMENT: u32 = 4;
+
+	/// `SubmitReportDisputeLost`
+	pub const SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT: u32 = 4;
 }
 
 /// A message to the Runtime API subsystem.

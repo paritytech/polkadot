@@ -160,6 +160,7 @@ where
 			KeyOwnershipProof(relay_parent, validator_id, key_ownership_proof) => self
 				.requests_cache
 				.cache_key_ownership_proof((relay_parent, validator_id), key_ownership_proof),
+			SubmitReportDisputeLost(_, _, _, _) => {},
 		}
 	}
 
@@ -268,6 +269,12 @@ where
 			Request::KeyOwnershipProof(validator_id, sender) =>
 				query!(key_ownership_proof(validator_id), sender)
 					.map(|sender| Request::KeyOwnershipProof(validator_id, sender)),
+			Request::SubmitReportDisputeLost(dispute_proof, key_ownership_proof, sender) =>
+				query!(submit_report_dispute_lost(dispute_proof, key_ownership_proof), sender).map(
+					|sender| {
+						Request::SubmitReportDisputeLost(dispute_proof, key_ownership_proof, sender)
+					},
+				),
 		}
 	}
 
@@ -522,6 +529,12 @@ where
 			KeyOwnershipProof,
 			key_ownership_proof(validator_id),
 			ver = Request::KEY_OWNERSHIP_PROOF_RUNTIME_REQUIREMENT,
+			sender
+		),
+		Request::SubmitReportDisputeLost(dispute_proof, key_ownership_proof, sender) => query!(
+			SubmitReportDisputeLost,
+			submit_report_dispute_lost(dispute_proof, key_ownership_proof),
+			ver = Request::SUBMIT_REPORT_DISPUTE_LOST_RUNTIME_REQUIREMENT,
 			sender
 		),
 	}

@@ -206,6 +206,17 @@ pub trait RuntimeApiSubsystemClient {
 		validator_id: ValidatorId,
 	) -> Result<Option<vstaging::slashing::OpaqueKeyOwnershipProof>, ApiError>;
 
+	/// Submits an unsigned extrinsic to slash validators who lost a dispute about
+	/// a candidate of a past session.
+	///
+	/// WARNING: This is a staging method! Do not use on production runtimes!
+	async fn submit_report_dispute_lost(
+		&self,
+		at: Hash,
+		dispute_proof: vstaging::slashing::DisputeProof,
+		key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+	) -> Result<Option<()>, ApiError>;
+
 	// === BABE API ===
 
 	/// Returns information regarding the current epoch.
@@ -410,5 +421,18 @@ where
 		validator_id: ValidatorId,
 	) -> Result<Option<vstaging::slashing::OpaqueKeyOwnershipProof>, ApiError> {
 		self.runtime_api().key_ownership_proof(&BlockId::Hash(at), validator_id)
+	}
+
+	async fn submit_report_dispute_lost(
+		&self,
+		at: Hash,
+		dispute_proof: vstaging::slashing::DisputeProof,
+		key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+	) -> Result<Option<()>, ApiError> {
+		self.runtime_api().submit_report_dispute_lost(
+			&BlockId::Hash(at),
+			dispute_proof,
+			key_ownership_proof,
+		)
 	}
 }

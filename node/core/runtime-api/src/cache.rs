@@ -404,6 +404,14 @@ impl RequestResultCache {
 	) {
 		self.key_ownership_proof.put(key, value);
 	}
+
+	// This request is never cached, hence always returns `None`.
+	pub(crate) fn submit_report_dispute_lost(
+		&mut self,
+		_key: (Hash, vstaging::slashing::DisputeProof, vstaging::slashing::OpaqueKeyOwnershipProof),
+	) -> Option<&Option<()>> {
+		None
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -442,4 +450,11 @@ pub(crate) enum RequestResult {
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
 	UnappliedSlashes(Hash, Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>),
 	KeyOwnershipProof(Hash, ValidatorId, Option<vstaging::slashing::OpaqueKeyOwnershipProof>),
+	// This is a request with side-effects.
+	SubmitReportDisputeLost(
+		Hash,
+		vstaging::slashing::DisputeProof,
+		vstaging::slashing::OpaqueKeyOwnershipProof,
+		Option<()>,
+	),
 }
