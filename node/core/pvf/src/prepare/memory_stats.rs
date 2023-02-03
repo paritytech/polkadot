@@ -148,7 +148,9 @@ pub fn get_max_rss_process() -> Option<io::Result<i64>> {
 /// For simplicity, any errors are returned as a string. As this is not a critical component, errors
 /// are used for informational purposes (logging) only.
 pub fn memory_tracker_loop(finished_rx: Receiver<()>) -> Result<MemoryAllocationStats, String> {
-	const POLL_INTERVAL: Duration = Duration::from_millis(10);
+	// This doesn't need to be too fine-grained since preparation currently takes 3-10s or more.
+	// Apart from that, there is not really a science to this number.
+	const POLL_INTERVAL: Duration = Duration::from_millis(100);
 
 	let tracker = MemoryAllocationTracker::new().map_err(|err| err.to_string())?;
 	let mut max_stats = MemoryAllocationStats::default();
