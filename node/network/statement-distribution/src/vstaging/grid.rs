@@ -365,7 +365,7 @@ impl GridTracker {
 			Some(g) => g,
 		};
 
-		// advertise onwards ad accept received advertisements
+		// advertise onwards and accept received advertisements
 
 		let sending_group_manifests =
 			group_topology.sending.iter().map(|v| (*v, ManifestKind::Full));
@@ -1518,14 +1518,78 @@ mod tests {
 		);
 	}
 
-	// TODO [now]: test that senders can provide manifests in acknowledgement
+	#[test]
+	fn senders_can_provide_manifests_in_acknowledgement() {
+		todo!()
+	}
 
 	// TODO [now]: check that pending communication is set correctly when receiving a manifest on a confirmed candidate
 	// It should also overwrite any existing `Full` ManifestKind
 
 	// TODO [now]: check that pending communication is cleared correctly in `manifest_sent_to`
 
-	// TODO [now]: test a scenario where manifest import returns `Ok(true)`.
+	// Test a scenario where manifest import returns `Ok(true)`.
+	#[test]
+	fn manifest_import_returns_ok_true() {
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::new(),
+					receiving: vec![ValidatorIndex(0)].into_iter().collect(),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
+		let groups = Groups::new(
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
+			&[
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+			],
+		);
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+
+		assert_eq!(groups.get_size_and_backing_threshold(group_index), Some((group_size, 2)));
+
+		let local_knowledge = StatementFilter::new(group_size);
+
+		// Add the candidate as backed.
+		tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge
+		);
+
+		// Import manifest.
+		assert_matches!(
+			tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: group_index,
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
+				ManifestKind::Full,
+				ValidatorIndex(0),
+			),
+			Ok(true)
+		);
+	}
 
 	// TODO [now]: test that pending statements are updated after manifest exchange
 
