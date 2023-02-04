@@ -19,7 +19,7 @@ gum = { package = "tracing-gum", path = "../../gum" }
 pin-project = "1.0.9"
 rand = "0.8.5"
 tempfile = "3.3.0"
-tokio = { version = "1.22.0", features = ["fs", "process"] }
+tokio = { version = "1.24.2", features = ["fs", "process"] }
 rayon = "1.5.1"
 
 parity-scale-codec = { version = "3.3.0", default-features = false, features = ["derive"] }
