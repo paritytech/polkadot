@@ -476,7 +476,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	candidate_backing: CandidateBacking,
 
-	#[subsystem(blocking, StatementDistributionMessage, message_capacity: 131072, sends: [
+	#[subsystem(blocking, message_capacity: 131072, StatementDistributionMessage, sends: [
 		NetworkBridgeTxMessage,
 		CandidateBackingMessage,
 		RuntimeApiMessage,
@@ -506,7 +506,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	bitfield_signing: BitfieldSigning,
 
-	#[subsystem(blocking, BitfieldDistributionMessage, sends: [
+	#[subsystem(blocking, message_capacity: 131072, BitfieldDistributionMessage, sends: [
 		RuntimeApiMessage,
 		NetworkBridgeTxMessage,
 		ProvisionerMessage,
