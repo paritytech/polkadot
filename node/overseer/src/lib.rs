@@ -476,7 +476,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	candidate_backing: CandidateBacking,
 
-	#[subsystem(blocking, StatementDistributionMessage, sends: [
+	#[subsystem(blocking, StatementDistributionMessage, message_capacity: 131072, sends: [
 		NetworkBridgeTxMessage,
 		CandidateBackingMessage,
 		RuntimeApiMessage,
