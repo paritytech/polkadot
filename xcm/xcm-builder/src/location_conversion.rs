@@ -22,19 +22,19 @@ use sp_std::{borrow::Borrow, marker::PhantomData};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::Convert;
 
-// Prefix to increase the entropy of the resulting bytes of the hash
-pub const REMOTE_SALT: [u8; 6] = *b"remote";
+/// Prefix for bytes in account creation of foreign chains
+pub const FOREIGN_CHAIN_PREFIX: [u8; 30] = *b"ForeignChainAliasAccountPrefix";
 
 /// This converter will for a given `AccountId32`/`AccountKey20`
 /// always generate the same "remote" account for a specific
-/// sending para-chain.
+/// sending chain.
 /// I.e. the user gets the same remote account
 /// on every consuming para-chain and relay chain.
 ///
 /// Can be used as a converter in `SovereignSignedViaLocation`
-pub struct RemoteAccount<AccountId>(PhantomData<AccountId>);
+pub struct ForeignChainAliasAccount<AccountId>(PhantomData<AccountId>);
 impl<AccountId: From<[u8; 32]> + Clone> Convert<MultiLocation, AccountId>
-	for RemoteAccount<AccountId>
+	for ForeignChainAliasAccount<AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
 		let entropy = match location.borrow() {
@@ -42,29 +42,30 @@ impl<AccountId: From<[u8; 32]> + Clone> Convert<MultiLocation, AccountId>
 			MultiLocation {
 				parents: 0,
 				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
-			} => RemoteAccount::<AccountId>::from_para_32(para_id, id),
+			} => ForeignChainAliasAccount::<AccountId>::from_para_32(para_id, id),
 
 			// Used on the relay chain for sending paras that use 20 byte accounts
 			MultiLocation {
 				parents: 0,
 				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
-			} => RemoteAccount::<AccountId>::from_para_20(para_id, key),
+			} => ForeignChainAliasAccount::<AccountId>::from_para_20(para_id, key),
 
-			// Used on parachain for sending paras that use 32 byte accounts
+			// Used on para-chain for sending paras that use 32 byte accounts
 			MultiLocation {
 				parents: 1,
 				interior: X2(Parachain(para_id), AccountId32 { id, .. }),
-			} => RemoteAccount::<AccountId>::from_para_32(para_id, id),
+			} => ForeignChainAliasAccount::<AccountId>::from_para_32(para_id, id),
 
-			// Used on parachain for sending paras that use 20 byte accounts
+			// Used on para-chain for sending paras that use 20 byte accounts
 			MultiLocation {
 				parents: 1,
 				interior: X2(Parachain(para_id), AccountKey20 { key, .. }),
-			} => RemoteAccount::<AccountId>::from_para_20(para_id, key),
+			} => ForeignChainAliasAccount::<AccountId>::from_para_20(para_id, key),
 
-			// Used on parachain for sending from the relay chain
+			// Used on para-chain for sending from the relay chain
 			MultiLocation { parents: 1, interior: X1(AccountId32 { id, .. }) } =>
-				RemoteAccount::<AccountId>::from_relay_32(id),
+				ForeignChainAliasAccount::<AccountId>::from_relay_32(id),
+
 			// No other conversions provided
 			_ => return Err(()),
 		};
@@ -77,17 +78,17 @@ impl<AccountId: From<[u8; 32]> + Clone> Convert<MultiLocation, AccountId>
 	}
 }
 
-impl<AccountId> RemoteAccount<AccountId> {
+impl<AccountId> ForeignChainAliasAccount<AccountId> {
 	fn from_para_32(para_id: &u32, id: &[u8; 32]) -> [u8; 32] {
-		(REMOTE_SALT, para_id, id).using_encoded(blake2_256)
+		(FOREIGN_CHAIN_PREFIX, para_id, id).using_encoded(blake2_256)
 	}
 
 	fn from_para_20(para_id: &u32, id: &[u8; 20]) -> [u8; 32] {
-		(REMOTE_SALT, para_id, id).using_encoded(blake2_256)
+		(FOREIGN_CHAIN_PREFIX, para_id, id).using_encoded(blake2_256)
 	}
 
 	fn from_relay_32(id: &[u8; 32]) -> [u8; 32] {
-		(REMOTE_SALT, id).using_encoded(blake2_256)
+		(FOREIGN_CHAIN_PREFIX, id).using_encoded(blake2_256)
 	}
 }
 
@@ -296,28 +297,17 @@ mod tests {
 	}
 
 	#[test]
-	fn inverter_errors_when_location_is_too_large() {
-		parameter_types! {
-			pub UniversalLocation: InteriorMultiLocation = Here;
-		}
-
-		let input = MultiLocation { parents: 99, interior: X1(Parachain(88)) };
-		let inverted = UniversalLocation::get().invert_target(&input);
-		assert_eq!(inverted, Err(()));
-	}
-
-	#[test]
 	fn remote_account_convert_on_para_sending_para_32() {
 		let mul = MultiLocation {
 			parents: 1,
 			interior: X2(Parachain(1), AccountId32 { network: None, id: [0u8; 32] }),
 		};
-		let rem_1 = RemoteAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
 		assert_eq!(
 			[
-				221, 151, 114, 30, 191, 162, 192, 170, 30, 95, 129, 157, 52, 177, 157, 136, 137,
-				145, 129, 132, 199, 148, 188, 135, 245, 140, 163, 99, 189, 217, 160, 244
+				99, 200, 141, 87, 123, 89, 117, 64, 130, 31, 1, 205, 203, 222, 3, 213, 96, 214,
+				109, 250, 209, 25, 219, 76, 147, 227, 249, 57, 153, 100, 151, 161
 			],
 			rem_1
 		);
@@ -330,18 +320,18 @@ mod tests {
 			),
 		};
 
-		assert_eq!(RemoteAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
+		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 1,
 			interior: X2(Parachain(2), AccountId32 { network: None, id: [0u8; 32] }),
 		};
-		let rem_2 = RemoteAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
 		assert_eq!(
 			[
-				146, 61, 202, 186, 203, 8, 50, 95, 225, 247, 103, 152, 224, 178, 32, 43, 34, 78,
-				20, 59, 89, 206, 156, 224, 128, 75, 169, 17, 111, 233, 196, 245
+				134, 167, 40, 2, 211, 236, 255, 60, 95, 118, 137, 13, 55, 219, 60, 190, 109, 255,
+				233, 208, 180, 150, 245, 242, 86, 9, 223, 26, 207, 103, 117, 3
 			],
 			rem_2
 		);
@@ -355,12 +345,12 @@ mod tests {
 			parents: 1,
 			interior: X2(Parachain(1), AccountKey20 { network: None, key: [0u8; 20] }),
 		};
-		let rem_1 = RemoteAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
 		assert_eq!(
 			[
-				82, 158, 157, 51, 146, 108, 167, 74, 51, 248, 120, 39, 30, 248, 58, 104, 176, 75,
-				185, 138, 98, 112, 119, 120, 19, 214, 118, 5, 82, 98, 209, 240
+				138, 178, 174, 32, 50, 130, 59, 252, 53, 61, 149, 173, 157, 117, 42, 161, 77, 123,
+				199, 182, 244, 201, 112, 60, 34, 233, 140, 160, 182, 150, 132, 98
 			],
 			rem_1
 		);
@@ -373,18 +363,18 @@ mod tests {
 			),
 		};
 
-		assert_eq!(RemoteAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
+		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 1,
 			interior: X2(Parachain(2), AccountKey20 { network: None, key: [0u8; 20] }),
 		};
-		let rem_2 = RemoteAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
 		assert_eq!(
 			[
-				167, 27, 179, 135, 180, 42, 176, 100, 1, 89, 215, 160, 171, 11, 25, 196, 254, 54,
-				98, 138, 213, 243, 188, 30, 224, 253, 170, 212, 129, 163, 220, 176
+				71, 235, 74, 190, 35, 18, 98, 222, 79, 110, 131, 222, 110, 187, 70, 157, 157, 61,
+				12, 38, 183, 87, 243, 73, 132, 12, 89, 169, 57, 160, 43, 241
 			],
 			rem_2
 		);
@@ -398,12 +388,12 @@ mod tests {
 			parents: 1,
 			interior: X1(AccountId32 { network: None, id: [0u8; 32] }),
 		};
-		let rem_1 = RemoteAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
 		assert_eq!(
 			[
-				164, 178, 213, 30, 221, 103, 151, 120, 253, 138, 0, 226, 89, 73, 138, 102, 150, 62,
-				95, 34, 203, 182, 57, 70, 186, 136, 194, 166, 34, 244, 102, 234
+				126, 169, 155, 79, 160, 47, 12, 149, 120, 177, 75, 189, 219, 70, 212, 232, 67, 8,
+				3, 204, 96, 162, 6, 249, 195, 169, 46, 151, 100, 221, 9, 249
 			],
 			rem_1
 		);
@@ -413,18 +403,18 @@ mod tests {
 			interior: X1(AccountId32 { network: Some(NetworkId::Polkadot), id: [0u8; 32] }),
 		};
 
-		assert_eq!(RemoteAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
+		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 1,
 			interior: X1(AccountId32 { network: None, id: [1u8; 32] }),
 		};
-		let rem_2 = RemoteAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
 		assert_eq!(
 			[
-				73, 63, 122, 190, 223, 157, 189, 173, 89, 150, 107, 199, 112, 221, 66, 46, 180,
-				228, 130, 199, 10, 171, 148, 247, 159, 146, 206, 29, 215, 49, 242, 75
+				180, 59, 39, 58, 99, 137, 223, 252, 92, 171, 106, 182, 150, 228, 6, 66, 154, 209,
+				41, 100, 2, 187, 51, 247, 231, 43, 84, 150, 13, 159, 236, 153
 			],
 			rem_2
 		);
@@ -438,12 +428,12 @@ mod tests {
 			parents: 0,
 			interior: X2(Parachain(1), AccountKey20 { network: None, key: [0u8; 20] }),
 		};
-		let rem_1 = RemoteAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
 		assert_eq!(
 			[
-				82, 158, 157, 51, 146, 108, 167, 74, 51, 248, 120, 39, 30, 248, 58, 104, 176, 75,
-				185, 138, 98, 112, 119, 120, 19, 214, 118, 5, 82, 98, 209, 240
+				138, 178, 174, 32, 50, 130, 59, 252, 53, 61, 149, 173, 157, 117, 42, 161, 77, 123,
+				199, 182, 244, 201, 112, 60, 34, 233, 140, 160, 182, 150, 132, 98
 			],
 			rem_1
 		);
@@ -456,18 +446,18 @@ mod tests {
 			),
 		};
 
-		assert_eq!(RemoteAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
+		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 0,
 			interior: X2(Parachain(2), AccountKey20 { network: None, key: [0u8; 20] }),
 		};
-		let rem_2 = RemoteAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
 		assert_eq!(
 			[
-				167, 27, 179, 135, 180, 42, 176, 100, 1, 89, 215, 160, 171, 11, 25, 196, 254, 54,
-				98, 138, 213, 243, 188, 30, 224, 253, 170, 212, 129, 163, 220, 176
+				71, 235, 74, 190, 35, 18, 98, 222, 79, 110, 131, 222, 110, 187, 70, 157, 157, 61,
+				12, 38, 183, 87, 243, 73, 132, 12, 89, 169, 57, 160, 43, 241
 			],
 			rem_2
 		);
@@ -481,12 +471,12 @@ mod tests {
 			parents: 0,
 			interior: X2(Parachain(1), AccountId32 { network: None, id: [0u8; 32] }),
 		};
-		let rem_1 = RemoteAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_1 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
 		assert_eq!(
 			[
-				221, 151, 114, 30, 191, 162, 192, 170, 30, 95, 129, 157, 52, 177, 157, 136, 137,
-				145, 129, 132, 199, 148, 188, 135, 245, 140, 163, 99, 189, 217, 160, 244
+				99, 200, 141, 87, 123, 89, 117, 64, 130, 31, 1, 205, 203, 222, 3, 213, 96, 214,
+				109, 250, 209, 25, 219, 76, 147, 227, 249, 57, 153, 100, 151, 161
 			],
 			rem_1
 		);
@@ -499,18 +489,18 @@ mod tests {
 			),
 		};
 
-		assert_eq!(RemoteAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
+		assert_eq!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap(), rem_1);
 
 		let mul = MultiLocation {
 			parents: 0,
 			interior: X2(Parachain(2), AccountId32 { network: None, id: [0u8; 32] }),
 		};
-		let rem_2 = RemoteAccount::<[u8; 32]>::convert(mul).unwrap();
+		let rem_2 = ForeignChainAliasAccount::<[u8; 32]>::convert(mul).unwrap();
 
 		assert_eq!(
 			[
-				146, 61, 202, 186, 203, 8, 50, 95, 225, 247, 103, 152, 224, 178, 32, 43, 34, 78,
-				20, 59, 89, 206, 156, 224, 128, 75, 169, 17, 111, 233, 196, 245
+				134, 167, 40, 2, 211, 236, 255, 60, 95, 118, 137, 13, 55, 219, 60, 190, 109, 255,
+				233, 208, 180, 150, 245, 242, 86, 9, 223, 26, 207, 103, 117, 3
 			],
 			rem_2
 		);
@@ -524,6 +514,6 @@ mod tests {
 			parents: 1,
 			interior: X1(AccountKey20 { network: None, key: [0u8; 20] }),
 		};
-		assert!(RemoteAccount::<[u8; 32]>::convert(mul).is_err());
+		assert!(ForeignChainAliasAccount::<[u8; 32]>::convert(mul).is_err());
 	}
 }
