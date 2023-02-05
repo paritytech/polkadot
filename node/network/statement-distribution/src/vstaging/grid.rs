@@ -1044,6 +1044,14 @@ mod tests {
 	use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 	use sp_core::crypto::Pair as PairT;
 
+	fn dummy_groups(group_size: usize) -> Groups {
+		let groups = vec![(0..(group_size as u32)).map(ValidatorIndex).collect()].into();
+		let mut discovery_keys = vec![];
+		(0..group_size).map(|_| discovery_keys.push(AuthorityDiscoveryPair::generate().0.public()));
+
+		Groups::new(groups, &discovery_keys)
+	}
+
 	#[test]
 	fn topology_empty_for_no_index() {
 		let base_topology = SessionGridTopology::new(
@@ -1268,14 +1276,7 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
+		let groups = dummy_groups(3);
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
@@ -1337,14 +1338,7 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
+		let groups = dummy_groups(3);
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
@@ -1402,14 +1396,7 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
+		let groups = dummy_groups(3);
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
@@ -1449,14 +1436,7 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
+		let groups = dummy_groups(3);
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
@@ -1540,21 +1520,12 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
-
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
 		let local_knowledge = StatementFilter::new(group_size);
 
-		assert_eq!(groups.get_size_and_backing_threshold(group_index), Some((group_size, 2)));
+		let groups = dummy_groups(group_size);
 
 		// Add the candidate as backed.
 		tracker.add_backed_candidate(
@@ -1606,21 +1577,12 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
-
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
 		let local_knowledge = StatementFilter::new(group_size);
 
-		assert_eq!(groups.get_size_and_backing_threshold(group_index), Some((group_size, 2)));
+		let groups = dummy_groups(group_size);
 
 		// Manifest should not be pending yet.
 		let pending_manifest = tracker.is_manifest_pending_for(validator_index, &candidate_hash);
@@ -1685,21 +1647,12 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
-
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
 		let local_knowledge = StatementFilter::new(group_size);
 
-		assert_eq!(groups.get_size_and_backing_threshold(group_index), Some((group_size, 2)));
+		let groups = dummy_groups(group_size);
 
 		// Add the candidate as backed.
 		tracker.add_backed_candidate(
@@ -1777,19 +1730,12 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
-
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
 		let local_knowledge = StatementFilter::new(group_size);
+
+		let groups = dummy_groups(group_size);
 
 		// Should start with no pending statements.
 		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
@@ -1836,19 +1782,12 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
-
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
 		let local_knowledge = StatementFilter::new(group_size);
+
+		let groups = dummy_groups(group_size);
 
 		// Should start with no pending statements.
 		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
@@ -1925,19 +1864,12 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
-
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
 		let local_knowledge = StatementFilter::new(group_size);
+
+		let groups = dummy_groups(group_size);
 
 		// Should start with no pending statements.
 		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
@@ -2007,19 +1939,12 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
-
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
 		let local_knowledge = StatementFilter::new(group_size);
+
+		let groups = dummy_groups(group_size);
 
 		// Should start with no pending statements.
 		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
