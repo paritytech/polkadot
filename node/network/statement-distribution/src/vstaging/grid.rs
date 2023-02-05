@@ -819,7 +819,7 @@ fn updating_ensure_within_seconding_limit(
 	true
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum StatementKind {
 	Seconded,
 	Valid,
@@ -863,6 +863,7 @@ impl StatementFilter {
 	}
 }
 
+#[derive(Debug, Clone)]
 struct MutualKnowledge {
 	// Knowledge they have about the candidate. `Some` only if they
 	// have advertised or requested the candidate.
@@ -875,6 +876,7 @@ struct MutualKnowledge {
 
 // A utility struct for keeping track of metadata about candidates
 // we have confirmed as having been backed.
+#[derive(Debug, Clone)]
 struct KnownBackedCandidate {
 	group_index: GroupIndex,
 	local_knowledge: StatementFilter,
@@ -1908,5 +1910,122 @@ mod tests {
 
 	// TODO [now]: test that pending statements respect remote knowledge
 
-	// TODO [now]: test that pending statements are cleared when sending/receiving.
+	#[test]
+	fn pending_statements_cleared_when_sending() {
+		let validator_index = ValidatorIndex(0);
+		let counterparty = ValidatorIndex(1);
+
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::new(),
+					receiving: HashSet::from([validator_index, counterparty]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
+		let groups = Groups::new(
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
+			&[
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+			],
+		);
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+		let local_knowledge = StatementFilter::new(group_size);
+
+		// Should start with no pending statements.
+		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
+		assert_eq!(tracker.all_pending_statements_for(validator_index), vec![]);
+
+		// Add the candidate as backed.
+		tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+
+		// Import statement for originator.
+		let ack = tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+				validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+			},
+			ManifestKind::Full,
+			validator_index,
+		);
+		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge.clone());
+		let statement = CompactStatement::Seconded(candidate_hash);
+		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
+
+		// Import statement for counterparty.
+		let ack = tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+				validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+			},
+			ManifestKind::Full,
+			counterparty,
+		);
+		tracker.manifest_sent_to(&groups, counterparty, candidate_hash, local_knowledge);
+		let statement = CompactStatement::Seconded(candidate_hash);
+		tracker.learned_fresh_statement(&groups, &session_topology, counterparty, &statement);
+
+		// There should be pending statements now.
+		let statements = StatementFilter {
+			seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
+			validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+		};
+		assert_eq!(
+			tracker.pending_statements_for(validator_index, candidate_hash),
+			Some(statements.clone())
+		);
+		assert_eq!(
+			tracker.all_pending_statements_for(validator_index),
+			vec![(ValidatorIndex(0), CompactStatement::Seconded(candidate_hash))]
+		);
+		assert_eq!(
+			tracker.pending_statements_for(counterparty, candidate_hash),
+			Some(statements.clone())
+		);
+		assert_eq!(
+			tracker.all_pending_statements_for(counterparty),
+			vec![(ValidatorIndex(0), CompactStatement::Seconded(candidate_hash))]
+		);
+
+		// Note sending or receiving of a direct statement.
+		tracker.sent_or_received_direct_statement(
+			&groups,
+			validator_index,
+			counterparty,
+			&statement,
+		);
+
+		// There should be no pending statements now (for the counterparty).
+		assert_eq!(tracker.all_pending_statements_for(counterparty), vec![]);
+		// TODO: There are still `pending_statements_for`, is this correct?
+		// assert_eq!(tracker.pending_statements_for(counterparty, candidate_hash), None);
+	}
 }
