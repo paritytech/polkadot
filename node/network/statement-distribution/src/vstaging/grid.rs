@@ -865,10 +865,10 @@ impl StatementFilter {
 
 #[derive(Debug, Clone)]
 struct MutualKnowledge {
-	// Knowledge they have about the candidate. `Some` only if they
+	// Knowledge the remote peers have about the candidate. `Some` only if they
 	// have advertised or requested the candidate.
 	remote_knowledge: Option<StatementFilter>,
-	// Knowledge we have indicated to them about the candidate.
+	// Knowledge we have indicated to the remote peers about the candidate.
 	// `Some` only if we have advertised or requested the candidate
 	// from them.
 	local_knowledge: Option<StatementFilter>,
