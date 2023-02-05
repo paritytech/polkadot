@@ -1523,7 +1523,65 @@ mod tests {
 
 	#[test]
 	fn senders_can_provide_manifests_in_acknowledgement() {
-		todo!()
+		let validator_index = ValidatorIndex(0);
+
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::from([validator_index]),
+					receiving: HashSet::from([ValidatorIndex(1)]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
+		let groups = Groups::new(
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
+			&[
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+			],
+		);
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+		let local_knowledge = StatementFilter::new(group_size);
+
+		assert_eq!(groups.get_size_and_backing_threshold(group_index), Some((group_size, 2)));
+
+		// Add the candidate as backed.
+		tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+
+		// Note the manifest as 'sent' to validator 0.
+		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge);
+
+		// Import manifest.
+		let ack = tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+				validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+			},
+			ManifestKind::Acknowledgement,
+			validator_index,
+		);
+		assert_matches!(ack, Ok(false));
 	}
 
 	// Check that pending communication is set correctly when receiving a manifest on a confirmed candidate.
