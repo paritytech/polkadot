@@ -682,7 +682,7 @@ pub enum ManifestImportError {
 	Disallowed,
 }
 
-/// The knowledge we are awawre of counterparties having of manifests.
+/// The knowledge we are aware of counterparties having of manifests.
 #[derive(Default)]
 struct ReceivedManifests {
 	received: HashMap<CandidateHash, ManifestSummary>,
@@ -1908,7 +1908,86 @@ mod tests {
 		);
 	}
 
-	// TODO [now]: test that pending statements respect remote knowledge
+	#[test]
+	fn pending_statements_respect_remote_knowledge() {
+		let validator_index = ValidatorIndex(0);
+
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::new(),
+					receiving: HashSet::from([validator_index]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
+		let groups = Groups::new(
+			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
+			&[
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+				AuthorityDiscoveryPair::generate().0.public(),
+			],
+		);
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+		let local_knowledge = StatementFilter::new(group_size);
+
+		// Should start with no pending statements.
+		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
+		assert_eq!(tracker.all_pending_statements_for(validator_index), vec![]);
+
+		// Add the candidate as backed.
+		tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+
+		// Import fresh statement.
+		let ack = tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+			},
+			ManifestKind::Full,
+			validator_index,
+		);
+		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge);
+		let statement = CompactStatement::Seconded(candidate_hash);
+		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
+		let statement = CompactStatement::Valid(candidate_hash);
+		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
+
+		// The pending statements should respect the remote knowledge (meaning the Seconded
+		// statement is ignored).
+		let statements = StatementFilter {
+			seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+			validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
+		};
+		assert_eq!(
+			tracker.pending_statements_for(validator_index, candidate_hash),
+			Some(statements.clone())
+		);
+		assert_eq!(
+			tracker.all_pending_statements_for(validator_index),
+			vec![(ValidatorIndex(0), CompactStatement::Valid(candidate_hash))]
+		);
+	}
 
 	#[test]
 	fn pending_statements_cleared_when_sending() {
