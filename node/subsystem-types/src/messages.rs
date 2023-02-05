@@ -613,7 +613,7 @@ pub enum RuntimeApiRequest {
 		RuntimeApiSender<Option<vstaging::slashing::OpaqueKeyOwnershipProof>>,
 	),
 	/// Submits an unsigned extrinsic to slash validator who lost a past session dispute.
-	/// `VStaging``
+	/// `VStaging`
 	SubmitReportDisputeLost(
 		vstaging::slashing::DisputeProof,
 		vstaging::slashing::OpaqueKeyOwnershipProof,
