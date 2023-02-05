@@ -21,8 +21,8 @@ use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
 use xcm::{
-	latest::{prelude::*, MaybeErrorCode, Weight},
-	DoubleEncoded, MaxDispatchErrorLen,
+	latest::{prelude::*, MaybeErrorCode, MaxDispatchErrorLen, Weight},
+	DoubleEncoded,
 };
 use xcm_executor::{ExecutorError, FeesMode};
 
