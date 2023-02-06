@@ -360,7 +360,9 @@ benchmarks! {
 
 	expect_transact_status {
 		let mut executor = new_executor::<T>(Default::default());
-		let worst_error = || -> MaybeErrorCode { vec![0; MaxDispatchErrorLen::get()].into() };
+		let worst_error = || -> MaybeErrorCode {
+			vec![0; MaxDispatchErrorLen::get() as usize].into()
+		};
 		executor.set_transact_status(worst_error());
 
 		let instruction = Instruction::ExpectTransactStatus(worst_error());
