@@ -100,8 +100,6 @@ benchmarks! {
 			call: double_encoded_noop_call,
 		};
 		let xcm = Xcm(vec![instruction]);
-
-		let num_events = frame_system::Pallet::<T>::events().len();
 	}: {
 		executor.bench_process(xcm)?;
 	} verify {
