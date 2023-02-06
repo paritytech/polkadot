@@ -14,9 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::memory_stats::{
+	get_max_rss_thread, get_memory_tracker_loop_stats, memory_tracker_loop, observe_memory_metrics,
+	MemoryStats,
+};
 use crate::{
 	artifacts::CompiledArtifact,
 	error::{PrepareError, PrepareResult},
+	metrics::Metrics,
 	worker_common::{
 		bytes_to_path, cpu_time_monitor_loop, framed_recv, framed_send, path_to_bytes,
 		spawn_with_program_path, tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
@@ -73,6 +78,7 @@ pub enum Outcome {
 /// NOTE: Returning the `TimedOut`, `IoErr` or `Unreachable` outcomes will trigger the child process
 /// being killed.
 pub async fn start_work(
+	metrics: &Metrics,
 	worker: IdleWorker,
 	code: Arc<Vec<u8>>,
 	cache_path: &Path,
@@ -109,14 +115,16 @@ pub async fn start_work(
 		// load, but the CPU resources of the child can only be measured from the parent after the
 		// child process terminates.
 		let timeout = preparation_timeout * JOB_TIMEOUT_WALL_CLOCK_FACTOR;
-		let result = tokio::time::timeout(timeout, framed_recv(&mut stream)).await;
+		let result = tokio::time::timeout(timeout, recv_response(&mut stream, pid)).await;
 
 		match result {
 			// Received bytes from worker within the time limit.
-			Ok(Ok(response_bytes)) =>
-				handle_response_bytes(
+			Ok(Ok((prepare_result, memory_stats))) =>
+				handle_response(
+					metrics,
 					IdleWorker { stream, pid },
-					response_bytes,
+					prepare_result,
+					memory_stats,
 					pid,
 					tmp_file,
 					artifact_path,
@@ -151,29 +159,16 @@ pub async fn start_work(
 ///
 /// NOTE: Here we know the artifact exists, but is still located in a temporary file which will be
 /// cleared by `with_tmp_file`.
-async fn handle_response_bytes(
+async fn handle_response(
+	metrics: &Metrics,
 	worker: IdleWorker,
-	response_bytes: Vec<u8>,
+	result: PrepareResult,
+	memory_stats: Option<MemoryStats>,
 	pid: u32,
 	tmp_file: PathBuf,
 	artifact_path: PathBuf,
 	preparation_timeout: Duration,
 ) -> Outcome {
-	// By convention we expect encoded `PrepareResult`.
-	let result = match PrepareResult::decode(&mut response_bytes.as_slice()) {
-		Ok(result) => result,
-		Err(err) => {
-			// We received invalid bytes from the worker.
-			let bound_bytes = &response_bytes[..response_bytes.len().min(4)];
-			gum::warn!(
-				target: LOG_TARGET,
-				worker_pid = %pid,
-				"received unexpected response from the prepare worker: {}",
-				HexDisplay::from(&bound_bytes),
-			);
-			return Outcome::IoErr(err.to_string())
-		},
-	};
 	let cpu_time_elapsed = match result {
 		Ok(result) => result,
 		// Timed out on the child. This should already be logged by the child.
@@ -202,7 +197,7 @@ async fn handle_response_bytes(
 		artifact_path.display(),
 	);
 
-	match tokio::fs::rename(&tmp_file, &artifact_path).await {
+	let outcome = match tokio::fs::rename(&tmp_file, &artifact_path).await {
 		Ok(()) => Outcome::Concluded { worker, result },
 		Err(err) => {
 			gum::warn!(
@@ -215,7 +210,15 @@ async fn handle_response_bytes(
 			);
 			Outcome::RenameTmpFileErr { worker, result, err: format!("{:?}", err) }
 		},
+	};
+
+	// If there were no errors up until now, log the memory stats for a successful preparation, if
+	// available.
+	if let Some(memory_stats) = memory_stats {
+		observe_memory_metrics(metrics, memory_stats, pid);
 	}
+
+	outcome
 }
 
 /// Create a temporary file for an artifact at the given cache path and execute the given
@@ -288,17 +291,75 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, 
 		)
 	})?;
 	let preparation_timeout = framed_recv(stream).await?;
-	let preparation_timeout = Duration::decode(&mut &preparation_timeout[..]).map_err(|_| {
+	let preparation_timeout = Duration::decode(&mut &preparation_timeout[..]).map_err(|e| {
 		io::Error::new(
 			io::ErrorKind::Other,
-			"prepare pvf recv_request: failed to decode duration".to_string(),
+			format!("prepare pvf recv_request: failed to decode duration: {:?}", e),
 		)
 	})?;
 	Ok((code, tmp_file, preparation_timeout))
 }
 
+async fn send_response(
+	stream: &mut UnixStream,
+	result: PrepareResult,
+	memory_stats: Option<MemoryStats>,
+) -> io::Result<()> {
+	framed_send(stream, &result.encode()).await?;
+	framed_send(stream, &memory_stats.encode()).await
+}
+
+async fn recv_response(
+	stream: &mut UnixStream,
+	pid: u32,
+) -> io::Result<(PrepareResult, Option<MemoryStats>)> {
+	let result = framed_recv(stream).await?;
+	let result = PrepareResult::decode(&mut &result[..]).map_err(|e| {
+		// We received invalid bytes from the worker.
+		let bound_bytes = &result[..result.len().min(4)];
+		gum::warn!(
+			target: LOG_TARGET,
+			worker_pid = %pid,
+			"received unexpected response from the prepare worker: {}",
+			HexDisplay::from(&bound_bytes),
+		);
+		io::Error::new(
+			io::ErrorKind::Other,
+			format!("prepare pvf recv_response: failed to decode result: {:?}", e),
+		)
+	})?;
+	let memory_stats = framed_recv(stream).await?;
+	let memory_stats = Option::<MemoryStats>::decode(&mut &memory_stats[..]).map_err(|e| {
+		io::Error::new(
+			io::ErrorKind::Other,
+			format!("prepare pvf recv_response: failed to decode memory stats: {:?}", e),
+		)
+	})?;
+	Ok((result, memory_stats))
+}
+
 /// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
 /// the path to the socket used to communicate with the host.
+///
+/// # Flow
+///
+///	This runs the following in a loop:
+///
+///	1. Get the code and parameters for preparation from the host.
+///
+///	2. Start a memory tracker in a separate thread.
+///
+///	3. Start the CPU time monitor loop and the actual preparation in two separate threads.
+///
+///	4. Select on the two threads created in step 3. If the CPU timeout was hit, the CPU time monitor
+///	   thread will trigger first.
+///
+///	5. Stop the memory tracker and get the stats.
+///
+/// 6. If compilation succeeded, write the compiled artifact into a temporary file.
+///
+///	7. Send the result of preparation back to the host. If any error occurred in the above steps, we
+///	   send that in the `PrepareResult`.
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("prepare", socket_path, |rt_handle, mut stream| async move {
 		loop {
@@ -309,26 +370,40 @@ pub fn worker_entrypoint(socket_path: &str) {
 				"worker: preparing artifact",
 			);
 
-			// Used to signal to the cpu time monitor thread that it can finish.
-			let (finished_tx, finished_rx) = channel::<()>();
 			let cpu_time_start = ProcessTime::now();
 
+			// Run the memory tracker.
+			let (memory_tracker_tx, memory_tracker_rx) = channel::<()>();
+			let memory_tracker_fut =
+				rt_handle.spawn_blocking(move || memory_tracker_loop(memory_tracker_rx));
+
 			// Spawn a new thread that runs the CPU time monitor.
-			let thread_fut = rt_handle
+			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
+			let cpu_time_monitor_fut = rt_handle
 				.spawn_blocking(move || {
-					cpu_time_monitor_loop(cpu_time_start, preparation_timeout, finished_rx)
+					cpu_time_monitor_loop(cpu_time_start, preparation_timeout, cpu_time_monitor_rx)
 				})
 				.fuse();
-			let prepare_fut = rt_handle.spawn_blocking(move || prepare_artifact(&code)).fuse();
+			// Spawn another thread for preparation.
+			let prepare_fut = rt_handle
+				.spawn_blocking(move || {
+					let prepare_result = prepare_artifact(&code);
 
-			pin_mut!(thread_fut);
+					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
+					let max_rss = get_max_rss_thread();
+
+					(prepare_result, max_rss)
+				})
+				.fuse();
+
+			pin_mut!(cpu_time_monitor_fut);
 			pin_mut!(prepare_fut);
 
-			let result = select_biased! {
+			let (result, memory_stats) = select_biased! {
 				// If this future is not selected, the join handle is dropped and the thread will
 				// finish in the background.
-				join_res = thread_fut => {
-					match join_res {
+				join_res = cpu_time_monitor_fut => {
+					let result = match join_res {
 						Ok(Some(cpu_time_elapsed)) => {
 							// Log if we exceed the timeout and the other thread hasn't finished.
 							gum::warn!(
@@ -342,18 +417,27 @@ pub fn worker_entrypoint(socket_path: &str) {
 						},
 						Ok(None) => Err(PrepareError::IoErr("error communicating over finished channel".into())),
 						Err(err) => Err(PrepareError::IoErr(err.to_string())),
-					}
+					};
+					(result, None)
 				},
 				compilation_res = prepare_fut => {
 					let cpu_time_elapsed = cpu_time_start.elapsed();
-					let _ = finished_tx.send(());
+					let _ = cpu_time_monitor_tx.send(());
 
-					match compilation_res.unwrap_or_else(|err| Err(PrepareError::IoErr(err.to_string()))) {
-						Err(err) => {
+					match compilation_res.unwrap_or_else(|err| (Err(PrepareError::IoErr(err.to_string())), None)) {
+						(Err(err), _) => {
 							// Serialized error will be written into the socket.
-							Err(err)
+							(Err(err), None)
 						},
-						Ok(compiled_artifact) => {
+						(Ok(compiled_artifact), max_rss) => {
+							// Stop the memory stats worker and get its observed memory stats.
+							let memory_tracker_stats =
+								get_memory_tracker_loop_stats(memory_tracker_fut, memory_tracker_tx).await;
+							let memory_stats = MemoryStats {
+								memory_tracker_stats,
+								max_rss: max_rss.map(|inner| inner.map_err(|e| e.to_string())),
+							};
+
 							// Write the serialized artifact into a temp file.
 							//
 							// PVF host only keeps artifacts statuses in its memory, successfully
@@ -369,13 +453,13 @@ pub fn worker_entrypoint(socket_path: &str) {
 							);
 							tokio::fs::write(&dest, &compiled_artifact).await?;
 
-							Ok(cpu_time_elapsed)
+							(Ok(cpu_time_elapsed), Some(memory_stats))
 						},
 					}
 				},
 			};
 
-			framed_send(&mut stream, result.encode().as_slice()).await?;
+			send_response(&mut stream, result, memory_stats).await?;
 		}
 	});
 }

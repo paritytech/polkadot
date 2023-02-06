@@ -36,8 +36,8 @@ impl MemoryAllocationTracker {
 		// update stats by advancing the allocation epoch
 		self.epoch.advance()?;
 
-		let allocated: u64 = self.allocated.read()? as _;
-		let resident: u64 = self.resident.read()? as _;
+		let allocated = self.allocated.read()?;
+		let resident = self.resident.read()?;
 		Ok(MemoryAllocationSnapshot { allocated, resident })
 	}
 }
@@ -47,7 +47,7 @@ impl MemoryAllocationTracker {
 #[derive(Debug, Clone)]
 pub struct MemoryAllocationSnapshot {
 	/// Total resident memory, in bytes.
-	pub resident: u64,
+	pub resident: usize,
 	/// Total allocated memory, in bytes.
-	pub allocated: u64,
+	pub allocated: usize,
 }
