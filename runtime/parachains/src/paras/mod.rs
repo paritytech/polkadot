@@ -159,7 +159,7 @@ pub struct ReplacementTimes<N> {
 #[cfg_attr(test, derive(Debug, Clone, PartialEq))]
 pub struct ParaPastCodeMeta<N> {
 	/// Block numbers where the code was expected to be replaced and where the code
-	/// was actually replaced, respectively. The first is used to do accurate lookups
+	/// was actually replaced, respectively. The first is used to do accurate look-ups
 	/// of historic code in historic contexts, whereas the second is used to do
 	/// pruning on an accurate timeframe. These can be used as indices
 	/// into the `PastCodeHash` map along with the `ParaId` to fetch the code itself.
@@ -520,7 +520,7 @@ impl WeightInfo for TestWeightInfo {
 	}
 	fn include_pvf_check_statement() -> Weight {
 		// This special value is to distinguish from the finalizing variants above in tests.
-		Weight::MAX - Weight::from_ref_time(1)
+		Weight::MAX - Weight::from_parts(1, 1)
 	}
 }
 
