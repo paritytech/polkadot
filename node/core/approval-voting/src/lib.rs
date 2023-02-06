@@ -1142,20 +1142,20 @@ async fn handle_from_overseer<Context>(
 			let mut actions = Vec::new();
 			if let Some(activated) = update.activated {
 				let head = activated.hash;
-				let mut span = jaeger::PerLeafSpan::new(activated.span, "approval-voting");
+				let mut from_overseer_span = jaeger::PerLeafSpan::new(activated.span, "approval-voting-handle-from-overseer");
 				match import::handle_new_head(
 					ctx,
 					state,
 					db,
 					head,
 					&*last_finalized_height,
-					&mut span,
+					&mut from_overseer_span,
 				)
 				.await
 				{
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
 					Ok(block_imported_candidates) => {
-						let mut block_import_span = span.child("block-import");
+						let mut block_import_span = from_overseer_span.child("block-import");
 						block_import_span.add_uint_tag("num-candidates", block_imported_candidates.len() as u64);
 						// Schedule wakeups for all imported candidates.
 						for block_batch in block_imported_candidates {
@@ -1207,6 +1207,7 @@ async fn handle_from_overseer<Context>(
 			actions
 		},
 		FromOrchestra::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
+			let mut finalized_span = jaeger::Span::new(block_hash, "approval-voting-block-finalized");
 			gum::debug!(target: LOG_TARGET, ?block_hash, ?block_number, "Block finalized");
 			*last_finalized_height = Some(block_number);
 
@@ -1268,6 +1269,7 @@ async fn get_approval_signatures_for_candidate<Context>(
 	candidate_hash: CandidateHash,
 	tx: oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
 ) -> SubsystemResult<()> {
+	let mut span = jaeger::Span::new(candidate_hash, "approval-voting-get-approval-signatures");
 	let send_votes = |votes| {
 		if let Err(_) = tx.send(votes) {
 			gum::debug!(
@@ -2137,14 +2139,11 @@ fn process_wakeup(
 	expected_tick: Tick,
 	metrics: &Metrics,
 ) -> SubsystemResult<Vec<Action>> {
-	let _span = jaeger::Span::from_encodable(
-		(relay_block, candidate_hash, expected_tick),
-		"process-approval-wakeup",
-	)
-	.with_relay_parent(relay_block)
-	.with_candidate(candidate_hash)
-	.with_stage(jaeger::Stage::ApprovalChecking);
+	let mut span = jaeger::Span::new(relay_block, "approval-voting-process-wakeup")
+		.with_candidate(candidate_hash)
+		.with_relay_parent(relay_block);
 
+	let mut load_entries_span = span.child("load-entries");
 	let block_entry = db.load_block_entry(&relay_block)?;
 	let candidate_entry = db.load_candidate_entry(&candidate_hash)?;
 
@@ -2153,7 +2152,8 @@ fn process_wakeup(
 		(Some(b), Some(c)) => (b, c),
 		_ => return Ok(Vec::new()),
 	};
-
+	
+	let mut info_from_entries_span = load_entries_span.child("info-from-entries");
 	let session_info = match state.session_info(block_entry.session()) {
 		Some(i) => i,
 		None => {
@@ -2167,7 +2167,7 @@ fn process_wakeup(
 			return Ok(Vec::new())
 		},
 	};
-
+	
 	let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
 	let no_show_duration = slot_number_to_tick(
 		state.slot_duration_millis,
@@ -2175,6 +2175,8 @@ fn process_wakeup(
 	);
 
 	let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
+	info_from_entries_span.add_uint_tag("block-tick", block_tick);
+	info_from_entries_span.add_uint_tag("tranche-now", *&tranche_now as u64);
 
 	gum::trace!(
 		target: LOG_TARGET,
@@ -2183,6 +2185,8 @@ fn process_wakeup(
 		block_hash = ?relay_block,
 		"Processing wakeup",
 	);
+	drop(load_entries_span);
+	let mut should_trigger_span = span.child("should-trigger");
 
 	let (should_trigger, backing_group) = {
 		let approval_entry = match candidate_entry.approval_entry(&relay_block) {
@@ -2206,9 +2210,10 @@ fn process_wakeup(
 			tranche_now,
 		);
 
+		should_trigger_span.add_string_tag("should-trigger", format!("{:?}", &should_trigger));
+
 		(should_trigger, approval_entry.backing_group())
 	};
-
 	let mut actions = Vec::new();
 	let candidate_receipt = candidate_entry.candidate_receipt().clone();
 
@@ -2228,6 +2233,9 @@ fn process_wakeup(
 		None
 	};
 
+	drop(should_trigger_span);
+	let mut assignment_span = span.child("assignment");
+
 	if let Some((cert, val_index, tranche)) = maybe_cert {
 		let indirect_cert =
 			IndirectAssignmentCert { block_hash: relay_block, validator: val_index, cert };
@@ -2244,6 +2252,10 @@ fn process_wakeup(
 				"Launching approval work.",
 			);
 
+			assignment_span.add_string_tag("candidate-hash", format!("{:?}", &candidate_hash));
+			assignment_span.add_string_tag("para-id", format!("{:?}", &candidate_receipt.descriptor.para_id));
+			assignment_span.add_string_tag("block-hash", format!("{:?}", &relay_block));
+
 			// sanity: should always be present.
 			actions.push(Action::LaunchApproval {
 				candidate_hash,
@@ -2257,7 +2269,8 @@ fn process_wakeup(
 			});
 		}
 	}
-
+	drop(assignment_span);
+	let mut advanced_approval_state_span = span.child("advanced-approval-state");
 	// Although we checked approval earlier in this function,
 	// this wakeup might have advanced the state to approved via
 	// a no-show that was immediately covered and therefore
@@ -2273,6 +2286,7 @@ fn process_wakeup(
 		candidate_entry,
 		ApprovalStateTransition::WakeupProcessed,
 	));
+	drop(advanced_approval_state_span);
 
 	Ok(actions)
 }
