@@ -14,13 +14,14 @@ assert_matches = "1.4.0"
 cpu-time = "1.0.0"
 futures = "0.3.21"
 futures-timer = "3.0.2"
-slotmap = "1.0"
 gum = { package = "tracing-gum", path = "../../gum" }
 pin-project = "1.0.9"
 rand = "0.8.5"
-tempfile = "3.3.0"
-tokio = { version = "1.24.2", features = ["fs", "process"] }
 rayon = "1.5.1"
+slotmap = "1.0"
+tempfile = "3.3.0"
+tikv-jemalloc-ctl = "0.5.0"
+tokio = { version = "1.24.2", features = ["fs", "process"] }
 
 parity-scale-codec = { version = "3.3.0", default-features = false, features = ["derive"] }
 
@@ -38,8 +39,11 @@ sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = 
 sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+libc = "0.2.139"
+
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
 halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
 hex-literal = "0.3.4"
-tempfile = "3.2.0"
+tempfile = "3.3.0"
