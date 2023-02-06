@@ -37,8 +37,8 @@ use std::{
 use tikv_jemalloc_ctl::{epoch, stats, Error};
 use tokio::task::JoinHandle;
 
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-use libc::{getrusage, rusage, timeval, RUSAGE_SELF};
+#[cfg(target_os = "linux")]
+use libc::{getrusage, rusage, timeval, RUSAGE_THREAD};
 
 /// Helper struct to contain all the memory stats, including [`MemoryAllocationStats`] and, if
 /// supported by the OS, `ru_maxrss`.
@@ -87,9 +87,9 @@ impl MemoryAllocationTracker {
 	}
 }
 
-/// Get the rusage stats for all threads in the current process.
-#[cfg(any(target_os = "linux", target_os = "macos"))]
-fn getrusage_process() -> io::Result<rusage> {
+/// Get the rusage stats for the current thread.
+#[cfg(target_os = "linux")]
+fn getrusage_thread() -> io::Result<rusage> {
 	let mut result = rusage {
 		ru_utime: timeval { tv_sec: 0, tv_usec: 0 },
 		ru_stime: timeval { tv_sec: 0, tv_usec: 0 },
@@ -108,24 +108,19 @@ fn getrusage_process() -> io::Result<rusage> {
 		ru_nvcsw: 0,
 		ru_nivcsw: 0,
 	};
-	if unsafe { getrusage(RUSAGE_SELF, &mut result) } == -1 {
+	if unsafe { getrusage(RUSAGE_THREAD, &mut result) } == -1 {
 		return Err(io::Error::last_os_error())
 	}
 	Ok(result)
 }
 
-/// Gets the `ru_maxrss` for the current process if the OS supports `getrusage`. Otherwise, just
+/// Gets the `ru_maxrss` for the current thread if the OS supports `getrusage`. Otherwise, just
 /// returns `None`.
-///
-/// The returned value is always in kilobytes.
-pub fn get_max_rss_process() -> Option<io::Result<i64>> {
+pub fn get_max_rss_thread() -> Option<io::Result<i64>> {
 	// `c_long` is either `i32` or `i64` depending on architecture. `i64::from` always works.
 	#[cfg(target_os = "linux")]
-	let max_rss = Some(getrusage_process().map(|rusage| i64::from(rusage.ru_maxrss)));
-	// Macos returns this in bytes, so convert to kilobytes.
-	#[cfg(target_os = "macos")]
-	let max_rss = Some(getrusage_process().map(|rusage| i64::from(rusage.ru_maxrss) / 1024));
-	#[cfg(not(any(target_os = "linux", target_os = "macos")))]
+	let max_rss = Some(getrusage_thread().map(|rusage| i64::from(rusage.ru_maxrss)));
+	#[cfg(not(target_os = "linux"))]
 	let max_rss = None;
 	max_rss
 }

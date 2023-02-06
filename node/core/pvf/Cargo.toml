@@ -39,7 +39,7 @@ sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = 
 sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
-[target.'cfg(any(target_os = "linux", target_os = "macos"))'.dependencies]
+[target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2.139"
 
 [dev-dependencies]
