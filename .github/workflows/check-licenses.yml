@@ -1,0 +1,26 @@
+name: Check licenses
+
+on:
+  pull_request:
+
+jobs:
+  check-licenses:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3.3.0
+      - uses: actions/setup-node@v3.6.0
+        with:
+          node-version: '16.19.0'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@paritytech'
+      - name: Check the licenses
+        run: |
+          shopt -s globstar
+
+          npx @paritytech/license-scanner@0.0.3 scan \
+            --ensure-licenses Apache-2.0 \
+            --ensure-licenses GPL-3.0-only \
+            ./**/*.rs
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
