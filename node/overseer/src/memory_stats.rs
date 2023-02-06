@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 // Allow unused code as they might be enabled only for the jemalloc-stats feature flag.
-#![allow(dead_code)]
+// #![allow(dead_code)]
 
 use tikv_jemalloc_ctl::stats;
 

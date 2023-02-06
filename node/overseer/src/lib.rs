@@ -117,6 +117,7 @@ pub const KNOWN_LEAVES_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(2 * 24
 	None => panic!("Known leaves cache size must be non-zero"),
 };
 
+#[cfg(any(target_os = "linux", feature = "jemalloc-stats"))]
 mod memory_stats;
 #[cfg(test)]
 mod tests;
