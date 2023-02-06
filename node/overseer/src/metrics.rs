@@ -15,11 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Prometheus metrics related to the overseer and its channels.
+//!
 
 use super::*;
 pub use polkadot_node_metrics::metrics::{self, prometheus, Metrics as MetricsTrait};
-
-use memory_stats::MemoryAllocationSnapshot;
 
 /// Overseer Prometheus metrics.
 #[derive(Clone)]
@@ -40,7 +39,10 @@ struct MetricsInner {
 	signals_sent: prometheus::GaugeVec<prometheus::U64>,
 	signals_received: prometheus::GaugeVec<prometheus::U64>,
 
+	// Allow unused code as they might be enabled only for the jemalloc-stats feature flag.
+	#[allow(dead_code)]
 	memory_stats_resident: prometheus::Gauge<prometheus::U64>,
+	#[allow(dead_code)]
 	memory_stats_allocated: prometheus::Gauge<prometheus::U64>,
 }
 
@@ -67,6 +69,7 @@ impl Metrics {
 		}
 	}
 
+	#[cfg(any(target_os = "linux", feature = "jemalloc-stats"))]
 	pub(crate) fn memory_stats_snapshot(&self, memory_stats: MemoryAllocationSnapshot) {
 		if let Some(metrics) = &self.0 {
 			metrics.memory_stats_allocated.set(memory_stats.allocated);
