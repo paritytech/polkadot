@@ -21,7 +21,7 @@ rayon = "1.5.1"
 slotmap = "1.0"
 tempfile = "3.3.0"
 tikv-jemalloc-ctl = "0.5.0"
-tokio = { version = "1.22.0", features = ["fs", "process"] }
+tokio = { version = "1.24.2", features = ["fs", "process"] }
 
 parity-scale-codec = { version = "3.3.0", default-features = false, features = ["derive"] }
 
@@ -46,4 +46,4 @@ libc = "0.2.139"
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
 halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
 hex-literal = "0.3.4"
-tempfile = "3.2.0"
+tempfile = "3.3.0"
