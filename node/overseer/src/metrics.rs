@@ -69,7 +69,10 @@ impl Metrics {
 	}
 
 	#[cfg(any(target_os = "linux", feature = "jemalloc-stats"))]
-	pub(crate) fn memory_stats_snapshot(&self, memory_stats: MemoryAllocationSnapshot) {
+	pub(crate) fn memory_stats_snapshot(
+		&self,
+		memory_stats: memory_stats::MemoryAllocationSnapshot,
+	) {
 		if let Some(metrics) = &self.0 {
 			metrics.memory_stats_allocated.set(memory_stats.allocated);
 			metrics.memory_stats_resident.set(memory_stats.resident);
