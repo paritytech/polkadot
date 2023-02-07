@@ -1738,7 +1738,7 @@ fn check_and_import_assignment(
 		};
 
 		let res = state.assignment_criteria.check_assignment_cert(
-			claimed_core_index,
+			vec![claimed_core_index],
 			assignment.validator,
 			&criteria::Config::from(session_info),
 			block_entry.relay_vrf_story(),
