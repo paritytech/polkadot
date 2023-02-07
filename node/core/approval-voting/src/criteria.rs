@@ -97,6 +97,52 @@ fn relay_vrf_modulo_transcript(relay_vrf_story: RelayVRFStory, sample: u32) -> T
 	t
 }
 
+/// A hard upper bound on num_cores * target_checkers / num_validators
+const MAX_MODULO_SAMPLES: usize = 40;
+
+use std::convert::AsMut;
+
+fn clone_into_array<A, T>(slice: &[T]) -> A
+where
+	A: Default + AsMut<[T]>,
+	T: Clone,
+{
+	let mut a = A::default();
+	<A as AsMut<[T]>>::as_mut(&mut a).clone_from_slice(slice);
+	a
+}
+
+struct BigArray(pub [u8; MAX_MODULO_SAMPLES * 4]);
+
+impl Default for BigArray {
+	fn default() -> Self {
+		BigArray([0u8; MAX_MODULO_SAMPLES * 4])
+	}
+}
+
+impl AsMut<[u8]> for BigArray {
+	fn as_mut(&mut self) -> &mut [u8] {
+		self.0.as_mut()
+	}
+}
+
+/// Return an iterator to all core indices we are assigned to.
+fn relay_vrf_modulo_cores(
+	vrf_in_out: &VRFInOut,
+	// Configuration - `relay_vrf_modulo_samples`.
+	num_samples: u32,
+	// Configuration - `n_cores`.
+	max_cores: u32,
+) -> Vec<CoreIndex> {
+	vrf_in_out
+		.make_bytes::<BigArray>(approval_types::CORE_RANDOMNESS_CONTEXT)
+		.0
+		.chunks_exact(4)
+		.take(num_samples as usize)
+		.map(move |sample| CoreIndex(u32::from_le_bytes(clone_into_array(&sample)) % max_cores))
+		.collect::<Vec<CoreIndex>>()
+}
+
 fn relay_vrf_modulo_core(vrf_in_out: &VRFInOut, n_cores: u32) -> CoreIndex {
 	let bytes: [u8; 4] = vrf_in_out.make_bytes(approval_types::CORE_RANDOMNESS_CONTEXT);
 
@@ -130,6 +176,12 @@ fn relay_vrf_delay_tranche(
 fn assigned_core_transcript(core_index: CoreIndex) -> Transcript {
 	let mut t = Transcript::new(approval_types::ASSIGNED_CORE_CONTEXT);
 	core_index.0.using_encoded(|s| t.append_message(b"core", s));
+	t
+}
+
+fn assigned_cores_transcript(core_indices: &Vec<CoreIndex>) -> Transcript {
+	let mut t = Transcript::new(approval_types::ASSIGNED_CORE_CONTEXT);
+	core_indices.using_encoded(|s| t.append_message(b"cores", s));
 	t
 }
 
@@ -497,15 +549,38 @@ pub(crate) fn check_assignment_cert(
 	}
 
 	let &(ref vrf_output, ref vrf_proof) = &assignment.vrf;
-	match assignment.kind {
-		AssignmentCertKind::RelayVRFModulo { sample } => {
-			if sample >= config.relay_vrf_modulo_samples {
+	match &assignment.kind {
+		AssignmentCertKind::RelayVRFModuloCompact { sample, core_indices } => {
+			if *sample >= config.relay_vrf_modulo_samples {
 				return Err(InvalidAssignment(Reason::SampleOutOfBounds))
 			}
 
 			let (vrf_in_out, _) = public
 				.vrf_verify_extra(
-					relay_vrf_modulo_transcript(relay_vrf_story, sample),
+					relay_vrf_modulo_transcript(relay_vrf_story, *sample),
+					&vrf_output.0,
+					&vrf_proof.0,
+					assigned_cores_transcript(core_indices),
+				)
+				.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
+
+			// ensure that the `vrf_in_out` actually gives us the claimed core.
+			if relay_vrf_modulo_cores(&vrf_in_out, *sample, config.n_cores)
+				.contains(&claimed_core_index)
+			{
+				Ok(0)
+			} else {
+				Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
+			}
+		},
+		AssignmentCertKind::RelayVRFModulo { sample } => {
+			if *sample >= config.relay_vrf_modulo_samples {
+				return Err(InvalidAssignment(Reason::SampleOutOfBounds))
+			}
+
+			let (vrf_in_out, _) = public
+				.vrf_verify_extra(
+					relay_vrf_modulo_transcript(relay_vrf_story, *sample),
 					&vrf_output.0,
 					&vrf_proof.0,
 					assigned_core_transcript(claimed_core_index),
@@ -520,13 +595,13 @@ pub(crate) fn check_assignment_cert(
 			}
 		},
 		AssignmentCertKind::RelayVRFDelay { core_index } => {
-			if core_index != claimed_core_index {
+			if *core_index != claimed_core_index {
 				return Err(InvalidAssignment(Reason::VRFDelayCoreIndexMismatch))
 			}
 
 			let (vrf_in_out, _) = public
 				.vrf_verify(
-					relay_vrf_delay_transcript(relay_vrf_story, core_index),
+					relay_vrf_delay_transcript(relay_vrf_story, *core_index),
 					&vrf_output.0,
 					&vrf_proof.0,
 				)
