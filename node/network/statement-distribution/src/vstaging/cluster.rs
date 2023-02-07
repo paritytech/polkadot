@@ -49,7 +49,7 @@
 //! on fire. Nevertheless, we handle the case here to ensure that the behavior of the
 //! system is well-defined even if an adversary is willing to be slashed.
 //!
-//! More concretely, this module exposes a "ClusterTracker" utility which allows us to determine
+//! More concretely, this module exposes a [`ClusterTracker`] utility which allows us to determine
 //! whether to accept or reject messages from other validators in the same group as we
 //! are in, based on _the most charitable possible interpretation of our protocol rules_,
 //! and to keep track of what we have sent to other validators in the group and what we may
@@ -597,7 +597,7 @@ mod tests {
 		let seconding_limit = 2;
 		let hash_a = CandidateHash(Hash::repeat_byte(1));
 
-		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
+		let mut tracker = ClusterTracker::new(group, seconding_limit).expect("not empty");
 
 		tracker.note_received(
 			ValidatorIndex(5),
@@ -637,7 +637,7 @@ mod tests {
 
 		let seconding_limit = 2;
 
-		let tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
+		let tracker = ClusterTracker::new(group, seconding_limit).expect("not empty");
 
 		let hash_a = CandidateHash(Hash::repeat_byte(1));
 
@@ -850,12 +850,346 @@ mod tests {
 		);
 	}
 
-	// TODO [now]: test that `pending_statements` are set whenever we receive
-	// a fresh statement.
+	// Test that the `pending_statements` are set whenever we receive a fresh statement.
+	//
+	// Also test that pending statements are sorted, with `Seconded` statements in the front.
+	#[test]
+	fn pending_statements_set_when_receiving_fresh_statements() {
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
 
-	// TODO [now]: test the `pending_statements` are updated when we send or receive
-	// statements from others in the cluster.
+		let seconding_limit = 1;
 
-	// TODO [now]: test that pending statements are sorted, with `Seconded` statements
-	// in the front.
+		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+		let hash_b = CandidateHash(Hash::repeat_byte(2));
+
+		// Receive a 'Seconded' statement for candidate A.
+		{
+			assert_eq!(
+				tracker.can_receive(
+					ValidatorIndex(200),
+					ValidatorIndex(5),
+					CompactStatement::Seconded(hash_a),
+				),
+				Ok(Accept::Ok),
+			);
+			tracker.note_received(
+				ValidatorIndex(200),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_a),
+			);
+
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(5)),
+				vec![(ValidatorIndex(5), CompactStatement::Seconded(hash_a))]
+			);
+			assert_eq!(tracker.pending_statements_for(ValidatorIndex(200)), vec![]);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(24)),
+				vec![(ValidatorIndex(5), CompactStatement::Seconded(hash_a))]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(146)),
+				vec![(ValidatorIndex(5), CompactStatement::Seconded(hash_a))]
+			);
+		}
+
+		// Receive a 'Valid' statement for candidate A.
+		{
+			// First, send a `Seconded` statement for the candidate.
+			assert_eq!(
+				tracker.can_send(
+					ValidatorIndex(24),
+					ValidatorIndex(200),
+					CompactStatement::Seconded(hash_a)
+				),
+				Ok(())
+			);
+			tracker.note_sent(
+				ValidatorIndex(24),
+				ValidatorIndex(200),
+				CompactStatement::Seconded(hash_a),
+			);
+
+			// We have to see that the candidate is known by the sender, e.g. we sent them 'Seconded'
+			// above.
+			assert_eq!(
+				tracker.can_receive(
+					ValidatorIndex(24),
+					ValidatorIndex(200),
+					CompactStatement::Valid(hash_a),
+				),
+				Ok(Accept::Ok),
+			);
+			tracker.note_received(
+				ValidatorIndex(24),
+				ValidatorIndex(200),
+				CompactStatement::Valid(hash_a),
+			);
+
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(5)),
+				vec![
+					(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
+					(ValidatorIndex(200), CompactStatement::Valid(hash_a))
+				]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(200)),
+				vec![(ValidatorIndex(200), CompactStatement::Valid(hash_a))]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(24)),
+				vec![(ValidatorIndex(5), CompactStatement::Seconded(hash_a))]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(146)),
+				vec![
+					(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
+					(ValidatorIndex(200), CompactStatement::Valid(hash_a))
+				]
+			);
+		}
+
+		// Receive a 'Seconded' statement for candidate B.
+		{
+			assert_eq!(
+				tracker.can_receive(
+					ValidatorIndex(5),
+					ValidatorIndex(146),
+					CompactStatement::Seconded(hash_b),
+				),
+				Ok(Accept::Ok),
+			);
+			tracker.note_received(
+				ValidatorIndex(5),
+				ValidatorIndex(146),
+				CompactStatement::Seconded(hash_b),
+			);
+
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(5)),
+				vec![
+					(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
+					(ValidatorIndex(200), CompactStatement::Valid(hash_a))
+				]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(200)),
+				vec![
+					(ValidatorIndex(146), CompactStatement::Seconded(hash_b)),
+					(ValidatorIndex(200), CompactStatement::Valid(hash_a)),
+				]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(24)),
+				vec![
+					(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
+					(ValidatorIndex(146), CompactStatement::Seconded(hash_b))
+				],
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(146)),
+				vec![
+					(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
+					(ValidatorIndex(146), CompactStatement::Seconded(hash_b)),
+					(ValidatorIndex(200), CompactStatement::Valid(hash_a)),
+				]
+			);
+		}
+	}
+
+	// Test that the `pending_statements` are updated when we send or receive statements from others
+	// in the cluster.
+	#[test]
+	fn pending_statements_updated_when_sending_statements() {
+		let group =
+			vec![ValidatorIndex(5), ValidatorIndex(200), ValidatorIndex(24), ValidatorIndex(146)];
+
+		let seconding_limit = 1;
+
+		let mut tracker = ClusterTracker::new(group.clone(), seconding_limit).expect("not empty");
+		let hash_a = CandidateHash(Hash::repeat_byte(1));
+		let hash_b = CandidateHash(Hash::repeat_byte(2));
+
+		// Receive a 'Seconded' statement for candidate A.
+		{
+			assert_eq!(
+				tracker.can_receive(
+					ValidatorIndex(200),
+					ValidatorIndex(5),
+					CompactStatement::Seconded(hash_a),
+				),
+				Ok(Accept::Ok),
+			);
+			tracker.note_received(
+				ValidatorIndex(200),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_a),
+			);
+
+			// Pending statements should be updated.
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(5)),
+				vec![(ValidatorIndex(5), CompactStatement::Seconded(hash_a))]
+			);
+			assert_eq!(tracker.pending_statements_for(ValidatorIndex(200)), vec![]);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(24)),
+				vec![(ValidatorIndex(5), CompactStatement::Seconded(hash_a))]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(146)),
+				vec![(ValidatorIndex(5), CompactStatement::Seconded(hash_a))]
+			);
+		}
+
+		// Receive a 'Valid' statement for candidate B.
+		{
+			// First, send a `Seconded` statement for the candidate.
+			assert_eq!(
+				tracker.can_send(
+					ValidatorIndex(24),
+					ValidatorIndex(200),
+					CompactStatement::Seconded(hash_b)
+				),
+				Ok(())
+			);
+			tracker.note_sent(
+				ValidatorIndex(24),
+				ValidatorIndex(200),
+				CompactStatement::Seconded(hash_b),
+			);
+
+			// We have to see the candidate is known by the sender, e.g. we sent them 'Seconded'.
+			assert_eq!(
+				tracker.can_receive(
+					ValidatorIndex(24),
+					ValidatorIndex(200),
+					CompactStatement::Valid(hash_b),
+				),
+				Ok(Accept::Ok),
+			);
+			tracker.note_received(
+				ValidatorIndex(24),
+				ValidatorIndex(200),
+				CompactStatement::Valid(hash_b),
+			);
+
+			// Pending statements should be updated.
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(5)),
+				vec![
+					(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
+					(ValidatorIndex(200), CompactStatement::Valid(hash_b))
+				]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(200)),
+				vec![(ValidatorIndex(200), CompactStatement::Valid(hash_b))]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(24)),
+				vec![(ValidatorIndex(5), CompactStatement::Seconded(hash_a))]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(146)),
+				vec![
+					(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
+					(ValidatorIndex(200), CompactStatement::Valid(hash_b))
+				]
+			);
+		}
+
+		// Send a 'Seconded' statement.
+		{
+			assert_eq!(
+				tracker.can_send(
+					ValidatorIndex(5),
+					ValidatorIndex(5),
+					CompactStatement::Seconded(hash_a)
+				),
+				Ok(())
+			);
+			tracker.note_sent(
+				ValidatorIndex(5),
+				ValidatorIndex(5),
+				CompactStatement::Seconded(hash_a),
+			);
+
+			// Pending statements should be updated.
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(5)),
+				vec![(ValidatorIndex(200), CompactStatement::Valid(hash_b))]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(200)),
+				vec![(ValidatorIndex(200), CompactStatement::Valid(hash_b))]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(24)),
+				vec![(ValidatorIndex(5), CompactStatement::Seconded(hash_a))]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(146)),
+				vec![
+					(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
+					(ValidatorIndex(200), CompactStatement::Valid(hash_b))
+				]
+			);
+		}
+
+		// Send a 'Valid' statement.
+		{
+			// First, send a `Seconded` statement for the candidate.
+			assert_eq!(
+				tracker.can_send(
+					ValidatorIndex(5),
+					ValidatorIndex(200),
+					CompactStatement::Seconded(hash_b)
+				),
+				Ok(())
+			);
+			tracker.note_sent(
+				ValidatorIndex(5),
+				ValidatorIndex(200),
+				CompactStatement::Seconded(hash_b),
+			);
+
+			// We have to see that the candidate is known by the sender, e.g. we sent them 'Seconded'
+			// above.
+			assert_eq!(
+				tracker.can_send(
+					ValidatorIndex(5),
+					ValidatorIndex(200),
+					CompactStatement::Valid(hash_b)
+				),
+				Ok(())
+			);
+			tracker.note_sent(
+				ValidatorIndex(5),
+				ValidatorIndex(200),
+				CompactStatement::Valid(hash_b),
+			);
+
+			// Pending statements should be updated.
+			assert_eq!(tracker.pending_statements_for(ValidatorIndex(5)), vec![]);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(200)),
+				vec![(ValidatorIndex(200), CompactStatement::Valid(hash_b))]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(24)),
+				vec![(ValidatorIndex(5), CompactStatement::Seconded(hash_a))]
+			);
+			assert_eq!(
+				tracker.pending_statements_for(ValidatorIndex(146)),
+				vec![
+					(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
+					(ValidatorIndex(200), CompactStatement::Valid(hash_b))
+				]
+			);
+		}
+	}
 }
