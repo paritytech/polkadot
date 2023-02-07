@@ -19,7 +19,7 @@ either run the latest binary from our
 [releases](https://github.com/paritytech/polkadot/releases) page, or install
 Polkadot from one of our package repositories.
 
-Installation from the Debian or rpm repositories will create a `systemd`
+Installation from the Debian repository will create a `systemd`
 service that can be used to run a Polkadot node. This is disabled by default,
 and can be started by running `systemctl start polkadot` on demand (use
 `systemctl enable polkadot` to make it auto-start after reboot). By default, it
@@ -46,21 +46,6 @@ apt install parity-keyring
 # Install polkadot
 apt install polkadot
 
-```
-
-### RPM-based (Fedora, CentOS)
-
-Currently supports Fedora 32 and CentOS 8, and derivatives.
-
-```bash
-# Install dnf-plugins-core (This might already be installed)
-dnf install dnf-plugins-core
-# Add the repository and enable it
-dnf config-manager --add-repo https://releases.parity.io/rpm/polkadot.repo
-dnf config-manager --set-enabled polkadot
-# Install polkadot (You may have to confirm the import of the GPG key, which
-# should have the following fingerprint: 9D4B2B6EB8F97156D19669A9FF0812D491B96798)
-dnf install polkadot
 ```
 
 ## Building

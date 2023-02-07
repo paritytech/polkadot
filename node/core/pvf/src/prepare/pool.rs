@@ -22,12 +22,17 @@ use crate::{
 	LOG_TARGET,
 };
 use always_assert::never;
-use async_std::path::{Path, PathBuf};
 use futures::{
 	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
 };
 use slotmap::HopSlotMap;
-use std::{fmt, sync::Arc, task::Poll, time::Duration};
+use std::{
+	fmt,
+	path::{Path, PathBuf},
+	sync::Arc,
+	task::Poll,
+	time::Duration,
+};
 
 slotmap::new_key_type! { pub struct Worker; }
 
@@ -215,6 +220,7 @@ fn handle_to_pool(
 					let preparation_timer = metrics.time_preparation();
 					mux.push(
 						start_work_task(
+							metrics.clone(),
 							worker,
 							idle,
 							code,
@@ -263,6 +269,7 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Po
 }
 
 async fn start_work_task<Timer>(
+	metrics: Metrics,
 	worker: Worker,
 	idle: IdleWorker,
 	code: Arc<Vec<u8>>,
@@ -272,7 +279,8 @@ async fn start_work_task<Timer>(
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
 	let outcome =
-		worker::start_work(idle, code, &cache_path, artifact_path, preparation_timeout).await;
+		worker::start_work(&metrics, idle, code, &cache_path, artifact_path, preparation_timeout)
+			.await;
 	PoolEvent::StartWork(worker, outcome)
 }
 
@@ -322,14 +330,14 @@ fn handle_mux(
 
 					Ok(())
 				},
-				Outcome::IoErr => {
+				Outcome::IoErr(err) => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(
 							from_pool,
 							FromPool::Concluded {
 								worker,
 								rip: true,
-								result: Err(PrepareError::IoErr),
+								result: Err(PrepareError::IoErr(err)),
 							},
 						)?;
 					}

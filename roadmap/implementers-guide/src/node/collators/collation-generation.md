@@ -99,7 +99,6 @@ On `ActiveLeavesUpdate`:
 * If there is no collation generation config, ignore.
 * Otherwise, for each `activated` head in the update:
   * Determine if the para is scheduled on any core by fetching the `availability_cores` Runtime API.
-    > TODO: figure out what to do in the case of occupied cores; see [this issue](https://github.com/paritytech/polkadot/issues/1573).
   * Determine an occupied core assumption to make about the para. Scheduled cores can make `OccupiedCoreAssumption::Free`.
   * Use the Runtime API subsystem to fetch the full validation data.
   * Invoke the `collator`, and use its outputs to produce a `CandidateReceipt`, signed with the configuration's `key`.

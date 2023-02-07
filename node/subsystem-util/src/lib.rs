@@ -40,7 +40,7 @@ pub use polkadot_node_metrics::{metrics, Metronome};
 use futures::channel::{mpsc, oneshot};
 use parity_scale_codec::Encode;
 
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreState, EncodeAs,
 	GroupIndex, GroupRotationInfo, Hash, Id as ParaId, OccupiedCoreAssumption,
 	PersistedValidationData, ScrapedOnChainVotes, SessionIndex, SessionInfo, Signed,
@@ -71,6 +71,12 @@ pub mod runtime;
 
 /// Database trait for subsystem.
 pub mod database;
+
+/// Nested message sending
+///
+/// Useful for having mostly synchronous code, with submodules spawning short lived asynchronous
+/// tasks, sending messages back.
+pub mod nesting_sender;
 
 mod determine_new_blocks;
 
