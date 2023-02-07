@@ -19,7 +19,7 @@ polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-
+sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 kvdb-memorydb = "0.13.0"

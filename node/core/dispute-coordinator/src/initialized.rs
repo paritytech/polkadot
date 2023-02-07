@@ -93,7 +93,8 @@ impl Initialized {
 		spam_slots: SpamSlots,
 		scraper: ChainScraper,
 	) -> Self {
-		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
+		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics, sync_oracle: _ } =
+			subsystem;
 
 		let (participation_sender, participation_receiver) = mpsc::channel(1);
 		let participation = Participation::new(participation_sender);
@@ -1235,7 +1236,7 @@ enum MuxedMessage {
 impl MuxedMessage {
 	async fn receive<Context>(
 		ctx: &mut Context,
-		from_sender: &mut participation::WorkerMessageReceiver,
+		from_sender: &mut WorkerMessageReceiver,
 	) -> FatalResult<Self> {
 		// We are only fusing here to make `select` happy, in reality we will quit if the stream
 		// ends.

@@ -30,6 +30,7 @@ use futures::FutureExt;
 
 use gum::CandidateHash;
 use sc_keystore::LocalKeystore;
+use sp_consensus::SyncOracle;
 
 use polkadot_node_primitives::{
 	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
@@ -117,6 +118,7 @@ pub struct DisputeCoordinatorSubsystem {
 	store: Arc<dyn Database>,
 	keystore: Arc<LocalKeystore>,
 	metrics: Metrics,
+	sync_oracle: Box<dyn SyncOracle + Send + Sync>,
 }
 
 /// Configuration for the dispute coordinator subsystem.
@@ -164,8 +166,9 @@ impl DisputeCoordinatorSubsystem {
 		config: Config,
 		keystore: Arc<LocalKeystore>,
 		metrics: Metrics,
+		sync_oracle: Box<dyn SyncOracle + Send + Sync>,
 	) -> Self {
-		Self { store, config, keystore, metrics }
+		Self { store, config, keystore, metrics, sync_oracle }
 	}
 
 	/// Initialize and afterwards run `Initialized::run`.
@@ -213,8 +216,12 @@ impl DisputeCoordinatorSubsystem {
 			let db_params =
 				DatabaseParams { db: self.store.clone(), db_column: self.config.col_session_data };
 
+			// The usage of `SyncOracle` below is not 100% correct. A better approach will be to
+			// cache the result and once the oracle returns `sync complete` to consider the node
+			// synced and never query the oracle again. In this case however this is not necessary
+			// because the oracle is used only once during initialisation.
 			let (first_leaf, rolling_session_window) =
-				match get_rolling_session_window(ctx, db_params).await {
+				match get_rolling_session_window(ctx, db_params, &self.sync_oracle).await {
 					Ok(Some(update)) => update,
 					Ok(None) => {
 						gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
@@ -377,8 +384,9 @@ impl DisputeCoordinatorSubsystem {
 async fn get_rolling_session_window<Context>(
 	ctx: &mut Context,
 	db_params: DatabaseParams,
+	sync_oracle: &Box<dyn SyncOracle + Send + Sync>,
 ) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>> {
-	if let Some(leaf) = { wait_for_first_leaf(ctx) }.await? {
+	if let Some(leaf) = { wait_for_first_leaf(ctx, sync_oracle) }.await? {
 		let sender = ctx.sender().clone();
 		Ok(Some((
 			leaf.clone(),
@@ -393,11 +401,20 @@ async fn get_rolling_session_window<Context>(
 
 /// Wait for `ActiveLeavesUpdate`, returns `None` if `Conclude` signal came first.
 #[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
-async fn wait_for_first_leaf<Context>(ctx: &mut Context) -> Result<Option<ActivatedLeaf>> {
+async fn wait_for_first_leaf<Context>(
+	ctx: &mut Context,
+	sync_oracle: &Box<dyn SyncOracle + Send + Sync>,
+) -> Result<Option<ActivatedLeaf>> {
 	loop {
 		match ctx.recv().await? {
 			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(None),
 			FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => {
+				if sync_oracle.is_major_syncing() {
+					// still syncing - ignore this event because otherwise the runtime api calls will
+					// fail due to executing them on pruned blocks.
+					continue
+				}
+
 				if let Some(activated) = update.activated {
 					return Ok(Some(activated))
 				}

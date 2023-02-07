@@ -300,6 +300,7 @@ where
 			dispute_coordinator_config,
 			keystore.clone(),
 			Metrics::register(registry)?,
+			Box::new(network_service.clone()),
 		))
 		.dispute_distribution(DisputeDistributionSubsystem::new(
 			keystore.clone(),
