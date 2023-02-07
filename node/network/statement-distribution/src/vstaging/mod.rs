@@ -2343,10 +2343,23 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 /// Wait on the next incoming response. If there are no requests pending, this
 /// future never resolves. It is the responsibility of the user of this API
 /// to interrupt the future.
-#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 pub(crate) async fn receive_response(state: &mut State) -> UnhandledResponse {
 	match state.request_manager.await_incoming().await {
 		Some(r) => r,
 		None => futures::future::pending().await,
 	}
+}
+
+/// Handles an incoming response. This does the actual work of validating the response,
+/// importing statements, sending acknowledgements, etc.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+pub(crate) async fn receive_response<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+) -> UnhandledResponse {
+	// 1. handle response
+	// 1. send acknowledgement & needed statements.
+	// 1. import statements into statement store
+	// 1. `circulate_statement` for all fresh statements (also, `learned_fresh_statement`)
+	// 1. if includable, send fresh statements to backing.
 }
