@@ -88,25 +88,62 @@ directory of the repo:
 ```bash
 git checkout <latest tagged release>
 ./scripts/init.sh
-cargo build --release
 ```
 
+You may now proceed to building a binary.
 Note that compilation is a memory intensive process. We recommend having 4 GiB of physical RAM or swap available (keep in mind that if a build hits swap it tends to be very slow).
+
+
+### Local Build
+
+The local build assumes you have proper toolchain locally installed.
+```
+cargo build --release --locked --bin polkadot
+```
+
+### Cross Build for other targets
+
+Building for other target has a few requirements:
+- build a supported architecture (see below)
+- use the proper toolchain for the architecture
+
+The last point is simplified by the use of containers already prepared with the right tooling.
+
+You can see the list of supported architectures with:
+```
+cat Cargo.toml| grep "target\." | cut -d '.' -f2
+```
+
+For instance, you may build an arm64 binary using:
+```
+TARGET=aarch64-unknown-linux-gnu
+docker run --rm -ti \
+	-v $PWD:/app parity-xbuilder-$TARGET \
+	-p polkadot \
+	--profile release
+```
+You will find your `polkadot` binary under `./target/$TARGET/release/`.
+
+NOTE: Unless you actually are on the same architecture (in that case cross building makes no sense...), the binary you just built will **not** run on your system and a simple test such as `polkadot --version` will return an error similar to:
+```
+zsh: exec format error: ./polkadot
+```
 
 #### Build from Source with Docker
 
-You can also build from source using 
+You can also build from source using
 [Parity CI docker image](https://github.com/paritytech/scripts/tree/master/dockerfiles/ci-linux):
 
 ```bash
 git checkout <latest tagged release>
-docker run --rm -it -w /shellhere/polkadot \
-                    -v $(pwd):/shellhere/polkadot \
-                    paritytech/ci-linux:production cargo build --release
+docker run --rm -it \
+    -w /shellhere/polkadot \
+    -v $(pwd):/shellhere/polkadot \
+    paritytech/ci-linux:production cargo build --release
 sudo chown -R $(id -u):$(id -g) target/
 ```
 
-If you want to reproduce other steps of CI process you can use the following 
+If you want to reproduce other steps of CI process you can use the following
 [guide](https://github.com/paritytech/scripts#gitlab-ci-for-building-docker-images).
 
 ## Networks
@@ -232,7 +269,7 @@ Ensure you replace `ALICE_BOOTNODE_ID_HERE` with the node ID from the output of 
 
 [Setup Prometheus and Grafana](https://wiki.polkadot.network/docs/maintain-guides-how-to-monitor-your-node).
 
-Once you set this up you can take a look at the [Polkadot Grafana dashboards](grafana/README.md) that we currently maintain. 
+Once you set this up you can take a look at the [Polkadot Grafana dashboards](grafana/README.md) that we currently maintain.
 
 ### Using Docker
 
