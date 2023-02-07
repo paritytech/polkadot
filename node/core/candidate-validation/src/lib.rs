@@ -312,8 +312,21 @@ where
 
 	let executor_params =
 		if let Ok(executor_params) = executor_params_at_relay_parent(relay_parent, sender).await {
+			gum::debug!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?validation_code_hash,
+				"precheck: acquired executor params for the session: {:?}",
+				executor_params,
+			);
 			executor_params
 		} else {
+			gum::warn!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?validation_code_hash,
+				"precheck: failed to acquire executor params for the session, thus voting against.",
+			);
 			return PreCheckOutcome::Invalid
 		};
 
@@ -572,8 +585,21 @@ where
 	let executor_params = if let Ok(executor_params) =
 		executor_params_at_relay_parent(candidate_receipt.descriptor.relay_parent, sender).await
 	{
+		gum::debug!(
+			target: LOG_TARGET,
+			?validation_code_hash,
+			?para_id,
+			"Acquired executor params for the session: {:?}",
+			executor_params,
+		);
 		executor_params
 	} else {
+		gum::warn!(
+			target: LOG_TARGET,
+			?validation_code_hash,
+			?para_id,
+			"Failed to acquire executor params for the session",
+		);
 		return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent))
 	};
 
