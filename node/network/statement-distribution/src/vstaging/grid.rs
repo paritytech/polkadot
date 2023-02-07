@@ -863,14 +863,16 @@ impl StatementFilter {
 	}
 }
 
+/// Knowledge that a remote peer has about a candidate, and that they have about us concerning the
+/// candidate.
 #[derive(Debug, Clone)]
 struct MutualKnowledge {
-	// Knowledge the remote peers have about the candidate. `Some` only if they
-	// have advertised or requested the candidate.
+	/// Knowledge the remote peer has about the candidate. `Some` only if they
+	/// have advertised or requested the candidate.
 	remote_knowledge: Option<StatementFilter>,
-	// Knowledge we have indicated to the remote peers about the candidate.
-	// `Some` only if we have advertised or requested the candidate
-	// from them.
+	/// Knowledge we have indicated to the remote peer about the candidate.
+	/// `Some` only if we have advertised or requested the candidate
+	/// from them.
 	local_knowledge: Option<StatementFilter>,
 }
 
@@ -2019,7 +2021,7 @@ mod tests {
 			vec![(ValidatorIndex(0), CompactStatement::Seconded(candidate_hash))]
 		);
 
-		// Note sending or receiving of a direct statement.
+		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
 		tracker.sent_or_received_direct_statement(
 			&groups,
 			validator_index,
@@ -2028,8 +2030,10 @@ mod tests {
 		);
 
 		// There should be no pending statements now (for the counterparty).
+		assert_eq!(
+			tracker.pending_statements_for(counterparty, candidate_hash),
+			Some(StatementFilter::new(group_size))
+		);
 		assert_eq!(tracker.all_pending_statements_for(counterparty), vec![]);
-		// TODO: There are still `pending_statements_for`, is this correct?
-		// assert_eq!(tracker.pending_statements_for(counterparty, candidate_hash), None);
 	}
 }
