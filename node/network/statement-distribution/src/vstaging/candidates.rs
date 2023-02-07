@@ -141,7 +141,7 @@ impl Candidates {
 
 	/// Note that a candidate has been confirmed.
 	///
-	/// If the candidate has just been confirmed, then remove any outdated claims, and generate a
+	/// If the previous state was `Unconfirmed`, then remove any outdated claims, and generate a
 	/// reckoning of which peers advertised correctly and incorrectly.
 	///
 	/// This does no sanity-checking of input data, and will overwrite already-confirmed candidates.
@@ -688,6 +688,11 @@ mod tests {
 		);
 	}
 
+	// Tests that:
+	//
+	// - When the advertisement matches, confirming does not change the parent hash index.
+	// - When it doesn't match, confirming updates the index. Specifically, confirming should prune
+	//   unconfirmed claims.
 	#[test]
 	fn confirming_maintains_parent_hash_index() {
 		let relay_head_data = HeadData(vec![1, 2, 3]);
@@ -877,11 +882,6 @@ mod tests {
 				((candidate_head_data_hash_c, 1.into()), HashSet::from([candidate_hash_d]))
 			])
 		);
-	}
-
-	#[test]
-	fn pruning_unconfirmed_claims_maintains_parent_hash_index() {
-		todo!()
 	}
 
 	#[test]
