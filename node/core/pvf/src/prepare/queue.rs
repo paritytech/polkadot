@@ -503,7 +503,10 @@ pub fn start(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{error::PrepareError, host::PRECHECK_PREPARATION_TIMEOUT};
+	use crate::{
+		error::PrepareError,
+		host::{LENIENT_PREPARATION_TIMEOUT, PRECHECK_PREPARATION_TIMEOUT},
+	};
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
 	use slotmap::SlotMap;
@@ -642,9 +645,9 @@ mod tests {
 	#[tokio::test]
 	async fn dont_spawn_over_soft_limit_unless_critical() {
 		let mut test = Test::new(2, 3);
-		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
 
 		let priority = Priority::Normal;
+		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
 		test.send_queue(ToQueue::Enqueue {
 			priority,
 			pvf_with_params: PvfWithExecutorParams::from_discriminator(1),
@@ -655,10 +658,11 @@ mod tests {
 			pvf_with_params: PvfWithExecutorParams::from_discriminator(2),
 			preparation_timeout,
 		});
+		// Start a non-precheck preparation for this one.
 		test.send_queue(ToQueue::Enqueue {
 			priority,
 			pvf_with_params: PvfWithExecutorParams::from_discriminator(3),
-			preparation_timeout,
+			preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 		});
 
 		// Receive only two spawns.
@@ -737,7 +741,8 @@ mod tests {
 	async fn worker_mass_die_out_doesnt_stall_queue() {
 		let mut test = Test::new(2, 2);
 
-		let (priority, preparation_timeout) = (Priority::Normal, PRECHECK_PREPARATION_TIMEOUT);
+		let priority = Priority::Normal;
+		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
 		test.send_queue(ToQueue::Enqueue {
 			priority,
 			pvf_with_params: PvfWithExecutorParams::from_discriminator(1),
@@ -748,10 +753,11 @@ mod tests {
 			pvf_with_params: PvfWithExecutorParams::from_discriminator(2),
 			preparation_timeout,
 		});
+		// Start a non-precheck preparation for this one.
 		test.send_queue(ToQueue::Enqueue {
 			priority,
 			pvf_with_params: PvfWithExecutorParams::from_discriminator(3),
-			preparation_timeout,
+			preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
 		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
