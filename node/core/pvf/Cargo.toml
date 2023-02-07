@@ -47,3 +47,6 @@ adder = { package = "test-parachain-adder", path = "../../../parachain/test-para
 halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
 hex-literal = "0.3.4"
 tempfile = "3.3.0"
+
+[features]
+jemalloc-stats = []

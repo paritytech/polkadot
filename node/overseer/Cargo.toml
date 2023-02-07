@@ -35,3 +35,4 @@ test-helpers = { package = "polkadot-primitives-test-helpers", path = "../../pri
 default = []
 expand = ["orchestra/expand"]
 dotgraph = ["orchestra/dotgraph"]
+jemalloc-stats = []

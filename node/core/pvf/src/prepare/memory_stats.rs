@@ -60,6 +60,7 @@ pub struct MemoryAllocationStats {
 	pub allocated: u64,
 }
 
+#[cfg(any(target_os = "linux", feature = "jemalloc-stats"))]
 #[derive(Clone)]
 struct MemoryAllocationTracker {
 	epoch: tikv_jemalloc_ctl::epoch_mib,
