@@ -246,7 +246,7 @@ where
 
 	fn check_assignment_cert(
 		&self,
-		_claimed_core_index: polkadot_primitives::CoreIndex,
+		_claimed_core_index: Vec<polkadot_primitives::CoreIndex>,
 		validator_index: ValidatorIndex,
 		_config: &criteria::Config,
 		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,

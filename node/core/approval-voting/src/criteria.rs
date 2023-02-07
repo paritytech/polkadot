@@ -380,7 +380,10 @@ fn compute_relay_vrf_modulo_assignments(
 	let maybe_assignment = {
 		let assigned_cores = &mut assigned_cores;
 		assignments_key.vrf_sign_extra_after_check(
-			relay_vrf_modulo_transcript(relay_vrf_story.clone(), config.relay_vrf_modulo_samples - 1),
+			relay_vrf_modulo_transcript(
+				relay_vrf_story.clone(),
+				config.relay_vrf_modulo_samples - 1,
+			),
 			|vrf_in_out| {
 				*assigned_cores = relay_vrf_modulo_cores(
 					&vrf_in_out,
@@ -577,8 +580,7 @@ pub(crate) fn check_assignment_cert(
 			println!("Claimed cores: {:?}", &got_cores);
 
 			// ensure that the `vrf_in_out` actually gives us the claimed cores.
-			if got_cores == claimed_core_index
-			{
+			if got_cores == claimed_core_index {
 				Ok(0)
 			} else {
 				Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
@@ -850,9 +852,8 @@ mod tests {
 		for (core, assignment) in assignments {
 			let mut mutated = MutatedAssignment {
 				cores: match assignment.cert.kind.clone() {
-					AssignmentCertKind::RelayVRFModuloCompact { sample: _ , core_indices } => {
-						core_indices
-					},
+					AssignmentCertKind::RelayVRFModuloCompact { sample: _, core_indices } =>
+						core_indices,
 					AssignmentCertKind::RelayVRFModulo { sample: _ } => {
 						vec![core]
 					},
@@ -881,7 +882,8 @@ mod tests {
 				relay_vrf_story.clone(),
 				&mutated.cert,
 				mutated.group,
-			).is_ok();
+			)
+			.is_ok();
 
 			assert_eq!(expected, is_good);
 		}
@@ -956,7 +958,7 @@ mod tests {
 					m.config.relay_vrf_modulo_samples = sample;
 					Some(false)
 				},
-				AssignmentCertKind::RelayVRFModuloCompact { sample , core_indices: _} => {
+				AssignmentCertKind::RelayVRFModuloCompact { sample, core_indices: _ } => {
 					m.config.relay_vrf_modulo_samples = sample;
 					Some(false)
 				},
@@ -984,7 +986,8 @@ mod tests {
 	fn check_rejects_modulo_core_wrong() {
 		check_mutated_assignments(200, 100, 25, |m| {
 			match m.cert.kind.clone() {
-				AssignmentCertKind::RelayVRFModulo { .. } | AssignmentCertKind::RelayVRFModuloCompact { .. } => {
+				AssignmentCertKind::RelayVRFModulo { .. } |
+				AssignmentCertKind::RelayVRFModuloCompact { .. } => {
 					for core in &mut m.cores {
 						core.0 = (core.0 + 1) % 100;
 					}
