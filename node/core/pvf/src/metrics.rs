@@ -72,6 +72,27 @@ impl Metrics {
 	pub(crate) fn time_execution(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.execution_time.start_timer())
 	}
+
+	/// Observe max_rss for preparation.
+	pub(crate) fn observe_preparation_max_rss(&self, max_rss: f64) {
+		if let Some(metrics) = &self.0 {
+			metrics.preparation_max_rss.observe(max_rss);
+		}
+	}
+
+	/// Observe max resident memory for preparation.
+	pub(crate) fn observe_preparation_max_resident(&self, max_resident_kb: f64) {
+		if let Some(metrics) = &self.0 {
+			metrics.preparation_max_resident.observe(max_resident_kb);
+		}
+	}
+
+	/// Observe max allocated memory for preparation.
+	pub(crate) fn observe_preparation_max_allocated(&self, max_allocated_kb: f64) {
+		if let Some(metrics) = &self.0 {
+			metrics.preparation_max_allocated.observe(max_allocated_kb);
+		}
+	}
 }
 
 #[derive(Clone)]
@@ -85,6 +106,9 @@ struct MetricsInner {
 	execute_finished: prometheus::Counter<prometheus::U64>,
 	preparation_time: prometheus::Histogram,
 	execution_time: prometheus::Histogram,
+	preparation_max_rss: prometheus::Histogram,
+	preparation_max_allocated: prometheus::Histogram,
+	preparation_max_resident: prometheus::Histogram,
 }
 
 impl metrics::Metrics for Metrics {
@@ -199,6 +223,42 @@ impl metrics::Metrics for Metrics {
 						10.0,
 						12.0,
 					]),
+				)?,
+				registry,
+			)?,
+			preparation_max_rss: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_pvf_preparation_max_rss",
+						"ru_maxrss (maximum resident set size) observed for preparation (in kilobytes)",
+					).buckets(
+						prometheus::exponential_buckets(8192.0, 2.0, 10)
+							.expect("arguments are always valid; qed"),
+					),
+				)?,
+				registry,
+			)?,
+			preparation_max_resident: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_pvf_preparation_max_resident",
+						"max resident memory observed for preparation (in kilobytes)",
+					).buckets(
+						prometheus::exponential_buckets(8192.0, 2.0, 10)
+							.expect("arguments are always valid; qed"),
+					),
+				)?,
+				registry,
+			)?,
+			preparation_max_allocated: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_pvf_preparation_max_allocated",
+						"max allocated memory observed for preparation (in kilobytes)",
+					).buckets(
+						prometheus::exponential_buckets(8192.0, 2.0, 10)
+							.expect("arguments are always valid; qed"),
+					),
 				)?,
 				registry,
 			)?,
