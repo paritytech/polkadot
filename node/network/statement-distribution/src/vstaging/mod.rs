@@ -24,7 +24,9 @@ use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RequiredRouting, SessionGridTopology},
 	peer_set::ValidationVersion,
-	vstaging as protocol_vstaging, PeerId, UnifiedReputationChange as Rep, Versioned, View,
+	request_response::Requests,
+	vstaging as protocol_vstaging, IfDisconnected, PeerId, UnifiedReputationChange as Rep,
+	Versioned, View,
 };
 use polkadot_node_primitives::{
 	SignedFullStatementWithPVD, StatementWithPVD as FullStatementWithPVD,
@@ -37,7 +39,10 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, PerLeafSpan, StatementDistributionSenderTrait,
 };
-use polkadot_node_subsystem_util::backing_implicit_view::{FetchError, View as ImplicitView};
+use polkadot_node_subsystem_util::{
+	backing_implicit_view::{FetchError, View as ImplicitView},
+	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
+};
 use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreIndex,
 	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, IndexedVec,
@@ -65,6 +70,8 @@ use grid::{GridTracker, ManifestSummary, StatementFilter};
 use groups::Groups;
 use requests::RequestManager;
 use statement_store::{StatementOrigin, StatementStore};
+
+pub use requests::UnhandledResponse;
 
 mod candidates;
 mod cluster;
@@ -114,6 +121,7 @@ struct PerRelayParentState {
 	statement_store: StatementStore,
 	availability_cores: Vec<CoreState>,
 	group_rotation_info: GroupRotationInfo,
+	seconding_limit: usize,
 	session: SessionIndex,
 }
 
@@ -401,11 +409,19 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 			continue
 		}
 
-		// TODO [now]: request prospective parachains mode, skip disabled relay-parents
-		// (there should not be any) and set `seconding_limit = max_candidate_depth`.
-
 		// New leaf: fetch info from runtime API and initialize
 		// `per_relay_parent`.
+
+		let mode = prospective_parachains_mode(ctx.sender(), new_relay_parent).await;
+
+		// request prospective parachains mode, skip disabled relay-parents
+		// (there should not be any) and set `seconding_limit = max_candidate_depth`.
+		let seconding_limit = match mode {
+			Ok(ProspectiveParachainsMode::Disabled) | Err(_) => continue,
+			Ok(ProspectiveParachainsMode::Enabled { max_candidate_depth, .. }) =>
+				max_candidate_depth,
+		};
+
 		let session_index = polkadot_node_subsystem_util::request_session_index_for_child(
 			new_relay_parent,
 			ctx.sender(),
@@ -473,6 +489,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 				&per_session.groups,
 				&availability_cores,
 				&group_rotation_info,
+				seconding_limit,
 			)
 		});
 
@@ -484,6 +501,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 				statement_store: StatementStore::new(&per_session.groups),
 				availability_cores,
 				group_rotation_info,
+				seconding_limit,
 				session: session_index,
 			},
 		);
@@ -520,6 +538,7 @@ fn find_local_validator_state(
 	groups: &Groups,
 	availability_cores: &[CoreState],
 	group_rotation_info: &GroupRotationInfo,
+	seconding_limit: usize,
 ) -> Option<LocalValidatorState> {
 	if groups.all().is_empty() {
 		return None
@@ -540,11 +559,8 @@ fn find_local_validator_state(
 		index: validator_index,
 		group: our_group,
 		assignment: para,
-		cluster_tracker: ClusterTracker::new(
-			group_validators,
-			todo!(), // TODO [now]: seconding limit?
-		)
-		.expect("group is non-empty because we are in it; qed"),
+		cluster_tracker: ClusterTracker::new(group_validators, seconding_limit)
+			.expect("group is non-empty because we are in it; qed"),
 		grid_tracker: GridTracker::default(),
 	})
 }
@@ -905,8 +921,16 @@ pub(crate) async fn share_local_statement<Context>(
 		return Err(JfyiError::InvalidShare)
 	}
 
-	// TODO [now]: ensure seconded_count isn't too high. Needs our definition
-	// of 'too high' i.e. max_depth, which isn't done yet.
+	if per_relay_parent.statement_store.seconded_count(&local_index) ==
+		per_relay_parent.seconding_limit
+	{
+		gum::warn!(
+			target: LOG_TARGET,
+			limit = ?per_relay_parent.seconding_limit,
+			"Local node has issued too many `Seconded` statements",
+		);
+		return Err(JfyiError::InvalidShare)
+	}
 
 	if local_assignment != Some(expected_para) || relay_parent != expected_relay_parent {
 		return Err(JfyiError::InvalidShare)
@@ -1764,6 +1788,7 @@ async fn fragment_tree_update_inner<Context>(
 			HypotheticalFrontierRequest {
 				candidates: hypotheticals,
 				fragment_tree_relay_parent: active_leaf_hash,
+				backed_in_path_only: false,
 			},
 			tx,
 		))
@@ -1931,11 +1956,13 @@ async fn handle_incoming_manifest_common<'a, Context>(
 	};
 
 	// 2. sanity checks: peer is validator, bitvec size, import into grid tracker
+	let group_index = manifest_summary.claimed_group_index;
+	let claimed_parent_hash = manifest_summary.claimed_parent_hash;
 	let acknowledge = match local_validator.grid_tracker.import_manifest(
 		grid_topology,
 		&per_session.groups,
 		candidate_hash,
-		todo!(), // TODO [now]: seconding limit
+		relay_parent_state.seconding_limit,
 		manifest_summary,
 		manifest_kind,
 		sender_index,
@@ -1968,8 +1995,8 @@ async fn handle_incoming_manifest_common<'a, Context>(
 		peer.clone(),
 		candidate_hash,
 		relay_parent,
-		manifest_summary.claimed_group_index,
-		Some((manifest_summary.claimed_parent_hash, para_id)),
+		group_index,
+		Some((claimed_parent_hash, para_id)),
 	) {
 		report_peer(ctx.sender(), peer, COST_INACCURATE_ADVERTISEMENT).await;
 		return None
@@ -2277,4 +2304,49 @@ async fn apply_post_confirmation<Context>(
 	let candidate_hash = post_confirmation.hypothetical.candidate_hash();
 	state.request_manager.remove_for(candidate_hash);
 	new_confirmed_candidate_fragment_tree_updates(ctx, state, post_confirmation.hypothetical).await;
+}
+
+/// Dispatch pending requests for candidate data & statements.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut State) {
+	let peers = &state.peers;
+	let peer_connected = |id: &_| peers.contains_key(id);
+	let seconded_mask = |identifier: &requests::CandidateIdentifier| {
+		let &requests::CandidateIdentifier { relay_parent, candidate_hash, group_index } =
+			identifier;
+
+		let relay_parent_state = state.per_relay_parent.get(&relay_parent)?;
+		let per_session = state.per_session.get(&relay_parent_state.session)?;
+		let group_size = per_session.groups.get(group_index).map(|x| x.len())?;
+
+		let knowledge = local_knowledge_filter(
+			group_size,
+			group_index,
+			candidate_hash,
+			&relay_parent_state.statement_store,
+		);
+
+		// We request the opposite of what we know.
+		Some(!knowledge.seconded_in_group)
+	};
+
+	while let Some(request) = state.request_manager.next_request(peer_connected, seconded_mask) {
+		// Peer is supposedly connected.
+		ctx.send_message(NetworkBridgeTxMessage::SendRequests(
+			vec![Requests::AttestedCandidateV2(request)],
+			IfDisconnected::ImmediateError,
+		))
+		.await;
+	}
+}
+
+/// Wait on the next incoming response. If there are no requests pending, this
+/// future never resolves. It is the responsibility of the user of this API
+/// to interrupt the future.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+pub(crate) async fn receive_response(state: &mut State) -> UnhandledResponse {
+	match state.request_manager.await_incoming().await {
+		Some(r) => r,
+		None => futures::future::pending().await,
+	}
 }

@@ -248,20 +248,25 @@ impl RequestManager {
 	/// This function accepts two closures as an argument.
 	/// The first closure indicates whether a peer is still connected.
 	/// The second closure is used to construct a mask for limiting the
-	/// `Seconded` statements the response is allowed to contain.
+	/// `Seconded` statements the response is allowed to contain. The mask
+	/// has `AND` semantics.
 	pub fn next_request(
 		&mut self,
 		peer_connected: impl Fn(&PeerId) -> bool,
-		seconded_mask: impl Fn(&CandidateIdentifier) -> BitVec<u8, Lsb0>,
+		seconded_mask: impl Fn(&CandidateIdentifier) -> Option<BitVec<u8, Lsb0>>,
 	) -> Option<OutgoingRequest<AttestedCandidateRequest>> {
 		if self.pending_responses.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
 			return None
 		}
 
+		let mut res = None;
+
 		// loop over all requests, in order of priority.
 		// do some active maintenance of the connected peers.
 		// dispatch the first request which is not in-flight already.
-		for (_priority, id) in &self.by_priority {
+
+		let mut cleanup_outdated = Vec::new();
+		for (i, (_priority, id)) in self.by_priority.iter().enumerate() {
 			let entry = match self.requests.get_mut(&id) {
 				None => {
 					gum::error!(
@@ -288,7 +293,14 @@ impl RequestManager {
 
 			entry.known_by.push_back(recipient.clone());
 
-			let seconded_mask = seconded_mask(&id);
+			let seconded_mask = match seconded_mask(&id) {
+				None => {
+					cleanup_outdated.push((i, id.clone()));
+					continue
+				},
+				Some(s) => s,
+			};
+
 			let (request, response_fut) = OutgoingRequest::new(
 				RequestRecipient::Peer(recipient.clone()),
 				AttestedCandidateRequest {
@@ -309,10 +321,24 @@ impl RequestManager {
 
 			entry.in_flight = true;
 
-			return Some(request)
+			res = Some(request);
+			break
 		}
 
-		None
+		for (priority_index, identifier) in cleanup_outdated.into_iter().rev() {
+			self.by_priority.remove(priority_index);
+			self.requests.remove(&identifier);
+			if let HEntry::Occupied(mut e) =
+				self.unique_identifiers.entry(identifier.candidate_hash)
+			{
+				e.get_mut().remove(&identifier);
+				if e.get().is_empty() {
+					e.remove();
+				}
+			}
+		}
+
+		res
 	}
 
 	/// Await the next incoming response to a sent request, or immediately
@@ -359,7 +385,7 @@ impl<'a> UnhandledResponse<'a> {
 		group: &[ValidatorIndex],
 		session: SessionIndex,
 		validator_key_lookup: impl Fn(ValidatorIndex) -> ValidatorId,
-		allowed_para_lookup: impl Fn(ParaId) -> bool,
+		allowed_para_lookup: impl Fn(ParaId, GroupIndex) -> bool,
 	) -> ResponseValidationOutput {
 		let UnhandledResponse {
 			manager,
@@ -434,12 +460,11 @@ impl<'a> UnhandledResponse<'a> {
 			group,
 			session,
 			validator_key_lookup,
+			allowed_para_lookup,
 		);
 
 		if let CandidateRequestStatus::Complete { .. } = output.request_status {
-			// TODO [now]: clean up everything else to do with the candidate.
-			// add reputation punishments for all peers advertising the candidate under
-			// different identifiers.
+			manager.remove_for(identifier.candidate_hash);
 		}
 
 		output
@@ -454,6 +479,7 @@ fn validate_complete_response(
 	group: &[ValidatorIndex],
 	session: SessionIndex,
 	validator_key_lookup: impl Fn(ValidatorIndex) -> ValidatorId,
+	allowed_para_lookup: impl Fn(ParaId, GroupIndex) -> bool,
 ) -> ResponseValidationOutput {
 	// sanity check bitmask size. this is based entirely on
 	// local logic here.
@@ -485,6 +511,13 @@ fn validate_complete_response(
 		if response.candidate_receipt.descriptor.persisted_validation_data_hash !=
 			response.persisted_validation_data.hash()
 		{
+			return invalid_candidate_output()
+		}
+
+		if !allowed_para_lookup(
+			response.candidate_receipt.descriptor.para_id,
+			identifier.group_index,
+		) {
 			return invalid_candidate_output()
 		}
 
@@ -601,10 +634,6 @@ pub enum CandidateRequestStatus {
 	/// expected may not be present, and higher-level code should
 	/// evaluate whether the candidate is still worth storing and whether
 	/// the sender should be punished.
-	///
-	/// This also does not indicate that the para has actually been checked
-	/// to be one that the group is assigned under. Higher-level code should
-	/// verify that this is the case and ignore the candidate accordingly if so.
 	Complete {
 		candidate: CommittedCandidateReceipt,
 		persisted_validation_data: PersistedValidationData,
@@ -758,5 +787,5 @@ mod tests {
 
 	// TODO [now]: test that outdated responses are handled correctly.
 
-	// TODO [now]: test clean up by relay parent.
+	// TODO [now]: test that successful requests lead to clean up.
 }
