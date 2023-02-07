@@ -42,7 +42,7 @@ sc-storage-monitor = { git = "https://github.com/paritytech/substrate", branch =
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [features]
-default = ["db", "cli", "hostperfcheck", "full-node", "polkadot-native"]
+default = ["db", "cli", "full-node", "polkadot-native"]
 db = ["service/db"]
 cli = [
 	"clap",

@@ -1355,32 +1355,36 @@ pub fn new_chain_ops(
 > {
 	config.keystore = service::config::KeystoreConfig::InMemory;
 
-	let telemetry_worker_handle = None;
-
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() ||
 		config.chain_spec.is_wococo() ||
 		config.chain_spec.is_versi()
 	{
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; rococo_runtime, RococoExecutorDispatch, Rococo)
+		return chain_ops!(config, jaeger_agent, None; rococo_runtime, RococoExecutorDispatch, Rococo)
 	}
 
 	#[cfg(feature = "kusama-native")]
 	if config.chain_spec.is_kusama() {
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; kusama_runtime, KusamaExecutorDispatch, Kusama)
+		return chain_ops!(config, jaeger_agent, None; kusama_runtime, KusamaExecutorDispatch, Kusama)
 	}
 
 	#[cfg(feature = "westend-native")]
 	if config.chain_spec.is_westend() {
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; westend_runtime, WestendExecutorDispatch, Westend)
+		return chain_ops!(config, jaeger_agent, None; westend_runtime, WestendExecutorDispatch, Westend)
 	}
 
 	#[cfg(feature = "polkadot-native")]
 	{
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
+		return chain_ops!(config, jaeger_agent, None; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
 	}
+
 	#[cfg(not(feature = "polkadot-native"))]
-	Err(Error::NoRuntime)
+	{
+		let _ = config;
+		let _ = jaeger_agent;
+
+		Err(Error::NoRuntime)
+	}
 }
 
 /// Build a full node.
@@ -1488,7 +1492,21 @@ pub fn build_full(
 	}
 
 	#[cfg(not(feature = "polkadot-native"))]
-	Err(Error::NoRuntime)
+	{
+		let _ = config;
+		let _ = is_collator;
+		let _ = grandpa_pause;
+		let _ = enable_beefy;
+		let _ = jaeger_agent;
+		let _ = telemetry_worker_handle;
+		let _ = overseer_enable_anyways;
+		let _ = overseer_gen;
+		let _ = overseer_message_channel_override;
+		let _ = malus_finality_delay;
+		let _ = hwbench;
+
+		Err(Error::NoRuntime)
+	}
 }
 
 /// Reverts the node state down to at most the last finalized block.
