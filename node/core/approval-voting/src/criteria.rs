@@ -227,7 +227,7 @@ pub(crate) trait AssignmentCriteria {
 
 	fn check_assignment_cert(
 		&self,
-		claimed_core_index: CoreIndex,
+		claimed_core_index: Vec<CoreIndex>,
 		validator_index: ValidatorIndex,
 		config: &Config,
 		relay_vrf_story: RelayVRFStory,
@@ -251,7 +251,7 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 
 	fn check_assignment_cert(
 		&self,
-		claimed_core_index: CoreIndex,
+		claimed_core_index: Vec<CoreIndex>,
 		validator_index: ValidatorIndex,
 		config: &Config,
 		relay_vrf_story: RelayVRFStory,
@@ -341,15 +341,18 @@ pub(crate) fn compute_assignments(
 
 	let mut assignments = HashMap::new();
 
-	// First run `RelayVRFModulo` for each sample.
+	// TODO: support all vrf modulo assignment kinds.
+	// For now we only do compact.
 	compute_relay_vrf_modulo_assignments(
 		&assignments_key,
 		index,
 		config,
 		relay_vrf_story.clone(),
-		leaving_cores.iter().cloned(),
+		leaving_cores.clone(),
 		&mut assignments,
 	);
+
+	//TODO: Add assignment into `assignments` per core map.
 
 	// Then run `RelayVRFDelay` once for the whole block.
 	compute_relay_vrf_delay_assignments(
@@ -369,58 +372,61 @@ fn compute_relay_vrf_modulo_assignments(
 	validator_index: ValidatorIndex,
 	config: &Config,
 	relay_vrf_story: RelayVRFStory,
-	leaving_cores: impl IntoIterator<Item = (CandidateHash, CoreIndex)> + Clone,
+	leaving_cores: Vec<(CandidateHash, CoreIndex)>,
 	assignments: &mut HashMap<CoreIndex, OurAssignment>,
 ) {
-	for rvm_sample in 0..config.relay_vrf_modulo_samples {
-		let mut core = CoreIndex::default();
+	let mut assigned_cores = Vec::new();
+	// for rvm_sample in 0..config.relay_vrf_modulo_samples {
+	let maybe_assignment = {
+		let assigned_cores = &mut assigned_cores;
+		assignments_key.vrf_sign_extra_after_check(
+			relay_vrf_modulo_transcript(relay_vrf_story.clone(), config.relay_vrf_modulo_samples - 1),
+			|vrf_in_out| {
+				*assigned_cores = relay_vrf_modulo_cores(
+					&vrf_in_out,
+					config.relay_vrf_modulo_samples,
+					config.n_cores,
+				)
+				.into_iter()
+				.filter(|core| {
+					leaving_cores.iter().map(|(_, core)| core).collect::<Vec<_>>().contains(&core)
+				})
+				.collect::<Vec<CoreIndex>>();
 
-		let maybe_assignment = {
-			// Extra scope to ensure borrowing instead of moving core
-			// into closure.
-			let core = &mut core;
-			assignments_key.vrf_sign_extra_after_check(
-				relay_vrf_modulo_transcript(relay_vrf_story.clone(), rvm_sample),
-				|vrf_in_out| {
-					*core = relay_vrf_modulo_core(&vrf_in_out, config.n_cores);
-					if let Some((candidate_hash, _)) =
-						leaving_cores.clone().into_iter().find(|(_, c)| c == core)
-					{
-						gum::trace!(
-							target: LOG_TARGET,
-							?candidate_hash,
-							?core,
-							?validator_index,
-							tranche = 0,
-							"RelayVRFModulo Assignment."
-						);
+				if !assigned_cores.is_empty() {
+					gum::trace!(
+						target: LOG_TARGET,
+						?assigned_cores,
+						?validator_index,
+						tranche = 0,
+						"RelayVRFModulo Assignment."
+					);
 
-						Some(assigned_core_transcript(*core))
-					} else {
-						None
-					}
-				},
-			)
+					Some(assigned_cores_transcript(assigned_cores))
+				} else {
+					None
+				}
+			},
+		)
+	};
+
+	if let Some(assignment) = maybe_assignment.map(|(vrf_in_out, vrf_proof, _)| {
+		let cert = AssignmentCert {
+			kind: AssignmentCertKind::RelayVRFModuloCompact {
+				sample: config.relay_vrf_modulo_samples - 1,
+				core_indices: assigned_cores.clone(),
+			},
+			vrf: (
+				approval_types::VRFOutput(vrf_in_out.to_output()),
+				approval_types::VRFProof(vrf_proof),
+			),
 		};
 
-		if let Some((vrf_in_out, vrf_proof, _)) = maybe_assignment {
-			// Sanity: `core` is always initialized to non-default here, as the closure above
-			// has been executed.
-			let cert = AssignmentCert {
-				kind: AssignmentCertKind::RelayVRFModulo { sample: rvm_sample },
-				vrf: (
-					approval_types::VRFOutput(vrf_in_out.to_output()),
-					approval_types::VRFProof(vrf_proof),
-				),
-			};
-
-			// All assignments of type RelayVRFModulo have tranche 0.
-			assignments.entry(core).or_insert(OurAssignment {
-				cert,
-				tranche: 0,
-				validator_index,
-				triggered: false,
-			});
+		// All assignments of type RelayVRFModulo have tranche 0.
+		OurAssignment { cert, tranche: 0, validator_index, triggered: false }
+	}) {
+		for core_index in assigned_cores {
+			assignments.insert(core_index, assignment.clone());
 		}
 	}
 }
@@ -518,7 +524,7 @@ pub(crate) enum InvalidAssignmentReason {
 /// This function does not check whether the core is actually a valid assignment or not. That should be done
 /// outside the scope of this function.
 pub(crate) fn check_assignment_cert(
-	claimed_core_index: CoreIndex,
+	claimed_core_index: Vec<CoreIndex>,
 	validator_index: ValidatorIndex,
 	config: &Config,
 	relay_vrf_story: RelayVRFStory,
@@ -535,8 +541,10 @@ pub(crate) fn check_assignment_cert(
 	let public = schnorrkel::PublicKey::from_bytes(validator_public.as_slice())
 		.map_err(|_| InvalidAssignment(Reason::InvalidAssignmentKey))?;
 
-	if claimed_core_index.0 >= config.n_cores {
-		return Err(InvalidAssignment(Reason::CoreIndexOutOfBounds))
+	for claimed_cores in &claimed_core_index {
+		if claimed_cores.0 >= config.n_cores {
+			return Err(InvalidAssignment(Reason::CoreIndexOutOfBounds))
+		}
 	}
 
 	// Check that the validator was not part of the backing group
@@ -564,9 +572,12 @@ pub(crate) fn check_assignment_cert(
 				)
 				.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
 
-			// ensure that the `vrf_in_out` actually gives us the claimed core.
-			if relay_vrf_modulo_cores(&vrf_in_out, *sample, config.n_cores)
-				.contains(&claimed_core_index)
+			let got_cores = relay_vrf_modulo_cores(&vrf_in_out, *sample + 1, config.n_cores);
+			println!("Claimed cores: {:?}", &claimed_core_index);
+			println!("Claimed cores: {:?}", &got_cores);
+
+			// ensure that the `vrf_in_out` actually gives us the claimed cores.
+			if got_cores == claimed_core_index
 			{
 				Ok(0)
 			} else {
@@ -583,19 +594,19 @@ pub(crate) fn check_assignment_cert(
 					relay_vrf_modulo_transcript(relay_vrf_story, *sample),
 					&vrf_output.0,
 					&vrf_proof.0,
-					assigned_core_transcript(claimed_core_index),
+					assigned_core_transcript(claimed_core_index[0]),
 				)
 				.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
 
 			// ensure that the `vrf_in_out` actually gives us the claimed core.
-			if relay_vrf_modulo_core(&vrf_in_out, config.n_cores) == claimed_core_index {
+			if relay_vrf_modulo_core(&vrf_in_out, config.n_cores) == claimed_core_index[0] {
 				Ok(0)
 			} else {
 				Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
 			}
 		},
 		AssignmentCertKind::RelayVRFDelay { core_index } => {
-			if *core_index != claimed_core_index {
+			if *core_index != claimed_core_index[0] {
 				return Err(InvalidAssignment(Reason::VRFDelayCoreIndexMismatch))
 			}
 
@@ -788,7 +799,7 @@ mod tests {
 	}
 
 	struct MutatedAssignment {
-		core: CoreIndex,
+		cores: Vec<CoreIndex>,
 		cert: AssignmentCert,
 		group: GroupIndex,
 		own_group: GroupIndex,
@@ -838,7 +849,17 @@ mod tests {
 		let mut counted = 0;
 		for (core, assignment) in assignments {
 			let mut mutated = MutatedAssignment {
-				core,
+				cores: match assignment.cert.kind.clone() {
+					AssignmentCertKind::RelayVRFModuloCompact { sample: _ , core_indices } => {
+						core_indices
+					},
+					AssignmentCertKind::RelayVRFModulo { sample: _ } => {
+						vec![core]
+					},
+					AssignmentCertKind::RelayVRFDelay { core_index } => {
+						vec![core_index]
+					},
+				},
 				group: group_for_core(core.0 as _),
 				cert: assignment.cert,
 				own_group: GroupIndex(0),
@@ -854,16 +875,15 @@ mod tests {
 			counted += 1;
 
 			let is_good = check_assignment_cert(
-				mutated.core,
+				mutated.cores,
 				mutated.val_index,
 				&mutated.config,
 				relay_vrf_story.clone(),
 				&mutated.cert,
 				mutated.group,
-			)
-			.is_ok();
+			).is_ok();
 
-			assert_eq!(expected, is_good)
+			assert_eq!(expected, is_good);
 		}
 
 		assert!(counted > 0);
@@ -877,7 +897,7 @@ mod tests {
 	#[test]
 	fn check_rejects_claimed_core_out_of_bounds() {
 		check_mutated_assignments(200, 100, 25, |m| {
-			m.core.0 += 100;
+			m.cores[0].0 += 100;
 			Some(false)
 		});
 	}
@@ -919,6 +939,10 @@ mod tests {
 					m.cert.vrf = garbage_vrf();
 					Some(false)
 				},
+				AssignmentCertKind::RelayVRFModuloCompact { .. } => {
+					m.cert.vrf = garbage_vrf();
+					Some(false)
+				},
 				_ => None, // skip everything else.
 			}
 		});
@@ -932,6 +956,10 @@ mod tests {
 					m.config.relay_vrf_modulo_samples = sample;
 					Some(false)
 				},
+				AssignmentCertKind::RelayVRFModuloCompact { sample , core_indices: _} => {
+					m.config.relay_vrf_modulo_samples = sample;
+					Some(false)
+				},
 				_ => None, // skip everything else.
 			}
 		});
@@ -942,7 +970,9 @@ mod tests {
 		check_mutated_assignments(200, 100, 25, |m| {
 			match m.cert.kind.clone() {
 				AssignmentCertKind::RelayVRFDelay { .. } => {
-					m.core = CoreIndex((m.core.0 + 1) % 100);
+					for core in &mut m.cores {
+						core.0 = (core.0 + 1) % 100;
+					}
 					Some(false)
 				},
 				_ => None, // skip everything else.
@@ -954,8 +984,10 @@ mod tests {
 	fn check_rejects_modulo_core_wrong() {
 		check_mutated_assignments(200, 100, 25, |m| {
 			match m.cert.kind.clone() {
-				AssignmentCertKind::RelayVRFModulo { .. } => {
-					m.core = CoreIndex((m.core.0 + 1) % 100);
+				AssignmentCertKind::RelayVRFModulo { .. } | AssignmentCertKind::RelayVRFModuloCompact { .. } => {
+					for core in &mut m.cores {
+						core.0 = (core.0 + 1) % 100;
+					}
 					Some(false)
 				},
 				_ => None, // skip everything else.
