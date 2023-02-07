@@ -54,8 +54,6 @@
 //! are in, based on _the most charitable possible interpretation of our protocol rules_,
 //! and to keep track of what we have sent to other validators in the group and what we may
 //! continue to send them.
-// TODO [now]: decide if we want to also distribute statements to validators
-// that are assigned as-of an active leaf i.e. the next group.
 
 use std::ops::Range;
 
