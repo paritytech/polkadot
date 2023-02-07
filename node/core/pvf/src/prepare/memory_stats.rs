@@ -86,7 +86,7 @@ pub fn observe_memory_metrics(metrics: &Metrics, memory_stats: MemoryStats, pid:
 	}
 }
 
-#[cfg(any(target_os = "linux", feature = "jemalloc-stats"))]
+#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub mod memory_tracker {
 	use super::*;
 	use std::{
