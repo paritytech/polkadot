@@ -6981,6 +6981,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "hex-literal",
+ "libc",
  "parity-scale-codec",
  "pin-project",
  "polkadot-core-primitives",
@@ -7001,6 +7002,7 @@ dependencies = [
  "tempfile",
  "test-parachain-adder",
  "test-parachain-halt",
+ "tikv-jemalloc-ctl",
  "tokio",
  "tracing-gum",
 ]
