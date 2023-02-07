@@ -55,7 +55,9 @@ jobs:
           echo "image var: $IMAGE_NAME"
           echo "Pulling image: $IMAGE"
           docker pull ${IMAGE}
+          docker images
 
+      # polkadot aarch64-unknown-linux-gnu production takes around ... minutes on Github
       - name: Build ${{ matrix.binary }} for target ${{ matrix.target }} using profile ${{ matrix.profile }}
         env:
           IMAGE_NAME_TMP: DOCKER_IMAGE_${{ matrix.target }}
