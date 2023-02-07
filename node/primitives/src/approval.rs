@@ -75,6 +75,16 @@ pub enum AssignmentCertKind {
 		/// The core index chosen in this cert.
 		core_index: CoreIndex,
 	},
+	/// Multiple assignment stories based on the VRF that authorized the relay-chain block where the
+	/// candidate was included combined with a sample number.
+	///
+	/// The context used to produce bytes is [`RELAY_VRF_MODULO_CONTEXT`]
+	RelayVRFModuloCompact {
+		/// The number of samples.
+		sample: u32,
+		/// The assigned cores.
+		core_indices: Vec<CoreIndex>,
+	},
 }
 
 /// A certification of assignment.
