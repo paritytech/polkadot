@@ -24,9 +24,9 @@ use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RequiredRouting, SessionGridTopology},
 	peer_set::ValidationVersion,
-	vstaging as protocol_vstaging, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 	request_response::Requests,
-	IfDisconnected,
+	vstaging as protocol_vstaging, IfDisconnected, PeerId, UnifiedReputationChange as Rep,
+	Versioned, View,
 };
 use polkadot_node_primitives::{
 	SignedFullStatementWithPVD, StatementWithPVD as FullStatementWithPVD,
@@ -2308,16 +2308,12 @@ async fn apply_post_confirmation<Context>(
 
 /// Dispatch pending requests for candidate data & statements.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-pub(crate) async fn dispatch_requests<Context>(
-	ctx: &mut Context,
-	state: &mut State,
-) {
+pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut State) {
 	let peers = &state.peers;
 	let peer_connected = |id: &_| peers.contains_key(id);
 	let seconded_mask = |identifier: &requests::CandidateIdentifier| {
-		let &requests::CandidateIdentifier {
-			relay_parent, candidate_hash, group_index,
-		} = identifier;
+		let &requests::CandidateIdentifier { relay_parent, candidate_hash, group_index } =
+			identifier;
 
 		let relay_parent_state = state.per_relay_parent.get(&relay_parent)?;
 		let per_session = state.per_session.get(&relay_parent_state.session)?;
@@ -2334,15 +2330,13 @@ pub(crate) async fn dispatch_requests<Context>(
 		Some(!knowledge.seconded_in_group)
 	};
 
-	while let Some(request) = state.request_manager.next_request(
-		peer_connected,
-		seconded_mask,
-	) {
+	while let Some(request) = state.request_manager.next_request(peer_connected, seconded_mask) {
 		// Peer is supposedly connected.
 		ctx.send_message(NetworkBridgeTxMessage::SendRequests(
 			vec![Requests::AttestedCandidateV2(request)],
 			IfDisconnected::ImmediateError,
-		)).await;
+		))
+		.await;
 	}
 }
 
@@ -2350,9 +2344,7 @@ pub(crate) async fn dispatch_requests<Context>(
 /// future never resolves. It is the responsibility of the user of this API
 /// to interrupt the future.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-pub(crate) async fn receive_response(
-	state: &mut State,
-) -> UnhandledResponse {
+pub(crate) async fn receive_response(state: &mut State) -> UnhandledResponse {
 	match state.request_manager.await_incoming().await {
 		Some(r) => r,
 		None => futures::future::pending().await,

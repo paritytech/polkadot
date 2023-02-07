@@ -297,7 +297,7 @@ impl RequestManager {
 				None => {
 					cleanup_outdated.push((i, id.clone()));
 					continue
-				}
+				},
 				Some(s) => s,
 			};
 
@@ -322,13 +322,15 @@ impl RequestManager {
 			entry.in_flight = true;
 
 			res = Some(request);
-			break;
+			break
 		}
 
 		for (priority_index, identifier) in cleanup_outdated.into_iter().rev() {
 			self.by_priority.remove(priority_index);
 			self.requests.remove(&identifier);
-			if let HEntry::Occupied(mut e) = self.unique_identifiers.entry(identifier.candidate_hash) {
+			if let HEntry::Occupied(mut e) =
+				self.unique_identifiers.entry(identifier.candidate_hash)
+			{
 				e.get_mut().remove(&identifier);
 				if e.get().is_empty() {
 					e.remove();
