@@ -220,6 +220,7 @@ fn handle_to_pool(
 					let preparation_timer = metrics.time_preparation();
 					mux.push(
 						start_work_task(
+							metrics.clone(),
 							worker,
 							idle,
 							code,
@@ -268,6 +269,7 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Po
 }
 
 async fn start_work_task<Timer>(
+	metrics: Metrics,
 	worker: Worker,
 	idle: IdleWorker,
 	code: Arc<Vec<u8>>,
@@ -277,7 +279,8 @@ async fn start_work_task<Timer>(
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
 	let outcome =
-		worker::start_work(idle, code, &cache_path, artifact_path, preparation_timeout).await;
+		worker::start_work(&metrics, idle, code, &cache_path, artifact_path, preparation_timeout)
+			.await;
 	PoolEvent::StartWork(worker, outcome)
 }
 

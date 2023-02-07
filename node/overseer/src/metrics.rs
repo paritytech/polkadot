@@ -69,8 +69,8 @@ impl Metrics {
 
 	pub(crate) fn memory_stats_snapshot(&self, memory_stats: MemoryAllocationSnapshot) {
 		if let Some(metrics) = &self.0 {
-			metrics.memory_stats_allocated.set(memory_stats.allocated);
-			metrics.memory_stats_resident.set(memory_stats.resident);
+			metrics.memory_stats_allocated.set(memory_stats.allocated as u64);
+			metrics.memory_stats_resident.set(memory_stats.resident as u64);
 		}
 	}
 

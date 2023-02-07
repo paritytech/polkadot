@@ -1,0 +1,79 @@
+name: Release - xbuilder
+
+on:
+  push:
+    tags:
+      # Catches v1.2.3 and v1.2.3-rc1
+      - v[0-9]+.[0-9]+.[0-9]+*
+  workflow_dispatch:
+
+env:
+  # We can use the following once https://github.com/paritytech/scripts/pull/504 is merged
+  # and the image is available
+  # DOCKER_ORG=paritytech
+  DOCKER_ORG: chevdor
+
+jobs:
+  # get-rust-versions:
+  #   runs-on: ubuntu-latest
+  #   container:
+  #     image: paritytech/ci-linux:production
+  #   outputs:
+  #     rustc-stable: ${{ steps.get-rust-versions.outputs.stable }}
+  #     rustc-nightly: ${{ steps.get-rust-versions.outputs.nightly }}
+  #   steps:
+  #     - id: get-rust-versions
+  #       run: |
+  #         echo "stable=$(rustc +stable --version)" >> $GITHUB_OUTPUT
+  #         echo "nightly=$(rustc +nightly --version)" >> $GITHUB_OUTPUT
+
+  xbuild:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [ aarch64-unknown-linux-gnu ]
+        profile: [ production ]
+        binary: [ polkadot ]
+
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+
+      - name: Set env for ${{ matrix.target }}
+        run: |
+          image="${DOCKER_ORG}/parity-xbuilder-${{ matrix.target }}"
+          target=${{ matrix.target }}; target=${target//-/_}
+          echo "DOCKER_IMAGE_$target=$image" >> $GITHUB_ENV
+
+      - name: Pull xbuilder image for ${{ matrix.target }}
+        env:
+          IMAGE_NAME_TMP: DOCKER_IMAGE_${{ matrix.target }}
+        run: |
+          IMAGE_NAME=${IMAGE_NAME_TMP//-/_}
+          IMAGE=${!IMAGE_NAME}
+
+          echo "image var: $IMAGE_NAME"
+          echo "Pulling image: $IMAGE"
+          docker pull ${IMAGE}
+          docker images
+
+      # polkadot aarch64-unknown-linux-gnu production takes around ... minutes on Github
+      - name: Build ${{ matrix.binary }} for target ${{ matrix.target }} using profile ${{ matrix.profile }}
+        env:
+          IMAGE_NAME_TMP: DOCKER_IMAGE_${{ matrix.target }}
+        run: |
+          IMAGE_NAME=${IMAGE_NAME_TMP//-/_}
+          IMAGE=${!IMAGE_NAME}
+
+          docker run --rm --name builder \
+            -v $PWD:/app ${IMAGE} \
+            -p ${{ matrix.binary }} \
+            --profile ${{ matrix.profile }}
+          ls -al ./target/${{ matrix.target }}/${{ matrix.profile }}/${{ matrix.binary }}
+
+      - name: Upload ${{ matrix.binary }} / ${{ matrix.target }} / ${{ matrix.profile }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.binary }}_${{ matrix.target }}_${{ matrix.profile }}
+          path: |
+            ./target/${{ matrix.target }}/${{ matrix.profile }}/${{ matrix.binary }}
