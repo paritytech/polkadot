@@ -656,7 +656,7 @@ fn collect_memory_stats(metrics: &OverseerMetrics) -> () {
 // This version of collect_memory_stats is enabled on any non linux platform by default, or when the jemalloc-allocator
 // feature flag is disabled. It effectively disabled the jemalloc based metric collection.
 #[cfg(not(any(target_os = "linux", feature = "jemalloc-allocator")))]
-fn collect_memory_stats(_metrics: &OverseerMetrics) -> () {
+fn collect_memory_stats(_metrics: &OverseerMetrics) {
 	()
 }
 
