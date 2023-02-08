@@ -630,36 +630,6 @@ pub struct Overseer<SupportsParachains> {
 	pub metrics: OverseerMetrics,
 }
 
-// This version of collect_memory_stats is active by default on linux, or when the jemalloc-allocator feature flag is
-// enabled.
-#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-fn collect_memory_stats(metrics: &OverseerMetrics) -> () {
-	use memory_stats::MemoryAllocationTracker;
-	match MemoryAllocationTracker::new() {
-		Ok(memory_stats) => match memory_stats.snapshot() {
-			Ok(memory_stats_snapshot) => {
-				gum::trace!(target: LOG_TARGET, "memory_stats: {:?}", &memory_stats_snapshot);
-				metrics.memory_stats_snapshot(memory_stats_snapshot);
-			},
-			Err(e) => gum::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
-		},
-		Err(_) => {
-			gum::debug!(
-				target: LOG_TARGET,
-				"Memory allocation tracking is not supported by the allocator.",
-			);
-			()
-		},
-	}
-}
-
-// This version of collect_memory_stats is enabled on any non linux platform by default, or when the jemalloc-allocator
-// feature flag is disabled. It effectively disabled the jemalloc based metric collection.
-#[cfg(not(any(target_os = "linux", feature = "jemalloc-allocator")))]
-fn collect_memory_stats(_metrics: &OverseerMetrics) -> () {
-	()
-}
-
 /// Spawn the metrics metronome task.
 pub fn spawn_metronome_metrics<S, SupportsParachains>(
 	overseer: &mut Overseer<S, SupportsParachains>,
@@ -682,6 +652,36 @@ where
 		}
 	}
 	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
+
+	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> =
+		match memory_stats::MemoryAllocationTracker::new() {
+			Ok(memory_stats) =>
+				Box::new(move |metrics: &OverseerMetrics| match memory_stats.snapshot() {
+					Ok(memory_stats_snapshot) => {
+						gum::trace!(
+							target: LOG_TARGET,
+							"memory_stats: {:?}",
+							&memory_stats_snapshot
+						);
+						metrics.memory_stats_snapshot(memory_stats_snapshot);
+					},
+					Err(e) =>
+						gum::debug!(target: LOG_TARGET, "Failed to obtain memory stats: {:?}", e),
+				}),
+			Err(_) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					"Memory allocation tracking is not supported by the allocator.",
+				);
+
+				Box::new(|_| {})
+			},
+		};
+
+	#[cfg(not(any(target_os = "linux", feature = "jemalloc-allocator")))]
+	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> = Box::new(|_| {});
+
 	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
 		collect_memory_stats(&metronome_metrics);
 
