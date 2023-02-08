@@ -583,13 +583,14 @@ fn validate_complete_response(
 					},
 			}
 
-			let validator_public = match validator_key_lookup(unchecked_statement.unchecked_validator_index()) {
-				None => {
-					rep_changes.push((requested_peer.clone(), COST_INVALID_SIGNATURE));
-					continue
-				}
-				Some(p) => p,
-			};
+			let validator_public =
+				match validator_key_lookup(unchecked_statement.unchecked_validator_index()) {
+					None => {
+						rep_changes.push((requested_peer.clone(), COST_INVALID_SIGNATURE));
+						continue
+					},
+					Some(p) => p,
+				};
 
 			let checked_statement =
 				match unchecked_statement.try_into_checked(&signing_context, &validator_public) {

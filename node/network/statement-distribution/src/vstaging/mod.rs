@@ -2358,11 +2358,8 @@ pub(crate) async fn handle_response<'a, Context>(
 	state: &mut State,
 	response: UnhandledResponse<'a>, // TODO [now]: needs to be altered as this borrows `State` in practice.
 ) {
-	let &requests::CandidateIdentifier {
-		relay_parent,
-		candidate_hash,
-		group_index,
-	} = response.candidate_identifier();
+	let &requests::CandidateIdentifier { relay_parent, candidate_hash, group_index } =
+		response.candidate_identifier();
 
 	let relay_parent_state = match state.per_relay_parent.get_mut(&relay_parent) {
 		None => return,
@@ -2391,7 +2388,7 @@ pub(crate) async fn handle_response<'a, Context>(
 			);
 
 			Some(g_index) == expected_group
-		}
+		},
 	);
 
 	for (peer, rep) in res.reputation_changes {
