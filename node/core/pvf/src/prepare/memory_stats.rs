@@ -220,9 +220,10 @@ pub mod memory_tracker {
 #[cfg(target_os = "linux")]
 mod getrusage {
 	use libc::{getrusage, rusage, timeval, RUSAGE_THREAD};
+	use std::io;
 
 	/// Get the rusage stats for the current thread.
-	fn getrusage_thread() -> io::Result<rusage> {
+	pub fn getrusage_thread() -> io::Result<rusage> {
 		let mut result = rusage {
 			ru_utime: timeval { tv_sec: 0, tv_usec: 0 },
 			ru_stime: timeval { tv_sec: 0, tv_usec: 0 },
