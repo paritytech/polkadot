@@ -384,7 +384,7 @@ impl<'a> UnhandledResponse<'a> {
 		self,
 		group: &[ValidatorIndex],
 		session: SessionIndex,
-		validator_key_lookup: impl Fn(ValidatorIndex) -> ValidatorId,
+		validator_key_lookup: impl Fn(ValidatorIndex) -> Option<ValidatorId>,
 		allowed_para_lookup: impl Fn(ParaId, GroupIndex) -> bool,
 	) -> ResponseValidationOutput {
 		let UnhandledResponse {
@@ -478,7 +478,7 @@ fn validate_complete_response(
 	mut sent_seconded_bitmask: BitVec<u8, Lsb0>,
 	group: &[ValidatorIndex],
 	session: SessionIndex,
-	validator_key_lookup: impl Fn(ValidatorIndex) -> ValidatorId,
+	validator_key_lookup: impl Fn(ValidatorIndex) -> Option<ValidatorId>,
 	allowed_para_lookup: impl Fn(ParaId, GroupIndex) -> bool,
 ) -> ResponseValidationOutput {
 	// sanity check bitmask size. this is based entirely on
@@ -583,8 +583,14 @@ fn validate_complete_response(
 					},
 			}
 
-			let validator_public =
-				validator_key_lookup(unchecked_statement.unchecked_validator_index());
+			let validator_public = match validator_key_lookup(unchecked_statement.unchecked_validator_index()) {
+				None => {
+					rep_changes.push((requested_peer.clone(), COST_INVALID_SIGNATURE));
+					continue
+				}
+				Some(p) => p,
+			};
+
 			let checked_statement =
 				match unchecked_statement.try_into_checked(&signing_context, &validator_public) {
 					Err(_) => {

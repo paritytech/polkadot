@@ -2353,13 +2353,65 @@ pub(crate) async fn receive_response(state: &mut State) -> UnhandledResponse {
 /// Handles an incoming response. This does the actual work of validating the response,
 /// importing statements, sending acknowledgements, etc.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-pub(crate) async fn receive_response<Context>(
+pub(crate) async fn handle_response<'a, Context>(
 	ctx: &mut Context,
 	state: &mut State,
-) -> UnhandledResponse {
-	// 1. handle response
-	// 1. send acknowledgement & needed statements.
-	// 1. import statements into statement store
-	// 1. `circulate_statement` for all fresh statements (also, `learned_fresh_statement`)
-	// 1. if includable, send fresh statements to backing.
+	response: UnhandledResponse<'a>, // TODO [now]: needs to be altered as this borrows `State` in practice.
+) {
+	let &requests::CandidateIdentifier {
+		relay_parent,
+		candidate_hash,
+		group_index,
+	} = response.candidate_identifier();
+
+	let relay_parent_state = match state.per_relay_parent.get_mut(&relay_parent) {
+		None => return,
+		Some(s) => s,
+	};
+
+	let per_session = match state.per_session.get(&relay_parent_state.session) {
+		None => return,
+		Some(s) => s,
+	};
+
+	let group = match per_session.groups.get(group_index) {
+		None => return,
+		Some(g) => g,
+	};
+
+	let res = response.validate_response(
+		group,
+		relay_parent_state.session,
+		|v| per_session.session_info.validators.get(v).map(|x| x.clone()),
+		|para, g_index| {
+			let expected_group = group_for_para(
+				&relay_parent_state.availability_cores,
+				&relay_parent_state.group_rotation_info,
+				para,
+			);
+
+			Some(g_index) == expected_group
+		}
+	);
+
+	for (peer, rep) in res.reputation_changes {
+		report_peer(ctx.sender(), peer, rep).await;
+	}
+
+	let (candidate, pvd, statements) = match res.request_status {
+		requests::CandidateRequestStatus::Outdated => return,
+		requests::CandidateRequestStatus::Incomplete => return,
+		requests::CandidateRequestStatus::Complete {
+			candidate,
+			persisted_validation_data,
+			statements,
+		} => (candidate, persisted_validation_data, statements),
+	};
+
+	// TODO [now]
+	// - send acknowledgement & statements desired by counterparty
+	// - import statements into statement store
+	// - clean up other requests if confirmed.
+	// - `circulate_statement` for all fresh statements (also, `learned_fresh_statement`)
+	// - if includable, send fresh statements to backing.
 }
