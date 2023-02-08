@@ -148,7 +148,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		)
 		.map_err(FatalError::SpawnTask)?;
 
-		// TODO [now]: handle vstaging req/res: dispatch pending statements & handling responses.
+		// TODO [now]: handle vstaging req/res: dispatch pending requests & handling responses.
 
 		loop {
 			let message =
