@@ -6823,6 +6823,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
+ "sp-consensus",
  "sp-core",
  "sp-keyring",
  "thiserror",
