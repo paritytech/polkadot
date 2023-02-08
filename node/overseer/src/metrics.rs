@@ -38,7 +38,6 @@ struct MetricsInner {
 	signals_sent: prometheus::GaugeVec<prometheus::U64>,
 	signals_received: prometheus::GaugeVec<prometheus::U64>,
 
-	// Allow unused code as they might be enabled only for the jemalloc-allocator feature flag.
 	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 	memory_stats_resident: prometheus::Gauge<prometheus::U64>,
 	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
