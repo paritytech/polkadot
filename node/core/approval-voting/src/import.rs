@@ -695,7 +695,7 @@ pub(crate) mod tests {
 			_config: &criteria::Config,
 			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 			_assignment: &polkadot_node_primitives::approval::AssignmentCert,
-			_backing_group: polkadot_primitives::GroupIndex,
+			_backing_groups: Vec<polkadot_primitives::GroupIndex>,
 		) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
 			Ok(0)
 		}

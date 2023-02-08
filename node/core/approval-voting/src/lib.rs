@@ -1207,9 +1207,9 @@ async fn handle_from_overseer<Context>(
 			vec![Action::Conclude]
 		},
 		FromOrchestra::Communication { msg } => match msg {
-			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_core, res) => {
+			ApprovalVotingMessage::CheckAndImportAssignment(a, claimed_cores, res) => {
 				let (check_outcome, actions) =
-					check_and_import_assignment(state, db, a, claimed_core)?;
+					check_and_import_assignment(state, db, a, claimed_cores)?;
 				let _ = res.send(check_outcome);
 
 				actions
@@ -1673,7 +1673,7 @@ fn check_and_import_assignment(
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	assignment: IndirectAssignmentCert,
-	candidate_index: CandidateIndex,
+	candidate_indices: Vec<CandidateIndex>,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
 	let tick_now = state.clock.tick_now();
 
@@ -1699,32 +1699,36 @@ fn check_and_import_assignment(
 			)),
 	};
 
-	let (claimed_core_index, assigned_candidate_hash) =
-		match block_entry.candidate(candidate_index as usize) {
-			Some((c, h)) => (*c, *h),
+	// The Compact VRF modulo assignment cert has multiple core assignments.
+	let mut backing_groups = Vec::new();
+	let mut claimed_core_indices = Vec::new();
+	let mut assigned_candidate_hashes = Vec::new();
+
+	for candidate_index in candidate_indices.iter() {
+		let (claimed_core_index, assigned_candidate_hash) =
+			match block_entry.candidate(*candidate_index as usize) {
+				Some((c, h)) => (*c, *h),
+				None =>
+					return Ok((
+						AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(
+							*candidate_index,
+						)),
+						Vec::new(),
+					)), // no candidate at core.
+			};
+
+		let mut candidate_entry = match db.load_candidate_entry(&assigned_candidate_hash)? {
+			Some(c) => c,
 			None =>
 				return Ok((
-					AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(
-						candidate_index,
+					AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidate(
+						*candidate_index,
+						assigned_candidate_hash,
 					)),
 					Vec::new(),
-				)), // no candidate at core.
+				)),
 		};
 
-	let mut candidate_entry = match db.load_candidate_entry(&assigned_candidate_hash)? {
-		Some(c) => c,
-		None =>
-			return Ok((
-				AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidate(
-					candidate_index,
-					assigned_candidate_hash,
-				)),
-				Vec::new(),
-			)),
-	};
-
-	let res = {
-		// import the assignment.
 		let approval_entry = match candidate_entry.approval_entry_mut(&assignment.block_hash) {
 			Some(a) => a,
 			None =>
@@ -1737,40 +1741,95 @@ fn check_and_import_assignment(
 				)),
 		};
 
-		let res = state.assignment_criteria.check_assignment_cert(
-			vec![claimed_core_index],
-			assignment.validator,
-			&criteria::Config::from(session_info),
-			block_entry.relay_vrf_story(),
-			&assignment.cert,
-			approval_entry.backing_group(),
-		);
+		backing_groups.push(approval_entry.backing_group());
+		claimed_core_indices.push(claimed_core_index);
+		assigned_candidate_hashes.push(assigned_candidate_hash);
+	}
 
-		let tranche = match res {
-			Err(crate::criteria::InvalidAssignment(reason)) =>
-				return Ok((
-					AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(
-						assignment.validator,
-						format!("{:?}", reason),
-					)),
-					Vec::new(),
+	// Check the assignment certificate.
+	let res = state.assignment_criteria.check_assignment_cert(
+		claimed_core_indices.clone(),
+		assignment.validator,
+		&criteria::Config::from(session_info),
+		block_entry.relay_vrf_story(),
+		&assignment.cert,
+		backing_groups,
+	);
+
+	let tranche = match res {
+		Err(crate::criteria::InvalidAssignment(reason)) =>
+			return Ok((
+				AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(
+					assignment.validator,
+					format!("{:?}", reason),
 				)),
-			Ok(tranche) => {
-				let current_tranche =
-					state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
+				Vec::new(),
+			)),
+		Ok(tranche) => {
+			let current_tranche =
+				state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
 
-				let too_far_in_future = current_tranche + TICK_TOO_FAR_IN_FUTURE as DelayTranche;
+			let too_far_in_future = current_tranche + TICK_TOO_FAR_IN_FUTURE as DelayTranche;
 
-				if tranche >= too_far_in_future {
-					return Ok((AssignmentCheckResult::TooFarInFuture, Vec::new()))
-				}
+			if tranche >= too_far_in_future {
+				return Ok((AssignmentCheckResult::TooFarInFuture, Vec::new()))
+			}
 
-				tranche
-			},
-		};
+			tranche
+		},
+	};
 
-		let is_duplicate = approval_entry.is_assigned(assignment.validator);
-		approval_entry.import_assignment(tranche, assignment.validator, tick_now);
+	let mut actions = Vec::new();
+	let res = {
+		let mut is_duplicate = false;
+		// Import the assignments for all cores in the cert.
+		for (assigned_candidate_hash, candidate_index) in
+			assigned_candidate_hashes.iter().zip(candidate_indices)
+		{
+			let mut candidate_entry = match db.load_candidate_entry(&assigned_candidate_hash)? {
+				Some(c) => c,
+				None =>
+					return Ok((
+						AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidate(
+							candidate_index,
+							*assigned_candidate_hash,
+						)),
+						Vec::new(),
+					)),
+			};
+
+			let approval_entry = match candidate_entry.approval_entry_mut(&assignment.block_hash) {
+				Some(a) => a,
+				None =>
+					return Ok((
+						AssignmentCheckResult::Bad(AssignmentCheckError::Internal(
+							assignment.block_hash,
+							*assigned_candidate_hash,
+						)),
+						Vec::new(),
+					)),
+			};
+			is_duplicate |= approval_entry.is_assigned(assignment.validator);
+			approval_entry.import_assignment(tranche, assignment.validator, tick_now);
+
+			// We've imported a new assignment, so we need to schedule a wake-up for when that might no-show.
+			if let Some((approval_entry, status)) =
+				state.approval_status(&block_entry, &candidate_entry)
+			{
+				actions.extend(schedule_wakeup_action(
+					approval_entry,
+					block_entry.block_hash(),
+					block_entry.block_number(),
+					*assigned_candidate_hash,
+					status.block_tick,
+					tick_now,
+					status.required_tranches,
+				));
+			}
+
+			// We also write the candidate entry as it now contains the new candidate.
+			db.write_candidate_entry(candidate_entry.into());
+		}
 
 		if is_duplicate {
 			AssignmentCheckResult::AcceptedDuplicate
@@ -1778,32 +1837,14 @@ fn check_and_import_assignment(
 			gum::trace!(
 				target: LOG_TARGET,
 				validator = assignment.validator.0,
-				candidate_hash = ?assigned_candidate_hash,
-				para_id = ?candidate_entry.candidate_receipt().descriptor.para_id,
-				"Imported assignment.",
+				candidate_hashes = ?assigned_candidate_hashes,
+				assigned_cores = ?claimed_core_indices,
+				"Imported assignments for multiple cores.",
 			);
 
 			AssignmentCheckResult::Accepted
 		}
 	};
-
-	let mut actions = Vec::new();
-
-	// We've imported a new approval, so we need to schedule a wake-up for when that might no-show.
-	if let Some((approval_entry, status)) = state.approval_status(&block_entry, &candidate_entry) {
-		actions.extend(schedule_wakeup_action(
-			approval_entry,
-			block_entry.block_hash(),
-			block_entry.block_number(),
-			assigned_candidate_hash,
-			status.block_tick,
-			tick_now,
-			status.required_tranches,
-		));
-	}
-
-	// We also write the candidate entry as it now contains the new candidate.
-	db.write_candidate_entry(candidate_entry.into());
 
 	Ok((res, actions))
 }
