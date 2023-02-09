@@ -17,7 +17,6 @@
 //! A utility for fetching all unknown blocks based on a new chain-head hash.
 
 use futures::{channel::oneshot, prelude::*};
-use polkadot_node_jaeger::Span;
 use polkadot_node_subsystem::{messages::ChainApiMessage, SubsystemSender};
 use polkadot_primitives::{BlockNumber, Hash, Header};
 
@@ -38,20 +37,13 @@ pub async fn determine_new_blocks<E, Sender>(
 	head: Hash,
 	header: &Header,
 	lower_bound_number: BlockNumber,
-	optional_span: Option<&mut Span>,
 ) -> Result<Vec<(Hash, Header)>, E>
 where
 	Sender: SubsystemSender<ChainApiMessage>,
 {
 	const ANCESTRY_STEP: usize = 4;
 
-	let mut span = match optional_span {
-		Some(s) => s.child("determine-new-blocks"),
-		None => Span::Disabled,
-	};
-
 	let min_block_needed = lower_bound_number + 1;
-	span.add_uint_tag("minimum-block-needed", min_block_needed as u64);
 
 	// Early exit if the block is in the DB or too early.
 	{
@@ -73,7 +65,6 @@ where
 	}
 
 	'outer: loop {
-		let mut outer_loop_span = span.child("determine-new-blocks-outer-loop");
 		let &(ref last_hash, ref last_header) = ancestry
 			.last()
 			.expect("ancestry has length 1 at initialization and is only added to; qed");
@@ -113,8 +104,6 @@ where
 			}
 		};
 
-		outer_loop_span.add_uint_tag("batch-hashes-len", batch_hashes.len() as u64);
-
 		let batch_headers = {
 			let (batch_senders, batch_receivers) = (0..batch_hashes.len())
 				.map(|_| oneshot::channel())
@@ -140,7 +129,6 @@ where
 			let batch_headers: Vec<_> =
 				requests.flat_map(|x: Option<Header>| stream::iter(x)).collect().await;
 
-			outer_loop_span.add_uint_tag("batch-headers-len", batch_headers.len() as u64);
 			// Any failed header fetch of the batch will yield a `None` result that will
 			// be skipped. Any failure at this stage means we'll just ignore those blocks
 			// as the chain DB has failed us.
@@ -499,20 +487,38 @@ mod tests {
 		known.insert(parent_hash);
 
 		let test_fut = Box::pin(async move {
-			let after_finality =
-				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 17, None)
-					.await
-					.unwrap();
+			let after_finality = determine_new_blocks(
+				ctx.sender(),
+				|h| known.is_known(h),
+				head_hash,
+				&head,
+				17,
+				None,
+			)
+			.await
+			.unwrap();
 
-			let at_finality =
-				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 18, None)
-					.await
-					.unwrap();
+			let at_finality = determine_new_blocks(
+				ctx.sender(),
+				|h| known.is_known(h),
+				head_hash,
+				&head,
+				18,
+				None,
+			)
+			.await
+			.unwrap();
 
-			let before_finality =
-				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 19, None)
-					.await
-					.unwrap();
+			let before_finality = determine_new_blocks(
+				ctx.sender(),
+				|h| known.is_known(h),
+				head_hash,
+				&head,
+				19,
+				None,
+			)
+			.await
+			.unwrap();
 
 			assert_eq!(after_finality, vec![(head_hash, head.clone())]);
 
@@ -541,10 +547,16 @@ mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = Box::pin(async move {
-			let ancestry =
-				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 0, None)
-					.await
-					.unwrap();
+			let ancestry = determine_new_blocks(
+				ctx.sender(),
+				|h| known.is_known(h),
+				head_hash,
+				&head,
+				0,
+				None,
+			)
+			.await
+			.unwrap();
 
 			assert_eq!(ancestry, expected_ancestry);
 		});
@@ -579,10 +591,16 @@ mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = Box::pin(async move {
-			let ancestry =
-				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 0, None)
-					.await
-					.unwrap();
+			let ancestry = determine_new_blocks(
+				ctx.sender(),
+				|h| known.is_known(h),
+				head_hash,
+				&head,
+				0,
+				None,
+			)
+			.await
+			.unwrap();
 
 			assert_eq!(ancestry, expected_ancestry);
 		});

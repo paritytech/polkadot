@@ -639,6 +639,7 @@ struct State {
 	// Require for `RollingSessionWindow`.
 	db_config: DatabaseConfig,
 	db: Arc<dyn Database>,
+	spans: HashMap<Hash, jaeger::PerLeafSpan>,
 }
 
 #[overseer::contextbounds(ApprovalVoting, prefix = self::overseer)]
@@ -777,6 +778,7 @@ where
 		assignment_criteria,
 		db_config: subsystem.db_config,
 		db: subsystem.db,
+		spans: HashMap::new(),
 	};
 
 	let mut wakeups = Wakeups::default();
@@ -919,12 +921,16 @@ async fn handle_actions<Context>(
 	actions: Vec<Action>,
 ) -> SubsystemResult<bool> {
 	let mut conclude = false;
-
 	let mut actions_iter = actions.into_iter();
 	while let Some(action) = actions_iter.next() {
 		match action {
-			Action::ScheduleWakeup { block_hash, block_number, candidate_hash, tick } =>
-				wakeups.schedule(block_hash, block_number, candidate_hash, tick),
+			Action::ScheduleWakeup { block_hash, block_number, candidate_hash, tick } => {
+				let _span = match state.spans.get(&block_hash) {
+					Some(s) => s.child("schedule-wakeup"),
+					None => jaeger::Span::Disabled,
+				};
+				wakeups.schedule(block_hash, block_number, candidate_hash, tick);
+			},
 			Action::IssueApproval(candidate_hash, approval_request) => {
 				// Note that the IssueApproval action will create additional
 				// actions that will need to all be processed before we can
@@ -937,6 +943,10 @@ async fn handle_actions<Context>(
 				//
 				// Note that chaining these iterators is O(n) as we must consume
 				// the prior iterator.
+				let _span = match state.spans.get(&approval_request.block_hash) {
+					Some(s) => s.child("issue-approval"),
+					None => jaeger::Span::Disabled,
+				};
 				let next_actions: Vec<Action> = issue_approval(
 					ctx,
 					state,
@@ -963,6 +973,10 @@ async fn handle_actions<Context>(
 				candidate,
 				backing_group,
 			} => {
+				let _span = match state.spans.get(&relay_block_hash) {
+					Some(s) => s.child("launch-approval"),
+					None => jaeger::Span::Disabled,
+				};
 				// Don't launch approval work if the node is syncing.
 				if let Mode::Syncing(_) = *mode {
 					continue
@@ -1014,12 +1028,16 @@ async fn handle_actions<Context>(
 				}
 			},
 			Action::NoteApprovedInChainSelection(block_hash) => {
+				let _span = match state.spans.get(&block_hash) {
+					Some(s) => s.child("note-approved-in-chain-selection"),
+					None => jaeger::Span::Disabled,
+				};
 				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
 			},
 			Action::BecomeActive => {
 				*mode = Mode::Active;
 
-				let messages = distribution_messages_for_activation(overlayed_db)?;
+				let messages = distribution_messages_for_activation(overlayed_db, state)?;
 
 				ctx.send_messages(messages.into_iter()).await;
 			},
@@ -1034,6 +1052,7 @@ async fn handle_actions<Context>(
 
 fn distribution_messages_for_activation(
 	db: &OverlayedBackend<'_, impl Backend>,
+	state: &mut State,
 ) -> SubsystemResult<Vec<ApprovalDistributionMessage>> {
 	let all_blocks: Vec<Hash> = db.load_all_blocks()?;
 
@@ -1043,6 +1062,10 @@ fn distribution_messages_for_activation(
 	messages.push(ApprovalDistributionMessage::NewBlocks(Vec::new())); // dummy value.
 
 	for block_hash in all_blocks {
+		let mut span = match state.spans.get(&block_hash) {
+			Some(s) => s.child("distribution-messages-for-activation"),
+			None => jaeger::Span::Disabled,
+		};
 		let block_entry = match db.load_block_entry(&block_hash)? {
 			Some(b) => b,
 			None => {
@@ -1051,6 +1074,8 @@ fn distribution_messages_for_activation(
 				continue
 			},
 		};
+		span.add_string_tag("block-hash", &block_hash.to_string());
+		span.add_string_tag("parent-hash", &block_entry.parent_hash().to_string());
 		approval_meta.push(BlockApprovalMeta {
 			hash: block_hash,
 			number: block_entry.block_number(),
@@ -1061,6 +1086,7 @@ fn distribution_messages_for_activation(
 		});
 
 		for (i, (_, candidate_hash)) in block_entry.candidates().iter().enumerate() {
+			let _candidate_span = span.child("candidate").with_candidate(*candidate_hash);
 			let candidate_entry = match db.load_candidate_entry(&candidate_hash)? {
 				Some(c) => c,
 				None => {
@@ -1142,21 +1168,12 @@ async fn handle_from_overseer<Context>(
 			let mut actions = Vec::new();
 			if let Some(activated) = update.activated {
 				let head = activated.hash;
-				let mut from_overseer_span = jaeger::PerLeafSpan::new(activated.span, "approval-voting-handle-from-overseer");
-				match import::handle_new_head(
-					ctx,
-					state,
-					db,
-					head,
-					&*last_finalized_height,
-					&mut from_overseer_span,
-				)
-				.await
-				{
+				let approval_voting_span =
+					jaeger::PerLeafSpan::new(activated.span, "approval-voting");
+				state.spans.insert(head, approval_voting_span);
+				match import::handle_new_head(ctx, state, db, head, &*last_finalized_height).await {
 					Err(e) => return Err(SubsystemError::with_origin("db", e)),
 					Ok(block_imported_candidates) => {
-						let mut block_import_span = from_overseer_span.child("block-import");
-						block_import_span.add_uint_tag("num-candidates", block_imported_candidates.len() as u64);
 						// Schedule wakeups for all imported candidates.
 						for block_batch in block_imported_candidates {
 							gum::debug!(
@@ -1168,9 +1185,6 @@ async fn handle_from_overseer<Context>(
 							);
 
 							for (c_hash, c_entry) in block_batch.imported_candidates {
-								let mut candidate_import_span = block_import_span.child("candidate-import");
-								candidate_import_span.add_string_tag("candidate-hash", format!("{:?}", c_hash));
-								candidate_import_span.add_uint_tag("bitvec-len", c_entry.approvals.len() as u64);
 								metrics.on_candidate_imported();
 
 								let our_tranche = c_entry
@@ -1207,7 +1221,6 @@ async fn handle_from_overseer<Context>(
 			actions
 		},
 		FromOrchestra::Signal(OverseerSignal::BlockFinalized(block_hash, block_number)) => {
-			let mut finalized_span = jaeger::Span::new(block_hash, "approval-voting-block-finalized");
 			gum::debug!(target: LOG_TARGET, ?block_hash, ?block_number, "Block finalized");
 			*last_finalized_height = Some(block_number);
 
@@ -1215,7 +1228,7 @@ async fn handle_from_overseer<Context>(
 				.map_err(|e| SubsystemError::with_origin("db", e))?;
 
 			wakeups.prune_finalized_wakeups(block_number);
-
+			state.spans.remove(&block_hash);
 			Vec::new()
 		},
 		FromOrchestra::Signal(OverseerSignal::Conclude) => {
@@ -1235,7 +1248,20 @@ async fn handle_from_overseer<Context>(
 				})?
 				.0,
 			ApprovalVotingMessage::ApprovedAncestor(target, lower_bound, res) => {
-				match handle_approved_ancestor(ctx, db, target, lower_bound, wakeups).await {
+				let mut approved_ancestor_span = match state.spans.get(&target) {
+					Some(s) => s.child("approved-ancestor"),
+					None => jaeger::Span::Disabled,
+				};
+				match handle_approved_ancestor(
+					ctx,
+					db,
+					target,
+					lower_bound,
+					wakeups,
+					&mut approved_ancestor_span,
+				)
+				.await
+				{
 					Ok(v) => {
 						let _ = res.send(v);
 					},
@@ -1269,7 +1295,6 @@ async fn get_approval_signatures_for_candidate<Context>(
 	candidate_hash: CandidateHash,
 	tx: oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
 ) -> SubsystemResult<()> {
-	let mut span = jaeger::Span::new(candidate_hash, "approval-voting-get-approval-signatures");
 	let send_votes = |votes| {
 		if let Err(_) = tx.send(votes) {
 			gum::debug!(
@@ -1358,14 +1383,12 @@ async fn handle_approved_ancestor<Context>(
 	target: Hash,
 	lower_bound: BlockNumber,
 	wakeups: &Wakeups,
+	span: &mut jaeger::Span,
 ) -> SubsystemResult<Option<HighestApprovedAncestorBlock>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
 
 	use bitvec::{order::Lsb0, vec::BitVec};
-
-	let mut span =
-		jaeger::Span::new(&target, "approved-ancestor").with_stage(jaeger::Stage::ApprovalChecking);
 
 	let mut all_approved_max = None;
 
@@ -1384,9 +1407,6 @@ async fn handle_approved_ancestor<Context>(
 	if target_number <= lower_bound {
 		return Ok(None)
 	}
-
-	span.add_string_fmt_debug_tag("target-number", target_number);
-	span.add_string_fmt_debug_tag("target-hash", target);
 
 	// request ancestors up to but not including the lower bound,
 	// as a vote on the lower bound is implied if we cannot find
@@ -1847,6 +1867,11 @@ fn check_and_import_approval<T>(
 		},
 	};
 
+	let mut span = match state.spans.get(&block_entry.block_hash()) {
+		Some(s) => s.child("check-and-import-approval"),
+		None => jaeger::Span::Disabled,
+	};
+
 	let session_info = match state.session_info(block_entry.session()) {
 		Some(s) => s,
 		None => {
@@ -1862,6 +1887,8 @@ fn check_and_import_approval<T>(
 			ApprovalCheckError::InvalidCandidateIndex(approval.candidate_index),
 		)),
 	};
+
+	span.add_string_tag("candidate-hash", format!("{:?}", approved_candidate_hash));
 
 	let pubkey = match session_info.validators.get(approval.validator) {
 		Some(k) => k,
@@ -2136,14 +2163,13 @@ fn process_wakeup(
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	relay_block: Hash,
 	candidate_hash: CandidateHash,
-	expected_tick: Tick,
+	_expected_tick: Tick,
 	metrics: &Metrics,
 ) -> SubsystemResult<Vec<Action>> {
-	let mut span = jaeger::Span::new(relay_block, "approval-voting-process-wakeup")
-		.with_candidate(candidate_hash)
-		.with_relay_parent(relay_block);
-
-	let mut load_entries_span = span.child("load-entries");
+	let _span = match state.spans.get(&relay_block) {
+		Some(s) => s.child("process-wakeup"),
+		None => jaeger::Span::Disabled,
+	};
 	let block_entry = db.load_block_entry(&relay_block)?;
 	let candidate_entry = db.load_candidate_entry(&candidate_hash)?;
 
@@ -2152,8 +2178,7 @@ fn process_wakeup(
 		(Some(b), Some(c)) => (b, c),
 		_ => return Ok(Vec::new()),
 	};
-	
-	let mut info_from_entries_span = load_entries_span.child("info-from-entries");
+
 	let session_info = match state.session_info(block_entry.session()) {
 		Some(i) => i,
 		None => {
@@ -2167,7 +2192,7 @@ fn process_wakeup(
 			return Ok(Vec::new())
 		},
 	};
-	
+
 	let block_tick = slot_number_to_tick(state.slot_duration_millis, block_entry.slot());
 	let no_show_duration = slot_number_to_tick(
 		state.slot_duration_millis,
@@ -2175,8 +2200,6 @@ fn process_wakeup(
 	);
 
 	let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
-	info_from_entries_span.add_uint_tag("block-tick", block_tick);
-	info_from_entries_span.add_uint_tag("tranche-now", *&tranche_now as u64);
 
 	gum::trace!(
 		target: LOG_TARGET,
@@ -2185,8 +2208,6 @@ fn process_wakeup(
 		block_hash = ?relay_block,
 		"Processing wakeup",
 	);
-	drop(load_entries_span);
-	let mut should_trigger_span = span.child("should-trigger");
 
 	let (should_trigger, backing_group) = {
 		let approval_entry = match candidate_entry.approval_entry(&relay_block) {
@@ -2210,8 +2231,6 @@ fn process_wakeup(
 			tranche_now,
 		);
 
-		should_trigger_span.add_string_tag("should-trigger", format!("{:?}", &should_trigger));
-
 		(should_trigger, approval_entry.backing_group())
 	};
 	let mut actions = Vec::new();
@@ -2233,9 +2252,6 @@ fn process_wakeup(
 		None
 	};
 
-	drop(should_trigger_span);
-	let mut assignment_span = span.child("assignment");
-
 	if let Some((cert, val_index, tranche)) = maybe_cert {
 		let indirect_cert =
 			IndirectAssignmentCert { block_hash: relay_block, validator: val_index, cert };
@@ -2252,10 +2268,6 @@ fn process_wakeup(
 				"Launching approval work.",
 			);
 
-			assignment_span.add_string_tag("candidate-hash", format!("{:?}", &candidate_hash));
-			assignment_span.add_string_tag("para-id", format!("{:?}", &candidate_receipt.descriptor.para_id));
-			assignment_span.add_string_tag("block-hash", format!("{:?}", &relay_block));
-
 			// sanity: should always be present.
 			actions.push(Action::LaunchApproval {
 				candidate_hash,
@@ -2269,8 +2281,6 @@ fn process_wakeup(
 			});
 		}
 	}
-	drop(assignment_span);
-	let mut advanced_approval_state_span = span.child("advanced-approval-state");
 	// Although we checked approval earlier in this function,
 	// this wakeup might have advanced the state to approved via
 	// a no-show that was immediately covered and therefore
@@ -2286,7 +2296,6 @@ fn process_wakeup(
 		candidate_entry,
 		ApprovalStateTransition::WakeupProcessed,
 	));
-	drop(advanced_approval_state_span);
 
 	Ok(actions)
 }

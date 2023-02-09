@@ -327,10 +327,12 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	db: &mut OverlayedBackend<'_, B>,
 	head: Hash,
 	finalized_number: &Option<BlockNumber>,
-	span: &mut jaeger::Span,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
-	let mut handle_new_head_span = span.child("handle-new-head");
+	let handle_new_head_span = match state.spans.get(&head) {
+		Some(s) => s.child("handle-new-head"),
+		None => jaeger::Span::Disabled,
+	};
 	let header = {
 		let mut get_header_span = handle_new_head_span.child("get-block-header");
 		let (h_tx, h_rx) = oneshot::channel();
@@ -403,7 +405,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		head,
 		&header,
 		lower_bound_number,
-		Some(&mut handle_new_head_span),
 	)
 	.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 	.await?;

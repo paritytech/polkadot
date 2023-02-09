@@ -647,7 +647,6 @@ async fn process_block_activated<Context>(
 		activated,
 		&block_header,
 		subsystem.finalized_number.unwrap_or(block_number.saturating_sub(1)),
-		None,
 	)
 	.await?;
 
