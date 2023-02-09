@@ -27,7 +27,6 @@
 //! <https://github.com/paritytech/polkadot/issues/6472#issuecomment-1381941762> for more
 //! background.
 
-use crate::LOG_TARGET;
 use parity_scale_codec::{Decode, Encode};
 
 /// Helper struct to contain all the memory stats, including [`MemoryAllocationStats`] and, if
@@ -59,6 +58,7 @@ pub struct MemoryAllocationStats {
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub mod memory_tracker {
 	use super::*;
+	use crate::LOG_TARGET;
 	use std::{
 		sync::mpsc::{Receiver, RecvTimeoutError, Sender},
 		time::Duration,
@@ -196,6 +196,7 @@ pub mod memory_tracker {
 /// the current process would conflate the stats of previous jobs run by the process.
 #[cfg(target_os = "linux")]
 pub mod max_rss_stat {
+	use crate::LOG_TARGET;
 	use libc::{getrusage, rusage, timeval, RUSAGE_THREAD};
 	use std::io;
 
@@ -229,7 +230,7 @@ pub mod max_rss_stat {
 	/// returns `None`.
 	pub fn get_max_rss_thread() -> io::Result<i64> {
 		// `c_long` is either `i32` or `i64` depending on architecture. `i64::from` always works.
-		getrusage::getrusage_thread().map(|rusage| i64::from(rusage.ru_maxrss))
+		getrusage_thread().map(|rusage| i64::from(rusage.ru_maxrss))
 	}
 
 	/// Extracts the max_rss stat and logs any error.
