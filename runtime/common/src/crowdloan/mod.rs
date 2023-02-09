@@ -1614,7 +1614,7 @@ mod tests {
 			let account_id = Crowdloan::fund_account_id(index);
 
 			// user sends the crowdloan funds trying to make an accounting error
-			assert_ok!(Balances::transfer(RuntimeOrigin::signed(1), account_id, 10));
+			assert_ok!(Balances::transfer_allow_death(RuntimeOrigin::signed(1), account_id, 10));
 
 			// overfunded now
 			assert_eq!(Balances::free_balance(&account_id), 110);
