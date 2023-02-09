@@ -589,7 +589,7 @@ pub mod v1 {
 
 /// vstaging network protocol types.
 pub mod vstaging {
-	use bitvec::vec::BitVec;
+	use bitvec::{order::Lsb0, slice::BitSlice, vec::BitVec};
 	use parity_scale_codec::{Decode, Encode};
 
 	use polkadot_primitives::vstaging::{
@@ -610,6 +610,71 @@ pub mod vstaging {
 		Bitfield(Hash, UncheckedSignedAvailabilityBitfield),
 	}
 
+	/// Bitfields indicating the statements that are known or undesired
+	/// about a candidate.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct StatementFilter {
+		/// Seconded statements. '1' is known or undesired.
+		pub seconded_in_group: BitVec<u8, Lsb0>,
+		/// Valid statements. '1' is known or undesired.
+		pub validated_in_group: BitVec<u8, Lsb0>,
+	}
+
+	impl StatementFilter {
+		/// Create a new filter with the given group size.
+		pub fn new(group_size: usize) -> Self {
+			StatementFilter {
+				seconded_in_group: BitVec::repeat(false, group_size),
+				validated_in_group: BitVec::repeat(false, group_size),
+			}
+		}
+
+		/// Whether the filter has a specific expected length, consistent across both
+		/// bitfields.
+		pub fn has_len(&self, len: usize) -> bool {
+			self.seconded_in_group.len() == len && self.validated_in_group.len() == len
+		}
+
+		/// Determine the number of backing validators in the statement filter.
+		pub fn backing_validators(&self) -> usize {
+			self.seconded_in_group
+				.iter()
+				.by_vals()
+				.zip(self.validated_in_group.iter().by_vals())
+				.filter(|&(s, v)| s || v) // no double-counting
+				.count()
+		}
+
+		/// Whether the statement filter has at least one seconded statement.
+		pub fn has_seconded(&self) -> bool {
+			self.seconded_in_group.iter().by_vals().any(|x| x)
+		}
+
+		/// Mask out `Seconded` statements in `self` according to the provided
+		/// bitvec. Bits appearing in `mask` will not appear in `self` afterwards.
+		pub fn mask_seconded(&mut self, mask: &BitSlice<u8, Lsb0>) {
+			for (mut x, mask) in self
+				.seconded_in_group
+				.iter_mut()
+				.zip(mask.iter().by_vals().chain(std::iter::repeat(false)))
+			{
+				*x = *x && mask;
+			}
+		}
+
+		/// Mask out `Valid1 statements in `self` according to the provided
+		/// bitvec. Bits appearing in `mask` will not appear in `self` afterwards.
+		pub fn mask_valid(&mut self, mask: &BitSlice<u8, Lsb0>) {
+			for (mut x, mask) in self
+				.validated_in_group
+				.iter_mut()
+				.zip(mask.iter().by_vals().chain(std::iter::repeat(false)))
+			{
+				*x = *x && mask;
+			}
+		}
+	}
+
 	/// An inventory of a backed candidate, which can be requested.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub struct BackedCandidateManifest {
@@ -625,22 +690,14 @@ pub mod vstaging {
 		pub para_id: ParaId,
 		/// The head-data corresponding to the candidate.
 		pub parent_head_data_hash: Hash,
-		/// A bitfield which indicates which validators in the para's
-		/// group at the relay-parent have validated this candidate
-		/// and issued `Seconded` statements about it.
+		/// A statement filter which indicates which validators in the
+		/// para's group at the relay-parent have validated this candidate
+		/// and issued statements about it, to the advertiser's knowledge.
 		///
 		/// This MUST have exactly the minimum amount of bytes
-		/// necessary to represent the number of validators in the
-		/// assigned backing group as-of the relay-parent.
-		pub seconded_in_group: BitVec<u8, bitvec::order::Lsb0>,
-		/// A bitfield which indicates which validators in the para's
-		/// group at the relay-parent have validated this candidate
-		/// and issued `Valid` statements about it.
-		///
-		/// This MUST have exactly the minimum amount of bytes
-		/// necessary to represent the number of validators in the
-		/// assigned backing group as-of the relay-parent.
-		pub validated_in_group: BitVec<u8, bitvec::order::Lsb0>,
+		/// necessary to represent the number of validators in the assigned
+		/// backing group as-of the relay-parent.
+		pub statement_knowledge: StatementFilter,
 	}
 
 	/// An acknowledgement of a backed candidate being known.
@@ -648,22 +705,14 @@ pub mod vstaging {
 	pub struct BackedCandidateAcknowledgement {
 		/// The hash of the candidate.
 		pub candidate_hash: CandidateHash,
-		/// A bitfield which indicates which validators in the para's
-		/// group at the relay-parent have validated this candidate
-		/// and issued `Seconded` statements about it.
+		/// A statement filter which indicates which validators in the
+		/// para's group at the relay-parent have validated this candidate
+		/// and issued statements about it, to the advertiser's knowledge.
 		///
 		/// This MUST have exactly the minimum amount of bytes
-		/// necessary to represent the number of validators in the
-		/// assigned backing group as-of the relay-parent.
-		pub seconded_in_group: BitVec<u8, bitvec::order::Lsb0>,
-		/// A bitfield which indicates which validators in the para's
-		/// group at the relay-parent have validated this candidate
-		/// and issued `Valid` statements about it.
-		///
-		/// This MUST have exactly the minimum amount of bytes
-		/// necessary to represent the number of validators in the
-		/// assigned backing group as-of the relay-parent.
-		pub validated_in_group: BitVec<u8, bitvec::order::Lsb0>,
+		/// necessary to represent the number of validators in the assigned
+		/// backing group as-of the relay-parent.
+		pub statement_knowledge: StatementFilter,
 	}
 
 	/// Network messages used by the statement distribution subsystem.
