@@ -6415,6 +6415,8 @@ dependencies = [
  "nix 0.26.2",
  "polkadot-cli",
  "polkadot-core-primitives",
+ "polkadot-node-core-pvf",
+ "polkadot-overseer",
  "substrate-rpc-client",
  "tempfile",
  "tikv-jemallocator",
