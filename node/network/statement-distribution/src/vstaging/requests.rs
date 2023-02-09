@@ -27,8 +27,9 @@
 //! not owned by the request manager).
 
 use super::{
-	BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT, COST_IMPROPERLY_DECODED_RESPONSE,
-	COST_INVALID_RESPONSE, COST_INVALID_SIGNATURE, COST_UNREQUESTED_RESPONSE_STATEMENT,
+	grid::StatementFilter, BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT,
+	COST_IMPROPERLY_DECODED_RESPONSE, COST_INVALID_RESPONSE, COST_INVALID_SIGNATURE,
+	COST_UNREQUESTED_RESPONSE_STATEMENT,
 };
 use crate::LOG_TARGET;
 
@@ -46,7 +47,7 @@ use polkadot_primitives::vstaging::{
 	ValidatorIndex,
 };
 
-use bitvec::{order::Lsb0, vec::BitVec};
+use bitvec::{order::Lsb0, slice::BitSlice, vec::BitVec};
 use futures::{channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUnordered};
 
 use std::{
@@ -245,15 +246,21 @@ impl RequestManager {
 
 	/// Yields the next request to dispatch, if there is any.
 	///
-	/// This function accepts two closures as an argument.
-	/// The first closure indicates whether a peer is still connected.
-	/// The second closure is used to construct a mask for limiting the
+	/// This function accepts three closures as an argument.
+	///
+	/// The first closure is used to construct a mask for limiting the
 	/// `Seconded` statements the response is allowed to contain. The mask
-	/// has `AND` semantics.
+	/// has `OR` semantics: seconded statements by validators corresponding to bits in the mask
+	/// are not desired. It also returns the required backing threshold
+	/// for the candidate.
+	///
+	/// The second closure is used to determine the specific advertised
+	/// statements by a peer, to be compared against the mask and backing
+	/// threshold and returns `None` if the peer is no longer connected.
 	pub fn next_request(
 		&mut self,
-		peer_connected: impl Fn(&PeerId) -> bool,
-		seconded_mask: impl Fn(&CandidateIdentifier) -> Option<BitVec<u8, Lsb0>>,
+		seconded_mask: impl Fn(&CandidateIdentifier) -> Option<(BitVec<u8, Lsb0>, usize)>,
+		peer_advertised: impl Fn(&CandidateIdentifier, &PeerId) -> Option<StatementFilter>,
 	) -> Option<OutgoingRequest<AttestedCandidateRequest>> {
 		if self.pending_responses.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
 			return None
@@ -284,16 +291,7 @@ impl RequestManager {
 				continue
 			}
 
-			entry.known_by.retain(&peer_connected);
-
-			let recipient = match entry.known_by.pop_front() {
-				None => continue, // no peers.
-				Some(r) => r,
-			};
-
-			entry.known_by.push_back(recipient.clone());
-
-			let seconded_mask = match seconded_mask(&id) {
+			let (seconded_mask, backing_threshold) = match seconded_mask(&id) {
 				None => {
 					cleanup_outdated.push((i, id.clone()));
 					continue
@@ -301,8 +299,26 @@ impl RequestManager {
 				Some(s) => s,
 			};
 
+			if seconded_mask.count_ones() == seconded_mask.len() {
+				// If higher-level code doesn't want any new statements from
+				// any group validators, this request is moot.
+				cleanup_outdated.push((i, id.clone()));
+				continue
+			}
+
+			let target = match find_request_target_with_update(
+				&mut entry.known_by,
+				id,
+				&*seconded_mask,
+				backing_threshold,
+				&peer_advertised,
+			) {
+				None => continue,
+				Some(t) => t,
+			};
+
 			let (request, response_fut) = OutgoingRequest::new(
-				RequestRecipient::Peer(recipient.clone()),
+				RequestRecipient::Peer(target.clone()),
 				AttestedCandidateRequest {
 					candidate_hash: id.candidate_hash,
 					seconded_mask: seconded_mask.clone(),
@@ -313,7 +329,7 @@ impl RequestManager {
 			self.pending_responses.push(Box::pin(async move {
 				TaggedResponse {
 					identifier: stored_id,
-					requested_peer: recipient,
+					requested_peer: target,
 					seconded_mask,
 					response: response_fut.await,
 				}
@@ -348,6 +364,47 @@ impl RequestManager {
 			None => None,
 			Some(response) => Some(UnhandledResponse { manager: self, response }),
 		}
+	}
+}
+
+/// Finds a valid request target, returning `None` if none exists.
+/// Cleans up disconnected peers and places the returned peer at the back of the queue.
+fn find_request_target_with_update(
+	known_by: &mut VecDeque<PeerId>,
+	candidate_identifier: &CandidateIdentifier,
+	seconded_mask: &BitSlice<u8, Lsb0>,
+	backing_threshold: usize,
+	peer_advertised: impl Fn(&CandidateIdentifier, &PeerId) -> Option<StatementFilter>,
+) -> Option<PeerId> {
+	let mut prune = Vec::new();
+	let mut target = None;
+	for (i, p) in known_by.iter().enumerate() {
+		let mut filter = match peer_advertised(candidate_identifier, p) {
+			None => {
+				prune.push(i);
+				continue
+			},
+			Some(f) => f,
+		};
+
+		filter.mask_seconded(seconded_mask);
+		if filter.has_seconded() && filter.backing_validators() >= backing_threshold {
+			target = Some((i, p.clone()));
+			break
+		}
+	}
+
+	let prune_count = prune.len();
+	for i in prune {
+		known_by.remove(i);
+	}
+
+	if let Some((i, p)) = target {
+		known_by.remove(i - prune_count);
+		known_by.push_back(p.clone());
+		Some(p)
+	} else {
+		None
 	}
 }
 

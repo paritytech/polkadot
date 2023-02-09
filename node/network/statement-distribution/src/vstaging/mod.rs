@@ -68,10 +68,10 @@ use candidates::{BadAdvertisement, Candidates, PostConfirmation};
 use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as ClusterRejectIncoming};
 use grid::{GridTracker, ManifestSummary, StatementFilter};
 use groups::Groups;
-use requests::RequestManager;
+use requests::CandidateIdentifier;
 use statement_store::{StatementOrigin, StatementStore};
 
-pub use requests::UnhandledResponse;
+pub use requests::{UnhandledResponse, RequestManager};
 
 mod candidates;
 mod cluster;
@@ -2310,27 +2310,48 @@ async fn apply_post_confirmation<Context>(
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut State) {
 	let peers = &state.peers;
-	let peer_connected = |id: &_| peers.contains_key(id);
-	let seconded_mask = |identifier: &requests::CandidateIdentifier| {
-		let &requests::CandidateIdentifier { relay_parent, candidate_hash, group_index } =
-			identifier;
+	let peer_advertised = |identifier: &CandidateIdentifier, peer: &_| {
+		let peer_data = peers.get(peer)?;
+
+		let relay_parent_state = state.per_relay_parent.get(&identifier.relay_parent)?;
+		let per_session = state.per_session.get(&relay_parent_state.session)?;
+
+		for validator_id in find_validator_ids(peer_data.iter_known_discovery_ids(), |a| {
+			per_session.authority_lookup.get(a)
+		}) {
+			let filter = relay_parent_state
+				.local_validator
+				.as_ref()?
+				.grid_tracker
+				.advertised_statements(validator_id, &identifier.candidate_hash);
+
+			if let Some(f) = filter {
+				return Some(f)
+			}
+		}
+
+		None
+	};
+	let seconded_mask = |identifier: &CandidateIdentifier| {
+		let &CandidateIdentifier { relay_parent, candidate_hash, group_index } = identifier;
 
 		let relay_parent_state = state.per_relay_parent.get(&relay_parent)?;
 		let per_session = state.per_session.get(&relay_parent_state.session)?;
-		let group_size = per_session.groups.get(group_index).map(|x| x.len())?;
+		let group = per_session.groups.get(group_index)?;
+		let seconding_limit = relay_parent_state.seconding_limit;
 
-		let knowledge = local_knowledge_filter(
-			group_size,
-			group_index,
-			candidate_hash,
-			&relay_parent_state.statement_store,
-		);
+		// Request nothing which would be an 'over-seconded' statement.
+		let mut seconded_mask = bitvec::vec::BitVec::repeat(false, group.len());
+		for (i, v) in group.iter().enumerate() {
+			if relay_parent_state.statement_store.seconded_count(v) >= seconding_limit {
+				seconded_mask.set(i, true);
+			}
+		}
 
-		// We request the opposite of what we know.
-		Some(!knowledge.seconded_in_group)
+		Some((seconded_mask, polkadot_node_primitives::minimum_votes(group.len())))
 	};
 
-	while let Some(request) = state.request_manager.next_request(peer_connected, seconded_mask) {
+	while let Some(request) = state.request_manager.next_request(seconded_mask, peer_advertised) {
 		// Peer is supposedly connected.
 		ctx.send_message(NetworkBridgeTxMessage::SendRequests(
 			vec![Requests::AttestedCandidateV2(request)],

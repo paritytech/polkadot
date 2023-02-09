@@ -258,14 +258,13 @@ impl GridTracker {
 			return Err(ManifestImportError::Malformed)
 		}
 
+		let remote_knowledge = StatementFilter {
+			seconded_in_group: manifest.seconded_in_group.clone(),
+			validated_in_group: manifest.validated_in_group.clone(),
+		};
+
 		// ensure votes are sufficient to back.
-		let votes = manifest
-			.seconded_in_group
-			.iter()
-			.by_vals()
-			.zip(manifest.validated_in_group.iter().by_vals())
-			.filter(|&(s, v)| s || v) // no double-counting
-			.count();
+		let votes = remote_knowledge.backing_validators();
 
 		if votes < backing_threshold {
 			return Err(ManifestImportError::Malformed)
@@ -605,6 +604,15 @@ impl GridTracker {
 			}
 		}
 	}
+
+	/// Get the advertised statement filter of a validator for a candidate.
+	pub fn advertised_statements(
+		&self,
+		validator: ValidatorIndex,
+		candidate_hash: &CandidateHash,
+	) -> Option<StatementFilter> {
+		self.received.get(&validator)?.candidate_statement_filter(candidate_hash)
+	}
 }
 
 fn extract_statement_and_group_info(
@@ -841,6 +849,33 @@ impl StatementFilter {
 		StatementFilter {
 			seconded_in_group: BitVec::repeat(false, group_size),
 			validated_in_group: BitVec::repeat(false, group_size),
+		}
+	}
+
+	/// Determine the number of backing validators in the statement filter.
+	pub fn backing_validators(&self) -> usize {
+		self.seconded_in_group
+			.iter()
+			.by_vals()
+			.zip(self.validated_in_group.iter().by_vals())
+			.filter(|&(s, v)| s || v) // no double-counting
+			.count()
+	}
+
+	/// Whether the statement filter has at least one seconded statement.
+	pub fn has_seconded(&self) -> bool {
+		self.seconded_in_group.iter().by_vals().any(|x| x)
+	}
+
+	/// Mask out `seconded` statements in `self` according to the provided
+	/// bitvec. Bits appearing in `mask` will not appear in `self` afterwards.
+	pub fn mask_seconded(&mut self, mask: &BitSlice<u8, Lsb0>) {
+		for (mut x, mask) in self
+			.seconded_in_group
+			.iter_mut()
+			.zip(mask.iter().by_vals().chain(std::iter::repeat(false)))
+		{
+			*x = *x && mask;
 		}
 	}
 
