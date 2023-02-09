@@ -71,7 +71,7 @@ use groups::Groups;
 use requests::CandidateIdentifier;
 use statement_store::{StatementOrigin, StatementStore};
 
-pub use requests::{UnhandledResponse, RequestManager};
+pub use requests::{RequestManager, UnhandledResponse};
 
 mod candidates;
 mod cluster;
@@ -2377,7 +2377,7 @@ pub(crate) async fn receive_response(state: &mut State) -> UnhandledResponse {
 pub(crate) async fn handle_response<'a, Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	response: UnhandledResponse<'a>, // TODO [now]: needs to be altered as this borrows `State` in practice.
+	response: UnhandledResponse,
 ) {
 	let &requests::CandidateIdentifier { relay_parent, candidate_hash, group_index } =
 		response.candidate_identifier();
@@ -2398,6 +2398,7 @@ pub(crate) async fn handle_response<'a, Context>(
 	};
 
 	let res = response.validate_response(
+		&mut state.request_manager,
 		group,
 		relay_parent_state.session,
 		|v| per_session.session_info.validators.get(v).map(|x| x.clone()),

@@ -362,7 +362,7 @@ impl RequestManager {
 	pub async fn await_incoming(&mut self) -> Option<UnhandledResponse> {
 		match self.pending_responses.next().await {
 			None => None,
-			Some(response) => Some(UnhandledResponse { manager: self, response }),
+			Some(response) => Some(UnhandledResponse { response }),
 		}
 	}
 }
@@ -409,12 +409,11 @@ fn find_request_target_with_update(
 }
 
 /// A response to a request, which has not yet been handled.
-pub struct UnhandledResponse<'a> {
-	manager: &'a mut RequestManager,
+pub struct UnhandledResponse {
 	response: TaggedResponse,
 }
 
-impl<'a> UnhandledResponse<'a> {
+impl UnhandledResponse {
 	/// Get the candidate identifier which the corresponding request
 	/// was classified under.
 	pub fn candidate_identifier(&self) -> &CandidateIdentifier {
@@ -439,13 +438,13 @@ impl<'a> UnhandledResponse<'a> {
 	/// will not be queried except for validator indices in the group.
 	pub fn validate_response(
 		self,
+		manager: &mut RequestManager,
 		group: &[ValidatorIndex],
 		session: SessionIndex,
 		validator_key_lookup: impl Fn(ValidatorIndex) -> Option<ValidatorId>,
 		allowed_para_lookup: impl Fn(ParaId, GroupIndex) -> bool,
 	) -> ResponseValidationOutput {
 		let UnhandledResponse {
-			manager,
 			response: TaggedResponse { identifier, requested_peer, response, seconded_mask },
 		} = self;
 
