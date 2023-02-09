@@ -34,8 +34,8 @@ pub use polkadot_overseer::{
 	HeadSupportsParachains,
 };
 use polkadot_overseer::{
-	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MetricsTrait,
-	Overseer, OverseerConnector, OverseerHandle, SpawnGlue,
+	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MajorSyncOracle,
+	MetricsTrait, Overseer, OverseerConnector, OverseerHandle, SpawnGlue,
 };
 
 use polkadot_primitives::runtime_api::ParachainHost;
@@ -125,6 +125,8 @@ where
 	pub req_protocol_names: ReqProtocolNames,
 	/// [`PeerSet`] protocol names to protocols mapping.
 	pub peerset_protocol_names: PeerSetProtocolNames,
+	/// SyncOracle is used to detect when initial full node sync is complete
+	pub sync_oracle: MajorSyncOracle,
 }
 
 /// Obtain a prepared `OverseerBuilder`, that is initialized
@@ -155,6 +157,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		overseer_message_channel_capacity_override,
 		req_protocol_names,
 		peerset_protocol_names,
+		sync_oracle,
 	}: OverseerGenArgs<Spawner, RuntimeClient>,
 ) -> Result<
 	InitializedOverseerBuilder<
@@ -319,6 +322,7 @@ where
 		.supports_parachains(runtime_client)
 		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
 		.metrics(metrics)
+		.sync_oracle(sync_oracle)
 		.spawner(spawner);
 
 	if let Some(capacity) = overseer_message_channel_capacity_override {

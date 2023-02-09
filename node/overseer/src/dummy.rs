@@ -15,8 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	prometheus::Registry, HeadSupportsParachains, InitializedOverseerBuilder, MetricsTrait,
-	Overseer, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnGlue,
+	prometheus::Registry, HeadSupportsParachains, InitializedOverseerBuilder, MajorSyncOracle,
+	MetricsTrait, Overseer, OverseerMetrics, OverseerSignal, OverseerSubsystemContext, SpawnGlue,
 	KNOWN_LEAVES_CACHE_SIZE,
 };
 use lru::LruCache;
@@ -193,6 +193,7 @@ where
 		.leaves(Default::default())
 		.spawner(SpawnGlue(spawner))
 		.metrics(metrics)
+		.sync_oracle(MajorSyncOracle::new_dummy())
 		.supports_parachains(supports_parachains);
 	Ok(builder)
 }

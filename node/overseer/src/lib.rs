@@ -83,6 +83,7 @@ use polkadot_node_subsystem_types::messages::{
 	DisputeDistributionMessage, GossipSupportMessage, NetworkBridgeRxMessage,
 	NetworkBridgeTxMessage, ProvisionerMessage, RuntimeApiMessage, StatementDistributionMessage,
 };
+use sp_consensus::SyncOracle;
 
 pub use polkadot_node_subsystem_types::{
 	errors::{SubsystemError, SubsystemResult},
@@ -326,6 +327,38 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 				}
 			},
 			complete => break,
+		}
+	}
+}
+
+/// Used to detect if the node is in major sync. This can happen only on startup so once syncing is
+/// done the node is considered up to date and `finished_syncing` will always return `true`.
+pub struct MajorSyncOracle {
+	sync_oracle: Option<Box<dyn SyncOracle + Send>>,
+}
+
+impl MajorSyncOracle {
+	/// Create `MajorSyncOracle` from `SyncOracle`
+	pub fn new(sync_oracle: Box<dyn SyncOracle + Send>) -> Self {
+		Self { sync_oracle: Some(sync_oracle) }
+	}
+
+	/// Create dummy `MajorSyncOracle` which always returns true for `finished_syncing`
+	pub fn new_dummy() -> Self {
+		Self { sync_oracle: None }
+	}
+
+	/// Check if node is in major sync
+	pub fn finished_syncing(&mut self) -> bool {
+		match &mut self.sync_oracle {
+			Some(sync_oracle) =>
+				if !sync_oracle.is_major_syncing() {
+					self.sync_oracle = None;
+					true
+				} else {
+					false
+				},
+			None => true,
 		}
 	}
 }
@@ -629,6 +662,9 @@ pub struct Overseer<SupportsParachains> {
 
 	/// Various Prometheus metrics.
 	pub metrics: OverseerMetrics,
+
+	/// SyncOracle is used to detect when initial full node sync is complete
+	pub sync_oracle: MajorSyncOracle,
 }
 
 /// Spawn the metrics metronome task.

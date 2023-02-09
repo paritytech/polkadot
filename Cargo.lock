@@ -7280,6 +7280,7 @@ dependencies = [
  "prioritized-metered-channel",
  "sc-client-api",
  "sp-api",
+ "sp-consensus",
  "sp-core",
  "tikv-jemalloc-ctl",
  "tracing-gum",

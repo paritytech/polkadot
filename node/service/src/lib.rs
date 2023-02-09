@@ -49,7 +49,7 @@ use {
 	polkadot_node_network_protocol::{
 		peer_set::PeerSetProtocolNames, request_response::ReqProtocolNames,
 	},
-	polkadot_overseer::BlockInfo,
+	polkadot_overseer::{BlockInfo, MajorSyncOracle},
 	sc_client_api::BlockBackend,
 	sp_core::traits::SpawnNamed,
 	sp_trie::PrefixedMemoryDB,
@@ -1091,6 +1091,7 @@ where
 					overseer_message_channel_capacity_override,
 					req_protocol_names,
 					peerset_protocol_names,
+					sync_oracle: MajorSyncOracle::new(Box::new(network.clone())),
 				},
 			)
 			.map_err(|e| {
