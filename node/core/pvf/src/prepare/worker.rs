@@ -376,7 +376,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 
 					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
 					#[cfg(target_os = "linux")]
-					let result = (result, get_max_rss_thread());
+					let result = result.map(|artifact| (artifact, get_max_rss_thread()));
 
 					result
 				})

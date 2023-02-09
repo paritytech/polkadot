@@ -80,7 +80,7 @@ impl Metrics {
 		if let Some(metrics) = &self.0 {
 			#[cfg(target_os = "linux")]
 			if let Some(max_rss) = memory_stats.max_rss {
-				metrics.preparation_max_rss.observe(max_rss);
+				metrics.preparation_max_rss.observe(max_rss as f64);
 			}
 
 			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
