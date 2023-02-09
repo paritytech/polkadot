@@ -236,7 +236,7 @@ pub mod max_rss_stat {
 	/// Extracts the max_rss stat and logs any error.
 	pub fn extract_max_rss_stat(max_rss: io::Result<i64>, worker_pid: u32) -> Option<i64> {
 		max_rss
-			.mep_err(|err| {
+			.map_err(|err| {
 				gum::warn!(
 					target: LOG_TARGET,
 					%worker_pid,
