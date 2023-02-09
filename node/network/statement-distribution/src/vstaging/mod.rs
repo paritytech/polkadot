@@ -2325,6 +2325,8 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 				.grid_tracker
 				.advertised_statements(validator_id, &identifier.candidate_hash);
 
+			// TODO [now]: this doesn't handle requests in the cluster properly.
+
 			if let Some(f) = filter {
 				return Some(f)
 			}
@@ -2382,6 +2384,86 @@ pub(crate) async fn handle_response<'a, Context>(
 	let &requests::CandidateIdentifier { relay_parent, candidate_hash, group_index } =
 		response.candidate_identifier();
 
+	let post_confirmation = {
+		let relay_parent_state = match state.per_relay_parent.get_mut(&relay_parent) {
+			None => return,
+			Some(s) => s,
+		};
+
+		let per_session = match state.per_session.get(&relay_parent_state.session) {
+			None => return,
+			Some(s) => s,
+		};
+
+		let group = match per_session.groups.get(group_index) {
+			None => return,
+			Some(g) => g,
+		};
+
+		let res = response.validate_response(
+			&mut state.request_manager,
+			group,
+			relay_parent_state.session,
+			|v| per_session.session_info.validators.get(v).map(|x| x.clone()),
+			|para, g_index| {
+				let expected_group = group_for_para(
+					&relay_parent_state.availability_cores,
+					&relay_parent_state.group_rotation_info,
+					para,
+				);
+
+				Some(g_index) == expected_group
+			},
+		);
+
+		for (peer, rep) in res.reputation_changes {
+			report_peer(ctx.sender(), peer, rep).await;
+		}
+
+		let (candidate, pvd, statements) = match res.request_status {
+			requests::CandidateRequestStatus::Outdated => return,
+			requests::CandidateRequestStatus::Incomplete => return,
+			requests::CandidateRequestStatus::Complete {
+				candidate,
+				persisted_validation_data,
+				statements,
+			} => (candidate, persisted_validation_data, statements),
+		};
+
+		for statement in statements {
+			let _ = relay_parent_state.statement_store.insert(
+				&per_session.groups,
+				statement,
+				StatementOrigin::Remote,
+			);
+		}
+
+		if let Some(post_confirmation) =
+			state.candidates.confirm_candidate(candidate_hash, candidate, pvd, group_index)
+		{
+			post_confirmation
+		} else {
+			gum::warn!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				"Candidate re-confirmed by request/response: logic error",
+			);
+
+			return
+		}
+	};
+
+	apply_post_confirmation(ctx, state, post_confirmation).await;
+
+	let confirmed = state.candidates.get_confirmed(&candidate_hash).expect("just confirmed; qed");
+
+	// Although the candidate is confirmed, it isn't yet on the
+	// hypothetical frontier of the fragment tree. Later, when it is,
+	// we will import statements.
+	if !confirmed.is_importable(None) {
+		return
+	}
+
 	let relay_parent_state = match state.per_relay_parent.get_mut(&relay_parent) {
 		None => return,
 		Some(s) => s,
@@ -2392,47 +2474,21 @@ pub(crate) async fn handle_response<'a, Context>(
 		Some(s) => s,
 	};
 
-	let group = match per_session.groups.get(group_index) {
-		None => return,
-		Some(g) => g,
-	};
+	send_backing_fresh_statements(
+		ctx,
+		candidate_hash,
+		group_index,
+		&relay_parent,
+		relay_parent_state,
+		confirmed,
+		per_session,
+	)
+	.await;
 
-	let res = response.validate_response(
-		&mut state.request_manager,
-		group,
-		relay_parent_state.session,
-		|v| per_session.session_info.validators.get(v).map(|x| x.clone()),
-		|para, g_index| {
-			let expected_group = group_for_para(
-				&relay_parent_state.availability_cores,
-				&relay_parent_state.group_rotation_info,
-				para,
-			);
-
-			Some(g_index) == expected_group
-		},
-	);
-
-	for (peer, rep) in res.reputation_changes {
-		report_peer(ctx.sender(), peer, rep).await;
-	}
-
-	let (candidate, pvd, statements) = match res.request_status {
-		requests::CandidateRequestStatus::Outdated => return,
-		requests::CandidateRequestStatus::Incomplete => return,
-		requests::CandidateRequestStatus::Complete {
-			candidate,
-			persisted_validation_data,
-			statements,
-		} => (candidate, persisted_validation_data, statements),
-	};
-
-	// TODO [now]
-	// - import statements into statement store
-	// - clean up other requests if confirmed.
-	// - if includable, send fresh statements to backing.
 	// we don't need to send acknowledgement yet because
-	// 1. the candidate is not known yet, so cannot be backed
+	// 1. the candidate is not known yet, so cannot be backed.
+	//    any previous confirmation is a bug, because `apply_post_confirmation` is meant to
+	//    clear requests.
 	// 2. providing the statements to backing will lead to 'Backed' message.
 	// 3. on 'Backed' we will send acknowledgements/follow up statements when this becomes
 	//    includable.
