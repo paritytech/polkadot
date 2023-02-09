@@ -2428,9 +2428,14 @@ pub(crate) async fn handle_response<'a, Context>(
 	};
 
 	// TODO [now]
-	// - send acknowledgement & statements desired by counterparty
 	// - import statements into statement store
 	// - clean up other requests if confirmed.
-	// - `circulate_statement` for all fresh statements (also, `learned_fresh_statement`)
 	// - if includable, send fresh statements to backing.
+	// we don't need to send acknowledgement yet because
+	// 1. the candidate is not known yet, so cannot be backed
+	// 2. providing the statements to backing will lead to 'Backed' message.
+	// 3. on 'Backed' we will send acknowledgements/follow up statements when this becomes
+	//    includable.
 }
+
+// TODO [now]: answer request.

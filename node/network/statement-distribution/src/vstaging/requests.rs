@@ -80,6 +80,7 @@ struct TaggedResponse {
 	identifier: CandidateIdentifier,
 	requested_peer: PeerId,
 	seconded_mask: BitVec<u8, Lsb0>,
+	backing_threshold: usize,
 	response: OutgoingResult<AttestedCandidateResponse>,
 }
 
@@ -331,6 +332,7 @@ impl RequestManager {
 					identifier: stored_id,
 					requested_peer: target,
 					seconded_mask,
+					backing_threshold,
 					response: response_fut.await,
 				}
 			}));
@@ -424,6 +426,9 @@ impl UnhandledResponse {
 	/// candidate, the [`PersistedValidationData`] of the candidate, and requested
 	/// checked statements.
 	///
+	/// Valid responses are defined as those which provide a valid candidate
+	/// and signatures which match the identifier, and provide enough statements to back the candidate.
+	///
 	/// This will also produce a record of misbehaviors by peers:
 	///   * If the response is partially valid, misbehavior by the responding peer.
 	///   * If there are other peers which have advertised the same candidate for different
@@ -445,7 +450,14 @@ impl UnhandledResponse {
 		allowed_para_lookup: impl Fn(ParaId, GroupIndex) -> bool,
 	) -> ResponseValidationOutput {
 		let UnhandledResponse {
-			response: TaggedResponse { identifier, requested_peer, response, seconded_mask },
+			response:
+				TaggedResponse {
+					identifier,
+					requested_peer,
+					backing_threshold,
+					response,
+					seconded_mask,
+				},
 		} = self;
 
 		// handle races if the candidate is no longer known.
@@ -510,6 +522,7 @@ impl UnhandledResponse {
 
 		let mut output = validate_complete_response(
 			&identifier,
+			backing_threshold,
 			complete_response,
 			requested_peer,
 			seconded_mask,
@@ -529,6 +542,7 @@ impl UnhandledResponse {
 
 fn validate_complete_response(
 	identifier: &CandidateIdentifier,
+	backing_threshold: usize,
 	response: AttestedCandidateResponse,
 	requested_peer: PeerId,
 	mut sent_seconded_bitmask: BitVec<u8, Lsb0>,
@@ -588,8 +602,7 @@ fn validate_complete_response(
 		let mut statements =
 			Vec::with_capacity(std::cmp::min(response.statements.len(), group.len() * 2));
 
-		let mut received_seconded = BitVec::<usize, Lsb0>::repeat(false, group.len());
-		let mut received_valid = BitVec::<usize, Lsb0>::repeat(false, group.len());
+		let mut received_filter = StatementFilter::new(group.len());
 
 		let index_in_group = |v: ValidatorIndex| group.iter().position(|x| &v == x);
 
@@ -619,20 +632,20 @@ fn validate_complete_response(
 			// duplicate trackers have the correct size for the group.
 			match unchecked_statement.unchecked_payload() {
 				CompactStatement::Seconded(_) => {
-					if !sent_seconded_bitmask[i] {
+					if sent_seconded_bitmask[i] {
 						rep_changes
 							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
 						continue
 					}
 
-					if received_seconded[i] {
+					if received_filter.seconded_in_group[i] {
 						rep_changes
 							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
 						continue
 					}
 				},
 				CompactStatement::Valid(_) =>
-					if received_valid[i] {
+					if received_filter.validated_in_group[i] {
 						rep_changes
 							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
 						continue
@@ -659,15 +672,22 @@ fn validate_complete_response(
 
 			match checked_statement.payload() {
 				CompactStatement::Seconded(_) => {
-					received_seconded.set(i, true);
+					received_filter.seconded_in_group.set(i, true);
 				},
 				CompactStatement::Valid(_) => {
-					received_valid.set(i, true);
+					received_filter.validated_in_group.set(i, true);
 				},
 			}
 
 			statements.push(checked_statement);
 			rep_changes.push((requested_peer.clone(), BENEFIT_VALID_STATEMENT));
+		}
+
+		// Only accept responses which can back the candidate.
+		if !received_filter.has_seconded() ||
+			received_filter.backing_validators() < backing_threshold
+		{
+			return invalid_candidate_output()
 		}
 
 		statements
@@ -693,10 +713,7 @@ pub enum CandidateRequestStatus {
 	/// The response either did not arrive or was invalid.
 	Incomplete,
 	/// The response completed the request. Statements sent beyond the
-	/// mask have been ignored. More statements which may have been
-	/// expected may not be present, and higher-level code should
-	/// evaluate whether the candidate is still worth storing and whether
-	/// the sender should be punished.
+	/// mask have been ignored.
 	Complete {
 		candidate: CommittedCandidateReceipt,
 		persisted_validation_data: PersistedValidationData,
