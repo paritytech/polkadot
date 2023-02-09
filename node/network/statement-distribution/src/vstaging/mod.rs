@@ -1048,6 +1048,8 @@ async fn circulate_statement<Context>(
 
 		let statement_group = per_session.groups.by_validator_index(originator);
 
+		// TODO [now]: we're not meant to circulate statements in the cluster
+		// until we have the confirmed candidate.
 		let cluster_relevant = Some(local_validator.group) == statement_group;
 		let cluster_targets = if cluster_relevant {
 			Some(
@@ -2310,16 +2312,23 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 		let relay_parent_state = state.per_relay_parent.get(&identifier.relay_parent)?;
 		let per_session = state.per_session.get(&relay_parent_state.session)?;
 
+		let local_validator = relay_parent_state.local_validator.as_ref()?;
+
 		for validator_id in find_validator_ids(peer_data.iter_known_discovery_ids(), |a| {
 			per_session.authority_lookup.get(a)
 		}) {
-			let filter = relay_parent_state
-				.local_validator
-				.as_ref()?
+			// For cluster members, they haven't advertised any statements in particular,
+			// but have surely sent us some.
+			if local_validator
+				.cluster_tracker
+				.knows_candidate(validator_id, identifier.candidate_hash)
+			{
+				return Some(StatementFilter::new(local_validator.cluster_tracker.targets().len()))
+			}
+
+			let filter = local_validator
 				.grid_tracker
 				.advertised_statements(validator_id, &identifier.candidate_hash);
-
-			// TODO [now]: this doesn't handle requests in the cluster properly.
 
 			if let Some(f) = filter {
 				return Some(f)
@@ -2344,10 +2353,16 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 			}
 		}
 
-		// TODO [now]: don't require backing threshold for cluster candidates.
+		// don't require a backing threshold for cluster candidates.
+		let require_backing = relay_parent_state.local_validator.as_ref()?.group != group_index;
+
 		Some(RequestProperties {
 			unwanted_mask,
-			backing_threshold: Some(polkadot_node_primitives::minimum_votes(group.len())),
+			backing_threshold: if require_backing {
+				Some(polkadot_node_primitives::minimum_votes(group.len()))
+			} else {
+				None
+			},
 		})
 	};
 
