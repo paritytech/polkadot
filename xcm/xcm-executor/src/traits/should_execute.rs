@@ -21,6 +21,8 @@ use xcm::latest::{Instruction, MultiLocation, Weight};
 /// The reason why a given XCM is not permitted to execute.
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 pub enum RejectReason {
+	/// Some instructions in the XCM are not permitted to be sent or executed.
+	ForbiddenInstructions,
 	/// The supplied weight credit is not enough to pay for the weight required.
 	InsufficientCredit,
 	/// None of the barrier rules in a tuple matched successfully.
