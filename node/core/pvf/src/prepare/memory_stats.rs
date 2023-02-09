@@ -52,10 +52,10 @@ pub struct MemoryAllocationStats {
 	pub allocated: u64,
 }
 
-/// Module for the memory tracker. We currently run it in its own thread, where it polls memory
+/// Module for the memory tracker. The memory tracker runs in its own thread, where it polls memory
 /// usage at an interval.
 ///
-/// NOTE; Requires jemalloc enabled.
+/// NOTE: Requires jemalloc enabled.
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub mod memory_tracker {
 	use super::*;
