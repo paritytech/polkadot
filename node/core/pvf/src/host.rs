@@ -845,7 +845,7 @@ mod tests {
 		let pulse = pulse_every(Duration::from_millis(100));
 		futures::pin_mut!(pulse);
 
-		for _ in 0usize..5usize {
+		for _ in 0..5 {
 			let start = std::time::Instant::now();
 			let _ = pulse.next().await.unwrap();
 

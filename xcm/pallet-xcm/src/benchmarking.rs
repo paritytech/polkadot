@@ -15,10 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
+use bounded_collections::{ConstU32, WeakBoundedVec};
 use frame_benchmarking::{benchmarks, BenchmarkError, BenchmarkResult};
 use frame_support::weights::Weight;
 use frame_system::RawOrigin;
-use sp_core::{bounded::WeakBoundedVec, ConstU32};
 use sp_std::prelude::*;
 use xcm::{latest::prelude::*, v2};
 

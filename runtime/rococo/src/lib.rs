@@ -472,6 +472,7 @@ parameter_types! {
 	pub const DesiredMembers: u32 = 19;
 	pub const DesiredRunnersUp: u32 = 19;
 	pub const MaxVoters: u32 = 10 * 1000;
+	pub const MaxVotesPerVoter: u32 = 16;
 	pub const MaxCandidates: u32 = 1000;
 	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
 }
@@ -494,6 +495,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
 	type MaxVoters = MaxVoters;
+	type MaxVotesPerVoter = MaxVotesPerVoter;
 	type MaxCandidates = MaxCandidates;
 	type PalletId = PhragmenElectionPalletId;
 	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
@@ -1282,7 +1284,7 @@ impl BeefyDataProvider<H256> for ParasProvider {
 			.filter_map(|id| Paras::para_head(&id).map(|head| (id.into(), head.0)))
 			.collect();
 		para_heads.sort();
-		beefy_merkle_tree::merkle_root::<<Runtime as pallet_mmr::Config>::Hashing, _>(
+		binary_merkle_tree::merkle_root::<<Runtime as pallet_mmr::Config>::Hashing, _>(
 			para_heads.into_iter().map(|pair| pair.encode()),
 		)
 		.into()
@@ -1750,6 +1752,10 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
+		fn beefy_genesis() -> Option<BlockNumber> {
+			Beefy::genesis_block()
+		}
+
 		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			Beefy::validator_set()
 		}
@@ -1929,7 +1935,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
-	impl beefy_merkle_tree::BeefyMmrApi<Block, Hash> for RuntimeApi {
+	impl pallet_beefy_mmr::BeefyMmrApi<Block, Hash> for RuntimeApi {
 		fn authority_set_proof() -> beefy_primitives::mmr::BeefyAuthoritySet<Hash> {
 			MmrLeaf::authority_set_proof()
 		}
