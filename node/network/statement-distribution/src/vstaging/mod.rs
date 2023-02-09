@@ -25,8 +25,8 @@ use polkadot_node_network_protocol::{
 	grid_topology::{RequiredRouting, SessionGridTopology},
 	peer_set::ValidationVersion,
 	request_response::Requests,
-	vstaging as protocol_vstaging, IfDisconnected, PeerId, UnifiedReputationChange as Rep,
-	Versioned, View,
+	vstaging::{self as protocol_vstaging, StatementFilter},
+	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::{
 	SignedFullStatementWithPVD, StatementWithPVD as FullStatementWithPVD,
@@ -66,9 +66,9 @@ use crate::{
 };
 use candidates::{BadAdvertisement, Candidates, PostConfirmation};
 use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as ClusterRejectIncoming};
-use grid::{GridTracker, ManifestSummary, StatementFilter};
+use grid::{GridTracker, ManifestSummary};
 use groups::Groups;
-use requests::CandidateIdentifier;
+use requests::{CandidateIdentifier, RequestProperties};
 use statement_store::{StatementOrigin, StatementStore};
 
 pub use requests::{RequestManager, UnhandledResponse};
@@ -792,8 +792,7 @@ async fn send_pending_grid_messages<Context>(
 					group_index,
 					para_id: confirmed_candidate.para_id(),
 					parent_head_data_hash: confirmed_candidate.parent_head_data_hash(),
-					seconded_in_group: local_knowledge.seconded_in_group.clone(),
-					validated_in_group: local_knowledge.validated_in_group.clone(),
+					statement_knowledge: local_knowledge.clone(),
 				};
 
 				let grid = &mut relay_parent_state
@@ -1675,13 +1674,11 @@ async fn provide_candidate_to_grid<Context>(
 		group_index,
 		para_id: confirmed_candidate.para_id(),
 		parent_head_data_hash: confirmed_candidate.parent_head_data_hash(),
-		seconded_in_group: filter.seconded_in_group.clone(),
-		validated_in_group: filter.validated_in_group.clone(),
+		statement_knowledge: filter.clone(),
 	};
 	let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
 		candidate_hash,
-		seconded_in_group: filter.seconded_in_group.clone(),
-		validated_in_group: filter.validated_in_group.clone(),
+		statement_knowledge: filter.clone(),
 	};
 
 	let inventory_message = Versioned::VStaging(
@@ -2064,8 +2061,7 @@ async fn handle_incoming_manifest<Context>(
 		grid::ManifestSummary {
 			claimed_parent_hash: manifest.parent_head_data_hash,
 			claimed_group_index: manifest.group_index,
-			seconded_in_group: manifest.seconded_in_group,
-			validated_in_group: manifest.validated_in_group,
+			statement_knowledge: manifest.statement_knowledge,
 		},
 		grid::ManifestKind::Full,
 	)
@@ -2136,8 +2132,7 @@ fn acknowledgement_and_statement_messages(
 
 	let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
 		candidate_hash,
-		seconded_in_group: local_knowledge.seconded_in_group.clone(),
-		validated_in_group: local_knowledge.validated_in_group.clone(),
+		statement_knowledge: local_knowledge.clone(),
 	};
 
 	let msg = Versioned::VStaging(
@@ -2204,8 +2199,7 @@ async fn handle_incoming_acknowledgement<Context>(
 		grid::ManifestSummary {
 			claimed_parent_hash: parent_head_data_hash,
 			claimed_group_index: group_index,
-			seconded_in_group: acknowledgement.seconded_in_group,
-			validated_in_group: acknowledgement.validated_in_group,
+			statement_knowledge: acknowledgement.statement_knowledge,
 		},
 		grid::ManifestKind::Acknowledgement,
 	)
@@ -2334,7 +2328,7 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 
 		None
 	};
-	let seconded_mask = |identifier: &CandidateIdentifier| {
+	let request_props = |identifier: &CandidateIdentifier| {
 		let &CandidateIdentifier { relay_parent, candidate_hash, group_index } = identifier;
 
 		let relay_parent_state = state.per_relay_parent.get(&relay_parent)?;
@@ -2343,17 +2337,21 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 		let seconding_limit = relay_parent_state.seconding_limit;
 
 		// Request nothing which would be an 'over-seconded' statement.
-		let mut seconded_mask = bitvec::vec::BitVec::repeat(false, group.len());
+		let mut unwanted_mask = StatementFilter::new(group.len());
 		for (i, v) in group.iter().enumerate() {
 			if relay_parent_state.statement_store.seconded_count(v) >= seconding_limit {
-				seconded_mask.set(i, true);
+				unwanted_mask.seconded_in_group.set(i, true);
 			}
 		}
 
-		Some((seconded_mask, polkadot_node_primitives::minimum_votes(group.len())))
+		// TODO [now]: don't require backing threshold for cluster candidates.
+		Some(RequestProperties {
+			unwanted_mask,
+			backing_threshold: Some(polkadot_node_primitives::minimum_votes(group.len())),
+		})
 	};
 
-	while let Some(request) = state.request_manager.next_request(seconded_mask, peer_advertised) {
+	while let Some(request) = state.request_manager.next_request(request_props, peer_advertised) {
 		// Peer is supposedly connected.
 		ctx.send_message(NetworkBridgeTxMessage::SendRequests(
 			vec![Requests::AttestedCandidateV2(request)],
@@ -2484,6 +2482,9 @@ pub(crate) async fn handle_response<'a, Context>(
 		per_session,
 	)
 	.await;
+
+	// TODO [now]: circulate fresh statements. if this is a grid candidate, this'll be a
+	// no-op.
 
 	// we don't need to send acknowledgement yet because
 	// 1. the candidate is not known yet, so cannot be backed.

@@ -27,9 +27,8 @@
 //! not owned by the request manager).
 
 use super::{
-	grid::StatementFilter, BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT,
-	COST_IMPROPERLY_DECODED_RESPONSE, COST_INVALID_RESPONSE, COST_INVALID_SIGNATURE,
-	COST_UNREQUESTED_RESPONSE_STATEMENT,
+	BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT, COST_IMPROPERLY_DECODED_RESPONSE,
+	COST_INVALID_RESPONSE, COST_INVALID_SIGNATURE, COST_UNREQUESTED_RESPONSE_STATEMENT,
 };
 use crate::LOG_TARGET;
 
@@ -39,6 +38,7 @@ use polkadot_node_network_protocol::{
 		vstaging::{AttestedCandidateRequest, AttestedCandidateResponse},
 		OutgoingRequest, OutgoingResult, MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS,
 	},
+	vstaging::StatementFilter,
 	PeerId, UnifiedReputationChange as Rep,
 };
 use polkadot_primitives::vstaging::{
@@ -79,8 +79,7 @@ pub struct CandidateIdentifier {
 struct TaggedResponse {
 	identifier: CandidateIdentifier,
 	requested_peer: PeerId,
-	seconded_mask: BitVec<u8, Lsb0>,
-	backing_threshold: usize,
+	props: RequestProperties,
 	response: OutgoingResult<AttestedCandidateResponse>,
 }
 
@@ -249,18 +248,16 @@ impl RequestManager {
 	///
 	/// This function accepts three closures as an argument.
 	///
-	/// The first closure is used to construct a mask for limiting the
-	/// `Seconded` statements the response is allowed to contain. The mask
-	/// has `OR` semantics: seconded statements by validators corresponding to bits in the mask
-	/// are not desired. It also returns the required backing threshold
-	/// for the candidate.
+	/// The first closure is used to gather information about the desired
+	/// properties of a response, which is used to select targets and validate
+	/// the response later on.
 	///
 	/// The second closure is used to determine the specific advertised
 	/// statements by a peer, to be compared against the mask and backing
 	/// threshold and returns `None` if the peer is no longer connected.
 	pub fn next_request(
 		&mut self,
-		seconded_mask: impl Fn(&CandidateIdentifier) -> Option<(BitVec<u8, Lsb0>, usize)>,
+		request_props: impl Fn(&CandidateIdentifier) -> Option<RequestProperties>,
 		peer_advertised: impl Fn(&CandidateIdentifier, &PeerId) -> Option<StatementFilter>,
 	) -> Option<OutgoingRequest<AttestedCandidateRequest>> {
 		if self.pending_responses.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
@@ -292,7 +289,7 @@ impl RequestManager {
 				continue
 			}
 
-			let (seconded_mask, backing_threshold) = match seconded_mask(&id) {
+			let props = match request_props(&id) {
 				None => {
 					cleanup_outdated.push((i, id.clone()));
 					continue
@@ -300,18 +297,10 @@ impl RequestManager {
 				Some(s) => s,
 			};
 
-			if seconded_mask.count_ones() == seconded_mask.len() {
-				// If higher-level code doesn't want any new statements from
-				// any group validators, this request is moot.
-				cleanup_outdated.push((i, id.clone()));
-				continue
-			}
-
 			let target = match find_request_target_with_update(
 				&mut entry.known_by,
 				id,
-				&*seconded_mask,
-				backing_threshold,
+				&props,
 				&peer_advertised,
 			) {
 				None => continue,
@@ -322,7 +311,7 @@ impl RequestManager {
 				RequestRecipient::Peer(target.clone()),
 				AttestedCandidateRequest {
 					candidate_hash: id.candidate_hash,
-					seconded_mask: seconded_mask.clone(),
+					mask: props.unwanted_mask.clone(),
 				},
 			);
 
@@ -331,8 +320,7 @@ impl RequestManager {
 				TaggedResponse {
 					identifier: stored_id,
 					requested_peer: target,
-					seconded_mask,
-					backing_threshold,
+					props,
 					response: response_fut.await,
 				}
 			}));
@@ -369,13 +357,26 @@ impl RequestManager {
 	}
 }
 
+/// Properties used in target selection and validation of a request.
+pub struct RequestProperties {
+	/// A mask for limiting the statements the response is allowed to contain.
+	/// The mask has `OR` semantics: statements by validators corresponding to bits
+	/// in the mask are not desired. It also returns the required backing threshold
+	/// for the candidate.
+	pub unwanted_mask: StatementFilter,
+	/// The required backing threshold, if any. If this is `Some`, then requests will only
+	/// be made to peers which can provide enough statements to back the candidate, when
+	/// taking into account the unwanted_mask`, and a response will only be validated
+	/// in the case of those statements.
+	pub backing_threshold: Option<usize>,
+}
+
 /// Finds a valid request target, returning `None` if none exists.
 /// Cleans up disconnected peers and places the returned peer at the back of the queue.
 fn find_request_target_with_update(
 	known_by: &mut VecDeque<PeerId>,
 	candidate_identifier: &CandidateIdentifier,
-	seconded_mask: &BitSlice<u8, Lsb0>,
-	backing_threshold: usize,
+	props: &RequestProperties,
 	peer_advertised: impl Fn(&CandidateIdentifier, &PeerId) -> Option<StatementFilter>,
 ) -> Option<PeerId> {
 	let mut prune = Vec::new();
@@ -389,8 +390,9 @@ fn find_request_target_with_update(
 			Some(f) => f,
 		};
 
-		filter.mask_seconded(seconded_mask);
-		if filter.has_seconded() && filter.backing_validators() >= backing_threshold {
+		filter.mask_seconded(&props.unwanted_mask.seconded_in_group);
+		filter.mask_valid(&props.unwanted_mask.validated_in_group);
+		if seconded_and_sufficient(&filter, props.backing_threshold) {
 			target = Some((i, p.clone()));
 			break
 		}
@@ -408,6 +410,12 @@ fn find_request_target_with_update(
 	} else {
 		None
 	}
+}
+
+// TODO [now]: for cases where we already have statements, this isn't
+// necessary.
+fn seconded_and_sufficient(filter: &StatementFilter, backing_threshold: Option<usize>) -> bool {
+	filter.has_seconded() && backing_threshold.map_or(true, |t| filter.backing_validators() >= t)
 }
 
 /// A response to a request, which has not yet been handled.
@@ -450,14 +458,7 @@ impl UnhandledResponse {
 		allowed_para_lookup: impl Fn(ParaId, GroupIndex) -> bool,
 	) -> ResponseValidationOutput {
 		let UnhandledResponse {
-			response:
-				TaggedResponse {
-					identifier,
-					requested_peer,
-					backing_threshold,
-					response,
-					seconded_mask,
-				},
+			response: TaggedResponse { identifier, requested_peer, props, response },
 		} = self;
 
 		// handle races if the candidate is no longer known.
@@ -522,10 +523,9 @@ impl UnhandledResponse {
 
 		let mut output = validate_complete_response(
 			&identifier,
-			backing_threshold,
+			props,
 			complete_response,
 			requested_peer,
-			seconded_mask,
 			group,
 			session,
 			validator_key_lookup,
@@ -542,27 +542,28 @@ impl UnhandledResponse {
 
 fn validate_complete_response(
 	identifier: &CandidateIdentifier,
-	backing_threshold: usize,
+	props: RequestProperties,
 	response: AttestedCandidateResponse,
 	requested_peer: PeerId,
-	mut sent_seconded_bitmask: BitVec<u8, Lsb0>,
 	group: &[ValidatorIndex],
 	session: SessionIndex,
 	validator_key_lookup: impl Fn(ValidatorIndex) -> Option<ValidatorId>,
 	allowed_para_lookup: impl Fn(ParaId, GroupIndex) -> bool,
 ) -> ResponseValidationOutput {
+	let RequestProperties { backing_threshold, mut unwanted_mask } = props;
+
 	// sanity check bitmask size. this is based entirely on
 	// local logic here.
-	if sent_seconded_bitmask.len() != group.len() {
+	if unwanted_mask.has_len(group.len()) {
 		gum::error!(
 			target: LOG_TARGET,
 			group_len = group.len(),
-			sent_bitmask_len = sent_seconded_bitmask.len(),
 			"Logic bug: group size != sent bitmask len"
 		);
 
 		// resize and attempt to continue.
-		sent_seconded_bitmask.resize(group.len(), true);
+		unwanted_mask.seconded_in_group.resize(group.len(), true);
+		unwanted_mask.validated_in_group.resize(group.len(), true);
 	}
 
 	let invalid_candidate_output = || ResponseValidationOutput {
@@ -632,7 +633,7 @@ fn validate_complete_response(
 			// duplicate trackers have the correct size for the group.
 			match unchecked_statement.unchecked_payload() {
 				CompactStatement::Seconded(_) => {
-					if sent_seconded_bitmask[i] {
+					if unwanted_mask.seconded_in_group[i] {
 						rep_changes
 							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
 						continue
@@ -644,12 +645,19 @@ fn validate_complete_response(
 						continue
 					}
 				},
-				CompactStatement::Valid(_) =>
+				CompactStatement::Valid(_) => {
+					if unwanted_mask.validated_in_group[i] {
+						rep_changes
+							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+						continue
+					}
+
 					if received_filter.validated_in_group[i] {
 						rep_changes
 							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
 						continue
-					},
+					}
+				},
 			}
 
 			let validator_public =
@@ -683,10 +691,9 @@ fn validate_complete_response(
 			rep_changes.push((requested_peer.clone(), BENEFIT_VALID_STATEMENT));
 		}
 
-		// Only accept responses which can back the candidate.
-		if !received_filter.has_seconded() ||
-			received_filter.backing_validators() < backing_threshold
-		{
+		// Only accept responses which are sufficient, according to our
+		// required backing threshold.
+		if !seconded_and_sufficient(&received_filter, backing_threshold) {
 			return invalid_candidate_output()
 		}
 
