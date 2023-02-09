@@ -31,14 +31,14 @@ use super::{IsRequest, Protocol};
 pub struct AttestedCandidateRequest {
 	/// Hash of the candidate we want to request.
 	pub candidate_hash: CandidateHash,
-	/// bitfield with 'AND' semantics, indicating which validators
-	/// to send `Seconded` statements for.
+	/// bitfield with 'OR' semantics, indicating which validators
+	/// not to send `Seconded` statements for.
 	///
 	/// The mask must have exactly the minimum size required to
 	/// fit all validators from the backing group.
 	///
-	/// The response may not contain any `Seconded` statements outside
-	/// of this mask.
+	/// The response may not contain any `Seconded` statements from validators
+	/// within this mask.
 	pub seconded_mask: BitVec<u8, Lsb0>,
 }
 
