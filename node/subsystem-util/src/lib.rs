@@ -116,9 +116,6 @@ pub enum Error {
 	/// Already forwarding errors to another sender
 	#[error("AlreadyForwarding")]
 	AlreadyForwarding,
-	/// Data that are supposed to be there a not there
-	#[error("Data are not available")]
-	DataNotAvailable,
 }
 
 impl From<OverseerError> for Error {
@@ -250,9 +247,16 @@ pub async fn executor_params_at_relay_parent(
 					Ok(ExecutorParams::default())
 				},
 				Ok(Ok(None)) => {
-					// Storage doesn't contain a parameter set for the given session; should
-					// never happen
-					Err(Error::DataNotAvailable)
+					// We're bootstrapping the parametrization to make executor params available
+					// in every state where dispute may arise. So for now, default executor
+					// parameters are returned if they are not available at the relay parent of
+					// the candidate. The approach is deterministic: the state contains either
+					// default parameters or no parameters, and in any case, default parameters
+					// are returned.
+					// The only obligation is not to change any parameters yet. In a further
+					// release, after the parametrized runtime is run on all the networks, and
+					// 6 sessions are passed, this should be chaned to returning an error.
+					Ok(ExecutorParams::default())
 				},
 				Ok(Ok(Some(executor_params))) => Ok(executor_params),
 			}
