@@ -1145,8 +1145,10 @@ mod tests {
 		let expected_manifest_summary = ManifestSummary {
 			claimed_parent_hash: Hash::repeat_byte(2),
 			claimed_group_index: GroupIndex(0),
-			seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
-			validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+			statement_knowledge: StatementFilter {
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+			},
 		};
 
 		knowledge
@@ -1179,7 +1181,7 @@ mod tests {
 		// conflicting seconded statements bitfield
 
 		let mut s = expected_manifest_summary.clone();
-		s.seconded_in_group = bitvec::bitvec![u8, Lsb0; 0, 1, 0];
+		s.statement_knowledge.seconded_in_group = bitvec::bitvec![u8, Lsb0; 0, 1, 0];
 		assert_matches!(
 			knowledge.import_received(3, 2, CandidateHash(Hash::repeat_byte(1)), s,),
 			Err(ManifestImportError::Conflicting)
@@ -1188,7 +1190,7 @@ mod tests {
 		// conflicting valid statements bitfield
 
 		let mut s = expected_manifest_summary.clone();
-		s.validated_in_group = bitvec::bitvec![u8, Lsb0; 0, 1, 0];
+		s.statement_knowledge.validated_in_group = bitvec::bitvec![u8, Lsb0; 0, 1, 0];
 		assert_matches!(
 			knowledge.import_received(3, 2, CandidateHash(Hash::repeat_byte(1)), s,),
 			Err(ManifestImportError::Conflicting)
@@ -1206,8 +1208,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0xA),
 					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					},
 				},
 			)
 			.unwrap();
@@ -1220,8 +1224,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0xB),
 					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					},
 				},
 			)
 			.unwrap();
@@ -1234,8 +1240,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0xC),
 					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					}
 				},
 			),
 			Err(ManifestImportError::Overflow)
@@ -1249,8 +1257,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0xC),
 					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					},
 				},
 			)
 			.unwrap();
@@ -1288,8 +1298,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0),
 					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					}
 				},
 				ManifestKind::Full,
 				ValidatorIndex(1),
@@ -1308,8 +1320,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0),
 					claimed_group_index: GroupIndex(1),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					}
 				},
 				ManifestKind::Full,
 				ValidatorIndex(0),
@@ -1348,8 +1362,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0),
 					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0, 1],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0, 1],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					}
 				},
 				ManifestKind::Full,
 				ValidatorIndex(0),
@@ -1366,8 +1382,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0),
 					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1, 0],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1, 0],
+					}
 				},
 				ManifestKind::Full,
 				ValidatorIndex(0),
@@ -1406,8 +1424,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0),
 					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
+					}
 				},
 				ManifestKind::Full,
 				ValidatorIndex(0),
@@ -1448,8 +1468,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0),
 					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+					}
 				},
 				ManifestKind::Full,
 				ValidatorIndex(0),
@@ -1468,8 +1490,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0),
 					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+					}
 				},
 				ManifestKind::Full,
 				ValidatorIndex(0),
@@ -1488,8 +1512,10 @@ mod tests {
 				ManifestSummary {
 					claimed_parent_hash: Hash::repeat_byte(0),
 					claimed_group_index: GroupIndex(0),
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					}
 				},
 				ManifestKind::Full,
 				ValidatorIndex(0),
@@ -1543,8 +1569,10 @@ mod tests {
 			ManifestSummary {
 				claimed_parent_hash: Hash::repeat_byte(0),
 				claimed_group_index: group_index,
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
 			},
 			ManifestKind::Acknowledgement,
 			validator_index,
@@ -1610,8 +1638,10 @@ mod tests {
 			ManifestSummary {
 				claimed_parent_hash: Hash::repeat_byte(0),
 				claimed_group_index: group_index,
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
 			},
 			ManifestKind::Acknowledgement,
 			validator_index,
@@ -1671,8 +1701,10 @@ mod tests {
 			ManifestSummary {
 				claimed_parent_hash: Hash::repeat_byte(0),
 				claimed_group_index: group_index,
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
 			},
 			ManifestKind::Full,
 			validator_index,
@@ -1807,8 +1839,10 @@ mod tests {
 			ManifestSummary {
 				claimed_parent_hash: Hash::repeat_byte(0),
 				claimed_group_index: group_index,
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
 			},
 			ManifestKind::Full,
 			validator_index,
@@ -1891,8 +1925,10 @@ mod tests {
 			ManifestSummary {
 				claimed_parent_hash: Hash::repeat_byte(0),
 				claimed_group_index: group_index,
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				},
 			},
 			ManifestKind::Full,
 			validator_index,
@@ -1966,8 +2002,10 @@ mod tests {
 			ManifestSummary {
 				claimed_parent_hash: Hash::repeat_byte(0),
 				claimed_group_index: group_index,
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
 			},
 			ManifestKind::Full,
 			validator_index,
@@ -1985,8 +2023,10 @@ mod tests {
 			ManifestSummary {
 				claimed_parent_hash: Hash::repeat_byte(0),
 				claimed_group_index: group_index,
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
 			},
 			ManifestKind::Full,
 			counterparty,
