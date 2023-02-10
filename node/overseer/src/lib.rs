@@ -821,7 +821,7 @@ where
 												?number,
 												"Span for active leaf not found. This is not expected"
 											);
-											let span = Arc::new(jaeger::Span::new(hash.clone(), "leaf-activated"));
+											let span = Arc::new(jaeger::Span::new(hash, "leaf-activated"));
 											self.span_per_active_leaf.insert(hash, span.clone());
 											span
 										}
