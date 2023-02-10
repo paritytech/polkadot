@@ -163,7 +163,6 @@ pub enum Stage {
 	AvailabilityRecovery = 6,
 	BitfieldDistribution = 7,
 	ApprovalChecking = 8,
-	ApprovalVoting = 9,
 	// Expand as needed, numbers should be ascending according to the stage
 	// through the inclusion pipeline, or according to the descriptions
 	// in [the path of a para chain block]
