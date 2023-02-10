@@ -331,8 +331,10 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	}
 }
 
-/// Used to detect if the node is in major sync. This can happen only on startup so once syncing is
-/// done the node is considered up to date and `finished_syncing` will always return `true`.
+/// Used to detect if the node is in initial major sync.
+/// It's worth mentioning that this is a one way check. Once the initial full sync is complete
+/// `MajorSyncOracle` will never return false. The reason is that the struct is meant to be used
+/// only during initialization.
 pub struct MajorSyncOracle {
 	sync_oracle: Option<Box<dyn SyncOracle + Send>>,
 }
@@ -762,7 +764,7 @@ where
 		spawn_metronome_metrics(&mut self, metrics)?;
 
 		let initial_sync_finished = self.sync_oracle.finished_syncing();
-		// Notify about active leaves on startup before starting the loop
+		// Import the active leaves found in the database
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
 			if let Some((span, status)) = self.on_head_activated(&hash, None).await {
@@ -779,48 +781,70 @@ where
 			}
 		}
 
-		// wait for initial sync
-		if !initial_sync_finished {
-			loop {
-				select! {
-					msg = self.events_rx.select_next_some() => {
-						match msg {
-							Event::MsgToSubsystem { msg, origin } => self.handle_msg_to_subsystem(msg, origin).await?,
-							Event::Stop => return self.handle_stop().await,
-							Event::BlockImported(block) => _ = self.block_imported(block).await,
-							Event::BlockFinalized(block) if self.sync_oracle.finished_syncing() => {
-								self.block_finalized(&block).await;
-									// send initial active leaves update
-									for (hash, number) in self.active_leaves.clone().into_iter() {
-										let span = match self.span_per_active_leaf.get(&hash) {
-											Some(span) => span.clone(),
-											None => {
-												// thus should never happen
-												gum::error!(target: LOG_TARGET, ?hash, ?number, "Span for active leaf not found. This is not expected");
-												let span = Arc::new(jaeger::Span::new(hash.clone(), "leaf-activated"));
-												self.span_per_active_leaf.insert(hash, span.clone());
-												span
-											}
-										};
+		// If initial sync is not complete - wait for it.
+		// This loop is identical to the main one but doesn't generate `ActiveLeaves` and `BlockFinalized` events until
+		// the initial full sync is complete.
+		// This is an infinite loop which executes only when `!initial_sync_finished`. The weird syntax is only to save
+		// one extra layer if indentation because it's already a bit tough for the eyes.
+		// Think about it like:
+		// ```
+		// if !initial_sync_finished {
+		//		loop {
+		//			select! {
+		//				...
+		//			}
+		// 		}
+		// }
+		//```
+		while !initial_sync_finished {
+			select! {
+				msg = self.events_rx.select_next_some() => {
+					match msg {
+						Event::MsgToSubsystem { msg, origin } => self.handle_msg_to_subsystem(msg, origin).await?,
+						Event::Stop => return self.handle_stop().await,
+						Event::BlockImported(block) => _ = self.block_imported(block).await,
+						Event::BlockFinalized(block) if self.sync_oracle.finished_syncing() => {
+							// Initial sync is complete
+							self.block_finalized(&block).await;
+								// Send initial `ActiveLeaves`
+								for (hash, number) in self.active_leaves.clone().into_iter() {
+									let span = match self.span_per_active_leaf.get(&hash) {
+										Some(span) => span.clone(),
+										None => {
+											// This should never happen. Spans are generated in `on_head_activated`
+											// which is called from `block_imported`. Despite not sending a signal
+											// `BlockImported` events are handled so a span should exist for each
+											// active leaf.
+											gum::error!(
+												target: LOG_TARGET,
+												?hash,
+												?number,
+												"Span for active leaf not found. This is not expected"
+											);
+											let span = Arc::new(jaeger::Span::new(hash.clone(), "leaf-activated"));
+											self.span_per_active_leaf.insert(hash, span.clone());
+											span
+										}
+									};
 
-										let update = ActiveLeavesUpdate::start_work(ActivatedLeaf {
-											hash,
-											number,
-											status: LeafStatus::Fresh,
-											span,
-										});
-										self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-									}
-									self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
-									break
-							},
-							Event::BlockFinalized(block) => _ = self.block_finalized(&block).await,
-							Event::ExternalRequest(request) => self.handle_external_request(request)
-						}
-					},
-					msg = self.to_orchestra_rx.select_next_some() => self.handle_orchestra_rx(msg),
-					res = self.running_subsystems.select_next_some() => return self.handle_running_subsystems(res).await
-				}
+									let update = ActiveLeavesUpdate::start_work(ActivatedLeaf {
+										hash,
+										number,
+										status: LeafStatus::Fresh,
+										span,
+									});
+									self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+								}
+								// Send initial `BlockFinalized`
+								self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
+								break
+						},
+						Event::BlockFinalized(block) => _ = self.block_finalized(&block).await,
+						Event::ExternalRequest(request) => self.handle_external_request(request)
+					}
+				},
+				msg = self.to_orchestra_rx.select_next_some() => self.handle_orchestra_rx(msg),
+				res = self.running_subsystems.select_next_some() => return self.handle_running_subsystems(res).await
 			}
 		}
 
