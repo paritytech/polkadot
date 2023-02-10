@@ -239,7 +239,9 @@ pub async fn executor_params_at_relay_parent(
 			Err(Error::RuntimeApi(err))
 		},
 		Ok(Ok(session_index)) => {
-			match request_session_executor_params(relay_parent, session_index, sender).await.await {
+			let res = request_session_executor_params(relay_parent, session_index, sender).await.await;
+			gum::warn!("Executor params request result: {:?}", res);
+			match res {
 				Err(err) => {
 					// Failed to communicate with the runtime
 					Err(Error::Oneshot(err))
