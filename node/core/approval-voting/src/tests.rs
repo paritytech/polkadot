@@ -2303,6 +2303,20 @@ fn subsystem_validate_approvals_cache() {
 				}
 				.into(),
 			);
+
+			let _ = assignments.insert(
+				CoreIndex(0),
+				approval_db::v1::OurAssignment {
+					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModuloCompact {
+						sample: 0,
+						core_indices: vec![CoreIndex(0), CoreIndex(1), CoreIndex(2)],
+					}),
+					tranche: 0,
+					validator_index: ValidatorIndex(0),
+					triggered: false,
+				}
+				.into(),
+			);
 			assignments
 		},
 		|_| Ok(0),
@@ -2406,9 +2420,9 @@ pub async fn handle_double_assignment_import(
 		overseer_recv(virtual_overseer).await,
 		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(
 			_,
-			c_index,
+			c_indices,
 		)) => {
-			assert_eq!(candidate_index, c_index);
+			assert_eq!(vec![candidate_index], c_indices);
 		}
 	);
 
@@ -2421,9 +2435,9 @@ pub async fn handle_double_assignment_import(
 	for msg in vec![first_message, second_message].into_iter() {
 		match msg {
 			AllMessages::ApprovalDistribution(
-				ApprovalDistributionMessage::DistributeAssignment(_, c_index),
+				ApprovalDistributionMessage::DistributeAssignment(_, c_indices),
 			) => {
-				assert_eq!(candidate_index, c_index);
+				assert_eq!(vec![candidate_index], c_indices);
 			},
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx),

@@ -24,7 +24,8 @@
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
-		BlockApprovalMeta, DelayTranche, IndirectAssignmentCert, IndirectSignedApprovalVote,
+		AssignmentCert, AssignmentCertKind, BlockApprovalMeta, DelayTranche,
+		IndirectAssignmentCert, IndirectSignedApprovalVote,
 	},
 	ValidationResult, APPROVAL_EXECUTION_TIMEOUT,
 };
@@ -428,7 +429,8 @@ struct ApprovalVoteRequest {
 
 #[derive(Default)]
 struct Wakeups {
-	// Tick -> [(Relay Block, Candidate Hash)]
+	// Tick -> [(Relay Block, Vec of Candidate Hash)]
+	// For Compact modulo VRF wakeups we want to wake-up once for all candidates
 	wakeups: BTreeMap<Tick, Vec<(Hash, CandidateHash)>>,
 	reverse_wakeups: HashMap<(Hash, CandidateHash), Tick>,
 	block_numbers: BTreeMap<BlockNumber, HashSet<Hash>>,
@@ -972,9 +974,23 @@ async fn handle_actions<Context>(
 				let block_hash = indirect_cert.block_hash;
 				let validator_index = indirect_cert.validator;
 
+				// Find all candidates indices for the certificate claimed cores.
+				let block_entry = match overlayed_db.load_block_entry(&block_hash)? {
+					Some(b) => b,
+					None => {
+						gum::warn!(target: LOG_TARGET, ?block_hash, "Missing block entry");
+
+						continue
+					},
+				};
+
+				// Get all candidate indices in case this is a compact module vrf assignment.
+				let candidate_indices =
+					cores_to_candidate_indices(&block_entry, candidate_index, &indirect_cert.cert);
+
 				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
 					indirect_cert,
-					candidate_index,
+					candidate_indices,
 				));
 
 				match approvals_cache.get(&candidate_hash) {
@@ -1032,6 +1048,29 @@ async fn handle_actions<Context>(
 	Ok(conclude)
 }
 
+fn cores_to_candidate_indices(
+	block_entry: &BlockEntry,
+	candidate_index: CandidateIndex,
+	cert: &AssignmentCert,
+) -> Vec<CandidateIndex> {
+	let mut candidate_indices = Vec::new();
+	match &cert.kind {
+		AssignmentCertKind::RelayVRFModuloCompact { sample: _, core_indices } => {
+			for cert_core_index in core_indices {
+				if let Some(candidate_index) = block_entry
+					.candidates()
+					.iter()
+					.position(|(core_index, _)| core_index == cert_core_index)
+				{
+					candidate_indices.push(candidate_index as _)
+				}
+			}
+		},
+		_ => candidate_indices.push(candidate_index as _),
+	}
+	candidate_indices
+}
+
 fn distribution_messages_for_activation(
 	db: &OverlayedBackend<'_, impl Backend>,
 ) -> SubsystemResult<Vec<ApprovalDistributionMessage>> {
@@ -1086,7 +1125,7 @@ fn distribution_messages_for_activation(
 									validator: assignment.validator_index(),
 									cert: assignment.cert().clone(),
 								},
-								i as _,
+								cores_to_candidate_indices(&block_entry, i as _, assignment.cert()),
 							));
 						},
 						(Some(assignment), Some(approval_sig)) => {
@@ -1096,7 +1135,7 @@ fn distribution_messages_for_activation(
 									validator: assignment.validator_index(),
 									cert: assignment.cert().clone(),
 								},
-								i as _,
+								cores_to_candidate_indices(&block_entry, i as _, assignment.cert()),
 							));
 
 							messages.push(ApprovalDistributionMessage::DistributeApproval(

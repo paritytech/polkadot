@@ -770,7 +770,7 @@ pub enum ApprovalVotingMessage {
 	/// Should not be sent unless the block hash is known.
 	CheckAndImportAssignment(
 		IndirectAssignmentCert,
-		CandidateIndex,
+		Vec<CandidateIndex>,
 		oneshot::Sender<AssignmentCheckResult>,
 	),
 	/// Check if the approval vote is valid and can be accepted by our view of the
@@ -805,7 +805,7 @@ pub enum ApprovalDistributionMessage {
 	NewBlocks(Vec<BlockApprovalMeta>),
 	/// Distribute an assignment cert from the local validator. The cert is assumed
 	/// to be valid, relevant, and for the given relay-parent and validator index.
-	DistributeAssignment(IndirectAssignmentCert, CandidateIndex),
+	DistributeAssignment(IndirectAssignmentCert, Vec<CandidateIndex>),
 	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
 	/// valid, relevant, and the corresponding approval already issued.
 	/// If not, the subsystem is free to drop the message.
