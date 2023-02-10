@@ -17,8 +17,8 @@
 //! XCM configuration for Polkadot.
 
 use super::{
-	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, ParaId,
-	Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, Fellows, ParaId,
+	Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet, StakingAdmin,
 };
 use frame_support::{
 	match_types, parameter_types,
@@ -33,7 +33,7 @@ use xcm_builder::{
 	AllowTopLevelPaidExecutionFrom, BackingToPlurality, ChildParachainAsNative,
 	ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,
 	IsConcrete, MintLocation, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WithComputedOrigin,
+	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WithComputedOrigin, OriginToPluralityVoice,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -339,6 +339,10 @@ impl xcm_executor::Config for XcmConfig {
 
 parameter_types! {
 	pub const CouncilBodyId: BodyId = BodyId::Executive;
+	// StakingAdmin pluralistic body.
+	pub const StakingAdminBodyId: BodyId = BodyId::Defense;
+	// Fellows pluralistic body.
+	pub const FellowsBodyId: BodyId = BodyId::Technical;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -353,12 +357,23 @@ pub type CouncilToPlurality = BackingToPlurality<
 	CouncilBodyId,
 >;
 
-/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
-/// of this chain.
+/// Type to convert the `StakingAdmin` origin to a Plurality `MultiLocation` value.
+pub type StakingAdminToPlurality =
+	OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, StakingAdminBodyId>;
+
+/// Type to convert the Fellows origin to a Plurality `MultiLocation` value.
+pub type FellowsToPlurality = OriginToPluralityVoice<RuntimeOrigin, Fellows, FellowsBodyId>;
+
+/// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain for a destination chain.
 pub type LocalOriginToLocation = (
 	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
 	// `Unit` body.
 	CouncilToPlurality,
+	// StakingAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	StakingAdminToPlurality,
+	// Fellows origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	FellowsToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
 );
