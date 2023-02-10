@@ -489,7 +489,7 @@ pub mod v1 {
 		///
 		/// Actually checking the assignment may yield a different result.
 		#[codec(index = 0)]
-		Assignments(Vec<(IndirectAssignmentCert, CandidateIndex)>),
+		Assignments(Vec<(IndirectAssignmentCert, Vec<CandidateIndex>)>),
 		/// Approvals for candidates in some recent, unfinalized block.
 		#[codec(index = 1)]
 		Approvals(Vec<IndirectSignedApprovalVote>),
