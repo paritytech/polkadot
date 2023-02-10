@@ -246,10 +246,14 @@ pub async fn executor_params_at_relay_parent(
 					// Failed to communicate with the runtime
 					Err(Error::Oneshot(err))
 				},
-				Ok(Err(_)) => {
+				Ok(Err(RuntimeApiError::NotSupported { .. })) => {
 					// Runtime doesn't yet support the api requested, should execute anyway
 					// with default set of parameters
 					Ok(ExecutorParams::default())
+				},
+				Ok(Err(err)) => {
+					// Runtime failed to execute the request
+					Err(Error::RuntimeApi(err))
 				},
 				Ok(Ok(None)) => {
 					// Storage doesn't contain a parameter set for the given session; should
