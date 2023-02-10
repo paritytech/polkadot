@@ -38,5 +38,6 @@
 {%- else -%}
 {%- set xcm = "" -%}
 {%- endif -%}
+
 {{- repo }} {{ audit }}[`#{{c.number}}`]({{c.html_url}}) {{- prio }} - {{ c.title | capitalize | truncate(length=120, end="…") }}{{xcm }}
 {%- endmacro change -%}
