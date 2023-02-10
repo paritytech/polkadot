@@ -14,8 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Utilities for handling distribution of backed candidates along
-//! the grid.
+//! Utilities for handling distribution of backed candidates along the grid (outside the group to
+//! the rest of the network).
+//!
+//! The grid uses the gossip topology defined in [`polkadot_node_network_protocol::grid_topology`].
+//! It defines how messages and statements are forwarded between validators.
 
 use polkadot_node_network_protocol::{
 	grid_topology::SessionGridTopology, vstaging::StatementFilter, PeerId,
@@ -70,8 +73,8 @@ impl SessionTopologyView {
 
 /// Build a view of the topology for the session.
 /// For groups that we are part of: we receive from nobody and send to our X/Y peers.
-/// For groups that we are not part of: we receive from any validator in the group we share a slice with.
-///    and send to the corresponding X/Y slice.
+/// For groups that we are not part of: we receive from any validator in the group we share a slice with
+///    and send to the corresponding X/Y slice in the other dimension.
 ///    For any validators we don't share a slice with, we receive from the nodes
 ///    which share a slice with them.
 pub fn build_session_topology<'a>(
@@ -311,7 +314,7 @@ impl GridTracker {
 	}
 
 	/// Add a new backed candidate to the tracker. This yields
-	/// an iterator of validators which we should either advertise to
+	/// a list of validators which we should either advertise to
 	/// or signal that we know the candidate, along with the corresponding
 	/// type of manifest we should send.
 	pub fn add_backed_candidate(
@@ -853,8 +856,8 @@ impl FilterQuery for StatementFilter {
 	}
 }
 
-/// Knowledge that a remote peer has about a candidate, and that they have about us concerning the
-/// candidate.
+/// Knowledge that we have about a remote peer concerning a candidate, and that they have about us
+/// concerning the candidate.
 #[derive(Debug, Clone)]
 struct MutualKnowledge {
 	/// Knowledge the remote peer has about the candidate. `Some` only if they
@@ -1733,9 +1736,9 @@ mod tests {
 		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
 		assert_eq!(tracker.all_pending_statements_for(validator_index), vec![]);
 
-		// Import fresh statement. Candidate not backed.
+		// Try to import fresh statement. Candidate not backed.
 		let statement = CompactStatement::Seconded(candidate_hash);
-		tracker.learned_fresh_statement(&groups, &session_topology, ValidatorIndex(1), &statement);
+		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
 
 		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
 		assert_eq!(tracker.all_pending_statements_for(validator_index), vec![]);
@@ -1749,7 +1752,7 @@ mod tests {
 			local_knowledge.clone(),
 		);
 
-		// Import fresh statement. Unknown group for validator index.
+		// Try to import fresh statement. Unknown group for validator index.
 		let statement = CompactStatement::Seconded(candidate_hash);
 		tracker.learned_fresh_statement(&groups, &session_topology, ValidatorIndex(1), &statement);
 
@@ -1795,6 +1798,7 @@ mod tests {
 		);
 
 		// Import fresh statement.
+
 		let ack = tracker.import_manifest(
 			&session_topology,
 			&groups,
@@ -1809,6 +1813,7 @@ mod tests {
 			ManifestKind::Full,
 			validator_index,
 		);
+		assert_matches!(ack, Ok(true));
 		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge);
 		let statement = CompactStatement::Seconded(candidate_hash);
 		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
@@ -1828,6 +1833,7 @@ mod tests {
 		);
 
 		// After successful import, try importing again. Nothing should change.
+
 		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
 		assert_eq!(
 			tracker.pending_statements_for(validator_index, candidate_hash),
@@ -1885,8 +1891,8 @@ mod tests {
 			ManifestSummary {
 				claimed_parent_hash: Hash::repeat_byte(0),
 				claimed_group_index: group_index,
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
+				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
 			},
 			ManifestKind::Full,
 			validator_index,
@@ -1898,7 +1904,7 @@ mod tests {
 		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
 
 		// The pending statements should respect the remote knowledge (meaning the Seconded
-		// statement is ignored).
+		// statement is ignored, but not the Valid statement).
 		let statements = StatementFilter {
 			seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
 			validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
