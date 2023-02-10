@@ -4,6 +4,9 @@ GEM
     addressable (2.8.0)
       public_suffix (>= 2.0.2, < 5.0)
     ast (2.4.2)
+    changelogerator (0.9.1)
+      git_diff_parser (~> 3)
+      octokit (~> 4)
     faraday (1.8.0)
       faraday-em_http (~> 1.0)
       faraday-em_synchrony (~> 1.0)
@@ -64,8 +67,10 @@ GEM
 
 PLATFORMS
   x86_64-darwin-20
+  x86_64-darwin-22
 
 DEPENDENCIES
+  changelogerator (= 0.9.1)
   git_diff_parser (~> 3)
   logger (~> 1.4)
   octokit (~> 4)
@@ -76,4 +81,4 @@ DEPENDENCIES
   toml (~> 0.3.0)
 
 BUNDLED WITH
-   2.2.22
+   2.4.6
