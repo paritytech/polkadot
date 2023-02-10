@@ -25,7 +25,7 @@ The changes motivating this priority level are:
     {%- if pr.meta.C -%}
         {%- if pr.meta.C.agg.max >= p %}
 - {{ m_c::change(c=pr) }}
-{%- if pr.meta.T and pr.meta.T1 %} (RUNTIME)
+{%- if pr.meta.T and pr.meta.T.T1 %} (RUNTIME)
 {% endif %}
         {%- endif -%}
     {%- endif -%}

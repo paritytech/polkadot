@@ -4,7 +4,7 @@
 {#- First pass to count #}
 {%- for pr in changes -%}
     {%- if pr.meta.B %}
-        {%- if pr.meta.B0 -%}
+        {%- if pr.meta.B.B0 -%}
         {#- We skip silent ones -#}
         {%- else -%}
             {%- if pr.meta.T and pr.meta.T.agg.max > 2   %}
@@ -26,7 +26,7 @@ There are other misc. changes. You can expand the list below to view them all.
 {#- The changes are sorted by merge date #}
 {%- for pr in changes | sort(attribute="merged_at") %}
     {%- if pr.meta.B and not pr.title is containing("ompanion") %}
-        {%- if pr.meta.B0 %}
+        {%- if pr.meta.B.B0 %}
         {#- We skip silent ones -#}
         {%- else -%}
             {%- if pr.meta.T and pr.meta.T.agg.max > 2 %}
