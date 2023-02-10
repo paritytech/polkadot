@@ -761,68 +761,137 @@ where
 		let metrics = self.metrics.clone();
 		spawn_metronome_metrics(&mut self, metrics)?;
 
+		let initial_sync_finished = self.sync_oracle.finished_syncing();
 		// Notify about active leaves on startup before starting the loop
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
 			if let Some((span, status)) = self.on_head_activated(&hash, None).await {
-				let update =
-					ActiveLeavesUpdate::start_work(ActivatedLeaf { hash, number, status, span });
-				self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+				if initial_sync_finished {
+					// Initial sync is complete. Notify the subsystems and proceed to the main loop
+					let update = ActiveLeavesUpdate::start_work(ActivatedLeaf {
+						hash,
+						number,
+						status,
+						span,
+					});
+					self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+				}
 			}
 		}
 
+		// wait for initial sync
+		if !initial_sync_finished {
+			loop {
+				select! {
+					msg = self.events_rx.select_next_some() => {
+						match msg {
+							Event::MsgToSubsystem { msg, origin } => self.handle_msg_to_subsystem(msg, origin).await?,
+							Event::Stop => return self.handle_stop().await,
+							Event::BlockImported(block) => _ = self.block_imported(block).await,
+							Event::BlockFinalized(block) if self.sync_oracle.finished_syncing() => {
+								self.block_finalized(&block).await;
+									// send initial active leaves update
+									for (hash, number) in self.active_leaves.clone().into_iter() {
+										let span = match self.span_per_active_leaf.get(&hash) {
+											Some(span) => span.clone(),
+											None => {
+												// thus should never happen
+												gum::error!(target: LOG_TARGET, ?hash, ?number, "Span for active leaf not found. This is not expected");
+												let span = Arc::new(jaeger::Span::new(hash.clone(), "leaf-activated"));
+												self.span_per_active_leaf.insert(hash, span.clone());
+												span
+											}
+										};
+
+										let update = ActiveLeavesUpdate::start_work(ActivatedLeaf {
+											hash,
+											number,
+											status: LeafStatus::Fresh,
+											span,
+										});
+										self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+									}
+									self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
+									break
+							},
+							Event::BlockFinalized(block) => _ = self.block_finalized(&block).await,
+							Event::ExternalRequest(request) => self.handle_external_request(request)
+						}
+					},
+					msg = self.to_orchestra_rx.select_next_some() => self.handle_orchestra_rx(msg),
+					res = self.running_subsystems.select_next_some() => return self.handle_running_subsystems(res).await
+				}
+			}
+		}
+
+		// main loop
 		loop {
 			select! {
 				msg = self.events_rx.select_next_some() => {
 					match msg {
-						Event::MsgToSubsystem { msg, origin } => {
-							self.route_message(msg.into(), origin).await?;
-							self.metrics.on_message_relayed();
-						}
-						Event::Stop => {
-							self.stop().await;
-							return Ok(());
-						}
+						Event::MsgToSubsystem { msg, origin } => self.handle_msg_to_subsystem(msg, origin).await?,
+						Event::Stop => return self.handle_stop().await,
 						Event::BlockImported(block) => {
-							self.block_imported(block).await?;
-						}
-						Event::BlockFinalized(block) => {
-							self.block_finalized(block).await?;
-						}
-						Event::ExternalRequest(request) => {
-							self.handle_external_request(request);
-						}
+							let update = self.block_imported(block).await;
+							if !update.is_empty() {
+								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+							}
+						},
+						Event::BlockFinalized(block) => _ = self.block_finalized(&block).await,
+						Event::ExternalRequest(request) => self.handle_external_request(request)
 					}
 				},
-				msg = self.to_orchestra_rx.select_next_some() => {
-					match msg {
-						ToOrchestra::SpawnJob { name, subsystem, s } => {
-							self.spawn_job(name, subsystem, s);
-						}
-						ToOrchestra::SpawnBlockingJob { name, subsystem, s } => {
-							self.spawn_blocking_job(name, subsystem, s);
-						}
-					}
-				},
-				res = self.running_subsystems.select_next_some() => {
-					gum::error!(
-						target: LOG_TARGET,
-						subsystem = ?res,
-						"subsystem finished unexpectedly",
-					);
-					self.stop().await;
-					return res;
-				},
+				msg = self.to_orchestra_rx.select_next_some() => self.handle_orchestra_rx(msg),
+				res = self.running_subsystems.select_next_some() => return self.handle_running_subsystems(res).await
 			}
 		}
 	}
 
-	async fn block_imported(&mut self, block: BlockInfo) -> SubsystemResult<()> {
+	async fn handle_stop(self) -> Result<(), SubsystemError> {
+		self.stop().await;
+		return Ok(())
+	}
+
+	fn handle_orchestra_rx(&mut self, msg: ToOrchestra) {
+		match msg {
+			ToOrchestra::SpawnJob { name, subsystem, s } => {
+				self.spawn_job(name, subsystem, s);
+			},
+			ToOrchestra::SpawnBlockingJob { name, subsystem, s } => {
+				self.spawn_blocking_job(name, subsystem, s);
+			},
+		}
+	}
+
+	async fn handle_msg_to_subsystem(
+		&mut self,
+		msg: AllMessages,
+		origin: &'static str,
+	) -> Result<(), SubsystemError> {
+		self.route_message(msg.into(), origin).await?;
+		self.metrics.on_message_relayed();
+		Ok(())
+	}
+
+	async fn handle_running_subsystems(
+		self,
+		res: Result<(), SubsystemError>,
+	) -> Result<(), SubsystemError> {
+		gum::error!(
+			target: LOG_TARGET,
+			subsystem = ?res,
+			"subsystem finished unexpectedly",
+		);
+		self.stop().await;
+		return res
+	}
+
+	async fn block_imported(&mut self, block: BlockInfo) -> ActiveLeavesUpdate {
 		match self.active_leaves.entry(block.hash) {
 			hash_map::Entry::Vacant(entry) => entry.insert(block.number),
 			hash_map::Entry::Occupied(entry) => {
 				debug_assert_eq!(*entry.get(), block.number);
-				return Ok(())
+				return ActiveLeavesUpdate::default()
 			},
 		};
 
@@ -844,13 +913,10 @@ where
 
 		self.clean_up_external_listeners();
 
-		if !update.is_empty() {
-			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-		}
-		Ok(())
+		update
 	}
 
-	async fn block_finalized(&mut self, block: BlockInfo) -> SubsystemResult<()> {
+	async fn block_finalized(&mut self, block: &BlockInfo) -> ActiveLeavesUpdate {
 		let mut update = ActiveLeavesUpdate::default();
 
 		self.active_leaves.retain(|h, n| {
@@ -868,17 +934,7 @@ where
 			self.on_head_deactivated(deactivated)
 		}
 
-		self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number))
-			.await?;
-
-		// If there are no leaves being deactivated, we don't need to send an update.
-		//
-		// Our peers will be informed about our finalized block the next time we activating/deactivating some leaf.
-		if !update.is_empty() {
-			self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-		}
-
-		Ok(())
+		update
 	}
 
 	/// Handles a header activation. If the header's state doesn't support the parachains API,
@@ -897,7 +953,7 @@ where
 			gum::trace!(
 				target: LOG_TARGET,
 				relay_parent = ?hash,
-				"Leaf got activated, notifying exterinal listeners"
+				"Leaf got activated, notifying external listeners"
 			);
 			for listener in listeners {
 				// it's fine if the listener is no longer interested
