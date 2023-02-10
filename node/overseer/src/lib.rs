@@ -861,7 +861,13 @@ where
 								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 							}
 						},
-						Event::BlockFinalized(block) => _ = self.block_finalized(&block).await,
+						Event::BlockFinalized(block) => {
+							let update = self.block_finalized(&block).await;
+							if !update.is_empty() {
+								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+							}
+							self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
+						},
 						Event::ExternalRequest(request) => self.handle_external_request(request)
 					}
 				},
