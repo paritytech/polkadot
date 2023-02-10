@@ -1524,6 +1524,8 @@ mod tests {
 		);
 	}
 
+	// Test that when we add a candidate as backed and advertise it to the sending group, they can
+	// provide an acknowledgement manifest in response.
 	#[test]
 	fn senders_can_provide_manifests_in_acknowledgement() {
 		let validator_index = ValidatorIndex(0);
@@ -1549,18 +1551,23 @@ mod tests {
 		let groups = dummy_groups(group_size);
 
 		// Add the candidate as backed.
-		tracker.add_backed_candidate(
+		let receivers = tracker.add_backed_candidate(
 			&session_topology,
 			candidate_hash,
 			group_index,
 			group_size,
 			local_knowledge.clone(),
 		);
+		// Validator 0 is in the sending group. Advertise onward to it.
+		//
+		// Validator 1 is in the receiving group, but we have not received from it, so we're not
+		// expected to send it an acknowledgement.
+		assert_eq!(receivers, vec![(validator_index, ManifestKind::Full)]);
 
 		// Note the manifest as 'sent' to validator 0.
 		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge);
 
-		// Import manifest.
+		// Import manifest of kind `Acknowledgement` from validator 0.
 		let ack = tracker.import_manifest(
 			&session_topology,
 			&groups,
