@@ -17,7 +17,9 @@
 //! Utilities for handling distribution of backed candidates along
 //! the grid.
 
-use polkadot_node_network_protocol::{grid_topology::SessionGridTopology, PeerId};
+use polkadot_node_network_protocol::{
+	grid_topology::SessionGridTopology, vstaging::StatementFilter, PeerId,
+};
 use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, CompactStatement, GroupIndex, Hash, ValidatorIndex,
 };
@@ -248,33 +250,22 @@ impl GridTracker {
 				None => return Err(ManifestImportError::Malformed),
 			};
 
-		if manifest.seconded_in_group.len() != group_size ||
-			manifest.validated_in_group.len() != group_size
-		{
+		let remote_knowledge = manifest.statement_knowledge.clone();
+
+		if !remote_knowledge.has_len(group_size) {
 			return Err(ManifestImportError::Malformed)
 		}
 
-		if manifest.seconded_in_group.count_ones() == 0 {
+		if !remote_knowledge.has_seconded() {
 			return Err(ManifestImportError::Malformed)
 		}
 
 		// ensure votes are sufficient to back.
-		let votes = manifest
-			.seconded_in_group
-			.iter()
-			.by_vals()
-			.zip(manifest.validated_in_group.iter().by_vals())
-			.filter(|&(s, v)| s || v) // no double-counting
-			.count();
+		let votes = remote_knowledge.backing_validators();
 
 		if votes < backing_threshold {
 			return Err(ManifestImportError::Malformed)
 		}
-
-		let remote_knowledge = StatementFilter {
-			seconded_in_group: manifest.seconded_in_group.clone(),
-			validated_in_group: manifest.validated_in_group.clone(),
-		};
 
 		self.received.entry(sender).or_default().import_received(
 			group_size,
@@ -605,6 +596,15 @@ impl GridTracker {
 			}
 		}
 	}
+
+	/// Get the advertised statement filter of a validator for a candidate.
+	pub fn advertised_statements(
+		&self,
+		validator: ValidatorIndex,
+		candidate_hash: &CandidateHash,
+	) -> Option<StatementFilter> {
+		self.received.get(&validator)?.candidate_statement_filter(candidate_hash)
+	}
 }
 
 fn extract_statement_and_group_info(
@@ -657,12 +657,9 @@ pub struct ManifestSummary {
 	pub claimed_parent_hash: Hash,
 	/// The claimed group index assigned to the candidate.
 	pub claimed_group_index: GroupIndex,
-	/// A bitfield of validators in the group which seconded the
-	/// candidate.
-	pub seconded_in_group: BitVec<u8, Lsb0>,
-	/// A bitfield of validators in the group which validated the
-	/// candidate.
-	pub validated_in_group: BitVec<u8, Lsb0>,
+	/// A statement filter sent alongisde the candidate, communicating
+	/// knowledge.
+	pub statement_knowledge: StatementFilter,
 }
 
 /// Errors in importing a manifest.
@@ -699,10 +696,7 @@ impl ReceivedManifests {
 		&self,
 		candidate_hash: &CandidateHash,
 	) -> Option<StatementFilter> {
-		self.received.get(candidate_hash).map(|m| StatementFilter {
-			seconded_in_group: m.seconded_in_group.clone(),
-			validated_in_group: m.validated_in_group.clone(),
-		})
+		self.received.get(candidate_hash).map(|m| m.statement_knowledge.clone())
 	}
 
 	/// Attempt to import a received manifest from a counterparty.
@@ -740,16 +734,25 @@ impl ReceivedManifests {
 						return Err(ManifestImportError::Conflicting)
 					}
 
-					if !manifest_summary.seconded_in_group.contains(&prev.seconded_in_group) {
+					if !manifest_summary
+						.statement_knowledge
+						.seconded_in_group
+						.contains(&prev.statement_knowledge.seconded_in_group)
+					{
 						return Err(ManifestImportError::Conflicting)
 					}
 
-					if !manifest_summary.validated_in_group.contains(&prev.validated_in_group) {
+					if !manifest_summary
+						.statement_knowledge
+						.validated_in_group
+						.contains(&prev.statement_knowledge.validated_in_group)
+					{
 						return Err(ManifestImportError::Conflicting)
 					}
 
-					let mut fresh_seconded = manifest_summary.seconded_in_group.clone();
-					fresh_seconded |= &prev.seconded_in_group;
+					let mut fresh_seconded =
+						manifest_summary.statement_knowledge.seconded_in_group.clone();
+					fresh_seconded |= &prev.statement_knowledge.seconded_in_group;
 
 					let within_limits = updating_ensure_within_seconding_limit(
 						&mut self.seconded_counts,
@@ -775,7 +778,7 @@ impl ReceivedManifests {
 					manifest_summary.claimed_group_index,
 					group_size,
 					seconding_limit,
-					&*manifest_summary.seconded_in_group,
+					&*manifest_summary.statement_knowledge.seconded_in_group,
 				);
 
 				if within_limits {
@@ -825,25 +828,12 @@ enum StatementKind {
 	Valid,
 }
 
-/// Bitfields indicating the statements that are known or undesired
-/// about a candidate.
-#[derive(Debug, Clone, PartialEq)]
-pub struct StatementFilter {
-	/// Seconded statements. '1' is known or undesired.
-	pub seconded_in_group: BitVec<u8, Lsb0>,
-	/// Valid statements. '1' is known or undesired.
-	pub validated_in_group: BitVec<u8, Lsb0>,
+trait FilterQuery {
+	fn contains(&self, index: usize, statement_kind: StatementKind) -> bool;
+	fn set(&mut self, index: usize, statement_kind: StatementKind);
 }
 
-impl StatementFilter {
-	/// Create a new filter with the given group size.
-	pub fn new(group_size: usize) -> Self {
-		StatementFilter {
-			seconded_in_group: BitVec::repeat(false, group_size),
-			validated_in_group: BitVec::repeat(false, group_size),
-		}
-	}
-
+impl FilterQuery for StatementFilter {
 	fn contains(&self, index: usize, statement_kind: StatementKind) -> bool {
 		match statement_kind {
 			StatementKind::Seconded => self.seconded_in_group.get(index).map_or(false, |x| *x),

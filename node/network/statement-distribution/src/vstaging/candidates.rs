@@ -139,7 +139,7 @@ impl Candidates {
 	}
 
 	/// Note that a candidate has been confirmed. If the candidate has just been
-	/// confirmed, then
+	/// confirmed, then this returns `Some`. Otherwise, `None`.
 	///
 	/// This does no sanity-checking of input data, and will overwrite
 	/// already-confirmed canidates.

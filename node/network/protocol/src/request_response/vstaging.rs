@@ -18,28 +18,27 @@
 
 use parity_scale_codec::{Decode, Encode};
 
-use bitvec::{order::Lsb0, vec::BitVec};
 use polkadot_primitives::vstaging::{
 	CandidateHash, CommittedCandidateReceipt, Hash, Id as ParaId, PersistedValidationData,
 	UncheckedSignedStatement,
 };
 
 use super::{IsRequest, Protocol};
+use crate::vstaging::StatementFilter;
 
 /// Request a candidate with statements.
 #[derive(Debug, Clone, Encode, Decode)]
 pub struct AttestedCandidateRequest {
 	/// Hash of the candidate we want to request.
 	pub candidate_hash: CandidateHash,
-	/// bitfield with 'AND' semantics, indicating which validators
-	/// to send `Seconded` statements for.
+	/// Statement filter with 'OR' semantics, indicating which validators
+	/// not to send statements for.
 	///
-	/// The mask must have exactly the minimum size required to
+	/// The filter must have exactly the minimum size required to
 	/// fit all validators from the backing group.
 	///
-	/// The response may not contain any `Seconded` statements outside
-	/// of this mask.
-	pub seconded_mask: BitVec<u8, Lsb0>,
+	/// The response may not contain any statements masked out by this mask.
+	pub mask: StatementFilter,
 }
 
 /// Response to an `AttestedCandidateRequest`.
