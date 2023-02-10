@@ -1661,7 +1661,7 @@ mod tests {
 
 	// Check that pending communication is cleared correctly in `manifest_sent_to`
 	//
-	// Also test a scenario where manifest import returns `Ok(true)`.
+	// Also test a scenario where manifest import returns `Ok(true)` (should acknowledge).
 	#[test]
 	fn pending_communication_is_cleared() {
 		let validator_index = ValidatorIndex(0);
@@ -1699,7 +1699,8 @@ mod tests {
 		let pending_manifest = tracker.is_manifest_pending_for(validator_index, &candidate_hash);
 		assert_eq!(pending_manifest, None);
 
-		// Import manifest.
+		// Import manifest. The candidate is confirmed backed and we are expected to receive from
+		// validator 0, so send it an acknowledgement.
 		let ack = tracker.import_manifest(
 			&session_topology,
 			&groups,
@@ -1730,21 +1731,127 @@ mod tests {
 		assert_eq!(pending_manifest, None);
 	}
 
+	/// A manifest exchange means that both `manifest_sent_to` and `manifest_received_from` have
+	/// been invoked.
+	///
+	/// In practice, it means that one of three things have happened:
+	///
+	/// - They announced, we acknowledged
+	///
+	/// - We announced, they acknowledged
+	///
+	/// - We announced, they announced (not sure if this can actually happen; it would happen if 2
+	///   nodes had each other in their sending set and they sent manifests at the same time. The
+	///   code accounts for this anyway)
 	#[test]
 	fn pending_statements_are_updated_after_manifest_exchange() {
-		let mut tracker = GridTracker::default();
+		let send_to = ValidatorIndex(0);
+		let receive_from = ValidatorIndex(1);
 
-		let validator_index = ValidatorIndex(0);
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::from([send_to]),
+					receiving: HashSet::from([receive_from]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
 		let group_size = 3;
+		let local_knowledge = StatementFilter::new(group_size);
+
+		let groups = dummy_groups(group_size);
 
 		// Should start with no pending statements.
-		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
-		assert_eq!(tracker.all_pending_statements_for(validator_index), vec![]);
+		assert_eq!(tracker.pending_statements_for(send_to, candidate_hash), None);
+		assert_eq!(tracker.all_pending_statements_for(send_to), vec![]);
+		assert_eq!(tracker.pending_statements_for(receive_from, candidate_hash), None);
+		assert_eq!(tracker.all_pending_statements_for(receive_from), vec![]);
 
-		let statement_filter = StatementFilter::new(group_size);
+		let receivers = tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+		assert_eq!(receivers, vec![(send_to, ManifestKind::Full)]);
 
-		todo!()
+		// Test receiving followed by sending an ack.
+
+		let ack = tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
+			},
+			ManifestKind::Full,
+			receive_from,
+		);
+		assert_matches!(ack, Ok(true));
+		tracker.manifest_sent_to(&groups, receive_from, candidate_hash, local_knowledge.clone());
+
+		// There should be pending statements now.
+		let statements = StatementFilter {
+			seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
+			validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+		};
+		assert_eq!(
+			tracker.pending_statements_for(receive_from, candidate_hash),
+			Some(statements.clone())
+		);
+		assert_eq!(
+			tracker.all_pending_statements_for(receive_from),
+			vec![(ValidatorIndex(0), CompactStatement::Seconded(candidate_hash))]
+		);
+
+		// Test sending followed by receiving an ack.
+
+		tracker.manifest_sent_to(&groups, send_to, candidate_hash, local_knowledge.clone());
+		let ack = tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+				},
+			},
+			ManifestKind::Acknowledgement,
+			send_to,
+		);
+		assert_matches!(ack, Ok(false));
+
+		// There should be pending statements now.
+		let statements = StatementFilter {
+			seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
+			validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+		};
+		assert_eq!(
+			tracker.pending_statements_for(send_to, candidate_hash),
+			Some(statements.clone())
+		);
+		assert_eq!(
+			tracker.all_pending_statements_for(send_to),
+			vec![(send_to, CompactStatement::Seconded(candidate_hash))]
+		);
 	}
 
 	#[test]
