@@ -226,8 +226,7 @@ pub mod max_rss_stat {
 		Ok(result)
 	}
 
-	/// Gets the `ru_maxrss` for the current thread if the OS supports `getrusage`. Otherwise, just
-	/// returns `None`.
+	/// Gets the `ru_maxrss` for the current thread.
 	pub fn get_max_rss_thread() -> io::Result<i64> {
 		// `c_long` is either `i32` or `i64` depending on architecture. `i64::from` always works.
 		getrusage_thread().map(|rusage| i64::from(rusage.ru_maxrss))
