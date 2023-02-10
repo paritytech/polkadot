@@ -217,8 +217,7 @@ impl Knowledge {
 		messages
 			.into_iter()
 			.map(|message| self.insert(message, kind))
-			.collect::<Vec<bool>>()
-			.sum()
+			.fold(false, |result, is_ok| result && is_ok)
 	}
 
 	fn insert(&mut self, message: MessageSubject, kind: MessageKind) -> bool {
@@ -336,7 +335,7 @@ impl MessageSource {
 }
 
 enum PendingMessage {
-	Assignment(IndirectAssignmentCert, CandidateIndex),
+	Assignment(IndirectAssignmentCert, Vec<CandidateIndex>),
 	Approval(IndirectSignedApprovalVote),
 }
 
@@ -491,6 +490,7 @@ impl State {
 
 				for (peer_id, message) in to_import {
 					match message {
+						// TODO: We need to be able to get all claimed candidates here.
 						PendingMessage::Assignment(assignment, claimed_index) => {
 							self.import_and_circulate_assignment(
 								ctx,
@@ -568,28 +568,22 @@ impl State {
 					num = assignments.len(),
 					"Processing assignments from a peer",
 				);
-				for (assignment, claimed_indices) in assignments.into_iter() {
+				for (assignment, claimed_candidate_indices) in assignments.into_iter() {
 					if let Some(pending) = self.pending_known.get_mut(&assignment.block_hash) {
-						// We decompose the assignments as we track them individually.
-						for claimed_index in claimed_indices {
-							let message_subject = MessageSubject(
-								assignment.block_hash,
-								claimed_index,
-								assignment.validator,
-							);
+						gum::trace!(
+							target: LOG_TARGET,
+							%peer_id,
+							?claimed_candidate_indices,
+							"Pending assignment",
+						);
 
-							gum::trace!(
-								target: LOG_TARGET,
-								%peer_id,
-								?message_subject,
-								"Pending assignment",
-							);
-
-							pending.push((
-								peer_id,
-								PendingMessage::Assignment(assignment, claimed_index),
-							));
-						}
+						pending.push((
+							peer_id,
+							PendingMessage::Assignment(
+								assignment.clone(),
+								claimed_candidate_indices,
+							),
+						));
 
 						continue
 					}
@@ -599,7 +593,7 @@ impl State {
 						metrics,
 						MessageSource::Peer(peer_id),
 						assignment,
-						claimed_index,
+						claimed_candidate_indices,
 						rng,
 					)
 					.await;
@@ -754,9 +748,9 @@ impl State {
 			},
 		};
 
-		// compute metadata on the assignment.
+		// compute metadata on first candidate in the assignment.
 		let message_subject =
-			MessageSubject(block_hash, claimed_candidate_indices, validator_index);
+			MessageSubject(block_hash, claimed_candidate_indices[0], validator_index);
 		let message_kind = MessageKind::Assignment;
 
 		if let Some(peer_id) = source.peer_id() {
@@ -765,8 +759,18 @@ impl State {
 				hash_map::Entry::Occupied(mut peer_knowledge) => {
 					let peer_knowledge = peer_knowledge.get_mut();
 					if peer_knowledge.contains(&message_subject, message_kind) {
-						// wasn't included before
-						if !peer_knowledge.received.insert(message_subject.clone(), message_kind) {
+						// Decompose to per candidate knowledge of assignment.
+						let mut message_subjects = Vec::new();
+						for candidate_index in claimed_candidate_indices.clone() {
+							message_subjects.push(MessageSubject(
+								block_hash,
+								candidate_index,
+								validator_index,
+							));
+						}
+
+						// Checks if known already.
+						if !peer_knowledge.received.insert_many(message_subjects, message_kind) {
 							gum::debug!(
 								target: LOG_TARGET,
 								?peer_id,
@@ -803,7 +807,7 @@ impl State {
 
 			ctx.send_message(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment.clone(),
-				claimed_candidate_indices,
+				claimed_candidate_indices.clone(),
 				tx,
 			))
 			.await;
@@ -899,7 +903,7 @@ impl State {
 			t.local_grid_neighbors().required_routing_by_index(validator_index, local)
 		});
 
-		let assignments = vec![(assignment, claimed_candidate_indices)];
+		let assignments = vec![(assignment.clone(), claimed_candidate_indices.clone())];
 		let n_peers_total = self.peer_views.len();
 		let source_peer = source.peer_id();
 
@@ -911,9 +915,11 @@ impl State {
 		// to any peers either.
 
 		let mut route_random = None;
-		for claimed_candidate_index in claimed_candidate_indices {
+		for claimed_candidate_index in claimed_candidate_indices.clone() {
 			let message_state = match entry.candidates.get_mut(claimed_candidate_index as usize) {
 				Some(candidate_entry) => {
+					let claimed_candidate_indices = claimed_candidate_indices.clone();
+					let assignment = assignment.clone();
 					// set the approval state for validator_index to Assigned
 					// unless the approval state is set already
 					candidate_entry.messages.entry(validator_index).or_insert_with(|| {
@@ -921,7 +927,10 @@ impl State {
 							required_routing,
 							local,
 							random_routing: Default::default(),
-							approval_state: ApprovalState::Assigned(assignment.cert.clone()),
+							approval_state: ApprovalState::Assigned(
+								assignment.cert,
+								claimed_candidate_indices,
+							),
 						}
 					})
 				},
@@ -938,7 +947,7 @@ impl State {
 			};
 
 			if route_random.is_none() {
-				route_random = message_state.random_routing.sample(n_peers_total, rng);
+				route_random = Some(message_state.random_routing.sample(n_peers_total, rng));
 			}
 
 			if let Some(true) = route_random {
@@ -952,7 +961,7 @@ impl State {
 		// If the topology isn't known yet (race with networking subsystems)
 		// then messages will be sent when we get it.
 
-		let mut peer_filter = move |peer| {
+		let peer_filter = move |peer| {
 			if Some(peer) == source_peer.as_ref() {
 				return false
 			}
@@ -963,6 +972,8 @@ impl State {
 			{
 				return true
 			}
+
+			false
 		};
 
 		let peers = entry.known_by.keys().filter(|p| peer_filter(p)).cloned().collect::<Vec<_>>();
@@ -1142,7 +1153,7 @@ impl State {
 				// it should be in assigned state already
 				match candidate_entry.messages.remove(&validator_index) {
 					Some(MessageState {
-						approval_state: ApprovalState::Assigned(cert),
+						approval_state: ApprovalState::Assigned(cert, candidate_indices),
 						required_routing,
 						local,
 						random_routing,
@@ -1152,6 +1163,7 @@ impl State {
 							MessageState {
 								approval_state: ApprovalState::Approved(
 									cert,
+									candidate_indices,
 									vote.signature.clone(),
 								),
 								required_routing,
@@ -1291,8 +1303,8 @@ impl State {
 			let sigs =
 				candidate_entry.messages.iter().filter_map(|(validator_index, message_state)| {
 					match &message_state.approval_state {
-						ApprovalState::Approved(_, sig) => Some((*validator_index, sig.clone())),
-						ApprovalState::Assigned(_) => None,
+						ApprovalState::Approved(_, _, sig) => Some((*validator_index, sig.clone())),
+						ApprovalState::Assigned(_, _) => None,
 					}
 				});
 			all_sigs.extend(sigs);
