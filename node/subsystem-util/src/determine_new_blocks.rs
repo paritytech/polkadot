@@ -290,7 +290,6 @@ mod tests {
 				head_hash,
 				&head,
 				lower_bound_number,
-				None,
 			)
 			.await
 			.unwrap();
@@ -364,7 +363,6 @@ mod tests {
 				head_hash,
 				&head,
 				lower_bound_number,
-				None,
 			)
 			.await
 			.unwrap();
@@ -424,7 +422,6 @@ mod tests {
 				head_hash,
 				&head,
 				lower_bound_number,
-				None,
 			)
 			.await
 			.unwrap();
@@ -461,7 +458,6 @@ mod tests {
 				head_hash,
 				&head,
 				lower_bound_number,
-				None,
 			)
 			.await
 			.unwrap();
@@ -493,7 +489,6 @@ mod tests {
 				head_hash,
 				&head,
 				17,
-				None,
 			)
 			.await
 			.unwrap();
@@ -504,7 +499,6 @@ mod tests {
 				head_hash,
 				&head,
 				18,
-				None,
 			)
 			.await
 			.unwrap();
@@ -515,7 +509,6 @@ mod tests {
 				head_hash,
 				&head,
 				19,
-				None,
 			)
 			.await
 			.unwrap();
@@ -553,7 +546,6 @@ mod tests {
 				head_hash,
 				&head,
 				0,
-				None,
 			)
 			.await
 			.unwrap();
@@ -597,7 +589,6 @@ mod tests {
 				head_hash,
 				&head,
 				0,
-				None,
 			)
 			.await
 			.unwrap();
