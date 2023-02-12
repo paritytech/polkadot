@@ -303,7 +303,7 @@ impl GridTracker {
 				);
 			}
 		} else {
-			// received prevents conflicting manifests so this is max 1 per validator.
+			// `received` prevents conflicting manifests so this is max 1 per validator.
 			self.unconfirmed
 				.entry(candidate_hash)
 				.or_default()
@@ -797,6 +797,9 @@ impl ReceivedManifests {
 
 // updates validator-seconded records but only if the new statements
 // are OK. returns `true` if alright and `false` otherwise.
+//
+// The seconding limit is a per-validator limit. It ensures an upper bound on the total number of
+// candidates entering the system.
 fn updating_ensure_within_seconding_limit(
 	seconded_counts: &mut HashMap<GroupIndex, Vec<usize>>,
 	group_index: GroupIndex,
@@ -1197,6 +1200,8 @@ mod tests {
 		);
 	}
 
+	// Make sure we don't import manifests that would put a validator in a group over the limit of
+	// candidates they are allowed to second (aka seconding limit).
 	#[test]
 	fn reject_overflowing_manifests() {
 		let mut knowledge = ReceivedManifests::default();
@@ -1232,6 +1237,7 @@ mod tests {
 			)
 			.unwrap();
 
+		// Reject a seconding validator that is already at the seconding limit.
 		assert_matches!(
 			knowledge.import_received(
 				3,
@@ -1241,7 +1247,7 @@ mod tests {
 					claimed_parent_hash: Hash::repeat_byte(0xC),
 					claimed_group_index: GroupIndex(0),
 					statement_knowledge: StatementFilter {
-						seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
 						validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
 					}
 				},
@@ -1249,6 +1255,7 @@ mod tests {
 			Err(ManifestImportError::Overflow)
 		);
 
+		// Don't reject validators that have seconded less than the limit so far.
 		knowledge
 			.import_received(
 				3,
