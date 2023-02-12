@@ -1237,7 +1237,8 @@ mod tests {
 			)
 			.unwrap();
 
-		// Reject a seconding validator that is already at the seconding limit.
+		// Reject a seconding validator that is already at the seconding limit. Seconding counts for
+		// the validators should not be applied.
 		assert_matches!(
 			knowledge.import_received(
 				3,
@@ -1247,7 +1248,7 @@ mod tests {
 					claimed_parent_hash: Hash::repeat_byte(0xC),
 					claimed_group_index: GroupIndex(0),
 					statement_knowledge: StatementFilter {
-						seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
 						validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
 					}
 				},
