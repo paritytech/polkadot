@@ -1730,7 +1730,7 @@ mod benchmarking {
 	use frame_system::RawOrigin;
 	use sp_runtime::{traits::Bounded, SaturatedConversion};
 
-	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
+	use frame_benchmarking::{account, benchmarks, whitelisted_caller, BenchmarkError};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
@@ -1786,7 +1786,8 @@ mod benchmarking {
 		new_auction {
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::max_value();
-			let origin = T::InitiateOrigin::successful_origin();
+			let origin =
+				T::InitiateOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 		}: _<T::RuntimeOrigin>(origin, duration, lease_period_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::AuctionStarted {
@@ -1805,7 +1806,8 @@ mod benchmarking {
 			// Create a new auction
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
-			let origin = T::InitiateOrigin::successful_origin();
+			let origin = T::InitiateOrigin::try_successful_origin()
+				.expect("InitiateOrigin has no successful origin required for the benchmark");
 			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			let para = ParaId::from(0);
@@ -1857,7 +1859,8 @@ mod benchmarking {
 			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
-			let origin = T::InitiateOrigin::successful_origin();
+			let origin = T::InitiateOrigin::try_successful_origin()
+				.expect("InitiateOrigin has no successful origin required for the benchmark");
 			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			fill_winners::<T>(lease_period_index);
@@ -1901,7 +1904,8 @@ mod benchmarking {
 			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
-			let origin = T::InitiateOrigin::successful_origin();
+			let origin = T::InitiateOrigin::try_successful_origin()
+				.expect("InitiateOrigin has no successful origin required for the benchmark");
 			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			fill_winners::<T>(lease_period_index);
