@@ -359,6 +359,14 @@ pub type CouncilToPlurality = BackingToPlurality<
 	CouncilBodyId,
 >;
 
+/// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain.
+pub type LocalOriginToLocation = (
+	CouncilToPlurality,
+	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
+	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
+);
+
 /// Type to convert the `StakingAdmin` origin to a Plurality `MultiLocation` value.
 pub type StakingAdminToPlurality =
 	OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, StakingAdminBodyId>;
@@ -368,7 +376,7 @@ pub type FellowsToPlurality = OriginToPluralityVoice<RuntimeOrigin, Fellows, Fel
 
 /// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain for a destination chain.
-pub type LocalOriginToLocation = (
+pub type LocalPalletOriginToLocation = (
 	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
 	// `Unit` body.
 	CouncilToPlurality,
@@ -376,14 +384,12 @@ pub type LocalOriginToLocation = (
 	StakingAdminToPlurality,
 	// Fellows origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
 	FellowsToPlurality,
-	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
-	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
 );
 
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	// Only allow the council to send messages.
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, CouncilToPlurality>;
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalPalletOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
