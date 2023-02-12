@@ -25,8 +25,8 @@ use polkadot_node_network_protocol::{
 	grid_topology::{RequiredRouting, SessionGridTopology},
 	peer_set::ValidationVersion,
 	request_response::Requests,
-	vstaging as protocol_vstaging, IfDisconnected, PeerId, UnifiedReputationChange as Rep,
-	Versioned, View,
+	vstaging::{self as protocol_vstaging, StatementFilter},
+	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_primitives::{
 	SignedFullStatementWithPVD, StatementWithPVD as FullStatementWithPVD,
@@ -66,12 +66,12 @@ use crate::{
 };
 use candidates::{BadAdvertisement, Candidates, PostConfirmation};
 use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as ClusterRejectIncoming};
-use grid::{GridTracker, ManifestSummary, StatementFilter};
+use grid::{GridTracker, ManifestSummary};
 use groups::Groups;
-use requests::RequestManager;
+use requests::{CandidateIdentifier, RequestProperties};
 use statement_store::{StatementOrigin, StatementStore};
 
-pub use requests::UnhandledResponse;
+pub use requests::{RequestManager, UnhandledResponse};
 
 mod candidates;
 mod cluster;
@@ -792,8 +792,7 @@ async fn send_pending_grid_messages<Context>(
 					group_index,
 					para_id: confirmed_candidate.para_id(),
 					parent_head_data_hash: confirmed_candidate.parent_head_data_hash(),
-					seconded_in_group: local_knowledge.seconded_in_group.clone(),
-					validated_in_group: local_knowledge.validated_in_group.clone(),
+					statement_knowledge: local_knowledge.clone(),
 				};
 
 				let grid = &mut relay_parent_state
@@ -1675,13 +1674,11 @@ async fn provide_candidate_to_grid<Context>(
 		group_index,
 		para_id: confirmed_candidate.para_id(),
 		parent_head_data_hash: confirmed_candidate.parent_head_data_hash(),
-		seconded_in_group: filter.seconded_in_group.clone(),
-		validated_in_group: filter.validated_in_group.clone(),
+		statement_knowledge: filter.clone(),
 	};
 	let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
 		candidate_hash,
-		seconded_in_group: filter.seconded_in_group.clone(),
-		validated_in_group: filter.validated_in_group.clone(),
+		statement_knowledge: filter.clone(),
 	};
 
 	let inventory_message = Versioned::VStaging(
@@ -2064,8 +2061,7 @@ async fn handle_incoming_manifest<Context>(
 		grid::ManifestSummary {
 			claimed_parent_hash: manifest.parent_head_data_hash,
 			claimed_group_index: manifest.group_index,
-			seconded_in_group: manifest.seconded_in_group,
-			validated_in_group: manifest.validated_in_group,
+			statement_knowledge: manifest.statement_knowledge,
 		},
 		grid::ManifestKind::Full,
 	)
@@ -2136,8 +2132,7 @@ fn acknowledgement_and_statement_messages(
 
 	let acknowledgement = protocol_vstaging::BackedCandidateAcknowledgement {
 		candidate_hash,
-		seconded_in_group: local_knowledge.seconded_in_group.clone(),
-		validated_in_group: local_knowledge.validated_in_group.clone(),
+		statement_knowledge: local_knowledge.clone(),
 	};
 
 	let msg = Versioned::VStaging(
@@ -2204,8 +2199,7 @@ async fn handle_incoming_acknowledgement<Context>(
 		grid::ManifestSummary {
 			claimed_parent_hash: parent_head_data_hash,
 			claimed_group_index: group_index,
-			seconded_in_group: acknowledgement.seconded_in_group,
-			validated_in_group: acknowledgement.validated_in_group,
+			statement_knowledge: acknowledgement.statement_knowledge,
 		},
 		grid::ManifestKind::Acknowledgement,
 	)
@@ -2310,27 +2304,54 @@ async fn apply_post_confirmation<Context>(
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut State) {
 	let peers = &state.peers;
-	let peer_connected = |id: &_| peers.contains_key(id);
-	let seconded_mask = |identifier: &requests::CandidateIdentifier| {
-		let &requests::CandidateIdentifier { relay_parent, candidate_hash, group_index } =
-			identifier;
+	let peer_advertised = |identifier: &CandidateIdentifier, peer: &_| {
+		let peer_data = peers.get(peer)?;
+
+		let relay_parent_state = state.per_relay_parent.get(&identifier.relay_parent)?;
+		let per_session = state.per_session.get(&relay_parent_state.session)?;
+
+		for validator_id in find_validator_ids(peer_data.iter_known_discovery_ids(), |a| {
+			per_session.authority_lookup.get(a)
+		}) {
+			let filter = relay_parent_state
+				.local_validator
+				.as_ref()?
+				.grid_tracker
+				.advertised_statements(validator_id, &identifier.candidate_hash);
+
+			// TODO [now]: this doesn't handle requests in the cluster properly.
+
+			if let Some(f) = filter {
+				return Some(f)
+			}
+		}
+
+		None
+	};
+	let request_props = |identifier: &CandidateIdentifier| {
+		let &CandidateIdentifier { relay_parent, candidate_hash, group_index } = identifier;
 
 		let relay_parent_state = state.per_relay_parent.get(&relay_parent)?;
 		let per_session = state.per_session.get(&relay_parent_state.session)?;
-		let group_size = per_session.groups.get(group_index).map(|x| x.len())?;
+		let group = per_session.groups.get(group_index)?;
+		let seconding_limit = relay_parent_state.seconding_limit;
 
-		let knowledge = local_knowledge_filter(
-			group_size,
-			group_index,
-			candidate_hash,
-			&relay_parent_state.statement_store,
-		);
+		// Request nothing which would be an 'over-seconded' statement.
+		let mut unwanted_mask = StatementFilter::new(group.len());
+		for (i, v) in group.iter().enumerate() {
+			if relay_parent_state.statement_store.seconded_count(v) >= seconding_limit {
+				unwanted_mask.seconded_in_group.set(i, true);
+			}
+		}
 
-		// We request the opposite of what we know.
-		Some(!knowledge.seconded_in_group)
+		// TODO [now]: don't require backing threshold for cluster candidates.
+		Some(RequestProperties {
+			unwanted_mask,
+			backing_threshold: Some(polkadot_node_primitives::minimum_votes(group.len())),
+		})
 	};
 
-	while let Some(request) = state.request_manager.next_request(peer_connected, seconded_mask) {
+	while let Some(request) = state.request_manager.next_request(request_props, peer_advertised) {
 		// Peer is supposedly connected.
 		ctx.send_message(NetworkBridgeTxMessage::SendRequests(
 			vec![Requests::AttestedCandidateV2(request)],
@@ -2343,10 +2364,135 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 /// Wait on the next incoming response. If there are no requests pending, this
 /// future never resolves. It is the responsibility of the user of this API
 /// to interrupt the future.
-#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 pub(crate) async fn receive_response(state: &mut State) -> UnhandledResponse {
 	match state.request_manager.await_incoming().await {
 		Some(r) => r,
 		None => futures::future::pending().await,
 	}
 }
+
+/// Handles an incoming response. This does the actual work of validating the response,
+/// importing statements, sending acknowledgements, etc.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+pub(crate) async fn handle_response<'a, Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	response: UnhandledResponse,
+) {
+	let &requests::CandidateIdentifier { relay_parent, candidate_hash, group_index } =
+		response.candidate_identifier();
+
+	let post_confirmation = {
+		let relay_parent_state = match state.per_relay_parent.get_mut(&relay_parent) {
+			None => return,
+			Some(s) => s,
+		};
+
+		let per_session = match state.per_session.get(&relay_parent_state.session) {
+			None => return,
+			Some(s) => s,
+		};
+
+		let group = match per_session.groups.get(group_index) {
+			None => return,
+			Some(g) => g,
+		};
+
+		let res = response.validate_response(
+			&mut state.request_manager,
+			group,
+			relay_parent_state.session,
+			|v| per_session.session_info.validators.get(v).map(|x| x.clone()),
+			|para, g_index| {
+				let expected_group = group_for_para(
+					&relay_parent_state.availability_cores,
+					&relay_parent_state.group_rotation_info,
+					para,
+				);
+
+				Some(g_index) == expected_group
+			},
+		);
+
+		for (peer, rep) in res.reputation_changes {
+			report_peer(ctx.sender(), peer, rep).await;
+		}
+
+		let (candidate, pvd, statements) = match res.request_status {
+			requests::CandidateRequestStatus::Outdated => return,
+			requests::CandidateRequestStatus::Incomplete => return,
+			requests::CandidateRequestStatus::Complete {
+				candidate,
+				persisted_validation_data,
+				statements,
+			} => (candidate, persisted_validation_data, statements),
+		};
+
+		for statement in statements {
+			let _ = relay_parent_state.statement_store.insert(
+				&per_session.groups,
+				statement,
+				StatementOrigin::Remote,
+			);
+		}
+
+		if let Some(post_confirmation) =
+			state.candidates.confirm_candidate(candidate_hash, candidate, pvd, group_index)
+		{
+			post_confirmation
+		} else {
+			gum::warn!(
+				target: LOG_TARGET,
+				?candidate_hash,
+				"Candidate re-confirmed by request/response: logic error",
+			);
+
+			return
+		}
+	};
+
+	apply_post_confirmation(ctx, state, post_confirmation).await;
+
+	let confirmed = state.candidates.get_confirmed(&candidate_hash).expect("just confirmed; qed");
+
+	// Although the candidate is confirmed, it isn't yet on the
+	// hypothetical frontier of the fragment tree. Later, when it is,
+	// we will import statements.
+	if !confirmed.is_importable(None) {
+		return
+	}
+
+	let relay_parent_state = match state.per_relay_parent.get_mut(&relay_parent) {
+		None => return,
+		Some(s) => s,
+	};
+
+	let per_session = match state.per_session.get(&relay_parent_state.session) {
+		None => return,
+		Some(s) => s,
+	};
+
+	send_backing_fresh_statements(
+		ctx,
+		candidate_hash,
+		group_index,
+		&relay_parent,
+		relay_parent_state,
+		confirmed,
+		per_session,
+	)
+	.await;
+
+	// TODO [now]: circulate fresh statements. if this is a grid candidate, this'll be a
+	// no-op.
+
+	// we don't need to send acknowledgement yet because
+	// 1. the candidate is not known yet, so cannot be backed.
+	//    any previous confirmation is a bug, because `apply_post_confirmation` is meant to
+	//    clear requests.
+	// 2. providing the statements to backing will lead to 'Backed' message.
+	// 3. on 'Backed' we will send acknowledgements/follow up statements when this becomes
+	//    includable.
+}
+
+// TODO [now]: answer request.

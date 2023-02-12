@@ -24,12 +24,13 @@
 //! groups, and views based on the validators themselves.
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, slice::BitSlice, vec::BitVec};
+use polkadot_node_network_protocol::vstaging::StatementFilter;
 use polkadot_primitives::vstaging::{
 	CandidateHash, CompactStatement, GroupIndex, SignedStatement, ValidatorIndex,
 };
 use std::collections::hash_map::{Entry as HEntry, HashMap};
 
-use super::{grid::StatementFilter, groups::Groups};
+use super::groups::Groups;
 
 /// Possible origins of a statement.
 pub enum StatementOrigin {

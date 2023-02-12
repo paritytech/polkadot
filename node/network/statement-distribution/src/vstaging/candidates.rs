@@ -139,9 +139,10 @@ impl Candidates {
 		Ok(())
 	}
 
-	/// Note that a candidate has been confirmed.
+	/// Note that a candidate has been confirmed. If the candidate has just been
+	/// confirmed (previous state was `Unconfirmed`), then this returns `Some`. Otherwise, `None`.
 	///
-	/// If the previous state was `Unconfirmed`, then remove any outdated claims, and generate a
+	/// If we are confirming for the first time, then remove any outdated claims, and generate a
 	/// reckoning of which peers advertised correctly and incorrectly.
 	///
 	/// This does no sanity-checking of input data, and will overwrite already-confirmed candidates.
