@@ -232,14 +232,13 @@ where
 			Request::CandidateEvents(sender) =>
 				query!(candidate_events(), sender).map(|sender| Request::CandidateEvents(sender)),
 			Request::SessionExecutorParams(session_index, sender) => {
-				if let Some(executor_params) =
-					self.requests_cache.session_executor_params(session_index)
-				{
-					self.metrics.on_cached_request();
-					let _ = sender.send(Ok(executor_params.clone()));
-					None
-				} else {
-					Some(Request::SessionExecutorParams(session_index, sender))
+				match self.requests_cache.session_executor_params(session_index) {
+					Some(executor_params_opt) if executor_params_opt.is_some() => {
+						self.metrics.on_cached_request();
+						let _ = sender.send(Ok(executor_params_opt.clone()));
+						None
+					},
+					_ => Some(Request::SessionExecutorParams(session_index, sender)),
 				}
 			},
 			Request::SessionInfo(index, sender) => {
