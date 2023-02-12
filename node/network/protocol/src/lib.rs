@@ -621,11 +621,19 @@ pub mod vstaging {
 	}
 
 	impl StatementFilter {
-		/// Create a new filter with the given group size.
-		pub fn new(group_size: usize) -> Self {
+		/// Create a new blank filter with the given group size.
+		pub fn blank(group_size: usize) -> Self {
 			StatementFilter {
 				seconded_in_group: BitVec::repeat(false, group_size),
 				validated_in_group: BitVec::repeat(false, group_size),
+			}
+		}
+
+		/// Create a new full filter with the given group size.
+		pub fn full(group_size: usize) -> Self {
+			StatementFilter {
+				seconded_in_group: BitVec::repeat(true, group_size),
+				validated_in_group: BitVec::repeat(true, group_size),
 			}
 		}
 

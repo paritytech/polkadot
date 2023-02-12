@@ -603,7 +603,7 @@ fn validate_complete_response(
 		let mut statements =
 			Vec::with_capacity(std::cmp::min(response.statements.len(), group.len() * 2));
 
-		let mut received_filter = StatementFilter::new(group.len());
+		let mut received_filter = StatementFilter::blank(group.len());
 
 		let index_in_group = |v: ValidatorIndex| group.iter().position(|x| &v == x);
 

@@ -723,6 +723,8 @@ async fn send_pending_cluster_statements<Context>(
 				compact.clone(),
 			);
 
+			// TODO [now]: only send for confirmed candidates.
+
 			if res.is_some() {
 				cluster_tracker.note_sent(peer_validator_id, originator, compact);
 			}
@@ -980,12 +982,23 @@ pub(crate) async fn share_local_statement<Context>(
 		(compact_statement, candidate_hash)
 	};
 
+	// send the compact version of the statement to any peers which need it.
+	circulate_statement(
+		ctx,
+		relay_parent,
+		per_relay_parent,
+		per_session,
+		&state.candidates,
+		&state.authorities,
+		&state.peers,
+		local_group,
+		compact_statement,
+	)
+	.await;
+
 	if let Some(post_confirmation) = post_confirmation {
 		apply_post_confirmation(ctx, state, post_confirmation);
 	}
-
-	// send the compact version of the statement to any peers which need it.
-	circulate_statement(ctx, state, relay_parent, local_group, compact_statement).await;
 
 	Ok(())
 }
@@ -1014,44 +1027,39 @@ enum DirectTargetKind {
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 async fn circulate_statement<Context>(
 	ctx: &mut Context,
-	state: &mut State,
 	relay_parent: Hash,
+	relay_parent_state: &mut PerRelayParentState,
+	per_session: &PerSessionState,
+	candidates: &Candidates,
+	authorities: &HashMap<AuthorityDiscoveryId, PeerId>,
+	peers: &HashMap<PeerId, PeerState>,
 	group_index: GroupIndex,
 	statement: SignedStatement,
 ) {
-	let per_relay_parent = match state.per_relay_parent.get_mut(&relay_parent) {
-		Some(x) => x,
-		None => return,
-	};
-
-	let per_session = match state.per_session.get(&per_relay_parent.session) {
-		Some(s) => s,
-		None => return,
-	};
 	let session_info = &per_session.session_info;
 
 	let candidate_hash = statement.payload().candidate_hash().clone();
 
-	let mut prior_seconded = None;
 	let compact_statement = statement.payload().clone();
 	let is_seconded = match compact_statement {
 		CompactStatement::Seconded(_) => true,
 		CompactStatement::Valid(_) => false,
 	};
 
+	let is_confirmed = candidates.is_confirmed(&candidate_hash);
+
 	let originator = statement.validator_index();
 	let (local_validator, targets) = {
-		let local_validator = match per_relay_parent.local_validator.as_mut() {
+		let local_validator = match relay_parent_state.local_validator.as_mut() {
 			Some(v) => v,
-			None => return, // sanity: should be impossible to reach this.
+			None => return, // sanity: nothing to propagate if not a validator.
 		};
 
 		let statement_group = per_session.groups.by_validator_index(originator);
 
-		// TODO [now]: we're not meant to circulate statements in the cluster
-		// until we have the confirmed candidate.
+		// We're not meant to circulate statements in the cluster until we have the confirmed candidate.
 		let cluster_relevant = Some(local_validator.group) == statement_group;
-		let cluster_targets = if cluster_relevant {
+		let cluster_targets = if is_confirmed && cluster_relevant {
 			Some(
 				local_validator
 					.cluster_tracker
@@ -1089,64 +1097,17 @@ async fn circulate_statement<Context>(
 		(local_validator, targets)
 	};
 
-	let mut prior_to = Vec::new();
 	let mut statement_to = Vec::new();
 	for (target, authority_id, kind) in targets {
 		// Find peer ID based on authority ID, and also filter to connected.
-		let peer_id: PeerId = match state.authorities.get(&authority_id) {
-			Some(p)
-				if state.peers.get(p).map_or(false, |p| p.knows_relay_parent(&relay_parent)) =>
+		let peer_id: PeerId = match authorities.get(&authority_id) {
+			Some(p) if peers.get(p).map_or(false, |p| p.knows_relay_parent(&relay_parent)) =>
 				p.clone(),
 			None | Some(_) => continue,
 		};
 
 		match kind {
 			DirectTargetKind::Cluster => {
-				if !local_validator.cluster_tracker.knows_candidate(target, candidate_hash) &&
-					!is_seconded
-				{
-					// lazily initialize this.
-					let prior_seconded = if let Some(ref p) = prior_seconded.as_ref() {
-						p
-					} else {
-						// This should always succeed because:
-						// 1. If this is not a `Seconded` statement we must have
-						//    received at least one `Seconded` statement from other validators
-						//    in our cluster.
-						// 2. We should have deposited all statements we've received into the statement store.
-
-						match cluster_sendable_seconded_statement(
-							&local_validator.cluster_tracker,
-							&per_relay_parent.statement_store,
-							candidate_hash,
-						) {
-							None => {
-								gum::warn!(
-									target: LOG_TARGET,
-									?candidate_hash,
-									?relay_parent,
-									"degenerate state: we authored a `Valid` statement without \
-									knowing any `Seconded` statements."
-								);
-
-								return
-							},
-							Some(s) => &*prior_seconded.get_or_insert(s.as_unchecked().clone()),
-						}
-					};
-
-					// One of the properties of the 'cluster sendable seconded statement'
-					// is that we `can_send` it to all nodes in the cluster which don't have the candidate already. And
-					// we're already in a branch that's gated off from cluster nodes
-					// which have knowledge of the candidate.
-					local_validator.cluster_tracker.note_sent(
-						target,
-						prior_seconded.unchecked_validator_index(),
-						CompactStatement::Seconded(candidate_hash),
-					);
-					prior_to.push(peer_id);
-				}
-
 				// At this point, all peers in the cluster should 'know'
 				// the candidate, so we don't expect for this to fail.
 				if let Ok(()) = local_validator.cluster_tracker.can_send(
@@ -1176,20 +1137,6 @@ async fn circulate_statement<Context>(
 
 	// ship off the network messages to the network bridge.
 
-	if !prior_to.is_empty() {
-		let prior_seconded =
-			prior_seconded.expect("prior_to is only non-empty when prior_seconded exists; qed");
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			prior_to,
-			Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::Statement(
-				relay_parent,
-				prior_seconded.clone(),
-			))
-			.into(),
-		))
-		.await;
-	}
-
 	if !statement_to.is_empty() {
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			statement_to,
@@ -1202,17 +1149,6 @@ async fn circulate_statement<Context>(
 		.await;
 	}
 }
-
-fn cluster_sendable_seconded_statement<'a>(
-	cluster_tracker: &ClusterTracker,
-	statement_store: &'a StatementStore,
-	candidate_hash: CandidateHash,
-) -> Option<&'a SignedStatement> {
-	cluster_tracker.sendable_seconder(candidate_hash).and_then(|v| {
-		statement_store.validator_statement(v, CompactStatement::Seconded(candidate_hash))
-	})
-}
-
 /// Check a statement signature under this parent hash.
 fn check_statement_signature(
 	session_index: SessionIndex,
@@ -1462,7 +1398,18 @@ async fn handle_incoming_statement<Context>(
 		}
 
 		// We always circulate statements at this point.
-		circulate_statement(ctx, state, relay_parent, originator_group, checked_statement).await;
+		circulate_statement(
+			ctx,
+			relay_parent,
+			per_relay_parent,
+			per_session,
+			&state.candidates,
+			&state.authorities,
+			&state.peers,
+			originator_group,
+			checked_statement,
+		)
+		.await;
 	} else {
 		report_peer(ctx.sender(), peer, BENEFIT_VALID_STATEMENT).await;
 	}
@@ -1600,7 +1547,7 @@ fn local_knowledge_filter(
 	candidate_hash: CandidateHash,
 	statement_store: &StatementStore,
 ) -> StatementFilter {
-	let mut f = StatementFilter::new(group_size);
+	let mut f = StatementFilter::blank(group_size);
 	statement_store.fill_statement_filter(group_index, candidate_hash, &mut f);
 	f
 }
@@ -2281,9 +2228,65 @@ pub(crate) async fn handle_backed_candidate_message<Context>(
 	.await;
 }
 
+/// Sends all messages about a candidate to all peers in the cluster,
+/// with `Seconded` statements first.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+async fn send_cluster_candidate_statements<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	candidate_hash: CandidateHash,
+	relay_parent: Hash,
+) {
+	let relay_parent_state = match state.per_relay_parent.get_mut(&relay_parent) {
+		None => return,
+		Some(s) => s,
+	};
+
+	let per_session = match state.per_session.get(&relay_parent_state.session) {
+		None => return,
+		Some(s) => s,
+	};
+
+	let local_group = match relay_parent_state.local_validator.as_mut() {
+		None => return,
+		Some(v) => v.group,
+	};
+
+	let group_size = match per_session.groups.get(local_group) {
+		None => return,
+		Some(g) => g.len(),
+	};
+
+	let statements: Vec<_> = relay_parent_state
+		.statement_store
+		.group_statements(
+			&per_session.groups,
+			local_group,
+			candidate_hash,
+			&StatementFilter::full(group_size),
+		)
+		.map(|x| x.clone())
+		.collect();
+
+	for statement in statements {
+		circulate_statement(
+			ctx,
+			relay_parent,
+			relay_parent_state,
+			per_session,
+			&state.candidates,
+			&state.authorities,
+			&state.peers,
+			local_group,
+			statement,
+		)
+		.await;
+	}
+}
+
 /// Applies state & p2p updates as a result of a newly confirmed candidate.
 ///
-/// This punishes who advertised the candidate incorrectly, as well as
+/// This punishes peers which advertised the candidate incorrectly, as well as
 /// doing an importability analysis of the confirmed candidate and providing
 /// statements to the backing subsystem if importable. It also cleans up
 /// any pending requests for the candidate.
@@ -2299,6 +2302,14 @@ async fn apply_post_confirmation<Context>(
 
 	let candidate_hash = post_confirmation.hypothetical.candidate_hash();
 	state.request_manager.remove_for(candidate_hash);
+
+	send_cluster_candidate_statements(
+		ctx,
+		state,
+		candidate_hash,
+		post_confirmation.hypothetical.relay_parent(),
+	)
+	.await;
 	new_confirmed_candidate_fragment_tree_updates(ctx, state, post_confirmation.hypothetical).await;
 }
 
@@ -2323,7 +2334,7 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 				.cluster_tracker
 				.knows_candidate(validator_id, identifier.candidate_hash)
 			{
-				return Some(StatementFilter::new(local_validator.cluster_tracker.targets().len()))
+				return Some(StatementFilter::blank(local_validator.cluster_tracker.targets().len()))
 			}
 
 			let filter = local_validator
@@ -2346,7 +2357,7 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 		let seconding_limit = relay_parent_state.seconding_limit;
 
 		// Request nothing which would be an 'over-seconded' statement.
-		let mut unwanted_mask = StatementFilter::new(group.len());
+		let mut unwanted_mask = StatementFilter::blank(group.len());
 		for (i, v) in group.iter().enumerate() {
 			if relay_parent_state.statement_store.seconded_count(v) >= seconding_limit {
 				unwanted_mask.seconded_in_group.set(i, true);
@@ -2466,6 +2477,7 @@ pub(crate) async fn handle_response<'a, Context>(
 		}
 	};
 
+	// Note that this implicitly circulates all statements via the cluster.
 	apply_post_confirmation(ctx, state, post_confirmation).await;
 
 	let confirmed = state.candidates.get_confirmed(&candidate_hash).expect("just confirmed; qed");
@@ -2497,9 +2509,6 @@ pub(crate) async fn handle_response<'a, Context>(
 		per_session,
 	)
 	.await;
-
-	// TODO [now]: circulate fresh statements. if this is a grid candidate, this'll be a
-	// no-op.
 
 	// we don't need to send acknowledgement yet because
 	// 1. the candidate is not known yet, so cannot be backed.

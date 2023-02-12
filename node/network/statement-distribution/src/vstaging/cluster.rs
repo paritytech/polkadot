@@ -319,18 +319,6 @@ impl ClusterTracker {
 			self.validator_seconded(validator, candidate_hash)
 	}
 
-	/// Returns the validator-index of the producer a `Seconded` statement
-	/// for the candidate which is legal for us to send to all nodes in the cluster.
-	pub fn sendable_seconder(&self, candidate_hash: CandidateHash) -> Option<ValidatorIndex> {
-		for (v, k) in &self.knowledge {
-			if k.contains(&TaggedKnowledge::Seconded(candidate_hash)) {
-				return Some(*v)
-			}
-		}
-
-		None
-	}
-
 	/// Returns a Vec of pending statements to be sent to a particular validator
 	/// index. `Seconded` statements are sorted to the front of the vector.
 	///
