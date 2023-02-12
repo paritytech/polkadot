@@ -926,7 +926,8 @@ async fn handle_actions<Context>(
 		match action {
 			Action::ScheduleWakeup { block_hash, block_number, candidate_hash, tick } => {
 				let span = state.spans.get(&block_hash).unwrap();
-				let _schedule_wakeup_span = span.child("schedule-wakeup").with_stage(jaeger::Stage::ApprovalChecking);
+				let _schedule_wakeup_span =
+					span.child("schedule-wakeup").with_stage(jaeger::Stage::ApprovalChecking);
 				wakeups.schedule(block_hash, block_number, candidate_hash, tick);
 			},
 			Action::IssueApproval(candidate_hash, approval_request) => {
@@ -979,8 +980,7 @@ async fn handle_actions<Context>(
 
 				metrics.on_assignment_produced(assignment_tranche);
 				let block_hash = indirect_cert.block_hash;
-				launch_approval_span
-					.add_string_tag("block-hash", format!("{:?}", block_hash));
+				launch_approval_span.add_string_tag("block-hash", format!("{:?}", block_hash));
 				let validator_index = indirect_cert.validator;
 
 				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
@@ -1726,7 +1726,8 @@ fn check_and_import_assignment(
 	let mut check_and_import_assignment_span = span
 		.child("check-and-import-assignment")
 		.with_stage(jaeger::Stage::ApprovalChecking);
-	check_and_import_assignment_span.add_string_tag("block-hash", format!("{:?}", assignment.block_hash));
+	check_and_import_assignment_span
+		.add_string_tag("block-hash", format!("{:?}", assignment.block_hash));
 
 	let block_entry = match db.load_block_entry(&assignment.block_hash)? {
 		Some(b) => b,
@@ -1750,8 +1751,10 @@ fn check_and_import_assignment(
 			)),
 	};
 
-	check_and_import_assignment_span.add_uint_tag("needed-approvals", session_info.needed_approvals as u64);
-	check_and_import_assignment_span.add_uint_tag("no-show-slots", session_info.no_show_slots as u64);
+	check_and_import_assignment_span
+		.add_uint_tag("needed-approvals", session_info.needed_approvals as u64);
+	check_and_import_assignment_span
+		.add_uint_tag("no-show-slots", session_info.no_show_slots as u64);
 
 	let (claimed_core_index, assigned_candidate_hash) =
 		match block_entry.candidate(candidate_index as usize) {
@@ -1764,8 +1767,9 @@ fn check_and_import_assignment(
 					Vec::new(),
 				)), // no candidate at core.
 		};
-	
-	check_and_import_assignment_span.add_string_tag("assigned-candidate-hash", format!("{:?}", assigned_candidate_hash));
+
+	check_and_import_assignment_span
+		.add_string_tag("assigned-candidate-hash", format!("{:?}", assigned_candidate_hash));
 
 	let mut candidate_entry = match db.load_candidate_entry(&assigned_candidate_hash)? {
 		Some(c) => c,
@@ -1882,7 +1886,8 @@ fn check_and_import_approval<T>(
 
 	let span = state.spans.get(&approval.block_hash).unwrap();
 	let mut check_and_import_approval_span = span.child("check-and-import-approval");
-	check_and_import_approval_span.add_string_tag("block-hash", format!("{:?}", approval.block_hash));
+	check_and_import_approval_span
+		.add_string_tag("block-hash", format!("{:?}", approval.block_hash));
 	let block_entry = match db.load_block_entry(&approval.block_hash)? {
 		Some(b) => b,
 		None => {
@@ -2017,7 +2022,8 @@ fn advance_approval_state(
 	transition: ApprovalStateTransition,
 ) -> Vec<Action> {
 	let span = state.spans.get(&block_entry.block_hash()).unwrap();
-	let _advance_approval_state_span = span.child("advance-approval-state").with_stage(jaeger::Stage::ApprovalChecking);
+	let _advance_approval_state_span =
+		span.child("advance-approval-state").with_stage(jaeger::Stage::ApprovalChecking);
 
 	let validator_index = transition.validator_index();
 
@@ -2188,7 +2194,8 @@ fn process_wakeup(
 	metrics: &Metrics,
 ) -> SubsystemResult<Vec<Action>> {
 	let span = state.spans.get(&relay_block).unwrap();
-	let _process_wakeup_span = span.child("process-wakeup").with_stage(jaeger::Stage::ApprovalChecking);
+	let _process_wakeup_span =
+		span.child("process-wakeup").with_stage(jaeger::Stage::ApprovalChecking);
 	let block_entry = db.load_block_entry(&relay_block)?;
 	let candidate_entry = db.load_candidate_entry(&candidate_hash)?;
 
@@ -2333,7 +2340,9 @@ async fn launch_approval<Context>(
 	backing_group: GroupIndex,
 	span: &jaeger::Span,
 ) -> SubsystemResult<RemoteHandle<ApprovalState>> {
-	let mut launched_work_span = span.child("launched-approval-work-future").with_stage(jaeger::Stage::ApprovalChecking);
+	let mut launched_work_span = span
+		.child("launched-approval-work-future")
+		.with_stage(jaeger::Stage::ApprovalChecking);
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
 
@@ -2524,7 +2533,8 @@ async fn issue_approval<Context>(
 	ApprovalVoteRequest { validator_index, block_hash }: ApprovalVoteRequest,
 ) -> SubsystemResult<Vec<Action>> {
 	let span = state.spans.get(&block_hash).unwrap();
-	let mut issue_approval_span = span.child("issue-approval").with_stage(jaeger::Stage::ApprovalChecking);
+	let mut issue_approval_span =
+		span.child("issue-approval").with_stage(jaeger::Stage::ApprovalChecking);
 	issue_approval_span.add_string_tag("candidate-hash", format!("{:?}", candidate_hash));
 	let block_entry = match db.load_block_entry(&block_hash)? {
 		Some(b) => b,
