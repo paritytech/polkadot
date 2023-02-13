@@ -24,7 +24,10 @@ use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RequiredRouting, SessionGridTopology},
 	peer_set::ValidationVersion,
-	request_response::Requests,
+	request_response::{
+		vstaging::{AttestedCandidateRequest, AttestedCandidateResponse},
+		IncomingRequest, Requests, incoming::OutgoingResponse,
+	},
 	vstaging::{self as protocol_vstaging, StatementFilter},
 	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
@@ -109,6 +112,11 @@ const COST_UNREQUESTED_RESPONSE_STATEMENT: Rep =
 	Rep::CostMajor("Un-requested Statement In Response");
 const COST_INACCURATE_ADVERTISEMENT: Rep =
 	Rep::CostMajor("Peer advertised a candidate inaccurately");
+
+const COST_INVALID_REQUEST_BITFIELD_SIZE: Rep =
+	Rep::CostMajor("Attested candidate request bitfields have wrong size");
+const COST_UNEXPECTED_REQUEST: Rep =
+	Rep::CostMajor("Unexpected ttested candidate request");
 
 const BENEFIT_VALID_RESPONSE: Rep = Rep::BenefitMajor("Peer Answered Candidate Request");
 const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
@@ -2400,7 +2408,7 @@ pub(crate) async fn receive_response(state: &mut State) -> UnhandledResponse {
 /// Handles an incoming response. This does the actual work of validating the response,
 /// importing statements, sending acknowledgements, etc.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-pub(crate) async fn handle_response<'a, Context>(
+pub(crate) async fn handle_response<Context>(
 	ctx: &mut Context,
 	state: &mut State,
 	response: UnhandledResponse,
@@ -2519,4 +2527,101 @@ pub(crate) async fn handle_response<'a, Context>(
 	//    includable.
 }
 
-// TODO [now]: answer request.
+/// Answer an incoming request for a candidate.
+#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
+pub(crate) async fn answer_request<Context>(
+	ctx: &mut Context,
+	state: &mut State,
+	request: IncomingRequest<AttestedCandidateRequest>,
+) {
+	// TODO [now]: wire this up with something like the legacy_v1 `responder` running in the background
+	// to bound the amount of parallel requests we serve.
+
+	let AttestedCandidateRequest {
+		candidate_hash,
+		ref mask,
+	} = &request.payload;
+
+	let confirmed = match state.candidates.get_confirmed(&candidate_hash) {
+		None => return, // drop request, candidate not known.
+		Some(c) => c,
+	};
+
+	let relay_parent_state = match state.per_relay_parent.get(&confirmed.relay_parent()) {
+		None => return,
+		Some(s) => s,
+	};
+
+	let local_validator = match relay_parent_state.local_validator.as_ref() {
+		None => return,
+		Some(s) => s,
+	};
+
+	let per_session = match state.per_session.get(&relay_parent_state.session) {
+		None => return,
+		Some(s) => s,
+	};
+
+	let peer_data = match state.peers.get(&request.peer) {
+		None => return,
+		Some(d) => d,
+	};
+
+	let group_size = per_session.groups.get(confirmed.group_index())
+		.expect("group from session's candidate always known; qed")
+		.len();
+
+	// check request bitfields are right size.
+	if mask.seconded_in_group.len() != group_size || mask.validated_in_group.len() != group_size {
+		request.send_outgoing_response(OutgoingResponse {
+			result: Err(()),
+			reputation_changes: vec![COST_INVALID_REQUEST_BITFIELD_SIZE],
+			sent_feedback: None,
+		});
+
+		return;
+	}
+
+	// check peer is allowed to request the candidate (i.e. we've sent them a manifest)
+	{
+		let mut can_request = false;
+		for validator_id in find_validator_ids(peer_data.iter_known_discovery_ids(), |a| {
+			per_session.authority_lookup.get(a)
+		}) {
+			if local_validator.grid_tracker.can_request(validator_id, *candidate_hash) {
+				can_request = true;
+				break;
+			}
+		}
+
+		if !can_request {
+			request.send_outgoing_response(OutgoingResponse {
+				result: Err(()),
+				reputation_changes: vec![COST_UNEXPECTED_REQUEST],
+				sent_feedback: None,
+			});
+
+			return;
+		}
+	}
+
+	// Transform mask with 'OR' semantics into one with 'AND' semantics for the API used
+	// below.
+	let and_mask = StatementFilter {
+		seconded_in_group: !mask.seconded_in_group.clone(),
+		validated_in_group: !mask.validated_in_group.clone(),
+	};
+
+	let response = AttestedCandidateResponse {
+		candidate_receipt: (&**confirmed.candidate_receipt()).clone(),
+		persisted_validation_data: confirmed.persisted_validation_data().clone(),
+		statements: relay_parent_state.statement_store.group_statements(
+			&per_session.groups,
+			confirmed.group_index(),
+			*candidate_hash,
+			&and_mask,
+		).map(|s| s.as_unchecked().clone()).collect()
+	};
+
+	request.send_response(response);
+}
