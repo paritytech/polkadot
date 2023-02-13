@@ -32,7 +32,7 @@ pub mod pallet_custom_origins {
 	#[derive(PartialEq, Eq, Clone, MaxEncodedLen, Encode, Decode, TypeInfo, RuntimeDebug)]
 	#[pallet::origin]
 	pub enum Origin {
-		/// Origin for cancelling slashes.
+		/// Origin able to cancel slashes and manage minimum commission.
 		StakingAdmin,
 		/// Origin for spending (any amount of) funds.
 		Treasurer,
