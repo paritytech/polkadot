@@ -880,7 +880,6 @@ where
 
 		if !overlayed_db.is_empty() {
 			let _timer = subsystem.metrics.time_db_transaction();
-
 			let ops = overlayed_db.into_write_ops();
 			backend.write(ops)?;
 		}
@@ -969,14 +968,14 @@ async fn handle_actions<Context>(
 				backing_group,
 			} => {
 				let span = state.spans.get(&relay_block_hash).unwrap();
-				let mut launch_approval_span =
-					span.child("launch-approval").with_stage(jaeger::Stage::ApprovalChecking);
+				let mut launch_approval_span = span
+					.child("launch-approval")
+					.with_candidate(candidate_hash)
+					.with_stage(jaeger::Stage::ApprovalChecking);
 				// Don't launch approval work if the node is syncing.
 				if let Mode::Syncing(_) = *mode {
 					continue
 				}
-				launch_approval_span
-					.add_string_tag("candidate-hash", format!("{:?}", candidate_hash));
 
 				metrics.on_assignment_produced(assignment_tranche);
 				let block_hash = indirect_cert.block_hash;
@@ -1751,11 +1750,6 @@ fn check_and_import_assignment(
 			)),
 	};
 
-	check_and_import_assignment_span
-		.add_uint_tag("needed-approvals", session_info.needed_approvals as u64);
-	check_and_import_assignment_span
-		.add_uint_tag("no-show-slots", session_info.no_show_slots as u64);
-
 	let (claimed_core_index, assigned_candidate_hash) =
 		match block_entry.candidate(candidate_index as usize) {
 			Some((c, h)) => (*c, *h),
@@ -2340,9 +2334,6 @@ async fn launch_approval<Context>(
 	backing_group: GroupIndex,
 	span: &jaeger::Span,
 ) -> SubsystemResult<RemoteHandle<ApprovalState>> {
-	let mut launched_work_span = span
-		.child("launched-approval-work-future")
-		.with_stage(jaeger::Stage::ApprovalChecking);
 	let (a_tx, a_rx) = oneshot::channel();
 	let (code_tx, code_rx) = oneshot::channel();
 
@@ -2373,9 +2364,6 @@ async fn launch_approval<Context>(
 
 	let candidate_hash = candidate.hash();
 	let para_id = candidate.descriptor.para_id;
-	launched_work_span.add_string_tag("candidate-hash", format!("{:?}", &candidate_hash));
-	launched_work_span.add_string_tag("para-id", format!("{:?}", &para_id));
-
 	gum::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Recovering data.");
 
 	let timer = metrics.time_recover_and_approve();
@@ -2393,16 +2381,23 @@ async fn launch_approval<Context>(
 	))
 	.await;
 
+	// Covers both validation code and available data currently
+	let _request_validation_data_span = span
+		.child("request-validation-data")
+		.with_candidate(candidate.hash())
+		.with_stage(jaeger::Stage::ApprovalChecking);
+
+	let mut validation_result_span = span
+		.child("validation-result")
+		.with_candidate(candidate_hash)
+		.with_stage(jaeger::Stage::ApprovalChecking);
+	validation_result_span.add_string_tag("para-id", format!("{:?}", para_id));
 	let candidate = candidate.clone();
 	let metrics_guard = StaleGuard(Some(metrics));
 	let mut sender = ctx.sender().clone();
 	let background = async move {
 		// Force the move of the timer into the background task.
 		let _timer = timer;
-		let _span = jaeger::Span::from_encodable((block_hash, candidate_hash), "launch-approval")
-			.with_relay_parent(block_hash)
-			.with_candidate(candidate_hash)
-			.with_stage(jaeger::Stage::ApprovalChecking);
 
 		let available_data = match a_rx.await {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
@@ -2459,9 +2454,9 @@ async fn launch_approval<Context>(
 				return ApprovalState::failed(validator_index, candidate_hash)
 			},
 		};
+		drop(_request_validation_data_span);
 
 		let (val_tx, val_rx) = oneshot::channel();
-
 		sender
 			.send_message(CandidateValidationMessage::ValidateFromExhaustive(
 				available_data.validation_data,
@@ -2499,7 +2494,6 @@ async fn launch_approval<Context>(
 					candidate_hash,
 					candidate.clone(),
 				);
-
 				metrics_guard.take().on_approval_invalid();
 				return ApprovalState::failed(validator_index, candidate_hash)
 			},
@@ -2516,7 +2510,7 @@ async fn launch_approval<Context>(
 			},
 		}
 	};
-
+	drop(validation_result_span);
 	let (background, remote_handle) = background.remote_handle();
 	ctx.spawn("approval-checks", Box::pin(background)).map(move |()| remote_handle)
 }
@@ -2533,9 +2527,10 @@ async fn issue_approval<Context>(
 	ApprovalVoteRequest { validator_index, block_hash }: ApprovalVoteRequest,
 ) -> SubsystemResult<Vec<Action>> {
 	let span = state.spans.get(&block_hash).unwrap();
-	let mut issue_approval_span =
-		span.child("issue-approval").with_stage(jaeger::Stage::ApprovalChecking);
-	issue_approval_span.add_string_tag("candidate-hash", format!("{:?}", candidate_hash));
+	let _issue_approval_span = span
+		.child("issue-approval")
+		.with_candidate(candidate_hash)
+		.with_stage(jaeger::Stage::ApprovalChecking);
 	let block_entry = match db.load_block_entry(&block_hash)? {
 		Some(b) => b,
 		None => {

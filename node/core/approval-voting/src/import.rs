@@ -378,7 +378,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				?e,
 				"Could not cache session info when processing head.",
 			);
-			drop(cache_session_span);
 			return Ok(Vec::new())
 		},
 		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
@@ -387,11 +386,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				update = ?a,
 				"Advanced session window for approvals",
 			);
-			drop(cache_session_span);
 		},
-		Ok(_) => {
-			drop(cache_session_span);
-		},
+		Ok(_) => {},
 	}
 
 	// If we've just started the node and are far behind,
@@ -1280,18 +1276,10 @@ pub(crate) mod tests {
 
 		let test_fut = {
 			Box::pin(async move {
-				let mut mock_span = jaeger::PerLeafSpan::default();
 				let mut overlay_db = OverlayedBackend::new(&db);
-				let result = handle_new_head(
-					&mut ctx,
-					&mut state,
-					&mut overlay_db,
-					hash,
-					&Some(1),
-					Some(&mut mock_span),
-				)
-				.await
-				.unwrap();
+				let result = handle_new_head(&mut ctx, &mut state, &mut overlay_db, hash, &Some(1))
+					.await
+					.unwrap();
 
 				let write_ops = overlay_db.into_write_ops();
 				db.write(write_ops).unwrap();

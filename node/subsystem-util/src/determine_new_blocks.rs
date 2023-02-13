@@ -483,35 +483,20 @@ mod tests {
 		known.insert(parent_hash);
 
 		let test_fut = Box::pin(async move {
-			let after_finality = determine_new_blocks(
-				ctx.sender(),
-				|h| known.is_known(h),
-				head_hash,
-				&head,
-				17,
-			)
-			.await
-			.unwrap();
+			let after_finality =
+				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 17)
+					.await
+					.unwrap();
 
-			let at_finality = determine_new_blocks(
-				ctx.sender(),
-				|h| known.is_known(h),
-				head_hash,
-				&head,
-				18,
-			)
-			.await
-			.unwrap();
+			let at_finality =
+				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 18)
+					.await
+					.unwrap();
 
-			let before_finality = determine_new_blocks(
-				ctx.sender(),
-				|h| known.is_known(h),
-				head_hash,
-				&head,
-				19,
-			)
-			.await
-			.unwrap();
+			let before_finality =
+				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 19)
+					.await
+					.unwrap();
 
 			assert_eq!(after_finality, vec![(head_hash, head.clone())]);
 
@@ -540,15 +525,10 @@ mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = Box::pin(async move {
-			let ancestry = determine_new_blocks(
-				ctx.sender(),
-				|h| known.is_known(h),
-				head_hash,
-				&head,
-				0,
-			)
-			.await
-			.unwrap();
+			let ancestry =
+				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 0)
+					.await
+					.unwrap();
 
 			assert_eq!(ancestry, expected_ancestry);
 		});
@@ -583,15 +563,10 @@ mod tests {
 			.collect::<Vec<_>>();
 
 		let test_fut = Box::pin(async move {
-			let ancestry = determine_new_blocks(
-				ctx.sender(),
-				|h| known.is_known(h),
-				head_hash,
-				&head,
-				0,
-			)
-			.await
-			.unwrap();
+			let ancestry =
+				determine_new_blocks(ctx.sender(), |h| known.is_known(h), head_hash, &head, 0)
+					.await
+					.unwrap();
 
 			assert_eq!(ancestry, expected_ancestry);
 		});

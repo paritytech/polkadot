@@ -124,13 +124,6 @@ impl PerLeafSpan {
 	}
 }
 
-/// Default implementation, can be handy in tests dependent upon a mocked PerLeafSpan.
-impl std::default::Default for PerLeafSpan {
-	fn default() -> Self {
-		Self::new(Arc::new(Span::Disabled), "default")
-	}
-}
-
 /// Returns a reference to the child span.
 impl std::ops::Deref for PerLeafSpan {
 	type Target = Span;
