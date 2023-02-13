@@ -2011,10 +2011,6 @@ fn advance_approval_state(
 	mut candidate_entry: CandidateEntry,
 	transition: ApprovalStateTransition,
 ) -> Vec<Action> {
-	let span = state.spans.get(&block_entry.block_hash()).unwrap();
-	let _advance_approval_state_span =
-		span.child("advance-approval-state").with_stage(jaeger::Stage::ApprovalChecking);
-
 	let validator_index = transition.validator_index();
 
 	let already_approved_by = validator_index.as_ref().map(|v| candidate_entry.mark_approval(*v));
