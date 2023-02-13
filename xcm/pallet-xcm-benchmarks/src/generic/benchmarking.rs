@@ -21,7 +21,7 @@ use frame_benchmarking::{benchmarks, BenchmarkError};
 use frame_support::dispatch::GetDispatchInfo;
 use sp_std::vec;
 use xcm::{
-	latest::{prelude::*, MaybeErrorCode, Weight},
+	latest::{prelude::*, MaxDispatchErrorLen, MaybeErrorCode, Weight},
 	DoubleEncoded,
 };
 use xcm_executor::{ExecutorError, FeesMode};
@@ -360,9 +360,9 @@ benchmarks! {
 
 	expect_transact_status {
 		let mut executor = new_executor::<T>(Default::default());
-		// 1024 is an overestimate but should be good enough until we have `max_encoded_len`.
-		// Eventually it should be replaced by `DispatchError::max_encoded_len()`.
-		let worst_error = || MaybeErrorCode::Error(vec![0; 1024]);
+		let worst_error = || -> MaybeErrorCode {
+			vec![0; MaxDispatchErrorLen::get() as usize].into()
+		};
 		executor.set_transact_status(worst_error());
 
 		let instruction = Instruction::ExpectTransactStatus(worst_error());
@@ -430,7 +430,7 @@ benchmarks! {
 
 	clear_transact_status {
 		let mut executor = new_executor::<T>(Default::default());
-		executor.set_transact_status(MaybeErrorCode::Error(b"MyError".to_vec()));
+		executor.set_transact_status(b"MyError".to_vec().into());
 
 		let instruction = Instruction::ClearTransactStatus;
 		let xcm = Xcm(vec![instruction]);

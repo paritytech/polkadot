@@ -19,9 +19,13 @@ repository = "https://github.com/paritytech/polkadot.git"
 version = "0.9.37"
 
 [dependencies]
-polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native", "hostperfcheck" ] }
 color-eyre = { version = "0.6.1", default-features = false }
 tikv-jemallocator = "0.5.0"
+
+# Crates in our workspace, defined as dependencies so we can pass them feature flags.
+polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
+polkadot-node-core-pvf = { path = "node/core/pvf" }
+polkadot-overseer = { path = "node/overseer" }
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
@@ -202,6 +206,7 @@ try-runtime = [ "polkadot-cli/try-runtime" ]
 fast-runtime = [ "polkadot-cli/fast-runtime" ]
 runtime-metrics = [ "polkadot-cli/runtime-metrics" ]
 pyroscope = ["polkadot-cli/pyroscope"]
+jemalloc-allocator = ["polkadot-node-core-pvf/jemalloc-allocator", "polkadot-overseer/jemalloc-allocator"]
 
 # Configuration for building a .deb package - for use with `cargo-deb`
 [package.metadata.deb]

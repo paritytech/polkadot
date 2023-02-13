@@ -14,10 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use super::memory_stats::{
-	get_max_rss_thread, get_memory_tracker_loop_stats, memory_tracker_loop, observe_memory_metrics,
-	MemoryStats,
-};
+#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+use super::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
+use super::memory_stats::{get_max_rss_thread, observe_memory_metrics, MemoryStats};
 use crate::{
 	artifacts::CompiledArtifact,
 	error::{PrepareError, PrepareResult},
@@ -373,9 +372,10 @@ pub fn worker_entrypoint(socket_path: &str) {
 			let cpu_time_start = ProcessTime::now();
 
 			// Run the memory tracker.
+			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 			let (memory_tracker_tx, memory_tracker_rx) = channel::<()>();
-			let memory_tracker_fut =
-				rt_handle.spawn_blocking(move || memory_tracker_loop(memory_tracker_rx));
+			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+			let memory_tracker_fut = rt_handle.spawn_blocking(move || memory_tracker_loop(memory_tracker_rx));
 
 			// Spawn a new thread that runs the CPU time monitor.
 			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
@@ -431,8 +431,11 @@ pub fn worker_entrypoint(socket_path: &str) {
 						},
 						(Ok(compiled_artifact), max_rss) => {
 							// Stop the memory stats worker and get its observed memory stats.
+							#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 							let memory_tracker_stats =
 								get_memory_tracker_loop_stats(memory_tracker_fut, memory_tracker_tx).await;
+							#[cfg(not(any(target_os = "linux", feature = "jemalloc-allocator")))]
+							let memory_tracker_stats = None;
 							let memory_stats = MemoryStats {
 								memory_tracker_stats,
 								max_rss: max_rss.map(|inner| inner.map_err(|e| e.to_string())),

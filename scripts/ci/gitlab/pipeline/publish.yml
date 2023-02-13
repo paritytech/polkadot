@@ -227,9 +227,9 @@ publish-rustdoc:
     - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/             # e.g. v1.0.0
   script:
     - git clone --depth=1 --branch="$PIPELINE_SCRIPTS_TAG" https://github.com/paritytech/pipeline-scripts
-    - export POLKADOT_BRANCH="polkadot-v$CI_COMMIT_TAG"
-    - git clone --depth=1 --branch="$POLKADOT_BRANCH" https://github.com/paritytech/substrate
-    - cd substrate
+    - export POLKADOT_BRANCH="polkadot-$CI_COMMIT_TAG"
+    - git clone --depth=1 --branch="$POLKADOT_BRANCH" https://github.com/paritytech/"$TEMPLATE_SOURCE"
+    - cd "$TEMPLATE_SOURCE"
     - ../pipeline-scripts/update_substrate_template.sh
       --repo-name "$TARGET_REPOSITORY"
       --template-path "$TEMPLATE_PATH"
@@ -241,6 +241,7 @@ update-node-template:
   extends:                         .update-substrate-template-repository
   variables:
     TARGET_REPOSITORY:             substrate-node-template
+    TEMPLATE_SOURCE:               substrate
     TEMPLATE_PATH:                 bin/node-template
 
 # Ref: https://github.com/paritytech/opstooling/issues/111
@@ -248,4 +249,5 @@ update-parachain-template:
   extends:                         .update-substrate-template-repository
   variables:
     TARGET_REPOSITORY:             substrate-parachain-template
+    TEMPLATE_SOURCE:               cumulus
     TEMPLATE_PATH:                 parachain-template
