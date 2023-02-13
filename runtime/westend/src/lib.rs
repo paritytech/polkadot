@@ -1247,7 +1247,6 @@ pub type Migrations = (
 	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	parachains_ump::migration::v1::MigrateToV1<Runtime>,
-	parachains_session_info::migration::v2::MigrateToV2<Runtime>,
 	// Remove stale entries in the set id -> session index storage map (after
 	// this release they will be properly pruned after the bonding duration has
 	// elapsed)
