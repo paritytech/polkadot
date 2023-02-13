@@ -37,6 +37,6 @@ pub fn session_executor_params<T: session_info::Config>(
 	// <session_info::Pallet<T>>::session_executor_params(session_index) call.
 	match <session_info::Pallet<T>>::session_executor_params(session_index) {
 		Some(ep) => Some(ep),
-		None => Some(ExecutorParams::default())
+		None => Some(ExecutorParams::default()),
 	}
 }
