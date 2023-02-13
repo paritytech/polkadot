@@ -675,6 +675,7 @@ async fn send_peer_messages_for_relay_parent<Context>(
 				&peer,
 				validator_id,
 				&mut local_validator_state.cluster_tracker,
+				&state.candidates,
 				&relay_parent_state.statement_store,
 			)
 			.await;
@@ -717,12 +718,17 @@ async fn send_pending_cluster_statements<Context>(
 	peer_id: &PeerId,
 	peer_validator_id: ValidatorIndex,
 	cluster_tracker: &mut ClusterTracker,
+	candidates: &Candidates,
 	statement_store: &StatementStore,
 ) {
 	let pending_statements = cluster_tracker.pending_statements_for(peer_validator_id);
 	let network_messages = pending_statements
 		.into_iter()
 		.filter_map(|(originator, compact)| {
+			if !candidates.is_confirmed(compact.candidate_hash()) {
+				return None
+			}
+
 			let res = pending_statement_network_message(
 				&statement_store,
 				relay_parent,
@@ -730,8 +736,6 @@ async fn send_pending_cluster_statements<Context>(
 				originator,
 				compact.clone(),
 			);
-
-			// TODO [now]: only send for confirmed candidates.
 
 			if res.is_some() {
 				cluster_tracker.note_sent(peer_validator_id, originator, compact);
