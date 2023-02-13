@@ -477,6 +477,13 @@ impl GridTracker {
 		v
 	}
 
+	/// Whether a validator can request a manifest from us.
+	pub fn can_request(&self, validator: ValidatorIndex, candidate_hash: CandidateHash) -> bool {
+		self.confirmed_backed.get(&candidate_hash).map_or(false, |c| {
+			c.has_sent_manifest_to(validator) && !c.has_received_manifest_from(validator)
+		})
+	}
+
 	/// Which validators we could request the fully attested candidates from.
 	/// If the candidate is already confirmed, then this will return an empty
 	/// set.

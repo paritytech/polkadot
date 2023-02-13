@@ -368,6 +368,8 @@ pub struct RequestProperties {
 	/// be made to peers which can provide enough statements to back the candidate, when
 	/// taking into account the unwanted_mask`, and a response will only be validated
 	/// in the case of those statements.
+	///
+	/// If this is `None`, it is assumed that only the candidate itself is needed.
 	pub backing_threshold: Option<usize>,
 }
 
@@ -412,10 +414,8 @@ fn find_request_target_with_update(
 	}
 }
 
-// TODO [now]: for cases where we already have statements, this isn't
-// necessary.
 fn seconded_and_sufficient(filter: &StatementFilter, backing_threshold: Option<usize>) -> bool {
-	filter.has_seconded() && backing_threshold.map_or(true, |t| filter.backing_validators() >= t)
+	backing_threshold.map_or(true, |t| filter.has_seconded() && filter.backing_validators() >= t)
 }
 
 /// A response to a request, which has not yet been handled.
@@ -603,7 +603,7 @@ fn validate_complete_response(
 		let mut statements =
 			Vec::with_capacity(std::cmp::min(response.statements.len(), group.len() * 2));
 
-		let mut received_filter = StatementFilter::new(group.len());
+		let mut received_filter = StatementFilter::blank(group.len());
 
 		let index_in_group = |v: ValidatorIndex| group.iter().position(|x| &v == x);
 

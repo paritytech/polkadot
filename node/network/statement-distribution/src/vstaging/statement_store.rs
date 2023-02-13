@@ -177,6 +177,8 @@ impl StatementStore {
 
 	/// Get an iterator over stored signed statements by the group conforming to the
 	/// given filter.
+	///
+	/// Seconded statements are provided first.
 	pub fn group_statements<'a>(
 		&'a self,
 		groups: &'a Groups,
