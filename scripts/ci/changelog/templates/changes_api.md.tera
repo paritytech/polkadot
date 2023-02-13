@@ -1,0 +1,19 @@
+{% import "change.md.tera" as m_c -%}
+### API
+
+{#- The changes are sorted by merge date #}
+{%- for pr in changes | sort(attribute="merged_at") %}
+
+{%- if pr.meta.B %}
+    {%- if pr.meta.B.value == 0 %}
+    {#- We skip silent ones -#}
+    {%- else -%}
+
+        {%- if pr.meta.T and pr.meta.T.value == 2 and not pr.title is containing("ompanion") %}
+- {{ m_c::change(c=pr) }}
+{%- else %}
+<!-- EXCLUDED PR#{{pr.number}} - {{pr.html_url}} -->
+        {%- endif -%}
+    {% endif -%}
+    {% endif -%}
+{% endfor %}
