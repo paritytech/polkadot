@@ -84,6 +84,7 @@ struct TaggedResponse {
 }
 
 /// A pending request.
+#[derive(Debug)]
 pub struct RequestedCandidate {
 	priority: Priority,
 	known_by: VecDeque<PeerId>,
@@ -358,6 +359,7 @@ impl RequestManager {
 }
 
 /// Properties used in target selection and validation of a request.
+#[derive(Clone)]
 pub struct RequestProperties {
 	/// A mask for limiting the statements the response is allowed to contain.
 	/// The mask has `OR` semantics: statements by validators corresponding to bits
@@ -366,7 +368,7 @@ pub struct RequestProperties {
 	pub unwanted_mask: StatementFilter,
 	/// The required backing threshold, if any. If this is `Some`, then requests will only
 	/// be made to peers which can provide enough statements to back the candidate, when
-	/// taking into account the unwanted_mask`, and a response will only be validated
+	/// taking into account the `unwanted_mask`, and a response will only be validated
 	/// in the case of those statements.
 	///
 	/// If this is `None`, it is assumed that only the candidate itself is needed.
@@ -714,6 +716,7 @@ fn validate_complete_response(
 }
 
 /// The status of the candidate request after the handling of a response.
+#[derive(Debug, PartialEq)]
 pub enum CandidateRequestStatus {
 	/// The request was outdated at the point of receiving the response.
 	Outdated,
@@ -729,6 +732,7 @@ pub enum CandidateRequestStatus {
 }
 
 /// Output of the response validation.
+#[derive(Debug, PartialEq)]
 pub struct ResponseValidationOutput {
 	/// The peer we requested from.
 	pub requested_peer: PeerId,
@@ -768,6 +772,17 @@ fn insert_or_update_priority(
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use polkadot_primitives::HeadData;
+	use polkadot_primitives_test_helpers as test_helpers;
+
+	fn dummy_pvd() -> PersistedValidationData {
+		PersistedValidationData {
+			parent_head: HeadData(vec![7, 8, 9]),
+			relay_parent_number: 5,
+			max_pov_size: 1024,
+			relay_parent_storage_root: Default::default(),
+		}
+	}
 
 	#[test]
 	fn test_remove_by_relay_parent() {
@@ -872,7 +887,287 @@ mod tests {
 		);
 	}
 
-	// TODO [now]: test that outdated responses are handled correctly.
+	// Test case where candidate is requested under two different identifiers at the same time.
+	// Should result in `Outdated` error.
+	#[test]
+	fn handle_outdated_response_due_to_requests_for_different_identifiers() {
+		let mut request_manager = RequestManager::new();
 
-	// TODO [now]: test that successful requests lead to clean up.
+		let relay_parent = Hash::from_low_u64_le(1);
+		let mut candidate_receipt = test_helpers::dummy_committed_candidate_receipt(relay_parent);
+		let persisted_validation_data = dummy_pvd();
+		candidate_receipt.descriptor.persisted_validation_data_hash =
+			persisted_validation_data.hash();
+		let candidate = candidate_receipt.hash();
+		let requested_peer = PeerId::random();
+
+		let identifier1 = request_manager
+			.get_or_insert(relay_parent, candidate, 1.into())
+			.identifier
+			.clone();
+		request_manager
+			.get_or_insert(relay_parent, candidate, 1.into())
+			.add_peer(requested_peer);
+		let identifier2 = request_manager
+			.get_or_insert(relay_parent, candidate, 2.into())
+			.identifier
+			.clone();
+		request_manager
+			.get_or_insert(relay_parent, candidate, 2.into())
+			.add_peer(requested_peer);
+
+		assert_ne!(identifier1, identifier2);
+		assert_eq!(request_manager.requests.len(), 2);
+
+		let group_size = 3;
+		let group = &[ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)];
+
+		let unwanted_mask = StatementFilter::blank(group_size);
+		let request_properties = RequestProperties { unwanted_mask, backing_threshold: None };
+
+		// Get requests.
+		{
+			let request_props =
+				|_identifier: &CandidateIdentifier| Some((&request_properties).clone());
+			let peer_advertised = |_identifier: &CandidateIdentifier, _peer: &_| {
+				Some(StatementFilter::full(group_size))
+			};
+			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			assert_eq!(outgoing.payload.candidate_hash, candidate);
+			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			assert_eq!(outgoing.payload.candidate_hash, candidate);
+		}
+
+		// Validate first response.
+		{
+			let statements = vec![];
+			let response = UnhandledResponse {
+				response: TaggedResponse {
+					identifier: identifier1,
+					requested_peer,
+					props: request_properties.clone(),
+					response: Ok(AttestedCandidateResponse {
+						candidate_receipt: candidate_receipt.clone(),
+						persisted_validation_data: persisted_validation_data.clone(),
+						statements,
+					}),
+				},
+			};
+			let validator_key_lookup = |_v| None;
+			let allowed_para_lookup = |_para, _g_index| true;
+			let statements = vec![];
+			let output = response.validate_response(
+				&mut request_manager,
+				group,
+				0,
+				validator_key_lookup,
+				allowed_para_lookup,
+			);
+			assert_eq!(
+				output,
+				ResponseValidationOutput {
+					requested_peer,
+					request_status: CandidateRequestStatus::Complete {
+						candidate: candidate_receipt.clone(),
+						persisted_validation_data: persisted_validation_data.clone(),
+						statements,
+					},
+					reputation_changes: vec![(requested_peer, BENEFIT_VALID_RESPONSE)],
+				}
+			);
+		}
+
+		// Try to validate second response.
+		{
+			let statements = vec![];
+			let response = UnhandledResponse {
+				response: TaggedResponse {
+					identifier: identifier2,
+					requested_peer,
+					props: request_properties,
+					response: Ok(AttestedCandidateResponse {
+						candidate_receipt: candidate_receipt.clone(),
+						persisted_validation_data: persisted_validation_data.clone(),
+						statements,
+					}),
+				},
+			};
+			let validator_key_lookup = |_v| None;
+			let allowed_para_lookup = |_para, _g_index| true;
+			let output = response.validate_response(
+				&mut request_manager,
+				group,
+				0,
+				validator_key_lookup,
+				allowed_para_lookup,
+			);
+			assert_eq!(
+				output,
+				ResponseValidationOutput {
+					requested_peer,
+					request_status: CandidateRequestStatus::Outdated,
+					reputation_changes: vec![],
+				}
+			);
+		}
+	}
+
+	// Test case where we had a request in-flight and the request entry was garbage-collected on
+	// outdated relay parent.
+	#[test]
+	fn handle_outdated_response_due_to_garbage_collection() {
+		let mut request_manager = RequestManager::new();
+
+		let relay_parent = Hash::from_low_u64_le(1);
+		let mut candidate_receipt = test_helpers::dummy_committed_candidate_receipt(relay_parent);
+		let persisted_validation_data = dummy_pvd();
+		candidate_receipt.descriptor.persisted_validation_data_hash =
+			persisted_validation_data.hash();
+		let candidate = candidate_receipt.hash();
+		let requested_peer = PeerId::random();
+
+		let identifier = request_manager
+			.get_or_insert(relay_parent, candidate, 1.into())
+			.identifier
+			.clone();
+		request_manager
+			.get_or_insert(relay_parent, candidate, 1.into())
+			.add_peer(requested_peer);
+
+		let group_size = 3;
+		let group = &[ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)];
+
+		let unwanted_mask = StatementFilter::blank(group_size);
+		let request_properties = RequestProperties { unwanted_mask, backing_threshold: None };
+		let peer_advertised =
+			|_identifier: &CandidateIdentifier, _peer: &_| Some(StatementFilter::full(group_size));
+
+		// Get request once successfully.
+		{
+			let request_props =
+				|_identifier: &CandidateIdentifier| Some((&request_properties).clone());
+			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			assert_eq!(outgoing.payload.candidate_hash, candidate);
+		}
+
+		// Garbage collect based on relay parent.
+		request_manager.remove_by_relay_parent(relay_parent);
+
+		// Try to validate response.
+		{
+			let statements = vec![];
+			let response = UnhandledResponse {
+				response: TaggedResponse {
+					identifier,
+					requested_peer,
+					props: request_properties,
+					response: Ok(AttestedCandidateResponse {
+						candidate_receipt: candidate_receipt.clone(),
+						persisted_validation_data: persisted_validation_data.clone(),
+						statements,
+					}),
+				},
+			};
+			let validator_key_lookup = |_v| None;
+			let allowed_para_lookup = |_para, _g_index| true;
+			let output = response.validate_response(
+				&mut request_manager,
+				group,
+				0,
+				validator_key_lookup,
+				allowed_para_lookup,
+			);
+			assert_eq!(
+				output,
+				ResponseValidationOutput {
+					requested_peer,
+					request_status: CandidateRequestStatus::Outdated,
+					reputation_changes: vec![],
+				}
+			);
+		}
+	}
+
+	#[test]
+	fn should_clean_up_after_successful_requests() {
+		let mut request_manager = RequestManager::new();
+
+		let relay_parent = Hash::from_low_u64_le(1);
+		let mut candidate_receipt = test_helpers::dummy_committed_candidate_receipt(relay_parent);
+		let persisted_validation_data = dummy_pvd();
+		candidate_receipt.descriptor.persisted_validation_data_hash =
+			persisted_validation_data.hash();
+		let candidate = candidate_receipt.hash();
+		let requested_peer = PeerId::random();
+
+		let identifier = request_manager
+			.get_or_insert(relay_parent, candidate, 1.into())
+			.identifier
+			.clone();
+		request_manager
+			.get_or_insert(relay_parent, candidate, 1.into())
+			.add_peer(requested_peer);
+
+		assert_eq!(request_manager.requests.len(), 1);
+		assert_eq!(request_manager.by_priority.len(), 1);
+
+		let group_size = 3;
+		let group = &[ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)];
+
+		let unwanted_mask = StatementFilter::blank(group_size);
+		let request_properties = RequestProperties { unwanted_mask, backing_threshold: None };
+		let peer_advertised =
+			|_identifier: &CandidateIdentifier, _peer: &_| Some(StatementFilter::full(group_size));
+
+		// Get request once successfully.
+		{
+			let request_props =
+				|_identifier: &CandidateIdentifier| Some((&request_properties).clone());
+			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			assert_eq!(outgoing.payload.candidate_hash, candidate);
+		}
+
+		// Validate response.
+		{
+			let statements = vec![];
+			let response = UnhandledResponse {
+				response: TaggedResponse {
+					identifier,
+					requested_peer,
+					props: request_properties.clone(),
+					response: Ok(AttestedCandidateResponse {
+						candidate_receipt: candidate_receipt.clone(),
+						persisted_validation_data: persisted_validation_data.clone(),
+						statements,
+					}),
+				},
+			};
+			let validator_key_lookup = |_v| None;
+			let allowed_para_lookup = |_para, _g_index| true;
+			let statements = vec![];
+			let output = response.validate_response(
+				&mut request_manager,
+				group,
+				0,
+				validator_key_lookup,
+				allowed_para_lookup,
+			);
+			assert_eq!(
+				output,
+				ResponseValidationOutput {
+					requested_peer,
+					request_status: CandidateRequestStatus::Complete {
+						candidate: candidate_receipt.clone(),
+						persisted_validation_data: persisted_validation_data.clone(),
+						statements,
+					},
+					reputation_changes: vec![(requested_peer, BENEFIT_VALID_RESPONSE)],
+				}
+			);
+		}
+
+		// Ensure that cleanup occurred.
+		assert_eq!(request_manager.requests.len(), 0);
+		assert_eq!(request_manager.by_priority.len(), 0);
+	}
 }
