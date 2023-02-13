@@ -178,6 +178,7 @@ fn overseer_works() {
 			MockSupportsParachains,
 			None,
 			MajorSyncOracle::new_dummy(),
+			Vec::new(),
 		)
 		.unwrap()
 		.replace_candidate_validation(move |_| TestSubsystem1(s1_tx))
@@ -243,6 +244,7 @@ fn overseer_metrics_work() {
 			MockSupportsParachains,
 			Some(&registry),
 			MajorSyncOracle::new_dummy(),
+			Vec::new(),
 		)
 		.unwrap()
 		.leaves(block_info_to_pair(vec![first_block]))
@@ -310,6 +312,7 @@ fn overseer_ends_on_subsystem_exit() {
 			MockSupportsParachains,
 			None,
 			MajorSyncOracle::new_dummy(),
+			Vec::new(),
 		)
 		.unwrap()
 		.replace_candidate_backing(|_| ReturnOnStart)
@@ -384,6 +387,20 @@ where
 	}
 }
 
+struct PuppetOracle {
+	pub state: std::sync::Arc<std::sync::Mutex<bool>>,
+}
+
+impl SyncOracle for PuppetOracle {
+	fn is_major_syncing(&self) -> bool {
+		*self.state.lock().unwrap()
+	}
+
+	fn is_offline(&self) -> bool {
+		false
+	}
+}
+
 // Tests that starting with a defined set of leaves and receiving
 // notifications on imported blocks triggers expected `StartWork` and `StopWork` heartbeats.
 #[test]
@@ -410,6 +427,7 @@ fn overseer_start_stop_works() {
 			MockSupportsParachains,
 			None,
 			MajorSyncOracle::new_dummy(),
+			Vec::new(),
 		)
 		.unwrap()
 		.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
@@ -514,6 +532,7 @@ fn overseer_finalize_works() {
 			MockSupportsParachains,
 			None,
 			MajorSyncOracle::new_dummy(),
+			Vec::new(),
 		)
 		.unwrap()
 		.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
@@ -615,6 +634,7 @@ fn overseer_finalize_leaf_preserves_it() {
 			MockSupportsParachains,
 			None,
 			MajorSyncOracle::new_dummy(),
+			Vec::new(),
 		)
 		.unwrap()
 		.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
@@ -710,6 +730,7 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 			MockSupportsParachains,
 			None,
 			MajorSyncOracle::new_dummy(),
+			Vec::new(),
 		)
 		.unwrap()
 		.replace_candidate_backing(move |_| TestSubsystem6(tx_5))
@@ -784,6 +805,7 @@ fn do_not_send_events_before_initial_major_sync_is_complete() {
 			MockSupportsParachains,
 			None,
 			MajorSyncOracle::new(Box::new(PuppetOracle { state: is_syncing.clone() })),
+			Vec::new(),
 		)
 		.unwrap()
 		.replace_candidate_backing(move |_| TestSubsystem6(tx_5))
@@ -872,6 +894,7 @@ fn active_leaves_is_sent_on_stalled_finality() {
 		MockSupportsParachains,
 		None,
 		MajorSyncOracle::new(Box::new(PuppetOracle { state: is_syncing.clone() })),
+		Vec::new(),
 	)
 	.unwrap()
 	.replace_candidate_backing(move |_| TestSubsystem6(tx_5))
@@ -932,6 +955,71 @@ fn active_leaves_is_sent_on_stalled_finality() {
 
 	let (res, _) = executor::block_on(futures::future::join(overseer_fut, test));
 	assert_matches!(res, Ok(()));
+}
+
+#[test]
+fn initial_leaves_are_sent_if_nothing_to_sync() {
+	let spawner = sp_core::testing::TaskExecutor::new();
+
+	executor::block_on(async move {
+		let db_leaves = BlockInfo { hash: Hash::random(), parent_hash: Hash::random(), number: 0 };
+
+		let (tx_5, mut rx_5) = metered::channel(64);
+
+		// Prepare overseer future
+		let is_syncing = std::sync::Arc::new(std::sync::Mutex::new(false));
+		let (overseer, handle) = dummy_overseer_builder(
+			spawner,
+			MockSupportsParachains,
+			None,
+			MajorSyncOracle::new(Box::new(PuppetOracle { state: is_syncing.clone() })),
+			vec![(db_leaves.hash, db_leaves.number)],
+		)
+		.unwrap()
+		.replace_candidate_backing(move |_| TestSubsystem6(tx_5))
+		.build()
+		.unwrap();
+
+		// Get overseer future
+		let mut handle = Handle::new(handle);
+		let overseer_fut = overseer.run_inner().fuse();
+		pin_mut!(overseer_fut);
+
+		let mut ss5_results = Vec::new();
+
+		// Generate two more events - these must not be ignore
+		let expected_heartbeats =
+			vec![OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: db_leaves.hash,
+				number: db_leaves.number,
+				span: Arc::new(jaeger::Span::Disabled),
+				status: LeafStatus::Fresh,
+			}))];
+
+		loop {
+			select! {
+				res = overseer_fut => {
+					assert!(res.is_ok());
+					break;
+				},
+				res = rx_5.next() => {
+					if let Some(res) = dbg!(res) {
+						ss5_results.push(res);
+					}
+				}
+			}
+
+			if ss5_results.len() == expected_heartbeats.len() {
+				handle.stop().await;
+			}
+		}
+
+		assert_eq!(ss5_results.len(), expected_heartbeats.len());
+
+		for expected in expected_heartbeats {
+			assert!(ss5_results.contains(&expected));
+		}
+	});
 }
 
 #[derive(Clone)]
@@ -1127,20 +1215,6 @@ fn test_chain_selection_msg() -> ChainSelectionMessage {
 	ChainSelectionMessage::Approved(Default::default())
 }
 
-struct PuppetOracle {
-	pub state: std::sync::Arc<std::sync::Mutex<bool>>,
-}
-
-impl SyncOracle for PuppetOracle {
-	fn is_major_syncing(&self) -> bool {
-		*self.state.lock().unwrap()
-	}
-
-	fn is_offline(&self) -> bool {
-		false
-	}
-}
-
 // Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
 #[test]
 fn overseer_all_subsystems_receive_signals_and_messages() {
@@ -1166,6 +1240,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			subsystem,
 			None,
 			MajorSyncOracle::new_dummy(),
+			Vec::new(),
 		)
 		.unwrap()
 		.build()

@@ -21,7 +21,7 @@ use crate::{
 };
 use lru::LruCache;
 use orchestra::{FromOrchestra, SpawnedSubsystem, Subsystem, SubsystemContext};
-use polkadot_node_subsystem_types::{errors::SubsystemError, messages::*};
+use polkadot_node_subsystem_types::{errors::SubsystemError, messages::*, BlockNumber, Hash};
 // Generated dummy messages
 use crate::messages::*;
 
@@ -64,6 +64,7 @@ pub fn dummy_overseer_builder<Spawner, SupportsParachains>(
 	supports_parachains: SupportsParachains,
 	registry: Option<&Registry>,
 	sync_oracle: MajorSyncOracle,
+	initial_leaves: Vec<(Hash, BlockNumber)>,
 ) -> Result<
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
@@ -103,6 +104,7 @@ where
 		DummySubsystem,
 		registry,
 		sync_oracle,
+		initial_leaves,
 	)
 }
 
@@ -113,6 +115,7 @@ pub fn one_for_all_overseer_builder<Spawner, SupportsParachains, Sub>(
 	subsystem: Sub,
 	registry: Option<&Registry>,
 	sync_oracle: MajorSyncOracle,
+	initial_leaves: Vec<(Hash, BlockNumber)>,
 ) -> Result<
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
@@ -198,7 +201,7 @@ where
 		.span_per_active_leaf(Default::default())
 		.active_leaves(Default::default())
 		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
-		.leaves(Default::default())
+		.leaves(initial_leaves)
 		.spawner(SpawnGlue(spawner))
 		.metrics(metrics)
 		.sync_oracle(sync_oracle)
