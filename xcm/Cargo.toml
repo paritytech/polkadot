@@ -6,12 +6,12 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
+bounded-collections = { version = "0.1.4", default-features = false }
 derivative = { version = "2.2.0", default-features = false, features = [ "use_core" ] }
 impl-trait-for-tuples = "0.2.2"
 log = { version = "0.4.17", default-features = false }
 parity-scale-codec = { version = "3.3.0", default-features = false, features = [ "derive", "max-encoded-len" ] }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-weights = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 serde = { version = "1.0.136", optional = true, features = ["derive"] }
 xcm-procedural = { path = "procedural" }
@@ -23,9 +23,9 @@ sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
 default = ["std"]
 wasm-api = []
 std = [
+	"bounded-collections/std",
 	"parity-scale-codec/std",
 	"scale-info/std",
 	"serde",
-	"sp-core/std",
 	"sp-weights/std",
 ]
