@@ -30,7 +30,7 @@ use polkadot_overseer::{
 	self as overseer,
 	dummy::dummy_overseer_builder,
 	gen::{FromOrchestra, SpawnedSubsystem},
-	HeadSupportsParachains, SubsystemError,
+	HeadSupportsParachains, MajorSyncOracle, SubsystemError,
 };
 use polkadot_primitives::{CandidateReceipt, Hash};
 
@@ -153,13 +153,18 @@ fn main() {
 			Delay::new(Duration::from_secs(1)).await;
 		});
 
-		let (overseer, _handle) = dummy_overseer_builder(spawner, AlwaysSupportsParachains, None)
-			.unwrap()
-			.replace_candidate_validation(|_| Subsystem2)
-			.replace_candidate_backing(|orig| orig)
-			.replace_candidate_backing(|_orig| Subsystem1)
-			.build()
-			.unwrap();
+		let (overseer, _handle) = dummy_overseer_builder(
+			spawner,
+			AlwaysSupportsParachains,
+			None,
+			MajorSyncOracle::new_dummy(),
+		)
+		.unwrap()
+		.replace_candidate_validation(|_| Subsystem2)
+		.replace_candidate_backing(|orig| orig)
+		.replace_candidate_backing(|_orig| Subsystem1)
+		.build()
+		.unwrap();
 
 		let overseer_fut = overseer.run().fuse();
 		let timer_stream = timer_stream;

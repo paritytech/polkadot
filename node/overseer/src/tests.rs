@@ -173,12 +173,17 @@ fn overseer_works() {
 
 		let mut s1_rx = s1_rx.fuse();
 		let mut s2_rx = s2_rx.fuse();
-		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
-			.unwrap()
-			.replace_candidate_validation(move |_| TestSubsystem1(s1_tx))
-			.replace_candidate_backing(move |_| TestSubsystem2(s2_tx))
-			.build()
-			.unwrap();
+		let (overseer, handle) = dummy_overseer_builder(
+			spawner,
+			MockSupportsParachains,
+			None,
+			MajorSyncOracle::new_dummy(),
+		)
+		.unwrap()
+		.replace_candidate_validation(move |_| TestSubsystem1(s1_tx))
+		.replace_candidate_backing(move |_| TestSubsystem2(s2_tx))
+		.build()
+		.unwrap();
 		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run().fuse();
 
@@ -233,12 +238,16 @@ fn overseer_metrics_work() {
 			BlockInfo { hash: third_block_hash, parent_hash: second_block_hash, number: 3 };
 
 		let registry = prometheus::Registry::new();
-		let (overseer, handle) =
-			dummy_overseer_builder(spawner, MockSupportsParachains, Some(&registry))
-				.unwrap()
-				.leaves(block_info_to_pair(vec![first_block]))
-				.build()
-				.unwrap();
+		let (overseer, handle) = dummy_overseer_builder(
+			spawner,
+			MockSupportsParachains,
+			Some(&registry),
+			MajorSyncOracle::new_dummy(),
+		)
+		.unwrap()
+		.leaves(block_info_to_pair(vec![first_block]))
+		.build()
+		.unwrap();
 
 		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run_inner().fuse();
@@ -296,11 +305,16 @@ fn overseer_ends_on_subsystem_exit() {
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	executor::block_on(async move {
-		let (overseer, _handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
-			.unwrap()
-			.replace_candidate_backing(|_| ReturnOnStart)
-			.build()
-			.unwrap();
+		let (overseer, _handle) = dummy_overseer_builder(
+			spawner,
+			MockSupportsParachains,
+			None,
+			MajorSyncOracle::new_dummy(),
+		)
+		.unwrap()
+		.replace_candidate_backing(|_| ReturnOnStart)
+		.build()
+		.unwrap();
 
 		overseer.run_inner().await.unwrap();
 	})
@@ -391,13 +405,18 @@ fn overseer_start_stop_works() {
 		let (tx_5, mut rx_5) = metered::channel(64);
 		let (tx_6, mut rx_6) = metered::channel(64);
 
-		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
-			.unwrap()
-			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
-			.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
-			.leaves(block_info_to_pair(vec![first_block]))
-			.build()
-			.unwrap();
+		let (overseer, handle) = dummy_overseer_builder(
+			spawner,
+			MockSupportsParachains,
+			None,
+			MajorSyncOracle::new_dummy(),
+		)
+		.unwrap()
+		.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
+		.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
+		.leaves(block_info_to_pair(vec![first_block]))
+		.build()
+		.unwrap();
 		let mut handle = Handle::new(handle);
 
 		let overseer_fut = overseer.run_inner().fuse();
@@ -490,13 +509,18 @@ fn overseer_finalize_works() {
 
 		// start with two forks of different height.
 
-		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
-			.unwrap()
-			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
-			.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
-			.leaves(block_info_to_pair(vec![first_block, second_block]))
-			.build()
-			.unwrap();
+		let (overseer, handle) = dummy_overseer_builder(
+			spawner,
+			MockSupportsParachains,
+			None,
+			MajorSyncOracle::new_dummy(),
+		)
+		.unwrap()
+		.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
+		.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
+		.leaves(block_info_to_pair(vec![first_block, second_block]))
+		.build()
+		.unwrap();
 		let mut handle = Handle::new(handle);
 
 		let overseer_fut = overseer.run_inner().fuse();
@@ -586,13 +610,18 @@ fn overseer_finalize_leaf_preserves_it() {
 
 		// start with two forks at height 1.
 
-		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
-			.unwrap()
-			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
-			.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
-			.leaves(block_info_to_pair(vec![first_block.clone(), second_block]))
-			.build()
-			.unwrap();
+		let (overseer, handle) = dummy_overseer_builder(
+			spawner,
+			MockSupportsParachains,
+			None,
+			MajorSyncOracle::new_dummy(),
+		)
+		.unwrap()
+		.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
+		.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
+		.leaves(block_info_to_pair(vec![first_block.clone(), second_block]))
+		.build()
+		.unwrap();
 		let mut handle = Handle::new(handle);
 
 		let overseer_fut = overseer.run_inner().fuse();
@@ -676,11 +705,16 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 
 		let (tx_5, mut rx_5) = metered::channel(64);
 
-		let (overseer, handle) = dummy_overseer_builder(spawner, MockSupportsParachains, None)
-			.unwrap()
-			.replace_candidate_backing(move |_| TestSubsystem6(tx_5))
-			.build()
-			.unwrap();
+		let (overseer, handle) = dummy_overseer_builder(
+			spawner,
+			MockSupportsParachains,
+			None,
+			MajorSyncOracle::new_dummy(),
+		)
+		.unwrap()
+		.replace_candidate_backing(move |_| TestSubsystem6(tx_5))
+		.build()
+		.unwrap();
 
 		let mut handle = Handle::new(handle);
 
@@ -940,11 +974,16 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 			msgs_received.clone(),
 		);
 
-		let (overseer, handle) =
-			one_for_all_overseer_builder(spawner, MockSupportsParachains, subsystem, None)
-				.unwrap()
-				.build()
-				.unwrap();
+		let (overseer, handle) = one_for_all_overseer_builder(
+			spawner,
+			MockSupportsParachains,
+			subsystem,
+			None,
+			MajorSyncOracle::new_dummy(),
+		)
+		.unwrap()
+		.build()
+		.unwrap();
 
 		let mut handle = Handle::new(handle);
 		let overseer_fut = overseer.run_inner().fuse();

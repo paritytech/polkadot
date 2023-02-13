@@ -63,6 +63,7 @@ pub fn dummy_overseer_builder<Spawner, SupportsParachains>(
 	spawner: Spawner,
 	supports_parachains: SupportsParachains,
 	registry: Option<&Registry>,
+	sync_oracle: MajorSyncOracle,
 ) -> Result<
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
@@ -96,7 +97,13 @@ where
 	SpawnGlue<Spawner>: orchestra::Spawner + 'static,
 	SupportsParachains: HeadSupportsParachains,
 {
-	one_for_all_overseer_builder(spawner, supports_parachains, DummySubsystem, registry)
+	one_for_all_overseer_builder(
+		spawner,
+		supports_parachains,
+		DummySubsystem,
+		registry,
+		sync_oracle,
+	)
 }
 
 /// Create an overseer with all subsystem being `Sub`.
@@ -105,6 +112,7 @@ pub fn one_for_all_overseer_builder<Spawner, SupportsParachains, Sub>(
 	supports_parachains: SupportsParachains,
 	subsystem: Sub,
 	registry: Option<&Registry>,
+	sync_oracle: MajorSyncOracle,
 ) -> Result<
 	InitializedOverseerBuilder<
 		SpawnGlue<Spawner>,
@@ -193,7 +201,7 @@ where
 		.leaves(Default::default())
 		.spawner(SpawnGlue(spawner))
 		.metrics(metrics)
-		.sync_oracle(MajorSyncOracle::new_dummy())
+		.sync_oracle(sync_oracle)
 		.supports_parachains(supports_parachains);
 	Ok(builder)
 }
