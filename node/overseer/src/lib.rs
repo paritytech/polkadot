@@ -804,40 +804,46 @@ where
 						Event::Stop => return self.handle_stop().await,
 						Event::BlockImported(block) => _ = self.block_imported(block).await,
 						Event::BlockFinalized(block) if self.sync_oracle.finished_syncing() => {
-							// Initial sync is complete
-							self.block_finalized(&block).await;
-								// Send initial `ActiveLeaves`
-								for (hash, number) in self.active_leaves.clone().into_iter() {
-									let span = match self.span_per_active_leaf.get(&hash) {
-										Some(span) => span.clone(),
-										None => {
-											// This should never happen. Spans are generated in `on_head_activated`
-											// which is called from `block_imported`. Despite not sending a signal
-											// `BlockImported` events are handled so a span should exist for each
-											// active leaf.
-											gum::error!(
-												target: LOG_TARGET,
-												?hash,
-												?number,
-												"Span for active leaf not found. This is not expected"
-											);
-											let span = Arc::new(jaeger::Span::new(hash, "leaf-activated"));
-											self.span_per_active_leaf.insert(hash, span.clone());
-											span
-										}
-									};
+							// Send initial `ActiveLeaves`
+							let update = self.block_imported(block.clone()).await;
+							if !update.is_empty() {
+								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+							} else {
+								// In theory we can receive `BlockImported` during initial major sync. In this case the
+								// update will be empty.
+								let span = match self.span_per_active_leaf.get(&block.hash) {
+									Some(span) => span.clone(),
+									None => {
+										// This should never happen.
+										gum::warn!(
+											target: LOG_TARGET,
+											?block.hash,
+											?block.number,
+											"Span for active leaf not found. This is not expected"
+										);
+										let span = Arc::new(jaeger::Span::new(block.hash, "leaf-activated"));
+										span
+									}
+								};
+								let update = ActiveLeavesUpdate::start_work(ActivatedLeaf {
+									hash: block.hash,
+									number: block.number,
+									status: LeafStatus::Fresh,
+									span,
+								});
+								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+							}
 
-									let update = ActiveLeavesUpdate::start_work(ActivatedLeaf {
-										hash,
-										number,
-										status: LeafStatus::Fresh,
-										span,
-									});
-									self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-								}
-								// Send initial `BlockFinalized`
-								self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
-								break
+
+							// Initial sync is complete
+							let update = self.block_finalized(&block).await;
+							if !update.is_empty() {
+								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+							}
+
+							// Send initial `BlockFinalized`
+							self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
+							break
 						},
 						Event::BlockFinalized(block) => _ = self.block_finalized(&block).await,
 						Event::ExternalRequest(request) => self.handle_external_request(request)
