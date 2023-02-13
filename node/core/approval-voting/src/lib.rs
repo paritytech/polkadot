@@ -1495,10 +1495,6 @@ async fn handle_approved_ancestor<Context>(
 			);
 			entry_span.add_uint_tag("unapproved-candidates", unapproved.len() as u64);
 			for candidate_hash in unapproved {
-				let mut candidate_span = entry_span
-					.child("load-candidate-entry")
-					.with_stage(jaeger::Stage::ApprovalChecking);
-				candidate_span.add_string_tag("candidate-hash", format!("{:?}", candidate_hash));
 				match db.load_candidate_entry(&candidate_hash)? {
 					None => {
 						gum::warn!(
