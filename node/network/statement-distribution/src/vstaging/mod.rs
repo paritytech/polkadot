@@ -25,8 +25,9 @@ use polkadot_node_network_protocol::{
 	grid_topology::{RequiredRouting, SessionGridTopology},
 	peer_set::ValidationVersion,
 	request_response::{
+		incoming::OutgoingResponse,
 		vstaging::{AttestedCandidateRequest, AttestedCandidateResponse},
-		IncomingRequest, Requests, incoming::OutgoingResponse,
+		IncomingRequest, Requests,
 	},
 	vstaging::{self as protocol_vstaging, StatementFilter},
 	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
@@ -115,8 +116,7 @@ const COST_INACCURATE_ADVERTISEMENT: Rep =
 
 const COST_INVALID_REQUEST_BITFIELD_SIZE: Rep =
 	Rep::CostMajor("Attested candidate request bitfields have wrong size");
-const COST_UNEXPECTED_REQUEST: Rep =
-	Rep::CostMajor("Unexpected ttested candidate request");
+const COST_UNEXPECTED_REQUEST: Rep = Rep::CostMajor("Unexpected ttested candidate request");
 
 const BENEFIT_VALID_RESPONSE: Rep = Rep::BenefitMajor("Peer Answered Candidate Request");
 const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
@@ -2537,10 +2537,7 @@ pub(crate) async fn answer_request<Context>(
 	// TODO [now]: wire this up with something like the legacy_v1 `responder` running in the background
 	// to bound the amount of parallel requests we serve.
 
-	let AttestedCandidateRequest {
-		candidate_hash,
-		ref mask,
-	} = &request.payload;
+	let AttestedCandidateRequest { candidate_hash, ref mask } = &request.payload;
 
 	let confirmed = match state.candidates.get_confirmed(&candidate_hash) {
 		None => return, // drop request, candidate not known.
@@ -2567,7 +2564,9 @@ pub(crate) async fn answer_request<Context>(
 		Some(d) => d,
 	};
 
-	let group_size = per_session.groups.get(confirmed.group_index())
+	let group_size = per_session
+		.groups
+		.get(confirmed.group_index())
 		.expect("group from session's candidate always known; qed")
 		.len();
 
@@ -2579,7 +2578,7 @@ pub(crate) async fn answer_request<Context>(
 			sent_feedback: None,
 		});
 
-		return;
+		return
 	}
 
 	// check peer is allowed to request the candidate (i.e. we've sent them a manifest)
@@ -2590,7 +2589,7 @@ pub(crate) async fn answer_request<Context>(
 		}) {
 			if local_validator.grid_tracker.can_request(validator_id, *candidate_hash) {
 				can_request = true;
-				break;
+				break
 			}
 		}
 
@@ -2601,7 +2600,7 @@ pub(crate) async fn answer_request<Context>(
 				sent_feedback: None,
 			});
 
-			return;
+			return
 		}
 	}
 
@@ -2615,12 +2614,16 @@ pub(crate) async fn answer_request<Context>(
 	let response = AttestedCandidateResponse {
 		candidate_receipt: (&**confirmed.candidate_receipt()).clone(),
 		persisted_validation_data: confirmed.persisted_validation_data().clone(),
-		statements: relay_parent_state.statement_store.group_statements(
-			&per_session.groups,
-			confirmed.group_index(),
-			*candidate_hash,
-			&and_mask,
-		).map(|s| s.as_unchecked().clone()).collect()
+		statements: relay_parent_state
+			.statement_store
+			.group_statements(
+				&per_session.groups,
+				confirmed.group_index(),
+				*candidate_hash,
+				&and_mask,
+			)
+			.map(|s| s.as_unchecked().clone())
+			.collect(),
 	};
 
 	request.send_response(response);

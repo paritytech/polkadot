@@ -475,11 +475,7 @@ impl GridTracker {
 	}
 
 	/// Whether a validator can request a manifest from us.
-	pub fn can_request(
-		&self,
-		validator: ValidatorIndex,
-		candidate_hash: CandidateHash,
-	) -> bool {
+	pub fn can_request(&self, validator: ValidatorIndex, candidate_hash: CandidateHash) -> bool {
 		self.confirmed_backed.get(&candidate_hash).map_or(false, |c| {
 			c.has_sent_manifest_to(validator) && !c.has_received_manifest_from(validator)
 		})
