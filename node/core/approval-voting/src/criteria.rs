@@ -30,6 +30,7 @@ use sp_application_crypto::ByteArray;
 use merlin::Transcript;
 use schnorrkel::vrf::VRFInOut;
 
+use itertools::Itertools;
 use std::collections::{hash_map::Entry, HashMap};
 
 use super::LOG_TARGET;
@@ -140,6 +141,7 @@ fn relay_vrf_modulo_cores(
 		.chunks_exact(4)
 		.take(num_samples as usize)
 		.map(move |sample| CoreIndex(u32::from_le_bytes(clone_into_array(&sample)) % max_cores))
+		.unique()
 		.collect::<Vec<CoreIndex>>()
 }
 
@@ -403,7 +405,7 @@ fn compute_relay_vrf_modulo_assignments(
 						?assigned_cores,
 						?validator_index,
 						tranche = 0,
-						"RelayVRFModulo Assignment."
+						"RelayVRFModuloCompact Assignment."
 					);
 
 					Some(assigned_cores_transcript(assigned_cores))
@@ -584,10 +586,24 @@ pub(crate) fn check_assignment_cert(
 
 			let resulting_cores = relay_vrf_modulo_cores(&vrf_in_out, *sample + 1, config.n_cores);
 
-			// Ensure that the `vrf_in_out` actually gives us the claimed cores.
-			if resulting_cores == claimed_core_indices {
+			// TODO: Enforce that all claimable cores are claimed. Currently validators can opt out of checking specific cores.
+			// This is similar to how validator can opt out and not send assignments in the first place.
+			// However it can happen that malicious nodes modify the assignment and remove some of the claimed cores from it,
+			// but this shouldnt be a problem as we will eventually receive the original assignment assuming 1/3 malicious.
+			//
+			// Ensure that the `vrf_in_out` actually includes all of the claimed cores.
+			if claimed_core_indices
+				.iter()
+				.fold(true, |cores_match, core| cores_match & resulting_cores.contains(core))
+			{
 				Ok(0)
 			} else {
+				gum::debug!(
+					target: LOG_TARGET,
+					?resulting_cores,
+					?claimed_core_indices,
+					"Assignment claimed cores mismatch",
+				);
 				Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
 			}
 		},
@@ -605,10 +621,17 @@ pub(crate) fn check_assignment_cert(
 				)
 				.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
 
+			let core = relay_vrf_modulo_core(&vrf_in_out, config.n_cores);
 			// ensure that the `vrf_in_out` actually gives us the claimed core.
-			if relay_vrf_modulo_core(&vrf_in_out, config.n_cores) == claimed_core_indices[0] {
+			if core == claimed_core_indices[0] {
 				Ok(0)
 			} else {
+				gum::debug!(
+					target: LOG_TARGET,
+					?core,
+					?claimed_core_indices,
+					"Assignment claimed cores mismatch",
+				);
 				Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
 			}
 		},
