@@ -323,7 +323,7 @@ fn try_import_the_same_assignment() {
 		// send the assignment related to `hash`
 		let validator_index = ValidatorIndex(0);
 		let cert = fake_assignment_cert(hash, validator_index);
-		let assignments = vec![(cert.clone(), vec![0u32])];
+		let assignments = vec![(cert.clone(), 0u32)];
 
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
 		send_message_from_peer(overseer, &peer_a, msg).await;
@@ -335,11 +335,10 @@ fn try_import_the_same_assignment() {
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment,
-				claimed_candidate_indices,
+				0u32,
 				tx,
 			)) => {
 				assert_eq!(assignment, cert);
-				assert_eq!(claimed_candidate_indices, vec![0u32]);
 				tx.send(AssignmentCheckResult::Accepted).unwrap();
 			}
 		);
@@ -411,7 +410,7 @@ fn spam_attack_results_in_negative_reputation_change() {
 			.map(|candidate_index| {
 				let validator_index = ValidatorIndex(candidate_index as u32);
 				let cert = fake_assignment_cert(hash_b, validator_index);
-				(cert, vec![candidate_index as u32])
+				(cert, candidate_index as u32)
 			})
 			.collect();
 
@@ -493,7 +492,7 @@ fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 		let cert = fake_assignment_cert(hash, validator_index);
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), vec![candidate_index]),
+			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), candidate_index),
 		)
 		.await;
 
@@ -523,7 +522,7 @@ fn peer_sending_us_the_same_we_just_sent_them_is_ok() {
 
 		// but if someone else is sending it the same assignment
 		// the peer could send us it as well
-		let assignments = vec![(cert, vec![candidate_index])];
+		let assignments = vec![(cert, candidate_index)];
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments);
 		send_message_from_peer(overseer, peer, msg.clone()).await;
 
@@ -571,7 +570,7 @@ fn import_approval_happy_path() {
 		let cert = fake_assignment_cert(hash, validator_index);
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::DistributeAssignment(cert, vec![candidate_index]),
+			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index),
 		)
 		.await;
 
@@ -669,7 +668,7 @@ fn import_approval_bad() {
 		expect_reputation_change(overseer, &peer_b, COST_UNEXPECTED_MESSAGE).await;
 
 		// now import an assignment from peer_b
-		let assignments = vec![(cert.clone(), vec![candidate_index])];
+		let assignments = vec![(cert.clone(), candidate_index)];
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments);
 		send_message_from_peer(overseer, &peer_b, msg).await;
 
@@ -677,11 +676,11 @@ fn import_approval_bad() {
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment,
-				candidate_indices,
+				i,
 				tx,
 			)) => {
 				assert_eq!(assignment, cert);
-				assert_eq!(candidate_indices[0], candidate_index);
+				assert_eq!(i, candidate_index);
 				tx.send(AssignmentCheckResult::Accepted).unwrap();
 			}
 		);
@@ -826,11 +825,9 @@ fn update_peer_view() {
 		let cert_a = fake_assignment_cert(hash_a, ValidatorIndex(0));
 		let cert_b = fake_assignment_cert(hash_b, ValidatorIndex(0));
 
-		overseer_send(overseer, ApprovalDistributionMessage::DistributeAssignment(cert_a, vec![0]))
-			.await;
+		overseer_send(overseer, ApprovalDistributionMessage::DistributeAssignment(cert_a, 0)).await;
 
-		overseer_send(overseer, ApprovalDistributionMessage::DistributeAssignment(cert_b, vec![0]))
-			.await;
+		overseer_send(overseer, ApprovalDistributionMessage::DistributeAssignment(cert_b, 0)).await;
 
 		// connect a peer
 		setup_peer_with_view(overseer, peer, view![hash_a]).await;
@@ -882,7 +879,7 @@ fn update_peer_view() {
 
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::DistributeAssignment(cert_c.clone(), vec![0]),
+			ApprovalDistributionMessage::DistributeAssignment(cert_c.clone(), 0),
 		)
 		.await;
 
@@ -966,7 +963,7 @@ fn import_remotely_then_locally() {
 		let validator_index = ValidatorIndex(0);
 		let candidate_index = 0u32;
 		let cert = fake_assignment_cert(hash, validator_index);
-		let assignments = vec![(cert.clone(), vec![candidate_index])];
+		let assignments = vec![(cert.clone(), candidate_index)];
 		let msg = protocol_v1::ApprovalDistributionMessage::Assignments(assignments.clone());
 		send_message_from_peer(overseer, peer, msg).await;
 
@@ -975,11 +972,11 @@ fn import_remotely_then_locally() {
 			overseer_recv(overseer).await,
 			AllMessages::ApprovalVoting(ApprovalVotingMessage::CheckAndImportAssignment(
 				assignment,
-				candidate_indices,
+				i,
 				tx,
 			)) => {
 				assert_eq!(assignment, cert);
-				assert_eq!(candidate_indices[0], candidate_index);
+				assert_eq!(i, candidate_index);
 				tx.send(AssignmentCheckResult::Accepted).unwrap();
 			}
 		);
@@ -989,7 +986,7 @@ fn import_remotely_then_locally() {
 		// import the same assignment locally
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::DistributeAssignment(cert, vec![candidate_index]),
+			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_index),
 		)
 		.await;
 
@@ -1061,7 +1058,7 @@ fn sends_assignments_even_when_state_is_approved() {
 
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), vec![candidate_index]),
+			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), candidate_index),
 		)
 		.await;
 
@@ -1239,7 +1236,7 @@ fn propagates_locally_generated_assignment_to_both_dimensions() {
 
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), vec![candidate_index]),
+			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), candidate_index),
 		)
 		.await;
 
@@ -1487,7 +1484,7 @@ fn propagates_to_required_after_connect() {
 
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), vec![candidate_index]),
+			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), candidate_index),
 		)
 		.await;
 
@@ -1612,7 +1609,7 @@ fn sends_to_more_peers_after_getting_topology() {
 
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), vec![candidate_index]),
+			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), candidate_index),
 		)
 		.await;
 
@@ -1771,7 +1768,7 @@ fn originator_aggression_l1() {
 
 		overseer_send(
 			overseer,
-			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), vec![candidate_index]),
+			ApprovalDistributionMessage::DistributeAssignment(cert.clone(), candidate_index),
 		)
 		.await;
 
