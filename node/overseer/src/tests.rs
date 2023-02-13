@@ -762,6 +762,178 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 	});
 }
 
+#[test]
+fn do_not_send_events_before_initial_major_sync_is_complete() {
+	let spawner = sp_core::testing::TaskExecutor::new();
+
+	executor::block_on(async move {
+		// Two events which will be fired BEFORE initial full sync
+		let imported_block_before_sync =
+			BlockInfo { hash: Hash::random(), parent_hash: Hash::random(), number: 1 };
+
+		// And two events which will be fired AFTER initial full sync
+		let imported_block_after_sync =
+			BlockInfo { hash: Hash::random(), parent_hash: Hash::random(), number: 2 };
+
+		let (tx_5, mut rx_5) = metered::channel(64);
+
+		// Prepare overseer future
+		let is_syncing = std::sync::Arc::new(std::sync::Mutex::new(true));
+		let (overseer, handle) = dummy_overseer_builder(
+			spawner,
+			MockSupportsParachains,
+			None,
+			MajorSyncOracle::new(Box::new(PuppetOracle { state: is_syncing.clone() })),
+		)
+		.unwrap()
+		.replace_candidate_backing(move |_| TestSubsystem6(tx_5))
+		.build()
+		.unwrap();
+
+		// Get overseer future
+		let mut handle = Handle::new(handle);
+		let overseer_fut = overseer.run_inner().fuse();
+		pin_mut!(overseer_fut);
+
+		let mut ss5_results = Vec::new();
+
+		// Generate 'block imported' and 'block finalized' before initial sync is complete - these must be ignored
+		handle.block_imported(imported_block_before_sync.clone()).await;
+		handle.block_finalized(imported_block_before_sync.clone()).await;
+
+		loop {
+			select! {
+				_ = overseer_fut => {
+					assert!(false, "Overseer should not exit");
+				},
+				res = rx_5.next().timeout(Duration::from_millis(500)).fuse() => {
+					assert_matches!(res, None);
+					break;
+				}
+			}
+		}
+
+		// Switch the oracle state - initial sync is completed
+		*is_syncing.lock().unwrap() = false;
+
+		// Generate two more events - these must not be ignored
+		handle.block_finalized(imported_block_after_sync.clone()).await;
+		handle.block_imported(imported_block_after_sync.clone()).await;
+
+		let expected_heartbeats = vec![
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: imported_block_after_sync.hash,
+				number: imported_block_after_sync.number,
+				span: Arc::new(jaeger::Span::Disabled),
+				status: LeafStatus::Fresh,
+			})),
+			OverseerSignal::BlockFinalized(
+				imported_block_after_sync.hash,
+				imported_block_after_sync.number,
+			),
+		];
+
+		loop {
+			select! {
+				res = overseer_fut => {
+					assert!(res.is_ok());
+					break;
+				},
+				res = rx_5.next() => {
+					if let Some(res) = dbg!(res) {
+						ss5_results.push(res);
+					}
+				}
+			}
+
+			if ss5_results.len() == expected_heartbeats.len() {
+				handle.stop().await;
+			}
+		}
+
+		assert_eq!(ss5_results.len(), expected_heartbeats.len());
+
+		for expected in expected_heartbeats {
+			assert!(ss5_results.contains(&expected));
+		}
+	});
+}
+
+#[test]
+fn active_leaves_is_sent_on_stalled_finality() {
+	let spawner = sp_core::testing::TaskExecutor::new();
+
+	let (tx_5, mut rx_5) = metered::channel(64);
+	let is_syncing = std::sync::Arc::new(std::sync::Mutex::new(true));
+
+	// Prepare overseer
+	let (overseer, handle) = dummy_overseer_builder(
+		spawner,
+		MockSupportsParachains,
+		None,
+		MajorSyncOracle::new(Box::new(PuppetOracle { state: is_syncing.clone() })),
+	)
+	.unwrap()
+	.replace_candidate_backing(move |_| TestSubsystem6(tx_5))
+	.build()
+	.unwrap();
+
+	// Prepare overseer future
+	let mut handle = Handle::new(handle);
+	let overseer_fut = overseer.run_inner().fuse();
+	pin_mut!(overseer_fut);
+
+	let test = async move {
+		// Simulate one block received via sync
+		let finalized_block_after_sync =
+			BlockInfo { hash: Hash::random(), parent_hash: Hash::random(), number: 1 };
+
+		let mut ss5_results = Vec::new();
+
+		// Switch the oracle state - initial sync is completed
+		*is_syncing.lock().unwrap() = false;
+
+		// Generate 'block imported' event which simulates end of sync
+		handle.block_finalized(finalized_block_after_sync.clone()).await;
+
+		let expected_heartbeats = vec![
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: finalized_block_after_sync.hash,
+				number: finalized_block_after_sync.number,
+				span: Arc::new(jaeger::Span::Disabled),
+				status: LeafStatus::Fresh,
+			})),
+			OverseerSignal::BlockFinalized(
+				finalized_block_after_sync.hash,
+				finalized_block_after_sync.number,
+			),
+		];
+
+		loop {
+			let res = rx_5.next().timeout(Duration::from_millis(100)).await;
+			assert_matches!(res, Some(res) => {
+				if let Some(res) = dbg!(res) {
+					ss5_results.push(res);
+				}
+			});
+
+			if ss5_results.len() == expected_heartbeats.len() {
+				handle.stop().await;
+				break
+			}
+		}
+
+		assert_eq!(ss5_results.len(), expected_heartbeats.len());
+
+		for expected in expected_heartbeats {
+			assert!(ss5_results.contains(&expected));
+		}
+	};
+
+	let (res, _) = executor::block_on(futures::future::join(overseer_fut, test));
+	assert_matches!(res, Ok(()));
+}
+
 #[derive(Clone)]
 struct CounterSubsystem {
 	stop_signals_received: Arc<atomic::AtomicUsize>,
@@ -953,6 +1125,20 @@ fn test_dispute_distribution_msg() -> DisputeDistributionMessage {
 
 fn test_chain_selection_msg() -> ChainSelectionMessage {
 	ChainSelectionMessage::Approved(Default::default())
+}
+
+struct PuppetOracle {
+	pub state: std::sync::Arc<std::sync::Mutex<bool>>,
+}
+
+impl SyncOracle for PuppetOracle {
+	fn is_major_syncing(&self) -> bool {
+		*self.state.lock().unwrap()
+	}
+
+	fn is_offline(&self) -> bool {
+		false
+	}
 }
 
 // Checks that `stop`, `broadcast_signal` and `broadcast_message` are implemented correctly.
