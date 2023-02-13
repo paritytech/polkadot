@@ -664,8 +664,6 @@ pub fn run() -> Result<()> {
 			let task_manager = TaskManager::new(runner.config().tokio_handle.clone(), *registry)
 				.map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
 
-			let info_provider = timestamp_with_babe_info(6000);
-
 			ensure_dev(chain_spec).map_err(Error::Other)?;
 
 			#[cfg(feature = "kusama-native")]
@@ -673,7 +671,7 @@ pub fn run() -> Result<()> {
 				return runner.async_run(|_| {
 					Ok((
 						cmd.run::<service::kusama_runtime::Block, HostFunctionsOf<service::KusamaExecutorDispatch>, _>(
-							Some(info_provider)
+							Some(timestamp_with_babe_info(service::kusama_runtime::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -686,7 +684,7 @@ pub fn run() -> Result<()> {
 				return runner.async_run(|_| {
 					Ok((
 						cmd.run::<service::westend_runtime::Block, HostFunctionsOf<service::WestendExecutorDispatch>, _>(
-							Some(info_provider)
+							Some(timestamp_with_babe_info(service::westend_runtime::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -699,7 +697,7 @@ pub fn run() -> Result<()> {
 				return runner.async_run(|_| {
 					Ok((
 						cmd.run::<service::polkadot_runtime::Block, HostFunctionsOf<service::PolkadotExecutorDispatch>, _>(
-							Some(info_provider)
+							Some(timestamp_with_babe_info(service::polkadot_runtime::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
