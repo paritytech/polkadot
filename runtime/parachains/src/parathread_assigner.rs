@@ -16,6 +16,7 @@
 
 //! The parathread assignment pallet
 //!
+use crate::initializer::SessionChangeNotification;
 use frame_support::{
 	pallet_prelude::*,
 	traits::{Currency, ReservableCurrency},
@@ -127,53 +128,84 @@ pub mod pallet {
 		}
 	}
 
-	/**
-	*  impl<T: Config> Pallet<T> {
-	*		/// Called by the initializer to initialize the pallet.
-	*		pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-	*			Weight::zero()
-	*		}
+	impl<T: Config> Pallet<T> {
+		/// Called by the initializer to initialize the pallet.
+		pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
+			Weight::zero()
+		}
 
-	*		/// Called by the initializer to finalize the pallet.
-	*		pub(crate) fn initializer_finalize() {}
+		/// Called by the initializer to finalize the pallet.
+		pub(crate) fn initializer_finalize() {}
 
-	*		/// Called by the initializer to note that a new session has started.
-	*		pub(crate) fn initializer_on_new_session(
-	*			notification: &SessionChangeNotification<T::BlockNumber>,
-	*		) {
-	*		}
-	*  }
-	*/
+		/// Called by the initializer to note that a new session has started.
+		pub(crate) fn initializer_on_new_session(
+			notification: &SessionChangeNotification<T::BlockNumber>,
+		) {
+		}
 
-	/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#setting-transaction-fees
-	/// Returns `None` if any one of the checked arithmetic fails
-	pub fn calculate_spot_price(
-		traffic: FixedI64,
-		queue_capacity: u32,
-		queue_size: u32,
-		target_queue_utilization: Perbill,
-		variability: Perbill,
-	) -> Option<FixedI64> {
-		if queue_capacity > 0 {
-			// queue_size / queue_capacity
-			let queue_utilization =
-				FixedI64::from_rational(queue_size.into(), queue_capacity.into());
-			// queue_utilization - target_queue_utilization
-			let queue_util_diff = queue_utilization.sub(target_queue_utilization.into());
-			// queue_util_diff^2
-			if let Some(util_diff_pow) = queue_util_diff.const_checked_mul(queue_util_diff) {
-				// variability^2
-				let vpow = FixedI64::from(variability.square());
-				// variability^2 * queue_util_diff^2
-				if let Some(vpow_times_utildiffpow) = util_diff_pow.const_checked_mul(vpow) {
-					// (variability^2 * queue_util_diff^2)/2
-					if let Some(div_by_two) = vpow_times_utildiffpow.const_checked_div(2.into()) {
-						// traffic * (1 + queue_util_diff) + div_by_two
-						return traffic.const_checked_mul(queue_util_diff.add(1.into()) + div_by_two)
+		/// The spot price multiplier. This is based on the transaction fee calculations defined in:
+		/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#setting-transaction-fees
+		///
+		/// Returns:
+		/// - A `FixedI64` in the range of 1.0 - `FixedI64::MAX`
+		/// Parameters:
+		/// - `traffic`: The previously calculated multiplier, can never go below 1.0.
+		/// - `queue_capacity`: The max size of the order book.
+		/// - `queue_size`: How many orders are currently in the order book.
+		/// - `target_queue_utilization`: How much of the queue_capacity should be ideally occupied, expressed in percentages(perbill).
+		/// - `variability`: A variability factor, i.e. how quickly the spot price adjusts. This number can be chosen by
+		///                  p/(k*(1-s)) where p is the desired ratio increase in spot price over k number of blocks.
+		///                  s is the target_queue_utilization. A concrete example: v = 0.05/(20*(1-0.25)) = 0.0033.
+		pub(crate) fn calculate_spot_price(
+			traffic: FixedI64,
+			queue_capacity: u32,
+			queue_size: u32,
+			target_queue_utilization: Perbill,
+			variability: Perbill,
+		) -> Option<FixedI64> {
+			if queue_capacity > 0 {
+				// queue_size / queue_capacity
+				let queue_utilization =
+					FixedI64::from_rational(queue_size.into(), queue_capacity.into());
+				// queue_utilization - target_queue_utilization
+				let queue_util_diff = queue_utilization.sub(target_queue_utilization.into());
+				// variability * queue_util_diff
+				if let Some(var_times_util_diff) =
+					queue_util_diff.const_checked_mul(variability.into())
+				{
+					// queue_util_diff^2
+					if let Some(util_diff_pow) = queue_util_diff.const_checked_mul(queue_util_diff)
+					{
+						// queue_util_diff^2
+						// variability^2
+						let vpow = FixedI64::from(variability.square());
+						// variability^2 * queue_util_diff^2
+						if let Some(vpow_times_utildiffpow) = util_diff_pow.const_checked_mul(vpow)
+						{
+							// (variability^2 * queue_util_diff^2)/2
+							if let Some(div_by_two) =
+								vpow_times_utildiffpow.const_checked_div(2.into())
+							{
+								// traffic * (1 + queue_util_diff) + div_by_two
+								match traffic.const_checked_mul(
+									var_times_util_diff.add(1.into()) + div_by_two,
+								) {
+									Some(t) => {
+										if t >= FixedI64::from_inner(1_000_000_000i64) {
+											return Some(t)
+										}
+										// Never return a multiplier below 1.0.
+										return Some(FixedI64::from_inner(1_000_000_000i64))
+									},
+									None => {},
+								}
+							}
+						}
 					}
 				}
 			}
+			None
+			//FixedI64::from_inner(i64::MAX)
 		}
-		None
 	}
 }
