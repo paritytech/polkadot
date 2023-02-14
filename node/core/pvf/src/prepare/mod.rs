@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright 2021-2023 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,6 +22,7 @@
 //! The pool will spawn workers in new processes and those should execute pass control to
 //! [`worker_entrypoint`].
 
+mod memory_stats;
 mod pool;
 mod queue;
 mod worker;

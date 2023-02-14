@@ -2,7 +2,7 @@ version: 2
 updates:
   - package-ecosystem: "cargo"
     directory: "/"
-    labels: ["A2-insubstantial", "B0-silent", "C1-low 📌"]
+    labels: ["A2-insubstantial", "B0-silent", "C1-low", "E2-dependencies"]
     # Handle updates for crates from github.com/paritytech/substrate manually.
     ignore:
       - dependency-name: "substrate-*"
@@ -21,6 +21,6 @@ updates:
       interval: "daily"
   - package-ecosystem: github-actions
     directory: '/'
-    labels: ["A2-insubstantial", "B0-silent", "C1-low 📌", "E2-dependencies"]
+    labels: ["A2-insubstantial", "B0-silent", "C1-low", "E2-dependencies"]
     schedule:
       interval: daily
