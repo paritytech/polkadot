@@ -60,9 +60,7 @@ pub mod pallet {
 		type Currency: ReservableCurrency<Self::AccountId>;
 
 		/// An origin which is allowed to set the base price of parathreads.
-		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
-
-		type ClaimQueueProvider: ClaimQueue;
+		type SetPriceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 
 		/// The maximum number of orders stored by the price controller. This should be bounded by the
 		/// ~atoms in the universe~ some sensible number
@@ -109,14 +107,14 @@ pub mod pallet {
 			Ok(())
 		}
 
-		/// Set the base spot price
+		/// Set the base spot price. Should only be available to the runtime's SetPriceOrigin.
 		///
 		/// Parameters:
 		/// - `origin`: Must be root
 		/// - `amount`: The price to set as the base
 		///
 		/// Errors:
-		/// -
+		/// - `BadOrigin`
 		/// Events:
 		/// - `BaseSpotPriceSet(amount)`
 		/// TODO weights
@@ -124,7 +122,7 @@ pub mod pallet {
 		#[pallet::weight(1_000)]
 		pub fn set_base_spot_price(origin: OriginFor<T>, amount: BalanceOf<T>) -> DispatchResult {
 			// Ensure the proper origin authority
-			T::ForceOrigin::ensure_origin(origin)?;
+			T::SetPriceOrigin::ensure_origin(origin)?;
 
 			BaseSpotPrice::<T>::set(amount);
 			Self::deposit_event(Event::BaseSpotPriceSet { amount });
