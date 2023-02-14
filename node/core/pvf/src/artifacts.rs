@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{error::PrepareError, host::PrepareResultSender};
+use crate::{error::PrepareError, host::PrepareResultSender, prepare::PrepareStats};
 use always_assert::always;
 use polkadot_parachain::primitives::ValidationCodeHash;
 use std::{
@@ -101,8 +101,8 @@ pub enum ArtifactState {
 		/// This is updated when we get the heads up for this artifact or when we just discover
 		/// this file.
 		last_time_needed: SystemTime,
-		/// The CPU time that was taken preparing this artifact.
-		cpu_time_elapsed: Duration,
+		/// Stats produced by successful preparation.
+		prepare_stats: PrepareStats,
 	},
 	/// A task to prepare this artifact is scheduled.
 	Preparing {
@@ -177,12 +177,12 @@ impl Artifacts {
 		&mut self,
 		artifact_id: ArtifactId,
 		last_time_needed: SystemTime,
-		cpu_time_elapsed: Duration,
+		prepare_stats: PrepareStats,
 	) {
 		// See the precondition.
 		always!(self
 			.artifacts
-			.insert(artifact_id, ArtifactState::Prepared { last_time_needed, cpu_time_elapsed })
+			.insert(artifact_id, ArtifactState::Prepared { last_time_needed, prepare_stats })
 			.is_none());
 	}
 
