@@ -818,7 +818,7 @@ where
 								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 							} else {
 								// if not - prepare one manually. All the required state should be already available.
-								let update = self.prepare_initial_active_leaves(&block).await;
+								let update = self.prepare_initial_active_leaves(&block);
 								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 							}
 
@@ -872,7 +872,7 @@ where
 		}
 	}
 
-	async fn prepare_initial_active_leaves(&self, block: &BlockInfo) -> ActiveLeavesUpdate {
+	fn prepare_initial_active_leaves(&self, block: &BlockInfo) -> ActiveLeavesUpdate {
 		// In theory we can receive `BlockImported` during initial major sync. In this case the
 		// update will be empty.
 		let span = match self.span_per_active_leaf.get(&block.hash) {
