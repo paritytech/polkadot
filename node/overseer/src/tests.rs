@@ -849,6 +849,9 @@ fn do_not_send_events_before_initial_major_sync_is_complete() {
 				span: Arc::new(jaeger::Span::Disabled),
 				status: LeafStatus::Fresh,
 			})),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(
+				imported_block_before_sync.hash,
+			)),
 			OverseerSignal::BlockFinalized(
 				imported_block_after_sync.hash,
 				imported_block_after_sync.number,

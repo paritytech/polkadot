@@ -158,6 +158,7 @@ fn main() {
 			AlwaysSupportsParachains,
 			None,
 			MajorSyncOracle::new_dummy(),
+			Vec::new(),
 		)
 		.unwrap()
 		.replace_candidate_validation(|_| Subsystem2)
