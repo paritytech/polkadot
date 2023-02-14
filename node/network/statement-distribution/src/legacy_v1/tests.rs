@@ -789,6 +789,17 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Err(polkadot_node_subsystem::RuntimeApiError::NotSupported{runtime_api_name: "async_backing_parameters"}));
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionIndexForChild(tx))
 			)
 				if r == hash_a
@@ -1007,6 +1018,17 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 				}),
 			)))
 			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Err(polkadot_node_subsystem::RuntimeApiError::NotSupported{runtime_api_name: "async_backing_parameters"}));
+			}
+		);
 
 		assert_matches!(
 			handle.recv().await,
@@ -1539,6 +1561,17 @@ fn share_prioritizes_backing_group() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Err(polkadot_node_subsystem::RuntimeApiError::NotSupported{runtime_api_name: "async_backing_parameters"}));
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionIndexForChild(tx))
 			)
 				if r == hash_a
@@ -1843,6 +1876,17 @@ fn peer_cant_flood_with_large_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+			)
+				if r == hash_a
+			=> {
+				let _ = tx.send(Err(polkadot_node_subsystem::RuntimeApiError::NotSupported{runtime_api_name: "async_backing_parameters"}));
+			}
+		);
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
 				RuntimeApiMessage::Request(r, RuntimeApiRequest::SessionIndexForChild(tx))
 			)
 				if r == hash_a
@@ -2046,6 +2090,17 @@ fn handle_multiple_seconded_statements() {
 				}),
 			)))
 			.await;
+
+		assert_matches!(
+			handle.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+			)
+				if r == relay_parent_hash
+			=> {
+				let _ = tx.send(Err(polkadot_node_subsystem::RuntimeApiError::NotSupported{runtime_api_name: "async_backing_parameters"}));
+			}
+		);
 
 		assert_matches!(
 			handle.recv().await,
