@@ -14,31 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The scheduler module for parachains and parathreads.
-//!
-//! This module is responsible for two main tasks:
-//!   - Partitioning validators into groups and assigning groups to parachains and parathreads
-//!   - Scheduling parachains and parathreads
-//!
-//! It aims to achieve these tasks with these goals in mind:
-//! - It should be possible to know at least a block ahead-of-time, ideally more,
-//!   which validators are going to be assigned to which parachains.
-//! - Parachains that have a candidate pending availability in this fork of the chain
-//!   should not be assigned.
-//! - Validator assignments should not be gameable. Malicious cartels should not be able to
-//!   manipulate the scheduler to assign themselves as desired.
-//! - High or close to optimal throughput of parachains and parathreads. Work among validator groups should be balanced.
-//!
-//! The Scheduler manages resource allocation using the concept of "Availability Cores".
-//! There will be one availability core for each parachain, and a fixed number of cores
-//! used for multiplexing parathreads. Validators will be partitioned into groups, with the same
-//! number of groups as availability cores. Validator groups will be assigned to different availability cores
-//! over time.
-
 use frame_support::pallet_prelude::*;
 use primitives::{CoreIndex, CoreOccupied, Id as ParaId, ParathreadClaim};
 use scale_info::TypeInfo;
-use sp_std::prelude::*;
 
 use crate::{
 	configuration,
@@ -52,39 +30,41 @@ pub use pallet::*;
 //#[cfg(test)]
 //mod tests;
 
+use sp_std::collections::vec_deque::VecDeque;
+
 #[derive(Encode, Decode, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 /// Bounded claim queue. Bounded by config.n_parathread_cores * config.n_lookahead
 pub struct ClaimQueue {
-	queue: Vec<Vec<ParathreadClaim>>,
-	current_idx: u32,
-	bound: u32, // Is lookahead + 1
+	queue: VecDeque<ParathreadClaim>,
 }
 
 impl Default for ClaimQueue {
 	fn default() -> Self {
-		let queue = Vec::new();
-		Self { queue, current_idx: 0, bound: 0 }
+		let queue = VecDeque::new(); // move this to scheduler
+		Self { queue }
 	}
 }
 
 impl ClaimQueue {
-	fn update(&mut self, n_lookahead: u32) {
-		self.bound = n_lookahead + 1;
-	}
+	//fn update(&mut self, n_lookahead: u32) {
+	//	self.bound = n_lookahead + 1;
+	//}
 
 	fn add_claim(&mut self, claim: ParathreadClaim) {
-		match self.queue.get_mut(self.current_idx as usize) {
-			None => {
-				self.queue[self.current_idx as usize] = vec![claim];
-			},
-			Some(v) => v.push(claim),
-		}
-		self.current_idx = (self.current_idx + 1) % self.bound;
+		self.queue.push_back(claim);
 	}
 
-	fn pop_on_idx(&mut self, idx: u32) -> Option<ParathreadClaim> {
-		self.queue.get_mut(idx as usize).and_then(|v| v.pop())
+	fn pop_claim(&mut self) -> Option<ParathreadClaim> {
+		self.queue.pop_front()
+	}
+
+	fn peek_claim(&mut self) -> Option<&ParathreadClaim> {
+		self.queue.front()
+	}
+
+	fn push_front_claim(&mut self, claim: ParathreadClaim) {
+		self.queue.push_front(claim)
 	}
 }
 
@@ -103,8 +83,27 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 		<self::Pallet<T>>::session_core_count()
 	}
 
-	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
-		<self::Pallet<T>>::pop_assignment_for_core(core_idx.0).map(Assignment::ParathreadA)
+	fn pop_assignment_for_core(_core_idx: CoreIndex) -> Option<Assignment> {
+		<self::Pallet<T>>::pop_assignment_for_core().map(Assignment::ParathreadA)
+	}
+
+	fn peek_assignment_for_core(_core_idx: CoreIndex) -> Option<Assignment> {
+		<self::Pallet<T>>::peek_assignment_for_core().map(Assignment::ParathreadA)
+	}
+
+	fn push_assignment_for_core(_core_idx: CoreIndex, assignment: Assignment) {
+		match assignment {
+			Assignment::ParathreadA(claim) => <self::Pallet<T>>::push_assignment_for_core(claim),
+			Assignment::Parachain(_) => panic!("impossible"),
+		}
+	}
+
+	fn push_front_assignment_for_core(_core_idx: CoreIndex, assignment: Assignment) {
+		match assignment {
+			Assignment::ParathreadA(claim) =>
+				<self::Pallet<T>>::push_front_assignment_for_core(claim),
+			Assignment::Parachain(_) => panic!("impossible"),
+		}
 	}
 
 	fn core_para(_core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
@@ -140,8 +139,8 @@ pub mod pallet {
 }
 
 impl<T: Config> Pallet<T> {
-	fn on_new_session(n_lookahead: u32) {
-		ParathreadQueue::<T>::mutate(|queue| queue.update(n_lookahead))
+	fn on_new_session(_n_lookahead: u32) {
+		//ParathreadQueue::<T>::mutate(|queue| queue.update(n_lookahead))
 	}
 
 	fn session_core_count() -> u32 {
@@ -149,8 +148,20 @@ impl<T: Config> Pallet<T> {
 		config.parathread_cores
 	}
 
-	fn pop_assignment_for_core(idx: u32) -> Option<ParathreadClaim> {
-		ParathreadQueue::<T>::mutate(|queue| queue.pop_on_idx(idx))
+	fn pop_assignment_for_core() -> Option<ParathreadClaim> {
+		ParathreadQueue::<T>::mutate(|queue| queue.pop_claim())
+	}
+
+	fn peek_assignment_for_core() -> Option<ParathreadClaim> {
+		ParathreadQueue::<T>::mutate(|queue| queue.peek_claim()).cloned()
+	}
+
+	fn push_assignment_for_core(claim: ParathreadClaim) {
+		ParathreadQueue::<T>::mutate(|queue| queue.add_claim(claim))
+	}
+
+	fn push_front_assignment_for_core(claim: ParathreadClaim) {
+		ParathreadQueue::<T>::mutate(|queue| queue.push_front_claim(claim))
 	}
 
 	pub(crate) fn add_claim(claim: ParathreadClaim) {

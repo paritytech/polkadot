@@ -23,6 +23,8 @@
 #![cfg_attr(feature = "runtime-benchmarks", recursion_limit = "256")]
 #![cfg_attr(not(feature = "std"), no_std)]
 
+extern crate core;
+
 pub mod configuration;
 pub mod disputes;
 pub mod dmp;

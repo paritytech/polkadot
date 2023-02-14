@@ -14,27 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The scheduler module for parachains and parathreads.
-//!
-//! This module is responsible for two main tasks:
-//!   - Partitioning validators into groups and assigning groups to parachains and parathreads
-//!   - Scheduling parachains and parathreads
-//!
-//! It aims to achieve these tasks with these goals in mind:
-//! - It should be possible to know at least a block ahead-of-time, ideally more,
-//!   which validators are going to be assigned to which parachains.
-//! - Parachains that have a candidate pending availability in this fork of the chain
-//!   should not be assigned.
-//! - Validator assignments should not be gameable. Malicious cartels should not be able to
-//!   manipulate the scheduler to assign themselves as desired.
-//! - High or close to optimal throughput of parachains and parathreads. Work among validator groups should be balanced.
-//!
-//! The Scheduler manages resource allocation using the concept of "Availability Cores".
-//! There will be one availability core for each parachain, and a fixed number of cores
-//! used for multiplexing parathreads. Validators will be partitioned into groups, with the same
-//! number of groups as availability cores. Validator groups will be assigned to different availability cores
-//! over time.
-
 use primitives::{CoreIndex, CoreOccupied, Id as ParaId};
 
 use crate::{
@@ -78,11 +57,19 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	}
 
 	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
+		Self::peek_assignment_for_core(core_idx).clone()
+	}
+
+	fn peek_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
 		<paras::Pallet<T>>::parachains()
 			.get(core_idx.0 as usize)
 			.copied()
 			.map(Assignment::Parachain)
 	}
+
+	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
+
+	fn push_front_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {}
 
 	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
 		match core_occupied {

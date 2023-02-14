@@ -790,7 +790,7 @@ fn schedule_clears_availability_cores() {
 
 		run_to_block(2, |_| None);
 
-		assert_eq!(Scheduler::scheduled().len(), 3);
+		assert_eq!(Scheduler::lookahead().len(), 3);
 
 		// cores 0, 1, and 2 should be occupied. mark them as such.
 		Scheduler::occupied(&[CoreIndex(0), CoreIndex(1), CoreIndex(2)]);
@@ -1476,3 +1476,10 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 //		assert_eq!(Scheduler::scheduled().len(), 1);
 //	});
 //}
+
+#[test]
+fn add_remove_lookahead() {
+	Scheduler::add_to_lookahead(CoreIndex(0));
+
+	assert_eq!(true, true)
+}

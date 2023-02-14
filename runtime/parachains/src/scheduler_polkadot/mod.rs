@@ -14,27 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! The scheduler module for parachains and parathreads.
-//!
-//! This module is responsible for two main tasks:
-//!   - Partitioning validators into groups and assigning groups to parachains and parathreads
-//!   - Scheduling parachains and parathreads
-//!
-//! It aims to achieve these tasks with these goals in mind:
-//! - It should be possible to know at least a block ahead-of-time, ideally more,
-//!   which validators are going to be assigned to which parachains.
-//! - Parachains that have a candidate pending availability in this fork of the chain
-//!   should not be assigned.
-//! - Validator assignments should not be gameable. Malicious cartels should not be able to
-//!   manipulate the scheduler to assign themselves as desired.
-//! - High or close to optimal throughput of parachains and parathreads. Work among validator groups should be balanced.
-//!
-//! The Scheduler manages resource allocation using the concept of "Availability Cores".
-//! There will be one availability core for each parachain, and a fixed number of cores
-//! used for multiplexing parathreads. Validators will be partitioned into groups, with the same
-//! number of groups as availability cores. Validator groups will be assigned to different availability cores
-//! over time.
-
 use frame_support::pallet_prelude::*;
 use primitives::{CoreIndex, CoreOccupied, Id as ParaId};
 use scale_info::TypeInfo;
@@ -48,6 +27,7 @@ use crate::{
 };
 
 pub use pallet::*;
+use sp_std::collections::btree_map::BTreeMap;
 
 //#[cfg(test)]
 //mod tests;
@@ -61,7 +41,7 @@ pub enum ProviderCases {
 	ParathreadsProvicer(SubIndex),
 }
 
-pub type SubIndexMapping = sp_std::collections::btree_map::BTreeMap<CoreIndex, ProviderCases>;
+pub type SubIndexMapping = BTreeMap<CoreIndex, ProviderCases>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -84,6 +64,9 @@ pub mod pallet {
 
 	#[pallet::storage]
 	pub(crate) type SubIndex<T> = StorageValue<_, SubIndexMapping, ValueQuery>;
+
+	#[pallet::storage]
+	pub(crate) type ParaIdCoreMap<T> = StorageValue<_, BTreeMap<ParaId, CoreIndex>, ValueQuery>;
 }
 
 impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
@@ -105,6 +88,26 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 			let core_idx = CoreIndex(core_idx.0 - parachains_cores);
 			<crate::scheduler_parathreads::Pallet<T>>::pop_assignment_for_core(core_idx)
 		}
+	}
+
+	fn peek_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
+		todo!()
+	}
+
+	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
+		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
+		if (0..parachains_cores).contains(&core_idx.0) {
+			<crate::scheduler_parachains::Pallet<T>>::push_assignment_for_core(core_idx, assignment)
+		} else {
+			let core_idx = CoreIndex(core_idx.0 - parachains_cores);
+			<crate::scheduler_parathreads::Pallet<T>>::push_assignment_for_core(
+				core_idx, assignment,
+			)
+		}
+	}
+
+	fn push_front_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
+		todo!()
 	}
 
 	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {

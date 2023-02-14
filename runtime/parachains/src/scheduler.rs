@@ -35,7 +35,7 @@
 //! number of groups as availability cores. Validator groups will be assigned to different availability cores
 //! over time.
 
-use frame_support::pallet_prelude::*;
+use frame_support::{pallet_prelude::*, traits::Len};
 use primitives::{
 	CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId, ScheduledCore,
 	ValidatorIndex,
@@ -94,7 +94,7 @@ pub mod pallet {
 	///   * The number of validators divided by `configuration.max_validators_per_core`.
 	#[pallet::storage]
 	#[pallet::getter(fn availability_cores)]
-	pub(crate) type AvailabilityCores<T> = StorageValue<_, Vec<Option<CoreOccupied>>, ValueQuery>;
+	pub(crate) type AvailabilityCores<T> = StorageValue<_, Vec<CoreOccupied>, ValueQuery>;
 
 	/// The block number where the session start occurred. Used to track how many group rotations have occurred.
 	///
@@ -113,13 +113,29 @@ pub mod pallet {
 	/// The value contained here will not be valid after the end of a block. Runtime APIs should be used to determine scheduled cores/
 	/// for the upcoming block.
 	#[pallet::storage]
-	#[pallet::getter(fn scheduled)]
+	//#[pallet::getter(fn scheduled)]
 	pub(crate) type Scheduled<T> = StorageValue<_, Vec<CoreAssignment>, ValueQuery>;
 	// sorted ascending by CoreIndex.
 
 	#[pallet::storage]
 	#[pallet::getter(fn lookahead)]
 	pub(crate) type Lookahead<T> = StorageValue<_, Vec<Vec<Assignment>>, ValueQuery>;
+
+	/// This structure is used to enforce the rule that a para cannot produce more than one block per relay-chain block.
+	/// This is done by ensuring that paras are always scheduled onto the same core for one relay-chain block.
+	#[pallet::storage]
+	#[pallet::getter(fn para_core_mappping)]
+	pub(crate) type ParaCoreMapping<T> =
+		StorageValue<_, BTreeMap<ParaId, LookaheadInfo>, ValueQuery>;
+}
+
+type NumAssignmentsInLookahead = u32;
+
+#[derive(Encode, Decode, TypeInfo)]
+#[cfg_attr(test, derive(PartialEq, Debug))]
+struct LookaheadInfo {
+	core_idx: CoreIndex,
+	n_in_lookahead: NumAssignmentsInLookahead,
 }
 
 impl<T: Config> Pallet<T> {
@@ -147,13 +163,15 @@ impl<T: Config> Pallet<T> {
 		);
 		T::AssignmentProvider::on_new_session(config.scheduling_lookahead);
 
+		Self::reschedule_occupied_cores(AvailabilityCores::<T>::get());
+
 		AvailabilityCores::<T>::mutate(|cores| {
 			// clear all occupied cores.
 			for core in cores.iter_mut() {
-				*core = None;
+				*core = CoreOccupied::Free;
 			}
 
-			cores.resize(n_cores as _, None);
+			cores.resize(n_cores as _, CoreOccupied::Free);
 		});
 
 		// shuffle validators into groups.
@@ -196,29 +214,35 @@ impl<T: Config> Pallet<T> {
 
 	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
 	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
-	pub(crate) fn free_cores(just_freed_cores: BTreeMap<CoreIndex, FreedReason>) {
+	pub(crate) fn update_lookahead_free_cores(just_freed_cores: BTreeMap<CoreIndex, FreedReason>) {
+		Self::update_lookahead(just_freed_cores);
+
 		AvailabilityCores::<T>::mutate(|cores| {
-			for (freed_index, freed_reason) in just_freed_cores {
-				if (freed_index.0 as usize) < cores.len() {
-					match cores[freed_index.0 as usize].take() {
-						None => continue,
-						Some(CoreOccupied::Parachain) => {},
-						Some(CoreOccupied::Parathread(entry)) => match freed_reason {
-							FreedReason::Concluded => {},
-							FreedReason::TimedOut => Lookahead::<T>::mutate(|la| {
-								match la.get_mut(freed_index.0 as usize) {
-									None => la.insert(
-										freed_index.0 as usize,
-										vec![Assignment::ParathreadA(entry.claim)],
-									),
-									Some(v) => v.push(Assignment::ParathreadA(entry.claim)),
-								}
-							}),
-						},
-					}
-				}
+			for core in cores {
+				*core = CoreOccupied::Free;
 			}
-		})
+		});
+	}
+
+	fn update_lookahead(just_freed_cores: BTreeMap<CoreIndex, FreedReason>) {
+		AvailabilityCores::<T>::mutate(|cores| {
+			just_freed_cores
+				.into_iter()
+				.filter(|(freed_index, _)| (freed_index.0 as usize) < cores.len())
+				.for_each(|(freed_index, freed_reason)| match cores[freed_index.0 as usize] {
+					CoreOccupied::Free => {},
+					CoreOccupied::Parachain => {},
+					CoreOccupied::Parathread(entry) => {
+						match freed_reason {
+							FreedReason::Concluded => Self::remove_from_lookahead(
+								freed_index,
+								Assignment::ParathreadA(entry.claim),
+							),
+							FreedReason::TimedOut => {},
+						};
+					},
+				})
+		});
 	}
 
 	/// Schedule all unassigned cores, where possible. Provide a list of cores that should be considered
@@ -228,7 +252,7 @@ impl<T: Config> Pallet<T> {
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
 		now: T::BlockNumber,
 	) {
-		Self::free_cores(just_freed_cores);
+		Self::update_lookahead_free_cores(just_freed_cores);
 
 		if ValidatorGroups::<T>::get().is_empty() {
 			return
@@ -243,7 +267,7 @@ impl<T: Config> Pallet<T> {
 
 		let cores = AvailabilityCores::<T>::get();
 		// single-sweep O(n) in the number of cores.
-		for (core_index, _core) in cores.iter().enumerate().filter(|(_, ref c)| c.is_none()) {
+		for (core_index, _core) in cores.iter().enumerate().filter(|(_, ref c)| c.is_free()) {
 			let schedule_and_insert_at = {
 				// advance the iterator until just before the core index we are looking at now.
 				while prev_scheduled_in_order
@@ -292,9 +316,7 @@ impl<T: Config> Pallet<T> {
 										  to be after the most recent session start; qed",
 			);
 
-			if let Some(assignment) =
-				Lookahead::<T>::mutate(|la| la.get_mut(core_index).and_then(|v| v.pop()))
-			{
+			if let Some(assignment) = Self::read_lookahead(&Lookahead::<T>::get(), core_idx) {
 				let core_assignment = CoreAssignment {
 					core: core_idx,
 					para_id: assignment.clone().para_id(),
@@ -350,8 +372,7 @@ impl<T: Config> Pallet<T> {
 					// of the occupied iterator.
 					let _ = occupied_iter.next();
 
-					availability_cores[assignment.core.0 as usize] =
-						Some(assignment.to_core_occupied());
+					availability_cores[assignment.core.0 as usize] = assignment.to_core_occupied();
 				}
 
 				retain
@@ -365,8 +386,9 @@ impl<T: Config> Pallet<T> {
 	/// out of bounds will return `None`, as will indices of unassigned cores.
 	pub(crate) fn core_para(core_index: CoreIndex) -> Option<ParaId> {
 		let cores = AvailabilityCores::<T>::get();
-		match cores.get(core_index.0 as usize).and_then(|c| c.as_ref()) {
+		match cores.get(core_index.0 as usize) {
 			None => None,
+			Some(CoreOccupied::Free) => None,
 			Some(x) => Some(T::AssignmentProvider::core_para(core_index, x)),
 		}
 	}
@@ -438,9 +460,9 @@ impl<T: Config> Pallet<T> {
 		} else {
 			let predicate = move |core_index: CoreIndex, pending_since| {
 				match availability_cores.get(core_index.0 as usize) {
-					None => true,       // out-of-bounds, doesn't really matter what is returned.
-					Some(None) => true, // core not occupied, still doesn't really matter.
-					Some(Some(_)) => {
+					None => true, // out-of-bounds, doesn't really matter what is returned.
+					Some(CoreOccupied::Free) => true, // core not occupied, still doesn't really matter.
+					Some(_) => {
 						// core not occupied, still doesn't really matter.
 						let availability_period =
 							T::AssignmentProvider::get_availability_period(core_index);
@@ -506,5 +528,119 @@ impl<T: Config> Pallet<T> {
 		}
 
 		//T::CoreAssigners::<T>::clear(&vec);
+	}
+
+	// on new session
+	fn reschedule_occupied_cores(cores: Vec<CoreOccupied>) {
+		for (core_idx, core) in cores.iter().enumerate() {
+			match core {
+				CoreOccupied::Free => continue,
+				CoreOccupied::Parachain => continue,
+				CoreOccupied::Parathread(entry) => T::AssignmentProvider::push_assignment_for_core(
+					CoreIndex(core_idx as u32),
+					Assignment::ParathreadA(entry.claim.clone()),
+				),
+			}
+		}
+	}
+
+	//
+	// Lookahead related functions
+	//
+	fn backing_lookahead() -> u32 {
+		<configuration::Pallet<T>>::config().scheduling_lookahead
+	}
+
+	fn read_lookahead(lookahead: &[Vec<Assignment>], core_idx: CoreIndex) -> Option<&Assignment> {
+		lookahead.get(core_idx.0 as usize).and_then(|la_vec| la_vec.first())
+	}
+
+	fn fill_lookahead() {
+		let n_lookahead = Self::backing_lookahead();
+		let n_session_cores = T::AssignmentProvider::session_core_count();
+		let mut push_back_buffer = Vec::with_capacity((n_session_cores * n_lookahead) as usize);
+
+		for core_idx in 0..n_session_cores {
+			for _ in 0..n_lookahead {
+				// TODO: try to fill lookahead while lookahead is not full OR pop_assignment() returns None
+				// doesn_t work! parachains assigner never returns None...
+				// TODO: write tests for optimal allocation; check invariants
+				match Self::add_to_lookahead(CoreIndex(core_idx)) {
+					Err((_, None)) => break,                           // TODO: logging
+					Err((_, Some(tup))) => push_back_buffer.push(tup), // TODO: logging
+					Ok(_) => (),
+				}
+			}
+		}
+
+		// We could not schedule these assignments due to conflicts
+		for (core_idx, ass) in push_back_buffer.into_iter().rev() {
+			T::AssignmentProvider::push_front_assignment_for_core(core_idx, ass);
+		}
+	}
+
+	fn add_to_lookahead(
+		core_idx: CoreIndex,
+	) -> Result<(), (String, Option<(CoreIndex, Assignment)>)> {
+		match T::AssignmentProvider::pop_assignment_for_core(core_idx) {
+			None => Err(("no assignments at core_idx".to_string(), None)),
+			Some(ass) => {
+				// TODO: remove core_idx dependency
+				let lookahead_info = ParaCoreMapping::<T>::get()
+					.get(&ass.para_id())
+					.unwrap_or_else(|| &LookaheadInfo { core_idx, n_in_lookahead: 0 });
+
+				if Lookahead::<T>::get().get(lookahead_info.core_idx.0 as usize).len() as u32 >=
+					Self::backing_lookahead()
+				{
+					// If assigner is parathreads and we don't pop, we'd be stuck trying to add
+					// the same assignment again and again until the top level loop is over.
+					// We wouldn't fill any of the remaining lookahead buffer.
+					Err(("lookahead full".to_string(), Some((core_idx, ass))))
+				} else {
+					Self::insert_to_lookahead(lookahead_info.core_idx, ass);
+
+					Ok(())
+				}
+			},
+		}
+	}
+
+	fn insert_to_lookahead(lookahead_core_idx: CoreIndex, ass: Assignment) {
+		Lookahead::<T>::mutate(|la| match la.get_mut(lookahead_core_idx.0 as usize) {
+			None => la.insert(lookahead_core_idx.0 as usize, vec![ass]),
+			Some(la_vec) => la_vec.push(ass),
+		});
+
+		ParaCoreMapping::<T>::mutate(|pcm| {
+			let entry = pcm.entry(ass.para_id()).or_insert_with(|| LookaheadInfo {
+				core_idx: lookahead_core_idx,
+				n_in_lookahead: 0,
+			});
+			entry.n_in_lookahead += 1;
+		});
+	}
+
+	fn remove_from_lookahead(lookahead_core_idx: CoreIndex, assignment: Assignment) {
+		Lookahead::<T>::mutate(|la| match la.get_mut(lookahead_core_idx.0 as usize) {
+			None => return,
+			Some(la_vec) => match la_vec.iter().position(|a| a.para_id() == assignment.para_id()) {
+				None => return,
+				Some(idx) => {
+					la_vec.remove(idx);
+				},
+			},
+		});
+
+		ParaCoreMapping::<T>::mutate(|pcm| match pcm.get_mut(&assignment.para_id()) {
+			None => return,
+			Some(entry) => {
+				entry.n_in_lookahead -= 1;
+
+				if entry.n_in_lookahead <= 0 {
+					pcm.remove(&assignment.para_id());
+				}
+			},
+		});
 	}
 }

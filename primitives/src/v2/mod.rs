@@ -785,10 +785,22 @@ pub struct ParathreadEntry {
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreOccupied {
+	/// The core is not occupied.
+	Free,
 	/// A parathread.
 	Parathread(ParathreadEntry),
 	/// A parachain.
-	Parachain,
+	Parachain, // TODO: add Id here to simply interface in scheduler
+}
+
+impl CoreOccupied {
+	pub fn is_free(&self) -> bool {
+		match self {
+			Self::Free => true,
+			Self::Parachain => false,
+			Self::Parathread(_) => false,
+		}
+	}
 }
 
 /// A helper data-type for tracking validator-group rotations.

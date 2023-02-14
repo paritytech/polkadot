@@ -96,6 +96,12 @@ pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 
 	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment>;
 
+	fn peek_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment>;
+
+	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
+
+	fn push_front_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
+
 	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId;
 
 	fn get_availability_period(core_idx: CoreIndex) -> T::BlockNumber;
@@ -108,7 +114,7 @@ pub struct CoreAssignment {
 	/// The core that is assigned.
 	pub core: CoreIndex,
 	/// The unique ID of the para that is assigned to the core.
-	pub para_id: ParaId,
+	pub para_id: ParaId, // TODO: move this into AssigmentKind
 	/// The kind of the assignment.
 	pub kind: AssignmentKind,
 	/// The index of the validator group assigned to the core.

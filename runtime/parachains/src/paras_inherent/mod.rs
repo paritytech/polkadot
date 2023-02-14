@@ -459,7 +459,7 @@ impl<T: Config> Pallet<T> {
 			let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_disputed.keys());
 
 			if !freed_disputed.is_empty() {
-				<scheduler::Pallet<T>>::free_cores(freed_disputed);
+				<scheduler::Pallet<T>>::update_lookahead_free_cores(freed_disputed);
 			}
 
 			disputed_bitfield
@@ -666,7 +666,7 @@ impl<T: Config> Pallet<T> {
 			let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_disputed.keys());
 
 			if !freed_disputed.is_empty() {
-				<scheduler::Pallet<T>>::free_cores(freed_disputed.clone());
+				<scheduler::Pallet<T>>::update_lookahead_free_cores(freed_disputed.clone());
 			}
 
 			// The following 3 calls are equiv to a call to `process_bitfields`
