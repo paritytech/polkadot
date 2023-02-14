@@ -24,10 +24,13 @@ use crate::{
 	},
 	VersionedMultiLocation,
 };
-use bounded_collections::{BoundedSlice, BoundedVec, ConstU32};
 use core::convert::{TryFrom, TryInto};
 use parity_scale_codec::{self, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
+use sp_core::{
+	bounded::{BoundedSlice, BoundedVec},
+	ConstU32,
+};
 
 /// A global identifier of a data structure existing within consensus.
 ///
