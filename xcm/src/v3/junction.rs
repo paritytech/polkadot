@@ -24,8 +24,8 @@ use crate::{
 	},
 	VersionedMultiLocation,
 };
+use bounded_collections::{BoundedSlice, BoundedVec, ConstU32};
 use core::convert::{TryFrom, TryInto};
-use bounded_collections::{BoundedVec, ConstU32, BoundedSlice};
 use parity_scale_codec::{self, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
 
@@ -291,9 +291,8 @@ impl<'a> TryFrom<&'a Junction> for BoundedSlice<'a, u8, ConstU32<32>> {
 	type Error = ();
 	fn try_from(key: &'a Junction) -> Result<Self, ()> {
 		match key {
-			Junction::GeneralKey { length, data } => {
-				BoundedSlice::try_from(&data[..data.len().min(*length as usize)]).map_err(|_| ())
-			}
+			Junction::GeneralKey { length, data } =>
+				BoundedSlice::try_from(&data[..data.len().min(*length as usize)]).map_err(|_| ()),
 			_ => Err(()),
 		}
 	}
@@ -330,11 +329,14 @@ impl TryFrom<OldJunction> for Junction {
 			PalletInstance(index) => Self::PalletInstance(index),
 			GeneralIndex(id) => Self::GeneralIndex(id),
 			GeneralKey(key) => match key.len() {
-				len @ 0..=32 => Self::GeneralKey { length: len as u8, data: {
-					let mut data = [0u8; 32];
-					data[..len].copy_from_slice(&key[..]);
-					data
-				} },
+				len @ 0..=32 => Self::GeneralKey {
+					length: len as u8,
+					data: {
+						let mut data = [0u8; 32];
+						data[..len].copy_from_slice(&key[..]);
+						data
+					},
+				},
 				_ => return Err(()),
 			},
 			OnlyChild => Self::OnlyChild,
