@@ -456,9 +456,9 @@ async fn handle_precheck_pvf(
 
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
-			ArtifactState::Prepared { last_time_needed, cpu_time_elapsed } => {
+			ArtifactState::Prepared { last_time_needed, prepare_stats } => {
 				*last_time_needed = SystemTime::now();
-				let _ = result_sender.send(Ok(*cpu_time_elapsed));
+				let _ = result_sender.send(Ok(prepare_stats.clone()));
 			},
 			ArtifactState::Preparing { waiting_for_response, num_failures: _ } =>
 				waiting_for_response.push(result_sender),
@@ -725,8 +725,8 @@ async fn handle_prepare_done(
 	}
 
 	*state = match result {
-		Ok(cpu_time_elapsed) =>
-			ArtifactState::Prepared { last_time_needed: SystemTime::now(), cpu_time_elapsed },
+		Ok(prepare_stats) =>
+			ArtifactState::Prepared { last_time_needed: SystemTime::now(), prepare_stats },
 		Err(error) => {
 			let last_time_failed = SystemTime::now();
 			let num_failures = *num_failures + 1;
@@ -834,7 +834,7 @@ fn pulse_every(interval: std::time::Duration) -> impl futures::Stream<Item = ()>
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{InvalidCandidate, PrepareError};
+	use crate::{prepare::PrepareStats, InvalidCandidate, PrepareError};
 	use assert_matches::assert_matches;
 	use futures::future::BoxFuture;
 
@@ -1056,8 +1056,12 @@ mod tests {
 		let mut builder = Builder::default();
 		builder.cleanup_pulse_interval = Duration::from_millis(100);
 		builder.artifact_ttl = Duration::from_millis(500);
-		builder.artifacts.insert_prepared(artifact_id(1), mock_now, Duration::default());
-		builder.artifacts.insert_prepared(artifact_id(2), mock_now, Duration::default());
+		builder
+			.artifacts
+			.insert_prepared(artifact_id(1), mock_now, PrepareStats::default());
+		builder
+			.artifacts
+			.insert_prepared(artifact_id(2), mock_now, PrepareStats::default());
 		let mut test = builder.build();
 		let mut host = test.host_handle();
 
@@ -1129,7 +1133,7 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
-				result: Ok(Duration::default()),
+				result: Ok(PrepareStats::default()),
 			})
 			.await
 			.unwrap();
@@ -1145,7 +1149,7 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(2),
-				result: Ok(Duration::default()),
+				result: Ok(PrepareStats::default()),
 			})
 			.await
 			.unwrap();
@@ -1197,7 +1201,7 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
-				result: Ok(Duration::default()),
+				result: Ok(PrepareStats::default()),
 			})
 			.await
 			.unwrap();
@@ -1304,7 +1308,7 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(2),
-				result: Ok(Duration::default()),
+				result: Ok(PrepareStats::default()),
 			})
 			.await
 			.unwrap();
@@ -1454,7 +1458,7 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
-				result: Ok(Duration::default()),
+				result: Ok(PrepareStats::default()),
 			})
 			.await
 			.unwrap();
@@ -1630,7 +1634,7 @@ mod tests {
 		test.from_prepare_queue_tx
 			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
-				result: Ok(Duration::default()),
+				result: Ok(PrepareStats::default()),
 			})
 			.await
 			.unwrap();
