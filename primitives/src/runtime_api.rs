@@ -226,7 +226,7 @@ sp_api::decl_runtime_apis! {
 		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>;
 
 		/// Returns execution parameters for the session.
-		#[api_version(3)]
+		#[api_version(4)]
 		fn session_executor_params(session_index: SessionIndex) -> Option<vstaging::ExecutorParams>;
 	}
 }
