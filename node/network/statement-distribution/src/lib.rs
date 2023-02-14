@@ -132,6 +132,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 
 	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
 		let mut legacy_v1_state = crate::legacy_v1::State::new(self.keystore.clone());
+		let mut state = crate::vstaging::State::new(self.keystore.clone());
 
 		// Sender/Receiver for getting news from our statement fetching tasks.
 		let (v1_req_sender, mut v1_req_receiver) = mpsc::channel(1);
@@ -158,6 +159,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					let result = self
 						.handle_subsystem_message(
 							&mut ctx,
+							&mut state,
 							&mut legacy_v1_state,
 							&v1_req_sender,
 							result?,
@@ -197,6 +199,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 	async fn handle_subsystem_message<Context>(
 		&mut self,
 		ctx: &mut Context,
+		state: &mut vstaging::State,
 		legacy_v1_state: &mut legacy_v1::State,
 		v1_req_sender: &mpsc::Sender<V1RequesterMessage>,
 		message: FromOrchestra<StatementDistributionMessage>,
@@ -210,16 +213,35 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 			})) => {
 				let _timer = metrics.time_active_leaves_update();
 
-				// TODO [now]: vstaging should handle activated first
-				// because of implicit view.
+				// vstaging should handle activated first because of implicit view.
+				let mut mode = None;
+				if let Some(ref activated) = activated {
+					mode = Some(prospective_parachains_mode(ctx.sender(), activated.hash).await?);
+					vstaging::handle_active_leaves_update(
+						ctx,
+						state,
+						ActiveLeavesUpdate {
+							activated: Some(activated.clone()),
+							deactivated: vec![].into(),
+						},
+					)
+					.await?;
+				}
+
+				vstaging::handle_active_leaves_update(
+					ctx,
+					state,
+					ActiveLeavesUpdate { activated: None, deactivated: deactivated.clone() },
+				)
+				.await?;
+
 				for deactivated in deactivated {
 					crate::legacy_v1::handle_deactivate_leaf(legacy_v1_state, deactivated);
 				}
 
 				if let Some(activated) = activated {
 					// Legacy, activate only if no prospective parachains support.
-					let mode = prospective_parachains_mode(ctx.sender(), activated.hash).await?;
-					if let ProspectiveParachainsMode::Disabled = mode {
+					if let Some(ProspectiveParachainsMode::Disabled) = mode {
 						crate::legacy_v1::handle_activated_leaf(ctx, legacy_v1_state, activated)
 							.await?;
 					}

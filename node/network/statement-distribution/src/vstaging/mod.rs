@@ -218,6 +218,22 @@ pub(crate) struct State {
 	request_manager: RequestManager,
 }
 
+impl State {
+	/// Create a new state.
+	pub(crate) fn new(keystore: SyncCryptoStorePtr) -> Self {
+		State {
+			implicit_view: Default::default(),
+			candidates: Default::default(),
+			per_relay_parent: HashMap::new(),
+			per_session: HashMap::new(),
+			peers: HashMap::new(),
+			keystore,
+			authorities: HashMap::new(),
+			request_manager: RequestManager::new(),
+		}
+	}
+}
+
 // For the provided validator index, if there is a connected peer controlling the given authority
 // ID, then return that peer's `PeerId`.
 fn connected_validator_peer(
@@ -627,7 +643,7 @@ async fn handle_peer_view_update<Context>(
 fn find_validator_ids<'a>(
 	known_discovery_ids: impl IntoIterator<Item = &'a AuthorityDiscoveryId>,
 	discovery_mapping: impl Fn(&AuthorityDiscoveryId) -> Option<&'a ValidatorIndex>,
-) -> impl IntoIterator<Item = ValidatorIndex> {
+) -> impl Iterator<Item = ValidatorIndex> {
 	known_discovery_ids.into_iter().filter_map(discovery_mapping).cloned()
 }
 
