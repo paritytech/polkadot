@@ -506,6 +506,7 @@ mod tests {
 	use crate::{
 		error::PrepareError,
 		host::{LENIENT_PREPARATION_TIMEOUT, PRECHECK_PREPARATION_TIMEOUT},
+		prepare::PrepareStats,
 	};
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
@@ -633,7 +634,7 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Concluded {
 			worker: w,
 			rip: false,
-			result: Ok(Duration::default()),
+			result: Ok(PrepareStats::default()),
 		});
 
 		assert_eq!(
@@ -682,7 +683,7 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Concluded {
 			worker: w1,
 			rip: false,
-			result: Ok(Duration::default()),
+			result: Ok(PrepareStats::default()),
 		});
 
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
@@ -732,7 +733,7 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Concluded {
 			worker: w1,
 			rip: false,
-			result: Ok(Duration::default()),
+			result: Ok(PrepareStats::default()),
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Kill(w1));
 	}
@@ -776,7 +777,7 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Concluded {
 			worker: w1,
 			rip: true,
-			result: Ok(Duration::default()),
+			result: Ok(PrepareStats::default()),
 		});
 
 		// Since there is still work, the queue requested one extra worker to spawn to handle the

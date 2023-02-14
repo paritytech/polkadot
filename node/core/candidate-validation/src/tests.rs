@@ -411,7 +411,7 @@ impl ValidationBackend for MockValidateCandidateBackend {
 	async fn precheck_pvf(
 		&mut self,
 		_pvf_with_params: PvfWithExecutorParams,
-	) -> Result<Duration, PrepareError> {
+	) -> Result<PrepareStats, PrepareError> {
 		unreachable!()
 	}
 }
@@ -998,11 +998,11 @@ fn pov_decompression_failure_is_invalid() {
 }
 
 struct MockPreCheckBackend {
-	result: Result<Duration, PrepareError>,
+	result: Result<PrepareStats, PrepareError>,
 }
 
 impl MockPreCheckBackend {
-	fn with_hardcoded_result(result: Result<Duration, PrepareError>) -> Self {
+	fn with_hardcoded_result(result: Result<PrepareStats, PrepareError>) -> Self {
 		Self { result }
 	}
 }
@@ -1021,7 +1021,7 @@ impl ValidationBackend for MockPreCheckBackend {
 	async fn precheck_pvf(
 		&mut self,
 		_pvf_with_params: PvfWithExecutorParams,
-	) -> Result<Duration, PrepareError> {
+	) -> Result<PrepareStats, PrepareError> {
 		self.result.clone()
 	}
 }
@@ -1038,7 +1038,7 @@ fn precheck_works() {
 
 	let (check_fut, check_result) = precheck_pvf(
 		ctx.sender(),
-		MockPreCheckBackend::with_hardcoded_result(Ok(Duration::default())),
+		MockPreCheckBackend::with_hardcoded_result(Ok(PrepareStats::default())),
 		relay_parent,
 		validation_code_hash,
 	)
@@ -1100,7 +1100,7 @@ fn precheck_invalid_pvf_blob_compression() {
 
 	let (check_fut, check_result) = precheck_pvf(
 		ctx.sender(),
-		MockPreCheckBackend::with_hardcoded_result(Ok(Duration::default())),
+		MockPreCheckBackend::with_hardcoded_result(Ok(PrepareStats::default())),
 		relay_parent,
 		validation_code_hash,
 	)
