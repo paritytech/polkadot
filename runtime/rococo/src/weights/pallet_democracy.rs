@@ -259,4 +259,34 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
+	fn set_external_metadata() -> Weight {
+		Weight::from_parts(17_946_000, 3193)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
+	fn clear_external_metadata() -> Weight {
+		Weight::from_parts(15_990_000, 3155)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
+	fn set_proposal_metadata() -> Weight {
+		Weight::from_parts(37_778_000, 19763)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
+	fn clear_proposal_metadata() -> Weight {
+		Weight::from_parts(34_737_000, 19725)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
+	fn set_referendum_metadata() -> Weight {
+		Weight::from_parts(13_463_000, 2566)
+			.saturating_add(T::DbWeight::get().reads(1_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
+	fn clear_referendum_metadata() -> Weight {
+		Weight::from_parts(18_399_000, 5204)
+			.saturating_add(T::DbWeight::get().reads(2_u64))
+			.saturating_add(T::DbWeight::get().writes(1_u64))
+	}
 }

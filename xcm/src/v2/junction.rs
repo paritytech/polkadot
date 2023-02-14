@@ -18,9 +18,9 @@
 
 use super::{BodyId, BodyPart, Junctions, MultiLocation, NetworkId};
 use crate::v3::Junction as NewJunction;
+use bounded_collections::{ConstU32, WeakBoundedVec};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use sp_core::{bounded::WeakBoundedVec, ConstU32};
 
 /// A single item in a path to describe the relative location of a consensus system.
 ///

@@ -12,6 +12,8 @@
 
 {%- if pr.meta.T and pr.meta.T.value == 1 and not pr.title is containing("ompanion") %}
 - {{ m_c::change(c=pr) }}
+{%- else %}
+<!-- EXCLUDED PR#{{pr.number}} - {{pr.html_url}} -->
 {%- endif -%}
 {%- endif -%}
 
