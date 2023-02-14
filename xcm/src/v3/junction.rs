@@ -379,3 +379,30 @@ impl Junction {
 		}
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use alloc::vec;
+
+	#[test]
+	fn junction_round_trip_works() {
+		let j = Junction::GeneralKey { length: 32, data: [1u8; 32] };
+		let k = Junction::try_from(OldJunction::try_from(j).unwrap()).unwrap();
+		assert_eq!(j, k);
+
+		let j = OldJunction::GeneralKey(vec![1u8; 32].try_into().unwrap());
+		let k = OldJunction::try_from(Junction::try_from(j.clone()).unwrap()).unwrap();
+		assert_eq!(j, k);
+
+		let j = Junction::from(BoundedVec::try_from(vec![1u8, 2, 3, 4]).unwrap());
+		let k = Junction::try_from(OldJunction::try_from(j).unwrap()).unwrap();
+		assert_eq!(j, k);
+		let s: BoundedSlice<_, _> = (&k).try_into().unwrap();
+		assert_eq!(s, &[1u8, 2, 3, 4][..]);
+
+		let j = OldJunction::GeneralKey(vec![1u8, 2, 3, 4].try_into().unwrap());
+		let k = OldJunction::try_from(Junction::try_from(j.clone()).unwrap()).unwrap();
+		assert_eq!(j, k);
+	}
+}
