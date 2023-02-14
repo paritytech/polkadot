@@ -63,17 +63,20 @@ pub mod pallet {
 	}
 
 	#[derive(Encode, Decode, Debug, TypeInfo, MaxEncodedLen, Eq, PartialEq, Clone)]
-	pub struct CoreOrder<T: Config> {
-		lifetime: u32,
-		account_id: T::AccountId,
+	pub struct CoreOrder {
 		exotic_id: ParaId,
 		scheduled_collator: ScheduledCollator,
-		max_amount: BalanceOf<T>,
 	}
 
 	#[pallet::storage]
 	#[pallet::getter(fn get_base_spot_price)]
 	pub(super) type BaseSpotPrice<T: Config> = StorageValue<_, BalanceOf<T>, ValueQuery>;
+
+	// The order storage. A simple bounded vec will do for now but this can be changed to a
+	// message queue at a later point.
+	#[pallet::storage]
+	pub type OrderBook<T> =
+		StorageValue<_, BoundedVec<CoreOrder, <T as Config>::MaxOrders>, ValueQuery>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
