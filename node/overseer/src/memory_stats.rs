@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use tikv_jemalloc_ctl::{epoch, stats, Error};
+use tikv_jemalloc_ctl::stats;
 
 #[derive(Clone)]
 pub struct MemoryAllocationTracker {
@@ -24,15 +24,15 @@ pub struct MemoryAllocationTracker {
 }
 
 impl MemoryAllocationTracker {
-	pub fn new() -> Result<Self, Error> {
+	pub fn new() -> Result<Self, tikv_jemalloc_ctl::Error> {
 		Ok(Self {
-			epoch: epoch::mib()?,
+			epoch: tikv_jemalloc_ctl::epoch::mib()?,
 			allocated: stats::allocated::mib()?,
 			resident: stats::resident::mib()?,
 		})
 	}
 
-	pub fn snapshot(&self) -> Result<MemoryAllocationSnapshot, Error> {
+	pub fn snapshot(&self) -> Result<MemoryAllocationSnapshot, tikv_jemalloc_ctl::Error> {
 		// update stats by advancing the allocation epoch
 		self.epoch.advance()?;
 
