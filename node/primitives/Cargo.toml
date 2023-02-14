@@ -6,7 +6,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-bounded-vec = "0.6"
+bounded-vec = "0.7"
 futures = "0.3.21"
 polkadot-primitives = { path = "../../primitives" }
 parity-scale-codec = { version = "3.3.0", default-features = false, features = ["derive"] }

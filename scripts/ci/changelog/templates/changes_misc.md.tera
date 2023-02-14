@@ -7,13 +7,15 @@
         {%- if pr.meta.B.value == 0 -%}
         {#- We skip silent ones -#}
         {%- else -%}
-            {%- if pr.meta.T and pr.meta.T.value == 0 %}
+            {%- if pr.meta.T and pr.meta.T.value > 2   %}
 {%- set_global misc_count = misc_count + 1 -%}
             {%- endif -%}
         {% endif -%}
     {% endif -%}
 {% endfor -%}
 
+<!-- Found {{ misc_count }} misc PRs -->
+{%- if misc_count > 0 %}
 ### Misc
 
 {% if misc_count > 10 %}
@@ -27,7 +29,7 @@ There are other misc. changes. You can expand the list below to view them all.
         {%- if pr.meta.B.value == 0 %}
         {#- We skip silent ones -#}
         {%- else -%}
-            {%- if pr.meta.T and pr.meta.T.value == 0 %}
+            {%- if pr.meta.T and pr.meta.T.value > 2   %}
 - {{ m_c::change(c=pr) }}
             {%- endif -%}
         {% endif -%}
@@ -36,4 +38,5 @@ There are other misc. changes. You can expand the list below to view them all.
 
 {% if misc_count > 10 %}
 </details>
+{% endif -%}
 {% endif -%}

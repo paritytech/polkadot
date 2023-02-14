@@ -24,7 +24,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, PrepareError, Pvf, ValidationError, ValidationHost,
+	InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats, Pvf, ValidationError,
+	ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -654,7 +655,7 @@ trait ValidationBackend {
 		validation_result
 	}
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError>;
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<PrepareStats, PrepareError>;
 }
 
 #[async_trait]
@@ -680,7 +681,7 @@ impl ValidationBackend for ValidationHost {
 			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
 	}
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<Duration, PrepareError> {
+	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<PrepareStats, PrepareError> {
 		let (tx, rx) = oneshot::channel();
 		if let Err(err) = self.precheck_pvf(pvf, tx).await {
 			// Return an IO error if there was an error communicating with the host.
