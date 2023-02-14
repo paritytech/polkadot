@@ -788,11 +788,11 @@ fn do_not_send_events_before_initial_major_sync_is_complete() {
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	executor::block_on(async move {
-		// Two events which will be fired BEFORE initial full sync
+		// Two events which will be fired BEFORE initial full sync for this block
 		let imported_block_before_sync =
 			BlockInfo { hash: Hash::random(), parent_hash: Hash::random(), number: 1 };
 
-		// And two events which will be fired AFTER initial full sync
+		// And two events which will be fired AFTER initial full sync for this block
 		let imported_block_after_sync =
 			BlockInfo { hash: Hash::random(), parent_hash: Hash::random(), number: 2 };
 
@@ -823,6 +823,7 @@ fn do_not_send_events_before_initial_major_sync_is_complete() {
 		handle.block_imported(imported_block_before_sync.clone()).await;
 		handle.block_finalized(imported_block_before_sync.clone()).await;
 
+		// Run overseer for 500ms to check if any events are generated
 		loop {
 			select! {
 				_ = overseer_fut => {
@@ -835,10 +836,10 @@ fn do_not_send_events_before_initial_major_sync_is_complete() {
 			}
 		}
 
-		// Switch the oracle state - initial sync is completed
+		// Switch the oracle state - initial sync is now completed
 		*is_syncing.lock().unwrap() = false;
 
-		// Generate two more events - these must not be ignored
+		// Generate two more events - these must NOT be ignored
 		handle.block_finalized(imported_block_after_sync.clone()).await;
 		handle.block_imported(imported_block_after_sync.clone()).await;
 
@@ -849,6 +850,7 @@ fn do_not_send_events_before_initial_major_sync_is_complete() {
 				span: Arc::new(jaeger::Span::Disabled),
 				status: LeafStatus::Fresh,
 			})),
+			// The first leaf should be 'cleaned up' by the overseer
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::stop_work(
 				imported_block_before_sync.hash,
 			)),
@@ -887,7 +889,6 @@ fn do_not_send_events_before_initial_major_sync_is_complete() {
 #[test]
 fn active_leaves_is_sent_on_stalled_finality() {
 	let spawner = sp_core::testing::TaskExecutor::new();
-
 	let (tx_5, mut rx_5) = metered::channel(64);
 	let is_syncing = std::sync::Arc::new(std::sync::Mutex::new(true));
 
@@ -909,8 +910,12 @@ fn active_leaves_is_sent_on_stalled_finality() {
 	let overseer_fut = overseer.run_inner().fuse();
 	pin_mut!(overseer_fut);
 
+	// The test logic. It will run concurrently with the overseer.
+	// The test simulates a node (re)started during a finality stall. Overseer starts, receives one
+	// `block_finalized` event. This is equivalent to starting the node and syncing state. However
+	// after that no `block_imported` events are received. Despite that overseer should generate one
+	// `ActiveLeaves` event for the last finalized block and broadcast it to the subsystems
 	let test = async move {
-		// Simulate one block received via sync
 		let finalized_block_after_sync =
 			BlockInfo { hash: Hash::random(), parent_hash: Hash::random(), number: 1 };
 
