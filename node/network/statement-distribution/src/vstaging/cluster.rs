@@ -970,21 +970,29 @@ mod tests {
 					(ValidatorIndex(200), CompactStatement::Valid(hash_a)),
 				]
 			);
-			assert_eq!(
-				tracker.pending_statements_for(ValidatorIndex(24)),
-				vec![
-					(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
-					(ValidatorIndex(146), CompactStatement::Seconded(hash_b))
-				],
-			);
-			assert_eq!(
-				tracker.pending_statements_for(ValidatorIndex(146)),
-				vec![
-					(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
-					(ValidatorIndex(146), CompactStatement::Seconded(hash_b)),
-					(ValidatorIndex(200), CompactStatement::Valid(hash_a)),
-				]
-			);
+			{
+				let mut pending_statements = tracker.pending_statements_for(ValidatorIndex(24));
+				pending_statements.sort();
+				assert_eq!(
+					pending_statements,
+					vec![
+						(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
+						(ValidatorIndex(146), CompactStatement::Seconded(hash_b))
+					],
+				);
+			}
+			{
+				let mut pending_statements = tracker.pending_statements_for(ValidatorIndex(146));
+				pending_statements.sort();
+				assert_eq!(
+					pending_statements,
+					vec![
+						(ValidatorIndex(5), CompactStatement::Seconded(hash_a)),
+						(ValidatorIndex(146), CompactStatement::Seconded(hash_b)),
+						(ValidatorIndex(200), CompactStatement::Valid(hash_a)),
+					]
+				);
+			}
 		}
 	}
 
