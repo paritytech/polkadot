@@ -885,7 +885,7 @@ where
 
 	async fn handle_stop(self) -> Result<(), SubsystemError> {
 		self.stop().await;
-		return Ok(())
+		Ok(())
 	}
 
 	fn handle_orchestra_rx(&mut self, msg: ToOrchestra) {
