@@ -804,44 +804,33 @@ where
 						Event::Stop => return self.handle_stop().await,
 						Event::BlockImported(block) => _ = self.block_imported(block).await,
 						Event::BlockFinalized(block) if self.sync_oracle.finished_syncing() => {
-							// Send initial `ActiveLeaves`
+							// Initial major sync is complete so an `ActiveLeaves` needs to be broadcasted. Most of the
+							// subsystems start doing work when they receive their first `ActiveLeaves` event. We need
+							// to ensure such event is sent no matter what.
+							// We can also wait for the next leaf to be activated which is safe in probably 99% of the
+							// cases. However if the finality is stalled for some reason and a new node is started or
+							// restarted its subsystems won't start without the logic here.
+							//
+							// To force an `ActiveLeaves` event first we do an artificial `block_import`.
 							let update = self.block_imported(block.clone()).await;
 							if !update.is_empty() {
+								// it might yield an `ActiveLeaves` update. If so - send it.
 								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 							} else {
-								// In theory we can receive `BlockImported` during initial major sync. In this case the
-								// update will be empty.
-								let span = match self.span_per_active_leaf.get(&block.hash) {
-									Some(span) => span.clone(),
-									None => {
-										// This should never happen.
-										gum::warn!(
-											target: LOG_TARGET,
-											?block.hash,
-											?block.number,
-											"Span for active leaf not found. This is not expected"
-										);
-										let span = Arc::new(jaeger::Span::new(block.hash, "leaf-activated"));
-										span
-									}
-								};
-								let update = ActiveLeavesUpdate::start_work(ActivatedLeaf {
-									hash: block.hash,
-									number: block.number,
-									status: LeafStatus::Fresh,
-									span,
-								});
+								// if not - prepare one manually. All the required state should be already available.
+								let update = self.prepare_initial_active_leaves(&block).await;
 								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 							}
 
 
-							// Initial sync is complete
+							// Now process finalized event. It will probably yield an `ActiveLeaves` which will
+							// deactivate the heads activated by the previous event in this scope, so broadcast it.
 							let update = self.block_finalized(&block).await;
 							if !update.is_empty() {
 								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 							}
 
-							// Send initial `BlockFinalized`
+							// And finally broadcast `BlockFinalized`
 							self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
 							break
 						},
@@ -881,6 +870,32 @@ where
 				res = self.running_subsystems.select_next_some() => return self.handle_running_subsystems(res).await
 			}
 		}
+	}
+
+	async fn prepare_initial_active_leaves(&self, block: &BlockInfo) -> ActiveLeavesUpdate {
+		// In theory we can receive `BlockImported` during initial major sync. In this case the
+		// update will be empty.
+		let span = match self.span_per_active_leaf.get(&block.hash) {
+			Some(span) => span.clone(),
+			None => {
+				// This should never happen.
+				gum::warn!(
+					target: LOG_TARGET,
+					?block.hash,
+					?block.number,
+					"Span for initial active leaf not found. This is not expected"
+				);
+				let span = Arc::new(jaeger::Span::new(block.hash, "leaf-activated"));
+				span
+			},
+		};
+
+		ActiveLeavesUpdate::start_work(ActivatedLeaf {
+			hash: block.hash,
+			number: block.number,
+			status: LeafStatus::Fresh,
+			span,
+		})
 	}
 
 	async fn handle_stop(self) -> Result<(), SubsystemError> {
