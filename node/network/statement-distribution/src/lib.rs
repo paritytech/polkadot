@@ -227,7 +227,6 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					)
 					.await?;
 				}
-
 				vstaging::handle_active_leaves_update(
 					ctx,
 					state,
@@ -238,7 +237,6 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				for deactivated in deactivated {
 					crate::legacy_v1::handle_deactivate_leaf(legacy_v1_state, deactivated);
 				}
-
 				if let Some(activated) = activated {
 					// Legacy, activate only if no prospective parachains support.
 					if let Some(ProspectiveParachainsMode::Disabled) = mode {
@@ -251,60 +249,63 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				// do nothing
 			},
 			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(true),
-			FromOrchestra::Communication { msg } =>
-				match msg {
-					StatementDistributionMessage::Share(relay_parent, statement) => {
-						let _timer = metrics.time_share();
+			FromOrchestra::Communication { msg } => match msg {
+				StatementDistributionMessage::Share(relay_parent, statement) => {
+					let _timer = metrics.time_share();
 
-						// pass to legacy if legacy state contains head.
-						if legacy_v1_state.contains_relay_parent(&relay_parent) {
-							crate::legacy_v1::share_local_statement(
-								ctx,
-								legacy_v1_state,
-								relay_parent,
-								StatementWithPVD::drop_pvd_from_signed(statement),
-								&mut self.rng,
-								metrics,
-							)
-							.await?;
-						}
-					},
-					StatementDistributionMessage::NetworkBridgeUpdate(event) => {
-						// pass to legacy, but not if the message isn't
-						// v1.
-						let legacy = match &event {
-							&NetworkBridgeEvent::PeerMessage(_, ref message) => match message {
-								Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::V1Compatibility(_)) => true,
-								Versioned::V1(_) => true,
-								Versioned::VStaging(_) => false,
-							},
-							_ => true,
-						};
-
-						if legacy {
-							crate::legacy_v1::handle_network_update(
-								ctx,
-								legacy_v1_state,
-								v1_req_sender,
-								event,
-								&mut self.rng,
-								metrics,
-							)
-							.await;
-						}
-
-						// TODO [now]: pass to vstaging, but not if the message is
-						// v1 or the connecting peer is v1.
-					},
-					StatementDistributionMessage::Backed(candidate_hash) => {
-						crate::vstaging::handle_backed_candidate_message(
+					// pass to legacy if legacy state contains head.
+					if legacy_v1_state.contains_relay_parent(&relay_parent) {
+						crate::legacy_v1::share_local_statement(
 							ctx,
-							unimplemented!(), // TODO [now] state
-							candidate_hash,
+							legacy_v1_state,
+							relay_parent,
+							StatementWithPVD::drop_pvd_from_signed(statement),
+							&mut self.rng,
+							metrics,
+						)
+						.await?;
+					} else {
+						vstaging::share_local_statement(ctx, state, relay_parent, statement)
+							.await?;
+					}
+				},
+				StatementDistributionMessage::NetworkBridgeUpdate(event) => {
+					// pass to legacy, but not if the message isn't v1.
+					let (legacy, peer_id) = match &event {
+						&NetworkBridgeEvent::PeerMessage(peer_id, ref message) => match message {
+							Versioned::VStaging(
+								protocol_vstaging::StatementDistributionMessage::V1Compatibility(_),
+							) => (true, Some(peer_id)),
+							Versioned::V1(_) => (true, Some(peer_id)),
+							Versioned::VStaging(_) => (false, Some(peer_id)),
+						},
+						_ => (true, None),
+					};
+
+					if legacy {
+						crate::legacy_v1::handle_network_update(
+							ctx,
+							legacy_v1_state,
+							v1_req_sender,
+							event,
+							&mut self.rng,
+							metrics,
 						)
 						.await;
-					},
+					} else if peer_id
+						.map_or(false, |peer_id| !legacy_v1_state.peers.contains_key(&peer_id))
+					{
+						// pass to vstaging, but not if the message is
+						// v1 or the connecting peer is v1.
+						// TODO: Is the check above correct?
+						vstaging::handle_network_update(ctx, state, event).await;
+					}
 				},
+				StatementDistributionMessage::Backed(candidate_hash) => {
+					crate::vstaging::handle_backed_candidate_message(ctx, state, candidate_hash)
+						.await;
+				},
+			},
 		}
 		Ok(false)
 	}

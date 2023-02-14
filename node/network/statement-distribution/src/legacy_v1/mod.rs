@@ -103,7 +103,7 @@ const MAX_LARGE_STATEMENTS_PER_SENDER: usize = 20;
 
 /// Overall state of the legacy-v1 portion of the subsystem.
 pub(crate) struct State {
-	peers: HashMap<PeerId, PeerData>,
+	pub peers: HashMap<PeerId, PeerData>,
 	topology_storage: SessionBoundGridTopologyStorage,
 	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
 	active_heads: HashMap<Hash, ActiveHeadData>,
