@@ -31,12 +31,6 @@ mod tests;
 // #[cfg(feature = "runtime-benchmarks")]
 // mod benchmarking;
 
-// TODO shim for now.
-pub trait ClaimQueue {
-	fn dimensions() -> (u32, u32);
-	fn clear();
-}
-
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
