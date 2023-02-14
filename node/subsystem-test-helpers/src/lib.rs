@@ -435,7 +435,7 @@ impl Future for Yield {
 mod tests {
 	use super::*;
 	use futures::executor::block_on;
-	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
+	use polkadot_node_subsystem::{messages::CollatorProtocolMessage, MajorSyncOracle};
 	use polkadot_overseer::{dummy::dummy_overseer_builder, Handle, HeadSupportsParachains};
 	use polkadot_primitives::Hash;
 	use sp_core::traits::SpawnNamed;
@@ -453,13 +453,18 @@ mod tests {
 	fn forward_subsystem_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
 		let (tx, rx) = mpsc::channel(2);
-		let (overseer, handle) =
-			dummy_overseer_builder(spawner.clone(), AlwaysSupportsParachains, None)
-				.unwrap()
-				.replace_collator_protocol(|_| ForwardSubsystem(tx))
-				.leaves(vec![])
-				.build()
-				.unwrap();
+		let (overseer, handle) = dummy_overseer_builder(
+			spawner.clone(),
+			AlwaysSupportsParachains,
+			None,
+			MajorSyncOracle::new_dummy(),
+			Vec::new(),
+		)
+		.unwrap()
+		.replace_collator_protocol(|_| ForwardSubsystem(tx))
+		.leaves(vec![])
+		.build()
+		.unwrap();
 
 		let mut handle = Handle::new(handle);
 
