@@ -274,15 +274,17 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				let mut mode = None;
 				if let Some(ref activated) = activated {
 					mode = Some(prospective_parachains_mode(ctx.sender(), activated.hash).await?);
-					vstaging::handle_active_leaves_update(
-						ctx,
-						state,
-						ActiveLeavesUpdate {
-							activated: Some(activated.clone()),
-							deactivated: vec![].into(),
-						},
-					)
-					.await?;
+					if let Some(ProspectiveParachainsMode::Enabled { .. }) = mode {
+						vstaging::handle_active_leaves_update(
+							ctx,
+							state,
+							ActiveLeavesUpdate {
+								activated: Some(activated.clone()),
+								deactivated: vec![].into(),
+							},
+						)
+						.await?;
+					}
 				}
 				vstaging::handle_active_leaves_update(
 					ctx,
