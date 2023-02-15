@@ -1783,12 +1783,7 @@ mod tests {
 
 		let groups = dummy_groups(group_size);
 
-		// Should start with no pending statements.
-		assert_eq!(tracker.pending_statements_for(send_to, candidate_hash), None);
-		assert_eq!(tracker.all_pending_statements_for(send_to), vec![]);
-		assert_eq!(tracker.pending_statements_for(receive_from, candidate_hash), None);
-		assert_eq!(tracker.all_pending_statements_for(receive_from), vec![]);
-
+		// Confirm the candidate.
 		let receivers = tracker.add_backed_candidate(
 			&session_topology,
 			candidate_hash,
@@ -1798,75 +1793,97 @@ mod tests {
 		);
 		assert_eq!(receivers, vec![(send_to, ManifestKind::Full)]);
 
-		// Test receiving followed by sending an ack.
-
-		let ack = tracker.import_manifest(
-			&session_topology,
+		// Learn a statement from a different validator.
+		tracker.learned_fresh_statement(
 			&groups,
-			candidate_hash,
-			3,
-			ManifestSummary {
-				claimed_parent_hash: Hash::repeat_byte(0),
-				claimed_group_index: group_index,
-				statement_knowledge: StatementFilter {
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
-				},
-			},
-			ManifestKind::Full,
-			receive_from,
+			&session_topology,
+			ValidatorIndex(2),
+			&CompactStatement::Seconded(candidate_hash),
 		);
-		assert_matches!(ack, Ok(true));
-		tracker.manifest_sent_to(&groups, receive_from, candidate_hash, local_knowledge.clone());
 
-		// There should be pending statements now.
-		let statements = StatementFilter {
-			seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
-			validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
-		};
-		assert_eq!(
-			tracker.pending_statements_for(receive_from, candidate_hash),
-			Some(statements.clone())
-		);
-		assert_eq!(
-			tracker.all_pending_statements_for(receive_from),
-			vec![(ValidatorIndex(0), CompactStatement::Seconded(candidate_hash))]
-		);
+		// Test receiving followed by sending an ack.
+		{
+			// Should start with no pending statements.
+			assert_eq!(tracker.pending_statements_for(receive_from, candidate_hash), None);
+			assert_eq!(tracker.all_pending_statements_for(receive_from), vec![]);
+			let ack = tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: group_index,
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					},
+				},
+				ManifestKind::Full,
+				receive_from,
+			);
+			assert_matches!(ack, Ok(true));
+
+			// Send ack now.
+			tracker.manifest_sent_to(
+				&groups,
+				receive_from,
+				candidate_hash,
+				local_knowledge.clone(),
+			);
+
+			// There should be pending statements now.
+			assert_eq!(
+				tracker.pending_statements_for(receive_from, candidate_hash),
+				Some(StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				})
+			);
+			assert_eq!(
+				tracker.all_pending_statements_for(receive_from),
+				vec![(ValidatorIndex(2), CompactStatement::Seconded(candidate_hash))]
+			);
+		}
 
 		// Test sending followed by receiving an ack.
+		{
+			// Should start with no pending statements.
+			assert_eq!(tracker.pending_statements_for(send_to, candidate_hash), None);
+			assert_eq!(tracker.all_pending_statements_for(send_to), vec![]);
 
-		tracker.manifest_sent_to(&groups, send_to, candidate_hash, local_knowledge.clone());
-		let ack = tracker.import_manifest(
-			&session_topology,
-			&groups,
-			candidate_hash,
-			3,
-			ManifestSummary {
-				claimed_parent_hash: Hash::repeat_byte(0),
-				claimed_group_index: group_index,
-				statement_knowledge: StatementFilter {
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+			tracker.manifest_sent_to(&groups, send_to, candidate_hash, local_knowledge.clone());
+			let ack = tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: group_index,
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+					},
 				},
-			},
-			ManifestKind::Acknowledgement,
-			send_to,
-		);
-		assert_matches!(ack, Ok(false));
+				ManifestKind::Acknowledgement,
+				send_to,
+			);
+			assert_matches!(ack, Ok(false));
 
-		// There should be pending statements now.
-		let statements = StatementFilter {
-			seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
-			validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
-		};
-		assert_eq!(
-			tracker.pending_statements_for(send_to, candidate_hash),
-			Some(statements.clone())
-		);
-		assert_eq!(
-			tracker.all_pending_statements_for(send_to),
-			vec![(send_to, CompactStatement::Seconded(candidate_hash))]
-		);
+			// There should be pending statements now.
+			assert_eq!(
+				tracker.pending_statements_for(send_to, candidate_hash),
+				Some(StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				})
+			);
+			assert_eq!(
+				tracker.all_pending_statements_for(send_to),
+				vec![(ValidatorIndex(2), CompactStatement::Seconded(candidate_hash))]
+			);
+		}
 	}
 
 	#[test]
