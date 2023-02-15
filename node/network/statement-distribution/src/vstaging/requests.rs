@@ -47,15 +47,11 @@ use polkadot_primitives::vstaging::{
 	ValidatorIndex,
 };
 
-use bitvec::{order::Lsb0, slice::BitSlice, vec::BitVec};
-use futures::{channel::oneshot, future::BoxFuture, prelude::*, stream::FuturesUnordered};
+use futures::{future::BoxFuture, prelude::*, stream::FuturesUnordered};
 
-use std::{
-	collections::{
-		hash_map::{Entry as HEntry, HashMap, VacantEntry},
-		BTreeSet, HashSet, VecDeque,
-	},
-	pin::Pin,
+use std::collections::{
+	hash_map::{Entry as HEntry, HashMap},
+	HashSet, VecDeque,
 };
 
 /// An identifier for a candidate.
@@ -192,7 +188,7 @@ impl RequestManager {
 				.binary_search(&(candidate.priority.clone(), identifier.clone()))
 			{
 				Ok(i) => i,
-				Err(i) => unreachable!("requested candidates always have a priority entry; qed"),
+				Err(_) => unreachable!("requested candidates always have a priority entry; qed"),
 			}
 		};
 
@@ -239,7 +235,7 @@ impl RequestManager {
 				},
 				// We can expect to encounter vacant entries, but only if nodes are misbehaving and
 				// we don't use a deduplicating collection; there are no issues from ignoring it.
-				HEntry::Vacant(entry) => (),
+				HEntry::Vacant(_) => (),
 			}
 		}
 	}
@@ -483,7 +479,7 @@ impl UnhandledResponse {
 			.binary_search(&(entry.priority.clone(), identifier.clone()))
 		{
 			Ok(i) => i,
-			Err(i) => unreachable!("requested candidates always have a priority entry; qed"),
+			Err(_) => unreachable!("requested candidates always have a priority entry; qed"),
 		};
 
 		entry.in_flight = false;
@@ -521,7 +517,7 @@ impl UnhandledResponse {
 			Ok(response) => response,
 		};
 
-		let mut output = validate_complete_response(
+		let output = validate_complete_response(
 			&identifier,
 			props,
 			complete_response,

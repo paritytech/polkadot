@@ -237,11 +237,9 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				},
 				MuxedMessage::Responder(result) => {
 					vstaging::answer_request(
-						&mut ctx,
 						&mut state,
 						result.ok_or(FatalError::RequesterReceiverFinished)?,
-					)
-					.await;
+					);
 				},
 				MuxedMessage::Response(result) => {
 					vstaging::handle_response(&mut ctx, &mut state, result).await;

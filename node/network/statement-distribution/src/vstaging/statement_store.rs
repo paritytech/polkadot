@@ -23,7 +23,7 @@
 //! views into this data: views based on the candidate, views based on the validator
 //! groups, and views based on the validators themselves.
 
-use bitvec::{order::Lsb0 as BitOrderLsb0, slice::BitSlice, vec::BitVec};
+use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use polkadot_node_network_protocol::vstaging::StatementFilter;
 use polkadot_primitives::vstaging::{
 	CandidateHash, CompactStatement, GroupIndex, SignedStatement, ValidatorIndex,
@@ -90,12 +90,6 @@ impl StatementStore {
 		}
 	}
 
-	/// Get the group index of a validator by index. If any statements by the validator
-	/// have been imported successfully, this is guaranteed to succeed.
-	pub fn validator_group_index(&self, validator: ValidatorIndex) -> Option<GroupIndex> {
-		self.validator_meta.get(&validator).map(|g| g.group)
-	}
-
 	/// Insert a statement. Returns `true` if was not known already, `false` if it was.
 	/// Ignores statements by unknown validators and returns an error.
 	pub fn insert(
@@ -121,7 +115,7 @@ impl StatementStore {
 
 				return Ok(false)
 			},
-			HEntry::Vacant(mut e) => {
+			HEntry::Vacant(e) => {
 				e.insert(StoredStatement { statement, known_by_backing: origin.is_local() });
 			},
 		}

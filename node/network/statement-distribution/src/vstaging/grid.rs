@@ -18,10 +18,10 @@
 //! the grid.
 
 use polkadot_node_network_protocol::{
-	grid_topology::SessionGridTopology, vstaging::StatementFilter, PeerId,
+	grid_topology::SessionGridTopology, vstaging::StatementFilter,
 };
 use polkadot_primitives::vstaging::{
-	AuthorityDiscoveryId, CandidateHash, CompactStatement, GroupIndex, Hash, ValidatorIndex,
+	CandidateHash, CompactStatement, GroupIndex, Hash, ValidatorIndex,
 };
 
 use std::collections::{
@@ -29,7 +29,7 @@ use std::collections::{
 	HashSet,
 };
 
-use bitvec::{order::Lsb0, slice::BitSlice, vec::BitVec};
+use bitvec::{order::Lsb0, slice::BitSlice};
 
 use super::{groups::Groups, LOG_TARGET};
 
@@ -264,7 +264,7 @@ impl GridTracker {
 		let votes = remote_knowledge.backing_validators();
 
 		if votes < backing_threshold {
-			return Err(ManifestImportError::Malformed)
+			return Err(ManifestImportError::Insufficient)
 		}
 
 		self.received.entry(sender).or_default().import_received(
@@ -319,7 +319,6 @@ impl GridTracker {
 		session_topology: &SessionTopologyView,
 		candidate_hash: CandidateHash,
 		group_index: GroupIndex,
-		group_size: usize,
 		local_knowledge: StatementFilter,
 	) -> Vec<(ValidatorIndex, ManifestKind)> {
 		let c = match self.confirmed_backed.entry(candidate_hash) {
@@ -413,19 +412,6 @@ impl GridTracker {
 		}
 	}
 
-	/// Whether we should send a manifest about a specific candidate to a validator,
-	/// and which kind of manifest.
-	pub fn is_manifest_pending_for(
-		&self,
-		validator_index: ValidatorIndex,
-		candidate_hash: &CandidateHash,
-	) -> Option<ManifestKind> {
-		self.pending_manifests
-			.get(&validator_index)
-			.and_then(|x| x.get(&candidate_hash))
-			.map(|x| *x)
-	}
-
 	/// Returns a vector of all candidates pending manifests for the specific validator, and
 	/// the type of manifest we should send.
 	pub fn pending_manifests_for(
@@ -479,25 +465,6 @@ impl GridTracker {
 		self.confirmed_backed.get(&candidate_hash).map_or(false, |c| {
 			c.has_sent_manifest_to(validator) && !c.has_received_manifest_from(validator)
 		})
-	}
-
-	/// Which validators we could request the fully attested candidates from.
-	/// If the candidate is already confirmed, then this will return an empty
-	/// set.
-	pub fn validators_to_request(
-		&self,
-		candidate_hash: CandidateHash,
-		group_index: GroupIndex,
-	) -> Vec<ValidatorIndex> {
-		let mut validators = Vec::new();
-		if let Some(unconfirmed) = self.unconfirmed.get(&candidate_hash) {
-			for (v, g) in unconfirmed {
-				if g == &group_index {
-					validators.push(*v);
-				}
-			}
-		}
-		validators
 	}
 
 	/// Determine the validators which can send a statement to us by direct broadcast.
@@ -591,7 +558,7 @@ impl GridTracker {
 		counterparty: ValidatorIndex,
 		statement: &CompactStatement,
 	) {
-		if let Some((g, c_h, kind, in_group)) =
+		if let Some((_, c_h, kind, in_group)) =
 			extract_statement_and_group_info(groups, originator, statement)
 		{
 			if let Some(known) = self.confirmed_backed.get_mut(&c_h) {
@@ -695,10 +662,6 @@ struct ReceivedManifests {
 }
 
 impl ReceivedManifests {
-	fn new() -> Self {
-		ReceivedManifests { received: HashMap::new(), seconded_counts: HashMap::new() }
-	}
-
 	fn candidate_statement_filter(
 		&self,
 		candidate_hash: &CandidateHash,
@@ -879,17 +842,6 @@ struct KnownBackedCandidate {
 }
 
 impl KnownBackedCandidate {
-	fn known_by(&self, validator: ValidatorIndex) -> bool {
-		match self.mutual_knowledge.get(&validator) {
-			None => false,
-			Some(k) => k.remote_knowledge.is_some(),
-		}
-	}
-
-	fn group_index(&self) -> &GroupIndex {
-		&self.group_index
-	}
-
 	fn has_received_manifest_from(&self, validator: ValidatorIndex) -> bool {
 		self.mutual_knowledge
 			.get(&validator)

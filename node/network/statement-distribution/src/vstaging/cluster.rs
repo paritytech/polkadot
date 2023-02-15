@@ -55,8 +55,6 @@
 //! and to keep track of what we have sent to other validators in the group and what we may
 //! continue to send them.
 
-use std::ops::Range;
-
 use polkadot_primitives::vstaging::{CandidateHash, CompactStatement, ValidatorIndex};
 
 use std::collections::{HashMap, HashSet};
@@ -198,7 +196,7 @@ impl ClusterTracker {
 		}
 
 		{
-			let mut sender_knowledge = self.knowledge.entry(sender).or_default();
+			let sender_knowledge = self.knowledge.entry(sender).or_default();
 			sender_knowledge.insert(TaggedKnowledge::IncomingP2P(Knowledge::Specific(
 				statement.clone(),
 				originator,
@@ -214,7 +212,7 @@ impl ClusterTracker {
 			// since we accept additional `Seconded` statements beyond the limits
 			// 'with prejudice', we must respect the limit here.
 			if self.seconded_already_or_within_limit(originator, candidate_hash) {
-				let mut originator_knowledge = self.knowledge.entry(originator).or_default();
+				let originator_knowledge = self.knowledge.entry(originator).or_default();
 				originator_knowledge.insert(TaggedKnowledge::Seconded(candidate_hash));
 			}
 		}
@@ -264,7 +262,7 @@ impl ClusterTracker {
 		statement: CompactStatement,
 	) {
 		{
-			let mut target_knowledge = self.knowledge.entry(target).or_default();
+			let target_knowledge = self.knowledge.entry(target).or_default();
 			target_knowledge.insert(TaggedKnowledge::OutgoingP2P(Knowledge::Specific(
 				statement.clone(),
 				originator,
@@ -277,7 +275,7 @@ impl ClusterTracker {
 		}
 
 		if let CompactStatement::Seconded(candidate_hash) = statement {
-			let mut originator_knowledge = self.knowledge.entry(originator).or_default();
+			let originator_knowledge = self.knowledge.entry(originator).or_default();
 			originator_knowledge.insert(TaggedKnowledge::Seconded(candidate_hash));
 		}
 

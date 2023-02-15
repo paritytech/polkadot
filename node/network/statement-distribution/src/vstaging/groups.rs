@@ -17,7 +17,7 @@
 //! A utility for tracking groups and their members within a session.
 
 use polkadot_node_primitives::minimum_votes;
-use polkadot_primitives::vstaging::{AuthorityDiscoveryId, GroupIndex, IndexedVec, ValidatorIndex};
+use polkadot_primitives::vstaging::{GroupIndex, IndexedVec, ValidatorIndex};
 
 use std::collections::HashMap;
 
@@ -27,31 +27,22 @@ use std::collections::HashMap;
 pub struct Groups {
 	groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	by_validator_index: HashMap<ValidatorIndex, GroupIndex>,
-	by_discovery_key: HashMap<AuthorityDiscoveryId, GroupIndex>,
 }
 
 impl Groups {
 	/// Create a new [`Groups`] tracker with the groups and discovery keys
 	/// from the session.
-	pub fn new(
-		groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
-		discovery_keys: &[AuthorityDiscoveryId],
-	) -> Self {
+	pub fn new(groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>) -> Self {
 		let mut by_validator_index = HashMap::new();
-		let mut by_discovery_key = HashMap::new();
 
 		for (i, group) in groups.iter().enumerate() {
 			let index = GroupIndex(i as _);
 			for v in group {
 				by_validator_index.insert(*v, index);
-				if let Some(discovery_key) = discovery_keys.get(v.0 as usize) {
-					// GIGO: malformed session data leads to incomplete index.
-					by_discovery_key.insert(discovery_key.clone(), index);
-				}
 			}
 		}
 
-		Groups { groups, by_validator_index, by_discovery_key }
+		Groups { groups, by_validator_index }
 	}
 
 	/// Access all the underlying groups.
@@ -75,10 +66,5 @@ impl Groups {
 	/// Get the group index for a validator by index.
 	pub fn by_validator_index(&self, validator_index: ValidatorIndex) -> Option<GroupIndex> {
 		self.by_validator_index.get(&validator_index).map(|x| *x)
-	}
-
-	/// Get the group index for a validator by its discovery key.
-	pub fn by_discovery_key(&self, discovery_key: AuthorityDiscoveryId) -> Option<GroupIndex> {
-		self.by_discovery_key.get(&discovery_key).map(|x| *x)
 	}
 }

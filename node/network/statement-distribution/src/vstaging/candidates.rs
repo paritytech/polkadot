@@ -162,7 +162,6 @@ impl Candidates {
 				assigned_group,
 				parent_hash,
 				importable_under: HashSet::new(),
-				backed: false,
 			}),
 		);
 		let new_confirmed =
@@ -246,11 +245,6 @@ impl Candidates {
 		self.get_confirmed(candidate_hash).map_or(false, |c| c.is_importable(None))
 	}
 
-	/// Whether the candidate is marked as backed.
-	pub fn is_backed(&self, candidate_hash: &CandidateHash) -> bool {
-		self.get_confirmed(candidate_hash).map_or(false, |c| c.is_backed())
-	}
-
 	/// Note that a candidate is importable in a fragment tree indicated by the given
 	/// leaf hash.
 	pub fn note_importable_under(&mut self, candidate: &HypotheticalCandidate, leaf_hash: Hash) {
@@ -280,15 +274,6 @@ impl Candidates {
 					c.importable_under.insert(leaf_hash);
 				}
 			},
-		}
-	}
-
-	/// Note that a candidate is backed. No-op if the candidate is not confirmed.
-	pub fn note_backed(&mut self, candidate_hash: &CandidateHash) {
-		if let Some(&mut CandidateState::Confirmed(ref mut c)) =
-			self.candidates.get_mut(candidate_hash)
-		{
-			c.backed = true;
 		}
 	}
 
@@ -460,7 +445,7 @@ impl UnconfirmedCandidate {
 				if let Some(parent_claims) = c.1.parent_hash_and_id {
 					if let Entry::Occupied(mut e) = self.parent_claims.entry(parent_claims) {
 						if let Some(p) = e.get().iter().position(|x| x.0 == c.1.relay_parent) {
-							let mut sub_claims = e.get_mut();
+							let sub_claims = e.get_mut();
 							sub_claims[p].1 -= 1;
 							if sub_claims[p].1 == 0 {
 								sub_claims.remove(p);
@@ -528,7 +513,6 @@ pub struct ConfirmedCandidate {
 	parent_hash: Hash,
 	// active leaves statements about this candidate are importable under.
 	importable_under: HashSet<Hash>,
-	backed: bool,
 }
 
 impl ConfirmedCandidate {
@@ -558,11 +542,6 @@ impl ConfirmedCandidate {
 			Some(h) => self.importable_under.contains(h),
 			None => !self.importable_under.is_empty(),
 		}
-	}
-
-	/// Whether the candidate is marked as being backed.
-	pub fn is_backed(&self) -> bool {
-		self.backed
 	}
 
 	/// Get the parent head data hash.
