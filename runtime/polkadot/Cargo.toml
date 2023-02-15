@@ -62,7 +62,6 @@ pallet-nomination-pools-runtime-api = { git = "https://github.com/paritytech/sub
 pallet-offences = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-preimage = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-proxy = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-ranked-collective = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-referenda = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-scheduler = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -159,7 +158,6 @@ std = [
 	"pallet-offences/std",
 	"pallet-preimage/std",
 	"pallet-proxy/std",
-	"pallet-ranked-collective/std",
 	"pallet-referenda/std",
 	"pallet-scheduler/std",
 	"pallet-session/std",
@@ -218,7 +216,6 @@ runtime-benchmarks = [
 	"pallet-nomination-pools-benchmarking/runtime-benchmarks",
 	"pallet-preimage/runtime-benchmarks",
 	"pallet-proxy/runtime-benchmarks",
-	"pallet-ranked-collective/runtime-benchmarks",
 	"pallet-referenda/runtime-benchmarks",
 	"pallet-scheduler/runtime-benchmarks",
 	"pallet-staking/runtime-benchmarks",
@@ -267,7 +264,6 @@ try-runtime = [
 	"pallet-offences/try-runtime",
 	"pallet-preimage/try-runtime",
 	"pallet-proxy/try-runtime",
-	"pallet-ranked-collective/try-runtime",
 	"pallet-referenda/try-runtime",
 	"pallet-scheduler/try-runtime",
 	"pallet-session/try-runtime",

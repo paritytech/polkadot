@@ -17,25 +17,22 @@
 //! New governance configurations for the Kusama runtime.
 
 use super::*;
-use frame_support::{
-	parameter_types,
-	traits::{ConstU16, EitherOf},
-};
+use crate::xcm_config::CollectivesLocation;
+use frame_support::{parameter_types, traits::EitherOf};
 use frame_system::EnsureRootWithSuccess;
+use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
+use xcm::latest::BodyId;
 
 // Old governance configurations.
 pub mod old;
 
 mod origins;
 pub use origins::{
-	pallet_custom_origins, AuctionAdmin, Fellows, FellowshipAdmin, FellowshipExperts,
-	FellowshipInitiates, FellowshipMasters, GeneralAdmin, LeaseAdmin, ReferendumCanceller,
-	ReferendumKiller, Spender, StakingAdmin, Treasurer, WhitelistedCaller,
+	pallet_custom_origins, AuctionAdmin, FellowshipAdmin, GeneralAdmin, LeaseAdmin,
+	ReferendumCanceller, ReferendumKiller, Spender, StakingAdmin, Treasurer, WhitelistedCaller,
 };
 mod tracks;
 pub use tracks::TracksInfo;
-mod fellowship;
-pub use fellowship::{FellowshipCollectiveInstance, FellowshipReferendaInstance};
 
 parameter_types! {
 	pub const VoteLockingPeriod: BlockNumber = 7 * DAYS;
@@ -65,12 +62,19 @@ pub type TreasurySpender = EitherOf<EnsureRootWithSuccess<AccountId, MaxBalance>
 
 impl origins::pallet_custom_origins::Config for Runtime {}
 
+parameter_types! {
+	// Fellows pluralistic body.
+	pub const FellowsBodyId: BodyId = BodyId::Technical;
+}
+
 impl pallet_whitelist::Config for Runtime {
 	type WeightInfo = weights::pallet_whitelist::WeightInfo<Self>;
 	type RuntimeCall = RuntimeCall;
 	type RuntimeEvent = RuntimeEvent;
-	type WhitelistOrigin =
-		EitherOf<EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>, Fellows>;
+	type WhitelistOrigin = EitherOfDiverse<
+		EnsureRoot<Self::AccountId>,
+		EnsureXcm<IsVoiceOfBody<CollectivesLocation, FellowsBodyId>>,
+	>;
 	type DispatchWhitelistedOrigin = EitherOf<EnsureRoot<Self::AccountId>, WhitelistedCaller>;
 	type Preimages = Preimage;
 }
