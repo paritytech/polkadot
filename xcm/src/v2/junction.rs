@@ -92,11 +92,11 @@ impl TryFrom<NewJunction> for Junction {
 				Self::AccountKey20 { network: network.try_into()?, key },
 			PalletInstance(index) => Self::PalletInstance(index),
 			GeneralIndex(id) => Self::GeneralIndex(id),
-			GeneralKey(key) => Self::GeneralKey(
-				key[..]
+			GeneralKey { length, data } => Self::GeneralKey(
+				data[0..data.len().min(length as usize)]
 					.to_vec()
 					.try_into()
-					.expect("array is of size 32 and so will never be out of bounds; qed"),
+					.expect("key is bounded to 32 and so will never be out of bounds; qed"),
 			),
 			OnlyChild => Self::OnlyChild,
 			Plurality { id, part } => Self::Plurality { id: id.into(), part: part.into() },
