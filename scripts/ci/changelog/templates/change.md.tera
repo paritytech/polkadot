@@ -33,7 +33,7 @@
 {%- set repo = "   " -%}
 {%- endif -%}
 
-{%- if c.meta.T and c.meta.T6 -%}
+{%- if c.meta.T and c.meta.T.T6 -%}
 {%- set xcm = " [✉️ XCM]" -%}
 {%- else -%}
 {%- set xcm = "" -%}
