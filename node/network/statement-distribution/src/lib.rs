@@ -25,7 +25,10 @@
 use error::{log_error, FatalResult};
 
 use polkadot_node_network_protocol::{
-	request_response::{v1 as request_v1, IncomingRequestReceiver},
+	request_response::{
+		v1 as request_v1, vstaging::AttestedCandidateRequest, IncomingRequest,
+		IncomingRequestReceiver,
+	},
 	vstaging as protocol_vstaging, Versioned,
 };
 use polkadot_node_primitives::StatementWithPVD;
@@ -66,6 +69,8 @@ pub struct StatementDistributionSubsystem<R> {
 	keystore: SyncCryptoStorePtr,
 	/// Receiver for incoming large statement requests.
 	v1_req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingRequest>>,
+	/// Receiver for incoming candidate requests.
+	req_receiver: Option<IncomingRequestReceiver<AttestedCandidateRequest>>,
 	/// Prometheus metrics
 	metrics: Metrics,
 	/// Pseudo-random generator for peers selection logic
@@ -95,6 +100,8 @@ enum MuxedMessage {
 	V1Requester(Option<V1RequesterMessage>),
 	/// Messages from spawned v1 (legacy) responder background task.
 	V1Responder(Option<V1ResponderMessage>),
+	/// Messages from candidate responder background task.
+	Responder(Option<IncomingRequest<AttestedCandidateRequest>>),
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
@@ -103,17 +110,20 @@ impl MuxedMessage {
 		ctx: &mut Context,
 		from_v1_requester: &mut mpsc::Receiver<V1RequesterMessage>,
 		from_v1_responder: &mut mpsc::Receiver<V1ResponderMessage>,
+		from_responder: &mut mpsc::Receiver<IncomingRequest<AttestedCandidateRequest>>,
 	) -> MuxedMessage {
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
 		let from_orchestra = ctx.recv().fuse();
 		let from_v1_requester = from_v1_requester.next();
 		let from_v1_responder = from_v1_responder.next();
-		futures::pin_mut!(from_orchestra, from_v1_requester, from_v1_responder);
+		let from_responder = from_responder.next();
+		futures::pin_mut!(from_orchestra, from_v1_requester, from_v1_responder, from_responder);
 		futures::select! {
 			msg = from_orchestra => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
 			msg = from_v1_requester => MuxedMessage::V1Requester(msg),
 			msg = from_v1_responder => MuxedMessage::V1Responder(msg),
+			msg = from_responder => MuxedMessage::Responder(msg),
 		}
 	}
 }
@@ -124,10 +134,17 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 	pub fn new(
 		keystore: SyncCryptoStorePtr,
 		v1_req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
+		req_receiver: IncomingRequestReceiver<AttestedCandidateRequest>,
 		metrics: Metrics,
 		rng: R,
 	) -> Self {
-		Self { keystore, v1_req_receiver: Some(v1_req_receiver), metrics, rng }
+		Self {
+			keystore,
+			v1_req_receiver: Some(v1_req_receiver),
+			req_receiver: Some(req_receiver),
+			metrics,
+			rng,
+		}
 	}
 
 	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
@@ -149,11 +166,29 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		)
 		.map_err(FatalError::SpawnTask)?;
 
+		// Sender/receiver for getting news from our candidate responder task.
+		let (res_sender, mut res_receiver) = mpsc::channel(1);
+
+		ctx.spawn(
+			"candidate-responder",
+			vstaging::respond_task(
+				self.req_receiver.take().expect("Mandatory argument to new. qed"),
+				res_sender.clone(),
+			)
+			.boxed(),
+		)
+		.map_err(FatalError::SpawnTask)?;
+
 		// TODO [now]: handle vstaging req/res: dispatch pending requests & handling responses.
 
 		loop {
-			let message =
-				MuxedMessage::receive(&mut ctx, &mut v1_req_receiver, &mut v1_res_receiver).await;
+			let message = MuxedMessage::receive(
+				&mut ctx,
+				&mut v1_req_receiver,
+				&mut v1_res_receiver,
+				&mut res_receiver,
+			)
+			.await;
 			match message {
 				MuxedMessage::Subsystem(result) => {
 					let result = self
@@ -191,7 +226,17 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					.await;
 					log_error(result.map_err(From::from), "handle_responder_message")?;
 				},
+				MuxedMessage::Responder(result) => {
+					vstaging::answer_request(
+						&mut ctx,
+						&mut state,
+						result.ok_or(FatalError::RequesterReceiverFinished)?,
+					)
+					.await;
+				},
 			};
+
+			vstaging::dispatch_requests(&mut ctx, &mut state).await;
 		}
 		Ok(())
 	}
