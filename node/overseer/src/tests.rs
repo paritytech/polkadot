@@ -447,12 +447,6 @@ fn overseer_start_stop_works() {
 		handle.block_imported(third_block).await;
 
 		let expected_heartbeats = vec![
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: first_block_hash,
-				number: 1,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated: Some(ActivatedLeaf {
 					hash: second_block_hash,
@@ -552,18 +546,6 @@ fn overseer_finalize_works() {
 		handle.block_finalized(third_block).await;
 
 		let expected_heartbeats = vec![
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: first_block_hash,
-				number: 1,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: second_block_hash,
-				number: 2,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				deactivated: [first_block_hash, second_block_hash].as_ref().into(),
 				..Default::default()
@@ -655,18 +637,6 @@ fn overseer_finalize_leaf_preserves_it() {
 		handle.block_finalized(first_block).await;
 
 		let expected_heartbeats = vec![
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: first_block_hash,
-				number: 1,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: second_block_hash,
-				number: 1,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				deactivated: [second_block_hash].as_ref().into(),
 				..Default::default()
@@ -751,12 +721,6 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
 				hash: imported_block.hash,
 				number: imported_block.number,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: finalized_block.hash,
-				number: finalized_block.number,
 				span: Arc::new(jaeger::Span::Disabled),
 				status: LeafStatus::Fresh,
 			})),
@@ -893,85 +857,6 @@ fn do_not_send_events_before_initial_major_sync_is_complete() {
 }
 
 #[test]
-fn active_leaves_is_sent_on_stalled_finality() {
-	let spawner = sp_core::testing::TaskExecutor::new();
-	let (tx_5, mut rx_5) = metered::channel(64);
-	let is_syncing = std::sync::Arc::new(std::sync::Mutex::new(true));
-
-	// Prepare overseer
-	let (overseer, handle) = dummy_overseer_builder(
-		spawner,
-		MockSupportsParachains,
-		None,
-		MajorSyncOracle::new(Box::new(PuppetOracle { state: is_syncing.clone() })),
-		Vec::new(),
-	)
-	.unwrap()
-	.replace_candidate_backing(move |_| TestSubsystem6(tx_5))
-	.build()
-	.unwrap();
-
-	// Prepare overseer future
-	let mut handle = Handle::new(handle);
-	let overseer_fut = overseer.run_inner().fuse();
-	pin_mut!(overseer_fut);
-
-	// The test logic. It will run concurrently with the overseer.
-	// The test simulates a node (re)started during a finality stall. Overseer starts, receives one
-	// `block_finalized` event. This is equivalent to starting the node and syncing state. However
-	// after that no `block_imported` events are received. Despite that overseer should generate one
-	// `ActiveLeaves` event for the last finalized block and broadcast it to the subsystems
-	let test = async move {
-		let finalized_block_after_sync =
-			BlockInfo { hash: Hash::random(), parent_hash: Hash::random(), number: 1 };
-
-		let mut ss5_results = Vec::new();
-
-		// Switch the oracle state - initial sync is completed
-		*is_syncing.lock().unwrap() = false;
-
-		// Generate 'block imported' event which simulates end of sync
-		handle.block_finalized(finalized_block_after_sync.clone()).await;
-
-		let expected_heartbeats = vec![
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: finalized_block_after_sync.hash,
-				number: finalized_block_after_sync.number,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
-			OverseerSignal::BlockFinalized(
-				finalized_block_after_sync.hash,
-				finalized_block_after_sync.number,
-			),
-		];
-
-		loop {
-			let res = rx_5.next().timeout(Duration::from_millis(100)).await;
-			assert_matches!(res, Some(res) => {
-				if let Some(res) = dbg!(res) {
-					ss5_results.push(res);
-				}
-			});
-
-			if ss5_results.len() == expected_heartbeats.len() {
-				handle.stop().await;
-				break
-			}
-		}
-
-		assert_eq!(ss5_results.len(), expected_heartbeats.len());
-
-		for expected in expected_heartbeats {
-			assert!(ss5_results.contains(&expected));
-		}
-	};
-
-	let (res, _) = executor::block_on(futures::future::join(overseer_fut, test));
-	assert_matches!(res, Ok(()));
-}
-
-#[test]
 fn initial_leaves_are_sent_if_nothing_to_sync() {
 	let spawner = sp_core::testing::TaskExecutor::new();
 
@@ -999,16 +884,39 @@ fn initial_leaves_are_sent_if_nothing_to_sync() {
 		let overseer_fut = overseer.run_inner().fuse();
 		pin_mut!(overseer_fut);
 
+		// Run overseer for 500ms to check if any events are generated
+		loop {
+			select! {
+				_ = overseer_fut => {
+					assert!(false, "Overseer should not exit");
+				},
+				res = rx_5.next().timeout(Duration::from_millis(500)).fuse() => {
+					assert_matches!(res, None);
+					break;
+				}
+			}
+		}
+
+		// Now complete sync and generate an event just to be sure everything works
+		let imported_block_after_sync =
+			BlockInfo { hash: Hash::random(), parent_hash: Hash::random(), number: 2 };
+		*is_syncing.lock().unwrap() = false;
+
+		// Finalize one of the leaves from db and import one new
+		handle.block_finalized(db_leaves.clone()).await;
+		handle.block_imported(imported_block_after_sync.clone()).await;
+
 		let mut ss5_results = Vec::new();
 
-		// Generate two more events - these must not be ignore
-		let expected_heartbeats =
-			vec![OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: db_leaves.hash,
-				number: db_leaves.number,
+		let expected_heartbeats = vec![
+			OverseerSignal::BlockFinalized(db_leaves.hash, db_leaves.number),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: imported_block_after_sync.hash,
+				number: imported_block_after_sync.number,
 				span: Arc::new(jaeger::Span::Disabled),
 				status: LeafStatus::Fresh,
-			}))];
+			})),
+		];
 
 		loop {
 			select! {
@@ -1267,7 +1175,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 
 		// send a signal to each subsystem
 		handle
-			.block_finalized(BlockInfo {
+			.block_imported(BlockInfo {
 				hash: Default::default(),
 				parent_hash: Default::default(),
 				number: Default::default(),
@@ -1351,7 +1259,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 
 		let res = overseer_fut.await;
 		assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
-		assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS * 2);
+		assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
 		assert_eq!(msgs_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS_MESSAGED);
 
 		assert!(res.is_ok());

@@ -356,16 +356,16 @@ impl MajorSyncOracle {
 	}
 
 	/// Check if node is in major sync
-	pub fn finished_syncing(&mut self) -> bool {
+	pub fn is_syncing(&mut self) -> bool {
 		match &mut self.state {
 			OracleState::Syncing(sync_oracle) =>
-				if !sync_oracle.is_major_syncing() {
-					self.state = OracleState::Done;
+				if sync_oracle.is_major_syncing() {
 					true
 				} else {
+					self.state = OracleState::Done;
 					false
 				},
-			OracleState::Done => true,
+			OracleState::Done => false,
 		}
 	}
 }
@@ -765,32 +765,13 @@ where
 	}
 
 	async fn run_inner(mut self) -> SubsystemResult<()> {
-		enum MainLoopState {
-			Syncing,
-			Running,
-		}
-		let mut main_loop_state = MainLoopState::Syncing;
-
 		let metrics = self.metrics.clone();
 		spawn_metronome_metrics(&mut self, metrics)?;
 
-		let initial_sync_finished = self.sync_oracle.finished_syncing();
-		// Import the active leaves found in the database
+		// Import the active leaves found in the database but don't broadcast ActiveLeaves for them
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
-			if let Some((span, status)) = self.on_head_activated(&hash, None).await {
-				if initial_sync_finished {
-					// Initial sync is complete. Notify the subsystems and proceed to the main loop
-					let update = ActiveLeavesUpdate::start_work(ActivatedLeaf {
-						hash,
-						number,
-						status,
-						span,
-					});
-					self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-					main_loop_state = MainLoopState::Running;
-				}
-			}
+			self.on_head_activated(&hash, None).await;
 		}
 
 		// main loop
@@ -800,66 +781,28 @@ where
 					match msg {
 						Event::MsgToSubsystem { msg, origin } => self.handle_msg_to_subsystem(msg, origin).await?,
 						Event::Stop => return self.handle_stop().await,
+						Event::BlockImported(block) if self.sync_oracle.is_syncing() => {
+							// If we are syncing - don't broadcast ActiveLeaves
+							self.block_imported(block).await;
+						},
 						Event::BlockImported(block) => {
-							match main_loop_state {
-								MainLoopState::Syncing => {
-									self.block_imported(block).await;
-								},
-								MainLoopState::Running => {
-									let update = self.block_imported(block).await;
-									if !update.is_empty() {
-										self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-									}
-								}
+							// Syncing is complete - broadcast ActiveLeaves
+							let update = self.block_imported(block).await;
+							if !update.is_empty() {
+								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 							}
-
+						},
+						Event::BlockFinalized(block) if self.sync_oracle.is_syncing() => {
+							// Still syncing - just import the block and don't broadcast anything
+							self.block_finalized(&block).await;
 						},
 						Event::BlockFinalized(block) => {
-							match main_loop_state {
-								MainLoopState::Syncing => {
-									if self.sync_oracle.finished_syncing() {
-										// Initial major sync is complete so an `ActiveLeaves` needs to be broadcasted. Most of the
-										// subsystems start doing work when they receive their first `ActiveLeaves` event. We need
-										// to ensure such event is sent no matter what.
-										// We can also wait for the next leaf to be activated which is safe in probably 99% of the
-										// cases. However if the finality is stalled for some reason and a new node is started or
-										// restarted its subsystems won't start without the logic here.
-										//
-										// To force an `ActiveLeaves` event first we do an artificial `block_import`.
-										let update = self.block_imported(block.clone()).await;
-										if !update.is_empty() {
-											// it might yield an `ActiveLeaves` update. If so - send it.
-											self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-										} else {
-											// if not - prepare one manually. All the required state should be already available.
-											let update = self.prepare_initial_active_leaves(&block);
-											self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-										}
-
-
-										// Now process finalized event. It will probably yield an `ActiveLeaves` which will
-										// deactivate the heads activated by the previous event in this scope, so broadcast it.
-										let update = self.block_finalized(&block).await;
-										if !update.is_empty() {
-											self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-										}
-
-										// And finally broadcast `BlockFinalized`
-										self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
-										main_loop_state = MainLoopState::Running;
-									} else {
-										self.block_finalized(&block).await;
-									}
-								},
-								MainLoopState::Running => {
-									let update = self.block_finalized(&block).await;
-										if !update.is_empty() {
-											self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-										}
-										self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
-								}
+							let update = self.block_finalized(&block).await;
+							if !update.is_empty() {
+								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
 							}
-						},
+							self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
+						}
 						Event::ExternalRequest(request) => self.handle_external_request(request)
 					}
 				},
@@ -867,32 +810,6 @@ where
 				res = self.running_subsystems.select_next_some() => return self.handle_running_subsystems(res).await
 			}
 		}
-	}
-
-	fn prepare_initial_active_leaves(&self, block: &BlockInfo) -> ActiveLeavesUpdate {
-		// In theory we can receive `BlockImported` during initial major sync. In this case the
-		// update will be empty.
-		let span = match self.span_per_active_leaf.get(&block.hash) {
-			Some(span) => span.clone(),
-			None => {
-				// This should never happen.
-				gum::warn!(
-					target: LOG_TARGET,
-					?block.hash,
-					?block.number,
-					"Span for initial active leaf not found. This is not expected"
-				);
-				let span = Arc::new(jaeger::Span::new(block.hash, "leaf-activated"));
-				span
-			},
-		};
-
-		ActiveLeavesUpdate::start_work(ActivatedLeaf {
-			hash: block.hash,
-			number: block.number,
-			status: LeafStatus::Fresh,
-			span,
-		})
 	}
 
 	async fn handle_stop(self) -> Result<(), SubsystemError> {
