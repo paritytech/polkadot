@@ -7019,7 +7019,9 @@ dependencies = [
  "pin-project",
  "polkadot-core-primitives",
  "polkadot-node-metrics",
+ "polkadot-node-primitives",
  "polkadot-parachain",
+ "polkadot-primitives",
  "rand 0.8.5",
  "rayon",
  "sc-executor",
@@ -7314,6 +7316,7 @@ dependencies = [
  "polkadot-erasure-coding",
  "polkadot-node-core-pvf",
  "polkadot-node-primitives",
+ "polkadot-primitives",
  "quote",
  "thiserror",
 ]
