@@ -2422,7 +2422,6 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 	}
 }
 
-// TODO: How should this be used?
 /// Wait on the next incoming response. If there are no requests pending, this
 /// future never resolves. It is the responsibility of the user of this API
 /// to interrupt the future.

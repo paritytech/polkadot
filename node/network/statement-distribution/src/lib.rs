@@ -102,12 +102,15 @@ enum MuxedMessage {
 	V1Responder(Option<V1ResponderMessage>),
 	/// Messages from candidate responder background task.
 	Responder(Option<IncomingRequest<AttestedCandidateRequest>>),
+	/// Messages from answered requests.
+	Response(vstaging::UnhandledResponse),
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
 impl MuxedMessage {
 	async fn receive<Context>(
 		ctx: &mut Context,
+		state: &mut vstaging::State,
 		from_v1_requester: &mut mpsc::Receiver<V1RequesterMessage>,
 		from_v1_responder: &mut mpsc::Receiver<V1ResponderMessage>,
 		from_responder: &mut mpsc::Receiver<IncomingRequest<AttestedCandidateRequest>>,
@@ -118,12 +121,20 @@ impl MuxedMessage {
 		let from_v1_requester = from_v1_requester.next();
 		let from_v1_responder = from_v1_responder.next();
 		let from_responder = from_responder.next();
-		futures::pin_mut!(from_orchestra, from_v1_requester, from_v1_responder, from_responder);
+		let receive_response = vstaging::receive_response(state).fuse();
+		futures::pin_mut!(
+			from_orchestra,
+			from_v1_requester,
+			from_v1_responder,
+			from_responder,
+			receive_response
+		);
 		futures::select! {
 			msg = from_orchestra => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
 			msg = from_v1_requester => MuxedMessage::V1Requester(msg),
 			msg = from_v1_responder => MuxedMessage::V1Responder(msg),
 			msg = from_responder => MuxedMessage::Responder(msg),
+			msg = receive_response => MuxedMessage::Response(msg),
 		}
 	}
 }
@@ -179,11 +190,10 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		)
 		.map_err(FatalError::SpawnTask)?;
 
-		// TODO [now]: handle vstaging req/res: dispatch pending requests & handling responses.
-
 		loop {
 			let message = MuxedMessage::receive(
 				&mut ctx,
+				&mut state,
 				&mut v1_req_receiver,
 				&mut v1_res_receiver,
 				&mut res_receiver,
@@ -233,6 +243,9 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						result.ok_or(FatalError::RequesterReceiverFinished)?,
 					)
 					.await;
+				},
+				MuxedMessage::Response(result) => {
+					vstaging::handle_response(&mut ctx, &mut state, result).await;
 				},
 			};
 

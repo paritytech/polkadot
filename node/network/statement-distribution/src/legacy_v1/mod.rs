@@ -426,7 +426,7 @@ impl PeerRelayParentKnowledge {
 	}
 }
 
-struct PeerData {
+pub struct PeerData {
 	view: View,
 	protocol_version: ValidationVersion,
 	view_knowledge: HashMap<Hash, PeerRelayParentKnowledge>,
