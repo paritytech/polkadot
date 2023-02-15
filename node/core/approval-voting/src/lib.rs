@@ -431,6 +431,7 @@ struct Wakeups {
 	// Tick -> [(Relay Block, Candidate Hash)]
 	wakeups: BTreeMap<Tick, Vec<(Hash, CandidateHash)>>,
 	reverse_wakeups: HashMap<(Hash, CandidateHash), Tick>,
+	/// A mapping from block numbers to hashes.
 	block_numbers: BTreeMap<BlockNumber, HashSet<Hash>>,
 }
 
@@ -1243,8 +1244,12 @@ async fn handle_from_overseer<Context>(
 				.map_err(|e| SubsystemError::with_origin("db", e))?;
 
 			wakeups.prune_finalized_wakeups(block_number);
-			// Logic for pruning the spans of the approval voting subsystem
-			state.spans.remove(&block_hash);
+
+			// We let prune_finalized_wakeups decide whether we prune the span for a finalized block.
+			for hash_set in wakeups.block_numbers.values().cloned() {
+				state.spans.retain(|hash, _| hash_set.contains(hash));
+			}
+
 			Vec::new()
 		},
 		FromOrchestra::Signal(OverseerSignal::Conclude) => {
@@ -2407,16 +2412,17 @@ async fn launch_approval<Context>(
 	.await;
 
 	// Covers both validation code and available data currently
-	let _request_validation_data_span = span
+	let request_validation_data_span = span
 		.child("request-validation-data")
 		.with_candidate(candidate.hash())
 		.with_stage(jaeger::Stage::ApprovalChecking);
 
-	let mut validation_result_span = span
+	let validation_result_span = span
 		.child("validation-result")
 		.with_candidate(candidate_hash)
-		.with_stage(jaeger::Stage::ApprovalChecking);
-	validation_result_span.add_string_tag("para-id", format!("{:?}", para_id));
+		.with_stage(jaeger::Stage::ApprovalChecking)
+		.add_para_id(para_id);
+
 	let candidate = candidate.clone();
 	let metrics_guard = StaleGuard(Some(metrics));
 	let mut sender = ctx.sender().clone();
@@ -2479,7 +2485,7 @@ async fn launch_approval<Context>(
 				return ApprovalState::failed(validator_index, candidate_hash)
 			},
 		};
-		drop(_request_validation_data_span);
+		drop(request_validation_data_span);
 
 		let (val_tx, val_rx) = oneshot::channel();
 		sender

@@ -329,12 +329,15 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
-	let handle_new_head_span = match state.spans.get(&head) {
-		Some(s) => s.child("handle-new-head"),
-		None => jaeger::Span::Disabled,
-	};
+	let mut handle_new_head_span = state
+		.spans
+		.get(&head)
+		.map(|span| span.child("handle-new-head"))
+		.unwrap_or(jaeger::Span::new(head, "handle-new-head"))
+		.with_stage(jaeger::Stage::ApprovalChecking);
+
 	let header = {
-		let mut get_header_span = handle_new_head_span.child("get-block-header");
+		let _get_header_span = handle_new_head_span.child("get-block-header");
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
 		match h_rx.await? {
@@ -345,31 +348,23 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					e,
 				);
 				// May be a better way of handling errors here.
-				get_header_span
-					.add_string_tag("header", format!("Error from Chain API subsystem: {:?}", e));
 				return Ok(Vec::new())
 			},
 			Ok(None) => {
 				gum::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
 				// May be a better way of handling warnings here.
-				get_header_span
-					.add_string_tag("header", format!("Missing header for new head {}", head));
 				return Ok(Vec::new())
 			},
-			Ok(Some(h)) => {
-				get_header_span.add_string_tag("parent-hash", format!("{:?}", h.parent_hash));
-				get_header_span.add_string_tag("number", format!("{:?}", h.number));
-				get_header_span.add_string_tag("state_root", format!("{:?}", h.state_root));
-				get_header_span
-					.add_string_tag("extrinsics_root", format!("{:?}", h.extrinsics_root));
-				h
-			},
+			Ok(Some(h)) => h,
 		}
 	};
 
+	handle_new_head_span.add_string_tag("block-number", format!("{:?}", &header.number));
+
 	// Update session info based on most recent head.
-	let mut cache_session_span = handle_new_head_span.child("cache-session-info");
-	cache_session_span.add_string_tag("head", format!("{:?}", head));
+	let _cache_session_span = handle_new_head_span
+		.child("cache-session-info")
+		.with_string_tag("head", format!("{:?}", head));
 	match state.cache_session_info_for_head(ctx, head).await {
 		Err(e) => {
 			gum::debug!(
@@ -634,7 +629,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	);
 
 	ctx.send_unbounded_message(ApprovalDistributionMessage::NewBlocks(approval_meta));
-
 	Ok(imported_candidates)
 }
 
