@@ -13,13 +13,13 @@
 
 {%- set audit = "" -%}
 
-{%- if c.meta.D and c.meta.D1 -%}
+{%- if c.meta.D and c.meta.D.D1 -%}
 {%- set audit = "✅ audited " -%}
-{%- elif c.meta.D and c.meta.D2 -%}
+{%- elif c.meta.D and c.meta.D.D2 -%}
 {%- set audit = "✅ trivial " -%}
-{%- elif c.meta.D and c.meta.D3 -%}
+{%- elif c.meta.D and c.meta.D.D3 -%}
 {%- set audit = "✅ trivial " -%}
-{%- elif c.meta.D and c.meta.D5 -%}
+{%- elif c.meta.D and c.meta.D.D5 -%}
 {%- set audit = "⏳ pending non-critical audit " -%}
 {%- else -%}
 {%- set audit = "" -%}
