@@ -19,6 +19,8 @@ logger = Logger.new($stdout)
 logger.level = Logger::DEBUG
 logger.debug('Starting')
 
+system('changelogerator --version')
+
 owner = 'paritytech'
 repo = 'polkadot'
 
