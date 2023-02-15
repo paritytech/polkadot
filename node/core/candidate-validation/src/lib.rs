@@ -24,8 +24,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats, Pvf, ValidationError,
-	ValidationHost,
+	InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats, Pvf,
+	PvfWithExecutorParams, ValidationError, ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -39,10 +39,11 @@ use polkadot_node_subsystem::{
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 	SubsystemSender,
 };
+use polkadot_node_subsystem_util::executor_params_at_relay_parent;
 use polkadot_parachain::primitives::{ValidationParams, ValidationResult as WasmValidationResult};
 use polkadot_primitives::{
-	CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash, OccupiedCoreAssumption,
-	PersistedValidationData, ValidationCode, ValidationCodeHash,
+	vstaging::ExecutorParams, CandidateCommitments, CandidateDescriptor, CandidateReceipt, Hash,
+	OccupiedCoreAssumption, PersistedValidationData, ValidationCode, ValidationCodeHash,
 };
 
 use parity_scale_codec::Encode;
@@ -175,12 +176,14 @@ async fn run<Context>(
 					response_sender,
 				) => {
 					let bg = {
+						let mut sender = ctx.sender().clone();
 						let metrics = metrics.clone();
 						let validation_host = validation_host.clone();
 
 						async move {
 							let _timer = metrics.time_validate_from_exhaustive();
 							let res = validate_candidate_exhaustive(
+								&mut sender,
 								validation_host,
 								persisted_validation_data,
 								validation_code,
@@ -307,18 +310,38 @@ where
 			},
 		};
 
-	let validation_code = match sp_maybe_compressed_blob::decompress(
+	let executor_params =
+		if let Ok(executor_params) = executor_params_at_relay_parent(relay_parent, sender).await {
+			gum::debug!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?validation_code_hash,
+				"precheck: acquired executor params for the session: {:?}",
+				executor_params,
+			);
+			executor_params
+		} else {
+			gum::warn!(
+				target: LOG_TARGET,
+				?relay_parent,
+				?validation_code_hash,
+				"precheck: failed to acquire executor params for the session, thus voting against.",
+			);
+			return PreCheckOutcome::Invalid
+		};
+
+	let pvf_with_params = match sp_maybe_compressed_blob::decompress(
 		&validation_code.0,
 		VALIDATION_CODE_BOMB_LIMIT,
 	) {
-		Ok(code) => Pvf::from_code(code.into_owned()),
+		Ok(code) => PvfWithExecutorParams::new(Pvf::from_code(code.into_owned()), executor_params),
 		Err(e) => {
 			gum::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
 			return PreCheckOutcome::Invalid
 		},
 	};
 
-	match validation_backend.precheck_pvf(validation_code).await {
+	match validation_backend.precheck_pvf(pvf_with_params).await {
 		Ok(_) => PreCheckOutcome::Valid,
 		Err(prepare_err) =>
 			if prepare_err.is_deterministic() {
@@ -456,6 +479,7 @@ where
 		};
 
 	let validation_result = validate_candidate_exhaustive(
+		sender,
 		validation_host,
 		validation_data,
 		validation_code,
@@ -490,7 +514,8 @@ where
 	validation_result
 }
 
-async fn validate_candidate_exhaustive(
+async fn validate_candidate_exhaustive<Sender>(
+	sender: &mut Sender,
 	mut validation_backend: impl ValidationBackend + Send,
 	persisted_validation_data: PersistedValidationData,
 	validation_code: ValidationCode,
@@ -498,7 +523,10 @@ async fn validate_candidate_exhaustive(
 	pov: Arc<PoV>,
 	timeout: Duration,
 	metrics: &Metrics,
-) -> Result<ValidationResult, ValidationFailed> {
+) -> Result<ValidationResult, ValidationFailed>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
 	let _timer = metrics.time_validate_candidate_exhaustive();
 
 	let validation_code_hash = validation_code.hash();
@@ -554,8 +582,34 @@ async fn validate_candidate_exhaustive(
 		relay_parent_storage_root: persisted_validation_data.relay_parent_storage_root,
 	};
 
+	let executor_params = if let Ok(executor_params) =
+		executor_params_at_relay_parent(candidate_receipt.descriptor.relay_parent, sender).await
+	{
+		gum::debug!(
+			target: LOG_TARGET,
+			?validation_code_hash,
+			?para_id,
+			"Acquired executor params for the session: {:?}",
+			executor_params,
+		);
+		executor_params
+	} else {
+		gum::warn!(
+			target: LOG_TARGET,
+			?validation_code_hash,
+			?para_id,
+			"Failed to acquire executor params for the session",
+		);
+		return Ok(ValidationResult::Invalid(InvalidCandidate::BadParent))
+	};
+
 	let result = validation_backend
-		.validate_candidate_with_retry(raw_validation_code.to_vec(), timeout, params)
+		.validate_candidate_with_retry(
+			raw_validation_code.to_vec(),
+			timeout,
+			params,
+			executor_params,
+		)
 		.await;
 
 	if let Err(ref error) = result {
@@ -613,7 +667,7 @@ trait ValidationBackend {
 	/// Tries executing a PVF a single time (no retries).
 	async fn validate_candidate(
 		&mut self,
-		pvf: Pvf,
+		pvf_with_params: PvfWithExecutorParams,
 		timeout: Duration,
 		encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError>;
@@ -625,12 +679,14 @@ trait ValidationBackend {
 		raw_validation_code: Vec<u8>,
 		timeout: Duration,
 		params: ValidationParams,
+		executor_params: ExecutorParams,
 	) -> Result<WasmValidationResult, ValidationError> {
 		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
-		let pvf = Pvf::from_code(raw_validation_code);
+		let pvf_with_params =
+			PvfWithExecutorParams::new(Pvf::from_code(raw_validation_code), executor_params);
 
 		let mut validation_result =
-			self.validate_candidate(pvf.clone(), timeout, params.encode()).await;
+			self.validate_candidate(pvf_with_params.clone(), timeout, params.encode()).await;
 
 		// If we get an AmbiguousWorkerDeath error, retry once after a brief delay, on the
 		// assumption that the conditions that caused this error may have been transient. Note that
@@ -643,19 +699,23 @@ trait ValidationBackend {
 
 			gum::warn!(
 				target: LOG_TARGET,
-				?pvf,
+				?pvf_with_params,
 				"Re-trying failed candidate validation due to AmbiguousWorkerDeath."
 			);
 
 			// Encode the params again when re-trying. We expect the retry case to be relatively
 			// rare, and we want to avoid unconditionally cloning data.
-			validation_result = self.validate_candidate(pvf, timeout, params.encode()).await;
+			validation_result =
+				self.validate_candidate(pvf_with_params, timeout, params.encode()).await;
 		}
 
 		validation_result
 	}
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<PrepareStats, PrepareError>;
+	async fn precheck_pvf(
+		&mut self,
+		pvf_with_params: PvfWithExecutorParams,
+	) -> Result<PrepareStats, PrepareError>;
 }
 
 #[async_trait]
@@ -663,14 +723,16 @@ impl ValidationBackend for ValidationHost {
 	/// Tries executing a PVF a single time (no retries).
 	async fn validate_candidate(
 		&mut self,
-		pvf: Pvf,
+		pvf_with_params: PvfWithExecutorParams,
 		timeout: Duration,
 		encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError> {
 		let priority = polkadot_node_core_pvf::Priority::Normal;
 
 		let (tx, rx) = oneshot::channel();
-		if let Err(err) = self.execute_pvf(pvf, timeout, encoded_params, priority, tx).await {
+		if let Err(err) =
+			self.execute_pvf(pvf_with_params, timeout, encoded_params, priority, tx).await
+		{
 			return Err(ValidationError::InternalError(format!(
 				"cannot send pvf to the validation host: {:?}",
 				err
@@ -681,9 +743,12 @@ impl ValidationBackend for ValidationHost {
 			.map_err(|_| ValidationError::InternalError("validation was cancelled".into()))?
 	}
 
-	async fn precheck_pvf(&mut self, pvf: Pvf) -> Result<PrepareStats, PrepareError> {
+	async fn precheck_pvf(
+		&mut self,
+		pvf_with_params: PvfWithExecutorParams,
+	) -> Result<PrepareStats, PrepareError> {
 		let (tx, rx) = oneshot::channel();
-		if let Err(err) = self.precheck_pvf(pvf, tx).await {
+		if let Err(err) = self.precheck_pvf(pvf_with_params, tx).await {
 			// Return an IO error if there was an error communicating with the host.
 			return Err(PrepareError::IoErr(err))
 		}
