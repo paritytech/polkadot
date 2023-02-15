@@ -331,7 +331,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	}
 }
 
-///Represents the internal state of `MajorSyncOracle`
+/// Represents the internal state of `MajorSyncOracle`
 enum OracleState {
 	Syncing(Box<dyn SyncOracle + Send>),
 	Done,
@@ -774,13 +774,18 @@ where
 			self.on_head_activated(&hash, None).await;
 		}
 
-		// main loop
 		loop {
 			select! {
 				msg = self.events_rx.select_next_some() => {
 					match msg {
-						Event::MsgToSubsystem { msg, origin } => self.handle_msg_to_subsystem(msg, origin).await?,
-						Event::Stop => return self.handle_stop().await,
+						Event::MsgToSubsystem { msg, origin } => {
+							self.route_message(msg.into(), origin).await?;
+							self.metrics.on_message_relayed();
+						}
+						Event::Stop => {
+							self.stop().await;
+							return Ok(());
+						},
 						Event::BlockImported(block) if self.sync_oracle.is_syncing() => {
 							// If we are syncing - don't broadcast ActiveLeaves
 							self.block_imported(block).await;
@@ -803,52 +808,32 @@ where
 							}
 							self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
 						}
-						Event::ExternalRequest(request) => self.handle_external_request(request)
+						Event::ExternalRequest(request) => {
+							self.handle_external_request(request);
+						}
 					}
 				},
-				msg = self.to_orchestra_rx.select_next_some() => self.handle_orchestra_rx(msg),
-				res = self.running_subsystems.select_next_some() => return self.handle_running_subsystems(res).await
+				msg = self.to_orchestra_rx.select_next_some() => {
+					match msg {
+						ToOrchestra::SpawnJob { name, subsystem, s } => {
+							self.spawn_job(name, subsystem, s);
+						}
+						ToOrchestra::SpawnBlockingJob { name, subsystem, s } => {
+							self.spawn_blocking_job(name, subsystem, s);
+						}
+					}
+				},
+				res = self.running_subsystems.select_next_some() => {
+					gum::error!(
+						target: LOG_TARGET,
+						subsystem = ?res,
+						"subsystem finished unexpectedly",
+					);
+					self.stop().await;
+					return res;
+				},
 			}
 		}
-	}
-
-	async fn handle_stop(self) -> Result<(), SubsystemError> {
-		self.stop().await;
-		Ok(())
-	}
-
-	fn handle_orchestra_rx(&mut self, msg: ToOrchestra) {
-		match msg {
-			ToOrchestra::SpawnJob { name, subsystem, s } => {
-				self.spawn_job(name, subsystem, s);
-			},
-			ToOrchestra::SpawnBlockingJob { name, subsystem, s } => {
-				self.spawn_blocking_job(name, subsystem, s);
-			},
-		}
-	}
-
-	async fn handle_msg_to_subsystem(
-		&mut self,
-		msg: AllMessages,
-		origin: &'static str,
-	) -> Result<(), SubsystemError> {
-		self.route_message(msg.into(), origin).await?;
-		self.metrics.on_message_relayed();
-		Ok(())
-	}
-
-	async fn handle_running_subsystems(
-		self,
-		res: Result<(), SubsystemError>,
-	) -> Result<(), SubsystemError> {
-		gum::error!(
-			target: LOG_TARGET,
-			subsystem = ?res,
-			"subsystem finished unexpectedly",
-		);
-		self.stop().await;
-		return res
 	}
 
 	async fn block_imported(&mut self, block: BlockInfo) -> ActiveLeavesUpdate {
