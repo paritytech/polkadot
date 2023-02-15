@@ -11,6 +11,7 @@ polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-primitives = { path = "../../../primitives" }
 rand = "0.8"
+itertools = "0.10.5"
 
 futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
