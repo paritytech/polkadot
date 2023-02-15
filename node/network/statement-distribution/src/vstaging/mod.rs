@@ -2559,9 +2559,13 @@ pub(crate) async fn handle_response<Context>(
 pub(crate) async fn answer_request<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	request: IncomingRequest<AttestedCandidateRequest>,
+	message: ResponderMessage,
 ) {
+	let ResponderMessage { request, sent_feedback } = message;
 	let AttestedCandidateRequest { candidate_hash, ref mask } = &request.payload;
+
+	// Signal to the responder that we started processing this request.
+	let _ = sent_feedback.send(());
 
 	let confirmed = match state.candidates.get_confirmed(&candidate_hash) {
 		None => return, // drop request, candidate not known.
@@ -2653,19 +2657,26 @@ pub(crate) async fn answer_request<Context>(
 	request.send_response(response);
 }
 
+/// Messages coming from the background respond task.
+pub struct ResponderMessage {
+	request: IncomingRequest<AttestedCandidateRequest>,
+	sent_feedback: oneshot::Sender<()>,
+}
+
 /// A fetching task, taking care of fetching candidates via request/response.
 ///
 /// Runs in a background task and feeds request to [`answer_request`] through [`MuxedMessage`].
 pub async fn respond_task(
 	mut receiver: IncomingRequestReceiver<AttestedCandidateRequest>,
-	mut sender: mpsc::Sender<IncomingRequest<AttestedCandidateRequest>>,
+	mut sender: mpsc::Sender<ResponderMessage>,
 ) {
+	let mut pending_out = FuturesUnordered::new();
 	loop {
-		// TODO: Ensure we are not handling too many requests in parallel.
-		// if pending_out.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
-		// 	// Wait for one to finish:
-		// 	pending_out.next().await;
-		// }
+		// Ensure we are not handling too many requests in parallel.
+		if pending_out.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
+			// Wait for one to finish:
+			pending_out.next().await;
+		}
 
 		let req = match receiver.recv(|| vec![COST_INVALID_REQUEST]).await.into_nested() {
 			Ok(Ok(v)) => v,
@@ -2679,9 +2690,14 @@ pub async fn respond_task(
 			},
 		};
 
-		if let Err(err) = sender.feed(req).await {
+		let (pending_sent_tx, pending_sent_rx) = oneshot::channel();
+		if let Err(err) = sender
+			.feed(ResponderMessage { request: req, sent_feedback: pending_sent_tx })
+			.await
+		{
 			gum::debug!(target: LOG_TARGET, ?err, "Shutting down responder");
 			return
 		}
+		pending_out.push(pending_sent_rx);
 	}
 }

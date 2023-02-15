@@ -26,8 +26,7 @@ use error::{log_error, FatalResult};
 
 use polkadot_node_network_protocol::{
 	request_response::{
-		v1 as request_v1, vstaging::AttestedCandidateRequest, IncomingRequest,
-		IncomingRequestReceiver,
+		v1 as request_v1, vstaging::AttestedCandidateRequest, IncomingRequestReceiver,
 	},
 	vstaging as protocol_vstaging, Versioned,
 };
@@ -101,7 +100,7 @@ enum MuxedMessage {
 	/// Messages from spawned v1 (legacy) responder background task.
 	V1Responder(Option<V1ResponderMessage>),
 	/// Messages from candidate responder background task.
-	Responder(Option<IncomingRequest<AttestedCandidateRequest>>),
+	Responder(Option<vstaging::ResponderMessage>),
 	/// Messages from answered requests.
 	Response(vstaging::UnhandledResponse),
 }
@@ -113,7 +112,7 @@ impl MuxedMessage {
 		state: &mut vstaging::State,
 		from_v1_requester: &mut mpsc::Receiver<V1RequesterMessage>,
 		from_v1_responder: &mut mpsc::Receiver<V1ResponderMessage>,
-		from_responder: &mut mpsc::Receiver<IncomingRequest<AttestedCandidateRequest>>,
+		from_responder: &mut mpsc::Receiver<vstaging::ResponderMessage>,
 	) -> MuxedMessage {
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
