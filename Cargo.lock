@@ -7429,7 +7429,6 @@ dependencies = [
  "pallet-offences-benchmarking",
  "pallet-preimage",
  "pallet-proxy",
- "pallet-ranked-collective",
  "pallet-referenda",
  "pallet-scheduler",
  "pallet-session",

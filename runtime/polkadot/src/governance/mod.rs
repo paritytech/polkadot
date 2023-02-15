@@ -18,10 +18,7 @@
 
 use super::*;
 use crate::xcm_config::CollectivesLocation;
-use frame_support::{
-	parameter_types,
-	traits::EitherOf,
-};
+use frame_support::{parameter_types, traits::EitherOf};
 use frame_system::EnsureRootWithSuccess;
 use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
 use xcm::latest::BodyId;
@@ -31,14 +28,11 @@ pub mod old;
 
 mod origins;
 pub use origins::{
-	pallet_custom_origins, AuctionAdmin, Fellows, FellowshipAdmin, FellowshipExperts,
-	FellowshipInitiates, FellowshipMasters, GeneralAdmin, LeaseAdmin, ReferendumCanceller,
-	ReferendumKiller, Spender, StakingAdmin, Treasurer, WhitelistedCaller,
+	pallet_custom_origins, AuctionAdmin, FellowshipAdmin, GeneralAdmin, LeaseAdmin,
+	ReferendumCanceller, ReferendumKiller, Spender, StakingAdmin, Treasurer, WhitelistedCaller,
 };
 mod tracks;
 pub use tracks::TracksInfo;
-mod fellowship;
-pub use fellowship::{FellowshipCollectiveInstance, FellowshipReferendaInstance};
 
 parameter_types! {
 	pub const VoteLockingPeriod: BlockNumber = 7 * DAYS;

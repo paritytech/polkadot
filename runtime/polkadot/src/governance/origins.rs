@@ -61,32 +61,6 @@ pub mod pallet_custom_origins {
 		BigSpender,
 		/// Origin able to dispatch a whitelisted call.
 		WhitelistedCaller,
-		/// Origin commanded by any members of the Polkadot Fellowship (no Dan grade needed).
-		FellowshipInitiates,
-		/// Origin commanded by Polkadot Fellows (3rd Dan fellows or greater).
-		Fellows,
-		/// Origin commanded by Polkadot Experts (5th Dan fellows or greater).
-		FellowshipExperts,
-		/// Origin commanded by Polkadot Masters (7th Dan fellows of greater).
-		FellowshipMasters,
-		/// Origin commanded by rank 1 of the Polkadot Fellowship and with a success of 1.
-		Fellowship1Dan,
-		/// Origin commanded by rank 2 of the Polkadot Fellowship and with a success of 2.
-		Fellowship2Dan,
-		/// Origin commanded by rank 3 of the Polkadot Fellowship and with a success of 3.
-		Fellowship3Dan,
-		/// Origin commanded by rank 4 of the Polkadot Fellowship and with a success of 4.
-		Fellowship4Dan,
-		/// Origin commanded by rank 5 of the Polkadot Fellowship and with a success of 5.
-		Fellowship5Dan,
-		/// Origin commanded by rank 6 of the Polkadot Fellowship and with a success of 6.
-		Fellowship6Dan,
-		/// Origin commanded by rank 7 of the Polkadot Fellowship and with a success of 7.
-		Fellowship7Dan,
-		/// Origin commanded by rank 8 of the Polkadot Fellowship and with a success of 8.
-		Fellowship8Dan,
-		/// Origin commanded by rank 9 of the Polkadot Fellowship and with a success of 9.
-		Fellowship9Dan,
 	}
 
 	macro_rules! decl_unit_ensures {
@@ -129,10 +103,6 @@ pub mod pallet_custom_origins {
 		ReferendumCanceller,
 		ReferendumKiller,
 		WhitelistedCaller,
-		FellowshipInitiates: u16 = 0,
-		Fellows: u16 = 3,
-		FellowshipExperts: u16 = 5,
-		FellowshipMasters: u16 = 7,
 	);
 
 	macro_rules! decl_ensure {
@@ -176,20 +146,6 @@ pub mod pallet_custom_origins {
 			MediumSpender = 100 * GRAND,
 			BigSpender = 1_000 * GRAND,
 			Treasurer = 10_000 * GRAND,
-		}
-	}
-
-	decl_ensure! {
-		pub type EnsureFellowship: EnsureOrigin<Success = u16> {
-			Fellowship1Dan = 1,
-			Fellowship2Dan = 2,
-			Fellowship3Dan = 3,
-			Fellowship4Dan = 4,
-			Fellowship5Dan = 5,
-			Fellowship6Dan = 6,
-			Fellowship7Dan = 7,
-			Fellowship8Dan = 8,
-			Fellowship9Dan = 9,
 		}
 	}
 }
