@@ -253,7 +253,7 @@ fn connected_validator_peer(
 		.discovery_keys
 		.get(validator_index.0 as usize)
 		.and_then(|k| authorities.get(k))
-		.map(|p| p.clone())
+		.map(|p| *p)
 }
 
 struct PeerState {
@@ -269,7 +269,7 @@ impl PeerState {
 		let next_implicit = new_view
 			.iter()
 			.flat_map(|x| local_implicit.known_allowed_relay_parents_under(x, None))
-			.flat_map(|x| x)
+			.flatten()
 			.cloned()
 			.collect::<HashSet<_>>();
 
@@ -314,10 +314,8 @@ impl PeerState {
 		self.discovery_ids.as_ref().map_or(false, |x| x.contains(authority_id))
 	}
 
-	fn iter_known_discovery_ids<'a>(
-		&'a self,
-	) -> impl Iterator<Item = &'a AuthorityDiscoveryId> + 'a {
-		self.discovery_ids.as_ref().into_iter().flat_map(|inner| inner)
+	fn iter_known_discovery_ids(&self) -> impl Iterator<Item = &AuthorityDiscoveryId> {
+		self.discovery_ids.as_ref().into_iter().flatten()
 	}
 }
 
@@ -366,7 +364,7 @@ pub(crate) async fn handle_network_update<Context>(
 		},
 		NetworkBridgeEvent::PeerDisconnected(peer_id) => {
 			if let Some(p) = state.peers.remove(&peer_id) {
-				for discovery_key in p.discovery_ids.into_iter().flat_map(|x| x) {
+				for discovery_key in p.discovery_ids.into_iter().flatten() {
 					state.authorities.remove(&discovery_key);
 				}
 			}
@@ -546,14 +544,13 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		for (peer, peer_state) in state.peers.iter_mut() {
 			let fresh = peer_state.reconcile_active_leaf(leaf.hash, &new_relay_parents);
 			if !fresh.is_empty() {
-				update_peers.push((peer.clone(), fresh));
+				update_peers.push((*peer, fresh));
 			}
 		}
 
 		for (peer, fresh) in update_peers {
 			for fresh_relay_parent in fresh {
-				send_peer_messages_for_relay_parent(ctx, state, peer.clone(), fresh_relay_parent)
-					.await;
+				send_peer_messages_for_relay_parent(ctx, state, peer, fresh_relay_parent).await;
 			}
 		}
 	}
@@ -641,7 +638,7 @@ async fn handle_peer_view_update<Context>(
 	};
 
 	for new_relay_parent in fresh_implicit {
-		send_peer_messages_for_relay_parent(ctx, state, peer.clone(), new_relay_parent).await;
+		send_peer_messages_for_relay_parent(ctx, state, peer, new_relay_parent).await;
 	}
 }
 
@@ -730,7 +727,7 @@ fn pending_statement_network_message(
 		.map(|signed| {
 			protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, signed)
 		})
-		.map(|msg| (vec![peer.clone()], Versioned::VStaging(msg).into()))
+		.map(|msg| (vec![*peer], Versioned::VStaging(msg).into()))
 }
 
 /// Send a peer all pending cluster statements for a relay parent.
@@ -846,7 +843,7 @@ async fn send_pending_grid_messages<Context>(
 				);
 
 				messages.push((
-					vec![peer_id.clone()],
+					vec![*peer_id],
 					Versioned::VStaging(
 						protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(
 							manifest,
@@ -857,7 +854,7 @@ async fn send_pending_grid_messages<Context>(
 			},
 			grid::ManifestKind::Acknowledgement => {
 				messages.extend(acknowledgement_and_statement_messages(
-					peer_id.clone(),
+					*peer_id,
 					peer_validator_id,
 					groups,
 					relay_parent_state,
@@ -1073,7 +1070,7 @@ async fn circulate_statement<Context>(
 ) {
 	let session_info = &per_session.session_info;
 
-	let candidate_hash = statement.payload().candidate_hash().clone();
+	let candidate_hash = *statement.payload().candidate_hash();
 
 	let compact_statement = statement.payload().clone();
 	let is_seconded = match compact_statement {
@@ -1122,7 +1119,7 @@ async fn circulate_statement<Context>(
 
 		let targets = cluster_targets
 			.into_iter()
-			.flat_map(|c| c)
+			.flatten()
 			.chain(grid_targets)
 			.filter_map(|(v, k)| {
 				session_info.discovery_keys.get(v.0 as usize).map(|a| (v, a.clone(), k))
@@ -1136,8 +1133,7 @@ async fn circulate_statement<Context>(
 	for (target, authority_id, kind) in targets {
 		// Find peer ID based on authority ID, and also filter to connected.
 		let peer_id: PeerId = match authorities.get(&authority_id) {
-			Some(p) if peers.get(p).map_or(false, |p| p.knows_relay_parent(&relay_parent)) =>
-				p.clone(),
+			Some(p) if peers.get(p).map_or(false, |p| p.knows_relay_parent(&relay_parent)) => *p,
 			None | Some(_) => continue,
 		};
 
@@ -1357,7 +1353,7 @@ async fn handle_incoming_statement<Context>(
 	// parachain.
 	{
 		let res = state.candidates.insert_unconfirmed(
-			peer.clone(),
+			peer,
 			candidate_hash,
 			relay_parent,
 			originator_group,
@@ -1427,7 +1423,7 @@ async fn handle_incoming_statement<Context>(
 				&relay_parent,
 				&mut *per_relay_parent,
 				confirmed,
-				&*per_session,
+				per_session,
 			)
 			.await;
 		}
@@ -1973,7 +1969,7 @@ async fn handle_incoming_manifest_common<'a, Context>(
 
 	// 3. if accepted by grid, insert as unconfirmed.
 	if let Err(BadAdvertisement) = candidates.insert_unconfirmed(
-		peer.clone(),
+		peer,
 		candidate_hash,
 		relay_parent,
 		group_index,
@@ -2034,7 +2030,7 @@ async fn handle_incoming_manifest<Context>(
 ) {
 	let x = match handle_incoming_manifest_common(
 		ctx,
-		peer.clone(),
+		peer,
 		&state.peers,
 		&mut state.per_relay_parent,
 		&state.per_session,
@@ -2123,7 +2119,7 @@ fn acknowledgement_and_statement_messages(
 		protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(acknowledgement),
 	);
 
-	let mut messages = vec![(vec![peer.clone()], msg.into())];
+	let mut messages = vec![(vec![peer], msg.into())];
 
 	local_validator.grid_tracker.manifest_sent_to(
 		groups,
@@ -2142,7 +2138,7 @@ fn acknowledgement_and_statement_messages(
 		candidate_hash,
 	);
 
-	messages.extend(statement_messages.into_iter().map(|m| (vec![peer.clone()], m)));
+	messages.extend(statement_messages.into_iter().map(|m| (vec![peer], m)));
 
 	messages
 }
@@ -2172,7 +2168,7 @@ async fn handle_incoming_acknowledgement<Context>(
 
 	let x = match handle_incoming_manifest_common(
 		ctx,
-		peer.clone(),
+		peer,
 		&state.peers,
 		&mut state.per_relay_parent,
 		&state.per_session,
@@ -2212,7 +2208,7 @@ async fn handle_incoming_acknowledgement<Context>(
 
 	if !messages.is_empty() {
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessages(
-			messages.into_iter().map(|m| (vec![peer.clone()], m)).collect(),
+			messages.into_iter().map(|m| (vec![peer], m)).collect(),
 		))
 		.await;
 	}

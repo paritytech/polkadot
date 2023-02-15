@@ -320,7 +320,7 @@ impl Candidates {
 			let maybe_children = self.by_parent.get(&parent);
 			let i = maybe_children
 				.into_iter()
-				.flat_map(|c| c)
+				.flatten()
 				.filter_map(|c_hash| self.candidates.get_key_value(c_hash));
 
 			extend_hypotheticals(&mut v, i, Some(parent));
