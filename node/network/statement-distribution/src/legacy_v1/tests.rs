@@ -762,11 +762,13 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
 		let s = StatementDistributionSubsystem::new(
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
+			candidate_req_receiver,
 			Default::default(),
 			AlwaysZeroRng,
 		);
@@ -995,11 +997,13 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, mut req_cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
 		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
+			candidate_req_receiver,
 			Default::default(),
 			AlwaysZeroRng,
 		);
@@ -1534,11 +1538,13 @@ fn share_prioritizes_backing_group() {
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, mut req_cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let bg = async move {
 		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
+			candidate_req_receiver,
 			Default::default(),
 			AlwaysZeroRng,
 		);
@@ -1850,10 +1856,12 @@ fn peer_cant_flood_with_large_statements() {
 
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	let bg = async move {
 		let s = StatementDistributionSubsystem::new(
 			make_ferdie_keystore(),
 			statement_req_receiver,
+			candidate_req_receiver,
 			Default::default(),
 			AlwaysZeroRng,
 		);
@@ -2067,11 +2075,13 @@ fn handle_multiple_seconded_statements() {
 
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 
 	let virtual_overseer_fut = async move {
 		let s = StatementDistributionSubsystem::new(
 			Arc::new(LocalKeystore::in_memory()),
 			statement_req_receiver,
+			candidate_req_receiver,
 			Default::default(),
 			AlwaysZeroRng,
 		);

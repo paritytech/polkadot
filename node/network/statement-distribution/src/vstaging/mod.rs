@@ -27,7 +27,8 @@ use polkadot_node_network_protocol::{
 	request_response::{
 		incoming::OutgoingResponse,
 		vstaging::{AttestedCandidateRequest, AttestedCandidateResponse},
-		IncomingRequest, Requests,
+		IncomingRequest, IncomingRequestReceiver, Requests,
+		MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS,
 	},
 	vstaging::{self as protocol_vstaging, StatementFilter},
 	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
@@ -56,7 +57,12 @@ use polkadot_primitives::vstaging::{
 
 use sp_keystore::SyncCryptoStorePtr;
 
-use futures::channel::oneshot;
+use fatality::Nested;
+use futures::{
+	channel::{mpsc, oneshot},
+	stream::FuturesUnordered,
+	SinkExt, StreamExt,
+};
 use indexmap::IndexMap;
 
 use std::collections::{
@@ -114,9 +120,10 @@ const COST_UNREQUESTED_RESPONSE_STATEMENT: Rep =
 const COST_INACCURATE_ADVERTISEMENT: Rep =
 	Rep::CostMajor("Peer advertised a candidate inaccurately");
 
+const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
 const COST_INVALID_REQUEST_BITFIELD_SIZE: Rep =
 	Rep::CostMajor("Attested candidate request bitfields have wrong size");
-const COST_UNEXPECTED_REQUEST: Rep = Rep::CostMajor("Unexpected ttested candidate request");
+const COST_UNEXPECTED_REQUEST: Rep = Rep::CostMajor("Unexpected attested candidate request");
 
 const BENEFIT_VALID_RESPONSE: Rep = Rep::BenefitMajor("Peer Answered Candidate Request");
 const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
@@ -216,6 +223,22 @@ pub(crate) struct State {
 	keystore: SyncCryptoStorePtr,
 	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
 	request_manager: RequestManager,
+}
+
+impl State {
+	/// Create a new state.
+	pub(crate) fn new(keystore: SyncCryptoStorePtr) -> Self {
+		State {
+			implicit_view: Default::default(),
+			candidates: Default::default(),
+			per_relay_parent: HashMap::new(),
+			per_session: HashMap::new(),
+			peers: HashMap::new(),
+			keystore,
+			authorities: HashMap::new(),
+			request_manager: RequestManager::new(),
+		}
+	}
 }
 
 // For the provided validator index, if there is a connected peer controlling the given authority
@@ -627,7 +650,7 @@ async fn handle_peer_view_update<Context>(
 fn find_validator_ids<'a>(
 	known_discovery_ids: impl IntoIterator<Item = &'a AuthorityDiscoveryId>,
 	discovery_mapping: impl Fn(&AuthorityDiscoveryId) -> Option<&'a ValidatorIndex>,
-) -> impl IntoIterator<Item = ValidatorIndex> {
+) -> impl Iterator<Item = ValidatorIndex> {
 	known_discovery_ids.into_iter().filter_map(discovery_mapping).cloned()
 }
 
@@ -2536,12 +2559,13 @@ pub(crate) async fn handle_response<Context>(
 pub(crate) async fn answer_request<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	request: IncomingRequest<AttestedCandidateRequest>,
+	message: ResponderMessage,
 ) {
-	// TODO [now]: wire this up with something like the legacy_v1 `responder` running in the background
-	// to bound the amount of parallel requests we serve.
-
+	let ResponderMessage { request, sent_feedback } = message;
 	let AttestedCandidateRequest { candidate_hash, ref mask } = &request.payload;
+
+	// Signal to the responder that we started processing this request.
+	let _ = sent_feedback.send(());
 
 	let confirmed = match state.candidates.get_confirmed(&candidate_hash) {
 		None => return, // drop request, candidate not known.
@@ -2631,4 +2655,49 @@ pub(crate) async fn answer_request<Context>(
 	};
 
 	request.send_response(response);
+}
+
+/// Messages coming from the background respond task.
+pub struct ResponderMessage {
+	request: IncomingRequest<AttestedCandidateRequest>,
+	sent_feedback: oneshot::Sender<()>,
+}
+
+/// A fetching task, taking care of fetching candidates via request/response.
+///
+/// Runs in a background task and feeds request to [`answer_request`] through [`MuxedMessage`].
+pub async fn respond_task(
+	mut receiver: IncomingRequestReceiver<AttestedCandidateRequest>,
+	mut sender: mpsc::Sender<ResponderMessage>,
+) {
+	let mut pending_out = FuturesUnordered::new();
+	loop {
+		// Ensure we are not handling too many requests in parallel.
+		if pending_out.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
+			// Wait for one to finish:
+			pending_out.next().await;
+		}
+
+		let req = match receiver.recv(|| vec![COST_INVALID_REQUEST]).await.into_nested() {
+			Ok(Ok(v)) => v,
+			Err(fatal) => {
+				gum::debug!(target: LOG_TARGET, error = ?fatal, "Shutting down request responder");
+				return
+			},
+			Ok(Err(jfyi)) => {
+				gum::debug!(target: LOG_TARGET, error = ?jfyi, "Decoding request failed");
+				continue
+			},
+		};
+
+		let (pending_sent_tx, pending_sent_rx) = oneshot::channel();
+		if let Err(err) = sender
+			.feed(ResponderMessage { request: req, sent_feedback: pending_sent_tx })
+			.await
+		{
+			gum::debug!(target: LOG_TARGET, ?err, "Shutting down responder");
+			return
+		}
+		pending_out.push(pending_sent_rx);
+	}
 }
