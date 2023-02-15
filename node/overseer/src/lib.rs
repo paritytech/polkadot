@@ -765,6 +765,12 @@ where
 	}
 
 	async fn run_inner(mut self) -> SubsystemResult<()> {
+		enum MainLoopState {
+			Syncing,
+			Running,
+		}
+		let mut main_loop_state = MainLoopState::Syncing;
+
 		let metrics = self.metrics.clone();
 		spawn_metronome_metrics(&mut self, metrics)?;
 
@@ -782,69 +788,8 @@ where
 						span,
 					});
 					self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+					main_loop_state = MainLoopState::Running;
 				}
-			}
-		}
-
-		// If initial sync is not complete - wait for it.
-		// This loop is identical to the main one but doesn't generate `ActiveLeaves` and `BlockFinalized` events until
-		// the initial full sync is complete.
-		// This is an infinite loop which executes only when `!initial_sync_finished`. The weird syntax is only to save
-		// one extra layer if indentation because it's already a bit tough for the eyes.
-		// Think about it like:
-		// ```
-		// if !initial_sync_finished {
-		//		loop {
-		//			select! {
-		//				...
-		//			}
-		// 		}
-		// }
-		//```
-		while !initial_sync_finished {
-			select! {
-				msg = self.events_rx.select_next_some() => {
-					match msg {
-						Event::MsgToSubsystem { msg, origin } => self.handle_msg_to_subsystem(msg, origin).await?,
-						Event::Stop => return self.handle_stop().await,
-						Event::BlockImported(block) => _ = self.block_imported(block).await,
-						Event::BlockFinalized(block) if self.sync_oracle.finished_syncing() => {
-							// Initial major sync is complete so an `ActiveLeaves` needs to be broadcasted. Most of the
-							// subsystems start doing work when they receive their first `ActiveLeaves` event. We need
-							// to ensure such event is sent no matter what.
-							// We can also wait for the next leaf to be activated which is safe in probably 99% of the
-							// cases. However if the finality is stalled for some reason and a new node is started or
-							// restarted its subsystems won't start without the logic here.
-							//
-							// To force an `ActiveLeaves` event first we do an artificial `block_import`.
-							let update = self.block_imported(block.clone()).await;
-							if !update.is_empty() {
-								// it might yield an `ActiveLeaves` update. If so - send it.
-								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-							} else {
-								// if not - prepare one manually. All the required state should be already available.
-								let update = self.prepare_initial_active_leaves(&block);
-								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-							}
-
-
-							// Now process finalized event. It will probably yield an `ActiveLeaves` which will
-							// deactivate the heads activated by the previous event in this scope, so broadcast it.
-							let update = self.block_finalized(&block).await;
-							if !update.is_empty() {
-								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-							}
-
-							// And finally broadcast `BlockFinalized`
-							self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
-							break
-						},
-						Event::BlockFinalized(block) => _ = self.block_finalized(&block).await,
-						Event::ExternalRequest(request) => self.handle_external_request(request)
-					}
-				},
-				msg = self.to_orchestra_rx.select_next_some() => self.handle_orchestra_rx(msg),
-				res = self.running_subsystems.select_next_some() => return self.handle_running_subsystems(res).await
 			}
 		}
 
@@ -856,17 +801,64 @@ where
 						Event::MsgToSubsystem { msg, origin } => self.handle_msg_to_subsystem(msg, origin).await?,
 						Event::Stop => return self.handle_stop().await,
 						Event::BlockImported(block) => {
-							let update = self.block_imported(block).await;
-							if !update.is_empty() {
-								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+							match main_loop_state {
+								MainLoopState::Syncing => {
+									self.block_imported(block).await;
+								},
+								MainLoopState::Running => {
+									let update = self.block_imported(block).await;
+									if !update.is_empty() {
+										self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+									}
+								}
 							}
+
 						},
 						Event::BlockFinalized(block) => {
-							let update = self.block_finalized(&block).await;
-							if !update.is_empty() {
-								self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+							match main_loop_state {
+								MainLoopState::Syncing => {
+									if self.sync_oracle.finished_syncing() {
+										// Initial major sync is complete so an `ActiveLeaves` needs to be broadcasted. Most of the
+										// subsystems start doing work when they receive their first `ActiveLeaves` event. We need
+										// to ensure such event is sent no matter what.
+										// We can also wait for the next leaf to be activated which is safe in probably 99% of the
+										// cases. However if the finality is stalled for some reason and a new node is started or
+										// restarted its subsystems won't start without the logic here.
+										//
+										// To force an `ActiveLeaves` event first we do an artificial `block_import`.
+										let update = self.block_imported(block.clone()).await;
+										if !update.is_empty() {
+											// it might yield an `ActiveLeaves` update. If so - send it.
+											self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+										} else {
+											// if not - prepare one manually. All the required state should be already available.
+											let update = self.prepare_initial_active_leaves(&block);
+											self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+										}
+
+
+										// Now process finalized event. It will probably yield an `ActiveLeaves` which will
+										// deactivate the heads activated by the previous event in this scope, so broadcast it.
+										let update = self.block_finalized(&block).await;
+										if !update.is_empty() {
+											self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+										}
+
+										// And finally broadcast `BlockFinalized`
+										self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
+										main_loop_state = MainLoopState::Running;
+									} else {
+										self.block_finalized(&block).await;
+									}
+								},
+								MainLoopState::Running => {
+									let update = self.block_finalized(&block).await;
+										if !update.is_empty() {
+											self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
+										}
+										self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
+								}
 							}
-							self.broadcast_signal(OverseerSignal::BlockFinalized(block.hash, block.number)).await?;
 						},
 						Event::ExternalRequest(request) => self.handle_external_request(request)
 					}

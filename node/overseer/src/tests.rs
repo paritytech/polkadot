@@ -754,6 +754,12 @@ fn do_not_send_empty_leaves_update_on_block_finalization() {
 				span: Arc::new(jaeger::Span::Disabled),
 				status: LeafStatus::Fresh,
 			})),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
+				hash: finalized_block.hash,
+				number: finalized_block.number,
+				span: Arc::new(jaeger::Span::Disabled),
+				status: LeafStatus::Fresh,
+			})),
 			OverseerSignal::BlockFinalized(finalized_block.hash, 1),
 		];
 
@@ -1261,7 +1267,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 
 		// send a signal to each subsystem
 		handle
-			.block_imported(BlockInfo {
+			.block_finalized(BlockInfo {
 				hash: Default::default(),
 				parent_hash: Default::default(),
 				number: Default::default(),
@@ -1345,7 +1351,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 
 		let res = overseer_fut.await;
 		assert_eq!(stop_signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
-		assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS);
+		assert_eq!(signals_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS * 2);
 		assert_eq!(msgs_received.load(atomic::Ordering::SeqCst), NUM_SUBSYSTEMS_MESSAGED);
 
 		assert!(res.is_ok());
