@@ -271,37 +271,43 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				let _timer = metrics.time_active_leaves_update();
 
 				// vstaging should handle activated first because of implicit view.
-				let mut mode = None;
 				if let Some(ref activated) = activated {
-					mode = Some(prospective_parachains_mode(ctx.sender(), activated.hash).await?);
-					if let Some(ProspectiveParachainsMode::Enabled { .. }) = mode {
+					let mode = prospective_parachains_mode(ctx.sender(), activated.hash).await?;
+					if let ProspectiveParachainsMode::Enabled { .. } = mode {
 						vstaging::handle_active_leaves_update(
 							ctx,
 							state,
-							ActiveLeavesUpdate {
-								activated: Some(activated.clone()),
-								deactivated: vec![].into(),
-							},
+							ActiveLeavesUpdate { activated: Some(activated.clone()), deactivated },
+						)
+						.await?;
+					} else if let ProspectiveParachainsMode::Disabled = mode {
+						for deactivated in &deactivated {
+							crate::legacy_v1::handle_deactivate_leaf(
+								legacy_v1_state,
+								deactivated.clone(),
+							);
+						}
+
+						crate::legacy_v1::handle_activated_leaf(
+							ctx,
+							legacy_v1_state,
+							activated.clone(),
 						)
 						.await?;
 					}
-				}
-				vstaging::handle_active_leaves_update(
-					ctx,
-					state,
-					ActiveLeavesUpdate { activated: None, deactivated: deactivated.clone() },
-				)
-				.await?;
-
-				for deactivated in deactivated {
-					crate::legacy_v1::handle_deactivate_leaf(legacy_v1_state, deactivated);
-				}
-				if let Some(activated) = activated {
-					// Legacy, activate only if no prospective parachains support.
-					if let Some(ProspectiveParachainsMode::Disabled) = mode {
-						crate::legacy_v1::handle_activated_leaf(ctx, legacy_v1_state, activated)
-							.await?;
+				} else {
+					for deactivated in &deactivated {
+						crate::legacy_v1::handle_deactivate_leaf(
+							legacy_v1_state,
+							deactivated.clone(),
+						);
 					}
+					vstaging::handle_active_leaves_update(
+						ctx,
+						state,
+						ActiveLeavesUpdate { activated: None, deactivated },
+					)
+					.await?;
 				}
 			},
 			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {
@@ -329,34 +335,55 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					}
 				},
 				StatementDistributionMessage::NetworkBridgeUpdate(event) => {
-					// pass to legacy, but not if the message isn't v1.
-					let (legacy, peer_id) = match &event {
-						&NetworkBridgeEvent::PeerMessage(peer_id, ref message) => match message {
+					// pass all events to both protocols except for messages,
+					// which are filtered.
+					enum VersionTarget {
+						Legacy,
+						Current,
+						Both,
+					}
+
+					impl VersionTarget {
+						fn targets_legacy(&self) -> bool {
+							match self {
+								&VersionTarget::Legacy | &VersionTarget::Both => true,
+								_ => false,
+							}
+						}
+
+						fn targets_current(&self) -> bool {
+							match self {
+								&VersionTarget::Current | &VersionTarget::Both => true,
+								_ => false,
+							}
+						}
+					}
+
+					let target = match &event {
+						&NetworkBridgeEvent::PeerMessage(_, ref message) => match message {
 							Versioned::VStaging(
 								protocol_vstaging::StatementDistributionMessage::V1Compatibility(_),
-							) => (true, Some(peer_id)),
-							Versioned::V1(_) => (true, Some(peer_id)),
-							Versioned::VStaging(_) => (false, Some(peer_id)),
+							) => VersionTarget::Legacy,
+							Versioned::V1(_) => VersionTarget::Legacy,
+							Versioned::VStaging(_) => VersionTarget::Current,
 						},
-						_ => (true, None),
+						_ => VersionTarget::Both,
 					};
 
-					if legacy {
+					if target.targets_legacy() {
 						crate::legacy_v1::handle_network_update(
 							ctx,
 							legacy_v1_state,
 							v1_req_sender,
-							event,
+							event.clone(),
 							&mut self.rng,
 							metrics,
 						)
 						.await;
-					} else if peer_id
-						.map_or(false, |peer_id| !legacy_v1_state.peers.contains_key(&peer_id))
-					{
-						// pass to vstaging, but not if the message is
-						// v1 or the connecting peer is v1.
-						// TODO: Is the check above correct?
+					}
+
+					if target.targets_current() {
+						// pass to vstaging.
 						vstaging::handle_network_update(ctx, state, event).await;
 					}
 				},
