@@ -38,7 +38,7 @@ mod fellowship;
 pub use fellowship::{FellowshipCollectiveInstance, FellowshipReferendaInstance};
 
 parameter_types! {
-	pub const VoteLockingPeriod: BlockNumber = 7 * DAYS;
+	pub const VoteLockingPeriod: BlockNumber = 1 * MINUTES;
 }
 
 impl pallet_conviction_voting::Config for Runtime {
