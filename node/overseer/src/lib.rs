@@ -331,36 +331,41 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 	}
 }
 
+///Represents the internal state of `MajorSyncOracle`
+enum OracleState {
+	Syncing(Box<dyn SyncOracle + Send>),
+	Done,
+}
 /// Used to detect if the node is in initial major sync.
 /// It's worth mentioning that this is a one way check. Once the initial full sync is complete
 /// `MajorSyncOracle` will never return false. The reason is that the struct is meant to be used
 /// only during initialization.
 pub struct MajorSyncOracle {
-	sync_oracle: Option<Box<dyn SyncOracle + Send>>,
+	state: OracleState,
 }
 
 impl MajorSyncOracle {
 	/// Create `MajorSyncOracle` from `SyncOracle`
 	pub fn new(sync_oracle: Box<dyn SyncOracle + Send>) -> Self {
-		Self { sync_oracle: Some(sync_oracle) }
+		Self { state: OracleState::Syncing(sync_oracle) }
 	}
 
 	/// Create dummy `MajorSyncOracle` which always returns true for `finished_syncing`
 	pub fn new_dummy() -> Self {
-		Self { sync_oracle: None }
+		Self { state: OracleState::Done }
 	}
 
 	/// Check if node is in major sync
 	pub fn finished_syncing(&mut self) -> bool {
-		match &mut self.sync_oracle {
-			Some(sync_oracle) =>
+		match &mut self.state {
+			OracleState::Syncing(sync_oracle) =>
 				if !sync_oracle.is_major_syncing() {
-					self.sync_oracle = None;
+					self.state = OracleState::Done;
 					true
 				} else {
 					false
 				},
-			None => true,
+			OracleState::Done => true,
 		}
 	}
 }
