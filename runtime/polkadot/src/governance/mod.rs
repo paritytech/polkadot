@@ -17,11 +17,14 @@
 //! New governance configurations for the Kusama runtime.
 
 use super::*;
+use crate::xcm_config::CollectivesLocation;
 use frame_support::{
 	parameter_types,
-	traits::{ConstU16, EitherOf},
+	traits::EitherOf,
 };
 use frame_system::EnsureRootWithSuccess;
+use pallet_xcm::{EnsureXcm, IsVoiceOfBody};
+use xcm::latest::BodyId;
 
 // Old governance configurations.
 pub mod old;
@@ -65,12 +68,19 @@ pub type TreasurySpender = EitherOf<EnsureRootWithSuccess<AccountId, MaxBalance>
 
 impl origins::pallet_custom_origins::Config for Runtime {}
 
+parameter_types! {
+	// Fellows pluralistic body.
+	pub const FellowsBodyId: BodyId = BodyId::Technical;
+}
+
 impl pallet_whitelist::Config for Runtime {
 	type WeightInfo = weights::pallet_whitelist::WeightInfo<Self>;
 	type RuntimeCall = RuntimeCall;
 	type RuntimeEvent = RuntimeEvent;
-	type WhitelistOrigin =
-		EitherOf<EnsureRootWithSuccess<Self::AccountId, ConstU16<65535>>, Fellows>;
+	type WhitelistOrigin = EitherOfDiverse<
+		EnsureRoot<Self::AccountId>,
+		EnsureXcm<IsVoiceOfBody<CollectivesLocation, FellowsBodyId>>,
+	>;
 	type DispatchWhitelistedOrigin = EitherOf<EnsureRoot<Self::AccountId>, WhitelistedCaller>;
 	type Preimages = Preimage;
 }
