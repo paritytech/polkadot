@@ -17,7 +17,7 @@ jobs:
   create-release:
     runs-on: ubuntu-latest
     container:
-      image: paritytech/ci-linux:1c0fde6a-20220811
+      image: paritytech/ci-linux:latest
 
     steps:
       - uses: actions/checkout@v2
