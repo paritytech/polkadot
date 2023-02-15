@@ -1561,7 +1561,7 @@ mod tests {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
-		let local_knowledge = StatementFilter::new(group_size);
+		let local_knowledge = StatementFilter::blank(group_size);
 
 		let groups = dummy_groups(group_size);
 
@@ -1625,7 +1625,7 @@ mod tests {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
-		let local_knowledge = StatementFilter::new(group_size);
+		let local_knowledge = StatementFilter::blank(group_size);
 
 		let groups = dummy_groups(group_size);
 
@@ -1697,7 +1697,7 @@ mod tests {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
-		let local_knowledge = StatementFilter::new(group_size);
+		let local_knowledge = StatementFilter::blank(group_size);
 
 		let groups = dummy_groups(group_size);
 
@@ -1779,7 +1779,7 @@ mod tests {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
-		let local_knowledge = StatementFilter::new(group_size);
+		let local_knowledge = StatementFilter::blank(group_size);
 
 		let groups = dummy_groups(group_size);
 
@@ -1889,7 +1889,7 @@ mod tests {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
-		let local_knowledge = StatementFilter::new(group_size);
+		let local_knowledge = StatementFilter::blank(group_size);
 
 		let groups = dummy_groups(group_size);
 
@@ -1941,7 +1941,7 @@ mod tests {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
-		let local_knowledge = StatementFilter::new(group_size);
+		let local_knowledge = StatementFilter::blank(group_size);
 
 		let groups = dummy_groups(group_size);
 
@@ -2008,6 +2008,8 @@ mod tests {
 		);
 	}
 
+	// After learning fresh statements, we should not generate pending statements for knowledge that
+	// the validator already has.
 	#[test]
 	fn pending_statements_respect_remote_knowledge() {
 		let validator_index = ValidatorIndex(0);
@@ -2028,7 +2030,7 @@ mod tests {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
-		let local_knowledge = StatementFilter::new(group_size);
+		let local_knowledge = StatementFilter::blank(group_size);
 
 		let groups = dummy_groups(group_size);
 
@@ -2055,18 +2057,27 @@ mod tests {
 				claimed_parent_hash: Hash::repeat_byte(0),
 				claimed_group_index: group_index,
 				statement_knowledge: StatementFilter {
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
 					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
 				},
 			},
 			ManifestKind::Full,
 			validator_index,
 		);
+		assert_matches!(ack, Ok(true));
 		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge);
-		let statement = CompactStatement::Seconded(candidate_hash);
-		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
-		let statement = CompactStatement::Valid(candidate_hash);
-		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
+		tracker.learned_fresh_statement(
+			&groups,
+			&session_topology,
+			validator_index,
+			&CompactStatement::Seconded(candidate_hash),
+		);
+		tracker.learned_fresh_statement(
+			&groups,
+			&session_topology,
+			validator_index,
+			&CompactStatement::Valid(candidate_hash),
+		);
 
 		// The pending statements should respect the remote knowledge (meaning the Seconded
 		// statement is ignored, but not the Valid statement).
@@ -2105,7 +2116,7 @@ mod tests {
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 		let group_index = GroupIndex(0);
 		let group_size = 3;
-		let local_knowledge = StatementFilter::new(group_size);
+		let local_knowledge = StatementFilter::blank(group_size);
 
 		let groups = dummy_groups(group_size);
 
@@ -2123,7 +2134,7 @@ mod tests {
 		);
 
 		// Import statement for originator.
-		let ack = tracker.import_manifest(
+		tracker.import_manifest(
 			&session_topology,
 			&groups,
 			candidate_hash,
@@ -2144,7 +2155,7 @@ mod tests {
 		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
 
 		// Import statement for counterparty.
-		let ack = tracker.import_manifest(
+		tracker.import_manifest(
 			&session_topology,
 			&groups,
 			candidate_hash,
@@ -2197,7 +2208,7 @@ mod tests {
 		// There should be no pending statements now (for the counterparty).
 		assert_eq!(
 			tracker.pending_statements_for(counterparty, candidate_hash),
-			Some(StatementFilter::new(group_size))
+			Some(StatementFilter::blank(group_size))
 		);
 		assert_eq!(tracker.all_pending_statements_for(counterparty), vec![]);
 	}
