@@ -17,12 +17,9 @@
 //! Implementation of the v2 statement distribution protocol,
 //! designed for asynchronous backing.
 
-// TODO [now]: remove before merging & fix warnings
-#![allow(unused)]
-
 use polkadot_node_network_protocol::{
 	self as net_protocol,
-	grid_topology::{RequiredRouting, SessionGridTopology},
+	grid_topology::SessionGridTopology,
 	peer_set::ValidationVersion,
 	request_response::{
 		incoming::OutgoingResponse,
@@ -37,22 +34,20 @@ use polkadot_node_primitives::{
 	SignedFullStatementWithPVD, StatementWithPVD as FullStatementWithPVD,
 };
 use polkadot_node_subsystem::{
-	jaeger,
 	messages::{
 		CandidateBackingMessage, HypotheticalCandidate, HypotheticalFrontierRequest,
 		NetworkBridgeEvent, NetworkBridgeTxMessage, ProspectiveParachainsMessage,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, PerLeafSpan, StatementDistributionSenderTrait,
+	overseer, ActiveLeavesUpdate,
 };
 use polkadot_node_subsystem_util::{
-	backing_implicit_view::{FetchError, View as ImplicitView},
+	backing_implicit_view::View as ImplicitView,
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 };
 use polkadot_primitives::vstaging::{
-	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, CoreIndex,
-	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, IndexedVec,
-	PersistedValidationData, SessionIndex, SessionInfo, SignedStatement, SigningContext,
-	UncheckedSignedStatement, ValidatorId, ValidatorIndex,
+	AuthorityDiscoveryId, CandidateHash, CompactStatement, CoreIndex, CoreState, GroupIndex,
+	GroupRotationInfo, Hash, Id as ParaId, IndexedVec, SessionIndex, SessionInfo, SignedStatement,
+	SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
 };
 
 use sp_keystore::SyncCryptoStorePtr;
@@ -63,7 +58,6 @@ use futures::{
 	stream::FuturesUnordered,
 	SinkExt, StreamExt,
 };
-use indexmap::IndexMap;
 
 use std::collections::{
 	hash_map::{Entry, HashMap},
@@ -76,7 +70,7 @@ use crate::{
 };
 use candidates::{BadAdvertisement, Candidates, PostConfirmation};
 use cluster::{Accept as ClusterAccept, ClusterTracker, RejectIncoming as ClusterRejectIncoming};
-use grid::{GridTracker, ManifestSummary};
+use grid::GridTracker;
 use groups::Groups;
 use requests::{CandidateIdentifier, RequestProperties};
 use statement_store::{StatementOrigin, StatementStore};
@@ -93,10 +87,6 @@ mod statement_store;
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE: Rep =
 	Rep::CostMinor("Unexpected Statement, missing knowledge for relay parent");
-const COST_UNEXPECTED_STATEMENT_UNKNOWN_CANDIDATE: Rep =
-	Rep::CostMinor("Unexpected Statement, unknown candidate");
-const COST_UNEXPECTED_STATEMENT_REMOTE: Rep =
-	Rep::CostMinor("Unexpected Statement, remote not allowed");
 const COST_EXCESSIVE_SECONDED: Rep = Rep::CostMinor("Sent Excessive `Seconded` Statements");
 
 const COST_UNEXPECTED_MANIFEST_MISSING_KNOWLEDGE: Rep =
@@ -107,7 +97,6 @@ const COST_CONFLICTING_MANIFEST: Rep = Rep::CostMajor("Manifest conflicts with p
 const COST_INSUFFICIENT_MANIFEST: Rep =
 	Rep::CostMajor("Manifest statements insufficient to back candidate");
 const COST_MALFORMED_MANIFEST: Rep = Rep::CostMajor("Manifest is malformed");
-const COST_DUPLICATE_MANIFEST: Rep = Rep::CostMinor("Duplicate Manifest");
 const COST_UNEXPECTED_ACKNOWLEDGEMENT_UNKNOWN_CANDIDATE: Rep =
 	Rep::CostMinor("Unexpected acknowledgement, unknown candidate");
 
@@ -131,18 +120,12 @@ const BENEFIT_VALID_STATEMENT_FIRST: Rep =
 	Rep::BenefitMajorFirst("Peer was the first to provide a valid statement");
 
 struct PerRelayParentState {
-	validator_state: HashMap<ValidatorIndex, PerRelayParentValidatorState>,
 	local_validator: Option<LocalValidatorState>,
 	statement_store: StatementStore,
 	availability_cores: Vec<CoreState>,
 	group_rotation_info: GroupRotationInfo,
 	seconding_limit: usize,
 	session: SessionIndex,
-}
-
-struct PerRelayParentValidatorState {
-	seconded_count: usize,
-	group_id: GroupIndex,
 }
 
 // per-relay-parent local validator state.
@@ -171,8 +154,7 @@ struct PerSessionState {
 
 impl PerSessionState {
 	async fn new(session_info: SessionInfo, keystore: &SyncCryptoStorePtr) -> Self {
-		let groups =
-			Groups::new(session_info.validator_groups.clone(), &session_info.discovery_keys);
+		let groups = Groups::new(session_info.validator_groups.clone());
 		let mut authority_lookup = HashMap::new();
 		for (i, ad) in session_info.discovery_keys.iter().cloned().enumerate() {
 			authority_lookup.insert(ad, ValidatorIndex(i as _));
@@ -201,13 +183,6 @@ impl PerSessionState {
 		);
 
 		self.grid_view = Some(grid_view);
-	}
-
-	fn authority_index_in_session(
-		&self,
-		discovery_key: &AuthorityDiscoveryId,
-	) -> Option<ValidatorIndex> {
-		self.authority_lookup.get(discovery_key).map(|x| *x)
 	}
 }
 
@@ -514,7 +489,6 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		let local_validator = per_session.local_validator.and_then(|v| {
 			find_local_validator_state(
 				v,
-				&per_session.session_info.validators,
 				&per_session.groups,
 				&availability_cores,
 				&group_rotation_info,
@@ -525,7 +499,6 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		state.per_relay_parent.insert(
 			new_relay_parent,
 			PerRelayParentState {
-				validator_state: HashMap::new(),
 				local_validator,
 				statement_store: StatementStore::new(&per_session.groups),
 				availability_cores,
@@ -562,7 +535,6 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 
 fn find_local_validator_state(
 	validator_index: ValidatorIndex,
-	validators: &IndexedVec<ValidatorIndex, ValidatorId>,
 	groups: &Groups,
 	availability_cores: &[CoreState],
 	group_rotation_info: &GroupRotationInfo,
@@ -571,8 +543,6 @@ fn find_local_validator_state(
 	if groups.all().is_empty() {
 		return None
 	}
-
-	let validator_id = validators.get(validator_index)?.clone();
 
 	let our_group = groups.by_validator_index(validator_index)?;
 
@@ -607,7 +577,7 @@ fn handle_deactivate_leaves(state: &mut State, leaves: &[Hash]) {
 	}
 
 	// clean up per-relay-parent data based on everything removed.
-	state.per_relay_parent.retain(|r, x| relay_parents.contains(r));
+	state.per_relay_parent.retain(|r, _| relay_parents.contains(r));
 
 	// Clean up all requests
 	for leaf in leaves {
@@ -972,7 +942,7 @@ pub(crate) async fn share_local_statement<Context>(
 	let mut post_confirmation = None;
 
 	// Insert candidate if unknown + more sanity checks.
-	let (compact_statement, candidate_hash) = {
+	let compact_statement = {
 		let compact_statement = FullStatementWithPVD::signed_to_compact(statement.clone());
 		let candidate_hash = CandidateHash(*statement.payload().candidate_hash());
 
@@ -985,7 +955,7 @@ pub(crate) async fn share_local_statement<Context>(
 			);
 		};
 
-		let x = match per_relay_parent.statement_store.insert(
+		match per_relay_parent.statement_store.insert(
 			&per_session.groups,
 			compact_statement.clone(),
 			StatementOrigin::Local,
@@ -999,7 +969,7 @@ pub(crate) async fn share_local_statement<Context>(
 				return Err(JfyiError::InvalidShare)
 			},
 			Ok(true) => {},
-		};
+		}
 
 		if let Some(ref session_topology) = per_session.grid_view {
 			let l = per_relay_parent.local_validator.as_mut().expect("checked above; qed");
@@ -1011,7 +981,7 @@ pub(crate) async fn share_local_statement<Context>(
 			);
 		}
 
-		(compact_statement, candidate_hash)
+		compact_statement
 	};
 
 	// send the compact version of the statement to any peers which need it.
@@ -1023,13 +993,12 @@ pub(crate) async fn share_local_statement<Context>(
 		&state.candidates,
 		&state.authorities,
 		&state.peers,
-		local_group,
 		compact_statement,
 	)
 	.await;
 
 	if let Some(post_confirmation) = post_confirmation {
-		apply_post_confirmation(ctx, state, post_confirmation);
+		apply_post_confirmation(ctx, state, post_confirmation).await;
 	}
 
 	Ok(())
@@ -1043,11 +1012,9 @@ enum DirectTargetKind {
 }
 
 // Circulates a compact statement to all peers who need it: those in the current group of the
-// local validator, those in the next group for the parachain, and grid peers which have already
-// indicated that they know the candidate as backed.
+// local validator and grid peers which have already indicated that they know the candidate as backed.
 //
-// If we're not sure whether the peer knows the candidate is `Seconded` already, we also send a `Seconded`
-// statement.
+// We only circulate statements for which we have the confirmed candidate, even to the local group.
 //
 // The group index which is _canonically assigned_ to this parachain must be
 // specified already. This function should not be used when the candidate receipt and
@@ -1065,7 +1032,6 @@ async fn circulate_statement<Context>(
 	candidates: &Candidates,
 	authorities: &HashMap<AuthorityDiscoveryId, PeerId>,
 	peers: &HashMap<PeerId, PeerState>,
-	group_index: GroupIndex,
 	statement: SignedStatement,
 ) {
 	let session_info = &per_session.session_info;
@@ -1073,11 +1039,6 @@ async fn circulate_statement<Context>(
 	let candidate_hash = *statement.payload().candidate_hash();
 
 	let compact_statement = statement.payload().clone();
-	let is_seconded = match compact_statement {
-		CompactStatement::Seconded(_) => true,
-		CompactStatement::Valid(_) => false,
-	};
-
 	let is_confirmed = candidates.is_confirmed(&candidate_hash);
 
 	let originator = statement.validator_index();
@@ -1343,11 +1304,6 @@ async fn handle_incoming_statement<Context>(
 	let originator_index = checked_statement.validator_index();
 	let candidate_hash = *checked_statement.payload().candidate_hash();
 
-	let originator_group = per_relay_parent
-		.statement_store
-		.validator_group_index(originator_index)
-		.expect("validator confirmed to be known by statement_store.insert; qed");
-
 	// Insert an unconfirmed candidate entry if needed. Note that if the candidate is already confirmed,
 	// this ensures that the assigned group of the originator matches the expected group of the
 	// parachain.
@@ -1437,7 +1393,6 @@ async fn handle_incoming_statement<Context>(
 			&state.candidates,
 			&state.authorities,
 			&state.peers,
-			originator_group,
 			checked_statement,
 		)
 		.await;
@@ -1555,7 +1510,7 @@ async fn send_backing_fresh_statements<Context>(
 		let carrying_pvd = statement
 			.clone()
 			.convert_to_superpayload_with(|statement| match statement {
-				CompactStatement::Seconded(c_hash) => FullStatementWithPVD::Seconded(
+				CompactStatement::Seconded(_) => FullStatementWithPVD::Seconded(
 					(&**confirmed.candidate_receipt()).clone(),
 					confirmed.persisted_validation_data().clone(),
 				),
@@ -1644,7 +1599,6 @@ async fn provide_candidate_to_grid<Context>(
 		grid_view,
 		candidate_hash,
 		group_index,
-		group_size,
 		filter.clone(),
 	);
 
@@ -1661,14 +1615,14 @@ async fn provide_candidate_to_grid<Context>(
 		statement_knowledge: filter.clone(),
 	};
 
-	let inventory_message = Versioned::VStaging(
+	let manifest_message = Versioned::VStaging(
 		protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(manifest),
 	);
 	let ack_message = Versioned::VStaging(
 		protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(acknowledgement),
 	);
 
-	let mut inventory_peers = Vec::new();
+	let mut manifest_peers = Vec::new();
 	let mut ack_peers = Vec::new();
 
 	let mut post_statements = Vec::new();
@@ -1684,7 +1638,7 @@ async fn provide_candidate_to_grid<Context>(
 		};
 
 		match action {
-			grid::ManifestKind::Full => inventory_peers.push(p),
+			grid::ManifestKind::Full => manifest_peers.push(p),
 			grid::ManifestKind::Acknowledgement => ack_peers.push(p),
 		}
 
@@ -1709,10 +1663,10 @@ async fn provide_candidate_to_grid<Context>(
 		);
 	}
 
-	if !inventory_peers.is_empty() {
+	if !manifest_peers.is_empty() {
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			inventory_peers,
-			inventory_message.into(),
+			manifest_peers,
+			manifest_message.into(),
 		))
 		.await;
 	}
@@ -1783,7 +1737,7 @@ async fn fragment_tree_update_inner<Context>(
 			continue
 		}
 
-		for (leaf_hash, depths) in membership {
+		for (leaf_hash, _) in membership {
 			state.candidates.note_importable_under(&hypo, leaf_hash);
 		}
 
@@ -1791,7 +1745,7 @@ async fn fragment_tree_update_inner<Context>(
 		if let HypotheticalCandidate::Complete {
 			candidate_hash,
 			receipt,
-			persisted_validation_data,
+			persisted_validation_data: _,
 		} = hypo
 		{
 			let confirmed_candidate = state.candidates.get_confirmed(&candidate_hash);
@@ -2223,7 +2177,6 @@ pub(crate) async fn handle_backed_candidate_message<Context>(
 ) {
 	// If the candidate is unknown or unconfirmed, it's a race (pruned before receiving message)
 	// or a bug. Ignore if so
-	state.candidates.note_backed(&candidate_hash);
 	let confirmed = match state.candidates.get_confirmed(&candidate_hash) {
 		None => {
 			gum::debug!(
@@ -2255,6 +2208,15 @@ pub(crate) async fn handle_backed_candidate_message<Context>(
 		per_session,
 		&state.authorities,
 		&state.peers,
+	)
+	.await;
+
+	// Search for children of the backed candidate to request.
+	prospective_backed_notification_fragment_tree_updates(
+		ctx,
+		state,
+		confirmed.para_id(),
+		confirmed.candidate_receipt().descriptor().para_head,
 	)
 	.await;
 }
@@ -2308,7 +2270,6 @@ async fn send_cluster_candidate_statements<Context>(
 			&state.candidates,
 			&state.authorities,
 			&state.peers,
-			local_group,
 			statement,
 		)
 		.await;
@@ -2380,7 +2341,7 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 		None
 	};
 	let request_props = |identifier: &CandidateIdentifier| {
-		let &CandidateIdentifier { relay_parent, candidate_hash, group_index } = identifier;
+		let &CandidateIdentifier { relay_parent, group_index, .. } = identifier;
 
 		let relay_parent_state = state.per_relay_parent.get(&relay_parent)?;
 		let per_session = state.per_session.get(&relay_parent_state.session)?;
@@ -2551,12 +2512,7 @@ pub(crate) async fn handle_response<Context>(
 }
 
 /// Answer an incoming request for a candidate.
-#[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
-pub(crate) async fn answer_request<Context>(
-	ctx: &mut Context,
-	state: &mut State,
-	message: ResponderMessage,
-) {
+pub(crate) fn answer_request(state: &mut State, message: ResponderMessage) {
 	let ResponderMessage { request, sent_feedback } = message;
 	let AttestedCandidateRequest { candidate_hash, ref mask } = &request.payload;
 
@@ -2596,7 +2552,7 @@ pub(crate) async fn answer_request<Context>(
 
 	// check request bitfields are right size.
 	if mask.seconded_in_group.len() != group_size || mask.validated_in_group.len() != group_size {
-		request.send_outgoing_response(OutgoingResponse {
+		let _ = request.send_outgoing_response(OutgoingResponse {
 			result: Err(()),
 			reputation_changes: vec![COST_INVALID_REQUEST_BITFIELD_SIZE],
 			sent_feedback: None,
@@ -2618,7 +2574,7 @@ pub(crate) async fn answer_request<Context>(
 		}
 
 		if !can_request {
-			request.send_outgoing_response(OutgoingResponse {
+			let _ = request.send_outgoing_response(OutgoingResponse {
 				result: Err(()),
 				reputation_changes: vec![COST_UNEXPECTED_REQUEST],
 				sent_feedback: None,
@@ -2650,7 +2606,7 @@ pub(crate) async fn answer_request<Context>(
 			.collect(),
 	};
 
-	request.send_response(response);
+	let _ = request.send_response(response);
 }
 
 /// Messages coming from the background respond task.
