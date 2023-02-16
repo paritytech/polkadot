@@ -19,7 +19,7 @@
 use polkadot_primitives::vstaging::executor_params::{ExecutorParam, ExecutorParams};
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
-	wasm_runtime::{InvokeMethod, WasmModule as _},
+	wasm_runtime::{HeapAllocStrategy, InvokeMethod, WasmModule as _},
 };
 use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
@@ -41,8 +41,8 @@ use std::{
 // The data section for runtimes are typically rather small and can fit in a single digit number of
 // WASM pages, so let's say an extra 16 pages. Thus let's assume that 32 pages or 2 MiB are used for
 // these needs by default.
-const DEFAULT_HEAP_PAGES_ESTIMATE: u64 = 32;
-const EXTRA_HEAP_PAGES: u64 = 2048;
+const DEFAULT_HEAP_PAGES_ESTIMATE: u32 = 32;
+const EXTRA_HEAP_PAGES: u32 = 2048;
 
 /// The number of bytes devoted for the stack during wasm execution of a PVF.
 const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
@@ -55,10 +55,9 @@ const DEFAULT_CONFIG: Config = Config {
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
-		extra_heap_pages: EXTRA_HEAP_PAGES,
-
-		// NOTE: This is specified in bytes, so we multiply by WASM page size.
-		max_memory_size: Some(((DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES) * 65536) as usize),
+		heap_alloc_strategy: sc_executor_common::wasm_runtime::HeapAllocStrategy::Dynamic {
+			maximum_pages: Some(DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES),
+		},
 
 		instantiation_strategy:
 			sc_executor_wasmtime::InstantiationStrategy::RecreateInstanceCopyOnWrite,
@@ -120,7 +119,11 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 	};
 	for p in par.iter() {
 		match p {
-			ExecutorParam::MaxMemorySize(mms) => sem.max_memory_size = Some(*mms as usize),
+			ExecutorParam::MaxMemorySize(mms) =>
+				sem.heap_alloc_strategy = HeapAllocStrategy::Dynamic {
+					// Round up the number of wasm pages.
+					maximum_pages: Some((mms + 64 * 1024 * 1024 - 1) / (1024 * 1024 * 64)),
+				},
 			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
 			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
 			ExecutorParam::PrecheckingMaxMemory(_) => (), // TODO: Not implemented yet
