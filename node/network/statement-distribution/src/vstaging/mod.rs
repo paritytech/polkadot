@@ -1619,14 +1619,14 @@ async fn provide_candidate_to_grid<Context>(
 		statement_knowledge: filter.clone(),
 	};
 
-	let inventory_message = Versioned::VStaging(
+	let manifest_message = Versioned::VStaging(
 		protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(manifest),
 	);
 	let ack_message = Versioned::VStaging(
 		protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(acknowledgement),
 	);
 
-	let mut inventory_peers = Vec::new();
+	let mut manifest_peers = Vec::new();
 	let mut ack_peers = Vec::new();
 
 	let mut post_statements = Vec::new();
@@ -1642,7 +1642,7 @@ async fn provide_candidate_to_grid<Context>(
 		};
 
 		match action {
-			grid::ManifestKind::Full => inventory_peers.push(p),
+			grid::ManifestKind::Full => manifest_peers.push(p),
 			grid::ManifestKind::Acknowledgement => ack_peers.push(p),
 		}
 
@@ -1667,10 +1667,10 @@ async fn provide_candidate_to_grid<Context>(
 		);
 	}
 
-	if !inventory_peers.is_empty() {
+	if !manifest_peers.is_empty() {
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			inventory_peers,
-			inventory_message.into(),
+			manifest_peers,
+			manifest_message.into(),
 		))
 		.await;
 	}

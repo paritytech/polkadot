@@ -683,7 +683,8 @@ pub mod vstaging {
 		}
 	}
 
-	/// An inventory of a backed candidate, which can be requested.
+	/// A manifest of a known backed candidate, along with a description
+	/// of the statements backing it.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub struct BackedCandidateManifest {
 		/// The relay-parent of the candidate.
