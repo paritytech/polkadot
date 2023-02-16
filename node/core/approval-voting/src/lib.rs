@@ -1412,7 +1412,9 @@ async fn handle_approved_ancestor<Context>(
 ) -> SubsystemResult<Option<HighestApprovedAncestorBlock>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
-	let mut span = span.child("handle-approved-ancestor");
+	let mut span = span
+		.child("handle-approved-ancestor")
+		.with_stage(jaeger::Stage::ApprovalChecking);
 	use bitvec::{order::Lsb0, vec::BitVec};
 
 	let mut all_approved_max = None;
