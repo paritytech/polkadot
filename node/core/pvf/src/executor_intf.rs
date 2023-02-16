@@ -121,7 +121,8 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 
 	for p in par.iter() {
 		match p {
-			ExecutorParam::MaxMemoryPages(mms) => sem.max_memory_size = Some((*mms as usize * 65536)),
+			ExecutorParam::MaxMemoryPages(mms) =>
+				sem.max_memory_size = Some((*mms as usize * 65536)),
 			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
 			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
 			ExecutorParam::PrecheckingMaxMemory(_) => (), // TODO: Not implemented yet
