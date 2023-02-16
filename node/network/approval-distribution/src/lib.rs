@@ -947,7 +947,7 @@ impl State {
 			match result {
 				AssignmentCheckResult::Accepted => {
 					modify_reputation(ctx.sender(), peer_id, BENEFIT_VALID_MESSAGE_FIRST).await;
-					entry.knowledge.known_messages.insert(message_subject.clone(), message_kind);
+					entry.knowledge.insert(message_subject.clone(), message_kind);
 					if let Some(peer_knowledge) = entry.known_by.get_mut(&peer_id) {
 						peer_knowledge.received.insert(message_subject.clone(), message_kind);
 					}
@@ -1773,6 +1773,7 @@ impl ApprovalDistribution {
 				state.handle_new_blocks(ctx, metrics, metas, rng).await;
 			},
 			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_indices) => {
+				// TODO: approval voting bug: Fix `Importing locally an already known assignment` for multiple candidate assignments.
 				gum::debug!(
 					target: LOG_TARGET,
 					"Distributing our assignment on candidate (block={}, indices={:?})",
