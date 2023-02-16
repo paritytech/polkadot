@@ -80,7 +80,7 @@ impl pallet_whitelist::Config for Runtime {
 }
 
 impl pallet_referenda::Config for Runtime {
-	type WeightInfo = weights::pallet_referenda_referenda::WeightInfo<Self>;
+	type WeightInfo = weights::pallet_referenda::WeightInfo<Self>;
 	type RuntimeCall = RuntimeCall;
 	type RuntimeEvent = RuntimeEvent;
 	type Scheduler = Scheduler;
