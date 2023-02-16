@@ -1749,7 +1749,6 @@ fn check_and_import_assignment(
 		.map(|span| span.child("check-and-import-assignment"))
 		.unwrap_or(jaeger::Span::new(assignment.block_hash, "check-and-import-assignment"))
 		.with_string_tag("block-hash", format!("{:?}", assignment.block_hash))
-		.with_stage(jaeger::Stage::ApprovalChecking)
 		.with_uint_tag("candidate-index", candidate_index as u64)
 		.with_stage(jaeger::Stage::ApprovalChecking);
 
