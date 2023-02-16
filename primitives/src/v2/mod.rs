@@ -593,7 +593,7 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Default))]
+#[cfg_attr(feature = "std", derive(Default, Hash))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
 	pub upward_messages: UpwardMessages,
@@ -607,28 +607,6 @@ pub struct CandidateCommitments<N = BlockNumber> {
 	pub processed_downward_messages: u32,
 	/// The mark which specifies the block number up to which all inbound HRMP messages are processed.
 	pub hrmp_watermark: N,
-}
-
-// Custom implementation of `Hash`, since `BoundedVec` does not implement it.
-#[cfg(feature = "std")]
-impl sp_std::hash::Hash for CandidateCommitments {
-	fn hash<H: sp_std::hash::Hasher>(&self, state: &mut H) {
-		let Self {
-			upward_messages,
-			horizontal_messages,
-			new_validation_code,
-			head_data,
-			processed_downward_messages,
-			hrmp_watermark,
-		} = self;
-
-		upward_messages.as_slice().hash(state);
-		horizontal_messages.as_slice().hash(state);
-		new_validation_code.hash(state);
-		sp_std::hash::Hash::hash(&head_data, state);
-		processed_downward_messages.hash(state);
-		hrmp_watermark.hash(state);
-	}
 }
 
 impl CandidateCommitments {
