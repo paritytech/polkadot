@@ -14,8 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Utilities for handling distribution of backed candidates along
-//! the grid.
+//! Utilities for handling distribution of backed candidates along the grid (outside the group to
+//! the rest of the network).
+//!
+//! The grid uses the gossip topology defined in [`polkadot_node_network_protocol::grid_topology`].
+//! It defines how messages and statements are forwarded between validators.
 
 use polkadot_node_network_protocol::{
 	grid_topology::SessionGridTopology, vstaging::StatementFilter,
@@ -42,7 +45,7 @@ use super::{groups::Groups, LOG_TARGET};
 ///
 /// In the case that this group is the group that we are locally assigned to,
 /// the 'receiving' side will be empty.
-#[derive(PartialEq)]
+#[derive(Debug, PartialEq)]
 struct GroupSubView {
 	sending: HashSet<ValidatorIndex>,
 	receiving: HashSet<ValidatorIndex>,
@@ -70,8 +73,8 @@ impl SessionTopologyView {
 
 /// Build a view of the topology for the session.
 /// For groups that we are part of: we receive from nobody and send to our X/Y peers.
-/// For groups that we are not part of: we receive from any validator in the group we share a slice with.
-///    and send to the corresponding X/Y slice.
+/// For groups that we are not part of: we receive from any validator in the group we share a slice with
+///    and send to the corresponding X/Y slice in the other dimension.
 ///    For any validators we don't share a slice with, we receive from the nodes
 ///    which share a slice with them.
 pub fn build_session_topology<'a>(
@@ -300,7 +303,7 @@ impl GridTracker {
 				);
 			}
 		} else {
-			// received prevents conflicting manifests so this is max 1 per validator.
+			// `received` prevents conflicting manifests so this is max 1 per validator.
 			self.unconfirmed
 				.entry(candidate_hash)
 				.or_default()
@@ -311,7 +314,7 @@ impl GridTracker {
 	}
 
 	/// Add a new backed candidate to the tracker. This yields
-	/// an iterator of validators which we should either advertise to
+	/// a list of validators which we should either advertise to
 	/// or signal that we know the candidate, along with the corresponding
 	/// type of manifest we should send.
 	pub fn add_backed_candidate(
@@ -354,7 +357,7 @@ impl GridTracker {
 			Some(g) => g,
 		};
 
-		// advertise onwards ad accept received advertisements
+		// advertise onwards and accept received advertisements
 
 		let sending_group_manifests =
 			group_topology.sending.iter().map(|v| (*v, ManifestKind::Full));
@@ -531,7 +534,7 @@ impl GridTracker {
 			return
 		}
 
-		// Add to `pending_statements` for all valdiators we communicate with
+		// Add to `pending_statements` for all validators we communicate with
 		// who have exchanged manifests.
 		let all_group_validators = session_topology
 			.group_views
@@ -653,7 +656,7 @@ pub enum ManifestImportError {
 	Disallowed,
 }
 
-/// The knowledge we are awawre of counterparties having of manifests.
+/// The knowledge we are aware of counterparties having of manifests.
 #[derive(Default)]
 struct ReceivedManifests {
 	received: HashMap<CandidateHash, ManifestSummary>,
@@ -764,6 +767,9 @@ impl ReceivedManifests {
 
 // updates validator-seconded records but only if the new statements
 // are OK. returns `true` if alright and `false` otherwise.
+//
+// The seconding limit is a per-validator limit. It ensures an upper bound on the total number of
+// candidates entering the system.
 fn updating_ensure_within_seconding_limit(
 	seconded_counts: &mut HashMap<GroupIndex, Vec<usize>>,
 	group_index: GroupIndex,
@@ -792,7 +798,7 @@ fn updating_ensure_within_seconding_limit(
 	true
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone, Copy)]
 enum StatementKind {
 	Seconded,
 	Valid,
@@ -823,18 +829,22 @@ impl FilterQuery for StatementFilter {
 	}
 }
 
+/// Knowledge that we have about a remote peer concerning a candidate, and that they have about us
+/// concerning the candidate.
+#[derive(Debug, Clone)]
 struct MutualKnowledge {
-	// Knowledge they have about the candidate. `Some` only if they
-	// have advertised or requested the candidate.
+	/// Knowledge the remote peer has about the candidate. `Some` only if they
+	/// have advertised or requested the candidate.
 	remote_knowledge: Option<StatementFilter>,
-	// Knowledge we have indicated to them about the candidate.
-	// `Some` only if we have advertised or requested the candidate
-	// from them.
+	/// Knowledge we have indicated to the remote peer about the candidate.
+	/// `Some` only if we have advertised or requested the candidate
+	/// from them.
 	local_knowledge: Option<StatementFilter>,
 }
 
 // A utility struct for keeping track of metadata about candidates
 // we have confirmed as having been backed.
+#[derive(Debug, Clone)]
 struct KnownBackedCandidate {
 	group_index: GroupIndex,
 	local_knowledge: StatementFilter,
@@ -991,6 +1001,14 @@ mod tests {
 	use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 	use sp_core::crypto::Pair as PairT;
 
+	fn dummy_groups(group_size: usize) -> Groups {
+		let groups = vec![(0..(group_size as u32)).map(ValidatorIndex).collect()].into();
+		let mut discovery_keys = vec![];
+		(0..group_size).map(|_| discovery_keys.push(AuthorityDiscoveryPair::generate().0.public()));
+
+		Groups::new(groups, &discovery_keys)
+	}
+
 	#[test]
 	fn topology_empty_for_no_index() {
 		let base_topology = SessionGridTopology::new(
@@ -1141,6 +1159,8 @@ mod tests {
 		);
 	}
 
+	// Make sure we don't import manifests that would put a validator in a group over the limit of
+	// candidates they are allowed to second (aka seconding limit).
 	#[test]
 	fn reject_overflowing_manifests() {
 		let mut knowledge = ReceivedManifests::default();
@@ -1176,6 +1196,8 @@ mod tests {
 			)
 			.unwrap();
 
+		// Reject a seconding validator that is already at the seconding limit. Seconding counts for
+		// the validators should not be applied.
 		assert_matches!(
 			knowledge.import_received(
 				3,
@@ -1193,6 +1215,7 @@ mod tests {
 			Err(ManifestImportError::Overflow)
 		);
 
+		// Don't reject validators that have seconded less than the limit so far.
 		knowledge
 			.import_received(
 				3,
@@ -1225,14 +1248,7 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
+		let groups = dummy_groups(3);
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
@@ -1298,14 +1314,7 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
+		let groups = dummy_groups(3);
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
@@ -1367,14 +1376,7 @@ mod tests {
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
+		let groups = dummy_groups(3);
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
@@ -1409,21 +1411,14 @@ mod tests {
 				GroupIndex(0),
 				GroupSubView {
 					sending: HashSet::new(),
-					receiving: vec![ValidatorIndex(0)].into_iter().collect(),
+					receiving: HashSet::from([ValidatorIndex(0)]),
 				},
 			)]
 			.into_iter()
 			.collect(),
 		};
 
-		let groups = Groups::new(
-			vec![vec![ValidatorIndex(0), ValidatorIndex(1), ValidatorIndex(2)]].into(),
-			&[
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-				AuthorityDiscoveryPair::generate().0.public(),
-			],
-		);
+		let groups = dummy_groups(3);
 
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
@@ -1496,20 +1491,694 @@ mod tests {
 		);
 	}
 
-	// TODO [now]: test that senders can provide manifests in acknowledgement
+	// Test that when we add a candidate as backed and advertise it to the sending group, they can
+	// provide an acknowledgement manifest in response.
+	#[test]
+	fn senders_can_provide_manifests_in_acknowledgement() {
+		let validator_index = ValidatorIndex(0);
 
-	// TODO [now]: check that pending communication is set correctly when receiving a manifest on a confirmed candidate
-	// It should also overwrite any existing `Full` ManifestKind
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::from([validator_index]),
+					receiving: HashSet::from([ValidatorIndex(1)]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
 
-	// TODO [now]: check that pending communication is cleared correctly in `manifest_sent_to`
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+		let local_knowledge = StatementFilter::blank(group_size);
 
-	// TODO [now]: test a scenario where manifest import returns `Ok(true)`.
+		let groups = dummy_groups(group_size);
 
-	// TODO [now]: test that pending statements are updated after manifest exchange
+		// Add the candidate as backed.
+		let receivers = tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+		// Validator 0 is in the sending group. Advertise onward to it.
+		//
+		// Validator 1 is in the receiving group, but we have not received from it, so we're not
+		// expected to send it an acknowledgement.
+		assert_eq!(receivers, vec![(validator_index, ManifestKind::Full)]);
 
-	// TODO [now]: test that pending statements are updated when importing a fresh statement
+		// Note the manifest as 'sent' to validator 0.
+		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge);
 
-	// TODO [now]: test that pending statements respect remote knowledge
+		// Import manifest of kind `Acknowledgement` from validator 0.
+		let ack = tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
+			},
+			ManifestKind::Acknowledgement,
+			validator_index,
+		);
+		assert_matches!(ack, Ok(false));
+	}
 
-	// TODO [now]: test that pending statements are cleared when sending/receiving.
+	// Check that pending communication is set correctly when receiving a manifest on a confirmed candidate.
+	//
+	// It should also overwrite any existing `Full` ManifestKind.
+	#[test]
+	fn pending_communication_receiving_manifest_on_confirmed_candidate() {
+		let validator_index = ValidatorIndex(0);
+
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::from([validator_index]),
+					receiving: HashSet::from([ValidatorIndex(1)]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+		let local_knowledge = StatementFilter::blank(group_size);
+
+		let groups = dummy_groups(group_size);
+
+		// Manifest should not be pending yet.
+		let pending_manifest = tracker.is_manifest_pending_for(validator_index, &candidate_hash);
+		assert_eq!(pending_manifest, None);
+
+		// Add the candidate as backed.
+		tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+
+		// Manifest should be pending as `Full`.
+		let pending_manifest = tracker.is_manifest_pending_for(validator_index, &candidate_hash);
+		assert_eq!(pending_manifest, Some(ManifestKind::Full));
+
+		// Note the manifest as 'sent' to validator 0.
+		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge);
+
+		// Import manifest.
+		//
+		// Should overwrite existing `Full` manifest.
+		let ack = tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
+			},
+			ManifestKind::Acknowledgement,
+			validator_index,
+		);
+		assert_matches!(ack, Ok(false));
+
+		let pending_manifest = tracker.is_manifest_pending_for(validator_index, &candidate_hash);
+		assert_eq!(pending_manifest, None);
+	}
+
+	// Check that pending communication is cleared correctly in `manifest_sent_to`
+	//
+	// Also test a scenario where manifest import returns `Ok(true)` (should acknowledge).
+	#[test]
+	fn pending_communication_is_cleared() {
+		let validator_index = ValidatorIndex(0);
+
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::new(),
+					receiving: HashSet::from([validator_index]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+		let local_knowledge = StatementFilter::blank(group_size);
+
+		let groups = dummy_groups(group_size);
+
+		// Add the candidate as backed.
+		tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+
+		// Manifest should not be pending yet.
+		let pending_manifest = tracker.is_manifest_pending_for(validator_index, &candidate_hash);
+		assert_eq!(pending_manifest, None);
+
+		// Import manifest. The candidate is confirmed backed and we are expected to receive from
+		// validator 0, so send it an acknowledgement.
+		let ack = tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
+			},
+			ManifestKind::Full,
+			validator_index,
+		);
+		assert_matches!(ack, Ok(true));
+
+		// Acknowledgement manifest should be pending.
+		let pending_manifest = tracker.is_manifest_pending_for(validator_index, &candidate_hash);
+		assert_eq!(pending_manifest, Some(ManifestKind::Acknowledgement));
+
+		// Note the candidate as advertised.
+		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge);
+
+		// Pending manifest should be cleared.
+		let pending_manifest = tracker.is_manifest_pending_for(validator_index, &candidate_hash);
+		assert_eq!(pending_manifest, None);
+	}
+
+	/// A manifest exchange means that both `manifest_sent_to` and `manifest_received_from` have
+	/// been invoked.
+	///
+	/// In practice, it means that one of three things have happened:
+	///
+	/// - They announced, we acknowledged
+	///
+	/// - We announced, they acknowledged
+	///
+	/// - We announced, they announced (not sure if this can actually happen; it would happen if 2
+	///   nodes had each other in their sending set and they sent manifests at the same time. The
+	///   code accounts for this anyway)
+	#[test]
+	fn pending_statements_are_updated_after_manifest_exchange() {
+		let send_to = ValidatorIndex(0);
+		let receive_from = ValidatorIndex(1);
+
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::from([send_to]),
+					receiving: HashSet::from([receive_from]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+		let local_knowledge = StatementFilter::blank(group_size);
+
+		let groups = dummy_groups(group_size);
+
+		// Confirm the candidate.
+		let receivers = tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+		assert_eq!(receivers, vec![(send_to, ManifestKind::Full)]);
+
+		// Learn a statement from a different validator.
+		tracker.learned_fresh_statement(
+			&groups,
+			&session_topology,
+			ValidatorIndex(2),
+			&CompactStatement::Seconded(candidate_hash),
+		);
+
+		// Test receiving followed by sending an ack.
+		{
+			// Should start with no pending statements.
+			assert_eq!(tracker.pending_statements_for(receive_from, candidate_hash), None);
+			assert_eq!(tracker.all_pending_statements_for(receive_from), vec![]);
+			let ack = tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: group_index,
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					},
+				},
+				ManifestKind::Full,
+				receive_from,
+			);
+			assert_matches!(ack, Ok(true));
+
+			// Send ack now.
+			tracker.manifest_sent_to(
+				&groups,
+				receive_from,
+				candidate_hash,
+				local_knowledge.clone(),
+			);
+
+			// There should be pending statements now.
+			assert_eq!(
+				tracker.pending_statements_for(receive_from, candidate_hash),
+				Some(StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				})
+			);
+			assert_eq!(
+				tracker.all_pending_statements_for(receive_from),
+				vec![(ValidatorIndex(2), CompactStatement::Seconded(candidate_hash))]
+			);
+		}
+
+		// Test sending followed by receiving an ack.
+		{
+			// Should start with no pending statements.
+			assert_eq!(tracker.pending_statements_for(send_to, candidate_hash), None);
+			assert_eq!(tracker.all_pending_statements_for(send_to), vec![]);
+
+			tracker.manifest_sent_to(&groups, send_to, candidate_hash, local_knowledge.clone());
+			let ack = tracker.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: group_index,
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+					},
+				},
+				ManifestKind::Acknowledgement,
+				send_to,
+			);
+			assert_matches!(ack, Ok(false));
+
+			// There should be pending statements now.
+			assert_eq!(
+				tracker.pending_statements_for(send_to, candidate_hash),
+				Some(StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				})
+			);
+			assert_eq!(
+				tracker.all_pending_statements_for(send_to),
+				vec![(ValidatorIndex(2), CompactStatement::Seconded(candidate_hash))]
+			);
+		}
+	}
+
+	#[test]
+	fn invalid_fresh_statement_import() {
+		let validator_index = ValidatorIndex(0);
+
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::new(),
+					receiving: HashSet::from([validator_index]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+		let local_knowledge = StatementFilter::blank(group_size);
+
+		let groups = dummy_groups(group_size);
+
+		// Should start with no pending statements.
+		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
+		assert_eq!(tracker.all_pending_statements_for(validator_index), vec![]);
+
+		// Try to import fresh statement. Candidate not backed.
+		let statement = CompactStatement::Seconded(candidate_hash);
+		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
+
+		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
+		assert_eq!(tracker.all_pending_statements_for(validator_index), vec![]);
+
+		// Add the candidate as backed.
+		tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+
+		// Try to import fresh statement. Unknown group for validator index.
+		let statement = CompactStatement::Seconded(candidate_hash);
+		tracker.learned_fresh_statement(&groups, &session_topology, ValidatorIndex(1), &statement);
+
+		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
+		assert_eq!(tracker.all_pending_statements_for(validator_index), vec![]);
+	}
+
+	#[test]
+	fn pending_statements_updated_when_importing_fresh_statement() {
+		let validator_index = ValidatorIndex(0);
+
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::new(),
+					receiving: HashSet::from([validator_index]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+		let local_knowledge = StatementFilter::blank(group_size);
+
+		let groups = dummy_groups(group_size);
+
+		// Should start with no pending statements.
+		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
+		assert_eq!(tracker.all_pending_statements_for(validator_index), vec![]);
+
+		// Add the candidate as backed.
+		tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+
+		// Import fresh statement.
+
+		let ack = tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
+			},
+			ManifestKind::Full,
+			validator_index,
+		);
+		assert_matches!(ack, Ok(true));
+		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge);
+		let statement = CompactStatement::Seconded(candidate_hash);
+		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
+
+		// There should be pending statements now.
+		let statements = StatementFilter {
+			seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
+			validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+		};
+		assert_eq!(
+			tracker.pending_statements_for(validator_index, candidate_hash),
+			Some(statements.clone())
+		);
+		assert_eq!(
+			tracker.all_pending_statements_for(validator_index),
+			vec![(ValidatorIndex(0), CompactStatement::Seconded(candidate_hash))]
+		);
+
+		// After successful import, try importing again. Nothing should change.
+
+		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
+		assert_eq!(
+			tracker.pending_statements_for(validator_index, candidate_hash),
+			Some(statements)
+		);
+		assert_eq!(
+			tracker.all_pending_statements_for(validator_index),
+			vec![(ValidatorIndex(0), CompactStatement::Seconded(candidate_hash))]
+		);
+	}
+
+	// After learning fresh statements, we should not generate pending statements for knowledge that
+	// the validator already has.
+	#[test]
+	fn pending_statements_respect_remote_knowledge() {
+		let validator_index = ValidatorIndex(0);
+
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::new(),
+					receiving: HashSet::from([validator_index]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+		let local_knowledge = StatementFilter::blank(group_size);
+
+		let groups = dummy_groups(group_size);
+
+		// Should start with no pending statements.
+		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
+		assert_eq!(tracker.all_pending_statements_for(validator_index), vec![]);
+
+		// Add the candidate as backed.
+		tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+
+		// Import fresh statement.
+		let ack = tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				},
+			},
+			ManifestKind::Full,
+			validator_index,
+		);
+		assert_matches!(ack, Ok(true));
+		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge);
+		tracker.learned_fresh_statement(
+			&groups,
+			&session_topology,
+			validator_index,
+			&CompactStatement::Seconded(candidate_hash),
+		);
+		tracker.learned_fresh_statement(
+			&groups,
+			&session_topology,
+			validator_index,
+			&CompactStatement::Valid(candidate_hash),
+		);
+
+		// The pending statements should respect the remote knowledge (meaning the Seconded
+		// statement is ignored, but not the Valid statement).
+		let statements = StatementFilter {
+			seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+			validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
+		};
+		assert_eq!(
+			tracker.pending_statements_for(validator_index, candidate_hash),
+			Some(statements.clone())
+		);
+		assert_eq!(
+			tracker.all_pending_statements_for(validator_index),
+			vec![(ValidatorIndex(0), CompactStatement::Valid(candidate_hash))]
+		);
+	}
+
+	#[test]
+	fn pending_statements_cleared_when_sending() {
+		let validator_index = ValidatorIndex(0);
+		let counterparty = ValidatorIndex(1);
+
+		let mut tracker = GridTracker::default();
+		let session_topology = SessionTopologyView {
+			group_views: vec![(
+				GroupIndex(0),
+				GroupSubView {
+					sending: HashSet::new(),
+					receiving: HashSet::from([validator_index, counterparty]),
+				},
+			)]
+			.into_iter()
+			.collect(),
+		};
+
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let group_index = GroupIndex(0);
+		let group_size = 3;
+		let local_knowledge = StatementFilter::blank(group_size);
+
+		let groups = dummy_groups(group_size);
+
+		// Should start with no pending statements.
+		assert_eq!(tracker.pending_statements_for(validator_index, candidate_hash), None);
+		assert_eq!(tracker.all_pending_statements_for(validator_index), vec![]);
+
+		// Add the candidate as backed.
+		tracker.add_backed_candidate(
+			&session_topology,
+			candidate_hash,
+			group_index,
+			group_size,
+			local_knowledge.clone(),
+		);
+
+		// Import statement for originator.
+		tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
+			},
+			ManifestKind::Full,
+			validator_index,
+		);
+		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge.clone());
+		let statement = CompactStatement::Seconded(candidate_hash);
+		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
+
+		// Import statement for counterparty.
+		tracker.import_manifest(
+			&session_topology,
+			&groups,
+			candidate_hash,
+			3,
+			ManifestSummary {
+				claimed_parent_hash: Hash::repeat_byte(0),
+				claimed_group_index: group_index,
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+				},
+			},
+			ManifestKind::Full,
+			counterparty,
+		);
+		tracker.manifest_sent_to(&groups, counterparty, candidate_hash, local_knowledge);
+		let statement = CompactStatement::Seconded(candidate_hash);
+		tracker.learned_fresh_statement(&groups, &session_topology, counterparty, &statement);
+
+		// There should be pending statements now.
+		let statements = StatementFilter {
+			seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 0],
+			validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+		};
+		assert_eq!(
+			tracker.pending_statements_for(validator_index, candidate_hash),
+			Some(statements.clone())
+		);
+		assert_eq!(
+			tracker.all_pending_statements_for(validator_index),
+			vec![(ValidatorIndex(0), CompactStatement::Seconded(candidate_hash))]
+		);
+		assert_eq!(
+			tracker.pending_statements_for(counterparty, candidate_hash),
+			Some(statements.clone())
+		);
+		assert_eq!(
+			tracker.all_pending_statements_for(counterparty),
+			vec![(ValidatorIndex(0), CompactStatement::Seconded(candidate_hash))]
+		);
+
+		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
+		tracker.sent_or_received_direct_statement(
+			&groups,
+			validator_index,
+			counterparty,
+			&statement,
+		);
+
+		// There should be no pending statements now (for the counterparty).
+		assert_eq!(
+			tracker.pending_statements_for(counterparty, candidate_hash),
+			Some(StatementFilter::blank(group_size))
+		);
+		assert_eq!(tracker.all_pending_statements_for(counterparty), vec![]);
+	}
 }
