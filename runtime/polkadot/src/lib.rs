@@ -1026,19 +1026,20 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::NominationPools(..) |
 				RuntimeCall::FastUnstake(..)
 			),
-			ProxyType::Governance => matches!(
-				c,
-				RuntimeCall::Democracy(..) |
-					RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
-					RuntimeCall::PhragmenElection(..) |
-					RuntimeCall::Treasury(..) |
-					RuntimeCall::Bounties(..) |
-					RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
-					RuntimeCall::ChildBounties(..) |
-					RuntimeCall::ConvictionVoting(..) |
-					RuntimeCall::Referenda(..) |
-					RuntimeCall::Whitelist(..) |
-			),
+			ProxyType::Governance =>
+				matches!(
+					c,
+					RuntimeCall::Democracy(..) |
+						RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
+						RuntimeCall::PhragmenElection(..) |
+						RuntimeCall::Treasury(..) |
+						RuntimeCall::Bounties(..) |
+						RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
+						RuntimeCall::ChildBounties(..) |
+						RuntimeCall::ConvictionVoting(..) |
+						RuntimeCall::Referenda(..) |
+						RuntimeCall::Whitelist(..)
+				),
 			ProxyType::Staking => {
 				matches!(
 					c,
