@@ -662,9 +662,9 @@ checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
 
 [[package]]
 name = "bounded-collections"
-version = "0.1.4"
+version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "de2aff4807e40f478132150d80b031f2461d88f061851afcab537d7600c24120"
+checksum = "a071c348a5ef6da1d3a87166b408170b46002382b1dda83992b5c2208cefb370"
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -7162,6 +7162,7 @@ dependencies = [
  "sp-core",
  "sp-keystore",
  "sp-maybe-compressed-blob",
+ "sp-runtime",
  "thiserror",
  "zstd",
 ]
@@ -7286,6 +7287,7 @@ dependencies = [
 name = "polkadot-parachain"
 version = "0.9.37"
 dependencies = [
+ "bounded-collections",
  "derive_more",
  "frame-support",
  "parity-scale-codec",
@@ -7576,6 +7578,7 @@ dependencies = [
  "pallet-timestamp",
  "pallet-vesting",
  "parity-scale-codec",
+ "polkadot-parachain",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
  "polkadot-runtime-metrics",
