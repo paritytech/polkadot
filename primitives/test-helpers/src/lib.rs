@@ -148,6 +148,7 @@ pub fn dummy_collator_signature() -> CollatorSignature {
 	CollatorSignature::from(sr25519::Signature([0u8; 64]))
 }
 
+/// Create a meaningless persisted validation data.
 pub fn dummy_pvd(parent_head: HeadData, relay_parent_number: u32) -> PersistedValidationData {
 	PersistedValidationData {
 		parent_head,
@@ -157,6 +158,7 @@ pub fn dummy_pvd(parent_head: HeadData, relay_parent_number: u32) -> PersistedVa
 	}
 }
 
+/// Create a meaningless candidate, returning its receipt and PVD.
 pub fn make_candidate(
 	relay_parent_hash: Hash,
 	relay_parent_number: u32,

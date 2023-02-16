@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use ::polkadot_primitives_test_helpers::make_candidate;
 use assert_matches::assert_matches;
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
@@ -31,6 +30,7 @@ use polkadot_primitives::{
 	CommittedCandidateReceipt, HeadData, Header, PersistedValidationData, ScheduledCore,
 	ValidationCodeHash,
 };
+use polkadot_primitives_test_helpers::make_candidate;
 use std::sync::Arc;
 
 const ALLOWED_ANCESTRY_LEN: u32 = 3;
