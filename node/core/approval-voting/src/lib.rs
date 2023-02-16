@@ -1246,9 +1246,10 @@ async fn handle_from_overseer<Context>(
 			wakeups.prune_finalized_wakeups(block_number);
 
 			// We let prune_finalized_wakeups decide whether we prune the span for a finalized block.
-			wakeups.block_numbers.values().for_each(|hash_set| {
-				state.spans.retain(|hash, _| hash_set.contains(hash))
-			});
+			wakeups
+				.block_numbers
+				.values()
+				.for_each(|hash_set| state.spans.retain(|hash, _| hash_set.contains(hash)));
 
 			Vec::new()
 		},
