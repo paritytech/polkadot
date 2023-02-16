@@ -19,6 +19,8 @@
 //! N.B. This is not guarded with some feature flag. Overexposing items here may affect the final
 //!      artifact even for production builds.
 
+use polkadot_primitives::vstaging::ExecutorParams;
+
 pub mod worker_common {
 	pub use crate::worker_common::{spawn_with_program_path, SpawnErr};
 }
@@ -35,12 +37,12 @@ pub fn validate_candidate(
 		.expect("Decompressing code failed");
 
 	let blob = prevalidate(&code)?;
-	let artifact = prepare(blob)?;
+	let artifact = prepare(blob, ExecutorParams::default())?;
 	let tmpdir = tempfile::tempdir()?;
 	let artifact_path = tmpdir.path().join("blob");
 	std::fs::write(&artifact_path, &artifact)?;
 
-	let executor = Executor::new()?;
+	let executor = Executor::new(ExecutorParams::default())?;
 	let result = unsafe {
 		// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`
 		//         and is written into a temporary directory in an unmodified state.
