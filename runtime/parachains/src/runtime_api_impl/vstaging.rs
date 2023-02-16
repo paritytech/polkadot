@@ -16,10 +16,11 @@
 
 //! Put implementations of functions from staging APIs here.
 
-use crate::{configuration, disputes, dmp, hrmp, initializer, paras, shared, ump, session_info};
+use crate::{configuration, disputes, dmp, hrmp, initializer, paras, session_info, shared, ump};
 use primitives::{
 	vstaging::{
-		AsyncBackingParameters, Constraints, InboundHrmpLimitations, OutboundHrmpChannelLimitations, ExecutorParams
+		AsyncBackingParameters, Constraints, ExecutorParams, InboundHrmpLimitations,
+		OutboundHrmpChannelLimitations,
 	},
 	CandidateHash, DisputeState, Id as ParaId, SessionIndex,
 };

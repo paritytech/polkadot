@@ -1613,7 +1613,6 @@ pub type Migrations = (
 	// this release they will be properly pruned after the bonding duration has
 	// elapsed)
 	pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
-
 	/* Asynchronous backing mirgration */
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 );

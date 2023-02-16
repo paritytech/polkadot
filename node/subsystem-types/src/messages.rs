@@ -39,13 +39,13 @@ use polkadot_node_primitives::{
 	SignedDisputeStatement, SignedFullStatement, SignedFullStatementWithPVD, ValidationResult,
 };
 use polkadot_primitives::{
-	vstaging as vstaging_primitives, AuthorityDiscoveryId, BackedCandidate, BlockNumber,
-	CandidateEvent, CandidateHash, CandidateIndex, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupIndex, GroupRotationInfo, Hash,
-	Header as BlockHeader, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	vstaging as vstaging_primitives, vstaging::ExecutorParams, AuthorityDiscoveryId,
+	BackedCandidate, BlockNumber, CandidateEvent, CandidateHash, CandidateIndex, CandidateReceipt,
+	CollatorId, CommittedCandidateReceipt, CoreState, DisputeState, GroupIndex, GroupRotationInfo,
+	Hash, Header as BlockHeader, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
 	MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
 	SessionIndex, SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature, vstaging::ExecutorParams
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
