@@ -773,7 +773,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 					})
 					.collect::<Result<Vec<_>, XcmError>>()?;
 				let QueryResponseInfo { destination, query_id, max_weight } = response_info;
-				let response = Response::PalletsInfo(pallets.try_into()?);
+				let response =
+					Response::PalletsInfo(pallets.try_into().map_err(|_| XcmError::Overflow)?);
 				let querier = Self::to_querier(self.cloned_origin(), &destination)?;
 				let instruction = QueryResponse { query_id, response, max_weight, querier };
 				let message = Xcm(vec![instruction]);

@@ -16,11 +16,12 @@
 
 use async_trait::async_trait;
 use polkadot_primitives::{
-	runtime_api::ParachainHost, Block, BlockId, BlockNumber, CandidateCommitments, CandidateEvent,
-	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id,
-	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	runtime_api::ParachainHost, vstaging::ExecutorParams, Block, BlockId, BlockNumber,
+	CandidateCommitments, CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreState,
+	DisputeState, GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage,
+	OccupiedCoreAssumption, OldV1SessionInfo, PersistedValidationData, PvfCheckStatement,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -154,7 +155,7 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 		index: SessionIndex,
-	) -> Result<Option<polkadot_primitives::OldV1SessionInfo>, ApiError>;
+	) -> Result<Option<OldV1SessionInfo>, ApiError>;
 
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	///
@@ -181,6 +182,8 @@ pub trait RuntimeApiSubsystemClient {
 		assumption: OccupiedCoreAssumption,
 	) -> Result<Option<ValidationCodeHash>, ApiError>;
 
+	/***** Added in v3 *****/
+
 	/// Returns all onchain disputes.
 	/// This is a staging method! Do not use on production runtimes!
 	async fn disputes(
@@ -196,12 +199,6 @@ pub trait RuntimeApiSubsystemClient {
 		para_id: Id,
 	) -> Result<Option<polkadot_primitives::vstaging::Constraints>, ApiError>;
 
-	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
-	async fn staging_async_backing_parameters(
-		&self,
-		at: Hash,
-	) -> Result<polkadot_primitives::vstaging::AsyncBackingParameters, ApiError>;
-
 	// === BABE API ===
 
 	/// Returns information regarding the current epoch.
@@ -214,6 +211,21 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError>;
+
+	// === Asynchronous backing API ===
+
+	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
+	async fn staging_async_backing_parameters(
+		&self,
+		at: Hash,
+	) -> Result<polkadot_primitives::vstaging::AsyncBackingParameters, ApiError>;
+
+	/// Get the execution environment parameter set by parent hash, if stored
+	async fn session_executor_params(
+		&self,
+		at: Hash,
+		session_index: SessionIndex,
+	) -> Result<Option<ExecutorParams>, ApiError>;
 }
 
 #[async_trait]
@@ -330,6 +342,14 @@ where
 		self.runtime_api().on_chain_votes(&BlockId::Hash(at))
 	}
 
+	async fn session_executor_params(
+		&self,
+		at: Hash,
+		session_index: SessionIndex,
+	) -> Result<Option<ExecutorParams>, ApiError> {
+		self.runtime_api().session_executor_params(&BlockId::Hash(at), session_index)
+	}
+
 	async fn session_info(
 		&self,
 		at: Hash,
@@ -381,7 +401,7 @@ where
 		&self,
 		at: Hash,
 		index: SessionIndex,
-	) -> Result<Option<polkadot_primitives::OldV1SessionInfo>, ApiError> {
+	) -> Result<Option<OldV1SessionInfo>, ApiError> {
 		#[allow(deprecated)]
 		self.runtime_api().session_info_before_version_2(&BlockId::Hash(at), index)
 	}

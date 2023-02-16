@@ -98,3 +98,6 @@ pub struct Constraints<N = BlockNumber> {
 	/// number the upgrade would be minimally applied.
 	pub future_validation_code: Option<(N, ValidationCodeHash)>,
 }
+
+pub mod executor_params;
+pub use executor_params::{ExecutorParam, ExecutorParams, ExecutorParamsHash};
