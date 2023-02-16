@@ -2422,7 +2422,7 @@ async fn launch_approval<Context>(
 		.child("validation-result")
 		.with_candidate(candidate_hash)
 		.with_stage(jaeger::Stage::ApprovalChecking);
-	
+
 	validation_result_span.add_string_tag("para-id", format!("{:?}", para_id));
 
 	let candidate = candidate.clone();
