@@ -1004,6 +1004,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Bounties(..) |
 				RuntimeCall::ChildBounties(..) |
 				RuntimeCall::Tips(..) |
+				RuntimeCall::ConvictionVoting(..) |
+				RuntimeCall::Referenda(..) |
+				RuntimeCall::Whitelist(..) |
 				RuntimeCall::Claims(..) |
 				RuntimeCall::Vesting(pallet_vesting::Call::vest{..}) |
 				RuntimeCall::Vesting(pallet_vesting::Call::vest_other{..}) |
@@ -1023,17 +1026,19 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::NominationPools(..) |
 				RuntimeCall::FastUnstake(..)
 			),
-			ProxyType::Governance =>
-				matches!(
-					c,
-					RuntimeCall::Democracy(..) |
-						RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
-						RuntimeCall::PhragmenElection(..) |
-						RuntimeCall::Treasury(..) |
-						RuntimeCall::Bounties(..) |
-						RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
-						RuntimeCall::ChildBounties(..)
-				),
+			ProxyType::Governance => matches!(
+				c,
+				RuntimeCall::Democracy(..) |
+					RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
+					RuntimeCall::PhragmenElection(..) |
+					RuntimeCall::Treasury(..) |
+					RuntimeCall::Bounties(..) |
+					RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
+					RuntimeCall::ChildBounties(..) |
+					RuntimeCall::ConvictionVoting(..) |
+					RuntimeCall::Referenda(..) |
+					RuntimeCall::Whitelist(..) |
+			),
 			ProxyType::Staking => {
 				matches!(
 					c,
