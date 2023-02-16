@@ -410,12 +410,6 @@ fn overseer_start_stop_works() {
 		handle.block_imported(third_block).await;
 
 		let expected_heartbeats = vec![
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: first_block_hash,
-				number: 1,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated: Some(ActivatedLeaf {
 					hash: second_block_hash,
@@ -509,18 +503,6 @@ fn overseer_finalize_works() {
 		handle.block_finalized(third_block).await;
 
 		let expected_heartbeats = vec![
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: first_block_hash,
-				number: 1,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: second_block_hash,
-				number: 2,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				deactivated: [first_block_hash, second_block_hash].as_ref().into(),
 				..Default::default()
@@ -606,18 +588,6 @@ fn overseer_finalize_leaf_preserves_it() {
 		handle.block_finalized(first_block).await;
 
 		let expected_heartbeats = vec![
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: first_block_hash,
-				number: 1,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: second_block_hash,
-				number: 1,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				deactivated: [second_block_hash].as_ref().into(),
 				..Default::default()

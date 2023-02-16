@@ -728,14 +728,10 @@ where
 		let metrics = self.metrics.clone();
 		spawn_metronome_metrics(&mut self, metrics)?;
 
-		// Notify about active leaves on startup before starting the loop
+		// Import active leaves on startup before starting the loop but don't send notifications for them
 		for (hash, number) in std::mem::take(&mut self.leaves) {
 			let _ = self.active_leaves.insert(hash, number);
-			if let Some((span, status)) = self.on_head_activated(&hash, None).await {
-				let update =
-					ActiveLeavesUpdate::start_work(ActivatedLeaf { hash, number, status, span });
-				self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-			}
+			self.on_head_activated(&hash, None).await;
 		}
 
 		loop {
