@@ -29,7 +29,7 @@ pub mod currency {
 
 	pub const UNITS: Balance = 10_000_000_000;
 	pub const DOLLARS: Balance = UNITS; // 10_000_000_000
-	pub const GRAND: Balance = DOLLARS * 1_000; // 10_000_000_000
+	pub const GRAND: Balance = DOLLARS * 1_000; // 10_000_000_000_000
 	pub const CENTS: Balance = DOLLARS / 100; // 100_000_000
 	pub const MILLICENTS: Balance = CENTS / 1_000; // 100_000
 
