@@ -6,10 +6,10 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-bounded-vec = "0.6"
+bounded-vec = "0.7"
 futures = "0.3.21"
 polkadot-primitives = { path = "../../primitives" }
-parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.3.0", default-features = false, features = ["derive"] }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-consensus-vrf = { git = "https://github.com/paritytech/substrate", branch = "master" }

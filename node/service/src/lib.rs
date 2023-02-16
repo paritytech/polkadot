@@ -756,6 +756,7 @@ where
 	OverseerGenerator: OverseerGen,
 {
 	use polkadot_node_network_protocol::request_response::IncomingRequest;
+	use sc_network_common::sync::warp::WarpSyncParams;
 
 	let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
 	let role = config.role.clone();
@@ -917,7 +918,7 @@ where
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			block_announce_validator_builder: None,
-			warp_sync: Some(warp_sync),
+			warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
 		})?;
 
 	if config.offchain_worker.enabled {
@@ -1355,32 +1356,36 @@ pub fn new_chain_ops(
 > {
 	config.keystore = service::config::KeystoreConfig::InMemory;
 
-	let telemetry_worker_handle = None;
-
 	#[cfg(feature = "rococo-native")]
 	if config.chain_spec.is_rococo() ||
 		config.chain_spec.is_wococo() ||
 		config.chain_spec.is_versi()
 	{
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; rococo_runtime, RococoExecutorDispatch, Rococo)
+		return chain_ops!(config, jaeger_agent, None; rococo_runtime, RococoExecutorDispatch, Rococo)
 	}
 
 	#[cfg(feature = "kusama-native")]
 	if config.chain_spec.is_kusama() {
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; kusama_runtime, KusamaExecutorDispatch, Kusama)
+		return chain_ops!(config, jaeger_agent, None; kusama_runtime, KusamaExecutorDispatch, Kusama)
 	}
 
 	#[cfg(feature = "westend-native")]
 	if config.chain_spec.is_westend() {
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; westend_runtime, WestendExecutorDispatch, Westend)
+		return chain_ops!(config, jaeger_agent, None; westend_runtime, WestendExecutorDispatch, Westend)
 	}
 
 	#[cfg(feature = "polkadot-native")]
 	{
-		return chain_ops!(config, jaeger_agent, telemetry_worker_handle; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
+		return chain_ops!(config, jaeger_agent, None; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
 	}
+
 	#[cfg(not(feature = "polkadot-native"))]
-	Err(Error::NoRuntime)
+	{
+		let _ = config;
+		let _ = jaeger_agent;
+
+		Err(Error::NoRuntime)
+	}
 }
 
 /// Build a full node.
@@ -1488,7 +1493,21 @@ pub fn build_full(
 	}
 
 	#[cfg(not(feature = "polkadot-native"))]
-	Err(Error::NoRuntime)
+	{
+		let _ = config;
+		let _ = is_collator;
+		let _ = grandpa_pause;
+		let _ = enable_beefy;
+		let _ = jaeger_agent;
+		let _ = telemetry_worker_handle;
+		let _ = overseer_enable_anyways;
+		let _ = overseer_gen;
+		let _ = overseer_message_channel_override;
+		let _ = malus_finality_delay;
+		let _ = hwbench;
+
+		Err(Error::NoRuntime)
+	}
 }
 
 /// Reverts the node state down to at most the last finalized block.

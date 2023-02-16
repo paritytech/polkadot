@@ -28,6 +28,7 @@ use sp_keyring::Sr25519Keyring;
 use std::net::ToSocketAddrs;
 
 pub use crate::{error::Error, service::BlockId};
+#[cfg(feature = "hostperfcheck")]
 pub use polkadot_performance_test::PerfCheckError;
 
 impl From<String> for Error {
@@ -238,7 +239,11 @@ macro_rules! unwrap_client {
 			#[cfg(feature = "rococo-native")]
 			polkadot_client::Client::Rococo($client) => $code,
 			#[allow(unreachable_patterns)]
-			_ => Err(Error::CommandNotImplemented),
+			_ => {
+				let _ = $client;
+
+				Err(Error::CommandNotImplemented)
+			},
 		}
 	};
 }
@@ -246,21 +251,20 @@ macro_rules! unwrap_client {
 /// Runs performance checks.
 /// Should only be used in release build since the check would take too much time otherwise.
 fn host_perf_check() -> Result<()> {
-	#[cfg(not(build_type = "release"))]
+	#[cfg(not(feature = "hostperfcheck"))]
+	{
+		return Err(Error::FeatureNotEnabled { feature: "hostperfcheck" }.into())
+	}
+
+	#[cfg(all(not(build_type = "release"), feature = "hostperfcheck"))]
 	{
 		return Err(PerfCheckError::WrongBuildType.into())
 	}
-	#[cfg(build_type = "release")]
+
+	#[cfg(all(feature = "hostperfcheck", build_type = "release"))]
 	{
-		#[cfg(not(feature = "hostperfcheck"))]
-		{
-			return Err(PerfCheckError::FeatureNotEnabled { feature: "hostperfcheck" }.into())
-		}
-		#[cfg(feature = "hostperfcheck")]
-		{
-			crate::host_perf_check::host_perf_check()?;
-			return Ok(())
-		}
+		crate::host_perf_check::host_perf_check()?;
+		return Ok(())
 	}
 }
 
