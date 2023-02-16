@@ -2418,11 +2418,12 @@ async fn launch_approval<Context>(
 		.with_candidate(candidate.hash())
 		.with_stage(jaeger::Stage::ApprovalChecking);
 
-	let validation_result_span = span
+	let mut validation_result_span = span
 		.child("validation-result")
 		.with_candidate(candidate_hash)
-		.with_stage(jaeger::Stage::ApprovalChecking)
-		.add_para_id(para_id);
+		.with_stage(jaeger::Stage::ApprovalChecking);
+	
+	validation_result_span.add_string_tag("para-id", format!("{:?}", para_id));
 
 	let candidate = candidate.clone();
 	let metrics_guard = StaleGuard(Some(metrics));
