@@ -23,9 +23,9 @@
 The changes motivating this priority level are:
 {% for pr in changes | sort(attribute="merged_at") -%}
     {%- if pr.meta.C -%}
-        {%- if pr.meta.C.value == p %}
+        {%- if pr.meta.C.agg.max >= p %}
 - {{ m_c::change(c=pr) }}
-{%- if pr.meta.T and pr.meta.T.value == 1 %} (RUNTIME)
+{%- if pr.meta.T and pr.meta.T.T1 %} (RUNTIME)
 {% endif %}
         {%- endif -%}
     {%- endif -%}

@@ -27,18 +27,18 @@
 //! <https://github.com/paritytech/polkadot/issues/6472#issuecomment-1381941762> for more
 //! background.
 
-use crate::{metrics::Metrics, LOG_TARGET};
 use parity_scale_codec::{Decode, Encode};
-use std::io;
 
 /// Helper struct to contain all the memory stats, including [`MemoryAllocationStats`] and, if
 /// supported by the OS, `ru_maxrss`.
-#[derive(Encode, Decode)]
+#[derive(Clone, Debug, Default, Encode, Decode)]
 pub struct MemoryStats {
 	/// Memory stats from `tikv_jemalloc_ctl`.
+	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 	pub memory_tracker_stats: Option<MemoryAllocationStats>,
 	/// `ru_maxrss` from `getrusage`. A string error since `io::Error` is not `Encode`able.
-	pub max_rss: Option<Result<i64, String>>,
+	#[cfg(target_os = "linux")]
+	pub max_rss: Option<i64>,
 }
 
 /// Statistics of collected memory metrics.
@@ -51,44 +51,14 @@ pub struct MemoryAllocationStats {
 	pub allocated: u64,
 }
 
-/// Gets the `ru_maxrss` for the current thread if the OS supports `getrusage`. Otherwise, just
-/// returns `None`.
-pub fn get_max_rss_thread() -> Option<io::Result<i64>> {
-	// `c_long` is either `i32` or `i64` depending on architecture. `i64::from` always works.
-	#[cfg(target_os = "linux")]
-	let max_rss = Some(getrusage::getrusage_thread().map(|rusage| i64::from(rusage.ru_maxrss)));
-	#[cfg(not(target_os = "linux"))]
-	let max_rss = None;
-	max_rss
-}
-
-/// Helper function to send the memory metrics, if available, to prometheus.
-pub fn observe_memory_metrics(metrics: &Metrics, memory_stats: MemoryStats, pid: u32) {
-	if let Some(max_rss) = memory_stats.max_rss {
-		match max_rss {
-			Ok(max_rss) => metrics.observe_preparation_max_rss(max_rss as f64),
-			Err(err) => gum::warn!(
-				target: LOG_TARGET,
-				worker_pid = %pid,
-				"error getting `ru_maxrss` in preparation thread: {}",
-				err
-			),
-		}
-	}
-
-	if let Some(tracker_stats) = memory_stats.memory_tracker_stats {
-		// We convert these stats from B to KB to match the unit of `ru_maxrss` from `getrusage`.
-		let resident_kb = (tracker_stats.resident / 1024) as f64;
-		let allocated_kb = (tracker_stats.allocated / 1024) as f64;
-
-		metrics.observe_preparation_max_resident(resident_kb);
-		metrics.observe_preparation_max_allocated(allocated_kb);
-	}
-}
-
+/// Module for the memory tracker. The memory tracker runs in its own thread, where it polls memory
+/// usage at an interval.
+///
+/// NOTE: Requires jemalloc enabled.
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub mod memory_tracker {
 	use super::*;
+	use crate::LOG_TARGET;
 	use std::{
 		sync::mpsc::{Receiver, RecvTimeoutError, Sender},
 		time::Duration,
@@ -183,13 +153,15 @@ pub mod memory_tracker {
 	pub async fn get_memory_tracker_loop_stats(
 		fut: JoinHandle<Result<MemoryAllocationStats, String>>,
 		tx: Sender<()>,
+		worker_pid: u32,
 	) -> Option<MemoryAllocationStats> {
 		// Signal to the memory tracker thread to terminate.
 		if let Err(err) = tx.send(()) {
 			gum::warn!(
 				target: LOG_TARGET,
-				worker_pid = %std::process::id(),
-				"worker: error sending signal to memory tracker_thread: {}", err
+				%worker_pid,
+				"worker: error sending signal to memory tracker_thread: {}",
+				err
 			);
 			None
 		} else {
@@ -199,7 +171,7 @@ pub mod memory_tracker {
 				Ok(Err(err)) => {
 					gum::warn!(
 						target: LOG_TARGET,
-						worker_pid = %std::process::id(),
+						%worker_pid,
 						"worker: error occurred in the memory tracker thread: {}", err
 					);
 					None
@@ -207,7 +179,7 @@ pub mod memory_tracker {
 				Err(err) => {
 					gum::warn!(
 						target: LOG_TARGET,
-						worker_pid = %std::process::id(),
+						%worker_pid,
 						"worker: error joining on memory tracker thread: {}", err
 					);
 					None
@@ -217,13 +189,19 @@ pub mod memory_tracker {
 	}
 }
 
+/// Module for dealing with the `ru_maxrss` (peak resident memory) stat from `getrusage`.
+///
+/// NOTE: `getrusage` with the `RUSAGE_THREAD` parameter is only supported on Linux. `RUSAGE_SELF`
+/// works on MacOS, but we need to get the max rss only for the preparation thread. Gettng it for
+/// the current process would conflate the stats of previous jobs run by the process.
 #[cfg(target_os = "linux")]
-mod getrusage {
+pub mod max_rss_stat {
+	use crate::LOG_TARGET;
 	use libc::{getrusage, rusage, timeval, RUSAGE_THREAD};
 	use std::io;
 
 	/// Get the rusage stats for the current thread.
-	pub fn getrusage_thread() -> io::Result<rusage> {
+	fn getrusage_thread() -> io::Result<rusage> {
 		let mut result = rusage {
 			ru_utime: timeval { tv_sec: 0, tv_usec: 0 },
 			ru_stime: timeval { tv_sec: 0, tv_usec: 0 },
@@ -246,5 +224,26 @@ mod getrusage {
 			return Err(io::Error::last_os_error())
 		}
 		Ok(result)
+	}
+
+	/// Gets the `ru_maxrss` for the current thread.
+	pub fn get_max_rss_thread() -> io::Result<i64> {
+		// `c_long` is either `i32` or `i64` depending on architecture. `i64::from` always works.
+		getrusage_thread().map(|rusage| i64::from(rusage.ru_maxrss))
+	}
+
+	/// Extracts the max_rss stat and logs any error.
+	pub fn extract_max_rss_stat(max_rss: io::Result<i64>, worker_pid: u32) -> Option<i64> {
+		max_rss
+			.map_err(|err| {
+				gum::warn!(
+					target: LOG_TARGET,
+					%worker_pid,
+					"error getting `ru_maxrss` in preparation thread: {}",
+					err
+				);
+				err
+			})
+			.ok()
 	}
 }
