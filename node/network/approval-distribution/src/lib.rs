@@ -193,7 +193,7 @@ impl ApprovalEntry {
 
 	// Get the assignment certiticate and claimed candidates.
 	pub fn get_assignment(&self) -> (IndirectAssignmentCert, Vec<CandidateIndex>) {
-		(self.assignment.clone(), self.candidates.into_iter().collect::<Vec<_>>())
+		(self.assignment.clone(), self.candidates.iter().cloned().collect::<Vec<_>>())
 	}
 
 	// Get an approval for a specific candidate if it exists.
@@ -274,7 +274,7 @@ impl Knowledge {
 	}
 
 	fn insert(&mut self, message: MessageSubject, kind: MessageKind) -> bool {
-		let success = match self.known_messages.entry(message) {
+		let success = match self.known_messages.entry(message.clone()) {
 			hash_map::Entry::Vacant(vacant) => {
 				vacant.insert(kind);
 				// If there are multiple candidates assigned in the message, create
@@ -349,11 +349,12 @@ impl BlockEntry {
 	pub fn known_by(&self) -> Vec<PeerId> {
 		self.known_by.keys().cloned().collect::<Vec<_>>()
 	}
+
 	pub fn insert_approval_entry(&mut self, entry: ApprovalEntry) -> &mut ApprovalEntry {
 		// First map one entry per candidate to the same key we will use in `approval_entries.
 		// Key is (Validator_index, Vec<CandidateIndex>), which are is the (K,V) pair in `candidate_entry.messages`.
-		for claimed_candidate_index in entry.candidates {
-			match self.candidates.get_mut(claimed_candidate_index as usize) {
+		for claimed_candidate_index in &entry.candidates {
+			match self.candidates.get_mut(*claimed_candidate_index as usize) {
 				Some(candidate_entry) => {
 					candidate_entry
 						.messages
@@ -373,12 +374,29 @@ impl BlockEntry {
 		}
 
 		self.approval_entries
-			.entry((entry.validator_index, entry.candidates.clone().into_iter().collect::<Vec<_>>()))
+			.entry((
+				entry.validator_index,
+				entry.candidates.clone().into_iter().collect::<Vec<_>>(),
+			))
 			.or_insert(entry)
 	}
 
-	pub fn get_approval_entry(
+	pub fn contains_approval_entry(
 		&self,
+		candidate_index: CandidateIndex,
+		validator_index: ValidatorIndex,
+	) -> bool {
+		self.candidates
+			.get(candidate_index as usize)
+			.map_or(None, |candidate_entry| candidate_entry.messages.get(&validator_index))
+			.map_or(false, |candidate_indices| {
+				self.approval_entries
+					.contains_key(&(validator_index, candidate_indices.clone()))
+			})
+	}
+
+	pub fn get_approval_entry(
+		&mut self,
 		candidate_index: CandidateIndex,
 		validator_index: ValidatorIndex,
 	) -> Option<&mut ApprovalEntry> {
@@ -386,21 +404,29 @@ impl BlockEntry {
 			.get(candidate_index as usize)
 			.map_or(None, |candidate_entry| candidate_entry.messages.get(&validator_index))
 			.map_or(None, |candidate_indices| {
-				self.approval_entries.get_mut(&(validator_index, *candidate_indices))
+				self.approval_entries.get_mut(&(validator_index, candidate_indices.clone()))
 			})
 	}
 
 	// Get all approval entries for a given candidate.
 	// TODO: Fix this crap
-	pub fn get_approval_entries(&self, candidate_index: CandidateIndex) -> Vec<&mut ApprovalEntry> {
-		self.candidates
+	pub fn get_approval_entries(&self, candidate_index: CandidateIndex) -> Vec<&ApprovalEntry> {
+		let approval_entry_keys = self
+			.candidates
 			.get(candidate_index as usize)
-			.map_or(HashMap::new(), |candidate_entry| candidate_entry.messages)
-			.map(|messages| {
-				messages.unique().filter_map(|(validator_index, candidate_indices)| {
-					self.approval_entries.get_mut(&(*validator_index, *candidate_indices))
-				}).collect::<Vec<_>>()
-			})
+			.map_or(HashMap::new(), |candidate_entry| candidate_entry.messages.clone());
+
+		let approval_entry_keys = approval_entry_keys.iter().unique().collect::<Vec<_>>();
+
+		let mut entries = Vec::new();
+		for (validator_index, candidate_indices) in approval_entry_keys {
+			if let Some(entry) =
+				self.approval_entries.get(&(*validator_index, candidate_indices.clone()))
+			{
+				entries.push(entry);
+			}
+		}
+		entries
 	}
 }
 
@@ -787,8 +813,8 @@ impl State {
 
 	async fn handle_block_finalized<Context>(
 		&mut self,
-		ctx: &mut Context,
-		metrics: &Metrics,
+		_ctx: &mut Context,
+		_metrics: &Metrics,
 		finalized_number: BlockNumber,
 	) {
 		// we want to prune every block up to (including) finalized_number
@@ -1080,8 +1106,7 @@ impl State {
 		let candidate_index = vote.candidate_index;
 
 		let entry = match self.blocks.get_mut(&block_hash) {
-			Some(entry) if entry.get_approval_entry(candidate_index, validator_index).is_some() =>
-				entry,
+			Some(entry) if entry.contains_approval_entry(candidate_index, validator_index) => entry,
 			_ => {
 				if let Some(peer_id) = source.peer_id() {
 					if !self.recent_outdated_blocks.is_recent_outdated(&block_hash) {
@@ -1315,7 +1340,7 @@ impl State {
 	) -> HashMap<ValidatorIndex, ValidatorSignature> {
 		let mut all_sigs = HashMap::new();
 		for (hash, index) in indices {
-			let block_entry = match self.blocks.get(&hash) {
+			let block_entry = match self.blocks.get_mut(&hash) {
 				None => {
 					gum::debug!(
 						target: LOG_TARGET,
@@ -1327,29 +1352,30 @@ impl State {
 				Some(e) => e,
 			};
 
-			// TODO: fix mapping of candidates to validator index and claimed indices
-			let candidate_entry = match block_entry.candidates.get(index as usize) {
-				None => {
-					gum::debug!(
-						target: LOG_TARGET,
-						?hash,
-						?index,
-						"`get_approval_signatures`: could not find candidate entry for given hash and index!"
-						);
-					continue
-				},
-				Some(e) => e,
-			};
+			// // TODO: fix mapping of candidates to validator index and claimed indices
+			// let candidate_entry = match block_entry.candidates.get(index as usize) {
+			// 	None => {
+			// 		gum::debug!(
+			// 			target: LOG_TARGET,
+			// 			?hash,
+			// 			?index,
+			// 			"`get_approval_signatures`: could not find candidate entry for given hash and index!"
+			// 			);
+			// 		continue
+			// 	},
+			// 	Some(e) => e,
+			// };
 
 			let sigs = block_entry
-				.get_approval_entries(index as usize)
+				.get_approval_entries(index)
 				.into_iter()
 				.map(|approval_entry| {
 					approval_entry
 						.get_approvals()
-						.iter()
-						.map(|approval| (approval.validator, approval.signature.clone()))
+						.into_iter()
+						.map(|approval| (approval.validator, approval.signature))
 				})
+				.flatten()
 				.collect::<HashMap<ValidatorIndex, ValidatorSignature>>();
 			all_sigs.extend(sigs);
 		}
