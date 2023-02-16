@@ -25,7 +25,9 @@
 use error::{log_error, FatalResult};
 
 use polkadot_node_network_protocol::{
-	request_response::{v1 as request_v1, IncomingRequestReceiver},
+	request_response::{
+		v1 as request_v1, vstaging::AttestedCandidateRequest, IncomingRequestReceiver,
+	},
 	vstaging as protocol_vstaging, Versioned,
 };
 use polkadot_node_primitives::StatementWithPVD;
@@ -66,6 +68,8 @@ pub struct StatementDistributionSubsystem<R> {
 	keystore: SyncCryptoStorePtr,
 	/// Receiver for incoming large statement requests.
 	v1_req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingRequest>>,
+	/// Receiver for incoming candidate requests.
+	req_receiver: Option<IncomingRequestReceiver<AttestedCandidateRequest>>,
 	/// Prometheus metrics
 	metrics: Metrics,
 	/// Pseudo-random generator for peers selection logic
@@ -95,25 +99,41 @@ enum MuxedMessage {
 	V1Requester(Option<V1RequesterMessage>),
 	/// Messages from spawned v1 (legacy) responder background task.
 	V1Responder(Option<V1ResponderMessage>),
+	/// Messages from candidate responder background task.
+	Responder(Option<vstaging::ResponderMessage>),
+	/// Messages from answered requests.
+	Response(vstaging::UnhandledResponse),
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
 impl MuxedMessage {
 	async fn receive<Context>(
 		ctx: &mut Context,
+		state: &mut vstaging::State,
 		from_v1_requester: &mut mpsc::Receiver<V1RequesterMessage>,
 		from_v1_responder: &mut mpsc::Receiver<V1ResponderMessage>,
+		from_responder: &mut mpsc::Receiver<vstaging::ResponderMessage>,
 	) -> MuxedMessage {
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
 		let from_orchestra = ctx.recv().fuse();
 		let from_v1_requester = from_v1_requester.next();
 		let from_v1_responder = from_v1_responder.next();
-		futures::pin_mut!(from_orchestra, from_v1_requester, from_v1_responder);
+		let from_responder = from_responder.next();
+		let receive_response = vstaging::receive_response(state).fuse();
+		futures::pin_mut!(
+			from_orchestra,
+			from_v1_requester,
+			from_v1_responder,
+			from_responder,
+			receive_response
+		);
 		futures::select! {
 			msg = from_orchestra => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
 			msg = from_v1_requester => MuxedMessage::V1Requester(msg),
 			msg = from_v1_responder => MuxedMessage::V1Responder(msg),
+			msg = from_responder => MuxedMessage::Responder(msg),
+			msg = receive_response => MuxedMessage::Response(msg),
 		}
 	}
 }
@@ -124,14 +144,22 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 	pub fn new(
 		keystore: SyncCryptoStorePtr,
 		v1_req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
+		req_receiver: IncomingRequestReceiver<AttestedCandidateRequest>,
 		metrics: Metrics,
 		rng: R,
 	) -> Self {
-		Self { keystore, v1_req_receiver: Some(v1_req_receiver), metrics, rng }
+		Self {
+			keystore,
+			v1_req_receiver: Some(v1_req_receiver),
+			req_receiver: Some(req_receiver),
+			metrics,
+			rng,
+		}
 	}
 
 	async fn run<Context>(mut self, mut ctx: Context) -> std::result::Result<(), FatalError> {
 		let mut legacy_v1_state = crate::legacy_v1::State::new(self.keystore.clone());
+		let mut state = crate::vstaging::State::new(self.keystore.clone());
 
 		// Sender/Receiver for getting news from our statement fetching tasks.
 		let (v1_req_sender, mut v1_req_receiver) = mpsc::channel(1);
@@ -148,16 +176,34 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		)
 		.map_err(FatalError::SpawnTask)?;
 
-		// TODO [now]: handle vstaging req/res: dispatch pending requests & handling responses.
+		// Sender/receiver for getting news from our candidate responder task.
+		let (res_sender, mut res_receiver) = mpsc::channel(1);
+
+		ctx.spawn(
+			"candidate-responder",
+			vstaging::respond_task(
+				self.req_receiver.take().expect("Mandatory argument to new. qed"),
+				res_sender.clone(),
+			)
+			.boxed(),
+		)
+		.map_err(FatalError::SpawnTask)?;
 
 		loop {
-			let message =
-				MuxedMessage::receive(&mut ctx, &mut v1_req_receiver, &mut v1_res_receiver).await;
+			let message = MuxedMessage::receive(
+				&mut ctx,
+				&mut state,
+				&mut v1_req_receiver,
+				&mut v1_res_receiver,
+				&mut res_receiver,
+			)
+			.await;
 			match message {
 				MuxedMessage::Subsystem(result) => {
 					let result = self
 						.handle_subsystem_message(
 							&mut ctx,
+							&mut state,
 							&mut legacy_v1_state,
 							&v1_req_sender,
 							result?,
@@ -189,7 +235,18 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					.await;
 					log_error(result.map_err(From::from), "handle_responder_message")?;
 				},
+				MuxedMessage::Responder(result) => {
+					vstaging::answer_request(
+						&mut state,
+						result.ok_or(FatalError::RequesterReceiverFinished)?,
+					);
+				},
+				MuxedMessage::Response(result) => {
+					vstaging::handle_response(&mut ctx, &mut state, result).await;
+				},
 			};
+
+			vstaging::dispatch_requests(&mut ctx, &mut state).await;
 		}
 		Ok(())
 	}
@@ -197,6 +254,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 	async fn handle_subsystem_message<Context>(
 		&mut self,
 		ctx: &mut Context,
+		state: &mut vstaging::State,
 		legacy_v1_state: &mut legacy_v1::State,
 		v1_req_sender: &mpsc::Sender<V1RequesterMessage>,
 		message: FromOrchestra<StatementDistributionMessage>,
@@ -210,79 +268,128 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 			})) => {
 				let _timer = metrics.time_active_leaves_update();
 
-				// TODO [now]: vstaging should handle activated first
-				// because of implicit view.
-				for deactivated in deactivated {
-					crate::legacy_v1::handle_deactivate_leaf(legacy_v1_state, deactivated);
-				}
-
-				if let Some(activated) = activated {
-					// Legacy, activate only if no prospective parachains support.
+				// vstaging should handle activated first because of implicit view.
+				if let Some(ref activated) = activated {
 					let mode = prospective_parachains_mode(ctx.sender(), activated.hash).await?;
-					if let ProspectiveParachainsMode::Disabled = mode {
-						crate::legacy_v1::handle_activated_leaf(ctx, legacy_v1_state, activated)
-							.await?;
+					if let ProspectiveParachainsMode::Enabled { .. } = mode {
+						vstaging::handle_active_leaves_update(
+							ctx,
+							state,
+							ActiveLeavesUpdate { activated: Some(activated.clone()), deactivated },
+						)
+						.await?;
+					} else if let ProspectiveParachainsMode::Disabled = mode {
+						for deactivated in &deactivated {
+							crate::legacy_v1::handle_deactivate_leaf(
+								legacy_v1_state,
+								deactivated.clone(),
+							);
+						}
+
+						crate::legacy_v1::handle_activated_leaf(
+							ctx,
+							legacy_v1_state,
+							activated.clone(),
+						)
+						.await?;
 					}
+				} else {
+					for deactivated in &deactivated {
+						crate::legacy_v1::handle_deactivate_leaf(
+							legacy_v1_state,
+							deactivated.clone(),
+						);
+					}
+					vstaging::handle_active_leaves_update(
+						ctx,
+						state,
+						ActiveLeavesUpdate { activated: None, deactivated },
+					)
+					.await?;
 				}
 			},
 			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {
 				// do nothing
 			},
 			FromOrchestra::Signal(OverseerSignal::Conclude) => return Ok(true),
-			FromOrchestra::Communication { msg } =>
-				match msg {
-					StatementDistributionMessage::Share(relay_parent, statement) => {
-						let _timer = metrics.time_share();
+			FromOrchestra::Communication { msg } => match msg {
+				StatementDistributionMessage::Share(relay_parent, statement) => {
+					let _timer = metrics.time_share();
 
-						// pass to legacy if legacy state contains head.
-						if legacy_v1_state.contains_relay_parent(&relay_parent) {
-							crate::legacy_v1::share_local_statement(
-								ctx,
-								legacy_v1_state,
-								relay_parent,
-								StatementWithPVD::drop_pvd_from_signed(statement),
-								&mut self.rng,
-								metrics,
-							)
-							.await?;
-						}
-					},
-					StatementDistributionMessage::NetworkBridgeUpdate(event) => {
-						// pass to legacy, but not if the message isn't
-						// v1.
-						let legacy = match &event {
-							&NetworkBridgeEvent::PeerMessage(_, ref message) => match message {
-								Versioned::VStaging(protocol_vstaging::StatementDistributionMessage::V1Compatibility(_)) => true,
-								Versioned::V1(_) => true,
-								Versioned::VStaging(_) => false,
-							},
-							_ => true,
-						};
-
-						if legacy {
-							crate::legacy_v1::handle_network_update(
-								ctx,
-								legacy_v1_state,
-								v1_req_sender,
-								event,
-								&mut self.rng,
-								metrics,
-							)
-							.await;
-						}
-
-						// TODO [now]: pass to vstaging, but not if the message is
-						// v1 or the connecting peer is v1.
-					},
-					StatementDistributionMessage::Backed(candidate_hash) => {
-						crate::vstaging::handle_backed_candidate_message(
+					// pass to legacy if legacy state contains head.
+					if legacy_v1_state.contains_relay_parent(&relay_parent) {
+						crate::legacy_v1::share_local_statement(
 							ctx,
-							unimplemented!(), // TODO [now] state
-							candidate_hash,
+							legacy_v1_state,
+							relay_parent,
+							StatementWithPVD::drop_pvd_from_signed(statement),
+							&mut self.rng,
+							metrics,
+						)
+						.await?;
+					} else {
+						vstaging::share_local_statement(ctx, state, relay_parent, statement)
+							.await?;
+					}
+				},
+				StatementDistributionMessage::NetworkBridgeUpdate(event) => {
+					// pass all events to both protocols except for messages,
+					// which are filtered.
+					enum VersionTarget {
+						Legacy,
+						Current,
+						Both,
+					}
+
+					impl VersionTarget {
+						fn targets_legacy(&self) -> bool {
+							match self {
+								&VersionTarget::Legacy | &VersionTarget::Both => true,
+								_ => false,
+							}
+						}
+
+						fn targets_current(&self) -> bool {
+							match self {
+								&VersionTarget::Current | &VersionTarget::Both => true,
+								_ => false,
+							}
+						}
+					}
+
+					let target = match &event {
+						&NetworkBridgeEvent::PeerMessage(_, ref message) => match message {
+							Versioned::VStaging(
+								protocol_vstaging::StatementDistributionMessage::V1Compatibility(_),
+							) => VersionTarget::Legacy,
+							Versioned::V1(_) => VersionTarget::Legacy,
+							Versioned::VStaging(_) => VersionTarget::Current,
+						},
+						_ => VersionTarget::Both,
+					};
+
+					if target.targets_legacy() {
+						crate::legacy_v1::handle_network_update(
+							ctx,
+							legacy_v1_state,
+							v1_req_sender,
+							event.clone(),
+							&mut self.rng,
+							metrics,
 						)
 						.await;
-					},
+					}
+
+					if target.targets_current() {
+						// pass to vstaging.
+						vstaging::handle_network_update(ctx, state, event).await;
+					}
 				},
+				StatementDistributionMessage::Backed(candidate_hash) => {
+					crate::vstaging::handle_backed_candidate_message(ctx, state, candidate_hash)
+						.await;
+				},
+			},
 		}
 		Ok(false)
 	}

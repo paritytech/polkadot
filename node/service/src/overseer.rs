@@ -110,6 +110,8 @@ where
 		IncomingRequestReceiver<request_v1::AvailableDataFetchingRequest>,
 	/// Receiver for incoming large statement requests.
 	pub statement_req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
+	/// Receiver for incoming candidate requests.
+	pub candidate_req_receiver: IncomingRequestReceiver<request_vstaging::AttestedCandidateRequest>,
 	/// Receiver for incoming disputes.
 	pub dispute_req_receiver: IncomingRequestReceiver<request_v1::DisputeRequest>,
 	/// Prometheus registry, commonly used for production systems, less so for test.
@@ -154,6 +156,7 @@ pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 		collation_req_vstaging_receiver,
 		available_data_req_receiver,
 		statement_req_receiver,
+		candidate_req_receiver,
 		dispute_req_receiver,
 		registry,
 		spawner,
@@ -293,6 +296,7 @@ where
 		.statement_distribution(StatementDistributionSubsystem::new(
 			keystore.clone(),
 			statement_req_receiver,
+			candidate_req_receiver,
 			Metrics::register(registry)?,
 			rand::rngs::StdRng::from_entropy(),
 		))

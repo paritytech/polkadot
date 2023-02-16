@@ -621,11 +621,19 @@ pub mod vstaging {
 	}
 
 	impl StatementFilter {
-		/// Create a new filter with the given group size.
-		pub fn new(group_size: usize) -> Self {
+		/// Create a new blank filter with the given group size.
+		pub fn blank(group_size: usize) -> Self {
 			StatementFilter {
 				seconded_in_group: BitVec::repeat(false, group_size),
 				validated_in_group: BitVec::repeat(false, group_size),
+			}
+		}
+
+		/// Create a new full filter with the given group size.
+		pub fn full(group_size: usize) -> Self {
+			StatementFilter {
+				seconded_in_group: BitVec::repeat(true, group_size),
+				validated_in_group: BitVec::repeat(true, group_size),
 			}
 		}
 
@@ -675,7 +683,8 @@ pub mod vstaging {
 		}
 	}
 
-	/// An inventory of a backed candidate, which can be requested.
+	/// A manifest of a known backed candidate, along with a description
+	/// of the statements backing it.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub struct BackedCandidateManifest {
 		/// The relay-parent of the candidate.

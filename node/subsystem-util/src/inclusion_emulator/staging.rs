@@ -1358,7 +1358,7 @@ mod tests {
 			);
 		}
 
-		candidate.commitments.processed_downward_messages = 1;
+		candidate.commitments.to_mut().processed_downward_messages = 1;
 		assert!(Fragment::new(relay_parent, constraints, candidate).is_ok());
 	}
 
