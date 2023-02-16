@@ -1,18 +1,12 @@
-GIT
-  remote: https://github.com/paritytech/changelogerator
-  revision: 0de7e512c6aafce348df16baf15d2433d4068260
-  ref: 0de7e512c6aafce348df16baf15d2433d4068260
-  specs:
-    changelogerator (0.10.0)
-      git_diff_parser (~> 3)
-      octokit (~> 4)
-
 GEM
   remote: https://rubygems.org/
   specs:
     addressable (2.8.0)
       public_suffix (>= 2.0.2, < 5.0)
     ast (2.4.2)
+    changelogerator (0.10.1)
+      git_diff_parser (~> 3)
+      octokit (~> 4)
     faraday (1.8.0)
       faraday-em_http (~> 1.0)
       faraday-em_synchrony (~> 1.0)
@@ -76,7 +70,7 @@ PLATFORMS
   x86_64-darwin-22
 
 DEPENDENCIES
-  changelogerator!
+  changelogerator (= 0.10.1)
   git_diff_parser (~> 3)
   logger (~> 1.4)
   octokit (~> 4)
