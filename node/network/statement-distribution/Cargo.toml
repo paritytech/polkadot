@@ -35,3 +35,4 @@ sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "maste
 sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
 futures-timer = "3.0.2"
 polkadot-primitives-test-helpers = { path = "../../../primitives/test-helpers" }
+rand_chacha = "0.3"
