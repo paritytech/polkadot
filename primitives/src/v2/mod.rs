@@ -43,8 +43,8 @@ pub use polkadot_core_primitives::v2::{
 
 // Export some polkadot-parachain primitives
 pub use polkadot_parachain::primitives::{
-	HeadData, HrmpChannelId, Id, UpwardMessage, ValidationCode, ValidationCodeHash,
-	LOWEST_PUBLIC_ID, LOWEST_USER_ID,
+	HeadData, HorizontalMessages, HrmpChannelId, Id, UpwardMessage, UpwardMessages, ValidationCode,
+	ValidationCodeHash, LOWEST_PUBLIC_ID, LOWEST_USER_ID,
 };
 
 #[cfg(feature = "std")]
@@ -593,12 +593,12 @@ impl<H: Encode, N: Encode> PersistedValidationData<H, N> {
 
 /// Commitments made in a `CandidateReceipt`. Many of these are outputs of validation.
 #[derive(PartialEq, Eq, Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
-#[cfg_attr(feature = "std", derive(Hash, Default))]
+#[cfg_attr(feature = "std", derive(Default, Hash))]
 pub struct CandidateCommitments<N = BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<UpwardMessage>,
+	pub upward_messages: UpwardMessages,
 	/// Horizontal messages sent by the parachain.
-	pub horizontal_messages: Vec<OutboundHrmpMessage<Id>>,
+	pub horizontal_messages: HorizontalMessages,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.
