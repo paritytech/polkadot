@@ -88,7 +88,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let target_hash = case_vars.target_block.clone();
 	let selection_process = async move {
 		let best = select_relay_chain
-			.finality_target_with_longest_chain(target_hash, target_hash, None)
+			.finality_target_with_longest_chain(target_hash, None)
 			.await
 			.unwrap();
 		finality_target_tx.send(Some(best)).unwrap();
