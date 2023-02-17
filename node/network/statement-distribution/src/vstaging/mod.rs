@@ -84,6 +84,9 @@ mod groups;
 mod requests;
 mod statement_store;
 
+#[cfg(test)]
+mod tests;
+
 const COST_UNEXPECTED_STATEMENT: Rep = Rep::CostMinor("Unexpected Statement");
 const COST_UNEXPECTED_STATEMENT_MISSING_KNOWLEDGE: Rep =
 	Rep::CostMinor("Unexpected Statement, missing knowledge for relay parent");
