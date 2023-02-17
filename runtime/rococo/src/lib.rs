@@ -51,7 +51,7 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::{
-	crypto::AuthorityId as BeefyId,
+	crypto::{AuthorityId as BeefyId, Signature as BeefySignature},
 	mmr::{BeefyDataProvider, MmrLeafVersion},
 };
 
@@ -1249,8 +1249,22 @@ impl pallet_nis::Config for Runtime {
 
 impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
+	type KeyOwnerProofSystem = Historical;
+	type KeyOwnerProof =
+		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, BeefyId)>>::Proof;
+	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
+		KeyTypeId,
+		BeefyId,
+	)>>::IdentificationTuple;
+	type HandleEquivocation = pallet_beefy::EquivocationHandler<
+		BlockNumber,
+		Self::KeyOwnerIdentification,
+		Offences,
+		ReportLongevity,
+	>;
 	type MaxAuthorities = MaxAuthorities;
 	type OnNewValidatorSet = MmrLeaf;
+	type WeightInfo = ();
 }
 
 type MmrHash = <Keccak256 as sp_runtime::traits::Hash>::Output;
@@ -1443,7 +1457,7 @@ construct_runtime! {
 		// Rococo specific pallets (not included in Kusama). Start indices at 240
 		//
 		// BEEFY Bridges support.
-		Beefy: pallet_beefy::{Pallet, Storage, Config<T>} = 240,
+		Beefy: pallet_beefy::{Pallet, Call, Storage, Config<T>, ValidateUnsigned} = 240,
 		MmrLeaf: pallet_beefy_mmr::{Pallet, Storage} = 242,
 
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call} = 250,
@@ -1767,6 +1781,33 @@ sp_api::impl_runtime_apis! {
 
 		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			Beefy::validator_set()
+		}
+
+		fn submit_report_equivocation_unsigned_extrinsic(
+			equivocation_proof: beefy_primitives::EquivocationProof<
+				BlockNumber,
+				BeefyId,
+				BeefySignature,
+			>,
+			key_owner_proof: beefy_primitives::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			let key_owner_proof = key_owner_proof.decode()?;
+
+			Beefy::submit_unsigned_equivocation_report(
+				equivocation_proof,
+				key_owner_proof,
+			)
+		}
+
+		fn generate_key_ownership_proof(
+			_set_id: beefy_primitives::ValidatorSetId,
+			authority_id: BeefyId,
+		) -> Option<beefy_primitives::OpaqueKeyOwnershipProof> {
+			use parity_scale_codec::Encode;
+
+			Historical::prove((beefy_primitives::KEY_TYPE, authority_id))
+				.map(|p| p.encode())
+				.map(beefy_primitives::OpaqueKeyOwnershipProof::new)
 		}
 	}
 

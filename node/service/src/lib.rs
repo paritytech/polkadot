@@ -518,6 +518,7 @@ where
 			grandpa_block_import,
 			backend.clone(),
 			client.clone(),
+			config.prometheus_registry().cloned(),
 		);
 
 	let babe_config = babe::configuration(&*client)?;
@@ -859,6 +860,7 @@ where
 			&genesis_hash,
 			config.chain_spec.fork_id(),
 			client.clone(),
+			prometheus_registry.clone(),
 		);
 	if enable_beefy {
 		config

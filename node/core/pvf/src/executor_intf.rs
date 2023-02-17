@@ -117,13 +117,12 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 	} else {
 		return Err("No default stack limit set".to_owned())
 	};
+
 	for p in par.iter() {
 		match p {
-			ExecutorParam::MaxMemorySize(mms) =>
-				sem.heap_alloc_strategy = HeapAllocStrategy::Dynamic {
-					// Round up the number of wasm pages.
-					maximum_pages: Some((mms + 64 * 1024 * 1024 - 1) / (1024 * 1024 * 64)),
-				},
+			ExecutorParam::MaxMemoryPages(max_pages) =>
+				sem.heap_alloc_strategy =
+					HeapAllocStrategy::Dynamic { maximum_pages: Some(max_pages) },
 			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
 			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
 			ExecutorParam::PrecheckingMaxMemory(_) => (), // TODO: Not implemented yet
