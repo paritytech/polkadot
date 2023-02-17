@@ -305,7 +305,7 @@ impl RequestManager {
 			};
 
 			let (request, response_fut) = OutgoingRequest::new(
-				RequestRecipient::Peer(target.clone()),
+				RequestRecipient::Peer(target),
 				AttestedCandidateRequest {
 					candidate_hash: id.candidate_hash,
 					mask: props.unwanted_mask.clone(),
@@ -393,7 +393,7 @@ fn find_request_target_with_update(
 		filter.mask_seconded(&props.unwanted_mask.seconded_in_group);
 		filter.mask_valid(&props.unwanted_mask.validated_in_group);
 		if seconded_and_sufficient(&filter, props.backing_threshold) {
-			target = Some((i, p.clone()));
+			target = Some((i, *p));
 			break
 		}
 	}
@@ -405,7 +405,7 @@ fn find_request_target_with_update(
 
 	if let Some((i, p)) = target {
 		known_by.remove(i - prune_count);
-		known_by.push_back(p.clone());
+		known_by.push_back(p);
 		Some(p)
 	} else {
 		None
@@ -505,7 +505,7 @@ impl UnhandledResponse {
 				);
 
 				return ResponseValidationOutput {
-					requested_peer: requested_peer.clone(),
+					requested_peer,
 					reputation_changes: vec![(requested_peer, COST_IMPROPERLY_DECODED_RESPONSE)],
 					request_status: CandidateRequestStatus::Incomplete,
 				}
@@ -566,7 +566,7 @@ fn validate_complete_response(
 
 	let invalid_candidate_output = || ResponseValidationOutput {
 		request_status: CandidateRequestStatus::Incomplete,
-		reputation_changes: vec![(requested_peer.clone(), COST_INVALID_RESPONSE)],
+		reputation_changes: vec![(requested_peer, COST_INVALID_RESPONSE)],
 		requested_peer,
 	};
 
@@ -613,7 +613,7 @@ fn validate_complete_response(
 			let i = match index_in_group(unchecked_statement.unchecked_validator_index()) {
 				Some(i) => i,
 				None => {
-					rep_changes.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+					rep_changes.push((requested_peer, COST_UNREQUESTED_RESPONSE_STATEMENT));
 					continue
 				},
 			};
@@ -622,7 +622,7 @@ fn validate_complete_response(
 			if unchecked_statement.unchecked_payload().candidate_hash() !=
 				&identifier.candidate_hash
 			{
-				rep_changes.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+				rep_changes.push((requested_peer, COST_UNREQUESTED_RESPONSE_STATEMENT));
 				continue
 			}
 
@@ -632,27 +632,23 @@ fn validate_complete_response(
 			match unchecked_statement.unchecked_payload() {
 				CompactStatement::Seconded(_) => {
 					if unwanted_mask.seconded_in_group[i] {
-						rep_changes
-							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+						rep_changes.push((requested_peer, COST_UNREQUESTED_RESPONSE_STATEMENT));
 						continue
 					}
 
 					if received_filter.seconded_in_group[i] {
-						rep_changes
-							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+						rep_changes.push((requested_peer, COST_UNREQUESTED_RESPONSE_STATEMENT));
 						continue
 					}
 				},
 				CompactStatement::Valid(_) => {
 					if unwanted_mask.validated_in_group[i] {
-						rep_changes
-							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+						rep_changes.push((requested_peer, COST_UNREQUESTED_RESPONSE_STATEMENT));
 						continue
 					}
 
 					if received_filter.validated_in_group[i] {
-						rep_changes
-							.push((requested_peer.clone(), COST_UNREQUESTED_RESPONSE_STATEMENT));
+						rep_changes.push((requested_peer, COST_UNREQUESTED_RESPONSE_STATEMENT));
 						continue
 					}
 				},
@@ -661,7 +657,7 @@ fn validate_complete_response(
 			let validator_public =
 				match validator_key_lookup(unchecked_statement.unchecked_validator_index()) {
 					None => {
-						rep_changes.push((requested_peer.clone(), COST_INVALID_SIGNATURE));
+						rep_changes.push((requested_peer, COST_INVALID_SIGNATURE));
 						continue
 					},
 					Some(p) => p,
@@ -670,7 +666,7 @@ fn validate_complete_response(
 			let checked_statement =
 				match unchecked_statement.try_into_checked(&signing_context, &validator_public) {
 					Err(_) => {
-						rep_changes.push((requested_peer.clone(), COST_INVALID_SIGNATURE));
+						rep_changes.push((requested_peer, COST_INVALID_SIGNATURE));
 						continue
 					},
 					Ok(checked) => checked,
@@ -686,7 +682,7 @@ fn validate_complete_response(
 			}
 
 			statements.push(checked_statement);
-			rep_changes.push((requested_peer.clone(), BENEFIT_VALID_STATEMENT));
+			rep_changes.push((requested_peer, BENEFIT_VALID_STATEMENT));
 		}
 
 		// Only accept responses which are sufficient, according to our
@@ -698,7 +694,7 @@ fn validate_complete_response(
 		statements
 	};
 
-	rep_changes.push((requested_peer.clone(), BENEFIT_VALID_RESPONSE));
+	rep_changes.push((requested_peer, BENEFIT_VALID_RESPONSE));
 
 	ResponseValidationOutput {
 		requested_peer,

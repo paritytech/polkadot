@@ -280,10 +280,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						.await?;
 					} else if let ProspectiveParachainsMode::Disabled = mode {
 						for deactivated in &deactivated {
-							crate::legacy_v1::handle_deactivate_leaf(
-								legacy_v1_state,
-								deactivated.clone(),
-							);
+							crate::legacy_v1::handle_deactivate_leaf(legacy_v1_state, *deactivated);
 						}
 
 						crate::legacy_v1::handle_activated_leaf(
@@ -295,10 +292,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					}
 				} else {
 					for deactivated in &deactivated {
-						crate::legacy_v1::handle_deactivate_leaf(
-							legacy_v1_state,
-							deactivated.clone(),
-						);
+						crate::legacy_v1::handle_deactivate_leaf(legacy_v1_state, *deactivated);
 					}
 					vstaging::handle_active_leaves_update(
 						ctx,
@@ -358,7 +352,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					}
 
 					let target = match &event {
-						&NetworkBridgeEvent::PeerMessage(_, ref message) => match message {
+						NetworkBridgeEvent::PeerMessage(_, message) => match message {
 							Versioned::VStaging(
 								protocol_vstaging::StatementDistributionMessage::V1Compatibility(_),
 							) => VersionTarget::Legacy,

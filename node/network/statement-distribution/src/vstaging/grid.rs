@@ -60,10 +60,10 @@ pub struct SessionTopologyView {
 impl SessionTopologyView {
 	/// Returns an iterator over all validator indices from the group who are allowed to
 	/// send us manifests.
-	pub fn iter_group_senders<'a>(
-		&'a self,
+	pub fn iter_group_senders(
+		&self,
 		group: GroupIndex,
-	) -> impl Iterator<Item = ValidatorIndex> + 'a {
+	) -> impl Iterator<Item = ValidatorIndex> + '_ {
 		self.group_views
 			.get(&group)
 			.into_iter()
@@ -335,7 +335,7 @@ impl GridTracker {
 
 		// Populate the entry with previously unconfirmed manifests.
 		for (v, claimed_group_index) in
-			self.unconfirmed.remove(&candidate_hash).into_iter().flat_map(|x| x)
+			self.unconfirmed.remove(&candidate_hash).into_iter().flatten()
 		{
 			if claimed_group_index != group_index {
 				// This is misbehavior, but is handled more comprehensively elsewhere
@@ -614,13 +614,13 @@ fn decompose_statement_filter<'a>(
 		let s = statement_filter
 			.seconded_in_group
 			.iter_ones()
-			.map(|i| g[i].clone())
+			.map(|i| g[i])
 			.map(move |i| (i, CompactStatement::Seconded(candidate_hash)));
 
 		let v = statement_filter
 			.validated_in_group
 			.iter_ones()
-			.map(|i| g[i].clone())
+			.map(|i| g[i])
 			.map(move |i| (i, CompactStatement::Valid(candidate_hash)));
 
 		s.chain(v)
@@ -732,7 +732,7 @@ impl ReceivedManifests {
 						manifest_summary.claimed_group_index,
 						group_size,
 						seconding_limit,
-						&*fresh_seconded,
+						&fresh_seconded,
 					);
 
 					if !within_limits {
@@ -751,7 +751,7 @@ impl ReceivedManifests {
 					manifest_summary.claimed_group_index,
 					group_size,
 					seconding_limit,
-					&*manifest_summary.statement_knowledge.seconded_in_group,
+					&manifest_summary.statement_knowledge.seconded_in_group,
 				);
 
 				if within_limits {
