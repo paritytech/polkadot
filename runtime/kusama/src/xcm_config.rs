@@ -228,12 +228,12 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_collective::Call::disapprove_proposal { .. } |
 				pallet_collective::Call::close { .. },
 			) |
-			RuntimeCall::PhragmenElection(
-				pallet_elections_phragmen::Call::remove_voter { .. } |
-				pallet_elections_phragmen::Call::submit_candidacy { .. } |
-				pallet_elections_phragmen::Call::renounce_candidacy { .. } |
-				pallet_elections_phragmen::Call::remove_member { .. } |
-				pallet_elections_phragmen::Call::clean_defunct_voters { .. },
+			RuntimeCall::Elections(
+				pallet_elections::Call::remove_voter { .. } |
+				pallet_elections::Call::submit_candidacy { .. } |
+				pallet_elections::Call::renounce_candidacy { .. } |
+				pallet_elections::Call::remove_member { .. } |
+				pallet_elections::Call::clean_defunct_voters { .. },
 			) |
 			RuntimeCall::TechnicalMembership(
 				pallet_membership::Call::add_member { .. } |

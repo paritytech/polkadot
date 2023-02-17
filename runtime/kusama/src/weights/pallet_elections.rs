@@ -176,7 +176,7 @@ impl<T: frame_system::Config> pallet_elections::WeightInfo for WeightInfo<T> {
 	/// The range of component `c` is `[1, 1000]`.
 	/// The range of component `v` is `[1, 10000]`.
 	/// The range of component `e` is `[10000, 160000]`.
-
+	fn pre_solve_election(_c: u32, v: u32, e: u32, ) -> Weight {
 		// Minimum execution time: 6_399_000 nanoseconds.
 		Weight::from_ref_time(1_581_352_360 as u64)
 			// Standard Error: 55_251
