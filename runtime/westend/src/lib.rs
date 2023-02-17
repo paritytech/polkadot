@@ -1895,16 +1895,36 @@ mod remote_tests {
 mod clean_state_migration {
 	use super::Runtime;
 	use frame_support::{pallet_prelude::*, storage_alias, traits::OnRuntimeUpgrade};
-	use pallet_state_trie_migration::{Config, MigrationLimits, MigrationTask, Pallet};
+	use pallet_state_trie_migration::MigrationLimits;
 
 	#[cfg(not(feature = "std"))]
 	use sp_std::prelude::*;
 
+	struct Pallet<T>(sp_std::marker::PhantomData<T>);
+
+	impl<T> frame_support::traits::PalletInfoAccess for Pallet<T> {
+		fn index() -> usize {
+			35
+		}
+		fn name() -> &'static str {
+			"StateTrieMigration"
+		}
+		fn module_name() -> &'static str {
+			"pallet_state_trie_migration"
+		}
+		fn crate_version() -> frame_support::traits::CrateVersion {
+			frame_support::traits::CrateVersion { major: 4u16, minor: 0u8, patch: 0u8 }
+		}
+	}
+
 	#[storage_alias]
 	type AutoLimits<T> = StorageValue<Pallet<T>, Option<MigrationLimits>, ValueQuery>;
 
+	// Actual type of value is `MigrationTask<T>`, putting a dummy
+	// one to avoid the trait constraint on T.
+	// Since we only use `kill` it is fine.
 	#[storage_alias]
-	type MigrationProcess<T> = StorageValue<Pallet<T>, MigrationTask<T>, ValueQuery>;
+	type MigrationProcess<T> = StorageValue<Pallet<T>, u32, ValueQuery>;
 
 	#[storage_alias]
 	type SignedMigrationMaxLimits<T> = StorageValue<Pallet<T>, MigrationLimits, OptionQuery>;
