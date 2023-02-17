@@ -1243,7 +1243,7 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
-	init_state_migration::InitMigrate,
+	clean_state_migration::CleanMigrate,
 	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
 	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
 	parachains_ump::migration::v1::MigrateToV1<Runtime>,
@@ -1908,43 +1908,35 @@ mod remote_tests {
 	}
 }
 
-mod init_state_migration {
+mod clean_state_migration {
 	use super::Runtime;
 	use frame_support::traits::OnRuntimeUpgrade;
-	use pallet_state_trie_migration::{AutoLimits, MigrationLimits, MigrationProcess};
+	use pallet_state_trie_migration::{AutoLimits, MigrationProcess, SignedMigrationMaxLimits};
 	#[cfg(not(feature = "std"))]
 	use sp_std::prelude::*;
 
 	/// Initialize an automatic migration process.
-	pub struct InitMigrate;
-	impl OnRuntimeUpgrade for InitMigrate {
+	pub struct CleanMigrate;
+	impl OnRuntimeUpgrade for CleanMigrate {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-			frame_support::ensure!(
-				AutoLimits::<Runtime>::get().is_none(),
-				"Automigration already started."
-			);
 			Ok(Default::default())
 		}
 
 		fn on_runtime_upgrade() -> frame_support::weights::Weight {
-			if MigrationProcess::<Runtime>::get() == Default::default() &&
-				AutoLimits::<Runtime>::get().is_none()
-			{
-				AutoLimits::<Runtime>::put(Some(MigrationLimits { item: 160, size: 204800 }));
-				log::info!("Automatic trie migration started.");
-				<Runtime as frame_system::Config>::DbWeight::get().reads_writes(2, 1)
-			} else {
-				log::info!("Automatic trie migration not started.");
-				<Runtime as frame_system::Config>::DbWeight::get().reads(2)
-			}
+			MigrationProcess::<Runtime>::kill();
+			AutoLimits::<Runtime>::kill();
+			SignedMigrationMaxLimits::<Runtime>::kill();
+			<Runtime as frame_system::Config>::DbWeight::get().writes(3)
 		}
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
 			frame_support::ensure!(
-				AutoLimits::<Runtime>::get().is_some(),
-				"Automigration started."
+				!MigrationProcess::<Runtime>::exists() &&
+					!AutoLimits::<Runtime>::exists() &&
+					!SignedMigrationMaxLimits::<Runtime>::exists(),
+				"State migration clean.",
 			);
 			Ok(())
 		}
