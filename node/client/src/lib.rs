@@ -20,8 +20,7 @@
 //! There is also the [`Client`] enum that combines all the different clients into one common structure.
 
 use polkadot_primitives::{
-	runtime_api::ParachainHost,
-	v2::{AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce},
+	runtime_api::ParachainHost, AccountId, Balance, Block, BlockNumber, Hash, Header, Nonce,
 };
 use sc_client_api::{AuxStore, Backend as BackendT, BlockchainEvents, KeyIterator, UsageProvider};
 use sc_executor::NativeElseWasmExecutor;
@@ -29,7 +28,7 @@ use sp_api::{CallApiAt, Encode, NumberFor, ProvideRuntimeApi};
 use sp_blockchain::{HeaderBackend, HeaderMetadata};
 use sp_consensus::BlockStatus;
 use sp_runtime::{
-	generic::{BlockId, SignedBlock},
+	generic::SignedBlock,
 	traits::{BlakeTwo256, Block as BlockT},
 	Justifications,
 };
@@ -338,22 +337,25 @@ impl sc_client_api::BlockBackend<Block> for Client {
 		}
 	}
 
-	fn block(&self, id: &BlockId<Block>) -> sp_blockchain::Result<Option<SignedBlock<Block>>> {
+	fn block(
+		&self,
+		hash: <Block as BlockT>::Hash,
+	) -> sp_blockchain::Result<Option<SignedBlock<Block>>> {
 		with_client! {
 			self,
 			client,
 			{
-				client.block(id)
+				client.block(hash)
 			}
 		}
 	}
 
-	fn block_status(&self, id: &BlockId<Block>) -> sp_blockchain::Result<BlockStatus> {
+	fn block_status(&self, hash: <Block as BlockT>::Hash) -> sp_blockchain::Result<BlockStatus> {
 		with_client! {
 			self,
 			client,
 			{
-				client.block_status(id)
+				client.block_status(hash)
 			}
 		}
 	}
@@ -478,13 +480,13 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 		}
 	}
 
-	fn storage_keys_iter<'a>(
+	fn storage_keys_iter(
 		&self,
 		hash: <Block as BlockT>::Hash,
-		prefix: Option<&'a StorageKey>,
+		prefix: Option<&StorageKey>,
 		start_key: Option<&StorageKey>,
 	) -> sp_blockchain::Result<
-		KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
+		KeyIterator<<crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
 	> {
 		with_client! {
 			self,
@@ -525,14 +527,14 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 		}
 	}
 
-	fn child_storage_keys_iter<'a>(
+	fn child_storage_keys_iter(
 		&self,
 		hash: <Block as BlockT>::Hash,
 		child_info: ChildInfo,
-		prefix: Option<&'a StorageKey>,
+		prefix: Option<&StorageKey>,
 		start_key: Option<&StorageKey>,
 	) -> sp_blockchain::Result<
-		KeyIterator<'a, <crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
+		KeyIterator<<crate::FullBackend as sc_client_api::Backend<Block>>::State, Block>,
 	> {
 		with_client! {
 			self,
@@ -560,12 +562,12 @@ impl sc_client_api::StorageProvider<Block, crate::FullBackend> for Client {
 }
 
 impl sp_blockchain::HeaderBackend<Block> for Client {
-	fn header(&self, id: BlockId<Block>) -> sp_blockchain::Result<Option<Header>> {
+	fn header(&self, hash: Hash) -> sp_blockchain::Result<Option<Header>> {
 		with_client! {
 			self,
 			client,
 			{
-				client.header(&id)
+				client.header(hash)
 			}
 		}
 	}
@@ -580,12 +582,12 @@ impl sp_blockchain::HeaderBackend<Block> for Client {
 		}
 	}
 
-	fn status(&self, id: BlockId<Block>) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
+	fn status(&self, hash: Hash) -> sp_blockchain::Result<sp_blockchain::BlockStatus> {
 		with_client! {
 			self,
 			client,
 			{
-				client.status(id)
+				client.status(hash)
 			}
 		}
 	}

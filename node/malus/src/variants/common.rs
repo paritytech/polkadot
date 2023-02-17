@@ -28,7 +28,7 @@ use polkadot_node_subsystem::{
 	overseer,
 };
 
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateCommitments, CandidateDescriptor, CandidateReceipt, PersistedValidationData,
 };
 
@@ -62,8 +62,6 @@ pub enum FakeCandidateValidationError {
 	ParamsTooLarge,
 	/// Code size is over the limit.
 	CodeTooLarge,
-	/// Code does not decompress correctly.
-	CodeDecompressionFailure,
 	/// PoV does not decompress correctly.
 	POVDecompressionFailure,
 	/// Validation function returned invalid data.
@@ -89,8 +87,6 @@ impl Into<InvalidCandidate> for FakeCandidateValidationError {
 			FakeCandidateValidationError::Timeout => InvalidCandidate::Timeout,
 			FakeCandidateValidationError::ParamsTooLarge => InvalidCandidate::ParamsTooLarge(666),
 			FakeCandidateValidationError::CodeTooLarge => InvalidCandidate::CodeTooLarge(666),
-			FakeCandidateValidationError::CodeDecompressionFailure =>
-				InvalidCandidate::CodeDecompressionFailure,
 			FakeCandidateValidationError::POVDecompressionFailure =>
 				InvalidCandidate::PoVDecompressionFailure,
 			FakeCandidateValidationError::BadReturn => InvalidCandidate::BadReturn,
@@ -167,8 +163,8 @@ pub fn create_fake_candidate_commitments(
 	persisted_validation_data: &PersistedValidationData,
 ) -> CandidateCommitments {
 	CandidateCommitments {
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		new_validation_code: None,
 		head_data: persisted_validation_data.parent_head.clone(),
 		processed_downward_messages: 0,

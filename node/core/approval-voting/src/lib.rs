@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::{
 	},
 	TimeoutExt,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
 	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
 	ValidatorIndex, ValidatorPair, ValidatorSignature,
@@ -1327,6 +1327,11 @@ async fn get_approval_signatures_for_candidate<Context>(
 
 	// No need to block subsystem on this (also required to break cycle).
 	// We should not be sending this message frequently - caller must make sure this is bounded.
+	gum::trace!(
+		target: LOG_TARGET,
+		?candidate_hash,
+		"Spawning task for fetching sinatures from approval-distribution"
+	);
 	ctx.spawn("get-approval-signatures", Box::pin(get_approvals))
 }
 

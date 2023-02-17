@@ -45,9 +45,7 @@ use polkadot_node_subsystem::messages::{
 };
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 use polkadot_overseer::{AllMessages, Handle};
-use polkadot_primitives::v2::{
-	Block as PolkadotBlock, BlockNumber, Hash, Header as PolkadotHeader,
-};
+use polkadot_primitives::{Block as PolkadotBlock, BlockNumber, Hash, Header as PolkadotHeader};
 use std::sync::Arc;
 
 /// The maximum amount of unfinalized blocks we are willing to allow due to approval checking
@@ -56,7 +54,7 @@ use std::sync::Arc;
 /// This is a safety net that should be removed at some point in the future.
 // In sync with `MAX_HEADS_LOOK_BACK` in `approval-voting`
 // and `MAX_BATCH_SCRAPE_ANCESTORS` in `dispute-coordinator`.
-const MAX_FINALITY_LAG: polkadot_primitives::v2::BlockNumber = PRIMITIVES_MAX_FINALITY_LAG;
+const MAX_FINALITY_LAG: polkadot_primitives::BlockNumber = PRIMITIVES_MAX_FINALITY_LAG;
 
 const LOG_TARGET: &str = "parachain::chain-selection";
 
@@ -205,19 +203,12 @@ where
 		target_hash: Hash,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Hash, ConsensusError> {
-		let longest_chain_best =
-			self.longest_chain.finality_target(target_hash, maybe_max_number).await?;
-
 		if let IsDisputesAwareWithOverseer::Yes(ref selection) = self.selection {
 			selection
-				.finality_target_with_longest_chain(
-					target_hash,
-					longest_chain_best,
-					maybe_max_number,
-				)
+				.finality_target_with_longest_chain(target_hash, maybe_max_number)
 				.await
 		} else {
-			Ok(longest_chain_best)
+			self.longest_chain.finality_target(target_hash, maybe_max_number).await
 		}
 	}
 }
@@ -366,11 +357,9 @@ where
 	pub(crate) async fn finality_target_with_longest_chain(
 		&self,
 		target_hash: Hash,
-		best_leaf: Hash,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Hash, ConsensusError> {
 		let mut overseer = self.overseer.clone();
-		gum::trace!(target: LOG_TARGET, ?best_leaf, "Longest chain");
 
 		let subchain_head = {
 			let (tx, rx) = oneshot::channel();
@@ -416,7 +405,7 @@ where
 				let subchain_header = self.block_header(subchain_head)?;
 
 				if subchain_header.number <= max {
-					gum::trace!(target: LOG_TARGET, ?best_leaf, "Constrained sub-chain head",);
+					gum::trace!(target: LOG_TARGET, ?subchain_head, "Constrained sub-chain head",);
 					subchain_head
 				} else {
 					let (ancestor_hash, _) =

@@ -9,15 +9,15 @@ futures = "0.3.21"
 gum = { package = "tracing-gum", path = "../../gum" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-subsystem = {path = "../../subsystem" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [dev-dependencies]
 futures = { version = "0.3.21", features = ["thread-pool"] }
 maplit = "1.0.2"
-parity-scale-codec = "3.1.5"
+parity-scale-codec = "3.3.0"
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem-test-helpers = { path = "../../subsystem-test-helpers" }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
