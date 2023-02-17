@@ -1,107 +1,453 @@
-# Statement Distribution
+# Statement Distribution (Draft)
 
-The Statement Distribution Subsystem is responsible for distributing statements about seconded candidates between validators.
+This is a first draft for the implementer's guide, which I wrote as a dump of
+all info and conclusions I could find, but in one place. This helped me a lot to
+connect all the "dots", but it may be too much info. I need feedback on the
+following:
+
+-   [ ] Where it is too technical, I can move stuff into mod-docs.
+-   [ ] And of course, accuracy/thoroughness.
+
+There is some redundancy, but I came across a saying I liked today: "DRY is for
+code, not docs." Re-stating the same thing multiple times helped with my
+comprehension. But feedback is welcome.
+
+Also, I will convert it to prose once we know what info is staying. The bullets just helped me stay organized.
+
+## Overview
+
+-   ****Goal:**** every well-connected node is aware of every next potential parachain
+    block.
+-   Validators can either:
+    -   receive parachain block from collator, check block, and gossip statement.
+    -   receive statements from other validators, check block, gossip forward
+        statement if valid.
+-   Why:
+    -   Validators must have statements from all (?) other validators
+    -   Why:
+        -   Quorum must be reached before the block author will consider the
+            candidate.
+        -   We need to store statements from validators who've checked the candidate
+            on the relay chain, so we know who to hold accountable in case of
+            disputes.
+    -   "Validators who aren't assigned to the parachain still listen for the
+        attestations because whichever validator ends up being the author of the
+        relay-chain block needs to bundle up attested parachain blocks for several
+        parachains and place them into the relay-chain block."
+
+### With Async Backing
+
+Async backing changes it so that:
+
+-   We allow inclusion of old parachain candidates validated by current
+    validators.
+-   We allow inclusion of old parachain candidates validated by old validators.
 
 ## Protocol
 
-`PeerSet`: `Validation`
+To address the concern of dealing with large numbers of spam candidates or
+statements, the overall design approach is to combine a focused "clustering"
+protocol for legitimate fresh candidates with a broad-distribution "grid"
+protocol to quickly get backed candidates into the hands of many validators.
+Validators do not eagerly send each other heavy `CommittedCandidateReceipt`,
+but instead request these lazily through request/response protocols.
 
-Input:
+A high-level description of the protocol follows:
 
-- `NetworkBridgeUpdate(update)`
-- `StatementDistributionMessage`
+### Messages
 
-Output:
+Nodes can send each other a few kinds of messages: `Statement`,
+`BackedCandidateManifest`, `BackedCandidateAcknowledgement`.
 
-- `NetworkBridge::SendMessage(PeerId, message)`
-- `NetworkBridge::SendRequests(StatementFetchingV1)`
-- `NetworkBridge::ReportPeer(PeerId, cost_or_benefit)`
+-   `Statement` messages contain only a signed compact statement, without full
+    candidate info.
+-   `BackedCandidateManifest` messages advertise a description of a backed
+    candidate and stored statements.
+-   `BackedCandidateAcknowledgement` messages acknowledge that a backed candidate
+    is fully known.
 
-## Functionality
+### Request/response protocol
 
-Implemented as a gossip protocol. Handle updates to our view and peers' views. Neighbor packets are used to inform peers which chain heads we are interested in data for.
+Nodes can request the full `CommittedCandidateReceipt` and
+`PersistedValidationData`, along with statements, over a request/response
+protocol. This is the `AttestedCandidateRequest`; the response is
+`AttestedCandidateResponse`.
 
-It is responsible for distributing signed statements that we have generated and forwarding them, and for detecting a variety of Validator misbehaviors for reporting to [Misbehavior Arbitration](../utility/misbehavior-arbitration.md). During the Backing stage of the inclusion pipeline, it's the main point of contact with peer nodes. On receiving a signed statement from a peer in the same backing group, assuming the peer receipt state machine is in an appropriate state, it sends the Candidate Receipt to the [Candidate Backing subsystem](candidate-backing.md) to handle the validator's statement. On receiving `StatementDistributionMessage::Share` we make sure to send messages to our backing group in addition to random other peers, to ensure a fast backing process and getting all statements quickly for distribution.
+### Importability and the Hypothetical Frontier
 
-Track equivocating validators and stop accepting information from them. Establish a data-dependency order:
+-   The ****prospective parachains**** subsystem maintains prospective "fragment
+    trees" which can be used to determine whether a particular parachain candidate
+    could possibly be included in the future. Candidates which either are within a
+    fragment tree or <span class="underline">would be</span> part of a fragment tree if accepted are said to be
+    in the "hypothetical frontier".
+-   The ****statement-distribution**** subsystem keeps track of all candidates, and
+    updates its knowledge of the hypothetical frontier based on events such as new
+    relay parents, new confirmed candidates, and newly backed candidates.
+-   We only consider statements as "importable" when the corresponding candidate
+    is part of the hypothetical frontier, and only send "importable" statements to
+    the backing subsystem itself.
 
-- In order to receive a `Seconded` message we have the corresponding chain head in our view
-- In order to receive an `Valid` message we must have received the corresponding `Seconded` message.
+### Cluster Mode
 
-And respect this data-dependency order from our peers by respecting their views. This subsystem is responsible for checking message signatures.
+-   Validator nodes are partitioned into groups (with some exceptions), and
+    validators within a group at a relay-parent can send each other `Statement`
+    messages for any candidates within that group and based on that relay-parent.
+    This is referred to as the "cluster" mode.
+-   `Seconded` statements must be sent before `Valid` statements.
+-   `Seconded` statements may only be sent to other members of the group when the
+    candidate is fully known by the validator.
+-   Validators in a cluster receiving messages about unknown candidates request
+    the candidate (and statements) from other cluster members which have it.
+-   Spam considerations
+    -   The maximum depth of candidates allowed in asynchronous backing determines the
+        maximum amount of `Seconded` statements originating from a validator V which
+        each validator in a cluster may send to others. This bounds the number of
+        candidates.
+    -   There is a small number of validators in each group, which further limits
+        the amount of candidates.
 
-The Statement Distribution subsystem sends statements to peer nodes.
+&#x2014;
 
-## Peer Receipt State Machine
+-   We accept candidates which don't fit in the fragment trees of any relay
+    parents.
+    -   We listen to prospective parachains subsystem to learn of new additions to
+        the fragment trees.
+    -   Use this to attempt to import the candidate later.
 
-There is a very simple state machine which governs which messages we are willing to receive from peers. Not depicted in the state machine: on initial receipt of any [`SignedFullStatement`](../../types/backing.md#signed-statement-type), validate that the provided signature does in fact sign the included data. Note that each individual parablock candidate gets its own instance of this state machine; it is perfectly legal to receive a `Valid(X)` before a `Seconded(Y)`, as long as a `Seconded(X)` has been received.
+### Grid Mode
 
-A: Initial State. Receive `SignedFullStatement(Statement::Second)`: extract `Statement`, forward to Candidate Backing, proceed to B. Receive any other `SignedFullStatement` variant: drop it.
+-   Every consensus session provides randomness and a fixed validator set, which
+    is used to build a redundant grid topology.
+-   This grid topology is used to create "sending" and "receiving" paths from each
+    validator group to every validator.
+-   When a node observes a candidate as backed, it sends a
+    `BackedCandidateManifest` to their "receiving" nodes.
+-   If receiving nodes don't yet know the candidate, they request it.
+-   Once they know the candidate, they respond with a
+    `BackedCandidateAcknowledgement`.
+-   Once two nodes perform a manifest/acknowledgement exchange, they can send
+    `Statement` messages directly to each other for any new statements they might
+    need.
+-   There are limitations on the number of candidates that can be advertised by
+    each peer, similar to those in the cluster. Validators do not request
+    candidates which exceed these limitations.
+-   Validators request candidates as soon as they are advertised, but do not
+    import the statements until the candidate is part of the hypothetical
+    frontier, and do not re-advertise or acknowledge until the candidate is
+    considered both backed and part of the hypothetical frontier.
+-   Note that requesting is not an implicit acknowledgement, and an explicit
+    acknowledgement must be sent upon receipt.
 
-B: Receive any `SignedFullStatement`: check signature and determine whether the statement is new to us. if new, forward to Candidate Backing and circulate to other peers. Receive `OverseerMessage::StopWork`: proceed to C.
+### Old Grid Protocol
 
-C: Receive any message for this block: drop it.
+-   Once the candidate is backed, wait for some time T to pass to collect
+    additional statements. Then produce a 'backed candidate packet'
+    `(CommittedCandidateReceipt, Statements)`.
+-   Members of a backing group produce an announcement of a fully-backed candidate
+    (aka "full manifest") when they are finished.
+    -   `BackedCandidateManifest`
+    -   Manifests are sent along the grid topology to peers who have the relay-parent
+        in their implicit view.
+    -   Only sent by 1st-hop nodes after downloading the backed candidate packet
+        -   TODO: why?
+    -   Ignored when received out-of-topology
+-   On every local view change, members of the backing group rebroadcast the
+    manifest for all candidates under every new relay-parent across the grid.
+-   Nodes should send a `BackedCandidateKnown(hash)` (acknowledgement)
+    notification to any peer which has sent a manifest, and the candidate has been
+    acquired by other means.
+    -   This keeps alternative paths through the topology open.
+        -   For the purpose of getting additional statements later.
+        -   Why: sending ack is another way of completing "manifest exchange" (pre-req
+            for receiving a statement, see below)
+-   Request/response for the candidate + votes.
+    -   Ignore if they are inconsistent with the manifest.
+    -   A malicious backing group is capable of producing an unbounded number of
+        backed candidates.
+        -   We request the candidate only if the candidate has a hypothetical depth in
+            any of our fragment trees, and:
+        -   the seconding validators have not seconded any other candidates at that
+            depth in any of those fragment trees
+-   All members of the group attempt to circulate all statements (in compact form)
+    from the rest of the group on candidates that have already been backed.
+    -   They do this via the grid topology.
+    -   They add the statements to their backed candidate packet for future
+        requestors, and also:
+        -   send the statement to any peer, which:
+            -   we advertised the backed candidate to (sent manifest), and:
+                -   has previously & successfully requested the backed candidate packet,
+                    or:
+                -   which has sent a `BackedCandidateKnown` (acknowledgement)
+    -   1st-hop nodes do the same thing
 
-For large statements (see below), we also keep track of the total received large
-statements per peer and have a hard limit on that number for flood protection.
-This is necessary as in the current code we only forward statements once we have
-all the data, therefore flood protection for large statement is a bit more
-subtle. This will become an obsolete problem once [off chain code
-upgrades](https://github.com/paritytech/polkadot/issues/2979) are implemented.
+## Statement distribution messages
 
-## Peer Knowledge Tracking
+### Input
 
-The peer receipt state machine implies that for parsimony of network resources, we should model the knowledge of our peers, and help them out. For example, let's consider a case with peers A, B, and C, validators X and Y, and candidate M. A sends us a `Statement::Second(M)` signed by X. We've double-checked it, and it's valid. While we're checking it, we receive a copy of X's `Statement::Second(M)` from `B`, along with a `Statement::Valid(M)` signed by Y.
+-   `ActiveLeavesUpdate`
+    -   Notification of a change in the set of active leaves.
+-   `StatementDistributionMessage::Share`
+    -   Notification of a locally-originating statement.
+    -   Handled by `share_local_statement`
+-   `StatementDistributionMessage::Backed`
+    -   Notification of a candidate being backed (received enough validity votes
+        from the backing group).
+    -   Handled by `handle_backed_candidate_message`
+-   `StatementDistributionMessage::NetworkBridgeUpdate`
+    -   Handled by `handle_network_update`
+    -   v1 compatibility
+    -   `Statement`
+        -   Notification of a signed statement.
+        -   Handled by `handle_incoming_statement`
+    -   `BackedCandidateManifest`
+        -   Notification of a backed candidate being known by the sending node.
+        -   For the candidate being requested by the receiving node if needed.
+        -   Announcement
+        -   Handled by `handle_incoming_manifest`
+    -   `BackedCandidateKnown`
+        -   Notification of a backed candidate being known by the sending node.
+        -   For informing a receiving node which already has the candidate.
+        -   Acknowledgement.
+        -   Handled by `handle_incoming_acknowledgement`
 
-Our response to A is just the `Statement::Valid(M)` signed by Y. However, we haven't heard anything about this from C. Therefore, we send it everything we have: first a copy of X's `Statement::Second`, then Y's `Statement::Valid`.
+### Output
 
-This system implies a certain level of duplication of messages--we received X's `Statement::Second` from both our peers, and C may experience the same--but it minimizes the degree to which messages are simply dropped.
+-   `NetworkBridgeTxMessage::SendValidationMessages`
+    -   Sends a peer all pending messages / acknowledgements / statements for a
+        relay parent, either through the cluster or the grid.
+-   `NetworkBridgeTxMessage::SendValidationMessage`
+    -   Circulates a compact statement to all peers who need it, either through the
+        cluster or the grid.
+-   `NetworkBridgeTxMessage::ReportPeer`
+    -   Reports a peer (either good or bad).
+-   `CandidateBackingMessage::Statement`
+    -   Note a validator's statement about a particular candidate.
+-   `ProspectiveParachainsMessage::GetHypotheticalFrontier`
+    -   Gets the hypothetical frontier membership of candidates under active leaves'
+        fragment trees.
+-   `NetworkBridgeTxMessage::SendRequests`
+    -   Sends requests, initiating request/response protocol.
 
-And respect this data-dependency order from our peers. This subsystem is responsible for checking message signatures.
+## Request/Response
 
-No jobs. We follow view changes from the [`NetworkBridge`](../utility/network-bridge.md), which in turn is updated by the overseer.
+-   Why:
+    -   Validators do not eagerly send each other heavy
+        `CommittedCandidateReceipt`, but instead request these lazily through
+        request/response protocols.
 
-## Equivocations and Flood Protection
+### Protocol
 
-An equivocation is a double-vote by a validator. The [Candidate Backing](candidate-backing.md) Subsystem is better-suited than this one to detect equivocations as it adds votes to quorum trackers.
+1.  Requesting Validator
 
-At this level, we are primarily concerned about flood-protection, and to some extent, detecting equivocations is a part of that. In particular, we are interested in detecting equivocations of `Seconded` statements. Since every other statement is dependent on `Seconded` statements, ensuring that we only ever hold a bounded number of `Seconded` statements is sufficient for flood-protection.
+    -   Requests are queued up with `RequestManager::get_or_insert`.
+        -   Done as needed, when handling incoming manifests/statements.
+    -   `RequestManager::dispatch_requests` sends any queued-up requests.
+        -   Calls `RequestManager::next_request` to completion.
+            -   Creates the `OutgoingRequest`, saves the receiver in
+                `RequestManager::pending_responses`.
+        -   Does nothing if we have more responses pending than the limit of parallel
+            requests.
 
-The simple approach is to say that we only receive up to two `Seconded` statements per validator per chain head. However, the marginal cost of equivocation, conditional on having already equivocated, is close to 0, since a single double-vote offence is counted as all double-vote offences for a particular chain-head. Even if it were not, there is some amount of equivocations that can be done such that the marginal cost of issuing further equivocations is close to 0, as there would be an amount of equivocations necessary to be completely and totally obliterated by the slashing algorithm. We fear the validator with nothing left to lose.
+2.  Peer
 
-With that in mind, this simple approach has a caveat worth digging deeper into.
+    -   Requests come in on a peer on the `IncomingRequestReceiver`.
+        -   Runs in a background responder task which feeds requests to `answer_request`
+            through `MuxedMessage`.
+        -   This responder task has a limit on the number of parallel requests.
+    -   `answer_request` on the peer takes the request and sends a response.
+        -   Does this using the response sender on the request.
 
-First: We may be aware of two equivocated `Seconded` statements issued by a validator. A totally honest peer of ours can also be aware of one or two different `Seconded` statements issued by the same validator. And yet another peer may be aware of one or two _more_ `Seconded` statements. And so on. This interacts badly with pre-emptive sending logic. Upon sending a `Seconded` statement to a peer, we will want to pre-emptively follow up with all statements relative to that candidate. Waiting for acknowledgment introduces latency at every hop, so that is best avoided. What can happen is that upon receipt of the `Seconded` statement, the peer will discard it as it falls beyond the bound of 2 that it is allowed to store. It cannot store anything in memory about discarded candidates as that would introduce a DoS vector. Then, the peer would receive from us all of the statements pertaining to that candidate, which, from its perspective, would be undesired - they are data-dependent on the `Seconded` statement we sent them, but they have erased all record of that from their memory. Upon receiving a potential flood of undesired statements, this 100% honest peer may choose to disconnect from us. In this way, an adversary may be able to partition the network with careful distribution of equivocated `Seconded` statements.
+3.  Requesting Validator
 
-The fix is to track, per-peer, the hashes of up to 4 candidates per validator (per relay-parent) that the peer is aware of. It is 4 because we may send them 2 and they may send us 2 different ones. We track the data that they are aware of as the union of things we have sent them and things they have sent us. If we receive a 1st or 2nd `Seconded` statement from a peer, we note it in the peer's known candidates even if we do disregard the data locally. And then, upon receipt of any data dependent on that statement, we do not reduce that peer's standing in our eyes, as the data was not undesired.
+    -   `receive_response` on the original validator yields a response.
+        -   Response was sent on the request's response sender.
+        -   Uses `RequestManager::await_incoming` to await on pending responses in an
+            unordered fashion.
+        -   Runs on the `MuxedMessage` receiver.
+    -   `handle_response` handles the response.
 
-There is another caveat to the fix: we don't want to allow the peer to flood us because it has set things up in a way that it knows we will drop all of its traffic.
-We also track how many statements we have received per peer, per candidate, and per chain-head. This is any statement concerning a particular candidate: `Seconded`, `Valid`, or `Invalid`. If we ever receive a statement from a peer which would push any of these counters beyond twice the amount of validators at the chain-head, we begin to lower the peer's standing and eventually disconnect. This bound is a massive overestimate and could be reduced to twice the number of validators in the corresponding validator group. It is worth noting that the goal at the time of writing is to ensure any finite bound on the amount of stored data, as any equivocation results in a large slash.
+### API
 
-## Large statements
+-   `dispatch_requests`
+    -   Dispatches pending requests for candidate data & statements.
+-   `answer_request`
+    -   Answers an incoming request for a candidate.
+    -   Takes an incoming `AttestedCandidateRequest`.
+-   `receive_response`
+    -   Wait on the next incoming response.
+    -   If there are no requests pending, this future never resolves.
+    -   Returns `UnhandledResponse`
+-   `handle_response`
+    -   Handles an incoming response.
+    -   Takes `UnhandledResponse`
 
-Seconded statements can become quite large on parachain runtime upgrades for
-example. For this reason, there exists a `LargeStatement` constructor for the
-`StatementDistributionMessage` wire message, which only contains light metadata
-of a statement. The actual candidate data is not included. This message type is
-used whenever a message is deemed large. The receiver of such a message needs to
-request the actual payload via request/response by means of a
-`StatementFetchingV1` request.
+## Manifest
 
-This is necessary as distribution of a large payload (mega bytes) via gossip
-would make the network collapse and timely distribution of statements would no
-longer be possible. By using request/response it is ensured that each peer only
-transferes large data once. We only take good care to detect an overloaded
-peer early and immediately move on to a different peer for fetching the data.
-This mechanism should result in a good load distribution and therefore a rather
-optimal distribution path.
+-   What it is: A message about a known backed candidate, along with a description
+    of the statements backing it.
+-   Can be one of two kinds:
+    -   `Full`
+        -   Contains information about the candidate and should be sent to peers who
+            may not have the candidate yet.
+    -   `Acknowledgement`
+        -   Omit information implicit in the candidate, and should be sent to peers
+            which are guaranteed to have the candidate already.
 
-With these optimizations, distribution of payloads in the size of up to 3 to 4
-MB should work with Kusama validator specifications. For scaling up even more,
-runtime upgrades and message passing should be done off chain at some point.
+### Manifest exchange
 
-Flood protection considerations: For making DoS attacks slightly harder on this
-subsystem, nodes will only respond to large statement requests, when they
-previously notified that peer via gossip about that statement. So, it is not
-possible to DoS nodes at scale, by requesting candidate data over and over
-again.
+-   Occurs between us and a peer in the grid.
+-   Why:
+    -   Indicates that both nodes know the candidate as valid and backed.
+    -   Allows the nodes to send `Statement` messages directly to each other for any
+        new statements they might need.
+-   Both `manifest_sent_to` and `manifest_received_from` have been invoked.
+-   In practice, it means that one of three things have happened:
+    -   They announced, we acknowledged
+    -   We announced, they acknowledged
+    -   We announced, they announced (not sure if this can actually happen; it would
+        happen if 2 nodes had each other in their sending set and they sent
+        manifests at the same time. The code accounts for this anyway)
+-   After conclusion, we update pending statements.
+    -   We now know our statements and theirs.
+    -   Pending statements are those we know locally that the remote node does not.
+
+## Cluster
+
+-   Direct distribution of unbacked candidates within a group.
+-   Why:
+    -   because of prospective parachains communication has to happen between
+        backing groups on rotation boundaries.
+    -   Only have to send unbacked candidates within groups.
+-   Bound number of `Seconded` messages per validator per relay-parent.
+    -   Why: spam prevention
+    -   Validators can try to circumvent this, but they would only consume a few KB
+        of memory and it is trivially slashable on chain.
+-   `ClusterTracker`
+    -   Determine whether to accept/reject messages from other validators in the
+        same group
+    -   Keep track of what we have sent to other validators in the group and pending
+        statements.
+-   Protocol: See "Protocol"
+
+## Grid
+
+-   Distribution of backed candidates and late statements outside the group.
+-   Protocol: See "Protocol"
+
+### Grid topology
+
+-   The gossip topology
+    -   Why: limit the amount of peers we send messages to and handle view updates.
+-   The basic operation of the 2D grid topology is that:
+    -   A validator producing a message sends it to its row-neighbors and its
+        column-neighbors
+    -   A validator receiving a message originating from one of its row-neighbors
+        sends it to its column-neighbors
+    -   A validator receiving a message originating from one of its column-neighbors
+        sends it to its row-neighbors
+-   This grid approach defines 2 unique paths for every validator to reach every
+    other validator in at most 2 hops.
+-   However, we also supplement this with some degree of random propagation.
+    -   Why: insert some redundancy, protect against targeted attacks.
+
+### Grid utilities
+
+-   `SessionGridTopology`
+    -   Topology representation for a session.
+-   `SessionTopologyView`
+    -   Our local view of the grid topology for a session.
+    -   Built from `SessionGridTopology`, a list of groups and our validator index.
+    -   Propagation
+        -   For groups that we are in, receive from nobody and send to our X/Y peers.
+        -   For groups that we are not part of:
+            -   We receive from any validator in the group we share a slice with and
+                send to the corresponding X/Y slice in the other dimension.
+            -   For any validators we don't share a slice with, we receive from the
+                nodes which share a slice with them.
+-   `GroupSubView`
+    -   Our local view of a subset of the grid topology organized around a specific
+        validator group.
+-   `GridTracker`
+    -   A tracker of knowledge from authorities within the grid for a particular
+        relay parent.
+-   `GridTracker::import_manifest`
+    -   Called when: receiving an incoming manifest (full or partial).
+    -   Attempts to import a manifest advertised by a remote peer.
+    -   Checks whether the peer is allowed to send us manifests about this group at
+        this relay parent.
+    -   Does sanity checks on the manifest itself.
+    -   On success, returns whether an acknowledgement should be sent in response.
+        -   Only occurs when the candidate is already known to be confirmed backed,
+            and the validator is in the set we are receiving from.
+-   `GridTracker::add_backed_candidate`
+    -   Called when: we receive a notification of a candidate being backed
+        -   Candidate must have been confirmed first.
+        -   Also dispatches backable candidate announcements and acks to the grid
+            topology.
+    -   Adds a new backed candidate to the grid tracker.
+    -   Returns a list of validators we should send to, along with the type of
+        manifest to send.
+    -   Adds the candidate as confirmed and backed and populates it with previously
+        unconfirmed manifests.
+
+### Seconding limit
+
+-   The seconding limit is a per-validator limit.
+-   Before asynchronous backing:
+    -   We had a rule that every validator was only allowed to second one candidate
+        per relay parent.
+-   With asynchronous backing:
+    -   We have a 'maximum depth' which makes it possible to second multiple
+        candidates per relay parent. The seconding limit is set to max depth to set
+        an upper bound on candidates entering the system.
+
+## Candidates
+
+-   `Candidates`: a tracker for all known candidates in the view, and whether they
+    are confirmed or not.
+-   Confirmed:
+    -   The first time a validator gets an announcement for an unknown candidate, it
+        will send a request for the candidate.
+    -   Upon receiving a response and validating it (see
+        `UnhandledResponse::validate_response`), will mark the candidate as
+        confirmed.
+-   TODO: `Candidates::insert_unconfirmed`
+-   TODO: `Candidates::confirm_candidate`
+
+## Request Manager
+
+-   Manages pending requests for candidate data, as well as pending responses.
+-   See "Request/Response Protocol" for a high-level description of the flow.
+-   See module-docs for full details.
+-   `RequestManager::next_request`
+    -   Yields next request to dispatch, if there is any.
+    -   Does some active maintenance of the connected peers.
+-   `UnhandledResponse::validate_response`
+    -   Valid responses must provide a valid candidate, signatures which match the
+        identifier, and enough statements to back the candidate.
+    -   Produces a record of misbehavior by peers.
+    -   If valid, yields the candidate, PVD, and requested checked statements.
+
+## Glossary
+
+-   ****Acknowledgement:**** A notification that is sent to a validator that already
+    has the candidate, to inform them that the sending node knows the candidate.
+-   ****Announcement:**** A notification of a backed candidate being known by the
+    sending node. Is a full manifest and initiates manifest exchange.
+-   ****Manifest:**** A message about a known backed candidate, along with a
+    description of the statements backing it.
+-   ****Peer:**** Another validator that a validator is connected to.
+-   ****Request/response:**** A protocol used to lazily request and receive heavy
+    candidate data when needed.
+-   ****Reputation:**** Tracks reputation of peers. Applies annoyance cost and good
+    behavior benefits.
+-   ****Statement:**** Signed statements that can be made about parachain candidates.
+    -   ****Seconded:**** Proposal of a parachain candidate. Implicit validity vote.
+    -   ****Valid:**** States that a parachain candidate is valid.
+-   ****Target:**** Target validator to send a statement to.
+-   ****View:**** Current knowledge of the chain state.
+    -   ****Explicit view**** / ****immediate view****
+        -   The view a peer has of the relay chain heads and highest finalized block.
+    -   ****Implicit view****
+        -   Derived from the immediate view. Composed of active leaves and minimum
+            relay-parents allowed for candidates of various parachains at those leaves.
