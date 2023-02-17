@@ -82,8 +82,8 @@ impl pallet_referenda::Config for Runtime {
 	type Scheduler = Scheduler;
 	type Currency = Balances;
 	type SubmitOrigin = frame_system::EnsureSigned<AccountId>;
-	type CancelOrigin = ReferendumCanceller;
-	type KillOrigin = ReferendumKiller;
+	type CancelOrigin = EitherOf<EnsureRoot<AccountId>, ReferendumCanceller>;
+	type KillOrigin = EitherOf<EnsureRoot<AccountId>, ReferendumKiller>;
 	type Slash = Treasury;
 	type Votes = pallet_conviction_voting::VotesOf<Runtime>;
 	type Tally = pallet_conviction_voting::TallyOf<Runtime>;

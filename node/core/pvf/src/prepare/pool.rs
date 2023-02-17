@@ -22,13 +22,18 @@ use crate::{
 	LOG_TARGET,
 };
 use always_assert::never;
-use assert_matches::assert_matches;
-use async_std::path::{Path, PathBuf};
 use futures::{
 	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
 };
+use polkadot_primitives::vstaging::ExecutorParams;
 use slotmap::HopSlotMap;
-use std::{fmt, sync::Arc, task::Poll, time::Duration};
+use std::{
+	fmt,
+	path::{Path, PathBuf},
+	sync::Arc,
+	task::Poll,
+	time::Duration,
+};
 
 slotmap::new_key_type! { pub struct Worker; }
 
@@ -65,6 +70,7 @@ pub enum ToPool {
 		worker: Worker,
 		code: Arc<Vec<u8>>,
 		artifact_path: PathBuf,
+		executor_params: ExecutorParams,
 		preparation_timeout: Duration,
 	},
 }
@@ -210,17 +216,19 @@ fn handle_to_pool(
 			metrics.prepare_worker().on_begin_spawn();
 			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
 		},
-		ToPool::StartWork { worker, code, artifact_path, preparation_timeout } => {
+		ToPool::StartWork { worker, code, artifact_path, executor_params, preparation_timeout } => {
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
 					let preparation_timer = metrics.time_preparation();
 					mux.push(
 						start_work_task(
+							metrics.clone(),
 							worker,
 							idle,
 							code,
 							cache_path.to_owned(),
 							artifact_path,
+							executor_params,
 							preparation_timeout,
 							preparation_timer,
 						)
@@ -232,7 +240,7 @@ fn handle_to_pool(
 					// items concluded;
 					// thus idle token is Some;
 					// qed.
-					never!("unexpected abscence of the idle token in prepare pool");
+					never!("unexpected absence of the idle token in prepare pool");
 				}
 			} else {
 				// That's a relatively normal situation since the queue may send `start_work` and
@@ -264,16 +272,26 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Po
 }
 
 async fn start_work_task<Timer>(
+	metrics: Metrics,
 	worker: Worker,
 	idle: IdleWorker,
 	code: Arc<Vec<u8>>,
 	cache_path: PathBuf,
 	artifact_path: PathBuf,
+	executor_params: ExecutorParams,
 	preparation_timeout: Duration,
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
-	let outcome =
-		worker::start_work(idle, code, &cache_path, artifact_path, preparation_timeout).await;
+	let outcome = worker::start_work(
+		&metrics,
+		idle,
+		code,
+		&cache_path,
+		artifact_path,
+		executor_params,
+		preparation_timeout,
+	)
+	.await;
 	PoolEvent::StartWork(worker, outcome)
 }
 
@@ -294,29 +312,28 @@ fn handle_mux(
 			Ok(())
 		},
 		PoolEvent::StartWork(worker, outcome) => {
-			// If we receive any outcome other than `Concluded`, we attempt to kill the worker
-			// process.
+			// If we receive an outcome that the worker is unreachable or that an error occurred on
+			// the worker, we attempt to kill the worker process.
 			match outcome {
-				Outcome::Concluded { worker: idle, result } => {
-					let data = match spawned.get_mut(worker) {
-						None => {
-							// Perhaps the worker was killed meanwhile and the result is no longer
-							// relevant. We already send `Rip` when purging if we detect that the
-							// worker is dead.
-							return Ok(())
-						},
-						Some(data) => data,
-					};
-
-					// We just replace the idle worker that was loaned from this option during
-					// the work starting.
-					let old = data.idle.replace(idle);
-					assert_matches!(old, None, "attempt to overwrite an idle worker");
-
-					reply(from_pool, FromPool::Concluded { worker, rip: false, result })?;
-
-					Ok(())
-				},
+				Outcome::Concluded { worker: idle, result } =>
+					handle_concluded_no_rip(from_pool, spawned, worker, idle, result),
+				// Return `Concluded`, but do not kill the worker since the error was on the host side.
+				Outcome::CreateTmpFileErr { worker: idle, err } => handle_concluded_no_rip(
+					from_pool,
+					spawned,
+					worker,
+					idle,
+					Err(PrepareError::CreateTmpFileErr(err)),
+				),
+				// Return `Concluded`, but do not kill the worker since the error was on the host side.
+				Outcome::RenameTmpFileErr { worker: idle, result: _, err } =>
+					handle_concluded_no_rip(
+						from_pool,
+						spawned,
+						worker,
+						idle,
+						Err(PrepareError::RenameTmpFileErr(err)),
+					),
 				Outcome::Unreachable => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(from_pool, FromPool::Rip(worker))?;
@@ -324,14 +341,14 @@ fn handle_mux(
 
 					Ok(())
 				},
-				Outcome::DidNotMakeIt => {
+				Outcome::IoErr(err) => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(
 							from_pool,
 							FromPool::Concluded {
 								worker,
 								rip: true,
-								result: Err(PrepareError::DidNotMakeIt),
+								result: Err(PrepareError::IoErr(err)),
 							},
 						)?;
 					}
@@ -378,6 +395,40 @@ fn attempt_retire(
 	} else {
 		false
 	}
+}
+
+/// Handles the case where we received a response. There potentially was an error, but not the fault
+/// of the worker as far as we know, so the worker should not be killed.
+///
+/// This function tries to put the idle worker back into the pool and then replies with
+/// `FromPool::Concluded` with `rip: false`.
+fn handle_concluded_no_rip(
+	from_pool: &mut mpsc::UnboundedSender<FromPool>,
+	spawned: &mut HopSlotMap<Worker, WorkerData>,
+	worker: Worker,
+	idle: IdleWorker,
+	result: PrepareResult,
+) -> Result<(), Fatal> {
+	let data = match spawned.get_mut(worker) {
+		None => {
+			// Perhaps the worker was killed meanwhile and the result is no longer relevant. We
+			// already send `Rip` when purging if we detect that the worker is dead.
+			return Ok(())
+		},
+		Some(data) => data,
+	};
+
+	// We just replace the idle worker that was loaned from this option during
+	// the work starting.
+	let old = data.idle.replace(idle);
+	never!(
+		old.is_some(),
+		"old idle worker was taken out when starting work; we only replace it here; qed"
+	);
+
+	reply(from_pool, FromPool::Concluded { worker, rip: false, result })?;
+
+	Ok(())
 }
 
 /// Spins up the pool and returns the future that should be polled to make the pool functional.

@@ -15,4 +15,3 @@ polkadot-overseer = { path = "../../overseer" }
 polkadot-primitives = { path = "../../../primitives" }
 sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-inherents = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -28,8 +28,7 @@ use futures::{select, FutureExt};
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::ProvisionerMessage, overseer::Handle,
 };
-use polkadot_primitives::v2::{Block, Hash, InherentData as ParachainsInherentData};
-use sp_runtime::generic::BlockId;
+use polkadot_primitives::{Block, Hash, InherentData as ParachainsInherentData};
 use std::{sync::Arc, time};
 
 pub(crate) const LOG_TARGET: &str = "parachain::parachains-inherent";
@@ -87,7 +86,7 @@ impl<C: sp_blockchain::HeaderBackend<Block>> ParachainsInherentDataProvider<C> {
 
 		let mut timeout = futures_timer::Delay::new(PROVISIONER_TIMEOUT).fuse();
 
-		let parent_header = match client.header(BlockId::Hash(parent)) {
+		let parent_header = match client.header(parent) {
 			Ok(Some(h)) => h,
 			Ok(None) => return Err(Error::ParentHeaderNotFound(parent)),
 			Err(err) => return Err(Error::Blockchain(err)),
@@ -141,7 +140,7 @@ impl<C: sp_blockchain::HeaderBackend<Block>> sp_inherents::InherentDataProvider
 		.map_err(|e| sp_inherents::Error::Application(Box::new(e)))?;
 
 		dst_inherent_data
-			.put_data(polkadot_primitives::v2::PARACHAINS_INHERENT_IDENTIFIER, &inherent_data)
+			.put_data(polkadot_primitives::PARACHAINS_INHERENT_IDENTIFIER, &inherent_data)
 	}
 
 	async fn try_handle_error(

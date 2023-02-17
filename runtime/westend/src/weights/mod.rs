@@ -34,6 +34,7 @@ pub mod pallet_staking;
 pub mod pallet_timestamp;
 pub mod pallet_utility;
 pub mod pallet_vesting;
+pub mod pallet_xcm;
 pub mod runtime_common_auctions;
 pub mod runtime_common_crowdloan;
 pub mod runtime_common_paras_registrar;

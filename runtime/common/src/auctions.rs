@@ -30,7 +30,7 @@ use frame_support::{
 };
 pub use pallet::*;
 use parity_scale_codec::Decode;
-use primitives::v2::Id as ParaId;
+use primitives::Id as ParaId;
 use sp_runtime::traits::{CheckedSub, One, Saturating, Zero};
 use sp_std::{mem::swap, prelude::*};
 
@@ -253,6 +253,7 @@ pub mod pallet {
 		/// This can only happen when there isn't already an auction in progress and may only be
 		/// called by the root origin. Accepts the `duration` of this auction and the
 		/// `lease_period_index` of the initial lease period of the four that are to be auctioned.
+		#[pallet::call_index(0)]
 		#[pallet::weight((T::WeightInfo::new_auction(), DispatchClass::Operational))]
 		pub fn new_auction(
 			origin: OriginFor<T>,
@@ -279,6 +280,7 @@ pub mod pallet {
 		/// absolute lease period index value, not an auction-specific offset.
 		/// - `amount` is the amount to bid to be held as deposit for the parachain should the
 		/// bid win. This amount is held throughout the range.
+		#[pallet::call_index(1)]
 		#[pallet::weight(T::WeightInfo::bid())]
 		pub fn bid(
 			origin: OriginFor<T>,
@@ -296,6 +298,7 @@ pub mod pallet {
 		/// Cancel an in-progress auction.
 		///
 		/// Can only be called by Root origin.
+		#[pallet::call_index(2)]
 		#[pallet::weight(T::WeightInfo::cancel_auction())]
 		pub fn cancel_auction(origin: OriginFor<T>) -> DispatchResult {
 			ensure_root(origin)?;
@@ -681,7 +684,7 @@ mod tests {
 	};
 	use frame_system::{EnsureRoot, EnsureSignedBy};
 	use pallet_balances;
-	use primitives::v2::{BlockNumber, Header, Id as ParaId};
+	use primitives::{BlockNumber, Header, Id as ParaId};
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 	use std::{cell::RefCell, collections::BTreeMap};
@@ -1727,7 +1730,7 @@ mod benchmarking {
 	use frame_system::RawOrigin;
 	use sp_runtime::{traits::Bounded, SaturatedConversion};
 
-	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
+	use frame_benchmarking::{account, benchmarks, whitelisted_caller, BenchmarkError};
 
 	fn assert_last_event<T: Config>(generic_event: <T as Config>::RuntimeEvent) {
 		let events = frame_system::Pallet::<T>::events();
@@ -1783,7 +1786,8 @@ mod benchmarking {
 		new_auction {
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::max_value();
-			let origin = T::InitiateOrigin::successful_origin();
+			let origin =
+				T::InitiateOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 		}: _<T::RuntimeOrigin>(origin, duration, lease_period_index)
 		verify {
 			assert_last_event::<T>(Event::<T>::AuctionStarted {
@@ -1802,7 +1806,8 @@ mod benchmarking {
 			// Create a new auction
 			let duration = T::BlockNumber::max_value();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
-			let origin = T::InitiateOrigin::successful_origin();
+			let origin = T::InitiateOrigin::try_successful_origin()
+				.expect("InitiateOrigin has no successful origin required for the benchmark");
 			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			let para = ParaId::from(0);
@@ -1854,7 +1859,8 @@ mod benchmarking {
 			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
-			let origin = T::InitiateOrigin::successful_origin();
+			let origin = T::InitiateOrigin::try_successful_origin()
+				.expect("InitiateOrigin has no successful origin required for the benchmark");
 			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			fill_winners::<T>(lease_period_index);
@@ -1898,7 +1904,8 @@ mod benchmarking {
 			let duration: T::BlockNumber = lease_length / 2u32.into();
 			let lease_period_index = LeasePeriodOf::<T>::zero();
 			let now = frame_system::Pallet::<T>::block_number();
-			let origin = T::InitiateOrigin::successful_origin();
+			let origin = T::InitiateOrigin::try_successful_origin()
+				.expect("InitiateOrigin has no successful origin required for the benchmark");
 			Auctions::<T>::new_auction(origin, duration, lease_period_index)?;
 
 			fill_winners::<T>(lease_period_index);

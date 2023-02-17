@@ -32,7 +32,7 @@ use polkadot_overseer::{
 	gen::{FromOrchestra, SpawnedSubsystem},
 	HeadSupportsParachains, SubsystemError,
 };
-use polkadot_primitives::v2::{CandidateReceipt, Hash};
+use polkadot_primitives::{CandidateReceipt, Hash};
 
 struct AlwaysSupportsParachains;
 

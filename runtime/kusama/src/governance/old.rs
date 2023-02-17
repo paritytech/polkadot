@@ -99,6 +99,7 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type MaxProposals = CouncilMaxProposals;
 	type MaxMembers = CouncilMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type SetMembersOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_collective_council::WeightInfo<Runtime>;
 }
 
@@ -112,6 +113,7 @@ parameter_types! {
 	pub TermDuration: BlockNumber = prod_or_fast!(24 * HOURS, 2 * MINUTES, "KSM_TERM_DURATION");
 	pub const DesiredMembers: u32 = 19;
 	pub const DesiredRunnersUp: u32 = 19;
+	pub const MaxVotesPerVoter: u32 = 16;
 	pub const MaxVoters: u32 = 10 * 1000;
 	pub const MaxCandidates: u32 = 1000;
 	pub const PhragmenElectionPalletId: LockIdentifier = *b"phrelect";
@@ -136,6 +138,7 @@ impl pallet_elections_phragmen::Config for Runtime {
 	type TermDuration = TermDuration;
 	type MaxVoters = MaxVoters;
 	type MaxCandidates = MaxCandidates;
+	type MaxVotesPerVoter = MaxVotesPerVoter;
 	type PalletId = PhragmenElectionPalletId;
 	type WeightInfo = weights::pallet_elections_phragmen::WeightInfo<Runtime>;
 }
@@ -155,6 +158,7 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type MaxProposals = TechnicalMaxProposals;
 	type MaxMembers = TechnicalMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type SetMembersOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
 }
 

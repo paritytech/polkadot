@@ -108,11 +108,13 @@ pub mod testing;
 pub use sp_tracing;
 
 pub use error::{InvalidCandidate, PrepareError, PrepareResult, ValidationError};
+pub use prepare::PrepareStats;
 pub use priority::Priority;
-pub use pvf::Pvf;
+pub use pvf::{Pvf, PvfWithExecutorParams};
 
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
+pub use worker_common::JOB_TIMEOUT_WALL_CLOCK_FACTOR;
 
 pub use execute::worker_entrypoint as execute_worker_entrypoint;
 pub use prepare::worker_entrypoint as prepare_worker_entrypoint;

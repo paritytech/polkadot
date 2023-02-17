@@ -28,6 +28,7 @@ use sp_keyring::Sr25519Keyring;
 use std::net::ToSocketAddrs;
 
 pub use crate::{error::Error, service::BlockId};
+#[cfg(feature = "hostperfcheck")]
 pub use polkadot_performance_test::PerfCheckError;
 
 impl From<String> for Error {
@@ -238,7 +239,11 @@ macro_rules! unwrap_client {
 			#[cfg(feature = "rococo-native")]
 			polkadot_client::Client::Rococo($client) => $code,
 			#[allow(unreachable_patterns)]
-			_ => Err(Error::CommandNotImplemented),
+			_ => {
+				let _ = $client;
+
+				Err(Error::CommandNotImplemented)
+			},
 		}
 	};
 }
@@ -246,21 +251,20 @@ macro_rules! unwrap_client {
 /// Runs performance checks.
 /// Should only be used in release build since the check would take too much time otherwise.
 fn host_perf_check() -> Result<()> {
-	#[cfg(not(build_type = "release"))]
+	#[cfg(not(feature = "hostperfcheck"))]
+	{
+		return Err(Error::FeatureNotEnabled { feature: "hostperfcheck" }.into())
+	}
+
+	#[cfg(all(not(build_type = "release"), feature = "hostperfcheck"))]
 	{
 		return Err(PerfCheckError::WrongBuildType.into())
 	}
-	#[cfg(build_type = "release")]
+
+	#[cfg(all(feature = "hostperfcheck", build_type = "release"))]
 	{
-		#[cfg(not(feature = "hostperfcheck"))]
-		{
-			return Err(PerfCheckError::FeatureNotEnabled { feature: "hostperfcheck" }.into())
-		}
-		#[cfg(feature = "hostperfcheck")]
-		{
-			crate::host_perf_check::host_perf_check()?;
-			return Ok(())
-		}
+		crate::host_perf_check::host_perf_check()?;
+		return Ok(())
 	}
 }
 
@@ -328,16 +332,15 @@ where
 	};
 
 	runner.run_node_until_exit(move |config| async move {
-		let hwbench = if !cli.run.no_hardware_benchmarks {
-			config.database.path().map(|database_path| {
+		let hwbench = (!cli.run.no_hardware_benchmarks)
+			.then_some(config.database.path().map(|database_path| {
 				let _ = std::fs::create_dir_all(&database_path);
 				sc_sysinfo::gather_hwbench(Some(database_path))
-			})
-		} else {
-			None
-		};
+			}))
+			.flatten();
 
-		service::build_full(
+		let database_source = config.database.clone();
+		let task_manager = service::build_full(
 			config,
 			service::IsCollator::No,
 			grandpa_pause,
@@ -350,8 +353,15 @@ where
 			maybe_malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.task_manager)
-		.map_err(Into::into)
+		.map(|full| full.task_manager)?;
+
+		sc_storage_monitor::StorageMonitorService::try_spawn(
+			cli.storage_monitor,
+			database_source,
+			&task_manager.spawn_essential_handle(),
+		)?;
+
+		Ok(task_manager)
 	})
 }
 
@@ -541,7 +551,7 @@ pub fn run() -> Result<()> {
 					ensure_dev(chain_spec).map_err(Error::Other)?;
 					runner.sync_run(|mut config| {
 						let (client, _, _, _) = service::new_chain_ops(&mut config, None)?;
-						let header = client.header(BlockId::Number(0_u32.into())).unwrap().unwrap();
+						let header = client.header(client.info().genesis_hash).unwrap().unwrap();
 						let inherent_data = benchmark_inherent_data(header)
 							.map_err(|e| format!("generating inherent data: {:?}", e))?;
 						let remark_builder = RemarkBuilder::new(client.clone());
@@ -638,9 +648,14 @@ pub fn run() -> Result<()> {
 		Some(Subcommand::Key(cmd)) => Ok(cmd.run(&cli)?),
 		#[cfg(feature = "try-runtime")]
 		Some(Subcommand::TryRuntime(cmd)) => {
+			use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
 			set_default_ss58_version(chain_spec);
+			type HostFunctionsOf<E> = ExtendedHostFunctions<
+				sp_io::SubstrateHostFunctions,
+				<E as NativeExecutionDispatch>::ExtendHostFunctions,
+			>;
 
 			use sc_service::TaskManager;
 			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
@@ -651,10 +666,9 @@ pub fn run() -> Result<()> {
 
 			#[cfg(feature = "kusama-native")]
 			if chain_spec.is_kusama() {
-				return runner.async_run(|config| {
+				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::kusama_runtime::Block, service::KusamaExecutorDispatch>(
-							config,
+						cmd.run::<service::kusama_runtime::Block, HostFunctionsOf<service::KusamaExecutorDispatch>>(
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -664,10 +678,9 @@ pub fn run() -> Result<()> {
 
 			#[cfg(feature = "westend-native")]
 			if chain_spec.is_westend() {
-				return runner.async_run(|config| {
+				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::westend_runtime::Block, service::WestendExecutorDispatch>(
-							config,
+						cmd.run::<service::westend_runtime::Block, HostFunctionsOf<service::WestendExecutorDispatch>>(
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -677,10 +690,9 @@ pub fn run() -> Result<()> {
 			// else we assume it is polkadot.
 			#[cfg(feature = "polkadot-native")]
 			{
-				return runner.async_run(|config| {
+				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::polkadot_runtime::Block, service::PolkadotExecutorDispatch>(
-							config,
+						cmd.run::<service::polkadot_runtime::Block, HostFunctionsOf<service::PolkadotExecutorDispatch>>(
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
