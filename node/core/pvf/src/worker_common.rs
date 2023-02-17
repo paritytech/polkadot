@@ -251,6 +251,8 @@ pub enum SpawnErr {
 	ProcessSpawn,
 	/// The deadline allotted for the worker spawning and connecting to the socket has elapsed.
 	AcceptTimeout,
+	/// Failed to send handshake after successful spawning was signaled
+	Handshake,
 }
 
 /// This is a representation of a potentially running worker. Drop it and the process will be killed.
