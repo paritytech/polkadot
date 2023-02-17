@@ -23,6 +23,7 @@
 use self::metrics::Metrics;
 use futures::{channel::oneshot, FutureExt as _};
 use itertools::Itertools;
+use net_protocol::peer_set::ProtocolVersion;
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RandomRouting, RequiredRouting, SessionGridTopologies, SessionGridTopology},
@@ -215,6 +216,12 @@ impl ApprovalEntry {
 	}
 }
 
+// We keep track of each peer view and protocol version using this struct.
+struct PeerEntry {
+	pub view: View,
+	pub version: ProtocolVersion,
+}
+
 /// The [`State`] struct is responsible for tracking the overall state of the subsystem.
 ///
 /// It tracks metadata about our view of the unfinalized chain,
@@ -234,7 +241,7 @@ struct State {
 	pending_known: HashMap<Hash, Vec<(PeerId, PendingMessage)>>,
 
 	/// Peer data is partially stored here, and partially inline within the [`BlockEntry`]s
-	peer_views: HashMap<PeerId, View>,
+	peer_views: HashMap<PeerId, PeerEntry>,
 
 	/// Keeps a topology for various different sessions.
 	topologies: SessionGridTopologies,
@@ -351,8 +358,9 @@ impl BlockEntry {
 	}
 
 	pub fn insert_approval_entry(&mut self, entry: ApprovalEntry) -> &mut ApprovalEntry {
-		// First map one entry per candidate to the same key we will use in `approval_entries.
-		// Key is (Validator_index, Vec<CandidateIndex>), which are is the (K,V) pair in `candidate_entry.messages`.
+		// First map one entry per candidate to the same key we will use in `approval_entries`.
+		// Key is (Validator_index, Vec<CandidateIndex>) that links the `ApprovalEntry` to the (K,V)
+		// entry in `candidate_entry.messages`.
 		for claimed_candidate_index in &entry.candidates {
 			match self.candidates.get_mut(*claimed_candidate_index as usize) {
 				Some(candidate_entry) => {
@@ -381,6 +389,8 @@ impl BlockEntry {
 			.or_insert(entry)
 	}
 
+	// Returns `true` if we have an approval for `candidate_index` from validator
+	// `validator_index`.
 	pub fn contains_approval_entry(
 		&self,
 		candidate_index: CandidateIndex,
@@ -395,6 +405,8 @@ impl BlockEntry {
 			})
 	}
 
+	// Returns a mutable reference of `ApprovalEntry` for `candidate_index` from validator
+	// `validator_index`.
 	pub fn get_approval_entry(
 		&mut self,
 		candidate_index: CandidateIndex,
@@ -409,24 +421,29 @@ impl BlockEntry {
 	}
 
 	// Get all approval entries for a given candidate.
-	// TODO: Fix this crap
 	pub fn get_approval_entries(&self, candidate_index: CandidateIndex) -> Vec<&ApprovalEntry> {
+		// Get the keys for fetching `ApprovalEntry` from `self.approval_entries`,
 		let approval_entry_keys = self
 			.candidates
 			.get(candidate_index as usize)
-			.map_or(HashMap::new(), |candidate_entry| candidate_entry.messages.clone());
+			.map(|candidate_entry| &candidate_entry.messages);
 
-		let approval_entry_keys = approval_entry_keys.iter().unique().collect::<Vec<_>>();
+		if let Some(approval_entry_keys) = approval_entry_keys {
+			// Ensure no duplicates.
+			let approval_entry_keys = approval_entry_keys.iter().unique().collect::<Vec<_>>();
 
-		let mut entries = Vec::new();
-		for (validator_index, candidate_indices) in approval_entry_keys {
-			if let Some(entry) =
-				self.approval_entries.get(&(*validator_index, candidate_indices.clone()))
-			{
-				entries.push(entry);
+			let mut entries = Vec::new();
+			for (validator_index, candidate_indices) in approval_entry_keys {
+				if let Some(entry) =
+					self.approval_entries.get(&(*validator_index, candidate_indices.clone()))
+				{
+					entries.push(entry);
+				}
 			}
+			entries
+		} else {
+			vec![]
 		}
-		entries
 	}
 }
 
@@ -469,10 +486,12 @@ impl State {
 		rng: &mut (impl CryptoRng + Rng),
 	) {
 		match event {
-			NetworkBridgeEvent::PeerConnected(peer_id, role, _, _) => {
+			NetworkBridgeEvent::PeerConnected(peer_id, role, version, _) => {
 				// insert a blank view if none already present
 				gum::trace!(target: LOG_TARGET, ?peer_id, ?role, "Peer connected");
-				self.peer_views.entry(peer_id).or_default();
+				self.peer_views
+					.entry(peer_id)
+					.or_insert(PeerEntry { view: Default::default(), version });
 			},
 			NetworkBridgeEvent::PeerDisconnected(peer_id) => {
 				gum::trace!(target: LOG_TARGET, ?peer_id, "Peer disconnected");
@@ -564,7 +583,7 @@ impl State {
 
 		{
 			let sender = ctx.sender();
-			for (peer_id, view) in self.peer_views.iter() {
+			for (peer_id, PeerEntry { view, version: _ }) in self.peer_views.iter() {
 				let intersection = view.iter().filter(|h| new_hashes.contains(h));
 				let view_intersection = View::new(intersection.cloned(), view.finalized_number);
 				Self::unify_with_peer(
@@ -776,8 +795,10 @@ impl State {
 	{
 		gum::trace!(target: LOG_TARGET, ?view, "Peer view change");
 		let finalized_number = view.finalized_number;
-		let old_view =
-			self.peer_views.get_mut(&peer_id).map(|d| std::mem::replace(d, view.clone()));
+		let old_view = self
+			.peer_views
+			.get_mut(&peer_id)
+			.map(|d| std::mem::replace(&mut d.view, view.clone()));
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
 
 		// we want to prune every block known_by peer up to (including) view.finalized_number
