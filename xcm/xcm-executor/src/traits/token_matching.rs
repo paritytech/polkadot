@@ -49,7 +49,7 @@ impl<Instance> MatchesNonFungible<Instance> for Tuple {
 
 /// Errors associated with [`MatchesFungibles`] operation.
 pub enum Error {
-	/// Asset not found.
+	/// The given asset is not handled. (According to [`XcmError::AssetNotFound`])
 	AssetNotFound,
 	/// `MultiLocation` to `AccountId` conversion failed.
 	AccountIdConversionFailed,
@@ -69,7 +69,7 @@ impl From<Error> for XcmError {
 			Error::AccountIdConversionFailed => FailedToTransactAsset("AccountIdConversionFailed"),
 			Error::AmountToBalanceConversionFailed =>
 				FailedToTransactAsset("AmountToBalanceConversionFailed"),
-			Error::AssetIdConversionFailed => FailedToTransactAsset("AssetIdConversionFailed"),
+			Error::AssetIdConversionFailed => XcmError::AssetNotFound,
 			Error::InstanceConversionFailed => FailedToTransactAsset("InstanceConversionFailed"),
 		}
 	}

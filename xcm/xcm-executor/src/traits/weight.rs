@@ -67,16 +67,29 @@ impl WeightTrader for Tuple {
 	}
 
 	fn buy_weight(&mut self, weight: Weight, payment: Assets) -> Result<Assets, XcmError> {
+		let mut too_expensive_error_found = false;
 		let mut last_error = None;
 		for_tuples!( #(
 			match Tuple.buy_weight(weight, payment.clone()) {
 				Ok(assets) => return Ok(assets),
-				Err(e) => { last_error = Some(e) }
+				Err(e) => {
+					if let XcmError::TooExpensive = e {
+						too_expensive_error_found = true;
+					}
+					last_error = Some(e)
+				}
 			}
 		)* );
-		let last_error = last_error.unwrap_or(XcmError::TooExpensive);
-		log::trace!(target: "xcm::buy_weight", "last_error: {:?}", last_error);
-		Err(last_error)
+
+		log::trace!(target: "xcm::buy_weight", "last_error: {:?}, too_expensive_error_found: {}", last_error, too_expensive_error_found);
+
+		// if we have multiple traders, and first one returns `TooExpensive` and others fail e.g. `AssetNotFound`
+		// then it is more accurate to return `TooExpensive` then `AssetNotFound`
+		Err(if too_expensive_error_found {
+			XcmError::TooExpensive
+		} else {
+			last_error.unwrap_or(XcmError::TooExpensive)
+		})
 	}
 
 	fn refund_weight(&mut self, weight: Weight) -> Option<MultiAsset> {
