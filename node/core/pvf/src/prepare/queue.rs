@@ -445,9 +445,8 @@ async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal
 		&mut queue.to_pool_tx,
 		pool::ToPool::StartWork {
 			worker,
-			code: job_data.pvf_with_params.code(),
+			pvf_with_params: job_data.pvf_with_params.clone(),
 			artifact_path,
-			executor_params: job_data.pvf_with_params.executor_params(),
 			preparation_timeout: job_data.preparation_timeout,
 		},
 	)

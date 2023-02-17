@@ -67,7 +67,7 @@ pub fn measure_pvf_prepare(wasm_code: &[u8]) -> Result<Duration, PerfCheckError>
 
 	// Recreate the pipeline from the pvf prepare worker.
 	let blob = polkadot_node_core_pvf::prevalidate(code.as_ref()).map_err(PerfCheckError::from)?;
-	polkadot_node_core_pvf::prepare(blob, ExecutorParams::default())
+	polkadot_node_core_pvf::prepare(blob, &ExecutorParams::default())
 		.map_err(PerfCheckError::from)?;
 
 	Ok(start.elapsed())
