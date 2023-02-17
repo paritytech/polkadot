@@ -685,7 +685,6 @@ mod tests {
 		let candidate_head_data_hash_a = candidate_head_data_a.hash();
 		let candidate_head_data_hash_b = candidate_head_data_b.hash();
 		let candidate_head_data_hash_c = candidate_head_data_c.hash();
-		let candidate_head_data_hash_d = candidate_head_data_d.hash();
 
 		let (candidate_a, pvd_a) = make_candidate(
 			relay_hash,
@@ -703,7 +702,7 @@ mod tests {
 			candidate_head_data_b.clone(),
 			Hash::from_low_u64_be(2000).into(),
 		);
-		let (candidate_c, pvd_c) = make_candidate(
+		let (candidate_c, _) = make_candidate(
 			relay_hash,
 			1,
 			1.into(),
@@ -733,30 +732,39 @@ mod tests {
 		// Insert some unconfirmed candidates.
 
 		// Advertise A without parent hash.
-		candidates.insert_unconfirmed(peer, candidate_hash_a, relay_hash, group_index, None);
+		candidates
+			.insert_unconfirmed(peer, candidate_hash_a, relay_hash, group_index, None)
+			.ok()
+			.unwrap();
 		assert_eq!(candidates.by_parent, HashMap::default());
 
 		// Advertise A with parent hash and ID.
-		candidates.insert_unconfirmed(
-			peer,
-			candidate_hash_a,
-			relay_hash,
-			group_index,
-			Some((relay_hash, 1.into())),
-		);
+		candidates
+			.insert_unconfirmed(
+				peer,
+				candidate_hash_a,
+				relay_hash,
+				group_index,
+				Some((relay_hash, 1.into())),
+			)
+			.ok()
+			.unwrap();
 		assert_eq!(
 			candidates.by_parent,
 			HashMap::from([((relay_hash, 1.into()), HashSet::from([candidate_hash_a]))])
 		);
 
 		// Advertise B with parent A.
-		candidates.insert_unconfirmed(
-			peer,
-			candidate_hash_b,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_a, 1.into())),
-		);
+		candidates
+			.insert_unconfirmed(
+				peer,
+				candidate_hash_b,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_a, 1.into())),
+			)
+			.ok()
+			.unwrap();
 		assert_eq!(
 			candidates.by_parent,
 			HashMap::from([
@@ -766,13 +774,16 @@ mod tests {
 		);
 
 		// Advertise C with parent A.
-		candidates.insert_unconfirmed(
-			peer,
-			candidate_hash_c,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_a, 1.into())),
-		);
+		candidates
+			.insert_unconfirmed(
+				peer,
+				candidate_hash_c,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_a, 1.into())),
+			)
+			.ok()
+			.unwrap();
 		assert_eq!(
 			candidates.by_parent,
 			HashMap::from([
@@ -785,13 +796,16 @@ mod tests {
 		);
 
 		// Advertise D with parent A.
-		candidates.insert_unconfirmed(
-			peer,
-			candidate_hash_d,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_a, 1.into())),
-		);
+		candidates
+			.insert_unconfirmed(
+				peer,
+				candidate_hash_d,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_a, 1.into())),
+			)
+			.ok()
+			.unwrap();
 		assert_eq!(
 			candidates.by_parent,
 			HashMap::from([
@@ -875,8 +889,6 @@ mod tests {
 		let candidate_head_data_d = HeadData(vec![4]);
 		let candidate_head_data_hash_a = candidate_head_data_a.hash();
 		let candidate_head_data_hash_b = candidate_head_data_b.hash();
-		let candidate_head_data_hash_c = candidate_head_data_c.hash();
-		let candidate_head_data_hash_d = candidate_head_data_d.hash();
 
 		let (candidate_a, pvd_a) = make_candidate(
 			relay_hash,
@@ -894,7 +906,7 @@ mod tests {
 			candidate_head_data_b.clone(),
 			Hash::from_low_u64_be(2000).into(),
 		);
-		let (candidate_c, pvd_c) = make_candidate(
+		let (candidate_c, _) = make_candidate(
 			relay_hash,
 			1,
 			1.into(),
@@ -928,64 +940,88 @@ mod tests {
 		// Insert some unconfirmed candidates.
 
 		// Advertise A without parent hash.
-		candidates.insert_unconfirmed(peer_a, candidate_hash_a, relay_hash, group_index, None);
+		candidates
+			.insert_unconfirmed(peer_a, candidate_hash_a, relay_hash, group_index, None)
+			.ok()
+			.unwrap();
 
 		// Advertise A with parent hash and ID.
-		candidates.insert_unconfirmed(
-			peer_a,
-			candidate_hash_a,
-			relay_hash,
-			group_index,
-			Some((relay_hash, 1.into())),
-		);
+		candidates
+			.insert_unconfirmed(
+				peer_a,
+				candidate_hash_a,
+				relay_hash,
+				group_index,
+				Some((relay_hash, 1.into())),
+			)
+			.ok()
+			.unwrap();
 
 		// (Correctly) advertise B with parent A. Do it from a couple of peers.
-		candidates.insert_unconfirmed(
-			peer_a,
-			candidate_hash_b,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_a, 1.into())),
-		);
-		candidates.insert_unconfirmed(
-			peer_b,
-			candidate_hash_b,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_a, 1.into())),
-		);
+		candidates
+			.insert_unconfirmed(
+				peer_a,
+				candidate_hash_b,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_a, 1.into())),
+			)
+			.ok()
+			.unwrap();
+		candidates
+			.insert_unconfirmed(
+				peer_b,
+				candidate_hash_b,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_a, 1.into())),
+			)
+			.ok()
+			.unwrap();
 
 		// (Wrongly) advertise C with parent A. Do it from a couple peers.
-		candidates.insert_unconfirmed(
-			peer_b,
-			candidate_hash_c,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_a, 1.into())),
-		);
-		candidates.insert_unconfirmed(
-			peer_c,
-			candidate_hash_c,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_a, 1.into())),
-		);
+		candidates
+			.insert_unconfirmed(
+				peer_b,
+				candidate_hash_c,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_a, 1.into())),
+			)
+			.ok()
+			.unwrap();
+		candidates
+			.insert_unconfirmed(
+				peer_c,
+				candidate_hash_c,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_a, 1.into())),
+			)
+			.ok()
+			.unwrap();
 
 		// Advertise D. Do it correctly from one peer (parent B) and wrongly from another (parent A).
-		candidates.insert_unconfirmed(
-			peer_c,
-			candidate_hash_d,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_b, 1.into())),
-		);
-		candidates.insert_unconfirmed(
-			peer_d,
-			candidate_hash_d,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_a, 1.into())),
-		);
+		candidates
+			.insert_unconfirmed(
+				peer_c,
+				candidate_hash_d,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_b, 1.into())),
+			)
+			.ok()
+			.unwrap();
+		candidates
+			.insert_unconfirmed(
+				peer_d,
+				candidate_hash_d,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_a, 1.into())),
+			)
+			.ok()
+			.unwrap();
 
 		assert_eq!(
 			candidates.by_parent,
@@ -1108,7 +1144,6 @@ mod tests {
 		let candidate_head_data_d = HeadData(vec![4]);
 		let candidate_head_data_hash_a = candidate_head_data_a.hash();
 		let candidate_head_data_hash_b = candidate_head_data_b.hash();
-		let candidate_head_data_hash_c = candidate_head_data_c.hash();
 		let candidate_head_data_hash_d = candidate_head_data_d.hash();
 
 		let (candidate_a, pvd_a) = make_candidate(
@@ -1119,7 +1154,7 @@ mod tests {
 			candidate_head_data_a.clone(),
 			Hash::from_low_u64_be(1000).into(),
 		);
-		let (candidate_b, pvd_b) = make_candidate(
+		let (candidate_b, _) = make_candidate(
 			relay_hash,
 			1,
 			1.into(),
@@ -1127,7 +1162,7 @@ mod tests {
 			candidate_head_data_b.clone(),
 			Hash::from_low_u64_be(2000).into(),
 		);
-		let (candidate_c, pvd_c) = make_candidate(
+		let (candidate_c, _) = make_candidate(
 			relay_hash,
 			1,
 			1.into(),
@@ -1135,7 +1170,7 @@ mod tests {
 			candidate_head_data_c.clone(),
 			Hash::from_low_u64_be(3000).into(),
 		);
-		let (candidate_d, pvd_d) = make_candidate(
+		let (candidate_d, _) = make_candidate(
 			relay_hash,
 			1,
 			1.into(),
@@ -1163,31 +1198,40 @@ mod tests {
 		);
 
 		// Advertise B with parent A.
-		candidates.insert_unconfirmed(
-			peer,
-			candidate_hash_b,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_a, 1.into())),
-		);
+		candidates
+			.insert_unconfirmed(
+				peer,
+				candidate_hash_b,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_a, 1.into())),
+			)
+			.ok()
+			.unwrap();
 
 		// Advertise C with parent A.
-		candidates.insert_unconfirmed(
-			peer,
-			candidate_hash_c,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_a, 1.into())),
-		);
+		candidates
+			.insert_unconfirmed(
+				peer,
+				candidate_hash_c,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_a, 1.into())),
+			)
+			.ok()
+			.unwrap();
 
 		// Advertise D with parent B.
-		candidates.insert_unconfirmed(
-			peer,
-			candidate_hash_d,
-			relay_hash,
-			group_index,
-			Some((candidate_head_data_hash_b, 1.into())),
-		);
+		candidates
+			.insert_unconfirmed(
+				peer,
+				candidate_hash_d,
+				relay_hash,
+				group_index,
+				Some((candidate_head_data_hash_b, 1.into())),
+			)
+			.ok()
+			.unwrap();
 
 		assert_eq!(
 			candidates.by_parent,

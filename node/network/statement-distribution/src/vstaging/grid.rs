@@ -582,6 +582,18 @@ impl GridTracker {
 	) -> Option<StatementFilter> {
 		self.received.get(&validator)?.candidate_statement_filter(candidate_hash)
 	}
+
+	#[cfg(test)]
+	fn is_manifest_pending_for(
+		&self,
+		validator: ValidatorIndex,
+		candidate_hash: &CandidateHash,
+	) -> Option<ManifestKind> {
+		self.pending_manifests
+			.get(&validator)
+			.and_then(|m| m.get(candidate_hash))
+			.map(|x| *x)
+	}
 }
 
 fn extract_statement_and_group_info(
@@ -1003,10 +1015,8 @@ mod tests {
 
 	fn dummy_groups(group_size: usize) -> Groups {
 		let groups = vec![(0..(group_size as u32)).map(ValidatorIndex).collect()].into();
-		let mut discovery_keys = vec![];
-		(0..group_size).map(|_| discovery_keys.push(AuthorityDiscoveryPair::generate().0.public()));
 
-		Groups::new(groups, &discovery_keys)
+		Groups::new(groups)
 	}
 
 	#[test]
@@ -1404,7 +1414,7 @@ mod tests {
 	}
 
 	#[test]
-	fn reject_malformed_below_threshold() {
+	fn reject_insufficient_below_threshold() {
 		let mut tracker = GridTracker::default();
 		let session_topology = SessionTopologyView {
 			group_views: vec![(
@@ -1443,7 +1453,7 @@ mod tests {
 				ManifestKind::Full,
 				ValidatorIndex(0),
 			),
-			Err(ManifestImportError::Malformed)
+			Err(ManifestImportError::Insufficient)
 		);
 
 		// seconding + validating still not enough to reach '2' threshold
@@ -1465,7 +1475,7 @@ mod tests {
 				ManifestKind::Full,
 				ValidatorIndex(0),
 			),
-			Err(ManifestImportError::Malformed)
+			Err(ManifestImportError::Insufficient)
 		);
 
 		// finally good.
@@ -1522,7 +1532,6 @@ mod tests {
 			&session_topology,
 			candidate_hash,
 			group_index,
-			group_size,
 			local_knowledge.clone(),
 		);
 		// Validator 0 is in the sending group. Advertise onward to it.
@@ -1590,7 +1599,6 @@ mod tests {
 			&session_topology,
 			candidate_hash,
 			group_index,
-			group_size,
 			local_knowledge.clone(),
 		);
 
@@ -1658,7 +1666,6 @@ mod tests {
 			&session_topology,
 			candidate_hash,
 			group_index,
-			group_size,
 			local_knowledge.clone(),
 		);
 
@@ -1740,7 +1747,6 @@ mod tests {
 			&session_topology,
 			candidate_hash,
 			group_index,
-			group_size,
 			local_knowledge.clone(),
 		);
 		assert_eq!(receivers, vec![(send_to, ManifestKind::Full)]);
@@ -1878,7 +1884,6 @@ mod tests {
 			&session_topology,
 			candidate_hash,
 			group_index,
-			group_size,
 			local_knowledge.clone(),
 		);
 
@@ -1923,7 +1928,6 @@ mod tests {
 			&session_topology,
 			candidate_hash,
 			group_index,
-			group_size,
 			local_knowledge.clone(),
 		);
 
@@ -2012,7 +2016,6 @@ mod tests {
 			&session_topology,
 			candidate_hash,
 			group_index,
-			group_size,
 			local_knowledge.clone(),
 		);
 
@@ -2098,48 +2101,53 @@ mod tests {
 			&session_topology,
 			candidate_hash,
 			group_index,
-			group_size,
 			local_knowledge.clone(),
 		);
 
 		// Import statement for originator.
-		tracker.import_manifest(
-			&session_topology,
-			&groups,
-			candidate_hash,
-			3,
-			ManifestSummary {
-				claimed_parent_hash: Hash::repeat_byte(0),
-				claimed_group_index: group_index,
-				statement_knowledge: StatementFilter {
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+		tracker
+			.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: group_index,
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					},
 				},
-			},
-			ManifestKind::Full,
-			validator_index,
-		);
+				ManifestKind::Full,
+				validator_index,
+			)
+			.ok()
+			.unwrap();
 		tracker.manifest_sent_to(&groups, validator_index, candidate_hash, local_knowledge.clone());
 		let statement = CompactStatement::Seconded(candidate_hash);
 		tracker.learned_fresh_statement(&groups, &session_topology, validator_index, &statement);
 
 		// Import statement for counterparty.
-		tracker.import_manifest(
-			&session_topology,
-			&groups,
-			candidate_hash,
-			3,
-			ManifestSummary {
-				claimed_parent_hash: Hash::repeat_byte(0),
-				claimed_group_index: group_index,
-				statement_knowledge: StatementFilter {
-					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+		tracker
+			.import_manifest(
+				&session_topology,
+				&groups,
+				candidate_hash,
+				3,
+				ManifestSummary {
+					claimed_parent_hash: Hash::repeat_byte(0),
+					claimed_group_index: group_index,
+					statement_knowledge: StatementFilter {
+						seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+						validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 0, 1],
+					},
 				},
-			},
-			ManifestKind::Full,
-			counterparty,
-		);
+				ManifestKind::Full,
+				counterparty,
+			)
+			.ok()
+			.unwrap();
 		tracker.manifest_sent_to(&groups, counterparty, candidate_hash, local_knowledge);
 		let statement = CompactStatement::Seconded(candidate_hash);
 		tracker.learned_fresh_statement(&groups, &session_topology, counterparty, &statement);
