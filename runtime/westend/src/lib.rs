@@ -1900,34 +1900,17 @@ mod clean_state_migration {
 	#[cfg(not(feature = "std"))]
 	use sp_std::prelude::*;
 
-	struct Pallet<T>(sp_std::marker::PhantomData<T>);
-
-	impl<T> frame_support::traits::PalletInfoAccess for Pallet<T> {
-		fn index() -> usize {
-			35
-		}
-		fn name() -> &'static str {
-			"StateTrieMigration"
-		}
-		fn module_name() -> &'static str {
-			"pallet_state_trie_migration"
-		}
-		fn crate_version() -> frame_support::traits::CrateVersion {
-			frame_support::traits::CrateVersion { major: 4u16, minor: 0u8, patch: 0u8 }
-		}
-	}
-
 	#[storage_alias]
-	type AutoLimits<T> = StorageValue<Pallet<T>, Option<MigrationLimits>, ValueQuery>;
+	type AutoLimits = StorageValue<StateTrieMigration, Option<MigrationLimits>, ValueQuery>;
 
 	// Actual type of value is `MigrationTask<T>`, putting a dummy
 	// one to avoid the trait constraint on T.
 	// Since we only use `kill` it is fine.
 	#[storage_alias]
-	type MigrationProcess<T> = StorageValue<Pallet<T>, u32, ValueQuery>;
+	type MigrationProcess = StorageValue<StateTrieMigration, u32, ValueQuery>;
 
 	#[storage_alias]
-	type SignedMigrationMaxLimits<T> = StorageValue<Pallet<T>, MigrationLimits, OptionQuery>;
+	type SignedMigrationMaxLimits = StorageValue<StateTrieMigration, MigrationLimits, OptionQuery>;
 
 	/// Initialize an automatic migration process.
 	pub struct CleanMigrate;
@@ -1939,16 +1922,16 @@ mod clean_state_migration {
 		}
 
 		fn on_runtime_upgrade() -> frame_support::weights::Weight {
-			MigrationProcess::<Runtime>::kill();
-			AutoLimits::<Runtime>::kill();
-			SignedMigrationMaxLimits::<Runtime>::kill();
+			MigrationProcess::kill();
+			AutoLimits::kill();
+			SignedMigrationMaxLimits::kill();
 			<Runtime as frame_system::Config>::DbWeight::get().writes(3)
 		}
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
 			frame_support::ensure!(
-				!AutoLimits::<Runtime>::exists() && !SignedMigrationMaxLimits::<Runtime>::exists(),
+				!AutoLimits::exists() && !SignedMigrationMaxLimits::exists(),
 				"State migration clean.",
 			);
 			Ok(())
