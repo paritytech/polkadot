@@ -29,6 +29,9 @@ use rand::{Rng, SeedableRng};
 
 use std::sync::Arc;
 
+mod cluster;
+mod grid;
+
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<StatementDistributionMessage>;
 
 // Some deterministic genesis hash for req/res protocol names
