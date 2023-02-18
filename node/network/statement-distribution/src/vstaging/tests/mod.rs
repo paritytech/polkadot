@@ -31,6 +31,7 @@ use std::sync::Arc;
 
 mod cluster;
 mod grid;
+mod requests;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<StatementDistributionMessage>;
 
