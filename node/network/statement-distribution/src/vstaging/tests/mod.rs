@@ -16,12 +16,12 @@
 
 use super::*;
 use crate::*;
-use polkadot_primitives::vstaging::{ValidatorPair, AssignmentPair, AssignmentId, IndexedVec};
-use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_network_protocol::request_response::ReqProtocolNames;
+use polkadot_node_subsystem_test_helpers as test_helpers;
+use polkadot_primitives::vstaging::{AssignmentId, AssignmentPair, IndexedVec, ValidatorPair};
 use sc_keystore::LocalKeystore;
-use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 use sp_application_crypto::Pair as PairT;
+use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 use sp_keyring::Sr25519Keyring;
 
 use futures::Future;
