@@ -426,7 +426,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		let seconding_limit = match mode {
 			Ok(ProspectiveParachainsMode::Disabled) | Err(_) => continue,
 			Ok(ProspectiveParachainsMode::Enabled { max_candidate_depth, .. }) =>
-				max_candidate_depth,
+				max_candidate_depth + 1,
 		};
 
 		let session_index = polkadot_node_subsystem_util::request_session_index_for_child(
