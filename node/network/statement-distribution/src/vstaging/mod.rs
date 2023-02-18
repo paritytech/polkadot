@@ -2011,7 +2011,7 @@ async fn handle_incoming_manifest<Context>(
 	let ManifestImportSuccess { relay_parent_state, per_session, acknowledge, sender_index } = x;
 
 	if acknowledge {
-		// 4. if already confirmed & known within grid, acknowledge candidate
+		// 4. if already known within grid (confirmed & backed), acknowledge candidate
 
 		let local_knowledge = {
 			let group_size = match per_session.groups.get(manifest.group_index) {
