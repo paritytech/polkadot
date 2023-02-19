@@ -144,8 +144,6 @@ impl CandidateStorage {
 	}
 
 	/// Remove a candidate from the store.
-	// TODO [now]: make it used or remove.
-	#[allow(dead_code)]
 	pub fn remove_candidate(&mut self, candidate_hash: &CandidateHash) {
 		if let Some(entry) = self.by_candidate_hash.remove(candidate_hash) {
 			let parent_head_hash = entry.candidate.persisted_validation_data.parent_head.hash();
@@ -159,8 +157,6 @@ impl CandidateStorage {
 	}
 
 	/// Note that an existing candidate has been seconded.
-	// TODO [now]: make it used or remove
-	#[allow(dead_code)]
 	pub fn mark_seconded(&mut self, candidate_hash: &CandidateHash) {
 		if let Some(entry) = self.by_candidate_hash.get_mut(candidate_hash) {
 			if entry.state != CandidateState::Backed {
@@ -253,7 +249,6 @@ enum CandidateState {
 	/// is not necessarily backed.
 	Introduced,
 	/// The candidate has been seconded.
-	#[allow(dead_code)]
 	Seconded,
 	/// The candidate has been completely backed by the group.
 	Backed,
