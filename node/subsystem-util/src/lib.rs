@@ -29,6 +29,7 @@ use polkadot_node_subsystem::{
 	messages::{RuntimeApiMessage, RuntimeApiRequest, RuntimeApiSender},
 	overseer, SubsystemSender,
 };
+use polkadot_primitives::vstaging::ExecutorParams;
 
 pub use overseer::{
 	gen::{OrchestraError as OverseerError, Timeout},
@@ -115,6 +116,9 @@ pub enum Error {
 	/// Already forwarding errors to another sender
 	#[error("AlreadyForwarding")]
 	AlreadyForwarding,
+	/// Data that are supposed to be there a not there
+	#[error("Data are not available")]
+	DataNotAvailable,
 }
 
 impl From<OverseerError> for Error {
@@ -209,6 +213,55 @@ specialize_requests! {
 	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
 		-> Option<ValidationCodeHash>; ValidationCodeHash;
 	fn request_on_chain_votes() -> Option<ScrapedOnChainVotes>; FetchOnChainVotes;
+	fn request_session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>; SessionExecutorParams;
+}
+
+/// Requests executor parameters from the runtime effective at given relay-parent. First obtains
+/// session index at the relay-parent, relying on the fact that it should be cached by the runtime
+/// API caching layer even if the block itself has already been pruned. Then requests executor
+/// parameters by session index.
+/// Returns an error if failed to communicate to the runtime, or the parameters are not in the
+/// storage, which should never happen.
+/// Returns default execution parameters if the runtime doesn't yet support `SessionExecutorParams`
+/// API call.
+/// Otherwise, returns execution parameters returned by the runtime.
+pub async fn executor_params_at_relay_parent(
+	relay_parent: Hash,
+	sender: &mut impl overseer::SubsystemSender<RuntimeApiMessage>,
+) -> Result<ExecutorParams, Error> {
+	match request_session_index_for_child(relay_parent, sender).await.await {
+		Err(err) => {
+			// Failed to communicate with the runtime
+			Err(Error::Oneshot(err))
+		},
+		Ok(Err(err)) => {
+			// Runtime has failed to obtain a session index at the relay-parent.
+			Err(Error::RuntimeApi(err))
+		},
+		Ok(Ok(session_index)) => {
+			match request_session_executor_params(relay_parent, session_index, sender).await.await {
+				Err(err) => {
+					// Failed to communicate with the runtime
+					Err(Error::Oneshot(err))
+				},
+				Ok(Err(RuntimeApiError::NotSupported { .. })) => {
+					// Runtime doesn't yet support the api requested, should execute anyway
+					// with default set of parameters
+					Ok(ExecutorParams::default())
+				},
+				Ok(Err(err)) => {
+					// Runtime failed to execute the request
+					Err(Error::RuntimeApi(err))
+				},
+				Ok(Ok(None)) => {
+					// Storage doesn't contain a parameter set for the given session; should
+					// never happen
+					Err(Error::DataNotAvailable)
+				},
+				Ok(Ok(Some(executor_params))) => Ok(executor_params),
+			}
+		},
+	}
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
