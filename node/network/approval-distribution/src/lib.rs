@@ -23,7 +23,7 @@
 use self::metrics::Metrics;
 use futures::{channel::oneshot, FutureExt as _};
 use itertools::Itertools;
-use net_protocol::peer_set::ProtocolVersion;
+use net_protocol::peer_set::{ProtocolVersion, ValidationVersion};
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RandomRouting, RequiredRouting, SessionGridTopologies, SessionGridTopology},
@@ -583,7 +583,7 @@ impl State {
 
 		{
 			let sender = ctx.sender();
-			for (peer_id, PeerEntry { view, version: _ }) in self.peer_views.iter() {
+			for (peer_id, PeerEntry { view, version }) in self.peer_views.iter() {
 				let intersection = view.iter().filter(|h| new_hashes.contains(h));
 				let view_intersection = View::new(intersection.cloned(), view.finalized_number);
 				Self::unify_with_peer(
@@ -593,6 +593,7 @@ impl State {
 					&self.topologies,
 					self.peer_views.len(),
 					*peer_id,
+					*version,
 					view_intersection,
 					rng,
 				)
@@ -687,8 +688,50 @@ impl State {
 					*required_routing
 				}
 			},
+			&self.peer_views,
 		)
 		.await;
+	}
+
+	async fn process_incoming_assignments<Context, R>(
+		&mut self,
+		ctx: &mut Context,
+		metrics: &Metrics,
+		peer_id: PeerId,
+		assignments: Vec<(IndirectAssignmentCert, Vec<CandidateIndex>)>,
+		rng: &mut R,
+	) where
+		R: CryptoRng + Rng,
+	{
+		for (assignment, claimed_indices) in assignments {
+			if let Some(pending) = self.pending_known.get_mut(&assignment.block_hash) {
+				let block_hash = &assignment.block_hash;
+				let validator_index = assignment.validator;
+
+				gum::trace!(
+					target: LOG_TARGET,
+					%peer_id,
+					?block_hash,
+					?claimed_indices,
+					?validator_index,
+					"Pending assignment",
+				);
+
+				pending.push((peer_id, PendingMessage::Assignment(assignment, claimed_indices)));
+
+				continue
+			}
+
+			self.import_and_circulate_assignment(
+				ctx,
+				metrics,
+				MessageSource::Peer(peer_id),
+				assignment,
+				claimed_indices,
+				rng,
+			)
+			.await;
+		}
 	}
 
 	async fn process_incoming_peer_message<Context, R>(
@@ -702,45 +745,34 @@ impl State {
 		R: CryptoRng + Rng,
 	{
 		match msg {
+			protocol_v1::ApprovalDistributionMessage::AssignmentsV2(assignments) => {
+				gum::trace!(
+					target: LOG_TARGET,
+					peer_id = %peer_id,
+					num = assignments.len(),
+					"Processing assignments (V2) from a peer",
+				);
+				self.process_incoming_assignments(ctx, metrics, peer_id, assignments, rng).await;
+			},
 			protocol_v1::ApprovalDistributionMessage::Assignments(assignments) => {
 				gum::trace!(
 					target: LOG_TARGET,
 					peer_id = %peer_id,
 					num = assignments.len(),
-					"Processing assignments from a peer",
+					"Processing assignments (V1) from a peer",
 				);
-				for (assignment, claimed_indices) in assignments.into_iter() {
-					if let Some(pending) = self.pending_known.get_mut(&assignment.block_hash) {
-						let block_hash = &assignment.block_hash;
-						let validator_index = assignment.validator;
 
-						gum::trace!(
-							target: LOG_TARGET,
-							%peer_id,
-							?block_hash,
-							?claimed_indices,
-							?validator_index,
-							"Pending assignment",
-						);
-
-						pending.push((
-							peer_id,
-							PendingMessage::Assignment(assignment, claimed_indices),
-						));
-
-						continue
-					}
-
-					self.import_and_circulate_assignment(
-						ctx,
-						metrics,
-						MessageSource::Peer(peer_id),
-						assignment,
-						claimed_indices,
-						rng,
-					)
-					.await;
-				}
+				self.process_incoming_assignments(
+					ctx,
+					metrics,
+					peer_id,
+					assignments
+						.into_iter()
+						.map(|(cert, candidate)| (cert, vec![candidate]))
+						.collect::<Vec<_>>(),
+					rng,
+				)
+				.await;
 			},
 			protocol_v1::ApprovalDistributionMessage::Approvals(approvals) => {
 				gum::trace!(
@@ -795,10 +827,22 @@ impl State {
 	{
 		gum::trace!(target: LOG_TARGET, ?view, "Peer view change");
 		let finalized_number = view.finalized_number;
-		let old_view = self
-			.peer_views
-			.get_mut(&peer_id)
-			.map(|d| std::mem::replace(&mut d.view, view.clone()));
+
+		let (old_view, protocol_version) =
+			if let Some(peer_entry) = self.peer_views.get_mut(&peer_id) {
+				(Some(std::mem::replace(&mut peer_entry.view, view.clone())), peer_entry.version)
+			} else {
+				// This shouldn't happen, but if it does we assume protocol version 1.
+				gum::warn!(
+					target: LOG_TARGET,
+					?peer_id,
+					?view,
+					"Peer view change for missing `peer_entry`"
+				);
+
+				(None, ValidationVersion::V1.into())
+			};
+
 		let old_finalized_number = old_view.map(|v| v.finalized_number).unwrap_or(0);
 
 		// we want to prune every block known_by peer up to (including) view.finalized_number
@@ -826,6 +870,7 @@ impl State {
 			&self.topologies,
 			self.peer_views.len(),
 			peer_id,
+			protocol_version,
 			view,
 			rng,
 		)
@@ -1105,13 +1150,16 @@ impl State {
 				"Sending an assignment to peers",
 			);
 
-			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-				peers,
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Assignments(assignments),
-				)),
-			))
-			.await;
+			let peers = peers
+				.iter()
+				.filter_map(|peer_id| {
+					self.peer_views
+						.get(peer_id)
+						.map(|peer_entry| (peer_id.clone(), peer_entry.version))
+				})
+				.collect::<Vec<_>>();
+
+			send_assignments_batched(ctx.sender(), assignments, &peers).await;
 		}
 	}
 
@@ -1411,6 +1459,7 @@ impl State {
 		topologies: &SessionGridTopologies,
 		total_peers: usize,
 		peer_id: PeerId,
+		protocol_version: ProtocolVersion,
 		view: View,
 		rng: &mut (impl CryptoRng + Rng),
 	) {
@@ -1504,7 +1553,12 @@ impl State {
 				"Sending assignments to unified peer",
 			);
 
-			send_assignments_batched(sender, assignments_to_send, peer_id).await;
+			send_assignments_batched(
+				sender,
+				assignments_to_send,
+				&vec![(peer_id, protocol_version)],
+			)
+			.await;
 		}
 
 		if !approvals_to_send.is_empty() {
@@ -1629,6 +1683,7 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 	topologies: &SessionGridTopologies,
 	block_filter: BlockFilter,
 	routing_modifier: RoutingModifier,
+	peer_views: &HashMap<PeerId, PeerEntry>,
 ) where
 	BlockFilter: Fn(&mut BlockEntry) -> bool,
 	RoutingModifier: Fn(&RequiredRouting, bool, &ValidatorIndex) -> RequiredRouting,
@@ -1704,7 +1759,17 @@ async fn adjust_required_routing_and_propagate<Context, BlockFilter, RoutingModi
 
 	// Send messages in accumulated packets, assignments preceding approvals.
 	for (peer, assignments_packet) in peer_assignments {
-		send_assignments_batched(ctx.sender(), assignments_packet, peer).await;
+		if let Some(peer_view) = peer_views.get(&peer) {
+			send_assignments_batched(
+				ctx.sender(),
+				assignments_packet,
+				&vec![(peer, peer_view.version)],
+			)
+			.await;
+		} else {
+			// This should never happen.
+			gum::warn!(target: LOG_TARGET, ?peer, "Unknown protocol version for peer",);
+		}
 	}
 
 	for (peer, approvals_packet) in peer_approvals {
@@ -1871,6 +1936,36 @@ pub const MAX_APPROVAL_BATCH_SIZE: usize = ensure_size_not_zero(
 	MAX_NOTIFICATION_SIZE as usize / std::mem::size_of::<IndirectSignedApprovalVote>() / 3,
 );
 
+// Low level helper for sending assignments.
+async fn send_assignments_batched_inner(
+	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
+	batch: Vec<(IndirectAssignmentCert, Vec<CandidateIndex>)>,
+	peers: &Vec<&PeerId>,
+	peer_version: u32,
+) {
+	let peers = peers.into_iter().cloned().cloned().collect::<Vec<_>>();
+	if peer_version == 2 {
+		sender
+			.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+				peers,
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::AssignmentsV2(batch),
+				)),
+			))
+			.await;
+	} else {
+		let batch = batch.into_iter().map(|(cert, candidates)| (cert, candidates[0])).collect();
+		sender
+			.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+				peers,
+				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
+					protocol_v1::ApprovalDistributionMessage::Assignments(batch),
+				)),
+			))
+			.await;
+	}
+}
+
 /// Send assignments while honoring the `max_notification_size` of the protocol.
 ///
 /// Splitting the messages into multiple notifications allows more granular processing at the
@@ -1878,22 +1973,46 @@ pub const MAX_APPROVAL_BATCH_SIZE: usize = ensure_size_not_zero(
 /// of assignments and can `select!` other tasks.
 pub(crate) async fn send_assignments_batched(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	assignments: Vec<(IndirectAssignmentCert, Vec<CandidateIndex>)>,
-	peer: PeerId,
+	v2_assignments: Vec<(IndirectAssignmentCert, Vec<CandidateIndex>)>,
+	peers: &Vec<(PeerId, ProtocolVersion)>,
 ) {
-	let mut batches = assignments.into_iter().peekable();
+	let v1_peers = peers
+		.iter()
+		.filter_map(
+			|(peer_id, version)| if u32::from(*version) == 1 { Some(peer_id) } else { None },
+		)
+		.collect::<Vec<_>>();
+	let v2_peers = peers
+		.iter()
+		.filter_map(
+			|(peer_id, version)| if u32::from(*version) == 2 { Some(peer_id) } else { None },
+		)
+		.collect::<Vec<_>>();
 
-	while batches.peek().is_some() {
-		let batch: Vec<_> = batches.by_ref().take(MAX_ASSIGNMENT_BATCH_SIZE).collect();
+	if v1_peers.len() > 0 {
+		let mut v1_assignments = v2_assignments.clone();
+		// Older peers(v1) do not understand `AssignmentsV2` messages, so we have to filter these out.
+		v1_assignments.retain(|(assignment, candidates)| candidates.len() == 1);
 
-		sender
-			.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-				vec![peer],
-				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Assignments(batch),
-				)),
-			))
-			.await;
+		let mut v1_batches = v1_assignments.into_iter().peekable();
+
+		while v1_batches.peek().is_some() {
+			let batch: Vec<_> = v1_batches.by_ref().take(MAX_ASSIGNMENT_BATCH_SIZE).collect();
+
+			// If there are multiple candidates claimed this is only supported for V2
+			send_assignments_batched_inner(sender, batch, &v1_peers, 1).await;
+		}
+	}
+
+	if v2_peers.len() > 0 {
+		let mut v2_batches = v2_assignments.into_iter().peekable();
+
+		while v2_batches.peek().is_some() {
+			let batch = v2_batches.by_ref().take(MAX_ASSIGNMENT_BATCH_SIZE).collect::<Vec<_>>();
+
+			// If there are multiple candidates claimed this is only supported for V2
+			send_assignments_batched_inner(sender, batch, &v2_peers, 2).await;
+		}
 	}
 }
 
