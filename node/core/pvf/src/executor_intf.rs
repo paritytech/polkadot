@@ -104,14 +104,14 @@ pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error
 /// artifact which can then be used to pass into `Executor::execute` after writing it to the disk.
 pub fn prepare(
 	blob: RuntimeBlob,
-	executor_params: ExecutorParams,
+	executor_params: &ExecutorParams,
 ) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
 	let semantics = params_to_wasmtime_semantics(executor_params)
 		.map_err(|e| sc_executor_common::error::WasmError::Other(e))?;
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &semantics)
 }
 
-fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String> {
+fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, String> {
 	let mut sem = DEFAULT_CONFIG.semantics.clone();
 	let mut stack_limit = if let Some(stack_limit) = sem.deterministic_stack_limit.clone() {
 		stack_limit
@@ -186,7 +186,7 @@ impl Executor {
 			TaskSpawner::new().map_err(|e| format!("cannot create task spawner: {}", e))?;
 
 		let mut config = DEFAULT_CONFIG.clone();
-		config.semantics = params_to_wasmtime_semantics(params)?;
+		config.semantics = params_to_wasmtime_semantics(&params)?;
 
 		Ok(Self { thread_pool, spawner, config })
 	}
