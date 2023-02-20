@@ -291,7 +291,7 @@ protocol. This is the `AttestedCandidateRequest`; the response is
     -   Handles an incoming response.
     -   Takes `UnhandledResponse`
 
-## Manifest
+## Manifests
 
 -   What it is: A message about a known backed candidate, along with a description
     of the statements backing it.
@@ -326,7 +326,7 @@ protocol. This is the `AttestedCandidateRequest`; the response is
     -   We now know our statements and theirs.
     -   Pending statements are those we know locally that the remote node does not.
 
-## Cluster
+## Cluster Module
 
 -   Direct distribution of unbacked candidates within a group.
 -   Why:
@@ -337,14 +337,13 @@ protocol. This is the `AttestedCandidateRequest`; the response is
     -   Why: spam prevention
     -   Validators can try to circumvent this, but they would only consume a few KB
         of memory and it is trivially slashable on chain.
--   `ClusterTracker`
-    -   Determine whether to accept/reject messages from other validators in the
-        same group
-    -   Keep track of what we have sent to other validators in the group and pending
-        statements.
+-   Determines whether to accept/reject messages from other validators in the
+    same group.
+-   Keeps track of what we have sent to other validators in the group, and
+    pending statements.
 -   Protocol: See "Protocol"
 
-## Grid
+## Grid Module
 
 -   Distribution of backed candidates and late statements outside the group.
 -   Protocol: See "Protocol"
@@ -362,46 +361,13 @@ protocol. This is the `AttestedCandidateRequest`; the response is
         sends it to its row-neighbors
 -   This grid approach defines 2 unique paths for every validator to reach every
     other validator in at most 2 hops, providing redundancy.
-
-### Grid utilities
-
--   `SessionGridTopology`
-    -   Topology representation for a session.
--   `SessionTopologyView`
-    -   Our local view of the grid topology for a session.
-    -   Built from `SessionGridTopology`, a list of groups and our validator index.
-    -   Propagation
-        -   For groups that we are in, receive from nobody and send to our X/Y peers.
-        -   For groups that we are not part of:
-            -   We receive from any validator in the group we share a slice with and
-                send to the corresponding X/Y slice in the other dimension.
-            -   For any validators we don't share a slice with, we receive from the
-                nodes which share a slice with them.
--   `GroupSubView`
-    -   Our local view of a subset of the grid topology organized around a specific
-        validator group.
--   `GridTracker`
-    -   A tracker of knowledge from authorities within the grid for a particular
-        relay parent.
--   `GridTracker::import_manifest`
-    -   Called when: receiving an incoming manifest (full or partial).
-    -   Attempts to import a manifest advertised by a remote peer.
-    -   Checks whether the peer is allowed to send us manifests about this group at
-        this relay parent.
-    -   Does sanity checks on the manifest itself.
-    -   On success, returns whether an acknowledgement should be sent in response.
-        -   Only occurs when the candidate is already known to be confirmed backed,
-            and the validator is in the set we are receiving from.
--   `GridTracker::add_backed_candidate`
-    -   Called when: we receive a notification of a candidate being backed
-        -   Candidate must have been confirmed first.
-        -   Also dispatches backable candidate announcements and acks to the grid
-            topology.
-    -   Adds a new backed candidate to the grid tracker.
-    -   Returns a list of validators we should send to, along with the type of
-        manifest to send.
-    -   Adds the candidate as confirmed and backed and populates it with previously
-        unconfirmed manifests.
+-   Propagation
+    -   For groups that we are in, receive from nobody and send to our X/Y peers.
+    -   For groups that we are not part of:
+        -   We receive from any validator in the group we share a slice with and
+            send to the corresponding X/Y slice in the other dimension.
+        -   For any validators we don't share a slice with, we receive from the
+            nodes which share a slice with them.
 
 ### Seconding limit
 
@@ -414,9 +380,9 @@ protocol. This is the `AttestedCandidateRequest`; the response is
         candidates per relay parent. The seconding limit is set to ~max depth +
         `~ to set an upper bound on candidates entering the system.
 
-## Candidates
+## Candidates Module
 
--   `Candidates`: a tracker for all known candidates in the view, and whether they
+-   Provides a tracker for all known candidates in the view, and whether they
     are confirmed or not.
 -   Confirmed:
     -   The first time a validator gets an announcement for an unknown candidate, it
@@ -424,22 +390,13 @@ protocol. This is the `AttestedCandidateRequest`; the response is
     -   Upon receiving a response and validating it (see
         `UnhandledResponse::validate_response`), will mark the candidate as
         confirmed.
--   TODO: `Candidates::insert_unconfirmed`
--   TODO: `Candidates::confirm_candidate`
 
-## Request Manager
+## Requests Module
 
--   Manages pending requests for candidate data, as well as pending responses.
+-   Provides a manager for pending requests for candidate data, as well as
+    pending responses.
 -   See "Request/Response Protocol" for a high-level description of the flow.
 -   See module-docs for full details.
--   `RequestManager::next_request`
-    -   Yields next request to dispatch, if there is any.
-    -   Does some active maintenance of the connected peers.
--   `UnhandledResponse::validate_response`
-    -   Valid responses must provide a valid candidate, signatures which match the
-        identifier, and enough statements to back the candidate.
-    -   Produces a record of misbehavior by peers.
-    -   If valid, yields the candidate, PVD, and requested checked statements.
 
 ## Glossary
 
