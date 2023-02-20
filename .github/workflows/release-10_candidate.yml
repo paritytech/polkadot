@@ -19,7 +19,7 @@ jobs:
           # Get last rc tag if exists, else set it to {version}-rc1
           version=${GITHUB_REF#refs/heads/release-}
           echo "$version"
-          echo "::set-output name=version::$version"
+          echo "version=$version" >> $GITHUB_OUTPUT
           git tag -l
           last_rc=$(git tag -l "$version-rc*" | sort -V | tail -n 1)
           if [ -n "$last_rc" ]; then
@@ -27,11 +27,11 @@ jobs:
             echo $suffix
             ((suffix++))
             echo $suffix
-            echo "::set-output name=new_tag::$version-rc$suffix"
-            echo "::set-output name=first_rc::false"
+            echo "new_tag=$version-rc$suffix" >> $GITHUB_OUTPUT
+            echo "first_rc=false" >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=new_tag::$version-rc1"
-            echo "::set-output name=first_rc::true"
+            echo "new_tag=$version-rc1" >> $GITHUB_OUTPUT
+            echo "first_rc=true" >> $GITHUB_OUTPUT
           fi
       - name: Apply new tag
         uses: tvdias/github-tagger@ed7350546e3e503b5e942dffd65bc8751a95e49d # v0.0.2

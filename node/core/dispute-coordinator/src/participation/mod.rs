@@ -373,7 +373,7 @@ async fn participate(
 				err,
 			);
 
-			send_result(&mut result_sender, req, ParticipationOutcome::Invalid).await;
+			send_result(&mut result_sender, req, ParticipationOutcome::Error).await;
 		},
 
 		Ok(Ok(ValidationResult::Invalid(invalid))) => {

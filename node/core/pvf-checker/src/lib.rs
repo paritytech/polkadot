@@ -190,16 +190,18 @@ async fn handle_pvf_check(
 		PreCheckOutcome::Valid => Judgement::Valid,
 		PreCheckOutcome::Invalid => Judgement::Invalid,
 		PreCheckOutcome::Failed => {
-			// Abstain.
+			// Always vote against in case of failures. Voting against a PVF when encountering a
+			// timeout (or an unlikely node-specific issue) can be considered safe, since
+			// there is no slashing for being on the wrong side on a pre-check vote.
 			//
-			// Returning here will leave the PVF in the view dangling. Since it is there, no new
-			// pre-checking request will be sent.
+			// Also, by being more strict here, we can safely be more lenient during preparation and
+			// avoid the risk of getting slashed there.
 			gum::info!(
 				target: LOG_TARGET,
 				?validation_code_hash,
-				"Pre-check failed, abstaining from voting",
+				"Pre-check failed, voting against",
 			);
-			return
+			Judgement::Invalid
 		},
 	};
 
@@ -295,7 +297,7 @@ async fn handle_leaves_update(
 		metrics.on_pvf_observed(outcome.newcomers.len());
 		metrics.on_pvf_left(outcome.left_num);
 		for newcomer in outcome.newcomers {
-			initiate_precheck(state, sender, recent_block_hash, newcomer, metrics).await;
+			initiate_precheck(state, sender, activated.hash, newcomer, metrics).await;
 		}
 
 		if let Some((new_session_index, credentials)) = new_session_index {
