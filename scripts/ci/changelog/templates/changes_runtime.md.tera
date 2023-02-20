@@ -6,11 +6,11 @@
 {% for pr in changes | sort(attribute="merged_at") -%}
 
 {%- if pr.meta.B -%}
-{%- if pr.meta.B.value == 0 -%}
+{%- if pr.meta.B.B0 -%}
 {#- We skip silent ones -#}
 {%- else -%}
 
-{%- if pr.meta.T and pr.meta.T.value == 1 and not pr.title is containing("ompanion") %}
+{%- if pr.meta.T and pr.meta.T.T1 and not pr.title is containing("ompanion") %}
 - {{ m_c::change(c=pr) }}
 {%- endif -%}
 {%- endif -%}
