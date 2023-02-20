@@ -211,6 +211,8 @@ impl From<ProtocolVersion> for u32 {
 pub enum ValidationVersion {
 	/// The first version.
 	V1 = 1,
+	/// The second version adds `AssignmentsV2` message to approval distribution.
+	V2 = 2,
 }
 
 /// Supported collation protocol versions. Only versions defined here must be used in the codebase.

@@ -265,7 +265,7 @@ impl<V1: Clone> Versioned<&'_ V1> {
 	}
 }
 
-/// All supported versions of the validation protocol message.
+/// All supported versions of the validation protocol message v1.
 pub type VersionedValidationProtocol = Versioned<v1::ValidationProtocol>;
 
 impl From<v1::ValidationProtocol> for VersionedValidationProtocol {
@@ -489,10 +489,13 @@ pub mod v1 {
 		///
 		/// Actually checking the assignment may yield a different result.
 		#[codec(index = 0)]
-		Assignments(Vec<(IndirectAssignmentCert, Vec<CandidateIndex>)>),
+		Assignments(Vec<(IndirectAssignmentCert, CandidateIndex)>),
 		/// Approvals for candidates in some recent, unfinalized block.
 		#[codec(index = 1)]
 		Approvals(Vec<IndirectSignedApprovalVote>),
+		/// Assignments version 2 supporting multiple candidates
+		#[codec(index = 2)]
+		AssignmentsV2(Vec<(IndirectAssignmentCert, Vec<CandidateIndex>)>),
 	}
 
 	/// Dummy network message type, so we will receive connect/disconnect events.
