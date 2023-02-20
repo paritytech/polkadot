@@ -2163,6 +2163,7 @@ sp_api::impl_runtime_apis! {
 #[cfg(test)]
 mod test_fees {
 	use super::*;
+	use frame_election_provider_support::NposSolver;
 	use frame_support::{dispatch::GetDispatchInfo, weights::WeightToFee as WeightToFeeT};
 	use keyring::Sr25519Keyring::{Alice, Charlie};
 	use pallet_transaction_payment::Multiplier;
@@ -2274,8 +2275,20 @@ mod test_fees {
 		// superfluous voters.
 		let candidates = DesiredMembers::get() + DesiredRunnersUp::get();
 		let mut voters = 1u32;
-		let weight_with =
-			|v| <Runtime as pallet_elections::Config>::WeightInfo::elections(candidates, v, v * 16);
+		let weight_with = |v| {
+			<Runtime as pallet_elections::Config>::WeightInfo::pre_solve_election(
+				candidates,
+				v,
+				v * 16,
+			) + <Runtime as pallet_elections::Config>::ElectionSolver::weight::<
+				<Runtime as pallet_elections::Config>::SolverWeightInfo,
+			>(candidates, v, v * 16) +
+				<Runtime as pallet_elections::Config>::WeightInfo::post_solve_election(
+					candidates,
+					v,
+					v * 16,
+				)
+		};
 
 		while weight_with(voters).all_lte(BlockWeights::get().max_block) {
 			voters += 1;
