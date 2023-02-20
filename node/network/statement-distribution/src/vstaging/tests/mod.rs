@@ -96,6 +96,8 @@ impl TestState {
 
 		for i in 0..config.validator_count {
 			let validator_pair = if Some(i) == local_validator_pos {
+				// Note: the specific key is used to ensure the keystore holds
+				// this key and the subsystem can detect that it is a validator.
 				Sr25519Keyring::Ferdie.pair().into()
 			} else {
 				ValidatorPair::generate().0
@@ -147,6 +149,19 @@ impl TestState {
 			validators,
 			session_info,
 		}
+	}
+
+	fn sign_statement(
+		&self,
+		validator_index: ValidatorIndex,
+		statement: CompactStatement,
+		context: &SigningContext,
+	) -> SignedStatement {
+		let payload = statement.signing_payload(context);
+		let pair = &self.validators[validator_index.0 as usize];
+		let signature = pair.sign(&payload[..]);
+
+		SignedStatement::new(statement, validator_index, signature, context, &pair.public()).unwrap()
 	}
 }
 
