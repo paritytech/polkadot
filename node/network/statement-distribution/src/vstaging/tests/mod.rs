@@ -21,8 +21,9 @@ use super::*;
 use crate::*;
 use polkadot_node_network_protocol::request_response::ReqProtocolNames;
 use polkadot_node_subsystem::messages::{
+	network_bridge_event::NewGossipTopology,
 	AllMessages, ChainApiMessage, ProspectiveParachainsMessage, RuntimeApiMessage,
-	RuntimeApiRequest,
+	RuntimeApiRequest, NetworkBridgeEvent,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
@@ -343,4 +344,13 @@ fn get_parent_hash(hash: Hash) -> Hash {
 
 fn validator_pubkeys(val_ids: &[ValidatorPair]) -> IndexedVec<ValidatorIndex, ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
+}
+
+async fn provide_topology(
+	virtual_overseer: &mut VirtualOverseer,
+	topology: NewGossipTopology,
+) {
+	virtual_overseer.send(FromOrchestra::Communication {
+		msg: StatementDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::NewGossipTopology(topology))
+	}).await;
 }
