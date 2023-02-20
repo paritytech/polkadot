@@ -19,7 +19,9 @@
 
 use super::*;
 use crate::*;
-use polkadot_node_network_protocol::request_response::ReqProtocolNames;
+use polkadot_node_network_protocol::{
+	request_response::ReqProtocolNames, ObservedRole,
+};
 use polkadot_node_subsystem::messages::{
 	network_bridge_event::NewGossipTopology,
 	AllMessages, ChainApiMessage, ProspectiveParachainsMessage, RuntimeApiMessage,
@@ -61,7 +63,6 @@ struct TestConfig {
 	group_size: usize,
 	// whether the local node should be a validator
 	local_validator: bool,
-	rng_seed: u64,
 }
 
 struct TestLocalValidator {
@@ -178,7 +179,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(config.rng_seed);
+	let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
 
 	let test_state = TestState::from_config(config, &mut rng);
 
@@ -359,6 +360,30 @@ fn get_parent_hash(hash: Hash) -> Hash {
 
 fn validator_pubkeys(val_ids: &[ValidatorPair]) -> IndexedVec<ValidatorIndex, ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
+}
+
+async fn connect_peer(
+	virtual_overseer: &mut VirtualOverseer,
+	peer: PeerId,
+	authority_ids: Option<HashSet<AuthorityDiscoveryId>>,
+) {
+	virtual_overseer.send(FromOrchestra::Communication {
+		msg: StatementDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
+			peer,
+			ObservedRole::Authority,
+			ValidationVersion::VStaging.into(),
+			authority_ids,
+		))
+	}).await;
+}
+
+async fn disconnect_peer(
+	virtual_overseer: &mut VirtualOverseer,
+	peer: PeerId,
+) {
+	virtual_overseer.send(FromOrchestra::Communication {
+		msg: StatementDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerDisconnected(peer))
+	}).await;
 }
 
 async fn provide_topology(

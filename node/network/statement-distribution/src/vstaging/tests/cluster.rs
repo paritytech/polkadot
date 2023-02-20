@@ -14,8 +14,15 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use super::*;
+
 // TODO [now]: shared seconded statement is circulated to all cluster peers with relay-parent
 //             in view
+
+#[test]
+fn share_seconded_circulated_to_cluster() {
+
+}
 
 // TODO [now]: cluster 'valid' statement without prior seconded is ignored
 
