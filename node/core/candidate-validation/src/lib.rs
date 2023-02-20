@@ -24,8 +24,8 @@
 #![warn(missing_docs)]
 
 use polkadot_node_core_pvf::{
-	InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats, Pvf,
-	PvfWithExecutorParams, ValidationError, ValidationHost,
+	InvalidCandidate as WasmInvalidCandidate, PrepareError, PrepareStats, PvfWithExecutorParams,
+	ValidationError, ValidationHost,
 };
 use polkadot_node_primitives::{
 	BlockData, InvalidCandidate, PoV, ValidationResult, POV_BOMB_LIMIT, VALIDATION_CODE_BOMB_LIMIT,
@@ -334,7 +334,7 @@ where
 		&validation_code.0,
 		VALIDATION_CODE_BOMB_LIMIT,
 	) {
-		Ok(code) => PvfWithExecutorParams::new(Pvf::from_code(code.into_owned()), executor_params),
+		Ok(code) => PvfWithExecutorParams::from_code(code.into_owned(), executor_params),
 		Err(e) => {
 			gum::debug!(target: LOG_TARGET, err=?e, "precheck: cannot decompress validation code");
 			return PreCheckOutcome::Invalid
@@ -683,7 +683,7 @@ trait ValidationBackend {
 	) -> Result<WasmValidationResult, ValidationError> {
 		// Construct the PVF a single time, since it is an expensive operation. Cloning it is cheap.
 		let pvf_with_params =
-			PvfWithExecutorParams::new(Pvf::from_code(raw_validation_code), executor_params);
+			PvfWithExecutorParams::from_code(raw_validation_code, executor_params);
 
 		let mut validation_result =
 			self.validate_candidate(pvf_with_params.clone(), timeout, params.encode()).await;
