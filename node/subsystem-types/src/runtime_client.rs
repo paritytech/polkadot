@@ -19,9 +19,9 @@ use polkadot_primitives::{
 	runtime_api::ParachainHost, vstaging::ExecutorParams, Block, BlockId, BlockNumber,
 	CandidateCommitments, CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreState,
 	DisputeState, GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage,
-	OccupiedCoreAssumption, OldV1SessionInfo, PersistedValidationData, PvfCheckStatement,
-	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -147,15 +147,6 @@ pub trait RuntimeApiSubsystemClient {
 		at: Hash,
 		index: SessionIndex,
 	) -> Result<Option<SessionInfo>, ApiError>;
-
-	/// Get the session info for the given session, if stored.
-	///
-	/// NOTE: This function is only available since parachain host version 2.
-	async fn session_info_before_version_2(
-		&self,
-		at: Hash,
-		index: SessionIndex,
-	) -> Result<Option<OldV1SessionInfo>, ApiError>;
 
 	/// Submits a PVF pre-checking statement into the transaction pool.
 	///
@@ -378,16 +369,6 @@ where
 
 	async fn api_version_parachain_host(&self, at: Hash) -> Result<Option<u32>, ApiError> {
 		self.runtime_api().api_version::<dyn ParachainHost<Block>>(&BlockId::Hash(at))
-	}
-
-	#[warn(deprecated)]
-	async fn session_info_before_version_2(
-		&self,
-		at: Hash,
-		index: SessionIndex,
-	) -> Result<Option<OldV1SessionInfo>, ApiError> {
-		#[allow(deprecated)]
-		self.runtime_api().session_info_before_version_2(&BlockId::Hash(at), index)
 	}
 
 	async fn disputes(
