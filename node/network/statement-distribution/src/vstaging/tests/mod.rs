@@ -14,6 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+// TODO [now]: Remove once some tests are written.
+#![allow(unused)]
+
 use super::*;
 use crate::*;
 use polkadot_node_network_protocol::request_response::ReqProtocolNames;
