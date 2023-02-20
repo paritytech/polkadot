@@ -20,13 +20,23 @@
 use super::*;
 use crate::*;
 use polkadot_node_network_protocol::request_response::ReqProtocolNames;
+use polkadot_node_subsystem::messages::{
+	AllMessages, ChainApiMessage, ProspectiveParachainsMessage, RuntimeApiMessage,
+	RuntimeApiRequest,
+};
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_primitives::vstaging::{AssignmentId, AssignmentPair, IndexedVec, ValidatorPair};
+use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
+use polkadot_primitives::vstaging::{
+	AssignmentId, AssignmentPair, AsyncBackingParameters, BlockNumber, CoreState,
+	GroupRotationInfo, HeadData, Header, IndexedVec, ScheduledCore, SessionInfo,
+	ValidationCodeHash, ValidatorPair, SessionIndex,
+};
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair as PairT;
 use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 use sp_keyring::Sr25519Keyring;
 
+use assert_matches::assert_matches;
 use futures::Future;
 use rand::{Rng, SeedableRng};
 
@@ -37,6 +47,9 @@ mod grid;
 mod requests;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<StatementDistributionMessage>;
+
+const ASYNC_BACKING_PARAMETERS: AsyncBackingParameters =
+	AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };
 
 // Some deterministic genesis hash for req/res protocol names
 const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
@@ -60,9 +73,7 @@ struct TestState {
 	config: TestConfig,
 	local: Option<TestLocalValidator>,
 	validators: Vec<ValidatorPair>,
-	discovery_keys: Vec<AuthorityDiscoveryId>,
-	assignment_keys: Vec<AssignmentId>,
-	validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
+	session_info: SessionInfo,
 }
 
 impl TestState {
@@ -112,13 +123,28 @@ impl TestState {
 			None
 		};
 
+		let validator_public = validator_pubkeys(&validators);
+		let session_info = SessionInfo {
+			validators: validator_public,
+			discovery_keys,
+			validator_groups: IndexedVec::from(validator_groups),
+			assignment_keys,
+			n_cores: 0,
+			zeroth_delay_tranche_width: 0,
+			relay_vrf_modulo_samples: 0,
+			n_delay_tranches: 0,
+			no_show_slots: 0,
+			needed_approvals: 0,
+			active_validator_indices: vec![],
+			dispute_period: 6,
+			random_seed: [0u8; 32],
+		};
+
 		TestState {
 			config,
 			local,
 			validators,
-			discovery_keys,
-			assignment_keys,
-			validator_groups: IndexedVec::from(validator_groups),
+			session_info,
 		}
 	}
 }
@@ -166,4 +192,155 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		},
 		subsystem,
 	));
+}
+
+struct PerParaData {
+	min_relay_parent: BlockNumber,
+	head_data: HeadData,
+}
+
+impl PerParaData {
+	pub fn new(min_relay_parent: BlockNumber, head_data: HeadData) -> Self {
+		Self { min_relay_parent, head_data }
+	}
+}
+
+struct TestLeaf {
+	number: BlockNumber,
+	hash: Hash,
+	session: SessionIndex,
+	availability_cores: Vec<CoreState>,
+	para_data: Vec<(ParaId, PerParaData)>,
+}
+
+impl TestLeaf {
+	pub fn para_data(&self, para_id: ParaId) -> &PerParaData {
+		self.para_data
+			.iter()
+			.find_map(|(p_id, data)| if *p_id == para_id { Some(data) } else { None })
+			.unwrap()
+	}
+}
+
+async fn activate_leaf(
+	virtual_overseer: &mut VirtualOverseer,
+	para_id: ParaId,
+	leaf: &TestLeaf,
+	test_state: &TestState,
+) {
+	let activated = ActivatedLeaf {
+		hash: leaf.hash,
+		number: leaf.number,
+		status: LeafStatus::Fresh,
+		span: Arc::new(jaeger::Span::Disabled),
+	};
+
+	virtual_overseer
+		.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(
+			activated,
+		))))
+		.await;
+
+	handle_leaf_activation(virtual_overseer, para_id, leaf, test_state).await;
+}
+
+async fn handle_leaf_activation(
+	virtual_overseer: &mut VirtualOverseer,
+	para_id: ParaId,
+	leaf: &TestLeaf,
+	test_state: &TestState,
+) {
+	let TestLeaf { number, hash, para_data, session, availability_cores } = leaf;
+	let PerParaData { min_relay_parent, head_data } = leaf.para_data(para_id);
+
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+		) if parent == *hash => {
+			tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
+		}
+	);
+
+	let mrp_response: Vec<(ParaId, BlockNumber)> = para_data
+		.iter()
+		.map(|(para_id, data)| (*para_id, data.min_relay_parent))
+		.collect();
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::ProspectiveParachains(
+			ProspectiveParachainsMessage::GetMinimumRelayParents(parent, tx)
+		) if parent == *hash => {
+			tx.send(mrp_response).unwrap();
+		}
+	);
+
+	let header = Header {
+		parent_hash: get_parent_hash(*hash),
+		number: *number,
+		state_root: Hash::zero(),
+		extrinsics_root: Hash::zero(),
+		digest: Default::default(),
+	};
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::ChainApi(
+			ChainApiMessage::BlockHeader(parent, tx)
+		) if parent == *hash => {
+			tx.send(Ok(Some(header))).unwrap();
+		}
+	);
+
+	// TODO: Can we remove this REDUNDANT request?
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+		) if parent == *hash => {
+			tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
+		}
+	);
+
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionIndexForChild(tx))) if parent == *hash => {
+			tx.send(Ok(*session)).unwrap();
+		}
+	);
+
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::AvailabilityCores(tx))) if parent == *hash => {
+			tx.send(Ok(availability_cores.clone())).unwrap();
+		}
+	);
+
+	let validator_groups = test_state.session_info.validator_groups.to_vec();
+	let group_rotation_info =
+		GroupRotationInfo { session_start_block: 1, group_rotation_frequency: 12, now: 1 };
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::ValidatorGroups(tx))) if parent == *hash => {
+			tx.send(Ok((validator_groups, group_rotation_info))).unwrap();
+		}
+	);
+
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::RuntimeApi(
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionInfo(s, tx))) if s == *session => {
+			tx.send(Ok(Some(test_state.session_info.clone()))).unwrap();
+		}
+	);
+}
+
+fn get_parent_hash(hash: Hash) -> Hash {
+	Hash::from_low_u64_be(hash.to_low_u64_be() + 1)
+}
+
+fn validator_pubkeys(val_ids: &[ValidatorPair]) -> IndexedVec<ValidatorIndex, ValidatorId> {
+	val_ids.iter().map(|v| v.public().into()).collect()
 }
