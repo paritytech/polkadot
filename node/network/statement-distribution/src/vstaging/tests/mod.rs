@@ -19,20 +19,17 @@
 
 use super::*;
 use crate::*;
-use polkadot_node_network_protocol::{
-	request_response::ReqProtocolNames, ObservedRole,
-};
+use polkadot_node_network_protocol::{request_response::ReqProtocolNames, ObservedRole};
 use polkadot_node_subsystem::messages::{
-	network_bridge_event::NewGossipTopology,
-	AllMessages, ChainApiMessage, ProspectiveParachainsMessage, RuntimeApiMessage,
-	RuntimeApiRequest, NetworkBridgeEvent,
+	network_bridge_event::NewGossipTopology, AllMessages, ChainApiMessage, NetworkBridgeEvent,
+	ProspectiveParachainsMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::vstaging::{
 	AssignmentId, AssignmentPair, AsyncBackingParameters, BlockNumber, CoreState,
-	GroupRotationInfo, HeadData, Header, IndexedVec, ScheduledCore, SessionInfo,
-	ValidationCodeHash, ValidatorPair, SessionIndex,
+	GroupRotationInfo, HeadData, Header, IndexedVec, ScheduledCore, SessionIndex, SessionInfo,
+	ValidationCodeHash, ValidatorPair,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair as PairT;
@@ -144,12 +141,7 @@ impl TestState {
 			random_seed: [0u8; 32],
 		};
 
-		TestState {
-			config,
-			local,
-			validators,
-			session_info,
-		}
+		TestState { config, local, validators, session_info }
 	}
 
 	fn sign_statement(
@@ -162,7 +154,8 @@ impl TestState {
 		let pair = &self.validators[validator_index.0 as usize];
 		let signature = pair.sign(&payload[..]);
 
-		SignedStatement::new(statement, validator_index, signature, context, &pair.public()).unwrap()
+		SignedStatement::new(statement, validator_index, signature, context, &pair.public())
+			.unwrap()
 	}
 }
 
@@ -367,33 +360,38 @@ async fn connect_peer(
 	peer: PeerId,
 	authority_ids: Option<HashSet<AuthorityDiscoveryId>>,
 ) {
-	virtual_overseer.send(FromOrchestra::Communication {
-		msg: StatementDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerConnected(
-			peer,
-			ObservedRole::Authority,
-			ValidationVersion::VStaging.into(),
-			authority_ids,
-		))
-	}).await;
+	virtual_overseer
+		.send(FromOrchestra::Communication {
+			msg: StatementDistributionMessage::NetworkBridgeUpdate(
+				NetworkBridgeEvent::PeerConnected(
+					peer,
+					ObservedRole::Authority,
+					ValidationVersion::VStaging.into(),
+					authority_ids,
+				),
+			),
+		})
+		.await;
 }
 
-async fn disconnect_peer(
-	virtual_overseer: &mut VirtualOverseer,
-	peer: PeerId,
-) {
-	virtual_overseer.send(FromOrchestra::Communication {
-		msg: StatementDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerDisconnected(peer))
-	}).await;
+async fn disconnect_peer(virtual_overseer: &mut VirtualOverseer, peer: PeerId) {
+	virtual_overseer
+		.send(FromOrchestra::Communication {
+			msg: StatementDistributionMessage::NetworkBridgeUpdate(
+				NetworkBridgeEvent::PeerDisconnected(peer),
+			),
+		})
+		.await;
 }
 
-async fn send_peer_view_change(
-	virtual_overseer: &mut VirtualOverseer,
-	peer: PeerId,
-	view: View,
-) {
-	virtual_overseer.send(FromOrchestra::Communication {
-		msg: StatementDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(peer, view))
-	}).await;
+async fn send_peer_view_change(virtual_overseer: &mut VirtualOverseer, peer: PeerId, view: View) {
+	virtual_overseer
+		.send(FromOrchestra::Communication {
+			msg: StatementDistributionMessage::NetworkBridgeUpdate(
+				NetworkBridgeEvent::PeerViewChange(peer, view),
+			),
+		})
+		.await;
 }
 
 async fn send_peer_message(
@@ -401,16 +399,21 @@ async fn send_peer_message(
 	peer: PeerId,
 	message: protocol_vstaging::StatementDistributionMessage,
 ) {
-	virtual_overseer.send(FromOrchestra::Communication {
-		msg: StatementDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(peer, Versioned::VStaging(message)))
-	}).await;
+	virtual_overseer
+		.send(FromOrchestra::Communication {
+			msg: StatementDistributionMessage::NetworkBridgeUpdate(
+				NetworkBridgeEvent::PeerMessage(peer, Versioned::VStaging(message)),
+			),
+		})
+		.await;
 }
 
-async fn send_new_topology(
-	virtual_overseer: &mut VirtualOverseer,
-	topology: NewGossipTopology,
-) {
-	virtual_overseer.send(FromOrchestra::Communication {
-		msg: StatementDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::NewGossipTopology(topology))
-	}).await;
+async fn send_new_topology(virtual_overseer: &mut VirtualOverseer, topology: NewGossipTopology) {
+	virtual_overseer
+		.send(FromOrchestra::Communication {
+			msg: StatementDistributionMessage::NetworkBridgeUpdate(
+				NetworkBridgeEvent::NewGossipTopology(topology),
+			),
+		})
+		.await;
 }

@@ -20,9 +20,7 @@ use super::*;
 //             in view
 
 #[test]
-fn share_seconded_circulated_to_cluster() {
-
-}
+fn share_seconded_circulated_to_cluster() {}
 
 // TODO [now]: cluster 'valid' statement without prior seconded is ignored
 
