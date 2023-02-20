@@ -1,35 +1,30 @@
 # Statement Distribution (Draft)
 
-This is a first draft for the implementer's guide, which I wrote as a dump of
-all info and conclusions I could find, but in one place. This helped me a lot to
-connect all the "dots", but it may be too much info. I need feedback on the
-following:
-
--   [ ] Where it is too technical, I can move stuff into mod-docs.
--   [ ] And of course, accuracy/thoroughness.
-
-There is some redundancy, but I came across a saying I liked today: "DRY is for
-code, not docs." Re-stating the same thing multiple times helped with my
-comprehension. But feedback is welcome.
-
-Also, I will convert it to prose once we know what info is staying. The bullets just helped me stay organized.
-
 ## Overview
 
--   ****Goal:**** every well-connected node is aware of every next potential parachain
+-   **Goal:** every well-connected node is aware of every next potential parachain
     block.
 -   Validators can either:
     -   receive parachain block from collator, check block, and gossip statement.
-    -   receive statements from other validators, check block, gossip forward
-        statement if valid.
+    -   receive statements from other validators, check the parachain block if
+        it originated within their own group, gossip forward statement if valid.
 -   Why:
-    -   Validators must have statements from all (?) other validators
+    -   Validators must have statements, candidates, and persisted validation
+        from all other validators.
     -   Why:
-        -   Quorum must be reached before the block author will consider the
-            candidate.
         -   We need to store statements from validators who've checked the candidate
             on the relay chain, so we know who to hold accountable in case of
             disputes.
+        -   Any validator can be selected as the next relay-chain block author,
+            and this is not revealed in advance for security reasons.
+        -   As a result, all validators must have a up to date view of all
+            possible parachain candidates + backing statements that could be
+            placed on-chain in the next block.
+        -   Backing-group quorum (that is, enough backing group votes) must be
+            reached before the block author will consider the candidate.
+    -   Validators need to consider _all_ seconded candidates within their own
+        group, because that's what they're assigned to work on. Validators only
+        need to consider backable candidates from other groups.
     -   "Validators who aren't assigned to the parachain still listen for the
         attestations because whichever validator ends up being the author of the
         relay-chain block needs to bundle up attested parachain blocks for several
@@ -37,11 +32,9 @@ Also, I will convert it to prose once we know what info is staying. The bullets 
 
 ### With Async Backing
 
-Async backing changes it so that:
-
--   We allow inclusion of old parachain candidates validated by current
-    validators.
--   We allow inclusion of old parachain candidates validated by old validators.
+Asynchronous backing changes the runtime to accept parachain candidates from a
+certain allowed range of historic relay-parents. These candidates must be backed
+by the group assigned to the parachain as-of their corresponding relay parent.
 
 ## Protocol
 
@@ -75,12 +68,12 @@ protocol. This is the `AttestedCandidateRequest`; the response is
 
 ### Importability and the Hypothetical Frontier
 
--   The ****prospective parachains**** subsystem maintains prospective "fragment
+-   The **prospective parachains** subsystem maintains prospective "fragment
     trees" which can be used to determine whether a particular parachain candidate
     could possibly be included in the future. Candidates which either are within a
     fragment tree or <span class="underline">would be</span> part of a fragment tree if accepted are said to be
     in the "hypothetical frontier".
--   The ****statement-distribution**** subsystem keeps track of all candidates, and
+-   The **statement-distribution** subsystem keeps track of all candidates, and
     updates its knowledge of the hypothetical frontier based on events such as new
     relay parents, new confirmed candidates, and newly backed candidates.
 -   We only consider statements as "importable" when the corresponding candidate
@@ -92,10 +85,20 @@ protocol. This is the `AttestedCandidateRequest`; the response is
 -   Validator nodes are partitioned into groups (with some exceptions), and
     validators within a group at a relay-parent can send each other `Statement`
     messages for any candidates within that group and based on that relay-parent.
-    This is referred to as the "cluster" mode.
+-   This is referred to as the "cluster" mode. Clusters are the same as backing
+    groups.
 -   `Seconded` statements must be sent before `Valid` statements.
 -   `Seconded` statements may only be sent to other members of the group when the
-    candidate is fully known by the validator.
+    candidate is fully known by the local validator.
+    -   "Fully known" means the validator has the full
+        `CommittedCandidateReceipt` and `PersistedValidationData`, which it
+        receives on request from other validators or from a collator.
+    -   The reason for this is that sending a statement (which is always a
+        `CompactStatement` carrying nothing but a hash and signature) to the
+        cluster, is also signal that you are available to request the candidate
+        from.
+    -   This makes the protocol easier to reason about, while also reducing
+        network messages about candidates that don't really exist.
 -   Validators in a cluster receiving messages about unknown candidates request
     the candidate (and statements) from other cluster members which have it.
 -   Spam considerations
@@ -105,9 +108,6 @@ protocol. This is the `AttestedCandidateRequest`; the response is
         candidates.
     -   There is a small number of validators in each group, which further limits
         the amount of candidates.
-
-&#x2014;
-
 -   We accept candidates which don't fit in the fragment trees of any relay
     parents.
     -   We listen to prospective parachains subsystem to learn of new additions to
@@ -118,6 +118,8 @@ protocol. This is the `AttestedCandidateRequest`; the response is
 
 -   Every consensus session provides randomness and a fixed validator set, which
     is used to build a redundant grid topology.
+    -    It's redundant in the sense that there are 2 paths from every node to
+         every other node.
 -   This grid topology is used to create "sending" and "receiving" paths from each
     validator group to every validator.
 -   When a node observes a candidate as backed, it sends a
@@ -128,6 +130,8 @@ protocol. This is the `AttestedCandidateRequest`; the response is
 -   Once two nodes perform a manifest/acknowledgement exchange, they can send
     `Statement` messages directly to each other for any new statements they might
     need.
+    -   This limits the amount of statements we'd have to deal with w.r.t.
+        candidates that don't really exist. See "Manifest Exchange" section.
 -   There are limitations on the number of candidates that can be advertised by
     each peer, similar to those in the cluster. Validators do not request
     candidates which exceed these limitations.
@@ -140,22 +144,28 @@ protocol. This is the `AttestedCandidateRequest`; the response is
 
 ### Old Grid Protocol
 
--   Once the candidate is backed, wait for some time T to pass to collect
-    additional statements. Then produce a 'backed candidate packet'
+-   Once the candidate is backed, produce a 'backed candidate packet'
     `(CommittedCandidateReceipt, Statements)`.
 -   Members of a backing group produce an announcement of a fully-backed candidate
     (aka "full manifest") when they are finished.
     -   `BackedCandidateManifest`
     -   Manifests are sent along the grid topology to peers who have the relay-parent
         in their implicit view.
-    -   Only sent by 1st-hop nodes after downloading the backed candidate packet
-        -   TODO: why?
+    -   Only sent by 1st-hop nodes after downloading the backed candidate packet.
+        -   The grid topology is a 2-dimensional grid that provides either a 1
+            or 2-hop path from any originator to any recipient - 1st-hop nodes
+            are those which share either a row or column with the originator,
+            and 2nd-hop nodes are those which share a column or row with that
+            1st-hop node.
+        -   Note that for the purposes of statement distribution, we actually
+            take the union of the routing paths from each validator in a group
+            to the local node to determine the sending and receiving paths.
     -   Ignored when received out-of-topology
 -   On every local view change, members of the backing group rebroadcast the
     manifest for all candidates under every new relay-parent across the grid.
--   Nodes should send a `BackedCandidateKnown(hash)` (acknowledgement)
-    notification to any peer which has sent a manifest, and the candidate has been
-    acquired by other means.
+-   Nodes should send a `BackedCandidateAcknowledgement(CandidateHash,
+    StatementFilter)` notification to any peer which has sent a manifest, and
+    the candidate has been acquired by other means.
     -   This keeps alternative paths through the topology open.
         -   For the purpose of getting additional statements later.
         -   Why: sending ack is another way of completing "manifest exchange" (pre-req
@@ -296,10 +306,15 @@ protocol. This is the `AttestedCandidateRequest`; the response is
 ### Manifest exchange
 
 -   Occurs between us and a peer in the grid.
+-   Indicates that both nodes know the candidate as valid and backed.
+-   Allows the nodes to send `Statement` messages directly to each other for any
+    new statements.
 -   Why:
-    -   Indicates that both nodes know the candidate as valid and backed.
-    -   Allows the nodes to send `Statement` messages directly to each other for any
-        new statements they might need.
+    -   This limits the amount of statements we'd have to deal with w.r.t.
+        candidates that don't really exist.
+    -   Limiting out-of-group statement distribution between peers to only
+        candidates that both peers agree are backed and exist, ensures we only
+        have to store statements about real candidates.
 -   Both `manifest_sent_to` and `manifest_received_from` have been invoked.
 -   In practice, it means that one of three things have happened:
     -   They announced, we acknowledged
@@ -346,9 +361,7 @@ protocol. This is the `AttestedCandidateRequest`; the response is
     -   A validator receiving a message originating from one of its column-neighbors
         sends it to its row-neighbors
 -   This grid approach defines 2 unique paths for every validator to reach every
-    other validator in at most 2 hops.
--   However, we also supplement this with some degree of random propagation.
-    -   Why: insert some redundancy, protect against targeted attacks.
+    other validator in at most 2 hops, providing redundancy.
 
 ### Grid utilities
 
@@ -398,8 +411,8 @@ protocol. This is the `AttestedCandidateRequest`; the response is
         per relay parent.
 -   With asynchronous backing:
     -   We have a 'maximum depth' which makes it possible to second multiple
-        candidates per relay parent. The seconding limit is set to max depth to set
-        an upper bound on candidates entering the system.
+        candidates per relay parent. The seconding limit is set to ~max depth +
+        `~ to set an upper bound on candidates entering the system.
 
 ## Candidates
 
@@ -430,24 +443,25 @@ protocol. This is the `AttestedCandidateRequest`; the response is
 
 ## Glossary
 
--   ****Acknowledgement:**** A notification that is sent to a validator that already
+-   **Acknowledgement:** A notification that is sent to a validator that already
     has the candidate, to inform them that the sending node knows the candidate.
--   ****Announcement:**** A notification of a backed candidate being known by the
+-   **Announcement:** A notification of a backed candidate being known by the
+-   **Attestation:** See "Statement".
     sending node. Is a full manifest and initiates manifest exchange.
--   ****Manifest:**** A message about a known backed candidate, along with a
+-   **Manifest:** A message about a known backed candidate, along with a
     description of the statements backing it.
--   ****Peer:**** Another validator that a validator is connected to.
--   ****Request/response:**** A protocol used to lazily request and receive heavy
+-   **Peer:** Another validator that a validator is connected to.
+-   **Request/response:** A protocol used to lazily request and receive heavy
     candidate data when needed.
--   ****Reputation:**** Tracks reputation of peers. Applies annoyance cost and good
+-   **Reputation:** Tracks reputation of peers. Applies annoyance cost and good
     behavior benefits.
--   ****Statement:**** Signed statements that can be made about parachain candidates.
-    -   ****Seconded:**** Proposal of a parachain candidate. Implicit validity vote.
-    -   ****Valid:**** States that a parachain candidate is valid.
--   ****Target:**** Target validator to send a statement to.
--   ****View:**** Current knowledge of the chain state.
-    -   ****Explicit view**** / ****immediate view****
+-   **Statement:** Signed statements that can be made about parachain candidates.
+    -   **Seconded:** Proposal of a parachain candidate. Implicit validity vote.
+    -   **Valid:** States that a parachain candidate is valid.
+-   **Target:** Target validator to send a statement to.
+-   **View:** Current knowledge of the chain state.
+    -   **Explicit view** / **immediate view**
         -   The view a peer has of the relay chain heads and highest finalized block.
-    -   ****Implicit view****
+    -   **Implicit view**
         -   Derived from the immediate view. Composed of active leaves and minimum
             relay-parents allowed for candidates of various parachains at those leaves.
