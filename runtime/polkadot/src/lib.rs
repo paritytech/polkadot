@@ -909,7 +909,7 @@ impl pallet_tips::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type DataDepositPerByte = DataDepositPerByte;
 	type MaximumReasonLength = MaximumReasonLength;
-	type Tippers = Elections;
+	type Tippers = PhragmenElection;
 	type TipCountdown = TipCountdown;
 	type TipFindersFee = TipFindersFee;
 	type TipReportDepositBase = TipReportDepositBase;
@@ -1189,7 +1189,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::Democracy(..) |
 				RuntimeCall::Council(..) |
 				RuntimeCall::TechnicalCommittee(..) |
-				RuntimeCall::Elections(..) |
+				RuntimeCall::PhragmenElection(..) |
 				RuntimeCall::TechnicalMembership(..) |
 				RuntimeCall::Treasury(..) |
 				RuntimeCall::Bounties(..) |
@@ -1219,7 +1219,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					c,
 					RuntimeCall::Democracy(..) |
 						RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
-						RuntimeCall::Elections(..) |
+						RuntimeCall::PhragmenElection(..) |
 						RuntimeCall::Treasury(..) |
 						RuntimeCall::Bounties(..) |
 						RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
@@ -1513,7 +1513,7 @@ construct_runtime! {
 		Democracy: pallet_democracy::{Pallet, Call, Storage, Config<T>, Event<T>} = 14,
 		Council: pallet_collective::<Instance1>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 15,
 		TechnicalCommittee: pallet_collective::<Instance2>::{Pallet, Call, Storage, Origin<T>, Event<T>, Config<T>} = 16,
-		Elections: pallet_elections::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
+		PhragmenElection: pallet_elections::{Pallet, Call, Storage, Event<T>, Config<T>} = 17,
 		TechnicalMembership: pallet_membership::<Instance1>::{Pallet, Call, Storage, Event<T>, Config<T>} = 18,
 		Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>} = 19,
 
@@ -1669,7 +1669,7 @@ mod benches {
 		[pallet_collective, Council]
 		[pallet_collective, TechnicalCommittee]
 		[pallet_democracy, Democracy]
-		[pallet_elections, Elections]
+		[pallet_elections, PhragmenElection]
 		[pallet_election_provider_multi_phase, ElectionProviderMultiPhase]
 		[frame_election_provider_support, ElectionProviderBench::<Runtime>]
 		[pallet_fast_unstake, FastUnstake]

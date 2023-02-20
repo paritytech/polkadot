@@ -362,7 +362,7 @@ fn polkadot_staging_testnet_config_genesis(wasm_binary: &[u8]) -> polkadot::Gene
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		elections: Default::default(),
+		phragmen_election: Default::default(),
 		democracy: Default::default(),
 		council: polkadot::CouncilConfig { members: vec![], phantom: Default::default() },
 		technical_committee: polkadot::TechnicalCommitteeConfig {
@@ -743,7 +743,7 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		elections: Default::default(),
+		phragmen_election: Default::default(),
 		democracy: Default::default(),
 		council: kusama::CouncilConfig { members: vec![], phantom: Default::default() },
 		technical_committee: kusama::TechnicalCommitteeConfig {
@@ -1047,7 +1047,7 @@ fn rococo_staging_testnet_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::
 				})
 				.collect::<Vec<_>>(),
 		},
-		elections: Default::default(),
+		phragmen_election: Default::default(),
 		babe: rococo_runtime::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(rococo_runtime::BABE_GENESIS_EPOCH_CONFIG),
@@ -1355,7 +1355,7 @@ pub fn polkadot_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		elections: Default::default(),
+		phragmen_election: Default::default(),
 		democracy: polkadot::DemocracyConfig::default(),
 		council: polkadot::CouncilConfig { members: vec![], phantom: Default::default() },
 		technical_committee: polkadot::TechnicalCommitteeConfig {
@@ -1442,7 +1442,7 @@ pub fn kusama_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		elections: Default::default(),
+		phragmen_election: Default::default(),
 		democracy: kusama::DemocracyConfig::default(),
 		council: kusama::CouncilConfig { members: vec![], phantom: Default::default() },
 		technical_committee: kusama::TechnicalCommitteeConfig {
@@ -1607,7 +1607,7 @@ pub fn rococo_testnet_genesis(
 		},
 		grandpa: Default::default(),
 		im_online: Default::default(),
-		elections: Default::default(),
+		phragmen_election: Default::default(),
 		democracy: rococo::DemocracyConfig::default(),
 		council: rococo::CouncilConfig { members: vec![], phantom: Default::default() },
 		technical_committee: rococo::TechnicalCommitteeConfig {

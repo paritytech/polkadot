@@ -66,4 +66,8 @@ impl<T: frame_system::Config> frame_election_provider_support::WeightInfo for We
 			// Standard Error: 12_374_443
 			.saturating_add(Weight::from_ref_time(1_416_607_758).saturating_mul(d.into()))
 	}
+
+       fn approval_voting(_v: u32, _t: u32, _d: u32, ) -> Weight {
+        Weight::zero()
+ }
 }

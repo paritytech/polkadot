@@ -228,7 +228,7 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 				pallet_collective::Call::disapprove_proposal { .. } |
 				pallet_collective::Call::close { .. },
 			) |
-			RuntimeCall::Elections(
+			RuntimeCall::PhragmenElection(
 				pallet_elections::Call::remove_voter { .. } |
 				pallet_elections::Call::submit_candidacy { .. } |
 				pallet_elections::Call::renounce_candidacy { .. } |
