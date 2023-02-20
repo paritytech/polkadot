@@ -1247,6 +1247,7 @@ pub type Migrations = (
 	parachains_disputes::migration::v1::MigrateToV1<Runtime>,
 	parachains_configuration::migration::v4::MigrateToV4<Runtime>,
 	init_state_migration::InitMigrate,
+	pallet_nomination_pools::migration::v4::MigrateToV4<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
