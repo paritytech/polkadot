@@ -39,11 +39,11 @@ use polkadot_node_primitives::{
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::{
-	AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent, CandidateHash,
-	CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt, CoreState,
-	DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader, Id as ParaId,
-	InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
+	vstaging::ExecutorParams, AuthorityDiscoveryId, BackedCandidate, BlockNumber, CandidateEvent,
+	CandidateHash, CandidateIndex, CandidateReceipt, CollatorId, CommittedCandidateReceipt,
+	CoreState, DisputeState, GroupIndex, GroupRotationInfo, Hash, Header as BlockHeader,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, MultiDisputeStatementSet,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, SessionIndex, SessionInfo,
 	SignedAvailabilityBitfield, SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash,
 	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
@@ -574,6 +574,8 @@ pub enum RuntimeApiRequest {
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
+	/// Get the execution environment parameter set by session index
+	SessionExecutorParams(SessionIndex, RuntimeApiSender<Option<ExecutorParams>>),
 	/// Get the session info for the given session, if stored.
 	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
 	/// Get all the pending inbound messages in the downward message queue for a para.
@@ -608,6 +610,9 @@ impl RuntimeApiRequest {
 
 	/// `Disputes`
 	pub const DISPUTES_RUNTIME_REQUIREMENT: u32 = 3;
+
+	/// `ExecutorParams`
+	pub const EXECUTOR_PARAMS_RUNTIME_REQUIREMENT: u32 = 4;
 }
 
 /// A message to the Runtime API subsystem.
