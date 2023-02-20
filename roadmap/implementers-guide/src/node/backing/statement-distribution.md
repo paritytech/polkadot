@@ -187,7 +187,7 @@ protocol. This is the `AttestedCandidateRequest`; the response is
             -   we advertised the backed candidate to (sent manifest), and:
                 -   has previously & successfully requested the backed candidate packet,
                     or:
-                -   which has sent a `BackedCandidateKnown` (acknowledgement)
+                -   which has sent a `BackedCandidateAcknowledgement`
     -   1st-hop nodes do the same thing
 
 ## Statement distribution messages
@@ -406,7 +406,7 @@ protocol. This is the `AttestedCandidateRequest`; the response is
 -   **Attestation:** See "Statement".
     sending node. Is a full manifest and initiates manifest exchange.
 -   **Manifest:** A message about a known backed candidate, along with a
-    description of the statements backing it.
+    description of the statements backing it. See "Manifests" section.
 -   **Peer:** Another validator that a validator is connected to.
 -   **Request/response:** A protocol used to lazily request and receive heavy
     candidate data when needed.
