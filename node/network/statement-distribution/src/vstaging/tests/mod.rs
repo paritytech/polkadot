@@ -386,7 +386,27 @@ async fn disconnect_peer(
 	}).await;
 }
 
-async fn provide_topology(
+async fn send_peer_view_change(
+	virtual_overseer: &mut VirtualOverseer,
+	peer: PeerId,
+	view: View,
+) {
+	virtual_overseer.send(FromOrchestra::Communication {
+		msg: StatementDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerViewChange(peer, view))
+	}).await;
+}
+
+async fn send_peer_message(
+	virtual_overseer: &mut VirtualOverseer,
+	peer: PeerId,
+	message: protocol_vstaging::StatementDistributionMessage,
+) {
+	virtual_overseer.send(FromOrchestra::Communication {
+		msg: StatementDistributionMessage::NetworkBridgeUpdate(NetworkBridgeEvent::PeerMessage(peer, Versioned::VStaging(message)))
+	}).await;
+}
+
+async fn send_new_topology(
 	virtual_overseer: &mut VirtualOverseer,
 	topology: NewGossipTopology,
 ) {
