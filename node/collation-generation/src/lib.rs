@@ -218,7 +218,7 @@ async fn handle_new_activations<Context>(
 				},
 			};
 
-			if scheduled_core.para_id != config.para_id {
+			if !scheduled_core.iter().map(|sc| sc.para_id).any(|p_id| p_id == config.para_id) {
 				gum::trace!(
 					target: LOG_TARGET,
 					core_idx = %core_idx,

@@ -488,20 +488,19 @@ impl<T: Config> Pallet<T> {
 		METRICS.on_candidates_included(freed_concluded.len() as u64);
 		let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
-		<scheduler::Pallet<T>>::clear();
-		<scheduler::Pallet<T>>::schedule(freed, now);
+		<scheduler::Pallet<T>>::clear_and_fill_lookahead(freed, now);
 
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
 
-		let scheduled = <scheduler::Pallet<T>>::scheduled();
-		assure_sanity_backed_candidates::<T, _>(
+		let lookahead = <scheduler::Pallet<T>>::lookahead();
+		let scheduled = assure_sanity_backed_candidates::<T, _>(
 			parent_hash,
 			&backed_candidates,
 			move |_candidate_index: usize, backed_candidate: &BackedCandidate<T::Hash>| -> bool {
 				<T>::DisputesHandler::concluded_invalid(current_session, backed_candidate.hash())
 				// `fn process_candidates` does the verification checks
 			},
-			&scheduled[..],
+			&lookahead,
 		)?;
 
 		METRICS.on_candidates_sanitized(backed_candidates.len() as u64);
@@ -526,7 +525,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		// Note which of the scheduled cores were actually occupied by a backed candidate.
-		<scheduler::Pallet<T>>::occupied(&occupied);
+		<scheduler::Pallet<T>>::occupied(occupied);
 
 		// Give some time slice to dispatch pending upward messages.
 		// this is max config.ump_service_total_weight
@@ -692,11 +691,10 @@ impl<T: Config> Pallet<T> {
 
 			let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
-			<scheduler::Pallet<T>>::clear();
 			let now = <frame_system::Pallet<T>>::block_number();
-			<scheduler::Pallet<T>>::schedule(freed, now);
+			<scheduler::Pallet<T>>::clear_and_fill_lookahead(freed, now);
 
-			let scheduled = <scheduler::Pallet<T>>::scheduled();
+			let lookahead = <scheduler::Pallet<T>>::lookahead();
 
 			let relay_parent_number = now - One::one();
 			let parent_storage_root = *parent_header.state_root();
@@ -718,7 +716,7 @@ impl<T: Config> Pallet<T> {
 								.verify_backed_candidate(parent_hash, parent_storage_root, candidate_idx, backed_candidate)
 								.is_err()
 				},
-				&scheduled[..],
+				&lookahead,
 			);
 
 			frame_support::storage::TransactionOutcome::Rollback((
@@ -1101,7 +1099,7 @@ fn sanitize_backed_candidates<
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
-	scheduled: &[CoreAssignment],
+	lookahead: &BTreeMap<CoreIndex, Vec<CoreAssignment>>,
 ) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
 	// This does not assume sorting.
@@ -1109,9 +1107,10 @@ fn sanitize_backed_candidates<
 		!candidate_has_concluded_invalid_dispute_or_is_invalid(candidate_idx, backed_candidate)
 	});
 
-	let scheduled_paras_to_core_idx = scheduled
+	let scheduled_paras_to_core_idx = lookahead
 		.into_iter()
-		.map(|core_assignment| (core_assignment.para_id, core_assignment.core))
+		.map(|(core_idx, cas)| cas.iter().map(|ca| (ca.para_id, *core_idx)))
+		.flatten()
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
 
 	// Assure the backed candidate's `ParaId`'s core is free.
@@ -1124,6 +1123,15 @@ fn sanitize_backed_candidates<
 			scheduled_paras_to_core_idx.get(&desc.para_id).is_some()
 	});
 
+	// ensure core_indices are all disjoint before doing the sorting
+	let set: BTreeSet<CoreIndex> = backed_candidates
+		.iter()
+		.filter_map(|backed_candidate| {
+			scheduled_paras_to_core_idx.get(&backed_candidate.descriptor().para_id).cloned()
+		})
+		.collect();
+	assert_eq!(set.len(), backed_candidates.len());
+
 	// Sort the `Vec` last, once there is a guarantee that these
 	// `BackedCandidates` references the expected relay chain parent,
 	// but more importantly are scheduled for a free core.
@@ -1135,6 +1143,7 @@ fn sanitize_backed_candidates<
 			.cmp(&scheduled_paras_to_core_idx[&y.descriptor().para_id])
 	});
 
+	// TODO: This is supposed to be sorted by CoreIndex. Hence, use BTreeMap<CoreIndex, BackedCandidate>
 	backed_candidates
 }
 
@@ -1146,8 +1155,8 @@ pub(crate) fn assure_sanity_backed_candidates<
 	relay_parent: T::Hash,
 	backed_candidates: &[BackedCandidate<T::Hash>],
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
-	scheduled: &[CoreAssignment],
-) -> Result<(), crate::inclusion::Error<T>> {
+	lookahead: &BTreeMap<CoreIndex, Vec<CoreAssignment>>,
+) -> Result<Vec<CoreAssignment>, crate::inclusion::Error<T>> {
 	use crate::inclusion::Error;
 
 	for (idx, backed_candidate) in backed_candidates.iter().enumerate() {
@@ -1163,10 +1172,20 @@ pub(crate) fn assure_sanity_backed_candidates<
 		}
 	}
 
-	let scheduled_paras_to_core_idx = scheduled
+	let scheduled_paras_to_core_idx = lookahead
 		.into_iter()
-		.map(|core_assignment| (core_assignment.para_id, core_assignment.core))
+		.map(|(core_idx, cas)| cas.iter().map(|ca| (ca.para_id, *core_idx)))
+		.flatten()
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
+
+	// ensure core_indices are all disjoint before doing the sorting
+	let set: BTreeSet<CoreIndex> = backed_candidates
+		.iter()
+		.filter_map(|backed_candidate| {
+			scheduled_paras_to_core_idx.get(&backed_candidate.descriptor().para_id).cloned()
+		})
+		.collect();
+	assert_eq!(set.len(), backed_candidates.len());
 
 	if !IsSortedBy::is_sorted_by(backed_candidates, |x, y| {
 		// Never panics, since we would have early returned on those in the above loop.
@@ -1175,7 +1194,24 @@ pub(crate) fn assure_sanity_backed_candidates<
 	}) {
 		return Err(Error::<T>::UnsortedOrDuplicateBackedCandidates)
 	}
-	Ok(())
+
+	let scheduled: BTreeMap<CoreIndex, CoreAssignment> = backed_candidates
+		.iter()
+		.map(|backed_candidate| {
+			let backed_para_id = backed_candidate.descriptor().para_id;
+			let core_index = scheduled_paras_to_core_idx.get(&backed_para_id).unwrap();
+			let assignment = lookahead
+				.get(&core_index)
+				.unwrap()
+				.iter()
+				.find(|ca| ca.para_id == backed_para_id)
+				.unwrap();
+
+			(core_index.clone(), assignment.clone())
+		})
+		.collect();
+
+	Ok(scheduled.values().cloned().collect())
 }
 
 /// Derive entropy from babe provided per block randomness.

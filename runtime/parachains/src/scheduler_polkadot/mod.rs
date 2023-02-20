@@ -90,10 +90,6 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 		}
 	}
 
-	fn peek_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
-		todo!()
-	}
-
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
 		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
 		if (0..parachains_cores).contains(&core_idx.0) {
@@ -107,7 +103,17 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	}
 
 	fn push_front_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
-		todo!()
+		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
+		if (0..parachains_cores).contains(&core_idx.0) {
+			<crate::scheduler_parachains::Pallet<T>>::push_front_assignment_for_core(
+				core_idx, assignment,
+			)
+		} else {
+			let core_idx = CoreIndex(core_idx.0 - parachains_cores);
+			<crate::scheduler_parathreads::Pallet<T>>::push_front_assignment_for_core(
+				core_idx, assignment,
+			)
+		}
 	}
 
 	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
@@ -127,6 +133,16 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 		} else {
 			let core_idx = CoreIndex(core_idx.0 - parachains_cores);
 			<crate::scheduler_parathreads::Pallet<T>>::get_availability_period(core_idx)
+		}
+	}
+
+	fn clear(core_idx: CoreIndex, assignment: Assignment) {
+		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
+		if (0..parachains_cores).contains(&core_idx.0) {
+			<crate::scheduler_parachains::Pallet<T>>::clear(core_idx, assignment)
+		} else {
+			let core_idx = CoreIndex(core_idx.0 - parachains_cores);
+			<crate::scheduler_parathreads::Pallet<T>>::clear(core_idx, assignment)
 		}
 	}
 }

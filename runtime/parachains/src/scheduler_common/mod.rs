@@ -37,7 +37,8 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{
-	CollatorId, CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ParathreadClaim, ParathreadEntry,
+	CollatorId, CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ParathreadClaim,
+	ParathreadEntry, ScheduledCore,
 };
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
@@ -66,6 +67,15 @@ pub enum AssignmentKind {
 	Parathread(CollatorId, u32),
 }
 
+impl AssignmentKind {
+	pub fn get_collator(&self) -> Option<CollatorId> {
+		match self {
+			AssignmentKind::Parachain => None,
+			AssignmentKind::Parathread(collator_id, _) => Some(collator_id.clone()),
+		}
+	}
+}
+
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub enum Assignment {
 	Parachain(ParaId),
@@ -73,19 +83,31 @@ pub enum Assignment {
 }
 
 impl Assignment {
-	pub fn para_id(self) -> ParaId {
+	pub fn para_id(&self) -> ParaId {
 		match self {
-			Assignment::Parachain(para_id) => para_id,
-			Assignment::ParathreadA(ParathreadClaim(para_id, _)) => para_id,
+			Assignment::Parachain(para_id) => *para_id,
+			Assignment::ParathreadA(ParathreadClaim(para_id, _)) => *para_id,
 		}
 	}
 
-	pub fn kind(self) -> AssignmentKind {
+	pub fn kind(&self) -> AssignmentKind {
 		match self {
 			Assignment::Parachain(_) => AssignmentKind::Parachain,
 			Assignment::ParathreadA(ParathreadClaim(_, collator_id)) =>
-				AssignmentKind::Parathread(collator_id, 3),
+				AssignmentKind::Parathread(collator_id.clone(), 3),
 		}
+	}
+
+	pub fn to_core_occupied(&self) -> CoreOccupied {
+		match self {
+			Assignment::Parachain(_) => CoreOccupied::Parachain,
+			Assignment::ParathreadA(claim) =>
+				CoreOccupied::Parathread(ParathreadEntry { claim: claim.clone(), retries: 0 }),
+		}
+	}
+
+	pub fn to_core_assignment(&self, core_idx: CoreIndex, group_idx: GroupIndex) -> CoreAssignment {
+		CoreAssignment { core: core_idx, group_idx, kind: self.kind(), para_id: self.para_id() }
 	}
 }
 
@@ -96,8 +118,6 @@ pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 
 	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment>;
 
-	fn peek_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment>;
-
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
 
 	fn push_front_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
@@ -105,6 +125,8 @@ pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId;
 
 	fn get_availability_period(core_idx: CoreIndex) -> T::BlockNumber;
+
+	fn clear(core_idx: CoreIndex, assignment: Assignment);
 }
 
 /// How a free core is scheduled to be assigned.
@@ -114,7 +136,7 @@ pub struct CoreAssignment {
 	/// The core that is assigned.
 	pub core: CoreIndex,
 	/// The unique ID of the para that is assigned to the core.
-	pub para_id: ParaId, // TODO: move this into AssigmentKind
+	pub para_id: ParaId,
 	/// The kind of the assignment.
 	pub kind: AssignmentKind,
 	/// The index of the validator group assigned to the core.
@@ -140,5 +162,17 @@ impl CoreAssignment {
 					retries,
 				}),
 		}
+	}
+
+	pub fn to_assignment(&self) -> Assignment {
+		match self.kind.clone() {
+			AssignmentKind::Parachain => Assignment::Parachain(self.para_id),
+			AssignmentKind::Parathread(collator, _) =>
+				Assignment::ParathreadA(ParathreadClaim(self.para_id, collator)),
+		}
+	}
+
+	pub fn to_scheduled_core(&self) -> ScheduledCore {
+		ScheduledCore { para_id: self.para_id, collator: self.kind.get_collator() }
 	}
 }

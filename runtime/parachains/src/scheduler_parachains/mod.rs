@@ -57,10 +57,6 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	}
 
 	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
-		Self::peek_assignment_for_core(core_idx).clone()
-	}
-
-	fn peek_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
 		<paras::Pallet<T>>::parachains()
 			.get(core_idx.0 as usize)
 			.copied()
@@ -69,10 +65,11 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 
 	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
 
-	fn push_front_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {}
+	fn push_front_assignment_for_core(_: CoreIndex, _: Assignment) {}
 
 	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
 		match core_occupied {
+			CoreOccupied::Free => panic!("impossible"),
 			CoreOccupied::Parathread(_) => panic!("impossible"),
 			CoreOccupied::Parachain => {
 				let parachains = <paras::Pallet<T>>::parachains();
@@ -84,4 +81,6 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	fn get_availability_period(_core_idx: CoreIndex) -> T::BlockNumber {
 		<configuration::Pallet<T>>::config().chain_availability_period
 	}
+
+	fn clear(_core_idx: CoreIndex, _assignment: Assignment) {}
 }

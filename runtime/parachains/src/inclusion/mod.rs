@@ -153,7 +153,7 @@ pub trait RewardValidators {
 #[derive(Encode, Decode, PartialEq, TypeInfo)]
 #[cfg_attr(test, derive(Debug))]
 pub(crate) struct ProcessedCandidates<H = Hash> {
-	pub(crate) core_indices: Vec<CoreIndex>,
+	pub(crate) core_indices: Vec<(CoreIndex, ParaId)>,
 	pub(crate) candidate_receipt_with_backing_validator_indices:
 		Vec<(CandidateReceipt<H>, Vec<(ValidatorIndex, ValidityAttestation)>)>,
 }
@@ -621,7 +621,7 @@ impl<T: Config> Pallet<T> {
 						}
 
 						core_indices_and_backers.push((
-							assignment.core,
+							(assignment.core, assignment.para_id),
 							backers,
 							assignment.group_idx,
 						));
@@ -657,7 +657,7 @@ impl<T: Config> Pallet<T> {
 			Self::deposit_event(Event::<T>::CandidateBacked(
 				candidate.candidate.to_plain(),
 				candidate.candidate.commitments.head_data.clone(),
-				core,
+				core.0,
 				group,
 			));
 
@@ -669,7 +669,7 @@ impl<T: Config> Pallet<T> {
 			<PendingAvailability<T>>::insert(
 				&para_id,
 				CandidatePendingAvailability {
-					core,
+					core: core.0,
 					hash: candidate_hash,
 					descriptor,
 					availability_votes,

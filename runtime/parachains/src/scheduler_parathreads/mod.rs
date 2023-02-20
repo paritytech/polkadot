@@ -59,10 +59,6 @@ impl ClaimQueue {
 		self.queue.pop_front()
 	}
 
-	fn peek_claim(&mut self) -> Option<&ParathreadClaim> {
-		self.queue.front()
-	}
-
 	fn push_front_claim(&mut self, claim: ParathreadClaim) {
 		self.queue.push_front(claim)
 	}
@@ -87,10 +83,6 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 		<self::Pallet<T>>::pop_assignment_for_core().map(Assignment::ParathreadA)
 	}
 
-	fn peek_assignment_for_core(_core_idx: CoreIndex) -> Option<Assignment> {
-		<self::Pallet<T>>::peek_assignment_for_core().map(Assignment::ParathreadA)
-	}
-
 	fn push_assignment_for_core(_core_idx: CoreIndex, assignment: Assignment) {
 		match assignment {
 			Assignment::ParathreadA(claim) => <self::Pallet<T>>::push_assignment_for_core(claim),
@@ -101,13 +93,14 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	fn push_front_assignment_for_core(_core_idx: CoreIndex, assignment: Assignment) {
 		match assignment {
 			Assignment::ParathreadA(claim) =>
-				<self::Pallet<T>>::push_front_assignment_for_core(claim),
+				<self::Pallet<T>>::push_front_assignment_for_core_inner(claim),
 			Assignment::Parachain(_) => panic!("impossible"),
 		}
 	}
 
 	fn core_para(_core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
 		match core_occupied {
+			CoreOccupied::Free => panic!("impossible"),
 			CoreOccupied::Parachain => panic!("impossible"),
 			CoreOccupied::Parathread(x) => x.claim.0,
 		}
@@ -115,6 +108,10 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 
 	fn get_availability_period(_core_idx: CoreIndex) -> T::BlockNumber {
 		<configuration::Pallet<T>>::config().thread_availability_period
+	}
+
+	fn clear(core_idx: CoreIndex, assignment: Assignment) {
+		Self::push_front_assignment_for_core(core_idx, assignment)
 	}
 }
 
@@ -152,15 +149,11 @@ impl<T: Config> Pallet<T> {
 		ParathreadQueue::<T>::mutate(|queue| queue.pop_claim())
 	}
 
-	fn peek_assignment_for_core() -> Option<ParathreadClaim> {
-		ParathreadQueue::<T>::mutate(|queue| queue.peek_claim()).cloned()
-	}
-
 	fn push_assignment_for_core(claim: ParathreadClaim) {
 		ParathreadQueue::<T>::mutate(|queue| queue.add_claim(claim))
 	}
 
-	fn push_front_assignment_for_core(claim: ParathreadClaim) {
+	fn push_front_assignment_for_core_inner(claim: ParathreadClaim) {
 		ParathreadQueue::<T>::mutate(|queue| queue.push_front_claim(claim))
 	}
 

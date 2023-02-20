@@ -25,8 +25,8 @@ use primitives::{
 	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
 	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
+	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -54,8 +54,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	let config = <configuration::Pallet<T>>::config();
 
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
-	<scheduler::Pallet<T>>::clear();
-	<scheduler::Pallet<T>>::schedule(BTreeMap::new(), now);
+	<scheduler::Pallet<T>>::clear_and_fill_lookahead(BTreeMap::new(), now);
 
 	let rotation_info = <scheduler::Pallet<T>>::group_rotation_info(now);
 
@@ -100,74 +99,66 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 		.into_iter()
 		.enumerate()
 		.map(|(i, core)| match core {
-			Some(occupied) => CoreState::Occupied(match occupied {
-				CoreOccupied::Parachain => {
-					let para_id = parachains[i];
-					let pending_availability =
-						<inclusion::Pallet<T>>::pending_availability(para_id)
-							.expect("Occupied core always has pending availability; qed");
+			CoreOccupied::Parachain => {
+				let para_id = parachains[i];
+				let pending_availability = <inclusion::Pallet<T>>::pending_availability(para_id)
+					.expect("Occupied core always has pending availability; qed");
 
-					let backed_in_number = *pending_availability.backed_in_number();
-					OccupiedCore {
-						next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(
-							CoreIndex(i as u32),
-						),
-						occupied_since: backed_in_number,
-						time_out_at: time_out_at(
-							backed_in_number,
-							config.chain_availability_period,
-						),
-						next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(
-							CoreIndex(i as u32),
-						),
-						availability: pending_availability.availability_votes().clone(),
-						group_responsible: group_responsible_for(
-							backed_in_number,
-							pending_availability.core_occupied(),
-						),
-						candidate_hash: pending_availability.candidate_hash(),
-						candidate_descriptor: pending_availability.candidate_descriptor().clone(),
-					}
-				},
-				CoreOccupied::Parathread(p) => {
-					let para_id = p.claim.0;
-					let pending_availability =
-						<inclusion::Pallet<T>>::pending_availability(para_id)
-							.expect("Occupied core always has pending availability; qed");
+				let backed_in_number = *pending_availability.backed_in_number();
+				CoreState::Occupied(OccupiedCore {
+					next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(CoreIndex(
+						i as u32,
+					)),
+					occupied_since: backed_in_number,
+					time_out_at: time_out_at(backed_in_number, config.chain_availability_period),
+					next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(CoreIndex(
+						i as u32,
+					)),
+					availability: pending_availability.availability_votes().clone(),
+					group_responsible: group_responsible_for(
+						backed_in_number,
+						pending_availability.core_occupied(),
+					),
+					candidate_hash: pending_availability.candidate_hash(),
+					candidate_descriptor: pending_availability.candidate_descriptor().clone(),
+				})
+			},
+			CoreOccupied::Parathread(p) => {
+				let para_id = p.claim.0;
+				let pending_availability = <inclusion::Pallet<T>>::pending_availability(para_id)
+					.expect("Occupied core always has pending availability; qed");
 
-					let backed_in_number = *pending_availability.backed_in_number();
-					OccupiedCore {
-						next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(
-							CoreIndex(i as u32),
-						),
-						occupied_since: backed_in_number,
-						time_out_at: time_out_at(
-							backed_in_number,
-							config.thread_availability_period,
-						),
-						next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(
-							CoreIndex(i as u32),
-						),
-						availability: pending_availability.availability_votes().clone(),
-						group_responsible: group_responsible_for(
-							backed_in_number,
-							pending_availability.core_occupied(),
-						),
-						candidate_hash: pending_availability.candidate_hash(),
-						candidate_descriptor: pending_availability.candidate_descriptor().clone(),
-					}
-				},
-			}),
-			None => CoreState::Free,
+				let backed_in_number = *pending_availability.backed_in_number();
+				CoreState::Occupied(OccupiedCore {
+					next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(CoreIndex(
+						i as u32,
+					)),
+					occupied_since: backed_in_number,
+					time_out_at: time_out_at(backed_in_number, config.thread_availability_period),
+					next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(CoreIndex(
+						i as u32,
+					)),
+					availability: pending_availability.availability_votes().clone(),
+					group_responsible: group_responsible_for(
+						backed_in_number,
+						pending_availability.core_occupied(),
+					),
+					candidate_hash: pending_availability.candidate_hash(),
+					candidate_descriptor: pending_availability.candidate_descriptor().clone(),
+				})
+			},
+			CoreOccupied::Free => CoreState::Free,
 		})
 		.collect();
 
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
-	for scheduled in <scheduler::Pallet<T>>::scheduled() {
-		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(ScheduledCore {
-			para_id: scheduled.para_id,
-			collator: scheduled.required_collator().map(|c| c.clone()),
-		});
+	for (core_idx, lookahead) in <scheduler::Pallet<T>>::lookahead() {
+		core_states[core_idx.0 as usize] = CoreState::Scheduled(
+			lookahead
+				.iter()
+				.map(|core_assignment| core_assignment.to_scheduled_core())
+				.collect(),
+		);
 	}
 
 	core_states
