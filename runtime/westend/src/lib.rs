@@ -57,7 +57,7 @@ use runtime_parachains::{
 	runtime_api_impl::{
 		v2 as parachains_runtime_api_impl, vstaging as parachains_runtime_api_impl_staging,
 	},
-	scheduler as parachains_scheduler, scheduler_parachains, scheduler_parathreads,
+	scheduler as parachains_scheduler, scheduler_parathreads,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 use scale_info::TypeInfo;

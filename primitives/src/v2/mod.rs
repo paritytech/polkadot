@@ -962,7 +962,8 @@ impl<N> CoreState<N> {
 	pub fn para_id(&self) -> Option<Id> {
 		match self {
 			Self::Occupied(ref core) => Some(core.para_id()),
-			Self::Scheduled(_vec) => todo!(),
+			// TODO: Needs fixing for AB
+			Self::Scheduled(vec) => vec.first().map(|sc| sc.para_id),
 			Self::Free => None,
 		}
 	}

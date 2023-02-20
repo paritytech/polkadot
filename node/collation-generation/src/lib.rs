@@ -197,7 +197,7 @@ async fn handle_new_activations<Context>(
 
 			let (scheduled_core, assumption) = match core {
 				CoreState::Scheduled(scheduled_core) =>
-					(scheduled_core, OccupiedCoreAssumption::Free),
+					(scheduled_core[0].clone(), OccupiedCoreAssumption::Free),
 				CoreState::Occupied(_occupied_core) => {
 					// TODO: https://github.com/paritytech/polkadot/issues/1573
 					gum::trace!(
@@ -218,7 +218,7 @@ async fn handle_new_activations<Context>(
 				},
 			};
 
-			if !scheduled_core.iter().map(|sc| sc.para_id).any(|p_id| p_id == config.para_id) {
+			if scheduled_core.para_id != config.para_id {
 				gum::trace!(
 					target: LOG_TARGET,
 					core_idx = %core_idx,

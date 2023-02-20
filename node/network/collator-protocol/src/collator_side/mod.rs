@@ -408,7 +408,7 @@ async fn determine_core(
 
 	for (idx, core) in cores.iter().enumerate() {
 		if let CoreState::Scheduled(occupied) = core {
-			if occupied.para_id == para_id {
+			if occupied[0].para_id == para_id {
 				return Ok(Some(((idx as u32).into(), cores.len())))
 			}
 		}

@@ -354,9 +354,9 @@ async fn handle_active_leaves_update<Context>(
 			let group_index = group_rotation_info.group_for_core(core_index, n_cores);
 			if let Some(g) = validator_groups.get(group_index.0 as usize) {
 				if validator.as_ref().map_or(false, |v| g.contains(&v.index())) {
-					assignment = Some((scheduled.para_id, scheduled.collator));
+					assignment = Some((scheduled[0].para_id, scheduled[0].collator.clone()));
 				}
-				groups.insert(scheduled.para_id, g.clone());
+				groups.insert(scheduled[0].para_id, g.clone());
 			}
 		}
 	}
