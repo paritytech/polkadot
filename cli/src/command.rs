@@ -671,7 +671,7 @@ pub fn run() -> Result<()> {
 				return runner.async_run(|_| {
 					Ok((
 						cmd.run::<service::kusama_runtime::Block, HostFunctionsOf<service::KusamaExecutorDispatch>, _>(
-							Some(timestamp_with_babe_info(service::kusama_runtime::MILLISECS_PER_BLOCK))
+							Some(timestamp_with_babe_info(service::kusama_runtime_constants::time::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -684,7 +684,7 @@ pub fn run() -> Result<()> {
 				return runner.async_run(|_| {
 					Ok((
 						cmd.run::<service::westend_runtime::Block, HostFunctionsOf<service::WestendExecutorDispatch>, _>(
-							Some(timestamp_with_babe_info(service::westend_runtime::MILLISECS_PER_BLOCK))
+							Some(timestamp_with_babe_info(service::westend_runtime_constants::time::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -697,7 +697,7 @@ pub fn run() -> Result<()> {
 				return runner.async_run(|_| {
 					Ok((
 						cmd.run::<service::polkadot_runtime::Block, HostFunctionsOf<service::PolkadotExecutorDispatch>, _>(
-							Some(timestamp_with_babe_info(service::polkadot_runtime::MILLISECS_PER_BLOCK))
+							Some(timestamp_with_babe_info(service::polkadot_runtime_constants::time::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
