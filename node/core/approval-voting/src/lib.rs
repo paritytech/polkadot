@@ -1906,7 +1906,7 @@ fn check_and_import_approval<T>(
 		.spans
 		.get(&approval.block_hash)
 		.map(|span| span.child("check-and-import-approval"))
-		.unwrap_or(jaeger::Span::new(approval.block_hash, "check-and-import-approval-span"))
+		.unwrap_or(jaeger::Span::new(approval.block_hash, "check-and-import-approval"))
 		.with_uint_tag("candidate-index", approval.candidate_index as u64)
 		.with_string_tag("block-hash", format!("{:?}", approval.block_hash))
 		.with_stage(jaeger::Stage::ApprovalChecking);
