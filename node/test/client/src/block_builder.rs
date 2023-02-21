@@ -24,7 +24,7 @@ use sp_consensus_babe::{
 	digests::{PreDigest, SecondaryPlainPreDigest},
 	BABE_ENGINE_ID,
 };
-use sp_runtime::{generic::BlockId, traits::Block as BlockT, Digest, DigestItem};
+use sp_runtime::{traits::Block as BlockT, Digest, DigestItem};
 use sp_state_machine::BasicExternalities;
 
 /// An extension for the test client to initialize a Polkadot specific block builder.
@@ -56,9 +56,8 @@ impl InitPolkadotBlockBuilder for Client {
 		&self,
 		hash: <Block as BlockT>::Hash,
 	) -> BlockBuilder<Block, Client, FullBackend> {
-		let at = BlockId::Hash(hash);
 		let last_timestamp =
-			self.runtime_api().get_last_timestamp(&at).expect("Get last timestamp");
+			self.runtime_api().get_last_timestamp(hash).expect("Get last timestamp");
 
 		// `MinimumPeriod` is a storage parameter type that requires externalities to access the value.
 		let minimum_period = BasicExternalities::new_empty()
@@ -88,7 +87,7 @@ impl InitPolkadotBlockBuilder for Client {
 		};
 
 		let mut block_builder = self
-			.new_block_at(&at, digest, false)
+			.new_block_at(hash, digest, false)
 			.expect("Creates new block builder for test runtime");
 
 		let mut inherent_data = sp_inherents::InherentData::new();
