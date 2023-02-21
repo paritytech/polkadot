@@ -139,13 +139,342 @@ fn share_seconded_circulated_to_cluster() {
 	});
 }
 
-// TODO [now]: cluster 'valid' statement without prior seconded is ignored
+#[test]
+fn cluster_valid_statement_before_seconded_ignored() {
+	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
 
-// TODO [now]: statement with invalid signature leads to report
+	let relay_parent = Hash::repeat_byte(1);
+	let peer_a = PeerId::random();
 
-// TODO [now]: cluster statement from non-cluster peer is rejected
+	test_harness(config, |state, mut overseer| async move {
+		let local_validator = state.local.clone().unwrap();
+		let local_para = ParaId::from(local_validator.group_index.0);
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
-// TODO [now]: statement from non-cluster originator is rejected
+		let test_leaf = TestLeaf {
+			number: 1,
+			hash: relay_parent,
+			parent_hash: Hash::repeat_byte(0),
+			session: 1,
+			availability_cores: state.make_availability_cores(|i| {
+				CoreState::Scheduled(ScheduledCore {
+					para_id: ParaId::from(i as u32),
+					collator: None,
+				})
+			}),
+			para_data: (0..state.session_info.validator_groups.len())
+				.map(|i| {
+					(
+						ParaId::from(i as u32),
+						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
+					)
+				})
+				.collect(),
+		};
+
+		// peer A is in group, has relay parent in view.
+		let other_group_validators = state.group_validators(local_validator.group_index, true);
+		let v_a = other_group_validators[0];
+		connect_peer(
+			&mut overseer,
+			peer_a.clone(),
+			Some(vec![state.discovery_id(v_a)].into_iter().collect()),
+		)
+		.await;
+
+		send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
+		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+
+		answer_expected_hypothetical_depth_request(
+			&mut overseer,
+			vec![],
+			Some(relay_parent),
+			false,
+		)
+		.await;
+
+		let signed_valid = state.sign_statement(
+			v_a,
+			CompactStatement::Valid(candidate_hash),
+			&SigningContext { parent_hash: relay_parent, session_index: 1 },
+		);
+
+		send_peer_message(
+			&mut overseer,
+			peer_a.clone(),
+			protocol_vstaging::StatementDistributionMessage::Statement(
+				relay_parent,
+				signed_valid.as_unchecked().clone(),
+			),
+		)
+		.await;
+
+		assert_matches!(
+			overseer.recv().await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r)) => {
+				assert_eq!(p, peer_a);
+				assert_eq!(r, COST_UNEXPECTED_STATEMENT);
+			}
+		);
+
+		overseer
+	});
+}
+
+#[test]
+fn cluster_statement_bad_signature() {
+	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+
+	let relay_parent = Hash::repeat_byte(1);
+	let peer_a = PeerId::random();
+
+	test_harness(config, |state, mut overseer| async move {
+		let local_validator = state.local.clone().unwrap();
+		let local_para = ParaId::from(local_validator.group_index.0);
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+
+		let test_leaf = TestLeaf {
+			number: 1,
+			hash: relay_parent,
+			parent_hash: Hash::repeat_byte(0),
+			session: 1,
+			availability_cores: state.make_availability_cores(|i| {
+				CoreState::Scheduled(ScheduledCore {
+					para_id: ParaId::from(i as u32),
+					collator: None,
+				})
+			}),
+			para_data: (0..state.session_info.validator_groups.len())
+				.map(|i| {
+					(
+						ParaId::from(i as u32),
+						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
+					)
+				})
+				.collect(),
+		};
+
+		// peer A is in group, has relay parent in view.
+		let other_group_validators = state.group_validators(local_validator.group_index, true);
+		let v_a = other_group_validators[0];
+		let v_b = other_group_validators[1];
+
+		connect_peer(
+			&mut overseer,
+			peer_a.clone(),
+			Some(vec![state.discovery_id(v_a)].into_iter().collect()),
+		)
+		.await;
+
+		send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
+		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+
+		answer_expected_hypothetical_depth_request(
+			&mut overseer,
+			vec![],
+			Some(relay_parent),
+			false,
+		)
+		.await;
+
+		// sign statements with wrong signing context, leading to bad signature.
+		let statements = vec![
+			(v_a, CompactStatement::Seconded(candidate_hash)),
+			(v_b, CompactStatement::Seconded(candidate_hash)),
+		]
+		.into_iter()
+		.map(|(v, s)| {
+			state.sign_statement(
+				v,
+				s,
+				&SigningContext { parent_hash: Hash::repeat_byte(69), session_index: 1 },
+			)
+		})
+		.map(|s| s.as_unchecked().clone());
+
+		for statement in statements {
+			send_peer_message(
+				&mut overseer,
+				peer_a.clone(),
+				protocol_vstaging::StatementDistributionMessage::Statement(
+					relay_parent,
+					statement.clone(),
+				),
+			)
+			.await;
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_a && r == COST_INVALID_SIGNATURE => { },
+				"{:?}",
+				statement
+			);
+		}
+
+		overseer
+	});
+}
+
+#[test]
+fn useful_cluster_statement_from_non_cluster_peer_rejected() {
+	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+
+	let relay_parent = Hash::repeat_byte(1);
+	let peer_a = PeerId::random();
+
+	test_harness(config, |state, mut overseer| async move {
+		let local_validator = state.local.clone().unwrap();
+		let local_para = ParaId::from(local_validator.group_index.0);
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+
+		let test_leaf = TestLeaf {
+			number: 1,
+			hash: relay_parent,
+			parent_hash: Hash::repeat_byte(0),
+			session: 1,
+			availability_cores: state.make_availability_cores(|i| {
+				CoreState::Scheduled(ScheduledCore {
+					para_id: ParaId::from(i as u32),
+					collator: None,
+				})
+			}),
+			para_data: (0..state.session_info.validator_groups.len())
+				.map(|i| {
+					(
+						ParaId::from(i as u32),
+						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
+					)
+				})
+				.collect(),
+		};
+
+		// peer A is not in group, has relay parent in view.
+		let not_our_group =
+			if local_validator.group_index.0 == 0 { GroupIndex(1) } else { GroupIndex(0) };
+
+		let that_group_validators = state.group_validators(not_our_group, false);
+		let v_non = that_group_validators[0];
+
+		connect_peer(
+			&mut overseer,
+			peer_a.clone(),
+			Some(vec![state.discovery_id(v_non)].into_iter().collect()),
+		)
+		.await;
+
+		send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
+		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+
+		answer_expected_hypothetical_depth_request(
+			&mut overseer,
+			vec![],
+			Some(relay_parent),
+			false,
+		)
+		.await;
+
+		let statement = state
+			.sign_statement(
+				v_non,
+				CompactStatement::Seconded(candidate_hash),
+				&SigningContext { parent_hash: relay_parent, session_index: 1 },
+			)
+			.as_unchecked()
+			.clone();
+
+		send_peer_message(
+			&mut overseer,
+			peer_a.clone(),
+			protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, statement),
+		)
+		.await;
+
+		assert_matches!(
+			overseer.recv().await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+				if p == peer_a && r == COST_UNEXPECTED_STATEMENT => { }
+		);
+
+		overseer
+	});
+}
+
+#[test]
+fn statement_from_non_cluster_originator_unexpected() {
+	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+
+	let relay_parent = Hash::repeat_byte(1);
+	let peer_a = PeerId::random();
+
+	test_harness(config, |state, mut overseer| async move {
+		let local_validator = state.local.clone().unwrap();
+		let local_para = ParaId::from(local_validator.group_index.0);
+		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+
+		let test_leaf = TestLeaf {
+			number: 1,
+			hash: relay_parent,
+			parent_hash: Hash::repeat_byte(0),
+			session: 1,
+			availability_cores: state.make_availability_cores(|i| {
+				CoreState::Scheduled(ScheduledCore {
+					para_id: ParaId::from(i as u32),
+					collator: None,
+				})
+			}),
+			para_data: (0..state.session_info.validator_groups.len())
+				.map(|i| {
+					(
+						ParaId::from(i as u32),
+						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
+					)
+				})
+				.collect(),
+		};
+
+		// peer A is not in group, has relay parent in view.
+		let other_group_validators = state.group_validators(local_validator.group_index, true);
+		let v_a = other_group_validators[0];
+
+		connect_peer(&mut overseer, peer_a.clone(), None).await;
+
+		send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
+		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+
+		answer_expected_hypothetical_depth_request(
+			&mut overseer,
+			vec![],
+			Some(relay_parent),
+			false,
+		)
+		.await;
+
+		let statement = state
+			.sign_statement(
+				v_a,
+				CompactStatement::Seconded(candidate_hash),
+				&SigningContext { parent_hash: relay_parent, session_index: 1 },
+			)
+			.as_unchecked()
+			.clone();
+
+		send_peer_message(
+			&mut overseer,
+			peer_a.clone(),
+			protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, statement),
+		)
+		.await;
+
+		assert_matches!(
+			overseer.recv().await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+				if p == peer_a && r == COST_UNEXPECTED_STATEMENT => { }
+		);
+
+		overseer
+	});
+}
 
 // TODO [now]: cluster statement for unknown candidate leads to request
 
