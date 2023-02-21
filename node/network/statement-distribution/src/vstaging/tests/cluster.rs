@@ -20,11 +20,7 @@ use polkadot_primitives_test_helpers::make_candidate;
 
 #[test]
 fn share_seconded_circulated_to_cluster() {
-	let config = TestConfig {
-		validator_count: 20,
-		group_size: 3,
-		local_validator: true,
-	};
+	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -50,13 +46,20 @@ fn share_seconded_circulated_to_cluster() {
 			hash: relay_parent,
 			parent_hash: Hash::repeat_byte(0),
 			session: 1,
-			availability_cores: state.make_availability_cores(|i| CoreState::Scheduled(ScheduledCore {
-				para_id: ParaId::from(i as u32),
-				collator: None,
-			})),
-			para_data: (0..state.session_info.validator_groups.len()).map(|i| {
-				(ParaId::from(i as u32), PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() })
-			}).collect(),
+			availability_cores: state.make_availability_cores(|i| {
+				CoreState::Scheduled(ScheduledCore {
+					para_id: ParaId::from(i as u32),
+					collator: None,
+				})
+			}),
+			para_data: (0..state.session_info.validator_groups.len())
+				.map(|i| {
+					(
+						ParaId::from(i as u32),
+						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
+					)
+				})
+				.collect(),
 		};
 
 		// peer A is in group, has relay parent in view.
@@ -69,19 +72,17 @@ fn share_seconded_circulated_to_cluster() {
 				&mut overseer,
 				peer_a.clone(),
 				Some(vec![state.discovery_id(other_group_validators[0])].into_iter().collect()),
-			).await;
+			)
+			.await;
 
 			connect_peer(
 				&mut overseer,
 				peer_b.clone(),
 				Some(vec![state.discovery_id(other_group_validators[1])].into_iter().collect()),
-			).await;
+			)
+			.await;
 
-			connect_peer(
-				&mut overseer,
-				peer_c.clone(),
-				None,
-			).await;
+			connect_peer(&mut overseer, peer_c.clone(), None).await;
 
 			send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
@@ -94,17 +95,23 @@ fn share_seconded_circulated_to_cluster() {
 			vec![],
 			Some(relay_parent),
 			false,
-		).await;
+		)
+		.await;
 
-		let full_signed = state.sign_statement(
-			local_validator.validator_index,
-			CompactStatement::Seconded(candidate_hash),
-			&SigningContext { session_index: 1, parent_hash: relay_parent },
-		).convert_to_superpayload(StatementWithPVD::Seconded(candidate.clone(), pvd.clone())).unwrap();
+		let full_signed = state
+			.sign_statement(
+				local_validator.validator_index,
+				CompactStatement::Seconded(candidate_hash),
+				&SigningContext { session_index: 1, parent_hash: relay_parent },
+			)
+			.convert_to_superpayload(StatementWithPVD::Seconded(candidate.clone(), pvd.clone()))
+			.unwrap();
 
-		overseer.send(FromOrchestra::Communication {
-			msg: StatementDistributionMessage::Share(relay_parent, full_signed)
-		}).await;
+		overseer
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::Share(relay_parent, full_signed),
+			})
+			.await;
 
 		assert_matches!(
 			overseer.recv().await,
@@ -126,12 +133,7 @@ fn share_seconded_circulated_to_cluster() {
 
 		// sharing a `Seconded` message confirms a candidate, which leads to new
 		// fragment tree updates.
-		answer_expected_hypothetical_depth_request(
-			&mut overseer,
-			vec![],
-			None,
-			false,
-		).await;
+		answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 
 		overseer
 	});

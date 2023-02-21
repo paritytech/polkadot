@@ -19,17 +19,19 @@
 
 use super::*;
 use crate::*;
-use polkadot_node_network_protocol::{view, request_response::ReqProtocolNames, ObservedRole};
+use polkadot_node_network_protocol::{request_response::ReqProtocolNames, view, ObservedRole};
 use polkadot_node_subsystem::messages::{
-	network_bridge_event::NewGossipTopology, AllMessages, ChainApiMessage, NetworkBridgeEvent,
-	ProspectiveParachainsMessage, RuntimeApiMessage, RuntimeApiRequest, HypotheticalCandidate, FragmentTreeMembership,
+	network_bridge_event::NewGossipTopology, AllMessages, ChainApiMessage, FragmentTreeMembership,
+	HypotheticalCandidate, NetworkBridgeEvent, ProspectiveParachainsMessage, RuntimeApiMessage,
+	RuntimeApiRequest,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::vstaging::{
-	AssignmentId, AssignmentPair, AsyncBackingParameters, BlockNumber, CoreState,
-	GroupRotationInfo, HeadData, Header, IndexedVec, ScheduledCore, SessionIndex, SessionInfo,
-	ValidationCodeHash, ValidatorPair, CandidateDescriptor, CandidateCommitments, CommittedCandidateReceipt, PersistedValidationData
+	AssignmentId, AssignmentPair, AsyncBackingParameters, BlockNumber, CandidateCommitments,
+	CandidateDescriptor, CommittedCandidateReceipt, CoreState, GroupRotationInfo, HeadData, Header,
+	IndexedVec, PersistedValidationData, ScheduledCore, SessionIndex, SessionInfo,
+	ValidationCodeHash, ValidatorPair,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair as PairT;
@@ -147,19 +149,23 @@ impl TestState {
 	}
 
 	fn make_availability_cores(&self, f: impl Fn(usize) -> CoreState) -> Vec<CoreState> {
-		(0..self.session_info.validator_groups.len())
-			.map(f)
-			.collect()
+		(0..self.session_info.validator_groups.len()).map(f).collect()
 	}
 
-	fn group_validators(&self, group_index: GroupIndex, exclude_local: bool) -> Vec<ValidatorIndex> {
+	fn group_validators(
+		&self,
+		group_index: GroupIndex,
+		exclude_local: bool,
+	) -> Vec<ValidatorIndex> {
 		self.session_info
 			.validator_groups
 			.get(group_index)
 			.unwrap()
 			.iter()
 			.cloned()
-			.filter(|&i| self.local.as_ref().map_or(true, |l| exclude_local && l.validator_index != i))
+			.filter(|&i| {
+				self.local.as_ref().map_or(true, |l| exclude_local && l.validator_index != i)
+			})
 			.collect()
 	}
 
@@ -286,7 +292,8 @@ async fn activate_leaf(
 		leaf,
 		test_state,
 		expect_session_info_request,
-	).await;
+	)
+	.await;
 }
 
 async fn handle_leaf_activation(
