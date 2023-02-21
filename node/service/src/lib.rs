@@ -121,13 +121,13 @@ pub use sp_runtime::{
 };
 
 #[cfg(feature = "kusama-native")]
-pub use kusama_runtime;
+pub use {kusama_runtime, kusama_runtime_constants};
 #[cfg(feature = "polkadot-native")]
-pub use polkadot_runtime;
+pub use {polkadot_runtime, polkadot_runtime_constants};
 #[cfg(feature = "rococo-native")]
-pub use rococo_runtime;
+pub use {rococo_runtime, rococo_runtime_constants};
 #[cfg(feature = "westend-native")]
-pub use westend_runtime;
+pub use {westend_runtime, westend_runtime_constants};
 
 /// The maximum number of active leaves we forward to the [`Overseer`] on startup.
 #[cfg(any(test, feature = "full-node"))]
@@ -518,6 +518,7 @@ where
 			grandpa_block_import,
 			backend.clone(),
 			client.clone(),
+			config.prometheus_registry().cloned(),
 		);
 
 	let babe_config = babe::configuration(&*client)?;
@@ -756,6 +757,7 @@ where
 	OverseerGenerator: OverseerGen,
 {
 	use polkadot_node_network_protocol::request_response::IncomingRequest;
+	use sc_network_common::sync::warp::WarpSyncParams;
 
 	let is_offchain_indexing_enabled = config.offchain_worker.indexing_enabled;
 	let role = config.role.clone();
@@ -858,6 +860,7 @@ where
 			&genesis_hash,
 			config.chain_spec.fork_id(),
 			client.clone(),
+			prometheus_registry.clone(),
 		);
 	if enable_beefy {
 		config
@@ -917,7 +920,7 @@ where
 			spawn_handle: task_manager.spawn_handle(),
 			import_queue,
 			block_announce_validator_builder: None,
-			warp_sync: Some(warp_sync),
+			warp_sync_params: Some(WarpSyncParams::WithProvider(warp_sync)),
 		})?;
 
 	if config.offchain_worker.enabled {

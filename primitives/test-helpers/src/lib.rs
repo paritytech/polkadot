@@ -70,9 +70,9 @@ pub fn dummy_candidate_receipt_bad_sig(
 pub fn dummy_candidate_commitments(head_data: impl Into<Option<HeadData>>) -> CandidateCommitments {
 	CandidateCommitments {
 		head_data: head_data.into().unwrap_or(dummy_head_data()),
-		upward_messages: vec![],
+		upward_messages: vec![].try_into().expect("empty vec fits within bounds"),
 		new_validation_code: None,
-		horizontal_messages: vec![],
+		horizontal_messages: vec![].try_into().expect("empty vec fits within bounds"),
 		processed_downward_messages: 0,
 		hrmp_watermark: 0_u32,
 	}
