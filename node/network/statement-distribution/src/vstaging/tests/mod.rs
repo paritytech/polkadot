@@ -40,6 +40,7 @@ use sp_keyring::Sr25519Keyring;
 
 use assert_matches::assert_matches;
 use futures::Future;
+use parity_scale_codec::Encode;
 use rand::{Rng, SeedableRng};
 
 use std::sync::Arc;
@@ -76,10 +77,15 @@ struct TestState {
 	local: Option<TestLocalValidator>,
 	validators: Vec<ValidatorPair>,
 	session_info: SessionInfo,
+	req_sender: futures::channel::mpsc::Sender<sc_network::config::IncomingRequest>,
 }
 
 impl TestState {
-	fn from_config(config: TestConfig, rng: &mut impl Rng) -> Self {
+	fn from_config(
+		config: TestConfig,
+		req_sender: futures::channel::mpsc::Sender<sc_network::config::IncomingRequest>,
+		rng: &mut impl Rng,
+	) -> Self {
 		if config.group_size == 0 {
 			panic!("group size cannot be 0");
 		}
@@ -145,7 +151,7 @@ impl TestState {
 			random_seed: [0u8; 32],
 		};
 
-		TestState { config, local, validators, session_info }
+		TestState { config, local, validators, session_info, req_sender }
 	}
 
 	fn make_availability_cores(&self, f: impl Fn(usize) -> CoreState) -> Vec<CoreState> {
@@ -164,7 +170,7 @@ impl TestState {
 			.iter()
 			.cloned()
 			.filter(|&i| {
-				self.local.as_ref().map_or(true, |l| exclude_local && l.validator_index != i)
+				self.local.as_ref().map_or(true, |l| !exclude_local || l.validator_index != i)
 			})
 			.collect()
 	}
@@ -190,6 +196,23 @@ impl TestState {
 		SignedStatement::new(statement, validator_index, signature, context, &pair.public())
 			.unwrap()
 	}
+
+	// send a request out, returning a future which expects a response.
+	async fn send_request(
+		&mut self,
+		peer: PeerId,
+		request: AttestedCandidateRequest,
+	) -> impl Future<Output = sc_network::config::OutgoingResponse> {
+		let (tx, rx) = futures::channel::oneshot::channel();
+		let req = sc_network::config::IncomingRequest {
+			peer,
+			payload: request.encode(),
+			pending_response: tx,
+		};
+		self.req_sender.send(req).await.unwrap();
+
+		rx.map(|r| r.unwrap())
+	}
 }
 
 fn test_harness<T: Future<Output = VirtualOverseer>>(
@@ -204,10 +227,11 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	};
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, req_cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
 
-	let test_state = TestState::from_config(config, &mut rng);
+	let test_state = TestState::from_config(config, req_cfg.inbound_queue.unwrap(), &mut rng);
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 	let subsystem = async move {
