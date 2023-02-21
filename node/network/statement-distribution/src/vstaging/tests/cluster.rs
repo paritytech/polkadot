@@ -215,25 +215,35 @@ fn valid_statement_without_prior_seconded_is_ignored() {
 		)
 		.await;
 
-		let full_signed = state
-			.sign_statement(
-				local_validator.validator_index,
-				CompactStatement::Valid(candidate_hash),
-				&SigningContext { session_index: 1, parent_hash: relay_parent },
-			)
-			.convert_to_superpayload(StatementWithPVD::Valid(candidate_hash))
-			.unwrap();
+		let statement = state.sign_statement(
+			local_validator.validator_index,
+			CompactStatement::Valid(candidate_hash),
+			&SigningContext { session_index: 1, parent_hash: relay_parent },
+		);
 
 		overseer
 			.send(FromOrchestra::Communication {
-				msg: StatementDistributionMessage::Share(relay_parent, full_signed),
+				msg: StatementDistributionMessage::NetworkBridgeUpdate(
+					NetworkBridgeEvent::PeerMessage(
+						peer_a,
+						net_protocol::StatementDistributionMessage::VStaging(
+							protocol_vstaging::StatementDistributionMessage::Statement(
+								relay_parent,
+								statement.into_unchecked(),
+							),
+						),
+					),
+				),
 			})
 			.await;
 
-		// TODO: Is there a way to inspect the actual error?
-		assert!(overseer_recv_with_timeout(&mut overseer, Duration::from_millis(100))
-			.await
-			.is_none());
+		assert_matches!(
+			overseer.recv().await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(
+				peer,
+				rep,
+			)) if peer == peer_a && rep == Rep::CostMinor("Unexpected Statement")
+		);
 
 		overseer
 	});
