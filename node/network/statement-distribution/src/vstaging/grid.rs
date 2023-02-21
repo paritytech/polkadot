@@ -104,6 +104,9 @@ pub fn build_session_topology<'a>(
 		if group.contains(&our_index) {
 			sub_view.sending.extend(our_neighbors.validator_indices_x.iter().cloned());
 			sub_view.sending.extend(our_neighbors.validator_indices_y.iter().cloned());
+
+		// TODO [now]: remove all other group validators from the 'sending' set.
+		// and test this behavior.
 		} else {
 			for &group_val in group {
 				// If the validator shares a slice with us, we expect to
