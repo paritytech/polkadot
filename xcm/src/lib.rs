@@ -47,6 +47,37 @@ pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
 /// A version of XCM.
 pub type Version = u32;
 
+/// Creates an instruction matcher from an XCM. Since XCM versions differ, we need to make a trait
+/// here to unify the interfaces among them.
+pub trait CreateMatcher {
+	type Matcher;
+	fn matcher(self) -> Self::Matcher;
+}
+
+/// API that allows to pattern-match against anything that is contained within an XCM.
+pub trait MatchXcm {
+	type Inst;
+	type Loc;
+	type Error;
+
+	fn assert_remaining_insts(self, n: usize) -> Result<Self, Self::Error>
+	where
+		Self: Sized;
+	fn match_next_inst<F>(self, f: F) -> Result<Self, Self::Error>
+	where
+		Self: Sized,
+		F: FnMut(&mut Self::Inst) -> Result<(), Self::Error>;
+	fn match_next_inst_while<C, F>(self, cond: C, f: F) -> Result<Self, Self::Error>
+	where
+		Self: Sized,
+		C: Fn() -> bool,
+		F: FnMut(&mut Self::Inst) -> Result<(), Self::Error>;
+	fn skip_inst_while<C>(self, cond: C) -> Result<Self, Self::Error>
+	where
+		Self: Sized,
+		C: Fn(&Self::Inst) -> bool;
+}
+
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Unsupported {}
 impl Encode for Unsupported {}

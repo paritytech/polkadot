@@ -1,5 +1,5 @@
 // Copyright 2020 Parity Technologies (UK) Ltd.
-// This file is part of Cumulus.
+// This file is part of Polkadot.
 
 // Substrate is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
@@ -12,7 +12,7 @@
 // GNU General Public License for more details.
 
 // You should have received a copy of the GNU General Public License
-// along with Cumulus.  If not, see <http://www.gnu.org/licenses/>.
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Version 3 of the Cross-Consensus Message format data structures.
 
@@ -34,12 +34,14 @@ use scale_info::TypeInfo;
 
 mod junction;
 pub(crate) mod junctions;
+mod matcher;
 mod multiasset;
 mod multilocation;
 mod traits;
 
 pub use junction::{BodyId, BodyPart, Junction, NetworkId};
 pub use junctions::Junctions;
+pub use matcher::Matcher;
 pub use multiasset::{
 	AssetId, AssetInstance, Fungibility, MultiAsset, MultiAssetFilter, MultiAssets,
 	WildFungibility, WildMultiAsset,
