@@ -21,3 +21,7 @@
 // TODO [now]: peer reported for providing duplicate statements
 
 // TODO [now]: peer reported for providing statements with invalid signatures or wrong validator IDs
+
+// TODO [now]: local node sanity checks incoming requests
+
+// TODO [now]: local node respects statement mask
