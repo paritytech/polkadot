@@ -103,12 +103,12 @@ impl Default for TestState {
 
 		let thread_collator: CollatorId = Sr25519Keyring::Two.public().into();
 		let availability_cores = vec![
-			CoreState::Scheduled(ScheduledCore { para_id: chain_a, collator: None }),
-			CoreState::Scheduled(ScheduledCore { para_id: chain_b, collator: None }),
-			CoreState::Scheduled(ScheduledCore {
+			CoreState::Scheduled(vec![ScheduledCore { para_id: chain_a, collator: None }]),
+			CoreState::Scheduled(vec![ScheduledCore { para_id: chain_b, collator: None }]),
+			CoreState::Scheduled(vec![ScheduledCore {
 				para_id: thread_a,
 				collator: Some(thread_collator.clone()),
-			}),
+			}]),
 		];
 
 		let mut head_data = HashMap::new();
@@ -1216,10 +1216,10 @@ fn backing_works_after_failed_validation() {
 #[test]
 fn backing_doesnt_second_wrong_collator() {
 	let mut test_state = TestState::default();
-	test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
+	test_state.availability_cores[0] = CoreState::Scheduled(vec![ScheduledCore {
 		para_id: ParaId::from(1),
 		collator: Some(Sr25519Keyring::Bob.public().into()),
-	});
+	}]);
 
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		test_startup(&mut virtual_overseer, &test_state).await;
@@ -1267,10 +1267,10 @@ fn backing_doesnt_second_wrong_collator() {
 #[test]
 fn validation_work_ignores_wrong_collator() {
 	let mut test_state = TestState::default();
-	test_state.availability_cores[0] = CoreState::Scheduled(ScheduledCore {
+	test_state.availability_cores[0] = CoreState::Scheduled(vec![ScheduledCore {
 		para_id: ParaId::from(1),
 		collator: Some(Sr25519Keyring::Bob.public().into()),
-	});
+	}]);
 
 	test_harness(test_state.keystore.clone(), |mut virtual_overseer| async move {
 		test_startup(&mut virtual_overseer, &test_state).await;

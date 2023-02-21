@@ -95,8 +95,10 @@ impl Default for TestState {
 		let group_rotation_info =
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 100, now: 1 };
 
-		let availability_cores =
-			vec![CoreState::Scheduled(ScheduledCore { para_id, collator: None }), CoreState::Free];
+		let availability_cores = vec![
+			CoreState::Scheduled(vec![ScheduledCore { para_id, collator: None }]),
+			CoreState::Free,
+		];
 
 		let relay_parent = Hash::random();
 

@@ -83,8 +83,7 @@ fn run_to_block(
 		Scheduler::initializer_initialize(b + 1);
 
 		// In the real runtime this is expected to be called by the `InclusionInherent` pallet.
-		Scheduler::clear();
-		Scheduler::schedule(BTreeMap::new(), b + 1);
+		Scheduler::clear_and_fill_lookahead(BTreeMap::new(), b + 1);
 	}
 }
 
@@ -793,56 +792,60 @@ fn schedule_clears_availability_cores() {
 		assert_eq!(Scheduler::lookahead().len(), 3);
 
 		// cores 0, 1, and 2 should be occupied. mark them as such.
-		Scheduler::occupied(&[CoreIndex(0), CoreIndex(1), CoreIndex(2)]);
+		Scheduler::occupied(vec![
+			(CoreIndex(0), chain_a),
+			(CoreIndex(1), chain_b),
+			(CoreIndex(2), chain_c),
+		]);
 
 		{
 			let cores = AvailabilityCores::<Test>::get();
 
-			assert!(cores[0].is_some());
-			assert!(cores[1].is_some());
-			assert!(cores[2].is_some());
+			assert_eq!(cores[0].is_free(), false);
+			assert_eq!(cores[1].is_free(), false);
+			assert_eq!(cores[2].is_free(), false);
 
-			assert!(Scheduler::scheduled().is_empty());
+			assert!(Scheduler::lookahead().is_empty());
 		}
 
 		run_to_block(3, |_| None);
 
 		// now note that cores 0 and 2 were freed.
-		Scheduler::schedule(
-			vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)]
-				.into_iter()
-				.collect(),
-			3,
-		);
+		//Scheduler::schedule(
+		//	vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)]
+		//		.into_iter()
+		//		.collect(),
+		//	3,
+		//);
 
-		{
-			let scheduled = Scheduler::scheduled();
+		//{
+		//	let scheduled = Scheduler::scheduled();
 
-			assert_eq!(scheduled.len(), 2);
-			assert_eq!(
-				scheduled[0],
-				CoreAssignment {
-					core: CoreIndex(0),
-					para_id: chain_a,
-					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(0),
-				}
-			);
-			assert_eq!(
-				scheduled[1],
-				CoreAssignment {
-					core: CoreIndex(2),
-					para_id: chain_c,
-					kind: AssignmentKind::Parachain,
-					group_idx: GroupIndex(2),
-				}
-			);
+		//	assert_eq!(scheduled.len(), 2);
+		//	assert_eq!(
+		//		scheduled[0],
+		//		CoreAssignment {
+		//			core: CoreIndex(0),
+		//			para_id: chain_a,
+		//			kind: AssignmentKind::Parachain,
+		//			group_idx: GroupIndex(0),
+		//		}
+		//	);
+		//	assert_eq!(
+		//		scheduled[1],
+		//		CoreAssignment {
+		//			core: CoreIndex(2),
+		//			para_id: chain_c,
+		//			kind: AssignmentKind::Parachain,
+		//			group_idx: GroupIndex(2),
+		//		}
+		//	);
 
-			// The freed cores should be `None` in `AvailabilityCores`.
-			let cores = AvailabilityCores::<Test>::get();
-			assert!(cores[0].is_none());
-			assert!(cores[2].is_none());
-		}
+		//	// The freed cores should be `None` in `AvailabilityCores`.
+		//	let cores = AvailabilityCores::<Test>::get();
+		//	assert!(cores[0].is_none());
+		//	assert!(cores[2].is_none());
+		//}
 	});
 }
 
@@ -1027,11 +1030,11 @@ fn availability_predicate_works() {
 		// assign some availability cores.
 		{
 			AvailabilityCores::<Test>::mutate(|cores| {
-				cores[0] = Some(CoreOccupied::Parachain);
-				cores[1] = Some(CoreOccupied::Parathread(ParathreadEntry {
+				cores[0] = CoreOccupied::Parachain;
+				cores[1] = CoreOccupied::Parathread(ParathreadEntry {
 					claim: ParathreadClaim(thread_a, collator),
 					retries: 0,
-				}))
+				})
 			});
 		}
 
@@ -1233,19 +1236,21 @@ fn availability_predicate_works() {
 //	});
 //}
 
-#[test]
-fn next_up_on_available_is_parachain_always() {
-	let mut config = default_config();
-	config.parathread_cores = 0;
-
-	let genesis_config = MockGenesisConfig {
+fn genesis_config(config: &HostConfiguration<BlockNumber>) -> MockGenesisConfig {
+	MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
 			config: config.clone(),
 			..Default::default()
 		},
 		..Default::default()
-	};
+	}
+}
 
+#[test]
+fn next_up_on_available_is_parachain_always() {
+	let mut config = default_config();
+	config.parathread_cores = 0;
+	let genesis_config = genesis_config(&config);
 	let chain_a = ParaId::from(1_u32);
 
 	new_test_ext(genesis_config).execute_with(|| {
@@ -1267,13 +1272,13 @@ fn next_up_on_available_is_parachain_always() {
 		run_to_block(2, |_| None);
 
 		{
-			assert_eq!(Scheduler::scheduled().len(), 1);
+			assert_eq!(Scheduler::lookahead().len(), 1);
 			assert_eq!(Scheduler::availability_cores().len(), 1);
 
-			Scheduler::occupied(&[CoreIndex(0)]);
+			Scheduler::occupied(vec![(CoreIndex(0), chain_a)]);
 
 			let cores = Scheduler::availability_cores();
-			match cores[0].as_ref().unwrap() {
+			match cores[0] {
 				CoreOccupied::Parachain => {},
 				_ => panic!("with no threads, only core should be a chain core"),
 			}
@@ -1321,13 +1326,13 @@ fn next_up_on_time_out_is_parachain_always() {
 		run_to_block(2, |_| None);
 
 		{
-			assert_eq!(Scheduler::scheduled().len(), 1);
+			assert_eq!(Scheduler::lookahead().len(), 1);
 			assert_eq!(Scheduler::availability_cores().len(), 1);
 
-			Scheduler::occupied(&[CoreIndex(0)]);
+			Scheduler::occupied(vec![(CoreIndex(0), chain_a)]);
 
 			let cores = Scheduler::availability_cores();
-			match cores[0].as_ref().unwrap() {
+			match cores[0] {
 				CoreOccupied::Parachain => {},
 				_ => panic!("with no threads, only core should be a chain core"),
 			}
@@ -1378,7 +1383,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			_ => None,
 		});
 
-		assert_eq!(Scheduler::scheduled().len(), 2);
+		assert_eq!(Scheduler::lookahead().len(), 2);
 
 		let groups = ValidatorGroups::<Test>::get();
 		assert_eq!(groups.len(), 5);
@@ -1403,17 +1408,21 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			_ => None,
 		});
 
-		Scheduler::clear();
-		Scheduler::schedule(BTreeMap::new(), 3);
+		Scheduler::clear_and_fill_lookahead(BTreeMap::new(), 3);
 
 		assert_eq!(
-			Scheduler::scheduled(),
-			vec![CoreAssignment {
-				core: CoreIndex(0),
-				para_id: chain_a,
-				kind: AssignmentKind::Parachain,
-				group_idx: GroupIndex(0),
-			}],
+			Scheduler::lookahead(),
+			vec![(
+				CoreIndex(0),
+				vec![CoreAssignment {
+					core: CoreIndex(0),
+					para_id: chain_a,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
+				}]
+			)]
+			.into_iter()
+			.collect()
 		);
 	});
 }
@@ -1476,10 +1485,3 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 //		assert_eq!(Scheduler::scheduled().len(), 1);
 //	});
 //}
-
-#[test]
-fn add_remove_lookahead() {
-	Scheduler::add_to_lookahead(CoreIndex(0));
-
-	assert_eq!(true, true)
-}

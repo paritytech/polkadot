@@ -1620,7 +1620,11 @@ fn backing_works() {
 
 		assert_eq!(
 			occupied_cores,
-			vec![CoreIndex::from(0), CoreIndex::from(1), CoreIndex::from(2)]
+			vec![
+				(CoreIndex::from(0), chain_a),
+				(CoreIndex::from(1), chain_b),
+				(CoreIndex::from(2), thread_a)
+			]
 		);
 
 		// Transform the votes into the setup we expect
@@ -1815,7 +1819,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 			)
 			.expect("candidates scheduled, in order, and backed");
 
-		assert_eq!(occupied_cores, vec![CoreIndex::from(0)]);
+		assert_eq!(occupied_cores, vec![(CoreIndex::from(0), chain_a)]);
 
 		let backers = {
 			let num_backers = minimum_backing_votes(group_validators(GroupIndex(0)).unwrap().len());

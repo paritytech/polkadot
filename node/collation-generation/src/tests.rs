@@ -157,12 +157,12 @@ mod handle_new_activations {
 						tx.send(Ok(vec![
 							CoreState::Free,
 							// this is weird, see explanation below
-							CoreState::Scheduled(scheduled_core_for(
+							CoreState::Scheduled(vec![scheduled_core_for(
 								(hash.as_fixed_bytes()[0] * 4) as u32,
-							)),
-							CoreState::Scheduled(scheduled_core_for(
+							)]),
+							CoreState::Scheduled(vec![scheduled_core_for(
 								(hash.as_fixed_bytes()[0] * 5) as u32,
-							)),
+							)]),
 						]))
 						.unwrap();
 					},
@@ -229,12 +229,12 @@ mod handle_new_activations {
 						tx.send(Ok(vec![
 							CoreState::Free,
 							// this is weird, see explanation below
-							CoreState::Scheduled(scheduled_core_for(
+							CoreState::Scheduled(vec![scheduled_core_for(
 								(hash.as_fixed_bytes()[0] * 4) as u32,
-							)),
-							CoreState::Scheduled(scheduled_core_for(
+							)]),
+							CoreState::Scheduled(vec![scheduled_core_for(
 								(hash.as_fixed_bytes()[0] * 5) as u32,
-							)),
+							)]),
 						]))
 						.unwrap();
 					},
@@ -383,12 +383,12 @@ mod handle_new_activations {
 					))) => {
 						tx.send(Ok(vec![
 							CoreState::Free,
-							CoreState::Scheduled(scheduled_core_for(
+							CoreState::Scheduled(vec![scheduled_core_for(
 								(hash.as_fixed_bytes()[0] * 4) as u32,
-							)),
-							CoreState::Scheduled(scheduled_core_for(
+							)]),
+							CoreState::Scheduled(vec![scheduled_core_for(
 								(hash.as_fixed_bytes()[0] * 5) as u32,
-							)),
+							)]),
 						]))
 						.unwrap();
 					},

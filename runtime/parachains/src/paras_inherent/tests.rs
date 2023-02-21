@@ -1167,16 +1167,16 @@ mod sanitizers {
 		let scheduled = (0_usize..2)
 			.into_iter()
 			.map(|idx| {
+				let core_idx = CoreIndex::from(idx as u32);
 				let ca = CoreAssignment {
 					kind: scheduler_common::AssignmentKind::Parachain,
 					group_idx: GroupIndex::from(idx as u32),
 					para_id: ParaId::from(1_u32 + idx as u32),
-					core: CoreIndex::from(idx as u32),
+					core: core_idx,
 				};
-				ca
+				(core_idx, vec![ca])
 			})
-			.collect::<Vec<_>>();
-		let scheduled = &scheduled[..];
+			.collect::<BTreeMap<_, _>>();
 
 		let group_validators = |group_index: GroupIndex| {
 			match group_index {
@@ -1221,14 +1221,14 @@ mod sanitizers {
 				relay_parent,
 				backed_candidates.clone(),
 				has_concluded_invalid,
-				scheduled
+				&scheduled
 			),
 			backed_candidates
 		);
 
 		// nothing is scheduled, so no paraids match, thus all backed candidates are skipped
 		{
-			let scheduled = &[][..];
+			let scheduled = &BTreeMap::new();
 			assert!(sanitize_backed_candidates::<Test, _>(
 				relay_parent,
 				backed_candidates.clone(),
@@ -1245,7 +1245,7 @@ mod sanitizers {
 				relay_parent,
 				backed_candidates.clone(),
 				has_concluded_invalid,
-				scheduled
+				&scheduled
 			)
 			.is_empty());
 		}
@@ -1269,7 +1269,7 @@ mod sanitizers {
 					relay_parent,
 					backed_candidates.clone(),
 					has_concluded_invalid,
-					scheduled
+					&scheduled
 				)
 				.len(),
 				backed_candidates.len() / 2

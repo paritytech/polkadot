@@ -129,7 +129,10 @@ mod select_availability_bitfields {
 
 		let cores = vec![
 			CoreState::Free,
-			CoreState::Scheduled(ScheduledCore { para_id: Default::default(), collator: None }),
+			CoreState::Scheduled(vec![ScheduledCore {
+				para_id: Default::default(),
+				collator: None,
+			}]),
 			occupied_core(2),
 		];
 
@@ -280,7 +283,7 @@ mod select_candidates {
 			// 0: Free,
 			Free,
 			// 1: Scheduled(default),
-			Scheduled(scheduled_core(1)),
+			Scheduled(vec![scheduled_core(1)]),
 			// 2: Occupied(no next_up set),
 			occupied_core(2),
 			// 3: Occupied(next_up_on_available set but not available),

@@ -82,7 +82,7 @@ impl Default for TestState {
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 1, now: 0 };
 
 		let cores = vec![
-			CoreState::Scheduled(ScheduledCore { para_id: chain_ids[0], collator: None }),
+			CoreState::Scheduled(vec![ScheduledCore { para_id: chain_ids[0], collator: None }]),
 			CoreState::Free,
 			CoreState::Occupied(OccupiedCore {
 				next_up_on_available: None,
