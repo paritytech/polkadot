@@ -87,7 +87,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	// Storage: Balances Locks (r:1 w:1)
 	// Storage: VoterList ListNodes (r:2 w:2)
 	// Storage: VoterList ListBags (r:2 w:2)
-	fn bond_extra_reward() -> Weight {
+	fn bond_extra_other() -> Weight {
 		// Minimum execution time: 162_589 nanoseconds.
 		Weight::from_ref_time(165_762_000)
 			.saturating_add(T::DbWeight::get().reads(13))
