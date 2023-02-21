@@ -329,15 +329,15 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
-	let mut handle_new_head_span = state
+	let _handle_new_head_span = state
 		.spans
 		.get(&head)
 		.map(|span| span.child("handle-new-head"))
-		.unwrap_or(jaeger::Span::new(head, "handle-new-head"))
+		.unwrap_or_else(|| jaeger::Span::new(head, "handle-new-head"))
+		.with_string_tag("head", format!("{:?}", head))
 		.with_stage(jaeger::Stage::ApprovalChecking);
 
 	let header = {
-		let _get_header_span = handle_new_head_span.child("get-block-header");
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
 		match h_rx.await? {
@@ -359,12 +359,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		}
 	};
 
-	handle_new_head_span.add_string_tag("block-number", format!("{:?}", &header.number));
-
 	// Update session info based on most recent head.
-	let _cache_session_span = handle_new_head_span
-		.child("cache-session-info")
-		.with_string_tag("head", format!("{:?}", head));
 	match state.cache_session_info_for_head(ctx, head).await {
 		Err(e) => {
 			gum::debug!(
@@ -409,15 +404,8 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 
 	// `determine_new_blocks` gives us a vec in backwards order. we want to move forwards.
 	let imported_blocks_and_info = {
-		let mut imported_blocks_and_info_span =
-			handle_new_head_span.child("imported-blocks-and-info");
-		imported_blocks_and_info_span.add_uint_tag("new-blocks-count", new_blocks.len() as u64);
 		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
 		for (block_hash, block_header) in new_blocks.into_iter().rev() {
-			let mut new_block_span = imported_blocks_and_info_span.child("new-block");
-			new_block_span.add_string_tag("block-hash", format!("{:?}", block_hash));
-			new_block_span.add_uint_tag("block-number", block_header.number as u64);
-
 			let env = ImportedBlockInfoEnv {
 				session_window: &state.session_window,
 				assignment_criteria: &*state.assignment_criteria,
@@ -429,24 +417,14 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					imported_blocks_and_info.push((block_hash, block_header, i));
 				},
 				Err(error) => {
-					new_block_span
-						.add_string_tag("imported-block-info-error", format!("{:?}", error));
 					// It's possible that we've lost a race with finality.
 					let (tx, rx) = oneshot::channel();
 					ctx.send_message(ChainApiMessage::FinalizedBlockHash(block_header.number, tx))
 						.await;
 
 					let lost_to_finality = match rx.await {
-						Ok(Ok(Some(h))) if h != block_hash => {
-							new_block_span
-								.add_string_tag("lost-to-finality", format!("{:?}", true));
-							true
-						},
-						_ => {
-							new_block_span
-								.add_string_tag("lost-to-finality", format!("{:?}", false));
-							false
-						},
+						Ok(Ok(Some(h))) if h != block_hash => true,
+						_ => false,
 					};
 
 					if !lost_to_finality {
@@ -473,7 +451,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		imported_blocks = imported_blocks_and_info.len(),
 		"Inserting imported blocks into database"
 	);
-	let mut db_insertion_span = handle_new_head_span.child("block-db-insertion");
 
 	for (block_hash, block_header, imported_block_info) in imported_blocks_and_info {
 		let ImportedBlockInfo {
@@ -538,7 +515,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				result
 			}
 		};
-		db_insertion_span.add_uint_tag("approved-bitfields", approved_bitfield.count_ones() as u64);
 		// If all bits are already set, then send an approve message.
 		if approved_bitfield.count_ones() == approved_bitfield.len() {
 			ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
