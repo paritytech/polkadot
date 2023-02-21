@@ -284,4 +284,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
+	fn set_claim_permission() -> Weight {
+		Weight::zero()
+	}
 }
