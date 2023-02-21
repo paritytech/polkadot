@@ -73,7 +73,7 @@ impl StatementStore {
 		for (g, group) in groups.all().iter().enumerate() {
 			for (i, v) in group.iter().enumerate() {
 				validator_meta.insert(
-					v,
+					*v,
 					ValidatorMeta {
 						seconded_count: 0,
 						within_group_index: i,
