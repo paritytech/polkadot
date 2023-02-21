@@ -19,17 +19,17 @@
 
 use super::*;
 use crate::*;
-use polkadot_node_network_protocol::{request_response::ReqProtocolNames, ObservedRole};
+use polkadot_node_network_protocol::{view, request_response::ReqProtocolNames, ObservedRole};
 use polkadot_node_subsystem::messages::{
 	network_bridge_event::NewGossipTopology, AllMessages, ChainApiMessage, NetworkBridgeEvent,
-	ProspectiveParachainsMessage, RuntimeApiMessage, RuntimeApiRequest,
+	ProspectiveParachainsMessage, RuntimeApiMessage, RuntimeApiRequest, HypotheticalCandidate, FragmentTreeMembership,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::vstaging::{
 	AssignmentId, AssignmentPair, AsyncBackingParameters, BlockNumber, CoreState,
 	GroupRotationInfo, HeadData, Header, IndexedVec, ScheduledCore, SessionIndex, SessionInfo,
-	ValidationCodeHash, ValidatorPair,
+	ValidationCodeHash, ValidatorPair, CandidateDescriptor, CandidateCommitments, CommittedCandidateReceipt, PersistedValidationData
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair as PairT;
@@ -62,6 +62,7 @@ struct TestConfig {
 	local_validator: bool,
 }
 
+#[derive(Clone)]
 struct TestLocalValidator {
 	validator_id: ValidatorId,
 	validator_index: ValidatorIndex,
@@ -87,7 +88,8 @@ impl TestState {
 		let mut validator_groups = Vec::new();
 
 		let local_validator_pos = if config.local_validator {
-			Some(rng.gen_range(0..config.validator_count))
+			// ensure local validator is always in a full group.
+			Some(rng.gen_range(0..config.validator_count).saturating_sub(config.group_size - 1))
 		} else {
 			None
 		};
@@ -142,6 +144,31 @@ impl TestState {
 		};
 
 		TestState { config, local, validators, session_info }
+	}
+
+	fn make_availability_cores(&self, f: impl Fn(usize) -> CoreState) -> Vec<CoreState> {
+		(0..self.session_info.validator_groups.len())
+			.map(f)
+			.collect()
+	}
+
+	fn group_validators(&self, group_index: GroupIndex, exclude_local: bool) -> Vec<ValidatorIndex> {
+		self.session_info
+			.validator_groups
+			.get(group_index)
+			.unwrap()
+			.iter()
+			.cloned()
+			.filter(|&i| self.local.as_ref().map_or(true, |l| exclude_local && l.validator_index != i))
+			.collect()
+	}
+
+	fn validator_id(&self, validator_index: ValidatorIndex) -> ValidatorId {
+		self.session_info.validators.get(validator_index).unwrap().clone()
+	}
+
+	fn discovery_id(&self, validator_index: ValidatorIndex) -> AuthorityDiscoveryId {
+		self.session_info.discovery_keys[validator_index.0 as usize].clone()
 	}
 
 	fn sign_statement(
@@ -218,6 +245,7 @@ impl PerParaData {
 struct TestLeaf {
 	number: BlockNumber,
 	hash: Hash,
+	parent_hash: Hash,
 	session: SessionIndex,
 	availability_cores: Vec<CoreState>,
 	para_data: Vec<(ParaId, PerParaData)>,
@@ -237,6 +265,7 @@ async fn activate_leaf(
 	para_id: ParaId,
 	leaf: &TestLeaf,
 	test_state: &TestState,
+	expect_session_info_request: bool,
 ) {
 	let activated = ActivatedLeaf {
 		hash: leaf.hash,
@@ -251,7 +280,13 @@ async fn activate_leaf(
 		))))
 		.await;
 
-	handle_leaf_activation(virtual_overseer, para_id, leaf, test_state).await;
+	handle_leaf_activation(
+		virtual_overseer,
+		para_id,
+		leaf,
+		test_state,
+		expect_session_info_request,
+	).await;
 }
 
 async fn handle_leaf_activation(
@@ -259,8 +294,9 @@ async fn handle_leaf_activation(
 	para_id: ParaId,
 	leaf: &TestLeaf,
 	test_state: &TestState,
+	expect_session_info_request: bool,
 ) {
-	let TestLeaf { number, hash, para_data, session, availability_cores } = leaf;
+	let TestLeaf { number, hash, parent_hash, para_data, session, availability_cores } = leaf;
 	let PerParaData { min_relay_parent, head_data } = leaf.para_data(para_id);
 
 	assert_matches!(
@@ -286,7 +322,7 @@ async fn handle_leaf_activation(
 	);
 
 	let header = Header {
-		parent_hash: get_parent_hash(*hash),
+		parent_hash: *parent_hash,
 		number: *number,
 		state_root: Hash::zero(),
 		extrinsics_root: Hash::zero(),
@@ -338,17 +374,41 @@ async fn handle_leaf_activation(
 		}
 	);
 
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionInfo(s, tx))) if s == *session => {
-			tx.send(Ok(Some(test_state.session_info.clone()))).unwrap();
-		}
-	);
+	if expect_session_info_request {
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::RuntimeApi(
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionInfo(s, tx))) if s == *session => {
+				tx.send(Ok(Some(test_state.session_info.clone()))).unwrap();
+			}
+		);
+	}
 }
 
-fn get_parent_hash(hash: Hash) -> Hash {
-	Hash::from_low_u64_be(hash.to_low_u64_be() + 1)
+async fn answer_expected_hypothetical_depth_request(
+	virtual_overseer: &mut VirtualOverseer,
+	responses: Vec<(HypotheticalCandidate, FragmentTreeMembership)>,
+	expected_leaf_hash: Option<Hash>,
+	expected_backed_in_path_only: bool,
+) {
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::ProspectiveParachains(
+			ProspectiveParachainsMessage::GetHypotheticalFrontier(req, tx)
+		) => {
+			assert_eq!(req.fragment_tree_relay_parent, expected_leaf_hash);
+			assert_eq!(req.backed_in_path_only, expected_backed_in_path_only);
+			for (i, (candidate, _)) in responses.iter().enumerate() {
+				assert!(
+					req.candidates.iter().find(|c| c == &candidate).is_some(),
+					"did not receive request for hypothetical candidate {}",
+					i,
+				);
+			}
+
+			tx.send(responses);
+		}
+	)
 }
 
 fn validator_pubkeys(val_ids: &[ValidatorPair]) -> IndexedVec<ValidatorIndex, ValidatorId> {
@@ -416,4 +476,43 @@ async fn send_new_topology(virtual_overseer: &mut VirtualOverseer, topology: New
 			),
 		})
 		.await;
+}
+
+fn make_committed_candidate(
+	para_id: ParaId,
+	relay_parent: Hash,
+	relay_parent_number: BlockNumber,
+	parent_head: HeadData,
+	para_head: HeadData,
+) -> (PersistedValidationData, CommittedCandidateReceipt) {
+	let persisted_validation_data = PersistedValidationData {
+		parent_head,
+		relay_parent_number,
+		relay_parent_storage_root: Hash::repeat_byte(69),
+		max_pov_size: 1_000_000,
+	};
+
+	let candidate = CommittedCandidateReceipt {
+		descriptor: CandidateDescriptor {
+			para_id,
+			relay_parent,
+			collator: polkadot_primitives_test_helpers::dummy_collator(),
+			persisted_validation_data_hash: persisted_validation_data.hash(),
+			pov_hash: Hash::repeat_byte(1),
+			erasure_root: Hash::repeat_byte(1),
+			signature: polkadot_primitives_test_helpers::dummy_collator_signature(),
+			para_head: para_head.hash(),
+			validation_code_hash: Hash::repeat_byte(42).into(),
+		},
+		commitments: CandidateCommitments {
+			upward_messages: Vec::new(),
+			horizontal_messages: Vec::new(),
+			new_validation_code: None,
+			head_data: para_head,
+			processed_downward_messages: 1,
+			hrmp_watermark: relay_parent_number,
+		},
+	};
+
+	(persisted_validation_data, candidate)
 }
