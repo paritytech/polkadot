@@ -22,6 +22,7 @@ use crate::shared;
 use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
 use primitives::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
@@ -322,8 +323,12 @@ pub enum InconsistentError<BlockNumber> {
 	},
 	/// `validation_upgrade_delay` is less than or equal 1.
 	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
-	/// Maximum UMP message size (`MAX_UPWARD_MESSAGE_SIZE_BOUND`) exceeded.
+	/// Maximum UMP message size ([`MAX_UPWARD_MESSAGE_SIZE_BOUND`]) exceeded.
 	MaxUpwardMessageSizeExceeded { max_message_size: u32 },
+	/// Maximum HRMP message num ([`MAX_HORIZONTAL_MESSAGE_NUM`]) exceeded.
+	MaxHorizontalMessageNumExceeded { max_message_num: u32 },
+	/// Maximum UMP message num ([`MAX_UPWARD_MESSAGE_NUM`]) exceeded.
+	MaxUpwardMessageNumExceeded { max_message_num: u32 },
 	/// Maximum number of HRMP outbound channels exceeded.
 	MaxHrmpOutboundChannelsExceeded,
 	/// Maximum number of HRMP inbound channels exceeded.
@@ -393,6 +398,18 @@ where
 		if self.max_upward_message_size > crate::ump::MAX_UPWARD_MESSAGE_SIZE_BOUND {
 			return Err(MaxUpwardMessageSizeExceeded {
 				max_message_size: self.max_upward_message_size,
+			})
+		}
+
+		if self.hrmp_max_message_num_per_candidate > MAX_HORIZONTAL_MESSAGE_NUM {
+			return Err(MaxHorizontalMessageNumExceeded {
+				max_message_num: self.hrmp_max_message_num_per_candidate,
+			})
+		}
+
+		if self.max_upward_message_num_per_candidate > MAX_UPWARD_MESSAGE_NUM {
+			return Err(MaxUpwardMessageNumExceeded {
+				max_message_num: self.max_upward_message_num_per_candidate,
 			})
 		}
 

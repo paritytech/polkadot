@@ -292,8 +292,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			availability_votes,
 		);
 		let commitments = CandidateCommitments::<u32> {
-			upward_messages: vec![],
-			horizontal_messages: vec![],
+			upward_messages: Default::default(),
+			horizontal_messages: Default::default(),
 			new_validation_code: None,
 			head_data: Self::mock_head_data(),
 			processed_downward_messages: 0,
@@ -535,8 +535,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						validation_code_hash,
 					},
 					commitments: CandidateCommitments::<u32> {
-						upward_messages: Vec::new(),
-						horizontal_messages: Vec::new(),
+						upward_messages: Default::default(),
+						horizontal_messages: Default::default(),
 						new_validation_code: includes_code_upgrade
 							.map(|v| ValidationCode(vec![42u8; v as usize])),
 						head_data,
@@ -595,6 +595,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 				let (para_id, core_idx, group_idx) = self.create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
+				let relay_parent = H256::from(byte32_slice_from(seed));
 
 				Self::add_availability(
 					para_id,
@@ -614,9 +615,12 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						// so we make sure that we have a super majority with valid statements.
 						let dispute_statement = if validator_index % 4 == 0 {
 							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
+						} else if validator_index < 3 {
+							// Set two votes as backing for the dispute set to be accepted
+							DisputeStatement::Valid(
+								ValidDisputeStatementKind::BackingValid(relay_parent)
+							)
 						} else {
-							// Note that in the future we could use some availability votes as an
-							// implicit valid kind.
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
 						let data = dispute_statement.payload_data(candidate_hash.clone(), session);

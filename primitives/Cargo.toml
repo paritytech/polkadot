@@ -7,7 +7,7 @@ edition.workspace = true
 [dependencies]
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
 hex-literal = "0.3.4"
-parity-scale-codec = { version = "3.1.5", default-features = false, features = ["bit-vec", "derive"] }
+parity-scale-codec = { version = "3.3.0", default-features = false, features = ["bit-vec", "derive"] }
 scale-info = { version = "2.1.2", default-features = false, features = ["bit-vec", "derive"] }
 serde = { version = "1.0.137", optional = true, features = ["derive"] }
 

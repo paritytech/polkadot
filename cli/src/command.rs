@@ -28,6 +28,7 @@ use sp_keyring::Sr25519Keyring;
 use std::net::ToSocketAddrs;
 
 pub use crate::{error::Error, service::BlockId};
+#[cfg(feature = "hostperfcheck")]
 pub use polkadot_performance_test::PerfCheckError;
 
 impl From<String> for Error {
@@ -238,7 +239,11 @@ macro_rules! unwrap_client {
 			#[cfg(feature = "rococo-native")]
 			polkadot_client::Client::Rococo($client) => $code,
 			#[allow(unreachable_patterns)]
-			_ => Err(Error::CommandNotImplemented),
+			_ => {
+				let _ = $client;
+
+				Err(Error::CommandNotImplemented)
+			},
 		}
 	};
 }
@@ -246,21 +251,20 @@ macro_rules! unwrap_client {
 /// Runs performance checks.
 /// Should only be used in release build since the check would take too much time otherwise.
 fn host_perf_check() -> Result<()> {
-	#[cfg(not(build_type = "release"))]
+	#[cfg(not(feature = "hostperfcheck"))]
+	{
+		return Err(Error::FeatureNotEnabled { feature: "hostperfcheck" }.into())
+	}
+
+	#[cfg(all(not(build_type = "release"), feature = "hostperfcheck"))]
 	{
 		return Err(PerfCheckError::WrongBuildType.into())
 	}
-	#[cfg(build_type = "release")]
+
+	#[cfg(all(feature = "hostperfcheck", build_type = "release"))]
 	{
-		#[cfg(not(feature = "hostperfcheck"))]
-		{
-			return Err(PerfCheckError::FeatureNotEnabled { feature: "hostperfcheck" }.into())
-		}
-		#[cfg(feature = "hostperfcheck")]
-		{
-			crate::host_perf_check::host_perf_check()?;
-			return Ok(())
-		}
+		crate::host_perf_check::host_perf_check()?;
+		return Ok(())
 	}
 }
 
@@ -335,7 +339,8 @@ where
 			}))
 			.flatten();
 
-		service::build_full(
+		let database_source = config.database.clone();
+		let task_manager = service::build_full(
 			config,
 			service::IsCollator::No,
 			grandpa_pause,
@@ -348,8 +353,15 @@ where
 			maybe_malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.task_manager)
-		.map_err(Into::into)
+		.map(|full| full.task_manager)?;
+
+		sc_storage_monitor::StorageMonitorService::try_spawn(
+			cli.storage_monitor,
+			database_source,
+			&task_manager.spawn_essential_handle(),
+		)?;
+
+		Ok(task_manager)
 	})
 }
 
@@ -637,6 +649,9 @@ pub fn run() -> Result<()> {
 		#[cfg(feature = "try-runtime")]
 		Some(Subcommand::TryRuntime(cmd)) => {
 			use sc_executor::{sp_wasm_interface::ExtendedHostFunctions, NativeExecutionDispatch};
+			use sc_service::TaskManager;
+			use try_runtime_cli::block_building_info::timestamp_with_babe_info;
+
 			let runner = cli.create_runner(cmd)?;
 			let chain_spec = &runner.config().chain_spec;
 			set_default_ss58_version(chain_spec);
@@ -645,7 +660,6 @@ pub fn run() -> Result<()> {
 				<E as NativeExecutionDispatch>::ExtendHostFunctions,
 			>;
 
-			use sc_service::TaskManager;
 			let registry = &runner.config().prometheus_config.as_ref().map(|cfg| &cfg.registry);
 			let task_manager = TaskManager::new(runner.config().tokio_handle.clone(), *registry)
 				.map_err(|e| Error::SubstrateService(sc_service::Error::Prometheus(e)))?;
@@ -656,7 +670,8 @@ pub fn run() -> Result<()> {
 			if chain_spec.is_kusama() {
 				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::kusama_runtime::Block, HostFunctionsOf<service::KusamaExecutorDispatch>>(
+						cmd.run::<service::kusama_runtime::Block, HostFunctionsOf<service::KusamaExecutorDispatch>, _>(
+							Some(timestamp_with_babe_info(service::kusama_runtime_constants::time::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -668,7 +683,8 @@ pub fn run() -> Result<()> {
 			if chain_spec.is_westend() {
 				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::westend_runtime::Block, HostFunctionsOf<service::WestendExecutorDispatch>>(
+						cmd.run::<service::westend_runtime::Block, HostFunctionsOf<service::WestendExecutorDispatch>, _>(
+							Some(timestamp_with_babe_info(service::westend_runtime_constants::time::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
@@ -680,7 +696,8 @@ pub fn run() -> Result<()> {
 			{
 				return runner.async_run(|_| {
 					Ok((
-						cmd.run::<service::polkadot_runtime::Block, HostFunctionsOf<service::PolkadotExecutorDispatch>>(
+						cmd.run::<service::polkadot_runtime::Block, HostFunctionsOf<service::PolkadotExecutorDispatch>, _>(
+							Some(timestamp_with_babe_info(service::polkadot_runtime_constants::time::MILLISECS_PER_BLOCK))
 						)
 						.map_err(Error::SubstrateCli),
 						task_manager,
