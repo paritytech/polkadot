@@ -84,7 +84,7 @@ impl StatementStore {
 		}
 
 		StatementStore {
-			validator_meta: HashMap::new(),
+			validator_meta,
 			group_statements: HashMap::new(),
 			known_statements: HashMap::new(),
 		}
@@ -99,7 +99,6 @@ impl StatementStore {
 		origin: StatementOrigin,
 	) -> Result<bool, ValidatorUnknown> {
 		let validator_index = statement.validator_index();
-
 		let validator_meta = match self.validator_meta.get_mut(&validator_index) {
 			None => return Err(ValidatorUnknown),
 			Some(m) => m,
