@@ -419,6 +419,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		// New leaf: fetch info from runtime API and initialize
 		// `per_relay_parent`.
 
+		// TODO [now]: Didn't we already request this in `lib.rs`?
 		let mode = prospective_parachains_mode(ctx.sender(), new_relay_parent).await;
 
 		// request prospective parachains mode, skip disabled relay-parents

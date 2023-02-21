@@ -16,6 +16,8 @@
 
 use super::*;
 
+use polkadot_primitives_test_helpers::make_candidate;
+
 #[test]
 fn share_seconded_circulated_to_cluster() {
 	let config = TestConfig {
@@ -33,12 +35,13 @@ fn share_seconded_circulated_to_cluster() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
-		let (pvd, candidate) = make_committed_candidate(
-			local_para,
+		let (candidate, pvd) = make_candidate(
 			relay_parent,
 			1,
+			local_para,
 			vec![1, 2, 3].into(),
 			vec![4, 5, 6].into(),
+			Hash::repeat_byte(42).into(),
 		);
 		let candidate_hash = candidate.hash();
 
