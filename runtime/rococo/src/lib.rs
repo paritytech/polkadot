@@ -1247,6 +1247,10 @@ impl pallet_nis::Config for Runtime {
 	type ReserveId = NisReserveId;
 }
 
+parameter_types! {
+	pub const BeefySetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
+}
+
 impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
 	type KeyOwnerProofSystem = Historical;
@@ -1263,6 +1267,7 @@ impl pallet_beefy::Config for Runtime {
 		ReportLongevity,
 	>;
 	type MaxAuthorities = MaxAuthorities;
+	type MaxSetIdSessionEntries = BeefySetIdSessionEntries;
 	type OnNewValidatorSet = MmrLeaf;
 	type WeightInfo = ();
 }
