@@ -326,7 +326,7 @@ zombienet-tests-slashing:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
         --github-remote-dir="${GH_DIR}"
         --concurrency=30
-        --test="0004-slashing.feature"
+        --test="0004-slashing.zndsl"
   allow_failure:                   false
   retry: 2
   tags:
