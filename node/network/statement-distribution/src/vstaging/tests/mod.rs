@@ -34,6 +34,7 @@ use polkadot_primitives::vstaging::{
 	ValidationCodeHash, ValidatorPair,
 };
 use sc_keystore::LocalKeystore;
+use sc_network::config::RequestResponseConfig;
 use sp_application_crypto::Pair as PairT;
 use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 use sp_keyring::Sr25519Keyring;
@@ -76,10 +77,15 @@ struct TestState {
 	local: Option<TestLocalValidator>,
 	validators: Vec<ValidatorPair>,
 	session_info: SessionInfo,
+	candidate_req_cfg: RequestResponseConfig,
 }
 
 impl TestState {
-	fn from_config(config: TestConfig, rng: &mut impl Rng) -> Self {
+	fn from_config(
+		config: TestConfig,
+		candidate_req_cfg: RequestResponseConfig,
+		rng: &mut impl Rng,
+	) -> Self {
 		if config.group_size == 0 {
 			panic!("group size cannot be 0");
 		}
@@ -145,7 +151,7 @@ impl TestState {
 			random_seed: [0u8; 32],
 		};
 
-		TestState { config, local, validators, session_info }
+		TestState { config, local, validators, session_info, candidate_req_cfg }
 	}
 
 	fn make_availability_cores(&self, f: impl Fn(usize) -> CoreState) -> Vec<CoreState> {
@@ -204,10 +210,11 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	};
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
-	let (candidate_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (candidate_req_receiver, candidate_req_cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	let mut rng = rand_chacha::ChaCha8Rng::seed_from_u64(0);
 
-	let test_state = TestState::from_config(config, &mut rng);
+	let test_state = TestState::from_config(config, candidate_req_cfg, &mut rng);
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 	let subsystem = async move {
