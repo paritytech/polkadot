@@ -56,9 +56,8 @@ impl InitPolkadotBlockBuilder for Client {
 		&self,
 		hash: <Block as BlockT>::Hash,
 	) -> BlockBuilder<Block, Client, FullBackend> {
-		let at = BlockId::Hash(hash);
 		let last_timestamp =
-			self.runtime_api().get_last_timestamp(&at).expect("Get last timestamp");
+			self.runtime_api().get_last_timestamp(hash).expect("Get last timestamp");
 
 		// `MinimumPeriod` is a storage parameter type that requires externalities to access the value.
 		let minimum_period = BasicExternalities::new_empty()
