@@ -1039,7 +1039,9 @@ async fn handle_actions<Context>(
 					.spans
 					.get(&block_hash)
 					.map(|span| span.child("note-approved-in-chain-selection"))
-					.unwrap_or_else(|| jaeger::Span::new(block_hash, "note-approved-in-chain-selection"))
+					.unwrap_or_else(|| {
+						jaeger::Span::new(block_hash, "note-approved-in-chain-selection")
+					})
 					.with_string_tag("block-hash", format!("{:?}", block_hash))
 					.with_stage(jaeger::Stage::ApprovalChecking);
 				ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
@@ -1076,7 +1078,9 @@ fn distribution_messages_for_activation(
 			.spans
 			.get(&block_hash)
 			.map(|span| span.child("distribution-messages-for-activation"))
-			.unwrap_or_else(|| jaeger::Span::new(block_hash, "distribution-messages-for-activation"))
+			.unwrap_or_else(|| {
+				jaeger::Span::new(block_hash, "distribution-messages-for-activation")
+			})
 			.with_stage(jaeger::Stage::ApprovalChecking)
 			.with_string_tag("block-hash", format!("{:?}", block_hash));
 		let block_entry = match db.load_block_entry(&block_hash)? {
@@ -2215,8 +2219,9 @@ fn process_wakeup(
 	let _span = state
 		.spans
 		.get(&relay_block)
-		.map(|span| span.child("process-wakeup"))
-		.unwrap_or_else(|| jaeger::Span::new(relay_block, "process-wakeup"))
+		.map(|span| span.child_with_trace_id("process-wakeup", candidate_hash))
+		.unwrap_or_else(|| jaeger::Span::new(candidate_hash, "process-wakeup"))
+		.with_relay_parent(relay_block)
 		.with_candidate(candidate_hash)
 		.with_stage(jaeger::Stage::ApprovalChecking);
 
