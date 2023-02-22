@@ -401,6 +401,7 @@ impl pallet_democracy::Config for Runtime {
 	type LaunchPeriod = LaunchPeriod;
 	type VotingPeriod = VotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
+	type SubmitOrigin = frame_system::EnsureSigned<AccountId>;
 	/// A straight majority of the council can decide what their next motion is.
 	type ExternalOrigin =
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>;
@@ -1247,6 +1248,10 @@ impl pallet_nis::Config for Runtime {
 	type ReserveId = NisReserveId;
 }
 
+parameter_types! {
+	pub const BeefySetIdSessionEntries: u32 = BondingDuration::get() * SessionsPerEra::get();
+}
+
 impl pallet_beefy::Config for Runtime {
 	type BeefyId = BeefyId;
 	type KeyOwnerProofSystem = Historical;
@@ -1263,6 +1268,7 @@ impl pallet_beefy::Config for Runtime {
 		ReportLongevity,
 	>;
 	type MaxAuthorities = MaxAuthorities;
+	type MaxSetIdSessionEntries = BeefySetIdSessionEntries;
 	type OnNewValidatorSet = MmrLeaf;
 	type WeightInfo = ();
 }
