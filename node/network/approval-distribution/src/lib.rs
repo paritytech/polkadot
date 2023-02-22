@@ -20,8 +20,8 @@
 
 #![warn(missing_docs)]
 
-use polkadot_node_jaeger as jaeger;
 use futures::{channel::oneshot, FutureExt as _};
+use polkadot_node_jaeger as jaeger;
 use polkadot_node_network_protocol::{
 	self as net_protocol,
 	grid_topology::{RandomRouting, RequiredRouting, SessionGridTopologies, SessionGridTopology},
@@ -395,12 +395,12 @@ impl State {
 		let mut new_hashes = HashSet::new();
 		for meta in &metas {
 			let mut span = self
-					.spans
-					.get(&meta.hash)
-					.map(|span| span.child_with_start_time(&"handle-new-blocks"))
-					.unwrap_or_else(|| jaeger::Span::new(meta.hash, &"handle-new-blocks"))
-					.with_relay_parent(meta.hash)
-					.with_stage(jaeger::Stage::ApprovalDistribution);
+				.spans
+				.get(&meta.hash)
+				.map(|span| span.child_with_start_time(&"handle-new-blocks"))
+				.unwrap_or_else(|| jaeger::Span::new(meta.hash, &"handle-new-blocks"))
+				.with_relay_parent(meta.hash)
+				.with_stage(jaeger::Stage::ApprovalDistribution);
 
 			match self.blocks.entry(meta.hash) {
 				hash_map::Entry::Vacant(entry) => {
@@ -1252,7 +1252,7 @@ impl State {
 				.unwrap_or_else(|| jaeger::Span::new(&hash, "get-approval-signatures"))
 				.with_relay_parent(hash)
 				.with_stage(jaeger::Stage::ApprovalDistribution);
-			
+
 			let block_entry = match self.blocks.get(&hash) {
 				None => {
 					gum::debug!(
@@ -1681,7 +1681,8 @@ impl ApprovalDistribution {
 					// for tracing purposes.
 					if let Some(activated) = update.activated {
 						let head = activated.hash;
-						let approval_distribution_span = jaeger::PerLeafSpan::new(activated.span, "approval-distribution");
+						let approval_distribution_span =
+							jaeger::PerLeafSpan::new(activated.span, "approval-distribution");
 						state.spans.insert(head, approval_distribution_span);
 					}
 				},
