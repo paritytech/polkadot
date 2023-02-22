@@ -57,7 +57,7 @@ fn dummy_constraints(
 		ump_remaining: 10,
 		ump_remaining_bytes: 1_000,
 		max_ump_num_per_candidate: 10,
-		dmp_remaining_messages: vec![10],
+		dmp_remaining_messages: vec![],
 		hrmp_inbound: InboundHrmpLimitations { valid_watermarks },
 		hrmp_channels_out: vec![],
 		max_hrmp_num_per_candidate: 0,
@@ -296,6 +296,23 @@ async fn deactivate_leaf(virtual_overseer: &mut VirtualOverseer, hash: Hash) {
 		.await;
 }
 
+
+async fn introduce_candidate(
+	virtual_overseer: &mut VirtualOverseer,
+	candidate: CommittedCandidateReceipt,
+	pvd: PersistedValidationData,
+) {
+	let req = IntroduceCandidateRequest {
+		candidate_para: candidate.descriptor().para_id,
+		candidate_receipt: candidate,
+		persisted_validation_data: pvd,
+	};
+	let (tx, _) = oneshot::channel();
+	virtual_overseer.send(overseer::FromOrchestra::Communication {
+		msg: ProspectiveParachainsMessage::IntroduceCandidate(req, tx)
+	}).await;
+}
+
 async fn second_candidate(
 	virtual_overseer: &mut VirtualOverseer,
 	candidate: CommittedCandidateReceipt,
@@ -495,7 +512,7 @@ fn send_candidates_and_check_if_found() {
 		activate_leaf(&mut virtual_overseer, &leaf_c, &test_state).await;
 
 		// Candidate A1
-		let (candidate_a1, _) = make_candidate(
+		let (candidate_a1, pvd_a1) = make_candidate(
 			leaf_a.hash,
 			leaf_a.number,
 			1.into(),
@@ -507,7 +524,7 @@ fn send_candidates_and_check_if_found() {
 		let response_a1 = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate A2
-		let (candidate_a2, _) = make_candidate(
+		let (candidate_a2, pvd_a2) = make_candidate(
 			leaf_a.hash,
 			leaf_a.number,
 			2.into(),
@@ -519,7 +536,7 @@ fn send_candidates_and_check_if_found() {
 		let response_a2 = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate B
-		let (candidate_b, _) = make_candidate(
+		let (candidate_b, pvd_b) = make_candidate(
 			leaf_b.hash,
 			leaf_b.number,
 			1.into(),
@@ -531,7 +548,7 @@ fn send_candidates_and_check_if_found() {
 		let response_b = vec![(leaf_b.hash, vec![0])];
 
 		// Candidate C
-		let (candidate_c, _) = make_candidate(
+		let (candidate_c, pvd_c) = make_candidate(
 			leaf_c.hash,
 			leaf_c.number,
 			2.into(),
@@ -542,11 +559,11 @@ fn send_candidates_and_check_if_found() {
 		let candidate_hash_c = candidate_c.hash();
 		let response_c = vec![(leaf_c.hash, vec![0])];
 
-		// Second candidates.
-		second_candidate(&mut virtual_overseer, candidate_a1).await;
-		second_candidate(&mut virtual_overseer, candidate_a2).await;
-		second_candidate(&mut virtual_overseer, candidate_b).await;
-		second_candidate(&mut virtual_overseer, candidate_c).await;
+		// Introduce candidates.
+		introduce_candidate(&mut virtual_overseer, candidate_a1, pvd_a1).await;
+		introduce_candidate(&mut virtual_overseer, candidate_a2, pvd_a2).await;
+		introduce_candidate(&mut virtual_overseer, candidate_b, pvd_b).await;
+		introduce_candidate(&mut virtual_overseer, candidate_c, pvd_c).await;
 
 		// Check candidate tree membership.
 		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, response_a1).await;
@@ -609,7 +626,7 @@ fn check_candidate_parent_leaving_view() {
 		activate_leaf(&mut virtual_overseer, &leaf_c, &test_state).await;
 
 		// Candidate A1
-		let (candidate_a1, _) = make_candidate(
+		let (candidate_a1, pvd_a1) = make_candidate(
 			leaf_a.hash,
 			leaf_a.number,
 			1.into(),
@@ -620,7 +637,7 @@ fn check_candidate_parent_leaving_view() {
 		let candidate_hash_a1 = candidate_a1.hash();
 
 		// Candidate A2
-		let (candidate_a2, _) = make_candidate(
+		let (candidate_a2, pvd_a2) = make_candidate(
 			leaf_a.hash,
 			leaf_a.number,
 			2.into(),
@@ -631,7 +648,7 @@ fn check_candidate_parent_leaving_view() {
 		let candidate_hash_a2 = candidate_a2.hash();
 
 		// Candidate B
-		let (candidate_b, _) = make_candidate(
+		let (candidate_b, pvd_b) = make_candidate(
 			leaf_b.hash,
 			leaf_b.number,
 			1.into(),
@@ -643,7 +660,7 @@ fn check_candidate_parent_leaving_view() {
 		let response_b = vec![(leaf_b.hash, vec![0])];
 
 		// Candidate C
-		let (candidate_c, _) = make_candidate(
+		let (candidate_c, pvd_c) = make_candidate(
 			leaf_c.hash,
 			leaf_c.number,
 			2.into(),
@@ -655,10 +672,10 @@ fn check_candidate_parent_leaving_view() {
 		let response_c = vec![(leaf_c.hash, vec![0])];
 
 		// Second candidates.
-		second_candidate(&mut virtual_overseer, candidate_a1).await;
-		second_candidate(&mut virtual_overseer, candidate_a2).await;
-		second_candidate(&mut virtual_overseer, candidate_b).await;
-		second_candidate(&mut virtual_overseer, candidate_c).await;
+		introduce_candidate(&mut virtual_overseer, candidate_a1, pvd_a1).await;
+		introduce_candidate(&mut virtual_overseer, candidate_a2, pvd_a2).await;
+		introduce_candidate(&mut virtual_overseer, candidate_b, pvd_b).await;
+		introduce_candidate(&mut virtual_overseer, candidate_c, pvd_c).await;
 
 		// Deactivate leaf A.
 		deactivate_leaf(&mut virtual_overseer, leaf_a.hash).await;
@@ -733,7 +750,7 @@ fn check_candidate_on_multiple_forks() {
 		activate_leaf(&mut virtual_overseer, &leaf_c, &test_state).await;
 
 		// Candidate on leaf A.
-		let (candidate_a, _) = make_candidate(
+		let (candidate_a, pvd_a) = make_candidate(
 			leaf_a.hash,
 			leaf_a.number,
 			1.into(),
@@ -745,7 +762,7 @@ fn check_candidate_on_multiple_forks() {
 		let response_a = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate on leaf B.
-		let (candidate_b, _) = make_candidate(
+		let (candidate_b, pvd_b) = make_candidate(
 			leaf_b.hash,
 			leaf_b.number,
 			1.into(),
@@ -757,7 +774,7 @@ fn check_candidate_on_multiple_forks() {
 		let response_b = vec![(leaf_b.hash, vec![0])];
 
 		// Candidate on leaf C.
-		let (candidate_c, _) = make_candidate(
+		let (candidate_c, pvd_c) = make_candidate(
 			leaf_c.hash,
 			leaf_c.number,
 			1.into(),
@@ -769,9 +786,9 @@ fn check_candidate_on_multiple_forks() {
 		let response_c = vec![(leaf_c.hash, vec![0])];
 
 		// Second candidate on all three leaves.
-		second_candidate(&mut virtual_overseer, candidate_a.clone()).await;
-		second_candidate(&mut virtual_overseer, candidate_b.clone()).await;
-		second_candidate(&mut virtual_overseer, candidate_c.clone()).await;
+		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a).await;
+		introduce_candidate(&mut virtual_overseer, candidate_b.clone(), pvd_b).await;
+		introduce_candidate(&mut virtual_overseer, candidate_c.clone(), pvd_c).await;
 
 		// Check candidate tree membership.
 		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_a, response_a).await;
@@ -807,7 +824,7 @@ fn check_backable_query() {
 		activate_leaf(&mut virtual_overseer, &leaf_a, &test_state).await;
 
 		// Candidate A
-		let (candidate_a, _) = make_candidate(
+		let (candidate_a, pvd_a) = make_candidate(
 			leaf_a.hash,
 			leaf_a.number,
 			1.into(),
@@ -818,7 +835,7 @@ fn check_backable_query() {
 		let candidate_hash_a = candidate_a.hash();
 
 		// Candidate B
-		let (mut candidate_b, _) = make_candidate(
+		let (mut candidate_b, pvd_b) = make_candidate(
 			leaf_a.hash,
 			leaf_a.number,
 			1.into(),
@@ -829,6 +846,20 @@ fn check_backable_query() {
 		// Set a field to make this candidate unique.
 		candidate_b.descriptor.para_head = Hash::from_low_u64_le(1000);
 		let candidate_hash_b = candidate_b.hash();
+
+		// Introduce candidates.
+		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a).await;
+		introduce_candidate(&mut virtual_overseer, candidate_b.clone(), pvd_b).await;
+
+		// Should not get any backable candidates.
+		get_backable_candidate(
+			&mut virtual_overseer,
+			&leaf_a,
+			1.into(),
+			vec![candidate_hash_a],
+			None,
+		)
+		.await;
 
 		// Second candidates.
 		second_candidate(&mut virtual_overseer, candidate_a.clone()).await;
@@ -949,7 +980,7 @@ fn check_depth_query() {
 		.await;
 
 		// Add candidate A.
-		second_candidate(&mut virtual_overseer, candidate_a.clone()).await;
+		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a.clone()).await;
 
 		// Get frontier of candidate A after adding it.
 		get_hypothetical_frontier(
@@ -974,7 +1005,7 @@ fn check_depth_query() {
 		.await;
 
 		// Add candidate B.
-		second_candidate(&mut virtual_overseer, candidate_b.clone()).await;
+		introduce_candidate(&mut virtual_overseer, candidate_b.clone(), pvd_b.clone()).await;
 
 		// Get frontier of candidate B after adding it.
 		get_hypothetical_frontier(
@@ -999,7 +1030,7 @@ fn check_depth_query() {
 		.await;
 
 		// Add candidate C.
-		second_candidate(&mut virtual_overseer, candidate_c.clone()).await;
+		introduce_candidate(&mut virtual_overseer, candidate_c.clone(), pvd_c.clone()).await;
 
 		// Get frontier of candidate C after adding it.
 		get_hypothetical_frontier(
@@ -1077,7 +1108,7 @@ fn check_pvd_query() {
 		.await;
 
 		// Add candidate A.
-		second_candidate(&mut virtual_overseer, candidate_a.clone()).await;
+		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a.clone()).await;
 		back_candidate(&mut virtual_overseer, &candidate_a, candidate_a.hash()).await;
 
 		// Get pvd of candidate A after adding it.
@@ -1101,7 +1132,7 @@ fn check_pvd_query() {
 		.await;
 
 		// Add candidate B.
-		second_candidate(&mut virtual_overseer, candidate_b).await;
+		introduce_candidate(&mut virtual_overseer, candidate_b, pvd_b.clone()).await;
 
 		// Get pvd of candidate B after adding it.
 		get_pvd(
@@ -1124,7 +1155,7 @@ fn check_pvd_query() {
 		.await;
 
 		// Add candidate C.
-		second_candidate(&mut virtual_overseer, candidate_c).await;
+		introduce_candidate(&mut virtual_overseer, candidate_c, pvd_c.clone()).await;
 
 		// Get pvd of candidate C after adding it.
 		get_pvd(
