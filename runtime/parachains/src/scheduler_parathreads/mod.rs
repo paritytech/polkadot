@@ -17,6 +17,7 @@
 use frame_support::pallet_prelude::*;
 use primitives::{CoreIndex, CoreOccupied, Id as ParaId, ParathreadClaim};
 use scale_info::TypeInfo;
+use sp_runtime::print;
 
 use crate::{
 	configuration,
@@ -91,6 +92,8 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	}
 
 	fn push_front_assignment_for_core(_core_idx: CoreIndex, assignment: Assignment) {
+		print("push_front parathreads core");
+		print(_core_idx.0);
 		match assignment {
 			Assignment::ParathreadA(claim) =>
 				<self::Pallet<T>>::push_front_assignment_for_core_inner(claim),
@@ -111,6 +114,8 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	}
 
 	fn clear(core_idx: CoreIndex, assignment: Assignment) {
+		print("clear parathreads core");
+		print(core_idx.0);
 		Self::push_front_assignment_for_core(core_idx, assignment)
 	}
 }

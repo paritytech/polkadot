@@ -487,6 +487,8 @@ impl<T: Config> Pallet<T> {
 
 		// We could not schedule these assignments due to conflicts
 		for (core_idx, ass) in push_back_buffer.into_iter().rev() {
+			sp_runtime::print("push_front lookahead idx:");
+			sp_runtime::print(core_idx.0);
 			T::AssignmentProvider::push_front_assignment_for_core(core_idx, ass);
 		}
 		let l = "lookahead len: ";
@@ -549,10 +551,24 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
+	fn print_lookahead() {
+		frame_support::print("PRINT LOOKAHEAD");
+		for tup in Lookahead::<T>::get() {
+			frame_support::print("lookahead index");
+			frame_support::debug(&tup.0 .0);
+			frame_support::print("vec");
+			//frame_support::debug(&tup.1);
+		}
+	}
+
 	fn remove_from_lookahead(
 		lookahead_core_idx: CoreIndex,
 		para_id: ParaId,
 	) -> Result<CoreAssignment, &'static str> {
+		Self::print_lookahead();
+		sp_runtime::print("remove from lookahead");
+		sp_runtime::print(lookahead_core_idx.0);
+
 		let assignment = Lookahead::<T>::mutate(|la| match la.get_mut(&lookahead_core_idx) {
 			None => Err("core_idx not found in lookahead"),
 			Some(la_vec) => match la_vec.iter().position(|a| a.para_id == para_id) {
@@ -560,6 +576,8 @@ impl<T: Config> Pallet<T> {
 				Some(idx) => Ok(la_vec.remove(idx)),
 			},
 		})?;
+
+		sp_runtime::print("REMOVED from lookahead");
 
 		ParaCoreMapping::<T>::mutate(|pcm| match pcm.get_mut(&para_id) {
 			None => Err("impossible"),
@@ -575,5 +593,18 @@ impl<T: Config> Pallet<T> {
 		})?;
 
 		Ok(assignment)
+	}
+
+	fn lookahead_sizes() -> Vec<usize> {
+		Self::print_lookahead();
+		Lookahead::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
+	}
+
+	pub(crate) fn lookahead_is_empty() -> bool {
+		let sum = Self::lookahead_sizes().iter().sum::<usize>();
+		sp_runtime::print("SUM");
+		sp_runtime::print(sum);
+
+		sum == 0
 	}
 }

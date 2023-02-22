@@ -72,13 +72,21 @@ pub mod pallet {
 
 impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	fn on_new_session(n_lookahead: u32) {
+		frame_support::print("POLKADOT ON NEW SESSION");
 		<crate::scheduler_parachains::Pallet<T>>::on_new_session(n_lookahead);
 		<crate::scheduler_parathreads::Pallet<T>>::on_new_session(n_lookahead);
 	}
 
 	fn session_core_count() -> u32 {
-		<crate::scheduler_parachains::Pallet<T>>::session_core_count() +
-			<crate::scheduler_parathreads::Pallet<T>>::session_core_count()
+		let chains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
+		let threads_cores = <crate::scheduler_parathreads::Pallet<T>>::session_core_count();
+		print("session_cores chains");
+		print(chains_cores);
+
+		print("session_cores threads");
+		print(threads_cores);
+
+		chains_cores + threads_cores
 	}
 
 	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
@@ -107,13 +115,19 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	}
 
 	fn push_front_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
+		print("push_front polkadot core idx:");
+		print(core_idx.0);
 		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
+		print("parachains_cores:");
+		print(parachains_cores);
 		if (0..parachains_cores).contains(&core_idx.0) {
+			print("push parachain:");
 			<crate::scheduler_parachains::Pallet<T>>::push_front_assignment_for_core(
 				core_idx, assignment,
 			)
 		} else {
 			let core_idx = CoreIndex(core_idx.0 - parachains_cores);
+			print("push parathreads:");
 			<crate::scheduler_parathreads::Pallet<T>>::push_front_assignment_for_core(
 				core_idx, assignment,
 			)
@@ -141,12 +155,23 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	}
 
 	fn clear(core_idx: CoreIndex, assignment: Assignment) {
+		print("clear polkadot core");
+		print(core_idx.0);
 		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
-		if (0..parachains_cores).contains(&core_idx.0) {
-			<crate::scheduler_parachains::Pallet<T>>::clear(core_idx, assignment)
-		} else {
-			let core_idx = CoreIndex(core_idx.0 - parachains_cores);
-			<crate::scheduler_parathreads::Pallet<T>>::clear(core_idx, assignment)
+		print("parachains_cores");
+		print(parachains_cores);
+
+		// We cannot rely on the CoreIndex to distinguish between parachains and -threads at this point
+		// as the number of parachains can change on new sessions.
+		// TODO: - check if this is correct.
+		//	     - find a better solution overall.
+		match assignment {
+			Assignment::Parachain(_) =>
+				<crate::scheduler_parachains::Pallet<T>>::clear(core_idx, assignment),
+			Assignment::ParathreadA(_) => {
+				let core_idx = CoreIndex(core_idx.0 - parachains_cores);
+				<crate::scheduler_parathreads::Pallet<T>>::clear(core_idx, assignment)
+			},
 		}
 	}
 }

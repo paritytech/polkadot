@@ -755,10 +755,7 @@ fn schedule_clears_availability_cores() {
 	let mut config = default_config();
 	config.scheduling_lookahead = 1;
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config,
-			..Default::default()
-		},
+		configuration: crate::configuration::GenesisConfig { config, ..Default::default() },
 		..Default::default()
 	};
 
@@ -1354,10 +1351,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 	let mut config = default_config();
 	config.scheduling_lookahead = 1;
 	let genesis_config = MockGenesisConfig {
-		configuration: crate::configuration::GenesisConfig {
-			config,
-			..Default::default()
-		},
+		configuration: crate::configuration::GenesisConfig { config, ..Default::default() },
 		..Default::default()
 	};
 
