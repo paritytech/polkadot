@@ -110,6 +110,7 @@ fn default_config() -> HostConfiguration<BlockNumber> {
 		group_rotation_frequency: 10,
 		chain_availability_period: 3,
 		thread_availability_period: 5,
+		// most old tests implicitly assume this
 		scheduling_lookahead: 2,
 		parathread_retries: 1,
 		pvf_checking_enabled: false,
@@ -751,9 +752,11 @@ fn session_change_takes_only_max_per_core() {
 
 #[test]
 fn schedule_clears_availability_cores() {
+	let mut config = default_config();
+	config.scheduling_lookahead = 1;
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
-			config: default_config(),
+			config,
 			..Default::default()
 		},
 		..Default::default()
@@ -805,7 +808,7 @@ fn schedule_clears_availability_cores() {
 			assert_eq!(cores[1].is_free(), false);
 			assert_eq!(cores[2].is_free(), false);
 
-			assert!(Scheduler::lookahead().is_empty());
+			assert!(Scheduler::lookahead_is_empty());
 		}
 
 		run_to_block(3, |_| None);
@@ -1348,9 +1351,11 @@ fn next_up_on_time_out_is_parachain_always() {
 
 #[test]
 fn session_change_requires_reschedule_dropping_removed_paras() {
+	let mut config = default_config();
+	config.scheduling_lookahead = 1;
 	let genesis_config = MockGenesisConfig {
 		configuration: crate::configuration::GenesisConfig {
-			config: default_config(),
+			config,
 			..Default::default()
 		},
 		..Default::default()
@@ -1389,7 +1394,6 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 		assert_eq!(groups.len(), 5);
 
 		assert_ok!(Paras::schedule_para_cleanup(chain_b));
-
 		run_to_end_of_block(2, |number| match number {
 			2 => Some(SessionChangeNotification {
 				new_config: default_config(),
