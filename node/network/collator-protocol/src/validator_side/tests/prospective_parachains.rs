@@ -426,8 +426,8 @@ fn second_multiple_candidates_per_relay_parent() {
 			candidate.descriptor.persisted_validation_data_hash = dummy_pvd().hash();
 			let commitments = CandidateCommitments {
 				head_data: HeadData(vec![i as u8]),
-				horizontal_messages: Vec::new(),
-				upward_messages: Vec::new(),
+				horizontal_messages: Default::default(),
+				upward_messages: Default::default(),
 				new_validation_code: None,
 				processed_downward_messages: 0,
 				hrmp_watermark: 0,
@@ -580,8 +580,8 @@ fn fetched_collation_sanity_check() {
 		candidate.descriptor.para_id = test_state.chain_ids[0];
 		let commitments = CandidateCommitments {
 			head_data: HeadData(vec![1, 2, 3]),
-			horizontal_messages: Vec::new(),
-			upward_messages: Vec::new(),
+			horizontal_messages: Default::default(),
+			upward_messages: Default::default(),
 			new_validation_code: None,
 			processed_downward_messages: 0,
 			hrmp_watermark: 0,

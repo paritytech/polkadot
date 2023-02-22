@@ -244,8 +244,8 @@ async fn assert_validate_seconded_candidate(
 			tx.send(Ok(ValidationResult::Valid(
 				CandidateCommitments {
 					head_data: expected_head_data.clone(),
-					horizontal_messages: Vec::new(),
-					upward_messages: Vec::new(),
+					horizontal_messages: Default::default(),
+					upward_messages: Default::default(),
 					new_validation_code: None,
 					processed_downward_messages: 0,
 					hrmp_watermark: 0,
@@ -1312,8 +1312,8 @@ fn concurrent_dependent_candidates() {
 					tx.send(Ok(ValidationResult::Valid(
 						CandidateCommitments {
 							head_data: head_data.clone(),
-							horizontal_messages: Vec::new(),
-							upward_messages: Vec::new(),
+							horizontal_messages: Default::default(),
+							upward_messages: Default::default(),
 							new_validation_code: None,
 							processed_downward_messages: 0,
 							hrmp_watermark: 0,

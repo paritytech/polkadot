@@ -111,7 +111,7 @@
 //! from the stable primitives.
 
 use crate::{
-	v2, vstaging, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+	vstaging, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
 	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, OccupiedCoreAssumption,
 	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 	ValidatorId, ValidatorIndex, ValidatorSignature,
@@ -213,11 +213,7 @@ sp_api::decl_runtime_apis! {
 		fn validation_code_hash(para_id: ppp::Id, assumption: OccupiedCoreAssumption)
 			-> Option<ppp::ValidationCodeHash>;
 
-		/***** Replaced in v2 *****/
-
-		/// Old method to fetch v1 session info.
-		#[changed_in(2)]
-		fn session_info(index: SessionIndex) -> Option<v2::OldV1SessionInfo>;
+		/***** STAGING *****/
 
 		/// Returns all onchain disputes.
 		#[api_version(3)]

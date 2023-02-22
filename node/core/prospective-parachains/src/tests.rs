@@ -59,7 +59,7 @@ fn dummy_constraints(
 		ump_remaining: 10,
 		ump_remaining_bytes: 1_000,
 		max_ump_num_per_candidate: 10,
-		dmp_remaining_messages: 10,
+		dmp_remaining_messages: vec![10],
 		hrmp_inbound: InboundHrmpLimitations { valid_watermarks },
 		hrmp_channels_out: vec![],
 		max_hrmp_num_per_candidate: 0,
@@ -89,8 +89,8 @@ fn make_candidate(
 	let pvd = dummy_pvd(parent_head, leaf.number);
 	let commitments = CandidateCommitments {
 		head_data,
-		horizontal_messages: Vec::new(),
-		upward_messages: Vec::new(),
+		horizontal_messages: Default::default(),
+		upward_messages: Default::default(),
 		new_validation_code: None,
 		processed_downward_messages: 0,
 		hrmp_watermark: leaf.number,
@@ -424,6 +424,7 @@ async fn get_hypothetical_frontier(
 	let request = HypotheticalFrontierRequest {
 		candidates: vec![hypothetical_candidate.clone()],
 		fragment_tree_relay_parent: Some(fragment_tree_relay_parent),
+		backed_in_path_only: false,
 	};
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
