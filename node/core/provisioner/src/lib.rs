@@ -324,14 +324,22 @@ fn note_provisionable_data(
 				.with_para_id(backed_candidate.descriptor().para_id);
 			per_relay_parent.backed_candidates.push(backed_candidate)
 		},
-		// At this time we are not interested in deterring these forms of misbehavior
-		// or issuing a dispute at the backing stage. A dispute for a candidate triggered
-		// at any point before the candidate has been made available, including the
-		// backing stage, can't be guaranteed to conclude. Also candidates which haven't
-		// been made available don't pose a security risk as they can not be included,
-		// approved, or finalized. Thus we wait to punish misbehavior until a candidate
-		// reaches the approval checking stage.
+		// We choose to do nothing with misbehavior at this stage
 		ProvisionableData::MisbehaviorReport(_, _, _) => {},
+		// We wait and do nothing here, prefering to initiate a dispute after the 
+		// parablock candidate is included for the following reasons:
+		//
+		// 1. A dispute for a candidate triggered at any point before the candidate 
+		// has been made available, including the backing stage, can't be 
+		// guaranteed to conclude. Non-concluding disputes are unacceptable.
+		// 2. Candidates which haven't been made available don't pose a security 
+		// risk as they can not be included, approved, or finalized.  
+		//
+		// Currently we rely on approval checkers to trigger disputes for bad 
+		// parablocks once they are included. But we can do slightly better by 
+		// allowing disagreeing backers to record their disagreement and initiate a 
+		// dispute once the parablock in question has been included. This potential 
+		// change is tracked by: https://github.com/paritytech/polkadot/issues/3232
 		ProvisionableData::Dispute(_, _) => {},
 	}
 }
