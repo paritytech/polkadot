@@ -10,6 +10,7 @@ polkadot-node-network-protocol = { path = "../protocol" }
 polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
 polkadot-primitives = { path = "../../../primitives" }
+polkadot-node-jaeger = { path = "../../jaeger" }
 rand = "0.8"
 
 futures = "0.3.21"
