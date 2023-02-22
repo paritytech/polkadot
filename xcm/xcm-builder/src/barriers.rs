@@ -21,7 +21,7 @@ use frame_support::{
 	traits::{Contains, Get},
 };
 use polkadot_parachain::primitives::IsSystem;
-use sp_std::{marker::PhantomData, result::Result};
+use sp_std::{cell::Cell, marker::PhantomData, ops::ControlFlow, result::Result};
 use xcm::{
 	latest::{
 		Instruction::{self, *},
@@ -174,33 +174,34 @@ impl<
 			origin, instructions, max_weight, weight_credit,
 		);
 		let mut actual_origin = *origin;
-		let mut skipped = 0;
+		let skipped = Cell::new(0usize);
 		// NOTE: We do not check the validity of `UniversalOrigin` here, meaning that a malicious
 		// origin could place a `UniversalOrigin` in order to spoof some location which gets free
 		// execution. This technical could get it past the barrier condition, but the execution
 		// would instantly fail since the first instruction would cause an error with the
 		// invalid UniversalOrigin.
 		instructions.matcher().match_next_inst_while(
-			|| skipped < MaxPrefixes::get() as usize && skipped < instructions.len(),
+			|_| skipped.get() < MaxPrefixes::get() as usize,
 			|inst| {
-				let res = match inst {
+				match inst {
 					UniversalOrigin(new_global) => {
 						// Note the origin is *relative to local consensus*! So we need to escape
 						// local consensus with the `parents` before diving in into the
 						// `universal_location`.
 						actual_origin = X1(*new_global).relative_to(&LocalUniversal::get());
-						Ok(())
 					},
-					DescendOrigin(j) => actual_origin.append_with(*j).map_err(|_| ()),
-					_ => Ok(()),
+					DescendOrigin(j) => {
+						let Ok(_) = actual_origin.append_with(*j) else { return Err(()) };
+					},
+					_ => return Ok(ControlFlow::Break(())),
 				};
-				skipped += 1;
-				res
+				skipped.set(skipped.get() + 1);
+				Ok(ControlFlow::Continue(()))
 			},
 		)?;
 		InnerBarrier::should_execute(
 			&actual_origin,
-			&mut instructions[skipped..],
+			&mut instructions[skipped.get()..],
 			max_weight,
 			weight_credit,
 		)

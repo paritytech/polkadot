@@ -16,6 +16,7 @@
 
 use super::{Instruction, MultiLocation};
 use crate::{CreateMatcher, MatchXcm};
+use core::ops::ControlFlow;
 
 impl<'a, Call> CreateMatcher for &'a mut [Instruction<Call>] {
 	type Matcher = Matcher<'a, Call>;
@@ -66,31 +67,17 @@ impl<'a, Call> MatchXcm for Matcher<'a, Call> {
 	fn match_next_inst_while<C, F>(mut self, cond: C, mut f: F) -> Result<Self, Self::Error>
 	where
 		Self: Sized,
-		C: Fn() -> bool,
-		F: FnMut(&mut Self::Inst) -> Result<(), Self::Error>,
-	{
-		if self.current_idx >= self.total_inst {
-			return Err(())
-		}
-
-		while cond() && self.current_idx < self.total_inst {
-			f(&mut self.xcm[self.current_idx])?;
-			self.current_idx += 1;
-		}
-
-		Ok(self)
-	}
-
-	fn skip_inst_while<C>(mut self, cond: C) -> Result<Self, Self::Error>
-		where
-			Self: Sized,
-			C: Fn(&Self::Inst) -> bool,
+		C: Fn(&Self::Inst) -> bool,
+		F: FnMut(&mut Self::Inst) -> Result<ControlFlow<()>, Self::Error>,
 	{
 		if self.current_idx >= self.total_inst {
 			return Err(())
 		}
 
 		while cond(&self.xcm[self.current_idx]) && self.current_idx < self.total_inst {
+			if let ControlFlow::Break(()) = f(&mut self.xcm[self.current_idx])? {
+				break
+			}
 			self.current_idx += 1;
 		}
 
