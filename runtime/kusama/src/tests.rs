@@ -50,7 +50,7 @@ fn payout_weight_portion() {
 	use pallet_staking::WeightInfo;
 	let payout_weight =
 		<Runtime as pallet_staking::Config>::WeightInfo::payout_stakers_alive_staked(
-			MaxNominatorRewardedPerValidator::get(),
+			MaxExposurePageSize::get(),
 		)
 		.ref_time() as f64;
 	let block_weight = BlockWeights::get().max_block.ref_time() as f64;
