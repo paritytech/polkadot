@@ -37,7 +37,7 @@ pub fn validate_candidate(
 		.expect("Decompressing code failed");
 
 	let blob = prevalidate(&code)?;
-	let artifact = prepare(blob, ExecutorParams::default())?;
+	let artifact = prepare(blob, &ExecutorParams::default())?;
 	let tmpdir = tempfile::tempdir()?;
 	let artifact_path = tmpdir.path().join("blob");
 	std::fs::write(&artifact_path, &artifact)?;
