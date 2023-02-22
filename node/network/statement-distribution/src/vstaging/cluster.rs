@@ -171,6 +171,20 @@ impl ClusterTracker {
 		}
 	}
 
+	/// Note that we issued a statement. This updates internal structures.
+	pub fn note_issued(&mut self, originator: ValidatorIndex, statement: CompactStatement) {
+		for cluster_member in &self.validators {
+			if !self.they_know_statement(*cluster_member, originator, statement.clone()) {
+				// add the statement to pending knowledge for all peers
+				// which don't know the statement.
+				self.pending
+					.entry(*cluster_member)
+					.or_default()
+					.insert((originator, statement.clone()));
+			}
+		}
+	}
+
 	/// Note that we accepted an incoming statement. This updates internal structures.
 	///
 	/// Should only be called after a successful `can_receive` call.
@@ -185,7 +199,7 @@ impl ClusterTracker {
 				if let Some(pending) = self.pending.get_mut(&sender) {
 					pending.remove(&(originator, statement.clone()));
 				}
-			} else if !self.they_know_statement(sender, originator, statement.clone()) {
+			} else if !self.they_know_statement(*cluster_member, originator, statement.clone()) {
 				// add the statement to pending knowledge for all peers
 				// which don't know the statement.
 				self.pending

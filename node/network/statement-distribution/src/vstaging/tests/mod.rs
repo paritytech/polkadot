@@ -19,7 +19,10 @@
 
 use super::*;
 use crate::*;
-use polkadot_node_network_protocol::{request_response::ReqProtocolNames, view, ObservedRole};
+use polkadot_node_network_protocol::{
+	request_response::{outgoing::Recipient, ReqProtocolNames},
+	view, ObservedRole,
+};
 use polkadot_node_subsystem::messages::{
 	network_bridge_event::NewGossipTopology, AllMessages, ChainApiMessage, FragmentTreeMembership,
 	HypotheticalCandidate, NetworkBridgeEvent, ProspectiveParachainsMessage, RuntimeApiMessage,
