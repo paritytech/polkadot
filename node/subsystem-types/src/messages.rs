@@ -887,7 +887,6 @@ pub enum GossipSupportMessage {
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::GossipSupportNetworkMessage>),
 }
 
-// TODO [now]: consider removing.
 /// Request introduction of a candidate into the prospective parachains subsystem.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct IntroduceCandidateRequest {
