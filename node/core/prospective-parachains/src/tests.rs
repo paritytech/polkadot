@@ -296,7 +296,6 @@ async fn deactivate_leaf(virtual_overseer: &mut VirtualOverseer, hash: Hash) {
 		.await;
 }
 
-
 async fn introduce_candidate(
 	virtual_overseer: &mut VirtualOverseer,
 	candidate: CommittedCandidateReceipt,
@@ -308,9 +307,11 @@ async fn introduce_candidate(
 		persisted_validation_data: pvd,
 	};
 	let (tx, _) = oneshot::channel();
-	virtual_overseer.send(overseer::FromOrchestra::Communication {
-		msg: ProspectiveParachainsMessage::IntroduceCandidate(req, tx)
-	}).await;
+	virtual_overseer
+		.send(overseer::FromOrchestra::Communication {
+			msg: ProspectiveParachainsMessage::IntroduceCandidate(req, tx),
+		})
+		.await;
 }
 
 async fn second_candidate(
