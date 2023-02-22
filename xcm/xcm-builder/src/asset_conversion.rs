@@ -78,6 +78,32 @@ impl<
 		Ok((what, amount))
 	}
 }
+
+impl<
+		AssetId: Clone,
+		Balance: Clone,
+		ConvertAssetId: Convert<MultiLocation, AssetId>,
+		ConvertBalance: Convert<u128, Balance>,
+	> Convert<(AssetId, Balance), MultiAsset>
+	for ConvertedConcreteId<AssetId, Balance, ConvertAssetId, ConvertBalance>
+{
+	fn convert_ref(value: impl Borrow<(AssetId, Balance)>) -> Result<MultiAsset, ()> {
+		let (asset_id, balance) = value.borrow();
+		match ConvertAssetId::reverse_ref(asset_id) {
+			Ok(asset_id_as_multilocation) => match ConvertBalance::reverse_ref(balance) {
+				Ok(amount) => Ok((asset_id_as_multilocation, amount).into()),
+				Err(_) => Err(()),
+			},
+			Err(_) => Err(()),
+		}
+	}
+
+	fn reverse_ref(value: impl Borrow<MultiAsset>) -> Result<(AssetId, Balance), ()> {
+		<Self as MatchesFungibles<AssetId, Balance>>::matches_fungibles(value.borrow())
+			.map_err(|_| ())
+	}
+}
+
 impl<
 		ClassId: Clone,
 		InstanceId: Clone,
@@ -147,3 +173,32 @@ impl<
 pub type ConvertedConcreteAssetId<A, B, C, O> = ConvertedConcreteId<A, B, C, O>;
 #[deprecated = "Use `ConvertedAbstractId` instead"]
 pub type ConvertedAbstractAssetId<A, B, C, O> = ConvertedAbstractId<A, B, C, O>;
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use xcm_executor::traits::{Identity, JustTry};
+
+	#[test]
+	fn converted_concrete_id_fungible_multi_asset_conversion_roundtrip_works() {
+		type Converter = ConvertedConcreteId<MultiLocation, u64, Identity, JustTry>;
+
+		let location = MultiLocation::new(0, X1(GlobalConsensus(ByGenesis([0; 32]))));
+		let amount = 123456_u64;
+		let expected_multi_asset = MultiAsset {
+			id: Concrete(MultiLocation::new(0, X1(GlobalConsensus(ByGenesis([0; 32]))))),
+			fun: Fungible(123456_u128),
+		};
+
+		assert_eq!(
+			Converter::matches_fungibles(&expected_multi_asset).map_err(|_| ()),
+			Ok((location, amount))
+		);
+
+		assert_eq!(Converter::reverse_ref(&expected_multi_asset), Ok((location, amount)));
+		assert_eq!(Converter::reverse(expected_multi_asset.clone()), Ok((location, amount)));
+		assert_eq!(Converter::convert_ref((location, amount)), Ok(expected_multi_asset.clone()));
+		assert_eq!(Converter::convert((location, amount)), Ok(expected_multi_asset));
+	}
+}
