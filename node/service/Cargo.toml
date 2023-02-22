@@ -210,3 +210,5 @@ runtime-metrics = [
 	"polkadot-runtime?/runtime-metrics",
 	"polkadot-runtime-parachains/runtime-metrics"
 ]
+
+network-protocol-staging = ["polkadot-node-network-protocol/network-protocol-staging"]
