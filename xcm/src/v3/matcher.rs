@@ -28,6 +28,10 @@ impl<'a, Call> CreateMatcher for &'a mut [Instruction<Call>] {
 	}
 }
 
+/// Struct created from calling `fn matcher()` on a mutable slice of `Instruction`s.
+///
+/// Implements `MatchXcm` to allow an iterator-like API to match against each `Instruction`
+/// contained within the slice, which facilitates the building of XCM barriers.
 pub struct Matcher<'a, Call> {
 	pub(crate) xcm: &'a mut [Instruction<Call>],
 	pub(crate) current_idx: usize,
