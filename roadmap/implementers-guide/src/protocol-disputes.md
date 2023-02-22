@@ -16,7 +16,6 @@ Every dispute stems from a disagreement among two or more validators. If a bad a
 From most to least important, here are the attack scenarios we are interested in identifying and deterring:
   * A parablock included on a branch of the relay chain is bad
   * A parablock backed on a branch of the relay chain is bad
-  * A parablock seconded, but not backed on any branch of the relay chain, is bad.
 
 As covered in the [protocol overview](./protocol-overview.md), checking a parachain block requires 3 pieces of data: the parachain validation code, the [`AvailableData`](types/availability.md), and the [`CandidateReceipt`](types/candidate.md). The validation code is available on-chain, and published ahead of time, so that no two branches of the relay chain have diverging views of the validation code for a given parachain. Note that only for the first scenario, where the parablock has been included on a branch of the relay chain, is the data necessarily available. Thus, dispute processes should begin with an availability process to ensure availability of the `AvailableData`. This availability process will conclude quickly if the data is already available. If the data is not already available, then the initiator of the dispute must make it available.
 
