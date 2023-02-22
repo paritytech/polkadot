@@ -104,7 +104,7 @@ mod enter {
 				.unwrap();
 
 			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			// Nothing is filtered out (including the backed candidates.)
 			assert_eq!(
@@ -114,7 +114,7 @@ mod enter {
 
 			// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
 			// alter storage, but just double checking for sanity).
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			assert_eq!(Pallet::<Test>::on_chain_votes(), None);
 			// Call enter with our 2 backed candidates
@@ -272,7 +272,7 @@ mod enter {
 				.unwrap();
 
 			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			let multi_dispute_inherent_data =
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
@@ -289,7 +289,7 @@ mod enter {
 
 			// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
 			// alter storage, but just double checking for sanity).
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			assert_eq!(Pallet::<Test>::on_chain_votes(), None);
 			// Call enter with our 2 disputes
@@ -346,7 +346,7 @@ mod enter {
 				.unwrap();
 
 			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			let limit_inherent_data =
 				Pallet::<Test>::create_inherent_inner(&inherent_data.clone()).unwrap();
@@ -360,7 +360,7 @@ mod enter {
 
 			// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
 			// alter storage, but just double checking for sanity).
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			assert_eq!(Pallet::<Test>::on_chain_votes(), None);
 			// Call enter with our 2 disputes
@@ -416,7 +416,7 @@ mod enter {
 				.unwrap();
 
 			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			assert_matches!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
@@ -465,7 +465,7 @@ mod enter {
 				.unwrap();
 
 			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			// Nothing is filtered out (including the backed candidates.)
 			let limit_inherent_data =
@@ -487,7 +487,7 @@ mod enter {
 
 			// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
 			// alter storage, but just double checking for sanity).
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			assert_eq!(Pallet::<Test>::on_chain_votes(), None);
 			// Call enter with our 2 disputes
@@ -546,7 +546,7 @@ mod enter {
 				.unwrap();
 
 			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			// Ensure that calling enter with 3 disputes and 2 candidates is over weight
 			assert_matches!(Pallet::<Test>::enter(
@@ -602,7 +602,7 @@ mod enter {
 				.unwrap();
 
 			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			// Nothing is filtered out (including the backed candidates.)
 			let limit_inherent_data =
@@ -624,7 +624,7 @@ mod enter {
 
 			// The schedule is still empty prior to calling `enter`. (`create_inherent_inner` should not
 			// alter storage, but just double checking for sanity).
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			assert_eq!(Pallet::<Test>::on_chain_votes(), None);
 			// Call enter with our 2 disputes
@@ -688,7 +688,7 @@ mod enter {
 				.unwrap();
 
 			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			assert_matches!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
@@ -792,7 +792,7 @@ mod enter {
 			assert_eq!(limit_inherent_data.disputes.len(), 2);
 
 			// The current schedule is empty prior to calling `create_inherent_enter`.
-			assert_eq!(<scheduler::Pallet<Test>>::scheduled(), vec![]);
+			assert!(<scheduler::Pallet<Test>>::lookahead_is_empty());
 
 			assert_ok!(Pallet::<Test>::enter(
 				frame_system::RawOrigin::None.into(),
