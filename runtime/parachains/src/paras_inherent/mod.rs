@@ -1185,7 +1185,16 @@ pub(crate) fn assure_sanity_backed_candidates<
 			scheduled_paras_to_core_idx.get(&backed_candidate.descriptor().para_id).cloned()
 		})
 		.collect();
-	assert_eq!(set.len(), backed_candidates.len());
+
+	assert_eq!(
+		set.len(),
+		backed_candidates.len(),
+		"set: {:?}\nbacked_candidates: {:?}\n scheduled_paras_tp_core_idx: {:?}\n lookahead: {:?}",
+		set,
+		backed_candidates,
+		scheduled_paras_to_core_idx,
+		lookahead.len()
+	);
 
 	if !IsSortedBy::is_sorted_by(backed_candidates, |x, y| {
 		// Never panics, since we would have early returned on those in the above loop.

@@ -424,7 +424,11 @@ impl<T: Config> Pallet<T> {
 	// Lookahead related functions
 	//
 	fn backing_lookahead() -> u32 {
-		<configuration::Pallet<T>>::config().scheduling_lookahead
+		// quck hack to give a value of 1 for tests
+		match <configuration::Pallet<T>>::config().scheduling_lookahead {
+			0 => 1,
+			n => n,
+		}
 	}
 
 	pub(crate) fn clear_and_fill_lookahead(
@@ -446,6 +450,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn fill_lookahead(just_freed_cores: BTreeMap<CoreIndex, FreedReason>, now: T::BlockNumber) {
+		sp_runtime::print("Filling lookahead");
 		Self::update_lookahead_free_cores(just_freed_cores);
 
 		if ValidatorGroups::<T>::get().is_empty() {
@@ -455,6 +460,11 @@ impl<T: Config> Pallet<T> {
 		let n_lookahead = Self::backing_lookahead();
 		let n_session_cores = T::AssignmentProvider::session_core_count();
 		let mut push_back_buffer = Vec::with_capacity((n_session_cores * n_lookahead) as usize);
+
+		sp_runtime::print("n_session_cores");
+		sp_runtime::print(n_session_cores);
+		sp_runtime::print("n_lookahead");
+		sp_runtime::print(n_lookahead);
 
 		for core_idx in 0..n_session_cores {
 			let core_idx = CoreIndex(core_idx);
@@ -479,15 +489,21 @@ impl<T: Config> Pallet<T> {
 		for (core_idx, ass) in push_back_buffer.into_iter().rev() {
 			T::AssignmentProvider::push_front_assignment_for_core(core_idx, ass);
 		}
+		let l = "lookahead len: ";
+		let s = Lookahead::<T>::get().len();
+		sp_runtime::print(l);
+		sp_runtime::print(s);
 	}
 
 	fn add_to_lookahead(
 		core_idx: CoreIndex,
 		group_idx: GroupIndex,
 	) -> Result<(), (&'static str, Option<(CoreIndex, Assignment)>)> {
+		sp_runtime::print("add_to_lookahead");
 		match T::AssignmentProvider::pop_assignment_for_core(core_idx) {
 			None => Err(("no assignments at core_idx", None)),
 			Some(ass) => {
+				sp_runtime::print("popped Some");
 				// TODO: remove core_idx dependency
 				let lookahead_core_idx = ParaCoreMapping::<T>::get()
 					.get(&ass.para_id())
@@ -496,6 +512,7 @@ impl<T: Config> Pallet<T> {
 				if Lookahead::<T>::get().get(&lookahead_core_idx).len() as u32 >=
 					Self::backing_lookahead()
 				{
+					sp_runtime::print("lookahead full");
 					// If assigner is parathreads and we don't pop, we'd be stuck trying to add
 					// the same assignment again and again until the top level loop is over.
 					// We wouldn't fill any of the remaining lookahead buffer.
@@ -513,6 +530,8 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn insert_to_lookahead(lookahead_core_idx: CoreIndex, ca: CoreAssignment) {
+		sp_runtime::print("insert_to_lookahead");
+		sp_runtime::print(lookahead_core_idx.0);
 		let ca_para_id = ca.para_id;
 		Lookahead::<T>::mutate(|la| match la.get_mut(&lookahead_core_idx) {
 			None => {

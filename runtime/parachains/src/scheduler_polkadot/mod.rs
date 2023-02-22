@@ -17,6 +17,7 @@
 use frame_support::pallet_prelude::*;
 use primitives::{CoreIndex, CoreOccupied, Id as ParaId};
 use scale_info::TypeInfo;
+use sp_runtime::print;
 
 use crate::{
 	configuration,
@@ -81,10 +82,13 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	}
 
 	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
+		print("pop_assignment_for_core polkadot");
 		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
 		if (0..parachains_cores).contains(&core_idx.0) {
+			print("parachains");
 			<crate::scheduler_parachains::Pallet<T>>::pop_assignment_for_core(core_idx)
 		} else {
+			print("parathreads");
 			let core_idx = CoreIndex(core_idx.0 - parachains_cores);
 			<crate::scheduler_parathreads::Pallet<T>>::pop_assignment_for_core(core_idx)
 		}
