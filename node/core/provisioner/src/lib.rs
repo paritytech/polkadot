@@ -324,12 +324,12 @@ fn note_provisionable_data(
 				.with_para_id(backed_candidate.descriptor().para_id);
 			per_relay_parent.backed_candidates.push(backed_candidate)
 		},
-		// At this time we are not interested in deterring these forms of misbehavior 
-		// or issuing a dispute at the backing stage. A dispute for a candidate triggered 
-		// at any point before the candidate has been made available, including the 
-		// backing stage, can't be guaranteed to conclude. Also candidates which haven't 
-		// been made available don't pose a security risk as they can not be included, 
-		// approved, or finalized. Thus we wait to punish misbehavior until a candidate 
+		// At this time we are not interested in deterring these forms of misbehavior
+		// or issuing a dispute at the backing stage. A dispute for a candidate triggered
+		// at any point before the candidate has been made available, including the
+		// backing stage, can't be guaranteed to conclude. Also candidates which haven't
+		// been made available don't pose a security risk as they can not be included,
+		// approved, or finalized. Thus we wait to punish misbehavior until a candidate
 		// reaches the approval checking stage.
 		ProvisionableData::MisbehaviorReport(_, _, _) => {},
 		ProvisionableData::Dispute(_, _) => {},
