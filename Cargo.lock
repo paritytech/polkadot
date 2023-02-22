@@ -13357,7 +13357,6 @@ dependencies = [
  "sp-std",
  "sp-tracing",
  "sp-transaction-pool",
- "sp-trie",
  "sp-version",
  "substrate-wasm-builder",
  "tiny-keccak",
