@@ -470,6 +470,8 @@ impl pallet_bags_list::Config<VoterBagsListInstance> for Runtime {
 	type Score = sp_npos_elections::VoteWeight;
 }
 
+// NOTE: Changes to `ideal_stake` and `falloff` must also be applied in pallet_staking_runtime_api
+// `inflation_rate`.
 pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
@@ -1697,6 +1699,15 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl pallet_staking_runtime_api::StakingApi<Block, Balance> for Runtime {
+		fn inflation_rate() -> Perquintill {
+			// NOTE: Changes to `ideal_stake` and `falloff` must also be applied in `REWARD_CURVE` config.
+			let ideal_stake = 0_500_000;
+			let falloff = 0_050_000;
+			Staking::api_inflation_rate(
+				Perquintill::from_rational(ideal_stake, 1_000_000),
+				Perquintill::from_rational(falloff, 1_000_000)
+			)
+		}
 		fn nominations_quota(balance: Balance) -> u32 {
 			Staking::api_nominations_quota(balance)
 		}

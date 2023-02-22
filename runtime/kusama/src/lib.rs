@@ -1946,7 +1946,7 @@ sp_api::impl_runtime_apis! {
 		AccountId,
 		Balance,
 	> for Runtime {
-		fn pending_rewards(member: AccountId) -> Balance {
+	fn pending_rewards(member: AccountId) -> Balance {
 			NominationPools::api_pending_rewards(member).unwrap_or_default()
 		}
 
@@ -1960,6 +1960,14 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl pallet_staking_runtime_api::StakingApi<Block, Balance> for Runtime {
+		fn inflation_rate() -> Perquintill {
+			let ideal_stake = 0_750_000;
+			let falloff = 0_050_000;
+			Staking::api_inflation_rate(
+				Perquintill::from_rational(ideal_stake, 1_000_000),
+				Perquintill::from_rational(falloff, 1_000_000)
+			)
+		}
 		fn nominations_quota(balance: Balance) -> u32 {
 			Staking::api_nominations_quota(balance)
 		}
