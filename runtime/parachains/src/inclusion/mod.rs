@@ -373,7 +373,7 @@ pub mod pallet {
 const LOG_TARGET: &str = "runtime::inclusion";
 
 #[derive(derive_more::From)]
-#[cfg_attr(feature= "std", derive(Debug))]
+#[cfg_attr(feature = "std", derive(Debug))]
 enum AcceptanceCheckErr<BlockNumber> {
 	HeadDataTooLarge,
 	PrematureCodeUpgrade,
@@ -829,15 +829,18 @@ impl<T: Config> Pallet<T> {
 		let relay_parent_number = now;
 		let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
-		if check_ctx.check_validation_outputs(
-			para_id,
-			&validation_outputs.head_data,
-			&validation_outputs.new_validation_code,
-			validation_outputs.processed_downward_messages,
-			&validation_outputs.upward_messages,
-			T::BlockNumber::from(validation_outputs.hrmp_watermark),
-			&validation_outputs.horizontal_messages,
-		).is_err() {
+		if check_ctx
+			.check_validation_outputs(
+				para_id,
+				&validation_outputs.head_data,
+				&validation_outputs.new_validation_code,
+				validation_outputs.processed_downward_messages,
+				&validation_outputs.upward_messages,
+				T::BlockNumber::from(validation_outputs.hrmp_watermark),
+				&validation_outputs.horizontal_messages,
+			)
+			.is_err()
+		{
 			log::debug!(
 				target: LOG_TARGET,
 				"Validation outputs checking for parachain `{}` failed",
