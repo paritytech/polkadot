@@ -521,6 +521,7 @@ impl parachains_paras::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = parachains_paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
+	type UmpQueueTracker = ParaInclusion;
 	type NextSessionRotation = Babe;
 }
 
