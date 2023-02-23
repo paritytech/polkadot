@@ -60,8 +60,8 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 		// Proof Size summary in bytes:
 		//  Measured:  `395`
 		//  Estimated: `9500`
-		// Minimum execution time: 58_960 nanoseconds.
-		Weight::from_ref_time(62_852_000)
+		// Minimum execution time: 38_297 nanoseconds.
+		Weight::from_ref_time(39_877_000)
 			.saturating_add(Weight::from_proof_size(9500))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(3))
@@ -86,8 +86,8 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 		// Proof Size summary in bytes:
 		//  Measured:  `407`
 		//  Estimated: `14067`
-		// Minimum execution time: 156_856 nanoseconds.
-		Weight::from_ref_time(166_962_000)
+		// Minimum execution time: 120_799 nanoseconds.
+		Weight::from_ref_time(122_834_000)
 			.saturating_add(Weight::from_proof_size(14067))
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(5))
@@ -104,8 +104,8 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 		// Proof Size summary in bytes:
 		//  Measured:  `786`
 		//  Estimated: `12239`
-		// Minimum execution time: 88_293 nanoseconds.
-		Weight::from_ref_time(95_462_000)
+		// Minimum execution time: 57_140 nanoseconds.
+		Weight::from_ref_time(60_350_000)
 			.saturating_add(Weight::from_proof_size(12239))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(5))
@@ -117,11 +117,11 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 		// Proof Size summary in bytes:
 		//  Measured:  `191 + k * (221 ±0)`
 		//  Estimated: `196 + k * (221 ±0)`
-		// Minimum execution time: 81_682 nanoseconds.
-		Weight::from_ref_time(85_767_000)
+		// Minimum execution time: 43_048 nanoseconds.
+		Weight::from_ref_time(44_356_000)
 			.saturating_add(Weight::from_proof_size(196))
-			// Standard Error: 22_802
-			.saturating_add(Weight::from_ref_time(24_867_092).saturating_mul(k.into()))
+			// Standard Error: 13_657
+			.saturating_add(Weight::from_ref_time(23_438_465).saturating_mul(k.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().reads((2_u64).saturating_mul(k.into())))
 			.saturating_add(T::DbWeight::get().writes(3))
@@ -136,8 +136,8 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 		// Proof Size summary in bytes:
 		//  Measured:  `439`
 		//  Estimated: `5517`
-		// Minimum execution time: 45_806 nanoseconds.
-		Weight::from_ref_time(47_535_000)
+		// Minimum execution time: 29_542 nanoseconds.
+		Weight::from_ref_time(30_270_000)
 			.saturating_add(Weight::from_proof_size(5517))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
@@ -148,8 +148,8 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 		// Proof Size summary in bytes:
 		//  Measured:  `267`
 		//  Estimated: `2742`
-		// Minimum execution time: 30_069 nanoseconds.
-		Weight::from_ref_time(33_023_000)
+		// Minimum execution time: 17_788 nanoseconds.
+		Weight::from_ref_time(18_610_000)
 			.saturating_add(Weight::from_proof_size(2742))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -162,8 +162,8 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 		// Proof Size summary in bytes:
 		//  Measured:  `444`
 		//  Estimated: `5838`
-		// Minimum execution time: 44_455 nanoseconds.
-		Weight::from_ref_time(48_587_000)
+		// Minimum execution time: 28_154 nanoseconds.
+		Weight::from_ref_time(29_374_000)
 			.saturating_add(Weight::from_proof_size(5838))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -176,8 +176,8 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 		// Proof Size summary in bytes:
 		//  Measured:  `271`
 		//  Estimated: `3512`
-		// Minimum execution time: 31_753 nanoseconds.
-		Weight::from_ref_time(33_972_000)
+		// Minimum execution time: 18_958 nanoseconds.
+		Weight::from_ref_time(19_616_000)
 			.saturating_add(Weight::from_proof_size(3512))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -207,11 +207,11 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 		// Proof Size summary in bytes:
 		//  Measured:  `157 + n * (420 ±0)`
 		//  Estimated: `7142 + n * (14663 ±0)`
-		// Minimum execution time: 138_142 nanoseconds.
-		Weight::from_ref_time(33_732_778)
+		// Minimum execution time: 111_938 nanoseconds.
+		Weight::from_ref_time(8_186_190)
 			.saturating_add(Weight::from_proof_size(7142))
-			// Standard Error: 45_472
-			.saturating_add(Weight::from_ref_time(51_638_006).saturating_mul(n.into()))
+			// Standard Error: 26_187
+			.saturating_add(Weight::from_ref_time(49_947_174).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().reads((5_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(3))

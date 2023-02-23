@@ -78,8 +78,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `3468`
 		//  Estimated: `38468`
-		// Minimum execution time: 153_846 nanoseconds.
-		Weight::from_ref_time(159_468_000)
+		// Minimum execution time: 151_380 nanoseconds.
+		Weight::from_ref_time(157_527_000)
 			.saturating_add(Weight::from_proof_size(38468))
 			.saturating_add(T::DbWeight::get().reads(17))
 			.saturating_add(T::DbWeight::get().writes(12))
@@ -106,8 +106,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `3510`
 		//  Estimated: `39063`
-		// Minimum execution time: 150_676 nanoseconds.
-		Weight::from_ref_time(157_238_000)
+		// Minimum execution time: 150_516 nanoseconds.
+		Weight::from_ref_time(156_036_000)
 			.saturating_add(Weight::from_proof_size(39063))
 			.saturating_add(T::DbWeight::get().reads(14))
 			.saturating_add(T::DbWeight::get().writes(12))
@@ -134,8 +134,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `3328`
 		//  Estimated: `36434`
-		// Minimum execution time: 159_013 nanoseconds.
-		Weight::from_ref_time(164_670_000)
+		// Minimum execution time: 158_893 nanoseconds.
+		Weight::from_ref_time(163_370_000)
 			.saturating_add(Weight::from_proof_size(36434))
 			.saturating_add(T::DbWeight::get().reads(13))
 			.saturating_add(T::DbWeight::get().writes(12))
@@ -152,8 +152,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `1155`
 		//  Estimated: `10969`
-		// Minimum execution time: 53_514 nanoseconds.
-		Weight::from_ref_time(57_402_000)
+		// Minimum execution time: 52_641 nanoseconds.
+		Weight::from_ref_time(54_400_000)
 			.saturating_add(Weight::from_proof_size(10969))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(4))
@@ -190,8 +190,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `3748`
 		//  Estimated: `44674`
-		// Minimum execution time: 154_950 nanoseconds.
-		Weight::from_ref_time(161_490_000)
+		// Minimum execution time: 153_158 nanoseconds.
+		Weight::from_ref_time(158_717_000)
 			.saturating_add(Weight::from_proof_size(44674))
 			.saturating_add(T::DbWeight::get().reads(18))
 			.saturating_add(T::DbWeight::get().writes(13))
@@ -211,11 +211,11 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `1672`
 		//  Estimated: `13025`
-		// Minimum execution time: 52_318 nanoseconds.
-		Weight::from_ref_time(55_502_202)
+		// Minimum execution time: 51_833 nanoseconds.
+		Weight::from_ref_time(54_079_654)
 			.saturating_add(Weight::from_proof_size(13025))
-			// Standard Error: 1_686
-			.saturating_add(Weight::from_ref_time(49_497).saturating_mul(s.into()))
+			// Standard Error: 1_123
+			.saturating_add(Weight::from_ref_time(45_345).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -242,11 +242,11 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `2196`
 		//  Estimated: `22991`
-		// Minimum execution time: 98_382 nanoseconds.
-		Weight::from_ref_time(103_145_314)
+		// Minimum execution time: 97_638 nanoseconds.
+		Weight::from_ref_time(101_159_840)
 			.saturating_add(Weight::from_proof_size(22991))
-			// Standard Error: 3_347
-			.saturating_add(Weight::from_ref_time(78_770).saturating_mul(s.into()))
+			// Standard Error: 2_384
+			.saturating_add(Weight::from_ref_time(72_256).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(7))
 	}
@@ -295,8 +295,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `2584`
 		//  Estimated: `46001`
-		// Minimum execution time: 152_879 nanoseconds.
-		Weight::from_ref_time(161_794_066)
+		// Minimum execution time: 152_824 nanoseconds.
+		Weight::from_ref_time(159_557_655)
 			.saturating_add(Weight::from_proof_size(46001))
 			.saturating_add(T::DbWeight::get().reads(20))
 			.saturating_add(T::DbWeight::get().writes(17))
@@ -347,8 +347,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `1220`
 		//  Estimated: `32002`
-		// Minimum execution time: 136_834 nanoseconds.
-		Weight::from_ref_time(142_518_000)
+		// Minimum execution time: 134_694 nanoseconds.
+		Weight::from_ref_time(137_599_000)
 			.saturating_add(Weight::from_proof_size(32002))
 			.saturating_add(T::DbWeight::get().reads(21))
 			.saturating_add(T::DbWeight::get().writes(15))
@@ -382,11 +382,11 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `1805`
 		//  Estimated: `21998 + n * (2520 ±0)`
-		// Minimum execution time: 64_642 nanoseconds.
-		Weight::from_ref_time(66_938_042)
+		// Minimum execution time: 64_238 nanoseconds.
+		Weight::from_ref_time(65_610_125)
 			.saturating_add(Weight::from_proof_size(21998))
-			// Standard Error: 15_681
-			.saturating_add(Weight::from_ref_time(1_300_535).saturating_mul(n.into()))
+			// Standard Error: 8_592
+			.saturating_add(Weight::from_ref_time(1_256_101).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(12))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(5))
@@ -402,8 +402,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `1393`
 		//  Estimated: `8752`
-		// Minimum execution time: 32_041 nanoseconds.
-		Weight::from_ref_time(33_685_000)
+		// Minimum execution time: 32_250 nanoseconds.
+		Weight::from_ref_time(33_416_000)
 			.saturating_add(Weight::from_proof_size(8752))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -415,13 +415,15 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: NominationPools CounterForMetadata (r:1 w:1)
 	/// Proof: NominationPools CounterForMetadata (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	/// The range of component `n` is `[1, 256]`.
-	fn set_metadata(_n: u32, ) -> Weight {
+	fn set_metadata(n: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `525`
 		//  Estimated: `5883`
-		// Minimum execution time: 13_340 nanoseconds.
-		Weight::from_ref_time(14_978_120)
+		// Minimum execution time: 13_248 nanoseconds.
+		Weight::from_ref_time(14_099_681)
 			.saturating_add(Weight::from_proof_size(5883))
+			// Standard Error: 138
+			.saturating_add(Weight::from_ref_time(919).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -439,8 +441,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 4_452 nanoseconds.
-		Weight::from_ref_time(4_946_000)
+		// Minimum execution time: 4_307 nanoseconds.
+		Weight::from_ref_time(4_469_000)
 			.saturating_add(Weight::from_proof_size(0))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -450,8 +452,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `525`
 		//  Estimated: `2639`
-		// Minimum execution time: 18_163 nanoseconds.
-		Weight::from_ref_time(20_044_000)
+		// Minimum execution time: 18_126 nanoseconds.
+		Weight::from_ref_time(18_669_000)
 			.saturating_add(Weight::from_proof_size(2639))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -478,8 +480,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		// Proof Size summary in bytes:
 		//  Measured:  `2032`
 		//  Estimated: `20489`
-		// Minimum execution time: 65_173 nanoseconds.
-		Weight::from_ref_time(68_734_000)
+		// Minimum execution time: 63_950 nanoseconds.
+		Weight::from_ref_time(65_655_000)
 			.saturating_add(Weight::from_proof_size(20489))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(5))

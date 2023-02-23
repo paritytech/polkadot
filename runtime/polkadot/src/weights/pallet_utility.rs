@@ -53,18 +53,18 @@ impl<T: frame_system::Config> pallet_utility::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 5_447 nanoseconds.
-		Weight::from_ref_time(5_764_000)
+		// Minimum execution time: 5_693 nanoseconds.
+		Weight::from_ref_time(9_449_069)
 			.saturating_add(Weight::from_proof_size(0))
-			// Standard Error: 1_803
-			.saturating_add(Weight::from_ref_time(4_318_998).saturating_mul(c.into()))
+			// Standard Error: 2_569
+			.saturating_add(Weight::from_ref_time(4_328_984).saturating_mul(c.into()))
 	}
 	fn as_derivative() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 4_010 nanoseconds.
-		Weight::from_ref_time(4_194_000)
+		// Minimum execution time: 4_016 nanoseconds.
+		Weight::from_ref_time(4_216_000)
 			.saturating_add(Weight::from_proof_size(0))
 	}
 	/// The range of component `c` is `[0, 1000]`.
@@ -72,18 +72,18 @@ impl<T: frame_system::Config> pallet_utility::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 5_488 nanoseconds.
-		Weight::from_ref_time(12_785_260)
+		// Minimum execution time: 5_514 nanoseconds.
+		Weight::from_ref_time(7_269_319)
 			.saturating_add(Weight::from_proof_size(0))
-			// Standard Error: 2_459
-			.saturating_add(Weight::from_ref_time(4_479_374).saturating_mul(c.into()))
+			// Standard Error: 2_464
+			.saturating_add(Weight::from_ref_time(4_542_785).saturating_mul(c.into()))
 	}
 	fn dispatch_as() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 7_248 nanoseconds.
-		Weight::from_ref_time(7_590_000)
+		// Minimum execution time: 7_537 nanoseconds.
+		Weight::from_ref_time(7_815_000)
 			.saturating_add(Weight::from_proof_size(0))
 	}
 	/// The range of component `c` is `[0, 1000]`.
@@ -91,10 +91,10 @@ impl<T: frame_system::Config> pallet_utility::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 5_753 nanoseconds.
-		Weight::from_ref_time(6_020_000)
+		// Minimum execution time: 5_797 nanoseconds.
+		Weight::from_ref_time(11_544_385)
 			.saturating_add(Weight::from_proof_size(0))
-			// Standard Error: 2_299
-			.saturating_add(Weight::from_ref_time(4_286_298).saturating_mul(c.into()))
+			// Standard Error: 2_871
+			.saturating_add(Weight::from_ref_time(4_297_370).saturating_mul(c.into()))
 	}
 }

@@ -68,8 +68,8 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 		// Proof Size summary in bytes:
 		//  Measured:  `993`
 		//  Estimated: `6982`
-		// Minimum execution time: 19_460 nanoseconds.
-		Weight::from_ref_time(20_123_000)
+		// Minimum execution time: 20_052 nanoseconds.
+		Weight::from_ref_time(20_481_000)
 			.saturating_add(Weight::from_proof_size(6982))
 			.saturating_add(T::DbWeight::get().reads(8))
 	}
@@ -81,8 +81,8 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 		// Proof Size summary in bytes:
 		//  Measured:  `114`
 		//  Estimated: `1218`
-		// Minimum execution time: 11_210 nanoseconds.
-		Weight::from_ref_time(11_432_000)
+		// Minimum execution time: 10_994 nanoseconds.
+		Weight::from_ref_time(11_427_000)
 			.saturating_add(Weight::from_proof_size(1218))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -95,8 +95,8 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 		// Proof Size summary in bytes:
 		//  Measured:  `114`
 		//  Estimated: `1218`
-		// Minimum execution time: 12_112 nanoseconds.
-		Weight::from_ref_time(12_525_000)
+		// Minimum execution time: 12_053 nanoseconds.
+		Weight::from_ref_time(12_494_000)
 			.saturating_add(Weight::from_proof_size(1218))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -109,8 +109,8 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 		// Proof Size summary in bytes:
 		//  Measured:  `206`
 		//  Estimated: `2809`
-		// Minimum execution time: 23_319 nanoseconds.
-		Weight::from_ref_time(24_261_000)
+		// Minimum execution time: 23_092 nanoseconds.
+		Weight::from_ref_time(23_702_000)
 			.saturating_add(Weight::from_proof_size(2809))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(2))
@@ -121,8 +121,8 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 		// Proof Size summary in bytes:
 		//  Measured:  `206`
 		//  Estimated: `2603`
-		// Minimum execution time: 16_269 nanoseconds.
-		Weight::from_ref_time(16_771_000)
+		// Minimum execution time: 16_592 nanoseconds.
+		Weight::from_ref_time(17_005_000)
 			.saturating_add(Weight::from_proof_size(2603))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -135,15 +135,17 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	/// Proof Skipped: ElectionProviderMultiPhase Snapshot (max_values: Some(1), max_size: None, mode: Measured)
 	/// The range of component `v` is `[1000, 2000]`.
 	/// The range of component `t` is `[500, 1000]`.
-	fn create_snapshot_internal(v: u32, _t: u32, ) -> Weight {
+	fn create_snapshot_internal(v: u32, t: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 563_667 nanoseconds.
-		Weight::from_ref_time(596_124_000)
+		// Minimum execution time: 478_277 nanoseconds.
+		Weight::from_ref_time(25_182_841)
 			.saturating_add(Weight::from_proof_size(0))
-			// Standard Error: 3_048
-			.saturating_add(Weight::from_ref_time(338_136).saturating_mul(v.into()))
+			// Standard Error: 4_511
+			.saturating_add(Weight::from_ref_time(399_863).saturating_mul(v.into()))
+			// Standard Error: 9_019
+			.saturating_add(Weight::from_ref_time(81_280).saturating_mul(t.into()))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
 	/// Storage: ElectionProviderMultiPhase SignedSubmissionIndices (r:1 w:1)
@@ -170,15 +172,15 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	/// The range of component `d` is `[200, 400]`.
 	fn elect_queued(a: u32, d: u32, ) -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `368 + a * (768 ±0) + d * (48 ±0)`
-		//  Estimated: `10083 + a * (6912 ±0) + d * (441 ±0)`
-		// Minimum execution time: 417_606 nanoseconds.
-		Weight::from_ref_time(54_476_163)
-			.saturating_add(Weight::from_proof_size(10083))
-			// Standard Error: 6_051
-			.saturating_add(Weight::from_ref_time(636_356).saturating_mul(a.into()))
-			// Standard Error: 9_071
-			.saturating_add(Weight::from_ref_time(194_077).saturating_mul(d.into()))
+		//  Measured:  `369 + a * (768 ±0) + d * (48 ±0)`
+		//  Estimated: `10092 + a * (6912 ±0) + d * (441 ±0)`
+		// Minimum execution time: 311_075 nanoseconds.
+		Weight::from_ref_time(169_931_505)
+			.saturating_add(Weight::from_proof_size(10092))
+			// Standard Error: 12_428
+			.saturating_add(Weight::from_ref_time(387_634).saturating_mul(a.into()))
+			// Standard Error: 18_630
+			.saturating_add(Weight::from_ref_time(90_631).saturating_mul(d.into()))
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(9))
 			.saturating_add(Weight::from_proof_size(6912).saturating_mul(a.into()))
@@ -200,8 +202,8 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 		// Proof Size summary in bytes:
 		//  Measured:  `1236`
 		//  Estimated: `8671`
-		// Minimum execution time: 42_536 nanoseconds.
-		Weight::from_ref_time(43_994_000)
+		// Minimum execution time: 41_706 nanoseconds.
+		Weight::from_ref_time(43_732_000)
 			.saturating_add(Weight::from_proof_size(8671))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(3))
@@ -228,13 +230,13 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 		// Proof Size summary in bytes:
 		//  Measured:  `251 + v * (553 ±0) + t * (32 ±0)`
 		//  Estimated: `5222 + v * (3871 ±0) + t * (224 ±0)`
-		// Minimum execution time: 5_890_867 nanoseconds.
-		Weight::from_ref_time(6_037_492_000)
+		// Minimum execution time: 5_418_901 nanoseconds.
+		Weight::from_ref_time(5_627_918_000)
 			.saturating_add(Weight::from_proof_size(5222))
-			// Standard Error: 20_287
-			.saturating_add(Weight::from_ref_time(145_845).saturating_mul(v.into()))
-			// Standard Error: 60_118
-			.saturating_add(Weight::from_ref_time(5_851_997).saturating_mul(a.into()))
+			// Standard Error: 24_665
+			.saturating_add(Weight::from_ref_time(218_383).saturating_mul(v.into()))
+			// Standard Error: 73_093
+			.saturating_add(Weight::from_ref_time(5_768_036).saturating_mul(a.into()))
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(1))
 			.saturating_add(Weight::from_proof_size(3871).saturating_mul(v.into()))
@@ -252,17 +254,19 @@ impl<T: frame_system::Config> pallet_election_provider_multi_phase::WeightInfo f
 	/// The range of component `t` is `[500, 1000]`.
 	/// The range of component `a` is `[500, 800]`.
 	/// The range of component `d` is `[200, 400]`.
-	fn feasibility_check(v: u32, t: u32, a: u32, _d: u32, ) -> Weight {
+	fn feasibility_check(v: u32, t: u32, a: u32, d: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `226 + v * (553 ±0) + t * (32 ±0)`
 		//  Estimated: `2884 + v * (2212 ±0) + t * (128 ±0)`
-		// Minimum execution time: 4_836_535 nanoseconds.
-		Weight::from_ref_time(5_016_026_000)
+		// Minimum execution time: 4_417_839 nanoseconds.
+		Weight::from_ref_time(151_634_269)
 			.saturating_add(Weight::from_proof_size(2884))
-			// Standard Error: 15_615
-			.saturating_add(Weight::from_ref_time(333_067).saturating_mul(v.into()))
-			// Standard Error: 46_274
-			.saturating_add(Weight::from_ref_time(3_334_866).saturating_mul(a.into()))
+			// Standard Error: 12_899
+			.saturating_add(Weight::from_ref_time(512_631).saturating_mul(v.into()))
+			// Standard Error: 42_939
+			.saturating_add(Weight::from_ref_time(5_823_171).saturating_mul(a.into()))
+			// Standard Error: 64_358
+			.saturating_add(Weight::from_ref_time(2_026_530).saturating_mul(d.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(Weight::from_proof_size(2212).saturating_mul(v.into()))
 			.saturating_add(Weight::from_proof_size(128).saturating_mul(t.into()))

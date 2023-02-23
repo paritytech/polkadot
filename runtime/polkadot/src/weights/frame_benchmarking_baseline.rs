@@ -53,8 +53,8 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 117 nanoseconds.
-		Weight::from_ref_time(162_569)
+		// Minimum execution time: 155 nanoseconds.
+		Weight::from_ref_time(199_257)
 			.saturating_add(Weight::from_proof_size(0))
 	}
 	/// The range of component `i` is `[0, 1000000]`.
@@ -62,8 +62,8 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 114 nanoseconds.
-		Weight::from_ref_time(162_425)
+		// Minimum execution time: 155 nanoseconds.
+		Weight::from_ref_time(202_839)
 			.saturating_add(Weight::from_proof_size(0))
 	}
 	/// The range of component `i` is `[0, 1000000]`.
@@ -71,8 +71,8 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 114 nanoseconds.
-		Weight::from_ref_time(163_586)
+		// Minimum execution time: 168 nanoseconds.
+		Weight::from_ref_time(205_911)
 			.saturating_add(Weight::from_proof_size(0))
 	}
 	/// The range of component `i` is `[0, 1000000]`.
@@ -80,16 +80,16 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 115 nanoseconds.
-		Weight::from_ref_time(159_511)
+		// Minimum execution time: 167 nanoseconds.
+		Weight::from_ref_time(205_863)
 			.saturating_add(Weight::from_proof_size(0))
 	}
 	fn hashing() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 24_645_571 nanoseconds.
-		Weight::from_ref_time(24_671_328_000)
+		// Minimum execution time: 24_717_832 nanoseconds.
+		Weight::from_ref_time(24_736_877_000)
 			.saturating_add(Weight::from_proof_size(0))
 	}
 	/// The range of component `i` is `[0, 100]`.
@@ -97,10 +97,10 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 182 nanoseconds.
-		Weight::from_ref_time(1_902_192)
+		// Minimum execution time: 186 nanoseconds.
+		Weight::from_ref_time(3_123_207)
 			.saturating_add(Weight::from_proof_size(0))
-			// Standard Error: 6_733
-			.saturating_add(Weight::from_ref_time(55_529_989).saturating_mul(i.into()))
+			// Standard Error: 6_358
+			.saturating_add(Weight::from_ref_time(55_734_636).saturating_mul(i.into()))
 	}
 }

@@ -94,14 +94,14 @@ impl<T: frame_system::Config> pallet_offences::WeightInfo for WeightInfo<T> {
 	fn report_offence_im_online(_r: u32, o: u32, n: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0 + o * (1138 ±0) + n * (3454 ±0)`
-		//  Estimated: `316158 + o * (101513 ±0) + n * (481567 ±41)`
-		// Minimum execution time: 467_398 nanoseconds.
-		Weight::from_ref_time(473_659_000)
+		//  Estimated: `316158 + o * (101513 ±6) + n * (481567 ±41)`
+		// Minimum execution time: 462_530 nanoseconds.
+		Weight::from_ref_time(463_729_000)
 			.saturating_add(Weight::from_proof_size(316158))
-			// Standard Error: 3_658_178
-			.saturating_add(Weight::from_ref_time(354_472_691).saturating_mul(o.into()))
-			// Standard Error: 22_228_737
-			.saturating_add(Weight::from_ref_time(325_620_316).saturating_mul(n.into()))
+			// Standard Error: 3_207_756
+			.saturating_add(Weight::from_ref_time(322_787_535).saturating_mul(o.into()))
+			// Standard Error: 19_491_766
+			.saturating_add(Weight::from_ref_time(254_899_504).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(125))
 			.saturating_add(T::DbWeight::get().reads((37_u64).saturating_mul(o.into())))
 			.saturating_add(T::DbWeight::get().reads((187_u64).saturating_mul(n.into())))
@@ -156,11 +156,11 @@ impl<T: frame_system::Config> pallet_offences::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `1869 + n * (66 ±0)`
 		//  Estimated: `50870 + n * (8150 ±0)`
-		// Minimum execution time: 88_138 nanoseconds.
-		Weight::from_ref_time(100_787_072)
+		// Minimum execution time: 88_814 nanoseconds.
+		Weight::from_ref_time(101_198_049)
 			.saturating_add(Weight::from_proof_size(50870))
-			// Standard Error: 33_113
-			.saturating_add(Weight::from_ref_time(9_575_345).saturating_mul(n.into()))
+			// Standard Error: 29_057
+			.saturating_add(Weight::from_ref_time(9_346_872).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(20))
 			.saturating_add(T::DbWeight::get().reads((3_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(14))
@@ -212,11 +212,11 @@ impl<T: frame_system::Config> pallet_offences::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `1869 + n * (66 ±0)`
 		//  Estimated: `50870 + n * (8150 ±0)`
-		// Minimum execution time: 87_881 nanoseconds.
-		Weight::from_ref_time(99_635_829)
+		// Minimum execution time: 88_328 nanoseconds.
+		Weight::from_ref_time(100_343_495)
 			.saturating_add(Weight::from_proof_size(50870))
-			// Standard Error: 34_363
-			.saturating_add(Weight::from_ref_time(9_774_226).saturating_mul(n.into()))
+			// Standard Error: 29_114
+			.saturating_add(Weight::from_ref_time(9_466_628).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(20))
 			.saturating_add(T::DbWeight::get().reads((3_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(14))

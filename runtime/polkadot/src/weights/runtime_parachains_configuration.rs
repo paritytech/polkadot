@@ -60,8 +60,8 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 		// Proof Size summary in bytes:
 		//  Measured:  `349`
 		//  Estimated: `3376`
-		// Minimum execution time: 11_640 nanoseconds.
-		Weight::from_ref_time(12_151_000)
+		// Minimum execution time: 11_906 nanoseconds.
+		Weight::from_ref_time(12_513_000)
 			.saturating_add(Weight::from_proof_size(3376))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -78,8 +78,8 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 		// Proof Size summary in bytes:
 		//  Measured:  `349`
 		//  Estimated: `3376`
-		// Minimum execution time: 11_748 nanoseconds.
-		Weight::from_ref_time(12_205_000)
+		// Minimum execution time: 12_189 nanoseconds.
+		Weight::from_ref_time(12_452_000)
 			.saturating_add(Weight::from_proof_size(3376))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -96,8 +96,8 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 		// Proof Size summary in bytes:
 		//  Measured:  `349`
 		//  Estimated: `3376`
-		// Minimum execution time: 11_667 nanoseconds.
-		Weight::from_ref_time(12_394_000)
+		// Minimum execution time: 11_916 nanoseconds.
+		Weight::from_ref_time(12_530_000)
 			.saturating_add(Weight::from_proof_size(3376))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -114,8 +114,8 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 		// Proof Size summary in bytes:
 		//  Measured:  `349`
 		//  Estimated: `3376`
-		// Minimum execution time: 11_602 nanoseconds.
-		Weight::from_ref_time(12_333_000)
+		// Minimum execution time: 12_065 nanoseconds.
+		Weight::from_ref_time(12_642_000)
 			.saturating_add(Weight::from_proof_size(3376))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -142,8 +142,8 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 		// Proof Size summary in bytes:
 		//  Measured:  `349`
 		//  Estimated: `3376`
-		// Minimum execution time: 11_762 nanoseconds.
-		Weight::from_ref_time(12_481_000)
+		// Minimum execution time: 11_895 nanoseconds.
+		Weight::from_ref_time(12_584_000)
 			.saturating_add(Weight::from_proof_size(3376))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(1))

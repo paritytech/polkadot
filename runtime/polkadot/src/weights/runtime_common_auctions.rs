@@ -56,8 +56,8 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 		// Proof Size summary in bytes:
 		//  Measured:  `4`
 		//  Estimated: `1002`
-		// Minimum execution time: 11_714 nanoseconds.
-		Weight::from_ref_time(12_286_000)
+		// Minimum execution time: 12_145 nanoseconds.
+		Weight::from_ref_time(12_487_000)
 			.saturating_add(Weight::from_proof_size(1002))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
@@ -80,8 +80,8 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 		// Proof Size summary in bytes:
 		//  Measured:  `725`
 		//  Estimated: `19470`
-		// Minimum execution time: 94_535 nanoseconds.
-		Weight::from_ref_time(106_674_000)
+		// Minimum execution time: 70_002 nanoseconds.
+		Weight::from_ref_time(75_580_000)
 			.saturating_add(Weight::from_proof_size(19470))
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(4))
@@ -114,8 +114,8 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 		// Proof Size summary in bytes:
 		//  Measured:  `7060445`
 		//  Estimated: `51339005`
-		// Minimum execution time: 20_480_545 nanoseconds.
-		Weight::from_ref_time(20_903_114_000)
+		// Minimum execution time: 18_881_585 nanoseconds.
+		Weight::from_ref_time(19_234_723_000)
 			.saturating_add(Weight::from_proof_size(51339005))
 			.saturating_add(T::DbWeight::get().reads(3688))
 			.saturating_add(T::DbWeight::get().writes(3683))
@@ -124,18 +124,18 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 	/// Proof: Auctions ReservedAmounts (max_values: None, max_size: Some(60), added: 2535, mode: MaxEncodedLen)
 	/// Storage: System Account (r:36 w:36)
 	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
-	/// Storage: Auctions Winning (r:0 w:3600)
+	/// Storage: Auctions Winning (r:3600 w:3600)
 	/// Proof: Auctions Winning (max_values: None, max_size: Some(1920), added: 4395, mode: MaxEncodedLen)
 	/// Storage: Auctions AuctionInfo (r:0 w:1)
 	/// Proof: Auctions AuctionInfo (max_values: Some(1), max_size: Some(8), added: 503, mode: MaxEncodedLen)
 	fn cancel_auction() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `178884`
-		//  Estimated: `187503`
-		// Minimum execution time: 6_336_585 nanoseconds.
-		Weight::from_ref_time(6_596_780_000)
-			.saturating_add(Weight::from_proof_size(187503))
-			.saturating_add(T::DbWeight::get().reads(73))
+		//  Estimated: `16009503`
+		// Minimum execution time: 5_528_957 nanoseconds.
+		Weight::from_ref_time(5_660_910_000)
+			.saturating_add(Weight::from_proof_size(16009503))
+			.saturating_add(T::DbWeight::get().reads(3673))
 			.saturating_add(T::DbWeight::get().writes(3673))
 	}
 }

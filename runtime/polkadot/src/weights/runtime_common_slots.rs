@@ -56,8 +56,8 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 		// Proof Size summary in bytes:
 		//  Measured:  `252`
 		//  Estimated: `5330`
-		// Minimum execution time: 22_987 nanoseconds.
-		Weight::from_ref_time(23_838_000)
+		// Minimum execution time: 23_494 nanoseconds.
+		Weight::from_ref_time(24_574_000)
 			.saturating_add(Weight::from_proof_size(5330))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
@@ -79,14 +79,14 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 	fn manage_lease_period_start(c: u32, t: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `7 + c * (47 ±0) + t * (370 ±0)`
-		//  Estimated: `268843 + c * (1073 ±28) + t * (7960 ±28)`
-		// Minimum execution time: 678_562 nanoseconds.
-		Weight::from_ref_time(702_117_000)
+		//  Estimated: `268843 + c * (1073 ±0) + t * (7960 ±0)`
+		// Minimum execution time: 659_770 nanoseconds.
+		Weight::from_ref_time(669_391_000)
 			.saturating_add(Weight::from_proof_size(268843))
-			// Standard Error: 84_579
-			.saturating_add(Weight::from_ref_time(2_919_124).saturating_mul(c.into()))
-			// Standard Error: 84_579
-			.saturating_add(Weight::from_ref_time(16_398_492).saturating_mul(t.into()))
+			// Standard Error: 82_910
+			.saturating_add(Weight::from_ref_time(2_776_419).saturating_mul(c.into()))
+			// Standard Error: 82_910
+			.saturating_add(Weight::from_ref_time(15_523_815).saturating_mul(t.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(c.into())))
 			.saturating_add(T::DbWeight::get().reads((3_u64).saturating_mul(t.into())))
@@ -104,8 +104,8 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 		// Proof Size summary in bytes:
 		//  Measured:  `2980`
 		//  Estimated: `26279`
-		// Minimum execution time: 122_527 nanoseconds.
-		Weight::from_ref_time(130_976_000)
+		// Minimum execution time: 100_634 nanoseconds.
+		Weight::from_ref_time(103_293_000)
 			.saturating_add(Weight::from_proof_size(26279))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(9))
@@ -124,8 +124,8 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 		// Proof Size summary in bytes:
 		//  Measured:  `644`
 		//  Estimated: `13615`
-		// Minimum execution time: 42_433 nanoseconds.
-		Weight::from_ref_time(46_903_000)
+		// Minimum execution time: 29_206 nanoseconds.
+		Weight::from_ref_time(30_011_000)
 			.saturating_add(Weight::from_proof_size(13615))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(3))

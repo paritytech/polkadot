@@ -66,13 +66,13 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `0 + m * (3233 ±0) + p * (3223 ±0)`
 		//  Estimated: `16342 + m * (7809 ±16) + p * (10238 ±16)`
-		// Minimum execution time: 16_568 nanoseconds.
-		Weight::from_ref_time(17_001_000)
+		// Minimum execution time: 16_637 nanoseconds.
+		Weight::from_ref_time(17_096_000)
 			.saturating_add(Weight::from_proof_size(16342))
-			// Standard Error: 43_049
-			.saturating_add(Weight::from_ref_time(4_832_507).saturating_mul(m.into()))
-			// Standard Error: 43_049
-			.saturating_add(Weight::from_ref_time(8_147_128).saturating_mul(p.into()))
+			// Standard Error: 46_747
+			.saturating_add(Weight::from_ref_time(5_116_383).saturating_mul(m.into()))
+			// Standard Error: 46_747
+			.saturating_add(Weight::from_ref_time(8_481_047).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(p.into())))
 			.saturating_add(T::DbWeight::get().writes(2))
@@ -90,13 +90,13 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `173 + m * (32 ±0)`
 		//  Estimated: `669 + m * (32 ±0)`
-		// Minimum execution time: 15_136 nanoseconds.
-		Weight::from_ref_time(14_593_445)
+		// Minimum execution time: 15_158 nanoseconds.
+		Weight::from_ref_time(14_569_498)
 			.saturating_add(Weight::from_proof_size(669))
-			// Standard Error: 25
-			.saturating_add(Weight::from_ref_time(2_098).saturating_mul(b.into()))
-			// Standard Error: 266
-			.saturating_add(Weight::from_ref_time(12_465).saturating_mul(m.into()))
+			// Standard Error: 13
+			.saturating_add(Weight::from_ref_time(2_006).saturating_mul(b.into()))
+			// Standard Error: 138
+			.saturating_add(Weight::from_ref_time(12_679).saturating_mul(m.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(Weight::from_proof_size(32).saturating_mul(m.into()))
 	}
@@ -112,13 +112,13 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `173 + m * (32 ±0)`
 		//  Estimated: `3318 + m * (64 ±0)`
-		// Minimum execution time: 18_087 nanoseconds.
-		Weight::from_ref_time(17_076_362)
+		// Minimum execution time: 18_130 nanoseconds.
+		Weight::from_ref_time(16_851_600)
 			.saturating_add(Weight::from_proof_size(3318))
-			// Standard Error: 25
-			.saturating_add(Weight::from_ref_time(1_812).saturating_mul(b.into()))
-			// Standard Error: 260
-			.saturating_add(Weight::from_ref_time(19_117).saturating_mul(m.into()))
+			// Standard Error: 15
+			.saturating_add(Weight::from_ref_time(1_932).saturating_mul(b.into()))
+			// Standard Error: 160
+			.saturating_add(Weight::from_ref_time(20_604).saturating_mul(m.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(Weight::from_proof_size(64).saturating_mul(m.into()))
 	}
@@ -142,15 +142,15 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `495 + m * (32 ±0) + p * (36 ±0)`
 		//  Estimated: `6050 + m * (165 ±0) + p * (180 ±0)`
-		// Minimum execution time: 23_562 nanoseconds.
-		Weight::from_ref_time(23_006_759)
+		// Minimum execution time: 24_162 nanoseconds.
+		Weight::from_ref_time(23_605_696)
 			.saturating_add(Weight::from_proof_size(6050))
 			// Standard Error: 67
-			.saturating_add(Weight::from_ref_time(3_747).saturating_mul(b.into()))
-			// Standard Error: 709
-			.saturating_add(Weight::from_ref_time(22_422).saturating_mul(m.into()))
-			// Standard Error: 700
-			.saturating_add(Weight::from_ref_time(163_694).saturating_mul(p.into()))
+			.saturating_add(Weight::from_ref_time(3_624).saturating_mul(b.into()))
+			// Standard Error: 699
+			.saturating_add(Weight::from_ref_time(22_772).saturating_mul(m.into()))
+			// Standard Error: 690
+			.saturating_add(Weight::from_ref_time(155_630).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(4))
 			.saturating_add(Weight::from_proof_size(165).saturating_mul(m.into()))
@@ -166,11 +166,11 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `945 + m * (64 ±0)`
 		//  Estimated: `4858 + m * (128 ±0)`
-		// Minimum execution time: 25_610 nanoseconds.
-		Weight::from_ref_time(27_202_909)
+		// Minimum execution time: 25_695 nanoseconds.
+		Weight::from_ref_time(26_948_144)
 			.saturating_add(Weight::from_proof_size(4858))
-			// Standard Error: 619
-			.saturating_add(Weight::from_ref_time(51_922).saturating_mul(m.into()))
+			// Standard Error: 500
+			.saturating_add(Weight::from_ref_time(46_045).saturating_mul(m.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 			.saturating_add(Weight::from_proof_size(128).saturating_mul(m.into()))
@@ -191,13 +191,13 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `565 + m * (64 ±0) + p * (36 ±0)`
 		//  Estimated: `5649 + m * (260 ±0) + p * (144 ±0)`
-		// Minimum execution time: 25_357 nanoseconds.
-		Weight::from_ref_time(26_105_340)
+		// Minimum execution time: 26_112 nanoseconds.
+		Weight::from_ref_time(26_612_070)
 			.saturating_add(Weight::from_proof_size(5649))
-			// Standard Error: 701
-			.saturating_add(Weight::from_ref_time(33_297).saturating_mul(m.into()))
-			// Standard Error: 683
-			.saturating_add(Weight::from_ref_time(161_930).saturating_mul(p.into()))
+			// Standard Error: 640
+			.saturating_add(Weight::from_ref_time(33_160).saturating_mul(m.into()))
+			// Standard Error: 624
+			.saturating_add(Weight::from_ref_time(150_442).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 			.saturating_add(Weight::from_proof_size(260).saturating_mul(m.into()))
@@ -221,15 +221,15 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `901 + b * (1 ±0) + m * (64 ±0) + p * (40 ±0)`
 		//  Estimated: `8920 + b * (4 ±0) + m * (264 ±0) + p * (160 ±0)`
-		// Minimum execution time: 36_562 nanoseconds.
-		Weight::from_ref_time(35_121_018)
+		// Minimum execution time: 37_004 nanoseconds.
+		Weight::from_ref_time(35_545_585)
 			.saturating_add(Weight::from_proof_size(8920))
-			// Standard Error: 132
-			.saturating_add(Weight::from_ref_time(4_560).saturating_mul(b.into()))
-			// Standard Error: 1_400
-			.saturating_add(Weight::from_ref_time(40_492).saturating_mul(m.into()))
-			// Standard Error: 1_365
-			.saturating_add(Weight::from_ref_time(236_015).saturating_mul(p.into()))
+			// Standard Error: 126
+			.saturating_add(Weight::from_ref_time(4_362).saturating_mul(b.into()))
+			// Standard Error: 1_335
+			.saturating_add(Weight::from_ref_time(39_673).saturating_mul(m.into()))
+			// Standard Error: 1_301
+			.saturating_add(Weight::from_ref_time(203_582).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(3))
 			.saturating_add(Weight::from_proof_size(4).saturating_mul(b.into()))
@@ -254,13 +254,13 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `585 + m * (64 ±0) + p * (36 ±0)`
 		//  Estimated: `6790 + m * (325 ±0) + p * (180 ±0)`
-		// Minimum execution time: 28_740 nanoseconds.
-		Weight::from_ref_time(27_875_646)
+		// Minimum execution time: 29_364 nanoseconds.
+		Weight::from_ref_time(29_626_115)
 			.saturating_add(Weight::from_proof_size(6790))
-			// Standard Error: 717
-			.saturating_add(Weight::from_ref_time(43_817).saturating_mul(m.into()))
-			// Standard Error: 699
-			.saturating_add(Weight::from_ref_time(168_648).saturating_mul(p.into()))
+			// Standard Error: 702
+			.saturating_add(Weight::from_ref_time(35_539).saturating_mul(m.into()))
+			// Standard Error: 684
+			.saturating_add(Weight::from_ref_time(152_498).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(3))
 			.saturating_add(Weight::from_proof_size(325).saturating_mul(m.into()))
@@ -286,15 +286,15 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `921 + b * (1 ±0) + m * (64 ±0) + p * (40 ±0)`
 		//  Estimated: `10260 + b * (5 ±0) + m * (330 ±0) + p * (200 ±0)`
-		// Minimum execution time: 38_893 nanoseconds.
-		Weight::from_ref_time(37_293_980)
+		// Minimum execution time: 39_790 nanoseconds.
+		Weight::from_ref_time(41_140_981)
 			.saturating_add(Weight::from_proof_size(10260))
-			// Standard Error: 132
-			.saturating_add(Weight::from_ref_time(4_121).saturating_mul(b.into()))
-			// Standard Error: 1_399
-			.saturating_add(Weight::from_ref_time(47_083).saturating_mul(m.into()))
-			// Standard Error: 1_364
-			.saturating_add(Weight::from_ref_time(240_286).saturating_mul(p.into()))
+			// Standard Error: 114
+			.saturating_add(Weight::from_ref_time(3_504).saturating_mul(b.into()))
+			// Standard Error: 1_211
+			.saturating_add(Weight::from_ref_time(26_830).saturating_mul(m.into()))
+			// Standard Error: 1_180
+			.saturating_add(Weight::from_ref_time(195_305).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(3))
 			.saturating_add(Weight::from_proof_size(5).saturating_mul(b.into()))
@@ -313,11 +313,11 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		// Proof Size summary in bytes:
 		//  Measured:  `330 + p * (32 ±0)`
 		//  Estimated: `1485 + p * (96 ±0)`
-		// Minimum execution time: 14_842 nanoseconds.
-		Weight::from_ref_time(16_496_911)
+		// Minimum execution time: 14_572 nanoseconds.
+		Weight::from_ref_time(16_691_152)
 			.saturating_add(Weight::from_proof_size(1485))
-			// Standard Error: 704
-			.saturating_add(Weight::from_ref_time(142_120).saturating_mul(p.into()))
+			// Standard Error: 640
+			.saturating_add(Weight::from_ref_time(133_624).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(3))
 			.saturating_add(Weight::from_proof_size(96).saturating_mul(p.into()))
