@@ -511,6 +511,7 @@ impl pallet_bags_list::Config<VoterBagsListInstance> for Runtime {
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
 // re-built in case input parameters have changed. The `ideal_stake` should be determined by the
 // amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
+// NOTE: Changes to `ideal_stake` and `falloff` must also be applied in constants::inflation.
 pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
