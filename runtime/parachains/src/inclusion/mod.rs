@@ -43,7 +43,9 @@ use primitives::{
 };
 use scale_info::TypeInfo;
 use sp_runtime::{traits::One, DispatchError, SaturatedConversion};
-use sp_std::{collections::btree_set::BTreeSet, fmt, prelude::*};
+#[cfg(feature = "std")]
+use sp_std::fmt;
+use sp_std::{collections::btree_set::BTreeSet, prelude::*};
 
 pub use pallet::*;
 
@@ -995,9 +997,9 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
-	pub(crate) fn receive_bounded_upward_messages<'a>(
+	pub(crate) fn receive_bounded_upward_messages(
 		para: ParaId,
-		messages: Vec<BoundedSlice<'a, u8, MaxUmpMessageLen<T>>>,
+		messages: Vec<BoundedSlice<'_, u8, MaxUmpMessageLen<T>>>,
 	) -> Weight {
 		let count = messages.len() as u32;
 		if count == 0 {
