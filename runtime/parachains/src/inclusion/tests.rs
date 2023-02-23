@@ -29,7 +29,9 @@ use crate::{
 use assert_matches::assert_matches;
 use frame_support::assert_noop;
 use futures::executor::block_on;
+use hex_literal::hex;
 use keyring::Sr25519Keyring;
+use parity_scale_codec::DecodeAll;
 use primitives::{
 	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
 	CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
@@ -43,8 +45,6 @@ use test_helpers::{
 	dummy_candidate_receipt, dummy_collator, dummy_collator_signature, dummy_hash,
 	dummy_validation_code,
 };
-use hex_literal::hex;
-use parity_scale_codec::DecodeAll;
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();

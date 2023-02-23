@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	inclusion::{UmpAcceptanceCheckErr, AggregateMessageOrigin::UMP},
+	inclusion::{AggregateMessageOrigin::UMP, UmpAcceptanceCheckErr},
 	mock::{
 		assert_last_event, assert_last_events, new_test_ext, Configuration, MessageQueue,
 		MessageQueueSize, MockGenesisConfig, ParaInclusion, Processed, System, Test,
@@ -385,7 +385,10 @@ fn service_overweight_unknown() {
 	// the next test.
 	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 		assert_noop!(
-			<MessageQueue as ServiceQueues>::execute_overweight(Weight::MAX, (UMP(0u32.into()), 0, 0)),
+			<MessageQueue as ServiceQueues>::execute_overweight(
+				Weight::MAX,
+				(UMP(0u32.into()), 0, 0)
+			),
 			ExecuteOverweightError::NotFound,
 		);
 	});

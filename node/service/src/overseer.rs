@@ -231,6 +231,7 @@ where
 		.availability_store(AvailabilityStoreSubsystem::new(
 			parachains_db.clone(),
 			availability_config,
+			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
 		))
 		.bitfield_distribution(BitfieldDistributionSubsystem::new(Metrics::register(registry)?))

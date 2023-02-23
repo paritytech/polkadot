@@ -18,10 +18,9 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp,
-	inclusion::{self},
+	inclusion::{self, AggregateMessageOrigin},
 	initializer, origin, paras, paras_inherent, scheduler, session_info, shared, ParaId,
 };
-use crate::inclusion::AggregateMessageOrigin;
 
 use frame_support::{
 	parameter_types,

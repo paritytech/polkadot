@@ -7,7 +7,7 @@ edition.workspace = true
 [dependencies]
 impl-trait-for-tuples = "0.2.2"
 bitvec = { version = "1.0.0", default-features = false, features = ["alloc"] }
-parity-scale-codec = { version = "3.1.5", default-features = false, features = ["derive"] }
+parity-scale-codec = { version = "3.3.0", default-features = false, features = ["derive"] }
 log = { version = "0.4.17", default-features = false }
 rustc-hex = { version = "2.1.0", default-features = false }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
@@ -41,7 +41,6 @@ pallet-treasury = { git = "https://github.com/paritytech/substrate", branch = "m
 pallet-election-provider-multi-phase = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-beefy-mmr = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-election-provider-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-pallet-bags-list = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
@@ -102,7 +101,6 @@ std = [
 	"runtime-parachains/std",
 	"xcm/std",
 	"sp-npos-elections/std",
-	"pallet-bags-list/std"
 ]
 runtime-benchmarks = [
 	"libsecp256k1/hmac",
@@ -112,7 +110,6 @@ runtime-benchmarks = [
 	"frame-system/runtime-benchmarks",
 	"runtime-parachains/runtime-benchmarks",
 	"pallet-babe/runtime-benchmarks",
-	"pallet-bags-list/runtime-benchmarks",
 	"pallet-fast-unstake/runtime-benchmarks"
 ]
 try-runtime = [

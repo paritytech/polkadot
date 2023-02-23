@@ -107,8 +107,9 @@
 //! ```
 //!
 
-use crate::{configuration, initializer::SessionChangeNotification, shared};
-use crate::inclusion::UmpQueueTracker;
+use crate::{
+	configuration, inclusion::UmpQueueTracker, initializer::SessionChangeNotification, shared,
+};
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::{pallet_prelude::*, traits::EstimateNextSessionRotation};
 use frame_system::pallet_prelude::*;

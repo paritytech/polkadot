@@ -410,10 +410,8 @@ impl fmt::Debug for UmpAcceptanceCheckErr {
 				"the ump queue would have grown past the max size permitted by config ({} > {})",
 				total_size, limit,
 			),
-			UmpAcceptanceCheckErr::IsOffboarding => write!(
-				fmt,
-				"upward message rejected because the para is off-boarding",
-			),
+			UmpAcceptanceCheckErr::IsOffboarding =>
+				write!(fmt, "upward message rejected because the para is off-boarding",),
 		}
 	}
 }
@@ -921,10 +919,7 @@ impl<T: Config> Pallet<T> {
 	) -> Result<(), UmpAcceptanceCheckErr> {
 		// Cannot send UMP messages while off-boarding.
 		if <paras::Pallet<T>>::lifecycle(para).map_or(false, |l| l.is_offboarding()) {
-			ensure!(
-				upward_messages.is_empty(),
-				UmpAcceptanceCheckErr::IsOffboarding,
-			);
+			ensure!(upward_messages.is_empty(), UmpAcceptanceCheckErr::IsOffboarding,);
 		}
 
 		let additional_msgs = upward_messages.len();
