@@ -324,7 +324,10 @@ fn note_provisionable_data(
 				.with_para_id(backed_candidate.descriptor().para_id);
 			per_relay_parent.backed_candidates.push(backed_candidate)
 		},
-		// We choose to do nothing with misbehavior at this stage
+		// We choose not to punish these forms of misbehavior for the time being. 
+		// Risks from misbehavior are sufficiently mitigated at the protocol level
+		// via reputation changes. Punitive actions here may become desirable 
+		// enough to dedicate time to in the future.
 		ProvisionableData::MisbehaviorReport(_, _, _) => {},
 		// We wait and do nothing here, preferring to initiate a dispute after the 
 		// parablock candidate is included for the following reasons:
