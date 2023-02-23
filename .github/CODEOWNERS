@@ -4,3 +4,4 @@
 /.gitlab-ci.yml @paritytech/ci
 # lingua.dic is not managed by CI team
 /scripts/ci/gitlab/lingua.dic
+123
