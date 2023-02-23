@@ -214,6 +214,7 @@ impl crate::paras::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = crate::paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
+	type UmpQueueTracker = ParaInclusion;
 	type NextSessionRotation = TestNextSessionRotation;
 }
 

@@ -213,6 +213,16 @@ pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	sp_std::cmp::min(n_validators, 2)
 }
 
+pub trait UmpQueueTracker {
+	fn message_count(para: ParaId) -> u64;
+}
+
+impl UmpQueueTracker for () {
+	fn message_count(_: ParaId) -> u64 {
+		0
+	}
+}
+
 /// Aggregate message origin for the `MessageQueue` pallet.
 ///
 /// Can be extended to serve further use-cases besides just UMP. Changing this possibly requires a migration.
@@ -373,6 +383,8 @@ pub enum UmpAcceptanceCheckErr {
 	CapacityExceeded { count: u64, limit: u64 },
 	/// The allowed combined message size in the queue was exceeded.
 	TotalSizeExceeded { total_size: u64, limit: u64 },
+	/// A para-chain cannot send UMP messages while it is offboarding.
+	IsOffboarding,
 }
 
 impl fmt::Debug for UmpAcceptanceCheckErr {
@@ -397,6 +409,10 @@ impl fmt::Debug for UmpAcceptanceCheckErr {
 				fmt,
 				"the ump queue would have grown past the max size permitted by config ({} > {})",
 				total_size, limit,
+			),
+			UmpAcceptanceCheckErr::IsOffboarding => write!(
+				fmt,
+				"upward message rejected because the para is off-boarding",
 			),
 		}
 	}
@@ -903,6 +919,14 @@ impl<T: Config> Pallet<T> {
 		para: ParaId,
 		upward_messages: &[UpwardMessage],
 	) -> Result<(), UmpAcceptanceCheckErr> {
+		// Cannot send UMP messages while off-boarding.
+		if <paras::Pallet<T>>::lifecycle(para).map_or(false, |l| l.is_offboarding()) {
+			ensure!(
+				upward_messages.is_empty(),
+				UmpAcceptanceCheckErr::IsOffboarding,
+			);
+		}
+
 		let additional_msgs = upward_messages.len();
 		if additional_msgs > config.max_upward_message_num_per_candidate as usize {
 			return Err(UmpAcceptanceCheckErr::MoreMessagesThanPermitted {
@@ -1253,5 +1277,11 @@ impl<T: Config> CandidateCheckContext<T> {
 		<hrmp::Pallet<T>>::check_outbound_hrmp(&self.config, para_id, horizontal_messages)?;
 
 		Ok(())
+	}
+}
+
+impl<T: Config> UmpQueueTracker for Pallet<T> {
+	fn message_count(para: ParaId) -> u64 {
+		T::MessageQueue::footprint(AggregateMessageOrigin::UMP(para)).count
 	}
 }
