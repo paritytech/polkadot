@@ -196,9 +196,9 @@ dependencies = [
 
 [[package]]
 name = "arbitrary"
-version = "1.0.3"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "510c76ecefdceada737ea728f4f9a84bd2e1ef29f1ba555e560940fe279954de"
+checksum = "29d47fbf90d5149a107494b15a7dc8d69b351be2db3bb9691740e88ec17fd880"
 
 [[package]]
 name = "arc-swap"
@@ -13846,6 +13846,7 @@ dependencies = [
 name = "xcm-simulator-fuzzer"
 version = "0.9.37"
 dependencies = [
+ "arbitrary",
  "frame-support",
  "frame-system",
  "honggfuzz",
