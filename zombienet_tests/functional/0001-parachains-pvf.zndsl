@@ -2,16 +2,6 @@ Description: PVF preparation & execution time
 Network: ./0001-parachains-pvf.toml
 Creds: config
 
-# Some sanity checks
-alice: is up
-bob: is up
-charlie: is up
-dave: is up
-eve: is up
-ferdie: is up
-one: is up
-two: is up
-
 # Check authority status.
 alice: reports node_roles is 4
 bob: reports node_roles is 4

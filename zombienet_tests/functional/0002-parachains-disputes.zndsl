@@ -2,15 +2,6 @@ Description: Disputes initiation, conclusion and lag
 Network: ./0002-parachains-disputes.toml
 Creds: config
 
-alice: is up
-bob: is up
-charlie: is up
-dave: is up
-eve: is up
-ferdie: is up
-one: is up
-two: is up
-
 # Check authority status and peers.
 alice: reports node_roles is 4
 bob: reports node_roles is 4
