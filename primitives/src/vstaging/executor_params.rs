@@ -27,12 +27,11 @@ use polkadot_core_primitives::Hash;
 use scale_info::TypeInfo;
 use sp_std::{ops::Deref, vec, vec::Vec};
 
-/// A single executor parameter
+/// The different executor parameters for changing the execution environment semantics.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub enum ExecutorParam {
-	/// ## Parameters setting the executuion environment semantics:
-	/// Max. memory size
-	MaxMemorySize(u32),
+	/// Maximum number of memory pages (64KiB bytes per page) the executor can allocate.
+	MaxMemoryPages(u32),
 	/// Wasm logical stack size limit (max. number of Wasm values on stack)
 	StackLogicalMax(u32),
 	/// Executor machine stack size limit, in bytes

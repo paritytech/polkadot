@@ -220,8 +220,8 @@ impl TestCandidateBuilder {
 			},
 			commitments: CandidateCommitments {
 				head_data: self.head_data,
-				upward_messages: vec![],
-				horizontal_messages: vec![],
+				upward_messages: Default::default(),
+				horizontal_messages: Default::default(),
 				new_validation_code: None,
 				processed_downward_messages: 0,
 				hrmp_watermark: 0_u32,
@@ -359,8 +359,8 @@ fn backing_second_works() {
 				tx.send(Ok(ValidationResult::Valid(
 					CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						horizontal_messages: Vec::new(),
-						upward_messages: Vec::new(),
+						horizontal_messages: Default::default(),
+						upward_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,
@@ -526,8 +526,8 @@ fn backing_works() {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						upward_messages: Vec::new(),
-						horizontal_messages: Vec::new(),
+						upward_messages: Default::default(),
+						horizontal_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,
@@ -888,8 +888,8 @@ fn backing_misbehavior_works() {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						upward_messages: Vec::new(),
-						horizontal_messages: Vec::new(),
+						upward_messages: Default::default(),
+						horizontal_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,
@@ -1108,8 +1108,8 @@ fn backing_dont_second_invalid() {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						upward_messages: Vec::new(),
-						horizontal_messages: Vec::new(),
+						upward_messages: Default::default(),
+						horizontal_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,
@@ -1991,8 +1991,8 @@ fn cannot_second_multiple_candidates_per_parent() {
 				tx.send(Ok(ValidationResult::Valid(
 					CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						horizontal_messages: Vec::new(),
-						upward_messages: Vec::new(),
+						horizontal_messages: Default::default(),
+						upward_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,
@@ -2065,8 +2065,8 @@ fn cannot_second_multiple_candidates_per_parent() {
 				tx.send(Ok(ValidationResult::Valid(
 					CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						horizontal_messages: Vec::new(),
-						upward_messages: Vec::new(),
+						horizontal_messages: Default::default(),
+						upward_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,

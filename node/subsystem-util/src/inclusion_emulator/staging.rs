@@ -824,7 +824,9 @@ fn validate_against_constraints(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::vstaging::{CollatorPair, OutboundHrmpMessage, ValidationCode};
+	use polkadot_primitives::vstaging::{
+		CollatorPair, HorizontalMessages, OutboundHrmpMessage, ValidationCode,
+	};
 	use sp_application_crypto::Pair;
 
 	#[test]
@@ -1191,8 +1193,8 @@ mod tests {
 
 		ProspectiveCandidate {
 			commitments: Cow::Owned(CandidateCommitments {
-				upward_messages: Vec::new(),
-				horizontal_messages: Vec::new(),
+				upward_messages: Default::default(),
+				horizontal_messages: Default::default(),
 				new_validation_code: None,
 				head_data: HeadData::from(vec![1, 2, 3, 4, 5]),
 				processed_downward_messages: 0,
@@ -1318,10 +1320,11 @@ mod tests {
 		candidate
 			.commitments_mut()
 			.horizontal_messages
-			.extend((0..max_hrmp + 1).map(|i| OutboundHrmpMessage {
+			.try_extend((0..max_hrmp + 1).map(|i| OutboundHrmpMessage {
 				recipient: ParaId::from(i as u32),
 				data: vec![1, 2, 3],
-			}));
+			}))
+			.unwrap();
 
 		assert_eq!(
 			Fragment::new(relay_parent, constraints, candidate),
@@ -1379,7 +1382,8 @@ mod tests {
 			.commitments
 			.to_mut()
 			.upward_messages
-			.extend((0..max_ump + 1).map(|i| vec![i as u8]));
+			.try_extend((0..max_ump + 1).map(|i| vec![i as u8]))
+			.unwrap();
 
 		assert_eq!(
 			Fragment::new(relay_parent, constraints, candidate),
@@ -1421,20 +1425,20 @@ mod tests {
 		let constraints = make_constraints();
 		let mut candidate = make_candidate(&constraints, &relay_parent);
 
-		candidate.commitments_mut().horizontal_messages = vec![
+		candidate.commitments_mut().horizontal_messages = HorizontalMessages::truncate_from(vec![
 			OutboundHrmpMessage { recipient: ParaId::from(0 as u32), data: vec![1, 2, 3] },
 			OutboundHrmpMessage { recipient: ParaId::from(0 as u32), data: vec![4, 5, 6] },
-		];
+		]);
 
 		assert_eq!(
 			Fragment::new(relay_parent.clone(), constraints.clone(), candidate.clone()),
 			Err(FragmentValidityError::HrmpMessagesDescendingOrDuplicate(1)),
 		);
 
-		candidate.commitments_mut().horizontal_messages = vec![
+		candidate.commitments_mut().horizontal_messages = HorizontalMessages::truncate_from(vec![
 			OutboundHrmpMessage { recipient: ParaId::from(1 as u32), data: vec![1, 2, 3] },
 			OutboundHrmpMessage { recipient: ParaId::from(0 as u32), data: vec![4, 5, 6] },
-		];
+		]);
 
 		assert_eq!(
 			Fragment::new(relay_parent, constraints, candidate),

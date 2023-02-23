@@ -46,7 +46,7 @@ use runtime_parachains::{
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use beefy_primitives::crypto::AuthorityId as BeefyId;
+use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
 use frame_election_provider_support::{
 	generate_solution_type, onchain, NposSolution, SequentialPhragmen,
 };
@@ -1748,6 +1748,24 @@ sp_api::impl_runtime_apis! {
 			// dummy implementation due to lack of BEEFY pallet.
 			None
 		}
+
+		fn submit_report_equivocation_unsigned_extrinsic(
+			_equivocation_proof: beefy_primitives::EquivocationProof<
+				BlockNumber,
+				BeefyId,
+				BeefySignature,
+			>,
+			_key_owner_proof: beefy_primitives::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			None
+		}
+
+		fn generate_key_ownership_proof(
+			_set_id: beefy_primitives::ValidatorSetId,
+			_authority_id: BeefyId,
+		) -> Option<beefy_primitives::OpaqueKeyOwnershipProof> {
+			None
+		}
 	}
 
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
@@ -1931,7 +1949,21 @@ sp_api::impl_runtime_apis! {
 		Balance,
 	> for Runtime {
 		fn pending_rewards(member: AccountId) -> Balance {
-			NominationPools::pending_rewards(member).unwrap_or_default()
+			NominationPools::api_pending_rewards(member).unwrap_or_default()
+		}
+
+		fn points_to_balance(pool_id: pallet_nomination_pools::PoolId, points: Balance) -> Balance {
+			NominationPools::api_points_to_balance(pool_id, points)
+		}
+
+		fn balance_to_points(pool_id: pallet_nomination_pools::PoolId, new_funds: Balance) -> Balance {
+			NominationPools::api_balance_to_points(pool_id, new_funds)
+		}
+	}
+
+	impl pallet_staking_runtime_api::StakingApi<Block, Balance> for Runtime {
+		fn nominations_quota(balance: Balance) -> u32 {
+			Staking::api_nominations_quota(balance)
 		}
 	}
 

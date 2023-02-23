@@ -446,8 +446,8 @@ fn candidate_validation_ok_is_ok() {
 	let validation_result = WasmValidationResult {
 		head_data,
 		new_validation_code: Some(vec![2, 2, 2].into()),
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		processed_downward_messages: 0,
 		hrmp_watermark: 0,
 	};
@@ -573,8 +573,8 @@ fn candidate_validation_one_ambiguous_error_is_valid() {
 	let validation_result = WasmValidationResult {
 		head_data,
 		new_validation_code: Some(vec![2, 2, 2].into()),
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		processed_downward_messages: 0,
 		hrmp_watermark: 0,
 	};
@@ -751,8 +751,8 @@ fn candidate_validation_commitment_hash_mismatch_is_invalid() {
 	let validation_result = WasmValidationResult {
 		head_data,
 		new_validation_code: None,
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		processed_downward_messages: 0,
 		hrmp_watermark: 12345,
 	};
@@ -854,8 +854,8 @@ fn compressed_code_works() {
 	let validation_result = WasmValidationResult {
 		head_data,
 		new_validation_code: None,
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		processed_downward_messages: 0,
 		hrmp_watermark: 0,
 	};
@@ -918,8 +918,8 @@ fn code_decompression_failure_is_error() {
 	let validation_result = WasmValidationResult {
 		head_data,
 		new_validation_code: None,
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		processed_downward_messages: 0,
 		hrmp_watermark: 0,
 	};
@@ -971,8 +971,8 @@ fn pov_decompression_failure_is_invalid() {
 	let validation_result = WasmValidationResult {
 		head_data,
 		new_validation_code: None,
-		upward_messages: Vec::new(),
-		horizontal_messages: Vec::new(),
+		upward_messages: Default::default(),
+		horizontal_messages: Default::default(),
 		processed_downward_messages: 0,
 		hrmp_watermark: 0,
 	};

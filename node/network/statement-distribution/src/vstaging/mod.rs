@@ -919,6 +919,11 @@ pub(crate) async fn share_local_statement<Context>(
 			state.candidates.get_confirmed(&hash).map(|c| (c.para_id(), c.relay_parent())),
 	};
 
+	let is_seconded = match statement.payload() {
+		FullStatementWithPVD::Seconded(_, _) => true,
+		FullStatementWithPVD::Valid(_) => false,
+	};
+
 	let (expected_para, expected_relay_parent) = match expected {
 		None => return Err(JfyiError::InvalidShare),
 		Some(x) => x,
@@ -928,8 +933,9 @@ pub(crate) async fn share_local_statement<Context>(
 		return Err(JfyiError::InvalidShare)
 	}
 
-	if per_relay_parent.statement_store.seconded_count(&local_index) ==
-		per_relay_parent.seconding_limit
+	if is_seconded &&
+		per_relay_parent.statement_store.seconded_count(&local_index) ==
+			per_relay_parent.seconding_limit
 	{
 		gum::warn!(
 			target: LOG_TARGET,
@@ -973,6 +979,11 @@ pub(crate) async fn share_local_statement<Context>(
 				return Err(JfyiError::InvalidShare)
 			},
 			Ok(true) => {},
+		}
+
+		{
+			let l = per_relay_parent.local_validator.as_mut().expect("checked above; qed");
+			l.cluster_tracker.note_issued(local_index, compact_statement.payload().clone());
 		}
 
 		if let Some(ref session_topology) = per_session.grid_view {
@@ -1240,6 +1251,9 @@ async fn handle_incoming_statement<Context>(
 		};
 
 	let cluster_sender_index = {
+		// This block of code only returns `Some` when both the originator and
+		// the sending peer are in the cluster.
+
 		let allowed_senders = local_validator
 			.cluster_tracker
 			.senders_for_originator(statement.unchecked_validator_index());

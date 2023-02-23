@@ -292,8 +292,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			availability_votes,
 		);
 		let commitments = CandidateCommitments::<u32> {
-			upward_messages: vec![],
-			horizontal_messages: vec![],
+			upward_messages: Default::default(),
+			horizontal_messages: Default::default(),
 			new_validation_code: None,
 			head_data: Self::mock_head_data(),
 			processed_downward_messages: 0,
@@ -535,8 +535,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						validation_code_hash,
 					},
 					commitments: CandidateCommitments::<u32> {
-						upward_messages: Vec::new(),
-						horizontal_messages: Vec::new(),
+						upward_messages: Default::default(),
+						horizontal_messages: Default::default(),
 						new_validation_code: includes_code_upgrade
 							.map(|v| ValidationCode(vec![42u8; v as usize])),
 						head_data,

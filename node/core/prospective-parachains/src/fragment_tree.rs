@@ -923,8 +923,8 @@ mod tests {
 				validation_code_hash: Hash::repeat_byte(42).into(),
 			},
 			commitments: CandidateCommitments {
-				upward_messages: Vec::new(),
-				horizontal_messages: Vec::new(),
+				upward_messages: Default::default(),
+				horizontal_messages: Default::default(),
 				new_validation_code: None,
 				head_data: para_head,
 				processed_downward_messages: 1,

@@ -19,6 +19,50 @@
 //!
 //! The grid uses the gossip topology defined in [`polkadot_node_network_protocol::grid_topology`].
 //! It defines how messages and statements are forwarded between validators.
+//!
+//! # Protocol
+//!
+//! - Once the candidate is backed, produce a 'backed candidate packet'
+//!   `(CommittedCandidateReceipt, Statements)`.
+//! - Members of a backing group produce an announcement of a fully-backed candidate
+//!   (aka "full manifest") when they are finished.
+//!   - `BackedCandidateManifest`
+//!   - Manifests are sent along the grid topology to peers who have the relay-parent
+//!     in their implicit view.
+//!   - Only sent by 1st-hop nodes after downloading the backed candidate packet.
+//!     - The grid topology is a 2-dimensional grid that provides either a 1
+//!       or 2-hop path from any originator to any recipient - 1st-hop nodes
+//!       are those which share either a row or column with the originator,
+//!       and 2nd-hop nodes are those which share a column or row with that
+//!       1st-hop node.
+//!     - Note that for the purposes of statement distribution, we actually
+//!       take the union of the routing paths from each validator in a group
+//!       to the local node to determine the sending and receiving paths.
+//!   - Ignored when received out-of-topology
+//! - On every local view change, members of the backing group rebroadcast the
+//!   manifest for all candidates under every new relay-parent across the grid.
+//! - Nodes should send a `BackedCandidateAcknowledgement(CandidateHash,
+//!   StatementFilter)` notification to any peer which has sent a manifest, and
+//!   the candidate has been acquired by other means.
+//! - Request/response for the candidate + votes.
+//!   - Ignore if they are inconsistent with the manifest.
+//!   - A malicious backing group is capable of producing an unbounded number of
+//!     backed candidates.
+//!     - We request the candidate only if the candidate has a hypothetical depth in
+//!       any of our fragment trees, and:
+//!     - the seconding validators have not seconded any other candidates at that
+//!       depth in any of those fragment trees
+//! - All members of the group attempt to circulate all statements (in compact form)
+//!   from the rest of the group on candidates that have already been backed.
+//!   - They do this via the grid topology.
+//!   - They add the statements to their backed candidate packet for future
+//!     requestors, and also:
+//!     - send the statement to any peer, which:
+//!       - we advertised the backed candidate to (sent manifest), and:
+//!         - has previously & successfully requested the backed candidate packet,
+//!           or:
+//!         - which has sent a `BackedCandidateAcknowledgement`
+//!   - 1st-hop nodes do the same thing
 
 use polkadot_node_network_protocol::{
 	grid_topology::SessionGridTopology, vstaging::StatementFilter,
@@ -104,6 +148,9 @@ pub fn build_session_topology<'a>(
 		if group.contains(&our_index) {
 			sub_view.sending.extend(our_neighbors.validator_indices_x.iter().cloned());
 			sub_view.sending.extend(our_neighbors.validator_indices_y.iter().cloned());
+
+		// TODO [now]: remove all other group validators from the 'sending' set.
+		// and test this behavior.
 		} else {
 			for &group_val in group {
 				// If the validator shares a slice with us, we expect to
