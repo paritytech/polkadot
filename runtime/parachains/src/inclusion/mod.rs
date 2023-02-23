@@ -41,6 +41,7 @@ use primitives::{
 	GroupIndex, Hash, HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields,
 	UpwardMessage, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
+use polkadot_parachain::primitives::UpwardMessages;
 use scale_info::TypeInfo;
 use sp_runtime::{traits::One, DispatchError, SaturatedConversion};
 use sp_std::{collections::btree_set::BTreeSet, fmt, prelude::*};
@@ -975,7 +976,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn receive_upward_messages(
 		_config: &HostConfiguration<T::BlockNumber>,
 		para: ParaId,
-		upward_messages: Vec<UpwardMessage>,
+		upward_messages: UpwardMessages,
 	) -> Weight {
 		if upward_messages.is_empty() {
 			return Weight::zero()
