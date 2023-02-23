@@ -147,3 +147,55 @@ impl<
 pub type ConvertedConcreteAssetId<A, B, C, O> = ConvertedConcreteId<A, B, C, O>;
 #[deprecated = "Use `ConvertedAbstractId` instead"]
 pub type ConvertedAbstractAssetId<A, B, C, O> = ConvertedAbstractId<A, B, C, O>;
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+
+	use xcm_executor::traits::JustTry;
+
+	#[test]
+	fn converted_concrete_id_with_as_prefixed_general_index_works() {
+		type AssetIdForTrustBackedAssets = u32;
+		type Balance = u128;
+		frame_support::parameter_types! {
+			pub TrustBackedAssetsPalletLocation: MultiLocation = PalletInstance(50).into();
+		}
+
+		// ConvertedConcreteId cfg
+		type Converter = ConvertedConcreteId<
+			AssetIdForTrustBackedAssets,
+			Balance,
+			AsPrefixedGeneralIndex<
+				TrustBackedAssetsPalletLocation,
+				AssetIdForTrustBackedAssets,
+				JustTry,
+			>,
+			JustTry,
+		>;
+		assert_eq!(
+			TrustBackedAssetsPalletLocation::get(),
+			MultiLocation { parents: 0, interior: X1(PalletInstance(50)) }
+		);
+
+		// ok scenario (MultiLocation matches AsPrefixedGeneralIndex cfg)
+		let multi_asset_ok = MultiAsset {
+			id: Concrete(MultiLocation::new(0, X2(PalletInstance(50), GeneralIndex(1)))),
+			fun: Fungible(12345),
+		};
+		assert!(matches!(Converter::matches_fungibles(&multi_asset_ok), Ok((1, 12345))));
+
+		// throw AssetIdConversionFailed (MultiLocation DOES NOT match AsPrefixedGeneralIndex cfg)
+		let multi_asset_throw_aicf = MultiAsset {
+			id: Concrete(MultiLocation::new(
+				1,
+				X3(Parachain(2000), PalletInstance(50), GeneralIndex(1)),
+			)),
+			fun: Fungible(12345),
+		};
+		assert!(matches!(
+			Converter::matches_fungibles(&multi_asset_throw_aicf),
+			Err(MatchError::AssetIdConversionFailed)
+		));
+	}
+}
