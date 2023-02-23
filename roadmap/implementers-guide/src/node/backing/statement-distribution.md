@@ -1,4 +1,4 @@
-# Statement Distribution (Draft)
+# Statement Distribution
 
 ## Overview
 
