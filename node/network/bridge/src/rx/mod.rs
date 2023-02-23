@@ -32,7 +32,8 @@ use polkadot_node_network_protocol::{
 		CollationVersion, PeerSet, PeerSetProtocolNames, PerPeerSet, ProtocolVersion,
 		ValidationVersion,
 	},
-	v1 as protocol_v1, ObservedRole, OurView, PeerId, UnifiedReputationChange as Rep, View,
+	v1 as protocol_v1, vstaging as protocol_vstaging, ObservedRole, OurView, PeerId,
+	UnifiedReputationChange as Rep, View,
 };
 
 use polkadot_node_subsystem::{
@@ -245,15 +246,32 @@ where
 						)
 						.await;
 
-						send_message(
-							&mut network_service,
-							vec![peer],
-							PeerSet::Validation,
-							version,
-							&peerset_protocol_names,
-							WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(local_view),
-							&metrics,
-						);
+						match ValidationVersion::try_from(version)
+							.expect("try_get_protocol has already checked version is known; qed")
+						{
+							ValidationVersion::V1 => send_message(
+								&mut network_service,
+								vec![peer],
+								PeerSet::Validation,
+								version,
+								&peerset_protocol_names,
+								WireMessage::<protocol_v1::ValidationProtocol>::ViewUpdate(
+									local_view,
+								),
+								&metrics,
+							),
+							ValidationVersion::V2 => send_message(
+								&mut network_service,
+								vec![peer],
+								PeerSet::Validation,
+								version,
+								&peerset_protocol_names,
+								WireMessage::<protocol_vstaging::ValidationProtocol>::ViewUpdate(
+									local_view,
+								),
+								&metrics,
+							),
+						}
 					},
 					PeerSet::Collation => {
 						dispatch_collation_events_to_all(
@@ -348,8 +366,16 @@ where
 					.filter_map(|(protocol, msg_bytes)| {
 						// version doesn't matter because we always receive on the 'correct'
 						// protocol name, not the negotiated fallback.
-						let (peer_set, _version) =
+						let (peer_set, version) =
 							peerset_protocol_names.try_get_protocol(protocol)?;
+						gum::trace!(
+							target: LOG_TARGET,
+							?peer_set,
+							?protocol,
+							?version,
+							"Received notification"
+						);
+
 						if peer_set == PeerSet::Validation {
 							if expected_versions[PeerSet::Validation].is_none() {
 								return Some(Err(UNCONNECTED_PEERSET_COST))
@@ -420,7 +446,17 @@ where
 						if expected_versions[PeerSet::Validation] ==
 							Some(ValidationVersion::V1.into())
 						{
-							handle_v1_peer_messages::<protocol_v1::ValidationProtocol, _>(
+							handle_peer_messages::<protocol_v1::ValidationProtocol, _>(
+								remote,
+								PeerSet::Validation,
+								&mut shared.0.lock().validation_peers,
+								v_messages,
+								&metrics,
+							)
+						} else if expected_versions[PeerSet::Validation] ==
+							Some(ValidationVersion::V2.into())
+						{
+							handle_peer_messages::<protocol_vstaging::ValidationProtocol, _>(
 								remote,
 								PeerSet::Validation,
 								&mut shared.0.lock().validation_peers,
@@ -434,7 +470,7 @@ where
 								"Major logic bug. Peer somehow has unsupported validation protocol version."
 							);
 
-							never!("Only version 1 is supported; peer set connection checked above; qed");
+							never!("Only version 1/2 is supported; peer set connection checked above; qed");
 
 							// If a peer somehow triggers this, we'll disconnect them
 							// eventually.
@@ -453,7 +489,7 @@ where
 						if expected_versions[PeerSet::Collation] ==
 							Some(CollationVersion::V1.into())
 						{
-							handle_v1_peer_messages::<protocol_v1::CollationProtocol, _>(
+							handle_peer_messages::<protocol_v1::CollationProtocol, _>(
 								remote,
 								PeerSet::Collation,
 								&mut shared.0.lock().collation_peers,
@@ -716,14 +752,35 @@ fn update_our_view<Net, Context>(
 		}
 
 		(
-			shared.validation_peers.keys().cloned().collect::<Vec<_>>(),
+			shared
+				.validation_peers
+				.iter()
+				.map(|(peer_id, peer_data)| (peer_id.clone(), peer_data.version))
+				.collect::<Vec<_>>(),
 			shared.collation_peers.keys().cloned().collect::<Vec<_>>(),
 		)
 	};
 
+	let filter_by_version = |peers: &[(PeerId, ProtocolVersion)], version| {
+		peers.iter().filter(|(_, v)| v == &version).map(|(p, _)| *p).collect::<Vec<_>>()
+	};
+
+	let v1_validation_peers =
+		filter_by_version(validation_peers.as_slice(), ValidationVersion::V1.into());
+	let vstaging_validation_peers =
+		filter_by_version(&validation_peers, ValidationVersion::V2.into());
+
 	send_validation_message_v1(
 		net,
-		validation_peers,
+		v1_validation_peers,
+		peerset_protocol_names,
+		WireMessage::ViewUpdate(new_view.clone()),
+		metrics,
+	);
+
+	send_validation_message_vstaging(
+		net,
+		vstaging_validation_peers,
 		peerset_protocol_names,
 		WireMessage::ViewUpdate(new_view.clone()),
 		metrics,
@@ -755,7 +812,7 @@ fn update_our_view<Net, Context>(
 
 // Handle messages on a specific v1 peer-set. The peer is expected to be connected on that
 // peer-set.
-fn handle_v1_peer_messages<RawMessage: Decode, OutMessage: From<RawMessage>>(
+fn handle_peer_messages<RawMessage: Decode, OutMessage: From<RawMessage>>(
 	peer: PeerId,
 	peer_set: PeerSet,
 	peers: &mut HashMap<PeerId, PeerData>,
@@ -813,11 +870,31 @@ fn send_validation_message_v1(
 	message: WireMessage<protocol_v1::ValidationProtocol>,
 	metrics: &Metrics,
 ) {
+	gum::debug!(target: LOG_TARGET, ?peers, ?message, "Sending validation v1 message to peers",);
 	send_message(
 		net,
 		peers,
 		PeerSet::Validation,
 		ValidationVersion::V1.into(),
+		peerset_protocol_names,
+		message,
+		metrics,
+	);
+}
+
+fn send_validation_message_vstaging(
+	net: &mut impl Network,
+	peers: Vec<PeerId>,
+	peerset_protocol_names: &PeerSetProtocolNames,
+	message: WireMessage<protocol_vstaging::ValidationProtocol>,
+	metrics: &Metrics,
+) {
+	gum::debug!(target: LOG_TARGET, ?peers, ?message, "Sending validation v2 message to peers",);
+	send_message(
+		net,
+		peers,
+		PeerSet::Validation,
+		ValidationVersion::V2.into(),
 		peerset_protocol_names,
 		message,
 		metrics,

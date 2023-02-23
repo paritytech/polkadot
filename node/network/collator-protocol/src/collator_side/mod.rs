@@ -892,6 +892,8 @@ async fn handle_network_msg<Context>(
 		NewGossipTopology { .. } => {
 			// impossible!
 		},
+		PeerMessage(_, Versioned::VStaging(_)) =>
+			unimplemented!("We only support collator protocol version 1."),
 	}
 
 	Ok(())

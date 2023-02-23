@@ -24,8 +24,8 @@
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
-		AssignmentCert, AssignmentCertKind, BlockApprovalMeta, DelayTranche,
-		IndirectAssignmentCert, IndirectSignedApprovalVote,
+		AssignmentCertKindV2, AssignmentCertV2, BlockApprovalMeta, DelayTranche,
+		IndirectAssignmentCertV2, IndirectSignedApprovalVote,
 	},
 	ValidationResult, APPROVAL_EXECUTION_TIMEOUT,
 };
@@ -742,7 +742,7 @@ enum Action {
 	},
 	LaunchApproval {
 		candidate_hash: CandidateHash,
-		indirect_cert: IndirectAssignmentCert,
+		indirect_cert: IndirectAssignmentCertV2,
 		assignment_tranche: DelayTranche,
 		relay_block_hash: Hash,
 		candidate_index: CandidateIndex,
@@ -1051,11 +1051,11 @@ async fn handle_actions<Context>(
 fn cores_to_candidate_indices(
 	block_entry: &BlockEntry,
 	candidate_index: CandidateIndex,
-	cert: &AssignmentCert,
+	cert: &AssignmentCertV2,
 ) -> Vec<CandidateIndex> {
 	let mut candidate_indices = Vec::new();
 	match &cert.kind {
-		AssignmentCertKind::RelayVRFModuloCompact { sample: _, core_indices } => {
+		AssignmentCertKindV2::RelayVRFModuloCompact { sample: _, core_indices } => {
 			for cert_core_index in core_indices {
 				if let Some(candidate_index) = block_entry
 					.candidates()
@@ -1120,7 +1120,7 @@ fn distribution_messages_for_activation(
 						(None, None) | (None, Some(_)) => {}, // second is impossible case.
 						(Some(assignment), None) => {
 							messages.push(ApprovalDistributionMessage::DistributeAssignment(
-								IndirectAssignmentCert {
+								IndirectAssignmentCertV2 {
 									block_hash,
 									validator: assignment.validator_index(),
 									cert: assignment.cert().clone(),
@@ -1130,7 +1130,7 @@ fn distribution_messages_for_activation(
 						},
 						(Some(assignment), Some(approval_sig)) => {
 							messages.push(ApprovalDistributionMessage::DistributeAssignment(
-								IndirectAssignmentCert {
+								IndirectAssignmentCertV2 {
 									block_hash,
 									validator: assignment.validator_index(),
 									cert: assignment.cert().clone(),
@@ -1711,7 +1711,7 @@ fn schedule_wakeup_action(
 fn check_and_import_assignment(
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
-	assignment: IndirectAssignmentCert,
+	assignment: IndirectAssignmentCertV2,
 	candidate_indices: Vec<CandidateIndex>,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
 	let tick_now = state.clock.tick_now();
@@ -2296,7 +2296,7 @@ fn process_wakeup(
 
 	if let Some((cert, val_index, tranche)) = maybe_cert {
 		let indirect_cert =
-			IndirectAssignmentCert { block_hash: relay_block, validator: val_index, cert };
+			IndirectAssignmentCertV2 { block_hash: relay_block, validator: val_index, cert };
 
 		let index_in_candidate =
 			block_entry.candidates().iter().position(|(_, h)| &candidate_hash == h);

@@ -33,7 +33,7 @@ use polkadot_node_network_protocol::{
 	UnifiedReputationChange,
 };
 use polkadot_node_primitives::{
-	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
+	approval::{BlockApprovalMeta, IndirectAssignmentCertV2, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
 	CollationSecondedSignal, DisputeMessage, DisputeStatus, ErasureChunk, PoV,
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
@@ -769,7 +769,7 @@ pub enum ApprovalVotingMessage {
 	/// Check if the assignment is valid and can be accepted by our view of the protocol.
 	/// Should not be sent unless the block hash is known.
 	CheckAndImportAssignment(
-		IndirectAssignmentCert,
+		IndirectAssignmentCertV2,
 		Vec<CandidateIndex>,
 		oneshot::Sender<AssignmentCheckResult>,
 	),
@@ -805,7 +805,7 @@ pub enum ApprovalDistributionMessage {
 	NewBlocks(Vec<BlockApprovalMeta>),
 	/// Distribute an assignment cert from the local validator. The cert is assumed
 	/// to be valid, relevant, and for the given relay-parent and validator index.
-	DistributeAssignment(IndirectAssignmentCert, Vec<CandidateIndex>),
+	DistributeAssignment(IndirectAssignmentCertV2, Vec<CandidateIndex>),
 	/// Distribute an approval vote for the local validator. The approval vote is assumed to be
 	/// valid, relevant, and the corresponding approval already issued.
 	/// If not, the subsystem is free to drop the message.

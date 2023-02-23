@@ -75,6 +75,20 @@ pub enum AssignmentCertKind {
 		/// The core index chosen in this cert.
 		core_index: CoreIndex,
 	},
+}
+
+/// Certificate is changed compared to `AssignmentCertKind`:
+/// - introduced RelayVRFModuloCompact
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub enum AssignmentCertKindV2 {
+	/// An assignment story based on the VRF that authorized the relay-chain block where the
+	/// candidate was included combined with a sample number.
+	///
+	/// The context used to produce bytes is [`RELAY_VRF_MODULO_CONTEXT`]
+	RelayVRFModulo {
+		/// The sample number used in this cert.
+		sample: u32,
+	},
 	/// Multiple assignment stories based on the VRF that authorized the relay-chain block where the
 	/// candidate was included combined with a sample number.
 	///
@@ -84,6 +98,14 @@ pub enum AssignmentCertKind {
 		sample: u32,
 		/// The assigned cores.
 		core_indices: Vec<CoreIndex>,
+	},
+	/// An assignment story based on the VRF that authorized the relay-chain block where the
+	/// candidate was included combined with the index of a particular core.
+	///
+	/// The context is [`RELAY_VRF_DELAY_CONTEXT`]
+	RelayVRFDelay {
+		/// The core index chosen in this cert.
+		core_index: CoreIndex,
 	},
 }
 
@@ -96,6 +118,51 @@ pub struct AssignmentCert {
 	pub vrf: (VRFOutput, VRFProof),
 }
 
+/// A certification of assignment.
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct AssignmentCertV2 {
+	/// The criterion which is claimed to be met by this cert.
+	pub kind: AssignmentCertKindV2,
+	/// The VRF showing the criterion is met.
+	pub vrf: (VRFOutput, VRFProof),
+}
+
+impl From<AssignmentCert> for AssignmentCertV2 {
+	fn from(cert: AssignmentCert) -> Self {
+		Self {
+			kind: match cert.kind {
+				AssignmentCertKind::RelayVRFDelay { core_index } =>
+					AssignmentCertKindV2::RelayVRFDelay { core_index },
+				AssignmentCertKind::RelayVRFModulo { sample } =>
+					AssignmentCertKindV2::RelayVRFModulo { sample },
+			},
+			vrf: cert.vrf,
+		}
+	}
+}
+
+/// Errors that can occur when trying to convert to/from assignment v1/v2
+pub enum AssignmentConversionError {
+	/// Assignment certificate is not supported in v1.
+	CertificateNotSupported,
+}
+
+impl TryFrom<AssignmentCertV2> for AssignmentCert {
+	type Error = AssignmentConversionError;
+	fn try_from(cert: AssignmentCertV2) -> Result<Self, AssignmentConversionError> {
+		Ok(Self {
+			kind: match cert.kind {
+				AssignmentCertKindV2::RelayVRFDelay { core_index } =>
+					AssignmentCertKind::RelayVRFDelay { core_index },
+				AssignmentCertKindV2::RelayVRFModulo { sample } =>
+					AssignmentCertKind::RelayVRFModulo { sample },
+				// Not supported
+				_ => return Err(AssignmentConversionError::CertificateNotSupported),
+			},
+			vrf: cert.vrf,
+		})
+	}
+}
 /// An assignment criterion which refers to the candidate under which the assignment is
 /// relevant by block hash.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -106,6 +173,40 @@ pub struct IndirectAssignmentCert {
 	pub validator: ValidatorIndex,
 	/// The cert itself.
 	pub cert: AssignmentCert,
+}
+/// An assignment criterion which refers to the candidate under which the assignment is
+/// relevant by block hash.
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct IndirectAssignmentCertV2 {
+	/// A block hash where the candidate appears.
+	pub block_hash: Hash,
+	/// The validator index.
+	pub validator: ValidatorIndex,
+	/// The cert itself.
+	pub cert: AssignmentCertV2,
+}
+
+impl From<IndirectAssignmentCert> for IndirectAssignmentCertV2 {
+	fn from(indirect_cert: IndirectAssignmentCert) -> Self {
+		Self {
+			block_hash: indirect_cert.block_hash,
+			validator: indirect_cert.validator,
+			cert: indirect_cert.cert.into(),
+		}
+	}
+}
+
+impl TryFrom<IndirectAssignmentCertV2> for IndirectAssignmentCert {
+	type Error = AssignmentConversionError;
+	fn try_from(
+		indirect_cert: IndirectAssignmentCertV2,
+	) -> Result<Self, AssignmentConversionError> {
+		Ok(Self {
+			block_hash: indirect_cert.block_hash,
+			validator: indirect_cert.validator,
+			cert: indirect_cert.cert.try_into()?,
+		})
+	}
 }
 
 /// A signed approval vote which references the candidate indirectly via the block.

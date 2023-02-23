@@ -617,6 +617,7 @@ async fn handle_network_msg<Context>(
 			gum::trace!(target: LOG_TARGET, ?new_view, "Our view change");
 			handle_our_view_change(state, new_view);
 		},
+		NetworkBridgeEvent::PeerMessage(remote, Versioned::VStaging(message)) |
 		NetworkBridgeEvent::PeerMessage(remote, Versioned::V1(message)) =>
 			process_incoming_peer_message(ctx, state, metrics, remote, message, rng).await,
 	}

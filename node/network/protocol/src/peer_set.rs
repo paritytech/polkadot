@@ -118,7 +118,7 @@ impl PeerSet {
 	/// of the main protocol name reported by [`PeerSetProtocolNames::get_main_name()`].
 	pub fn get_main_version(self) -> ProtocolVersion {
 		match self {
-			PeerSet::Validation => ValidationVersion::V1.into(),
+			PeerSet::Validation => ValidationVersion::V2.into(),
 			PeerSet::Collation => CollationVersion::V1.into(),
 		}
 	}
@@ -141,12 +141,11 @@ impl PeerSet {
 		// Unfortunately, labels must be static strings, so we must manually cover them
 		// for all protocol versions here.
 		match self {
-			PeerSet::Validation =>
-				if version == ValidationVersion::V1.into() {
-					Some("validation/1")
-				} else {
-					None
-				},
+			PeerSet::Validation => match version {
+				_ if version == ValidationVersion::V1.into() => Some("validation/1"),
+				_ if version == ValidationVersion::V2.into() => Some("validation/2"),
+				_ => None,
+			},
 			PeerSet::Collation =>
 				if version == CollationVersion::V1.into() {
 					Some("collation/1")
@@ -211,7 +210,7 @@ impl From<ProtocolVersion> for u32 {
 pub enum ValidationVersion {
 	/// The first version.
 	V1 = 1,
-	/// The second version adds `AssignmentsV2` message to approval distribution.
+	/// The second version adds `AssignmentsV2` message to approval distribution. VStaging
 	V2 = 2,
 }
 
@@ -225,6 +224,23 @@ pub enum CollationVersion {
 impl From<ValidationVersion> for ProtocolVersion {
 	fn from(version: ValidationVersion) -> ProtocolVersion {
 		ProtocolVersion(version as u32)
+	}
+}
+/// Marker indicating the version is unknown.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct UnknownVersion;
+
+impl TryFrom<ProtocolVersion> for ValidationVersion {
+	type Error = UnknownVersion;
+
+	fn try_from(p: ProtocolVersion) -> Result<Self, UnknownVersion> {
+		for v in Self::iter() {
+			if v as u32 == p.0 {
+				return Ok(v)
+			}
+		}
+
+		Err(UnknownVersion)
 	}
 }
 

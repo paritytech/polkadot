@@ -404,6 +404,9 @@ where
 			NetworkBridgeEvent::OurViewChange(_) => {},
 			NetworkBridgeEvent::PeerViewChange(_, _) => {},
 			NetworkBridgeEvent::NewGossipTopology { .. } => {},
+			NetworkBridgeEvent::PeerMessage(_, Versioned::VStaging(v)) => {
+				match v {};
+			},
 			NetworkBridgeEvent::PeerMessage(_, Versioned::V1(v)) => {
 				match v {};
 			},

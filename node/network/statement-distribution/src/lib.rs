@@ -1700,6 +1700,22 @@ async fn handle_network_update<Context, R>(
 				}
 			}
 		},
+		NetworkBridgeEvent::PeerMessage(peer, Versioned::VStaging(message)) => {
+			handle_incoming_message_and_circulate(
+				peer,
+				topology_storage,
+				peers,
+				active_heads,
+				recent_outdated_heads,
+				ctx,
+				message,
+				req_sender,
+				metrics,
+				runtime,
+				rng,
+			)
+			.await;
+		},
 		NetworkBridgeEvent::PeerMessage(peer, Versioned::V1(message)) => {
 			handle_incoming_message_and_circulate(
 				peer,

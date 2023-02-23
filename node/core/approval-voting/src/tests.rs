@@ -620,7 +620,7 @@ async fn check_and_import_assignment(
 		overseer,
 		FromOrchestra::Communication {
 			msg: ApprovalVotingMessage::CheckAndImportAssignment(
-				IndirectAssignmentCert {
+				IndirectAssignmentCertV2 {
 					block_hash,
 					validator,
 					cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo { sample: 0 }),
@@ -1106,7 +1106,7 @@ fn blank_subsystem_act_on_bad_block() {
 			&mut virtual_overseer,
 			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
-					IndirectAssignmentCert {
+					IndirectAssignmentCertV2 {
 						block_hash: bad_block_hash.clone(),
 						validator: 0u32.into(),
 						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
@@ -1774,7 +1774,7 @@ fn linear_import_act_on_leaf() {
 			&mut virtual_overseer,
 			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
-					IndirectAssignmentCert {
+					IndirectAssignmentCertV2 {
 						block_hash: head,
 						validator: 0u32.into(),
 						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
@@ -1844,7 +1844,7 @@ fn forkful_import_at_same_height_act_on_leaf() {
 				&mut virtual_overseer,
 				FromOrchestra::Communication {
 					msg: ApprovalVotingMessage::CheckAndImportAssignment(
-						IndirectAssignmentCert {
+						IndirectAssignmentCertV2 {
 							block_hash: head,
 							validator: 0u32.into(),
 							cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {

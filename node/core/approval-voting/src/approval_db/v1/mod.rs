@@ -17,7 +17,7 @@
 //! Version 1 of the DB schema.
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_node_primitives::approval::{AssignmentCert, DelayTranche};
+use polkadot_node_primitives::approval::{AssignmentCertV2, DelayTranche};
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::{
@@ -161,7 +161,7 @@ pub struct Config {
 /// Details pertaining to our assignment on a block.
 #[derive(Encode, Decode, Debug, Clone, PartialEq)]
 pub struct OurAssignment {
-	pub cert: AssignmentCert,
+	pub cert: AssignmentCertV2,
 	pub tranche: DelayTranche,
 	pub validator_index: ValidatorIndex,
 	// Whether the assignment has been triggered already.

@@ -18,7 +18,7 @@
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
-	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
+	self as approval_types, AssignmentCertKindV2, AssignmentCertV2, DelayTranche, RelayVRFStory,
 };
 use polkadot_primitives::{
 	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, IndexedVec, SessionInfo,
@@ -38,7 +38,7 @@ use super::LOG_TARGET;
 /// Details pertaining to our assignment on a block.
 #[derive(Debug, Clone, Encode, Decode, PartialEq)]
 pub struct OurAssignment {
-	cert: AssignmentCert,
+	cert: AssignmentCertV2,
 	tranche: DelayTranche,
 	validator_index: ValidatorIndex,
 	// Whether the assignment has been triggered already.
@@ -46,7 +46,7 @@ pub struct OurAssignment {
 }
 
 impl OurAssignment {
-	pub(crate) fn cert(&self) -> &AssignmentCert {
+	pub(crate) fn cert(&self) -> &AssignmentCertV2 {
 		&self.cert
 	}
 
@@ -68,6 +68,7 @@ impl OurAssignment {
 }
 
 impl From<crate::approval_db::v1::OurAssignment> for OurAssignment {
+	// TODO: OurAssignment changed -> migration for parachains db approval voting column.
 	fn from(entry: crate::approval_db::v1::OurAssignment) -> Self {
 		OurAssignment {
 			cert: entry.cert,
@@ -233,7 +234,7 @@ pub(crate) trait AssignmentCriteria {
 		validator_index: ValidatorIndex,
 		config: &Config,
 		relay_vrf_story: RelayVRFStory,
-		assignment: &AssignmentCert,
+		assignment: &AssignmentCertV2,
 		// Backing groups for each assigned core `CoreIndex`.
 		backing_groups: Vec<GroupIndex>,
 	) -> Result<DelayTranche, InvalidAssignment>;
@@ -258,7 +259,7 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 		validator_index: ValidatorIndex,
 		config: &Config,
 		relay_vrf_story: RelayVRFStory,
-		assignment: &AssignmentCert,
+		assignment: &AssignmentCertV2,
 		backing_groups: Vec<GroupIndex>,
 	) -> Result<DelayTranche, InvalidAssignment> {
 		check_assignment_cert(
@@ -417,8 +418,8 @@ fn compute_relay_vrf_modulo_assignments(
 	};
 
 	if let Some(assignment) = maybe_assignment.map(|(vrf_in_out, vrf_proof, _)| {
-		let cert = AssignmentCert {
-			kind: AssignmentCertKind::RelayVRFModuloCompact {
+		let cert = AssignmentCertV2 {
+			kind: AssignmentCertKindV2::RelayVRFModuloCompact {
 				sample: config.relay_vrf_modulo_samples - 1,
 				core_indices: assigned_cores.clone(),
 			},
@@ -455,8 +456,8 @@ fn compute_relay_vrf_delay_assignments(
 			config.zeroth_delay_tranche_width,
 		);
 
-		let cert = AssignmentCert {
-			kind: AssignmentCertKind::RelayVRFDelay { core_index: core },
+		let cert = AssignmentCertV2 {
+			kind: AssignmentCertKindV2::RelayVRFDelay { core_index: core },
 			vrf: (
 				approval_types::VRFOutput(vrf_in_out.to_output()),
 				approval_types::VRFProof(vrf_proof),
@@ -535,7 +536,7 @@ pub(crate) fn check_assignment_cert(
 	validator_index: ValidatorIndex,
 	config: &Config,
 	relay_vrf_story: RelayVRFStory,
-	assignment: &AssignmentCert,
+	assignment: &AssignmentCertV2,
 	backing_groups: Vec<GroupIndex>,
 ) -> Result<DelayTranche, InvalidAssignment> {
 	use InvalidAssignmentReason as Reason;
@@ -570,7 +571,7 @@ pub(crate) fn check_assignment_cert(
 
 	let &(ref vrf_output, ref vrf_proof) = &assignment.vrf;
 	match &assignment.kind {
-		AssignmentCertKind::RelayVRFModuloCompact { sample, core_indices } => {
+		AssignmentCertKindV2::RelayVRFModuloCompact { sample, core_indices } => {
 			if *sample >= config.relay_vrf_modulo_samples {
 				return Err(InvalidAssignment(Reason::SampleOutOfBounds))
 			}
@@ -607,7 +608,7 @@ pub(crate) fn check_assignment_cert(
 				Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
 			}
 		},
-		AssignmentCertKind::RelayVRFModulo { sample } => {
+		AssignmentCertKindV2::RelayVRFModulo { sample } => {
 			if *sample >= config.relay_vrf_modulo_samples {
 				return Err(InvalidAssignment(Reason::SampleOutOfBounds))
 			}
@@ -635,7 +636,7 @@ pub(crate) fn check_assignment_cert(
 				Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
 			}
 		},
-		AssignmentCertKind::RelayVRFDelay { core_index } => {
+		AssignmentCertKindV2::RelayVRFDelay { core_index } => {
 			if *core_index != claimed_core_indices[0] {
 				return Err(InvalidAssignment(Reason::VRFDelayCoreIndexMismatch))
 			}
