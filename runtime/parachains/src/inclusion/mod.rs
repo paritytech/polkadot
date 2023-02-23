@@ -35,7 +35,6 @@ use frame_support::{
 };
 use pallet_message_queue::OnQueueChanged;
 use parity_scale_codec::{Decode, Encode};
-use polkadot_parachain::primitives::UpwardMessages;
 use primitives::{
 	well_known_keys, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex,
@@ -240,6 +239,10 @@ impl From<u32> for AggregateMessageOrigin {
 		Self::UMP(n.into())
 	}
 }
+
+/// The maximal length of a UMP message.
+pub type MaxUmpMessageLen<T> =
+	<<T as Config>::MessageQueue as EnqueueMessage<AggregateMessageOrigin>>::MaxMessageLen;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -890,9 +893,8 @@ impl<T: Config> Pallet<T> {
 			commitments.processed_downward_messages,
 		);
 		weight += Self::receive_upward_messages(
-			&config,
 			receipt.descriptor.para_id,
-			commitments.upward_messages,
+			commitments.upward_messages.as_slice(),
 		);
 		weight += <hrmp::Pallet<T>>::prune_hrmp(
 			receipt.descriptor.para_id,
@@ -980,20 +982,26 @@ impl<T: Config> Pallet<T> {
 		Ok(())
 	}
 
+	pub(crate) fn receive_upward_messages(para: ParaId, upward_messages: &[Vec<u8>]) -> Weight {
+		let bounded = upward_messages
+			.iter()
+			.filter_map(|d| BoundedSlice::try_from(&d[..]).ok())
+			.collect();
+		Self::receive_bounded_upward_messages(para, bounded)
+	}
+
 	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
-	pub(crate) fn receive_upward_messages(
-		_config: &HostConfiguration<T::BlockNumber>,
+	pub(crate) fn receive_bounded_upward_messages<'a>(
 		para: ParaId,
-		upward_messages: UpwardMessages,
+		messages: Vec<BoundedSlice<'a, u8, MaxUmpMessageLen<T>>>,
 	) -> Weight {
-		if upward_messages.is_empty() {
+		let count = messages.len() as u32;
+		if count == 0 {
 			return Weight::zero()
 		}
 
-		let count = upward_messages.len() as u32;
 		Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
-		let messages = upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
-		T::MessageQueue::enqueue_messages(messages, AggregateMessageOrigin::UMP(para));
+		T::MessageQueue::enqueue_messages(messages.into_iter(), AggregateMessageOrigin::UMP(para));
 		<T as Config>::WeightInfo::receive_upward_messages(count)
 	}
 

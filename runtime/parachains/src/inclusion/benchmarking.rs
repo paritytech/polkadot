@@ -21,11 +21,10 @@ benchmarks! {
 	receive_upward_messages {
 		let i in 1 .. 1000;
 
-		let config = configuration::ActiveConfig::<T>::get();
 		let para = 42u32.into();	// not especially important.
-		let upward_messages = vec![vec![0; MAX_UPWARD_MESSAGE_SIZE_BOUND as usize]; i as usize].try_into().unwrap();
-		Pallet::<T>::receive_upward_messages(&config, para, vec![vec![0; MAX_UPWARD_MESSAGE_SIZE_BOUND as usize]; 1].try_into().unwrap());
-	}: { Pallet::<T>::receive_upward_messages(&config, para, upward_messages) }
+		let upward_messages = vec![vec![0; MAX_UPWARD_MESSAGE_SIZE_BOUND as usize]; i as usize];
+		Pallet::<T>::receive_upward_messages(para, vec![vec![0; MAX_UPWARD_MESSAGE_SIZE_BOUND as usize]; 1].as_slice());
+	}: { Pallet::<T>::receive_upward_messages(para, upward_messages.as_slice()) }
 
 	impl_benchmark_test_suite!(
 		Pallet,

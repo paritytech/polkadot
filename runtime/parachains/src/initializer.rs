@@ -266,7 +266,7 @@ impl<T: Config> Pallet<T> {
 		T::DisputesHandler::initializer_on_new_session(&notification);
 		T::SlashingHandler::initializer_on_new_session(session_index);
 		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
-		// ump::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		// FAIL-CI cleanup queues of outgoing paras
 		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 	}
 
