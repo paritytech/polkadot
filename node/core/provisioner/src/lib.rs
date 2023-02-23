@@ -326,7 +326,7 @@ fn note_provisionable_data(
 		},
 		// We choose to do nothing with misbehavior at this stage
 		ProvisionableData::MisbehaviorReport(_, _, _) => {},
-		// We wait and do nothing here, prefering to initiate a dispute after the 
+		// We wait and do nothing here, preferring to initiate a dispute after the 
 		// parablock candidate is included for the following reasons:
 		//
 		// 1. A dispute for a candidate triggered at any point before the candidate 
