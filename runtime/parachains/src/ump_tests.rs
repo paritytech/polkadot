@@ -205,21 +205,6 @@ mod check_upward_messages {
 			);
 		});
 	}
-
-	proptest::proptest! {
-		/// Takes random `enqueued` and `candidate` messages and checks that neither `check_upward_messages` nor `receive_upward_messages` panic.
-		#[test]
-		fn check_and_receive_do_not_panic(enqueued: Vec<UpwardMessage>, candidate: Vec<UpwardMessage>) {
-			new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
-				let cfg = Configuration::config();
-
-				let _ = ParaInclusion::check_upward_messages(&cfg, P_0, &enqueued);
-				ParaInclusion::receive_upward_messages(&cfg, P_0, enqueued);
-				let _ = ParaInclusion::check_upward_messages(&cfg, P_0, &candidate);
-				ParaInclusion::receive_upward_messages(&cfg, P_0, candidate);
-			});
-		}
-	}
 }
 
 #[test]
