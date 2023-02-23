@@ -166,10 +166,6 @@ protocol. This is the `AttestedCandidateRequest`; the response is
 -   Nodes should send a `BackedCandidateAcknowledgement(CandidateHash,
     StatementFilter)` notification to any peer which has sent a manifest, and
     the candidate has been acquired by other means.
-    -   This keeps alternative paths through the topology open.
-        -   For the purpose of getting additional statements later.
-        -   Why: sending ack is another way of completing "manifest exchange" (pre-req
-            for receiving a statement, see below)
 -   Request/response for the candidate + votes.
     -   Ignore if they are inconsistent with the manifest.
     -   A malicious backing group is capable of producing an unbounded number of
@@ -303,7 +299,7 @@ protocol. This is the `AttestedCandidateRequest`; the response is
         -   Omit information implicit in the candidate, and should be sent to peers
             which are guaranteed to have the candidate already.
 
-### Manifest exchange
+### Manifest Exchange
 
 -   Occurs between us and a peer in the grid.
 -   Indicates that both nodes know the candidate as valid and backed.
@@ -325,6 +321,30 @@ protocol. This is the `AttestedCandidateRequest`; the response is
 -   After conclusion, we update pending statements.
     -   We now know our statements and theirs.
     -   Pending statements are those we know locally that the remote node does not.
+
+#### Alternative Paths Through The Topology
+
+-   Nodes should send a `BackedCandidateAcknowledgement(CandidateHash,
+    StatementFilter)` notification to any peer which has sent a manifest, and
+    the candidate has been acquired by other means.
+    -   This keeps alternative paths through the topology open.
+        -   For the purpose of getting additional statements that come later,
+            but not after the candidate has been posted on-chain.
+        -   This is mostly about the limitation that the runtime has no way for
+            block authors to post statements that come after the parablock is
+            posted on-chain and ensure those validators still get rewarded.
+        -   Technically, we only need enough statements to back the candidate
+            and the manifest + request will provide that. But more statements
+            might come shortly afterwards, and we want those to end up on-chain
+            as well to ensure all validators in the group are rewarded.
+        -   For clarity, here is the full timeline:
+
+            -   candidate seconded
+            -   backable in cluster
+            -   distributed along grid
+            -   latecomers issue statements
+            -   candidate posted on chain
+            -   really latecomers issue statements
 
 ## Cluster Module
 
@@ -348,7 +368,7 @@ protocol. This is the `AttestedCandidateRequest`; the response is
 -   Distribution of backed candidates and late statements outside the group.
 -   Protocol: See "Protocol"
 
-### Grid topology
+### Grid Topology
 
 -   The gossip topology
     -   Why: limit the amount of peers we send messages to and handle view updates.
@@ -369,7 +389,7 @@ protocol. This is the `AttestedCandidateRequest`; the response is
         -   For any validators we don't share a slice with, we receive from the
             nodes which share a slice with them.
 
-### Seconding limit
+### Seconding Limit
 
 -   The seconding limit is a per-validator limit.
 -   Before asynchronous backing:
