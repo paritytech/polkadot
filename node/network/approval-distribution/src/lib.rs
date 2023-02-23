@@ -397,9 +397,9 @@ impl State {
 			let mut span = self
 				.spans
 				.get(&meta.hash)
-				.map(|span| span.child_with_start_time(&"handle-new-blocks"))
+				.map(|span| span.child(&"handle-new-blocks"))
 				.unwrap_or_else(|| jaeger::Span::new(meta.hash, &"handle-new-blocks"))
-				.with_relay_parent(meta.hash)
+				.with_string_tag("block-hash", format!("{:?}", meta.hash))
 				.with_stage(jaeger::Stage::ApprovalDistribution);
 
 			match self.blocks.entry(meta.hash) {
@@ -1250,7 +1250,7 @@ impl State {
 				.get(&hash)
 				.map(|span| span.child("get-approval-signatures"))
 				.unwrap_or_else(|| jaeger::Span::new(&hash, "get-approval-signatures"))
-				.with_relay_parent(hash)
+				.with_string_tag("block-hash", format!("{:?}", hash))
 				.with_stage(jaeger::Stage::ApprovalDistribution);
 
 			let block_entry = match self.blocks.get(&hash) {
@@ -1715,7 +1715,7 @@ impl ApprovalDistribution {
 					.get(&cert.block_hash)
 					.map(|span| span.child("distribute-assignment"))
 					.unwrap_or_else(|| jaeger::Span::new(&cert.block_hash, "distribute-assignment"))
-					.with_relay_parent(cert.block_hash)
+					.with_string_tag("block-hash", format!("{:?}", cert.block_hash))
 					.with_stage(jaeger::Stage::ApprovalDistribution);
 
 				gum::debug!(
@@ -1742,7 +1742,7 @@ impl ApprovalDistribution {
 					.get(&vote.block_hash)
 					.map(|span| span.child("distribute-approval"))
 					.unwrap_or_else(|| jaeger::Span::new(&vote.block_hash, "distribute-approval"))
-					.with_relay_parent(vote.block_hash)
+					.with_string_tag("block-hash", format!("{:?}", vote.block_hash))
 					.with_stage(jaeger::Stage::ApprovalDistribution);
 
 				gum::debug!(

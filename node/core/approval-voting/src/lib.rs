@@ -928,11 +928,12 @@ async fn handle_actions<Context>(
 				let _span = state
 					.spans
 					.get(&block_hash)
-					.map(|span| span.child("schedule-wakeup"))
+					.map(|span| span.child_with_trace_id("schedule-wakeup", candidate_hash))
 					.unwrap_or_else(|| jaeger::Span::new(block_hash, "schedule-wakeup"))
-					.with_stage(jaeger::Stage::ApprovalChecking)
+					.with_string_tag("leaf", format!("{:?}", block_hash))
+					.with_uint_tag("block-number", block_number as u64)
 					.with_candidate(candidate_hash)
-					.with_uint_tag("block-number", block_number as u64);
+					.with_stage(jaeger::Stage::ApprovalChecking);
 
 				wakeups.schedule(block_hash, block_number, candidate_hash, tick);
 			},
@@ -1278,7 +1279,7 @@ async fn handle_from_overseer<Context>(
 					.map(|span| span.child("approved-ancestor"))
 					.unwrap_or_else(|| jaeger::Span::new(target, "approved-ancestor"))
 					.with_stage(jaeger::Stage::ApprovalChecking)
-					.with_string_tag("target", format!("{:?}", target));
+					.with_string_tag("leaf", format!("{:?}", target));
 				match handle_approved_ancestor(
 					ctx,
 					db,
@@ -1433,7 +1434,7 @@ async fn handle_approved_ancestor<Context>(
 		}
 	};
 
-	span.add_uint_tag("target-number", target_number as u64);
+	span.add_uint_tag("leaf-number", target_number as u64);
 	span.add_uint_tag("lower-bound", lower_bound as u64);
 	if target_number <= lower_bound {
 		return Ok(None)
@@ -1645,8 +1646,8 @@ async fn handle_approved_ancestor<Context>(
 		});
 	match all_approved_max {
 		Some(HighestApprovedAncestorBlock { ref hash, ref number, .. }) => {
-			span.add_uint_tag("approved-number", *number as u64);
-			span.add_string_fmt_debug_tag("approved-hash", hash);
+			span.add_uint_tag("highest-approved-number", *number as u64);
+			span.add_string_fmt_debug_tag("highest-approved-hash", hash);
 		},
 		None => {
 			span.add_string_tag("reached-lower-bound", "true");
@@ -1752,7 +1753,7 @@ fn check_and_import_assignment(
 		.get(&assignment.block_hash)
 		.map(|span| span.child("check-and-import-assignment"))
 		.unwrap_or_else(|| jaeger::Span::new(assignment.block_hash, "check-and-import-assignment"))
-		.with_string_tag("block-hash", format!("{:?}", assignment.block_hash))
+		.with_relay_parent(assignment.block_hash)
 		.with_uint_tag("candidate-index", candidate_index as u64)
 		.with_stage(jaeger::Stage::ApprovalChecking);
 
@@ -1791,7 +1792,11 @@ fn check_and_import_assignment(
 		};
 
 	check_and_import_assignment_span
-		.add_string_tag("assigned-candidate-hash", format!("{:?}", assigned_candidate_hash));
+		.add_string_tag("candidate-hash", format!("{:?}", assigned_candidate_hash));
+	check_and_import_assignment_span.add_string_tag(
+		"traceID",
+		format!("{:?}", jaeger::hash_to_trace_identifier(assigned_candidate_hash.0)),
+	);
 
 	let mut candidate_entry = match db.load_candidate_entry(&assigned_candidate_hash)? {
 		Some(c) => c,
@@ -1912,7 +1917,7 @@ fn check_and_import_approval<T>(
 		.map(|span| span.child("check-and-import-approval"))
 		.unwrap_or_else(|| jaeger::Span::new(approval.block_hash, "check-and-import-approval"))
 		.with_uint_tag("candidate-index", approval.candidate_index as u64)
-		.with_string_tag("block-hash", format!("{:?}", approval.block_hash))
+		.with_relay_parent(approval.block_hash)
 		.with_stage(jaeger::Stage::ApprovalChecking);
 
 	let block_entry = match db.load_block_entry(&approval.block_hash)? {
@@ -2563,12 +2568,14 @@ async fn issue_approval<Context>(
 	candidate_hash: CandidateHash,
 	ApprovalVoteRequest { validator_index, block_hash }: ApprovalVoteRequest,
 ) -> SubsystemResult<Vec<Action>> {
-	let _issue_approval_span = state
+	let mut issue_approval_span = state
 		.spans
 		.get(&block_hash)
-		.map(|span| span.child("issue-approval"))
+		.map(|span| span.child_with_trace_id("issue-approval", candidate_hash))
 		.unwrap_or_else(|| jaeger::Span::new(block_hash, "issue-approval"))
+		.with_string_tag("leaf", format!("{:?}", block_hash))
 		.with_candidate(candidate_hash)
+		.with_validator_index(validator_index)
 		.with_stage(jaeger::Stage::ApprovalChecking);
 
 	let block_entry = match db.load_block_entry(&block_hash)? {
@@ -2595,6 +2602,7 @@ async fn issue_approval<Context>(
 		},
 		Some(idx) => idx,
 	};
+	issue_approval_span.add_int_tag("candidate_index", candidate_index as i64);
 
 	let session_info = match state.session_info(block_entry.session()) {
 		Some(s) => s,

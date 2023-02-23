@@ -156,7 +156,7 @@ pub async fn answer_pov_request<Sender>(
 where
 	Sender: SubsystemSender<AvailabilityStoreMessage>,
 {
-	let _span = jaeger::Span::new(req.payload.candidate_hash, "answer-pov-request");
+	let mut span = jaeger::Span::new(req.payload.candidate_hash, "answer-pov-request");
 
 	let av_data = query_available_data(sender, req.payload.candidate_hash).await?;
 
@@ -184,9 +184,11 @@ pub async fn answer_chunk_request<Sender>(
 where
 	Sender: SubsystemSender<AvailabilityStoreMessage>,
 {
-	let span = jaeger::Span::new(req.payload.candidate_hash, "answer-chunk-request");
+	let mut span = jaeger::Span::new(req.payload.candidate_hash, "answer-chunk-request");
 
-	let _child_span = span.child("answer-chunk-request").with_chunk_index(req.payload.index.0);
+	let _child_span = span
+		.child_with_trace_id("answer-chunk-request", req.payload.candidate_hash)
+		.with_chunk_index(req.payload.index.0);
 
 	let chunk = query_chunk(sender, req.payload.candidate_hash, req.payload.index).await?;
 
