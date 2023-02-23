@@ -372,7 +372,8 @@ pub mod pallet {
 
 const LOG_TARGET: &str = "runtime::inclusion";
 
-#[derive(derive_more::From, Debug)]
+#[derive(derive_more::From)]
+#[cfg_attr(feature= "std", derive(Debug))]
 enum AcceptanceCheckErr<BlockNumber> {
 	HeadDataTooLarge,
 	PrematureCodeUpgrade,
@@ -399,6 +400,7 @@ pub enum UmpAcceptanceCheckErr {
 	IsOffboarding,
 }
 
+#[cfg(feature = "std")]
 impl fmt::Debug for UmpAcceptanceCheckErr {
 	fn fmt(&self, fmt: &mut fmt::Formatter) -> fmt::Result {
 		match *self {
@@ -827,7 +829,7 @@ impl<T: Config> Pallet<T> {
 		let relay_parent_number = now;
 		let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 
-		if let Err(err) = check_ctx.check_validation_outputs(
+		if check_ctx.check_validation_outputs(
 			para_id,
 			&validation_outputs.head_data,
 			&validation_outputs.new_validation_code,
@@ -835,12 +837,11 @@ impl<T: Config> Pallet<T> {
 			&validation_outputs.upward_messages,
 			T::BlockNumber::from(validation_outputs.hrmp_watermark),
 			&validation_outputs.horizontal_messages,
-		) {
+		).is_err() {
 			log::debug!(
 				target: LOG_TARGET,
-				"Validation outputs checking for parachain `{}` failed: {:?}",
+				"Validation outputs checking for parachain `{}` failed",
 				u32::from(para_id),
-				err,
 			);
 			false
 		} else {
@@ -1243,10 +1244,9 @@ impl<T: Config> CandidateCheckContext<T> {
 		) {
 			log::debug!(
 				target: LOG_TARGET,
-				"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed: {:?}",
+				"Validation outputs checking during inclusion of a candidate {} for parachain `{}` failed",
 				candidate_idx,
 				u32::from(para_id),
-				err,
 			);
 			Err(err.strip_into_dispatch_err::<T>())?;
 		};
