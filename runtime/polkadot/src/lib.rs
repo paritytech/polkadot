@@ -92,7 +92,7 @@ use sp_runtime::traits::Get;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-use polkadot_runtime_constants::{currency::*, fee::*, time::*};
+use polkadot_runtime_constants::{currency::*, fee::*, inflation::*, time::*};
 
 // Weights used in the runtime.
 mod weights;
@@ -511,8 +511,6 @@ impl pallet_bags_list::Config<VoterBagsListInstance> for Runtime {
 // TODO #6469: This shouldn't be static, but a lazily cached value, not built unless needed, and
 // re-built in case input parameters have changed. The `ideal_stake` should be determined by the
 // amount of parachain slots being bid on: this should be around `(75 - 25.min(slots / 4))%`.
-// NOTE: Changes to `ideal_stake` and `falloff` must also be applied in pallet_staking_runtime_api
-// `inflation_rate`.
 pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
@@ -553,6 +551,14 @@ type StakingAdminOrigin = EitherOfDiverse<
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 4>,
 >;
 
+pub struct AuctionedSlots;
+impl AuctionedSlots {
+	// gets all para-ids that are currently active.
+	fn get() -> u64 {
+		Paras::parachains().into_iter().filter(|i| *i >= LOWEST_PUBLIC_ID).count() as u64
+	}
+}
+
 pub struct EraPayout;
 impl pallet_staking::EraPayout<Balance> for EraPayout {
 	fn era_payout(
@@ -560,18 +566,14 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 		total_issuance: Balance,
 		era_duration_millis: u64,
 	) -> (Balance, Balance) {
-		// all para-ids that are not active.
-		let auctioned_slots = Paras::parachains()
-			.into_iter()
-			// all active para-ids that do not belong to a system or common good chain is the number
-			// of parachains that we should take into account for inflation.
-			.filter(|i| *i >= LOWEST_PUBLIC_ID)
-			.count() as u64;
+		let auctioned_slots = AuctionedSlots::get();
 
 		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
 		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 
 		runtime_common::impls::era_payout(
+			IDEAL_STAKE_BASE,
+			FALLOFF,
 			total_staked,
 			total_issuance,
 			MAX_ANNUAL_INFLATION,
@@ -1747,13 +1749,8 @@ sp_api::impl_runtime_apis! {
 
 	impl pallet_staking_runtime_api::StakingApi<Block, Balance> for Runtime {
 		fn inflation_rate() -> Perquintill {
-			// NOTE: Changes to `ideal_stake` and `falloff` must also be applied in `REWARD_CURVE` config.
-			let ideal_stake = 0_750_000_u64;
-			let falloff = 0_050_000_u64;
-			Staking::api_inflation_rate(
-				Perquintill::from_rational(ideal_stake, 1_000_000_u64),
-				Perquintill::from_rational(falloff, 1_000_000_u64)
-			)
+			let ideal_stake = runtime_common::impls::get_ideal_stake(AuctionedSlots::get(), IDEAL_STAKE_BASE);
+			Staking::api_inflation_rate(ideal_stake, FALLOFF)
 		}
 		fn nominations_quota(balance: Balance) -> u32 {
 			Staking::api_nominations_quota(balance)

@@ -59,7 +59,20 @@ where
 	}
 }
 
+pub fn get_ideal_stake(auctioned_slots: u64, ideal_stake_base: Perquintill) -> Perquintill {
+	use sp_runtime::traits::Saturating;
+
+	// 30% reserved for up to 60 slots.
+	let auction_proportion = Perquintill::from_rational(auctioned_slots.min(60), 200u64);
+
+	// The ideal amount at stake (as a percentage of total issuance) is 75% less the
+	// amount that we expect to be taken up with auctions.
+	ideal_stake_base.saturating_sub(auction_proportion)
+}
+
 pub fn era_payout(
+	ideal_stake_base: Perquintill,
+	falloff: Perquintill,
 	total_staked: Balance,
 	total_stakable: Balance,
 	max_annual_inflation: Perquintill,
@@ -72,15 +85,9 @@ pub fn era_payout(
 	let min_annual_inflation = Perquintill::from_rational(25u64, 1000u64);
 	let delta_annual_inflation = max_annual_inflation.saturating_sub(min_annual_inflation);
 
-	// 30% reserved for up to 60 slots.
-	let auction_proportion = Perquintill::from_rational(auctioned_slots.min(60), 200u64);
-
-	// Therefore the ideal amount at stake (as a percentage of total issuance) is 75% less the
-	// amount that we expect to be taken up with auctions.
-	let ideal_stake = Perquintill::from_percent(75).saturating_sub(auction_proportion);
+	let ideal_stake = get_ideal_stake(auctioned_slots, ideal_stake_base);
 
 	let stake = Perquintill::from_rational(total_staked, total_stakable);
-	let falloff = Perquintill::from_percent(5);
 	let adjustment = compute_inflation(stake, ideal_stake, falloff);
 	let staking_inflation =
 		min_annual_inflation.saturating_add(delta_annual_inflation * adjustment);
@@ -280,11 +287,27 @@ mod tests {
 	#[test]
 	fn era_payout_should_give_sensible_results() {
 		assert_eq!(
-			era_payout(75, 100, Perquintill::from_percent(10), Perquintill::one(), 0,),
+			era_payout(
+				Perquintill::from_percent(75),
+				Perquintill::from_percent(5),
+				75,
+				100,
+				Perquintill::from_percent(10),
+				Perquintill::one(),
+				0,
+			),
 			(10, 0)
 		);
 		assert_eq!(
-			era_payout(80, 100, Perquintill::from_percent(10), Perquintill::one(), 0,),
+			era_payout(
+				Perquintill::from_percent(75),
+				Perquintill::from_percent(5),
+				80,
+				100,
+				Perquintill::from_percent(10),
+				Perquintill::one(),
+				0,
+			),
 			(6, 4)
 		);
 	}
