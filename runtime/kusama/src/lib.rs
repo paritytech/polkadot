@@ -39,7 +39,8 @@ use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
-	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
+	inclusion::AggregateMessageOrigin, initializer as parachains_initializer,
+	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared,
@@ -1127,7 +1128,7 @@ impl parachains_inclusion::Config for Runtime {
 	type DisputesHandler = ParasDisputes;
 	type RewardValidators = parachains_reward_points::RewardValidatorsWithEraPoints<Runtime>;
 	type MessageQueue = MessageQueue;
-	type WeightInfo = (); // FAIL-CI: TODO
+	type WeightInfo = weights::runtime_parachains_inclusion::WeightInfo<Runtime>;
 }
 
 parameter_types! {
@@ -1138,6 +1139,7 @@ impl parachains_paras::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = weights::runtime_parachains_paras::WeightInfo<Runtime>;
 	type UnsignedPriority = ParasUnsignedPriority;
+	type UmpQueueTracker = ParaInclusion;
 	type NextSessionRotation = Babe;
 }
 
@@ -1149,19 +1151,22 @@ parameter_types! {
 
 pub struct MessageProcessor;
 impl ProcessMessage for MessageProcessor {
-	type Origin = ParaId;
+	type Origin = AggregateMessageOrigin;
 
 	fn process_message(
 		message: &[u8],
 		origin: Self::Origin,
 		weight_limit: Weight,
 	) -> Result<(bool, Weight), ProcessMessageError> {
+		let para = match origin {
+			AggregateMessageOrigin::UMP(para) => para,
+		};
 		xcm_builder::ProcessXcmMessage::<
 			Junction,
 			xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
 			RuntimeCall,
 			// FAIL-CI why does `Parachain` not accept a `ParaId`?
-		>::process_message(message, Junction::Parachain(origin.into()), weight_limit)
+		>::process_message(message, Junction::Parachain(para.into()), weight_limit)
 	}
 }
 
@@ -1547,6 +1552,7 @@ mod benches {
 		[runtime_parachains::configuration, Configuration]
 		[runtime_parachains::hrmp, Hrmp]
 		[runtime_parachains::disputes, ParasDisputes]
+		[runtime_parachains::inclusion, ParaInclusion]
 		[runtime_parachains::initializer, Initializer]
 		[runtime_parachains::paras_inherent, ParaInherent]
 		[runtime_parachains::paras, Paras]

@@ -1706,6 +1706,8 @@ impl PvfCheckStatement {
 }
 
 /// A well-known and typed storage key.
+///
+/// Allows for type-safe access to raw well-known storage keys.
 pub struct WellKnownKey<T> {
 	/// The raw storage key.
 	pub key: Vec<u8>,

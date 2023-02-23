@@ -35,13 +35,13 @@ use frame_support::{
 };
 use pallet_message_queue::OnQueueChanged;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_parachain::primitives::UpwardMessages;
 use primitives::{
 	well_known_keys, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex,
 	GroupIndex, Hash, HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields,
 	UpwardMessage, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
-use polkadot_parachain::primitives::UpwardMessages;
 use scale_info::TypeInfo;
 use sp_runtime::{traits::One, DispatchError, SaturatedConversion};
 use sp_std::{collections::btree_set::BTreeSet, fmt, prelude::*};
@@ -231,6 +231,14 @@ impl UmpQueueTracker for () {
 pub enum AggregateMessageOrigin {
 	/// Incoming upwards message from a parachain.
 	UMP(ParaId),
+}
+
+#[cfg(feature = "runtime-benchmarks")]
+impl From<u32> for AggregateMessageOrigin {
+	fn from(n: u32) -> Self {
+		// Some dummy for the benchmarks.
+		Self::UMP(n.into())
+	}
 }
 
 #[frame_support::pallet]
