@@ -595,11 +595,13 @@ impl<T: Config> Pallet<T> {
 		Ok(assignment)
 	}
 
+	#[cfg(test)]
 	fn lookahead_sizes() -> Vec<usize> {
 		Self::print_lookahead();
 		Lookahead::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
 	}
 
+	#[cfg(test)]
 	pub(crate) fn lookahead_is_empty() -> bool {
 		let sum = Self::lookahead_sizes().iter().sum::<usize>();
 		sp_runtime::print("SUM");
