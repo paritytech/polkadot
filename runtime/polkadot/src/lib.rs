@@ -758,9 +758,9 @@ parameter_types! {
 	/// 13 members initially, to be increased to 23 eventually.
 	pub const DesiredMembers: u32 = 13;
 	pub const DesiredRunnersUp: u32 = 20;
-	pub const MaxVoters: u32 = 10 * 1000;
+	pub const MaxVoters: u32 = 64;
 	pub const MaxVotesPerVoter: u32 = 16;
-	pub const MaxCandidates: u32 = 1000;
+	pub const MaxCandidates: u32 = 32;
 	// The ElectionsPalletId parameter name was changed along with the renaming of the elections
 	// pallet, but we keep the same lock ID to prevent runtime migrations. Related to
 	// https://github.com/paritytech/substrate/issues/8250
