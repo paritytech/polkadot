@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	inclusion::UmpAcceptanceCheckErr,
+	inclusion::{UmpAcceptanceCheckErr, AggregateMessageOrigin::UMP},
 	mock::{
 		assert_last_event, assert_last_events, new_test_ext, Configuration, MessageQueue,
 		MessageQueueSize, MockGenesisConfig, ParaInclusion, Processed, System, Test,
@@ -385,7 +385,7 @@ fn service_overweight_unknown() {
 	// the next test.
 	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 		assert_noop!(
-			<MessageQueue as ServiceQueues>::execute_overweight(Weight::MAX, (0u32.into(), 0, 0)),
+			<MessageQueue as ServiceQueues>::execute_overweight(Weight::MAX, (UMP(0u32.into()), 0, 0)),
 			ExecuteOverweightError::NotFound,
 		);
 	});
@@ -418,21 +418,21 @@ fn overweight_queue_works() {
 			[
 				pallet_message_queue::Event::<Test>::Processed {
 					hash: hash_1.clone(),
-					origin: para_a,
+					origin: UMP(para_a),
 					weight_used: Weight::from_parts(301, 301),
 					success: true,
 				}
 				.into(),
 				pallet_message_queue::Event::<Test>::OverweightEnqueued {
 					hash: hash_2.clone(),
-					origin: para_a,
+					origin: UMP(para_a),
 					page_index: 0,
 					message_index: 1,
 				}
 				.into(),
 				pallet_message_queue::Event::<Test>::OverweightEnqueued {
 					hash: hash_3.clone(),
-					origin: para_a,
+					origin: UMP(para_a),
 					page_index: 0,
 					message_index: 2,
 				}
@@ -447,7 +447,7 @@ fn overweight_queue_works() {
 		assert_noop!(
 			<MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::from_parts(500, 500),
-				(para_a, 0, 2)
+				(UMP(para_a), 0, 2)
 			),
 			ExecuteOverweightError::InsufficientWeight,
 		);
@@ -455,12 +455,12 @@ fn overweight_queue_works() {
 		// ... and if we try to service it with just enough weight it will succeed as well.
 		assert_ok!(<MessageQueue as ServiceQueues>::execute_overweight(
 			Weight::from_parts(501, 501),
-			(para_a, 0, 2)
+			(UMP(para_a), 0, 2)
 		));
 		assert_last_event(
 			pallet_message_queue::Event::<Test>::Processed {
 				hash: hash_3,
-				origin: para_a,
+				origin: UMP(para_a),
 				weight_used: Weight::from_parts(501, 501),
 				success: true,
 			}
@@ -472,7 +472,7 @@ fn overweight_queue_works() {
 		assert_noop!(
 			<MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::from_parts(501, 501),
-				(para_a, 0, 2)
+				(UMP(para_a), 0, 2)
 			),
 			ExecuteOverweightError::NotFound,
 		);

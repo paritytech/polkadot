@@ -213,6 +213,15 @@ pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	sp_std::cmp::min(n_validators, 2)
 }
 
+/// Aggregate message origin for the `MessageQueue` pallet.
+///
+/// Can be extended to serve further use-cases besides just UMP. Changing this possibly requires a migration.
+#[derive(Encode, Decode, Clone, MaxEncodedLen, Eq, PartialEq, RuntimeDebug, TypeInfo)]
+pub enum AggregateMessageOrigin {
+	/// Incoming upwards message from a parachain.
+	UMP(ParaId),
+}
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -238,8 +247,8 @@ pub mod pallet {
 
 		/// The system message queue.
 		///
-		/// The message queue provides general queueing and processing functionality. Currently it replaces the old `UMP` dispatch queue. Other use-cases can be implemented as well.
-		type MessageQueue: EnqueueMessage<ParaId>;
+		/// The message queue provides general queueing and processing functionality. Currently it replaces the old `UMP` dispatch queue. Other use-cases can be implemented as well by adding new variants to `AggregateMessageOrigin`.
+		type MessageQueue: EnqueueMessage<AggregateMessageOrigin>;
 	}
 
 	#[pallet::event]
@@ -902,7 +911,7 @@ impl<T: Config> Pallet<T> {
 			})
 		}
 
-		let fp = T::MessageQueue::footprint(para);
+		let fp = T::MessageQueue::footprint(AggregateMessageOrigin::UMP(para));
 		let (para_queue_count, mut para_queue_size) = (fp.count, fp.size);
 
 		if para_queue_count
@@ -956,7 +965,7 @@ impl<T: Config> Pallet<T> {
 		let count = upward_messages.len() as u32;
 		Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
 		let messages = upward_messages.iter().filter_map(|d| BoundedSlice::try_from(&d[..]).ok());
-		T::MessageQueue::enqueue_messages(messages, para);
+		T::MessageQueue::enqueue_messages(messages, AggregateMessageOrigin::UMP(para));
 		<T as Config>::WeightInfo::receive_upward_messages(count)
 	}
 
@@ -1090,8 +1099,11 @@ impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 	}
 }
 
-impl<T: Config> OnQueueChanged<ParaId> for Pallet<T> {
-	fn on_queue_changed(para: ParaId, count: u64, size: u64) {
+impl<T: Config> OnQueueChanged<AggregateMessageOrigin> for Pallet<T> {
+	fn on_queue_changed(origin: AggregateMessageOrigin, count: u64, size: u64) {
+		let para = match origin {
+			AggregateMessageOrigin::UMP(p) => p,
+		};
 		// TODO maybe migrate this to u64
 		let (count, size) = (count.saturated_into(), size.saturated_into());
 		// TODO paritytech/polkadot#6283: Remove all usages of `relay_dispatch_queue_size`

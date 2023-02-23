@@ -21,6 +21,7 @@ use crate::{
 	inclusion::{self},
 	initializer, origin, paras, paras_inherent, scheduler, session_info, shared, ParaId,
 };
+use crate::inclusion::AggregateMessageOrigin;
 
 use frame_support::{
 	parameter_types,
@@ -424,13 +425,17 @@ parameter_types! {
 /// `u32`.
 pub struct TestProcessMessage;
 impl ProcessMessage for TestProcessMessage {
-	type Origin = ParaId;
+	type Origin = AggregateMessageOrigin;
 
 	fn process_message(
 		message: &[u8],
-		origin: ParaId,
+		origin: AggregateMessageOrigin,
 		weight_limit: Weight,
 	) -> Result<(bool, Weight), ProcessMessageError> {
+		let origin = match origin {
+			AggregateMessageOrigin::UMP(o) => o,
+		};
+
 		let weight = match u32::decode(&mut &message[..]) {
 			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Err(ProcessMessageError::Corrupt), // same as the real `ProcessMessage`

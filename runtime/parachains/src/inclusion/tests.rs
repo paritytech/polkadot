@@ -43,6 +43,8 @@ use test_helpers::{
 	dummy_candidate_receipt, dummy_collator, dummy_collator_signature, dummy_hash,
 	dummy_validation_code,
 };
+use hex_literal::hex;
+use parity_scale_codec::DecodeAll;
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	let mut config = HostConfiguration::default();
@@ -1967,4 +1969,12 @@ fn session_change_wipes() {
 		assert!(<PendingAvailability<Test>>::iter().collect::<Vec<_>>().is_empty());
 		assert!(<PendingAvailabilityCommitments<Test>>::iter().collect::<Vec<_>>().is_empty());
 	});
+}
+
+#[test]
+fn aggregate_origin_decode_regression_check() {
+	let ump = AggregateMessageOrigin::UMP(u32::MAX.into());
+	let raw = hex!("00ffffffff");
+	let decoded = AggregateMessageOrigin::decode_all(&mut &raw[..]);
+	assert_eq!(decoded, Ok(ump), "Migration needed for AggregateMessageOrigin");
 }
