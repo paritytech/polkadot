@@ -25,9 +25,8 @@ struct MetricsInner {
 	assignments_imported_total: prometheus::Counter<prometheus::U64>,
 	approvals_imported_total: prometheus::Counter<prometheus::U64>,
 	unified_with_peer_total: prometheus::Counter<prometheus::U64>,
-	aggression_l1_messages_total: prometheus::Counter<prometheus::U64>,
-	aggression_l2_messages_total: prometheus::Counter<prometheus::U64>,
-
+	// aggression_l1_messages_total: prometheus::Counter<prometheus::U64>,
+	// aggression_l2_messages_total: prometheus::Counter<prometheus::U64>,
 	time_unify_with_peer: prometheus::Histogram,
 	time_import_pending_now_known: prometheus::Histogram,
 	time_awaiting_approval_voting: prometheus::Histogram,
@@ -72,17 +71,17 @@ impl Metrics {
 			.map(|metrics| metrics.time_awaiting_approval_voting.start_timer())
 	}
 
-	pub(crate) fn on_aggression_l1(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.aggression_l1_messages_total.inc();
-		}
-	}
+	// pub(crate) fn on_aggression_l1(&self) {
+	// 	if let Some(metrics) = &self.0 {
+	// 		metrics.aggression_l1_messages_total.inc();
+	// 	}
+	// }
 
-	pub(crate) fn on_aggression_l2(&self) {
-		if let Some(metrics) = &self.0 {
-			metrics.aggression_l2_messages_total.inc();
-		}
-	}
+	// pub(crate) fn on_aggression_l2(&self) {
+	// 	if let Some(metrics) = &self.0 {
+	// 		metrics.aggression_l2_messages_total.inc();
+	// 	}
+	// }
 }
 
 impl MetricsTrait for Metrics {
@@ -109,25 +108,31 @@ impl MetricsTrait for Metrics {
 				)?,
 				registry,
 			)?,
-			aggression_l1_messages_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_approval_distribution_aggression_l1_messages_total",
-					"Number of messages in approval distribution for which aggression L1 has been triggered",
-				)?,
-				registry,
-			)?,
-			aggression_l2_messages_total: prometheus::register(
-				prometheus::Counter::new(
-					"polkadot_parachain_approval_distribution_aggression_l2_messages_total",
-					"Number of messages in approval distribution for which aggression L2 has been triggered",
-				)?,
-				registry,
-			)?,
+			// aggression_l1_messages_total: prometheus::register(
+			// 	prometheus::Counter::new(
+			// 		"polkadot_parachain_approval_distribution_aggression_l1_messages_total",
+			// 		"Number of messages in approval distribution for which aggression L1 has been triggered",
+			// 	)?,
+			// 	registry,
+			// )?,
+			// aggression_l2_messages_total: prometheus::register(
+			// 	prometheus::Counter::new(
+			// 		"polkadot_parachain_approval_distribution_aggression_l2_messages_total",
+			// 		"Number of messages in approval distribution for which aggression L2 has been triggered",
+			// 	)?,
+			// 	registry,
+			// )?,
 			time_unify_with_peer: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_time_unify_with_peer",
-					"Time spent within fn `unify_with_peer`.",
-				).buckets(vec![0.000625, 0.00125,0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,]))?,
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_time_unify_with_peer",
+						"Time spent within fn `unify_with_peer`.",
+					)
+					.buckets(vec![
+						0.000625, 0.00125, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.1, 0.25,
+						0.5, 1.0, 2.5, 5.0, 10.0,
+					]),
+				)?,
 				registry,
 			)?,
 			time_import_pending_now_known: prometheus::register(
