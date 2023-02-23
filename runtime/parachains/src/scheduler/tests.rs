@@ -811,41 +811,44 @@ fn schedule_clears_availability_cores() {
 		run_to_block(3, |_| None);
 
 		// now note that cores 0 and 2 were freed.
-		//Scheduler::schedule(
-		//	vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)]
-		//		.into_iter()
-		//		.collect(),
-		//	3,
-		//);
+		Scheduler::fill_lookahead(
+			vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)]
+				.into_iter()
+				.collect(),
+			3,
+		);
 
-		//{
-		//	let scheduled = Scheduler::scheduled();
+		{
+			let lookahead = Scheduler::lookahead();
 
-		//	assert_eq!(scheduled.len(), 2);
-		//	assert_eq!(
-		//		scheduled[0],
-		//		CoreAssignment {
-		//			core: CoreIndex(0),
-		//			para_id: chain_a,
-		//			kind: AssignmentKind::Parachain,
-		//			group_idx: GroupIndex(0),
-		//		}
-		//	);
-		//	assert_eq!(
-		//		scheduled[1],
-		//		CoreAssignment {
-		//			core: CoreIndex(2),
-		//			para_id: chain_c,
-		//			kind: AssignmentKind::Parachain,
-		//			group_idx: GroupIndex(2),
-		//		}
-		//	);
+			let lookahead_0 = lookahead.get(&CoreIndex(0)).unwrap().clone();
+			let lookahead_2 = lookahead.get(&CoreIndex(2)).unwrap().clone();
+			assert_eq!(lookahead_0.len(), 1);
+			assert_eq!(lookahead_2.len(), 1);
+			assert_eq!(
+				lookahead_0,
+				vec![CoreAssignment {
+					core: CoreIndex(0),
+					para_id: chain_a,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
+				}]
+			);
+			assert_eq!(
+				lookahead_2,
+				vec![CoreAssignment {
+					core: CoreIndex(2),
+					para_id: chain_c,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(2),
+				}]
+			);
 
-		//	// The freed cores should be `None` in `AvailabilityCores`.
-		//	let cores = AvailabilityCores::<Test>::get();
-		//	assert!(cores[0].is_none());
-		//	assert!(cores[2].is_none());
-		//}
+			// The freed cores should be `Free` in `AvailabilityCores`.
+			let cores = AvailabilityCores::<Test>::get();
+			assert!(cores[0].is_free());
+			assert!(cores[2].is_free());
+		}
 	});
 }
 
