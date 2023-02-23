@@ -925,16 +925,6 @@ async fn handle_actions<Context>(
 	while let Some(action) = actions_iter.next() {
 		match action {
 			Action::ScheduleWakeup { block_hash, block_number, candidate_hash, tick } => {
-				let _span = state
-					.spans
-					.get(&block_hash)
-					.map(|span| span.child_with_trace_id("schedule-wakeup", candidate_hash))
-					.unwrap_or_else(|| jaeger::Span::new(block_hash, "schedule-wakeup"))
-					.with_string_tag("leaf", format!("{:?}", block_hash))
-					.with_uint_tag("block-number", block_number as u64)
-					.with_candidate(candidate_hash)
-					.with_stage(jaeger::Stage::ApprovalChecking);
-
 				wakeups.schedule(block_hash, block_number, candidate_hash, tick);
 			},
 			Action::IssueApproval(candidate_hash, approval_request) => {
