@@ -51,8 +51,8 @@ check-try-runtime:
     - cargo check --features try-runtime --all
 
 # More info can be found here: https://github.com/paritytech/polkadot/pull/5865
-# Works only in PRs
-check-runtime-migration:
+# Works only in PRs with E1 label
+.check-runtime-migration:
   stage:                           check
   extends:
     - .docker-env
@@ -62,15 +62,51 @@ check-runtime-migration:
     - |
       export has_runtimemigration_label=$(curl -sS -H "Accept: application/vnd.github+json" \
         -H "Authorization: token $GITHUB_PR_TOKEN" \
-        https://api.github.com/repos/paritytech/polkadot/issues/$CI_COMMIT_REF_NAME/labels | grep "E1" | wc -l)
+        https://api.github.com/repos/paritytech/polkadot/issues/$CI_COMMIT_REF_NAME/labels | grep "E0-runtime_migration" | wc -l)
     - |
       if [[ $has_runtimemigration_label != 0 ]]; then
-        echo "Found label runtimemigration. Running tests"
+        echo "Found label runtime_migration. Running tests"
         export RUST_LOG=remote-ext=debug,runtime=debug
-        time cargo test --release -p westend-runtime -p polkadot-runtime -p kusama-runtime --features try-runtime
+        echo "---------- Running try-runtime for ${NETWORK} ----------"
+        time cargo build --release -p "$NETWORK"-runtime
+        time cargo run --release --features try-runtime try-runtime \
+            --runtime ./target/release/wbuild/"$NETWORK"-runtime/target/wasm32-unknown-unknown/release/"$NETWORK"_runtime.wasm \
+            -lruntime=debug \
+            --chain=${NETWORK}-dev \
+            on-runtime-upgrade live --uri wss://${NETWORK}-try-runtime-node.parity-chains.parity.io:443
       else
-        echo "runtimemigration label not found. Skipping"
+        echo "runtime_migration label not found. Skipping"
       fi
+
+check-runtime-migration-polkadot:
+  stage:                           check
+  extends:
+    - .docker-env
+    - .test-pr-refs
+    - .compiler-info
+    - .check-runtime-migration
+  variables:
+    NETWORK:                       "polkadot"
+
+check-runtime-migration-kusama:
+  stage:                           check
+  extends:
+    - .docker-env
+    - .test-pr-refs
+    - .compiler-info
+    - .check-runtime-migration
+  variables:
+    NETWORK:                       "kusama"
+
+check-runtime-migration-westend:
+  stage:                           check
+  extends:
+    - .docker-env
+    - .test-pr-refs
+    - .compiler-info
+    - .check-runtime-migration
+  variables:
+    NETWORK:                       "westend"
   allow_failure:                   true
 
 # is broken, need to fix

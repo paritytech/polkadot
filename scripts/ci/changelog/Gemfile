@@ -16,6 +16,8 @@ gem 'optparse', '~> 0.1.1'
 
 gem 'logger', '~> 1.4'
 
+gem 'changelogerator', '0.10.1'
+
 gem 'test-unit', group: :dev
 
 gem 'rubocop', group: :dev, require: false

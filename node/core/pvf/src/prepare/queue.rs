@@ -17,12 +17,15 @@
 //! A queue that handles requests for PVF preparation.
 
 use super::pool::{self, Worker};
-use crate::{artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, Pvf, LOG_TARGET};
+use crate::{
+	artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, PvfWithExecutorParams,
+	LOG_TARGET,
+};
 use always_assert::{always, never};
-use async_std::path::PathBuf;
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
 use std::{
 	collections::{HashMap, VecDeque},
+	path::PathBuf,
 	time::Duration,
 };
 
@@ -33,7 +36,11 @@ pub enum ToQueue {
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue`] response.
-	Enqueue { priority: Priority, pvf: Pvf, preparation_timeout: Duration },
+	Enqueue {
+		priority: Priority,
+		pvf_with_params: PvfWithExecutorParams,
+		preparation_timeout: Duration,
+	},
 }
 
 /// A response from queue.
@@ -78,7 +85,7 @@ slotmap::new_key_type! { pub struct Job; }
 struct JobData {
 	/// The priority of this job. Can be bumped.
 	priority: Priority,
-	pvf: Pvf,
+	pvf_with_params: PvfWithExecutorParams,
 	/// The timeout for the preparation job.
 	preparation_timeout: Duration,
 	worker: Option<Worker>,
@@ -208,8 +215,8 @@ impl Queue {
 
 async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fatal> {
 	match to_queue {
-		ToQueue::Enqueue { priority, pvf, preparation_timeout } => {
-			handle_enqueue(queue, priority, pvf, preparation_timeout).await?;
+		ToQueue::Enqueue { priority, pvf_with_params, preparation_timeout } => {
+			handle_enqueue(queue, priority, pvf_with_params, preparation_timeout).await?;
 		},
 	}
 	Ok(())
@@ -218,19 +225,19 @@ async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fat
 async fn handle_enqueue(
 	queue: &mut Queue,
 	priority: Priority,
-	pvf: Pvf,
+	pvf_with_params: PvfWithExecutorParams,
 	preparation_timeout: Duration,
 ) -> Result<(), Fatal> {
 	gum::debug!(
 		target: LOG_TARGET,
-		validation_code_hash = ?pvf.code_hash,
+		validation_code_hash = ?pvf_with_params.code_hash(),
 		?priority,
 		?preparation_timeout,
 		"PVF is enqueued for preparation.",
 	);
 	queue.metrics.prepare_enqueued();
 
-	let artifact_id = pvf.as_artifact_id();
+	let artifact_id = pvf_with_params.as_artifact_id();
 	if never!(
 		queue.artifact_id_to_job.contains_key(&artifact_id),
 		"second Enqueue sent for a known artifact"
@@ -247,7 +254,10 @@ async fn handle_enqueue(
 		return Ok(())
 	}
 
-	let job = queue.jobs.insert(JobData { priority, pvf, preparation_timeout, worker: None });
+	let job =
+		queue
+			.jobs
+			.insert(JobData { priority, pvf_with_params, preparation_timeout, worker: None });
 	queue.artifact_id_to_job.insert(artifact_id, job);
 
 	if let Some(available) = find_idle_worker(queue) {
@@ -338,7 +348,7 @@ async fn handle_worker_concluded(
 	// this can't be None;
 	// qed.
 	let job_data = never_none!(queue.jobs.remove(job));
-	let artifact_id = job_data.pvf.as_artifact_id();
+	let artifact_id = job_data.pvf_with_params.as_artifact_id();
 
 	queue.artifact_id_to_job.remove(&artifact_id);
 
@@ -364,16 +374,14 @@ async fn handle_worker_concluded(
 			// the pool up to the hard cap.
 			spawn_extra_worker(queue, false).await?;
 		}
+	} else if queue.limits.should_cull(queue.workers.len() + queue.spawn_inflight) {
+		// We no longer need services of this worker. Kill it.
+		queue.workers.remove(worker);
+		send_pool(&mut queue.to_pool_tx, pool::ToPool::Kill(worker)).await?;
 	} else {
-		if queue.limits.should_cull(queue.workers.len() + queue.spawn_inflight) {
-			// We no longer need services of this worker. Kill it.
-			queue.workers.remove(worker);
-			send_pool(&mut queue.to_pool_tx, pool::ToPool::Kill(worker)).await?;
-		} else {
-			// see if there are more work available and schedule it.
-			if let Some(job) = queue.unscheduled.next() {
-				assign(queue, worker, job).await?;
-			}
+		// see if there are more work available and schedule it.
+		if let Some(job) = queue.unscheduled.next() {
+			assign(queue, worker, job).await?;
 		}
 	}
 
@@ -426,7 +434,7 @@ async fn spawn_extra_worker(queue: &mut Queue, critical: bool) -> Result<(), Fat
 async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal> {
 	let job_data = &mut queue.jobs[job];
 
-	let artifact_id = job_data.pvf.as_artifact_id();
+	let artifact_id = job_data.pvf_with_params.as_artifact_id();
 	let artifact_path = artifact_id.path(&queue.cache_path);
 
 	job_data.worker = Some(worker);
@@ -437,7 +445,7 @@ async fn assign(queue: &mut Queue, worker: Worker, job: Job) -> Result<(), Fatal
 		&mut queue.to_pool_tx,
 		pool::ToPool::StartWork {
 			worker,
-			code: job_data.pvf.code.clone(),
+			pvf_with_params: job_data.pvf_with_params.clone(),
 			artifact_path,
 			preparation_timeout: job_data.preparation_timeout,
 		},
@@ -494,15 +502,19 @@ pub fn start(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use crate::{error::PrepareError, host::PRECHECK_PREPARATION_TIMEOUT};
+	use crate::{
+		error::PrepareError,
+		host::{LENIENT_PREPARATION_TIMEOUT, PRECHECK_PREPARATION_TIMEOUT},
+		prepare::PrepareStats,
+	};
 	use assert_matches::assert_matches;
 	use futures::{future::BoxFuture, FutureExt};
 	use slotmap::SlotMap;
 	use std::task::Poll;
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
-	fn pvf(descriminator: u32) -> Pvf {
-		Pvf::from_discriminator(descriminator)
+	fn pvf_with_params(descriminator: u32) -> PvfWithExecutorParams {
+		PvfWithExecutorParams::from_discriminator(descriminator)
 	}
 
 	async fn run_until<R>(
@@ -605,33 +617,53 @@ mod tests {
 		}
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn properly_concludes() {
 		let mut test = Test::new(2, 2);
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
-			pvf: pvf(1),
+			pvf_with_params: pvf_with_params(1),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
 		let w = test.workers.insert(());
 		test.send_from_pool(pool::FromPool::Spawned(w));
-		test.send_from_pool(pool::FromPool::Concluded { worker: w, rip: false, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w,
+			rip: false,
+			result: Ok(PrepareStats::default()),
+		});
 
-		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
+		assert_eq!(
+			test.poll_and_recv_from_queue().await.artifact_id,
+			pvf_with_params(1).as_artifact_id()
+		);
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn dont_spawn_over_soft_limit_unless_critical() {
 		let mut test = Test::new(2, 3);
-		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
 
 		let priority = Priority::Normal;
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(1), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(2), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(3), preparation_timeout });
+		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf_with_params: PvfWithExecutorParams::from_discriminator(1),
+			preparation_timeout,
+		});
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf_with_params: PvfWithExecutorParams::from_discriminator(2),
+			preparation_timeout,
+		});
+		// Start a non-precheck preparation for this one.
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf_with_params: PvfWithExecutorParams::from_discriminator(3),
+			preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+		});
 
 		// Receive only two spawns.
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -647,14 +679,18 @@ mod tests {
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
-		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: false, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w1,
+			rip: false,
+			result: Ok(PrepareStats::default()),
+		});
 
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		// Enqueue a critical job.
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Critical,
-			pvf: pvf(4),
+			pvf_with_params: PvfWithExecutorParams::from_discriminator(4),
 			preparation_timeout,
 		});
 
@@ -663,14 +699,14 @@ mod tests {
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn cull_unwanted() {
 		let mut test = Test::new(1, 2);
 		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
-			pvf: pvf(1),
+			pvf_with_params: PvfWithExecutorParams::from_discriminator(1),
 			preparation_timeout,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -681,7 +717,7 @@ mod tests {
 		// Enqueue a critical job, which warrants spawning over the soft limit.
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Critical,
-			pvf: pvf(2),
+			pvf_with_params: PvfWithExecutorParams::from_discriminator(2),
 			preparation_timeout,
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -693,18 +729,36 @@ mod tests {
 		// That's a bit silly in this context, but in production there will be an entire pool up
 		// to the `soft_capacity` of workers and it doesn't matter which one to cull. Either way,
 		// we just check that edge case of an edge case works.
-		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: false, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w1,
+			rip: false,
+			result: Ok(PrepareStats::default()),
+		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Kill(w1));
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn worker_mass_die_out_doesnt_stall_queue() {
 		let mut test = Test::new(2, 2);
 
-		let (priority, preparation_timeout) = (Priority::Normal, PRECHECK_PREPARATION_TIMEOUT);
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(1), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(2), preparation_timeout });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: pvf(3), preparation_timeout });
+		let priority = Priority::Normal;
+		let preparation_timeout = PRECHECK_PREPARATION_TIMEOUT;
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf_with_params: PvfWithExecutorParams::from_discriminator(1),
+			preparation_timeout,
+		});
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf_with_params: PvfWithExecutorParams::from_discriminator(2),
+			preparation_timeout,
+		});
+		// Start a non-precheck preparation for this one.
+		test.send_queue(ToQueue::Enqueue {
+			priority,
+			pvf_with_params: PvfWithExecutorParams::from_discriminator(3),
+			preparation_timeout: LENIENT_PREPARATION_TIMEOUT,
+		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -719,21 +773,28 @@ mod tests {
 		assert_matches!(test.poll_and_recv_to_pool().await, pool::ToPool::StartWork { .. });
 
 		// Conclude worker 1 and rip it.
-		test.send_from_pool(pool::FromPool::Concluded { worker: w1, rip: true, result: Ok(()) });
+		test.send_from_pool(pool::FromPool::Concluded {
+			worker: w1,
+			rip: true,
+			result: Ok(PrepareStats::default()),
+		});
 
 		// Since there is still work, the queue requested one extra worker to spawn to handle the
 		// remaining enqueued work items.
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
-		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
+		assert_eq!(
+			test.poll_and_recv_from_queue().await.artifact_id,
+			pvf_with_params(1).as_artifact_id()
+		);
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn doesnt_resurrect_ripped_worker_if_no_work() {
 		let mut test = Test::new(2, 2);
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
-			pvf: pvf(1),
+			pvf_with_params: PvfWithExecutorParams::from_discriminator(1),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 		});
 
@@ -747,18 +808,18 @@ mod tests {
 		test.send_from_pool(pool::FromPool::Concluded {
 			worker: w1,
 			rip: true,
-			result: Err(PrepareError::DidNotMakeIt),
+			result: Err(PrepareError::IoErr("test".into())),
 		});
 		test.poll_ensure_to_pool_is_empty().await;
 	}
 
-	#[async_std::test]
+	#[tokio::test]
 	async fn rip_for_start_work() {
 		let mut test = Test::new(2, 2);
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
-			pvf: pvf(1),
+			pvf_with_params: PvfWithExecutorParams::from_discriminator(1),
 			preparation_timeout: PRECHECK_PREPARATION_TIMEOUT,
 		});
 

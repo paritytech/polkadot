@@ -18,7 +18,7 @@
 
 use crate::NegativeImbalance;
 use frame_support::traits::{Currency, Imbalance, OnUnbalanced};
-use primitives::v2::Balance;
+use primitives::Balance;
 use sp_runtime::Perquintill;
 
 /// Logic for the author to get a portion of fees.
@@ -26,8 +26,8 @@ pub struct ToAuthor<R>(sp_std::marker::PhantomData<R>);
 impl<R> OnUnbalanced<NegativeImbalance<R>> for ToAuthor<R>
 where
 	R: pallet_balances::Config + pallet_authorship::Config,
-	<R as frame_system::Config>::AccountId: From<primitives::v2::AccountId>,
-	<R as frame_system::Config>::AccountId: Into<primitives::v2::AccountId>,
+	<R as frame_system::Config>::AccountId: From<primitives::AccountId>,
+	<R as frame_system::Config>::AccountId: Into<primitives::AccountId>,
 {
 	fn on_nonzero_unbalanced(amount: NegativeImbalance<R>) {
 		if let Some(author) = <pallet_authorship::Pallet<R>>::author() {
@@ -41,8 +41,8 @@ impl<R> OnUnbalanced<NegativeImbalance<R>> for DealWithFees<R>
 where
 	R: pallet_balances::Config + pallet_treasury::Config + pallet_authorship::Config,
 	pallet_treasury::Pallet<R>: OnUnbalanced<NegativeImbalance<R>>,
-	<R as frame_system::Config>::AccountId: From<primitives::v2::AccountId>,
-	<R as frame_system::Config>::AccountId: Into<primitives::v2::AccountId>,
+	<R as frame_system::Config>::AccountId: From<primitives::AccountId>,
+	<R as frame_system::Config>::AccountId: Into<primitives::AccountId>,
 {
 	fn on_unbalanceds<B>(mut fees_then_tips: impl Iterator<Item = NegativeImbalance<R>>) {
 		if let Some(fees) = fees_then_tips.next() {
@@ -61,7 +61,7 @@ where
 
 pub fn era_payout(
 	total_staked: Balance,
-	non_gilt_issuance: Balance,
+	total_stakable: Balance,
 	max_annual_inflation: Perquintill,
 	period_fraction: Perquintill,
 	auctioned_slots: u64,
@@ -79,17 +79,17 @@ pub fn era_payout(
 	// amount that we expect to be taken up with auctions.
 	let ideal_stake = Perquintill::from_percent(75).saturating_sub(auction_proportion);
 
-	let stake = Perquintill::from_rational(total_staked, non_gilt_issuance);
+	let stake = Perquintill::from_rational(total_staked, total_stakable);
 	let falloff = Perquintill::from_percent(5);
 	let adjustment = compute_inflation(stake, ideal_stake, falloff);
 	let staking_inflation =
 		min_annual_inflation.saturating_add(delta_annual_inflation * adjustment);
 
-	let max_payout = period_fraction * max_annual_inflation * non_gilt_issuance;
-	let staking_payout = (period_fraction * staking_inflation) * non_gilt_issuance;
+	let max_payout = period_fraction * max_annual_inflation * total_stakable;
+	let staking_payout = (period_fraction * staking_inflation) * total_stakable;
 	let rest = max_payout.saturating_sub(staking_payout);
 
-	let other_issuance = non_gilt_issuance.saturating_sub(total_staked);
+	let other_issuance = total_stakable.saturating_sub(total_staked);
 	if total_staked > other_issuance {
 		let _cap_rest = Perquintill::from_rational(other_issuance, total_staked) * staking_payout;
 		// We don't do anything with this, but if we wanted to, we could introduce a cap on the
@@ -105,7 +105,7 @@ mod tests {
 		dispatch::DispatchClass, parameter_types, traits::FindAuthor, weights::Weight, PalletId,
 	};
 	use frame_system::limits;
-	use primitives::v2::AccountId;
+	use primitives::AccountId;
 	use sp_core::H256;
 	use sp_runtime::{
 		testing::Header,
@@ -124,7 +124,7 @@ mod tests {
 			UncheckedExtrinsic = UncheckedExtrinsic,
 		{
 			System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
-			Authorship: pallet_authorship::{Pallet, Call, Storage, Inherent},
+			Authorship: pallet_authorship::{Pallet, Storage},
 			Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
 			Treasury: pallet_treasury::{Pallet, Call, Storage, Config, Event<T>},
 		}
@@ -138,7 +138,7 @@ mod tests {
 				weight.base_extrinsic = Weight::from_ref_time(100);
 			})
 			.for_class(DispatchClass::non_mandatory(), |weight| {
-				weight.max_total = Some(Weight::from_ref_time(1024).set_proof_size(u64::MAX));
+				weight.max_total = Some(Weight::from_parts(1024, u64::MAX));
 			})
 			.build_or_panic();
 		pub BlockLength: limits::BlockLength = limits::BlockLength::max(2 * 1024);
@@ -219,8 +219,6 @@ mod tests {
 	}
 	impl pallet_authorship::Config for Test {
 		type FindAuthor = OneAuthor;
-		type UncleGenerations = ();
-		type FilterUncle = ();
 		type EventHandler = ();
 	}
 

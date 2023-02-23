@@ -22,7 +22,7 @@ use polkadot_node_network_protocol::{
 	grid_topology::SessionGridTopology, peer_set::ProtocolVersion, ObservedRole, OurView, View,
 	WrongVariant,
 };
-use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
+use polkadot_primitives::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
 
 /// A struct indicating new gossip topology.
 #[derive(Debug, Clone, PartialEq)]
@@ -86,24 +86,19 @@ impl<M> NetworkBridgeEvent<M> {
 	{
 		Ok(match *self {
 			NetworkBridgeEvent::PeerMessage(ref peer, ref msg) =>
-				NetworkBridgeEvent::PeerMessage(peer.clone(), T::try_from(msg)?),
+				NetworkBridgeEvent::PeerMessage(*peer, T::try_from(msg)?),
 			NetworkBridgeEvent::PeerConnected(
 				ref peer,
 				ref role,
 				ref version,
 				ref authority_id,
-			) => NetworkBridgeEvent::PeerConnected(
-				peer.clone(),
-				role.clone(),
-				*version,
-				authority_id.clone(),
-			),
+			) => NetworkBridgeEvent::PeerConnected(*peer, *role, *version, authority_id.clone()),
 			NetworkBridgeEvent::PeerDisconnected(ref peer) =>
-				NetworkBridgeEvent::PeerDisconnected(peer.clone()),
+				NetworkBridgeEvent::PeerDisconnected(*peer),
 			NetworkBridgeEvent::NewGossipTopology(ref topology) =>
 				NetworkBridgeEvent::NewGossipTopology(topology.clone()),
 			NetworkBridgeEvent::PeerViewChange(ref peer, ref view) =>
-				NetworkBridgeEvent::PeerViewChange(peer.clone(), view.clone()),
+				NetworkBridgeEvent::PeerViewChange(*peer, view.clone()),
 			NetworkBridgeEvent::OurViewChange(ref view) =>
 				NetworkBridgeEvent::OurViewChange(view.clone()),
 		})

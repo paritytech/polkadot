@@ -29,7 +29,6 @@ pub trait Database: KeyValueDB {
 pub mod kvdb_impl {
 	use super::{DBKeyValue, DBTransaction, DBValue, Database, KeyValueDB};
 	use kvdb::{DBOp, IoStats, IoStatsKind};
-	use parity_util_mem::{MallocSizeOf, MallocSizeOfOps};
 	use std::{collections::BTreeSet, io::Result};
 
 	/// Adapter implementing subsystem database
@@ -123,13 +122,6 @@ pub mod kvdb_impl {
 			self.db.has_prefix(col, prefix)
 		}
 	}
-
-	impl<D: KeyValueDB> MallocSizeOf for DbAdapter<D> {
-		fn size_of(&self, ops: &mut MallocSizeOfOps) -> usize {
-			// ignore filter set
-			self.db.size_of(ops)
-		}
-	}
 }
 
 /// Utilities for using parity-db database.
@@ -158,12 +150,6 @@ pub mod paritydb_impl {
 		db: Db,
 		indexed_columns: BTreeSet<u32>,
 		write_lock: Arc<Mutex<()>>,
-	}
-
-	impl parity_util_mem::MallocSizeOf for DbAdapter {
-		fn size_of(&self, _ops: &mut parity_util_mem::MallocSizeOfOps) -> usize {
-			unimplemented!("size_of is not supported for parity_db")
-		}
 	}
 
 	impl KeyValueDB for DbAdapter {

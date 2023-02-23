@@ -24,11 +24,11 @@ use thiserror::Error;
 use parity_scale_codec::{Decode, Encode};
 
 use super::{InvalidDisputeVote, SignedDisputeStatement, ValidDisputeVote};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidatorIndex,
 };
 
-/// A dispute initiating/participating message that is guaranteed to have been built from signed
+/// A dispute initiating/participating message that have been built from signed
 /// statements.
 ///
 /// And most likely has been constructed correctly. This is used with
@@ -170,13 +170,13 @@ impl DisputeMessage {
 		let valid_vote = ValidDisputeVote {
 			validator_index: valid_index,
 			signature: valid_statement.validator_signature().clone(),
-			kind: valid_kind.clone(),
+			kind: *valid_kind,
 		};
 
 		let invalid_vote = InvalidDisputeVote {
 			validator_index: invalid_index,
 			signature: invalid_statement.validator_signature().clone(),
-			kind: invalid_kind.clone(),
+			kind: *invalid_kind,
 		};
 
 		Ok(DisputeMessage(UncheckedDisputeMessage {

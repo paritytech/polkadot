@@ -16,6 +16,7 @@
 
 //! Prometheus metrics related to the validation host.
 
+use crate::prepare::MemoryStats;
 use polkadot_node_metrics::metrics::{self, prometheus};
 
 /// Validation host metrics.
@@ -72,6 +73,27 @@ impl Metrics {
 	pub(crate) fn time_execution(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.execution_time.start_timer())
 	}
+
+	/// Observe memory stats for preparation.
+	#[allow(unused_variables)]
+	pub(crate) fn observe_preparation_memory_metrics(&self, memory_stats: MemoryStats) {
+		if let Some(metrics) = &self.0 {
+			#[cfg(target_os = "linux")]
+			if let Some(max_rss) = memory_stats.max_rss {
+				metrics.preparation_max_rss.observe(max_rss as f64);
+			}
+
+			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+			if let Some(tracker_stats) = memory_stats.memory_tracker_stats {
+				// We convert these stats from B to KB to match the unit of `ru_maxrss` from `getrusage`.
+				let max_resident_kb = (tracker_stats.resident / 1024) as f64;
+				let max_allocated_kb = (tracker_stats.allocated / 1024) as f64;
+
+				metrics.preparation_max_resident.observe(max_resident_kb);
+				metrics.preparation_max_allocated.observe(max_allocated_kb);
+			}
+		}
+	}
 }
 
 #[derive(Clone)]
@@ -85,6 +107,12 @@ struct MetricsInner {
 	execute_finished: prometheus::Counter<prometheus::U64>,
 	preparation_time: prometheus::Histogram,
 	execution_time: prometheus::Histogram,
+	#[cfg(target_os = "linux")]
+	preparation_max_rss: prometheus::Histogram,
+	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+	preparation_max_allocated: prometheus::Histogram,
+	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+	preparation_max_resident: prometheus::Histogram,
 }
 
 impl metrics::Metrics for Metrics {
@@ -183,6 +211,9 @@ impl metrics::Metrics for Metrics {
 					).buckets(vec![
 						// This is synchronized with `APPROVAL_EXECUTION_TIMEOUT`  and
 						// `BACKING_EXECUTION_TIMEOUT` constants in `node/primitives/src/lib.rs`
+						0.01,
+						0.025,
+						0.05,
 						0.1,
 						0.25,
 						0.5,
@@ -192,7 +223,49 @@ impl metrics::Metrics for Metrics {
 						4.0,
 						5.0,
 						6.0,
+						8.0,
+						10.0,
+						12.0,
 					]),
+				)?,
+				registry,
+			)?,
+			#[cfg(target_os = "linux")]
+			preparation_max_rss: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_pvf_preparation_max_rss",
+						"ru_maxrss (maximum resident set size) observed for preparation (in kilobytes)",
+					).buckets(
+						prometheus::exponential_buckets(8192.0, 2.0, 10)
+							.expect("arguments are always valid; qed"),
+					),
+				)?,
+				registry,
+			)?,
+			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+			preparation_max_resident: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_pvf_preparation_max_resident",
+						"max resident memory observed for preparation (in kilobytes)",
+					).buckets(
+						prometheus::exponential_buckets(8192.0, 2.0, 10)
+							.expect("arguments are always valid; qed"),
+					),
+				)?,
+				registry,
+			)?,
+			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+			preparation_max_allocated: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_pvf_preparation_max_allocated",
+						"max allocated memory observed for preparation (in kilobytes)",
+					).buckets(
+						prometheus::exponential_buckets(8192.0, 2.0, 10)
+							.expect("arguments are always valid; qed"),
+					),
 				)?,
 				registry,
 			)?,

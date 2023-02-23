@@ -22,8 +22,8 @@ use polkadot_parachain::primitives::{
 	ValidationParams,
 };
 
-#[async_std::test]
-async fn execute_good_on_parent() {
+#[tokio::test]
+async fn execute_good_block_on_parent() {
 	let parent_head = HeadData { number: 0, parent_hash: [0; 32], post_state: hash_state(0) };
 
 	let block_data = BlockData { state: 0, add: 512 };
@@ -39,6 +39,7 @@ async fn execute_good_on_parent() {
 				relay_parent_number: 1,
 				relay_parent_storage_root: Default::default(),
 			},
+			Default::default(),
 		)
 		.await
 		.unwrap();
@@ -50,7 +51,7 @@ async fn execute_good_on_parent() {
 	assert_eq!(new_head.post_state, hash_state(512));
 }
 
-#[async_std::test]
+#[tokio::test]
 async fn execute_good_chain_on_parent() {
 	let mut number = 0;
 	let mut parent_hash = [0; 32];
@@ -72,6 +73,7 @@ async fn execute_good_chain_on_parent() {
 					relay_parent_number: number as RelayChainBlockNumber + 1,
 					relay_parent_storage_root: Default::default(),
 				},
+				Default::default(),
 			)
 			.await
 			.unwrap();
@@ -88,8 +90,8 @@ async fn execute_good_chain_on_parent() {
 	}
 }
 
-#[async_std::test]
-async fn execute_bad_on_parent() {
+#[tokio::test]
+async fn execute_bad_block_on_parent() {
 	let parent_head = HeadData { number: 0, parent_hash: [0; 32], post_state: hash_state(0) };
 
 	let block_data = BlockData {
@@ -108,12 +110,13 @@ async fn execute_bad_on_parent() {
 				relay_parent_number: 1,
 				relay_parent_storage_root: Default::default(),
 			},
+			Default::default(),
 		)
 		.await
 		.unwrap_err();
 }
 
-#[async_std::test]
+#[tokio::test]
 async fn stress_spawn() {
 	let host = std::sync::Arc::new(TestHost::new());
 
@@ -129,6 +132,7 @@ async fn stress_spawn() {
 					relay_parent_number: 1,
 					relay_parent_storage_root: Default::default(),
 				},
+				Default::default(),
 			)
 			.await
 			.unwrap();

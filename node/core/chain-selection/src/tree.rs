@@ -25,7 +25,7 @@
 
 use polkadot_node_primitives::BlockWeight;
 use polkadot_node_subsystem::ChainApiError;
-use polkadot_primitives::v2::{BlockNumber, Hash};
+use polkadot_primitives::{BlockNumber, Hash};
 
 use std::collections::HashMap;
 
@@ -247,7 +247,7 @@ pub(crate) fn import_block(
 	stagnant_at: Timestamp,
 ) -> Result<(), Error> {
 	add_block(backend, block_hash, block_number, parent_hash, weight, stagnant_at)?;
-	apply_reversions(backend, block_hash, block_number, reversion_logs)?;
+	apply_ancestor_reversions(backend, block_hash, block_number, reversion_logs)?;
 
 	Ok(())
 }
@@ -347,9 +347,9 @@ fn add_block(
 	Ok(())
 }
 
-// Assuming that a block is already imported, accepts the number of the block
-// as well as a list of reversions triggered by the block in ascending order.
-fn apply_reversions(
+/// Assuming that a block is already imported, accepts the number of the block
+/// as well as a list of reversions triggered by the block in ascending order.
+fn apply_ancestor_reversions(
 	backend: &mut OverlayedBackend<impl Backend>,
 	block_hash: Hash,
 	block_number: BlockNumber,
@@ -358,39 +358,76 @@ fn apply_reversions(
 	// Note: since revert numbers are  in ascending order, the expensive propagation
 	// of unviability is only heavy on the first log.
 	for revert_number in reversions {
-		let mut ancestor_entry =
-			match load_ancestor(backend, block_hash, block_number, revert_number)? {
-				None => {
-					gum::warn!(
-						target: LOG_TARGET,
-						?block_hash,
-						block_number,
-						revert_target = revert_number,
-						"The hammer has dropped. \
-					A block has indicated that its finalized ancestor be reverted. \
-					Please inform an adult.",
-					);
-
-					continue
-				},
-				Some(ancestor_entry) => {
-					gum::info!(
-						target: LOG_TARGET,
-						?block_hash,
-						block_number,
-						revert_target = revert_number,
-						revert_hash = ?ancestor_entry.block_hash,
-						"A block has signaled that its ancestor be reverted due to a bad parachain block.",
-					);
-
-					ancestor_entry
-				},
-			};
-
-		ancestor_entry.viability.explicitly_reverted = true;
-		propagate_viability_update(backend, ancestor_entry)?;
+		let maybe_block_entry = load_ancestor(backend, block_hash, block_number, revert_number)?;
+		revert_single_block_entry_if_present(
+			backend,
+			maybe_block_entry,
+			None,
+			revert_number,
+			Some(block_hash),
+			Some(block_number),
+		)?;
 	}
 
+	Ok(())
+}
+
+/// Marks a single block as explicitly reverted, then propagates viability updates
+/// to all its children. This is triggered when the disputes subsystem signals that
+/// a dispute has concluded against a candidate.
+pub(crate) fn apply_single_reversion(
+	backend: &mut OverlayedBackend<impl Backend>,
+	revert_hash: Hash,
+	revert_number: BlockNumber,
+) -> Result<(), Error> {
+	let maybe_block_entry = backend.load_block_entry(&revert_hash)?;
+	revert_single_block_entry_if_present(
+		backend,
+		maybe_block_entry,
+		Some(revert_hash),
+		revert_number,
+		None,
+		None,
+	)?;
+	Ok(())
+}
+
+fn revert_single_block_entry_if_present(
+	backend: &mut OverlayedBackend<impl Backend>,
+	maybe_block_entry: Option<BlockEntry>,
+	maybe_revert_hash: Option<Hash>,
+	revert_number: BlockNumber,
+	maybe_reporting_hash: Option<Hash>,
+	maybe_reporting_number: Option<BlockNumber>,
+) -> Result<(), Error> {
+	match maybe_block_entry {
+		None => {
+			gum::warn!(
+				target: LOG_TARGET,
+				?maybe_revert_hash,
+				revert_target = revert_number,
+				?maybe_reporting_hash,
+				?maybe_reporting_number,
+				"The hammer has dropped. \
+				The protocol has indicated that a finalized block be reverted. \
+				Please inform an adult.",
+			);
+		},
+		Some(mut block_entry) => {
+			gum::info!(
+				target: LOG_TARGET,
+				?maybe_revert_hash,
+				revert_target = revert_number,
+				?maybe_reporting_hash,
+				?maybe_reporting_number,
+				"Unfinalized block reverted due to a bad parachain block.",
+			);
+
+			block_entry.viability.explicitly_reverted = true;
+			// Marks children of reverted block as non-viable
+			propagate_viability_update(backend, block_entry)?;
+		},
+	}
 	Ok(())
 }
 

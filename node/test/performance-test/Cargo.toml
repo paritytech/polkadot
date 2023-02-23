@@ -1,8 +1,8 @@
 [package]
 name = "polkadot-performance-test"
-version = "0.9.31"
-authors = ["Parity Technologies <admin@parity.io>"]
-edition = "2021"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
 
 [dependencies]
 thiserror = "1.0.31"
@@ -13,6 +13,7 @@ log = "0.4"
 polkadot-node-core-pvf = { path = "../../core/pvf" }
 polkadot-erasure-coding = { path = "../../../erasure-coding" }
 polkadot-node-primitives = { path = "../../primitives" }
+polkadot-primitives = { path = "../../../primitives" }
 
 kusama-runtime = { path = "../../../runtime/kusama" }
 
