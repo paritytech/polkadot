@@ -870,7 +870,7 @@ fn send_validation_message_v1(
 	message: WireMessage<protocol_v1::ValidationProtocol>,
 	metrics: &Metrics,
 ) {
-	gum::debug!(target: LOG_TARGET, ?peers, ?message, "Sending validation v1 message to peers",);
+	gum::trace!(target: LOG_TARGET, ?peers, ?message, "Sending validation v1 message to peers",);
 	send_message(
 		net,
 		peers,
@@ -889,7 +889,7 @@ fn send_validation_message_vstaging(
 	message: WireMessage<protocol_vstaging::ValidationProtocol>,
 	metrics: &Metrics,
 ) {
-	gum::debug!(target: LOG_TARGET, ?peers, ?message, "Sending validation v2 message to peers",);
+	gum::trace!(target: LOG_TARGET, ?peers, ?message, "Sending validation v2 message to peers",);
 	send_message(
 		net,
 		peers,

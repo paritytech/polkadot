@@ -71,7 +71,7 @@ pub(crate) fn send_message<M>(
 	let last_peer = peers.pop();
 	// optimization: generate the protocol name once.
 	let protocol_name = protocol_names.get_name(peer_set, version);
-	gum::debug!(target: LOG_TARGET, ?peers, ?version, ?protocol_name, "Sending message to peers",);
+	gum::trace!(target: LOG_TARGET, ?peers, ?version, ?protocol_name, "Sending message to peers",);
 	peers.into_iter().for_each(|peer| {
 		net.write_notification(peer, protocol_name.clone(), message.clone());
 	});
