@@ -357,16 +357,23 @@ The seconding limit is a per-validator limit. Before asynchronous backing, we
 had a rule that every validator was only allowed to second one candidate per
 relay parent. With asynchronous backing, we have a 'maximum depth' which makes
 it possible to second multiple candidates per relay parent. The seconding limit
-is set to `max depth + ` to set an upper bound on candidates entering the
+is set to `max depth + 1` to set an upper bound on candidates entering the
 system.
 
 ## Candidates Module
 
 The candidates module provides a tracker for all known candidates in the view,
-and whether they are confirmed or not. What is a confirmed candidate? The first
-time a validator gets an announcement for an unknown candidate, it will send a
-request for the candidate. Upon receiving a response and validating it (see
-`UnhandledResponse::validate_response`), will mark the candidate as confirmed.
+whether they are confirmed or not, and how peers have advertised the candidates.
+What is a confirmed candidate? It is a candidate for which we have the full
+receipt and the persisted validation data. This module gets confirmed candidates
+from two sources:
+
+- It can be that a validator fetched a collation directly from the collator and
+  validated it.
+- The first time a validator gets an announcement for an unknown candidate, it
+  will send a request for the candidate. Upon receiving a response and
+  validating it (see `UnhandledResponse::validate_response`), it will mark the
+  candidate as confirmed.
 
 ## Requests Module
 
@@ -379,8 +386,8 @@ description of the flow. See module-docs for full details.
 - **Acknowledgement:** A notification that is sent to a validator that already
   has the candidate, to inform them that the sending node knows the candidate.
 - **Announcement:** A notification of a backed candidate being known by the
-- **Attestation:** See "Statement".
   sending node. Is a full manifest and initiates manifest exchange.
+- **Attestation:** See "Statement".
 - **Manifest:** A message about a known backed candidate, along with a
   description of the statements backing it. See "Manifests" section.
 - **Peer:** Another validator that a validator is connected to.
