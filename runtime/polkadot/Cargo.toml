@@ -65,6 +65,7 @@ pallet-session = { git = "https://github.com/paritytech/substrate", branch = "ma
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-staking-reward-curve = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-staking-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system = {git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 polkadot-runtime-constants = { package = "polkadot-runtime-constants", path = "./constants", default-features = false }
@@ -155,6 +156,7 @@ std = [
 	"pallet-scheduler/std",
 	"pallet-session/std",
 	"pallet-staking/std",
+	"pallet-staking-runtime-api/std",
 	"pallet-timestamp/std",
 	"pallet-treasury/std",
 	"pallet-tips/std",
