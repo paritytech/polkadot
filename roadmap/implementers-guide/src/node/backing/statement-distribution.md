@@ -328,7 +328,7 @@ outside the group. For the full protocol, see the "Protocol" section.
 ### Grid Topology
 
 For distributing outside our cluster we use a 2D grid topology. This limits the
-amount of peers we send messages to and handle view updates.
+amount of peers we send messages to, and handles view updates.
 
 The basic operation of the grid topology is that:
 
@@ -388,6 +388,8 @@ description of the flow. See module-docs for full details.
 - **Announcement:** A notification of a backed candidate being known by the
   sending node. Is a full manifest and initiates manifest exchange.
 - **Attestation:** See "Statement".
+- **Fragment tree:** A parachain fragment not referenced by the relay-chain.
+  It is a tree of prospective parachain blocks.
 - **Manifest:** A message about a known backed candidate, along with a
   description of the statements backing it. See "Manifests" section.
 - **Peer:** Another validator that a validator is connected to.
