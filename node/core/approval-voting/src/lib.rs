@@ -1937,7 +1937,10 @@ fn check_and_import_approval<T>(
 	};
 
 	span.add_string_tag("candidate-hash", format!("{:?}", approved_candidate_hash));
-	span.add_string_tag("traceID", format!("{:?}", hash_to_trace_identifier(approved_candidate_hash.0)));
+	span.add_string_tag(
+		"traceID",
+		format!("{:?}", hash_to_trace_identifier(approved_candidate_hash.0)),
+	);
 
 	let pubkey = match session_info.validators.get(approval.validator) {
 		Some(k) => k,
@@ -2286,7 +2289,7 @@ fn process_wakeup(
 
 		(should_trigger, approval_entry.backing_group())
 	};
-	
+
 	span.add_string_tag("should-trigger", format!("{:?}", should_trigger));
 
 	let mut actions = Vec::new();
