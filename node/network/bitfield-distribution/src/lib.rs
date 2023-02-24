@@ -646,15 +646,7 @@ async fn handle_network_msg<Context>(
 		NetworkBridgeEvent::PeerViewChange(peer_id, new_view) => {
 			gum::trace!(target: LOG_TARGET, ?peer_id, ?new_view, "Peer view change");
 			if let Some(entry) = state.peer_entries.get(&peer_id) {
-				handle_peer_view_change(
-					ctx,
-					state,
-					peer_id,
-					entry.version,
-					entry.view.clone(),
-					rng,
-				)
-				.await;
+				handle_peer_view_change(ctx, state, peer_id, entry.version, new_view, rng).await;
 			}
 		},
 		NetworkBridgeEvent::OurViewChange(new_view) => {

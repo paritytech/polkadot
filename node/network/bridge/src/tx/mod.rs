@@ -172,6 +172,7 @@ where
 			gum::trace!(
 				target: LOG_TARGET,
 				action = "SendValidationMessages",
+				?msg,
 				num_messages = 1usize,
 			);
 
@@ -197,6 +198,7 @@ where
 				target: LOG_TARGET,
 				action = "SendValidationMessages",
 				num_messages = %msgs.len(),
+				?msgs,
 			);
 
 			for (peers, msg) in msgs {
