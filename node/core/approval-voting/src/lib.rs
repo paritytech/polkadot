@@ -973,8 +973,8 @@ async fn handle_actions<Context>(
 				let mut launch_approval_span = state
 					.spans
 					.get(&relay_block_hash)
-					.map(|span| span.child("launch-approval"))
-					.unwrap_or_else(|| jaeger::Span::new(relay_block_hash, "launch-approval"))
+					.map(|span| span.child_with_trace_id("launch-approval", candidate_hash))
+					.unwrap_or_else(|| jaeger::Span::new(candidate_hash, "launch-approval"))
 					.with_candidate(candidate_hash)
 					.with_stage(jaeger::Stage::ApprovalChecking);
 
@@ -2413,12 +2413,12 @@ async fn launch_approval<Context>(
 
 	// Covers both validation code and available data currently
 	let request_validation_data_span = span
-		.child("request-validation-data")
+		.child_with_trace_id("request-validation-data", candidate.hash())
 		.with_candidate(candidate.hash())
 		.with_stage(jaeger::Stage::ApprovalChecking);
 
 	let mut validation_result_span = span
-		.child("validation-result")
+		.child_with_trace_id("validation-result", candidate.hash())
 		.with_candidate(candidate_hash)
 		.with_stage(jaeger::Stage::ApprovalChecking);
 
