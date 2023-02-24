@@ -101,6 +101,7 @@ macro_rules! decl_test_relay_chain {
 	(
 		pub struct $name:ident {
 			Runtime = $runtime:path,
+			RuntimeCall = $runtime_call:path,
 			XcmConfig = $xcm_config:path,
 			new_ext = $new_ext:expr,
 		}
@@ -120,7 +121,8 @@ macro_rules! decl_test_relay_chain {
 				use $crate::{ProcessMessage, Junction, TestExt};
 
 				Self::execute_with(|| {
-					$crate::ProcessXcmMessage::<$crate::Junction, $crate::XcmExecutor<$xcm_config>, crate::relay_chain::RuntimeCall>::process_message(
+					$crate::ProcessXcmMessage::<$crate::Junction,
+						$crate::XcmExecutor<$xcm_config>, $runtime_call>::process_message(
 						msg, $crate::Junction::Parachain(origin.into()), max_weight,
 					)
 				})

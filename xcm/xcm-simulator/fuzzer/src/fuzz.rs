@@ -60,6 +60,7 @@ decl_test_parachain! {
 decl_test_relay_chain! {
 	pub struct Relay {
 		Runtime = relay_chain::Runtime,
+		RuntimeCall = relay_chain::RuntimeCall,
 		XcmConfig = relay_chain::XcmConfig,
 		new_ext = relay_ext(),
 	}
