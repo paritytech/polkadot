@@ -39,7 +39,7 @@ distribution, respectively called "cluster" and "grid" mode (see below).
 
 Asynchronous backing changes the runtime to accept parachain candidates from a
 certain allowed range of historic relay-parents. These candidates must be backed
-by the group assigned to the parachain as-of their corresponding relay parent.
+by the group assigned to the parachain as-of their corresponding relay parents.
 
 ## Protocol
 
