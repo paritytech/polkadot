@@ -646,6 +646,7 @@ mod tests {
 		type RuntimeEvent = RuntimeEvent;
 		type WeightInfo = parachains_paras::TestWeightInfo;
 		type UnsignedPriority = ParasUnsignedPriority;
+		type UmpQueueTracker = ();
 		type NextSessionRotation = crate::mock::TestNextSessionRotation;
 	}
 

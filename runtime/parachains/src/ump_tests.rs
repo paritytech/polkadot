@@ -83,9 +83,8 @@ fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
 	let msgs = vec![msg];
 	assert!(ParaInclusion::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
 	let _ = ParaInclusion::receive_upward_messages(
-		&Configuration::config(),
 		para,
-		msgs.try_into().unwrap(),
+		msgs.as_slice(),
 	);
 }
 
@@ -110,9 +109,8 @@ mod check_upward_messages {
 
 	fn queue(para: ParaId, msgs: Vec<UpwardMessage>) {
 		let _ = ParaInclusion::receive_upward_messages(
-			&Configuration::config(),
 			para,
-			msgs.try_into().unwrap(),
+			msgs.as_slice(),
 		);
 	}
 
