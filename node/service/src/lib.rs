@@ -121,13 +121,13 @@ pub use sp_runtime::{
 };
 
 #[cfg(feature = "kusama-native")]
-pub use kusama_runtime;
+pub use {kusama_runtime, kusama_runtime_constants};
 #[cfg(feature = "polkadot-native")]
-pub use polkadot_runtime;
+pub use {polkadot_runtime, polkadot_runtime_constants};
 #[cfg(feature = "rococo-native")]
-pub use rococo_runtime;
+pub use {rococo_runtime, rococo_runtime_constants};
 #[cfg(feature = "westend-native")]
-pub use westend_runtime;
+pub use {westend_runtime, westend_runtime_constants};
 
 /// The maximum number of active leaves we forward to the [`Overseer`] on startup.
 #[cfg(any(test, feature = "full-node"))]

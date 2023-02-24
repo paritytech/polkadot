@@ -19,7 +19,7 @@
 use polkadot_primitives::vstaging::executor_params::{ExecutorParam, ExecutorParams};
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
-	wasm_runtime::{InvokeMethod, WasmModule as _},
+	wasm_runtime::{HeapAllocStrategy, InvokeMethod, WasmModule as _},
 };
 use sc_executor_wasmtime::{Config, DeterministicStackLimit, Semantics};
 use sp_core::storage::{ChildInfo, TrackedStorageKey};
@@ -41,8 +41,8 @@ use std::{
 // The data section for runtimes are typically rather small and can fit in a single digit number of
 // WASM pages, so let's say an extra 16 pages. Thus let's assume that 32 pages or 2 MiB are used for
 // these needs by default.
-const DEFAULT_HEAP_PAGES_ESTIMATE: u64 = 32;
-const EXTRA_HEAP_PAGES: u64 = 2048;
+const DEFAULT_HEAP_PAGES_ESTIMATE: u32 = 32;
+const EXTRA_HEAP_PAGES: u32 = 2048;
 
 /// The number of bytes devoted for the stack during wasm execution of a PVF.
 const NATIVE_STACK_MAX: u32 = 256 * 1024 * 1024;
@@ -55,10 +55,9 @@ const DEFAULT_CONFIG: Config = Config {
 	allow_missing_func_imports: true,
 	cache_path: None,
 	semantics: Semantics {
-		extra_heap_pages: EXTRA_HEAP_PAGES,
-
-		// NOTE: This is specified in bytes, so we multiply by WASM page size.
-		max_memory_size: Some(((DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES) * 65536) as usize),
+		heap_alloc_strategy: sc_executor_common::wasm_runtime::HeapAllocStrategy::Dynamic {
+			maximum_pages: Some(DEFAULT_HEAP_PAGES_ESTIMATE + EXTRA_HEAP_PAGES),
+		},
 
 		instantiation_strategy:
 			sc_executor_wasmtime::InstantiationStrategy::RecreateInstanceCopyOnWrite,
@@ -104,14 +103,14 @@ pub fn prevalidate(code: &[u8]) -> Result<RuntimeBlob, sc_executor_common::error
 /// artifact which can then be used to pass into `Executor::execute` after writing it to the disk.
 pub fn prepare(
 	blob: RuntimeBlob,
-	executor_params: ExecutorParams,
+	executor_params: &ExecutorParams,
 ) -> Result<Vec<u8>, sc_executor_common::error::WasmError> {
 	let semantics = params_to_wasmtime_semantics(executor_params)
 		.map_err(|e| sc_executor_common::error::WasmError::Other(e))?;
 	sc_executor_wasmtime::prepare_runtime_artifact(blob, &semantics)
 }
 
-fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String> {
+fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, String> {
 	let mut sem = DEFAULT_CONFIG.semantics.clone();
 	let mut stack_limit = if let Some(stack_limit) = sem.deterministic_stack_limit.clone() {
 		stack_limit
@@ -121,7 +120,9 @@ fn params_to_wasmtime_semantics(par: ExecutorParams) -> Result<Semantics, String
 
 	for p in par.iter() {
 		match p {
-			ExecutorParam::MaxMemoryPages(mms) => sem.max_memory_size = Some(*mms as usize * 65536),
+			ExecutorParam::MaxMemoryPages(max_pages) =>
+				sem.heap_alloc_strategy =
+					HeapAllocStrategy::Dynamic { maximum_pages: Some(*max_pages) },
 			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
 			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
 			ExecutorParam::PrecheckingMaxMemory(_) => (), // TODO: Not implemented yet
@@ -186,7 +187,7 @@ impl Executor {
 			TaskSpawner::new().map_err(|e| format!("cannot create task spawner: {}", e))?;
 
 		let mut config = DEFAULT_CONFIG.clone();
-		config.semantics = params_to_wasmtime_semantics(params)?;
+		config.semantics = params_to_wasmtime_semantics(&params)?;
 
 		Ok(Self { thread_pool, spawner, config })
 	}
