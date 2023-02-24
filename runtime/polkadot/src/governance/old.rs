@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot. If not, see <http://www.gnu.org/licenses/>.
 
-//! Old governance configurations for the Kusama runtime.
+//! Old governance configurations for the Polkadot runtime.
 
 use crate::*;
 use frame_support::{parameter_types, traits::EitherOfDiverse};
