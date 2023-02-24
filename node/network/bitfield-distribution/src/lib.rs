@@ -25,10 +25,11 @@
 use futures::{channel::oneshot, FutureExt};
 
 use polkadot_node_network_protocol::{
-	self as net_protocol,
+	self as net_protocol, filter_by_peer_version,
 	grid_topology::{
 		GridNeighbors, RandomRouting, RequiredRouting, SessionBoundGridTopologyStorage,
 	},
+	peer_set::{ProtocolVersion, ValidationVersion},
 	v1 as protocol_v1, OurView, PeerId, UnifiedReputationChange as Rep, Versioned, View,
 };
 use polkadot_node_subsystem::{
@@ -69,25 +70,44 @@ struct BitfieldGossipMessage {
 }
 
 impl BitfieldGossipMessage {
-	fn into_validation_protocol(self) -> net_protocol::VersionedValidationProtocol {
-		self.into_network_message().into()
+	fn into_validation_protocol(
+		self,
+		protocol_version: ProtocolVersion,
+	) -> net_protocol::VersionedValidationProtocol {
+		self.into_network_message(protocol_version).into()
 	}
 
-	fn into_network_message(self) -> net_protocol::BitfieldDistributionMessage {
-		Versioned::V1(protocol_v1::BitfieldDistributionMessage::Bitfield(
+	fn into_network_message(
+		self,
+		protocol_version: ProtocolVersion,
+	) -> net_protocol::BitfieldDistributionMessage {
+		// VStaging re-exports v1 message type.
+		let message = protocol_v1::BitfieldDistributionMessage::Bitfield(
 			self.relay_parent,
 			self.signed_availability.into(),
-		))
+		);
+
+		match ValidationVersion::try_from(protocol_version) {
+			Ok(ValidationVersion::V1) => Versioned::V1(message),
+			Ok(ValidationVersion::V2) => Versioned::VStaging(message),
+			Err(_) => unreachable!("Invalid peer protocol"),
+		}
 	}
+}
+
+// We keep track of each peer view and protocol version using this struct.
+struct PeerEntry {
+	pub view: View,
+	pub version: net_protocol::peer_set::ProtocolVersion,
 }
 
 /// Data used to track information of peers and relay parents the
 /// overseer ordered us to work on.
-#[derive(Default, Debug)]
+#[derive(Default)]
 struct ProtocolState {
-	/// Track all active peers and their views
+	/// Track all active peer views and protocol versions
 	/// to determine what is relevant to them.
-	peer_views: HashMap<PeerId, View>,
+	peer_entries: HashMap<PeerId, PeerEntry>,
 
 	/// The current and previous gossip topologies
 	topologies: SessionBoundGridTopologyStorage,
@@ -334,7 +354,7 @@ async fn handle_bitfield_distribution<Context>(
 		ctx,
 		job_data,
 		topology,
-		&mut state.peer_views,
+		&mut state.peer_entries,
 		validator,
 		msg,
 		required_routing,
@@ -353,7 +373,7 @@ async fn relay_message<Context>(
 	ctx: &mut Context,
 	job_data: &mut PerRelayParentData,
 	topology_neighbors: &GridNeighbors,
-	peer_views: &mut HashMap<PeerId, View>,
+	peer_entries: &mut HashMap<PeerId, PeerEntry>,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
 	required_routing: RequiredRouting,
@@ -371,16 +391,16 @@ async fn relay_message<Context>(
 	.await;
 
 	drop(_span);
-	let total_peers = peer_views.len();
+	let total_peers = peer_entries.len();
 	let mut random_routing: RandomRouting = Default::default();
 
 	let _span = span.child("interested-peers");
 	// pass on the bitfield distribution to all interested peers
-	let interested_peers = peer_views
+	let interested_peers = peer_entries
 		.iter()
-		.filter_map(|(peer, view)| {
+		.filter_map(|(peer, entry)| {
 			// check interest in the peer in this message's relay parent
-			if view.contains(&message.relay_parent) {
+			if entry.view.contains(&message.relay_parent) {
 				let message_needed =
 					job_data.message_from_validator_needed_by_peer(&peer, &validator);
 				if message_needed {
@@ -395,7 +415,7 @@ async fn relay_message<Context>(
 					};
 
 					if need_routing {
-						Some(*peer)
+						Some((*peer, entry.version))
 					} else {
 						None
 					}
@@ -406,13 +426,13 @@ async fn relay_message<Context>(
 				None
 			}
 		})
-		.collect::<Vec<PeerId>>();
+		.collect::<Vec<_>>();
 
 	interested_peers.iter().for_each(|peer| {
 		// track the message as sent for this peer
 		job_data
 			.message_sent_to_peer
-			.entry(*peer)
+			.entry(peer.0)
 			.or_default()
 			.insert(validator.clone());
 	});
@@ -427,9 +447,19 @@ async fn relay_message<Context>(
 		);
 	} else {
 		let _span = span.child("gossip");
+
+		let v1_peers = filter_by_peer_version(&interested_peers, ValidationVersion::V1.into());
+		let v2_peers = filter_by_peer_version(&interested_peers, ValidationVersion::V2.into());
+
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			interested_peers,
-			message.into_validation_protocol(),
+			v1_peers,
+			message.clone().into_validation_protocol(ValidationVersion::V1.into()),
+		))
+		.await;
+
+		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+			v2_peers,
+			message.into_validation_protocol(ValidationVersion::V2.into()),
 		))
 		.await;
 	}
@@ -544,7 +574,7 @@ async fn process_incoming_peer_message<Context>(
 		ctx,
 		job_data,
 		topology,
-		&mut state.peer_views,
+		&mut state.peer_entries,
 		validator,
 		message,
 		required_routing,
@@ -568,15 +598,18 @@ async fn handle_network_msg<Context>(
 	let _timer = metrics.time_handle_network_msg();
 
 	match bridge_message {
-		NetworkBridgeEvent::PeerConnected(peer, role, _, _) => {
+		NetworkBridgeEvent::PeerConnected(peer, role, version, _) => {
 			gum::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
 			// insert if none already present
-			state.peer_views.entry(peer).or_default();
+			state
+				.peer_entries
+				.entry(peer)
+				.or_insert(PeerEntry { view: Default::default(), version });
 		},
 		NetworkBridgeEvent::PeerDisconnected(peer) => {
 			gum::trace!(target: LOG_TARGET, ?peer, "Peer disconnected");
 			// get rid of superfluous data
-			state.peer_views.remove(&peer);
+			state.peer_entries.remove(&peer);
 		},
 		NetworkBridgeEvent::NewGossipTopology(gossip_topology) => {
 			let session_index = gossip_topology.session;
@@ -604,14 +637,25 @@ async fn handle_network_msg<Context>(
 				// in case we already knew that peer in the past
 				// it might have had an existing view, we use to initialize
 				// and minimize the delta on `PeerViewChange` to be sent
-				if let Some(old_view) = state.peer_views.remove(&new_peer) {
-					handle_peer_view_change(ctx, state, new_peer, old_view, rng).await;
+				if let Some(entry) = state.peer_entries.remove(&new_peer) {
+					handle_peer_view_change(ctx, state, new_peer, entry.version, entry.view, rng)
+						.await;
 				}
 			}
 		},
-		NetworkBridgeEvent::PeerViewChange(peerid, new_view) => {
-			gum::trace!(target: LOG_TARGET, ?peerid, ?new_view, "Peer view change");
-			handle_peer_view_change(ctx, state, peerid, new_view, rng).await;
+		NetworkBridgeEvent::PeerViewChange(peer_id, new_view) => {
+			gum::trace!(target: LOG_TARGET, ?peer_id, ?new_view, "Peer view change");
+			if let Some(entry) = state.peer_entries.get(&peer_id) {
+				handle_peer_view_change(
+					ctx,
+					state,
+					peer_id,
+					entry.version,
+					entry.view.clone(),
+					rng,
+				)
+				.await;
+			}
 		},
 		NetworkBridgeEvent::OurViewChange(new_view) => {
 			gum::trace!(target: LOG_TARGET, ?new_view, "Our view change");
@@ -652,13 +696,15 @@ async fn handle_peer_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	origin: PeerId,
+	version: ProtocolVersion,
 	view: View,
 	rng: &mut (impl CryptoRng + Rng),
 ) {
 	let added = state
-		.peer_views
+		.peer_entries
 		.entry(origin)
-		.or_default()
+		.or_insert(PeerEntry { version, view: Default::default() })
+		.view
 		.replace_difference(view)
 		.cloned()
 		.collect::<Vec<_>>();
@@ -699,7 +745,7 @@ async fn handle_peer_view_change<Context>(
 		.collect();
 
 	for (validator, message) in delta_set.into_iter() {
-		send_tracked_gossip_message(ctx, state, origin, validator, message).await;
+		send_tracked_gossip_message(ctx, state, origin, version, validator, message).await;
 	}
 }
 
@@ -709,6 +755,7 @@ async fn send_tracked_gossip_message<Context>(
 	ctx: &mut Context,
 	state: &mut ProtocolState,
 	dest: PeerId,
+	protocol_version: ProtocolVersion,
 	validator: ValidatorId,
 	message: BitfieldGossipMessage,
 ) {
@@ -731,7 +778,7 @@ async fn send_tracked_gossip_message<Context>(
 
 	ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 		vec![dest],
-		message.into_validation_protocol(),
+		message.into_validation_protocol(protocol_version),
 	))
 	.await;
 }

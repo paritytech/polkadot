@@ -26,12 +26,13 @@ use error::{log_error, FatalResult, JfyiErrorResult};
 use parity_scale_codec::Encode;
 
 use polkadot_node_network_protocol::{
-	self as net_protocol,
+	self as net_protocol, filter_by_peer_version,
 	grid_topology::{GridNeighbors, RequiredRouting, SessionBoundGridTopologyStorage},
-	peer_set::{IsAuthority, PeerSet},
+	peer_set::{IsAuthority, PeerSet, ProtocolVersion, ValidationVersion},
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	v1::{self as protocol_v1, StatementMetadata},
-	IfDisconnected, PeerId, UnifiedReputationChange as Rep, Versioned, View,
+	vstaging as protocol_vstaging, IfDisconnected, PeerId, UnifiedReputationChange as Rep,
+	Versioned, View,
 };
 use polkadot_node_primitives::{SignedFullStatement, Statement, UncheckedSignedFullStatement};
 use polkadot_node_subsystem_util::{self as util, rand, MIN_GOSSIP_PEERS};
@@ -444,6 +445,8 @@ struct PeerData {
 	view_knowledge: HashMap<Hash, PeerRelayParentKnowledge>,
 	/// Peer might be known as authority with the given ids.
 	maybe_authority: Option<HashSet<AuthorityDiscoveryId>>,
+	/// Protocol version
+	version: ProtocolVersion,
 }
 
 impl PeerData {
@@ -965,24 +968,47 @@ fn statement_message(
 	relay_parent: Hash,
 	statement: SignedFullStatement,
 	metrics: &Metrics,
+	protocol_version: ProtocolVersion,
 ) -> net_protocol::VersionedValidationProtocol {
 	let (is_large, size) = is_statement_large(&statement);
 	if let Some(size) = size {
 		metrics.on_created_message(size);
 	}
 
-	let msg = if is_large {
-		protocol_v1::StatementDistributionMessage::LargeStatement(StatementMetadata {
-			relay_parent,
-			candidate_hash: statement.payload().candidate_hash(),
-			signed_by: statement.validator_index(),
-			signature: statement.signature().clone(),
-		})
-	} else {
-		protocol_v1::StatementDistributionMessage::Statement(relay_parent, statement.into())
-	};
+	match ValidationVersion::try_from(protocol_version) {
+		Ok(ValidationVersion::V1) => {
+			let msg = if is_large {
+				protocol_v1::StatementDistributionMessage::LargeStatement(StatementMetadata {
+					relay_parent,
+					candidate_hash: statement.payload().candidate_hash(),
+					signed_by: statement.validator_index(),
+					signature: statement.signature().clone(),
+				})
+			} else {
+				protocol_v1::StatementDistributionMessage::Statement(relay_parent, statement.into())
+			};
 
-	protocol_v1::ValidationProtocol::StatementDistribution(msg).into()
+			protocol_v1::ValidationProtocol::StatementDistribution(msg).into()
+		},
+		Ok(ValidationVersion::V2) => {
+			let msg = if is_large {
+				protocol_vstaging::StatementDistributionMessage::LargeStatement(StatementMetadata {
+					relay_parent,
+					candidate_hash: statement.payload().candidate_hash(),
+					signed_by: statement.validator_index(),
+					signature: statement.signature().clone(),
+				})
+			} else {
+				protocol_vstaging::StatementDistributionMessage::Statement(
+					relay_parent,
+					statement.into(),
+				)
+			};
+
+			protocol_vstaging::ValidationProtocol::StatementDistribution(msg).into()
+		},
+		Err(_) => unreachable!("Invalid peer protocol"),
+	}
 }
 
 /// Check whether a statement should be treated as large statement.
@@ -1067,20 +1093,19 @@ async fn circulate_statement<'a, Context>(
 		peers_to_send.len() == peers_to_send.clone().into_iter().collect::<HashSet<_>>().len(),
 		"We filter out duplicates above. qed.",
 	);
-	let peers_to_send: Vec<(PeerId, bool)> = peers_to_send
+	let peers_to_send: Vec<(PeerId, bool, ProtocolVersion)> = peers_to_send
 		.into_iter()
 		.map(|peer_id| {
-			let new = peers
-				.get_mut(&peer_id)
-				.expect("a subset is taken above, so it exists; qed")
-				.send(&relay_parent, &fingerprint);
-			(peer_id, new)
+			let peer_data =
+				peers.get_mut(&peer_id).expect("a subset is taken above, so it exists; qed");
+
+			let new = peer_data.send(&relay_parent, &fingerprint);
+			(peer_id, new, peer_data.version)
 		})
 		.collect();
 
 	// Send all these peers the initial statement.
 	if !peers_to_send.is_empty() {
-		let payload = statement_message(relay_parent, stored.statement.clone(), metrics);
 		gum::trace!(
 			target: LOG_TARGET,
 			?peers_to_send,
@@ -1088,16 +1113,38 @@ async fn circulate_statement<'a, Context>(
 			statement = ?stored.statement,
 			"Sending statement",
 		);
-		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-			peers_to_send.iter().map(|(p, _)| *p).collect(),
-			payload,
-		))
-		.await;
+
+		let peers_to_send =
+			peers_to_send.iter().map(|(p, _, version)| (*p, *version)).collect::<Vec<_>>();
+		let v1_peers = filter_by_peer_version(&peers_to_send, ValidationVersion::V1.into());
+		let v2_peers = filter_by_peer_version(&peers_to_send, ValidationVersion::V2.into());
+
+		if v1_peers.len() > 0 {
+			let payload = statement_message(
+				relay_parent,
+				stored.statement.clone(),
+				metrics,
+				ValidationVersion::V1.into(),
+			);
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(v1_peers, payload))
+				.await;
+		}
+
+		if v2_peers.len() > 0 {
+			let payload = statement_message(
+				relay_parent,
+				stored.statement.clone(),
+				metrics,
+				ValidationVersion::V2.into(),
+			);
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(v2_peers, payload))
+				.await;
+		}
 	}
 
 	peers_to_send
 		.into_iter()
-		.filter_map(|(peer, needs_dependent)| if needs_dependent { Some(peer) } else { None })
+		.filter_map(|(peer, needs_dependent, _)| if needs_dependent { Some(peer) } else { None })
 		.collect()
 }
 
@@ -1118,7 +1165,12 @@ async fn send_statements_about<Context>(
 			continue
 		}
 		peer_data.send(&relay_parent, &fingerprint);
-		let payload = statement_message(relay_parent, statement.statement.clone(), metrics);
+		let payload = statement_message(
+			relay_parent,
+			statement.statement.clone(),
+			metrics,
+			peer_data.version,
+		);
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -1151,7 +1203,12 @@ async fn send_statements<Context>(
 			continue
 		}
 		peer_data.send(&relay_parent, &fingerprint);
-		let payload = statement_message(relay_parent, statement.statement.clone(), metrics);
+		let payload = statement_message(
+			relay_parent,
+			statement.statement.clone(),
+			metrics,
+			peer_data.version,
+		);
 
 		gum::trace!(
 			target: LOG_TARGET,
@@ -1645,7 +1702,7 @@ async fn handle_network_update<Context, R>(
 	R: rand::Rng,
 {
 	match update {
-		NetworkBridgeEvent::PeerConnected(peer, role, _, maybe_authority) => {
+		NetworkBridgeEvent::PeerConnected(peer, role, version, maybe_authority) => {
 			gum::trace!(target: LOG_TARGET, ?peer, ?role, "Peer connected");
 			peers.insert(
 				peer,
@@ -1653,6 +1710,7 @@ async fn handle_network_update<Context, R>(
 					view: Default::default(),
 					view_knowledge: Default::default(),
 					maybe_authority: maybe_authority.clone(),
+					version,
 				},
 			);
 			if let Some(authority_ids) = maybe_authority {

@@ -1365,14 +1365,13 @@ impl State {
 			.known_by
 			.iter()
 			.filter(|(p, k)| peer_filter(p, k))
-			.map(|(p, _)| p)
-			.cloned()
+			.filter_map(|(p, _)| self.peer_views.get(p).map(|entry| (*p, entry.version)))
 			.collect::<Vec<_>>();
 
 		// Add the metadata of the assignment to the knowledge of each peer.
 		for peer in peers.iter() {
 			// we already filtered peers above, so this should always be Some
-			if let Some(entry) = entry.known_by.get_mut(peer) {
+			if let Some(entry) = entry.known_by.get_mut(&peer.0) {
 				entry.sent.insert(message_subject.clone(), message_kind);
 			}
 		}
@@ -1388,10 +1387,20 @@ impl State {
 				"Sending an approval to peers",
 			);
 
+			let v1_peers = filter_by_peer_version(&peers, ValidationVersion::V1.into());
+			let v2_peers = filter_by_peer_version(&peers, ValidationVersion::V2.into());
+
 			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
-				peers,
+				v1_peers,
 				Versioned::V1(protocol_v1::ValidationProtocol::ApprovalDistribution(
-					protocol_v1::ApprovalDistributionMessage::Approvals(approvals),
+					protocol_v1::ApprovalDistributionMessage::Approvals(approvals.clone()),
+				)),
+			))
+			.await;
+			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
+				v2_peers,
+				Versioned::VStaging(protocol_vstaging::ValidationProtocol::ApprovalDistribution(
+					protocol_vstaging::ApprovalDistributionMessage::Approvals(approvals),
 				)),
 			))
 			.await;
