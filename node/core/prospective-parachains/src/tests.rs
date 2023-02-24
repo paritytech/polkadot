@@ -672,7 +672,7 @@ fn check_candidate_parent_leaving_view() {
 		let candidate_hash_c = candidate_c.hash();
 		let response_c = vec![(leaf_c.hash, vec![0])];
 
-		// Second candidates.
+		// Introduce candidates.
 		introduce_candidate(&mut virtual_overseer, candidate_a1, pvd_a1).await;
 		introduce_candidate(&mut virtual_overseer, candidate_a2, pvd_a2).await;
 		introduce_candidate(&mut virtual_overseer, candidate_b, pvd_b).await;
@@ -786,7 +786,7 @@ fn check_candidate_on_multiple_forks() {
 		let candidate_hash_c = candidate_c.hash();
 		let response_c = vec![(leaf_c.hash, vec![0])];
 
-		// Second candidate on all three leaves.
+		// Introduce candidates on all three leaves.
 		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a).await;
 		introduce_candidate(&mut virtual_overseer, candidate_b.clone(), pvd_b).await;
 		introduce_candidate(&mut virtual_overseer, candidate_c.clone(), pvd_c).await;
