@@ -21,6 +21,7 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
+use jaeger::hash_to_trace_identifier;
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
@@ -1901,7 +1902,7 @@ fn check_and_import_approval<T>(
 		}};
 	}
 
-	let _span = state
+	let mut span = state
 		.spans
 		.get(&approval.block_hash)
 		.map(|span| span.child("check-and-import-approval"))
@@ -1934,6 +1935,9 @@ fn check_and_import_approval<T>(
 			ApprovalCheckError::InvalidCandidateIndex(approval.candidate_index),
 		)),
 	};
+
+	span.add_string_tag("candidate-hash", format!("{:?}", approved_candidate_hash));
+	span.add_string_tag("traceID", format!("{:?}", hash_to_trace_identifier(approved_candidate_hash.0)));
 
 	let pubkey = match session_info.validators.get(approval.validator) {
 		Some(k) => k,
@@ -2211,7 +2215,7 @@ fn process_wakeup(
 	_expected_tick: Tick,
 	metrics: &Metrics,
 ) -> SubsystemResult<Vec<Action>> {
-	let _span = state
+	let mut span = state
 		.spans
 		.get(&relay_block)
 		.map(|span| span.child_with_trace_id("process-wakeup", candidate_hash))
@@ -2248,9 +2252,8 @@ fn process_wakeup(
 		state.slot_duration_millis,
 		Slot::from(u64::from(session_info.no_show_slots)),
 	);
-
 	let tranche_now = state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
-
+	span.add_uint_tag("tranche", tranche_now as u64);
 	gum::trace!(
 		target: LOG_TARGET,
 		tranche = tranche_now,
@@ -2283,6 +2286,9 @@ fn process_wakeup(
 
 		(should_trigger, approval_entry.backing_group())
 	};
+	
+	span.add_string_tag("should-trigger", format!("{:?}", should_trigger));
+
 	let mut actions = Vec::new();
 	let candidate_receipt = candidate_entry.candidate_receipt().clone();
 
