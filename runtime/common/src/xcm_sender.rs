@@ -18,7 +18,7 @@
 
 use frame_support::traits::Get;
 use parity_scale_codec::Encode;
-use primitives::v2::Id as ParaId;
+use primitives::Id as ParaId;
 use runtime_parachains::{
 	configuration::{self, HostConfiguration},
 	dmp,

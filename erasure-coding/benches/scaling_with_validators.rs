@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
-use polkadot_primitives::v2::Hash;
+use polkadot_primitives::Hash;
 use std::time::Duration;
 
 fn chunks(n_validators: usize, pov: &Vec<u8>) -> Vec<Vec<u8>> {

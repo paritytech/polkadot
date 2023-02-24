@@ -32,7 +32,7 @@ fn queue_upward_msg<T: Config>(
 	msg: UpwardMessage,
 ) {
 	let len = msg.len() as u32;
-	let msgs = vec![msg];
+	let msgs: UpwardMessages = vec![msg].try_into().unwrap();
 	Ump::<T>::check_upward_messages(host_conf, para, &msgs).unwrap();
 	let _ = Ump::<T>::receive_upward_messages(para, msgs);
 	assert_last_event_type::<T>(Event::UpwardMessagesReceived(para, 1, len).into());

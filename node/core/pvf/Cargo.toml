@@ -27,8 +27,10 @@ parity-scale-codec = { version = "3.3.0", default-features = false, features = [
 
 polkadot-parachain = { path = "../../../parachain" }
 polkadot-core-primitives = { path = "../../../core-primitives" }
-polkadot-node-metrics = { path = "../../metrics"}
+polkadot-node-metrics = { path = "../../metrics" }
+polkadot-node-primitives = { path = "../../primitives" }
 
+polkadot-primitives = { path = "../../../primitives" }
 sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -3339,7 +3339,7 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 				.await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::supermajority_threshold(test_state.validators.len());
 
 			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
 				&test_state,

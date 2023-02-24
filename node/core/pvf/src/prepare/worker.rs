@@ -24,6 +24,7 @@ use crate::{
 	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
 	prepare::PrepareStats,
+	pvf::PvfWithExecutorParams,
 	worker_common::{
 		bytes_to_path, cpu_time_monitor_loop, framed_recv, framed_send, path_to_bytes,
 		spawn_with_program_path, tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
@@ -34,11 +35,12 @@ use crate::{
 use cpu_time::ProcessTime;
 use futures::{pin_mut, select_biased, FutureExt};
 use parity_scale_codec::{Decode, Encode};
+
 use sp_core::hexdisplay::HexDisplay;
 use std::{
 	panic,
 	path::{Path, PathBuf},
-	sync::{mpsc::channel, Arc},
+	sync::mpsc::channel,
 	time::Duration,
 };
 use tokio::{io, net::UnixStream};
@@ -82,7 +84,7 @@ pub enum Outcome {
 pub async fn start_work(
 	metrics: &Metrics,
 	worker: IdleWorker,
-	code: Arc<Vec<u8>>,
+	pvf_with_params: PvfWithExecutorParams,
 	cache_path: &Path,
 	artifact_path: PathBuf,
 	preparation_timeout: Duration,
@@ -97,7 +99,9 @@ pub async fn start_work(
 	);
 
 	with_tmp_file(stream, pid, cache_path, |tmp_file, mut stream| async move {
-		if let Err(err) = send_request(&mut stream, code, &tmp_file, preparation_timeout).await {
+		if let Err(err) =
+			send_request(&mut stream, pvf_with_params, &tmp_file, preparation_timeout).await
+		{
 			gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
@@ -269,18 +273,27 @@ where
 
 async fn send_request(
 	stream: &mut UnixStream,
-	code: Arc<Vec<u8>>,
+	pvf_with_params: PvfWithExecutorParams,
 	tmp_file: &Path,
 	preparation_timeout: Duration,
 ) -> io::Result<()> {
-	framed_send(stream, &code).await?;
+	framed_send(stream, &pvf_with_params.encode()).await?;
 	framed_send(stream, path_to_bytes(tmp_file)).await?;
 	framed_send(stream, &preparation_timeout.encode()).await?;
 	Ok(())
 }
 
-async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, Duration)> {
-	let code = framed_recv(stream).await?;
+async fn recv_request(
+	stream: &mut UnixStream,
+) -> io::Result<(PvfWithExecutorParams, PathBuf, Duration)> {
+	let pvf_with_params = framed_recv(stream).await?;
+	let pvf_with_params =
+		PvfWithExecutorParams::decode(&mut &pvf_with_params[..]).map_err(|e| {
+			io::Error::new(
+				io::ErrorKind::Other,
+				format!("prepare pvf recv_request: failed to decode PvfWithExecutorParams: {}", e),
+			)
+		})?;
 	let tmp_file = framed_recv(stream).await?;
 	let tmp_file = bytes_to_path(&tmp_file).ok_or_else(|| {
 		io::Error::new(
@@ -295,7 +308,7 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, 
 			format!("prepare pvf recv_request: failed to decode duration: {:?}", e),
 		)
 	})?;
-	Ok((code, tmp_file, preparation_timeout))
+	Ok((pvf_with_params, tmp_file, preparation_timeout))
 }
 
 async fn send_response(stream: &mut UnixStream, result: PrepareResult) -> io::Result<()> {
@@ -347,7 +360,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("prepare", socket_path, |rt_handle, mut stream| async move {
 		loop {
 			let worker_pid = std::process::id();
-			let (code, dest, preparation_timeout) = recv_request(&mut stream).await?;
+			let (pvf_with_params, dest, preparation_timeout) = recv_request(&mut stream).await?;
 			gum::debug!(
 				target: LOG_TARGET,
 				%worker_pid,
@@ -372,7 +385,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 			// Spawn another thread for preparation.
 			let prepare_fut = rt_handle
 				.spawn_blocking(move || {
-					let result = prepare_artifact(&code);
+					let result = prepare_artifact(pvf_with_params);
 
 					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
 					#[cfg(target_os = "linux")]
@@ -454,14 +467,16 @@ pub fn worker_entrypoint(socket_path: &str) {
 	});
 }
 
-fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
+fn prepare_artifact(
+	pvf_with_params: PvfWithExecutorParams,
+) -> Result<CompiledArtifact, PrepareError> {
 	panic::catch_unwind(|| {
-		let blob = match crate::executor_intf::prevalidate(code) {
+		let blob = match crate::executor_intf::prevalidate(&pvf_with_params.code()) {
 			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
 			Ok(b) => b,
 		};
 
-		match crate::executor_intf::prepare(blob) {
+		match crate::executor_intf::prepare(blob, &pvf_with_params.executor_params()) {
 			Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
 			Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
 		}
