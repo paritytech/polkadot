@@ -40,8 +40,7 @@ use sp_application_crypto::{AppKey, ByteArray};
 use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_network_protocol::{
-	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, GossipSupportNetworkMessage,
-	PeerId,
+	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, GossipSupportNetworkMessage, PeerId,
 };
 use polkadot_node_subsystem::{
 	messages::{
