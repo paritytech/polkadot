@@ -83,3 +83,6 @@ pub use universal_exports::{
 	HaulBlobError, HaulBlobExporter, NetworkExportTable, SovereignPaidRemoteExporter,
 	UnpaidLocalExporter, UnpaidRemoteExporter,
 };
+
+mod runtime_api;
+pub use runtime_api::*;

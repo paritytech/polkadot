@@ -12,6 +12,7 @@ scale-info = { version = "2.1.2", default-features = false, features = ["derive"
 xcm = { path = "..", default-features = false }
 xcm-executor = { path = "../xcm-executor", default-features = false }
 sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-api = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -43,6 +44,7 @@ std = [
 	"xcm/std",
 	"xcm-executor/std",
 	"sp-std/std",
+	"sp-api/std",
 	"sp-arithmetic/std",
 	"sp-io/std",
 	"sp-runtime/std",

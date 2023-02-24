@@ -13743,6 +13743,7 @@ dependencies = [
  "polkadot-runtime-parachains",
  "primitive-types",
  "scale-info",
+ "sp-api",
  "sp-arithmetic",
  "sp-io",
  "sp-runtime",
