@@ -13838,6 +13838,7 @@ dependencies = [
  "sp-io",
  "sp-std",
  "xcm",
+ "xcm-builder",
  "xcm-executor",
 ]
 

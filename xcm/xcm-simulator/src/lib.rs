@@ -19,7 +19,10 @@
 pub use codec::Encode;
 pub use paste;
 
-pub use frame_support::{traits::Get, weights::Weight};
+pub use frame_support::{
+	traits::{Get, ProcessMessage, ProcessMessageError},
+	weights::Weight,
+};
 pub use sp_io::{hashing::blake2_256, TestExternalities};
 pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::PhantomData};
 
@@ -28,11 +31,9 @@ pub use polkadot_parachain::primitives::{
 	DmpMessageHandler as DmpMessageHandlerT, Id as ParaId, XcmpMessageFormat,
 	XcmpMessageHandler as XcmpMessageHandlerT,
 };
-pub use polkadot_runtime_parachains::{
-	dmp,
-	ump::{self, MessageId, UmpSink, XcmSink},
-};
+pub use polkadot_runtime_parachains::dmp;
 pub use xcm::{latest::prelude::*, VersionedXcm};
+pub use xcm_builder::ProcessXcmMessage;
 pub use xcm_executor::XcmExecutor;
 
 pub trait TestExt {
@@ -108,17 +109,19 @@ macro_rules! decl_test_relay_chain {
 
 		$crate::__impl_ext!($name, $new_ext);
 
-		impl $crate::UmpSink for $name {
-			fn process_upward_message(
-				origin: $crate::ParaId,
+		impl $crate::ProcessMessage for $name {
+			type Origin = $crate::ParaId;
+
+			fn process_message(
 				msg: &[u8],
+				origin: Self::Origin,
 				max_weight: $crate::Weight,
-			) -> Result<$crate::Weight, ($crate::MessageId, $crate::Weight)> {
-				use $crate::{ump::UmpSink, TestExt};
+			) -> Result<(bool, $crate::Weight), $crate::ProcessMessageError> {
+				use $crate::{ProcessMessage, Junction, TestExt};
 
 				Self::execute_with(|| {
-					$crate::ump::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(
-						origin, msg, max_weight,
+					$crate::ProcessXcmMessage::<$crate::Junction, $crate::XcmExecutor<$xcm_config>, crate::relay_chain::RuntimeCall>::process_message(
+						msg, $crate::Junction::Parachain(origin.into()), max_weight,
 					)
 				})
 			}
@@ -286,19 +289,23 @@ macro_rules! decl_test_network {
 
 		/// Process all messages originating from parachains.
 		fn process_para_messages() -> $crate::XcmResult {
-			use $crate::{UmpSink, XcmpMessageHandlerT};
+			use $crate::{ProcessMessage, XcmpMessageHandlerT};
 
 			while let Some((para_id, destination, message)) = $crate::PARA_MESSAGE_BUS.with(
 				|b| b.borrow_mut().pop_front()) {
 				match destination.interior() {
 					$crate::Junctions::Here if destination.parent_count() == 1 => {
 						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
-						let r = <$relay_chain>::process_upward_message(
-							para_id, &encoded[..],
+						let r = <$relay_chain>::process_message(
+							&encoded[..], para_id,
 							$crate::Weight::MAX,
 						);
-						if let Err((id, required)) = r {
-							return Err($crate::XcmError::WeightLimitReached(required));
+						match r {
+							Err($crate::ProcessMessageError::Overweight(required)) =>
+								return Err($crate::XcmError::WeightLimitReached(required)),
+							// Not really the correct error, but there is no "undecodable".
+							Err(_) => return Err($crate::XcmError::Unimplemented),
+							Ok(_) => (),
 						}
 					},
 					$(
@@ -353,7 +360,7 @@ macro_rules! decl_test_network {
 				destination: &mut Option<$crate::MultiLocation>,
 				message: &mut Option<$crate::Xcm<()>>,
 			) -> $crate::SendResult<($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>)> {
-				use $crate::{UmpSink, XcmpMessageHandlerT};
+				use $crate::XcmpMessageHandlerT;
 
 				let d = destination.take().ok_or($crate::SendError::MissingArgument)?;
 				match (d.interior(), d.parent_count()) {
