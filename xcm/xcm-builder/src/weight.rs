@@ -185,7 +185,7 @@ impl<T: Get<(AssetId, u128, u128)>, R: TakeRevenue> Drop for FixedRateOfFungible
 	}
 }
 
-/// Weight trader which uses the `TransactionPayment` pallet to set the right price for weight and then
+/// Weight trader which uses the configured `WeightToFee` to set the right price for weight and then
 /// places any weight bought into the right account.
 pub struct UsingComponents<
 	WeightToFee: WeightToFeeT<Balance = Currency::Balance>,
