@@ -1388,7 +1388,7 @@ impl State {
 			);
 
 			let v1_peers = filter_by_peer_version(&peers, ValidationVersion::V1.into());
-			let v2_peers = filter_by_peer_version(&peers, ValidationVersion::V2.into());
+			let v2_peers = filter_by_peer_version(&peers, ValidationVersion::VStaging.into());
 
 			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 				v1_peers,
@@ -1999,7 +1999,7 @@ pub(crate) async fn send_assignments_batched(
 	peers: &Vec<(PeerId, ProtocolVersion)>,
 ) {
 	let v1_peers = filter_by_peer_version(peers, ValidationVersion::V1.into());
-	let v2_peers = filter_by_peer_version(peers, ValidationVersion::V2.into());
+	let v2_peers = filter_by_peer_version(peers, ValidationVersion::VStaging.into());
 
 	if v1_peers.len() > 0 {
 		let mut v1_assignments = v2_assignments.clone();
@@ -2035,7 +2035,7 @@ pub(crate) async fn send_approvals_batched(
 	peers: &Vec<(PeerId, ProtocolVersion)>,
 ) {
 	let v1_peers = filter_by_peer_version(peers, ValidationVersion::V1.into());
-	let v2_peers = filter_by_peer_version(peers, ValidationVersion::V2.into());
+	let v2_peers = filter_by_peer_version(peers, ValidationVersion::VStaging.into());
 
 	if v1_peers.len() > 0 {
 		let mut batches = approvals.clone().into_iter().peekable();

@@ -260,7 +260,7 @@ where
 								),
 								&metrics,
 							),
-							ValidationVersion::V2 => send_message(
+							ValidationVersion::VStaging => send_message(
 								&mut network_service,
 								vec![peer],
 								PeerSet::Validation,
@@ -454,7 +454,7 @@ where
 								&metrics,
 							)
 						} else if expected_versions[PeerSet::Validation] ==
-							Some(ValidationVersion::V2.into())
+							Some(ValidationVersion::VStaging.into())
 						{
 							handle_peer_messages::<protocol_vstaging::ValidationProtocol, _>(
 								remote,
@@ -768,7 +768,7 @@ fn update_our_view<Net, Context>(
 	let v1_validation_peers =
 		filter_by_version(validation_peers.as_slice(), ValidationVersion::V1.into());
 	let vstaging_validation_peers =
-		filter_by_version(&validation_peers, ValidationVersion::V2.into());
+		filter_by_version(&validation_peers, ValidationVersion::VStaging.into());
 
 	send_validation_message_v1(
 		net,
@@ -894,7 +894,7 @@ fn send_validation_message_vstaging(
 		net,
 		peers,
 		PeerSet::Validation,
-		ValidationVersion::V2.into(),
+		ValidationVersion::VStaging.into(),
 		peerset_protocol_names,
 		message,
 		metrics,

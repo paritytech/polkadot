@@ -118,7 +118,7 @@ impl PeerSet {
 	/// of the main protocol name reported by [`PeerSetProtocolNames::get_main_name()`].
 	pub fn get_main_version(self) -> ProtocolVersion {
 		match self {
-			PeerSet::Validation => ValidationVersion::V2.into(),
+			PeerSet::Validation => ValidationVersion::VStaging.into(),
 			PeerSet::Collation => CollationVersion::V1.into(),
 		}
 	}
@@ -143,7 +143,7 @@ impl PeerSet {
 		match self {
 			PeerSet::Validation => match version {
 				_ if version == ValidationVersion::V1.into() => Some("validation/1"),
-				_ if version == ValidationVersion::V2.into() => Some("validation/2"),
+				_ if version == ValidationVersion::VStaging.into() => Some("validation/2"),
 				_ => None,
 			},
 			PeerSet::Collation =>
@@ -211,7 +211,7 @@ pub enum ValidationVersion {
 	/// The first version.
 	V1 = 1,
 	/// The second version adds `AssignmentsV2` message to approval distribution. VStaging
-	V2 = 2,
+	VStaging = 2,
 }
 
 /// Supported collation protocol versions. Only versions defined here must be used in the codebase.

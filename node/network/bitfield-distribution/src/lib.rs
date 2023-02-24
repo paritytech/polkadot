@@ -89,7 +89,7 @@ impl BitfieldGossipMessage {
 
 		match ValidationVersion::try_from(protocol_version) {
 			Ok(ValidationVersion::V1) => Versioned::V1(message),
-			Ok(ValidationVersion::V2) => Versioned::VStaging(message),
+			Ok(ValidationVersion::VStaging) => Versioned::VStaging(message),
 			Err(_) => unreachable!("Invalid peer protocol"),
 		}
 	}
@@ -449,7 +449,8 @@ async fn relay_message<Context>(
 		let _span = span.child("gossip");
 
 		let v1_peers = filter_by_peer_version(&interested_peers, ValidationVersion::V1.into());
-		let v2_peers = filter_by_peer_version(&interested_peers, ValidationVersion::V2.into());
+		let v2_peers =
+			filter_by_peer_version(&interested_peers, ValidationVersion::VStaging.into());
 
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			v1_peers,
@@ -459,7 +460,7 @@ async fn relay_message<Context>(
 
 		ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(
 			v2_peers,
-			message.into_validation_protocol(ValidationVersion::V2.into()),
+			message.into_validation_protocol(ValidationVersion::VStaging.into()),
 		))
 		.await;
 	}

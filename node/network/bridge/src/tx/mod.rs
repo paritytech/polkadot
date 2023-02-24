@@ -379,7 +379,7 @@ fn send_validation_message_vstaging(
 		net,
 		peers,
 		PeerSet::Validation,
-		ValidationVersion::V2.into(),
+		ValidationVersion::VStaging.into(),
 		protocol_names,
 		message,
 		metrics,

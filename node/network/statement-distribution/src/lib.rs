@@ -990,7 +990,7 @@ fn statement_message(
 
 			protocol_v1::ValidationProtocol::StatementDistribution(msg).into()
 		},
-		Ok(ValidationVersion::V2) => {
+		Ok(ValidationVersion::VStaging) => {
 			let msg = if is_large {
 				protocol_vstaging::StatementDistributionMessage::LargeStatement(StatementMetadata {
 					relay_parent,
@@ -1117,7 +1117,7 @@ async fn circulate_statement<'a, Context>(
 		let peers_to_send =
 			peers_to_send.iter().map(|(p, _, version)| (*p, *version)).collect::<Vec<_>>();
 		let v1_peers = filter_by_peer_version(&peers_to_send, ValidationVersion::V1.into());
-		let v2_peers = filter_by_peer_version(&peers_to_send, ValidationVersion::V2.into());
+		let v2_peers = filter_by_peer_version(&peers_to_send, ValidationVersion::VStaging.into());
 
 		if v1_peers.len() > 0 {
 			let payload = statement_message(
@@ -1135,7 +1135,7 @@ async fn circulate_statement<'a, Context>(
 				relay_parent,
 				stored.statement.clone(),
 				metrics,
-				ValidationVersion::V2.into(),
+				ValidationVersion::VStaging.into(),
 			);
 			ctx.send_message(NetworkBridgeTxMessage::SendValidationMessage(v2_peers, payload))
 				.await;
