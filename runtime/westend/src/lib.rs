@@ -1227,8 +1227,8 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
-  clean_state_migration::CleanMigrate,
-  pallet_nomination_pools::migration::v4::MigrateToV4<Runtime>,
+	clean_state_migration::CleanMigrate,
+	pallet_nomination_pools::migration::v4::MigrateToV4<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.

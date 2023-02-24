@@ -513,6 +513,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		Weight::from_ref_time(23_000_000 as u64)
 			.saturating_add(T::DbWeight::get().reads(1 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
+	}
 	/// Storage: NominationPools PoolMembers (r:1 w:0)
 	/// Proof: NominationPools PoolMembers (max_values: None, max_size: Some(717), added: 3192, mode: MaxEncodedLen)
 	/// Storage: NominationPools ClaimPermissions (r:1 w:1)

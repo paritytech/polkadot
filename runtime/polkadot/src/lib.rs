@@ -1606,9 +1606,7 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 /// All migrations that will run on the next runtime upgrade.
 ///
 /// Should be cleared after every release.
-pub type Migrations = (
-  pallet_nomination_pools::migration::v4::MigrateToV4<Runtime>,
-);
+pub type Migrations = (pallet_nomination_pools::migration::v4::MigrateToV4<Runtime>,);
 
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =
