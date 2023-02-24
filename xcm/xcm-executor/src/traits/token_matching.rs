@@ -48,6 +48,7 @@ impl<Instance> MatchesNonFungible<Instance> for Tuple {
 }
 
 /// Errors associated with [`MatchesFungibles`] operation.
+#[derive(Debug, PartialEq, Eq)]
 pub enum Error {
 	/// The given asset is not handled. (According to [`XcmError::AssetNotFound`])
 	AssetNotFound,
@@ -69,7 +70,7 @@ impl From<Error> for XcmError {
 			Error::AccountIdConversionFailed => FailedToTransactAsset("AccountIdConversionFailed"),
 			Error::AmountToBalanceConversionFailed =>
 				FailedToTransactAsset("AmountToBalanceConversionFailed"),
-			Error::AssetIdConversionFailed => XcmError::AssetNotFound,
+			Error::AssetIdConversionFailed => FailedToTransactAsset("AssetIdConversionFailed"),
 			Error::InstanceConversionFailed => FailedToTransactAsset("InstanceConversionFailed"),
 		}
 	}
@@ -102,5 +103,20 @@ impl<AssetId, Instance> MatchesNonFungibles<AssetId, Instance> for Tuple {
 		)* );
 		log::trace!(target: "xcm::matches_non_fungibles", "did not match fungibles asset: {:?}", &a);
 		Err(Error::AssetNotFound)
+	}
+}
+
+pub trait MatchesMultiAssetId<Id> {
+	fn matches(a: &Id) -> bool;
+}
+
+#[impl_trait_for_tuples::impl_for_tuples(30)]
+impl<Id: sp_std::fmt::Debug> MatchesMultiAssetId<Id> for Tuple {
+	fn matches(a: &Id) -> bool {
+		for_tuples!( #(
+			match Tuple::matches(a) { o @ true => return o, _ => () }
+		)* );
+		log::trace!(target: "xcm::matches", "did not match asset location: {:?}", &a);
+		false
 	}
 }
