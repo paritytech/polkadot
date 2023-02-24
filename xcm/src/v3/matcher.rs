@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! XCM matcher API, used primarily for writing barrier conditions.
+
 use super::{Instruction, MultiLocation};
 use crate::{CreateMatcher, MatchXcm};
 use core::ops::ControlFlow;
