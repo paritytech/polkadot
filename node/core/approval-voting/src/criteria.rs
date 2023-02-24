@@ -18,7 +18,8 @@
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
-	self as approval_types, AssignmentCertKindV2, AssignmentCertV2, DelayTranche, RelayVRFStory,
+	self as approval_types, AssignmentCert, AssignmentCertKind, AssignmentCertKindV2,
+	AssignmentCertV2, DelayTranche, RelayVRFStory,
 };
 use polkadot_primitives::{
 	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, IndexedVec, SessionInfo,
@@ -250,7 +251,7 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 		config: &Config,
 		leaving_cores: Vec<(CandidateHash, CoreIndex, GroupIndex)>,
 	) -> HashMap<CoreIndex, OurAssignment> {
-		compute_assignments(keystore, relay_vrf_story, config, leaving_cores)
+		compute_assignments(keystore, relay_vrf_story, config, leaving_cores, false)
 	}
 
 	fn check_assignment_cert(
@@ -288,6 +289,7 @@ pub(crate) fn compute_assignments(
 	relay_vrf_story: RelayVRFStory,
 	config: &Config,
 	leaving_cores: impl IntoIterator<Item = (CandidateHash, CoreIndex, GroupIndex)> + Clone,
+	enable_v2_assignments: bool,
 ) -> HashMap<CoreIndex, OurAssignment> {
 	if config.n_cores == 0 ||
 		config.assignment_keys.is_empty() ||
@@ -345,16 +347,25 @@ pub(crate) fn compute_assignments(
 
 	let mut assignments = HashMap::new();
 
-	// TODO: support all vrf modulo assignment kinds.
-	// For now we only do compact.
-	compute_relay_vrf_modulo_assignments(
-		&assignments_key,
-		index,
-		config,
-		relay_vrf_story.clone(),
-		leaving_cores.clone(),
-		&mut assignments,
-	);
+	if enable_v2_assignments {
+		compute_relay_vrf_modulo_assignments_v2(
+			&assignments_key,
+			index,
+			config,
+			relay_vrf_story.clone(),
+			leaving_cores.clone(),
+			&mut assignments,
+		);
+	} else {
+		compute_relay_vrf_modulo_assignments(
+			&assignments_key,
+			index,
+			config,
+			relay_vrf_story.clone(),
+			leaving_cores.clone(),
+			&mut assignments,
+		);
+	}
 
 	//TODO: Add assignment into `assignments` per core map.
 
@@ -372,6 +383,67 @@ pub(crate) fn compute_assignments(
 }
 
 fn compute_relay_vrf_modulo_assignments(
+	assignments_key: &schnorrkel::Keypair,
+	validator_index: ValidatorIndex,
+	config: &Config,
+	relay_vrf_story: RelayVRFStory,
+	leaving_cores: impl IntoIterator<Item = (CandidateHash, CoreIndex)> + Clone,
+	assignments: &mut HashMap<CoreIndex, OurAssignment>,
+) {
+	for rvm_sample in 0..config.relay_vrf_modulo_samples {
+		let mut core = CoreIndex::default();
+
+		let maybe_assignment = {
+			// Extra scope to ensure borrowing instead of moving core
+			// into closure.
+			let core = &mut core;
+			assignments_key.vrf_sign_extra_after_check(
+				relay_vrf_modulo_transcript(relay_vrf_story.clone(), rvm_sample),
+				|vrf_in_out| {
+					*core = relay_vrf_modulo_core(&vrf_in_out, config.n_cores);
+					if let Some((candidate_hash, _)) =
+						leaving_cores.clone().into_iter().find(|(_, c)| c == core)
+					{
+						gum::trace!(
+							target: LOG_TARGET,
+							?candidate_hash,
+							?core,
+							?validator_index,
+							tranche = 0,
+							"RelayVRFModulo Assignment."
+						);
+
+						Some(assigned_core_transcript(*core))
+					} else {
+						None
+					}
+				},
+			)
+		};
+
+		if let Some((vrf_in_out, vrf_proof, _)) = maybe_assignment {
+			// Sanity: `core` is always initialized to non-default here, as the closure above
+			// has been executed.
+			let cert = AssignmentCert {
+				kind: AssignmentCertKind::RelayVRFModulo { sample: rvm_sample },
+				vrf: (
+					approval_types::VRFOutput(vrf_in_out.to_output()),
+					approval_types::VRFProof(vrf_proof),
+				),
+			};
+
+			// All assignments of type RelayVRFModulo have tranche 0.
+			assignments.entry(core).or_insert(OurAssignment {
+				cert: cert.into(),
+				tranche: 0,
+				validator_index,
+				triggered: false,
+			});
+		}
+	}
+}
+
+fn compute_relay_vrf_modulo_assignments_v2(
 	assignments_key: &schnorrkel::Keypair,
 	validator_index: ValidatorIndex,
 	config: &Config,
