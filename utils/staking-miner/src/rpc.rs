@@ -84,7 +84,7 @@ pub trait RpcApi {
 		unsubscribe = "author_unwatchExtrinsic",
 		item = TransactionStatus<Hash, Hash>
 	)]
-	fn watch_extrinsic(&self, bytes: &Bytes);
+	async fn watch_extrinsic(&self, bytes: &Bytes);
 
 	/// New head subscription.
 	#[subscription(
@@ -92,7 +92,7 @@ pub trait RpcApi {
 		unsubscribe = "chain_unsubscribeNewHeads",
 		item = Header
 	)]
-	fn subscribe_new_heads(&self);
+	async fn subscribe_new_heads(&self);
 
 	/// Finalized head subscription.
 	#[subscription(
@@ -100,7 +100,7 @@ pub trait RpcApi {
 		unsubscribe = "chain_unsubscribeFinalizedHeads",
 		item = Header
 	)]
-	fn subscribe_finalized_heads(&self);
+	async fn subscribe_finalized_heads(&self);
 }
 
 /// Wraps a shared web-socket JSON-RPC client that can be cloned.
@@ -129,7 +129,7 @@ impl SharedRpcClient {
 	) -> Result<Self, RpcError> {
 		let client = WsClientBuilder::default()
 			.connection_timeout(connection_timeout)
-			.max_request_body_size(u32::MAX)
+			.max_buffer_capacity_per_subscription(u32::MAX as usize)
 			.request_timeout(request_timeout)
 			.build(uri)
 			.await?;
