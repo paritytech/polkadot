@@ -38,7 +38,7 @@ The Statement Distribution Subsystem is responsible for distributing signed stat
 Track equivocating validators and stop accepting information from them. Establish a data-dependency order:
 
 - In order to receive a `Seconded` message we have the corresponding chain head in our view
-- In order to receive an `Valid` message we must have received the corresponding `Seconded` message.
+- In order to receive a `Valid` message we must have received the corresponding `Seconded` message.
 
 And respect this data-dependency order from our peers by respecting their views. This subsystem is responsible for checking message signatures.
 
