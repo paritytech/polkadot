@@ -743,7 +743,7 @@ impl State {
 					target: LOG_TARGET,
 					peer_id = %peer_id,
 					num = assignments.len(),
-					"Processing assignments (V2) from a peer",
+					"Processing assignments from a peer",
 				);
 				self.process_incoming_assignments(ctx, metrics, peer_id, assignments, rng).await;
 			},
@@ -752,7 +752,7 @@ impl State {
 					target: LOG_TARGET,
 					peer_id = %peer_id,
 					num = assignments.len(),
-					"Processing assignments (V1) from a peer",
+					"Processing assignments from a peer",
 				);
 
 				self.process_incoming_assignments(
@@ -1426,20 +1426,6 @@ impl State {
 				Some(e) => e,
 			};
 
-			// // TODO: fix mapping of candidates to validator index and claimed indices
-			// let candidate_entry = match block_entry.candidates.get(index as usize) {
-			// 	None => {
-			// 		gum::debug!(
-			// 			target: LOG_TARGET,
-			// 			?hash,
-			// 			?index,
-			// 			"`get_approval_signatures`: could not find candidate entry for given hash and index!"
-			// 			);
-			// 		continue
-			// 	},
-			// 	Some(e) => e,
-			// };
-
 			let sigs = block_entry
 				.get_approval_entries(index)
 				.into_iter()
@@ -1456,7 +1442,6 @@ impl State {
 		all_sigs
 	}
 
-	// TODO: Refactor as in `adjust_required_routing_and_propagate`.
 	async fn unify_with_peer(
 		sender: &mut impl overseer::ApprovalDistributionSenderTrait,
 		metrics: &Metrics,
@@ -1875,7 +1860,9 @@ impl ApprovalDistribution {
 				state.handle_new_blocks(ctx, metrics, metas, rng).await;
 			},
 			ApprovalDistributionMessage::DistributeAssignment(cert, candidate_indices) => {
-				// TODO: approval voting bug: Fix `Importing locally an already known assignment` for multiple candidate assignments.
+				// TODO: Fix warning: `Importing locally an already known assignment` for multiple candidate assignments.
+				// This is due to the fact that we call this on wakeup, and we do have a wakeup for each candidate index, but
+				// there is only one assignment.
 				gum::debug!(
 					target: LOG_TARGET,
 					"Distributing our assignment on candidate (block={}, indices={:?})",
@@ -2010,8 +1997,6 @@ pub(crate) async fn send_assignments_batched(
 
 		while v1_batches.peek().is_some() {
 			let batch: Vec<_> = v1_batches.by_ref().take(MAX_ASSIGNMENT_BATCH_SIZE).collect();
-
-			// If there are multiple candidates claimed this is only supported for V2
 			send_assignments_batched_inner(sender, batch, &v1_peers, 1).await;
 		}
 	}
@@ -2021,8 +2006,6 @@ pub(crate) async fn send_assignments_batched(
 
 		while v2_batches.peek().is_some() {
 			let batch = v2_batches.by_ref().take(MAX_ASSIGNMENT_BATCH_SIZE).collect::<Vec<_>>();
-
-			// If there are multiple candidates claimed this is only supported for V2
 			send_assignments_batched_inner(sender, batch, &v2_peers, 2).await;
 		}
 	}

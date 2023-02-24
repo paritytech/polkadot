@@ -367,8 +367,6 @@ pub(crate) fn compute_assignments(
 		);
 	}
 
-	//TODO: Add assignment into `assignments` per core map.
-
 	// Then run `RelayVRFDelay` once for the whole block.
 	compute_relay_vrf_delay_assignments(
 		&assignments_key,
@@ -659,11 +657,10 @@ pub(crate) fn check_assignment_cert(
 
 			let resulting_cores = relay_vrf_modulo_cores(&vrf_in_out, *sample + 1, config.n_cores);
 
-			// TODO: Enforce that all claimable cores are claimed. Currently validators can opt out of checking specific cores.
-			// This is similar to how validator can opt out and not send assignments in the first place.
-			// However it can happen that malicious nodes modify the assignment and remove some of the claimed cores from it,
-			// but this shouldnt be a problem as we will eventually receive the original assignment assuming 1/3 malicious.
-			//
+			// TODO: Enforce that all claimable cores are claimed, or include refused cores.
+			// Currently validators can opt out of checking specific cores.
+			// This is the same issue to how validator can opt out and not send their assignments in the first place.
+
 			// Ensure that the `vrf_in_out` actually includes all of the claimed cores.
 			if claimed_core_indices
 				.iter()

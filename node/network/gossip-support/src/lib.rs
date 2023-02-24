@@ -41,7 +41,7 @@ use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
 
 use polkadot_node_network_protocol::{
 	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, GossipSupportNetworkMessage,
-	PeerId, Versioned,
+	PeerId,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -404,10 +404,7 @@ where
 			NetworkBridgeEvent::OurViewChange(_) => {},
 			NetworkBridgeEvent::PeerViewChange(_, _) => {},
 			NetworkBridgeEvent::NewGossipTopology { .. } => {},
-			NetworkBridgeEvent::PeerMessage(_, Versioned::VStaging(v)) |
-			NetworkBridgeEvent::PeerMessage(_, Versioned::V1(v)) => {
-				match v {};
-			},
+			NetworkBridgeEvent::PeerMessage(_, _) => {},
 		}
 	}
 
