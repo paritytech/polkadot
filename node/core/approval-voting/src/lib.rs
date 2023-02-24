@@ -2396,6 +2396,12 @@ async fn launch_approval<Context>(
 	let para_id = candidate.descriptor.para_id;
 	gum::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Recovering data.");
 
+	let request_validation_data_span = span
+		.child_with_trace_id("request-validation-data", candidate_hash)
+		.with_candidate(candidate_hash)
+		.with_string_tag("block-hash", format!("{:?}", block_hash))
+		.with_stage(jaeger::Stage::ApprovalChecking);
+
 	let timer = metrics.time_recover_and_approve();
 	ctx.send_message(AvailabilityRecoveryMessage::RecoverAvailableData(
 		candidate.clone(),
@@ -2405,24 +2411,17 @@ async fn launch_approval<Context>(
 	))
 	.await;
 
+	let request_validation_result_span = span
+		.child_with_trace_id("request-validation-result", candidate_hash)
+		.with_candidate(candidate_hash)
+		.with_string_tag("block-hash", format!("{:?}", block_hash))
+		.with_stage(jaeger::Stage::ApprovalChecking);
+
 	ctx.send_message(RuntimeApiMessage::Request(
 		block_hash,
 		RuntimeApiRequest::ValidationCodeByHash(candidate.descriptor.validation_code_hash, code_tx),
 	))
 	.await;
-
-	// Covers both validation code and available data currently
-	let request_validation_data_span = span
-		.child_with_trace_id("request-validation-data", candidate.hash())
-		.with_candidate(candidate.hash())
-		.with_stage(jaeger::Stage::ApprovalChecking);
-
-	let mut validation_result_span = span
-		.child_with_trace_id("validation-result", candidate.hash())
-		.with_candidate(candidate_hash)
-		.with_stage(jaeger::Stage::ApprovalChecking);
-
-	validation_result_span.add_string_tag("para-id", format!("{:?}", para_id));
 
 	let candidate = candidate.clone();
 	let metrics_guard = StaleGuard(Some(metrics));
@@ -2467,6 +2466,7 @@ async fn launch_approval<Context>(
 				return ApprovalState::failed(validator_index, candidate_hash)
 			},
 		};
+		drop(request_validation_data_span);
 
 		let validation_code = match code_rx.await {
 			Err(_) => return ApprovalState::failed(validator_index, candidate_hash),
@@ -2486,7 +2486,6 @@ async fn launch_approval<Context>(
 				return ApprovalState::failed(validator_index, candidate_hash)
 			},
 		};
-		drop(request_validation_data_span);
 
 		let (val_tx, val_rx) = oneshot::channel();
 		sender
@@ -2542,7 +2541,7 @@ async fn launch_approval<Context>(
 			},
 		}
 	};
-	drop(validation_result_span);
+	drop(request_validation_result_span);
 	let (background, remote_handle) = background.remote_handle();
 	ctx.spawn("approval-checks", Box::pin(background)).map(move |()| remote_handle)
 }
@@ -2563,7 +2562,7 @@ async fn issue_approval<Context>(
 		.get(&block_hash)
 		.map(|span| span.child_with_trace_id("issue-approval", candidate_hash))
 		.unwrap_or_else(|| jaeger::Span::new(block_hash, "issue-approval"))
-		.with_string_tag("leaf", format!("{:?}", block_hash))
+		.with_string_tag("block-hash", format!("{:?}", block_hash))
 		.with_candidate(candidate_hash)
 		.with_validator_index(validator_index)
 		.with_stage(jaeger::Stage::ApprovalChecking);
