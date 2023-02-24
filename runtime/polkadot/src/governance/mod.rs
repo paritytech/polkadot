@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot. If not, see <http://www.gnu.org/licenses/>.
 
-//! New governance configurations for the Kusama runtime.
+//! New governance configurations for the Polkadot runtime.
 
 use super::*;
 use crate::xcm_config::CollectivesLocation;
