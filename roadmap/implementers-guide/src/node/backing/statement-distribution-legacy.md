@@ -3,12 +3,12 @@
 This describes the legacy, backwards-compatible version of the Statement
 Distribution subsystem.
 
-**Note:** All the legacy V1 code was extracted out to a `legacy_v1` module of
-the `statement-distribution` crate, which doesn't alter any logic. V2 peers also
-run `legacy_v1` and communicate with V1 peers using V1 messages and with V2
-peers using V2 messages. Once the v3 runtime upgrade goes through on all
-networks, this `legacy_v1` code will no longer be triggered and will be
-vestigial and can be removed.
+**Note:** All the V1 (legacy) code was extracted out to a `legacy_v1` module of
+the `statement-distribution` crate, which doesn't alter any logic. V2 (new
+protocol) peers also run `legacy_v1` and communicate with V1 peers using V1
+messages and with V2 peers using V2 messages. Once the runtime upgrade goes
+through on all networks, this `legacy_v1` code will no longer be triggered and
+will be vestigial and can be removed.
 
 ## Overview
 
