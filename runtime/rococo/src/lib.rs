@@ -62,7 +62,7 @@ use frame_support::{
 		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		PrivilegeCmp, ProcessMessage, ProcessMessageError, StorageMapShim, WithdrawReasons,
 	},
-	weights::{constants::WEIGHT_REF_TIME_PER_MILLIS, ConstantMultiplier},
+	weights::{constants::WEIGHT_REF_TIME_PER_MILLIS, ConstantMultiplier, WeightMeter},
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
@@ -1099,6 +1099,10 @@ impl pallet_message_queue::Config for Runtime {
 	type HeapSize = ConstU32<65_536>;
 	type MaxStale = ConstU32<8>;
 	type ServiceWeight = MessageQueueServiceWeight;
+	#[cfg(feature = "runtime-benchmarks")]
+	type MessageProcessor =
+		pallet_message_queue::mock_helpers::NoopMessageProcessor<AggregateMessageOrigin>;
+	#[cfg(not(feature = "runtime-benchmarks"))]
 	type MessageProcessor = MessageProcessor;
 	type QueueChangeHandler = ();
 	// FAIL-CI

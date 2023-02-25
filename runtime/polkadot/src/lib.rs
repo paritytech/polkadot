@@ -45,7 +45,7 @@ use frame_support::{
 		ConstU32, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		PrivilegeCmp, ProcessMessage, ProcessMessageError, WithdrawReasons,
 	},
-	weights::{constants::WEIGHT_REF_TIME_PER_MILLIS, ConstantMultiplier},
+	weights::{constants::WEIGHT_REF_TIME_PER_MILLIS, ConstantMultiplier, WeightMeter},
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
@@ -1318,7 +1318,7 @@ impl ProcessMessage for MessageProcessor {
 		message: &[u8],
 		origin: Self::Origin,
 		meter: &mut WeightMeter,
-	) -> Result<(bool, Weight), ProcessMessageError> {
+	) -> Result<bool, ProcessMessageError> {
 		let para = match origin {
 			AggregateMessageOrigin::UMP(para) => para,
 		};
@@ -1327,7 +1327,7 @@ impl ProcessMessage for MessageProcessor {
 			xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
 			RuntimeCall,
 			// FAIL-CI why is the `into` needed?
-		>::process_message(message, Junction::Parachain(para.into()), weight_limit)
+		>::process_message(message, Junction::Parachain(para.into()), meter)
 	}
 }
 
