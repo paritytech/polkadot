@@ -67,7 +67,7 @@ impl WeighMultiAssets for MultiAssetFilter {
 				.fold(Weight::zero(), |acc, x| acc.saturating_add(x)),
 			Self::Wild(AllOf { .. } | AllOfCounted { .. }) => balances_weight,
 			Self::Wild(AllCounted(count)) =>
-				balances_weight.saturating_mul(MAX_ASSETS.max(*count as u64)),
+				balances_weight.saturating_mul(MAX_ASSETS.min(*count as u64)),
 			Self::Wild(All) => balances_weight.saturating_mul(MAX_ASSETS),
 		}
 	}
