@@ -512,6 +512,24 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 			.saturating_add(T::DbWeight::get().reads(1 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
+	/// Storage: NominationPools BondedPools (r:1 w:0)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Storage: NominationPools RewardPools (r:1 w:0)
+	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(92), added: 2567, mode: MaxEncodedLen)
+	/// Storage: NominationPools GlobalMaxCommission (r:1 w:0)
+	/// Proof: NominationPools GlobalMaxCommission (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
+	/// Storage: System Account (r:1 w:1)
+	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
+	fn claim_commission() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `1096`
+		//  Estimated: `8364`
+		// Minimum execution time: 46_155 nanoseconds.
+		Weight::from_ref_time(46_918_000)
+			.saturating_add(Weight::from_proof_size(8364))
+			.saturating_add(RocksDbWeight::get().reads(4_u64))
+			.saturating_add(RocksDbWeight::get().writes(1_u64))
+	}
 	/// Storage: NominationPools PoolMembers (r:1 w:0)
 	/// Proof: NominationPools PoolMembers (max_values: None, max_size: Some(717), added: 3192, mode: MaxEncodedLen)
 	/// Storage: NominationPools ClaimPermissions (r:1 w:1)
