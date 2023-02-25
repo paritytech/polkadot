@@ -430,8 +430,8 @@ impl ProcessMessage for TestProcessMessage {
 	fn process_message(
 		message: &[u8],
 		origin: AggregateMessageOrigin,
-		weight_limit: Weight,
-	) -> Result<(bool, Weight), ProcessMessageError> {
+		meter: &mut WeightMeter,
+	) -> Result<bool, ProcessMessageError> {
 		let origin = match origin {
 			AggregateMessageOrigin::UMP(o) => o,
 		};
@@ -440,7 +440,7 @@ impl ProcessMessage for TestProcessMessage {
 			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Err(ProcessMessageError::Corrupt), // same as the real `ProcessMessage`
 		};
-		if weight.any_gt(weight_limit) {
+		if meter.check_accrue(weight_limit) {
 			return Err(ProcessMessageError::Overweight(weight))
 		}
 

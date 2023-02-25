@@ -1156,7 +1156,7 @@ impl ProcessMessage for MessageProcessor {
 	fn process_message(
 		message: &[u8],
 		origin: Self::Origin,
-		weight_limit: Weight,
+		meter: &mut WeightMeter,
 	) -> Result<(bool, Weight), ProcessMessageError> {
 		let para = match origin {
 			AggregateMessageOrigin::UMP(para) => para,

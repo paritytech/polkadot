@@ -21,7 +21,7 @@ pub use paste;
 
 pub use frame_support::{
 	traits::{Get, ProcessMessage, ProcessMessageError},
-	weights::Weight,
+	weights::{Weight, WeightMeter},
 };
 pub use sp_io::{hashing::blake2_256, TestExternalities};
 pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::PhantomData};
@@ -116,14 +116,14 @@ macro_rules! decl_test_relay_chain {
 			fn process_message(
 				msg: &[u8],
 				origin: Self::Origin,
-				max_weight: $crate::Weight,
-			) -> Result<(bool, $crate::Weight), $crate::ProcessMessageError> {
+				meter: &mut $crate::WeightMeter,
+			) -> Result<bool, $crate::ProcessMessageError> {
 				use $crate::{ProcessMessage, Junction, TestExt};
 
 				Self::execute_with(|| {
 					$crate::ProcessXcmMessage::<$crate::Junction,
 						$crate::XcmExecutor<$xcm_config>, $runtime_call>::process_message(
-						msg, $crate::Junction::Parachain(origin.into()), max_weight,
+						msg, $crate::Junction::Parachain(origin.into()), meter,
 					)
 				})
 			}
@@ -299,8 +299,8 @@ macro_rules! decl_test_network {
 					$crate::Junctions::Here if destination.parent_count() == 1 => {
 						let encoded = $crate::encode_xcm(message, $crate::MessageKind::Ump);
 						let r = <$relay_chain>::process_message(
-							&encoded[..], para_id,
-							$crate::Weight::MAX,
+							encoded.as_slice(), para_id,
+							&mut $crate::WeightMeter::max_limit(),
 						);
 						match r {
 							Err($crate::ProcessMessageError::Overweight(required)) =>

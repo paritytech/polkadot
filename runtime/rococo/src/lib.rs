@@ -1080,8 +1080,8 @@ impl ProcessMessage for MessageProcessor {
 	fn process_message(
 		message: &[u8],
 		origin: Self::Origin,
-		weight_limit: Weight,
-	) -> Result<(bool, Weight), ProcessMessageError> {
+		meter: &mut WeightMeter,
+	) -> Result<bool, ProcessMessageError> {
 		let para = match origin {
 			AggregateMessageOrigin::UMP(para) => para,
 		};
@@ -1089,8 +1089,7 @@ impl ProcessMessage for MessageProcessor {
 			Junction,
 			xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
 			RuntimeCall,
-			// FAIL-CI why does `Parachain` not accept a `ParaId`?
-		>::process_message(message, Junction::Parachain(para.into()), weight_limit)
+		>::process_message(message, Junction::Parachain(para.into()), meter)
 	}
 }
 

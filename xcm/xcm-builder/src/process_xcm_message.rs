@@ -24,7 +24,7 @@ use parity_scale_codec::{Decode, FullCodec, MaxEncodedLen};
 use scale_info::TypeInfo;
 use sp_io::hashing::blake2_256;
 use sp_std::{fmt::Debug, marker::PhantomData};
-use sp_weights::Weight;
+use sp_weights::{Weight, WeightMeter};
 use xcm::prelude::*;
 
 pub struct ProcessXcmMessage<MessageOrigin, XcmExecutor, Call>(
@@ -42,21 +42,26 @@ impl<
 	fn process_message(
 		message: &[u8],
 		origin: Self::Origin,
-		weight_limit: Weight,
-	) -> Result<(bool, Weight), ProcessMessageError> {
+		meter: &mut WeightMeter,
+	) -> Result<bool, ProcessMessageError> {
 		let hash = blake2_256(message);
 		let versioned_message = VersionedXcm::<Call>::decode(&mut &message[..])
 			.map_err(|_| ProcessMessageError::Corrupt)?;
 		let message = Xcm::<Call>::try_from(versioned_message)
 			.map_err(|_| ProcessMessageError::Unsupported)?;
 		let pre = XcmExecutor::prepare(message).map_err(|_| ProcessMessageError::Unsupported)?;
-		let weight = pre.weight_of();
-		ensure!(weight.all_lte(weight_limit), ProcessMessageError::Overweight(weight));
-		match XcmExecutor::execute(origin.into(), pre, hash, Weight::zero()) {
-			Outcome::Complete(w) => Ok((true, w)),
-			Outcome::Incomplete(w, _) => Ok((false, w)),
-			Outcome::Error(_) => Err(ProcessMessageError::Unsupported),
-		}
+		let required = pre.weight_of();
+		ensure!(meter.can_accrue(required), ProcessMessageError::Overweight(required));
+
+		let (consumed, result) =
+			match XcmExecutor::execute(origin.into(), pre, hash, Weight::zero()) {
+				Outcome::Complete(w) => (w, Ok(true)),
+				Outcome::Incomplete(w, _) => (w, Ok(false)),
+				// In the error-case we assume the worst case and consume all possibly required.
+				Outcome::Error(_) => (required, Err(ProcessMessageError::Unsupported)),
+			};
+		meter.defensive_saturating_accrue(consumed);
+		result
 	}
 }
 
