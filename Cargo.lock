@@ -13797,6 +13797,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-parachain",
  "polkadot-runtime-parachains",
+ "polkadot-test-runtime",
  "primitive-types",
  "scale-info",
  "sp-arithmetic",

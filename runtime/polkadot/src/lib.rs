@@ -1326,7 +1326,6 @@ impl ProcessMessage for MessageProcessor {
 			Junction,
 			xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
 			RuntimeCall,
-			// FAIL-CI why is the `into` needed?
 		>::process_message(message, Junction::Parachain(para.into()), meter)
 	}
 }

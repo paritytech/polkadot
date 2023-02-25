@@ -1165,7 +1165,6 @@ impl ProcessMessage for MessageProcessor {
 			Junction,
 			xcm_executor::XcmExecutor<xcm_config::XcmConfig>,
 			RuntimeCall,
-			// FAIL-CI why does `Parachain` not accept a `ParaId`?
 		>::process_message(message, Junction::Parachain(para.into()), meter)
 	}
 }
