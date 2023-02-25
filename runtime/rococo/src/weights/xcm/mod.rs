@@ -48,7 +48,7 @@ trait WeighMultiAssets {
 }
 
 // Rococo only knows about one asset, the balances pallet.
-const MAX_ASSETS: u32 = 1;
+const MAX_ASSETS: u64 = 1;
 
 impl WeighMultiAssets for MultiAssetFilter {
 	fn weigh_multi_assets(&self, balances_weight: Weight) -> Weight {
@@ -63,8 +63,9 @@ impl WeighMultiAssets for MultiAssetFilter {
 				})
 				.fold(Weight::zero(), |acc, x| acc.saturating_add(x)),
 			Self::Wild(AllOf { .. } | AllOfCounted { .. }) => balances_weight,
-			Self::Wild(AllCounted(count)) => balances_weight.saturating_mul(*count as u64),
-			Self::Wild(All) => balances_weight.saturating_mul(MAX_ASSETS as u64),
+			Self::Wild(AllCounted(count)) =>
+				balances_weight.saturating_mul(MAX_ASSETS.max(*count as u64)),
+			Self::Wild(All) => balances_weight.saturating_mul(MAX_ASSETS),
 		}
 	}
 }
