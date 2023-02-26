@@ -639,7 +639,7 @@ pub enum RuntimeApiRequest {
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
 	/// Get the validity constraints of the given para.
 	/// This is a staging API that will not be available on production runtimes.
-	StagingValidityConstraints(ParaId, RuntimeApiSender<Option<vstaging_primitives::Constraints>>),
+	StagingParaBackingState(ParaId, RuntimeApiSender<Option<vstaging_primitives::BackingState>>),
 	/// Get candidate's acceptance limitations for asynchronous backing for a relay parent.
 	///
 	/// If it's not supported by the Runtime, the async backing is said to be disabled.

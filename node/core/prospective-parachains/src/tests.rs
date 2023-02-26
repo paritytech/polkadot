@@ -26,7 +26,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::{
-	vstaging::{AsyncBackingParameters, Constraints, InboundHrmpLimitations},
+	vstaging::{AsyncBackingParameters, BackingState, Constraints, InboundHrmpLimitations},
 	CommittedCandidateReceipt, HeadData, Header, PersistedValidationData, ScheduledCore,
 	ValidationCodeHash,
 };
@@ -250,7 +250,7 @@ async fn handle_leaf_activation(
 		let para_id = match message {
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				_,
-				RuntimeApiRequest::StagingValidityConstraints(p_id, _),
+				RuntimeApiRequest::StagingParaBackingState(p_id, _),
 			)) => p_id,
 			_ => panic!("received unexpected message {:?}", message),
 		};
@@ -262,12 +262,14 @@ async fn handle_leaf_activation(
 			head_data.clone(),
 			test_state.validation_code_hash,
 		);
+		let backing_state = BackingState { constraints, pending_availability: Vec::new() }; // TODO [now]: should be part of `PerParaData`.
+
 		assert_matches!(
 			message,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingValidityConstraints(p_id, tx))
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingParaBackingState(p_id, tx))
 			) if parent == *hash && p_id == para_id => {
-				tx.send(Ok(Some(constraints))).unwrap();
+				tx.send(Ok(Some(backing_state))).unwrap();
 			}
 		);
 	}

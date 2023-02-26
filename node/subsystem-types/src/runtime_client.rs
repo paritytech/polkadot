@@ -182,13 +182,13 @@ pub trait RuntimeApiSubsystemClient {
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
 
-	/// Returns the base constraints of the given para, if they exist.
+	/// Returns the state of parachain backing for a given para.
 	/// This is a staging method! Do not use on production runtimes!
-	async fn staging_validity_constraints(
+	async fn staging_para_backing_state(
 		&self,
 		at: Hash,
 		para_id: Id,
-	) -> Result<Option<polkadot_primitives::vstaging::Constraints>, ApiError>;
+	) -> Result<Option<polkadot_primitives::vstaging::BackingState>, ApiError>;
 
 	// === BABE API ===
 
@@ -391,12 +391,12 @@ where
 		self.runtime_api().disputes(at)
 	}
 
-	async fn staging_validity_constraints(
+	async fn staging_para_backing_state(
 		&self,
 		at: Hash,
 		para_id: Id,
-	) -> Result<Option<polkadot_primitives::vstaging::Constraints>, ApiError> {
-		self.runtime_api().staging_validity_constraints(at, para_id)
+	) -> Result<Option<polkadot_primitives::vstaging::BackingState>, ApiError> {
+		self.runtime_api().staging_para_backing_state(at, para_id)
 	}
 
 	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.

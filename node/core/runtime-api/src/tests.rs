@@ -194,7 +194,7 @@ sp_api::mock_impl_runtime_apis! {
 			self.validation_code_hash.get(&para).map(|c| c.clone())
 		}
 
-		fn staging_validity_constraints(_: ParaId) -> Option<vstaging::Constraints> {
+		fn staging_para_backing_states(_: ParaId) -> Option<vstaging::BackingState> {
 			unimplemented!("Staging API not implemented");
 		}
 	}

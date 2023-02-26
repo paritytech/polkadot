@@ -262,6 +262,16 @@ struct CandidateEntry {
 	state: CandidateState,
 }
 
+/// A candidate existing on-chain but pending availability, for special treatment
+/// in the [`Scope`].
+#[derive(Debug, Clone)]
+pub(crate) struct PendingAvailability {
+	/// The candidate hash.
+	pub candidate_hash: CandidateHash,
+	/// The block info of the relay parent.
+	pub relay_parent: RelayChainBlockInfo,
+}
+
 /// The scope of a [`FragmentTree`].
 #[derive(Debug)]
 pub(crate) struct Scope {
@@ -269,6 +279,7 @@ pub(crate) struct Scope {
 	relay_parent: RelayChainBlockInfo,
 	ancestors: BTreeMap<BlockNumber, RelayChainBlockInfo>,
 	ancestors_by_hash: HashMap<Hash, RelayChainBlockInfo>,
+	pending_availability: Vec<PendingAvailability>,
 	base_constraints: Constraints,
 	max_depth: usize,
 }
@@ -304,6 +315,7 @@ impl Scope {
 		para: ParaId,
 		relay_parent: RelayChainBlockInfo,
 		base_constraints: Constraints,
+		pending_availability: Vec<PendingAvailability>,
 		max_depth: usize,
 		ancestors: impl IntoIterator<Item = RelayChainBlockInfo>,
 	) -> Result<Self, UnexpectedAncestor> {
@@ -330,6 +342,7 @@ impl Scope {
 			para,
 			relay_parent,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			ancestors: ancestors_map,
 			ancestors_by_hash,
@@ -352,6 +365,14 @@ impl Scope {
 		}
 
 		self.ancestors_by_hash.get(hash).map(|info| info.clone())
+	}
+
+	/// Whether the candidate in question is one pending availability in this scope.
+	pub fn get_pending_availability(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> Option<&PendingAvailability> {
+		self.pending_availability.iter().find(|c| &c.candidate_hash == candidate_hash)
 	}
 
 	/// Get the base constraints of the scope
@@ -750,7 +771,14 @@ impl FragmentTree {
 						let parent_rp = self
 							.scope
 							.ancestor_by_hash(&node.relay_parent())
-							.expect("nodes in tree can only contain ancestors within scope; qed");
+							.or_else(|| {
+								// if the relay-parent is out of scope _and_ it is in the tree,
+								// it must be a candidate pending availability.
+								self.scope
+									.get_pending_availability(&node.candidate_hash)
+									.map(|c| c.relay_parent.clone())
+							})
+							.expect("All nodes in tree are either pending availability or within scope; qed");
 
 						(node.cumulative_modifications.clone(), node.depth + 1, parent_rp)
 					},
@@ -777,21 +805,34 @@ impl FragmentTree {
 
 				// Add nodes to tree wherever
 				// 1. parent hash is correct
-				// 2. relay-parent does not move backwards
+				// 2. relay-parent does not move backwards.
+				// 3. all non-pending-availability candidates have relay-parent in scope.
 				// 3. candidate outputs fulfill constraints
 				let required_head_hash = child_constraints.required_parent.hash();
 				for candidate in storage.iter_para_children(&required_head_hash) {
-					let relay_parent = match self.scope.ancestor_by_hash(&candidate.relay_parent) {
-						None => continue, // not in chain
-						Some(info) => {
-							if info.number < earliest_rp.number {
-								// moved backwards
-								continue
-							}
+					let pending = self.scope.get_pending_availability(&candidate.candidate_hash);
+					let relay_parent = pending
+						.map(|p| p.relay_parent.clone())
+						.or_else(|| self.scope.ancestor_by_hash(&candidate.relay_parent));
 
-							info
-						},
+					let relay_parent = match relay_parent {
+						Some(r) => r,
+						None => continue,
 					};
+
+					// require: pending availability candidates don't move backwards
+					// and only those can be out-of-scope.
+					let min_relay_parent_number =
+						pending.map(|_| earliest_rp.number).unwrap_or_else(|| {
+							std::cmp::max(
+								earliest_rp.number,
+								self.scope.earliest_relay_parent().number,
+							)
+						});
+
+					if relay_parent.number < min_relay_parent_number {
+						continue // relay parent moved backwards.
+					}
 
 					// don't add candidates where the parent already has it as a child.
 					if self.node_has_candidate_child(parent_pointer, &candidate.candidate_hash) {

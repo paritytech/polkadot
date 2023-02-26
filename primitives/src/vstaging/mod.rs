@@ -99,5 +99,28 @@ pub struct Constraints<N = BlockNumber> {
 	pub future_validation_code: Option<(N, ValidationCodeHash)>,
 }
 
+/// A candidate pending availability.
+#[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
+pub struct CandidatePendingAvailability<H = Hash, N = BlockNumber> {
+	/// The hash of the candidate.
+	pub candidate_hash: CandidateHash,
+	/// The candidate's descriptor.
+	pub descriptor: CandidateDescriptor<H>,
+	/// The commitments of the candidate.
+	pub commitments: CandidateCommitments<N>,
+	/// The candidate's persisted validation data.
+	pub persisted_validation_data: PersistedValidationData<H, N>,
+}
+
+/// The per-parachain state of the backing system, including
+/// state-machine constraints and candidates pending availability.
+#[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
+pub struct BackingState<H = Hash, N = BlockNumber> {
+	/// The state-machine constraints of the parachain.
+	pub constraints: Constraints<N>,
+	/// The candidates pending availability.
+	pub pending_availability: Vec<CandidatePendingAvailability<H, N>>,
+}
+
 pub mod executor_params;
 pub use executor_params::{ExecutorParam, ExecutorParams, ExecutorParamsHash};

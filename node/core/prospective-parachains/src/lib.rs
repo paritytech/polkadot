@@ -47,7 +47,8 @@ use polkadot_node_subsystem_util::{
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 };
 use polkadot_primitives::vstaging::{
-	BlockNumber, CandidateHash, CoreState, Hash, Id as ParaId, PersistedValidationData,
+	BlockNumber, CandidateHash, CandidatePendingAvailability, CommittedCandidateReceipt, CoreState,
+	Hash, Id as ParaId, PersistedValidationData,
 };
 
 use crate::{
@@ -68,6 +69,7 @@ const LOG_TARGET: &str = "parachain::prospective-parachains";
 struct RelayBlockViewData {
 	// Scheduling info for paras and upcoming paras.
 	fragment_trees: HashMap<ParaId, FragmentTree>,
+	pending_availability: HashSet<CandidateHash>,
 }
 
 struct View {
@@ -194,7 +196,9 @@ async fn handle_active_leaves_update<Context>(
 			return Ok(())
 		};
 
-		let scheduled_paras = fetch_upcoming_paras(&mut *ctx, hash).await?;
+		let mut pending_availability = HashSet::new();
+		let scheduled_paras =
+			fetch_upcoming_paras(&mut *ctx, hash, &mut pending_availability).await?;
 
 		let block_info: RelayChainBlockInfo = match fetch_block_info(&mut *ctx, hash).await? {
 			None => {
@@ -220,9 +224,9 @@ async fn handle_active_leaves_update<Context>(
 			let candidate_storage =
 				view.candidate_storage.entry(para).or_insert_with(CandidateStorage::new);
 
-			let constraints = fetch_base_constraints(&mut *ctx, hash, para).await?;
+			let backing_state = fetch_backing_state(&mut *ctx, hash, para).await?;
 
-			let constraints = match constraints {
+			let (constraints, pending_availability) = match backing_state {
 				Some(c) => c,
 				None => {
 					// This indicates a runtime conflict of some kind.
@@ -231,27 +235,65 @@ async fn handle_active_leaves_update<Context>(
 						target: LOG_TARGET,
 						para_id = ?para,
 						relay_parent = ?hash,
-						"Failed to get inclusion constraints."
+						"Failed to get inclusion backing state."
 					);
 
 					continue
 				},
 			};
 
+			let compact_pending = pending_availability
+				.iter()
+				.map(|c| crate::fragment_tree::PendingAvailability {
+					candidate_hash: c.candidate_hash,
+					relay_parent: RelayChainBlockInfo {
+						hash: c.descriptor.relay_parent,
+						number: c.persisted_validation_data.relay_parent_number,
+						storage_root: c.persisted_validation_data.relay_parent_storage_root,
+					},
+				})
+				.collect::<Vec<_>>();
+
+			for c in pending_availability {
+				let res = candidate_storage.add_candidate(
+					CommittedCandidateReceipt {
+						descriptor: c.descriptor,
+						commitments: c.commitments,
+					},
+					c.persisted_validation_data,
+				);
+
+				if let Err(err) = res {
+					gum::warn!(
+						target: LOG_TARGET,
+						candidate_hash = ?c.candidate_hash,
+						para_id = ?para,
+						?err,
+						"Scraped invalid candidate pending availability",
+					);
+				} else {
+					// Anything on-chain is guaranteed to be backed.
+					candidate_storage.mark_backed(&c.candidate_hash);
+				}
+			}
+
 			let scope = TreeScope::with_ancestors(
 				para,
 				block_info.clone(),
 				constraints,
+				compact_pending,
 				max_candidate_depth,
 				ancestry.iter().cloned(),
 			)
 			.expect("ancestors are provided in reverse order and correctly; qed");
 
 			let tree = FragmentTree::populate(scope, &*candidate_storage);
+
 			fragment_trees.insert(para, tree);
 		}
 
-		view.active_leaves.insert(hash, RelayBlockViewData { fragment_trees });
+		view.active_leaves
+			.insert(hash, RelayBlockViewData { fragment_trees, pending_availability });
 	}
 
 	if !update.deactivated.is_empty() {
@@ -266,21 +308,23 @@ fn prune_view_candidate_storage(view: &mut View, metrics: &Metrics) {
 	metrics.time_prune_view_candidate_storage();
 
 	let active_leaves = &view.active_leaves;
-	view.candidate_storage.retain(|para_id, storage| {
-		let mut coverage = HashSet::new();
-		let mut contained = false;
-		for head in active_leaves.values() {
-			if let Some(tree) = head.fragment_trees.get(&para_id) {
-				coverage.extend(tree.candidates());
-				contained = true;
-			}
+	let mut live_candidates = HashSet::new();
+	let mut live_paras = HashSet::new();
+	for sub_view in active_leaves.values() {
+		for (para_id, fragment_tree) in &sub_view.fragment_trees {
+			live_candidates.extend(fragment_tree.candidates());
+			live_paras.insert(*para_id);
 		}
 
-		if !contained {
+		live_candidates.extend(sub_view.pending_availability.iter().cloned());
+	}
+
+	view.candidate_storage.retain(|para_id, storage| {
+		if !live_paras.contains(&para_id) {
 			return false
 		}
 
-		storage.retain(|h| coverage.contains(&h));
+		storage.retain(|h| live_candidates.contains(&h));
 
 		// Even if `storage` is now empty, we retain.
 		// This maintains a convenient invariant that para-id storage exists
@@ -664,25 +708,29 @@ fn answer_prospective_validation_data_request(
 }
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
-async fn fetch_base_constraints<Context>(
+async fn fetch_backing_state<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
 	para_id: ParaId,
-) -> JfyiErrorResult<Option<Constraints>> {
+) -> JfyiErrorResult<Option<(Constraints, Vec<CandidatePendingAvailability>)>> {
 	let (tx, rx) = oneshot::channel();
 	ctx.send_message(RuntimeApiMessage::Request(
 		relay_parent,
-		RuntimeApiRequest::StagingValidityConstraints(para_id, tx),
+		RuntimeApiRequest::StagingParaBackingState(para_id, tx),
 	))
 	.await;
 
-	Ok(rx.await.map_err(JfyiError::RuntimeApiRequestCanceled)??.map(From::from))
+	Ok(rx
+		.await
+		.map_err(JfyiError::RuntimeApiRequestCanceled)??
+		.map(|s| (From::from(s.constraints), s.pending_availability)))
 }
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
 async fn fetch_upcoming_paras<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
+	pending_availability: &mut HashSet<CandidateHash>,
 ) -> JfyiErrorResult<Vec<ParaId>> {
 	let (tx, rx) = oneshot::channel();
 
@@ -699,6 +747,8 @@ async fn fetch_upcoming_paras<Context>(
 	for core in cores {
 		match core {
 			CoreState::Occupied(occupied) => {
+				pending_availability.insert(occupied.candidate_hash);
+
 				if let Some(next_up_on_available) = occupied.next_up_on_available {
 					upcoming.insert(next_up_on_available.para_id);
 				}
