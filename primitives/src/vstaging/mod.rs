@@ -107,9 +107,11 @@ pub struct CandidatePendingAvailability<H = Hash, N = BlockNumber> {
 	/// The candidate's descriptor.
 	pub descriptor: CandidateDescriptor<H>,
 	/// The commitments of the candidate.
-	pub commitments: CandidateCommitments<N>,
-	/// The candidate's persisted validation data.
-	pub persisted_validation_data: PersistedValidationData<H, N>,
+	pub commitments: CandidateCommitments,
+	/// The candidate's relay parent's number.
+	pub relay_parent_number: N,
+	/// The maximum Proof-of-Validity size allowed, in bytes.
+	pub max_pov_size: u32,
 }
 
 /// The per-parachain state of the backing system, including

@@ -19,8 +19,8 @@
 use crate::{configuration, disputes, dmp, hrmp, initializer, paras, session_info, shared, ump};
 use primitives::{
 	vstaging::{
-		AsyncBackingParameters, BackingState, Constraints, ExecutorParams, InboundHrmpLimitations,
-		OutboundHrmpChannelLimitations,
+		AsyncBackingParameters, BackingState, CandidatePendingAvailability, Constraints,
+		ExecutorParams, InboundHrmpLimitations, OutboundHrmpChannelLimitations,
 	},
 	CandidateHash, DisputeState, Id as ParaId, SessionIndex,
 };
@@ -109,10 +109,31 @@ pub fn backing_state<T: initializer::Config>(
 		future_validation_code,
 	};
 
-	Some(BackingState {
-		constraints,
-		pending_availability: Vec::new(), // TODO [now]: construct from inclusion module
-	})
+	let pending_availability = {
+		// Note: the APi deals with a `Vec` as it is future-proof for cases
+		// where there may be multiple candidates pending availability at a time.
+		// But at the moment only one candidate can be pending availability per
+		// parachain.
+		crate::inclusion::PendingAvailability::<T>::get(&para_id)
+			.and_then(|pending| {
+				let commitments =
+					crate::inclusion::PendingAvailabilityCommitments::<T>::get(&para_id);
+				commitments.map(move |c| (pending, c))
+			})
+			.map(|(pending, commitments)| {
+				CandidatePendingAvailability {
+					candidate_hash: pending.candidate_hash(),
+					descriptor: pending.candidate_descriptor().clone(),
+					commitments,
+					relay_parent_number: pending.relay_parent_number(),
+					max_pov_size: constraints.max_pov_size, // assume always same in session.
+				}
+			})
+			.into_iter()
+			.collect()
+	};
+
+	Some(BackingState { constraints, pending_availability })
 }
 
 /// Implementation for `StagingAsyncBackingParameters` function from the runtime API
