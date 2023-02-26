@@ -35,10 +35,9 @@ use polkadot_primitives::vstaging::{ExecutorParams, ExecutorParamsHash};
 use slotmap::HopSlotMap;
 use std::{
 	collections::VecDeque,
-	fmt,
+	fmt, mem,
 	path::PathBuf,
 	time::{Duration, Instant},
-	mem,
 };
 
 /// The amount of time a job for which the queue does not have a compatible worker may wait in the
@@ -86,7 +85,7 @@ struct WorkerData {
 impl WorkerData {
 	/// Assigns a job to the worker. Returns the idle worker token. An attempt to assign a job to
 	/// a worker already busy with another job means there's a critical bug in code and shall
-	/// result in a panic. 
+	/// result in a panic.
 	fn assign(&mut self, job: ExecuteJob) -> IdleWorker {
 		debug_assert_eq!(self.executor_params_hash, job.executor_params.hash());
 		match mem::replace(&mut self.state, WorkerState::Assigned(job)) {
@@ -137,7 +136,9 @@ impl Workers {
 
 	fn find_available(&self, executor_params_hash: ExecutorParamsHash) -> Option<Worker> {
 		self.running.iter().find_map(|d| {
-			if matches!(d.1.state, WorkerState::Idle(_)) && d.1.executor_params_hash == executor_params_hash {
+			if matches!(d.1.state, WorkerState::Idle(_)) &&
+				d.1.executor_params_hash == executor_params_hash
+			{
 				Some(d.0)
 			} else {
 				None
@@ -146,9 +147,13 @@ impl Workers {
 	}
 
 	fn find_idle(&self) -> Option<Worker> {
-		self.running
-			.iter()
-			.find_map(|d| if matches!(d.1.state, WorkerState::Idle(_)) { Some(d.0) } else { None })
+		self.running.iter().find_map(|d| {
+			if matches!(d.1.state, WorkerState::Idle(_)) {
+				Some(d.0)
+			} else {
+				None
+			}
+		})
 	}
 }
 
@@ -321,12 +326,7 @@ impl Queue {
 		}
 	}
 
-	fn handle_worker_spawned(
-		&mut self,
-		idle: IdleWorker,
-		handle: WorkerHandle,
-		job: ExecuteJob,
-	) {
+	fn handle_worker_spawned(&mut self, idle: IdleWorker, handle: WorkerHandle, job: ExecuteJob) {
 		self.metrics.execute_worker().on_spawned();
 		self.workers.spawn_inflight -= 1;
 		let worker = self.workers.running.insert(WorkerData {
@@ -422,8 +422,7 @@ impl Queue {
 		self.metrics.execute_worker().on_begin_spawn();
 		gum::debug!(target: LOG_TARGET, "spawning an extra worker");
 
-		self
-			.mux
+		self.mux
 			.push(spawn_worker_task(self.program_path.clone(), job, self.spawn_timeout).boxed());
 		self.workers.spawn_inflight += 1;
 	}
@@ -440,7 +439,11 @@ impl Queue {
 			"assigning the execute worker",
 		);
 
-		let wrkr = self.workers.running.get_mut(worker).expect("The caller must supply a worker that is idle and running; qed");
+		let wrkr = self
+			.workers
+			.running
+			.get_mut(worker)
+			.expect("The caller must supply a worker that is idle and running; qed");
 		let idle = wrkr.assign(job);
 		let job = wrkr.run();
 
@@ -467,7 +470,7 @@ impl Queue {
 /// beforehand. In such a way, a race condition is avoided: during the worker being spawned,
 /// another job in the queue, with an incompatible execution environment, may become stale, and
 /// the queue would have to kill a newly started worker and spawn another one.
-/// Nevertheless, if the worker finishes executing the job, it becomes idle and may be used to 
+/// Nevertheless, if the worker finishes executing the job, it becomes idle and may be used to
 /// execute other jobs with a compatible execution environment.
 async fn spawn_worker_task(
 	program_path: PathBuf,
