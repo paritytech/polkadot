@@ -552,7 +552,7 @@ fn validate_complete_response(
 
 	// sanity check bitmask size. this is based entirely on
 	// local logic here.
-	if unwanted_mask.has_len(group.len()) {
+	if !unwanted_mask.has_len(group.len()) {
 		gum::error!(
 			target: LOG_TARGET,
 			group_len = group.len(),
