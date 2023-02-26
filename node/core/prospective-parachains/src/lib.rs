@@ -48,7 +48,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateHash, CandidatePendingAvailability, CommittedCandidateReceipt, CoreState,
-	Hash, Id as ParaId, PersistedValidationData,
+	Hash, HeadData, Header, Id as ParaId, PersistedValidationData,
 };
 
 use crate::{
@@ -178,6 +178,7 @@ async fn handle_active_leaves_update<Context>(
 		view.active_leaves.remove(deactivated);
 	}
 
+	let mut temp_header_cache = HashMap::new();
 	for activated in update.activated.into_iter() {
 		let hash = activated.hash;
 
@@ -200,23 +201,25 @@ async fn handle_active_leaves_update<Context>(
 		let scheduled_paras =
 			fetch_upcoming_paras(&mut *ctx, hash, &mut pending_availability).await?;
 
-		let block_info: RelayChainBlockInfo = match fetch_block_info(&mut *ctx, hash).await? {
-			None => {
-				gum::warn!(
-					target: LOG_TARGET,
-					block_hash = ?hash,
-					"Failed to get block info for newly activated leaf block."
-				);
+		let block_info: RelayChainBlockInfo =
+			match fetch_block_info(&mut *ctx, &mut temp_header_cache, hash).await? {
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						block_hash = ?hash,
+						"Failed to get block info for newly activated leaf block."
+					);
 
-				// `update.activated` is an option, but we can use this
-				// to exit the 'loop' and skip this block without skipping
-				// pruning logic.
-				continue
-			},
-			Some(info) => info,
-		};
+					// `update.activated` is an option, but we can use this
+					// to exit the 'loop' and skip this block without skipping
+					// pruning logic.
+					continue
+				},
+				Some(info) => info,
+			};
 
-		let ancestry = fetch_ancestry(&mut *ctx, hash, allowed_ancestry_len).await?;
+		let ancestry =
+			fetch_ancestry(&mut *ctx, &mut temp_header_cache, hash, allowed_ancestry_len).await?;
 
 		// Find constraints.
 		let mut fragment_trees = HashMap::new();
@@ -242,38 +245,31 @@ async fn handle_active_leaves_update<Context>(
 				},
 			};
 
-			let compact_pending = pending_availability
-				.iter()
-				.map(|c| crate::fragment_tree::PendingAvailability {
-					candidate_hash: c.candidate_hash,
-					relay_parent: RelayChainBlockInfo {
-						hash: c.descriptor.relay_parent,
-						number: c.persisted_validation_data.relay_parent_number,
-						storage_root: c.persisted_validation_data.relay_parent_storage_root,
-					},
-				})
-				.collect::<Vec<_>>();
+			let pending_availability = preprocess_candidates_pending_availability(
+				ctx,
+				&mut temp_header_cache,
+				constraints.required_parent.clone(),
+				pending_availability,
+			)
+			.await?;
+			let mut compact_pending = Vec::with_capacity(pending_availability.len());
 
 			for c in pending_availability {
-				let res = candidate_storage.add_candidate(
-					CommittedCandidateReceipt {
-						descriptor: c.descriptor,
-						commitments: c.commitments,
-					},
-					c.persisted_validation_data,
-				);
+				let res = candidate_storage.add_candidate(c.candidate, c.persisted_validation_data);
+				let candidate_hash = c.compact.candidate_hash;
+				compact_pending.push(c.compact);
 
 				if let Err(err) = res {
 					gum::warn!(
 						target: LOG_TARGET,
-						candidate_hash = ?c.candidate_hash,
+						?candidate_hash,
 						para_id = ?para,
 						?err,
 						"Scraped invalid candidate pending availability",
 					);
 				} else {
 					// Anything on-chain is guaranteed to be backed.
-					candidate_storage.mark_backed(&c.candidate_hash);
+					candidate_storage.mark_backed(&candidate_hash);
 				}
 			}
 
@@ -331,6 +327,66 @@ fn prune_view_candidate_storage(view: &mut View, metrics: &Metrics) {
 		// as long as there's an active head which schedules the para.
 		true
 	})
+}
+
+struct ImportablePendingAvailability {
+	candidate: CommittedCandidateReceipt,
+	persisted_validation_data: PersistedValidationData,
+	compact: crate::fragment_tree::PendingAvailability,
+}
+
+#[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
+async fn preprocess_candidates_pending_availability<Context>(
+	ctx: &mut Context,
+	cache: &mut HashMap<Hash, Header>,
+	required_parent: HeadData,
+	pending_availability: Vec<CandidatePendingAvailability>,
+) -> JfyiErrorResult<Vec<ImportablePendingAvailability>> {
+	let mut required_parent = required_parent;
+
+	let mut importable = Vec::new();
+	let expected_count = pending_availability.len();
+
+	for (i, pending) in pending_availability.into_iter().enumerate() {
+		let relay_parent =
+			match fetch_block_info(ctx, cache, pending.descriptor.relay_parent).await? {
+				None => {
+					gum::debug!(
+						target: LOG_TARGET,
+						?pending.candidate_hash,
+						?pending.descriptor.para_id,
+						index = ?i,
+						?expected_count,
+						"Had to stop processing pending candidates early due to missing info.",
+					);
+
+					break
+				},
+				Some(b) => b,
+			};
+
+		let next_required_parent = pending.commitments.head_data.clone();
+		importable.push(ImportablePendingAvailability {
+			candidate: CommittedCandidateReceipt {
+				descriptor: pending.descriptor,
+				commitments: pending.commitments,
+			},
+			persisted_validation_data: PersistedValidationData {
+				parent_head: required_parent,
+				max_pov_size: pending.max_pov_size,
+				relay_parent_number: relay_parent.number,
+				relay_parent_storage_root: relay_parent.storage_root,
+			},
+			compact: crate::fragment_tree::PendingAvailability {
+				candidate_hash: pending.candidate_hash,
+				relay_parent,
+			},
+		});
+
+		required_parent = next_required_parent;
+	}
+
+	Ok(importable)
 }
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
@@ -770,6 +826,7 @@ async fn fetch_upcoming_paras<Context>(
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
 async fn fetch_ancestry<Context>(
 	ctx: &mut Context,
+	cache: &mut HashMap<Hash, Header>,
 	relay_hash: Hash,
 	ancestors: usize,
 ) -> JfyiErrorResult<Vec<RelayChainBlockInfo>> {
@@ -788,7 +845,7 @@ async fn fetch_ancestry<Context>(
 	let hashes = rx.map_err(JfyiError::ChainApiRequestCanceled).await??;
 	let mut block_info = Vec::with_capacity(hashes.len());
 	for hash in hashes {
-		match fetch_block_info(ctx, hash).await? {
+		match fetch_block_info(ctx, cache, hash).await? {
 			None => {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -809,14 +866,33 @@ async fn fetch_ancestry<Context>(
 }
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
-async fn fetch_block_info<Context>(
+async fn fetch_block_header_with_cache<Context>(
 	ctx: &mut Context,
+	cache: &mut HashMap<Hash, Header>,
 	relay_hash: Hash,
-) -> JfyiErrorResult<Option<RelayChainBlockInfo>> {
+) -> JfyiErrorResult<Option<Header>> {
+	if let Some(h) = cache.get(&relay_hash) {
+		return Ok(Some(h.clone()))
+	}
+
 	let (tx, rx) = oneshot::channel();
 
 	ctx.send_message(ChainApiMessage::BlockHeader(relay_hash, tx)).await;
 	let header = rx.map_err(JfyiError::ChainApiRequestCanceled).await??;
+	if let Some(ref h) = header {
+		cache.insert(relay_hash, h.clone());
+	}
+	Ok(header)
+}
+
+#[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
+async fn fetch_block_info<Context>(
+	ctx: &mut Context,
+	cache: &mut HashMap<Hash, Header>,
+	relay_hash: Hash,
+) -> JfyiErrorResult<Option<RelayChainBlockInfo>> {
+	let header = fetch_block_header_with_cache(ctx, cache, relay_hash).await?;
+
 	Ok(header.map(|header| RelayChainBlockInfo {
 		hash: relay_hash,
 		number: header.number,
