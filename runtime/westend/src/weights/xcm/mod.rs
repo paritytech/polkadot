@@ -65,6 +65,8 @@ impl WeighMultiAssets for MultiAssetFilter {
 					AssetTypes::Unknown => Weight::MAX,
 				})
 				.fold(Weight::zero(), |acc, x| acc.saturating_add(x)),
+			// We don't support any NFTs on Westend, so these two variants will always match
+			// only 1 kind of fungible asset.
 			Self::Wild(AllOf { .. } | AllOfCounted { .. }) => balances_weight,
 			Self::Wild(AllCounted(count)) =>
 				balances_weight.saturating_mul(MAX_ASSETS.min(*count as u64)),
