@@ -16,12 +16,10 @@
 
 //! Adapters to work with `frame_support::traits::tokens::fungibles` through XCM.
 
-use frame_support::traits::Get;
+use frame_support::traits::{Contains, Get};
 use sp_std::{borrow::Borrow, marker::PhantomData, prelude::*, result};
 use xcm::latest::prelude::*;
-use xcm_executor::traits::{
-	Convert, Error as MatchError, MatchesFungibles, MatchesMultiAssetId, MatchesNonFungibles,
-};
+use xcm_executor::traits::{Convert, Error as MatchError, MatchesFungibles, MatchesNonFungibles};
 
 /// Converter struct implementing `AssetIdConversion` converting a numeric asset ID (must be `TryFrom/TryInto<u128>`) into
 /// a `GeneralIndex` junction, prefixed by some `MultiLocation` value. The `MultiLocation` value will typically be a
@@ -156,7 +154,7 @@ pub struct MatchedConvertedConcreteId<AssetId, Balance, MatchAssetId, ConvertAss
 impl<
 		AssetId: Clone,
 		Balance: Clone,
-		MatchAssetId: MatchesMultiAssetId<MultiLocation>,
+		MatchAssetId: Contains<MultiLocation>,
 		ConvertAssetId: Convert<MultiLocation, AssetId>,
 		ConvertBalance: Convert<u128, Balance>,
 	> MatchesFungibles<AssetId, Balance>
@@ -164,10 +162,7 @@ impl<
 {
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
 		let (amount, id) = match (&a.fun, &a.id) {
-			(Fungible(ref amount), Concrete(ref id)) => match MatchAssetId::matches(id) {
-				true => (amount, id),
-				false => return Err(MatchError::AssetNotFound),
-			},
+			(Fungible(ref amount), Concrete(ref id)) if MatchAssetId::contains(id) => (amount, id),
 			_ => return Err(MatchError::AssetNotFound),
 		};
 		let what =
@@ -175,6 +170,28 @@ impl<
 		let amount = ConvertBalance::convert_ref(amount)
 			.map_err(|_| MatchError::AmountToBalanceConversionFailed)?;
 		Ok((what, amount))
+	}
+}
+impl<
+		ClassId: Clone,
+		InstanceId: Clone,
+		MatchClassId: Contains<MultiLocation>,
+		ConvertClassId: Convert<MultiLocation, ClassId>,
+		ConvertInstanceId: Convert<AssetInstance, InstanceId>,
+	> MatchesNonFungibles<ClassId, InstanceId>
+	for MatchedConvertedConcreteId<ClassId, InstanceId, MatchClassId, ConvertClassId, ConvertInstanceId>
+{
+	fn matches_nonfungibles(a: &MultiAsset) -> result::Result<(ClassId, InstanceId), MatchError> {
+		let (instance, class) = match (&a.fun, &a.id) {
+			(NonFungible(ref instance), Concrete(ref class)) if MatchClassId::contains(class) =>
+				(instance, class),
+			_ => return Err(MatchError::AssetNotFound),
+		};
+		let what =
+			ConvertClassId::convert_ref(class).map_err(|_| MatchError::AssetIdConversionFailed)?;
+		let instance = ConvertInstanceId::convert_ref(instance)
+			.map_err(|_| MatchError::InstanceConversionFailed)?;
+		Ok((what, instance))
 	}
 }
 
@@ -185,8 +202,8 @@ mod tests {
 	use xcm_executor::traits::JustTry;
 
 	struct OnlyParentZero;
-	impl MatchesMultiAssetId<MultiLocation> for OnlyParentZero {
-		fn matches(a: &MultiLocation) -> bool {
+	impl Contains<MultiLocation> for OnlyParentZero {
+		fn contains(a: &MultiLocation) -> bool {
 			match a {
 				MultiLocation { parents: 0, .. } => true,
 				_ => false,
@@ -195,7 +212,7 @@ mod tests {
 	}
 
 	#[test]
-	fn matched_converted_concrete_id_works() {
+	fn matched_converted_concrete_id_for_fungibles_works() {
 		type AssetIdForTrustBackedAssets = u32;
 		type Balance = u128;
 		frame_support::parameter_types! {
@@ -219,7 +236,16 @@ mod tests {
 			MultiLocation { parents: 0, interior: X1(PalletInstance(50)) }
 		);
 
-		// err - matches, but convert failed
+		// err - does not match
+		assert_eq!(
+			Converter::matches_fungibles(&MultiAsset {
+				id: Concrete(MultiLocation::new(1, X2(PalletInstance(50), GeneralIndex(1)))),
+				fun: Fungible(12345),
+			}),
+			Err(MatchError::AssetNotFound)
+		);
+
+		// err - matches, but convert fails
 		assert_eq!(
 			Converter::matches_fungibles(&MultiAsset {
 				id: Concrete(MultiLocation::new(
@@ -231,11 +257,11 @@ mod tests {
 			Err(MatchError::AssetIdConversionFailed)
 		);
 
-		// err - does not match
+		// err - matches, but NonFungible
 		assert_eq!(
 			Converter::matches_fungibles(&MultiAsset {
-				id: Concrete(MultiLocation::new(1, X2(PalletInstance(50), GeneralIndex(1)))),
-				fun: Fungible(12345),
+				id: Concrete(MultiLocation::new(0, X2(PalletInstance(50), GeneralIndex(1)))),
+				fun: NonFungible(Index(54321)),
 			}),
 			Err(MatchError::AssetNotFound)
 		);
@@ -247,6 +273,78 @@ mod tests {
 				fun: Fungible(12345),
 			}),
 			Ok((1, 12345))
+		);
+	}
+
+	#[test]
+	fn matched_converted_concrete_id_for_nonfungibles_works() {
+		type ClassId = u32;
+		type ClassInstanceId = u64;
+		frame_support::parameter_types! {
+			pub TrustBackedAssetsPalletLocation: MultiLocation = PalletInstance(50).into();
+		}
+
+		// ConvertedConcreteId cfg
+		struct ClassInstanceIdConverter;
+		impl Convert<AssetInstance, ClassInstanceId> for ClassInstanceIdConverter {
+			fn convert_ref(value: impl Borrow<AssetInstance>) -> Result<ClassInstanceId, ()> {
+				value.borrow().clone().try_into().map_err(|_| ())
+			}
+
+			fn reverse_ref(value: impl Borrow<ClassInstanceId>) -> Result<AssetInstance, ()> {
+				Ok(AssetInstance::from(value.borrow().clone()))
+			}
+		}
+
+		type Converter = MatchedConvertedConcreteId<
+			ClassId,
+			ClassInstanceId,
+			OnlyParentZero,
+			AsPrefixedGeneralIndex<TrustBackedAssetsPalletLocation, ClassId, JustTry>,
+			ClassInstanceIdConverter,
+		>;
+		assert_eq!(
+			TrustBackedAssetsPalletLocation::get(),
+			MultiLocation { parents: 0, interior: X1(PalletInstance(50)) }
+		);
+
+		// err - does not match
+		assert_eq!(
+			Converter::matches_nonfungibles(&MultiAsset {
+				id: Concrete(MultiLocation::new(1, X2(PalletInstance(50), GeneralIndex(1)))),
+				fun: NonFungible(Index(54321)),
+			}),
+			Err(MatchError::AssetNotFound)
+		);
+
+		// err - matches, but convert fails
+		assert_eq!(
+			Converter::matches_nonfungibles(&MultiAsset {
+				id: Concrete(MultiLocation::new(
+					0,
+					X2(PalletInstance(50), GeneralKey { length: 1, data: [1; 32] })
+				)),
+				fun: NonFungible(Index(54321)),
+			}),
+			Err(MatchError::AssetIdConversionFailed)
+		);
+
+		// err - matches, but Fungible vs NonFungible
+		assert_eq!(
+			Converter::matches_nonfungibles(&MultiAsset {
+				id: Concrete(MultiLocation::new(0, X2(PalletInstance(50), GeneralIndex(1)))),
+				fun: Fungible(12345),
+			}),
+			Err(MatchError::AssetNotFound)
+		);
+
+		// ok
+		assert_eq!(
+			Converter::matches_nonfungibles(&MultiAsset {
+				id: Concrete(MultiLocation::new(0, X2(PalletInstance(50), GeneralIndex(1)))),
+				fun: NonFungible(Index(54321)),
+			}),
+			Ok((1, 54321))
 		);
 	}
 }

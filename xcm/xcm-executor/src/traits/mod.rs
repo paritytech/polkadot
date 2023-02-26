@@ -35,8 +35,7 @@ mod filter_asset_location;
 pub use filter_asset_location::FilterAssetLocation;
 mod token_matching;
 pub use token_matching::{
-	Error, MatchesFungible, MatchesFungibles, MatchesMultiAssetId, MatchesNonFungible,
-	MatchesNonFungibles,
+	Error, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,
 };
 mod on_response;
 pub use on_response::{OnResponse, VersionChangeNotifier};
@@ -51,8 +50,8 @@ pub mod prelude {
 	pub use super::{
 		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, Convert, ConvertOrigin,
 		Decoded, DropAssets, Enact, Encoded, Error, ExportXcm, FeeManager, FeeReason, Identity,
-		JustTry, LockError, MatchesFungible, MatchesFungibles, MatchesMultiAssetId,
-		MatchesNonFungible, MatchesNonFungibles, OnResponse, ShouldExecute, TransactAsset,
-		VersionChangeNotifier, WeightBounds, WeightTrader, WithOriginFilter,
+		JustTry, LockError, MatchesFungible, MatchesFungibles, MatchesNonFungible,
+		MatchesNonFungibles, OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier,
+		WeightBounds, WeightTrader, WithOriginFilter,
 	};
 }

@@ -105,18 +105,3 @@ impl<AssetId, Instance> MatchesNonFungibles<AssetId, Instance> for Tuple {
 		Err(Error::AssetNotFound)
 	}
 }
-
-pub trait MatchesMultiAssetId<Id> {
-	fn matches(a: &Id) -> bool;
-}
-
-#[impl_trait_for_tuples::impl_for_tuples(30)]
-impl<Id: sp_std::fmt::Debug> MatchesMultiAssetId<Id> for Tuple {
-	fn matches(a: &Id) -> bool {
-		for_tuples!( #(
-			match Tuple::matches(a) { o @ true => return o, _ => () }
-		)* );
-		log::trace!(target: "xcm::matches", "did not match asset location: {:?}", &a);
-		false
-	}
-}
