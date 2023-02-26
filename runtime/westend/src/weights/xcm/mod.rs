@@ -284,7 +284,7 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for WestendXcmWeight<RuntimeCall> {
 #[test]
 fn all_counted_has_a_sane_weight_upper_limit() {
 	let assets = MultiAssetFilter::Wild(AllCounted(4294967295));
-	let weight = Weight::from_ref_time(1000);
+	let weight = Weight::from_parts(1000, 1000);
 
 	assert_eq!(assets.weigh_multi_assets(weight), weight * MAX_ASSETS);
 }
