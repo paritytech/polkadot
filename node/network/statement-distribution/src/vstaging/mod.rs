@@ -1890,7 +1890,7 @@ async fn handle_incoming_manifest_common<'a, Context>(
 	};
 
 	let sender_index = grid_topology
-		.iter_group_senders(manifest_summary.claimed_group_index)
+		.iter_sending_for_group(manifest_summary.claimed_group_index, manifest_kind)
 		.filter_map(|i| per_session.session_info.discovery_keys.get(i.0 as usize).map(|ad| (i, ad)))
 		.filter(|(_, ad)| peer_state.is_authority(ad))
 		.map(|(i, _)| i)
