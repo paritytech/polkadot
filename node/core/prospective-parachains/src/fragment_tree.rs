@@ -630,7 +630,12 @@ impl FragmentTree {
 					let parent_rp = self
 						.scope
 						.ancestor_by_hash(&node.relay_parent())
-						.expect("nodes in tree can only contain ancestors within scope; qed");
+						.or_else(|| {
+							self.scope
+								.get_pending_availability(&node.candidate_hash)
+								.map(|_| self.scope.earliest_relay_parent())
+						})
+						.expect("All nodes in tree are either pending availability or within scope; qed");
 
 					(node.cumulative_modifications.clone(), node.depth + 1, parent_rp)
 				},
@@ -734,11 +739,17 @@ impl FragmentTree {
 				.nodes
 				.iter()
 				.take_while(|n| n.parent == NodePointer::Root)
+				.filter(|n| self.scope.get_pending_availability(&n.candidate_hash).is_none())
 				.filter(|n| pred(&n.candidate_hash))
 				.map(|n| n.candidate_hash)
 				.next(),
-			NodePointer::Storage(ptr) =>
-				self.nodes[ptr].children.iter().filter(|n| pred(&n.1)).map(|n| n.1).next(),
+			NodePointer::Storage(ptr) => self.nodes[ptr]
+				.children
+				.iter()
+				.filter(|n| self.scope.get_pending_availability(&n.1).is_none())
+				.filter(|n| pred(&n.1))
+				.map(|n| n.1)
+				.next(),
 		}
 	}
 
@@ -822,8 +833,16 @@ impl FragmentTree {
 
 					// require: pending availability candidates don't move backwards
 					// and only those can be out-of-scope.
-					let min_relay_parent_number =
-						pending.map(|_| earliest_rp.number).unwrap_or_else(|| {
+					//
+					// earliest_rp can be before the earliest relay parent in the scope
+					// when the parent is a pending availability candidate as well, but
+					// only other pending candidates can have a relay parent out of scope.
+					let min_relay_parent_number = pending
+						.map(|p| match parent_pointer {
+							NodePointer::Root => p.relay_parent.number,
+							NodePointer::Storage(_) => earliest_rp.number,
+						})
+						.unwrap_or_else(|| {
 							std::cmp::max(
 								earliest_rp.number,
 								self.scope.earliest_relay_parent().number,
@@ -840,9 +859,15 @@ impl FragmentTree {
 					}
 
 					let fragment = {
+						let mut constraints = child_constraints.clone();
+						if let Some(ref p) = pending {
+							// overwrite for candidates pending availability as a special-case.
+							constraints.min_relay_parent_number = p.relay_parent.number;
+						}
+
 						let f = Fragment::new(
 							relay_parent.clone(),
-							child_constraints.clone(),
+							constraints,
 							candidate.candidate.partial_clone(),
 						);
 

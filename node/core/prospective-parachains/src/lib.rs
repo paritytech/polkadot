@@ -53,7 +53,9 @@ use polkadot_primitives::vstaging::{
 
 use crate::{
 	error::{FatalError, FatalResult, JfyiError, JfyiErrorResult, Result},
-	fragment_tree::{CandidateStorage, FragmentTree, Scope as TreeScope},
+	fragment_tree::{
+		CandidateStorage, CandidateStorageInsertionError, FragmentTree, Scope as TreeScope,
+	},
 };
 
 mod error;
@@ -259,17 +261,20 @@ async fn handle_active_leaves_update<Context>(
 				let candidate_hash = c.compact.candidate_hash;
 				compact_pending.push(c.compact);
 
-				if let Err(err) = res {
-					gum::warn!(
-						target: LOG_TARGET,
-						?candidate_hash,
-						para_id = ?para,
-						?err,
-						"Scraped invalid candidate pending availability",
-					);
-				} else {
-					// Anything on-chain is guaranteed to be backed.
-					candidate_storage.mark_backed(&candidate_hash);
+				match res {
+					Ok(_) | Err(CandidateStorageInsertionError::CandidateAlreadyKnown(_)) => {
+						// Anything on-chain is guaranteed to be backed.
+						candidate_storage.mark_backed(&candidate_hash);
+					},
+					Err(err) => {
+						gum::warn!(
+							target: LOG_TARGET,
+							?candidate_hash,
+							para_id = ?para,
+							?err,
+							"Scraped invalid candidate pending availability",
+						);
+					},
 				}
 			}
 
@@ -421,14 +426,12 @@ async fn handle_candidate_introduced<Context>(
 
 	let candidate_hash = match storage.add_candidate(candidate, pvd) {
 		Ok(c) => c,
-		Err(crate::fragment_tree::CandidateStorageInsertionError::CandidateAlreadyKnown(c)) => {
+		Err(CandidateStorageInsertionError::CandidateAlreadyKnown(c)) => {
 			// Candidate known - return existing fragment tree membership.
 			let _ = tx.send(fragment_tree_membership(&view.active_leaves, para, c));
 			return Ok(())
 		},
-		Err(
-			crate::fragment_tree::CandidateStorageInsertionError::PersistedValidationDataMismatch,
-		) => {
+		Err(CandidateStorageInsertionError::PersistedValidationDataMismatch) => {
 			// We can't log the candidate hash without either doing more ~expensive
 			// hashing but this branch indicates something is seriously wrong elsewhere
 			// so it's doubtful that it would affect debugging.
