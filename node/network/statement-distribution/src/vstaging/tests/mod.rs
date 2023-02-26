@@ -23,6 +23,7 @@ use polkadot_node_network_protocol::{
 	request_response::{outgoing::Recipient, ReqProtocolNames},
 	view, ObservedRole,
 };
+use polkadot_node_primitives::Statement;
 use polkadot_node_subsystem::messages::{
 	network_bridge_event::NewGossipTopology, AllMessages, ChainApiMessage, FragmentTreeMembership,
 	HypotheticalCandidate, NetworkBridgeEvent, ProspectiveParachainsMessage, RuntimeApiMessage,
@@ -56,7 +57,7 @@ mod requests;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<StatementDistributionMessage>;
 
-const ASYNC_BACKING_PARAMETERS: AsyncBackingParameters =
+const DEFAULT_ASYNC_BACKING_PARAMETERS: AsyncBackingParameters =
 	AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };
 
 // Some deterministic genesis hash for req/res protocol names
@@ -68,6 +69,7 @@ struct TestConfig {
 	group_size: usize,
 	// whether the local node should be a validator
 	local_validator: bool,
+	async_backing_params: Option<AsyncBackingParameters>,
 }
 
 #[derive(Clone)]
@@ -200,6 +202,27 @@ impl TestState {
 
 		SignedStatement::new(statement, validator_index, signature, context, &pair.public())
 			.unwrap()
+	}
+
+	fn sign_full_statement(
+		&self,
+		validator_index: ValidatorIndex,
+		statement: Statement,
+		context: &SigningContext,
+		pvd: PersistedValidationData,
+	) -> SignedFullStatementWithPVD {
+		let payload = statement.to_compact().signing_payload(context);
+		let pair = &self.validators[validator_index.0 as usize];
+		let signature = pair.sign(&payload[..]);
+
+		SignedFullStatementWithPVD::new(
+			statement.supply_pvd(pvd),
+			validator_index,
+			signature,
+			context,
+			&pair.public(),
+		)
+		.unwrap()
 	}
 
 	// send a request out, returning a future which expects a response.
@@ -340,7 +363,7 @@ async fn handle_leaf_activation(
 		AllMessages::RuntimeApi(
 			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
 		) if parent == *hash => {
-			tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
+			tx.send(Ok(test_state.config.async_backing_params.unwrap_or(DEFAULT_ASYNC_BACKING_PARAMETERS))).unwrap();
 		}
 	);
 
@@ -379,7 +402,7 @@ async fn handle_leaf_activation(
 		AllMessages::RuntimeApi(
 			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
 		) if parent == *hash => {
-			tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
+			tx.send(Ok(test_state.config.async_backing_params.unwrap_or(DEFAULT_ASYNC_BACKING_PARAMETERS))).unwrap();
 		}
 	);
 
@@ -445,6 +468,18 @@ async fn answer_expected_hypothetical_depth_request(
 			tx.send(responses);
 		}
 	)
+}
+
+async fn share_local_statement(
+	virtual_overseer: &mut VirtualOverseer,
+	relay_hash: Hash,
+	statement: SignedFullStatementWithPVD,
+) {
+	virtual_overseer
+		.send(FromOrchestra::Communication {
+			msg: StatementDistributionMessage::Share(relay_hash, statement),
+		})
+		.await;
 }
 
 fn validator_pubkeys(val_ids: &[ValidatorPair]) -> IndexedVec<ValidatorIndex, ValidatorId> {

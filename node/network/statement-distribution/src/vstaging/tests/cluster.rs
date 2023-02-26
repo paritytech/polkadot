@@ -20,7 +20,12 @@ use polkadot_primitives_test_helpers::make_candidate;
 
 #[test]
 fn share_seconded_circulated_to_cluster() {
-	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 3,
+		local_validator: true,
+		async_backing_params: None,
+	};
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -137,7 +142,12 @@ fn share_seconded_circulated_to_cluster() {
 
 #[test]
 fn cluster_valid_statement_before_seconded_ignored() {
-	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 3,
+		local_validator: true,
+		async_backing_params: None,
+	};
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -219,7 +229,12 @@ fn cluster_valid_statement_before_seconded_ignored() {
 
 #[test]
 fn cluster_statement_bad_signature() {
-	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 3,
+		local_validator: true,
+		async_backing_params: None,
+	};
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -314,7 +329,12 @@ fn cluster_statement_bad_signature() {
 
 #[test]
 fn useful_cluster_statement_from_non_cluster_peer_rejected() {
-	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 3,
+		local_validator: true,
+		async_backing_params: None,
+	};
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -398,7 +418,12 @@ fn useful_cluster_statement_from_non_cluster_peer_rejected() {
 
 #[test]
 fn statement_from_non_cluster_originator_unexpected() {
-	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 3,
+		local_validator: true,
+		async_backing_params: None,
+	};
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -474,7 +499,12 @@ fn statement_from_non_cluster_originator_unexpected() {
 
 #[test]
 fn seconded_statement_leads_to_request() {
-	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 3,
+		local_validator: true,
+		async_backing_params: None,
+	};
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -569,7 +599,12 @@ fn seconded_statement_leads_to_request() {
 
 #[test]
 fn cluster_statements_shared_seconded_first() {
-	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 3,
+		local_validator: true,
+		async_backing_params: None,
+	};
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -704,7 +739,12 @@ fn cluster_statements_shared_seconded_first() {
 
 #[test]
 fn cluster_accounts_for_implicit_view() {
-	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 3,
+		local_validator: true,
+		async_backing_params: None,
+	};
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -885,7 +925,12 @@ fn cluster_accounts_for_implicit_view() {
 
 #[test]
 fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
-	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 3,
+		local_validator: true,
+		async_backing_params: None,
+	};
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -1035,7 +1080,12 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 
 #[test]
 fn cluster_messages_imported_after_new_leaf_importable_check() {
-	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 3,
+		local_validator: true,
+		async_backing_params: None,
+	};
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -1209,4 +1259,216 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 	});
 }
 
-// TODO [now]: ensure seconding limit is respected
+#[test]
+fn ensure_seconding_limit_is_respected() {
+	// `max_candidate_depth: 1` for a `seconding_limit` of 2.
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 4,
+		local_validator: true,
+		async_backing_params: Some(AsyncBackingParameters {
+			max_candidate_depth: 1,
+			allowed_ancestry_len: 3,
+		}),
+	};
+
+	let relay_parent = Hash::repeat_byte(1);
+	let peer_a = PeerId::random();
+	let peer_b = PeerId::random();
+	let peer_c = PeerId::random();
+
+	test_harness(config, |state, mut overseer| async move {
+		let local_validator = state.local.clone().unwrap();
+		let local_para = ParaId::from(local_validator.group_index.0);
+
+		let (candidate, pvd) = make_candidate(
+			relay_parent,
+			1,
+			local_para,
+			vec![1, 2, 3].into(),
+			vec![4, 5, 6].into(),
+			Hash::repeat_byte(42).into(),
+		);
+		let candidate_hash = candidate.hash();
+
+		let test_leaf = TestLeaf {
+			number: 1,
+			hash: relay_parent,
+			parent_hash: Hash::repeat_byte(0),
+			session: 1,
+			availability_cores: state.make_availability_cores(|i| {
+				CoreState::Scheduled(ScheduledCore {
+					para_id: ParaId::from(i as u32),
+					collator: None,
+				})
+			}),
+			para_data: (0..state.session_info.validator_groups.len())
+				.map(|i| {
+					(
+						ParaId::from(i as u32),
+						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
+					)
+				})
+				.collect(),
+		};
+
+		let other_group_validators = state.group_validators(local_validator.group_index, true);
+		let v_a = other_group_validators[0];
+		let v_b = other_group_validators[1];
+		let v_c = other_group_validators[2];
+
+		// peers A,B,C are in group, have relay parent in view.
+		{
+			connect_peer(
+				&mut overseer,
+				peer_a.clone(),
+				Some(vec![state.discovery_id(v_a)].into_iter().collect()),
+			)
+			.await;
+			connect_peer(
+				&mut overseer,
+				peer_b.clone(),
+				Some(vec![state.discovery_id(v_b)].into_iter().collect()),
+			)
+			.await;
+			connect_peer(
+				&mut overseer,
+				peer_c.clone(),
+				Some(vec![state.discovery_id(v_c)].into_iter().collect()),
+			)
+			.await;
+
+			send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
+			send_peer_view_change(&mut overseer, peer_b.clone(), view![relay_parent]).await;
+			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
+		}
+
+		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+
+		answer_expected_hypothetical_depth_request(
+			&mut overseer,
+			vec![],
+			Some(relay_parent),
+			false,
+		)
+		.await;
+
+		// Confirm the candidate locally so that we don't send out requests.
+		{
+			let validator_index = state.local.as_ref().unwrap().validator_index;
+			let statement = state
+				.sign_full_statement(
+					validator_index,
+					Statement::Seconded(candidate),
+					&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					pvd,
+				)
+				.clone();
+
+			share_local_statement(&mut overseer, relay_parent, statement).await;
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(peers, _)) if peers == vec![peer_a, peer_b, peer_c]
+			);
+
+			answer_expected_hypothetical_depth_request(
+				&mut overseer,
+				vec![],
+				// TODO: Is this right?
+				None,
+				false,
+			)
+			.await;
+		}
+
+		// Send statement from peer A.
+		{
+			println!("statement from A");
+			let statement = state
+				.sign_statement(
+					v_a,
+					CompactStatement::Seconded(candidate_hash),
+					&SigningContext { parent_hash: relay_parent, session_index: 1 },
+				)
+				.as_unchecked()
+				.clone();
+
+			send_peer_message(
+				&mut overseer,
+				peer_a.clone(),
+				protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, statement),
+			)
+			.await;
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(peers, _)) if peers == vec![peer_b, peer_c]
+			);
+		}
+
+		// Send statement from peer B.
+		{
+			println!("statement from B");
+			let statement = state
+				.sign_statement(
+					v_b,
+					CompactStatement::Seconded(candidate_hash),
+					&SigningContext { parent_hash: relay_parent, session_index: 1 },
+				)
+				.as_unchecked()
+				.clone();
+
+			send_peer_message(
+				&mut overseer,
+				peer_b.clone(),
+				protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, statement),
+			)
+			.await;
+
+			// TODO: Why is this sent out twice?
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_b && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(peers, _)) if peers == vec![peer_a, peer_c]
+			);
+		}
+
+		// Send statement from peer C.
+		{
+			println!("statement from C");
+			let statement = state
+				.sign_statement(
+					v_c,
+					CompactStatement::Seconded(candidate_hash),
+					&SigningContext { parent_hash: relay_parent, session_index: 1 },
+				)
+				.as_unchecked()
+				.clone();
+
+			send_peer_message(
+				&mut overseer,
+				peer_c.clone(),
+				protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, statement),
+			)
+			.await;
+
+			println!("{:?}", overseer.recv().await);
+		}
+
+		overseer
+	});
+
+	todo!()
+}

@@ -27,7 +27,12 @@ use sc_network::config::IncomingRequest as RawIncomingRequest;
 
 #[test]
 fn peer_reported_for_duplicate_statements() {
-	let config = TestConfig { validator_count: 20, group_size: 3, local_validator: true };
+	let config = TestConfig {
+		validator_count: 20,
+		group_size: 3,
+		local_validator: true,
+		async_backing_params: None,
+	};
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
@@ -115,10 +120,7 @@ fn peer_reported_for_duplicate_statements() {
 			let mask = StatementFilter::blank(state.config.group_size);
 			let (pending_response, rx) = oneshot::channel();
 			state
-				.candidate_req_cfg
-				.inbound_queue
-				.as_mut()
-				.unwrap()
+				.req_sender
 				.send(RawIncomingRequest {
 					// TODO: Request from peer that received manifest.
 					peer: peer_id,
