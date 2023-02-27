@@ -137,6 +137,7 @@ where
 			HashMap::new()
 		},
 	};
+	metrics.on_fetched_onchain_disputes(onchain.keys().len() as u64);
 
 	gum::trace!(target: LOG_TARGET, ?leaf, "Fetching recent disputes");
 	let recent_disputes = request_disputes(sender).await;
