@@ -145,7 +145,7 @@ backing subsystem itself.
 - Validators request candidates as soon as they are advertised, but do not
   import the statements until the candidate is part of the hypothetical
   frontier, and do not re-advertise or acknowledge until the candidate is
-  considered both backed and part of the hypothetical frontier.
+  considered both backable and part of the hypothetical frontier.
 - Note that requesting is not an implicit acknowledgement, and an explicit
   acknowledgement must be sent upon receipt.
 
@@ -388,6 +388,12 @@ description of the flow. See module-docs for full details.
 - **Announcement:** A notification of a backed candidate being known by the
   sending node. Is a full manifest and initiates manifest exchange.
 - **Attestation:** See "Statement".
+- **Backable vs. Backed:** Note that we sometimes use "backed" to refer to
+  candidates that are "backable", but not yet backed on chain. "Backed" should
+  technically mean that the parablock candidate and its backing statements have
+  been added to a relay chain block. By contrast, "backable" is when the
+  necessary backing statements have been acquired but those statements and the
+  parablock candidate haven't been backed in a relay chain block yet.
 - **Fragment tree:** A parachain fragment not referenced by the relay-chain.
   It is a tree of prospective parachain blocks.
 - **Manifest:** A message about a known backed candidate, along with a
