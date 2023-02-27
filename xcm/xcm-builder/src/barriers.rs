@@ -95,7 +95,7 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 				BuyExecution { weight_limit: Limited(ref mut weight), .. }
 					if weight.all_gte(max_weight) =>
 				{
-					*weight = weight.max(max_weight);
+					*weight = max_weight;
 					Ok(())
 				},
 				BuyExecution { ref mut weight_limit, .. } if weight_limit == &Unlimited => {
