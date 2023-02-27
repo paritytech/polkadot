@@ -109,8 +109,9 @@ where
 
 	let validator_index = ValidatorIndex(0);
 	let losers = [validator_index].into_iter();
+	let backers = losers.clone();
 
-	T::SlashingHandler::punish_against_valid(session_index, CANDIDATE_HASH, losers);
+	T::SlashingHandler::punish_for_invalid(session_index, CANDIDATE_HASH, losers, backers);
 
 	let unapplied = <UnappliedSlashes<T>>::get(session_index, CANDIDATE_HASH);
 	assert_eq!(unapplied.unwrap().keys.len(), 1);
@@ -123,7 +124,7 @@ fn dispute_proof(
 	validator_id: ValidatorId,
 	validator_index: ValidatorIndex,
 ) -> DisputeProof {
-	let kind = SlashingOffenceKind::AgainstValid;
+	let kind = SlashingOffenceKind::ForInvalid;
 	let time_slot = DisputesTimeSlot::new(session_index, CANDIDATE_HASH);
 
 	DisputeProof { time_slot, kind, validator_index, validator_id }
@@ -134,7 +135,7 @@ benchmarks! {
 		where T: Config<KeyOwnerProof = MembershipProof>,
 	}
 
-	// in this setup we have a single `AgainstValid` dispute
+	// in this setup we have a single `ForInvalid` dispute
 	// submitted for a past session
 	report_dispute_lost {
 		let n in 4..<<T as super::Config>::BenchmarkingConfig as BenchmarkingConfiguration>::MAX_VALIDATORS;

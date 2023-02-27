@@ -20,7 +20,7 @@ requests = { memory = "2G", cpu = "1" }
   name = "validator"
   count = 10
   args = ["-lparachain=debug", "--db=paritydb"]
- 
+
 {% for id in range(2000,2010) %}
 [[parachains]]
 id = {{id}}

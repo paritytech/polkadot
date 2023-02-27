@@ -297,7 +297,7 @@ async fn handle_leaves_update(
 		metrics.on_pvf_observed(outcome.newcomers.len());
 		metrics.on_pvf_left(outcome.left_num);
 		for newcomer in outcome.newcomers {
-			initiate_precheck(state, sender, recent_block_hash, newcomer, metrics).await;
+			initiate_precheck(state, sender, activated.hash, newcomer, metrics).await;
 		}
 
 		if let Some((new_session_index, credentials)) = new_session_index {
