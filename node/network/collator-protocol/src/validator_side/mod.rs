@@ -567,9 +567,8 @@ impl CollationsPerRelayParent {
 				self.waiting_collation = next.as_ref().map(|(_, collator_id)| collator_id.clone());
 				next
 			},
-			CollationStatus::WaitingOnValidation | CollationStatus::Fetching => {
-				unreachable!("We have reset the status above!")
-			},
+			CollationStatus::WaitingOnValidation | CollationStatus::Fetching =>
+				unreachable!("We have reset the status above!"),
 		}
 	}
 }

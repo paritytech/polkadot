@@ -633,7 +633,7 @@ where
 			// reasonably sure that this is some local problem on the current node.
 			Err(ValidationFailed(e))
 		},
-		Ok(res) => {
+		Ok(res) =>
 			if res.head_data.hash() != candidate_receipt.descriptor.para_head {
 				gum::info!(target: LOG_TARGET, ?para_id, "Invalid candidate (para_head)");
 				Ok(ValidationResult::Invalid(InvalidCandidate::ParaHeadHashMismatch))
@@ -658,8 +658,7 @@ where
 				} else {
 					Ok(ValidationResult::Valid(outputs, persisted_validation_data))
 				}
-			}
-		},
+			},
 	}
 }
 
