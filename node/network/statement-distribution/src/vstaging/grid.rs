@@ -1135,10 +1135,11 @@ mod tests {
 		// 3 4 5
 		// 6 7 8
 
-		// our group: we send to all row/column neighbors and receive nothing
+		// our group: we send to all row/column neighbors which are not in our
+		// group and receive nothing.
 		assert_eq!(
 			t.group_views.get(&GroupIndex(0)).unwrap().sending,
-			vec![1, 2, 3, 6].into_iter().map(ValidatorIndex).collect::<HashSet<_>>(),
+			vec![1, 2].into_iter().map(ValidatorIndex).collect::<HashSet<_>>(),
 		);
 		assert_eq!(t.group_views.get(&GroupIndex(0)).unwrap().receiving, HashSet::new(),);
 
