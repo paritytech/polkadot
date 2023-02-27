@@ -272,12 +272,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				if let Some(ref activated) = activated {
 					let mode = prospective_parachains_mode(ctx.sender(), activated.hash).await?;
 					if let ProspectiveParachainsMode::Enabled { .. } = mode {
-						vstaging::handle_active_leaves_update(
-							ctx,
-							state,
-							ActiveLeavesUpdate { activated: Some(activated.clone()), deactivated },
-						)
-						.await?;
+						vstaging::handle_active_leaves_update(ctx, state, activated, mode).await?;
 					} else if let ProspectiveParachainsMode::Disabled = mode {
 						for deactivated in &deactivated {
 							crate::legacy_v1::handle_deactivate_leaf(legacy_v1_state, *deactivated);
@@ -294,12 +289,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					for deactivated in &deactivated {
 						crate::legacy_v1::handle_deactivate_leaf(legacy_v1_state, *deactivated);
 					}
-					vstaging::handle_active_leaves_update(
-						ctx,
-						state,
-						ActiveLeavesUpdate { activated: None, deactivated },
-					)
-					.await?;
+					vstaging::handle_deactivate_leaves(state, &deactivated);
 				}
 			},
 			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {

@@ -371,16 +371,6 @@ async fn handle_leaf_activation(
 		}
 	);
 
-	// TODO: Can we remove this REDUNDANT request?
-	assert_matches!(
-		virtual_overseer.recv().await,
-		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
-		) if parent == *hash => {
-			tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
-		}
-	);
-
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::RuntimeApi(

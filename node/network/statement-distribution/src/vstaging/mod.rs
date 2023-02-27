@@ -38,11 +38,10 @@ use polkadot_node_subsystem::{
 		CandidateBackingMessage, HypotheticalCandidate, HypotheticalFrontierRequest,
 		NetworkBridgeEvent, NetworkBridgeTxMessage, ProspectiveParachainsMessage,
 	},
-	overseer, ActiveLeavesUpdate,
+	overseer, ActivatedLeaf,
 };
 use polkadot_node_subsystem_util::{
-	backing_implicit_view::View as ImplicitView,
-	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
+	backing_implicit_view::View as ImplicitView, runtime::ProspectiveParachainsMode,
 };
 use polkadot_primitives::vstaging::{
 	AuthorityDiscoveryId, CandidateHash, CompactStatement, CoreIndex, CoreState, GroupIndex,
@@ -392,22 +391,19 @@ pub(crate) async fn handle_network_update<Context>(
 pub(crate) async fn handle_active_leaves_update<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	update: ActiveLeavesUpdate,
+	activated: &ActivatedLeaf,
+	leaf_mode: ProspectiveParachainsMode,
 ) -> JfyiErrorResult<()> {
-	if let Some(ref leaf) = update.activated {
-		state
-			.implicit_view
-			.activate_leaf(ctx.sender(), leaf.hash)
-			.await
-			.map_err(JfyiError::ActivateLeafFailure)?;
-	}
-
-	handle_deactivate_leaves(state, &update.deactivated[..]);
-
-	let leaf = match update.activated {
-		Some(l) => l,
-		None => return Ok(()),
+	let seconding_limit = match leaf_mode {
+		ProspectiveParachainsMode::Disabled => return Ok(()),
+		ProspectiveParachainsMode::Enabled { max_candidate_depth, .. } => max_candidate_depth + 1,
 	};
+
+	state
+		.implicit_view
+		.activate_leaf(ctx.sender(), activated.hash)
+		.await
+		.map_err(JfyiError::ActivateLeafFailure)?;
 
 	let new_relay_parents =
 		state.implicit_view.all_allowed_relay_parents().cloned().collect::<Vec<_>>();
@@ -418,17 +414,6 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 
 		// New leaf: fetch info from runtime API and initialize
 		// `per_relay_parent`.
-
-		// TODO [now]: Didn't we already request this in `lib.rs`?
-		let mode = prospective_parachains_mode(ctx.sender(), new_relay_parent).await;
-
-		// request prospective parachains mode, skip disabled relay-parents
-		// (there should not be any) and set `seconding_limit = max_candidate_depth`.
-		let seconding_limit = match mode {
-			Ok(ProspectiveParachainsMode::Disabled) | Err(_) => continue,
-			Ok(ProspectiveParachainsMode::Enabled { max_candidate_depth, .. }) =>
-				max_candidate_depth + 1,
-		};
 
 		let session_index = polkadot_node_subsystem_util::request_session_index_for_child(
 			new_relay_parent,
@@ -519,7 +504,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 	{
 		let mut update_peers = Vec::new();
 		for (peer, peer_state) in state.peers.iter_mut() {
-			let fresh = peer_state.reconcile_active_leaf(leaf.hash, &new_relay_parents);
+			let fresh = peer_state.reconcile_active_leaf(activated.hash, &new_relay_parents);
 			if !fresh.is_empty() {
 				update_peers.push((*peer, fresh));
 			}
@@ -532,7 +517,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 		}
 	}
 
-	new_leaf_fragment_tree_updates(ctx, state, leaf.hash).await;
+	new_leaf_fragment_tree_updates(ctx, state, activated.hash).await;
 
 	Ok(())
 }
@@ -567,7 +552,7 @@ fn find_local_validator_state(
 	})
 }
 
-fn handle_deactivate_leaves(state: &mut State, leaves: &[Hash]) {
+pub(crate) fn handle_deactivate_leaves(state: &mut State, leaves: &[Hash]) {
 	// deactivate the leaf in the implicit view.
 	for leaf in leaves {
 		state.implicit_view.deactivate_leaf(*leaf);
