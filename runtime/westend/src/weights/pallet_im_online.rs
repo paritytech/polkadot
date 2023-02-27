@@ -53,11 +53,11 @@ impl<T: frame_system::Config> pallet_im_online::WeightInfo for WeightInfo<T> {
 	/// The range of component `e` is `[1, 100]`.
 	fn validate_unsigned_and_then_heartbeat(k: u32, e: u32, ) -> Weight {
 		// Minimum execution time: 123_239 nanoseconds.
-		Weight::from_ref_time(104_992_306)
+		Weight::from_parts(104_992_306, 0)
 			// Standard Error: 444
-			.saturating_add(Weight::from_ref_time(34_727).saturating_mul(k.into()))
+			.saturating_add(Weight::from_parts(34_727, 0).saturating_mul(k.into()))
 			// Standard Error: 4_475
-			.saturating_add(Weight::from_ref_time(400_482).saturating_mul(e.into()))
+			.saturating_add(Weight::from_parts(400_482, 0).saturating_mul(e.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}

@@ -76,8 +76,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `3468`
 		//  Estimated: `38468`
 		// Minimum execution time: 138_821 nanoseconds.
-		Weight::from_ref_time(141_643_000)
-			.saturating_add(Weight::from_proof_size(38468))
+		Weight::from_parts(141_643_000, 0)
+			.saturating_add(Weight::from_parts(0, 38468))
 			.saturating_add(T::DbWeight::get().reads(17))
 			.saturating_add(T::DbWeight::get().writes(12))
 	}
@@ -104,8 +104,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `3510`
 		//  Estimated: `39063`
 		// Minimum execution time: 136_347 nanoseconds.
-		Weight::from_ref_time(138_251_000)
-			.saturating_add(Weight::from_proof_size(39063))
+		Weight::from_parts(138_251_000, 0)
+			.saturating_add(Weight::from_parts(0, 39063))
 			.saturating_add(T::DbWeight::get().reads(14))
 			.saturating_add(T::DbWeight::get().writes(12))
 	}
@@ -134,8 +134,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `3393`
 		//  Estimated: `38950`
 		// Minimum execution time: 148_871 nanoseconds.
-		Weight::from_ref_time(150_708_000)
-			.saturating_add(Weight::from_proof_size(38950))
+		Weight::from_parts(150_708_000, 0)
+			.saturating_add(Weight::from_parts(0, 38950))
 			.saturating_add(T::DbWeight::get().reads(14))
 			.saturating_add(T::DbWeight::get().writes(12))
 	}
@@ -154,8 +154,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `1220`
 		//  Estimated: `13485`
 		// Minimum execution time: 55_263 nanoseconds.
-		Weight::from_ref_time(56_758_000)
-			.saturating_add(Weight::from_proof_size(13485))
+		Weight::from_parts(56_758_000, 0)
+			.saturating_add(Weight::from_parts(0, 13485))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -192,8 +192,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `3748`
 		//  Estimated: `44674`
 		// Minimum execution time: 141_538 nanoseconds.
-		Weight::from_ref_time(145_982_000)
-			.saturating_add(Weight::from_proof_size(44674))
+		Weight::from_parts(145_982_000, 0)
+			.saturating_add(Weight::from_parts(0, 44674))
 			.saturating_add(T::DbWeight::get().reads(18))
 			.saturating_add(T::DbWeight::get().writes(13))
 	}
@@ -213,10 +213,10 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `1672`
 		//  Estimated: `13025`
 		// Minimum execution time: 50_576 nanoseconds.
-		Weight::from_ref_time(51_661_297)
-			.saturating_add(Weight::from_proof_size(13025))
+		Weight::from_parts(51_661_297, 0)
+			.saturating_add(Weight::from_parts(0, 13025))
 			// Standard Error: 890
-			.saturating_add(Weight::from_ref_time(9_936).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(9_936, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -246,10 +246,10 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `2196`
 		//  Estimated: `22991`
 		// Minimum execution time: 93_998 nanoseconds.
-		Weight::from_ref_time(95_463_915)
-			.saturating_add(Weight::from_proof_size(22991))
+		Weight::from_parts(95_463_915, 0)
+			.saturating_add(Weight::from_parts(0, 22991))
 			// Standard Error: 1_047
-			.saturating_add(Weight::from_ref_time(17_510).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(17_510, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}
@@ -301,8 +301,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `2584`
 		//  Estimated: `46001`
 		// Minimum execution time: 145_214 nanoseconds.
-		Weight::from_ref_time(148_632_571)
-			.saturating_add(Weight::from_proof_size(46001))
+		Weight::from_parts(148_632_571, 0)
+			.saturating_add(Weight::from_parts(0, 46001))
 			.saturating_add(T::DbWeight::get().reads(20))
 			.saturating_add(T::DbWeight::get().writes(18))
 	}
@@ -353,8 +353,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `1220`
 		//  Estimated: `32002`
 		// Minimum execution time: 128_238 nanoseconds.
-		Weight::from_ref_time(130_135_000)
-			.saturating_add(Weight::from_proof_size(32002))
+		Weight::from_parts(130_135_000, 0)
+			.saturating_add(Weight::from_parts(0, 32002))
 			.saturating_add(T::DbWeight::get().reads(21))
 			.saturating_add(T::DbWeight::get().writes(15))
 	}
@@ -388,14 +388,14 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `1805`
 		//  Estimated: `21998 + n * (2520 ±0)`
 		// Minimum execution time: 61_163 nanoseconds.
-		Weight::from_ref_time(61_795_451)
-			.saturating_add(Weight::from_proof_size(21998))
+		Weight::from_parts(61_795_451, 0)
+			.saturating_add(Weight::from_parts(0, 21998))
 			// Standard Error: 10_555
-			.saturating_add(Weight::from_ref_time(1_112_812).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(1_112_812, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(12))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(5))
-			.saturating_add(Weight::from_proof_size(2520).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(0, 2520).saturating_mul(n.into()))
 	}
 	/// Storage: NominationPools BondedPools (r:1 w:1)
 	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
@@ -408,8 +408,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `1393`
 		//  Estimated: `8752`
 		// Minimum execution time: 31_553 nanoseconds.
-		Weight::from_ref_time(32_021_000)
-			.saturating_add(Weight::from_proof_size(8752))
+		Weight::from_parts(32_021_000, 0)
+			.saturating_add(Weight::from_parts(0, 8752))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -425,10 +425,10 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `525`
 		//  Estimated: `5883`
 		// Minimum execution time: 13_537 nanoseconds.
-		Weight::from_ref_time(14_140_818)
-			.saturating_add(Weight::from_proof_size(5883))
+		Weight::from_parts(14_140_818, 0)
+			.saturating_add(Weight::from_parts(0, 5883))
 			// Standard Error: 108
-			.saturating_add(Weight::from_ref_time(1_394).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(1_394, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -447,8 +447,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 4_626 nanoseconds.
-		Weight::from_ref_time(4_783_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(4_783_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
 	/// Storage: NominationPools BondedPools (r:1 w:1)
@@ -458,8 +458,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `525`
 		//  Estimated: `2639`
 		// Minimum execution time: 18_428 nanoseconds.
-		Weight::from_ref_time(18_781_000)
-			.saturating_add(Weight::from_proof_size(2639))
+		Weight::from_parts(18_781_000, 0)
+			.saturating_add(Weight::from_parts(0, 2639))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -486,8 +486,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `2032`
 		//  Estimated: `20489`
 		// Minimum execution time: 60_522 nanoseconds.
-		Weight::from_ref_time(61_308_000)
-			.saturating_add(Weight::from_proof_size(20489))
+		Weight::from_parts(61_308_000, 0)
+			.saturating_add(Weight::from_parts(0, 20489))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -500,8 +500,8 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 		//  Measured:  `508`
 		//  Estimated: `5708`
 		// Minimum execution time: 14_159 nanoseconds.
-		Weight::from_ref_time(14_475_000)
-			.saturating_add(Weight::from_proof_size(5708))
+		Weight::from_parts(14_475_000, 0)
+			.saturating_add(Weight::from_parts(0, 5708))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}

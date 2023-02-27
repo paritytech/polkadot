@@ -79,15 +79,15 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 		//  Measured:  `1348 + b * (375 ±0)`
 		//  Estimated: `8805 + b * (17962 ±0)`
 		// Minimum execution time: 72_453 nanoseconds.
-		Weight::from_ref_time(36_866_925)
-			.saturating_add(Weight::from_proof_size(8805))
+		Weight::from_parts(36_866_925, 0)
+			.saturating_add(Weight::from_parts(0, 8805))
 			// Standard Error: 37_385
-			.saturating_add(Weight::from_ref_time(36_921_980).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(36_921_980, 0).saturating_mul(b.into()))
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().reads((6_u64).saturating_mul(b.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
 			.saturating_add(T::DbWeight::get().writes((5_u64).saturating_mul(b.into())))
-			.saturating_add(Weight::from_proof_size(17962).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(0, 17962).saturating_mul(b.into()))
 	}
 	/// Storage: FastUnstake ErasToCheckPerBlock (r:1 w:0)
 	/// Proof: FastUnstake ErasToCheckPerBlock (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
@@ -110,17 +110,17 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 		//  Measured:  `1516 + v * (18519 ±0) + b * (48 ±0)`
 		//  Estimated: `11390 + v * (39515 ±0) + b * (98 ±0)`
 		// Minimum execution time: 1_796_062 nanoseconds.
-		Weight::from_ref_time(1_819_911_000)
-			.saturating_add(Weight::from_proof_size(11390))
+		Weight::from_parts(1_819_911_000, 0)
+			.saturating_add(Weight::from_parts(0, 11390))
 			// Standard Error: 18_164_058
-			.saturating_add(Weight::from_ref_time(581_195_072).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(581_195_072, 0).saturating_mul(v.into()))
 			// Standard Error: 72_676_465
-			.saturating_add(Weight::from_ref_time(2_280_507_183).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(2_280_507_183, 0).saturating_mul(b.into()))
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(v.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
-			.saturating_add(Weight::from_proof_size(39515).saturating_mul(v.into()))
-			.saturating_add(Weight::from_proof_size(98).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(0, 39515).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(0, 98).saturating_mul(b.into()))
 	}
 	/// Storage: FastUnstake ErasToCheckPerBlock (r:1 w:0)
 	/// Proof: FastUnstake ErasToCheckPerBlock (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
@@ -155,8 +155,8 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 		//  Measured:  `2026`
 		//  Estimated: `29594`
 		// Minimum execution time: 102_183 nanoseconds.
-		Weight::from_ref_time(103_295_000)
-			.saturating_add(Weight::from_proof_size(29594))
+		Weight::from_parts(103_295_000, 0)
+			.saturating_add(Weight::from_parts(0, 29594))
 			.saturating_add(T::DbWeight::get().reads(14))
 			.saturating_add(T::DbWeight::get().writes(9))
 	}
@@ -175,8 +175,8 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 		//  Measured:  `1220`
 		//  Estimated: `10781`
 		// Minimum execution time: 38_964 nanoseconds.
-		Weight::from_ref_time(39_656_000)
-			.saturating_add(Weight::from_proof_size(10781))
+		Weight::from_parts(39_656_000, 0)
+			.saturating_add(Weight::from_parts(0, 10781))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -187,8 +187,8 @@ impl<T: frame_system::Config> pallet_fast_unstake::WeightInfo for WeightInfo<T> 
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 2_438 nanoseconds.
-		Weight::from_ref_time(2_581_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(2_581_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 }

@@ -51,33 +51,33 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	fn send() -> Weight {
 		// Minimum execution time: 38_435 nanoseconds.
-		Weight::from_ref_time(39_264_000)
+		Weight::from_parts(39_264_000, 0)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
 	fn teleport_assets() -> Weight {
 		// Minimum execution time: 29_090 nanoseconds.
-		Weight::from_ref_time(29_801_000)
+		Weight::from_parts(29_801_000, 0)
 	}
 	fn reserve_transfer_assets() -> Weight {
 		// Minimum execution time: 27_998 nanoseconds.
-		Weight::from_ref_time(29_079_000)
+		Weight::from_parts(29_079_000, 0)
 	}
 	// Storage: Benchmark Override (r:0 w:0)
 	fn execute() -> Weight {
 		// Minimum execution time: 18_446_744_073_709_551 nanoseconds.
-		Weight::from_ref_time(18_446_744_073_709_551_000)
+		Weight::from_parts(18_446_744_073_709_551_000, 0)
 	}
 	// Storage: XcmPallet SupportedVersion (r:0 w:1)
 	fn force_xcm_version() -> Weight {
 		// Minimum execution time: 15_893 nanoseconds.
-		Weight::from_ref_time(16_196_000)
+		Weight::from_parts(16_196_000, 0)
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	// Storage: XcmPallet SafeXcmVersion (r:0 w:1)
 	fn force_default_xcm_version() -> Weight {
 		// Minimum execution time: 4_403 nanoseconds.
-		Weight::from_ref_time(4_553_000)
+		Weight::from_parts(4_553_000, 0)
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	// Storage: XcmPallet VersionNotifiers (r:1 w:1)
@@ -90,7 +90,7 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 	// Storage: XcmPallet Queries (r:0 w:1)
 	fn force_subscribe_version_notify() -> Weight {
 		// Minimum execution time: 42_466 nanoseconds.
-		Weight::from_ref_time(43_907_000)
+		Weight::from_parts(43_907_000, 0)
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -103,28 +103,28 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 	// Storage: XcmPallet Queries (r:0 w:1)
 	fn force_unsubscribe_version_notify() -> Weight {
 		// Minimum execution time: 46_063 nanoseconds.
-		Weight::from_ref_time(47_278_000)
+		Weight::from_parts(47_278_000, 0)
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
 	// Storage: XcmPallet SupportedVersion (r:4 w:2)
 	fn migrate_supported_version() -> Weight {
 		// Minimum execution time: 15_315 nanoseconds.
-		Weight::from_ref_time(15_983_000)
+		Weight::from_parts(15_983_000, 0)
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
 	// Storage: XcmPallet VersionNotifiers (r:4 w:2)
 	fn migrate_version_notifiers() -> Weight {
 		// Minimum execution time: 15_715 nanoseconds.
-		Weight::from_ref_time(16_212_000)
+		Weight::from_parts(16_212_000, 0)
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
 	// Storage: XcmPallet VersionNotifyTargets (r:5 w:0)
 	fn already_notified_target() -> Weight {
 		// Minimum execution time: 18_319 nanoseconds.
-		Weight::from_ref_time(18_821_000)
+		Weight::from_parts(18_821_000, 0)
 			.saturating_add(T::DbWeight::get().reads(5))
 	}
 	// Storage: XcmPallet VersionNotifyTargets (r:2 w:1)
@@ -135,20 +135,20 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	fn notify_current_targets() -> Weight {
 		// Minimum execution time: 38_303 nanoseconds.
-		Weight::from_ref_time(39_210_000)
+		Weight::from_parts(39_210_000, 0)
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
 	// Storage: XcmPallet VersionNotifyTargets (r:3 w:0)
 	fn notify_target_migration_fail() -> Weight {
 		// Minimum execution time: 8_105 nanoseconds.
-		Weight::from_ref_time(8_402_000)
+		Weight::from_parts(8_402_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 	}
 	// Storage: XcmPallet VersionNotifyTargets (r:4 w:2)
 	fn migrate_version_notify_targets() -> Weight {
 		// Minimum execution time: 16_035 nanoseconds.
-		Weight::from_ref_time(16_561_000)
+		Weight::from_parts(16_561_000, 0)
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -160,7 +160,7 @@ impl<T: frame_system::Config> pallet_xcm::WeightInfo for WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	fn migrate_and_notify_old_targets() -> Weight {
 		// Minimum execution time: 45_300 nanoseconds.
-		Weight::from_ref_time(46_946_000)
+		Weight::from_parts(46_946_000, 0)
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}

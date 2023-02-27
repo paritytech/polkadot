@@ -50,11 +50,11 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `s` is `[1, 28]`.
 	fn vest_locked(l: u32, s: u32, ) -> Weight {
 		// Minimum execution time: 39_606 nanoseconds.
-		Weight::from_ref_time(39_126_286)
+		Weight::from_parts(39_126_286, 0)
 			// Standard Error: 2_229
-			.saturating_add(Weight::from_ref_time(49_156).saturating_mul(l.into()))
+			.saturating_add(Weight::from_parts(49_156, 0).saturating_mul(l.into()))
 			// Standard Error: 3_966
-			.saturating_add(Weight::from_ref_time(131_485).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(131_485, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -64,11 +64,11 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `s` is `[1, 28]`.
 	fn vest_unlocked(l: u32, s: u32, ) -> Weight {
 		// Minimum execution time: 39_725 nanoseconds.
-		Weight::from_ref_time(39_316_940)
+		Weight::from_parts(39_316_940, 0)
 			// Standard Error: 2_096
-			.saturating_add(Weight::from_ref_time(51_129).saturating_mul(l.into()))
+			.saturating_add(Weight::from_parts(51_129, 0).saturating_mul(l.into()))
 			// Standard Error: 3_729
-			.saturating_add(Weight::from_ref_time(91_410).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(91_410, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -79,11 +79,11 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `s` is `[1, 28]`.
 	fn vest_other_locked(l: u32, s: u32, ) -> Weight {
 		// Minimum execution time: 40_094 nanoseconds.
-		Weight::from_ref_time(39_181_593)
+		Weight::from_parts(39_181_593, 0)
 			// Standard Error: 2_656
-			.saturating_add(Weight::from_ref_time(58_520).saturating_mul(l.into()))
+			.saturating_add(Weight::from_parts(58_520, 0).saturating_mul(l.into()))
 			// Standard Error: 4_726
-			.saturating_add(Weight::from_ref_time(106_280).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(106_280, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -94,11 +94,11 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `s` is `[1, 28]`.
 	fn vest_other_unlocked(l: u32, s: u32, ) -> Weight {
 		// Minimum execution time: 39_572 nanoseconds.
-		Weight::from_ref_time(39_262_140)
+		Weight::from_parts(39_262_140, 0)
 			// Standard Error: 2_331
-			.saturating_add(Weight::from_ref_time(48_095).saturating_mul(l.into()))
+			.saturating_add(Weight::from_parts(48_095, 0).saturating_mul(l.into()))
 			// Standard Error: 4_148
-			.saturating_add(Weight::from_ref_time(89_208).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(89_208, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -109,11 +109,11 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `s` is `[0, 27]`.
 	fn vested_transfer(l: u32, s: u32, ) -> Weight {
 		// Minimum execution time: 56_483 nanoseconds.
-		Weight::from_ref_time(57_095_510)
+		Weight::from_parts(57_095_510, 0)
 			// Standard Error: 2_782
-			.saturating_add(Weight::from_ref_time(42_757).saturating_mul(l.into()))
+			.saturating_add(Weight::from_parts(42_757, 0).saturating_mul(l.into()))
 			// Standard Error: 4_950
-			.saturating_add(Weight::from_ref_time(79_812).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(79_812, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -124,11 +124,11 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `s` is `[0, 27]`.
 	fn force_vested_transfer(l: u32, s: u32, ) -> Weight {
 		// Minimum execution time: 55_270 nanoseconds.
-		Weight::from_ref_time(57_043_614)
+		Weight::from_parts(57_043_614, 0)
 			// Standard Error: 2_833
-			.saturating_add(Weight::from_ref_time(29_839).saturating_mul(l.into()))
+			.saturating_add(Weight::from_parts(29_839, 0).saturating_mul(l.into()))
 			// Standard Error: 5_040
-			.saturating_add(Weight::from_ref_time(67_429).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(67_429, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -139,11 +139,11 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `s` is `[2, 28]`.
 	fn not_unlocking_merge_schedules(l: u32, s: u32, ) -> Weight {
 		// Minimum execution time: 41_695 nanoseconds.
-		Weight::from_ref_time(41_640_100)
+		Weight::from_parts(41_640_100, 0)
 			// Standard Error: 2_040
-			.saturating_add(Weight::from_ref_time(33_458).saturating_mul(l.into()))
+			.saturating_add(Weight::from_parts(33_458, 0).saturating_mul(l.into()))
 			// Standard Error: 3_768
-			.saturating_add(Weight::from_ref_time(101_011).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(101_011, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -154,11 +154,11 @@ impl<T: frame_system::Config> pallet_vesting::WeightInfo for WeightInfo<T> {
 	/// The range of component `s` is `[2, 28]`.
 	fn unlocking_merge_schedules(l: u32, s: u32, ) -> Weight {
 		// Minimum execution time: 40_834 nanoseconds.
-		Weight::from_ref_time(40_051_044)
+		Weight::from_parts(40_051_044, 0)
 			// Standard Error: 1_874
-			.saturating_add(Weight::from_ref_time(61_045).saturating_mul(l.into()))
+			.saturating_add(Weight::from_parts(61_045, 0).saturating_mul(l.into()))
 			// Standard Error: 3_462
-			.saturating_add(Weight::from_ref_time(113_102).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(113_102, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}

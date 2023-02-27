@@ -48,7 +48,7 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 	// Storage: Auctions AuctionCounter (r:1 w:1)
 	fn new_auction() -> Weight {
 		// Minimum execution time: 18_809 nanoseconds.
-		Weight::from_ref_time(19_672_000)
+		Weight::from_parts(19_672_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -61,7 +61,7 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 	// Storage: System Account (r:1 w:1)
 	fn bid() -> Weight {
 		// Minimum execution time: 97_164 nanoseconds.
-		Weight::from_ref_time(101_731_000)
+		Weight::from_parts(101_731_000, 0)
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -79,7 +79,7 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 	// Storage: Registrar Paras (r:1 w:1)
 	fn on_initialize() -> Weight {
 		// Minimum execution time: 18_715_887 nanoseconds.
-		Weight::from_ref_time(19_146_918_000)
+		Weight::from_parts(19_146_918_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3688))
 			.saturating_add(T::DbWeight::get().writes(3683))
 	}
@@ -89,7 +89,7 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 	// Storage: Auctions AuctionInfo (r:0 w:1)
 	fn cancel_auction() -> Weight {
 		// Minimum execution time: 5_818_774 nanoseconds.
-		Weight::from_ref_time(5_962_283_000)
+		Weight::from_parts(5_962_283_000, 0)
 			.saturating_add(T::DbWeight::get().reads(73))
 			.saturating_add(T::DbWeight::get().writes(3673))
 	}

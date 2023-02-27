@@ -47,9 +47,9 @@ impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo
 	/// The range of component `s` is `[0, 51200]`.
 	fn process_upward_message(s: u32, ) -> Weight {
 		// Minimum execution time: 10_863 nanoseconds.
-		Weight::from_ref_time(2_547_047)
+		Weight::from_parts(2_547_047, 0)
 			// Standard Error: 16
-			.saturating_add(Weight::from_ref_time(2_339).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(2_339, 0).saturating_mul(s.into()))
 	}
 	// Storage: Ump NeedsDispatch (r:1 w:1)
 	// Storage: Ump NextDispatchRoundStartWith (r:1 w:1)
@@ -57,7 +57,7 @@ impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo
 	// Storage: Ump RelayDispatchQueueSize (r:0 w:1)
 	fn clean_ump_after_outgoing() -> Weight {
 		// Minimum execution time: 9_385 nanoseconds.
-		Weight::from_ref_time(9_784_000)
+		Weight::from_parts(9_784_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -65,7 +65,7 @@ impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo
 	// Storage: Ump CounterForOverweight (r:1 w:1)
 	fn service_overweight() -> Weight {
 		// Minimum execution time: 29_452 nanoseconds.
-		Weight::from_ref_time(31_140_000)
+		Weight::from_parts(31_140_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}

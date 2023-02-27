@@ -48,9 +48,9 @@ impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	/// The range of component `p` is `[1, 31]`.
 	fn proxy(p: u32, ) -> Weight {
 		// Minimum execution time: 20_611 nanoseconds.
-		Weight::from_ref_time(21_993_943)
+		Weight::from_parts(21_993_943, 0)
 			// Standard Error: 2_242
-			.saturating_add(Weight::from_ref_time(48_834).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(48_834, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 	}
 	// Storage: Proxy Proxies (r:1 w:0)
@@ -60,11 +60,11 @@ impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	/// The range of component `p` is `[1, 31]`.
 	fn proxy_announced(a: u32, p: u32, ) -> Weight {
 		// Minimum execution time: 39_883 nanoseconds.
-		Weight::from_ref_time(40_883_571)
+		Weight::from_parts(40_883_571, 0)
 			// Standard Error: 3_523
-			.saturating_add(Weight::from_ref_time(147_668).saturating_mul(a.into()))
+			.saturating_add(Weight::from_parts(147_668, 0).saturating_mul(a.into()))
 			// Standard Error: 3_640
-			.saturating_add(Weight::from_ref_time(46_388).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(46_388, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -74,11 +74,11 @@ impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	/// The range of component `p` is `[1, 31]`.
 	fn remove_announcement(a: u32, p: u32, ) -> Weight {
 		// Minimum execution time: 27_811 nanoseconds.
-		Weight::from_ref_time(29_632_960)
+		Weight::from_parts(29_632_960, 0)
 			// Standard Error: 2_730
-			.saturating_add(Weight::from_ref_time(120_711).saturating_mul(a.into()))
+			.saturating_add(Weight::from_parts(120_711, 0).saturating_mul(a.into()))
 			// Standard Error: 2_820
-			.saturating_add(Weight::from_ref_time(10_478).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(10_478, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -88,11 +88,11 @@ impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	/// The range of component `p` is `[1, 31]`.
 	fn reject_announcement(a: u32, p: u32, ) -> Weight {
 		// Minimum execution time: 28_051 nanoseconds.
-		Weight::from_ref_time(29_928_975)
+		Weight::from_parts(29_928_975, 0)
 			// Standard Error: 2_750
-			.saturating_add(Weight::from_ref_time(119_102).saturating_mul(a.into()))
+			.saturating_add(Weight::from_parts(119_102, 0).saturating_mul(a.into()))
 			// Standard Error: 2_841
-			.saturating_add(Weight::from_ref_time(2_233).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(2_233, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -103,11 +103,11 @@ impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	/// The range of component `p` is `[1, 31]`.
 	fn announce(a: u32, p: u32, ) -> Weight {
 		// Minimum execution time: 36_193 nanoseconds.
-		Weight::from_ref_time(38_162_314)
+		Weight::from_parts(38_162_314, 0)
 			// Standard Error: 2_756
-			.saturating_add(Weight::from_ref_time(124_559).saturating_mul(a.into()))
+			.saturating_add(Weight::from_parts(124_559, 0).saturating_mul(a.into()))
 			// Standard Error: 2_847
-			.saturating_add(Weight::from_ref_time(37_787).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(37_787, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -115,9 +115,9 @@ impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	/// The range of component `p` is `[1, 31]`.
 	fn add_proxy(p: u32, ) -> Weight {
 		// Minimum execution time: 29_819 nanoseconds.
-		Weight::from_ref_time(31_646_836)
+		Weight::from_parts(31_646_836, 0)
 			// Standard Error: 2_629
-			.saturating_add(Weight::from_ref_time(69_752).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(69_752, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -125,9 +125,9 @@ impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	/// The range of component `p` is `[1, 31]`.
 	fn remove_proxy(p: u32, ) -> Weight {
 		// Minimum execution time: 30_096 nanoseconds.
-		Weight::from_ref_time(31_657_583)
+		Weight::from_parts(31_657_583, 0)
 			// Standard Error: 2_641
-			.saturating_add(Weight::from_ref_time(74_552).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(74_552, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -135,9 +135,9 @@ impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	/// The range of component `p` is `[1, 31]`.
 	fn remove_proxies(p: u32, ) -> Weight {
 		// Minimum execution time: 26_013 nanoseconds.
-		Weight::from_ref_time(27_323_978)
+		Weight::from_parts(27_323_978, 0)
 			// Standard Error: 1_722
-			.saturating_add(Weight::from_ref_time(37_878).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(37_878, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -146,9 +146,9 @@ impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	/// The range of component `p` is `[1, 31]`.
 	fn create_pure(p: u32, ) -> Weight {
 		// Minimum execution time: 32_395 nanoseconds.
-		Weight::from_ref_time(34_072_271)
+		Weight::from_parts(34_072_271, 0)
 			// Standard Error: 2_410
-			.saturating_add(Weight::from_ref_time(16_526).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(16_526, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -156,9 +156,9 @@ impl<T: frame_system::Config> pallet_proxy::WeightInfo for WeightInfo<T> {
 	/// The range of component `p` is `[0, 30]`.
 	fn kill_pure(p: u32, ) -> Weight {
 		// Minimum execution time: 27_149 nanoseconds.
-		Weight::from_ref_time(28_629_950)
+		Weight::from_parts(28_629_950, 0)
 			// Standard Error: 2_634
-			.saturating_add(Weight::from_ref_time(29_904).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(29_904, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}

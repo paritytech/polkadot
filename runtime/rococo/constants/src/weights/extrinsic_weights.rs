@@ -52,7 +52,7 @@ parameter_types! {
 	///   95th: 90_430
 	///   75th: 89_588
 	pub const ExtrinsicBaseWeight: Weight =
-		Weight::from_ref_time(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(89_587));
+		Weight::from_parts(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(89_587), 0);
 }
 
 #[cfg(test)]

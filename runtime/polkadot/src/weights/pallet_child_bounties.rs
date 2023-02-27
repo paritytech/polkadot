@@ -63,10 +63,10 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 		//  Measured:  `609`
 		//  Estimated: `10848`
 		// Minimum execution time: 46_573 nanoseconds.
-		Weight::from_ref_time(47_710_036)
-			.saturating_add(Weight::from_proof_size(10848))
+		Weight::from_parts(47_710_036, 0)
+			.saturating_add(Weight::from_parts(0, 10848))
 			// Standard Error: 7
-			.saturating_add(Weight::from_ref_time(725).saturating_mul(d.into()))
+			.saturating_add(Weight::from_parts(725, 0).saturating_mul(d.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -81,8 +81,8 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 		//  Measured:  `663`
 		//  Estimated: `7775`
 		// Minimum execution time: 17_341 nanoseconds.
-		Weight::from_ref_time(17_661_000)
-			.saturating_add(Weight::from_proof_size(7775))
+		Weight::from_parts(17_661_000, 0)
+			.saturating_add(Weight::from_parts(0, 7775))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -97,8 +97,8 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 		//  Measured:  `841`
 		//  Estimated: `7875`
 		// Minimum execution time: 27_063 nanoseconds.
-		Weight::from_ref_time(27_498_000)
-			.saturating_add(Weight::from_proof_size(7875))
+		Weight::from_parts(27_498_000, 0)
+			.saturating_add(Weight::from_parts(0, 7875))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -113,8 +113,8 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 		//  Measured:  `841`
 		//  Estimated: `7875`
 		// Minimum execution time: 36_789 nanoseconds.
-		Weight::from_ref_time(37_469_000)
-			.saturating_add(Weight::from_proof_size(7875))
+		Weight::from_parts(37_469_000, 0)
+			.saturating_add(Weight::from_parts(0, 7875))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -127,8 +127,8 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 		//  Measured:  `706`
 		//  Estimated: `5272`
 		// Minimum execution time: 20_652 nanoseconds.
-		Weight::from_ref_time(21_136_000)
-			.saturating_add(Weight::from_proof_size(5272))
+		Weight::from_parts(21_136_000, 0)
+			.saturating_add(Weight::from_parts(0, 5272))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -145,8 +145,8 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 		//  Measured:  `744`
 		//  Estimated: `12920`
 		// Minimum execution time: 63_360 nanoseconds.
-		Weight::from_ref_time(63_883_000)
-			.saturating_add(Weight::from_proof_size(12920))
+		Weight::from_parts(63_883_000, 0)
+			.saturating_add(Weight::from_parts(0, 12920))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -167,8 +167,8 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 		//  Measured:  `973`
 		//  Estimated: `15472`
 		// Minimum execution time: 49_408 nanoseconds.
-		Weight::from_ref_time(50_703_000)
-			.saturating_add(Weight::from_proof_size(15472))
+		Weight::from_parts(50_703_000, 0)
+			.saturating_add(Weight::from_parts(0, 15472))
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -189,8 +189,8 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 		//  Measured:  `1192`
 		//  Estimated: `18075`
 		// Minimum execution time: 60_334 nanoseconds.
-		Weight::from_ref_time(62_054_000)
-			.saturating_add(Weight::from_proof_size(18075))
+		Weight::from_parts(62_054_000, 0)
+			.saturating_add(Weight::from_parts(0, 18075))
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(7))
 	}

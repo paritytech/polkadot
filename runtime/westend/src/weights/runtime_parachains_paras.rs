@@ -53,9 +53,9 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	/// The range of component `c` is `[1, 3145728]`.
 	fn force_set_current_code(c: u32, ) -> Weight {
 		// Minimum execution time: 38_090 nanoseconds.
-		Weight::from_ref_time(38_598_000)
+		Weight::from_parts(38_598_000, 0)
 			// Standard Error: 3
-			.saturating_add(Weight::from_ref_time(2_666).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(2_666, 0).saturating_mul(c.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -63,9 +63,9 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	/// The range of component `s` is `[1, 1048576]`.
 	fn force_set_current_head(s: u32, ) -> Weight {
 		// Minimum execution time: 14_296 nanoseconds.
-		Weight::from_ref_time(4_984_392)
+		Weight::from_parts(4_984_392, 0)
 			// Standard Error: 2
-			.saturating_add(Weight::from_ref_time(1_063).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(1_063, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	// Storage: Paras FutureCodeHash (r:1 w:1)
@@ -81,9 +81,9 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	/// The range of component `c` is `[1, 3145728]`.
 	fn force_schedule_code_upgrade(c: u32, ) -> Weight {
 		// Minimum execution time: 64_275 nanoseconds.
-		Weight::from_ref_time(5_873_402)
+		Weight::from_parts(5_873_402, 0)
 			// Standard Error: 2
-			.saturating_add(Weight::from_ref_time(2_702).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(2_702, 0).saturating_mul(c.into()))
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}
@@ -93,9 +93,9 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	/// The range of component `s` is `[1, 1048576]`.
 	fn force_note_new_head(s: u32, ) -> Weight {
 		// Minimum execution time: 20_002 nanoseconds.
-		Weight::from_ref_time(16_809_711)
+		Weight::from_parts(16_809_711, 0)
 			// Standard Error: 1
-			.saturating_add(Weight::from_ref_time(1_046).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(1_046, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -103,7 +103,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras ActionsQueue (r:1 w:1)
 	fn force_queue_action() -> Weight {
 		// Minimum execution time: 25_194 nanoseconds.
-		Weight::from_ref_time(25_638_000)
+		Weight::from_parts(25_638_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -112,9 +112,9 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	/// The range of component `c` is `[1, 3145728]`.
 	fn add_trusted_validation_code(c: u32, ) -> Weight {
 		// Minimum execution time: 9_271 nanoseconds.
-		Weight::from_ref_time(9_433_000)
+		Weight::from_parts(9_433_000, 0)
 			// Standard Error: 2
-			.saturating_add(Weight::from_ref_time(2_673).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(2_673, 0).saturating_mul(c.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -122,7 +122,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras CodeByHash (r:0 w:1)
 	fn poke_unused_validation_code() -> Weight {
 		// Minimum execution time: 7_600 nanoseconds.
-		Weight::from_ref_time(7_857_000)
+		Weight::from_parts(7_857_000, 0)
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -131,7 +131,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras PvfActiveVoteMap (r:1 w:1)
 	fn include_pvf_check_statement() -> Weight {
 		// Minimum execution time: 125_304 nanoseconds.
-		Weight::from_ref_time(134_007_000)
+		Weight::from_parts(134_007_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -144,7 +144,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras FutureCodeUpgrades (r:0 w:100)
 	fn include_pvf_check_statement_finalize_upgrade_accept() -> Weight {
 		// Minimum execution time: 811_926 nanoseconds.
-		Weight::from_ref_time(833_485_000)
+		Weight::from_parts(833_485_000, 0)
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes(104))
 	}
@@ -153,7 +153,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras PvfActiveVoteMap (r:1 w:1)
 	fn include_pvf_check_statement_finalize_upgrade_reject() -> Weight {
 		// Minimum execution time: 127_021 nanoseconds.
-		Weight::from_ref_time(132_480_000)
+		Weight::from_parts(132_480_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -164,7 +164,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras ActionsQueue (r:1 w:1)
 	fn include_pvf_check_statement_finalize_onboarding_accept() -> Weight {
 		// Minimum execution time: 638_553 nanoseconds.
-		Weight::from_ref_time(657_891_000)
+		Weight::from_parts(657_891_000, 0)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -173,7 +173,7 @@ impl<T: frame_system::Config> runtime_parachains::paras::WeightInfo for WeightIn
 	// Storage: Paras PvfActiveVoteMap (r:1 w:1)
 	fn include_pvf_check_statement_finalize_onboarding_reject() -> Weight {
 		// Minimum execution time: 122_237 nanoseconds.
-		Weight::from_ref_time(130_202_000)
+		Weight::from_parts(130_202_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}

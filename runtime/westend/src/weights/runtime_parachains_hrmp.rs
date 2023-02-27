@@ -54,7 +54,7 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	fn hrmp_init_open_channel() -> Weight {
 		// Minimum execution time: 44_758 nanoseconds.
-		Weight::from_ref_time(45_389_000)
+		Weight::from_parts(45_389_000, 0)
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -66,7 +66,7 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	fn hrmp_accept_open_channel() -> Weight {
 		// Minimum execution time: 44_016 nanoseconds.
-		Weight::from_ref_time(45_257_000)
+		Weight::from_parts(45_257_000, 0)
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -77,7 +77,7 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	fn hrmp_close_channel() -> Weight {
 		// Minimum execution time: 39_833 nanoseconds.
-		Weight::from_ref_time(41_031_000)
+		Weight::from_parts(41_031_000, 0)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -91,11 +91,11 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	/// The range of component `e` is `[0, 127]`.
 	fn force_clean_hrmp(i: u32, e: u32, ) -> Weight {
 		// Minimum execution time: 1_069_994 nanoseconds.
-		Weight::from_ref_time(1_077_474_000)
+		Weight::from_parts(1_077_474_000, 0)
 			// Standard Error: 100_039
-			.saturating_add(Weight::from_ref_time(3_329_744).saturating_mul(i.into()))
+			.saturating_add(Weight::from_parts(3_329_744, 0).saturating_mul(i.into()))
 			// Standard Error: 100_039
-			.saturating_add(Weight::from_ref_time(3_319_499).saturating_mul(e.into()))
+			.saturating_add(Weight::from_parts(3_319_499, 0).saturating_mul(e.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().reads((2_u64).saturating_mul(i.into())))
 			.saturating_add(T::DbWeight::get().reads((2_u64).saturating_mul(e.into())))
@@ -114,9 +114,9 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	/// The range of component `c` is `[0, 128]`.
 	fn force_process_hrmp_open(c: u32, ) -> Weight {
 		// Minimum execution time: 11_011 nanoseconds.
-		Weight::from_ref_time(11_210_000)
+		Weight::from_parts(11_210_000, 0)
 			// Standard Error: 10_892
-			.saturating_add(Weight::from_ref_time(18_988_029).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(18_988_029, 0).saturating_mul(c.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().reads((7_u64).saturating_mul(c.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -131,9 +131,9 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	/// The range of component `c` is `[0, 128]`.
 	fn force_process_hrmp_close(c: u32, ) -> Weight {
 		// Minimum execution time: 7_063 nanoseconds.
-		Weight::from_ref_time(1_086_025)
+		Weight::from_parts(1_086_025, 0)
 			// Standard Error: 11_522
-			.saturating_add(Weight::from_ref_time(11_790_425).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(11_790_425, 0).saturating_mul(c.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().reads((3_u64).saturating_mul(c.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -145,9 +145,9 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	/// The range of component `c` is `[0, 128]`.
 	fn hrmp_cancel_open_request(c: u32, ) -> Weight {
 		// Minimum execution time: 26_364 nanoseconds.
-		Weight::from_ref_time(35_855_385)
+		Weight::from_parts(35_855_385, 0)
 			// Standard Error: 2_773
-			.saturating_add(Weight::from_ref_time(218_705).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(218_705, 0).saturating_mul(c.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -156,9 +156,9 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	/// The range of component `c` is `[0, 128]`.
 	fn clean_open_channel_requests(c: u32, ) -> Weight {
 		// Minimum execution time: 5_105 nanoseconds.
-		Weight::from_ref_time(390_771)
+		Weight::from_parts(390_771, 0)
 			// Standard Error: 4_747
-			.saturating_add(Weight::from_ref_time(3_278_499).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(3_278_499, 0).saturating_mul(c.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(c.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -176,7 +176,7 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 	// Storage: Hrmp HrmpAcceptedChannelRequestCount (r:1 w:1)
 	fn force_open_hrmp_channel() -> Weight {
 		// Minimum execution time: 57_630 nanoseconds.
-		Weight::from_ref_time(59_011_000)
+		Weight::from_parts(59_011_000, 0)
 			.saturating_add(T::DbWeight::get().reads(13))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}

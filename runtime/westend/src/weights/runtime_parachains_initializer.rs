@@ -48,9 +48,9 @@ impl<T: frame_system::Config> runtime_parachains::initializer::WeightInfo for We
 	/// The range of component `d` is `[0, 65536]`.
 	fn force_approve(d: u32, ) -> Weight {
 		// Minimum execution time: 8_646 nanoseconds.
-		Weight::from_ref_time(8_762_000)
+		Weight::from_parts(8_762_000, 0)
 			// Standard Error: 20
-			.saturating_add(Weight::from_ref_time(2_851).saturating_mul(d.into()))
+			.saturating_add(Weight::from_parts(2_851, 0).saturating_mul(d.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}

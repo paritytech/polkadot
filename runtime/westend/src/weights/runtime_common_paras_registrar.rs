@@ -49,7 +49,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Paras ParaLifecycles (r:1 w:0)
 	fn reserve() -> Weight {
 		// Minimum execution time: 34_291 nanoseconds.
-		Weight::from_ref_time(35_169_000)
+		Weight::from_parts(35_169_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -64,7 +64,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Paras UpcomingParasGenesis (r:0 w:1)
 	fn register() -> Weight {
 		// Minimum execution time: 8_013_023 nanoseconds.
-		Weight::from_ref_time(8_293_565_000)
+		Weight::from_parts(8_293_565_000, 0)
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(7))
 	}
@@ -79,7 +79,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Paras UpcomingParasGenesis (r:0 w:1)
 	fn force_register() -> Weight {
 		// Minimum execution time: 7_800_623 nanoseconds.
-		Weight::from_ref_time(8_122_517_000)
+		Weight::from_parts(8_122_517_000, 0)
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(7))
 	}
@@ -91,7 +91,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Registrar PendingSwap (r:0 w:1)
 	fn deregister() -> Weight {
 		// Minimum execution time: 62_973 nanoseconds.
-		Weight::from_ref_time(68_158_000)
+		Weight::from_parts(68_158_000, 0)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -104,7 +104,7 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	// Storage: Slots Leases (r:2 w:2)
 	fn swap() -> Weight {
 		// Minimum execution time: 59_960 nanoseconds.
-		Weight::from_ref_time(66_150_000)
+		Weight::from_parts(66_150_000, 0)
 			.saturating_add(T::DbWeight::get().reads(10))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}
@@ -121,9 +121,9 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	/// The range of component `b` is `[1, 3145728]`.
 	fn schedule_code_upgrade(b: u32, ) -> Weight {
 		// Minimum execution time: 46_384 nanoseconds.
-		Weight::from_ref_time(47_270_000)
+		Weight::from_parts(47_270_000, 0)
 			// Standard Error: 4
-			.saturating_add(Weight::from_ref_time(2_696).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(2_696, 0).saturating_mul(b.into()))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}
@@ -131,9 +131,9 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 	/// The range of component `b` is `[1, 1048576]`.
 	fn set_current_head(b: u32, ) -> Weight {
 		// Minimum execution time: 14_753 nanoseconds.
-		Weight::from_ref_time(14_372_398)
+		Weight::from_parts(14_372_398, 0)
 			// Standard Error: 1
-			.saturating_add(Weight::from_ref_time(1_024).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(1_024, 0).saturating_mul(b.into()))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 }

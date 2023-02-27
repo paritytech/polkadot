@@ -50,7 +50,7 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: Crowdloan NextFundIndex (r:1 w:1)
 	fn create() -> Weight {
 		// Minimum execution time: 72_148 nanoseconds.
-		Weight::from_ref_time(76_111_000)
+		Weight::from_parts(76_111_000, 0)
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -64,7 +64,7 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: unknown [0xd861ea1ebf4800d4b89f4ff787ad79ee96d9a708c85b57da7eb8f9ddeda61291] (r:1 w:1)
 	fn contribute() -> Weight {
 		// Minimum execution time: 156_487 nanoseconds.
-		Weight::from_ref_time(168_788_000)
+		Weight::from_parts(168_788_000, 0)
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -74,7 +74,7 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: unknown [0xc85982571aa615c788ef9b2c16f54f25773fd439e8ee1ed2aa3ae43d48e880f0] (r:1 w:1)
 	fn withdraw() -> Weight {
 		// Minimum execution time: 80_510 nanoseconds.
-		Weight::from_ref_time(84_823_000)
+		Weight::from_parts(84_823_000, 0)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -82,9 +82,9 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	/// The range of component `k` is `[0, 500]`.
 	fn refund(k: u32, ) -> Weight {
 		// Minimum execution time: 76_619 nanoseconds.
-		Weight::from_ref_time(26_853_164)
+		Weight::from_parts(26_853_164, 0)
 			// Standard Error: 15_512
-			.saturating_add(Weight::from_ref_time(22_564_390).saturating_mul(k.into()))
+			.saturating_add(Weight::from_parts(22_564_390, 0).saturating_mul(k.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().reads((2_u64).saturating_mul(k.into())))
 			.saturating_add(T::DbWeight::get().writes(3))
@@ -94,14 +94,14 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: System Account (r:1 w:1)
 	fn dissolve() -> Weight {
 		// Minimum execution time: 50_520 nanoseconds.
-		Weight::from_ref_time(55_019_000)
+		Weight::from_parts(55_019_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
 	// Storage: Crowdloan Funds (r:1 w:1)
 	fn edit() -> Weight {
 		// Minimum execution time: 38_580 nanoseconds.
-		Weight::from_ref_time(42_137_000)
+		Weight::from_parts(42_137_000, 0)
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -109,7 +109,7 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: unknown [0xd861ea1ebf4800d4b89f4ff787ad79ee96d9a708c85b57da7eb8f9ddeda61291] (r:1 w:1)
 	fn add_memo() -> Weight {
 		// Minimum execution time: 49_364 nanoseconds.
-		Weight::from_ref_time(53_683_000)
+		Weight::from_parts(53_683_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -117,7 +117,7 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	// Storage: Crowdloan NewRaise (r:1 w:1)
 	fn poke() -> Weight {
 		// Minimum execution time: 37_979 nanoseconds.
-		Weight::from_ref_time(40_397_000)
+		Weight::from_parts(40_397_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -134,9 +134,9 @@ impl<T: frame_system::Config> runtime_common::crowdloan::WeightInfo for WeightIn
 	/// The range of component `n` is `[2, 100]`.
 	fn on_initialize(n: u32, ) -> Weight {
 		// Minimum execution time: 131_992 nanoseconds.
-		Weight::from_ref_time(44_527_784)
+		Weight::from_parts(44_527_784, 0)
 			// Standard Error: 54_125
-			.saturating_add(Weight::from_ref_time(48_555_553).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(48_555_553, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().reads((5_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(3))

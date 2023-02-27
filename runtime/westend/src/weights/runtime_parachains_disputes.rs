@@ -47,7 +47,7 @@ impl<T: frame_system::Config> runtime_parachains::disputes::WeightInfo for Weigh
 	// Storage: ParasDisputes Frozen (r:0 w:1)
 	fn force_unfreeze() -> Weight {
 		// Minimum execution time: 4_453 nanoseconds.
-		Weight::from_ref_time(4_845_000)
+		Weight::from_parts(4_845_000, 0)
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 }

@@ -79,9 +79,9 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	/// The range of component `v` is `[10, 200]`.
 	fn enter_variable_disputes(v: u32, ) -> Weight {
 		// Minimum execution time: 1_002_512 nanoseconds.
-		Weight::from_ref_time(454_827_518)
+		Weight::from_parts(454_827_518, 0)
 			// Standard Error: 15_344
-			.saturating_add(Weight::from_ref_time(57_070_679).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(57_070_679, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().reads(27))
 			.saturating_add(T::DbWeight::get().writes(16))
 	}
@@ -117,7 +117,7 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	fn enter_bitfields() -> Weight {
 		// Minimum execution time: 464_245 nanoseconds.
-		Weight::from_ref_time(495_566_000)
+		Weight::from_parts(495_566_000, 0)
 			.saturating_add(T::DbWeight::get().reads(26))
 			.saturating_add(T::DbWeight::get().writes(17))
 	}
@@ -155,9 +155,9 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	/// The range of component `v` is `[101, 200]`.
 	fn enter_backed_candidates_variable(v: u32, ) -> Weight {
 		// Minimum execution time: 6_765_662 nanoseconds.
-		Weight::from_ref_time(1_144_270_364)
+		Weight::from_parts(1_144_270_364, 0)
 			// Standard Error: 24_331
-			.saturating_add(Weight::from_ref_time(56_243_191).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(56_243_191, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().reads(29))
 			.saturating_add(T::DbWeight::get().writes(16))
 	}
@@ -196,7 +196,7 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	fn enter_backed_candidate_code_upgrade() -> Weight {
 		// Minimum execution time: 46_830_584 nanoseconds.
-		Weight::from_ref_time(47_913_075_000)
+		Weight::from_parts(47_913_075_000, 0)
 			.saturating_add(T::DbWeight::get().reads(31))
 			.saturating_add(T::DbWeight::get().writes(16))
 	}

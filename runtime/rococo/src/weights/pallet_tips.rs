@@ -55,10 +55,10 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 		//  Measured:  `4`
 		//  Estimated: `4958`
 		// Minimum execution time: 21_346 nanoseconds.
-		Weight::from_ref_time(22_419_409)
-			.saturating_add(Weight::from_proof_size(4958))
+		Weight::from_parts(22_419_409, 0)
+			.saturating_add(Weight::from_parts(0, 4958))
 			// Standard Error: 4
-			.saturating_add(Weight::from_ref_time(1_802).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(1_802, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -71,8 +71,8 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 		//  Measured:  `253`
 		//  Estimated: `2981`
 		// Minimum execution time: 21_124 nanoseconds.
-		Weight::from_ref_time(21_611_000)
-			.saturating_add(Weight::from_proof_size(2981))
+		Weight::from_parts(21_611_000, 0)
+			.saturating_add(Weight::from_parts(0, 2981))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -89,15 +89,15 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 		//  Measured:  `106 + t * (64 ±0)`
 		//  Estimated: `3288 + t * (192 ±0)`
 		// Minimum execution time: 18_905 nanoseconds.
-		Weight::from_ref_time(17_679_692)
-			.saturating_add(Weight::from_proof_size(3288))
+		Weight::from_parts(17_679_692, 0)
+			.saturating_add(Weight::from_parts(0, 3288))
 			// Standard Error: 6
-			.saturating_add(Weight::from_ref_time(1_687).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(1_687, 0).saturating_mul(r.into()))
 			// Standard Error: 5_551
-			.saturating_add(Weight::from_ref_time(117_206).saturating_mul(t.into()))
+			.saturating_add(Weight::from_parts(117_206, 0).saturating_mul(t.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
-			.saturating_add(Weight::from_proof_size(192).saturating_mul(t.into()))
+			.saturating_add(Weight::from_parts(0, 192).saturating_mul(t.into()))
 	}
 	/// Storage: PhragmenElection Members (r:1 w:0)
 	/// Proof Skipped: PhragmenElection Members (max_values: Some(1), max_size: None, mode: Measured)
@@ -109,13 +109,13 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 		//  Measured:  `359 + t * (112 ±0)`
 		//  Estimated: `3688 + t * (224 ±0)`
 		// Minimum execution time: 14_034 nanoseconds.
-		Weight::from_ref_time(14_659_563)
-			.saturating_add(Weight::from_proof_size(3688))
+		Weight::from_parts(14_659_563, 0)
+			.saturating_add(Weight::from_parts(0, 3688))
 			// Standard Error: 1_435
-			.saturating_add(Weight::from_ref_time(137_685).saturating_mul(t.into()))
+			.saturating_add(Weight::from_parts(137_685, 0).saturating_mul(t.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
-			.saturating_add(Weight::from_proof_size(224).saturating_mul(t.into()))
+			.saturating_add(Weight::from_parts(0, 224).saturating_mul(t.into()))
 	}
 	/// Storage: Tips Tips (r:1 w:1)
 	/// Proof Skipped: Tips Tips (max_values: None, max_size: None, mode: Measured)
@@ -131,13 +131,13 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 		//  Measured:  `398 + t * (112 ±0)`
 		//  Estimated: `6740 + t * (336 ±0)`
 		// Minimum execution time: 39_378 nanoseconds.
-		Weight::from_ref_time(40_903_902)
-			.saturating_add(Weight::from_proof_size(6740))
+		Weight::from_parts(40_903_902, 0)
+			.saturating_add(Weight::from_parts(0, 6740))
 			// Standard Error: 4_890
-			.saturating_add(Weight::from_ref_time(127_148).saturating_mul(t.into()))
+			.saturating_add(Weight::from_parts(127_148, 0).saturating_mul(t.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
-			.saturating_add(Weight::from_proof_size(336).saturating_mul(t.into()))
+			.saturating_add(Weight::from_parts(0, 336).saturating_mul(t.into()))
 	}
 	/// Storage: Tips Tips (r:1 w:1)
 	/// Proof Skipped: Tips Tips (max_values: None, max_size: None, mode: Measured)
@@ -149,10 +149,10 @@ impl<T: frame_system::Config> pallet_tips::WeightInfo for WeightInfo<T> {
 		//  Measured:  `301`
 		//  Estimated: `3077`
 		// Minimum execution time: 14_080 nanoseconds.
-		Weight::from_ref_time(14_660_927)
-			.saturating_add(Weight::from_proof_size(3077))
+		Weight::from_parts(14_660_927, 0)
+			.saturating_add(Weight::from_parts(0, 3077))
 			// Standard Error: 1_257
-			.saturating_add(Weight::from_ref_time(4_596).saturating_mul(t.into()))
+			.saturating_add(Weight::from_parts(4_596, 0).saturating_mul(t.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}

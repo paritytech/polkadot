@@ -51,63 +51,63 @@ impl<T: frame_system::Config> pallet_child_bounties::WeightInfo for WeightInfo<T
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn propose_curator() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn accept_curator() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn unassign_curator() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn award_child_bounty() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn claim_child_bounty() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn close_child_bounty_added() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn close_child_bounty_active() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 }

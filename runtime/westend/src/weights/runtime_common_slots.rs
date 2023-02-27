@@ -48,7 +48,7 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 	// Storage: System Account (r:1 w:1)
 	fn force_lease() -> Weight {
 		// Minimum execution time: 33_866 nanoseconds.
-		Weight::from_ref_time(34_857_000)
+		Weight::from_parts(34_857_000, 0)
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -62,11 +62,11 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 	/// The range of component `t` is `[0, 100]`.
 	fn manage_lease_period_start(c: u32, t: u32, ) -> Weight {
 		// Minimum execution time: 669_275 nanoseconds.
-		Weight::from_ref_time(677_390_000)
+		Weight::from_parts(677_390_000, 0)
 			// Standard Error: 81_554
-			.saturating_add(Weight::from_ref_time(2_774_748).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(2_774_748, 0).saturating_mul(c.into()))
 			// Standard Error: 81_554
-			.saturating_add(Weight::from_ref_time(15_978_870).saturating_mul(t.into()))
+			.saturating_add(Weight::from_parts(15_978_870, 0).saturating_mul(t.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(c.into())))
 			.saturating_add(T::DbWeight::get().reads((3_u64).saturating_mul(t.into())))
@@ -78,7 +78,7 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 	// Storage: System Account (r:8 w:8)
 	fn clear_all_leases() -> Weight {
 		// Minimum execution time: 123_998 nanoseconds.
-		Weight::from_ref_time(131_162_000)
+		Weight::from_parts(131_162_000, 0)
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(9))
 	}
@@ -89,7 +89,7 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 	// Storage: Registrar Paras (r:1 w:1)
 	fn trigger_onboard() -> Weight {
 		// Minimum execution time: 43_235 nanoseconds.
-		Weight::from_ref_time(46_143_000)
+		Weight::from_parts(46_143_000, 0)
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}

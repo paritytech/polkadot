@@ -59,9 +59,9 @@ impl<T: frame_system::Config> runtime_parachains::disputes::slashing::WeightInfo
 	/// The range of component `n` is `[4, 300]`.
 	fn report_dispute_lost(n: u32, ) -> Weight {
 		// Minimum execution time: 112_012 nanoseconds.
-		Weight::from_ref_time(129_548_015)
+		Weight::from_parts(129_548_015, 0)
 			// Standard Error: 4_303
-			.saturating_add(Weight::from_ref_time(386_999).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(386_999, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(12))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}

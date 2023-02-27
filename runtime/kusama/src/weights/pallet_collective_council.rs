@@ -64,18 +64,18 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0 + m * (3233 ±0) + p * (3223 ±0)`
 		//  Estimated: `16322 + m * (7809 ±16) + p * (10238 ±16)`
 		// Minimum execution time: 15_982 nanoseconds.
-		Weight::from_ref_time(16_149_000)
-			.saturating_add(Weight::from_proof_size(16322))
+		Weight::from_parts(16_149_000, 0)
+			.saturating_add(Weight::from_parts(0, 16322))
 			// Standard Error: 48_046
-			.saturating_add(Weight::from_ref_time(5_473_996).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(5_473_996, 0).saturating_mul(m.into()))
 			// Standard Error: 48_046
-			.saturating_add(Weight::from_ref_time(7_914_849).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(7_914_849, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(p.into())))
 			.saturating_add(T::DbWeight::get().writes(2))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(p.into())))
-			.saturating_add(Weight::from_proof_size(7809).saturating_mul(m.into()))
-			.saturating_add(Weight::from_proof_size(10238).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(0, 7809).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(0, 10238).saturating_mul(p.into()))
 	}
 	/// Storage: Council Members (r:1 w:0)
 	/// Proof Skipped: Council Members (max_values: Some(1), max_size: None, mode: Measured)
@@ -88,14 +88,14 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		//  Measured:  `168 + m * (32 ±0)`
 		//  Estimated: `664 + m * (32 ±0)`
 		// Minimum execution time: 14_779 nanoseconds.
-		Weight::from_ref_time(13_911_153)
-			.saturating_add(Weight::from_proof_size(664))
+		Weight::from_parts(13_911_153, 0)
+			.saturating_add(Weight::from_parts(0, 664))
 			// Standard Error: 18
-			.saturating_add(Weight::from_ref_time(1_722).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(1_722, 0).saturating_mul(b.into()))
 			// Standard Error: 194
-			.saturating_add(Weight::from_ref_time(16_113).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(16_113, 0).saturating_mul(m.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
-			.saturating_add(Weight::from_proof_size(32).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(0, 32).saturating_mul(m.into()))
 	}
 	/// Storage: Council Members (r:1 w:0)
 	/// Proof Skipped: Council Members (max_values: Some(1), max_size: None, mode: Measured)
@@ -110,14 +110,14 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		//  Measured:  `168 + m * (32 ±0)`
 		//  Estimated: `3308 + m * (64 ±0)`
 		// Minimum execution time: 17_349 nanoseconds.
-		Weight::from_ref_time(16_113_673)
-			.saturating_add(Weight::from_proof_size(3308))
+		Weight::from_parts(16_113_673, 0)
+			.saturating_add(Weight::from_parts(0, 3308))
 			// Standard Error: 22
-			.saturating_add(Weight::from_ref_time(1_794).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(1_794, 0).saturating_mul(b.into()))
 			// Standard Error: 231
-			.saturating_add(Weight::from_ref_time(25_859).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(25_859, 0).saturating_mul(m.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
-			.saturating_add(Weight::from_proof_size(64).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(0, 64).saturating_mul(m.into()))
 	}
 	/// Storage: Council Members (r:1 w:0)
 	/// Proof Skipped: Council Members (max_values: Some(1), max_size: None, mode: Measured)
@@ -140,18 +140,18 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		//  Measured:  `490 + m * (32 ±0) + p * (36 ±0)`
 		//  Estimated: `6025 + m * (165 ±0) + p * (180 ±0)`
 		// Minimum execution time: 22_245 nanoseconds.
-		Weight::from_ref_time(22_665_027)
-			.saturating_add(Weight::from_proof_size(6025))
+		Weight::from_parts(22_665_027, 0)
+			.saturating_add(Weight::from_parts(0, 6025))
 			// Standard Error: 48
-			.saturating_add(Weight::from_ref_time(2_822).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(2_822, 0).saturating_mul(b.into()))
 			// Standard Error: 501
-			.saturating_add(Weight::from_ref_time(17_282).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(17_282, 0).saturating_mul(m.into()))
 			// Standard Error: 495
-			.saturating_add(Weight::from_ref_time(95_897).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(95_897, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(4))
-			.saturating_add(Weight::from_proof_size(165).saturating_mul(m.into()))
-			.saturating_add(Weight::from_proof_size(180).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(0, 165).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(0, 180).saturating_mul(p.into()))
 	}
 	/// Storage: Council Members (r:1 w:0)
 	/// Proof Skipped: Council Members (max_values: Some(1), max_size: None, mode: Measured)
@@ -164,13 +164,13 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		//  Measured:  `940 + m * (64 ±0)`
 		//  Estimated: `4848 + m * (128 ±0)`
 		// Minimum execution time: 20_105 nanoseconds.
-		Weight::from_ref_time(20_545_471)
-			.saturating_add(Weight::from_proof_size(4848))
+		Weight::from_parts(20_545_471, 0)
+			.saturating_add(Weight::from_parts(0, 4848))
 			// Standard Error: 737
-			.saturating_add(Weight::from_ref_time(49_541).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(49_541, 0).saturating_mul(m.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
-			.saturating_add(Weight::from_proof_size(128).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(0, 128).saturating_mul(m.into()))
 	}
 	/// Storage: Council Voting (r:1 w:1)
 	/// Proof Skipped: Council Voting (max_values: None, max_size: None, mode: Measured)
@@ -189,16 +189,16 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		//  Measured:  `560 + m * (64 ±0) + p * (36 ±0)`
 		//  Estimated: `5629 + m * (260 ±0) + p * (144 ±0)`
 		// Minimum execution time: 24_515 nanoseconds.
-		Weight::from_ref_time(26_016_776)
-			.saturating_add(Weight::from_proof_size(5629))
+		Weight::from_parts(26_016_776, 0)
+			.saturating_add(Weight::from_parts(0, 5629))
 			// Standard Error: 841
-			.saturating_add(Weight::from_ref_time(9_082).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(9_082, 0).saturating_mul(m.into()))
 			// Standard Error: 820
-			.saturating_add(Weight::from_ref_time(114_701).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(114_701, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
-			.saturating_add(Weight::from_proof_size(260).saturating_mul(m.into()))
-			.saturating_add(Weight::from_proof_size(144).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(0, 260).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(0, 144).saturating_mul(p.into()))
 	}
 	/// Storage: Council Voting (r:1 w:1)
 	/// Proof Skipped: Council Voting (max_values: None, max_size: None, mode: Measured)
@@ -219,19 +219,19 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		//  Measured:  `896 + b * (1 ±0) + m * (64 ±0) + p * (40 ±0)`
 		//  Estimated: `8900 + b * (4 ±0) + m * (264 ±0) + p * (160 ±0)`
 		// Minimum execution time: 34_779 nanoseconds.
-		Weight::from_ref_time(38_037_892)
-			.saturating_add(Weight::from_proof_size(8900))
+		Weight::from_parts(38_037_892, 0)
+			.saturating_add(Weight::from_parts(0, 8900))
 			// Standard Error: 66
-			.saturating_add(Weight::from_ref_time(1_917).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(1_917, 0).saturating_mul(b.into()))
 			// Standard Error: 706
-			.saturating_add(Weight::from_ref_time(15_325).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(15_325, 0).saturating_mul(m.into()))
 			// Standard Error: 688
-			.saturating_add(Weight::from_ref_time(108_416).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(108_416, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(3))
-			.saturating_add(Weight::from_proof_size(4).saturating_mul(b.into()))
-			.saturating_add(Weight::from_proof_size(264).saturating_mul(m.into()))
-			.saturating_add(Weight::from_proof_size(160).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(0, 4).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(0, 264).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(0, 160).saturating_mul(p.into()))
 	}
 	/// Storage: Council Voting (r:1 w:1)
 	/// Proof Skipped: Council Voting (max_values: None, max_size: None, mode: Measured)
@@ -252,16 +252,16 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		//  Measured:  `580 + m * (64 ±0) + p * (36 ±0)`
 		//  Estimated: `6765 + m * (325 ±0) + p * (180 ±0)`
 		// Minimum execution time: 27_246 nanoseconds.
-		Weight::from_ref_time(28_726_731)
-			.saturating_add(Weight::from_proof_size(6765))
+		Weight::from_parts(28_726_731, 0)
+			.saturating_add(Weight::from_parts(0, 6765))
 			// Standard Error: 855
-			.saturating_add(Weight::from_ref_time(29_438).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(29_438, 0).saturating_mul(m.into()))
 			// Standard Error: 834
-			.saturating_add(Weight::from_ref_time(105_832).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(105_832, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(3))
-			.saturating_add(Weight::from_proof_size(325).saturating_mul(m.into()))
-			.saturating_add(Weight::from_proof_size(180).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(0, 325).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(0, 180).saturating_mul(p.into()))
 	}
 	/// Storage: Council Voting (r:1 w:1)
 	/// Proof Skipped: Council Voting (max_values: None, max_size: None, mode: Measured)
@@ -284,19 +284,19 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		//  Measured:  `916 + b * (1 ±0) + m * (64 ±0) + p * (40 ±0)`
 		//  Estimated: `10235 + b * (5 ±0) + m * (330 ±0) + p * (200 ±0)`
 		// Minimum execution time: 40_211 nanoseconds.
-		Weight::from_ref_time(41_064_837)
-			.saturating_add(Weight::from_proof_size(10235))
+		Weight::from_parts(41_064_837, 0)
+			.saturating_add(Weight::from_parts(0, 10235))
 			// Standard Error: 60
-			.saturating_add(Weight::from_ref_time(1_910).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(1_910, 0).saturating_mul(b.into()))
 			// Standard Error: 643
-			.saturating_add(Weight::from_ref_time(15_864).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(15_864, 0).saturating_mul(m.into()))
 			// Standard Error: 627
-			.saturating_add(Weight::from_ref_time(107_526).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(107_526, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(3))
-			.saturating_add(Weight::from_proof_size(5).saturating_mul(b.into()))
-			.saturating_add(Weight::from_proof_size(330).saturating_mul(m.into()))
-			.saturating_add(Weight::from_proof_size(200).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(0, 5).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(0, 330).saturating_mul(m.into()))
+			.saturating_add(Weight::from_parts(0, 200).saturating_mul(p.into()))
 	}
 	/// Storage: Council Proposals (r:1 w:1)
 	/// Proof Skipped: Council Proposals (max_values: Some(1), max_size: None, mode: Measured)
@@ -311,12 +311,12 @@ impl<T: frame_system::Config> pallet_collective::WeightInfo for WeightInfo<T> {
 		//  Measured:  `325 + p * (32 ±0)`
 		//  Estimated: `1470 + p * (96 ±0)`
 		// Minimum execution time: 13_506 nanoseconds.
-		Weight::from_ref_time(15_355_734)
-			.saturating_add(Weight::from_proof_size(1470))
+		Weight::from_parts(15_355_734, 0)
+			.saturating_add(Weight::from_parts(0, 1470))
 			// Standard Error: 440
-			.saturating_add(Weight::from_ref_time(83_215).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(83_215, 0).saturating_mul(p.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(3))
-			.saturating_add(Weight::from_proof_size(96).saturating_mul(p.into()))
+			.saturating_add(Weight::from_parts(0, 96).saturating_mul(p.into()))
 	}
 }

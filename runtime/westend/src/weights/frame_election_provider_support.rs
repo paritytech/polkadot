@@ -49,21 +49,21 @@ impl<T: frame_system::Config> frame_election_provider_support::WeightInfo for We
 	/// The range of component `d` is `[5, 16]`.
 	fn phragmen(v: u32, _t: u32, d: u32, ) -> Weight {
 		// Minimum execution time: 5_743_124 nanoseconds.
-		Weight::from_ref_time(5_792_819_000)
+		Weight::from_parts(5_792_819_000, 0)
 			// Standard Error: 138_395
-			.saturating_add(Weight::from_ref_time(5_680_397).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(5_680_397, 0).saturating_mul(v.into()))
 			// Standard Error: 14_149_036
-			.saturating_add(Weight::from_ref_time(1_496_025_833).saturating_mul(d.into()))
+			.saturating_add(Weight::from_parts(1_496_025_833, 0).saturating_mul(d.into()))
 	}
 	/// The range of component `v` is `[1000, 2000]`.
 	/// The range of component `t` is `[500, 1000]`.
 	/// The range of component `d` is `[5, 16]`.
 	fn phragmms(v: u32, _t: u32, d: u32, ) -> Weight {
 		// Minimum execution time: 4_096_862 nanoseconds.
-		Weight::from_ref_time(4_145_331_000)
+		Weight::from_parts(4_145_331_000, 0)
 			// Standard Error: 125_858
-			.saturating_add(Weight::from_ref_time(4_831_715).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(4_831_715, 0).saturating_mul(v.into()))
 			// Standard Error: 12_867_350
-			.saturating_add(Weight::from_ref_time(1_470_365_686).saturating_mul(d.into()))
+			.saturating_add(Weight::from_parts(1_470_365_686, 0).saturating_mul(d.into()))
 	}
 }

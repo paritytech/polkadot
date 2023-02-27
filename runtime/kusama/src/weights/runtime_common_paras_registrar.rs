@@ -56,8 +56,8 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 		//  Measured:  `70`
 		//  Estimated: `5655`
 		// Minimum execution time: 23_044 nanoseconds.
-		Weight::from_ref_time(23_564_000)
-			.saturating_add(Weight::from_proof_size(5655))
+		Weight::from_parts(23_564_000, 0)
+			.saturating_add(Weight::from_parts(0, 5655))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -84,8 +84,8 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 		//  Measured:  `302`
 		//  Estimated: `18063`
 		// Minimum execution time: 7_575_920 nanoseconds.
-		Weight::from_ref_time(7_702_605_000)
-			.saturating_add(Weight::from_proof_size(18063))
+		Weight::from_parts(7_702_605_000, 0)
+			.saturating_add(Weight::from_parts(0, 18063))
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(7))
 	}
@@ -112,8 +112,8 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 		//  Measured:  `160`
 		//  Estimated: `16785`
 		// Minimum execution time: 7_593_602 nanoseconds.
-		Weight::from_ref_time(7_729_768_000)
-			.saturating_add(Weight::from_proof_size(16785))
+		Weight::from_parts(7_729_768_000, 0)
+			.saturating_add(Weight::from_parts(0, 16785))
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(7))
 	}
@@ -134,8 +134,8 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 		//  Measured:  `467`
 		//  Estimated: `13197`
 		// Minimum execution time: 37_217 nanoseconds.
-		Weight::from_ref_time(38_162_000)
-			.saturating_add(Weight::from_proof_size(13197))
+		Weight::from_parts(38_162_000, 0)
+			.saturating_add(Weight::from_parts(0, 13197))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -158,8 +158,8 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 		//  Measured:  `707`
 		//  Estimated: `27719`
 		// Minimum execution time: 43_960 nanoseconds.
-		Weight::from_ref_time(47_759_000)
-			.saturating_add(Weight::from_proof_size(27719))
+		Weight::from_parts(47_759_000, 0)
+			.saturating_add(Weight::from_parts(0, 27719))
 			.saturating_add(T::DbWeight::get().reads(10))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}
@@ -189,10 +189,10 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 		//  Measured:  `28`
 		//  Estimated: `16615`
 		// Minimum execution time: 34_177 nanoseconds.
-		Weight::from_ref_time(34_383_000)
-			.saturating_add(Weight::from_proof_size(16615))
+		Weight::from_parts(34_383_000, 0)
+			.saturating_add(Weight::from_parts(0, 16615))
 			// Standard Error: 1
-			.saturating_add(Weight::from_ref_time(2_391).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(2_391, 0).saturating_mul(b.into()))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}
@@ -204,10 +204,10 @@ impl<T: frame_system::Config> runtime_common::paras_registrar::WeightInfo for We
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 8_030 nanoseconds.
-		Weight::from_ref_time(8_147_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(8_147_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			// Standard Error: 2
-			.saturating_add(Weight::from_ref_time(970).saturating_mul(b.into()))
+			.saturating_add(Weight::from_parts(970, 0).saturating_mul(b.into()))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 }

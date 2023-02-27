@@ -49,7 +49,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	fn set_config_with_block_number() -> Weight {
 		// Minimum execution time: 13_368 nanoseconds.
-		Weight::from_ref_time(13_767_000)
+		Weight::from_parts(13_767_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -58,7 +58,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	fn set_config_with_u32() -> Weight {
 		// Minimum execution time: 13_127 nanoseconds.
-		Weight::from_ref_time(13_589_000)
+		Weight::from_parts(13_589_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -67,7 +67,7 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	fn set_config_with_option_u32() -> Weight {
 		// Minimum execution time: 13_040 nanoseconds.
-		Weight::from_ref_time(13_607_000)
+		Weight::from_parts(13_607_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -76,21 +76,21 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	fn set_config_with_weight() -> Weight {
 		// Minimum execution time: 13_190 nanoseconds.
-		Weight::from_ref_time(13_486_000)
+		Weight::from_parts(13_486_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	// Storage: Benchmark Override (r:0 w:0)
 	fn set_hrmp_open_request_ttl() -> Weight {
 		// Minimum execution time: 2_000_000_000 nanoseconds.
-		Weight::from_ref_time(2_000_000_000_000)
+		Weight::from_parts(2_000_000_000_000, 0)
 	}
 	// Storage: Configuration PendingConfigs (r:1 w:1)
 	// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	fn set_config_with_balance() -> Weight {
 		// Minimum execution time: 13_204 nanoseconds.
-		Weight::from_ref_time(13_495_000)
+		Weight::from_parts(13_495_000, 0)
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}

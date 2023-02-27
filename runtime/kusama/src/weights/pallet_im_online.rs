@@ -62,15 +62,15 @@ impl<T: frame_system::Config> pallet_im_online::WeightInfo for WeightInfo<T> {
 		//  Measured:  `425 + k * (32 ±0)`
 		//  Estimated: `10345844 + e * (25 ±0) + k * (64 ±0)`
 		// Minimum execution time: 89_393 nanoseconds.
-		Weight::from_ref_time(70_533_029)
-			.saturating_add(Weight::from_proof_size(10345844))
+		Weight::from_parts(70_533_029, 0)
+			.saturating_add(Weight::from_parts(0, 10345844))
 			// Standard Error: 326
-			.saturating_add(Weight::from_ref_time(24_444).saturating_mul(k.into()))
+			.saturating_add(Weight::from_parts(24_444, 0).saturating_mul(k.into()))
 			// Standard Error: 3_285
-			.saturating_add(Weight::from_ref_time(322_267).saturating_mul(e.into()))
+			.saturating_add(Weight::from_parts(322_267, 0).saturating_mul(e.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(1))
-			.saturating_add(Weight::from_proof_size(25).saturating_mul(e.into()))
-			.saturating_add(Weight::from_proof_size(64).saturating_mul(k.into()))
+			.saturating_add(Weight::from_parts(0, 25).saturating_mul(e.into()))
+			.saturating_add(Weight::from_parts(0, 64).saturating_mul(k.into()))
 	}
 }

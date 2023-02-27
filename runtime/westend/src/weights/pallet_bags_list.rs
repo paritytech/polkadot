@@ -50,7 +50,7 @@ impl<T: frame_system::Config> pallet_bags_list::WeightInfo for WeightInfo<T> {
 	// Storage: VoterList ListBags (r:1 w:1)
 	fn rebag_non_terminal() -> Weight {
 		// Minimum execution time: 64_049 nanoseconds.
-		Weight::from_ref_time(66_599_000)
+		Weight::from_parts(66_599_000, 0)
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -60,7 +60,7 @@ impl<T: frame_system::Config> pallet_bags_list::WeightInfo for WeightInfo<T> {
 	// Storage: VoterList ListBags (r:2 w:2)
 	fn rebag_terminal() -> Weight {
 		// Minimum execution time: 64_248 nanoseconds.
-		Weight::from_ref_time(71_257_000)
+		Weight::from_parts(71_257_000, 0)
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -71,7 +71,7 @@ impl<T: frame_system::Config> pallet_bags_list::WeightInfo for WeightInfo<T> {
 	// Storage: VoterList ListBags (r:1 w:1)
 	fn put_in_front_of() -> Weight {
 		// Minimum execution time: 63_370 nanoseconds.
-		Weight::from_ref_time(67_244_000)
+		Weight::from_parts(67_244_000, 0)
 			.saturating_add(T::DbWeight::get().reads(10))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
