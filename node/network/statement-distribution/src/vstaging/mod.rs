@@ -2375,7 +2375,7 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 	while let Some(request) = state.request_manager.next_request(request_props, peer_advertised) {
 		// Peer is supposedly connected.
 		ctx.send_message(NetworkBridgeTxMessage::SendRequests(
-			vec![Requests::AttestedCandidateV2(request)],
+			vec![Requests::AttestedCandidateVStaging(request)],
 			IfDisconnected::ImmediateError,
 		))
 		.await;

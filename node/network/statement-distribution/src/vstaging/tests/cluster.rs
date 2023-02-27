@@ -559,7 +559,7 @@ fn seconded_statement_leads_to_request() {
 				assert_eq!(requests.len(), 1);
 				assert_matches!(
 					&requests[0],
-					Requests::AttestedCandidateV2(outgoing) => {
+					Requests::AttestedCandidateVStaging(outgoing) => {
 						assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
 						assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 					}
@@ -982,7 +982,7 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 				assert_eq!(requests.len(), 1);
 				assert_matches!(
 					requests.pop().unwrap(),
-					Requests::AttestedCandidateV2(mut outgoing) => {
+					Requests::AttestedCandidateVStaging(mut outgoing) => {
 						assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
 						assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -1132,7 +1132,7 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 				assert_eq!(requests.len(), 1);
 				assert_matches!(
 					requests.pop().unwrap(),
-					Requests::AttestedCandidateV2(mut outgoing) => {
+					Requests::AttestedCandidateVStaging(mut outgoing) => {
 						assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
 						assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
