@@ -92,8 +92,7 @@ backing subsystem itself.
 - Validator nodes are partitioned into groups (with some exceptions), and
   validators within a group at a relay-parent can send each other `Statement`
   messages for any candidates within that group and based on that relay-parent.
-- This is referred to as the "cluster" mode. Clusters are the same as backing
-  groups.
+- This is referred to as the "cluster" mode.
 - `Seconded` statements must be sent before `Valid` statements.
 - `Seconded` statements may only be sent to other members of the group when the
   candidate is fully known by the local validator.
@@ -127,8 +126,8 @@ backing subsystem itself.
   is used to build a redundant grid topology.
   - It's redundant in the sense that there are 2 paths from every node to every
     other node. See "Grid Topology" section for more details.
-- This grid topology is used to create "sending" and "receiving" paths from each
-  validator group to every validator.
+- This grid topology is used to create a sending path from each validator group
+  to every validator.
 - When a node observes a candidate as backed, it sends a
   `BackedCandidateManifest` to their "receiving" nodes.
 - If receiving nodes don't yet know the candidate, they request it.
@@ -156,7 +155,8 @@ backing subsystem itself.
 - `ActiveLeavesUpdate`
   - Notification of a change in the set of active leaves.
 - `StatementDistributionMessage::Share`
-  - Notification of a locally-originating statement.
+  - Notification of a locally-originating statement. That is, this statement
+    comes from our node and should be distributed to other nodes.
   - Handled by `share_local_statement`
 - `StatementDistributionMessage::Backed`
   - Notification of a candidate being backed (received enough validity votes
