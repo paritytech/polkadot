@@ -2138,7 +2138,7 @@ impl<T: Config> ParachainsCache<T> {
 
 	fn ensure_initialized(&mut self) -> &mut BTreeSet<ParaId> {
 		self.parachains
-			.get_or_insert_with(|| Parachains::<T>::get().iter().cloned().collect())
+			.get_or_insert_with(|| Parachains::<T>::get().into_iter().collect())
 	}
 
 	/// Adds the given para id to the list.
@@ -2158,7 +2158,7 @@ impl<T: Config> ParachainsCache<T> {
 impl<T: Config> Drop for ParachainsCache<T> {
 	fn drop(&mut self) {
 		if let Some(parachains) = self.parachains.take() {
-			Parachains::<T>::put(parachains.iter().cloned().collect::<Vec<ParaId>>());
+			Parachains::<T>::put(parachains.into_iter().collect::<Vec<ParaId>>());
 		}
 	}
 }
