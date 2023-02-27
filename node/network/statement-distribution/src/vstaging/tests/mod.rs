@@ -470,18 +470,6 @@ async fn answer_expected_hypothetical_depth_request(
 	)
 }
 
-async fn share_local_statement(
-	virtual_overseer: &mut VirtualOverseer,
-	relay_hash: Hash,
-	statement: SignedFullStatementWithPVD,
-) {
-	virtual_overseer
-		.send(FromOrchestra::Communication {
-			msg: StatementDistributionMessage::Share(relay_hash, statement),
-		})
-		.await;
-}
-
 fn validator_pubkeys(val_ids: &[ValidatorPair]) -> IndexedVec<ValidatorIndex, ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()
 }
