@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright 2017-2023 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -244,6 +244,7 @@ where
 		.availability_store(AvailabilityStoreSubsystem::new(
 			parachains_db.clone(),
 			availability_config,
+			Box::new(network_service.clone()),
 			Metrics::register(registry)?,
 		))
 		.bitfield_distribution(BitfieldDistributionSubsystem::new(Metrics::register(registry)?))
@@ -322,7 +323,7 @@ where
 			Metrics::register(registry)?,
 		))
 		.chain_selection(ChainSelectionSubsystem::new(chain_selection_config, parachains_db))
-		.prospective_parachains(ProspectiveParachainsSubsystem::new())
+		.prospective_parachains(ProspectiveParachainsSubsystem::new(Metrics::register(registry)?))
 		.leaves(Vec::from_iter(
 			leaves
 				.into_iter()

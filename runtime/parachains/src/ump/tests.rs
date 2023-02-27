@@ -72,7 +72,7 @@ fn default_genesis_config() -> MockGenesisConfig {
 }
 
 fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
-	let msgs = vec![msg];
+	let msgs: UpwardMessages = vec![msg].try_into().unwrap();
 	assert!(Ump::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
 	let _ = Ump::receive_upward_messages(para, msgs);
 }

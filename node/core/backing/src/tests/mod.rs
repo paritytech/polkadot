@@ -220,8 +220,8 @@ impl TestCandidateBuilder {
 			},
 			commitments: CandidateCommitments {
 				head_data: self.head_data,
-				upward_messages: vec![],
-				horizontal_messages: vec![],
+				upward_messages: Default::default(),
+				horizontal_messages: Default::default(),
 				new_validation_code: None,
 				processed_downward_messages: 0,
 				hrmp_watermark: 0_u32,
@@ -359,8 +359,8 @@ fn backing_second_works() {
 				tx.send(Ok(ValidationResult::Valid(
 					CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						horizontal_messages: Vec::new(),
-						upward_messages: Vec::new(),
+						horizontal_messages: Default::default(),
+						upward_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,
@@ -526,8 +526,8 @@ fn backing_works() {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						upward_messages: Vec::new(),
-						horizontal_messages: Vec::new(),
+						upward_messages: Default::default(),
+						horizontal_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,
@@ -547,6 +547,15 @@ fn backing_works() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(
+				StatementDistributionMessage::Share(hash, _stmt)
+			) => {
+				assert_eq!(test_state.relay_parent, hash);
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::Provisioner(
 				ProvisionerMessage::ProvisionableData(
 					_,
@@ -554,15 +563,6 @@ fn backing_works() {
 				)
 			) => {
 				assert_eq!(candidate_receipt, candidate_a.to_plain());
-			}
-		);
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::Share(hash, _stmt)
-			) => {
-				assert_eq!(test_state.relay_parent, hash);
 			}
 		);
 
@@ -888,8 +888,8 @@ fn backing_misbehavior_works() {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						upward_messages: Vec::new(),
-						horizontal_messages: Vec::new(),
+						upward_messages: Default::default(),
+						horizontal_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,
@@ -909,6 +909,18 @@ fn backing_misbehavior_works() {
 
 		assert_matches!(
 			virtual_overseer.recv().await,
+			AllMessages::StatementDistribution(
+				StatementDistributionMessage::Share(
+					relay_parent,
+					signed_statement,
+				)
+			) if relay_parent == test_state.relay_parent => {
+				assert_eq!(*signed_statement.payload(), StatementWithPVD::Valid(candidate_a_hash));
+			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
 			AllMessages::Provisioner(
 				ProvisionerMessage::ProvisionableData(
 					_,
@@ -918,18 +930,6 @@ fn backing_misbehavior_works() {
 					})
 				)
 			) if descriptor == candidate_a.descriptor
-		);
-
-		assert_matches!(
-			virtual_overseer.recv().await,
-			AllMessages::StatementDistribution(
-				StatementDistributionMessage::Share(
-					relay_parent,
-					signed_statement,
-				)
-			) if relay_parent == test_state.relay_parent => {
-				assert_eq!(*signed_statement.payload(), StatementWithPVD::Valid(candidate_a_hash));
-			}
 		);
 
 		// This `Valid` statement is redundant after the `Seconded` statement already sent.
@@ -1108,8 +1108,8 @@ fn backing_dont_second_invalid() {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						upward_messages: Vec::new(),
-						horizontal_messages: Vec::new(),
+						upward_messages: Default::default(),
+						horizontal_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,
@@ -1991,8 +1991,8 @@ fn cannot_second_multiple_candidates_per_parent() {
 				tx.send(Ok(ValidationResult::Valid(
 					CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						horizontal_messages: Vec::new(),
-						upward_messages: Vec::new(),
+						horizontal_messages: Default::default(),
+						upward_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,
@@ -2065,8 +2065,8 @@ fn cannot_second_multiple_candidates_per_parent() {
 				tx.send(Ok(ValidationResult::Valid(
 					CandidateCommitments {
 						head_data: expected_head_data.clone(),
-						horizontal_messages: Vec::new(),
-						upward_messages: Vec::new(),
+						horizontal_messages: Default::default(),
+						upward_messages: Default::default(),
 						new_validation_code: None,
 						processed_downward_messages: 0,
 						hrmp_watermark: 0,

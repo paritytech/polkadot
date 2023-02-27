@@ -39,10 +39,10 @@ use polkadot_node_primitives::{
 	SignedDisputeStatement, SignedFullStatement, SignedFullStatementWithPVD, ValidationResult,
 };
 use polkadot_primitives::{
-	vstaging as vstaging_primitives, AuthorityDiscoveryId, BackedCandidate, BlockNumber,
-	CandidateEvent, CandidateHash, CandidateIndex, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupIndex, GroupRotationInfo, Hash,
-	Header as BlockHeader, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	vstaging as vstaging_primitives, vstaging::ExecutorParams, AuthorityDiscoveryId,
+	BackedCandidate, BlockNumber, CandidateEvent, CandidateHash, CandidateIndex, CandidateReceipt,
+	CollatorId, CommittedCandidateReceipt, CoreState, DisputeState, GroupIndex, GroupRotationInfo,
+	Hash, Header as BlockHeader, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
 	MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
 	SessionIndex, SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields,
 	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
@@ -608,6 +608,8 @@ pub enum RuntimeApiRequest {
 	/// Get all events concerning candidates (backing, inclusion, time-out) in the parent of
 	/// the block in whose state this request is executed.
 	CandidateEvents(RuntimeApiSender<Vec<CandidateEvent>>),
+	/// Get the execution environment parameter set by session index
+	SessionExecutorParams(SessionIndex, RuntimeApiSender<Option<ExecutorParams>>),
 	/// Get the session info for the given session, if stored.
 	SessionInfo(SessionIndex, RuntimeApiSender<Option<SessionInfo>>),
 	/// Get all the pending inbound messages in the downward message queue for a para.
@@ -650,6 +652,9 @@ impl RuntimeApiRequest {
 	/// `Disputes`
 	pub const DISPUTES_RUNTIME_REQUIREMENT: u32 = 3;
 
+	/// `ExecutorParams`
+	pub const EXECUTOR_PARAMS_RUNTIME_REQUIREMENT: u32 = 4;
+
 	/// Minimum version for validity constraints, required for async backing.
 	///
 	/// 99 for now, should be adjusted to VSTAGING/actual runtime version once released.
@@ -669,6 +674,13 @@ pub enum StatementDistributionMessage {
 	/// We have originated a signed statement in the context of
 	/// given relay-parent hash and it should be distributed to other validators.
 	Share(Hash, SignedFullStatementWithPVD),
+	/// The candidate received enough validity votes from the backing group.
+	///
+	/// If the candidate is backed as a result of a local statement, this message MUST
+	/// be preceded by a `Share` message for that statement. This ensures that Statement Distribution
+	/// is always aware of full candidates prior to receiving the `Backed` notification, even
+	/// when the group size is 1 and the candidate is seconded locally.
+	Backed(CandidateHash),
 	/// Event from the network bridge.
 	#[from]
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::StatementDistributionMessage>),
@@ -875,20 +887,90 @@ pub enum GossipSupportMessage {
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::GossipSupportNetworkMessage>),
 }
 
-/// A request for the depths a hypothetical candidate would occupy within
-/// some fragment tree.
-#[derive(Debug, PartialEq, Eq, Clone, Copy)]
-pub struct HypotheticalDepthRequest {
-	/// The hash of the potential candidate.
-	pub candidate_hash: CandidateHash,
-	/// The para of the candidate.
-	pub candidate_para: ParaId,
-	/// The hash of the parent head-data of the candidate.
-	pub parent_head_data_hash: Hash,
-	/// The relay-parent of the candidate.
-	pub candidate_relay_parent: Hash,
-	/// The relay-parent of the fragment tree we are comparing to.
-	pub fragment_tree_relay_parent: Hash,
+/// A hypothetical candidate to be evaluated for frontier membership
+/// in the prospective parachains subsystem.
+///
+/// Hypothetical candidates are either complete or incomplete.
+/// Complete candidates have already had their (potentially heavy)
+/// candidate receipt fetched, while incomplete candidates are simply
+/// claims about properties that a fetched candidate would have.
+///
+/// Complete candidates can be evaluated more strictly than incomplete candidates.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub enum HypotheticalCandidate {
+	/// A complete candidate.
+	Complete {
+		/// The hash of the candidate.
+		candidate_hash: CandidateHash,
+		/// The receipt of the candidate.
+		receipt: Arc<CommittedCandidateReceipt>,
+		/// The persisted validation data of the candidate.
+		persisted_validation_data: PersistedValidationData,
+	},
+	/// An incomplete candidate.
+	Incomplete {
+		/// The claimed hash of the candidate.
+		candidate_hash: CandidateHash,
+		/// The claimed para-ID of the candidate.
+		candidate_para: ParaId,
+		/// The claimed head-data hash of the candidate.
+		parent_head_data_hash: Hash,
+		/// The claimed relay parent of the candidate.
+		candidate_relay_parent: Hash,
+	},
+}
+
+impl HypotheticalCandidate {
+	/// Get the `CandidateHash` of the hypothetical candidate.
+	pub fn candidate_hash(&self) -> CandidateHash {
+		match *self {
+			HypotheticalCandidate::Complete { candidate_hash, .. } => candidate_hash,
+			HypotheticalCandidate::Incomplete { candidate_hash, .. } => candidate_hash,
+		}
+	}
+
+	/// Get the `ParaId` of the hypothetical candidate.
+	pub fn candidate_para(&self) -> ParaId {
+		match *self {
+			HypotheticalCandidate::Complete { ref receipt, .. } => receipt.descriptor().para_id,
+			HypotheticalCandidate::Incomplete { candidate_para, .. } => candidate_para,
+		}
+	}
+
+	/// Get parent head data hash of the hypothetical candidate.
+	pub fn parent_head_data_hash(&self) -> Hash {
+		match *self {
+			HypotheticalCandidate::Complete { ref persisted_validation_data, .. } =>
+				persisted_validation_data.parent_head.hash(),
+			HypotheticalCandidate::Incomplete { parent_head_data_hash, .. } =>
+				parent_head_data_hash,
+		}
+	}
+
+	/// Get candidate's relay parent.
+	pub fn relay_parent(&self) -> Hash {
+		match *self {
+			HypotheticalCandidate::Complete { ref receipt, .. } =>
+				receipt.descriptor().relay_parent,
+			HypotheticalCandidate::Incomplete { candidate_relay_parent, .. } =>
+				candidate_relay_parent,
+		}
+	}
+}
+
+/// Request specifying which candidates are either already included
+/// or might be included in the hypothetical frontier of fragment trees
+/// under a given active leaf.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct HypotheticalFrontierRequest {
+	/// Candidates, in arbitrary order, which should be checked for
+	/// possible membership in fragment trees.
+	pub candidates: Vec<HypotheticalCandidate>,
+	/// Either a specific fragment tree to check, otherwise all.
+	pub fragment_tree_relay_parent: Option<Hash>,
+	/// Only return membership if all candidates in the path from the
+	/// root are backed.
+	pub backed_in_path_only: bool,
 }
 
 /// A request for the persisted validation data stored in the prospective
@@ -928,15 +1010,15 @@ pub enum ProspectiveParachainsMessage {
 	/// which is a descendant of the given candidate hashes. Returns `None` on the channel
 	/// if no such candidate exists.
 	GetBackableCandidate(Hash, ParaId, Vec<CandidateHash>, oneshot::Sender<Option<CandidateHash>>),
-	/// Get the hypothetical depths that a candidate with the given properties would
-	/// occupy in the fragment tree for the given relay-parent.
+	/// Get the hypothetical frontier membership of candidates with the given properties
+	/// under the specified active leaves' fragment trees.
 	///
-	/// If the candidate is already known, this returns the depths the candidate
+	/// For any candidate which is already known, this returns the depths the candidate
 	/// occupies.
-	///
-	/// Returns an empty vector either if there is no such depth or the fragment tree relay-parent
-	/// is unknown.
-	GetHypotheticalDepth(HypotheticalDepthRequest, oneshot::Sender<Vec<usize>>),
+	GetHypotheticalFrontier(
+		HypotheticalFrontierRequest,
+		oneshot::Sender<Vec<(HypotheticalCandidate, FragmentTreeMembership)>>,
+	),
 	/// Get the membership of the candidate in all fragment trees.
 	GetTreeMembership(ParaId, CandidateHash, oneshot::Sender<FragmentTreeMembership>),
 	/// Get the minimum accepted relay-parent number for each para in the fragment tree

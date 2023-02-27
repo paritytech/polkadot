@@ -54,7 +54,13 @@
 //! bounded and in practice will not exceed a few thousand at any time. This naive implementation
 //! will still perform fairly well under these conditions, despite being somewhat wasteful of memory.
 
-use std::collections::{BTreeMap, HashMap, HashSet};
+use std::{
+	borrow::Cow,
+	collections::{
+		hash_map::{Entry, HashMap},
+		BTreeMap, HashSet,
+	},
+};
 
 use super::LOG_TARGET;
 use bitvec::prelude::*;
@@ -77,8 +83,11 @@ pub enum CandidateStorageInsertionError {
 }
 
 pub(crate) struct CandidateStorage {
-	// Index from parent head hash to candidate hashes.
+	// Index from head data hash to candidate hashes with that head data as a parent.
 	by_parent_head: HashMap<Hash, HashSet<CandidateHash>>,
+
+	// Index from head data hash to candidate hashes outputting that head data.
+	by_output_head: HashMap<Hash, HashSet<CandidateHash>>,
 
 	// Index from candidate hash to fragment node.
 	by_candidate_hash: HashMap<CandidateHash, CandidateEntry>,
@@ -87,11 +96,14 @@ pub(crate) struct CandidateStorage {
 impl CandidateStorage {
 	/// Create a new `CandidateStorage`.
 	pub fn new() -> Self {
-		CandidateStorage { by_parent_head: HashMap::new(), by_candidate_hash: HashMap::new() }
+		CandidateStorage {
+			by_parent_head: HashMap::new(),
+			by_output_head: HashMap::new(),
+			by_candidate_hash: HashMap::new(),
+		}
 	}
 
-	/// Introduce a new candidate. The candidate passed to this function
-	/// should have been seconded before introduction.
+	/// Introduce a new candidate.
 	pub fn add_candidate(
 		&mut self,
 		candidate: CommittedCandidateReceipt,
@@ -108,13 +120,13 @@ impl CandidateStorage {
 		}
 
 		let parent_head_hash = persisted_validation_data.parent_head.hash();
-
+		let output_head_hash = candidate.commitments.head_data.hash();
 		let entry = CandidateEntry {
 			candidate_hash,
 			relay_parent: candidate.descriptor.relay_parent,
-			state: CandidateState::Seconded,
+			state: CandidateState::Introduced,
 			candidate: ProspectiveCandidate {
-				commitments: candidate.commitments,
+				commitments: Cow::Owned(candidate.commitments),
 				collator: candidate.descriptor.collator,
 				collator_signature: candidate.descriptor.signature,
 				persisted_validation_data,
@@ -124,10 +136,35 @@ impl CandidateStorage {
 		};
 
 		self.by_parent_head.entry(parent_head_hash).or_default().insert(candidate_hash);
+		self.by_output_head.entry(output_head_hash).or_default().insert(candidate_hash);
 		// sanity-checked already.
 		self.by_candidate_hash.insert(candidate_hash, entry);
 
 		Ok(candidate_hash)
+	}
+
+	/// Remove a candidate from the store.
+	#[allow(dead_code)]
+	pub fn remove_candidate(&mut self, candidate_hash: &CandidateHash) {
+		if let Some(entry) = self.by_candidate_hash.remove(candidate_hash) {
+			let parent_head_hash = entry.candidate.persisted_validation_data.parent_head.hash();
+			if let Entry::Occupied(mut e) = self.by_parent_head.entry(parent_head_hash) {
+				e.get_mut().remove(&candidate_hash);
+				if e.get().is_empty() {
+					e.remove();
+				}
+			}
+		}
+	}
+
+	/// Note that an existing candidate has been seconded.
+	#[allow(dead_code)]
+	pub fn mark_seconded(&mut self, candidate_hash: &CandidateHash) {
+		if let Some(entry) = self.by_candidate_hash.get_mut(candidate_hash) {
+			if entry.state != CandidateState::Backed {
+				entry.state = CandidateState::Seconded;
+			}
+		}
 	}
 
 	/// Note that an existing candidate has been backed.
@@ -155,18 +192,32 @@ impl CandidateStorage {
 		self.by_parent_head.retain(|_parent, children| {
 			children.retain(|h| pred(h));
 			!children.is_empty()
-		})
+		});
+		self.by_output_head.retain(|_output, candidates| {
+			candidates.retain(|h| pred(h));
+			!candidates.is_empty()
+		});
 	}
 
 	/// Get head-data by hash.
 	pub(crate) fn head_data_by_hash(&self, hash: &Hash) -> Option<&HeadData> {
-		// Get some candidate which has a parent-head with the same hash as requested.
-		let a_candidate_hash = self.by_parent_head.get(hash).and_then(|m| m.iter().next())?;
-
-		// Extract the full parent head from that candidate's `PersistedValidationData`.
-		self.by_candidate_hash
-			.get(a_candidate_hash)
-			.map(|e| &e.candidate.persisted_validation_data.parent_head)
+		// First, search for candidates outputting this head data and extract the head data
+		// from their commitments if they exist.
+		//
+		// Otherwise, search for candidates building upon this head data and extract the head data
+		// from their persisted validation data if they exist.
+		self.by_output_head
+			.get(hash)
+			.and_then(|m| m.iter().next())
+			.and_then(|a_candidate| self.by_candidate_hash.get(a_candidate))
+			.map(|e| &e.candidate.commitments.head_data)
+			.or_else(|| {
+				self.by_parent_head
+					.get(hash)
+					.and_then(|m| m.iter().next())
+					.and_then(|a_candidate| self.by_candidate_hash.get(a_candidate))
+					.map(|e| &e.candidate.persisted_validation_data.parent_head)
+			})
 	}
 
 	fn iter_para_children<'a>(
@@ -184,6 +235,11 @@ impl CandidateStorage {
 	fn get(&'_ self, candidate_hash: &CandidateHash) -> Option<&'_ CandidateEntry> {
 		self.by_candidate_hash.get(candidate_hash)
 	}
+
+	#[cfg(test)]
+	pub fn len(&self) -> (usize, usize) {
+		(self.by_parent_head.len(), self.by_candidate_hash.len())
+	}
 }
 
 /// The state of a candidate.
@@ -191,16 +247,21 @@ impl CandidateStorage {
 /// Candidates aren't even considered until they've at least been seconded.
 #[derive(Debug, PartialEq)]
 enum CandidateState {
+	/// The candidate has been introduced in a spam-protected way but
+	/// is not necessarily backed.
+	Introduced,
 	/// The candidate has been seconded.
+	#[allow(dead_code)]
 	Seconded,
 	/// The candidate has been completely backed by the group.
 	Backed,
 }
 
+#[derive(Debug)]
 struct CandidateEntry {
 	candidate_hash: CandidateHash,
 	relay_parent: Hash,
-	candidate: ProspectiveCandidate,
+	candidate: ProspectiveCandidate<'static>,
 	state: CandidateState,
 }
 
@@ -218,7 +279,12 @@ pub(crate) struct Scope {
 /// An error variant indicating that ancestors provided to a scope
 /// had unexpected order.
 #[derive(Debug)]
-pub struct UnexpectedAncestor;
+pub struct UnexpectedAncestor {
+	/// The block number that this error occurred at.
+	pub number: BlockNumber,
+	/// The previous seen block number, which did not match `number`.
+	pub prev: BlockNumber,
+}
 
 impl Scope {
 	/// Define a new [`Scope`].
@@ -250,9 +316,9 @@ impl Scope {
 			let mut prev = relay_parent.number;
 			for ancestor in ancestors {
 				if prev == 0 {
-					return Err(UnexpectedAncestor)
+					return Err(UnexpectedAncestor { number: ancestor.number, prev })
 				} else if ancestor.number != prev - 1 {
-					return Err(UnexpectedAncestor)
+					return Err(UnexpectedAncestor { number: ancestor.number, prev })
 				} else if prev == base_constraints.min_relay_parent_number {
 					break
 				} else {
@@ -303,6 +369,38 @@ impl Scope {
 enum NodePointer {
 	Root,
 	Storage(usize),
+}
+
+/// A hypothetical candidate, which may or may not exist in
+/// the fragment tree already.
+pub(crate) enum HypotheticalCandidate<'a> {
+	Complete {
+		receipt: Cow<'a, CommittedCandidateReceipt>,
+		persisted_validation_data: Cow<'a, PersistedValidationData>,
+	},
+	Incomplete {
+		relay_parent: Hash,
+		parent_head_data_hash: Hash,
+	},
+}
+
+impl<'a> HypotheticalCandidate<'a> {
+	fn parent_head_data_hash(&self) -> Hash {
+		match *self {
+			HypotheticalCandidate::Complete { ref persisted_validation_data, .. } =>
+				persisted_validation_data.as_ref().parent_head.hash(),
+			HypotheticalCandidate::Incomplete { ref parent_head_data_hash, .. } =>
+				*parent_head_data_hash,
+		}
+	}
+
+	fn relay_parent(&self) -> Hash {
+		match *self {
+			HypotheticalCandidate::Complete { ref receipt, .. } =>
+				receipt.descriptor().relay_parent,
+			HypotheticalCandidate::Incomplete { ref relay_parent, .. } => *relay_parent,
+		}
+	}
 }
 
 /// This is a tree of candidates based on some underlying storage of candidates
@@ -403,7 +501,7 @@ impl FragmentTree {
 
 	/// Returns an O(n) iterator over the hashes of candidates contained in the
 	/// tree.
-	pub(crate) fn candidates<'a>(&'a self) -> impl Iterator<Item = CandidateHash> + 'a {
+	pub(crate) fn candidates(&self) -> impl Iterator<Item = CandidateHash> + '_ {
 		self.candidates.keys().cloned()
 	}
 
@@ -444,52 +542,140 @@ impl FragmentTree {
 		self.populate_from_bases(storage, bases);
 	}
 
+	/// Returns `true` if the path from the root to the node's parent (inclusive)
+	/// only contains backed candidates, `false` otherwise.
+	fn path_contains_backed_only_candidates(
+		&self,
+		mut parent_pointer: NodePointer,
+		candidate_storage: &CandidateStorage,
+	) -> bool {
+		while let NodePointer::Storage(ptr) = parent_pointer {
+			let node = &self.nodes[ptr];
+			let candidate_hash = &node.candidate_hash;
+
+			if candidate_storage.get(candidate_hash).map_or(true, |candidate_entry| {
+				!matches!(candidate_entry.state, CandidateState::Backed)
+			}) {
+				return false
+			}
+			parent_pointer = node.parent;
+		}
+
+		true
+	}
+
 	/// Returns the hypothetical depths where a candidate with the given hash and parent head data
 	/// would be added to the tree, without applying other candidates recursively on top of it.
 	///
 	/// If the candidate is already known, this returns the actual depths where this
 	/// candidate is part of the tree.
+	///
+	/// Setting `backed_in_path_only` to `true` ensures this function only returns such membership
+	/// that every candidate in the path from the root is backed.
 	pub(crate) fn hypothetical_depths(
 		&self,
 		hash: CandidateHash,
-		parent_head_data_hash: Hash,
-		candidate_relay_parent: Hash,
+		candidate: HypotheticalCandidate,
+		candidate_storage: &CandidateStorage,
+		backed_in_path_only: bool,
 	) -> Vec<usize> {
-		// if known.
-		if let Some(depths) = self.candidates.get(&hash) {
-			return depths.iter_ones().collect()
+		// if `true`, we always have to traverse the tree.
+		if !backed_in_path_only {
+			// if known.
+			if let Some(depths) = self.candidates.get(&hash) {
+				return depths.iter_ones().collect()
+			}
 		}
 
 		// if out of scope.
-		let candidate_relay_parent_number =
-			if self.scope.relay_parent.hash == candidate_relay_parent {
-				self.scope.relay_parent.number
-			} else if let Some(info) = self.scope.ancestors_by_hash.get(&candidate_relay_parent) {
-				info.number
-			} else {
-				return Vec::new()
-			};
+		let candidate_relay_parent = candidate.relay_parent();
+		let candidate_relay_parent = if self.scope.relay_parent.hash == candidate_relay_parent {
+			self.scope.relay_parent.clone()
+		} else if let Some(info) = self.scope.ancestors_by_hash.get(&candidate_relay_parent) {
+			info.clone()
+		} else {
+			return Vec::new()
+		};
 
 		let max_depth = self.scope.max_depth;
 		let mut depths = bitvec![u16, Msb0; 0; max_depth + 1];
 
 		// iterate over all nodes < max_depth where parent head-data matches,
 		// relay-parent number is <= candidate, and depth < max_depth.
-		for node in &self.nodes {
-			if node.depth == max_depth {
-				continue
-			}
-			if node.fragment.relay_parent().number > candidate_relay_parent_number {
-				continue
-			}
-			if node.head_data_hash == parent_head_data_hash {
-				depths.set(node.depth + 1, true);
-			}
-		}
+		let node_pointers = (0..self.nodes.len()).map(NodePointer::Storage);
+		for parent_pointer in std::iter::once(NodePointer::Root).chain(node_pointers) {
+			let (modifications, child_depth, earliest_rp) = match parent_pointer {
+				NodePointer::Root =>
+					(ConstraintModifications::identity(), 0, self.scope.earliest_relay_parent()),
+				NodePointer::Storage(ptr) => {
+					let node = &self.nodes[ptr];
+					let parent_rp = self
+						.scope
+						.ancestor_by_hash(&node.relay_parent())
+						.expect("nodes in tree can only contain ancestors within scope; qed");
 
-		// compare against root as well.
-		if self.scope.base_constraints.required_parent.hash() == parent_head_data_hash {
-			depths.set(0, true);
+					(node.cumulative_modifications.clone(), node.depth + 1, parent_rp)
+				},
+			};
+
+			if child_depth > max_depth {
+				continue
+			}
+
+			if earliest_rp.number > candidate_relay_parent.number {
+				continue
+			}
+
+			let child_constraints =
+				match self.scope.base_constraints.apply_modifications(&modifications) {
+					Err(e) => {
+						gum::debug!(
+							target: LOG_TARGET,
+							new_parent_head = ?modifications.required_parent,
+							err = ?e,
+							"Failed to apply modifications",
+						);
+
+						continue
+					},
+					Ok(c) => c,
+				};
+
+			let parent_head_hash = candidate.parent_head_data_hash();
+			if parent_head_hash == child_constraints.required_parent.hash() {
+				// We do additional checks for complete candidates.
+				if let HypotheticalCandidate::Complete {
+					ref receipt,
+					ref persisted_validation_data,
+				} = candidate
+				{
+					let prospective_candidate = ProspectiveCandidate {
+						commitments: Cow::Borrowed(&receipt.commitments),
+						collator: receipt.descriptor().collator.clone(),
+						collator_signature: receipt.descriptor().signature.clone(),
+						persisted_validation_data: persisted_validation_data.as_ref().clone(),
+						pov_hash: receipt.descriptor().pov_hash,
+						validation_code_hash: receipt.descriptor().validation_code_hash,
+					};
+
+					if Fragment::new(
+						candidate_relay_parent.clone(),
+						child_constraints,
+						prospective_candidate,
+					)
+					.is_err()
+					{
+						continue
+					}
+				}
+
+				// Check that the path only contains backed candidates, if necessary.
+				if !backed_in_path_only ||
+					self.path_contains_backed_only_candidates(parent_pointer, candidate_storage)
+				{
+					depths.set(child_depth, true);
+				}
+			}
 		}
 
 		depths.iter_ones().collect()
@@ -538,11 +724,7 @@ impl FragmentTree {
 		}
 	}
 
-	fn populate_from_bases<'a>(
-		&mut self,
-		storage: &'a CandidateStorage,
-		initial_bases: Vec<NodePointer>,
-	) {
+	fn populate_from_bases(&mut self, storage: &CandidateStorage, initial_bases: Vec<NodePointer>) {
 		// Populate the tree breadth-first.
 		let mut last_sweep_start = None;
 
@@ -623,11 +805,11 @@ impl FragmentTree {
 						let f = Fragment::new(
 							relay_parent.clone(),
 							child_constraints.clone(),
-							candidate.candidate.clone(),
+							candidate.candidate.partial_clone(),
 						);
 
 						match f {
-							Ok(f) => f,
+							Ok(f) => f.into_owned(),
 							Err(e) => {
 								gum::debug!(
 									target: LOG_TARGET,
@@ -645,15 +827,13 @@ impl FragmentTree {
 					let mut cumulative_modifications = modifications.clone();
 					cumulative_modifications.stack(fragment.constraint_modifications());
 
-					let head_data_hash = fragment.candidate().commitments.head_data.hash();
 					let node = FragmentNode {
 						parent: parent_pointer,
 						fragment,
-						candidate_hash: candidate.candidate_hash.clone(),
+						candidate_hash: candidate.candidate_hash,
 						depth: child_depth,
 						cumulative_modifications,
 						children: Vec::new(),
-						head_data_hash,
 					};
 
 					self.insert_node(node);
@@ -668,11 +848,10 @@ impl FragmentTree {
 struct FragmentNode {
 	// A pointer to the parent node.
 	parent: NodePointer,
-	fragment: Fragment,
+	fragment: Fragment<'static>,
 	candidate_hash: CandidateHash,
 	depth: usize,
 	cumulative_modifications: ConstraintModifications,
-	head_data_hash: Hash,
 	children: Vec<(NodePointer, CandidateHash)>,
 }
 
@@ -708,7 +887,7 @@ mod tests {
 			ump_remaining: 10,
 			ump_remaining_bytes: 1_000,
 			max_ump_num_per_candidate: 10,
-			dmp_remaining_messages: 10,
+			dmp_remaining_messages: [0; 10].into(),
 			hrmp_inbound: InboundHrmpLimitations { valid_watermarks },
 			hrmp_channels_out: HashMap::new(),
 			max_hrmp_num_per_candidate: 0,
@@ -747,11 +926,11 @@ mod tests {
 				validation_code_hash: Hash::repeat_byte(42).into(),
 			},
 			commitments: CandidateCommitments {
-				upward_messages: Vec::new(),
-				horizontal_messages: Vec::new(),
+				upward_messages: Default::default(),
+				horizontal_messages: Default::default(),
 				new_validation_code: None,
 				head_data: para_head,
-				processed_downward_messages: 0,
+				processed_downward_messages: 1,
 				hrmp_watermark,
 			},
 		};
@@ -778,8 +957,8 @@ mod tests {
 		let base_constraints = make_constraints(8, vec![8, 9], vec![1, 2, 3].into());
 
 		assert_matches!(
-			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
-			Err(UnexpectedAncestor)
+			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors),
+			Err(UnexpectedAncestor { number: 8, prev: 10 })
 		);
 	}
 
@@ -803,7 +982,7 @@ mod tests {
 
 		assert_matches!(
 			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
-			Err(UnexpectedAncestor)
+			Err(UnexpectedAncestor { number: 99999, prev: 0 })
 		);
 	}
 
@@ -880,16 +1059,19 @@ mod tests {
 		);
 
 		let candidate_hash = candidate.hash();
+		let output_head_hash = candidate.commitments.head_data.hash();
 		let parent_head_hash = pvd.parent_head.hash();
 
 		storage.add_candidate(candidate, pvd).unwrap();
 		storage.retain(|_| true);
 		assert!(storage.contains(&candidate_hash));
 		assert_eq!(storage.iter_para_children(&parent_head_hash).count(), 1);
+		assert!(storage.head_data_by_hash(&output_head_hash).is_some());
 
 		storage.retain(|_| false);
 		assert!(!storage.contains(&candidate_hash));
 		assert_eq!(storage.iter_para_children(&parent_head_hash).count(), 0);
+		assert!(storage.head_data_by_hash(&output_head_hash).is_none());
 	}
 
 	#[test]
@@ -1294,8 +1476,12 @@ mod tests {
 		assert_eq!(
 			tree.hypothetical_depths(
 				candidate_a_hash,
-				HeadData::from(vec![0x0a]).hash(),
-				relay_parent_a,
+				HypotheticalCandidate::Incomplete {
+					parent_head_data_hash: HeadData::from(vec![0x0a]).hash(),
+					relay_parent: relay_parent_a,
+				},
+				&storage,
+				false,
 			),
 			vec![0, 2, 4],
 		);
@@ -1303,8 +1489,12 @@ mod tests {
 		assert_eq!(
 			tree.hypothetical_depths(
 				candidate_b_hash,
-				HeadData::from(vec![0x0b]).hash(),
-				relay_parent_a,
+				HypotheticalCandidate::Incomplete {
+					parent_head_data_hash: HeadData::from(vec![0x0b]).hash(),
+					relay_parent: relay_parent_a,
+				},
+				&storage,
+				false,
 			),
 			vec![1, 3],
 		);
@@ -1312,8 +1502,12 @@ mod tests {
 		assert_eq!(
 			tree.hypothetical_depths(
 				CandidateHash(Hash::repeat_byte(21)),
-				HeadData::from(vec![0x0a]).hash(),
-				relay_parent_a,
+				HypotheticalCandidate::Incomplete {
+					parent_head_data_hash: HeadData::from(vec![0x0a]).hash(),
+					relay_parent: relay_parent_a,
+				},
+				&storage,
+				false,
 			),
 			vec![0, 2, 4],
 		);
@@ -1321,10 +1515,199 @@ mod tests {
 		assert_eq!(
 			tree.hypothetical_depths(
 				CandidateHash(Hash::repeat_byte(22)),
-				HeadData::from(vec![0x0b]).hash(),
-				relay_parent_a,
+				HypotheticalCandidate::Incomplete {
+					parent_head_data_hash: HeadData::from(vec![0x0b]).hash(),
+					relay_parent: relay_parent_a,
+				},
+				&storage,
+				false,
 			),
 			vec![1, 3]
+		);
+	}
+
+	#[test]
+	fn hypothetical_depths_stricter_on_complete() {
+		let storage = CandidateStorage::new();
+
+		let para_id = ParaId::from(5u32);
+		let relay_parent_a = Hash::repeat_byte(1);
+
+		let (pvd_a, candidate_a) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0a].into(),
+			vec![0x0b].into(),
+			1000, // watermark is illegal
+		);
+
+		let candidate_a_hash = candidate_a.hash();
+
+		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+
+		let relay_parent_a_info = RelayChainBlockInfo {
+			number: pvd_a.relay_parent_number,
+			hash: relay_parent_a,
+			storage_root: pvd_a.relay_parent_storage_root,
+		};
+
+		let max_depth = 4;
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_a_info,
+			base_constraints,
+			max_depth,
+			vec![],
+		)
+		.unwrap();
+		let tree = FragmentTree::populate(scope, &storage);
+
+		assert_eq!(
+			tree.hypothetical_depths(
+				candidate_a_hash,
+				HypotheticalCandidate::Incomplete {
+					parent_head_data_hash: HeadData::from(vec![0x0a]).hash(),
+					relay_parent: relay_parent_a,
+				},
+				&storage,
+				false,
+			),
+			vec![0],
+		);
+
+		assert!(tree
+			.hypothetical_depths(
+				candidate_a_hash,
+				HypotheticalCandidate::Complete {
+					receipt: Cow::Owned(candidate_a),
+					persisted_validation_data: Cow::Owned(pvd_a),
+				},
+				&storage,
+				false,
+			)
+			.is_empty());
+	}
+
+	#[test]
+	fn hypothetical_depths_backed_in_path() {
+		let mut storage = CandidateStorage::new();
+
+		let para_id = ParaId::from(5u32);
+		let relay_parent_a = Hash::repeat_byte(1);
+
+		let (pvd_a, candidate_a) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0a].into(),
+			vec![0x0b].into(),
+			0,
+		);
+		let candidate_a_hash = candidate_a.hash();
+
+		let (pvd_b, candidate_b) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0b].into(),
+			vec![0x0c].into(),
+			0,
+		);
+		let candidate_b_hash = candidate_b.hash();
+
+		let (pvd_c, candidate_c) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0b].into(),
+			vec![0x0d].into(),
+			0,
+		);
+
+		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+
+		let relay_parent_a_info = RelayChainBlockInfo {
+			number: pvd_a.relay_parent_number,
+			hash: relay_parent_a,
+			storage_root: pvd_a.relay_parent_storage_root,
+		};
+
+		let max_depth = 4;
+		storage.add_candidate(candidate_a, pvd_a).unwrap();
+		storage.add_candidate(candidate_b, pvd_b).unwrap();
+		storage.add_candidate(candidate_c, pvd_c).unwrap();
+
+		// `A` and `B` are backed, `C` is not.
+		storage.mark_backed(&candidate_a_hash);
+		storage.mark_backed(&candidate_b_hash);
+
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_a_info,
+			base_constraints,
+			max_depth,
+			vec![],
+		)
+		.unwrap();
+		let tree = FragmentTree::populate(scope, &storage);
+
+		let candidates: Vec<_> = tree.candidates().collect();
+		assert_eq!(candidates.len(), 3);
+		assert_eq!(tree.nodes.len(), 3);
+
+		let candidate_d_hash = CandidateHash(Hash::repeat_byte(0xAA));
+
+		assert_eq!(
+			tree.hypothetical_depths(
+				candidate_d_hash,
+				HypotheticalCandidate::Incomplete {
+					parent_head_data_hash: HeadData::from(vec![0x0a]).hash(),
+					relay_parent: relay_parent_a,
+				},
+				&storage,
+				true,
+			),
+			vec![0],
+		);
+
+		assert_eq!(
+			tree.hypothetical_depths(
+				candidate_d_hash,
+				HypotheticalCandidate::Incomplete {
+					parent_head_data_hash: HeadData::from(vec![0x0c]).hash(),
+					relay_parent: relay_parent_a,
+				},
+				&storage,
+				true,
+			),
+			vec![2],
+		);
+
+		assert_eq!(
+			tree.hypothetical_depths(
+				candidate_d_hash,
+				HypotheticalCandidate::Incomplete {
+					parent_head_data_hash: HeadData::from(vec![0x0d]).hash(),
+					relay_parent: relay_parent_a,
+				},
+				&storage,
+				true,
+			),
+			Vec::<usize>::new(),
+		);
+
+		assert_eq!(
+			tree.hypothetical_depths(
+				candidate_d_hash,
+				HypotheticalCandidate::Incomplete {
+					parent_head_data_hash: HeadData::from(vec![0x0d]).hash(),
+					relay_parent: relay_parent_a,
+				},
+				&storage,
+				false,
+			),
+			vec![2], // non-empty if `false`.
 		);
 	}
 }

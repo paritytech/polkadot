@@ -1287,13 +1287,13 @@ impl<T: Config> Pallet<T> {
 			<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
 				*upcoming_upgrades = mem::take(upcoming_upgrades)
 					.into_iter()
-					.filter(|&(ref para, _)| !outgoing.contains(para))
+					.filter(|(para, _)| !outgoing.contains(para))
 					.collect();
 			});
 			<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
 				*upgrade_cooldowns = mem::take(upgrade_cooldowns)
 					.into_iter()
-					.filter(|&(ref para, _)| !outgoing.contains(para))
+					.filter(|(para, _)| !outgoing.contains(para))
 					.collect();
 			});
 		}

@@ -18,9 +18,9 @@
 
 use super::{BodyId, BodyPart, Junctions, MultiLocation, NetworkId};
 use crate::v3::Junction as NewJunction;
+use bounded_collections::{ConstU32, WeakBoundedVec};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
-use sp_core::{bounded::WeakBoundedVec, ConstU32};
 
 /// A single item in a path to describe the relative location of a consensus system.
 ///
@@ -92,11 +92,11 @@ impl TryFrom<NewJunction> for Junction {
 				Self::AccountKey20 { network: network.try_into()?, key },
 			PalletInstance(index) => Self::PalletInstance(index),
 			GeneralIndex(id) => Self::GeneralIndex(id),
-			GeneralKey(key) => Self::GeneralKey(
-				key[..]
+			GeneralKey { length, data } => Self::GeneralKey(
+				data[0..data.len().min(length as usize)]
 					.to_vec()
 					.try_into()
-					.expect("array is of size 32 and so will never be out of bounds; qed"),
+					.expect("key is bounded to 32 and so will never be out of bounds; qed"),
 			),
 			OnlyChild => Self::OnlyChild,
 			Plurality { id, part } => Self::Plurality { id: id.into(), part: part.into() },

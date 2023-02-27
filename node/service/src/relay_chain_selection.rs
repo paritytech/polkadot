@@ -203,19 +203,12 @@ where
 		target_hash: Hash,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Hash, ConsensusError> {
-		let longest_chain_best =
-			self.longest_chain.finality_target(target_hash, maybe_max_number).await?;
-
 		if let IsDisputesAwareWithOverseer::Yes(ref selection) = self.selection {
 			selection
-				.finality_target_with_longest_chain(
-					target_hash,
-					longest_chain_best,
-					maybe_max_number,
-				)
+				.finality_target_with_longest_chain(target_hash, maybe_max_number)
 				.await
 		} else {
-			Ok(longest_chain_best)
+			self.longest_chain.finality_target(target_hash, maybe_max_number).await
 		}
 	}
 }
@@ -364,11 +357,9 @@ where
 	pub(crate) async fn finality_target_with_longest_chain(
 		&self,
 		target_hash: Hash,
-		best_leaf: Hash,
 		maybe_max_number: Option<BlockNumber>,
 	) -> Result<Hash, ConsensusError> {
 		let mut overseer = self.overseer.clone();
-		gum::trace!(target: LOG_TARGET, ?best_leaf, "Longest chain");
 
 		let subchain_head = {
 			let (tx, rx) = oneshot::channel();
@@ -414,7 +405,7 @@ where
 				let subchain_header = self.block_header(subchain_head)?;
 
 				if subchain_header.number <= max {
-					gum::trace!(target: LOG_TARGET, ?best_leaf, "Constrained sub-chain head",);
+					gum::trace!(target: LOG_TARGET, ?subchain_head, "Constrained sub-chain head",);
 					subchain_head
 				} else {
 					let (ancestor_hash, _) =

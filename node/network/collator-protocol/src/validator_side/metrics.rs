@@ -1,4 +1,4 @@
-// Copyright 2017-2022 Parity Technologies (UK) Ltd.
+// Copyright 2017-2023 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -56,6 +56,15 @@ impl Metrics {
 	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.collation_request_duration.start_timer())
 	}
+
+	/// Provide a timer for `request_unblocked_collations` which observes on drop.
+	pub fn time_request_unblocked_collations(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.request_unblocked_collations.start_timer())
+	}
 }
 
 #[derive(Clone)]
@@ -65,6 +74,7 @@ struct MetricsInner {
 	handle_collation_request_result: prometheus::Histogram,
 	collator_peer_count: prometheus::Gauge<prometheus::U64>,
 	collation_request_duration: prometheus::Histogram,
+	request_unblocked_collations: prometheus::Histogram,
 }
 
 impl metrics::Metrics for Metrics {
@@ -113,6 +123,15 @@ impl metrics::Metrics for Metrics {
 						"polkadot_parachain_collator_protocol_validator_collation_request_duration",
 						"Lifetime of the `PerRequest` structure",
 					).buckets(vec![0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.9, 1.0, 1.2, 1.5, 1.75]),
+				)?,
+				registry,
+			)?,
+			request_unblocked_collations: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_collator_protocol_validator_request_unblocked_collations",
+						"Time spent within `collator_protocol_validator::request_unblocked_collations`",
+					)
 				)?,
 				registry,
 			)?,

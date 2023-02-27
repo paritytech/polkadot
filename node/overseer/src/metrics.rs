@@ -19,8 +19,6 @@
 use super::*;
 pub use polkadot_node_metrics::metrics::{self, prometheus, Metrics as MetricsTrait};
 
-use memory_stats::MemoryAllocationSnapshot;
-
 /// Overseer Prometheus metrics.
 #[derive(Clone)]
 struct MetricsInner {
@@ -40,7 +38,9 @@ struct MetricsInner {
 	signals_sent: prometheus::GaugeVec<prometheus::U64>,
 	signals_received: prometheus::GaugeVec<prometheus::U64>,
 
+	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 	memory_stats_resident: prometheus::Gauge<prometheus::U64>,
+	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 	memory_stats_allocated: prometheus::Gauge<prometheus::U64>,
 }
 
@@ -67,10 +67,14 @@ impl Metrics {
 		}
 	}
 
-	pub(crate) fn memory_stats_snapshot(&self, memory_stats: MemoryAllocationSnapshot) {
+	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
+	pub(crate) fn memory_stats_snapshot(
+		&self,
+		memory_stats: memory_stats::MemoryAllocationSnapshot,
+	) {
 		if let Some(metrics) = &self.0 {
-			metrics.memory_stats_allocated.set(memory_stats.allocated);
-			metrics.memory_stats_resident.set(memory_stats.resident);
+			metrics.memory_stats_allocated.set(memory_stats.allocated as u64);
+			metrics.memory_stats_resident.set(memory_stats.resident as u64);
 		}
 	}
 
@@ -246,7 +250,7 @@ impl MetricsTrait for Metrics {
 				)?,
 				registry,
 			)?,
-
+			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 			memory_stats_allocated: prometheus::register(
 				prometheus::Gauge::<prometheus::U64>::new(
 					"polkadot_memory_allocated",
@@ -254,6 +258,7 @@ impl MetricsTrait for Metrics {
 				)?,
 				registry,
 			)?,
+			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 			memory_stats_resident: prometheus::register(
 				prometheus::Gauge::<prometheus::U64>::new(
 					"polkadot_memory_resident",
