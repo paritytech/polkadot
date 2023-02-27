@@ -309,7 +309,7 @@ For clarity, here is the full timeline:
 ## Cluster Module
 
 The cluster module provides direct distribution of unbacked candidates within a
-group. By utilizing this initial phase of propogating only within
+group. By utilizing this initial phase of propagating only within
 clusters/groups, we bound the number of `Seconded` messages per validator per
 relay-parent, helping us prevent spam. Validators can try to circumvent this,
 but they would only consume a few KB of memory and it is trivially slashable on
