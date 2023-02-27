@@ -104,8 +104,8 @@ backing subsystem itself.
     validators or from a collator.
   - The reason for this is that sending a statement (which is always a
     `CompactStatement` carrying nothing but a hash and signature) to the
-    cluster, is also signal that you are available to request the candidate
-    from.
+    cluster, is also a signal that the sending node is available to request the
+    candidate from.
   - This makes the protocol easier to reason about, while also reducing network
     messages about candidates that don't really exist.
 - Validators in a cluster receiving messages about unknown candidates request
@@ -378,9 +378,9 @@ sending/receiving sets for 10 would be different for different groups.
   It would propagate them to 1, 4, and 7.
 - If 6 was in group A instead of 9, then 10 could receive from 7 or 9. It would
   not propagate any further.
-- If 10 itself was in group A, then it would not receive candidates from any
-  other nodes through the grid. It would itself send these candidates to all its
-  neighbors.
+- If 10 itself was in group A, then it would not receive candidates from this
+  group from any other nodes through the grid. It would itself send such
+  candidates to all its neighbors.
 
 ### Seconding Limit
 
