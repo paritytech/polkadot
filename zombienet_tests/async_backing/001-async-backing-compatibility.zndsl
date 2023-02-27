@@ -1,5 +1,5 @@
-Description: Async Backing Version Test
-Network: ./async-backing-test.toml
+Description: Async Backing Compatibility Test
+Network: ./001-async-backing-compatibility.toml
 Creds: config
 
 # General
