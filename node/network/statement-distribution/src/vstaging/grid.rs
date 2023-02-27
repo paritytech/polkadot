@@ -97,6 +97,7 @@ struct GroupSubView {
 
 /// Our local view of the topology for a session, as it pertains to backed
 /// candidate distribution.
+#[derive(Debug)]
 pub struct SessionTopologyView {
 	group_views: HashMap<GroupIndex, GroupSubView>,
 }

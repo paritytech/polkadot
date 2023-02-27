@@ -145,6 +145,7 @@ struct LocalValidatorState {
 	grid_tracker: GridTracker,
 }
 
+#[derive(Debug)]
 struct PerSessionState {
 	session_info: SessionInfo,
 	groups: Groups,
@@ -1021,6 +1022,7 @@ pub(crate) async fn share_local_statement<Context>(
 
 // two kinds of targets: those in our 'cluster' (currently just those in the same group),
 // and those we are propagating to through the grid.
+#[derive(Debug)]
 enum DirectTargetKind {
 	Cluster,
 	Grid,
