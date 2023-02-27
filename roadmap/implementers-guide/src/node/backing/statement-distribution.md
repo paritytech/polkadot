@@ -126,7 +126,7 @@ backing subsystem itself.
 - Every consensus session provides randomness and a fixed validator set, which
   is used to build a redundant grid topology.
   - It's redundant in the sense that there are 2 paths from every node to every
-    other node.
+    other node. See "Grid Topology" section for more details.
 - This grid topology is used to create "sending" and "receiving" paths from each
   validator group to every validator.
 - When a node observes a candidate as backed, it sends a
@@ -344,12 +344,40 @@ other validator in at most 2 hops, providing redundancy.
 
 Propagation follows these rules:
 
+- Each node has a receiving set and a sending set. These are different for each
+  group. That is, if a node receives a candidate from group A, it checks if it
+  is allowed to receive from that node for candidates from group A.
 - For groups that we are in, receive from nobody and send to our X/Y peers.
 - For groups that we are not part of:
   - We receive from any validator in the group we share a slice with and send to
     the corresponding X/Y slice in the other dimension.
   - For any validators we don't share a slice with, we receive from the nodes
     which share a slice with them.
+
+### Example
+
+For size 11, the matrix would be:
+
+```
+0  1  2
+3  4  5
+6  7  8
+9 10
+```
+
+e.g. for index 10, the neighbors would be 1, 4, 7, 9 -- these are the nodes we
+could directly communicate with (e.g. either send to or receive from).
+
+Now, which of these neighbors can 10 receive from? Recall that the
+sending/receiving sets for 10 would be different for different groups.
+
+- If 9 belongs to group A, then 10 can receive candidates from group A from 9.
+  It would propagate them to 1, 4, and 7.
+- If 6 was in group A instead of 9, then 10 could receive from 7 or 9. It would
+  not propagate any further.
+- If 10 itself was in group A, then it would not receive candidates from any
+  other nodes through the grid. It would itself send these candidates to all its
+  neighbors.
 
 ### Seconding Limit
 
