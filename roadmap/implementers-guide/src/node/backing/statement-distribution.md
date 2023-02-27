@@ -302,12 +302,12 @@ on-chain as well to ensure all validators in the group are rewarded.
 
 For clarity, here is the full timeline:
 
-- candidate seconded
-- distributed along grid
-- backable in cluster
-- latecomers issue statements
-- candidate posted on chain
-- really latecomers issue statements
+1. candidate seconded
+1. distributed along grid
+1. backable in cluster
+1. latecomers issue statements
+1. candidate posted on chain
+1. really latecomers issue statements
 
 ## Cluster Module
 
