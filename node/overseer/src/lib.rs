@@ -117,13 +117,12 @@ pub const KNOWN_LEAVES_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(2 * 24
 	None => panic!("Known leaves cache size must be non-zero"),
 };
 
+#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 mod memory_stats;
 #[cfg(test)]
 mod tests;
 
 use sp_core::traits::SpawnNamed;
-
-use memory_stats::MemoryAllocationTracker;
 
 /// Glue to connect `trait orchestra::Spawner` and `SpawnNamed` from `substrate`.
 pub struct SpawnGlue<S>(pub S);
@@ -654,8 +653,9 @@ where
 	}
 	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
 
+	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> =
-		match MemoryAllocationTracker::new() {
+		match memory_stats::MemoryAllocationTracker::new() {
 			Ok(memory_stats) =>
 				Box::new(move |metrics: &OverseerMetrics| match memory_stats.snapshot() {
 					Ok(memory_stats_snapshot) => {
@@ -678,6 +678,9 @@ where
 				Box::new(|_| {})
 			},
 		};
+
+	#[cfg(not(any(target_os = "linux", feature = "jemalloc-allocator")))]
+	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> = Box::new(|_| {});
 
 	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
 		collect_memory_stats(&metronome_metrics);

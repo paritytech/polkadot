@@ -51,6 +51,7 @@ pub(crate) struct RequestResultCache {
 	validation_code_by_hash: LruCache<ValidationCodeHash, Option<ValidationCode>>,
 	candidate_pending_availability: LruCache<(Hash, ParaId), Option<CommittedCandidateReceipt>>,
 	candidate_events: LruCache<Hash, Vec<CandidateEvent>>,
+	session_executor_params: LruCache<SessionIndex, Option<vstaging::ExecutorParams>>,
 	session_info: LruCache<SessionIndex, SessionInfo>,
 	dmq_contents: LruCache<(Hash, ParaId), Vec<InboundDownwardMessage<BlockNumber>>>,
 	inbound_hrmp_channels_contents:
@@ -83,6 +84,7 @@ impl Default for RequestResultCache {
 			validation_code_by_hash: LruCache::new(DEFAULT_CACHE_CAP),
 			candidate_pending_availability: LruCache::new(DEFAULT_CACHE_CAP),
 			candidate_events: LruCache::new(DEFAULT_CACHE_CAP),
+			session_executor_params: LruCache::new(DEFAULT_CACHE_CAP),
 			session_info: LruCache::new(DEFAULT_CACHE_CAP),
 			dmq_contents: LruCache::new(DEFAULT_CACHE_CAP),
 			inbound_hrmp_channels_contents: LruCache::new(DEFAULT_CACHE_CAP),
@@ -269,6 +271,21 @@ impl RequestResultCache {
 		self.session_info.put(key, value);
 	}
 
+	pub(crate) fn session_executor_params(
+		&mut self,
+		session_index: SessionIndex,
+	) -> Option<&Option<vstaging::ExecutorParams>> {
+		self.session_executor_params.get(&session_index)
+	}
+
+	pub(crate) fn cache_session_executor_params(
+		&mut self,
+		session_index: SessionIndex,
+		value: Option<vstaging::ExecutorParams>,
+	) {
+		self.session_executor_params.put(session_index, value);
+	}
+
 	pub(crate) fn dmq_contents(
 		&mut self,
 		key: (Hash, ParaId),
@@ -433,6 +450,7 @@ pub(crate) enum RequestResult {
 	ValidationCodeByHash(Hash, ValidationCodeHash, Option<ValidationCode>),
 	CandidatePendingAvailability(Hash, ParaId, Option<CommittedCandidateReceipt>),
 	CandidateEvents(Hash, Vec<CandidateEvent>),
+	SessionExecutorParams(Hash, SessionIndex, Option<vstaging::ExecutorParams>),
 	SessionInfo(Hash, SessionIndex, Option<SessionInfo>),
 	DmqContents(Hash, ParaId, Vec<InboundDownwardMessage<BlockNumber>>),
 	InboundHrmpChannelsContents(

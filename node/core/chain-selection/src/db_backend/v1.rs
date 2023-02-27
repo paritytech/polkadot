@@ -236,12 +236,13 @@ impl Backend for DbBackend {
 
 		let val = stagnant_at_iter
 			.filter_map(|r| match r {
-				Ok((k, v)) =>
+				Ok((k, v)) => {
 					match (decode_stagnant_at_key(&mut &k[..]), <Vec<_>>::decode(&mut &v[..]).ok())
 					{
 						(Some(at), Some(stagnant_at)) => Some(Ok((at, stagnant_at))),
 						_ => None,
-					},
+					}
+				},
 				Err(e) => Some(Err(e)),
 			})
 			.enumerate()

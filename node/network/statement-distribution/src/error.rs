@@ -86,8 +86,9 @@ pub fn log_error(result: Result<()>, ctx: &'static str) -> std::result::Result<(
 	match result.into_nested()? {
 		Err(jfyi) => {
 			match jfyi {
-				JfyiError::RequestedUnannouncedCandidate(_, _) =>
-					gum::warn!(target: LOG_TARGET, error = %jfyi, ctx),
+				JfyiError::RequestedUnannouncedCandidate(_, _) => {
+					gum::warn!(target: LOG_TARGET, error = %jfyi, ctx)
+				},
 				_ => gum::debug!(target: LOG_TARGET, error = %jfyi, ctx),
 			}
 			Ok(())

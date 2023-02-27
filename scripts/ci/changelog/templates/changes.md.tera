@@ -10,4 +10,6 @@
 
 {% include "changes_runtime.md.tera" %}
 
+{% include "changes_api.md.tera" %}
+
 {% include "changes_misc.md.tera" %}
