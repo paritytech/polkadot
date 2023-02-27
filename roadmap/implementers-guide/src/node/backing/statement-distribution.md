@@ -93,6 +93,9 @@ backing subsystem itself.
   validators within a group at a relay-parent can send each other `Statement`
   messages for any candidates within that group and based on that relay-parent.
 - This is referred to as the "cluster" mode.
+  - Right now these are the same as backing groups, though "cluster"
+    specifically refers to the set of nodes communicating with each other in the
+    first phase of distribution.
 - `Seconded` statements must be sent before `Valid` statements.
 - `Seconded` statements may only be sent to other members of the group when the
   candidate is fully known by the local validator.
@@ -416,12 +419,14 @@ description of the flow. See module-docs for full details.
 - **Announcement:** A notification of a backed candidate being known by the
   sending node. Is a full manifest and initiates manifest exchange.
 - **Attestation:** See "Statement".
-- **Backable vs. Backed:** Note that we sometimes use "backed" to refer to
-  candidates that are "backable", but not yet backed on chain. "Backed" should
-  technically mean that the parablock candidate and its backing statements have
-  been added to a relay chain block. By contrast, "backable" is when the
-  necessary backing statements have been acquired but those statements and the
-  parablock candidate haven't been backed in a relay chain block yet.
+- **Backable vs. Backed:**
+  - Note that we sometimes use "backed" to refer to candidates that are
+    "backable", but not yet backed on chain.
+  - **Backed** should technically mean that the parablock candidate and its
+    backing statements have been added to a relay chain block.
+  - **Backable** is when the necessary backing statements have been acquired but
+    those statements and the parablock candidate haven't been backed in a relay
+    chain block yet.
 - **Fragment tree:** A parachain fragment not referenced by the relay-chain.
   It is a tree of prospective parachain blocks.
 - **Manifest:** A message about a known backed candidate, along with a
