@@ -11,10 +11,10 @@ version.workspace = true
 # various unnecessary Substrate-specific endpoints.
 parity-scale-codec = { version = "3.3.0", default-features = false, features = [ "derive" ] }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-std = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus", default-features = false }
+sp-runtime = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus", default-features = false }
+sp-core = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus", default-features = false }
+frame-support = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus", default-features = false }
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 derive_more = "0.99.11"
 bounded-collections = { version = "0.1.5", default-features = false }

@@ -7,63 +7,63 @@ edition.workspace = true
 
 [dependencies]
 # Substrate Client
-sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-beefy" }
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa = { package = "sc-consensus-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-mmr-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master"}
-sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-client-db = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-slots = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-network-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-basic-authorship = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-offchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-sysinfo = { git = "https://github.com/paritytech/substrate", branch = "master" }
-service = { package = "sc-service", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-authority-discovery = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+babe = { package = "sc-consensus-babe", git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+beefy-primitives = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus", package = "sp-beefy" }
+beefy-gadget = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+grandpa = { package = "sc-consensus-grandpa", git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+mmr-gadget = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-mmr-primitives = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus"}
+sc-block-builder = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-chain-spec = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-client-api = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-client-db = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-consensus = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-consensus-slots = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-executor = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-network = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-network-common = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-transaction-pool = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-sync-state-rpc = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-keystore = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-basic-authorship = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-offchain = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-sysinfo = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+service = { package = "sc-service", git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus", default-features = false }
+telemetry = { package = "sc-telemetry", git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
 
 # Substrate Primitives
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
-consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa_primitives = { package = "sp-consensus-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-offchain = { package = "sp-offchain", git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-session = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-storage = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-transaction-pool = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-trie = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-timestamp = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-state-machine = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-authority-discovery = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+consensus_common = { package = "sp-consensus", git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+grandpa_primitives = { package = "sp-consensus-grandpa", git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+inherents = { package = "sp-inherents", git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-api = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-block-builder = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-blockchain = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-core = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-io = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-keystore = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-offchain = { package = "sp-offchain", git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-runtime = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-session = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-storage = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-transaction-pool = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-trie = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-timestamp = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-consensus-babe = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-state-machine = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
 
 # Substrate Pallets
-pallet-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-im-online = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
+pallet-babe = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+pallet-im-online = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+pallet-staking = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
 
 # Substrate Other
-frame-system-rpc-runtime-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-benchmarking-cli = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system-rpc-runtime-api = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+frame-support = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+frame-benchmarking-cli = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
 
 # External Crates
 futures = "0.3.21"

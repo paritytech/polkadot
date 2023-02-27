@@ -31,15 +31,15 @@ polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-primitives = { path = "../../primitives" }
 
 polkadot-primitives = { path = "../../../primitives" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-executor-wasmtime = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sc-executor-common = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-externalities = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-io = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-core = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-wasm-interface = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-maybe-compressed-blob = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
+sp-tracing = { git = "https://github.com/davxy/substrate", branch = "move-grandpa-to-consensus" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2.139"
