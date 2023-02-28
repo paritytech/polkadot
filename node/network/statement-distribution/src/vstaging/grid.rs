@@ -695,7 +695,7 @@ fn decompose_statement_filter<'a>(
 }
 
 /// A summary of a manifest being sent by a counterparty.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct ManifestSummary {
 	/// The claimed parent head data hash of the candidate.
 	pub claimed_parent_hash: Hash,

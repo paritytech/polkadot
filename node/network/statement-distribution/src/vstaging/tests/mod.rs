@@ -72,7 +72,7 @@ struct TestConfig {
 	async_backing_params: Option<AsyncBackingParameters>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct TestLocalValidator {
 	validator_id: ValidatorId,
 	validator_index: ValidatorIndex,
