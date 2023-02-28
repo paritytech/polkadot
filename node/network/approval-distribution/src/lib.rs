@@ -701,10 +701,9 @@ impl State {
 		old_blocks.values().flatten().for_each(|relay_block| {
 			self.recent_outdated_blocks.note_outdated(*relay_block);
 			if let Some(block_entry) = self.blocks.remove(relay_block) {
-				// We should remove the span associated with the relay block to avoid memory leaks.
-				self.spans.remove(&relay_block);
 				self.topologies.dec_session_refs(block_entry.session);
 			}
+			self.spans.remove(&relay_block);
 		});
 
 		// If a block was finalized, this means we may need to move our aggression
