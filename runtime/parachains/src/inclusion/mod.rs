@@ -42,7 +42,7 @@ use primitives::{
 	UpwardMessage, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use scale_info::TypeInfo;
-use sp_runtime::{traits::One, DispatchError, SaturatedConversion};
+use sp_runtime::{traits::One, DispatchError, SaturatedConversion, Saturating};
 #[cfg(feature = "std")]
 use sp_std::fmt;
 use sp_std::{collections::btree_set::BTreeSet, prelude::*};
@@ -215,6 +215,7 @@ pub fn minimum_backing_votes(n_validators: usize) -> usize {
 	sp_std::cmp::min(n_validators, 2)
 }
 
+/// Provides introspection into the UMP dispatch queue of a parachain.
 pub trait UmpQueueTracker {
 	fn message_count(para: ParaId) -> u64;
 }
@@ -271,7 +272,9 @@ pub mod pallet {
 
 		/// The system message queue.
 		///
-		/// The message queue provides general queueing and processing functionality. Currently it replaces the old `UMP` dispatch queue. Other use-cases can be implemented as well by adding new variants to `AggregateMessageOrigin`.
+		/// The message queue provides general queueing and processing functionality. Currently it
+		/// replaces the old `UMP` dispatch queue. Other use-cases can be implemented as well by
+		/// adding new variants to `AggregateMessageOrigin`.
 		type MessageQueue: EnqueueMessage<AggregateMessageOrigin>;
 	}
 
@@ -374,15 +377,22 @@ pub mod pallet {
 
 const LOG_TARGET: &str = "runtime::inclusion";
 
+/// The reason that a candidate's outputs were rejected for.
 #[derive(derive_more::From)]
 #[cfg_attr(feature = "std", derive(Debug))]
 enum AcceptanceCheckErr<BlockNumber> {
 	HeadDataTooLarge,
+	/// Code upgrades are not permitted at the current time.
 	PrematureCodeUpgrade,
+	/// The new runtime blob is too large.
 	NewCodeTooLarge,
+	/// The candidate violated this DMP acceptance criteria.
 	ProcessedDownwardMessages(dmp::ProcessedDownwardMessagesAcceptanceErr),
+	/// The candidate violated this UMP acceptance criteria.
 	UpwardMessages(UmpAcceptanceCheckErr),
+	/// The candidate violated this HRMP watermark acceptance criteria.
 	HrmpWatermark(hrmp::HrmpWatermarkAcceptanceErr<BlockNumber>),
+	/// The candidate violated this outbound HRMP acceptance criteria.
 	OutboundHrmp(hrmp::OutboundHrmpAcceptanceErr),
 }
 
@@ -935,8 +945,8 @@ impl<T: Config> Pallet<T> {
 		upward_messages: &[UpwardMessage],
 	) -> Result<(), UmpAcceptanceCheckErr> {
 		// Cannot send UMP messages while off-boarding.
-		if <paras::Pallet<T>>::lifecycle(para).map_or(false, |l| l.is_offboarding()) {
-			ensure!(upward_messages.is_empty(), UmpAcceptanceCheckErr::IsOffboarding,);
+		if <paras::Pallet<T>>::is_offboarding(para) {
+			ensure!(upward_messages.is_empty(), UmpAcceptanceCheckErr::IsOffboarding);
 		}
 
 		let additional_msgs = upward_messages.len();
@@ -952,7 +962,7 @@ impl<T: Config> Pallet<T> {
 
 		if para_queue_count
 			.checked_add(additional_msgs as u64)
-			.map(|want| want > config.max_upward_queue_count as u64)
+			.map(|new| new > config.max_upward_queue_count as u64)
 			.unwrap_or(true)
 		{
 			return Err(UmpAcceptanceCheckErr::CapacityExceeded {
@@ -974,7 +984,7 @@ impl<T: Config> Pallet<T> {
 			// we do it here only once since returning false invalidates the whole relay-chain block.
 			if para_queue_size
 				.checked_add(msg_size as u64)
-				.map(|want| want > config.max_upward_queue_size as u64)
+				.map(|new| new > config.max_upward_queue_size as u64)
 				.unwrap_or(true)
 			{
 				return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {
@@ -982,12 +992,13 @@ impl<T: Config> Pallet<T> {
 					limit: config.max_upward_queue_size as u64,
 				})
 			}
-			para_queue_size += msg_size as u64;
+			para_queue_size.saturating_accrue(msg_size as u64);
 		}
 
 		Ok(())
 	}
 
+	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
 	pub(crate) fn receive_upward_messages(para: ParaId, upward_messages: &[Vec<u8>]) -> Weight {
 		let bounded = upward_messages
 			.iter()
@@ -996,7 +1007,7 @@ impl<T: Config> Pallet<T> {
 		Self::receive_bounded_upward_messages(para, bounded)
 	}
 
-	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
+	/// Enqueues storage-bounded `upward_messages` from a `para`'s accepted candidate block.
 	pub(crate) fn receive_bounded_upward_messages(
 		para: ParaId,
 		messages: Vec<BoundedSlice<'_, u8, MaxUmpMessageLen<T>>>,
@@ -1142,6 +1153,7 @@ impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {
 }
 
 impl<T: Config> OnQueueChanged<AggregateMessageOrigin> for Pallet<T> {
+	// Write back the remaining queue capacity into `relay_dispatch_queue_remaining_capacity`.
 	fn on_queue_changed(origin: AggregateMessageOrigin, count: u64, size: u64) {
 		let para = match origin {
 			AggregateMessageOrigin::UMP(p) => p,

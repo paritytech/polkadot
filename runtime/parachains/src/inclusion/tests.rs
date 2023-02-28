@@ -1982,6 +1982,7 @@ fn session_change_wipes() {
 	});
 }
 
+/// Assert that the encoding of a known `AggregateMessageOrigin` did not change.
 #[test]
 fn aggregate_origin_decode_regression_check() {
 	let ump = AggregateMessageOrigin::UMP(u32::MAX.into());

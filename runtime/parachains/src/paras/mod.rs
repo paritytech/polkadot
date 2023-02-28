@@ -555,7 +555,8 @@ pub mod pallet {
 
 		/// Retrieve how many UMP messages are enqueued for this para-chain.
 		///
-		/// This is used to judge whether or not a para-chain can offboard. Per default this should be set to the `ParaInclusion` pallet.
+		/// This is used to judge whether or not a para-chain can offboard. Per default this should
+		/// be set to the `ParaInclusion` pallet.
 		type UmpQueueTracker: UmpQueueTracker;
 
 		/// Weight information for extrinsics in this pallet.

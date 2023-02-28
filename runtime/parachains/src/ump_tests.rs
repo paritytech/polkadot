@@ -103,7 +103,6 @@ mod check_upward_messages {
 		data.as_bytes().to_vec()
 	}
 
-	// helper
 	fn check(para: ParaId, msgs: Vec<UpwardMessage>, err: Option<UmpAcceptanceCheckErr>) {
 		assert_eq!(
 			ParaInclusion::check_upward_messages(&Configuration::config(), para, &msgs[..]).err(),
@@ -112,7 +111,7 @@ mod check_upward_messages {
 	}
 
 	fn queue(para: ParaId, msgs: Vec<UpwardMessage>) {
-		let _ = ParaInclusion::receive_upward_messages(para, msgs.as_slice());
+		msgs.into_iter().for_each(|msg| super::queue_upward_msg(para, msg));
 	}
 
 	#[test]
@@ -474,7 +473,8 @@ fn overweight_queue_works() {
 	});
 }
 
-/// Tests that UMP messages in the dispatch queue of the relay prevents the parachain from being scheduled for offboarding.
+/// Tests that UMP messages in the dispatch queue of the relay prevents the parachain from being
+/// scheduled for offboarding.
 #[test]
 fn cannot_offboard_while_ump_dispatch_queued() {
 	let para = 32.into();

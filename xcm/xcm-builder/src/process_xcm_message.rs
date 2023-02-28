@@ -39,7 +39,7 @@ impl<
 {
 	type Origin = MessageOrigin;
 
-	/// Process the given message, using no more than `weight_limit` in weight to do so.
+	/// Process the given message, using no more than the remaining `weight` to do so.
 	fn process_message(
 		message: &[u8],
 		origin: Self::Origin,
@@ -77,10 +77,10 @@ mod tests {
 	use polkadot_test_runtime::*;
 	use xcm::{v2, v3, VersionedXcm};
 
+	const ORIGIN: Junction = Junction::OnlyChild;
 	/// The processor to use for tests.
 	type Processor =
 		ProcessXcmMessage<Junction, xcm_executor::XcmExecutor<xcm_config::XcmConfig>, RuntimeCall>;
-	const ORIGIN: Junction = Junction::OnlyChild;
 
 	#[test]
 	fn process_message_trivial_works() {
@@ -116,11 +116,13 @@ mod tests {
 					Processor::process_message(msg, ORIGIN, meter),
 					Overweight(1000.into())
 				);
+				assert_eq!(meter.consumed, 0.into());
 			}
 
 			// Works with a limit of 1000.
 			let meter = &mut WeightMeter::from_limit(1000.into());
 			assert_ok!(Processor::process_message(msg, ORIGIN, meter));
+			assert_eq!(meter.consumed, 1000.into());
 		}
 	}
 
