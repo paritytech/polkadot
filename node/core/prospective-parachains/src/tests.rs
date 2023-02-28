@@ -126,14 +126,24 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	view
 }
 
+#[derive(Debug, Clone)]
 struct PerParaData {
 	min_relay_parent: BlockNumber,
 	head_data: HeadData,
+	pending_availability: Vec<CandidatePendingAvailability>,
 }
 
 impl PerParaData {
 	pub fn new(min_relay_parent: BlockNumber, head_data: HeadData) -> Self {
-		Self { min_relay_parent, head_data }
+		Self { min_relay_parent, head_data, pending_availability: Vec::new() }
+	}
+
+	pub fn new_with_pending(
+		min_relay_parent: BlockNumber,
+		head_data: HeadData,
+		pending: Vec<CandidatePendingAvailability>,
+	) -> Self {
+		Self { min_relay_parent, head_data, pending_availability: pending }
 	}
 }
 
@@ -176,7 +186,7 @@ async fn activate_leaf(
 	leaf: &TestLeaf,
 	test_state: &TestState,
 ) {
-	let TestLeaf { number, hash, para_data: _ } = leaf;
+	let TestLeaf { number, hash, .. } = leaf;
 
 	let activated = ActivatedLeaf {
 		hash: *hash,
@@ -255,14 +265,16 @@ async fn handle_leaf_activation(
 			_ => panic!("received unexpected message {:?}", message),
 		};
 
-		let PerParaData { min_relay_parent, head_data } = leaf.para_data(para_id);
+		let PerParaData { min_relay_parent, head_data, pending_availability } =
+			leaf.para_data(para_id);
 		let constraints = dummy_constraints(
 			*min_relay_parent,
 			vec![*number],
 			head_data.clone(),
 			test_state.validation_code_hash,
 		);
-		let backing_state = BackingState { constraints, pending_availability: Vec::new() }; // TODO [now]: should be part of `PerParaData`.
+		let backing_state =
+			BackingState { constraints, pending_availability: pending_availability.clone() };
 
 		assert_matches!(
 			message,
@@ -272,6 +284,15 @@ async fn handle_leaf_activation(
 				tx.send(Ok(Some(backing_state))).unwrap();
 			}
 		);
+
+		for pending in pending_availability {
+			send_block_header(
+				virtual_overseer,
+				pending.descriptor.relay_parent,
+				pending.relay_parent_number,
+			)
+			.await;
+		}
 	}
 
 	// Get minimum relay parents.
@@ -1321,4 +1342,101 @@ fn correctly_updates_leaves() {
 
 	assert_eq!(view.active_leaves.len(), 0);
 	assert_eq!(view.candidate_storage.len(), 0);
+}
+
+#[test]
+fn persists_pending_availability_candidate() {
+	let mut test_state = TestState::default();
+	let para_id = ParaId::from(1);
+	test_state.availability_cores = test_state
+		.availability_cores
+		.into_iter()
+		.filter(|core| core.para_id().map_or(false, |id| id == para_id))
+		.collect();
+	assert_eq!(test_state.availability_cores.len(), 1);
+
+	test_harness(|mut virtual_overseer| async move {
+		let para_head = HeadData(vec![1, 2, 3]);
+
+		// Min allowed relay parent for leaf `a` which goes out of scope in the test.
+		let candidate_relay_parent = Hash::from_low_u64_be(5);
+		let candidate_relay_parent_number = 97;
+
+		let leaf_a = TestLeaf {
+			number: candidate_relay_parent_number + ALLOWED_ANCESTRY_LEN,
+			hash: Hash::from_low_u64_be(2),
+			para_data: vec![(
+				para_id,
+				PerParaData::new(candidate_relay_parent_number, para_head.clone()),
+			)],
+		};
+
+		let leaf_b_hash = Hash::from_low_u64_be(1);
+		let leaf_b_number = leaf_a.number + 1;
+
+		// Activate leaves.
+		activate_leaf(&mut virtual_overseer, &leaf_a, &test_state).await;
+
+		// Candidate A
+		let (candidate_a, pvd_a) = make_candidate(
+			candidate_relay_parent,
+			candidate_relay_parent_number,
+			para_id,
+			para_head.clone(),
+			HeadData(vec![1]),
+			test_state.validation_code_hash,
+		);
+		let candidate_hash_a = candidate_a.hash();
+
+		// Candidate B, built on top of the candidate which is out of scope but pending availability.
+		let (candidate_b, pvd_b) = make_candidate(
+			leaf_b_hash,
+			leaf_b_number,
+			para_id,
+			HeadData(vec![1]),
+			HeadData(vec![2]),
+			test_state.validation_code_hash,
+		);
+		let candidate_hash_b = candidate_b.hash();
+
+		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a).await;
+		second_candidate(&mut virtual_overseer, candidate_a.clone()).await;
+		back_candidate(&mut virtual_overseer, &candidate_a, candidate_hash_a).await;
+
+		let candidate_a_pending_av = CandidatePendingAvailability {
+			candidate_hash: candidate_hash_a,
+			descriptor: candidate_a.descriptor.clone(),
+			commitments: candidate_a.commitments.clone(),
+			relay_parent_number: candidate_relay_parent_number,
+			max_pov_size: MAX_POV_SIZE,
+		};
+		let leaf_b = TestLeaf {
+			number: leaf_b_number,
+			hash: leaf_b_hash,
+			para_data: vec![(
+				1.into(),
+				PerParaData::new_with_pending(
+					candidate_relay_parent_number + 1,
+					para_head.clone(),
+					vec![candidate_a_pending_av],
+				),
+			)],
+		};
+		activate_leaf(&mut virtual_overseer, &leaf_b, &test_state).await;
+
+		introduce_candidate(&mut virtual_overseer, candidate_b.clone(), pvd_b).await;
+		second_candidate(&mut virtual_overseer, candidate_b.clone()).await;
+		back_candidate(&mut virtual_overseer, &candidate_b, candidate_hash_b).await;
+
+		get_backable_candidate(
+			&mut virtual_overseer,
+			&leaf_b,
+			para_id,
+			vec![candidate_hash_a],
+			Some(candidate_hash_b),
+		)
+		.await;
+
+		virtual_overseer
+	});
 }
