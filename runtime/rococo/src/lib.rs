@@ -477,9 +477,9 @@ parameter_types! {
 	pub TermDuration: BlockNumber = prod_or_fast!(24 * HOURS, 2 * MINUTES, "ROC_TERM_DURATION");
 	pub const DesiredMembers: u32 = 19;
 	pub const DesiredRunnersUp: u32 = 19;
-	pub const MaxVoters: u32 = 64;
+	pub const MaxVoters: u32 = 10 * 1000;
 	pub const MaxVotesPerVoter: u32 = 16;
-	pub const MaxCandidates: u32 = 32;
+	pub const MaxCandidates: u32 = 1000;
 	// The ElectionsPalletId parameter name was changed along with the renaming of the elections
 	// pallet, but we keep the same lock ID to prevent runtime migrations. Related to
 	// https://github.com/paritytech/substrate/issues/8250
