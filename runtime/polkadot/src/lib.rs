@@ -401,7 +401,7 @@ parameter_types! {
 	/// validator intentions.
 	pub const MaxElectingVoters: u32 = 22_500;
 	pub ElectionBounds: frame_election_provider_support::ElectionBounds =
-		ElectionBoundsBuilder::new().voters_count(22_500.into()).build();
+		ElectionBoundsBuilder::new().voters_count(22_500).build();
 
 	/// Setup election pallet to support maximum winners upto 1200. This will mean Staking Pallet
 	/// cannot have active validators higher than this count.

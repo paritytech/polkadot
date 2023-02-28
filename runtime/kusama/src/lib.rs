@@ -404,7 +404,7 @@ parameter_types! {
 	/// the validator intentions.
 	pub const MaxElectingVoters: u32 = 12_500;
 	pub ElectionBounds: frame_election_provider_support::ElectionBounds =
-		ElectionBoundsBuilder::new().voters_count(12_500.into()).build();
+		ElectionBoundsBuilder::new().voters_count(12_500).build();
 	pub NposSolutionPriority: TransactionPriority =
 		Perbill::from_percent(90) * TransactionPriority::max_value();
 	/// Setup election pallet to support maximum winners upto 2000. This will mean Staking Pallet

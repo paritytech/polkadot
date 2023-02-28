@@ -364,7 +364,7 @@ parameter_types! {
 	/// the validator intentions.
 	pub const MaxElectingVoters: u32 = 22_500;
 	pub ElectionBounds: frame_election_provider_support::ElectionBounds =
-		ElectionBoundsBuilder::new().voters_count(22_500.into()).build();
+		ElectionBoundsBuilder::new().voters_count(22_500).build();
 
 	// Maximum winners that can be chosen as active validators
 	pub const MaxActiveValidators: u32 = 1000;
