@@ -2,17 +2,17 @@
 # Here are all jobs that are executed during "zombienet" stage
 
 zombienet-tests-parachains-smoke-test:
-  stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
+  stage: zombienet
+  image: "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
     - .zombienet-refs
   needs:
-    - job:                         publish-polkadot-debug-image
-    - job:                         publish-malus-image
-    - job:                         publish-test-collators-image
+    - job: publish-polkadot-debug-image
+    - job: publish-malus-image
+    - job: publish-test-collators-image
   variables:
-    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
+    GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE}"
@@ -25,24 +25,24 @@ zombienet-tests-parachains-smoke-test:
     - export COL_IMAGE="docker.io/paritypr/colander:4519" # The collator image is fixed
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
-        --github-remote-dir="${GH_DIR}"
-        --test="0001-parachains-smoke-test.zndsl"
-  allow_failure:                   false
+      --github-remote-dir="${GH_DIR}"
+      --test="0001-parachains-smoke-test.zndsl"
+  allow_failure: false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
 
 zombienet-tests-parachains-pvf:
-  stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
+  stage: zombienet
+  image: "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
     - .zombienet-refs
   needs:
-    - job:                         publish-polkadot-debug-image
-    - job:                         publish-test-collators-image
+    - job: publish-polkadot-debug-image
+    - job: publish-test-collators-image
   variables:
-    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
+    GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE}"
@@ -55,25 +55,25 @@ zombienet-tests-parachains-pvf:
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
-        --github-remote-dir="${GH_DIR}"
-        --test="0001-parachains-pvf.zndsl"
-  allow_failure:                   false
+      --github-remote-dir="${GH_DIR}"
+      --test="0001-parachains-pvf.zndsl"
+  allow_failure: false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
 
 zombienet-tests-parachains-disputes:
-  stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
+  stage: zombienet
+  image: "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
     - .zombienet-refs
   needs:
-    - job:                         publish-polkadot-debug-image
-    - job:                         publish-test-collators-image
-    - job:                         publish-malus-image
+    - job: publish-polkadot-debug-image
+    - job: publish-test-collators-image
+    - job: publish-malus-image
   variables:
-    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
+    GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
@@ -86,25 +86,25 @@ zombienet-tests-parachains-disputes:
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
-        --github-remote-dir="${GH_DIR}"
-        --test="0002-parachains-disputes.zndsl"
-  allow_failure:                   false
+      --github-remote-dir="${GH_DIR}"
+      --test="0002-parachains-disputes.zndsl"
+  allow_failure: false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
 
 zombienet-tests-parachains-disputes-garbage-candidate:
-  stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
+  stage: zombienet
+  image: "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
     - .zombienet-refs
   needs:
-    - job:                         publish-polkadot-debug-image
-    - job:                         publish-test-collators-image
-    - job:                         publish-malus-image
+    - job: publish-polkadot-debug-image
+    - job: publish-test-collators-image
+    - job: publish-malus-image
   variables:
-    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
+    GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
@@ -117,25 +117,25 @@ zombienet-tests-parachains-disputes-garbage-candidate:
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
-        --github-remote-dir="${GH_DIR}"
-        --test="0003-parachains-garbage-candidate.zndsl"
-  allow_failure:                   false
+      --github-remote-dir="${GH_DIR}"
+      --test="0003-parachains-garbage-candidate.zndsl"
+  allow_failure: false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
 
 zombienet-test-parachains-upgrade-smoke-test:
-  stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
+  stage: zombienet
+  image: "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
     - .zombienet-refs
   needs:
-    - job:                         publish-polkadot-debug-image
-    - job:                         publish-malus-image
-    - job:                         publish-test-collators-image
+    - job: publish-polkadot-debug-image
+    - job: publish-malus-image
+    - job: publish-test-collators-image
   variables:
-    GH_DIR:                        'https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke'
+    GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
   before_script:
     - echo "ZombieNet Tests Config"
     - echo "${PARACHAINS_IMAGE_NAME}:${PARACHAINS_IMAGE_TAG}"
@@ -147,25 +147,25 @@ zombienet-test-parachains-upgrade-smoke-test:
     - export COL_IMAGE="docker.io/parity/polkadot-collator:latest" # Use cumulus lastest image
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
-        --github-remote-dir="${GH_DIR}"
-        --test="0002-parachains-upgrade-smoke-test.zndsl"
-  allow_failure:                   true
+      --github-remote-dir="${GH_DIR}"
+      --test="0002-parachains-upgrade-smoke-test.zndsl"
+  allow_failure: true
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
 
 zombienet-tests-misc-paritydb:
-  stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
+  stage: zombienet
+  image: "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
     - .zombienet-refs
   needs:
-    - job:                         publish-polkadot-debug-image
-    - job:                         publish-test-collators-image
-      artifacts:                   true
+    - job: publish-polkadot-debug-image
+    - job: publish-test-collators-image
+      artifacts: true
   variables:
-    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/misc"
+    GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/misc"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
@@ -176,26 +176,26 @@ zombienet-tests-misc-paritydb:
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
-        --github-remote-dir="${GH_DIR}"
-        --test="0001-paritydb.zndsl"
-  allow_failure:                   false
+      --github-remote-dir="${GH_DIR}"
+      --test="0001-paritydb.zndsl"
+  allow_failure: false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
 
 zombienet-tests-misc-upgrade-node:
-  stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
+  stage: zombienet
+  image: "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
     - .zombienet-refs
   needs:
-    - job:                         publish-polkadot-debug-image
-    - job:                         publish-test-collators-image
-    - job:                         build-linux-stable
-      artifacts:                   true
+    - job: publish-polkadot-debug-image
+    - job: publish-test-collators-image
+    - job: build-linux-stable
+      artifacts: true
   variables:
-    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/misc"
+    GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/misc"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
@@ -208,25 +208,25 @@ zombienet-tests-misc-upgrade-node:
     - export POLKADOT_PR_BIN_URL="https://gitlab.parity.io/parity/mirrors/polkadot/-/jobs/${BUILD_LINUX_JOB_ID}/artifacts/raw/artifacts/polkadot"
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
-        --github-remote-dir="${GH_DIR}"
-        --test="0002-upgrade-node.zndsl"
-  allow_failure:                   false
+      --github-remote-dir="${GH_DIR}"
+      --test="0002-upgrade-node.zndsl"
+  allow_failure: false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
 
 zombienet-tests-malus-dispute-valid:
-  stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
+  stage: zombienet
+  image: "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
     - .zombienet-refs
   needs:
-    - job:                         publish-polkadot-debug-image
-    - job:                         publish-malus-image
-    - job:                         publish-test-collators-image
+    - job: publish-polkadot-debug-image
+    - job: publish-malus-image
+    - job: publish-test-collators-image
   variables:
-    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/node/malus/integrationtests"
+    GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/node/malus/integrationtests"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
@@ -239,24 +239,24 @@ zombienet-tests-malus-dispute-valid:
     - export COL_IMAGE=${COLLATOR_IMAGE_NAME}:${COLLATOR_IMAGE_TAG}
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
-        --github-remote-dir="${GH_DIR}"
-        --test="0001-dispute-valid-block.zndsl"
-  allow_failure:                   false
+      --github-remote-dir="${GH_DIR}"
+      --test="0001-dispute-valid-block.zndsl"
+  allow_failure: false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
 
 zombienet-tests-deregister-register-validator:
-  stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
+  stage: zombienet
+  image: "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
     - .zombienet-refs
   needs:
-    - job:                         publish-polkadot-debug-image
-      artifacts:                   true
+    - job: publish-polkadot-debug-image
+      artifacts: true
   variables:
-    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
+    GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/smoke"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
@@ -267,23 +267,23 @@ zombienet-tests-deregister-register-validator:
     - export MALUS_IMAGE=${MALUS_IMAGE_NAME}:${MALUS_IMAGE_TAG}
   script:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
-        --github-remote-dir="${GH_DIR}"
-        --test="0003-deregister-register-validator-smoke.zndsl"
-  allow_failure:                   false
+      --github-remote-dir="${GH_DIR}"
+      --test="0003-deregister-register-validator-smoke.zndsl"
+  allow_failure: false
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
 
 zombienet-tests-beefy-and-mmr:
-  stage:                           zombienet
-  image:                           "${ZOMBIENET_IMAGE}"
+  stage: zombienet
+  image: "${ZOMBIENET_IMAGE}"
   extends:
     - .kubernetes-env
     - .zombienet-refs
   needs:
-    - job:                         publish-polkadot-debug-image
+    - job: publish-polkadot-debug-image
   variables:
-    GH_DIR:                        "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
+    GH_DIR: "https://github.com/paritytech/polkadot/tree/${CI_COMMIT_SHORT_SHA}/zombienet_tests/functional"
   before_script:
     - echo "Zombie-net Tests Config"
     - echo "${ZOMBIENET_IMAGE_NAME}"
@@ -295,7 +295,7 @@ zombienet-tests-beefy-and-mmr:
     - /home/nonroot/zombie-net/scripts/ci/run-test-env-manager.sh
       --github-remote-dir="${GH_DIR}"
       --test="0003-beefy-and-mmr.zndsl"
-  allow_failure:                   true
+  allow_failure: true
   retry: 2
   tags:
     - zombienet-polkadot-integration-test
