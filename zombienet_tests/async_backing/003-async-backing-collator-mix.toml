@@ -22,16 +22,13 @@ default_command = "polkadot"
 [[parachains]]
 id = 100
 
-  [parachains.collator]
+  [[parachains.collators]]
   name = "collator01"
   image = "docker.io/paritypr/colander:master"
   command = "undying-collator"
   args = ["-lparachain=debug"]
 
-[[parachains]]
-id = 100
-
-  [parachains.collator]
+  [[parachains.collators]]
   name = "collator02"
   image = "{{COL_IMAGE}}"
   command = "undying-collator"
