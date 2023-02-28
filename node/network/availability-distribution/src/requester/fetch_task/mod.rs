@@ -143,7 +143,8 @@ impl FetchTaskConfig {
 		span: jaeger::Span,
 	) -> Self {
 		let span = span
-			.child_with_trace_id("fetch-task-config", core.candidate_hash)
+			.child("fetch-task-config")
+			.with_trace_id(core.candidate_hash)
 			.with_string_tag("leaf", format!("{:?}", leaf))
 			.with_validator_index(session_info.our_index)
 			.with_uint_tag("group-index", core.group_responsible.0 as u64)
@@ -286,6 +287,11 @@ impl RunningTask {
 					continue
 				},
 			};
+			drop(_chunk_fetch_span);
+			let _chunk_recombine_span = span
+				.child("recombine-chunk")
+				.with_chunk_index(self.request.index.0)
+				.with_stage(jaeger::Stage::AvailabilityDistribution);
 			let chunk = match resp {
 				ChunkFetchingResponse::Chunk(resp) => resp.recombine_into_chunk(&self.request),
 				ChunkFetchingResponse::NoSuchChunk => {
@@ -303,6 +309,11 @@ impl RunningTask {
 					continue
 				},
 			};
+			drop(_chunk_recombine_span);
+			let _chunk_validate_and_store_span = span
+				.child("validate-and-store-chunk")
+				.with_chunk_index(self.request.index.0)
+				.with_stage(jaeger::Stage::AvailabilityDistribution);
 
 			// Data genuine?
 			if !self.validate_chunk(&validator, &chunk) {
@@ -313,7 +324,6 @@ impl RunningTask {
 			// Ok, let's store it and be happy:
 			self.store_chunk(chunk).await;
 			succeeded = true;
-			span.add_string_tag("success", "true");
 			break
 		}
 		span.add_int_tag("tries", count as _);

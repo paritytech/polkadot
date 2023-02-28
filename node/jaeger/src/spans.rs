@@ -291,26 +291,11 @@ impl Span {
 		}
 	}
 
-	/// Derive a child span with a traceID string tag set to the decimal representation of the CandidateHash.
-	pub fn child_with_trace_id(&self, name: &'static str, trace_id: CandidateHash) -> Self {
-		let mut span = match self {
-			Self::Enabled(inner) => Self::Enabled(inner.child(name)),
-			Self::Disabled => Self::Disabled,
-		};
-		span.add_string_tag("traceID", hash_to_trace_identifier(trace_id.0).to_string());
-		span
-	}
-
-	/// Derive a child span with a start time set to the current system time using mick_jaeger::StartTime::now().
-	/// This is useful for spans that are created after the parent span has started.
-	pub fn child_with_start_time(&self, name: &'static str) -> Self {
-		match self {
-			Self::Enabled(inner) => {
-				let start_time = mick_jaeger::StartTime::now();
-				Self::Enabled(inner.child(name).with_start_time_override(start_time))
-			},
-			Self::Disabled => Self::Disabled,
-		}
+	/// Attach a 'traceID' tag set to the decimal representation of the candidate hash.
+	#[inline(always)]
+	pub fn with_trace_id(mut self, candidate_hash: CandidateHash) -> Self {
+		self.add_string_tag("traceID", hash_to_trace_identifier(candidate_hash.0));
+		self
 	}
 
 	#[inline(always)]

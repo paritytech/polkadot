@@ -1713,7 +1713,7 @@ impl ApprovalDistribution {
 				let _span = state
 					.spans
 					.get(&cert.block_hash)
-					.map(|span| span.child("distribute-assignment"))
+					.map(|span| span.child("import-and-distribute-assignment"))
 					.unwrap_or_else(|| jaeger::Span::new(&cert.block_hash, "distribute-assignment"))
 					.with_string_tag("block-hash", format!("{:?}", cert.block_hash))
 					.with_stage(jaeger::Stage::ApprovalDistribution);
@@ -1740,7 +1740,7 @@ impl ApprovalDistribution {
 				let _span = state
 					.spans
 					.get(&vote.block_hash)
-					.map(|span| span.child("distribute-approval"))
+					.map(|span| span.child("import-and-distribute-approval"))
 					.unwrap_or_else(|| jaeger::Span::new(&vote.block_hash, "distribute-approval"))
 					.with_string_tag("block-hash", format!("{:?}", vote.block_hash))
 					.with_stage(jaeger::Stage::ApprovalDistribution);

@@ -413,9 +413,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			};
 
 			match imported_block_info(ctx, env, block_hash, &block_header).await {
-				Ok(i) => {
-					imported_blocks_and_info.push((block_hash, block_header, i));
-				},
+				Ok(i) => imported_blocks_and_info.push((block_hash, block_header, i)),
 				Err(error) => {
 					// It's possible that we've lost a race with finality.
 					let (tx, rx) = oneshot::channel();

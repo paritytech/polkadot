@@ -204,7 +204,8 @@ impl Requester {
 	) -> Result<()> {
 		for core in cores {
 			let mut span = span
-				.child_with_trace_id("check-fetch-candidate", core.candidate_hash)
+				.child("check-fetch-candidate")
+				.with_trace_id(core.candidate_hash)
 				.with_string_tag("leaf", format!("{:?}", leaf))
 				.with_candidate(core.candidate_hash)
 				.with_stage(jaeger::Stage::AvailabilityDistribution);

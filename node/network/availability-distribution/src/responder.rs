@@ -187,7 +187,8 @@ where
 	let span = jaeger::Span::new(req.payload.candidate_hash, "answer-chunk-request");
 
 	let _child_span = span
-		.child_with_trace_id("answer-chunk-request", req.payload.candidate_hash)
+		.child("answer-chunk-request")
+		.with_trace_id(req.payload.candidate_hash)
 		.with_chunk_index(req.payload.index.0);
 
 	let chunk = query_chunk(sender, req.payload.candidate_hash, req.payload.index).await?;

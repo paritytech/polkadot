@@ -170,8 +170,9 @@ impl AvailabilityDistributionSubsystem {
 				} => {
 					let span = spans
 						.get(&relay_parent)
-						.map(|span| span.child_with_trace_id("fetch-pov", candidate_hash))
+						.map(|span| span.child("fetch-pov"))
 						.unwrap_or_else(|| jaeger::Span::new(&relay_parent, "fetch-pov"))
+						.with_trace_id(candidate_hash)
 						.with_candidate(candidate_hash)
 						.with_relay_parent(relay_parent)
 						.with_stage(jaeger::Stage::AvailabilityDistribution);

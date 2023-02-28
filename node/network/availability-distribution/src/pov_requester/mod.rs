@@ -54,8 +54,9 @@ pub async fn fetch_pov<Context>(
 	metrics: Metrics,
 	span: &jaeger::Span,
 ) -> Result<()> {
-	let span = span
-		.child_with_trace_id("fetch-pov", candidate_hash)
+	let _span = span
+		.child("fetch-pov")
+		.with_trace_id(candidate_hash)
 		.with_validator_index(from_validator)
 		.with_candidate(candidate_hash)
 		.with_para_id(para_id)
@@ -83,7 +84,7 @@ pub async fn fetch_pov<Context>(
 
 	ctx.spawn(
 		"pov-fetcher",
-		fetch_pov_job(para_id, pov_hash, authority_id, pending_response.boxed(), span, tx, metrics)
+		fetch_pov_job(para_id, pov_hash, authority_id, pending_response.boxed(), tx, metrics)
 			.boxed(),
 	)
 	.map_err(|e| FatalError::SpawnTask(e))?;
@@ -96,11 +97,10 @@ async fn fetch_pov_job(
 	pov_hash: Hash,
 	authority_id: AuthorityDiscoveryId,
 	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingResponse, RequestError>>,
-	span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
 ) {
-	if let Err(err) = do_fetch_pov(pov_hash, pending_response, span, tx, metrics).await {
+	if let Err(err) = do_fetch_pov(pov_hash, pending_response, tx, metrics).await {
 		gum::warn!(target: LOG_TARGET, ?err, ?para_id, ?pov_hash, ?authority_id, "fetch_pov_job");
 	}
 }
@@ -109,13 +109,9 @@ async fn fetch_pov_job(
 async fn do_fetch_pov(
 	pov_hash: Hash,
 	pending_response: BoxFuture<'static, std::result::Result<PoVFetchingResponse, RequestError>>,
-	span: jaeger::Span,
 	tx: oneshot::Sender<PoV>,
 	metrics: Metrics,
 ) -> Result<()> {
-	let _span = span
-		.child_with_start_time("do-fetch-pov")
-		.with_stage(jaeger::Stage::AvailabilityDistribution);
 	let response = pending_response.await.map_err(Error::FetchPoV);
 	let pov = match response {
 		Ok(PoVFetchingResponse::PoV(pov)) => pov,

@@ -432,7 +432,6 @@ struct Wakeups {
 	// Tick -> [(Relay Block, Candidate Hash)]
 	wakeups: BTreeMap<Tick, Vec<(Hash, CandidateHash)>>,
 	reverse_wakeups: HashMap<(Hash, CandidateHash), Tick>,
-	/// A mapping from block numbers to hashes.
 	block_numbers: BTreeMap<BlockNumber, HashSet<Hash>>,
 }
 
@@ -802,14 +801,13 @@ where
 	loop {
 		let mut overlayed_db = OverlayedBackend::new(&backend);
 		let actions = futures::select! {
-			(tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
+			(_tick, woken_block, woken_candidate) = wakeups.next(&*state.clock).fuse() => {
 				subsystem.metrics.on_wakeup();
 				process_wakeup(
 					&mut state,
 					&mut overlayed_db,
 					woken_block,
 					woken_candidate,
-					tick,
 					&subsystem.metrics,
 				)?
 			}
@@ -974,8 +972,9 @@ async fn handle_actions<Context>(
 				let mut launch_approval_span = state
 					.spans
 					.get(&relay_block_hash)
-					.map(|span| span.child_with_trace_id("launch-approval", candidate_hash))
+					.map(|span| span.child("launch-approval"))
 					.unwrap_or_else(|| jaeger::Span::new(candidate_hash, "launch-approval"))
+					.with_trace_id(candidate_hash)
 					.with_candidate(candidate_hash)
 					.with_stage(jaeger::Stage::ApprovalChecking);
 
@@ -1241,7 +1240,7 @@ async fn handle_from_overseer<Context>(
 
 			wakeups.prune_finalized_wakeups(block_number);
 
-			// We let prune_finalized_wakeups decide whether we prune the span for a finalized block.
+			// `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans accordingly.
 			let hash_set = wakeups.block_numbers.values().flatten().collect::<HashSet<_>>();
 			state.spans.retain(|hash, _| hash_set.contains(hash));
 
@@ -2215,14 +2214,14 @@ fn process_wakeup(
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	relay_block: Hash,
 	candidate_hash: CandidateHash,
-	_expected_tick: Tick,
 	metrics: &Metrics,
 ) -> SubsystemResult<Vec<Action>> {
 	let mut span = state
 		.spans
 		.get(&relay_block)
-		.map(|span| span.child_with_trace_id("process-wakeup", candidate_hash))
+		.map(|span| span.child("process-wakeup"))
 		.unwrap_or_else(|| jaeger::Span::new(candidate_hash, "process-wakeup"))
+		.with_trace_id(candidate_hash)
 		.with_relay_parent(relay_block)
 		.with_candidate(candidate_hash)
 		.with_stage(jaeger::Stage::ApprovalChecking);
@@ -2290,7 +2289,7 @@ fn process_wakeup(
 		(should_trigger, approval_entry.backing_group())
 	};
 
-	span.add_string_tag("should-trigger", format!("{:?}", should_trigger));
+	gum::trace!(target: LOG_TARGET, "Wakeup processed. Should trigger: {}", should_trigger);
 
 	let mut actions = Vec::new();
 	let candidate_receipt = candidate_entry.candidate_receipt().clone();
@@ -2406,7 +2405,8 @@ async fn launch_approval<Context>(
 	gum::trace!(target: LOG_TARGET, ?candidate_hash, ?para_id, "Recovering data.");
 
 	let request_validation_data_span = span
-		.child_with_trace_id("request-validation-data", candidate_hash)
+		.child("request-validation-data")
+		.with_trace_id(candidate_hash)
 		.with_candidate(candidate_hash)
 		.with_string_tag("block-hash", format!("{:?}", block_hash))
 		.with_stage(jaeger::Stage::ApprovalChecking);
@@ -2421,7 +2421,8 @@ async fn launch_approval<Context>(
 	.await;
 
 	let request_validation_result_span = span
-		.child_with_trace_id("request-validation-result", candidate_hash)
+		.child("request-validation-result")
+		.with_trace_id(candidate_hash)
 		.with_candidate(candidate_hash)
 		.with_string_tag("block-hash", format!("{:?}", block_hash))
 		.with_stage(jaeger::Stage::ApprovalChecking);
@@ -2546,11 +2547,11 @@ async fn launch_approval<Context>(
 					"Failed to validate candidate due to internal error",
 				);
 				metrics_guard.take().on_approval_error();
+				drop(request_validation_result_span);
 				return ApprovalState::failed(validator_index, candidate_hash)
 			},
 		}
 	};
-	drop(request_validation_result_span);
 	let (background, remote_handle) = background.remote_handle();
 	ctx.spawn("approval-checks", Box::pin(background)).map(move |()| remote_handle)
 }
@@ -2569,8 +2570,9 @@ async fn issue_approval<Context>(
 	let mut issue_approval_span = state
 		.spans
 		.get(&block_hash)
-		.map(|span| span.child_with_trace_id("issue-approval", candidate_hash))
+		.map(|span| span.child("issue-approval"))
 		.unwrap_or_else(|| jaeger::Span::new(block_hash, "issue-approval"))
+		.with_trace_id(candidate_hash)
 		.with_string_tag("block-hash", format!("{:?}", block_hash))
 		.with_candidate(candidate_hash)
 		.with_validator_index(validator_index)
