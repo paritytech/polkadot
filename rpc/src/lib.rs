@@ -24,7 +24,7 @@ use jsonrpsee::RpcModule;
 use polkadot_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
 use sc_client_api::AuxStore;
 use sc_consensus_babe::{BabeConfiguration, Epoch};
-use sc_finality_grandpa::FinalityProofProvider;
+use sc_consensus_grandpa::FinalityProofProvider;
 pub use sc_rpc::{DenyUnsafe, SubscriptionTaskExecutor};
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
@@ -50,11 +50,11 @@ pub struct BabeDeps {
 /// Dependencies for GRANDPA
 pub struct GrandpaDeps<B> {
 	/// Voting round info.
-	pub shared_voter_state: sc_finality_grandpa::SharedVoterState,
+	pub shared_voter_state: sc_consensus_grandpa::SharedVoterState,
 	/// Authority set info.
-	pub shared_authority_set: sc_finality_grandpa::SharedAuthoritySet<Hash, BlockNumber>,
+	pub shared_authority_set: sc_consensus_grandpa::SharedAuthoritySet<Hash, BlockNumber>,
 	/// Receives notifications about justification events from Grandpa.
-	pub justification_stream: sc_finality_grandpa::GrandpaJustificationStream<Block>,
+	pub justification_stream: sc_consensus_grandpa::GrandpaJustificationStream<Block>,
 	/// Executor to drive the subscription manager in the Grandpa RPC handler.
 	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
 	/// Finality proof provider.
@@ -122,7 +122,7 @@ where
 	use mmr_rpc::{Mmr, MmrApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use sc_consensus_babe_rpc::{Babe, BabeApiServer};
-	use sc_finality_grandpa_rpc::{Grandpa, GrandpaApiServer};
+	use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
 	use sc_sync_state_rpc::{SyncState, SyncStateApiServer};
 	use substrate_state_trie_migration_rpc::{StateMigration, StateMigrationApiServer};
 
