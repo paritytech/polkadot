@@ -73,7 +73,7 @@ The end result of this process is a vector of `BackedCandidate`s, sorted in orde
 
 This is the point at which the block author provides further votes to active disputes or initiates new disputes in the runtime state.
 
-The block-authoring logic of the runtime has an extra step between handling the inherent-data and producing the actual inherent call, which we assume performs the work of filtering out disputes which are not relevant to the on-chain state.
+The block-authoring logic of the runtime has an extra step between handling the inherent-data and producing the actual inherent call, which we assume performs the work of filtering out disputes which are not relevant to the on-chain state. Backing votes are always kept in the dispute statement set. This ensures we punish the maximum number of misbehaving backers.
 
 To select disputes:
 

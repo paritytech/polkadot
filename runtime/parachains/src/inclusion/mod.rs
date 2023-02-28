@@ -27,7 +27,7 @@ use crate::{
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{
+use primitives::{
 	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
 	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
 	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
@@ -574,7 +574,7 @@ impl<T: Config> Pallet<T> {
 
 						// check the signatures in the backing and that it is a majority.
 						{
-							let maybe_amount_validated = primitives::v2::check_candidate_backing(
+							let maybe_amount_validated = primitives::check_candidate_backing(
 								&backed_candidate,
 								&signing_context,
 								group_vals.len(),
@@ -691,7 +691,7 @@ impl<T: Config> Pallet<T> {
 	/// Run the acceptance criteria checks on the given candidate commitments.
 	pub(crate) fn check_validation_outputs_for_runtime_api(
 		para_id: ParaId,
-		validation_outputs: primitives::v2::CandidateCommitments,
+		validation_outputs: primitives::CandidateCommitments,
 	) -> bool {
 		// This function is meant to be called from the runtime APIs against the relay-parent, hence
 		// `relay_parent_number` is equal to `now`.
@@ -1037,11 +1037,11 @@ impl<T: Config> CandidateCheckContext<T> {
 		&self,
 		para_id: ParaId,
 		head_data: &HeadData,
-		new_validation_code: &Option<primitives::v2::ValidationCode>,
+		new_validation_code: &Option<primitives::ValidationCode>,
 		processed_downward_messages: u32,
-		upward_messages: &[primitives::v2::UpwardMessage],
+		upward_messages: &[primitives::UpwardMessage],
 		hrmp_watermark: T::BlockNumber,
-		horizontal_messages: &[primitives::v2::OutboundHrmpMessage<ParaId>],
+		horizontal_messages: &[primitives::OutboundHrmpMessage<ParaId>],
 	) -> Result<(), AcceptanceCheckErr<T::BlockNumber>> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,

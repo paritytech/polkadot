@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, CandidateIndex, Hash, SessionIndex, ValidatorIndex, ValidatorSignature,
 };
 use rand::{CryptoRng, Rng, SeedableRng};

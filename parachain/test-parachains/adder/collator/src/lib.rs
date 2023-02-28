@@ -23,7 +23,7 @@ use polkadot_node_primitives::{
 	Collation, CollationResult, CollationSecondedSignal, CollatorFn, MaybeCompressedPoV, PoV,
 	Statement,
 };
-use polkadot_primitives::v2::{CollatorId, CollatorPair};
+use polkadot_primitives::{CollatorId, CollatorPair};
 use sp_core::{traits::SpawnNamed, Pair};
 use std::{
 	collections::HashMap,
@@ -172,8 +172,8 @@ impl Collator {
 			let pov = PoV { block_data: block_data.encode().into() };
 
 			let collation = Collation {
-				upward_messages: Vec::new(),
-				horizontal_messages: Vec::new(),
+				upward_messages: Default::default(),
+				horizontal_messages: Default::default(),
 				new_validation_code: None,
 				head_data: head_data.encode().into(),
 				proof_of_validity: MaybeCompressedPoV::Raw(pov.clone()),
@@ -248,7 +248,7 @@ mod tests {
 
 	use futures::executor::block_on;
 	use polkadot_parachain::primitives::{ValidationParams, ValidationResult};
-	use polkadot_primitives::v2::PersistedValidationData;
+	use polkadot_primitives::PersistedValidationData;
 
 	#[test]
 	fn collator_works() {

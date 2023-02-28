@@ -17,7 +17,7 @@
 use super::*;
 use frame_support::{assert_err, assert_ok, assert_storage_noop};
 use keyring::Sr25519Keyring;
-use primitives::v2::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID};
+use primitives::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID};
 use sc_keystore::LocalKeystore;
 use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
 use std::sync::Arc;
@@ -114,10 +114,7 @@ fn check_code_is_not_stored(validation_code: &ValidationCode) {
 /// An utility for checking that certain events were deposited.
 struct EventValidator {
 	events: Vec<
-		frame_system::EventRecord<
-			<Test as frame_system::Config>::RuntimeEvent,
-			primitives::v2::Hash,
-		>,
+		frame_system::EventRecord<<Test as frame_system::Config>::RuntimeEvent, primitives::Hash>,
 	>,
 }
 
@@ -1252,15 +1249,24 @@ fn pvf_check_upgrade_reject() {
 		Paras::schedule_code_upgrade(a, new_code.clone(), RELAY_PARENT, &Configuration::config());
 		check_code_is_stored(&new_code);
 
-		// Supermajority of validators vote against `new_code`. PVF should be rejected.
-		IntoIterator::into_iter([0, 1, 2, 3])
-			.map(|i| PvfCheckStatement {
-				accept: false,
-				subject: new_code.hash(),
-				session_index: EXPECTED_SESSION,
-				validator_index: i.into(),
-			})
-			.for_each(sign_and_include_pvf_check_statement);
+		// 1/3 of validators vote against `new_code`. PVF should not be rejected yet.
+		sign_and_include_pvf_check_statement(PvfCheckStatement {
+			accept: false,
+			subject: new_code.hash(),
+			session_index: EXPECTED_SESSION,
+			validator_index: 0.into(),
+		});
+
+		// Verify that the new code is not yet discarded.
+		check_code_is_stored(&new_code);
+
+		// >1/3 of validators vote against `new_code`. PVF should be rejected.
+		sign_and_include_pvf_check_statement(PvfCheckStatement {
+			accept: false,
+			subject: new_code.hash(),
+			session_index: EXPECTED_SESSION,
+			validator_index: 1.into(),
+		});
 
 		// Verify that the new code is discarded.
 		check_code_is_not_stored(&new_code);
@@ -1694,7 +1700,7 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 
 #[test]
 fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
-	use primitives::v2::well_known_keys;
+	use primitives::well_known_keys;
 
 	let a = ParaId::from(2020);
 
@@ -1710,7 +1716,7 @@ fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
 
 #[test]
 fn verify_upgrade_restriction_signal_is_externally_accessible() {
-	use primitives::v2::well_known_keys;
+	use primitives::well_known_keys;
 
 	let a = ParaId::from(2020);
 
@@ -1760,4 +1766,78 @@ fn parakind_encodes_decodes_to_bool_serde() {
 
 	let ser_false = serde_json::to_string(&false).unwrap();
 	assert_eq!(ser_false, ser_thread);
+}
+
+#[test]
+fn parachains_cache_is_set() {
+	new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let a = ParaId::from(111);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Add element twice
+		parachains_cache.add(a);
+		parachains_cache.add(a);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after addition
+		assert_eq!(<Paras as Store>::Parachains::get(), vec![a]);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Remove element twice
+		parachains_cache.remove(a);
+		parachains_cache.remove(a);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after removal
+		assert_eq!(<Paras as Store>::Parachains::get(), vec![]);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Remove nonexisting element
+		parachains_cache.remove(a);
+		assert_storage_noop!(drop(parachains_cache));
+		assert_eq!(<Paras as Store>::Parachains::get(), vec![]);
+	});
+}
+
+#[test]
+fn parachains_cache_preserves_order() {
+	new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let a = ParaId::from(111);
+		let b = ParaId::from(222);
+		let c = ParaId::from(333);
+		let d = ParaId::from(444);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Add in mixed order
+		parachains_cache.add(b);
+		parachains_cache.add(c);
+		parachains_cache.add(a);
+		parachains_cache.add(d);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after addition
+		assert_eq!(<Paras as Store>::Parachains::get(), vec![a, b, c, d]);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Remove 2 elements
+		parachains_cache.remove(b);
+		parachains_cache.remove(d);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after removal
+		assert_eq!(<Paras as Store>::Parachains::get(), vec![a, c]);
+	});
 }

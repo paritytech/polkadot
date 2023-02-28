@@ -47,7 +47,7 @@ use polkadot_node_subsystem_util::{
 	runtime::{get_availability_cores, get_group_rotation_info, RuntimeInfo},
 	TimeoutExt,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, CandidateReceipt, CollatorPair, CoreIndex, CoreState,
 	GroupIndex, Hash, Id as ParaId, SessionIndex,
 };

@@ -30,7 +30,7 @@ use polkadot_node_network_protocol::{
 	peer_set::{PeerSet, PeerSetProtocolNames, PerPeerSet},
 	PeerId,
 };
-use polkadot_primitives::v2::AuthorityDiscoveryId;
+use polkadot_primitives::AuthorityDiscoveryId;
 
 const LOG_TARGET: &str = "parachain::validator-discovery";
 
@@ -173,7 +173,7 @@ mod tests {
 		request_response::{outgoing::Requests, ReqProtocolNames},
 		PeerId,
 	};
-	use polkadot_primitives::v2::Hash;
+	use polkadot_primitives::Hash;
 	use sc_network::{Event as NetworkEvent, IfDisconnected, ProtocolName};
 	use sp_keyring::Sr25519Keyring;
 	use std::collections::{HashMap, HashSet};

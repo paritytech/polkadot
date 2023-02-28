@@ -86,7 +86,6 @@ pub struct ValidationWorkerCommand {
 #[derive(Debug, Parser)]
 #[group(skip)]
 pub struct RunCmd {
-	#[allow(missing_docs)]
 	#[clap(flatten)]
 	pub base: sc_cli::RunCmd,
 
@@ -151,6 +150,10 @@ pub struct RunCmd {
 pub struct Cli {
 	#[command(subcommand)]
 	pub subcommand: Option<Subcommand>,
+
 	#[clap(flatten)]
 	pub run: RunCmd,
+
+	#[clap(flatten)]
+	pub storage_monitor: sc_storage_monitor::StorageMonitorParams,
 }

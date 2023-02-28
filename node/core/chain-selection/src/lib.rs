@@ -24,7 +24,7 @@ use polkadot_node_subsystem::{
 	FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util::database::Database;
-use polkadot_primitives::v2::{BlockNumber, ConsensusLog, Hash, Header};
+use polkadot_primitives::{BlockNumber, ConsensusLog, Hash, Header};
 
 use futures::{channel::oneshot, future::Either, prelude::*};
 use parity_scale_codec::Error as CodecError;
@@ -466,6 +466,10 @@ where
 
 							let _ = tx.send(best_containing);
 						}
+						ChainSelectionMessage::RevertBlocks(blocks_to_revert) => {
+							let write_ops = handle_revert_blocks(backend, blocks_to_revert)?;
+							backend.write(write_ops)?;
+						}
 					}
 				}
 			}
@@ -676,6 +680,21 @@ fn handle_approved_block(backend: &mut impl Backend, approved_block: Hash) -> Re
 	};
 
 	backend.write(ops)
+}
+
+// Here we revert a provided group of blocks. The most common cause for this is that
+// the dispute coordinator has notified chain selection of a dispute which concluded
+// against a candidate.
+fn handle_revert_blocks(
+	backend: &impl Backend,
+	blocks_to_revert: Vec<(BlockNumber, Hash)>,
+) -> Result<Vec<BackendWriteOp>, Error> {
+	let mut overlay = OverlayedBackend::new(backend);
+	for (block_number, block_hash) in blocks_to_revert {
+		tree::apply_single_reversion(&mut overlay, block_hash, block_number)?;
+	}
+
+	Ok(overlay.into_write_ops().collect())
 }
 
 fn detect_stagnant(

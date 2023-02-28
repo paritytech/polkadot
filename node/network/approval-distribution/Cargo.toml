@@ -5,10 +5,10 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-polkadot-node-primitives = { path = "../../primitives" }
+polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-network-protocol = { path = "../protocol" }
+polkadot-node-primitives = { path = "../../primitives" }
 polkadot-node-subsystem = { path = "../../subsystem" }
-polkadot-node-subsystem-util = { path = "../../subsystem-util" }
 polkadot-primitives = { path = "../../../primitives" }
 rand = "0.8"
 

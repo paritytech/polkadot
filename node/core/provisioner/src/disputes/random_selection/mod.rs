@@ -24,7 +24,7 @@
 use crate::{metrics, LOG_TARGET};
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::DisputeCoordinatorMessage, overseer};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, DisputeStatement, DisputeStatementSet, MultiDisputeStatementSet, SessionIndex,
 };
 use std::collections::HashSet;

@@ -23,7 +23,7 @@
 const TRACING_TARGET: &'static str = "metrics";
 
 use parity_scale_codec::Encode;
-use primitives::v2::{
+use primitives::{
 	metric_definitions::{CounterDefinition, CounterVecDefinition},
 	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
 };

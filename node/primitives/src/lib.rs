@@ -29,17 +29,17 @@ use futures::Future;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CollatorPair,
 	CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId,
-	OutboundHrmpMessage, PersistedValidationData, SessionIndex, Signed, UncheckedSigned,
-	UpwardMessage, ValidationCode, ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, ValidationCode, ValidatorIndex,
+	MAX_CODE_SIZE, MAX_POV_SIZE,
 };
 pub use sp_consensus_babe::{
 	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 };
 
-pub use polkadot_parachain::primitives::BlockData;
+pub use polkadot_parachain::primitives::{BlockData, HorizontalMessages, UpwardMessages};
 
 pub mod approval;
 
@@ -227,7 +227,7 @@ pub type UncheckedSignedFullStatement = UncheckedSigned<Statement, CompactStatem
 /// Candidate invalidity details
 #[derive(Debug)]
 pub enum InvalidCandidate {
-	/// Failed to execute.`validate_block`. This includes function panicking.
+	/// Failed to execute `validate_block`. This includes function panicking.
 	ExecutionError(String),
 	/// Validation outputs check doesn't pass.
 	InvalidOutputs,
@@ -237,8 +237,6 @@ pub enum InvalidCandidate {
 	ParamsTooLarge(u64),
 	/// Code size is over the limit.
 	CodeTooLarge(u64),
-	/// Code does not decompress correctly.
-	CodeDecompressionFailure,
 	/// PoV does not decompress correctly.
 	PoVDecompressionFailure,
 	/// Validation function returned invalid data.
@@ -312,11 +310,11 @@ impl MaybeCompressedPoV {
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
 #[cfg(not(target_os = "unknown"))]
-pub struct Collation<BlockNumber = polkadot_primitives::v2::BlockNumber> {
+pub struct Collation<BlockNumber = polkadot_primitives::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<UpwardMessage>,
+	pub upward_messages: UpwardMessages,
 	/// The horizontal messages sent by the parachain.
-	pub horizontal_messages: Vec<OutboundHrmpMessage<ParaId>>,
+	pub horizontal_messages: HorizontalMessages,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.

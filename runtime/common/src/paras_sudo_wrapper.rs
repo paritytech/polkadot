@@ -20,7 +20,7 @@ use frame_support::pallet_prelude::*;
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use parity_scale_codec::Encode;
-use primitives::v2::Id as ParaId;
+use primitives::Id as ParaId;
 use runtime_parachains::{
 	configuration, dmp, hrmp,
 	paras::{self, ParaGenesisArgs},

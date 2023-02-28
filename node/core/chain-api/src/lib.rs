@@ -41,7 +41,7 @@ use polkadot_node_subsystem::{
 	messages::ChainApiMessage, overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem,
 	SubsystemError, SubsystemResult,
 };
-use polkadot_primitives::v2::Block;
+use polkadot_primitives::Block;
 
 mod metrics;
 use self::metrics::Metrics;

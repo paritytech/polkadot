@@ -30,7 +30,7 @@ use polkadot_node_subsystem_util::{
 	request_availability_cores, request_persisted_validation_data, request_validation_code,
 	request_validation_code_hash, request_validators,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	collator_signature_payload, CandidateCommitments, CandidateDescriptor, CandidateReceipt,
 	CoreState, Hash, Id as ParaId, OccupiedCoreAssumption, PersistedValidationData,
 	ValidationCodeHash,
@@ -177,7 +177,7 @@ async fn handle_new_activations<Context>(
 	sender: &mpsc::Sender<overseer::CollationGenerationOutgoingMessages>,
 ) -> crate::error::Result<()> {
 	// follow the procedure from the guide:
-	// https://w3f.github.io/parachain-implementers-guide/node/collators/collation-generation.html
+	// https://paritytech.github.io/polkadot/book/node/collators/collation-generation.html
 
 	let _overall_timer = metrics.time_new_activations();
 

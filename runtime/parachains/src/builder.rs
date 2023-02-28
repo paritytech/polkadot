@@ -22,7 +22,7 @@ use crate::{
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
-use primitives::v2::{
+use primitives::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
 	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
@@ -292,8 +292,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			availability_votes,
 		);
 		let commitments = CandidateCommitments::<u32> {
-			upward_messages: vec![],
-			horizontal_messages: vec![],
+			upward_messages: Default::default(),
+			horizontal_messages: Default::default(),
 			new_validation_code: None,
 			head_data: Self::mock_head_data(),
 			processed_downward_messages: 0,
@@ -535,8 +535,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						validation_code_hash,
 					},
 					commitments: CandidateCommitments::<u32> {
-						upward_messages: Vec::new(),
-						horizontal_messages: Vec::new(),
+						upward_messages: Default::default(),
+						horizontal_messages: Default::default(),
 						new_validation_code: includes_code_upgrade
 							.map(|v| ValidationCode(vec![42u8; v as usize])),
 						head_data,
@@ -575,7 +575,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Fill cores `start..last` with dispute statement sets. The statement sets will have 3/4th of
 	/// votes be valid, and 1/4th of votes be invalid.
-	fn create_disputes_with_no_spam(
+	fn create_disputes(
 		&self,
 		start: u32,
 		last: u32,
@@ -595,6 +595,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 				let (para_id, core_idx, group_idx) = self.create_indexes(seed);
 				let candidate_hash = CandidateHash(H256::from(byte32_slice_from(seed)));
+				let relay_parent = H256::from(byte32_slice_from(seed));
 
 				Self::add_availability(
 					para_id,
@@ -614,9 +615,12 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						// so we make sure that we have a super majority with valid statements.
 						let dispute_statement = if validator_index % 4 == 0 {
 							DisputeStatement::Invalid(InvalidDisputeStatementKind::Explicit)
+						} else if validator_index < 3 {
+							// Set two votes as backing for the dispute set to be accepted
+							DisputeStatement::Valid(
+								ValidDisputeStatementKind::BackingValid(relay_parent)
+							)
 						} else {
-							// Note that in the future we could use some availability votes as an
-							// implicit valid kind.
 							DisputeStatement::Valid(ValidDisputeStatementKind::Explicit)
 						};
 						let data = dispute_statement.payload_data(candidate_hash.clone(), session);
@@ -664,7 +668,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		let backed_candidates = builder
 			.create_backed_candidates(&builder.backed_and_concluding_cores, builder.code_upgrade);
 
-		let disputes = builder.create_disputes_with_no_spam(
+		let disputes = builder.create_disputes(
 			builder.backed_and_concluding_cores.len() as u32,
 			used_cores,
 			builder.dispute_sessions.as_slice(),

@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_overseer::HeadSupportsParachains;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateCommitments, CandidateEvent, CoreIndex, GroupIndex, Header, Id as ParaId, IndexedVec,
 	ValidationCode, ValidatorSignature,
 };
@@ -227,7 +227,7 @@ struct MockAssignmentCriteria<Compute, Check>(Compute, Check);
 
 impl<Compute, Check> AssignmentCriteria for MockAssignmentCriteria<Compute, Check>
 where
-	Compute: Fn() -> HashMap<polkadot_primitives::v2::CoreIndex, criteria::OurAssignment>,
+	Compute: Fn() -> HashMap<polkadot_primitives::CoreIndex, criteria::OurAssignment>,
 	Check: Fn(ValidatorIndex) -> Result<DelayTranche, criteria::InvalidAssignment>,
 {
 	fn compute_assignments(
@@ -237,31 +237,28 @@ where
 		_config: &criteria::Config,
 		_leaving_cores: Vec<(
 			CandidateHash,
-			polkadot_primitives::v2::CoreIndex,
-			polkadot_primitives::v2::GroupIndex,
+			polkadot_primitives::CoreIndex,
+			polkadot_primitives::GroupIndex,
 		)>,
-	) -> HashMap<polkadot_primitives::v2::CoreIndex, criteria::OurAssignment> {
+	) -> HashMap<polkadot_primitives::CoreIndex, criteria::OurAssignment> {
 		self.0()
 	}
 
 	fn check_assignment_cert(
 		&self,
-		_claimed_core_index: polkadot_primitives::v2::CoreIndex,
+		_claimed_core_index: polkadot_primitives::CoreIndex,
 		validator_index: ValidatorIndex,
 		_config: &criteria::Config,
 		_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 		_assignment: &polkadot_node_primitives::approval::AssignmentCert,
-		_backing_group: polkadot_primitives::v2::GroupIndex,
+		_backing_group: polkadot_primitives::GroupIndex,
 	) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
 		self.1(validator_index)
 	}
 }
 
 impl<F>
-	MockAssignmentCriteria<
-		fn() -> HashMap<polkadot_primitives::v2::CoreIndex, criteria::OurAssignment>,
-		F,
-	>
+	MockAssignmentCriteria<fn() -> HashMap<polkadot_primitives::CoreIndex, criteria::OurAssignment>, F>
 {
 	fn check_only(f: F) -> Self {
 		MockAssignmentCriteria(Default::default, f)
@@ -480,7 +477,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	let keystore = LocalKeystore::in_memory();
 	let _ = keystore.sr25519_generate_new(
-		polkadot_primitives::v2::PARACHAIN_KEY_TYPE_ID,
+		polkadot_primitives::PARACHAIN_KEY_TYPE_ID,
 		Some(&Sr25519Keyring::Alice.to_seed()),
 	);
 

@@ -22,7 +22,7 @@ use polkadot_node_network_protocol::{
 	grid_topology::SessionGridTopology, peer_set::ProtocolVersion, ObservedRole, OurView, View,
 	WrongVariant,
 };
-use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
+use polkadot_primitives::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
 
 /// A struct indicating new gossip topology.
 #[derive(Debug, Clone, PartialEq)]

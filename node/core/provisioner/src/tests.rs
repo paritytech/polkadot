@@ -1,7 +1,23 @@
+// Copyright 2017-2023 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 use super::*;
 use ::test_helpers::{dummy_candidate_descriptor, dummy_hash};
 use bitvec::bitvec;
-use polkadot_primitives::v2::{OccupiedCore, ScheduledCore};
+use polkadot_primitives::{OccupiedCore, ScheduledCore};
 
 pub fn occupied_core(para_id: u32) -> CoreState {
 	CoreState::Occupied(OccupiedCore {
@@ -41,7 +57,7 @@ pub fn scheduled_core(id: u32) -> ScheduledCore {
 mod select_availability_bitfields {
 	use super::{super::*, default_bitvec, occupied_core};
 	use futures::executor::block_on;
-	use polkadot_primitives::v2::{ScheduledCore, SigningContext, ValidatorId, ValidatorIndex};
+	use polkadot_primitives::{ScheduledCore, SigningContext, ValidatorId, ValidatorIndex};
 	use sp_application_crypto::AppKey;
 	use sp_keystore::{testing::KeyStore, CryptoStore, SyncCryptoStorePtr};
 	use std::sync::Arc;
@@ -234,7 +250,7 @@ mod select_candidates {
 		},
 	};
 	use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
-	use polkadot_primitives::v2::{
+	use polkadot_primitives::{
 		BlockNumber, CandidateCommitments, CommittedCandidateReceipt, PersistedValidationData,
 	};
 

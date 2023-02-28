@@ -22,6 +22,7 @@ use color_eyre::eyre;
 
 /// Global allocator. Changing it to another allocator will require changing
 /// `memory_stats::MemoryAllocationTracker`.
+#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 #[global_allocator]
 pub static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 

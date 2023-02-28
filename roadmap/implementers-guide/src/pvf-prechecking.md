@@ -29,9 +29,9 @@ The problem is solved by having a pre-checking process which is run when a new v
 Before any of those operations finish, the PVF pre-checking vote is initiated. The PVF pre-checking vote is identified by the PVF code hash that is being voted on. If there is already PVF pre-checking process running, then no
 new PVF pre-checking vote will be started. Instead, the operation just subscribes to the existing vote.
 
-The pre-checking vote can be concluded either by obtaining a supermajority or if it expires.
+The pre-checking vote can be concluded either by obtaining a threshold of votes for a decision, or if it expires. The threshold to accept is a supermajority of 2/3 of validators. We reject once a supermajority is no longer possible.
 
-Each validator checks the list of PVFs available for voting. The vote is binary, i.e. accept or reject a given PVF. As soon as the supermajority of votes are collected for one of the sides of the vote, the voting is concluded in that direction and the effects of the voting are enacted.
+Each validator checks the list of PVFs available for voting. The vote is binary, i.e. accept or reject a given PVF. As soon as the threshold of votes are collected for one of the sides of the vote, the voting is concluded in that direction and the effects of the voting are enacted.
 
 Only validators from the active set can participate in the vote. The set of active validators can change each session. That's why we reset the votes each session. A voting that observed a certain number of sessions will be rejected.
 

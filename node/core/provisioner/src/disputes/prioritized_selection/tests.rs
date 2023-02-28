@@ -25,7 +25,7 @@ use polkadot_node_subsystem::messages::{
 	AllMessages, DisputeCoordinatorMessage, RuntimeApiMessage, RuntimeApiRequest,
 };
 use polkadot_node_subsystem_test_helpers::TestSubsystemSender;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, DisputeState, InvalidDisputeStatementKind, SessionIndex,
 	ValidDisputeStatementKind, ValidatorSignature,
 };

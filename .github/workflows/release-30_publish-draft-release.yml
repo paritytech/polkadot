@@ -17,8 +17,8 @@ jobs:
     steps:
       - id: get-rust-versions
         run: |
-          echo "::set-output name=stable::$(rustc +stable --version)"
-          echo "::set-output name=nightly::$(rustc +nightly --version)"
+          echo "stable=$(rustc +stable --version)" >> $GITHUB_OUTPUT
+          echo "nightly=$(rustc +nightly --version)" >> $GITHUB_OUTPUT
 
   build-runtimes:
     runs-on: ubuntu-latest
@@ -40,9 +40,8 @@ jobs:
 
       - name: Build ${{ matrix.runtime }} runtime
         id: srtool_build
-        uses: chevdor/srtool-actions@v0.5.0
+        uses: chevdor/srtool-actions@v0.6.0
         with:
-          # This is the default with chevdor/srtool-actions@v0.3.0+ but we make it clear
           image: paritytech/srtool
           chain: ${{ matrix.runtime }}
 
@@ -167,7 +166,7 @@ jobs:
           ls "$RUNTIME_DIR/${{ matrix.runtime }}"
           runtime_ver=$(ruby script.rb)
           echo "Found version: >$runtime_ver<"
-          echo "::set-output name=runtime_ver::$runtime_ver"
+          echo "runtime_ver=$runtime_ver" >> $GITHUB_OUTPUT
 
       - name: Upload compressed ${{ matrix.runtime }} wasm
         uses: actions/upload-release-asset@v1

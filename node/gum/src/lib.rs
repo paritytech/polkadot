@@ -27,7 +27,7 @@ pub use tracing::{enabled, event, Level};
 pub use jaeger::hash_to_trace_identifier;
 
 #[doc(hidden)]
-pub use polkadot_primitives::v2::{CandidateHash, Hash};
+pub use polkadot_primitives::{CandidateHash, Hash};
 
 pub use gum_proc_macro::{debug, error, info, trace, warn};
 

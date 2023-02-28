@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::prepare::PrepareStats;
 use parity_scale_codec::{Decode, Encode};
-use std::{any::Any, fmt, time::Duration};
+use std::{any::Any, fmt};
 
-/// Result of PVF preparation performed by the validation host. Contains the elapsed CPU time if
+/// Result of PVF preparation performed by the validation host. Contains stats about the preparation if
 /// successful
-pub type PrepareResult = Result<Duration, PrepareError>;
+pub type PrepareResult = Result<PrepareStats, PrepareError>;
 
 /// An error that occurred during the prepare part of the PVF pipeline.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -34,7 +35,7 @@ pub enum PrepareError {
 	TimedOut,
 	/// An IO error occurred while receiving the result from the worker process. This state is reported by the
 	/// validation host (not by the worker).
-	IoErr,
+	IoErr(String),
 	/// The temporary file for the artifact could not be created at the given cache path. This state is reported by the
 	/// validation host (not by the worker).
 	CreateTmpFileErr(String),
@@ -54,7 +55,7 @@ impl PrepareError {
 		use PrepareError::*;
 		match self {
 			Prevalidation(_) | Preparation(_) | Panic(_) => true,
-			TimedOut | IoErr | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
+			TimedOut | IoErr(_) | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
 		}
 	}
 }
@@ -67,7 +68,7 @@ impl fmt::Display for PrepareError {
 			Preparation(err) => write!(f, "preparation: {}", err),
 			Panic(err) => write!(f, "panic: {}", err),
 			TimedOut => write!(f, "prepare: timeout"),
-			IoErr => write!(f, "prepare: io error while receiving response"),
+			IoErr(err) => write!(f, "prepare: io error while receiving response: {}", err),
 			CreateTmpFileErr(err) => write!(f, "prepare: error creating tmp file: {}", err),
 			RenameTmpFileErr(err) => write!(f, "prepare: error renaming tmp file: {}", err),
 		}

@@ -22,7 +22,7 @@
 //! before any commit to the underlying storage is made.
 
 use polkadot_node_subsystem::SubsystemResult;
-use polkadot_primitives::v2::{CandidateHash, SessionIndex};
+use polkadot_primitives::{CandidateHash, SessionIndex};
 
 use std::collections::HashMap;
 

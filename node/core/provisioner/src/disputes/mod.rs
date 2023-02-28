@@ -25,7 +25,7 @@ use crate::LOG_TARGET;
 use futures::channel::oneshot;
 use polkadot_node_primitives::CandidateVotes;
 use polkadot_node_subsystem::{messages::DisputeCoordinatorMessage, overseer};
-use polkadot_primitives::v2::{CandidateHash, SessionIndex};
+use polkadot_primitives::{CandidateHash, SessionIndex};
 
 /// Request the relevant dispute statements for a set of disputes identified by `CandidateHash` and the `SessionIndex`.
 async fn request_votes(

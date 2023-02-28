@@ -31,9 +31,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::EnsureRoot;
 use parity_scale_codec::Encode;
-use primitives::v2::{
-	BlockNumber, HeadData, Header, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID,
-};
+use primitives::{BlockNumber, HeadData, Header, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID};
 use runtime_parachains::{
 	configuration, origin, paras, shared, Origin as ParaOrigin, ParaLifecycle,
 };
@@ -105,7 +103,7 @@ parameter_types! {
 	pub const BlockHashCount: u32 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
-			Weight::from_ref_time(4 * 1024 * 1024).set_proof_size(u64::MAX),
+			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
 		);
 }
 

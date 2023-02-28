@@ -33,7 +33,7 @@ use polkadot_node_subsystem::{
 	messages::{AvailabilityStoreMessage, IfDisconnected, NetworkBridgeTxMessage},
 	overseer,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, BlakeTwo256, CandidateHash, GroupIndex, Hash, HashT, OccupiedCore,
 	SessionIndex,
 };

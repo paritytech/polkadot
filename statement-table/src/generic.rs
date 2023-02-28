@@ -30,7 +30,7 @@ use std::{
 	hash::Hash,
 };
 
-use primitives::v2::{ValidatorSignature, ValidityAttestation as PrimitiveValidityAttestation};
+use primitives::{ValidatorSignature, ValidityAttestation as PrimitiveValidityAttestation};
 
 use parity_scale_codec::{Decode, Encode};
 

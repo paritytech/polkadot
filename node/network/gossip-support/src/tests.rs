@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
-use polkadot_primitives::v2::{GroupIndex, IndexedVec};
+use polkadot_primitives::{GroupIndex, IndexedVec};
 use test_helpers::mock::make_ferdie_keystore;
 
 use super::*;
@@ -121,14 +121,14 @@ impl MockAuthorityDiscovery {
 impl AuthorityDiscovery for MockAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
-		authority: polkadot_primitives::v2::AuthorityDiscoveryId,
+		authority: polkadot_primitives::AuthorityDiscoveryId,
 	) -> Option<HashSet<sc_network::Multiaddr>> {
 		self.addrs.get(&authority).cloned()
 	}
 	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: polkadot_node_network_protocol::PeerId,
-	) -> Option<HashSet<polkadot_primitives::v2::AuthorityDiscoveryId>> {
+	) -> Option<HashSet<polkadot_primitives::AuthorityDiscoveryId>> {
 		self.authorities.get(&peer_id).cloned()
 	}
 }
