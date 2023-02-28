@@ -1306,12 +1306,16 @@ impl parachains_paras::Config for Runtime {
 
 parameter_types! {
 	/// Amount of weight that can be spent per block to service messages.
-	/// FAIL-CI: Pretty random value.
-	pub const MessageQueueServiceWeight: Weight = Weight::from_parts(100 * WEIGHT_REF_TIME_PER_MILLIS, u64::MAX);
+	///
+	/// # WARNING
+	///
+	/// This is not a good value for para-chains since the `Scheduler` already uses up to 80% block weight.
+	pub const MessageQueueServiceWeight: Weight = Perbill::from_percent(40) * BlockWeights::get().max_block;
 	pub const MessageQueueHeapSize: u32 = 65_536;
 	pub const MessageQueueMaxStale: u32 = 8;
 }
 
+/// Message processor to handle any messages that were enqueued into the `MessageQueue` pallet.
 pub struct MessageProcessor;
 impl ProcessMessage for MessageProcessor {
 	type Origin = AggregateMessageOrigin;
