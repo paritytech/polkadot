@@ -347,10 +347,10 @@ impl RequestManager {
 	/// Await the next incoming response to a sent request, or immediately
 	/// return `None` if there are no pending responses.
 	pub async fn await_incoming(&mut self) -> Option<UnhandledResponse> {
-		match self.pending_responses.next().await {
-			None => None,
-			Some(response) => Some(UnhandledResponse { response }),
-		}
+		self.pending_responses
+			.next()
+			.await
+			.map(|response| UnhandledResponse { response })
 	}
 }
 

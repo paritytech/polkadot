@@ -746,7 +746,7 @@ impl ReceivedManifests {
 	///
 	/// This assumes that the manifest has already been checked for
 	/// validity - i.e. that the bitvecs match the claimed group in size
-	/// and that that the manifest includes at least one `Seconded`
+	/// and that the manifest includes at least one `Seconded`
 	/// attestation and includes enough attestations for the candidate
 	/// to be backed.
 	///
