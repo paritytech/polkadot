@@ -7,26 +7,26 @@ edition.workspace = true
 [dependencies]
 jsonrpsee = { version = "0.16.2", features = ["server"] }
 polkadot-primitives = { path = "../primitives" }
-sc-client-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-blockchain = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-consensus-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-sync-state-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/paritytech/substrate", branch = "master" }
-mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
-substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-client-api = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sp-blockchain = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sp-keystore = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sp-runtime = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sp-api = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sp-consensus = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sp-consensus-babe = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sc-chain-spec = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sc-rpc = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sc-consensus-babe = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sc-consensus-babe-rpc = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sc-consensus-epochs = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sc-consensus-grandpa = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sc-consensus-grandpa-rpc = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sc-sync-state-rpc = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+txpool-api = { package = "sc-transaction-pool-api", git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+mmr-rpc = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+pallet-transaction-payment-rpc = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sp-block-builder = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+beefy-gadget = { package = "sc-consensus-beefy", git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+beefy-gadget-rpc = { package = "sc-consensus-beefy-rpc", git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+substrate-state-trie-migration-rpc = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }

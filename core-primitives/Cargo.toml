@@ -5,9 +5,9 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
+sp-core = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus", default-features = false }
+sp-std = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus", default-features = false }
+sp-runtime = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus", default-features = false }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 parity-scale-codec = { version = "3.3.0", default-features = false, features = [ "derive" ] }
 

@@ -11,13 +11,13 @@ honggfuzz = "0.5.55"
 arbitrary = "1.2.0"
 scale-info = { version = "2.1.2", features = ["derive"] }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+frame-support = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+pallet-balances = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sp-std = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sp-core = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sp-runtime = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
+sp-io = { git = "https://github.com/davxy/substrate", branch = "move-beefy-to-consensus" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }
