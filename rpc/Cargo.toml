@@ -27,6 +27,6 @@ frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://gith
 mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-gadget = { package = "sc-consensus-beefy", git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-gadget-rpc = { package = "sc-consensus-beefy-rpc", git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
