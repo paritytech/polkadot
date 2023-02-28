@@ -58,8 +58,8 @@ pub enum FreedReason {
 }
 
 /// The assignment type.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, Debug, PartialEq, TypeInfo)]
+//#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub enum AssignmentKind {
 	/// A parachain.
 	Parachain,
@@ -130,8 +130,8 @@ pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 }
 
 /// How a free core is scheduled to be assigned.
-#[derive(Clone, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, PartialEq, Debug, TypeInfo)]
+//#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
 pub struct CoreAssignment {
 	/// The core that is assigned.
 	pub core: CoreIndex,

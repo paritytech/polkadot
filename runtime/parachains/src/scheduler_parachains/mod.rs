@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use primitives::{CoreIndex, CoreOccupied, Id as ParaId};
-use sp_runtime::print;
 
 use crate::{
 	configuration,
@@ -58,8 +57,6 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	}
 
 	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
-		print("pop_assignment_for_core parachains");
-		print(core_idx.0);
 		<paras::Pallet<T>>::parachains()
 			.get(core_idx.0 as usize)
 			.copied()
