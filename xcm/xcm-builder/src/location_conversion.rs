@@ -22,8 +22,17 @@ use sp_std::{borrow::Borrow, marker::PhantomData};
 use xcm::latest::prelude::*;
 use xcm_executor::traits::Convert;
 
-/// Prefix for bytes in account creation of foreign chains
-pub const FOREIGN_CHAIN_PREFIX: [u8; 30] = *b"ForeignChainAliasAccountPrefix";
+/// Prefix for generating alias account for accounts coming  
+/// from chains that use 32 byte long representations.
+pub const FOREIGN_CHAIN_PREFIX_PARA_32: [u8; 37] = *b"ForeignChainAliasAccountPrefix_Para32";
+
+/// Prefix for generating alias account for accounts coming  
+/// from chains that use 20 byte long representations.
+pub const FOREIGN_CHAIN_PREFIX_PARA_20: [u8; 37] = *b"ForeignChainAliasAccountPrefix_Para20";
+
+/// Prefix for generating alias account for accounts coming  
+/// from the relay chain using 32 byte long representations.
+pub const FOREIGN_CHAIN_PREFIX_RELAY: [u8; 36] = *b"ForeignChainAliasAccountPrefix_Relay";
 
 /// This converter will for a given `AccountId32`/`AccountKey20`
 /// always generate the same "remote" account for a specific
@@ -80,15 +89,15 @@ impl<AccountId: From<[u8; 32]> + Clone> Convert<MultiLocation, AccountId>
 
 impl<AccountId> ForeignChainAliasAccount<AccountId> {
 	fn from_para_32(para_id: &u32, id: &[u8; 32]) -> [u8; 32] {
-		(FOREIGN_CHAIN_PREFIX, para_id, id).using_encoded(blake2_256)
+		(FOREIGN_CHAIN_PREFIX_PARA_32, para_id, id).using_encoded(blake2_256)
 	}
 
 	fn from_para_20(para_id: &u32, id: &[u8; 20]) -> [u8; 32] {
-		(FOREIGN_CHAIN_PREFIX, para_id, id).using_encoded(blake2_256)
+		(FOREIGN_CHAIN_PREFIX_PARA_20, para_id, id).using_encoded(blake2_256)
 	}
 
 	fn from_relay_32(id: &[u8; 32]) -> [u8; 32] {
-		(FOREIGN_CHAIN_PREFIX, id).using_encoded(blake2_256)
+		(FOREIGN_CHAIN_PREFIX_RELAY, id).using_encoded(blake2_256)
 	}
 }
 
@@ -306,8 +315,8 @@ mod tests {
 
 		assert_eq!(
 			[
-				99, 200, 141, 87, 123, 89, 117, 64, 130, 31, 1, 205, 203, 222, 3, 213, 96, 214,
-				109, 250, 209, 25, 219, 76, 147, 227, 249, 57, 153, 100, 151, 161
+				43, 205, 192, 244, 57, 93, 151, 208, 156, 78, 24, 118, 192, 126, 212, 77, 158, 137,
+				98, 101, 12, 20, 129, 113, 190, 51, 32, 217, 39, 113, 109, 6
 			],
 			rem_1
 		);
@@ -330,8 +339,8 @@ mod tests {
 
 		assert_eq!(
 			[
-				134, 167, 40, 2, 211, 236, 255, 60, 95, 118, 137, 13, 55, 219, 60, 190, 109, 255,
-				233, 208, 180, 150, 245, 242, 86, 9, 223, 26, 207, 103, 117, 3
+				2, 64, 114, 208, 208, 93, 134, 10, 11, 103, 214, 240, 226, 215, 103, 4, 54, 15,
+				225, 104, 116, 206, 195, 130, 148, 31, 166, 234, 208, 133, 205, 193
 			],
 			rem_2
 		);
@@ -349,8 +358,8 @@ mod tests {
 
 		assert_eq!(
 			[
-				138, 178, 174, 32, 50, 130, 59, 252, 53, 61, 149, 173, 157, 117, 42, 161, 77, 123,
-				199, 182, 244, 201, 112, 60, 34, 233, 140, 160, 182, 150, 132, 98
+				220, 227, 86, 34, 106, 215, 195, 254, 66, 227, 147, 109, 29, 94, 166, 218, 167, 12,
+				173, 249, 210, 12, 160, 175, 74, 47, 66, 101, 57, 0, 6, 237
 			],
 			rem_1
 		);
@@ -373,8 +382,8 @@ mod tests {
 
 		assert_eq!(
 			[
-				71, 235, 74, 190, 35, 18, 98, 222, 79, 110, 131, 222, 110, 187, 70, 157, 157, 61,
-				12, 38, 183, 87, 243, 73, 132, 12, 89, 169, 57, 160, 43, 241
+				36, 151, 177, 242, 57, 63, 152, 88, 86, 120, 68, 182, 184, 241, 226, 146, 160, 58,
+				117, 88, 68, 252, 215, 207, 123, 47, 230, 70, 226, 128, 93, 95
 			],
 			rem_2
 		);
@@ -392,8 +401,8 @@ mod tests {
 
 		assert_eq!(
 			[
-				126, 169, 155, 79, 160, 47, 12, 149, 120, 177, 75, 189, 219, 70, 212, 232, 67, 8,
-				3, 204, 96, 162, 6, 249, 195, 169, 46, 151, 100, 221, 9, 249
+				94, 196, 87, 187, 9, 80, 218, 5, 197, 191, 254, 209, 97, 71, 157, 179, 89, 177,
+				143, 116, 89, 101, 166, 229, 63, 192, 113, 84, 33, 75, 53, 180
 			],
 			rem_1
 		);
@@ -413,8 +422,8 @@ mod tests {
 
 		assert_eq!(
 			[
-				180, 59, 39, 58, 99, 137, 223, 252, 92, 171, 106, 182, 150, 228, 6, 66, 154, 209,
-				41, 100, 2, 187, 51, 247, 231, 43, 84, 150, 13, 159, 236, 153
+				80, 50, 225, 2, 93, 166, 226, 77, 90, 153, 212, 206, 248, 60, 123, 128, 229, 23,
+				251, 53, 66, 248, 216, 139, 5, 54, 72, 98, 165, 23, 45, 56
 			],
 			rem_2
 		);
@@ -432,8 +441,8 @@ mod tests {
 
 		assert_eq!(
 			[
-				138, 178, 174, 32, 50, 130, 59, 252, 53, 61, 149, 173, 157, 117, 42, 161, 77, 123,
-				199, 182, 244, 201, 112, 60, 34, 233, 140, 160, 182, 150, 132, 98
+				220, 227, 86, 34, 106, 215, 195, 254, 66, 227, 147, 109, 29, 94, 166, 218, 167, 12,
+				173, 249, 210, 12, 160, 175, 74, 47, 66, 101, 57, 0, 6, 237
 			],
 			rem_1
 		);
@@ -456,8 +465,8 @@ mod tests {
 
 		assert_eq!(
 			[
-				71, 235, 74, 190, 35, 18, 98, 222, 79, 110, 131, 222, 110, 187, 70, 157, 157, 61,
-				12, 38, 183, 87, 243, 73, 132, 12, 89, 169, 57, 160, 43, 241
+				36, 151, 177, 242, 57, 63, 152, 88, 86, 120, 68, 182, 184, 241, 226, 146, 160, 58,
+				117, 88, 68, 252, 215, 207, 123, 47, 230, 70, 226, 128, 93, 95
 			],
 			rem_2
 		);
@@ -475,8 +484,8 @@ mod tests {
 
 		assert_eq!(
 			[
-				99, 200, 141, 87, 123, 89, 117, 64, 130, 31, 1, 205, 203, 222, 3, 213, 96, 214,
-				109, 250, 209, 25, 219, 76, 147, 227, 249, 57, 153, 100, 151, 161
+				43, 205, 192, 244, 57, 93, 151, 208, 156, 78, 24, 118, 192, 126, 212, 77, 158, 137,
+				98, 101, 12, 20, 129, 113, 190, 51, 32, 217, 39, 113, 109, 6
 			],
 			rem_1
 		);
@@ -499,8 +508,8 @@ mod tests {
 
 		assert_eq!(
 			[
-				134, 167, 40, 2, 211, 236, 255, 60, 95, 118, 137, 13, 55, 219, 60, 190, 109, 255,
-				233, 208, 180, 150, 245, 242, 86, 9, 223, 26, 207, 103, 117, 3
+				2, 64, 114, 208, 208, 93, 134, 10, 11, 103, 214, 240, 226, 215, 103, 4, 54, 15,
+				225, 104, 116, 206, 195, 130, 148, 31, 166, 234, 208, 133, 205, 193
 			],
 			rem_2
 		);
