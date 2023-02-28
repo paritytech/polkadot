@@ -9,7 +9,7 @@ edition.workspace = true
 # Substrate Client
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget = { package = "sc-consensus-beefy", git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy = { package = "sc-consensus-beefy", git = "https://github.com/paritytech/substrate", branch = "master" }
 grandpa = { package = "sc-consensus-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 mmr-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master"}
