@@ -1767,3 +1767,77 @@ fn parakind_encodes_decodes_to_bool_serde() {
 	let ser_false = serde_json::to_string(&false).unwrap();
 	assert_eq!(ser_false, ser_thread);
 }
+
+#[test]
+fn parachains_cache_is_set() {
+	new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let a = ParaId::from(111);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Add element twice
+		parachains_cache.add(a);
+		parachains_cache.add(a);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after addition
+		assert_eq!(<Paras as Store>::Parachains::get(), vec![a]);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Remove element twice
+		parachains_cache.remove(a);
+		parachains_cache.remove(a);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after removal
+		assert_eq!(<Paras as Store>::Parachains::get(), vec![]);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Remove nonexisting element
+		parachains_cache.remove(a);
+		assert_storage_noop!(drop(parachains_cache));
+		assert_eq!(<Paras as Store>::Parachains::get(), vec![]);
+	});
+}
+
+#[test]
+fn parachains_cache_preserves_order() {
+	new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let a = ParaId::from(111);
+		let b = ParaId::from(222);
+		let c = ParaId::from(333);
+		let d = ParaId::from(444);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Add in mixed order
+		parachains_cache.add(b);
+		parachains_cache.add(c);
+		parachains_cache.add(a);
+		parachains_cache.add(d);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after addition
+		assert_eq!(<Paras as Store>::Parachains::get(), vec![a, b, c, d]);
+
+		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
+
+		// Remove 2 elements
+		parachains_cache.remove(b);
+		parachains_cache.remove(d);
+
+		// Flush cache to storage
+		drop(parachains_cache);
+
+		// In order after removal
+		assert_eq!(<Paras as Store>::Parachains::get(), vec![a, c]);
+	});
+}
