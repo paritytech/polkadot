@@ -206,7 +206,6 @@ where
 			.await
 			.into_iter()
 			.map(|(session_index, candidate_hash, mut votes)| {
-				gum::trace!(target: LOG_TARGET, ?session_index, ?candidate_hash, "filtering votes");
 				let onchain_state =
 					if let Some(onchain_state) = onchain.get(&(session_index, candidate_hash)) {
 						onchain_state
@@ -222,12 +221,6 @@ where
 					};
 
 				votes.valid.retain(|validator_idx, (statement_kind, _)| {
-					gum::trace!(
-						target: LOG_TARGET,
-						?session_index,
-						?candidate_hash,
-						"Retain valid votes"
-					);
 					is_vote_worth_to_keep(
 						validator_idx,
 						DisputeStatement::Valid(*statement_kind),
@@ -235,12 +228,6 @@ where
 					)
 				});
 				votes.invalid.retain(|validator_idx, (statement_kind, _)| {
-					gum::trace!(
-						target: LOG_TARGET,
-						?session_index,
-						?candidate_hash,
-						"Retain invalid votes"
-					);
 					is_vote_worth_to_keep(
 						validator_idx,
 						DisputeStatement::Invalid(*statement_kind),
@@ -268,14 +255,7 @@ where
 
 				return result
 			}
-			gum::trace!(
-				target: LOG_TARGET,
-				?session_index,
-				?candidate_hash,
-				candidate_reepipt=?selected_votes.candidate_receipt,
-				"Added {} valid and {} invalid votes to the result",
-				selected_votes.valid.keys().len(), selected_votes.invalid.keys().len()
-			);
+
 			result.insert((session_index, candidate_hash), selected_votes);
 			total_votes_len += votes_len
 		}
