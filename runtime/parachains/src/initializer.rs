@@ -261,12 +261,11 @@ impl<T: Config> Pallet<T> {
 
 		let outgoing_paras = paras::Pallet::<T>::initializer_on_new_session(&notification);
 		scheduler::Pallet::<T>::initializer_on_new_session(&notification);
-		inclusion::Pallet::<T>::initializer_on_new_session(&notification);
+		inclusion::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		session_info::Pallet::<T>::initializer_on_new_session(&notification);
 		T::DisputesHandler::initializer_on_new_session(&notification);
 		T::SlashingHandler::initializer_on_new_session(session_index);
 		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
-		// FAIL-CI cleanup queues of outgoing paras
 		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 	}
 

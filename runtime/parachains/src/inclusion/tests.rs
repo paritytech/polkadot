@@ -192,8 +192,8 @@ pub(crate) fn run_to_block(
 				&notification.new_config,
 				notification.validators.clone(),
 			);
-			Paras::initializer_on_new_session(&notification);
-			ParaInclusion::initializer_on_new_session(&notification);
+			let outgoing = Paras::initializer_on_new_session(&notification);
+			ParaInclusion::initializer_on_new_session(&notification, &outgoing);
 		}
 
 		System::on_finalize(b);

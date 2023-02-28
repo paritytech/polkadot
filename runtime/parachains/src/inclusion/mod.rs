@@ -454,12 +454,25 @@ impl<T: Config> Pallet<T> {
 	/// Handle an incoming session change.
 	pub(crate) fn initializer_on_new_session(
 		_notification: &crate::initializer::SessionChangeNotification<T::BlockNumber>,
+		outgoing_paras: &[ParaId],
 	) {
 		// unlike most drain methods, drained elements are not cleared on `Drop` of the iterator
 		// and require consumption.
 		for _ in <PendingAvailabilityCommitments<T>>::drain() {}
 		for _ in <PendingAvailability<T>>::drain() {}
 		for _ in <AvailabilityBitfields<T>>::drain() {}
+
+		Self::cleanup_outgoing_dmp_dispatch_queues(outgoing_paras);
+	}
+
+	pub(crate) fn cleanup_outgoing_dmp_dispatch_queues(outgoing: &[ParaId]) {
+		for outgoing_para in outgoing {
+			Self::cleanup_outgoing_dmp_dispatch_queue(*outgoing_para);
+		}
+	}
+
+	pub(crate) fn cleanup_outgoing_dmp_dispatch_queue(para: ParaId) {
+		T::MessageQueue::sweep_queue(AggregateMessageOrigin::UMP(para));
 	}
 
 	/// Extract the freed cores based on cores that became available.
