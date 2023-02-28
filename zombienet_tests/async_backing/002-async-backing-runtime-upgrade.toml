@@ -16,11 +16,11 @@ default_command = "polkadot"
 
   [[relaychain.nodes]]
   name = "bob"
-  image = "{{ZOMBIENET_INTEGRATION_TEST_SECONDARY_IMAGE}}"
   args = [ "-lparachain=debug,runtime=debug"]
 
   [[relaychain.nodes]]
   name = "charlie"
+  image = "{{ZOMBIENET_INTEGRATION_TEST_SECONDARY_IMAGE}}"
   args = [ "-lparachain=debug,runtime=debug"]
 
   [[relaychain.nodes]]
