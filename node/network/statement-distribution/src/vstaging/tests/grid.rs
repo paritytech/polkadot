@@ -80,8 +80,12 @@ fn backed_candidate_leads_to_advertisement() {
 		};
 
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
+		let target_group_validators =
+			state.group_validators((local_validator.group_index.0 + 1).into(), true);
 		let v_a = other_group_validators[0];
 		let v_b = other_group_validators[1];
+		let v_c = target_group_validators[0];
+		let v_d = target_group_validators[1];
 
 		// peer A is in group, has relay parent in view.
 		// peer B is in group, has no relay parent in view.
@@ -102,9 +106,19 @@ fn backed_candidate_leads_to_advertisement() {
 			)
 			.await;
 
-			connect_peer(&mut overseer, peer_c.clone(), None).await;
+			connect_peer(
+				&mut overseer,
+				peer_c.clone(),
+				Some(vec![state.discovery_id(v_c)].into_iter().collect()),
+			)
+			.await;
 
-			connect_peer(&mut overseer, peer_d.clone(), None).await;
+			connect_peer(
+				&mut overseer,
+				peer_d.clone(),
+				Some(vec![state.discovery_id(v_d)].into_iter().collect()),
+			)
+			.await;
 
 			send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
 			// send_peer_view_change(&mut overseer, peer_b.clone(), view![relay_parent]).await;
@@ -165,17 +179,10 @@ fn backed_candidate_leads_to_advertisement() {
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(peers, _)) if peers == vec![peer_a]
 			);
 
-			answer_expected_hypothetical_depth_request(
-				&mut overseer,
-				vec![],
-				// TODO: Is this right?
-				None,
-				false,
-			)
-			.await;
+			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 		}
 
-		// TODO: Send enough statements to make candidate backable, make sure announcements are sent.
+		// Send enough statements to make candidate backable, make sure announcements are sent.
 
 		// Share local statement.
 		{
@@ -193,13 +200,6 @@ fn backed_candidate_leads_to_advertisement() {
 					msg: StatementDistributionMessage::Share(relay_parent, full_signed),
 				})
 				.await;
-
-			// assert_matches!(
-			// 	overseer.recv().await,
-			// 	AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(peers, _)) if peers == vec![peer_a]
-			// );
-
-			// answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 		}
 
 		// Send statement from peer A.
@@ -277,7 +277,7 @@ fn backed_candidate_leads_to_advertisement() {
 						),
 					)
 				) => {
-					assert_eq!(peers, vec![peer_a]);
+					assert_eq!(peers, vec![peer_c]);
 					assert_eq!(manifest, BackedCandidateManifest {
 						relay_parent,
 						candidate_hash,
@@ -291,16 +291,12 @@ fn backed_candidate_leads_to_advertisement() {
 					});
 				}
 			);
+
+			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 		}
-
-		answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
-
-		println!("{:?}", overseer.recv().await);
 
 		overseer
 	});
-
-	todo!()
 }
 
 // TODO [now]: received advertisement before confirmation leads to request
