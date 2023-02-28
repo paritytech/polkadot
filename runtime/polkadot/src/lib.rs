@@ -1344,7 +1344,7 @@ impl pallet_message_queue::Config for Runtime {
 	type MessageProcessor =
 		pallet_message_queue::mock_helpers::NoopMessageProcessor<AggregateMessageOrigin>;
 	// FAIL-CI add test for this
-	type QueueChangeHandler = ();
+	type QueueChangeHandler = ParaInclusion;
 	type WeightInfo = weights::pallet_message_queue::WeightInfo<Runtime>;
 }
 
