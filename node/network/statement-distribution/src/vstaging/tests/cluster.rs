@@ -1027,7 +1027,7 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 
 		// Send a request to peer and mock its response.
 		{
-			let req = assert_matches!(
+			assert_matches!(
 				overseer.recv().await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
 					assert_eq!(requests.len(), 1);
@@ -1183,7 +1183,7 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 				if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
 		);
 
-		let req = assert_matches!(
+		assert_matches!(
 			overseer.recv().await,
 			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
 				assert_eq!(requests.len(), 1);
