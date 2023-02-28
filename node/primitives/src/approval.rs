@@ -31,24 +31,37 @@ use sp_consensus_babe as babe_primitives;
 /// Earlier tranches of validators check first, with later tranches serving as backup.
 pub type DelayTranche = u32;
 
-/// A static context used to compute the Relay VRF story based on the
-/// VRF output included in the header-chain.
-pub const RELAY_VRF_STORY_CONTEXT: &[u8] = b"A&V RC-VRF";
+/// Static contexts use to generate randomness for v1 assignments.
+pub mod v1 {
+	/// A static context used to compute the Relay VRF story based on the
+	/// VRF output included in the header-chain.
+	pub const RELAY_VRF_STORY_CONTEXT: &[u8] = b"A&V RC-VRF";
 
-/// A static context used for all relay-vrf-modulo VRFs.
-pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD";
+	/// A static context used for all relay-vrf-modulo VRFs.
+	pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD";
 
-/// A static context used for all relay-vrf-modulo VRFs.
-pub const RELAY_VRF_DELAY_CONTEXT: &[u8] = b"A&V DELAY";
+	/// A static context used for all relay-vrf-modulo VRFs.
+	pub const RELAY_VRF_DELAY_CONTEXT: &[u8] = b"A&V DELAY";
 
-/// A static context used for transcripts indicating assigned availability core.
-pub const ASSIGNED_CORE_CONTEXT: &[u8] = b"A&V ASSIGNED";
+	/// A static context used for transcripts indicating assigned availability core.
+	pub const ASSIGNED_CORE_CONTEXT: &[u8] = b"A&V ASSIGNED";
 
-/// A static context associated with producing randomness for a core.
-pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE";
+	/// A static context associated with producing randomness for a core.
+	pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE";
 
-/// A static context associated with producing randomness for a tranche.
-pub const TRANCHE_RANDOMNESS_CONTEXT: &[u8] = b"A&V TRANCHE";
+	/// A static context associated with producing randomness for a tranche.
+	pub const TRANCHE_RANDOMNESS_CONTEXT: &[u8] = b"A&V TRANCHE";
+}
+
+/// Static contexts use to generate randomness for v2 assignments.
+pub mod v2 {
+	/// A static context associated with producing randomness for a core.
+	pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE v2";
+	/// A static context associated with producing randomness for v2 multi-core assignments.
+	pub const ASSIGNED_CORE_CONTEXT: &[u8] = b"A&V ASSIGNED v2";
+	/// A static context used for all relay-vrf-modulo VRFs for v2 multi-core assignments.
+	pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD v2";
+}
 
 /// random bytes derived from the VRF submitted within the block by the
 /// block author as a credential and used as input to approval assignment criteria.
@@ -84,25 +97,20 @@ pub enum AssignmentCertKindV2 {
 	/// An assignment story based on the VRF that authorized the relay-chain block where the
 	/// candidate was included combined with a sample number.
 	///
-	/// The context used to produce bytes is [`RELAY_VRF_MODULO_CONTEXT`]
+	/// The context used to produce bytes is [`v2::RELAY_VRF_MODULO_CONTEXT`]
 	RelayVRFModulo {
 		/// The sample number used in this cert.
 		sample: u32,
 	},
 	/// Multiple assignment stories based on the VRF that authorized the relay-chain block where the
-	/// candidate was included combined with a sample number.
+	/// candidate was included.
 	///
-	/// The context used to produce bytes is [`RELAY_VRF_MODULO_CONTEXT`]
-	RelayVRFModuloCompact {
-		/// The number of samples.
-		sample: u32,
-		/// The assigned cores.
-		core_indices: Vec<CoreIndex>,
-	},
+	/// The context is [`v2::RELAY_VRF_MODULO_CONTEXT`]
+	RelayVRFModuloCompact,
 	/// An assignment story based on the VRF that authorized the relay-chain block where the
 	/// candidate was included combined with the index of a particular core.
 	///
-	/// The context is [`RELAY_VRF_DELAY_CONTEXT`]
+	/// The context is [`v2::RELAY_VRF_DELAY_CONTEXT`]
 	RelayVRFDelay {
 		/// The core index chosen in this cert.
 		core_index: CoreIndex,
@@ -288,7 +296,7 @@ impl UnsafeVRFOutput {
 			.0
 			.attach_input_hash(&pubkey, transcript)
 			.map_err(ApprovalError::SchnorrkelSignature)?;
-		Ok(RelayVRFStory(inout.make_bytes(RELAY_VRF_STORY_CONTEXT)))
+		Ok(RelayVRFStory(inout.make_bytes(v1::RELAY_VRF_STORY_CONTEXT)))
 	}
 }
 

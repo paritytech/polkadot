@@ -107,7 +107,7 @@ impl ApprovalEntry {
 	pub fn trigger_our_assignment(
 		&mut self,
 		tick_now: Tick,
-	) -> Option<(AssignmentCertV2, ValidatorIndex, DelayTranche)> {
+	) -> Option<(Vec<CoreIndex>, AssignmentCertV2, ValidatorIndex, DelayTranche)> {
 		let our = self.our_assignment.as_mut().and_then(|a| {
 			if a.triggered() {
 				return None
@@ -120,7 +120,7 @@ impl ApprovalEntry {
 		our.map(|a| {
 			self.import_assignment(a.tranche(), a.validator_index(), tick_now);
 
-			(a.cert().clone(), a.validator_index(), a.tranche())
+			(a.claimed_core_indices.clone(), a.cert().clone(), a.validator_index(), a.tranche())
 		})
 	}
 

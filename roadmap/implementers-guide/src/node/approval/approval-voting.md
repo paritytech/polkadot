@@ -54,6 +54,8 @@ struct OurAssignment {
   tranche: DelayTranche,
   validator_index: ValidatorIndex,
   triggered: bool,
+  // Claimed core indices.
+	pub claimed_core_indices: Vec<CoreIndex>,
 }
 
 struct ApprovalEntry {

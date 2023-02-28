@@ -24,8 +24,8 @@
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
-		AssignmentCertKindV2, AssignmentCertV2, BlockApprovalMeta, DelayTranche,
-		IndirectAssignmentCertV2, IndirectSignedApprovalVote,
+		AssignmentCertKindV2, BlockApprovalMeta, DelayTranche, IndirectAssignmentCertV2,
+		IndirectSignedApprovalVote,
 	},
 	ValidationResult, APPROVAL_EXECUTION_TIMEOUT,
 };
@@ -50,9 +50,9 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
-	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorPair, ValidatorSignature,
+	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, CoreIndex,
+	DisputeStatement, GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind,
+	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -741,11 +741,12 @@ enum Action {
 		tick: Tick,
 	},
 	LaunchApproval {
+		claimed_core_indices: Vec<CoreIndex>,
 		candidate_hash: CandidateHash,
 		indirect_cert: IndirectAssignmentCertV2,
 		assignment_tranche: DelayTranche,
 		relay_block_hash: Hash,
-		candidate_index: CandidateIndex,
+		// candidate_index: CandidateIndex,
 		session: SessionIndex,
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
@@ -956,11 +957,11 @@ async fn handle_actions<Context>(
 				actions_iter = next_actions.into_iter();
 			},
 			Action::LaunchApproval {
+				claimed_core_indices,
 				candidate_hash,
 				indirect_cert,
 				assignment_tranche,
 				relay_block_hash,
-				candidate_index,
 				session,
 				candidate,
 				backing_group,
@@ -986,7 +987,7 @@ async fn handle_actions<Context>(
 
 				// Get all candidate indices in case this is a compact module vrf assignment.
 				let candidate_indices =
-					cores_to_candidate_indices(&block_entry, candidate_index, &indirect_cert.cert);
+					cores_to_candidate_indices(&claimed_core_indices, &block_entry);
 
 				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
 					indirect_cert,
@@ -1049,24 +1050,19 @@ async fn handle_actions<Context>(
 }
 
 fn cores_to_candidate_indices(
+	core_indices: &Vec<CoreIndex>,
 	block_entry: &BlockEntry,
-	candidate_index: CandidateIndex,
-	cert: &AssignmentCertV2,
 ) -> Vec<CandidateIndex> {
 	let mut candidate_indices = Vec::new();
-	match &cert.kind {
-		AssignmentCertKindV2::RelayVRFModuloCompact { sample: _, core_indices } => {
-			for cert_core_index in core_indices {
-				if let Some(candidate_index) = block_entry
-					.candidates()
-					.iter()
-					.position(|(core_index, _)| core_index == cert_core_index)
-				{
-					candidate_indices.push(candidate_index as _)
-				}
-			}
-		},
-		_ => candidate_indices.push(candidate_index as _),
+
+	for claimed_core_index in core_indices {
+		if let Some(candidate_index) = block_entry
+			.candidates()
+			.iter()
+			.position(|(core_index, _)| core_index == claimed_core_index)
+		{
+			candidate_indices.push(candidate_index as _)
+		}
 	}
 	candidate_indices
 }
@@ -1125,7 +1121,10 @@ fn distribution_messages_for_activation(
 									validator: assignment.validator_index(),
 									cert: assignment.cert().clone(),
 								},
-								cores_to_candidate_indices(&block_entry, i as _, assignment.cert()),
+								cores_to_candidate_indices(
+									&assignment.claimed_core_indices,
+									&block_entry,
+								),
 							));
 						},
 						(Some(assignment), Some(approval_sig)) => {
@@ -1135,7 +1134,10 @@ fn distribution_messages_for_activation(
 									validator: assignment.validator_index(),
 									cert: assignment.cert().clone(),
 								},
-								cores_to_candidate_indices(&block_entry, i as _, assignment.cert()),
+								cores_to_candidate_indices(
+									&assignment.claimed_core_indices,
+									&block_entry,
+								),
 							));
 
 							messages.push(ApprovalDistributionMessage::DistributeApproval(
@@ -1785,9 +1787,17 @@ fn check_and_import_assignment(
 		assigned_candidate_hashes.push(assigned_candidate_hash);
 	}
 
+	let claimed_core_index = match assignment.cert.kind {
+		// TODO, near future: remove CoreIndex from certificates completely.
+		AssignmentCertKindV2::RelayVRFDelay { .. } => Some(claimed_core_indices[0]),
+		AssignmentCertKindV2::RelayVRFModulo { .. } => Some(claimed_core_indices[0]),
+		// VRelayVRFModuloCompact assignment doesn't need the the claimed cores for checking.
+		AssignmentCertKindV2::RelayVRFModuloCompact => None,
+	};
+
 	// Check the assignment certificate.
 	let res = state.assignment_criteria.check_assignment_cert(
-		claimed_core_indices.clone(),
+		claimed_core_index,
 		assignment.validator,
 		&criteria::Config::from(session_info),
 		block_entry.relay_vrf_story(),
@@ -1795,7 +1805,7 @@ fn check_and_import_assignment(
 		backing_groups,
 	);
 
-	let tranche = match res {
+	let (claimed_core_indices, tranche) = match res {
 		Err(crate::criteria::InvalidAssignment(reason)) =>
 			return Ok((
 				AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(
@@ -1804,7 +1814,7 @@ fn check_and_import_assignment(
 				)),
 				Vec::new(),
 			)),
-		Ok(tranche) => {
+		Ok((claimed_core_indices, tranche)) => {
 			let current_tranche =
 				state.clock.tranche_now(state.slot_duration_millis, block_entry.slot());
 
@@ -1814,7 +1824,7 @@ fn check_and_import_assignment(
 				return Ok((AssignmentCheckResult::TooFarInFuture, Vec::new()))
 			}
 
-			tranche
+			(claimed_core_indices, tranche)
 		},
 	};
 
@@ -2294,34 +2304,28 @@ fn process_wakeup(
 		None
 	};
 
-	if let Some((cert, val_index, tranche)) = maybe_cert {
+	if let Some((claimed_core_indices, cert, val_index, tranche)) = maybe_cert {
 		let indirect_cert =
 			IndirectAssignmentCertV2 { block_hash: relay_block, validator: val_index, cert };
 
-		let index_in_candidate =
-			block_entry.candidates().iter().position(|(_, h)| &candidate_hash == h);
+		gum::trace!(
+			target: LOG_TARGET,
+			?candidate_hash,
+			para_id = ?candidate_receipt.descriptor.para_id,
+			block_hash = ?relay_block,
+			"Launching approval work.",
+		);
 
-		if let Some(i) = index_in_candidate {
-			gum::trace!(
-				target: LOG_TARGET,
-				?candidate_hash,
-				para_id = ?candidate_receipt.descriptor.para_id,
-				block_hash = ?relay_block,
-				"Launching approval work.",
-			);
-
-			// sanity: should always be present.
-			actions.push(Action::LaunchApproval {
-				candidate_hash,
-				indirect_cert,
-				assignment_tranche: tranche,
-				relay_block_hash: relay_block,
-				candidate_index: i as _,
-				session: block_entry.session(),
-				candidate: candidate_receipt,
-				backing_group,
-			});
-		}
+		actions.push(Action::LaunchApproval {
+			claimed_core_indices,
+			candidate_hash,
+			indirect_cert,
+			assignment_tranche: tranche,
+			relay_block_hash: relay_block,
+			session: block_entry.session(),
+			candidate: candidate_receipt,
+			backing_group,
+		});
 	}
 
 	// Although we checked approval earlier in this function,

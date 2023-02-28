@@ -166,6 +166,8 @@ pub struct OurAssignment {
 	pub validator_index: ValidatorIndex,
 	// Whether the assignment has been triggered already.
 	pub triggered: bool,
+	// Claimed core indices.
+	pub claimed_core_indices: Vec<CoreIndex>,
 }
 
 /// Metadata regarding a specific tranche of assignments for a specific candidate.
