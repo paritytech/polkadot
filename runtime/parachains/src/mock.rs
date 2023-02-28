@@ -324,8 +324,11 @@ impl pallet_message_queue::WeightInfo for TestMessageQueueWeight {
 parameter_types! {
 	pub const MessageQueueServiceWeight: Weight = Weight::from_all(500);
 }
+
+pub type MessageQueueSize = u32;
+
 impl pallet_message_queue::Config for Test {
-	type Size = u32;
+	type Size = MessageQueueSize;
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = TestMessageQueueWeight;
 	type MessageProcessor = TestProcessMessage;
