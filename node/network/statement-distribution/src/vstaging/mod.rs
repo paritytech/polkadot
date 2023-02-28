@@ -120,7 +120,7 @@ const COST_UNEXPECTED_REQUEST: Rep = Rep::CostMajor("Unexpected attested candida
 const BENEFIT_VALID_RESPONSE: Rep = Rep::BenefitMajor("Peer Answered Candidate Request");
 const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
 const BENEFIT_VALID_STATEMENT_FIRST: Rep =
-	Rep::BenefitMajorFirst("Peer was the first to provide a valid statement");
+	Rep::BenefitMajorFirst("Peer was the first to provide a given valid statement");
 
 struct PerRelayParentState {
 	local_validator: Option<LocalValidatorState>,

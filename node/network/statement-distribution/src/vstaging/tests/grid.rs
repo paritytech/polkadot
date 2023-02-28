@@ -16,16 +16,20 @@
 
 use super::*;
 
-use polkadot_node_network_protocol::grid_topology::TopologyPeerInfo;
+use bitvec::order::Lsb0;
+use polkadot_node_network_protocol::{
+	grid_topology::TopologyPeerInfo, vstaging::BackedCandidateManifest,
+};
 use polkadot_primitives_test_helpers::make_candidate;
 
 // Backed candidate leads to advertisement to relevant validators with relay-parent.
 #[test]
 fn backed_candidate_leads_to_advertisement() {
 	let validator_count = 6;
+	let group_size = 3;
 	let config = TestConfig {
 		validator_count,
-		group_size: 3,
+		group_size,
 		local_validator: true,
 		async_backing_params: None,
 	};
@@ -252,6 +256,44 @@ fn backed_candidate_leads_to_advertisement() {
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(peers, _)) if peers == vec![peer_a]
 			);
 		}
+
+		// Send Backed notification.
+		{
+			overseer
+				.send(FromOrchestra::Communication {
+					msg: StatementDistributionMessage::Backed(candidate_hash),
+				})
+				.await;
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages:: NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendValidationMessage(
+						peers,
+						Versioned::VStaging(
+							protocol_vstaging::ValidationProtocol::StatementDistribution(
+								protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(manifest),
+							),
+						),
+					)
+				) => {
+					assert_eq!(peers, vec![peer_a]);
+					assert_eq!(manifest, BackedCandidateManifest {
+						relay_parent,
+						candidate_hash,
+						group_index: local_validator.group_index,
+						para_id: local_para,
+						parent_head_data_hash: pvd.parent_head.hash(),
+						statement_knowledge: StatementFilter {
+							seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
+							validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+						},
+					});
+				}
+			);
+		}
+
+		answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 
 		println!("{:?}", overseer.recv().await);
 
