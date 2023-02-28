@@ -30,9 +30,7 @@ use frame_support::{
 	traits::{ExecuteOverweightError, ServiceQueues},
 	weights::Weight,
 };
-use primitives::{
-	v2::{well_known_keys, Id as ParaId, UpwardMessage},
-};
+use primitives::v2::{well_known_keys, Id as ParaId, UpwardMessage};
 use sp_runtime::traits::{Bounded, Hash};
 use sp_std::prelude::*;
 

@@ -15,14 +15,12 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{
-	mock::{
-		deregister_parachain, new_test_ext, register_parachain, register_parachain_with_balance,
-		Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared, RuntimeEvent as MockEvent,
-		RuntimeOrigin, System, Test,
-	},
+use crate::mock::{
+	deregister_parachain, new_test_ext, register_parachain, register_parachain_with_balance,
+	Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared, RuntimeEvent as MockEvent,
+	RuntimeOrigin, System, Test,
 };
-use frame_support::{assert_noop};
+use frame_support::assert_noop;
 use primitives::BlockNumber;
 use std::collections::BTreeMap;
 
