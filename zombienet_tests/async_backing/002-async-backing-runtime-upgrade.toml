@@ -12,7 +12,7 @@ default_command = "polkadot"
 
   [[relaychain.nodes]]
   name = "alice"
-  args = [ "-lparachain=debug"]
+  args = [ "-lparachain=debug,runtime=debug"]
 
   [[relaychain.nodes]]
   name = "bob"
