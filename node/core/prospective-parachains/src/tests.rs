@@ -387,6 +387,7 @@ async fn get_hypothetical_frontier(
 	receipt: CommittedCandidateReceipt,
 	persisted_validation_data: PersistedValidationData,
 	fragment_tree_relay_parent: Hash,
+	backed_in_path_only: bool,
 	expected_depths: Vec<usize>,
 ) {
 	let hypothetical_candidate = HypotheticalCandidate::Complete {
@@ -397,8 +398,7 @@ async fn get_hypothetical_frontier(
 	let request = HypotheticalFrontierRequest {
 		candidates: vec![hypothetical_candidate.clone()],
 		fragment_tree_relay_parent: Some(fragment_tree_relay_parent),
-		// TODO [now]: test `true` case as well
-		backed_in_path_only: false,
+		backed_in_path_only,
 	};
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
@@ -407,8 +407,11 @@ async fn get_hypothetical_frontier(
 		})
 		.await;
 	let resp = rx.await.unwrap();
-	let expected_frontier =
-		vec![(hypothetical_candidate, vec![(fragment_tree_relay_parent, expected_depths)])];
+	let expected_frontier = if expected_depths.is_empty() {
+		vec![(hypothetical_candidate, vec![])]
+	} else {
+		vec![(hypothetical_candidate, vec![(fragment_tree_relay_parent, expected_depths)])]
+	};
 	assert_eq!(resp, expected_frontier);
 }
 
@@ -672,7 +675,7 @@ fn check_candidate_parent_leaving_view() {
 		let candidate_hash_c = candidate_c.hash();
 		let response_c = vec![(leaf_c.hash, vec![0])];
 
-		// Second candidates.
+		// Introduce candidates.
 		introduce_candidate(&mut virtual_overseer, candidate_a1, pvd_a1).await;
 		introduce_candidate(&mut virtual_overseer, candidate_a2, pvd_a2).await;
 		introduce_candidate(&mut virtual_overseer, candidate_b, pvd_b).await;
@@ -786,7 +789,7 @@ fn check_candidate_on_multiple_forks() {
 		let candidate_hash_c = candidate_c.hash();
 		let response_c = vec![(leaf_c.hash, vec![0])];
 
-		// Second candidate on all three leaves.
+		// Introduce candidates on all three leaves.
 		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a).await;
 		introduce_candidate(&mut virtual_overseer, candidate_b.clone(), pvd_b).await;
 		introduce_candidate(&mut virtual_overseer, candidate_c.clone(), pvd_c).await;
@@ -920,7 +923,7 @@ fn check_backable_query() {
 
 // Test depth query.
 #[test]
-fn check_depth_query() {
+fn check_hypothetical_frontier_query() {
 	let test_state = TestState::default();
 	let view = test_harness(|mut virtual_overseer| async move {
 		// Leaf A
@@ -976,6 +979,18 @@ fn check_depth_query() {
 			candidate_a.clone(),
 			pvd_a.clone(),
 			leaf_a.hash,
+			false,
+			vec![0],
+		)
+		.await;
+		// Should work with `backed_in_path_only: true`, too.
+		get_hypothetical_frontier(
+			&mut virtual_overseer,
+			candidate_hash_a,
+			candidate_a.clone(),
+			pvd_a.clone(),
+			leaf_a.hash,
+			true,
 			vec![0],
 		)
 		.await;
@@ -990,6 +1005,7 @@ fn check_depth_query() {
 			candidate_a.clone(),
 			pvd_a.clone(),
 			leaf_a.hash,
+			false,
 			vec![0],
 		)
 		.await;
@@ -1001,6 +1017,7 @@ fn check_depth_query() {
 			candidate_b.clone(),
 			pvd_b.clone(),
 			leaf_a.hash,
+			false,
 			vec![1],
 		)
 		.await;
@@ -1015,6 +1032,7 @@ fn check_depth_query() {
 			candidate_b,
 			pvd_b.clone(),
 			leaf_a.hash,
+			false,
 			vec![1],
 		)
 		.await;
@@ -1026,7 +1044,19 @@ fn check_depth_query() {
 			candidate_c.clone(),
 			pvd_c.clone(),
 			leaf_a.hash,
+			false,
 			vec![2],
+		)
+		.await;
+		// Should be empty with `backed_in_path_only` because we haven't backed anything.
+		get_hypothetical_frontier(
+			&mut virtual_overseer,
+			candidate_hash_c,
+			candidate_c.clone(),
+			pvd_c.clone(),
+			leaf_a.hash,
+			true,
+			vec![],
 		)
 		.await;
 
@@ -1037,10 +1067,22 @@ fn check_depth_query() {
 		get_hypothetical_frontier(
 			&mut virtual_overseer,
 			candidate_hash_c,
-			candidate_c,
+			candidate_c.clone(),
 			pvd_c.clone(),
 			leaf_a.hash,
+			false,
 			vec![2],
+		)
+		.await;
+		// Should be empty with `backed_in_path_only` because we haven't backed anything.
+		get_hypothetical_frontier(
+			&mut virtual_overseer,
+			candidate_hash_c,
+			candidate_c.clone(),
+			pvd_c.clone(),
+			leaf_a.hash,
+			true,
+			vec![],
 		)
 		.await;
 

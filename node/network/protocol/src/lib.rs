@@ -666,11 +666,16 @@ pub mod vstaging {
 				.iter_mut()
 				.zip(mask.iter().by_vals().chain(std::iter::repeat(false)))
 			{
-				*x = *x && mask;
+				// (x, mask) => x
+				// (true, true) => false
+				// (true, false) => true
+				// (false, true) => false
+				// (false, false) => false
+				*x = *x && !mask;
 			}
 		}
 
-		/// Mask out `Valid1 statements in `self` according to the provided
+		/// Mask out `Valid` statements in `self` according to the provided
 		/// bitvec. Bits appearing in `mask` will not appear in `self` afterwards.
 		pub fn mask_valid(&mut self, mask: &BitSlice<u8, Lsb0>) {
 			for (mut x, mask) in self
@@ -678,7 +683,12 @@ pub mod vstaging {
 				.iter_mut()
 				.zip(mask.iter().by_vals().chain(std::iter::repeat(false)))
 			{
-				*x = *x && mask;
+				// (x, mask) => x
+				// (true, true) => false
+				// (true, false) => true
+				// (false, true) => false
+				// (false, false) => false
+				*x = *x && !mask;
 			}
 		}
 	}

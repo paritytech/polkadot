@@ -91,7 +91,9 @@ use super::{groups::Groups, LOG_TARGET};
 /// the 'receiving' side will be empty.
 #[derive(Debug, PartialEq)]
 struct GroupSubView {
+	// validators we are 'sending' to.
 	sending: HashSet<ValidatorIndex>,
+	// validators we are 'receiving' from.
 	receiving: HashSet<ValidatorIndex>,
 }
 
@@ -104,15 +106,16 @@ pub struct SessionTopologyView {
 
 impl SessionTopologyView {
 	/// Returns an iterator over all validator indices from the group who are allowed to
-	/// send us manifests.
-	pub fn iter_group_senders(
+	/// send us manifests of the given kind.
+	pub fn iter_sending_for_group(
 		&self,
 		group: GroupIndex,
+		kind: ManifestKind,
 	) -> impl Iterator<Item = ValidatorIndex> + '_ {
-		self.group_views
-			.get(&group)
-			.into_iter()
-			.flat_map(|sub| sub.sending.iter().cloned())
+		self.group_views.get(&group).into_iter().flat_map(move |sub| match kind {
+			ManifestKind::Full => sub.receiving.iter().cloned(),
+			ManifestKind::Acknowledgement => sub.sending.iter().cloned(),
+		})
 	}
 }
 
@@ -150,8 +153,12 @@ pub fn build_session_topology<'a>(
 			sub_view.sending.extend(our_neighbors.validator_indices_x.iter().cloned());
 			sub_view.sending.extend(our_neighbors.validator_indices_y.iter().cloned());
 
-		// TODO [now]: remove all other group validators from the 'sending' set.
-		// and test this behavior.
+			// remove all other same-group validators from this set, they are
+			// in the cluster.
+			// TODO [now]: test this behavior.
+			for v in group {
+				sub_view.sending.remove(v);
+			}
 		} else {
 			for &group_val in group {
 				// If the validator shares a slice with us, we expect to
@@ -1128,10 +1135,11 @@ mod tests {
 		// 3 4 5
 		// 6 7 8
 
-		// our group: we send to all row/column neighbors and receive nothing
+		// our group: we send to all row/column neighbors which are not in our
+		// group and receive nothing.
 		assert_eq!(
 			t.group_views.get(&GroupIndex(0)).unwrap().sending,
-			vec![1, 2, 3, 6].into_iter().map(ValidatorIndex).collect::<HashSet<_>>(),
+			vec![1, 2].into_iter().map(ValidatorIndex).collect::<HashSet<_>>(),
 		);
 		assert_eq!(t.group_views.get(&GroupIndex(0)).unwrap().receiving, HashSet::new(),);
 

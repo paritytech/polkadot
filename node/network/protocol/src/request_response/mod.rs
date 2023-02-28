@@ -78,8 +78,8 @@ pub enum Protocol {
 	DisputeSendingV1,
 
 	/// Protocol for requesting candidates with attestations in statement distribution
-	/// in v2.
-	AttestedCandidateV2,
+	/// when async backing is enabled.
+	AttestedCandidateVStaging,
 }
 
 /// Minimum bandwidth we expect for validators - 500Mbit/s is the recommendation, so approximately
@@ -111,7 +111,7 @@ const POV_REQUEST_TIMEOUT_CONNECTED: Duration = Duration::from_millis(1200);
 /// fit statement distribution within a block of 6 seconds.)
 const STATEMENTS_TIMEOUT: Duration = Duration::from_secs(1);
 
-/// We want to attested candidate requests to time out relatively fast,
+/// We want attested candidate requests to time out relatively fast,
 /// because slow requests will bottleneck the backing system. Ideally, we'd have
 /// an adaptive timeout based on the candidate size, because there will be a lot of variance
 /// in candidate sizes: candidates with no code and no messages vs candidates with code
@@ -131,7 +131,7 @@ pub const MAX_PARALLEL_STATEMENT_REQUESTS: u32 = 3;
 
 /// We don't want a slow peer to slow down all the others, at the same time we want to get out the
 /// data quickly in full to at least some peers (as this will reduce load on us as they then can
-/// start serving the data). So this value is a tradeoff. 3 seems to be sensible. So we would need
+/// start serving the data). So this value is a tradeoff. 5 seems to be sensible. So we would need
 /// to have 5 slow nodes connected, to delay transfer for others by `ATTESTED_CANDIDATE_TIMEOUT`.
 pub const MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS: u32 = 5;
 
@@ -148,7 +148,7 @@ const POV_RESPONSE_SIZE: u64 = MAX_POV_SIZE as u64 + 10_000;
 /// This is `MAX_CODE_SIZE` plus some additional space for protocol overhead.
 const STATEMENT_RESPONSE_SIZE: u64 = MAX_CODE_SIZE as u64 + 10_000;
 
-/// Maximum response sizes for `AttestedCandidateV2`.
+/// Maximum response sizes for `AttestedCandidateVStaging`.
 ///
 /// This is `MAX_CODE_SIZE` plus some additional space for protocol overhead and
 /// additional backing statements.
@@ -255,7 +255,7 @@ impl Protocol {
 				request_timeout: DISPUTE_REQUEST_TIMEOUT,
 				inbound_queue: tx,
 			},
-			Protocol::AttestedCandidateV2 => RequestResponseConfig {
+			Protocol::AttestedCandidateVStaging => RequestResponseConfig {
 				name,
 				fallback_names,
 				max_request_size: 1_000,
@@ -308,7 +308,7 @@ impl Protocol {
 			// failure, so having a good value here is mostly about performance tuning.
 			Protocol::DisputeSendingV1 => 100,
 
-			Protocol::AttestedCandidateV2 => {
+			Protocol::AttestedCandidateVStaging => {
 				// We assume we can utilize up to 70% of the available bandwidth for statements.
 				// This is just a guess/estimate, with the following considerations: If we are
 				// faster than that, queue size will stay low anyway, even if not - requesters will
@@ -345,7 +345,7 @@ impl Protocol {
 			Protocol::DisputeSendingV1 => Some("/polkadot/send_dispute/1"),
 
 			// Introduced after legacy names became legacy.
-			Protocol::AttestedCandidateV2 => None,
+			Protocol::AttestedCandidateVStaging => None,
 			Protocol::CollationFetchingVStaging => None,
 		}
 	}
@@ -398,13 +398,13 @@ impl ReqProtocolNames {
 		let short_name = match protocol {
 			Protocol::ChunkFetchingV1 => "/req_chunk/1",
 			Protocol::CollationFetchingV1 => "/req_collation/1",
-			Protocol::CollationFetchingVStaging => "/req_collation/2",
 			Protocol::PoVFetchingV1 => "/req_pov/1",
 			Protocol::AvailableDataFetchingV1 => "/req_available_data/1",
 			Protocol::StatementFetchingV1 => "/req_statement/1",
 			Protocol::DisputeSendingV1 => "/send_dispute/1",
 
-			Protocol::AttestedCandidateV2 => "/req_attested_candidate/2",
+			Protocol::CollationFetchingVStaging => "/req_collation/2",
+			Protocol::AttestedCandidateVStaging => "/req_attested_candidate/2",
 		};
 
 		format!("{}{}", prefix, short_name).into()

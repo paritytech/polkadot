@@ -56,7 +56,7 @@ pub struct AttestedCandidateResponse {
 
 impl IsRequest for AttestedCandidateRequest {
 	type Response = AttestedCandidateResponse;
-	const PROTOCOL: Protocol = Protocol::AttestedCandidateV2;
+	const PROTOCOL: Protocol = Protocol::AttestedCandidateVStaging;
 }
 
 /// Responses as sent by collators.
