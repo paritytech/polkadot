@@ -24,7 +24,7 @@ id = 100
 
   [parachains.collator]
   name = "collator01"
-  image = "{{COL_IMAGE}}"
+  image = "docker.io/paritypr/colander:master"
   command = "undying-collator"
   args = ["-lparachain=debug"]
 
@@ -33,7 +33,7 @@ id = 100
 
   [parachains.collator]
   name = "collator02"
-  image = "{{ASYNC_COL_IMAGE}}"
+  image = "{{COL_IMAGE}}"
   command = "undying-collator"
   args = ["-lparachain=debug"]
 
