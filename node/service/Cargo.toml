@@ -11,7 +11,7 @@ sc-authority-discovery = { git = "https://github.com/paritytech/substrate", bran
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
 beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-beefy" }
 beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa = { package = "sc-consensus-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 mmr-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master"}
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -35,7 +35,7 @@ telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/sub
 # Substrate Primitives
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa_primitives = { package = "sp-consensus-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
