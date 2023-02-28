@@ -1308,6 +1308,8 @@ parameter_types! {
 	/// Amount of weight that can be spent per block to service messages.
 	/// FAIL-CI: Pretty random value.
 	pub const MessageQueueServiceWeight: Weight = Weight::from_parts(100 * WEIGHT_REF_TIME_PER_MILLIS, u64::MAX);
+	pub const MessageQueueHeapSize: u32 = 65_536;
+	pub const MessageQueueMaxStale: u32 = 8;
 }
 
 pub struct MessageProcessor;
@@ -1333,8 +1335,8 @@ impl ProcessMessage for MessageProcessor {
 impl pallet_message_queue::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 	type Size = u32;
-	type HeapSize = ConstU32<65_536>;
-	type MaxStale = ConstU32<8>;
+	type HeapSize = MessageQueueHeapSize;
+	type MaxStale = MessageQueueMaxStale;
 	type ServiceWeight = MessageQueueServiceWeight;
 	#[cfg(not(feature = "runtime-benchmarks"))]
 	type MessageProcessor = MessageProcessor;
