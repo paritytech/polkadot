@@ -19,11 +19,13 @@
 use crate::{
 	configuration, disputes, dmp, hrmp,
 	inclusion::{self, AggregateMessageOrigin},
-	initializer, origin, paras, paras_inherent, scheduler, session_info, shared, ParaId,
+	initializer, origin, paras,
+	paras::ParaKind,
+	paras_inherent, scheduler, session_info, shared, ParaId,
 };
 
 use frame_support::{
-	parameter_types,
+	assert_ok, parameter_types,
 	traits::{
 		GenesisBuild, KeyOwnerProofSystem, ProcessMessage, ProcessMessageError, ValidatorSet,
 		ValidatorSetWithIdentification,
@@ -319,7 +321,9 @@ impl pallet_message_queue::WeightInfo for TestMessageQueueWeight {
 		Weight::zero()
 	}
 }
-
+parameter_types! {
+	pub const MessageQueueServiceWeight: Weight = Weight::from_all(500);
+}
 pub type MessageQueueSize = u32;
 
 impl pallet_message_queue::Config for Test {
@@ -330,7 +334,7 @@ impl pallet_message_queue::Config for Test {
 	type QueueChangeHandler = ParaInclusion;
 	type HeapSize = ConstU32<65536>;
 	type MaxStale = ConstU32<8>;
-	type ServiceWeight = ();
+	type ServiceWeight = MessageQueueServiceWeight;
 }
 
 impl crate::inclusion::Config for Test {
@@ -521,4 +525,35 @@ where
 	{
 		assert_eq!((i, got), (i, want));
 	}
+}
+
+use frame_support::traits::Currency;
+use sp_runtime::traits::AccountIdConversion;
+
+pub(crate) fn register_parachain_with_balance(id: ParaId, balance: Balance) {
+	assert_ok!(Paras::schedule_para_initialize(
+		id,
+		crate::paras::ParaGenesisArgs {
+			para_kind: ParaKind::Parachain,
+			genesis_head: vec![1].into(),
+			validation_code: vec![1].into(),
+		},
+	));
+	<Test as crate::hrmp::Config>::Currency::make_free_balance_be(
+		&id.into_account_truncating(),
+		balance,
+	);
+}
+
+pub(crate) fn register_parachain(id: ParaId) {
+	register_parachain_with_balance(id, 1000);
+}
+
+pub(crate) fn deregister_parachain(id: ParaId) {
+	assert_ok!(Paras::schedule_para_cleanup(id));
+}
+
+/// Calls `schedule_para_cleanup` in a new storage transactions, since it assumes rollback on error.
+pub(crate) fn try_deregister_parachain(id: ParaId) -> crate::DispatchResult {
+	frame_support::storage::transactional::with_storage_layer(|| Paras::schedule_para_cleanup(id))
 }

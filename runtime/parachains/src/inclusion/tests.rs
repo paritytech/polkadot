@@ -163,6 +163,17 @@ pub(crate) async fn back_candidate(
 	backed
 }
 
+pub(crate) fn run_to_block_default_notifications(to: BlockNumber, new_session: Vec<BlockNumber>) {
+	run_to_block(to, |b| {
+		new_session.contains(&b).then_some(SessionChangeNotification {
+			prev_config: Configuration::config(),
+			new_config: Configuration::config(),
+			session_index: ParasShared::session_index() + 1,
+			..Default::default()
+		})
+	});
+}
+
 pub(crate) fn run_to_block(
 	to: BlockNumber,
 	new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,

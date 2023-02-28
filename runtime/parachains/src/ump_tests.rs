@@ -15,10 +15,13 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	inclusion::{AggregateMessageOrigin::UMP, UmpAcceptanceCheckErr},
+	inclusion::{
+		tests::run_to_block_default_notifications as run_to_block, AggregateMessageOrigin::UMP,
+		UmpAcceptanceCheckErr,
+	},
 	mock::{
 		assert_last_event, assert_last_events, new_test_ext, Configuration, MessageQueue,
-		MessageQueueSize, MockGenesisConfig, ParaInclusion, Processed, System, Test,
+		MessageQueueSize, MockGenesisConfig, ParaInclusion, Processed, System, Test, *,
 	},
 };
 use frame_support::{
@@ -27,7 +30,9 @@ use frame_support::{
 	traits::{ExecuteOverweightError, ServiceQueues},
 	weights::Weight,
 };
-use primitives::v2::{well_known_keys, Id as ParaId, UpwardMessage};
+use primitives::{
+	v2::{well_known_keys, Id as ParaId, UpwardMessage},
+};
 use sp_runtime::traits::{Bounded, Hash};
 use sp_std::prelude::*;
 
@@ -78,11 +83,15 @@ fn default_genesis_config() -> MockGenesisConfig {
 	}
 }
 
-// FAIL-CI: TODO add tests
 fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
+	try_queue_upward_msg(para, msg).unwrap();
+}
+
+fn try_queue_upward_msg(para: ParaId, msg: UpwardMessage) -> Result<(), UmpAcceptanceCheckErr> {
 	let msgs = vec![msg];
-	assert!(ParaInclusion::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
-	let _ = ParaInclusion::receive_upward_messages(para, msgs.as_slice());
+	ParaInclusion::check_upward_messages(&Configuration::config(), para, &msgs)?;
+	ParaInclusion::receive_upward_messages(para, msgs.as_slice());
+	Ok(())
 }
 
 mod check_upward_messages {
@@ -464,5 +473,71 @@ fn overweight_queue_works() {
 			),
 			ExecuteOverweightError::NotFound,
 		);
+	});
+}
+
+/// Tests that UMP messages in the dispatch queue of the relay prevents the parachain from being scheduled for offboarding.
+#[test]
+fn cannot_offboard_while_ump_dispatch_queued() {
+	let para = 32.into();
+	let msg = (300u32, "something").encode();
+
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		register_parachain(para);
+		run_to_block(5, vec![4, 5]);
+
+		queue_upward_msg(para, msg.clone());
+		queue_upward_msg(para, msg.clone());
+		// Cannot offboard since there are two UMP messages in the queue.
+		for i in 6..10 {
+			assert!(try_deregister_parachain(para).is_err());
+			run_to_block(i, vec![i]);
+			assert!(Paras::is_valid_para(para));
+		}
+
+		// Now let's process the first message.
+		MessageQueue::on_initialize(System::block_number());
+		assert_eq!(Processed::take().len(), 1);
+		// Cannot offboard since there is another one in the queue.
+		assert!(try_deregister_parachain(para).is_err());
+		// Now also process the second message ...
+		MessageQueue::on_initialize(System::block_number());
+		assert_eq!(Processed::take().len(), 1);
+
+		// ... and offboard.
+		run_to_block(10, vec![10]);
+		assert!(Paras::is_valid_para(para));
+		assert_ok!(try_deregister_parachain(para));
+		assert!(Paras::is_offboarding(para));
+
+		// Offboarding completed.
+		run_to_block(11, vec![11]);
+		assert!(!Paras::is_valid_para(para));
+	});
+}
+
+/// A para-chain cannot send an UMP to the relay chain while it is offboarding.
+#[test]
+fn cannot_enqueue_ump_while_offboarding() {
+	let para = 32.into();
+	let msg = (300u32, "something").encode();
+
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		register_parachain(para);
+		run_to_block(5, vec![4, 5]);
+
+		// Start with an offboarding para.
+		assert_ok!(try_deregister_parachain(para));
+		assert!(Paras::is_offboarding(para));
+
+		// Cannot enqueue a message.
+		assert!(try_queue_upward_msg(para, msg.clone()).is_err());
+		run_to_block(6, vec![6]);
+		// Para is still there and still cannot enqueue a message.
+		assert!(Paras::is_offboarding(para));
+		assert!(try_queue_upward_msg(para, msg.clone()).is_err());
+		// Now offboarding is completed.
+		run_to_block(7, vec![7]);
+		assert!(!Paras::is_valid_para(para));
 	});
 }
