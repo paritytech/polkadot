@@ -39,10 +39,6 @@ fn backed_candidate_leads_to_advertisement() {
 	let peer_b = PeerId::random();
 	let peer_c = PeerId::random();
 	let peer_d = PeerId::random();
-	println!("peer a: {:?}", peer_a);
-	println!("peer b: {:?}", peer_b);
-	println!("peer c: {:?}", peer_c);
-	println!("peer d: {:?}", peer_d);
 
 	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();

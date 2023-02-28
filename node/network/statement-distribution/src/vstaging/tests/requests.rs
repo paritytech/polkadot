@@ -25,6 +25,7 @@ use sc_network::config::IncomingRequest as RawIncomingRequest;
 
 // TODO [now]: peer reported for not providing enough statements, request retried
 
+// Test that a peer answering an `AttestedCandidateRequest` with duplicate statements is punished.
 #[test]
 fn peer_reported_for_duplicate_statements() {
 	let config = TestConfig {
@@ -75,12 +76,14 @@ fn peer_reported_for_duplicate_statements() {
 				.collect(),
 		};
 
+		let other_group_validators = state.group_validators(local_validator.group_index, true);
+		let v_a = other_group_validators[0];
+		let v_b = other_group_validators[1];
+
 		// peer A is in group, has relay parent in view.
 		// peer B is in group, has no relay parent in view.
 		// peer C is not in group, has relay parent in view.
 		{
-			let other_group_validators = state.group_validators(local_validator.group_index, true);
-
 			connect_peer(
 				&mut overseer,
 				peer_a.clone(),
@@ -111,11 +114,109 @@ fn peer_reported_for_duplicate_statements() {
 		)
 		.await;
 
-		// TODO: Get the candidate confirmed.
+		// Peer in cluster sends a statement, triggering a request.
+		{
+			let a_seconded = state
+				.sign_statement(
+					v_a,
+					CompactStatement::Seconded(candidate_hash),
+					&SigningContext { parent_hash: relay_parent, session_index: 1 },
+				)
+				.as_unchecked()
+				.clone();
 
-		// TODO: Send a manifest to the requesting peer.
+			send_peer_message(
+				&mut overseer,
+				peer_a.clone(),
+				protocol_vstaging::StatementDistributionMessage::Statement(
+					relay_parent,
+					a_seconded,
+				),
+			)
+			.await;
 
-		// Send request for candidates.
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+			);
+		}
+
+		// Send a request to peer and mock its response to include two identical statements.
+		{
+			let b_seconded = state
+				.sign_statement(
+					v_b,
+					CompactStatement::Seconded(candidate_hash),
+					&SigningContext { parent_hash: relay_parent, session_index: 1 },
+				)
+				.as_unchecked()
+				.clone();
+			let statements = vec![b_seconded.clone(), b_seconded.clone()];
+			let req = assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
+					assert_eq!(requests.len(), 1);
+					assert_matches!(
+						requests.pop().unwrap(),
+						Requests::AttestedCandidateVStaging(mut outgoing) => {
+							assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
+							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
+
+							let res = AttestedCandidateResponse {
+								candidate_receipt: candidate.clone(),
+								persisted_validation_data: pvd.clone(),
+								statements,
+							};
+							outgoing.pending_response.send(Ok(res.encode()));
+						}
+					);
+				}
+			);
+
+			// TODO: Is it correct that we initially send this reward for a valid statement?
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT => { }
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_a && r == COST_UNREQUESTED_RESPONSE_STATEMENT => { }
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_a && r == BENEFIT_VALID_RESPONSE => { }
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages:: NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendValidationMessage(
+						peers,
+						Versioned::VStaging(
+							protocol_vstaging::ValidationProtocol::StatementDistribution(
+								protocol_vstaging::StatementDistributionMessage::Statement(hash, statement),
+							),
+						),
+					)
+				) => {
+					assert_eq!(peers, vec![peer_a]);
+					assert_eq!(hash, relay_parent);
+					assert_eq!(statement, b_seconded);
+				}
+			);
+		}
+
+		answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
+
+		overseer
+	});
+}
 		{
 			let mask = StatementFilter::blank(state.config.group_size);
 			let (pending_response, rx) = oneshot::channel();
