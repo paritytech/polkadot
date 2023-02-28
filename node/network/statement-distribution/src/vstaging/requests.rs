@@ -243,7 +243,7 @@ impl RequestManager {
 
 	/// Yields the next request to dispatch, if there is any.
 	///
-	/// This function accepts three closures as an argument.
+	/// This function accepts two closures as an argument.
 	///
 	/// The first closure is used to gather information about the desired
 	/// properties of a response, which is used to select targets and validate
