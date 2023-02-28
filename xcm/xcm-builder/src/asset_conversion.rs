@@ -69,7 +69,7 @@ impl<
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
 		let (amount, id) = match (&a.fun, &a.id) {
 			(Fungible(ref amount), Concrete(ref id)) => (amount, id),
-			_ => return Err(MatchError::AssetNotFound),
+			_ => return Err(MatchError::AssetNotHandled),
 		};
 		let what =
 			ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
@@ -89,7 +89,7 @@ impl<
 	fn matches_nonfungibles(a: &MultiAsset) -> result::Result<(ClassId, InstanceId), MatchError> {
 		let (instance, class) = match (&a.fun, &a.id) {
 			(NonFungible(ref instance), Concrete(ref class)) => (instance, class),
-			_ => return Err(MatchError::AssetNotFound),
+			_ => return Err(MatchError::AssetNotHandled),
 		};
 		let what =
 			ConvertClassId::convert_ref(class).map_err(|_| MatchError::AssetIdConversionFailed)?;
@@ -113,7 +113,7 @@ impl<
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
 		let (amount, id) = match (&a.fun, &a.id) {
 			(Fungible(ref amount), Abstract(ref id)) => (amount, id),
-			_ => return Err(MatchError::AssetNotFound),
+			_ => return Err(MatchError::AssetNotHandled),
 		};
 		let what =
 			ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
@@ -133,7 +133,7 @@ impl<
 	fn matches_nonfungibles(a: &MultiAsset) -> result::Result<(ClassId, InstanceId), MatchError> {
 		let (instance, class) = match (&a.fun, &a.id) {
 			(NonFungible(ref instance), Abstract(ref class)) => (instance, class),
-			_ => return Err(MatchError::AssetNotFound),
+			_ => return Err(MatchError::AssetNotHandled),
 		};
 		let what =
 			ConvertClassId::convert_ref(class).map_err(|_| MatchError::AssetIdConversionFailed)?;
@@ -163,7 +163,7 @@ impl<
 	fn matches_fungibles(a: &MultiAsset) -> result::Result<(AssetId, Balance), MatchError> {
 		let (amount, id) = match (&a.fun, &a.id) {
 			(Fungible(ref amount), Concrete(ref id)) if MatchAssetId::contains(id) => (amount, id),
-			_ => return Err(MatchError::AssetNotFound),
+			_ => return Err(MatchError::AssetNotHandled),
 		};
 		let what =
 			ConvertAssetId::convert_ref(id).map_err(|_| MatchError::AssetIdConversionFailed)?;
@@ -185,7 +185,7 @@ impl<
 		let (instance, class) = match (&a.fun, &a.id) {
 			(NonFungible(ref instance), Concrete(ref class)) if MatchClassId::contains(class) =>
 				(instance, class),
-			_ => return Err(MatchError::AssetNotFound),
+			_ => return Err(MatchError::AssetNotHandled),
 		};
 		let what =
 			ConvertClassId::convert_ref(class).map_err(|_| MatchError::AssetIdConversionFailed)?;
@@ -242,7 +242,7 @@ mod tests {
 				id: Concrete(MultiLocation::new(1, X2(PalletInstance(50), GeneralIndex(1)))),
 				fun: Fungible(12345),
 			}),
-			Err(MatchError::AssetNotFound)
+			Err(MatchError::AssetNotHandled)
 		);
 
 		// err - matches, but convert fails
@@ -263,7 +263,7 @@ mod tests {
 				id: Concrete(MultiLocation::new(0, X2(PalletInstance(50), GeneralIndex(1)))),
 				fun: NonFungible(Index(54321)),
 			}),
-			Err(MatchError::AssetNotFound)
+			Err(MatchError::AssetNotHandled)
 		);
 
 		// ok
@@ -314,7 +314,7 @@ mod tests {
 				id: Concrete(MultiLocation::new(1, X2(PalletInstance(50), GeneralIndex(1)))),
 				fun: NonFungible(Index(54321)),
 			}),
-			Err(MatchError::AssetNotFound)
+			Err(MatchError::AssetNotHandled)
 		);
 
 		// err - matches, but convert fails
@@ -335,7 +335,7 @@ mod tests {
 				id: Concrete(MultiLocation::new(0, X2(PalletInstance(50), GeneralIndex(1)))),
 				fun: Fungible(12345),
 			}),
-			Err(MatchError::AssetNotFound)
+			Err(MatchError::AssetNotHandled)
 		);
 
 		// ok

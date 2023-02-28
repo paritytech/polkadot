@@ -51,7 +51,7 @@ impl<Instance> MatchesNonFungible<Instance> for Tuple {
 #[derive(Debug, PartialEq, Eq)]
 pub enum Error {
 	/// The given asset is not handled. (According to [`XcmError::AssetNotFound`])
-	AssetNotFound,
+	AssetNotHandled,
 	/// `MultiLocation` to `AccountId` conversion failed.
 	AccountIdConversionFailed,
 	/// `u128` amount to currency `Balance` conversion failed.
@@ -66,7 +66,7 @@ impl From<Error> for XcmError {
 	fn from(e: Error) -> Self {
 		use XcmError::FailedToTransactAsset;
 		match e {
-			Error::AssetNotFound => XcmError::AssetNotFound,
+			Error::AssetNotHandled => XcmError::AssetNotFound,
 			Error::AccountIdConversionFailed => FailedToTransactAsset("AccountIdConversionFailed"),
 			Error::AmountToBalanceConversionFailed =>
 				FailedToTransactAsset("AmountToBalanceConversionFailed"),
@@ -87,7 +87,7 @@ impl<AssetId, Balance> MatchesFungibles<AssetId, Balance> for Tuple {
 			match Tuple::matches_fungibles(a) { o @ Ok(_) => return o, _ => () }
 		)* );
 		log::trace!(target: "xcm::matches_fungibles", "did not match fungibles asset: {:?}", &a);
-		Err(Error::AssetNotFound)
+		Err(Error::AssetNotHandled)
 	}
 }
 
@@ -102,6 +102,6 @@ impl<AssetId, Instance> MatchesNonFungibles<AssetId, Instance> for Tuple {
 			match Tuple::matches_nonfungibles(a) { o @ Ok(_) => return o, _ => () }
 		)* );
 		log::trace!(target: "xcm::matches_non_fungibles", "did not match fungibles asset: {:?}", &a);
-		Err(Error::AssetNotFound)
+		Err(Error::AssetNotHandled)
 	}
 }
