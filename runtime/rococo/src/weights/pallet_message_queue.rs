@@ -19,13 +19,13 @@
 //! DATE: 2023-02-28, STEPS: `50`, REPEAT: `20`, LOW RANGE: `[]`, HIGH RANGE: `[]`
 //! WORST CASE MAP SIZE: `1000000`
 //! HOSTNAME: `i9`, CPU: `13th Gen Intel(R) Core(TM) i9-13900K`
-//! EXECUTION: None, WASM-EXECUTION: Compiled, CHAIN: Some("dev"), DB CACHE: 1024
+//! EXECUTION: None, WASM-EXECUTION: Compiled, CHAIN: Some("rococo-dev"), DB CACHE: 1024
 
 // Executed Command:
 // ./target/release/polkadot
 // benchmark
 // pallet
-// --chain=dev
+// --chain=rococo-dev
 // --steps=50
 // --repeat=20
 // --pallet=pallet-message-queue
@@ -33,7 +33,7 @@
 // --heap-pages=4096
 // --header=file_header.txt
 // --output
-// runtime/polkadot/src/weights/pallet_message_queue.rs
+// runtime/rococo/src/weights/pallet_message_queue.rs
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
@@ -53,8 +53,8 @@ impl<T: frame_system::Config> pallet_message_queue::WeightInfo for WeightInfo<T>
 		// Proof Size summary in bytes:
 		//  Measured:  `837`
 		//  Estimated: `5554`
-		// Minimum execution time: 5_631 nanoseconds.
-		Weight::from_ref_time(6_182_000)
+		// Minimum execution time: 9_427 nanoseconds.
+		Weight::from_ref_time(9_806_000)
 			.saturating_add(Weight::from_proof_size(5554))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
@@ -67,8 +67,8 @@ impl<T: frame_system::Config> pallet_message_queue::WeightInfo for WeightInfo<T>
 		// Proof Size summary in bytes:
 		//  Measured:  `837`
 		//  Estimated: `5554`
-		// Minimum execution time: 5_515 nanoseconds.
-		Weight::from_ref_time(5_775_000)
+		// Minimum execution time: 20_178 nanoseconds.
+		Weight::from_ref_time(20_550_000)
 			.saturating_add(Weight::from_proof_size(5554))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
@@ -79,8 +79,8 @@ impl<T: frame_system::Config> pallet_message_queue::WeightInfo for WeightInfo<T>
 		// Proof Size summary in bytes:
 		//  Measured:  `576`
 		//  Estimated: `2527`
-		// Minimum execution time: 2_098 nanoseconds.
-		Weight::from_ref_time(2_265_000)
+		// Minimum execution time: 3_746 nanoseconds.
+		Weight::from_ref_time(3_885_000)
 			.saturating_add(Weight::from_proof_size(2527))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -91,8 +91,8 @@ impl<T: frame_system::Config> pallet_message_queue::WeightInfo for WeightInfo<T>
 		// Proof Size summary in bytes:
 		//  Measured:  `648`
 		//  Estimated: `68060`
-		// Minimum execution time: 3_194 nanoseconds.
-		Weight::from_ref_time(3_436_000)
+		// Minimum execution time: 4_906 nanoseconds.
+		Weight::from_ref_time(5_060_000)
 			.saturating_add(Weight::from_proof_size(68060))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -103,18 +103,18 @@ impl<T: frame_system::Config> pallet_message_queue::WeightInfo for WeightInfo<T>
 		// Proof Size summary in bytes:
 		//  Measured:  `648`
 		//  Estimated: `68060`
-		// Minimum execution time: 3_409 nanoseconds.
-		Weight::from_ref_time(3_673_000)
+		// Minimum execution time: 5_194 nanoseconds.
+		Weight::from_ref_time(5_361_000)
 			.saturating_add(Weight::from_proof_size(68060))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	fn service_page_item() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `971`
+		//  Measured:  `936`
 		//  Estimated: `0`
-		// Minimum execution time: 49_243 nanoseconds.
-		Weight::from_ref_time(50_380_000)
+		// Minimum execution time: 62_021 nanoseconds.
+		Weight::from_ref_time(62_487_000)
 			.saturating_add(Weight::from_proof_size(0))
 	}
 	/// Storage: MessageQueue ServiceHead (r:1 w:1)
@@ -125,8 +125,8 @@ impl<T: frame_system::Config> pallet_message_queue::WeightInfo for WeightInfo<T>
 		// Proof Size summary in bytes:
 		//  Measured:  `712`
 		//  Estimated: `3027`
-		// Minimum execution time: 3_744 nanoseconds.
-		Weight::from_ref_time(3_922_000)
+		// Minimum execution time: 6_989 nanoseconds.
+		Weight::from_ref_time(8_098_000)
 			.saturating_add(Weight::from_proof_size(3027))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
@@ -137,10 +137,10 @@ impl<T: frame_system::Config> pallet_message_queue::WeightInfo for WeightInfo<T>
 	/// Proof: MessageQueue Pages (max_values: None, max_size: Some(65585), added: 68060, mode: MaxEncodedLen)
 	fn reap_page() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `66859`
+		//  Measured:  `66846`
 		//  Estimated: `70587`
-		// Minimum execution time: 28_995 nanoseconds.
-		Weight::from_ref_time(30_370_000)
+		// Minimum execution time: 38_177 nanoseconds.
+		Weight::from_ref_time(44_704_000)
 			.saturating_add(Weight::from_proof_size(70587))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
@@ -151,10 +151,10 @@ impl<T: frame_system::Config> pallet_message_queue::WeightInfo for WeightInfo<T>
 	/// Proof: MessageQueue Pages (max_values: None, max_size: Some(65585), added: 68060, mode: MaxEncodedLen)
 	fn execute_overweight_page_removed() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `66859`
+		//  Measured:  `66846`
 		//  Estimated: `70587`
-		// Minimum execution time: 76_268 nanoseconds.
-		Weight::from_ref_time(77_933_000)
+		// Minimum execution time: 48_404 nanoseconds.
+		Weight::from_ref_time(55_066_000)
 			.saturating_add(Weight::from_proof_size(70587))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
@@ -165,10 +165,10 @@ impl<T: frame_system::Config> pallet_message_queue::WeightInfo for WeightInfo<T>
 	/// Proof: MessageQueue Pages (max_values: None, max_size: Some(65585), added: 68060, mode: MaxEncodedLen)
 	fn execute_overweight_page_updated() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `66859`
+		//  Measured:  `66846`
 		//  Estimated: `70587`
-		// Minimum execution time: 78_029 nanoseconds.
-		Weight::from_ref_time(80_632_000)
+		// Minimum execution time: 66_523 nanoseconds.
+		Weight::from_ref_time(73_063_000)
 			.saturating_add(Weight::from_proof_size(70587))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
