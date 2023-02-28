@@ -28,7 +28,7 @@ use frame_support::{
 		GenesisBuild, KeyOwnerProofSystem, ProcessMessage, ProcessMessageError, ValidatorSet,
 		ValidatorSetWithIdentification,
 	},
-	weights::Weight,
+	weights::{Weight, WeightMeter},
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
@@ -436,18 +436,18 @@ impl ProcessMessage for TestProcessMessage {
 			AggregateMessageOrigin::UMP(o) => o,
 		};
 
-		let weight = match u32::decode(&mut &message[..]) {
+		let required = match u32::decode(&mut &message[..]) {
 			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Err(ProcessMessageError::Corrupt), // same as the real `ProcessMessage`
 		};
-		if meter.check_accrue(weight_limit) {
-			return Err(ProcessMessageError::Overweight(weight))
+		if meter.check_accrue(required) {
+			return Err(ProcessMessageError::Overweight(required))
 		}
 
 		let mut processed = Processed::get();
 		processed.push((origin, message.to_vec()));
 		Processed::set(processed);
-		Ok((true, weight))
+		Ok(true)
 	}
 }
 
