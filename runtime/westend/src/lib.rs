@@ -29,7 +29,7 @@ use frame_support::{
 		ConstU32, InstanceFilter, KeyOwnerProofSystem, ProcessMessage, ProcessMessageError,
 		WithdrawReasons,
 	},
-	weights::{constants::WEIGHT_REF_TIME_PER_MILLIS, ConstantMultiplier, WeightMeter},
+	weights::{ConstantMultiplier, WeightMeter},
 	PalletId,
 };
 use frame_system::EnsureRoot;

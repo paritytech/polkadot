@@ -62,7 +62,7 @@ use frame_support::{
 		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		PrivilegeCmp, ProcessMessage, ProcessMessageError, StorageMapShim, WithdrawReasons,
 	},
-	weights::{constants::WEIGHT_REF_TIME_PER_MILLIS, ConstantMultiplier, WeightMeter},
+	weights::{ConstantMultiplier, WeightMeter},
 	PalletId, RuntimeDebug,
 };
 use frame_system::EnsureRoot;
