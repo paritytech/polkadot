@@ -1018,9 +1018,17 @@ mod tests {
 
 		let max_depth = 2;
 		let base_constraints = make_constraints(8, vec![8, 9], vec![1, 2, 3].into());
+		let pending_availability = Vec::new();
 
 		assert_matches!(
-			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors),
+			Scope::with_ancestors(
+				para_id,
+				relay_parent,
+				base_constraints,
+				pending_availability,
+				max_depth,
+				ancestors
+			),
 			Err(UnexpectedAncestor { number: 8, prev: 10 })
 		);
 	}
@@ -1042,9 +1050,17 @@ mod tests {
 
 		let max_depth = 2;
 		let base_constraints = make_constraints(0, vec![], vec![1, 2, 3].into());
+		let pending_availability = Vec::new();
 
 		assert_matches!(
-			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
+			Scope::with_ancestors(
+				para_id,
+				relay_parent,
+				base_constraints,
+				pending_availability,
+				max_depth,
+				ancestors,
+			),
 			Err(UnexpectedAncestor { number: 99999, prev: 0 })
 		);
 	}
@@ -1078,10 +1094,17 @@ mod tests {
 
 		let max_depth = 2;
 		let base_constraints = make_constraints(3, vec![2], vec![1, 2, 3].into());
+		let pending_availability = Vec::new();
 
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors)
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent,
+			base_constraints,
+			pending_availability,
+			max_depth,
+			ancestors,
+		)
+		.unwrap();
 
 		assert_eq!(scope.ancestors.len(), 2);
 		assert_eq!(scope.ancestors_by_hash.len(), 2);
@@ -1166,6 +1189,7 @@ mod tests {
 		let candidate_b_hash = candidate_b.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let ancestors = vec![RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1181,9 +1205,15 @@ mod tests {
 
 		storage.add_candidate(candidate_a, pvd_a).unwrap();
 		storage.add_candidate(candidate_b, pvd_b).unwrap();
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent_b_info, base_constraints, 4, ancestors)
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_b_info,
+			base_constraints,
+			pending_availability,
+			4,
+			ancestors,
+		)
+		.unwrap();
 		let tree = FragmentTree::populate(scope, &storage);
 
 		let candidates: Vec<_> = tree.candidates().collect();
@@ -1238,6 +1268,7 @@ mod tests {
 		let candidate_a2_hash = candidate_a2.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let ancestors = vec![RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1253,9 +1284,15 @@ mod tests {
 
 		storage.add_candidate(candidate_a, pvd_a).unwrap();
 		storage.add_candidate(candidate_b, pvd_b).unwrap();
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent_b_info, base_constraints, 4, ancestors)
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_b_info,
+			base_constraints,
+			pending_availability,
+			4,
+			ancestors,
+		)
+		.unwrap();
 		let mut tree = FragmentTree::populate(scope, &storage);
 
 		storage.add_candidate(candidate_a2, pvd_a2).unwrap();
@@ -1295,6 +1332,7 @@ mod tests {
 		let candidate_b_hash = candidate_b.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1303,9 +1341,15 @@ mod tests {
 		};
 
 		storage.add_candidate(candidate_a, pvd_a).unwrap();
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent_a_info, base_constraints, 4, vec![])
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_a_info,
+			base_constraints,
+			pending_availability,
+			4,
+			vec![],
+		)
+		.unwrap();
 		let mut tree = FragmentTree::populate(scope, &storage);
 
 		storage.add_candidate(candidate_b, pvd_b).unwrap();
@@ -1344,6 +1388,7 @@ mod tests {
 		let candidate_b_hash = candidate_b.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1352,9 +1397,15 @@ mod tests {
 		};
 
 		storage.add_candidate(candidate_a, pvd_a).unwrap();
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent_a_info, base_constraints, 4, vec![])
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_a_info,
+			base_constraints,
+			pending_availability,
+			4,
+			vec![],
+		)
+		.unwrap();
 		let mut tree = FragmentTree::populate(scope, &storage);
 
 		storage.add_candidate(candidate_b, pvd_b).unwrap();
@@ -1383,6 +1434,7 @@ mod tests {
 		);
 		let candidate_a_hash = candidate_a.hash();
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1396,6 +1448,7 @@ mod tests {
 			para_id,
 			relay_parent_a_info,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			vec![],
 		)
@@ -1447,6 +1500,7 @@ mod tests {
 		let candidate_b_hash = candidate_b.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1461,6 +1515,7 @@ mod tests {
 			para_id,
 			relay_parent_a_info,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			vec![],
 		)
@@ -1512,6 +1567,7 @@ mod tests {
 		let candidate_b_hash = candidate_b.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1526,6 +1582,7 @@ mod tests {
 			para_id,
 			relay_parent_a_info,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			vec![],
 		)
@@ -1608,6 +1665,7 @@ mod tests {
 		let candidate_a_hash = candidate_a.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1620,6 +1678,7 @@ mod tests {
 			para_id,
 			relay_parent_a_info,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			vec![],
 		)
@@ -1689,6 +1748,7 @@ mod tests {
 		);
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1709,6 +1769,7 @@ mod tests {
 			para_id,
 			relay_parent_a_info,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			vec![],
 		)
