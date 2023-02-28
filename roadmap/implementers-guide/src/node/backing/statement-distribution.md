@@ -119,6 +119,8 @@ backing subsystem itself.
     the amount of candidates.
 - We accept candidates which don't fit in the fragment trees of any relay
   parents.
+  - "Accept" means "attempt to request and store in memory until useful or
+    expired".
   - We listen to prospective parachains subsystem to learn of new additions to
     the fragment trees.
   - Use this to attempt to import the candidate later.
@@ -271,16 +273,27 @@ messages directly to each other for any new statements.
 
 Why? This limits the amount of statements we'd have to deal with w.r.t.
 candidates that don't really exist. Limiting out-of-group statement distribution
-between peers to only candidates that both peers agree are backed and exist,
+between peers to only candidates that both peers agree are backed and exist
 ensures we only have to store statements about real candidates.
 
 In practice, manifest exchange means that one of three things have happened:
 
-- They announced, we acknowledged
-- We announced, they acknowledged
-- We announced, they announced (not sure if this can actually happen; it would
-  happen if 2 nodes had each other in their sending set and they sent manifests
-  at the same time. The code accounts for this anyway)
+- They announced, we acknowledged.
+- We announced, they acknowledged.
+- We announced, they announced.
+
+Concerning the last case, note that it is possible for two nodes to have each
+other in their sending set. Consider:
+
+```
+1 2
+3 4
+```
+
+If validators 2 and 4 are in group B, then there is a path `2->1->3` and
+`4->3->1`. Therefore, 1 and 3 might send each other manifests for the same
+candidate at the same time, without having seen the other's yet. This also
+counts as a manifest exchange, but is only allowed to occur in this way.
 
 After the exchange is complete, we update pending statements. Pending statements
 are those we know locally that the remote node does not.
@@ -303,8 +316,8 @@ on-chain as well to ensure all validators in the group are rewarded.
 For clarity, here is the full timeline:
 
 1. candidate seconded
-1. distributed along grid
 1. backable in cluster
+1. distributed along grid
 1. latecomers issue statements
 1. candidate posted on chain
 1. really latecomers issue statements
@@ -372,15 +385,17 @@ e.g. for index 10, the neighbors would be 1, 4, 7, 9 -- these are the nodes we
 could directly communicate with (e.g. either send to or receive from).
 
 Now, which of these neighbors can 10 receive from? Recall that the
-sending/receiving sets for 10 would be different for different groups.
+sending/receiving sets for 10 would be different for different groups. Here are
+some hypothetical scenarios:
 
-- If 9 belongs to group A, then 10 can receive candidates from group A from 9.
-  It would propagate them to 1, 4, and 7.
-- If 6 was in group A instead of 9, then 10 could receive from 7 or 9. It would
-  not propagate any further.
-- If 10 itself was in group A, then it would not receive candidates from this
-  group from any other nodes through the grid. It would itself send such
-  candidates to all its neighbors.
+- **Scenario 1:** 9 belongs to group A but not 10. Here, 10 can directly receive
+  candidates from group A from 9. 10 would propagate them to the nodes in {1, 4,
+  7} that are not in A.
+- **Scenario 2:** 6 is in group A instead of 9, and 7 is not in group A. 10 can
+  receive from 7 or 9. It would not propagate any further.
+- **Scenario 3:** 10 itself is in group A. 10 would not receive candidates from
+  this group from any other nodes through the grid. It would itself send such
+  candidates to all its neighbors that are not in A.
 
 ### Seconding Limit
 
