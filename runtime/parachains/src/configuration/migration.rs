@@ -16,7 +16,7 @@
 
 //! A module that is responsible for migration of storage.
 
-use crate::configuration::{self, Config, Pallet, Store};
+use crate::configuration::{self, Config, Pallet, Store, LOG_TARGET};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
 
@@ -72,7 +72,6 @@ pub mod v5 {
 		pub max_validators: Option<u32>,
 		pub dispute_period: SessionIndex,
 		pub dispute_post_conclusion_acceptance_period: BlockNumber,
-		pub dispute_max_spam_slots: u32,
 		pub dispute_conclusion_by_time_out_period: BlockNumber,
 		pub no_show_slots: u32,
 		pub n_delay_tranches: u32,
@@ -105,7 +104,6 @@ pub mod v5 {
 				max_validators: None,
 				dispute_period: 6,
 				dispute_post_conclusion_acceptance_period: 100.into(),
-				dispute_max_spam_slots: 2,
 				dispute_conclusion_by_time_out_period: 200.into(),
 				n_delay_tranches: Default::default(),
 				zeroth_delay_tranche_width: Default::default(),
@@ -139,9 +137,9 @@ pub mod v5 {
 	impl<T: Config> OnRuntimeUpgrade for MigrateV4ToV5<T> {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-			log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
-
 			ensure!(StorageVersion::get::<Pallet<T>>() == 4, "The migration requires version 4");
+			log::trace!(target: LOG_TARGET, "Going to upgraded parachain config...");
+
 			Ok(Vec::new())
 		}
 
@@ -149,24 +147,21 @@ pub mod v5 {
 			if StorageVersion::get::<Pallet<T>>() == 4 {
 				let weight_consumed = migrate_v4_to_v5::<T>();
 
-				log::info!(
-					target: configuration::LOG_TARGET,
-					"MigrateV4ToV5 executed successfully"
-				);
+				log::info!(target: LOG_TARGET, "MigrateV4ToV5 executed successfully");
 				STORAGE_VERSION.put::<Pallet<T>>();
 
 				weight_consumed
 			} else {
-				log::warn!(target: configuration::LOG_TARGET, "MigrateV4ToV5 should be removed.");
+				log::warn!(target: LOG_TARGET, "MigrateV4ToV5 should be removed.");
 				T::DbWeight::get().reads(1)
 			}
 		}
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
-			log::trace!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
+			log::trace!(target: LOG_TARGET, "Running post_upgrade()");
 			ensure!(
-				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
+				StorageVersion::get::<Pallet<T>>() == 5,
 				"Storage version should be 5 after the migration"
 			);
 
@@ -229,16 +224,13 @@ minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 		}
 	};
 
-	if let Err(_) = <Pallet<T> as Store>::ActiveConfig::translate(|pre| pre.map(translate)) {
+	if let Err(err) = <Pallet<T> as Store>::ActiveConfig::translate(|pre| pre.map(translate)) {
 		// `Err` is returned when the pre-migration type cannot be deserialized. This
 		// cannot happen if the migration runs correctly, i.e. against the expected version.
 		//
 		// This happening almost surely will lead to a panic somewhere else. Corruption seems
 		// to be unlikely to be caused by this. So we just log. Maybe it'll work out still?
-		log::error!(
-			target: configuration::LOG_TARGET,
-			"unexpected error when performing translation of the configuration type during storage upgrade to v5."
-		);
+		log::error!(target: LOG_TARGET, "Could not translate ActiveConfig object: {:?}", err);
 	}
 
 	T::DbWeight::get().reads_writes(1, 1)
@@ -250,27 +242,29 @@ mod tests {
 
 	use super::*;
 	use crate::mock::{new_test_ext, Test};
+	use frame_support::traits::OnRuntimeUpgrade;
 
+	/// The old V4 config can be decoded from actual on-chain data.
 	#[test]
 	fn v4_deserialized_from_actual_data() {
 		// Example how to get new `raw_config`:
 		// We'll obtain the raw_config for block
-		// 16,459,112 (0x6e19600753afca856aa6222e18d49abe8bcd9ac219d526ee07a119a8f5ef6d52) on Kusama.
+		// 16,832,711 (0x2e3d78b87f0811f18a8b8469596aa7d8c9ef10d622b90d647f10ceebee3e380c) on Kusama.
 		// Steps:
 		// 1. Go to Polkadot.js -> Developer -> Chain state -> Storage: https://polkadot.js.org/apps/#/chainstate
 		// 2. Set these parameters:
 		//   2.1. selected state query: configuration; activeConfig(): PolkadotRuntimeParachainsConfigurationHostConfiguration
-		//   2.2. blockhash to query at: 0x6e19600753afca856aa6222e18d49abe8bcd9ac219d526ee07a119a8f5ef6d52 (the hash of the block)
+		//   2.2. blockhash to query at from above.
 		//   2.3. Note the value of encoded storage key -> 0x06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385 for the referenced block.
 		//   2.4. You'll also need the decoded values to update the test.
 		// 3. Go to Polkadot.js -> Developer -> Chain state -> Raw storage
 		//   3.1 Enter the encoded storage key and you get the raw config.
 
-		// Fetched at Kusama 16,459,112 (0x6e19600753afca856aa6222e18d49abe8bcd9ac219d526ee07a119a8f5ef6d52)
+		// Fetched at Kusama 16,832,711 (0x2e3d78b87f0811f18a8b8469596aa7d8c9ef10d622b90d647f10ceebee3e380c)
 		//
 		// This exceeds the maximal line width length, but that's fine, since this is not code and
 		// doesn't need to be read and also leaving it as one line allows to easily copy it.
-		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c800000700e8764817020040011e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c8000000060000005802000002000000580200000200000059000000000000001e000000280000000700c817a80402004001000200000014000000"];
+		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c800000700e8764817020040011e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c80000000600000058020000580200000200000059000000000000001e000000280000000700c817a80402004001010200000014000000"];
 
 		let v4 = v5::V4HostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..])
 			.unwrap();
@@ -316,8 +310,13 @@ mod tests {
 				&configuration::ActiveConfig::<Test>::hashed_key(),
 				&v4.encode(),
 			);
+			StorageVersion::new(4).put::<Pallet<Test>>();
 
-			migrate_v4_to_v5::<Test>();
+			#[cfg(feature = "try-runtime")]
+			MigrateV4ToV5::<Test>::pre_upgrade().unwrap();
+			let _weight = MigrateV4ToV5::<Test>::on_runtime_upgrade();
+			#[cfg(feature = "try-runtime")]
+			MigrateV4ToV5::<Test>::post_upgrade(vec![]).unwrap();
 
 			let v5 = configuration::ActiveConfig::<Test>::get();
 
