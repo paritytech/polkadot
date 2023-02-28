@@ -122,7 +122,7 @@ use sp_runtime::{
 	traits::{AppVerify, One, Saturating},
 	DispatchResult, SaturatedConversion,
 };
-use sp_std::{cmp, mem, prelude::*};
+use sp_std::{cmp, collections::btree_set::BTreeSet, mem, prelude::*};
 
 #[cfg(feature = "std")]
 use serde::{Deserialize, Serialize};
@@ -159,7 +159,7 @@ pub struct ReplacementTimes<N> {
 #[cfg_attr(test, derive(Debug, Clone, PartialEq))]
 pub struct ParaPastCodeMeta<N> {
 	/// Block numbers where the code was expected to be replaced and where the code
-	/// was actually replaced, respectively. The first is used to do accurate lookups
+	/// was actually replaced, respectively. The first is used to do accurate look-ups
 	/// of historic code in historic contexts, whereas the second is used to do
 	/// pruning on an accurate timeframe. These can be used as indices
 	/// into the `PastCodeHash` map along with the `ParaId` to fetch the code itself.
@@ -520,7 +520,7 @@ impl WeightInfo for TestWeightInfo {
 	}
 	fn include_pvf_check_statement() -> Weight {
 		// This special value is to distinguish from the finalizing variants above in tests.
-		Weight::MAX - Weight::from_ref_time(1)
+		Weight::MAX - Weight::from_parts(1, 1)
 	}
 }
 
@@ -2127,7 +2127,7 @@ impl<T: Config> Pallet<T> {
 /// or removing parachains in bulk.
 pub(crate) struct ParachainsCache<T: Config> {
 	// `None` here means the parachains list has not been accessed yet, nevermind modified.
-	parachains: Option<Vec<ParaId>>,
+	parachains: Option<BTreeSet<ParaId>>,
 	_config: PhantomData<T>,
 }
 
@@ -2136,32 +2136,29 @@ impl<T: Config> ParachainsCache<T> {
 		Self { parachains: None, _config: PhantomData }
 	}
 
-	fn ensure_initialized(&mut self) -> &mut Vec<ParaId> {
-		self.parachains.get_or_insert_with(|| Parachains::<T>::get())
+	fn ensure_initialized(&mut self) -> &mut BTreeSet<ParaId> {
+		self.parachains
+			.get_or_insert_with(|| Parachains::<T>::get().into_iter().collect())
 	}
 
 	/// Adds the given para id to the list.
 	pub fn add(&mut self, id: ParaId) {
 		let parachains = self.ensure_initialized();
-		if let Err(i) = parachains.binary_search(&id) {
-			parachains.insert(i, id);
-		}
+		parachains.insert(id);
 	}
 
 	/// Removes the given para id from the list of parachains. Does nothing if the id is not in the
 	/// list.
 	pub fn remove(&mut self, id: ParaId) {
 		let parachains = self.ensure_initialized();
-		if let Ok(i) = parachains.binary_search(&id) {
-			parachains.remove(i);
-		}
+		parachains.remove(&id);
 	}
 }
 
 impl<T: Config> Drop for ParachainsCache<T> {
 	fn drop(&mut self) {
 		if let Some(parachains) = self.parachains.take() {
-			Parachains::<T>::put(&parachains);
+			Parachains::<T>::put(parachains.into_iter().collect::<Vec<ParaId>>());
 		}
 	}
 }

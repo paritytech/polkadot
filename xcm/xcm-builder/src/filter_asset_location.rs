@@ -14,28 +14,29 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Various implementations of `FilterAssetLocation`.
+//! Various implementations of `ContainsPair<MultiAsset, MultiLocation>`.
 
-use frame_support::traits::Get;
+use frame_support::traits::{ContainsPair, Get};
 use sp_std::marker::PhantomData;
 use xcm::latest::{AssetId::Concrete, MultiAsset, MultiAssetFilter, MultiLocation};
-use xcm_executor::traits::FilterAssetLocation;
 
 /// Accepts an asset iff it is a native asset.
 pub struct NativeAsset;
-impl FilterAssetLocation for NativeAsset {
-	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
-		log::trace!(target: "xcm::filter_asset_location", "NativeAsset asset: {:?}, origin: {:?}", asset, origin);
+impl ContainsPair<MultiAsset, MultiLocation> for NativeAsset {
+	fn contains(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+		log::trace!(target: "xcm::contains", "NativeAsset asset: {:?}, origin: {:?}", asset, origin);
 		matches!(asset.id, Concrete(ref id) if id == origin)
 	}
 }
 
 /// Accepts an asset if it is contained in the given `T`'s `Get` implementation.
 pub struct Case<T>(PhantomData<T>);
-impl<T: Get<(MultiAssetFilter, MultiLocation)>> FilterAssetLocation for Case<T> {
-	fn filter_asset_location(asset: &MultiAsset, origin: &MultiLocation) -> bool {
-		log::trace!(target: "xcm::filter_asset_location", "Case asset: {:?}, origin: {:?}", asset, origin);
+impl<T: Get<(MultiAssetFilter, MultiLocation)>> ContainsPair<MultiAsset, MultiLocation>
+	for Case<T>
+{
+	fn contains(asset: &MultiAsset, origin: &MultiLocation) -> bool {
+		log::trace!(target: "xcm::contains", "Case asset: {:?}, origin: {:?}", asset, origin);
 		let (a, o) = T::get();
-		a.contains(asset) && &o == origin
+		a.matches(asset) && &o == origin
 	}
 }
