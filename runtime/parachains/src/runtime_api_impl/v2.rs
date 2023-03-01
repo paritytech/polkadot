@@ -152,10 +152,10 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 		.collect();
 
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
-	for (core_idx, lookahead) in <scheduler::Pallet<T>>::lookahead() {
+	for (core_idx, claimqueue) in <scheduler::Pallet<T>>::claimqueue() {
 		core_states[core_idx.0 as usize] = CoreState::Scheduled(primitives::ScheduledCore {
-			para_id: lookahead[0].para_id,
-			collator: lookahead[0].required_collator().map(|c| c.clone()),
+			para_id: claimqueue[0].para_id,
+			collator: claimqueue[0].required_collator().map(|c| c.clone()),
 		});
 	}
 

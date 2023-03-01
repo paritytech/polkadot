@@ -104,7 +104,7 @@ pub mod pallet {
 	pub(crate) type SessionStartBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
 	#[pallet::storage]
-	#[pallet::getter(fn lookahead)]
+	#[pallet::getter(fn claimqueue)]
 	pub(crate) type ClaimQueue<T> =
 		StorageValue<_, BTreeMap<CoreIndex, Vec<CoreAssignment>>, ValueQuery>;
 }

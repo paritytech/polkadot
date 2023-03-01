@@ -500,8 +500,8 @@ impl<T: Config> Pallet<T> {
 
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
 
-		let lookahead = <scheduler::Pallet<T>>::lookahead();
-		let scheduled: Vec<CoreAssignment> = lookahead
+		let claimqueue = <scheduler::Pallet<T>>::claimqueue();
+		let scheduled: Vec<CoreAssignment> = claimqueue
 			.into_iter()
 			.map(|(_core_index, cas)| cas.first().unwrap().clone())
 			.collect();
@@ -712,8 +712,8 @@ impl<T: Config> Pallet<T> {
 			let now = <frame_system::Pallet<T>>::block_number();
 			<scheduler::Pallet<T>>::clear_and_fill_claimqueue(freed, now);
 
-			let lookahead = <scheduler::Pallet<T>>::lookahead();
-			let scheduled: Vec<CoreAssignment> = lookahead
+			let claimqueue = <scheduler::Pallet<T>>::claimqueue();
+			let scheduled: Vec<CoreAssignment> = claimqueue
 				.into_iter()
 				.map(|(_core_index, cas)| cas.first().unwrap().clone())
 				.collect();
