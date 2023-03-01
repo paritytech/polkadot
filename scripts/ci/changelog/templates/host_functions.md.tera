@@ -1,13 +1,18 @@
 {%- import "change.md.tera" as m_c -%}
 {%- set_global host_fn_count = 0 -%}
+{%- set_global upgrade_first = 0 -%}
 
 {% for pr in changes | sort(attribute="merged_at") -%}
 
 {%- if pr.meta.B and pr.meta.B.B0 -%}
 {#- We skip silent ones -#}
 {%- else -%}
-    {%- if pr.meta.E and pr.meta.E.E4 -%}
+    {%- if pr.meta.E and pr.meta.E.E3 -%}
         {%- set_global host_fn_count = host_fn_count + 1 -%}
+            - {{ m_c::change(c=pr) }}
+        {% endif -%}
+    {%- elif pr.meta.E and pr.meta.E.E4 -%}
+        {%- set_global upgrade_first = upgrade_first + 1 -%}
             - {{ m_c::change(c=pr) }}
         {% endif -%}
     {% endif -%}
@@ -17,7 +22,11 @@
 
 ## Host functions
 
-{%- if host_fn_count == 0 %}
+{%- if upgrade_first != 0 %}
+⚠️ There is a runtime change that will require nodes to be update BEFORE the runtime upgrade.  
+
+⚠️ It is critical that you update your client before the chain switches to the new runtime.
+{% elif host_fn_count == 0 %}
 ℹ️ This release does not contain any new host functions.
 {% elif host_fn_count == 1 -%}
 {# ---- #}
