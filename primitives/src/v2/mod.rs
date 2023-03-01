@@ -950,7 +950,7 @@ pub enum CoreState<H = Hash, N = BlockNumber> {
 	/// If a particular Collator is required to author this block, that is also present in this
 	/// variant.
 	#[codec(index = 1)]
-	Scheduled(Vec<ScheduledCore>),
+	Scheduled(ScheduledCore),
 	/// The core is currently free and there is nothing scheduled. This can be the case for parathread
 	/// cores when there are no parathread blocks queued. Parachain cores will never be left idle.
 	#[codec(index = 2)]
@@ -962,8 +962,7 @@ impl<N> CoreState<N> {
 	pub fn para_id(&self) -> Option<Id> {
 		match self {
 			Self::Occupied(ref core) => Some(core.para_id()),
-			// TODO: Needs fixing for AB
-			Self::Scheduled(vec) => vec.first().map(|sc| sc.para_id),
+			Self::Scheduled(core) => Some(core.para_id),
 			Self::Free => None,
 		}
 	}

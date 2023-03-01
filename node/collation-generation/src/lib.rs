@@ -197,7 +197,7 @@ async fn handle_new_activations<Context>(
 
 			let (scheduled_core, assumption) = match core {
 				CoreState::Scheduled(scheduled_core) =>
-					(scheduled_core[0].clone(), OccupiedCoreAssumption::Free),
+					(scheduled_core, OccupiedCoreAssumption::Free),
 				CoreState::Occupied(_occupied_core) => {
 					// TODO: https://github.com/paritytech/polkadot/issues/1573
 					gum::trace!(
