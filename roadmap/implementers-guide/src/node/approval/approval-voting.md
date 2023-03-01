@@ -54,7 +54,7 @@ struct OurAssignment {
   tranche: DelayTranche,
   validator_index: ValidatorIndex,
   triggered: bool,
-  // Claimed core indices.
+	/// A subset of the core indices obtained from the VRF output.
 	pub claimed_core_indices: Vec<CoreIndex>,
 }
 
