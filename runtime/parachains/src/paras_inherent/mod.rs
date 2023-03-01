@@ -317,9 +317,8 @@ impl<T: Config> Pallet<T> {
 
 		log::debug!(
 			target: LOG_TARGET,
-			"[enter_dinner] parent_header={:?} bitfields: {:?}, bitfields.len(): {}, backed_candidates.len(): {}, disputes.len(): {}",
+			"[enter_inner] parent_header={:?} bitfields.len(): {}, backed_candidates.len(): {}, disputes.len(): {}",
 			parent_header.hash(),
-			signed_bitfields,
 			signed_bitfields.len(),
 			backed_candidates.len(),
 			disputes.len()
@@ -430,7 +429,7 @@ impl<T: Config> Pallet<T> {
 			// Process the dispute sets of the current session.
 			METRICS.on_current_session_disputes_processed(new_current_dispute_sets.len() as u64);
 
-			let freed_disputed = if !new_current_dispute_sets.is_empty() {
+			let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
 				let concluded_invalid_disputes = new_current_dispute_sets
 					.iter()
 					.filter(|(session, candidate)| {
@@ -442,7 +441,7 @@ impl<T: Config> Pallet<T> {
 				// Count invalid dispute sets.
 				METRICS.on_disputes_concluded_invalid(concluded_invalid_disputes.len() as u64);
 
-				let freed_disputed: BTreeMap<_, _> =
+				let freed_disputed: Vec<_> =
 					<inclusion::Pallet<T>>::collect_disputed(&concluded_invalid_disputes)
 						.into_iter()
 						.map(|core| (core, FreedReason::Concluded))
@@ -450,17 +449,23 @@ impl<T: Config> Pallet<T> {
 
 				freed_disputed
 			} else {
-				BTreeMap::new()
+				Vec::new()
 			};
 
 			// Create a bit index from the set of core indices where each index corresponds to
 			// a core index that was freed due to a dispute.
 			//
 			// I.e. 010100 would indicate, the candidates on Core 1 and 3 would be disputed.
-			let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_disputed.keys());
+			let disputed_bitfield = create_disputed_bitfield(
+				expected_bits,
+				freed_disputed.iter().map(|(core_index, _)| core_index),
+			);
 
 			if !freed_disputed.is_empty() {
-				<scheduler::Pallet<T>>::update_lookahead_free_cores(freed_disputed);
+				// unstable sort is fine, because core indices are unique
+				// i.e. the same candidate can't occupy 2 cores at once.
+				freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
+				<scheduler::Pallet<T>>::update_lookahead_free_cores(freed_disputed.into_iter().collect());
 			}
 
 			disputed_bitfield
@@ -494,14 +499,16 @@ impl<T: Config> Pallet<T> {
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
 
 		let lookahead = <scheduler::Pallet<T>>::lookahead();
-		let scheduled = assure_sanity_backed_candidates::<T, _>(
+		let scheduled: Vec<CoreAssignment> = lookahead.into_iter().map(|(_core_index, cas)| cas.first().unwrap().clone()).collect();
+		log::debug!(target: LOG_TARGET, "scheduled: {:?}", scheduled);
+		assure_sanity_backed_candidates::<T, _>(
 			parent_hash,
 			&backed_candidates,
 			move |_candidate_index: usize, backed_candidate: &BackedCandidate<T::Hash>| -> bool {
 				<T>::DisputesHandler::concluded_invalid(current_session, backed_candidate.hash())
 				// `fn process_candidates` does the verification checks
 			},
-			&lookahead,
+			&scheduled[..],
 		)?;
 
 		METRICS.on_candidates_sanitized(backed_candidates.len() as u64);
@@ -657,16 +664,20 @@ impl<T: Config> Pallet<T> {
 				})
 				.collect::<BTreeSet<CandidateHash>>();
 
-			let freed_disputed: BTreeMap<_, _> =
+			let mut freed_disputed: Vec<_> =
 				<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes)
 					.into_iter()
 					.map(|core| (core, FreedReason::Concluded))
 					.collect();
 
-			let disputed_bitfield = create_disputed_bitfield(expected_bits, freed_disputed.keys());
+			let disputed_bitfield =
+				create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x, _)| x));
 
 			if !freed_disputed.is_empty() {
-				<scheduler::Pallet<T>>::update_lookahead_free_cores(freed_disputed.clone());
+				// unstable sort is fine, because core indices are unique
+				// i.e. the same candidate can't occupy 2 cores at once.
+				freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
+				<scheduler::Pallet<T>>::update_lookahead_free_cores(freed_disputed.clone().into_iter().collect());
 			}
 
 			// The following 3 calls are equiv to a call to `process_bitfields`
@@ -691,11 +702,11 @@ impl<T: Config> Pallet<T> {
 				);
 
 			let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
-
 			let now = <frame_system::Pallet<T>>::block_number();
 			<scheduler::Pallet<T>>::clear_and_fill_lookahead(freed, now);
 
 			let lookahead = <scheduler::Pallet<T>>::lookahead();
+			let scheduled: Vec<CoreAssignment> = lookahead.into_iter().map(|(_core_index, cas)| cas.first().unwrap().clone()).collect();
 
 			let relay_parent_number = now - One::one();
 			let parent_storage_root = *parent_header.state_root();
@@ -717,7 +728,7 @@ impl<T: Config> Pallet<T> {
 								.verify_backed_candidate(parent_hash, parent_storage_root, candidate_idx, backed_candidate)
 								.is_err()
 				},
-				&lookahead,
+				&scheduled[..],
 			);
 
 			frame_support::storage::TransactionOutcome::Rollback((
@@ -1100,7 +1111,7 @@ fn sanitize_backed_candidates<
 	relay_parent: T::Hash,
 	mut backed_candidates: Vec<BackedCandidate<T::Hash>>,
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
-	lookahead: &BTreeMap<CoreIndex, Vec<CoreAssignment>>,
+	scheduled: &[CoreAssignment],
 ) -> Vec<BackedCandidate<T::Hash>> {
 	// Remove any candidates that were concluded invalid.
 	// This does not assume sorting.
@@ -1108,10 +1119,9 @@ fn sanitize_backed_candidates<
 		!candidate_has_concluded_invalid_dispute_or_is_invalid(candidate_idx, backed_candidate)
 	});
 
-	let scheduled_paras_to_core_idx = lookahead
+	let scheduled_paras_to_core_idx = scheduled
 		.into_iter()
-		.map(|(core_idx, cas)| cas.iter().map(|ca| (ca.para_id, *core_idx)))
-		.flatten()
+		.map(|core_assignment| (core_assignment.para_id, core_assignment.core))
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
 
 	// Assure the backed candidate's `ParaId`'s core is free.
@@ -1124,15 +1134,6 @@ fn sanitize_backed_candidates<
 			scheduled_paras_to_core_idx.get(&desc.para_id).is_some()
 	});
 
-	// ensure core_indices are all disjoint before doing the sorting
-	let set: BTreeSet<CoreIndex> = backed_candidates
-		.iter()
-		.filter_map(|backed_candidate| {
-			scheduled_paras_to_core_idx.get(&backed_candidate.descriptor().para_id).cloned()
-		})
-		.collect();
-	assert_eq!(set.len(), backed_candidates.len());
-
 	// Sort the `Vec` last, once there is a guarantee that these
 	// `BackedCandidates` references the expected relay chain parent,
 	// but more importantly are scheduled for a free core.
@@ -1144,7 +1145,6 @@ fn sanitize_backed_candidates<
 			.cmp(&scheduled_paras_to_core_idx[&y.descriptor().para_id])
 	});
 
-	// TODO: This is supposed to be sorted by CoreIndex. Hence, use BTreeMap<CoreIndex, BackedCandidate>
 	backed_candidates
 }
 
@@ -1156,8 +1156,8 @@ pub(crate) fn assure_sanity_backed_candidates<
 	relay_parent: T::Hash,
 	backed_candidates: &[BackedCandidate<T::Hash>],
 	mut candidate_has_concluded_invalid_dispute_or_is_invalid: F,
-	lookahead: &BTreeMap<CoreIndex, Vec<CoreAssignment>>,
-) -> Result<Vec<CoreAssignment>, crate::inclusion::Error<T>> {
+	scheduled: &[CoreAssignment],
+) -> Result<(), crate::inclusion::Error<T>> {
 	use crate::inclusion::Error;
 
 	for (idx, backed_candidate) in backed_candidates.iter().enumerate() {
@@ -1173,29 +1173,10 @@ pub(crate) fn assure_sanity_backed_candidates<
 		}
 	}
 
-	let scheduled_paras_to_core_idx = lookahead
+	let scheduled_paras_to_core_idx = scheduled
 		.into_iter()
-		.map(|(core_idx, cas)| cas.iter().map(|ca| (ca.para_id, *core_idx)))
-		.flatten()
+		.map(|core_assignment| (core_assignment.para_id, core_assignment.core))
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
-
-	// ensure core_indices are all disjoint before doing the sorting
-	let set: BTreeSet<CoreIndex> = backed_candidates
-		.iter()
-		.filter_map(|backed_candidate| {
-			scheduled_paras_to_core_idx.get(&backed_candidate.descriptor().para_id).cloned()
-		})
-		.collect();
-
-	assert_eq!(
-		set.len(),
-		backed_candidates.len(),
-		"set: {:?}\nbacked_candidates: {:?}\n scheduled_paras_tp_core_idx: {:?}\n lookahead: {:?}",
-		set,
-		backed_candidates,
-		scheduled_paras_to_core_idx,
-		lookahead.len()
-	);
 
 	if !IsSortedBy::is_sorted_by(backed_candidates, |x, y| {
 		// Never panics, since we would have early returned on those in the above loop.
@@ -1204,24 +1185,7 @@ pub(crate) fn assure_sanity_backed_candidates<
 	}) {
 		return Err(Error::<T>::UnsortedOrDuplicateBackedCandidates)
 	}
-
-	let scheduled: BTreeMap<CoreIndex, CoreAssignment> = backed_candidates
-		.iter()
-		.map(|backed_candidate| {
-			let backed_para_id = backed_candidate.descriptor().para_id;
-			let core_index = scheduled_paras_to_core_idx.get(&backed_para_id).unwrap();
-			let assignment = lookahead
-				.get(&core_index)
-				.unwrap()
-				.iter()
-				.find(|ca| ca.para_id == backed_para_id)
-				.unwrap();
-
-			(core_index.clone(), assignment.clone())
-		})
-		.collect();
-
-	Ok(scheduled.values().cloned().collect())
+	Ok(())
 }
 
 /// Derive entropy from babe provided per block randomness.
