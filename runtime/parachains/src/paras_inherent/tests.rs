@@ -1174,9 +1174,9 @@ mod sanitizers {
 					para_id: ParaId::from(1_u32 + idx as u32),
 					core: core_idx,
 				};
-				(core_idx, vec![ca])
+				ca
 			})
-			.collect::<BTreeMap<_, _>>();
+			.collect::<Vec<_>>();
 
 		let group_validators = |group_index: GroupIndex| {
 			match group_index {
@@ -1228,7 +1228,7 @@ mod sanitizers {
 
 		// nothing is scheduled, so no paraids match, thus all backed candidates are skipped
 		{
-			let scheduled = &BTreeMap::new();
+			let scheduled = &Vec::new();
 			assert!(sanitize_backed_candidates::<Test, _>(
 				relay_parent,
 				backed_candidates.clone(),
