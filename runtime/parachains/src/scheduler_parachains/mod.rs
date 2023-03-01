@@ -65,8 +65,6 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 
 	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
 
-	fn push_front_assignment_for_core(_: CoreIndex, _: Assignment) {}
-
 	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
 		match core_occupied {
 			CoreOccupied::Free => panic!("impossible"),

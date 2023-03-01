@@ -48,7 +48,6 @@ use crate::{
 	initializer::SessionChangeNotification,
 	paras,
 	scheduler_common::{CoreAssignment, FreedReason},
-	scheduler_parathreads,
 };
 
 use crate::scheduler_common::{Assignment, AssignmentKind, AssignmentProvider};
@@ -68,9 +67,7 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config:
-		frame_system::Config + configuration::Config + paras::Config + scheduler_parathreads::Config
-	{
+	pub trait Config: frame_system::Config + configuration::Config + paras::Config {
 		type AssignmentProvider: AssignmentProvider<Self>;
 	}
 
@@ -108,12 +105,8 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn lookahead)]
-	pub(crate) type Lookahead<T> =
+	pub(crate) type ClaimQueue<T> =
 		StorageValue<_, BTreeMap<CoreIndex, Vec<CoreAssignment>>, ValueQuery>;
-	// CoreIndex is used as index into the Vec
-
-	// TODO: remove all this! lookahead is claimqueu -> if idx 0 is not full, pop from provider idx 0
-	// --> they keep track of not mixing up para ids!
 }
 
 pub type NumAssignmentsInLookahead = u32;
@@ -201,7 +194,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
 	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
-	pub(crate) fn update_lookahead_free_cores(just_freed_cores: BTreeMap<CoreIndex, FreedReason>) {
+	pub(crate) fn update_claimqueue_free_cores(just_freed_cores: BTreeMap<CoreIndex, FreedReason>) {
 		AvailabilityCores::<T>::mutate(|cores| {
 			let c_len = cores.len();
 
@@ -216,7 +209,7 @@ impl<T: Config> Pallet<T> {
 							match freed_reason {
 								FreedReason::Concluded => {
 									let _ignore =
-										Self::remove_from_lookahead(freed_index, entry.claim.0);
+										Self::remove_from_claimqueue(freed_index, entry.claim.0);
 								},
 								FreedReason::TimedOut => {},
 							};
@@ -242,7 +235,7 @@ impl<T: Config> Pallet<T> {
 		for (core_idx, para_id) in now_occupied {
 			// We remove as we assume the happy case that availability will usually conclude.
 			// If it times out, we will need to reinsert into parathread queue... there should be a better way, I believe
-			match Self::remove_from_lookahead(core_idx, para_id) {
+			match Self::remove_from_claimqueue(core_idx, para_id) {
 				Err(_) => todo!(),
 				Ok(assignment) =>
 					availability_cores[core_idx.0 as usize] = assignment.to_core_occupied(),
@@ -367,7 +360,7 @@ impl<T: Config> Pallet<T> {
 	/// For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that
 	/// core, and is None if there isn't one.
 	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
-		Lookahead::<T>::get()
+		ClaimQueue::<T>::get()
 			.get(&core)
 			.and_then(|a| a.first().map(Self::assignment_to_scheduled_core))
 	}
@@ -416,26 +409,26 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub(crate) fn clear_and_fill_lookahead(
+	pub(crate) fn clear_and_fill_claimqueue(
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
 		now: T::BlockNumber,
 	) {
-		Self::clear_lookahead();
-		Self::fill_lookahead(just_freed_cores, now);
+		Self::clear_claimqueue();
+		Self::fill_claimqueue(just_freed_cores, now);
 		// TODO: return Lookahead?
 	}
 
 	// Clear lookahead
-	fn clear_lookahead() {
-		for (_, cas) in Lookahead::<T>::take() {
+	fn clear_claimqueue() {
+		for (_, cas) in ClaimQueue::<T>::take() {
 			for ca in cas.into_iter() {
 				T::AssignmentProvider::clear(ca.core, ca.to_assignment())
 			}
 		}
 	}
 
-	fn fill_lookahead(just_freed_cores: BTreeMap<CoreIndex, FreedReason>, now: T::BlockNumber) {
-		Self::update_lookahead_free_cores(just_freed_cores);
+	fn fill_claimqueue(just_freed_cores: BTreeMap<CoreIndex, FreedReason>, now: T::BlockNumber) {
+		Self::update_claimqueue_free_cores(just_freed_cores);
 
 		if ValidatorGroups::<T>::get().is_empty() {
 			return
@@ -451,12 +444,12 @@ impl<T: Config> Pallet<T> {
 										  to be after the most recent session start; qed",
 			);
 
-			let n_lookahead_used = Lookahead::<T>::get().get(&core_idx).len() as u32;
+			let n_lookahead_used = ClaimQueue::<T>::get().get(&core_idx).len() as u32;
 			for _ in n_lookahead_used..n_lookahead {
 				// todo: try to fill lookahead while lookahead is not full or pop_assignment() returns none
 				// doesn_t work! parachains assigner never returns none...
 				// todo: write tests for optimal allocation; check invariants
-				match Self::add_to_lookahead(core_idx, group_idx) {
+				match Self::add_to_claimqueue(core_idx, group_idx) {
 					Err(_) => break, // todo: logging
 					Ok(_) => (),
 				}
@@ -464,12 +457,12 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn add_to_lookahead(core_idx: CoreIndex, group_idx: GroupIndex) -> Result<(), &'static str> {
+	fn add_to_claimqueue(core_idx: CoreIndex, group_idx: GroupIndex) -> Result<(), &'static str> {
 		match T::AssignmentProvider::pop_assignment_for_core(core_idx) {
 			None => Err("no assignments at core_idx"),
 			Some(ass) => {
 				let ca = ass.to_core_assignment(core_idx, group_idx);
-				Lookahead::<T>::mutate(|la| match la.get_mut(&core_idx) {
+				ClaimQueue::<T>::mutate(|la| match la.get_mut(&core_idx) {
 					None => {
 						la.insert(core_idx, vec![ca]);
 					},
@@ -481,11 +474,11 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn remove_from_lookahead(
+	fn remove_from_claimqueue(
 		core_idx: CoreIndex,
 		para_id: ParaId,
 	) -> Result<CoreAssignment, &'static str> {
-		Lookahead::<T>::mutate(|la| match la.get_mut(&core_idx) {
+		ClaimQueue::<T>::mutate(|la| match la.get_mut(&core_idx) {
 			None => Err("core_idx not found in lookahead"),
 			Some(la_vec) => match la_vec.iter().position(|a| a.para_id == para_id) {
 				None => Err("para id not found at core_idx lookahead"),
@@ -495,12 +488,12 @@ impl<T: Config> Pallet<T> {
 	}
 
 	#[cfg(test)]
-	fn lookahead_sizes() -> Vec<usize> {
-		Lookahead::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
+	fn claimqueue_sizes() -> Vec<usize> {
+		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
 	}
 
 	#[cfg(test)]
-	pub(crate) fn lookahead_is_empty() -> bool {
-		Self::lookahead_sizes().iter().sum::<usize>() == 0
+	pub(crate) fn claimqueue_is_empty() -> bool {
+		Self::claimqueue_sizes().iter().sum::<usize>() == 0
 	}
 }

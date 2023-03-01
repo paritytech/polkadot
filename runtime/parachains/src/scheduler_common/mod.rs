@@ -120,8 +120,6 @@ pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
 
-	fn push_front_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
-
 	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId;
 
 	fn get_availability_period(core_idx: CoreIndex) -> T::BlockNumber;

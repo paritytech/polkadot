@@ -39,7 +39,6 @@ pub mod reward_points;
 pub mod scheduler;
 pub mod scheduler_common;
 pub mod scheduler_parachains;
-pub mod scheduler_parathreads;
 pub mod scheduler_polkadot;
 pub mod session_info;
 pub mod shared;

@@ -465,7 +465,9 @@ impl<T: Config> Pallet<T> {
 				// unstable sort is fine, because core indices are unique
 				// i.e. the same candidate can't occupy 2 cores at once.
 				freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
-				<scheduler::Pallet<T>>::update_lookahead_free_cores(freed_disputed.into_iter().collect());
+				<scheduler::Pallet<T>>::update_claimqueue_free_cores(
+					freed_disputed.into_iter().collect(),
+				);
 			}
 
 			disputed_bitfield
@@ -494,12 +496,15 @@ impl<T: Config> Pallet<T> {
 		METRICS.on_candidates_included(freed_concluded.len() as u64);
 		let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 
-		<scheduler::Pallet<T>>::clear_and_fill_lookahead(freed, now);
+		<scheduler::Pallet<T>>::clear_and_fill_claimqueue(freed, now);
 
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
 
 		let lookahead = <scheduler::Pallet<T>>::lookahead();
-		let scheduled: Vec<CoreAssignment> = lookahead.into_iter().map(|(_core_index, cas)| cas.first().unwrap().clone()).collect();
+		let scheduled: Vec<CoreAssignment> = lookahead
+			.into_iter()
+			.map(|(_core_index, cas)| cas.first().unwrap().clone())
+			.collect();
 		log::debug!(target: LOG_TARGET, "scheduled: {:?}", scheduled);
 		assure_sanity_backed_candidates::<T, _>(
 			parent_hash,
@@ -677,7 +682,9 @@ impl<T: Config> Pallet<T> {
 				// unstable sort is fine, because core indices are unique
 				// i.e. the same candidate can't occupy 2 cores at once.
 				freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
-				<scheduler::Pallet<T>>::update_lookahead_free_cores(freed_disputed.clone().into_iter().collect());
+				<scheduler::Pallet<T>>::update_claimqueue_free_cores(
+					freed_disputed.clone().into_iter().collect(),
+				);
 			}
 
 			// The following 3 calls are equiv to a call to `process_bitfields`
@@ -703,10 +710,13 @@ impl<T: Config> Pallet<T> {
 
 			let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
 			let now = <frame_system::Pallet<T>>::block_number();
-			<scheduler::Pallet<T>>::clear_and_fill_lookahead(freed, now);
+			<scheduler::Pallet<T>>::clear_and_fill_claimqueue(freed, now);
 
 			let lookahead = <scheduler::Pallet<T>>::lookahead();
-			let scheduled: Vec<CoreAssignment> = lookahead.into_iter().map(|(_core_index, cas)| cas.first().unwrap().clone()).collect();
+			let scheduled: Vec<CoreAssignment> = lookahead
+				.into_iter()
+				.map(|(_core_index, cas)| cas.first().unwrap().clone())
+				.collect();
 
 			let relay_parent_number = now - One::one();
 			let parent_storage_root = *parent_header.state_root();

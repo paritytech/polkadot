@@ -54,7 +54,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	let config = <configuration::Pallet<T>>::config();
 
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
-	<scheduler::Pallet<T>>::clear_and_fill_lookahead(BTreeMap::new(), now);
+	<scheduler::Pallet<T>>::clear_and_fill_claimqueue(BTreeMap::new(), now);
 
 	let rotation_info = <scheduler::Pallet<T>>::group_rotation_info(now);
 

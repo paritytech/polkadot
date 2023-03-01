@@ -32,7 +32,7 @@ use runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	scheduler_parathreads, session_info as parachains_session_info, shared as parachains_shared,
+	session_info as parachains_session_info, shared as parachains_shared,
 	ump as parachains_ump,
 };
 
@@ -1325,8 +1325,6 @@ impl parachains_hrmp::Config for Runtime {
 impl parachains_paras_inherent::Config for Runtime {
 	type WeightInfo = weights::runtime_parachains_paras_inherent::WeightInfo<Runtime>;
 }
-impl scheduler_parathreads::Config for Runtime {}
-
 impl parachains_scheduler::Config for Runtime {
 	type AssignmentProvider = runtime_parachains::scheduler_polkadot::Pallet<Runtime>;
 }
@@ -1565,7 +1563,6 @@ construct_runtime! {
 		Hrmp: parachains_hrmp::{Pallet, Call, Storage, Event<T>, Config} = 60,
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
-		SchedulerThreads: scheduler_parathreads::{Pallet, Storage}= 63,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,

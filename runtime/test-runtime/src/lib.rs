@@ -29,7 +29,7 @@ use polkadot_runtime_parachains::{
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, runtime_api_impl::v2 as runtime_impl,
-	scheduler as parachains_scheduler, scheduler_parathreads, scheduler_polkadot,
+	scheduler as parachains_scheduler, scheduler_polkadot,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
@@ -543,8 +543,6 @@ impl parachains_hrmp::Config for Runtime {
 	type WeightInfo = parachains_hrmp::TestWeightInfo;
 }
 
-impl scheduler_parathreads::Config for Runtime {}
-
 impl parachains_scheduler::Config for Runtime {
 	type AssignmentProvider = crate::scheduler_polkadot::Pallet<Runtime>;
 }
@@ -684,7 +682,6 @@ construct_runtime! {
 		Paras: parachains_paras::{Pallet, Call, Storage, Event, ValidateUnsigned},
 		ParasShared: parachains_shared::{Pallet, Call, Storage},
 		Scheduler: parachains_scheduler::{Pallet, Storage},
-		SchedulerThreads: scheduler_parathreads::{Pallet, Storage},
 		ParasSudoWrapper: paras_sudo_wrapper::{Pallet, Call},
 		ParasOrigin: parachains_origin::{Pallet, Origin},
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage},
