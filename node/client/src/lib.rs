@@ -135,7 +135,7 @@ pub trait RuntimeApiCollection:
 	+ sp_offchain::OffchainWorkerApi<Block>
 	+ sp_session::SessionKeys<Block>
 	+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
-	+ beefy_primitives::BeefyApi<Block>
+	+ sp_consensus_beefy::BeefyApi<Block>
 where
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
@@ -156,7 +156,7 @@ where
 		+ sp_offchain::OffchainWorkerApi<Block>
 		+ sp_session::SessionKeys<Block>
 		+ sp_authority_discovery::AuthorityDiscoveryApi<Block>
-		+ beefy_primitives::BeefyApi<Block>,
+		+ sp_consensus_beefy::BeefyApi<Block>,
 	<Self as sp_api::ApiExt<Block>>::StateBackend: sp_api::StateBackend<BlakeTwo256>,
 {
 }
