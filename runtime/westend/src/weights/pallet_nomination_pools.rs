@@ -18,22 +18,20 @@
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
 //! DATE: 2023-02-27, STEPS: `50`, REPEAT: `20`, LOW RANGE: `[]`, HIGH RANGE: `[]`
 //! WORST CASE MAP SIZE: `1000000`
-//! HOSTNAME: `bm3`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
+//! HOSTNAME: `bm6`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
 //! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("westend-dev"), DB CACHE: 1024
 
 // Executed Command:
-// target/production/polkadot
+// ./target/production/polkadot
 // benchmark
 // pallet
+// --chain=westend-dev
 // --steps=50
 // --repeat=20
+// --pallet=pallet_nomination_pools
 // --extrinsic=*
 // --execution=wasm
 // --wasm-execution=compiled
-// --heap-pages=4096
-// --json-file=/var/lib/gitlab-runner/builds/zyw4fam_/0/parity/mirrors/polkadot/.git/.artifacts/bench.json
-// --pallet=pallet_nomination_pools
-// --chain=westend-dev
 // --header=./file_header.txt
 // --output=./runtime/westend/src/weights/
 
@@ -52,15 +50,13 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: NominationPools PoolMembers (r:1 w:1)
 	/// Proof: NominationPools PoolMembers (max_values: None, max_size: Some(717), added: 3192, mode: MaxEncodedLen)
 	/// Storage: NominationPools BondedPools (r:1 w:1)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: Staking Bonded (r:1 w:0)
 	/// Proof: Staking Bonded (max_values: None, max_size: Some(72), added: 2547, mode: MaxEncodedLen)
 	/// Storage: Staking Ledger (r:1 w:1)
 	/// Proof: Staking Ledger (max_values: None, max_size: Some(1091), added: 3566, mode: MaxEncodedLen)
 	/// Storage: NominationPools RewardPools (r:1 w:1)
-	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(92), added: 2567, mode: MaxEncodedLen)
-	/// Storage: NominationPools GlobalMaxCommission (r:1 w:0)
-	/// Proof: NominationPools GlobalMaxCommission (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
+	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(60), added: 2535, mode: MaxEncodedLen)
 	/// Storage: System Account (r:2 w:1)
 	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
 	/// Storage: NominationPools MaxPoolMembersPerPool (r:1 w:0)
@@ -77,22 +73,20 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Proof: VoterList ListBags (max_values: None, max_size: Some(82), added: 2557, mode: MaxEncodedLen)
 	fn join() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `3663`
-		//  Estimated: `39055`
-		// Minimum execution time: 151_732 nanoseconds.
-		Weight::from_ref_time(153_260_000)
-			.saturating_add(Weight::from_proof_size(39055))
-			.saturating_add(T::DbWeight::get().reads(18))
+		//  Measured:  `3586`
+		//  Estimated: `38468`
+		// Minimum execution time: 154_304 nanoseconds.
+		Weight::from_ref_time(155_220_000)
+			.saturating_add(Weight::from_proof_size(38468))
+			.saturating_add(T::DbWeight::get().reads(17))
 			.saturating_add(T::DbWeight::get().writes(12))
 	}
 	/// Storage: NominationPools PoolMembers (r:1 w:1)
 	/// Proof: NominationPools PoolMembers (max_values: None, max_size: Some(717), added: 3192, mode: MaxEncodedLen)
 	/// Storage: NominationPools BondedPools (r:1 w:1)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: NominationPools RewardPools (r:1 w:1)
-	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(92), added: 2567, mode: MaxEncodedLen)
-	/// Storage: NominationPools GlobalMaxCommission (r:1 w:0)
-	/// Proof: NominationPools GlobalMaxCommission (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
+	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(60), added: 2535, mode: MaxEncodedLen)
 	/// Storage: System Account (r:3 w:2)
 	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
 	/// Storage: Staking Bonded (r:1 w:0)
@@ -107,12 +101,12 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Proof: VoterList ListBags (max_values: None, max_size: Some(82), added: 2557, mode: MaxEncodedLen)
 	fn bond_extra_transfer() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `3705`
-		//  Estimated: `39650`
-		// Minimum execution time: 148_638 nanoseconds.
-		Weight::from_ref_time(150_122_000)
-			.saturating_add(Weight::from_proof_size(39650))
-			.saturating_add(T::DbWeight::get().reads(15))
+		//  Measured:  `3628`
+		//  Estimated: `39063`
+		// Minimum execution time: 150_523 nanoseconds.
+		Weight::from_ref_time(154_073_000)
+			.saturating_add(Weight::from_proof_size(39063))
+			.saturating_add(T::DbWeight::get().reads(14))
 			.saturating_add(T::DbWeight::get().writes(12))
 	}
 	/// Storage: NominationPools ClaimPermissions (r:1 w:0)
@@ -120,11 +114,9 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: NominationPools PoolMembers (r:1 w:1)
 	/// Proof: NominationPools PoolMembers (max_values: None, max_size: Some(717), added: 3192, mode: MaxEncodedLen)
 	/// Storage: NominationPools BondedPools (r:1 w:1)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: NominationPools RewardPools (r:1 w:1)
-	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(92), added: 2567, mode: MaxEncodedLen)
-	/// Storage: NominationPools GlobalMaxCommission (r:1 w:0)
-	/// Proof: NominationPools GlobalMaxCommission (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
+	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(60), added: 2535, mode: MaxEncodedLen)
 	/// Storage: System Account (r:3 w:3)
 	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
 	/// Storage: Staking Bonded (r:1 w:0)
@@ -139,12 +131,12 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Proof: VoterList ListBags (max_values: None, max_size: Some(82), added: 2557, mode: MaxEncodedLen)
 	fn bond_extra_other() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `3504`
-		//  Estimated: `39537`
-		// Minimum execution time: 164_364 nanoseconds.
-		Weight::from_ref_time(165_349_000)
-			.saturating_add(Weight::from_proof_size(39537))
-			.saturating_add(T::DbWeight::get().reads(15))
+		//  Measured:  `3427`
+		//  Estimated: `38950`
+		// Minimum execution time: 162_554 nanoseconds.
+		Weight::from_ref_time(164_041_000)
+			.saturating_add(Weight::from_proof_size(38950))
+			.saturating_add(T::DbWeight::get().reads(14))
 			.saturating_add(T::DbWeight::get().writes(12))
 	}
 	/// Storage: NominationPools ClaimPermissions (r:1 w:0)
@@ -152,35 +144,31 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: NominationPools PoolMembers (r:1 w:1)
 	/// Proof: NominationPools PoolMembers (max_values: None, max_size: Some(717), added: 3192, mode: MaxEncodedLen)
 	/// Storage: NominationPools BondedPools (r:1 w:1)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: NominationPools RewardPools (r:1 w:1)
-	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(92), added: 2567, mode: MaxEncodedLen)
-	/// Storage: NominationPools GlobalMaxCommission (r:1 w:0)
-	/// Proof: NominationPools GlobalMaxCommission (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
+	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(60), added: 2535, mode: MaxEncodedLen)
 	/// Storage: System Account (r:1 w:1)
 	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
 	fn claim_payout() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `1297`
-		//  Estimated: `14072`
-		// Minimum execution time: 59_477 nanoseconds.
-		Weight::from_ref_time(60_531_000)
-			.saturating_add(Weight::from_proof_size(14072))
-			.saturating_add(T::DbWeight::get().reads(6))
+		//  Measured:  `1220`
+		//  Estimated: `13485`
+		// Minimum execution time: 58_946 nanoseconds.
+		Weight::from_ref_time(59_799_000)
+			.saturating_add(Weight::from_proof_size(13485))
+			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
 	/// Storage: NominationPools PoolMembers (r:1 w:1)
 	/// Proof: NominationPools PoolMembers (max_values: None, max_size: Some(717), added: 3192, mode: MaxEncodedLen)
 	/// Storage: NominationPools BondedPools (r:1 w:1)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: NominationPools RewardPools (r:1 w:1)
-	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(92), added: 2567, mode: MaxEncodedLen)
+	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(60), added: 2535, mode: MaxEncodedLen)
 	/// Storage: Staking Bonded (r:1 w:0)
 	/// Proof: Staking Bonded (max_values: None, max_size: Some(72), added: 2547, mode: MaxEncodedLen)
 	/// Storage: Staking Ledger (r:1 w:1)
 	/// Proof: Staking Ledger (max_values: None, max_size: Some(1091), added: 3566, mode: MaxEncodedLen)
-	/// Storage: NominationPools GlobalMaxCommission (r:1 w:0)
-	/// Proof: NominationPools GlobalMaxCommission (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	/// Storage: System Account (r:2 w:1)
 	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
 	/// Storage: Staking CurrentEra (r:1 w:0)
@@ -201,16 +189,16 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Proof: NominationPools CounterForSubPoolsStorage (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	fn unbond() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `3942`
-		//  Estimated: `44325`
-		// Minimum execution time: 153_902 nanoseconds.
-		Weight::from_ref_time(155_223_000)
-			.saturating_add(Weight::from_proof_size(44325))
-			.saturating_add(T::DbWeight::get().reads(19))
+		//  Measured:  `3865`
+		//  Estimated: `43738`
+		// Minimum execution time: 155_416 nanoseconds.
+		Weight::from_ref_time(157_093_000)
+			.saturating_add(Weight::from_proof_size(43738))
+			.saturating_add(T::DbWeight::get().reads(18))
 			.saturating_add(T::DbWeight::get().writes(13))
 	}
 	/// Storage: NominationPools BondedPools (r:1 w:0)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: Staking Bonded (r:1 w:0)
 	/// Proof: Staking Bonded (max_values: None, max_size: Some(72), added: 2547, mode: MaxEncodedLen)
 	/// Storage: Staking Ledger (r:1 w:1)
@@ -220,13 +208,15 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: Balances Locks (r:1 w:1)
 	/// Proof: Balances Locks (max_values: None, max_size: Some(1299), added: 3774, mode: MaxEncodedLen)
 	/// The range of component `s` is `[0, 100]`.
-	fn pool_withdraw_unbonded(_s: u32, ) -> Weight {
+	fn pool_withdraw_unbonded(s: u32, ) -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `1710`
-		//  Estimated: `13081`
-		// Minimum execution time: 51_769 nanoseconds.
-		Weight::from_ref_time(53_844_540)
-			.saturating_add(Weight::from_proof_size(13081))
+		//  Measured:  `1706`
+		//  Estimated: `13025`
+		// Minimum execution time: 52_621 nanoseconds.
+		Weight::from_ref_time(53_508_921)
+			.saturating_add(Weight::from_proof_size(13025))
+			// Standard Error: 790
+			.saturating_add(Weight::from_ref_time(15_066).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -235,7 +225,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: Staking CurrentEra (r:1 w:0)
 	/// Proof: Staking CurrentEra (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	/// Storage: NominationPools BondedPools (r:1 w:1)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: NominationPools SubPoolsStorage (r:1 w:1)
 	/// Proof: NominationPools SubPoolsStorage (max_values: None, max_size: Some(261), added: 2736, mode: MaxEncodedLen)
 	/// Storage: Staking Bonded (r:1 w:0)
@@ -251,13 +241,15 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: NominationPools ClaimPermissions (r:0 w:1)
 	/// Proof: NominationPools ClaimPermissions (max_values: None, max_size: Some(41), added: 2516, mode: MaxEncodedLen)
 	/// The range of component `s` is `[0, 100]`.
-	fn withdraw_unbonded_update(_s: u32, ) -> Weight {
+	fn withdraw_unbonded_update(s: u32, ) -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `2234`
-		//  Estimated: `22111`
-		// Minimum execution time: 99_931 nanoseconds.
-		Weight::from_ref_time(105_487_581)
-			.saturating_add(Weight::from_proof_size(22111))
+		//  Measured:  `2230`
+		//  Estimated: `22055`
+		// Minimum execution time: 102_019 nanoseconds.
+		Weight::from_ref_time(104_029_094)
+			.saturating_add(Weight::from_proof_size(22055))
+			// Standard Error: 1_344
+			.saturating_add(Weight::from_ref_time(13_886).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}
@@ -266,7 +258,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: Staking CurrentEra (r:1 w:0)
 	/// Proof: Staking CurrentEra (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	/// Storage: NominationPools BondedPools (r:1 w:1)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: NominationPools SubPoolsStorage (r:1 w:1)
 	/// Proof: NominationPools SubPoolsStorage (max_values: None, max_size: Some(261), added: 2736, mode: MaxEncodedLen)
 	/// Storage: Staking Bonded (r:1 w:1)
@@ -290,7 +282,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: NominationPools CounterForReversePoolIdLookup (r:1 w:1)
 	/// Proof: NominationPools CounterForReversePoolIdLookup (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	/// Storage: NominationPools RewardPools (r:1 w:1)
-	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(92), added: 2567, mode: MaxEncodedLen)
+	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(60), added: 2535, mode: MaxEncodedLen)
 	/// Storage: NominationPools CounterForRewardPools (r:1 w:1)
 	/// Proof: NominationPools CounterForRewardPools (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	/// Storage: NominationPools CounterForSubPoolsStorage (r:1 w:1)
@@ -306,13 +298,13 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// The range of component `s` is `[0, 100]`.
 	fn withdraw_unbonded_kill(s: u32, ) -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `2622`
-		//  Estimated: `45191`
-		// Minimum execution time: 157_630 nanoseconds.
-		Weight::from_ref_time(160_163_567)
-			.saturating_add(Weight::from_proof_size(45191))
-			// Standard Error: 11_859
-			.saturating_add(Weight::from_ref_time(34_363).saturating_mul(s.into()))
+		//  Measured:  `2618`
+		//  Estimated: `45099`
+		// Minimum execution time: 161_236 nanoseconds.
+		Weight::from_ref_time(164_070_568)
+			.saturating_add(Weight::from_proof_size(45099))
+			// Standard Error: 2_621
+			.saturating_add(Weight::from_ref_time(10_297).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(20))
 			.saturating_add(T::DbWeight::get().writes(18))
 	}
@@ -347,7 +339,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: Balances Locks (r:1 w:1)
 	/// Proof: Balances Locks (max_values: None, max_size: Some(1299), added: 3774, mode: MaxEncodedLen)
 	/// Storage: NominationPools RewardPools (r:1 w:1)
-	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(92), added: 2567, mode: MaxEncodedLen)
+	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(60), added: 2535, mode: MaxEncodedLen)
 	/// Storage: NominationPools CounterForRewardPools (r:1 w:1)
 	/// Proof: NominationPools CounterForRewardPools (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	/// Storage: NominationPools ReversePoolIdLookup (r:1 w:1)
@@ -355,21 +347,21 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: NominationPools CounterForReversePoolIdLookup (r:1 w:1)
 	/// Proof: NominationPools CounterForReversePoolIdLookup (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	/// Storage: NominationPools BondedPools (r:1 w:1)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: Staking Payee (r:0 w:1)
 	/// Proof: Staking Payee (max_values: None, max_size: Some(73), added: 2548, mode: MaxEncodedLen)
 	fn create() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `1254`
-		//  Estimated: `32090`
-		// Minimum execution time: 139_287 nanoseconds.
-		Weight::from_ref_time(140_732_000)
-			.saturating_add(Weight::from_proof_size(32090))
+		//  Estimated: `32002`
+		// Minimum execution time: 142_981 nanoseconds.
+		Weight::from_ref_time(144_237_000)
+			.saturating_add(Weight::from_proof_size(32002))
 			.saturating_add(T::DbWeight::get().reads(21))
 			.saturating_add(T::DbWeight::get().writes(15))
 	}
 	/// Storage: NominationPools BondedPools (r:1 w:0)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: Staking Bonded (r:1 w:0)
 	/// Proof: Staking Bonded (max_values: None, max_size: Some(72), added: 2547, mode: MaxEncodedLen)
 	/// Storage: Staking Ledger (r:1 w:0)
@@ -395,36 +387,36 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// The range of component `n` is `[1, 16]`.
 	fn nominate(n: u32, ) -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `1843`
-		//  Estimated: `22054 + n * (2520 ±0)`
-		// Minimum execution time: 64_240 nanoseconds.
-		Weight::from_ref_time(64_591_526)
-			.saturating_add(Weight::from_proof_size(22054))
-			// Standard Error: 18_442
-			.saturating_add(Weight::from_ref_time(1_320_670).saturating_mul(n.into()))
+		//  Measured:  `1839`
+		//  Estimated: `21998 + n * (2520 ±0)`
+		// Minimum execution time: 65_217 nanoseconds.
+		Weight::from_ref_time(65_750_377)
+			.saturating_add(Weight::from_proof_size(21998))
+			// Standard Error: 7_685
+			.saturating_add(Weight::from_ref_time(1_336_128).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(12))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(5))
 			.saturating_add(Weight::from_proof_size(2520).saturating_mul(n.into()))
 	}
 	/// Storage: NominationPools BondedPools (r:1 w:1)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: Staking Bonded (r:1 w:0)
 	/// Proof: Staking Bonded (max_values: None, max_size: Some(72), added: 2547, mode: MaxEncodedLen)
 	/// Storage: Staking Ledger (r:1 w:0)
 	/// Proof: Staking Ledger (max_values: None, max_size: Some(1091), added: 3566, mode: MaxEncodedLen)
 	fn set_state() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `1431`
-		//  Estimated: `8808`
-		// Minimum execution time: 35_545 nanoseconds.
-		Weight::from_ref_time(51_919_000)
-			.saturating_add(Weight::from_proof_size(8808))
+		//  Measured:  `1427`
+		//  Estimated: `8752`
+		// Minimum execution time: 35_863 nanoseconds.
+		Weight::from_ref_time(36_287_000)
+			.saturating_add(Weight::from_proof_size(8752))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: NominationPools BondedPools (r:1 w:0)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: NominationPools Metadata (r:1 w:1)
 	/// Proof: NominationPools Metadata (max_values: None, max_size: Some(270), added: 2745, mode: MaxEncodedLen)
 	/// Storage: NominationPools CounterForMetadata (r:1 w:1)
@@ -432,13 +424,13 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// The range of component `n` is `[1, 256]`.
 	fn set_metadata(n: u32, ) -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `529`
-		//  Estimated: `5939`
-		// Minimum execution time: 13_736 nanoseconds.
-		Weight::from_ref_time(14_222_613)
-			.saturating_add(Weight::from_proof_size(5939))
-			// Standard Error: 581
-			.saturating_add(Weight::from_ref_time(3_174).saturating_mul(n.into()))
+		//  Measured:  `525`
+		//  Estimated: `5883`
+		// Minimum execution time: 13_860 nanoseconds.
+		Weight::from_ref_time(14_425_990)
+			.saturating_add(Weight::from_proof_size(5883))
+			// Standard Error: 94
+			.saturating_add(Weight::from_ref_time(1_103).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -450,33 +442,31 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Proof: NominationPools MaxPoolMembersPerPool (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	/// Storage: NominationPools MinCreateBond (r:0 w:1)
 	/// Proof: NominationPools MinCreateBond (max_values: Some(1), max_size: Some(16), added: 511, mode: MaxEncodedLen)
-	/// Storage: NominationPools GlobalMaxCommission (r:0 w:1)
-	/// Proof: NominationPools GlobalMaxCommission (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	/// Storage: NominationPools MaxPools (r:0 w:1)
 	/// Proof: NominationPools MaxPools (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	fn set_configs() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
-		// Minimum execution time: 5_469 nanoseconds.
-		Weight::from_ref_time(5_901_000)
+		// Minimum execution time: 5_097 nanoseconds.
+		Weight::from_ref_time(5_385_000)
 			.saturating_add(Weight::from_proof_size(0))
-			.saturating_add(T::DbWeight::get().writes(6))
+			.saturating_add(T::DbWeight::get().writes(5))
 	}
 	/// Storage: NominationPools BondedPools (r:1 w:1)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	fn update_roles() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `529`
-		//  Estimated: `2695`
-		// Minimum execution time: 18_978 nanoseconds.
-		Weight::from_ref_time(19_520_000)
-			.saturating_add(Weight::from_proof_size(2695))
+		//  Measured:  `525`
+		//  Estimated: `2639`
+		// Minimum execution time: 19_168 nanoseconds.
+		Weight::from_ref_time(19_566_000)
+			.saturating_add(Weight::from_proof_size(2639))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: NominationPools BondedPools (r:1 w:0)
-	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
+	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(164), added: 2639, mode: MaxEncodedLen)
 	/// Storage: Staking Bonded (r:1 w:0)
 	/// Proof: Staking Bonded (max_values: None, max_size: Some(72), added: 2547, mode: MaxEncodedLen)
 	/// Storage: Staking Ledger (r:1 w:0)
@@ -495,15 +485,29 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Proof: VoterList CounterForListNodes (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
 	fn chill() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `2070`
-		//  Estimated: `20545`
-		// Minimum execution time: 62_938 nanoseconds.
-		Weight::from_ref_time(64_514_000)
-			.saturating_add(Weight::from_proof_size(20545))
+		//  Measured:  `2066`
+		//  Estimated: `20489`
+		// Minimum execution time: 64_030 nanoseconds.
+		Weight::from_ref_time(64_573_000)
+			.saturating_add(Weight::from_proof_size(20489))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
-	/// Storage: NominationPools BondedPools (r:1 w:1)
+	/// Storage: NominationPools PoolMembers (r:1 w:0)
+	/// Proof: NominationPools PoolMembers (max_values: None, max_size: Some(717), added: 3192, mode: MaxEncodedLen)
+	/// Storage: NominationPools ClaimPermissions (r:1 w:1)
+	/// Proof: NominationPools ClaimPermissions (max_values: None, max_size: Some(41), added: 2516, mode: MaxEncodedLen)
+	fn set_claim_permission() -> Weight {
+		// Proof Size summary in bytes:
+		//  Measured:  `508`
+		//  Estimated: `5708`
+		// Minimum execution time: 14_137 nanoseconds.
+		Weight::from_ref_time(14_483_000)
+			.saturating_add(Weight::from_proof_size(5708))
+			.saturating_add(T::DbWeight::get().reads(2))
+			.saturating_add(T::DbWeight::get().writes(1))
+	}
+  	/// Storage: NominationPools BondedPools (r:1 w:1)
 	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
 	/// Storage: NominationPools RewardPools (r:1 w:1)
 	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(92), added: 2567, mode: MaxEncodedLen)
@@ -545,21 +549,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
-	/// Storage: NominationPools PoolMembers (r:1 w:0)
-	/// Proof: NominationPools PoolMembers (max_values: None, max_size: Some(717), added: 3192, mode: MaxEncodedLen)
-	/// Storage: NominationPools ClaimPermissions (r:1 w:1)
-	/// Proof: NominationPools ClaimPermissions (max_values: None, max_size: Some(41), added: 2516, mode: MaxEncodedLen)
-	fn set_claim_permission() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `508`
-		//  Estimated: `5708`
-		// Minimum execution time: 14_121 nanoseconds.
-		Weight::from_ref_time(14_409_000)
-			.saturating_add(Weight::from_proof_size(5708))
-			.saturating_add(T::DbWeight::get().reads(2))
-			.saturating_add(T::DbWeight::get().writes(1))
-	}
-	/// Storage: NominationPools BondedPools (r:1 w:0)
+  /// Storage: NominationPools BondedPools (r:1 w:0)
 	/// Proof: NominationPools BondedPools (max_values: None, max_size: Some(220), added: 2695, mode: MaxEncodedLen)
 	/// Storage: NominationPools RewardPools (r:1 w:1)
 	/// Proof: NominationPools RewardPools (max_values: None, max_size: Some(92), added: 2567, mode: MaxEncodedLen)
