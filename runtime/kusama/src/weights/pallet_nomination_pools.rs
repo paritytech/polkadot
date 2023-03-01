@@ -220,7 +220,7 @@ impl<T: frame_system::Config> pallet_nomination_pools::WeightInfo for WeightInfo
 	/// Storage: Balances Locks (r:1 w:1)
 	/// Proof: Balances Locks (max_values: None, max_size: Some(1299), added: 3774, mode: MaxEncodedLen)
 	/// The range of component `s` is `[0, 100]`.
-	fn pool_withdraw_unbonded(_s: u32, ) -> Weight {
+	fn pool_withdraw_unbonded(s: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `1700`
 		//  Estimated: `13025`
