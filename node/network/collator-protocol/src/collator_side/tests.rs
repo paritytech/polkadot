@@ -96,7 +96,7 @@ impl Default for TestState {
 			GroupRotationInfo { session_start_block: 0, group_rotation_frequency: 100, now: 1 };
 
 		let availability_cores = vec![
-			CoreState::Scheduled(vec![ScheduledCore { para_id, collator: None }]),
+			CoreState::Scheduled(ScheduledCore { para_id, collator: None }),
 			CoreState::Free,
 		];
 

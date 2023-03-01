@@ -125,10 +125,10 @@ fn spawn_virtual_overseer(
 								let cores = match maybe_block_position {
 									Some(block_num) => {
 										let core = if block_num == 0 {
-											CoreState::Scheduled(vec![ScheduledCore {
+											CoreState::Scheduled(ScheduledCore {
 												para_id,
 												collator: None,
-											}])
+											})
 										} else {
 											CoreState::Occupied(
 												OccupiedCoreBuilder {
