@@ -211,12 +211,6 @@ where
 						onchain_state
 					} else {
 						// onchain knows nothing about this dispute - add all votes
-						gum::trace!(
-							target: LOG_TARGET,
-							?session_index,
-							?candidate_hash,
-							"Dispute unknown onchain - add all votes"
-						);
 						return (session_index, candidate_hash, votes)
 					};
 

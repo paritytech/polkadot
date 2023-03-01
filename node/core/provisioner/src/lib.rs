@@ -181,7 +181,6 @@ fn handle_active_leaves_update(
 ) {
 	gum::trace!(target: LOG_TARGET, "Handle ActiveLeavesUpdate");
 	for deactivated in &update.deactivated {
-		gum::trace!(target: LOG_TARGET, leaf_hash=?deactivated, "Removing delay");
 		per_relay_parent.remove(deactivated);
 	}
 
@@ -593,7 +592,7 @@ async fn select_candidates(
 		}
 	}
 
-	gum::trace!(target: LOG_TARGET, 
+	gum::trace!(target: LOG_TARGET,
 		leaf_hash=?relay_parent,
 		"before GetBackedCandidates");
 
