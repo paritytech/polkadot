@@ -169,7 +169,7 @@ pub struct OurAssignment {
 	pub validator_index: ValidatorIndex,
 	/// Whether the assignment has been triggered already.
 	pub triggered: bool,
-	/// The core indices obtained from the VRF output.
+	/// A subset of the core indices obtained from the VRF output.
 	pub claimed_core_indices: Vec<CoreIndex>,
 }
 
