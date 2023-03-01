@@ -29,6 +29,7 @@ pub enum Error {
 	SubstrateTracing(#[from] sc_tracing::logging::Error),
 
 	#[error(transparent)]
+	#[cfg(feature = "hostperfcheck")]
 	PerfCheck(#[from] polkadot_performance_test::PerfCheckError),
 
 	#[cfg(not(feature = "pyroscope"))]
@@ -53,4 +54,7 @@ pub enum Error {
 
 	#[error("Other: {0}")]
 	Other(String),
+
+	#[error("This subcommand is only available when compiled with `{feature}`")]
+	FeatureNotEnabled { feature: &'static str },
 }

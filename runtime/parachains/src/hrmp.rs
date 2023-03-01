@@ -21,6 +21,7 @@ use crate::{
 use frame_support::{pallet_prelude::*, traits::ReservableCurrency};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_parachain::primitives::HorizontalMessages;
 use primitives::{
 	Balance, Hash, HrmpChannelId, Id as ParaId, InboundHrmpMessage, OutboundHrmpMessage,
 	SessionIndex,
@@ -1057,10 +1058,7 @@ impl<T: Config> Pallet<T> {
 	/// Process the outbound HRMP messages by putting them into the appropriate recipient queues.
 	///
 	/// Returns the amount of weight consumed.
-	pub(crate) fn queue_outbound_hrmp(
-		sender: ParaId,
-		out_hrmp_msgs: Vec<OutboundHrmpMessage<ParaId>>,
-	) -> Weight {
+	pub(crate) fn queue_outbound_hrmp(sender: ParaId, out_hrmp_msgs: HorizontalMessages) -> Weight {
 		let mut weight = Weight::zero();
 		let now = <frame_system::Pallet<T>>::block_number();
 

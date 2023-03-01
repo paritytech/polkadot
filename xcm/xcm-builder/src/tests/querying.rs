@@ -41,7 +41,7 @@ fn pallet_query_should_work() {
 	let expected_msg = Xcm::<()>(vec![QueryResponse {
 		query_id: 1,
 		max_weight: Weight::from_parts(50, 50),
-		response: Response::PalletsInfo(vec![].try_into().unwrap()),
+		response: Response::PalletsInfo(Default::default()),
 		querier: Some(Here.into()),
 	}]);
 	let expected_hash = fake_message_hash(&expected_msg);

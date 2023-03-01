@@ -22,6 +22,7 @@ use super::v2::{
 };
 use crate::{DoubleEncoded, GetWeight};
 use alloc::{vec, vec::Vec};
+use bounded_collections::{parameter_types, BoundedVec};
 use core::{
 	convert::{TryFrom, TryInto},
 	fmt::Debug,
@@ -200,14 +201,20 @@ pub mod prelude {
 	}
 }
 
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
+parameter_types! {
+	pub MaxPalletNameLen: u32 = 48;
+	/// Maximum size of the encoded error code coming from a `Dispatch` result, used for
+	/// `MaybeErrorCode`. This is not (yet) enforced, so it's just an indication of expectation.
+	pub MaxDispatchErrorLen: u32 = 128;
+	pub MaxPalletsInfo: u32 = 64;
+}
+
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 pub struct PalletInfo {
 	#[codec(compact)]
 	index: u32,
-	// TODO: Change to `BoundedVec` so `MaxEncodedLen` derive will work.
-	name: Vec<u8>,
-	// TODO: Change to `BoundedVec` so `MaxEncodedLen` derive will work.
-	module_name: Vec<u8>,
+	name: BoundedVec<u8, MaxPalletNameLen>,
+	module_name: BoundedVec<u8, MaxPalletNameLen>,
 	#[codec(compact)]
 	major: u32,
 	#[codec(compact)]
@@ -215,8 +222,6 @@ pub struct PalletInfo {
 	#[codec(compact)]
 	patch: u32,
 }
-
-const MAX_NAME_LEN: usize = 48;
 
 impl PalletInfo {
 	pub fn new(
@@ -227,44 +232,25 @@ impl PalletInfo {
 		minor: u32,
 		patch: u32,
 	) -> result::Result<Self, Error> {
-		if name.len() > MAX_NAME_LEN || module_name.len() > MAX_NAME_LEN {
-			return Err(Error::Overflow)
-		}
+		let name = BoundedVec::try_from(name).map_err(|_| Error::Overflow)?;
+		let module_name = BoundedVec::try_from(module_name).map_err(|_| Error::Overflow)?;
+
 		Ok(Self { index, name, module_name, major, minor, patch })
 	}
 }
 
-impl MaxEncodedLen for PalletInfo {
-	fn max_encoded_len() -> usize {
-		parity_scale_codec::Compact::<u32>::max_encoded_len() * 4 + (MAX_NAME_LEN + 1) * 2
-	}
-}
-
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
+#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo, MaxEncodedLen)]
 pub enum MaybeErrorCode {
 	Success,
-	// TODO: Change to a `BoundedVec` so that deriving `MaxEncodedLen` works.
-	Error(Vec<u8>),
-	TruncatedError(Vec<u8>),
-}
-
-/// Maximum size of the encoded error code coming from a `Dispatch` result, used for
-/// `MaybeErrorCode`. This is not (yet) enforced, so it's just an indication of expectation.
-const MAX_DISPATCH_ERROR_LEN: usize = 128;
-
-impl MaxEncodedLen for MaybeErrorCode {
-	fn max_encoded_len() -> usize {
-		MAX_DISPATCH_ERROR_LEN + 3
-	}
+	Error(BoundedVec<u8, MaxDispatchErrorLen>),
+	TruncatedError(BoundedVec<u8, MaxDispatchErrorLen>),
 }
 
 impl From<Vec<u8>> for MaybeErrorCode {
-	fn from(mut v: Vec<u8>) -> Self {
-		if v.len() <= MAX_DISPATCH_ERROR_LEN {
-			MaybeErrorCode::Error(v)
-		} else {
-			v.truncate(MAX_DISPATCH_ERROR_LEN);
-			MaybeErrorCode::TruncatedError(v)
+	fn from(v: Vec<u8>) -> Self {
+		match BoundedVec::try_from(v) {
+			Ok(error) => MaybeErrorCode::Error(error),
+			Err(error) => MaybeErrorCode::TruncatedError(BoundedVec::truncate_from(error)),
 		}
 	}
 }
@@ -272,26 +258,6 @@ impl From<Vec<u8>> for MaybeErrorCode {
 impl Default for MaybeErrorCode {
 	fn default() -> MaybeErrorCode {
 		MaybeErrorCode::Success
-	}
-}
-
-/// Maximum number of pallets which we expect to be returned in `PalletsInfo`.
-const MAX_PALLETS_INFO_LEN: usize = 64;
-
-#[derive(Clone, Eq, PartialEq, Encode, Decode, Debug, TypeInfo)]
-pub struct VecPalletInfo(Vec<PalletInfo>);
-impl TryFrom<Vec<PalletInfo>> for VecPalletInfo {
-	type Error = Error;
-	fn try_from(v: Vec<PalletInfo>) -> result::Result<Self, Error> {
-		if v.len() > MAX_PALLETS_INFO_LEN {
-			return Err(Error::Overflow)
-		}
-		Ok(VecPalletInfo(v))
-	}
-}
-impl MaxEncodedLen for VecPalletInfo {
-	fn max_encoded_len() -> usize {
-		PalletInfo::max_encoded_len() * MAX_PALLETS_INFO_LEN
 	}
 }
 
@@ -307,8 +273,7 @@ pub enum Response {
 	/// An XCM version.
 	Version(super::Version),
 	/// The index, instance name, pallet name and version of some pallets.
-	// TODO: Change to a `BoundedVec` so that deriving `MaxEncodedLen` works.
-	PalletsInfo(VecPalletInfo),
+	PalletsInfo(BoundedVec<PalletInfo, MaxPalletsInfo>),
 	/// The status of a dispatch attempt using `Transact`.
 	DispatchResult(MaybeErrorCode),
 }

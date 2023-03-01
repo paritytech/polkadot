@@ -3,10 +3,10 @@
 
 {% for pr in changes | sort(attribute="merged_at") -%}
 
-{%- if pr.meta.B and pr.meta.B.value == 0 -%}
+{%- if pr.meta.B and pr.meta.B.B0 -%}
 {#- We skip silent ones -#}
 {%- else -%}
-    {%- if pr.meta.E and pr.meta.E.value == 4 -%}
+    {%- if pr.meta.E and pr.meta.E.E4 -%}
         {%- set_global host_fn_count = host_fn_count + 1 -%}
             - {{ m_c::change(c=pr) }}
         {% endif -%}

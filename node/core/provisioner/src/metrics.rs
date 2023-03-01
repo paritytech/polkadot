@@ -202,7 +202,7 @@ impl metrics::Metrics for Metrics {
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
 						"polkadot_parachain_provisioner_partitioned_disputes",
-						"some fancy description",
+						"Number of disputes partitioned by type.",
 					),
 					&["partition"],
 				)?,

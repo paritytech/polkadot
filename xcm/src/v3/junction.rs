@@ -24,6 +24,7 @@ use crate::{
 	},
 	VersionedMultiLocation,
 };
+use bounded_collections::{BoundedSlice, BoundedVec, ConstU32};
 use core::convert::{TryFrom, TryInto};
 use parity_scale_codec::{self, Decode, Encode, MaxEncodedLen};
 use scale_info::TypeInfo;
@@ -237,12 +238,15 @@ pub enum Junction {
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
 	GeneralIndex(#[codec(compact)] u128),
-	/// A nondescript 128-byte datum acting as a key within the context location.
+	/// A nondescript array datum, 32 bytes, acting as a key within the context
+	/// location.
 	///
 	/// Usage will vary widely owing to its generality.
 	///
 	/// NOTE: Try to avoid using this and instead use a more specific item.
-	GeneralKey([u8; 32]),
+	// Note this is implemented as an array with a length rather than using `BoundedVec` owing to
+	// the bound for `Copy`.
+	GeneralKey { length: u8, data: [u8; 32] },
 	/// The unambiguous child.
 	///
 	/// Not currently used except as a fallback when deriving context.
@@ -266,6 +270,31 @@ impl From<NetworkId> for Junction {
 impl From<[u8; 32]> for Junction {
 	fn from(id: [u8; 32]) -> Self {
 		Self::AccountId32 { network: None, id }
+	}
+}
+
+impl From<BoundedVec<u8, ConstU32<32>>> for Junction {
+	fn from(key: BoundedVec<u8, ConstU32<32>>) -> Self {
+		key.as_bounded_slice().into()
+	}
+}
+
+impl<'a> From<BoundedSlice<'a, u8, ConstU32<32>>> for Junction {
+	fn from(key: BoundedSlice<'a, u8, ConstU32<32>>) -> Self {
+		let mut data = [0u8; 32];
+		data[..key.len()].copy_from_slice(&key[..]);
+		Self::GeneralKey { length: key.len() as u8, data }
+	}
+}
+
+impl<'a> TryFrom<&'a Junction> for BoundedSlice<'a, u8, ConstU32<32>> {
+	type Error = ();
+	fn try_from(key: &'a Junction) -> Result<Self, ()> {
+		match key {
+			Junction::GeneralKey { length, data } =>
+				BoundedSlice::try_from(&data[..data.len().min(*length as usize)]).map_err(|_| ()),
+			_ => Err(()),
+		}
 	}
 }
 
@@ -299,7 +328,17 @@ impl TryFrom<OldJunction> for Junction {
 			AccountKey20 { network, key } => Self::AccountKey20 { network: network.into(), key },
 			PalletInstance(index) => Self::PalletInstance(index),
 			GeneralIndex(id) => Self::GeneralIndex(id),
-			GeneralKey(_key) => return Err(()),
+			GeneralKey(key) => match key.len() {
+				len @ 0..=32 => Self::GeneralKey {
+					length: len as u8,
+					data: {
+						let mut data = [0u8; 32];
+						data[..len].copy_from_slice(&key[..]);
+						data
+					},
+				},
+				_ => return Err(()),
+			},
 			OnlyChild => Self::OnlyChild,
 			Plurality { id, part } =>
 				Self::Plurality { id: id.try_into()?, part: part.try_into()? },
@@ -338,5 +377,32 @@ impl Junction {
 			AccountKey20 { ref mut network, .. } => *network = None,
 			_ => {},
 		}
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use alloc::vec;
+
+	#[test]
+	fn junction_round_trip_works() {
+		let j = Junction::GeneralKey { length: 32, data: [1u8; 32] };
+		let k = Junction::try_from(OldJunction::try_from(j).unwrap()).unwrap();
+		assert_eq!(j, k);
+
+		let j = OldJunction::GeneralKey(vec![1u8; 32].try_into().unwrap());
+		let k = OldJunction::try_from(Junction::try_from(j.clone()).unwrap()).unwrap();
+		assert_eq!(j, k);
+
+		let j = Junction::from(BoundedVec::try_from(vec![1u8, 2, 3, 4]).unwrap());
+		let k = Junction::try_from(OldJunction::try_from(j).unwrap()).unwrap();
+		assert_eq!(j, k);
+		let s: BoundedSlice<_, _> = (&k).try_into().unwrap();
+		assert_eq!(s, &[1u8, 2, 3, 4][..]);
+
+		let j = OldJunction::GeneralKey(vec![1u8, 2, 3, 4].try_into().unwrap());
+		let k = OldJunction::try_from(Junction::try_from(j.clone()).unwrap()).unwrap();
+		assert_eq!(j, k);
 	}
 }
