@@ -386,7 +386,7 @@ mod handle_new_activations {
 							CoreState::Scheduled(scheduled_core_for(
 								(hash.as_fixed_bytes()[0] * 4) as u32,
 							)),
-							CoreState::Scheduled(cheduled_core_for(
+							CoreState::Scheduled(scheduled_core_for(
 								(hash.as_fixed_bytes()[0] * 5) as u32,
 							)),
 						]))
