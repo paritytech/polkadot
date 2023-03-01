@@ -161,12 +161,15 @@ pub struct Config {
 /// Details pertaining to our assignment on a block.
 #[derive(Encode, Decode, Debug, Clone, PartialEq)]
 pub struct OurAssignment {
+	/// Our assignment certificate.
 	pub cert: AssignmentCertV2,
+	/// The tranche for which the assignment refers to.
 	pub tranche: DelayTranche,
+	/// Our validator index for the session in which the candidate was included.
 	pub validator_index: ValidatorIndex,
-	// Whether the assignment has been triggered already.
+	/// Whether the assignment has been triggered already.
 	pub triggered: bool,
-	// Claimed core indices.
+	/// The core indices obtained from the VRF output.
 	pub claimed_core_indices: Vec<CoreIndex>,
 }
 

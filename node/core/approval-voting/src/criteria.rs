@@ -44,8 +44,8 @@ pub struct OurAssignment {
 	validator_index: ValidatorIndex,
 	// Whether the assignment has been triggered already.
 	triggered: bool,
-	// Claimed core indices.
-	pub claimed_core_indices: Vec<CoreIndex>,
+	// The core indices obtained from the VRF output.
+	claimed_core_indices: Vec<CoreIndex>,
 }
 
 impl OurAssignment {
@@ -67,6 +67,10 @@ impl OurAssignment {
 
 	pub(crate) fn mark_triggered(&mut self) {
 		self.triggered = true;
+	}
+
+	pub(crate) fn claimed_core_indices(&self) -> &Vec<CoreIndex> {
+		&self.claimed_core_indices
 	}
 }
 
@@ -110,7 +114,7 @@ fn relay_vrf_modulo_transcript_inner(
 	transcript
 }
 
-fn relay_vrf_modulo_transcript(relay_vrf_story: RelayVRFStory, sample: u32) -> Transcript {
+fn relay_vrf_modulo_transcript_v1(relay_vrf_story: RelayVRFStory, sample: u32) -> Transcript {
 	relay_vrf_modulo_transcript_inner(
 		Transcript::new(approval_types::v1::RELAY_VRF_MODULO_CONTEXT),
 		relay_vrf_story,
@@ -418,7 +422,7 @@ fn compute_relay_vrf_modulo_assignments(
 			// into closure.
 			let core = &mut core;
 			assignments_key.vrf_sign_extra_after_check(
-				relay_vrf_modulo_transcript(relay_vrf_story.clone(), rvm_sample),
+				relay_vrf_modulo_transcript_v1(relay_vrf_story.clone(), rvm_sample),
 				|vrf_in_out| {
 					*core = relay_vrf_modulo_core(&vrf_in_out, config.n_cores);
 					if let Some((candidate_hash, _)) =
@@ -718,7 +722,7 @@ pub(crate) fn check_assignment_cert(
 
 			let (vrf_in_out, _) = public
 				.vrf_verify_extra(
-					relay_vrf_modulo_transcript(relay_vrf_story, *sample),
+					relay_vrf_modulo_transcript_v1(relay_vrf_story, *sample),
 					&vrf_output.0,
 					&vrf_proof.0,
 					assigned_core_transcript(claimed_core_index),

@@ -1122,7 +1122,7 @@ fn distribution_messages_for_activation(
 									cert: assignment.cert().clone(),
 								},
 								cores_to_candidate_indices(
-									&assignment.claimed_core_indices,
+									assignment.claimed_core_indices(),
 									&block_entry,
 								),
 							));
@@ -1135,7 +1135,7 @@ fn distribution_messages_for_activation(
 									cert: assignment.cert().clone(),
 								},
 								cores_to_candidate_indices(
-									&assignment.claimed_core_indices,
+									assignment.claimed_core_indices(),
 									&block_entry,
 								),
 							));

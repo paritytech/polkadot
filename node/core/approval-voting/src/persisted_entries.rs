@@ -120,7 +120,7 @@ impl ApprovalEntry {
 		our.map(|a| {
 			self.import_assignment(a.tranche(), a.validator_index(), tick_now);
 
-			(a.claimed_core_indices.clone(), a.cert().clone(), a.validator_index(), a.tranche())
+			(a.claimed_core_indices().clone(), a.cert().clone(), a.validator_index(), a.tranche())
 		})
 	}
 
