@@ -150,13 +150,10 @@ fn backed_candidate_leads_to_advertisement() {
 		}
 
 		// Confirm the candidate locally so that we don't send out requests.
-
-		// Candidate.
 		{
-			let validator_index = state.local.as_ref().unwrap().validator_index;
 			let statement = state
 				.sign_full_statement(
-					validator_index,
+					local_validator.validator_index,
 					Statement::Seconded(candidate.clone()),
 					&SigningContext { parent_hash: relay_parent, session_index: 1 },
 					pvd.clone(),
@@ -178,24 +175,6 @@ fn backed_candidate_leads_to_advertisement() {
 		}
 
 		// Send enough statements to make candidate backable, make sure announcements are sent.
-
-		// Share local statement.
-		{
-			let full_signed = state
-				.sign_statement(
-					local_validator.validator_index,
-					CompactStatement::Seconded(candidate_hash),
-					&SigningContext { session_index: 1, parent_hash: relay_parent },
-				)
-				.convert_to_superpayload(StatementWithPVD::Seconded(candidate.clone(), pvd.clone()))
-				.unwrap();
-
-			overseer
-				.send(FromOrchestra::Communication {
-					msg: StatementDistributionMessage::Share(relay_parent, full_signed),
-				})
-				.await;
-		}
 
 		// Send statement from peer A.
 		{
@@ -420,7 +399,7 @@ fn received_advertisement_before_confirmation_leads_to_request() {
 				),
 				local_index: Some(state.local.as_ref().unwrap().validator_index),
 			};
-			send_new_topology(&mut overseer, dbg!(topology)).await;
+			send_new_topology(&mut overseer, topology).await;
 		}
 
 		// Receive an advertisement from C on an unconfirmed candidate.
@@ -646,7 +625,7 @@ fn advertisements_rejected_from_incorrect_peers() {
 				),
 				local_index: Some(state.local.as_ref().unwrap().validator_index),
 			};
-			send_new_topology(&mut overseer, dbg!(topology)).await;
+			send_new_topology(&mut overseer, topology).await;
 		}
 
 		let manifest = BackedCandidateManifest {
@@ -803,7 +782,7 @@ fn manifest_rejected_with_unknown_relay_parent() {
 				),
 				local_index: Some(state.local.as_ref().unwrap().validator_index),
 			};
-			send_new_topology(&mut overseer, dbg!(topology)).await;
+			send_new_topology(&mut overseer, topology).await;
 		}
 
 		let manifest = BackedCandidateManifest {
@@ -940,7 +919,7 @@ fn manifest_rejected_when_not_a_validator() {
 				),
 				local_index: None,
 			};
-			send_new_topology(&mut overseer, dbg!(topology)).await;
+			send_new_topology(&mut overseer, topology).await;
 		}
 
 		let manifest = BackedCandidateManifest {
@@ -1082,7 +1061,7 @@ fn manifest_rejected_when_group_does_not_match_para() {
 				),
 				local_index: Some(state.local.as_ref().unwrap().validator_index),
 			};
-			send_new_topology(&mut overseer, dbg!(topology)).await;
+			send_new_topology(&mut overseer, topology).await;
 		}
 
 		let manifest = BackedCandidateManifest {
