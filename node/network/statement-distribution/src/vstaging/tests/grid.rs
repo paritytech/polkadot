@@ -21,6 +21,7 @@ use polkadot_node_network_protocol::{
 	grid_topology::TopologyPeerInfo,
 	vstaging::{BackedCandidateAcknowledgement, BackedCandidateManifest},
 };
+use polkadot_node_subsystem::messages::CandidateBackingMessage;
 use polkadot_primitives_test_helpers::make_candidate;
 
 // Backed candidate leads to advertisement to relevant validators with relay-parent.
@@ -622,7 +623,7 @@ fn received_advertisement_after_backing_leads_to_acknowledgement() {
 			para_id: other_para,
 			parent_head_data_hash: pvd.parent_head.hash(),
 			statement_knowledge: StatementFilter {
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
 				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
 			},
 		};
@@ -746,28 +747,6 @@ fn received_advertisement_after_backing_leads_to_acknowledgement() {
 				}
 			);
 
-			// TODO: Sends a statement back to C?
-			assert_matches!(
-				overseer.recv().await,
-				AllMessages:: NetworkBridgeTx(
-					NetworkBridgeTxMessage::SendValidationMessages(messages)
-				) => {
-					assert_eq!(messages.len(), 1);
-					assert_eq!(messages[0].0, vec![peer_c]);
-
-					assert_matches!(
-						&messages[0].1,
-						Versioned::VStaging(protocol_vstaging::ValidationProtocol::StatementDistribution(
-							protocol_vstaging::StatementDistributionMessage::Statement(
-								r,
-								s,
-							)
-						)) if r == &relay_parent
-							&& s.unchecked_payload() == &CompactStatement::Seconded(candidate_hash)
-					);
-				}
-			);
-
 			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 		}
 
@@ -796,22 +775,14 @@ fn received_advertisement_after_backing_leads_to_acknowledgement() {
 				AllMessages:: NetworkBridgeTx(
 					NetworkBridgeTxMessage::SendValidationMessages(messages)
 				) => {
-					assert_eq!(messages.len(), 2);
+					assert_eq!(messages.len(), 1);
 					assert_eq!(messages[0].0, vec![peer_d]);
-					assert_eq!(messages[1].0, vec![peer_d]);
 
 					assert_matches!(
 						&messages[0].1,
 						Versioned::VStaging(protocol_vstaging::ValidationProtocol::StatementDistribution(
 							protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(ack)
 						)) if *ack == expected_ack
-					);
-
-					assert_matches!(
-						&messages[1].1,
-						Versioned::VStaging(protocol_vstaging::ValidationProtocol::StatementDistribution(
-							protocol_vstaging::StatementDistributionMessage::Statement(r, s)
-						)) if *r == relay_parent && s.unchecked_payload() == &CompactStatement::Seconded(candidate_hash)
 					);
 				}
 			);
@@ -1053,13 +1024,365 @@ fn received_advertisement_after_confirmation_before_backing() {
 	});
 }
 
-// TODO [now]: additional statements are shared after manifest exchange
+#[test]
+fn additional_statements_are_shared_after_manifest_exchange() {
+	let validator_count = 6;
+	let group_size = 3;
+	let config = TestConfig {
+		validator_count,
+		group_size,
+		local_validator: true,
+		async_backing_params: None,
+	};
+
+	let relay_parent = Hash::repeat_byte(1);
+	let peer_c = PeerId::random();
+	let peer_d = PeerId::random();
+	let peer_e = PeerId::random();
+
+	test_harness(config, |state, mut overseer| async move {
+		let local_validator = state.local.clone().unwrap();
+
+		let other_group =
+			next_group_index(local_validator.group_index, validator_count, group_size);
+		let other_para = ParaId::from(other_group.0);
+
+		let (candidate, pvd) = make_candidate(
+			relay_parent,
+			1,
+			other_para,
+			vec![1, 2, 3].into(),
+			vec![4, 5, 6].into(),
+			Hash::repeat_byte(42).into(),
+		);
+		let candidate_hash = candidate.hash();
+
+		let test_leaf = TestLeaf {
+			number: 1,
+			hash: relay_parent,
+			parent_hash: Hash::repeat_byte(0),
+			session: 1,
+			availability_cores: state.make_availability_cores(|i| {
+				CoreState::Scheduled(ScheduledCore {
+					para_id: ParaId::from(i as u32),
+					collator: None,
+				})
+			}),
+			para_data: (0..state.session_info.validator_groups.len())
+				.map(|i| {
+					(
+						ParaId::from(i as u32),
+						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
+					)
+				})
+				.collect(),
+		};
+
+		let target_group_validators = state.group_validators(other_group, true);
+		let v_c = target_group_validators[0];
+		let v_d = target_group_validators[1];
+		let v_e = target_group_validators[2];
+
+		// Connect C, D, E
+		{
+			connect_peer(
+				&mut overseer,
+				peer_c.clone(),
+				Some(vec![state.discovery_id(v_c)].into_iter().collect()),
+			)
+			.await;
+
+			connect_peer(
+				&mut overseer,
+				peer_d.clone(),
+				Some(vec![state.discovery_id(v_d)].into_iter().collect()),
+			)
+			.await;
+
+			connect_peer(
+				&mut overseer,
+				peer_e.clone(),
+				Some(vec![state.discovery_id(v_e)].into_iter().collect()),
+			)
+			.await;
+
+			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
+			send_peer_view_change(&mut overseer, peer_d.clone(), view![relay_parent]).await;
+			send_peer_view_change(&mut overseer, peer_e.clone(), view![relay_parent]).await;
+		}
+
+		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+
+		answer_expected_hypothetical_depth_request(
+			&mut overseer,
+			vec![],
+			Some(relay_parent),
+			false,
+		)
+		.await;
+
+		// Send gossip topology.
+		{
+			let topology = NewGossipTopology {
+				session: 1,
+				topology: SessionGridTopology::new(
+					(0..validator_count).collect(),
+					(0..validator_count)
+						.map(|i| TopologyPeerInfo {
+							peer_ids: Vec::new(),
+							validator_index: ValidatorIndex(i as u32),
+							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
+						})
+						.collect(),
+				),
+				local_index: Some(state.local.as_ref().unwrap().validator_index),
+			};
+			send_new_topology(&mut overseer, topology).await;
+		}
+
+		let statement_c = state
+			.sign_statement(
+				v_c,
+				CompactStatement::Seconded(candidate_hash),
+				&SigningContext { parent_hash: relay_parent, session_index: 1 },
+			)
+			.as_unchecked()
+			.clone();
+		let statement_d = state
+			.sign_statement(
+				v_d,
+				CompactStatement::Seconded(candidate_hash),
+				&SigningContext { parent_hash: relay_parent, session_index: 1 },
+			)
+			.as_unchecked()
+			.clone();
+
+		// Receive an advertisement from C.
+		{
+			let manifest = BackedCandidateManifest {
+				relay_parent,
+				candidate_hash,
+				group_index: other_group,
+				para_id: other_para,
+				parent_head_data_hash: pvd.parent_head.hash(),
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				},
+			};
+
+			send_peer_message(
+				&mut overseer,
+				peer_c.clone(),
+				protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(
+					manifest.clone(),
+				),
+			)
+			.await;
+		}
+
+		// Should send a request to C.
+		{
+			let statements = vec![
+				statement_d.clone(),
+				state
+					.sign_statement(
+						v_e,
+						CompactStatement::Seconded(candidate_hash),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+			];
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
+					assert_eq!(requests.len(), 1);
+					assert_matches!(
+						requests.pop().unwrap(),
+						Requests::AttestedCandidateVStaging(mut outgoing) => {
+							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
+							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
+
+							let res = AttestedCandidateResponse {
+								candidate_receipt: candidate.clone(),
+								persisted_validation_data: pvd.clone(),
+								statements,
+							};
+							outgoing.pending_response.send(Ok(res.encode()));
+						}
+					);
+				}
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_RESPONSE
+			);
+		}
+
+		let hypothetical = HypotheticalCandidate::Complete {
+			candidate_hash,
+			receipt: Arc::new(candidate.clone()),
+			persisted_validation_data: pvd.clone(),
+		};
+		let membership = vec![(relay_parent, vec![0])];
+		answer_expected_hypothetical_depth_request(
+			&mut overseer,
+			vec![(hypothetical, membership)],
+			None,
+			false,
+		)
+		.await;
+
+		// Receive messages from Backing subsystem.
+		{
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::CandidateBacking(
+					CandidateBackingMessage::Statement(hash, statement)
+				) => {
+					assert_eq!(hash, relay_parent);
+					assert_matches!(
+						statement.payload(),
+						FullStatementWithPVD::Seconded(c, p)
+							if c == &candidate && p == &pvd
+					);
+				}
+			);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::CandidateBacking(
+					CandidateBackingMessage::Statement(hash, statement)
+				) => {
+					assert_eq!(hash, relay_parent);
+					assert_matches!(
+						statement.payload(),
+						FullStatementWithPVD::Seconded(c, p)
+							if c == &candidate && p == &pvd
+					);
+				}
+			);
+		}
+
+		// Receive Backed message.
+		overseer
+			.send(FromOrchestra::Communication {
+				msg: StatementDistributionMessage::Backed(candidate_hash),
+			})
+			.await;
+
+		// Should send an acknowledgement back to C.
+		{
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages:: NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendValidationMessage(
+						peers,
+						Versioned::VStaging(
+							protocol_vstaging::ValidationProtocol::StatementDistribution(
+								protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(ack),
+							),
+						),
+					)
+				) => {
+					assert_eq!(peers, vec![peer_c]);
+					assert_eq!(ack, BackedCandidateAcknowledgement {
+						candidate_hash,
+						statement_knowledge: StatementFilter {
+							seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+							validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+						},
+					});
+				}
+			);
+
+			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
+		}
+
+		// TODO: Receive a manifest about the same candidate from peer D. Contains different statements.
+		{
+			let manifest = BackedCandidateManifest {
+				relay_parent,
+				candidate_hash,
+				group_index: other_group,
+				para_id: other_para,
+				parent_head_data_hash: pvd.parent_head.hash(),
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				},
+			};
+
+			send_peer_message(
+				&mut overseer,
+				peer_d.clone(),
+				protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(
+					manifest.clone(),
+				),
+			)
+			.await;
+
+			let expected_ack = BackedCandidateAcknowledgement {
+				candidate_hash,
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				},
+			};
+
+			// Instantaneously acknowledge.
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages:: NetworkBridgeTx(
+					NetworkBridgeTxMessage::SendValidationMessages(messages)
+				) => {
+					assert_eq!(messages.len(), 2);
+					assert_eq!(messages[0].0, vec![peer_d]);
+					assert_eq!(messages[1].0, vec![peer_d]);
+
+					assert_matches!(
+						&messages[0].1,
+						Versioned::VStaging(protocol_vstaging::ValidationProtocol::StatementDistribution(
+							protocol_vstaging::StatementDistributionMessage::BackedCandidateKnown(ack)
+						)) if *ack == expected_ack
+					);
+
+					assert_matches!(
+						&messages[1].1,
+						Versioned::VStaging(protocol_vstaging::ValidationProtocol::StatementDistribution(
+							protocol_vstaging::StatementDistributionMessage::Statement(r, s)
+						)) if *r == relay_parent && s.unchecked_payload() == &CompactStatement::Seconded(candidate_hash)
+					);
+				}
+			);
+		}
+
+		// TODO: Why is statement E not sent to peer D?
+
+		dbg!(overseer.recv().await);
+
+		overseer
+	});
+
+	todo!()
+}
 
 // TODO [now]: grid-sending validator view entering relay-parent leads to advertisement
 
 // TODO [now]: advertisement not re-sent after re-entering relay parent (view oscillation)
-
-// TODO [now]: acknowledgements sent only when candidate backed
 
 // TODO [now]: grid statements imported to backing once candidate enters hypothetical frontier
 

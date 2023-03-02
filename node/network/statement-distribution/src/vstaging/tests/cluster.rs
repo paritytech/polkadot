@@ -1260,7 +1260,7 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 				assert_matches!(
 					s.payload(),
 					FullStatementWithPVD::Seconded(c, p)
-						 if c == &candidate && p == &pvd => {}
+						 if c == &candidate && p == &pvd
 				);
 				assert_eq!(s.validator_index(), v_a);
 			}
