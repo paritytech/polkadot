@@ -69,11 +69,6 @@ pub mod pallet {
 }
 
 impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
-	fn on_new_session(n_lookahead: u32) {
-		<crate::scheduler_parachains::Pallet<T>>::on_new_session(n_lookahead);
-		//<crate::scheduler_parathreads::Pallet<T>>::on_new_session(n_lookahead);
-	}
-
 	fn session_core_count() -> u32 {
 		<crate::scheduler_parachains::Pallet<T>>::session_core_count()
 		//+ <configuration::Pallet<T>>::config().parathread_cores

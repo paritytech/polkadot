@@ -50,8 +50,6 @@ pub mod pallet {
 }
 
 impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
-	fn on_new_session(_n_lookahead: u32) {}
-
 	fn session_core_count() -> u32 {
 		<paras::Pallet<T>>::parachains().len() as u32
 	}

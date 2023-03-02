@@ -132,7 +132,6 @@ impl<T: Config> Pallet<T> {
 				_ => 0,
 			},
 		);
-		T::AssignmentProvider::on_new_session(config.scheduling_lookahead);
 
 		Self::reschedule_occupied_cores(AvailabilityCores::<T>::get());
 

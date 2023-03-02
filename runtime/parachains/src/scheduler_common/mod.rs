@@ -112,8 +112,6 @@ impl Assignment {
 }
 
 pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
-	fn on_new_session(n_lookahead: u32);
-
 	fn session_core_count() -> u32;
 
 	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment>;
