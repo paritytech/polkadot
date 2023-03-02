@@ -301,7 +301,7 @@ pub fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Er
 			path.parent().ok_or(Error::DatabasePathRequired)?.into(),
 			parachains_db::CacheSizes::default(),
 		)?,
-		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
+		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } => {
 			if paritydb_path.is_dir() && paritydb_path.exists() {
 				parachains_db::open_creating_paritydb(
 					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
@@ -312,7 +312,8 @@ pub fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Er
 					rocksdb_path.clone(),
 					parachains_db::CacheSizes::default(),
 				)?
-			},
+			}
+		},
 		DatabaseSource::Custom { .. } => {
 			unimplemented!("No polkadot subsystem db for custom source.");
 		},
@@ -351,7 +352,7 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
 	>;
 #[cfg(feature = "full-node")]
 type FullBeefyBlockImport<RuntimeApi, ExecutorDispatch, InnerBlockImport> =
-	beefy_gadget::import::BeefyBlockImport<
+	beefy::import::BeefyBlockImport<
 		Block,
 		FullBackend,
 		FullClient<RuntimeApi, ExecutorDispatch>,
@@ -471,7 +472,7 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
-				beefy_gadget::BeefyVoterLinks<Block>,
+				beefy::BeefyVoterLinks<Block>,
 			),
 			grandpa::SharedVoterState,
 			sp_consensus_babe::SlotDuration,
@@ -514,7 +515,7 @@ where
 	let justification_import = grandpa_block_import.clone();
 
 	let (beefy_block_import, beefy_voter_links, beefy_rpc_links) =
-		beefy_gadget::beefy_block_import_and_links(
+		beefy::beefy_block_import_and_links(
 			grandpa_block_import,
 			backend.clone(),
 			client.clone(),
@@ -697,9 +698,9 @@ where
 
 			// Only consider leaves that are in maximum an uncle of the best block.
 			if number < best_block.number().saturating_sub(1) {
-				return None
+				return None;
 			} else if hash == best_block.hash() {
-				return None
+				return None;
 			};
 
 			let parent_hash = client.header(hash).ok()??.parent_hash;
@@ -767,9 +768,9 @@ where
 	let backoff_authoring_blocks = {
 		let mut backoff = sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default();
 
-		if config.chain_spec.is_rococo() ||
-			config.chain_spec.is_wococo() ||
-			config.chain_spec.is_versi()
+		if config.chain_spec.is_rococo()
+			|| config.chain_spec.is_wococo()
+			|| config.chain_spec.is_versi()
 		{
 			// it's a testnet that's in flux, finality has stalled sometimes due
 			// to operational issues and it's annoying to slow down block
@@ -781,10 +782,10 @@ where
 	};
 
 	// If not on a known test network, warn the user that BEEFY is still experimental.
-	if enable_beefy &&
-		!config.chain_spec.is_rococo() &&
-		!config.chain_spec.is_wococo() &&
-		!config.chain_spec.is_versi()
+	if enable_beefy
+		&& !config.chain_spec.is_rococo()
+		&& !config.chain_spec.is_wococo()
+		&& !config.chain_spec.is_versi()
 	{
 		gum::warn!("BEEFY is still experimental, usage on a production network is discouraged.");
 	}
@@ -854,11 +855,11 @@ where
 		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
 
 	let beefy_gossip_proto_name =
-		beefy_gadget::gossip_protocol_name(&genesis_hash, config.chain_spec.fork_id());
+		beefy::gossip_protocol_name(&genesis_hash, config.chain_spec.fork_id());
 	// `beefy_on_demand_justifications_handler` is given to `beefy-gadget` task to be run,
 	// while `beefy_req_resp_cfg` is added to `config.network.request_response_protocols`.
 	let (beefy_on_demand_justifications_handler, beefy_req_resp_cfg) =
-		beefy_gadget::communication::request_response::BeefyJustifsRequestHandler::new(
+		beefy::communication::request_response::BeefyJustifsRequestHandler::new(
 			&genesis_hash,
 			config.chain_spec.fork_id(),
 			client.clone(),
@@ -868,9 +869,7 @@ where
 		config
 			.network
 			.extra_sets
-			.push(beefy_gadget::communication::beefy_peers_set_config(
-				beefy_gossip_proto_name.clone(),
-			));
+			.push(beefy::communication::beefy_peers_set_config(beefy_gossip_proto_name.clone()));
 		config.network.request_response_protocols.push(beefy_req_resp_cfg);
 	}
 
@@ -1202,7 +1201,7 @@ where
 
 	if enable_beefy {
 		let justifications_protocol_name = beefy_on_demand_justifications_handler.protocol_name();
-		let network_params = beefy_gadget::BeefyNetworkParams {
+		let network_params = beefy::BeefyNetworkParams {
 			network: network.clone(),
 			sync: sync_service.clone(),
 			gossip_protocol_name: beefy_gossip_proto_name,
@@ -1210,7 +1209,7 @@ where
 			_phantom: core::marker::PhantomData::<Block>,
 		};
 		let payload_provider = beefy_primitives::mmr::MmrRootProvider::new(client.clone());
-		let beefy_params = beefy_gadget::BeefyParams {
+		let beefy_params = beefy::BeefyParams {
 			client: client.clone(),
 			backend: backend.clone(),
 			payload_provider,
@@ -1223,7 +1222,7 @@ where
 			on_demand_justifications_handler: beefy_on_demand_justifications_handler,
 		};
 
-		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
+		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
 
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
 		// bring the node down with it to make sure it is noticed.
@@ -1373,26 +1372,26 @@ pub fn new_chain_ops(
 	config.keystore = service::config::KeystoreConfig::InMemory;
 
 	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_rococo() ||
-		config.chain_spec.is_wococo() ||
-		config.chain_spec.is_versi()
+	if config.chain_spec.is_rococo()
+		|| config.chain_spec.is_wococo()
+		|| config.chain_spec.is_versi()
 	{
-		return chain_ops!(config, jaeger_agent, None; rococo_runtime, RococoExecutorDispatch, Rococo)
+		return chain_ops!(config, jaeger_agent, None; rococo_runtime, RococoExecutorDispatch, Rococo);
 	}
 
 	#[cfg(feature = "kusama-native")]
 	if config.chain_spec.is_kusama() {
-		return chain_ops!(config, jaeger_agent, None; kusama_runtime, KusamaExecutorDispatch, Kusama)
+		return chain_ops!(config, jaeger_agent, None; kusama_runtime, KusamaExecutorDispatch, Kusama);
 	}
 
 	#[cfg(feature = "westend-native")]
 	if config.chain_spec.is_westend() {
-		return chain_ops!(config, jaeger_agent, None; westend_runtime, WestendExecutorDispatch, Westend)
+		return chain_ops!(config, jaeger_agent, None; westend_runtime, WestendExecutorDispatch, Westend);
 	}
 
 	#[cfg(feature = "polkadot-native")]
 	{
-		return chain_ops!(config, jaeger_agent, None; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
+		return chain_ops!(config, jaeger_agent, None; polkadot_runtime, PolkadotExecutorDispatch, Polkadot);
 	}
 
 	#[cfg(not(feature = "polkadot-native"))]
@@ -1427,9 +1426,9 @@ pub fn build_full(
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_rococo() ||
-		config.chain_spec.is_wococo() ||
-		config.chain_spec.is_versi()
+	if config.chain_spec.is_rococo()
+		|| config.chain_spec.is_wococo()
+		|| config.chain_spec.is_versi()
 	{
 		return new_full::<rococo_runtime::RuntimeApi, RococoExecutorDispatch, _>(
 			config,
@@ -1445,7 +1444,7 @@ pub fn build_full(
 			malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.with_client(Client::Rococo))
+		.map(|full| full.with_client(Client::Rococo));
 	}
 
 	#[cfg(feature = "kusama-native")]
@@ -1464,7 +1463,7 @@ pub fn build_full(
 			malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.with_client(Client::Kusama))
+		.map(|full| full.with_client(Client::Kusama));
 	}
 
 	#[cfg(feature = "westend-native")]
@@ -1483,7 +1482,7 @@ pub fn build_full(
 			malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.with_client(Client::Westend))
+		.map(|full| full.with_client(Client::Westend));
 	}
 
 	#[cfg(feature = "polkadot-native")]
@@ -1505,7 +1504,7 @@ pub fn build_full(
 			malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.with_client(Client::Polkadot))
+		.map(|full| full.with_client(Client::Polkadot));
 	}
 
 	#[cfg(not(feature = "polkadot-native"))]
@@ -1544,7 +1543,7 @@ pub fn revert_backend(
 	let revertible = blocks.min(best_number - finalized);
 
 	if revertible == 0 {
-		return Ok(())
+		return Ok(());
 	}
 
 	let number = best_number - revertible;
