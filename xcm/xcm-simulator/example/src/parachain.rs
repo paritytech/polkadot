@@ -49,7 +49,7 @@ use xcm_executor::{
 };
 
 pub type SovereignAccountOf = (
-	SiblingParachainConvertsVia<ParaId, AccountId>,
+	SiblingParachainConvertsVia<Sibling, AccountId>,
 	AccountId32Aliases<RelayNetwork, AccountId>,
 	ParentIsPreset<AccountId>,
 );
