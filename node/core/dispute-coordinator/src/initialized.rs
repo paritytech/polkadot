@@ -347,26 +347,26 @@ impl Initialized {
 			return Ok(())
 		}
 
-		// Obtain the session info, for sake of `ValidatorId`s
-		// either from the rolling session window.
-		// Must be called _after_ `fn cache_session_info_for_head`
-		// which guarantees that the session info is available
-		// for the current session.
-		let session_info: SessionInfo =
-			if let Some(session_info) = self.rolling_session_window.session_info(session) {
-				session_info.clone()
-			} else {
-				gum::warn!(
-					target: LOG_TARGET,
-					?session,
-					"Could not retrieve session info from rolling session window",
-				);
-				return Ok(())
-			};
-
 		// Scraped on-chain backing votes for the candidates with
 		// the new active leaf as if we received them via gossip.
 		for (candidate_receipt, backers) in backing_validators_per_candidate {
+			// Obtain the session info, for sake of `ValidatorId`s
+			// either from the rolling session window.
+			// Must be called _after_ `fn cache_session_info_for_head`
+			// which guarantees that the session info is available
+			// for the current session.
+			let session_info: &SessionInfo =
+				if let Some(session_info) = self.rolling_session_window.session_info(session) {
+					session_info
+				} else {
+					gum::warn!(
+						target: LOG_TARGET,
+						?session,
+						"Could not retrieve session info from rolling session window",
+					);
+					return Ok(())
+				};
+
 			let relay_parent = candidate_receipt.descriptor.relay_parent;
 			let candidate_hash = candidate_receipt.hash();
 			gum::trace!(
@@ -454,10 +454,6 @@ impl Initialized {
 
 		// Import disputes from on-chain, this already went through a vote so it's assumed
 		// as verified. This will only be stored, gossiping it is not necessary.
-
-		// First try to obtain all the backings which ultimately contain the candidate
-		// receipt which we need.
-
 		for DisputeStatementSet { candidate_hash, session, statements } in disputes {
 			gum::trace!(
 				target: LOG_TARGET,
@@ -465,22 +461,22 @@ impl Initialized {
 				?session,
 				"Importing dispute votes from chain for candidate"
 			);
+			let session_info =
+				if let Some(session_info) = self.rolling_session_window.session_info(session) {
+					session_info
+				} else {
+					gum::warn!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?session,
+						"Could not retrieve session info from rolling session window for recently concluded dispute"
+					);
+					continue
+				};
+
 			let statements = statements
 				.into_iter()
 				.filter_map(|(dispute_statement, validator_index, validator_signature)| {
-					let session_info: SessionInfo = if let Some(session_info) =
-						self.rolling_session_window.session_info(session)
-					{
-						session_info.clone()
-					} else {
-						gum::warn!(
-								target: LOG_TARGET,
-								?candidate_hash,
-								?session,
-								"Could not retrieve session info from rolling session window for recently concluded dispute");
-						return None
-					};
-
 					let validator_public: ValidatorId = session_info
 						.validators
 						.get(validator_index)
@@ -490,25 +486,11 @@ impl Initialized {
 								?candidate_hash,
 								?session,
 								"Missing public key for validator {:?} that participated in concluded dispute",
-								&validator_index);
+								&validator_index
+							);
 							None
 						})
 						.cloned()?;
-
-					debug_assert!(
-						SignedDisputeStatement::new_checked(
-							dispute_statement.clone(),
-							candidate_hash,
-							session,
-							validator_public.clone(),
-							validator_signature.clone(),
-						).is_ok(),
-						"Scraped dispute votes had invalid signature! candidate: {:?}, session: {:?}, dispute_statement: {:?}, validator_public: {:?}",
-						candidate_hash,
-						session,
-						dispute_statement,
-						validator_public,
-					);
 
 					Some((
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
@@ -522,6 +504,10 @@ impl Initialized {
 					))
 				})
 				.collect::<Vec<_>>();
+			if statements.is_empty() {
+				gum::debug!(target: LOG_TARGET, "Skipping empty from chain dispute import");
+				continue
+			}
 			let import_result = self
 				.handle_import_statements(
 					ctx,
