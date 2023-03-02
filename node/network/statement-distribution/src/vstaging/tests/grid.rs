@@ -1876,10 +1876,10 @@ fn peer_reported_for_advertisement_conflicting_with_confirmed_candidate() {
 			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 		}
 
-		// Receive conflicting advertisement from peer D after confirmation.
+		// Receive conflicting advertisement from peer C after confirmation.
 		//
-		// TODO: This cause a conflict because we track received manifests on a per-validator basis,
-		// and this is the first time we're getting a manifest from D.
+		// NOTE: This causes a conflict because we track received manifests on a per-validator basis,
+		// and this is the second time we're getting a manifest from C.
 		{
 			let mut manifest = manifest.clone();
 			manifest.statement_knowledge = StatementFilter {
@@ -1888,13 +1888,17 @@ fn peer_reported_for_advertisement_conflicting_with_confirmed_candidate() {
 			};
 			send_peer_message(
 				&mut overseer,
-				peer_d.clone(),
+				peer_c.clone(),
 				protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(manifest),
 			)
 			.await;
-		}
 
-		dbg!(overseer.recv().await);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == COST_CONFLICTING_MANIFEST
+			);
+		}
 
 		overseer
 	});

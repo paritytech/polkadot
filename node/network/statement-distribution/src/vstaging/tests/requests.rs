@@ -216,7 +216,382 @@ fn cluster_peer_allowed_to_send_incomplete_statements() {
 	});
 }
 
-// TODO [now]: peer reported for providing statements meant to be masked out
+#[test]
+fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
+	let validator_count = 6;
+	let group_size = 3;
+	let config = TestConfig {
+		validator_count,
+		group_size,
+		local_validator: true,
+		async_backing_params: Some(AsyncBackingParameters {
+			// Makes `seconding_limit: 2` (easier to hit the limit).
+			max_candidate_depth: 1,
+			allowed_ancestry_len: 3,
+		}),
+	};
+
+	let relay_parent = Hash::repeat_byte(1);
+	let peer_c = PeerId::random();
+	let peer_d = PeerId::random();
+	let peer_e = PeerId::random();
+
+	test_harness(config, |mut state, mut overseer| async move {
+		let local_validator = state.local.clone().unwrap();
+
+		let other_group =
+			next_group_index(local_validator.group_index, validator_count, group_size);
+		let other_para = ParaId::from(other_group.0);
+
+		let (candidate_1, pvd_1) = make_candidate(
+			relay_parent,
+			1,
+			other_para,
+			vec![1, 2, 3].into(),
+			vec![4, 5, 6].into(),
+			Hash::repeat_byte(42).into(),
+		);
+		let (candidate_2, pvd_2) = make_candidate(
+			relay_parent,
+			1,
+			other_para,
+			vec![1, 2, 3].into(),
+			vec![7, 8, 9].into(),
+			Hash::repeat_byte(43).into(),
+		);
+		let (candidate_3, pvd_3) = make_candidate(
+			relay_parent,
+			1,
+			other_para,
+			vec![1, 2, 3].into(),
+			vec![10, 11, 12].into(),
+			Hash::repeat_byte(44).into(),
+		);
+		let candidate_hash_1 = candidate_1.hash();
+		let candidate_hash_2 = candidate_2.hash();
+		let candidate_hash_3 = candidate_3.hash();
+
+		let test_leaf = TestLeaf {
+			number: 1,
+			hash: relay_parent,
+			parent_hash: Hash::repeat_byte(0),
+			session: 1,
+			availability_cores: state.make_availability_cores(|i| {
+				CoreState::Scheduled(ScheduledCore {
+					para_id: ParaId::from(i as u32),
+					collator: None,
+				})
+			}),
+			para_data: (0..state.session_info.validator_groups.len())
+				.map(|i| {
+					(
+						ParaId::from(i as u32),
+						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
+					)
+				})
+				.collect(),
+		};
+
+		let target_group_validators = state.group_validators(other_group, true);
+		let v_c = target_group_validators[0];
+		let v_d = target_group_validators[1];
+		let v_e = target_group_validators[2];
+
+		// Connect C, D, E
+		{
+			connect_peer(
+				&mut overseer,
+				peer_c.clone(),
+				Some(vec![state.discovery_id(v_c)].into_iter().collect()),
+			)
+			.await;
+
+			connect_peer(
+				&mut overseer,
+				peer_d.clone(),
+				Some(vec![state.discovery_id(v_d)].into_iter().collect()),
+			)
+			.await;
+
+			connect_peer(
+				&mut overseer,
+				peer_e.clone(),
+				Some(vec![state.discovery_id(v_e)].into_iter().collect()),
+			)
+			.await;
+
+			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
+			send_peer_view_change(&mut overseer, peer_d.clone(), view![relay_parent]).await;
+			send_peer_view_change(&mut overseer, peer_e.clone(), view![relay_parent]).await;
+		}
+
+		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+
+		answer_expected_hypothetical_depth_request(
+			&mut overseer,
+			vec![],
+			Some(relay_parent),
+			false,
+		)
+		.await;
+
+		// Send gossip topology.
+		{
+			let topology = NewGossipTopology {
+				session: 1,
+				topology: SessionGridTopology::new(
+					(0..validator_count).collect(),
+					(0..validator_count)
+						.map(|i| TopologyPeerInfo {
+							peer_ids: Vec::new(),
+							validator_index: ValidatorIndex(i as u32),
+							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
+						})
+						.collect(),
+				),
+				local_index: Some(state.local.as_ref().unwrap().validator_index),
+			};
+			send_new_topology(&mut overseer, topology).await;
+		}
+
+		// Peer C advertises candidate 1.
+		{
+			let manifest = BackedCandidateManifest {
+				relay_parent,
+				candidate_hash: candidate_hash_1,
+				group_index: other_group,
+				para_id: other_para,
+				parent_head_data_hash: pvd_1.parent_head.hash(),
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				},
+			};
+
+			send_peer_message(
+				&mut overseer,
+				peer_c.clone(),
+				protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(
+					manifest.clone(),
+				),
+			)
+			.await;
+
+			let statements = vec![
+				state
+					.sign_statement(
+						v_c,
+						CompactStatement::Seconded(candidate_hash_1),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+				state
+					.sign_statement(
+						v_d,
+						CompactStatement::Seconded(candidate_hash_1),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+			];
+			// `1` indicates statements NOT to request.
+			let mask = StatementFilter::blank(group_size);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
+					assert_eq!(requests.len(), 1);
+					assert_matches!(
+						requests.pop().unwrap(),
+						Requests::AttestedCandidateVStaging(mut outgoing) => {
+							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
+							assert_eq!(outgoing.payload.candidate_hash, candidate_hash_1);
+
+							let res = AttestedCandidateResponse {
+								candidate_receipt: candidate_1.clone(),
+								persisted_validation_data: pvd_1.clone(),
+								statements,
+							};
+							outgoing.pending_response.send(Ok(res.encode()));
+						}
+					);
+				}
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_RESPONSE
+			);
+
+			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
+		}
+
+		// Peer C advertises candidate 2.
+		{
+			let manifest = BackedCandidateManifest {
+				relay_parent,
+				candidate_hash: candidate_hash_2,
+				group_index: other_group,
+				para_id: other_para,
+				parent_head_data_hash: pvd_2.parent_head.hash(),
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				},
+			};
+
+			send_peer_message(
+				&mut overseer,
+				peer_c.clone(),
+				protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(
+					manifest.clone(),
+				),
+			)
+			.await;
+
+			let statements = vec![
+				state
+					.sign_statement(
+						v_d,
+						CompactStatement::Seconded(candidate_hash_2),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+				state
+					.sign_statement(
+						v_e,
+						CompactStatement::Seconded(candidate_hash_2),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+			];
+			// `1` indicates statements NOT to request.
+			let mask = StatementFilter::blank(group_size);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
+					assert_eq!(requests.len(), 1);
+					assert_matches!(
+						requests.pop().unwrap(),
+						Requests::AttestedCandidateVStaging(mut outgoing) => {
+							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
+							assert_eq!(outgoing.payload.candidate_hash, candidate_hash_2);
+
+							let res = AttestedCandidateResponse {
+								candidate_receipt: candidate_2.clone(),
+								persisted_validation_data: pvd_2.clone(),
+								statements,
+							};
+							outgoing.pending_response.send(Ok(res.encode()));
+						}
+					);
+				}
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_RESPONSE
+			);
+
+			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
+		}
+
+		// Peer C sends an announcement for candidate 3. Should hit seconding limit for validator 1.
+		//
+		// NOTE: The manifest is immediately rejected before a request is made due to
+		// "over-seconding" validator 1. On the other hand, if the manifest does not include
+		// validator 1 as a seconder, then including its Second statement in the response instead
+		// fails with "Un-requested Statement In Response".
+		{
+			let manifest = BackedCandidateManifest {
+				relay_parent,
+				candidate_hash: candidate_hash_3,
+				group_index: other_group,
+				para_id: other_para,
+				parent_head_data_hash: pvd_3.parent_head.hash(),
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+				},
+			};
+
+			send_peer_message(
+				&mut overseer,
+				peer_c.clone(),
+				protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(
+					manifest.clone(),
+				),
+			)
+			.await;
+
+			let statements = vec![
+				state
+					.sign_statement(
+						v_c,
+						CompactStatement::Seconded(candidate_hash_3),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+				state
+					.sign_statement(
+						v_d,
+						CompactStatement::Seconded(candidate_hash_3),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+				state
+					.sign_statement(
+						v_e,
+						CompactStatement::Seconded(candidate_hash_3),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+			];
+			// `1` indicates statements NOT to request.
+			let mask = StatementFilter {
+				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
+				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
+			};
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == COST_EXCESSIVE_SECONDED
+			);
+		}
+
+		overseer
+	});
+}
 
 // Peer reported for not providing enough statements, request retried.
 #[test]
