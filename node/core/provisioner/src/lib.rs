@@ -550,8 +550,7 @@ async fn select_candidates(
 
 	for (core_idx, core) in availability_cores.iter().enumerate() {
 		let (scheduled_core, assumption) = match core {
-			CoreState::Scheduled(scheduled_core) =>
-				(scheduled_core, OccupiedCoreAssumption::Free),
+			CoreState::Scheduled(scheduled_core) => (scheduled_core, OccupiedCoreAssumption::Free),
 			CoreState::Occupied(occupied_core) => {
 				if bitfields_indicate_availability(core_idx, bitfields, &occupied_core.availability)
 				{

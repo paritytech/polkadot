@@ -57,8 +57,8 @@ use runtime_parachains::{
 	runtime_api_impl::{
 		v2 as parachains_runtime_api_impl, vstaging as parachains_runtime_api_impl_staging,
 	},
-	scheduler as parachains_scheduler,
-	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
+	scheduler as parachains_scheduler, session_info as parachains_session_info,
+	shared as parachains_shared, ump as parachains_ump,
 };
 use scale_info::TypeInfo;
 use sp_core::{OpaqueMetadata, RuntimeDebug};

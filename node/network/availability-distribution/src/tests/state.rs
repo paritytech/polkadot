@@ -105,14 +105,8 @@ impl Default for TestState {
 			cores.insert(
 				relay_chain[0],
 				vec![
-					CoreState::Scheduled(ScheduledCore {
-						para_id: chain_ids[0],
-						collator: None,
-					}),
-					CoreState::Scheduled(ScheduledCore {
-						para_id: chain_ids[1],
-						collator: None,
-					}),
+					CoreState::Scheduled(ScheduledCore { para_id: chain_ids[0], collator: None }),
+					CoreState::Scheduled(ScheduledCore { para_id: chain_ids[1], collator: None }),
 				],
 			);
 
