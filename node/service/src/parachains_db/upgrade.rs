@@ -15,6 +15,8 @@
 
 #![cfg(feature = "full-node")]
 
+use kvdb::DBTransaction;
+
 use super::{columns, other_io_error, DatabaseKind, LOG_TARGET};
 use std::{
 	fs, io,
@@ -28,7 +30,8 @@ type Version = u32;
 const VERSION_FILE_NAME: &'static str = "parachain_db_version";
 
 /// Current db version.
-const CURRENT_VERSION: Version = 2;
+/// Version 3 changes approval db format for `OurAssignment`.
+const CURRENT_VERSION: Version = 3;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -58,6 +61,8 @@ pub(crate) fn try_upgrade_db(db_path: &Path, db_kind: DatabaseKind) -> Result<()
 			Some(0) => migrate_from_version_0_to_1(db_path, db_kind)?,
 			// 1 -> 2 migration
 			Some(1) => migrate_from_version_1_to_2(db_path, db_kind)?,
+			// 2 -> 3 migration
+			Some(2) => migrate_from_version_2_to_3(db_path, db_kind)?,
 			// Already at current version, do nothing.
 			Some(CURRENT_VERSION) => (),
 			// This is an arbitrary future version, we don't handle it.
@@ -120,6 +125,19 @@ fn migrate_from_version_1_to_2(path: &Path, db_kind: DatabaseKind) -> Result<(),
 	match db_kind {
 		DatabaseKind::ParityDB => paritydb_migrate_from_version_1_to_2(path),
 		DatabaseKind::RocksDB => rocksdb_migrate_from_version_1_to_2(path),
+	}
+	.and_then(|result| {
+		gum::info!(target: LOG_TARGET, "Migration complete! ");
+		Ok(result)
+	})
+}
+
+fn migrate_from_version_2_to_3(path: &Path, db_kind: DatabaseKind) -> Result<(), Error> {
+	gum::info!(target: LOG_TARGET, "Migrating parachains db from version 2 to version 3 ...");
+
+	match db_kind {
+		DatabaseKind::ParityDB => paritydb_migrate_from_version_2_to_3(path),
+		DatabaseKind::RocksDB => rocksdb_migrate_from_version_2_to_3(path),
 	}
 	.and_then(|result| {
 		gum::info!(target: LOG_TARGET, "Migration complete! ");
@@ -278,6 +296,42 @@ fn paritydb_migrate_from_version_1_to_2(path: &Path) -> Result<(), Error> {
 	Ok(())
 }
 
+/// Migration from version 2 to version 3.
+/// Clears the approval voting db column which changed format and cannot be migrated.
+fn paritydb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
+	parity_db::clear_column(
+		path,
+		super::columns::v2::COL_APPROVAL_DATA.try_into().expect("Invalid column ID"),
+	)
+	.map_err(|e| other_io_error(format!("Error clearing column {:?}", e)))?;
+
+	Ok(())
+}
+
+/// Migration from version 2 to version 3.
+/// Clears the approval voting db column because `OurAssignment` changed format. Not all
+/// instances of it can be converted to new version so we need to wipe it clean.
+fn rocksdb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
+	use kvdb::DBOp;
+	use kvdb_rocksdb::{Database, DatabaseConfig};
+
+	let db_path = path
+		.to_str()
+		.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
+	let db_cfg = DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
+	let db = Database::open(&db_cfg, db_path)?;
+	let entries = db.iter(super::columns::v2::COL_APPROVAL_DATA);
+
+	// TODO: find a more efficient way to wipe the column
+	let ops = entries
+		.filter_map(|result| result.ok())
+		.map(|(key, _)| DBOp::Delete { col: super::columns::v2::COL_APPROVAL_DATA, key })
+		.collect::<Vec<_>>();
+
+	let transaction = DBTransaction { ops };
+	db.write(transaction)?;
+	Ok(())
+}
 #[cfg(test)]
 mod tests {
 	use super::{columns::v2::*, *};
