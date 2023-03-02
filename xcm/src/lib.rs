@@ -81,8 +81,11 @@ pub trait CreateMatcher {
 /// Ok::<(), ()>(())
 /// ```
 pub trait MatchXcm {
+	/// The concrete instruction type. Necessary to specify as it changes between XCM versions.
 	type Inst;
+	/// The `MultiLocation` type. Necessary to specify as it changes between XCM versions.
 	type Loc;
+	/// The error type to throw when errors happen during matching.
 	type Error;
 
 	/// Returns success if the number of instructions that still have not been iterated over
