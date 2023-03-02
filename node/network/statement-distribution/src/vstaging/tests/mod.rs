@@ -534,3 +534,14 @@ async fn overseer_recv_with_timeout(
 	gum::trace!("waiting for message...");
 	overseer.recv().timeout(timeout).await
 }
+
+fn next_group_index(
+	local_group: GroupIndex,
+	validator_count: usize,
+	group_size: usize,
+) -> GroupIndex {
+	let next_group = local_group.0 + 1;
+	let num_groups =
+		validator_count / group_size + if validator_count % group_size > 0 { 1 } else { 0 };
+	GroupIndex::from(next_group % num_groups as u32)
+}

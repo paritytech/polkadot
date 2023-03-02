@@ -1878,8 +1878,8 @@ fn peer_reported_for_advertisement_conflicting_with_confirmed_candidate() {
 
 		// Receive conflicting advertisement from peer D after confirmation.
 		//
-		// TODO: This doesn't work because we track received manifests on a per-validator basis, and
-		// this is the first time we're getting a manifest from D.
+		// TODO: This cause a conflict because we track received manifests on a per-validator basis,
+		// and this is the first time we're getting a manifest from D.
 		{
 			let mut manifest = manifest.clone();
 			manifest.statement_knowledge = StatementFilter {
@@ -1898,15 +1898,4 @@ fn peer_reported_for_advertisement_conflicting_with_confirmed_candidate() {
 
 		overseer
 	});
-}
-
-fn next_group_index(
-	local_group: GroupIndex,
-	validator_count: usize,
-	group_size: usize,
-) -> GroupIndex {
-	let next_group = local_group.0 + 1;
-	let num_groups =
-		validator_count / group_size + if validator_count % group_size > 0 { 1 } else { 0 };
-	GroupIndex::from(next_group % num_groups as u32)
 }
