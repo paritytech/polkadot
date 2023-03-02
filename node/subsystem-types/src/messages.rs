@@ -637,7 +637,7 @@ pub enum RuntimeApiRequest {
 	),
 	/// Returns all on-chain disputes at given block number. Available in `v3`.
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
-	/// Get the validity constraints of the given para.
+	/// Get the backing state of the given para.
 	/// This is a staging API that will not be available on production runtimes.
 	StagingParaBackingState(ParaId, RuntimeApiSender<Option<vstaging_primitives::BackingState>>),
 	/// Get candidate's acceptance limitations for asynchronous backing for a relay parent.
@@ -655,10 +655,10 @@ impl RuntimeApiRequest {
 	/// `ExecutorParams`
 	pub const EXECUTOR_PARAMS_RUNTIME_REQUIREMENT: u32 = 4;
 
-	/// Minimum version for validity constraints, required for async backing.
+	/// Minimum version for backing state, required for async backing.
 	///
 	/// 99 for now, should be adjusted to VSTAGING/actual runtime version once released.
-	pub const VALIDITY_CONSTRAINTS: u32 = 99;
+	pub const STAGING_BACKING_STATE: u32 = 99;
 }
 
 /// A message to the Runtime API subsystem.

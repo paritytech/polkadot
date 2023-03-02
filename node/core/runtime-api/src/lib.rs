@@ -506,7 +506,7 @@ where
 			query!(
 				StagingParaBackingState,
 				staging_para_backing_state(para),
-				ver = Request::VALIDITY_CONSTRAINTS,
+				ver = Request::STAGING_BACKING_STATE,
 				sender
 			)
 		},
@@ -514,7 +514,7 @@ where
 			query!(
 				StagingAsyncBackingParameters,
 				staging_async_backing_parameters(),
-				ver = Request::VALIDITY_CONSTRAINTS,
+				ver = Request::STAGING_BACKING_STATE,
 				sender
 			)
 		},
