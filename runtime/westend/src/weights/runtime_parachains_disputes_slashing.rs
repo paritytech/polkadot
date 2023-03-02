@@ -85,12 +85,12 @@ impl<T: frame_system::Config> runtime_parachains::disputes::slashing::WeightInfo
 		//  Measured:  `4631 + n * (209 ±0)`
 		//  Estimated: `77841 + n * (2317 ±0)`
 		// Minimum execution time: 86_772 nanoseconds.
-		Weight::from_ref_time(124_398_343)
-			.saturating_add(Weight::from_proof_size(77841))
+		Weight::from_parts(124_398_343, 0)
+			.saturating_add(Weight::from_parts(0, 77841))
 			// Standard Error: 3_624
-			.saturating_add(Weight::from_ref_time(361_232).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(361_232, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(17))
 			.saturating_add(T::DbWeight::get().writes(9))
-			.saturating_add(Weight::from_proof_size(2317).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(0, 2317).saturating_mul(n.into()))
 	}
 }

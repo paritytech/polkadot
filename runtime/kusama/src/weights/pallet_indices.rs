@@ -52,8 +52,8 @@ impl<T: frame_system::Config> pallet_indices::WeightInfo for WeightInfo<T> {
 		//  Measured:  `142`
 		//  Estimated: `2544`
 		// Minimum execution time: 19_772 nanoseconds.
-		Weight::from_ref_time(20_141_000)
-			.saturating_add(Weight::from_proof_size(2544))
+		Weight::from_parts(20_141_000, 0)
+			.saturating_add(Weight::from_parts(0, 2544))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -66,8 +66,8 @@ impl<T: frame_system::Config> pallet_indices::WeightInfo for WeightInfo<T> {
 		//  Measured:  `405`
 		//  Estimated: `5147`
 		// Minimum execution time: 26_307 nanoseconds.
-		Weight::from_ref_time(26_715_000)
-			.saturating_add(Weight::from_proof_size(5147))
+		Weight::from_parts(26_715_000, 0)
+			.saturating_add(Weight::from_parts(0, 5147))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -78,8 +78,8 @@ impl<T: frame_system::Config> pallet_indices::WeightInfo for WeightInfo<T> {
 		//  Measured:  `270`
 		//  Estimated: `2544`
 		// Minimum execution time: 21_317 nanoseconds.
-		Weight::from_ref_time(21_752_000)
-			.saturating_add(Weight::from_proof_size(2544))
+		Weight::from_parts(21_752_000, 0)
+			.saturating_add(Weight::from_parts(0, 2544))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -92,8 +92,8 @@ impl<T: frame_system::Config> pallet_indices::WeightInfo for WeightInfo<T> {
 		//  Measured:  `405`
 		//  Estimated: `5147`
 		// Minimum execution time: 22_949 nanoseconds.
-		Weight::from_ref_time(23_602_000)
-			.saturating_add(Weight::from_proof_size(5147))
+		Weight::from_parts(23_602_000, 0)
+			.saturating_add(Weight::from_parts(0, 5147))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -104,8 +104,8 @@ impl<T: frame_system::Config> pallet_indices::WeightInfo for WeightInfo<T> {
 		//  Measured:  `270`
 		//  Estimated: `2544`
 		// Minimum execution time: 23_291 nanoseconds.
-		Weight::from_ref_time(23_680_000)
-			.saturating_add(Weight::from_proof_size(2544))
+		Weight::from_parts(23_680_000, 0)
+			.saturating_add(Weight::from_parts(0, 2544))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
