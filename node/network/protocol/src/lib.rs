@@ -737,7 +737,7 @@ pub mod vstaging {
 	/// Network messages used by the statement distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum StatementDistributionMessage {
-		/// A notification of a signed statement in compact form.
+		/// A notification of a signed statement in compact form, for a given relay parent.
 		#[codec(index = 0)]
 		Statement(Hash, UncheckedSignedStatement),
 
