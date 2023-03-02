@@ -460,39 +460,8 @@ where
 		),
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
-		Request::SessionInfo(index, sender) => {
-			let api_version = client
-				.api_version_parachain_host(relay_parent)
-				.await
-				.unwrap_or_default()
-				.unwrap_or_default();
-
-			let res = if api_version >= 2 {
-				let res = client.session_info(relay_parent, index).await.map_err(|e| {
-					RuntimeApiError::Execution {
-						runtime_api_name: "SessionInfo",
-						source: std::sync::Arc::new(e),
-					}
-				});
-				metrics.on_request(res.is_ok());
-				res
-			} else {
-				#[allow(deprecated)]
-				let res = client.session_info_before_version_2(relay_parent, index).await.map_err(|e| {
-					RuntimeApiError::Execution {
-						runtime_api_name: "SessionInfo",
-						source: std::sync::Arc::new(e),
-					}
-				});
-				metrics.on_request(res.is_ok());
-
-				res.map(|r| r.map(|old| old.into()))
-			};
-
-			let _ = sender.send(res.clone());
-
-			res.ok().map(|res| RequestResult::SessionInfo(relay_parent, index, res))
-		},
+		Request::SessionInfo(index, sender) =>
+			query!(SessionInfo, session_info(index), ver = 2, sender),
 		Request::SessionExecutorParams(session_index, sender) => query!(
 			SessionExecutorParams,
 			session_executor_params(session_index),

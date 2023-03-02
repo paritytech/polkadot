@@ -28,8 +28,8 @@ use xcm_executor::{
 
 /// Asset transaction errors.
 enum Error {
-	/// Asset not found.
-	AssetNotFound,
+	/// The given asset is not handled. (According to [`XcmError::AssetNotFound`])
+	AssetNotHandled,
 	/// `MultiLocation` to `AccountId` conversion failed.
 	AccountIdConversionFailed,
 }
@@ -38,7 +38,7 @@ impl From<Error> for XcmError {
 	fn from(e: Error) -> Self {
 		use XcmError::FailedToTransactAsset;
 		match e {
-			Error::AssetNotFound => XcmError::AssetNotFound,
+			Error::AssetNotHandled => XcmError::AssetNotFound,
 			Error::AccountIdConversionFailed => FailedToTransactAsset("AccountIdConversionFailed"),
 		}
 	}
@@ -143,7 +143,7 @@ impl<
 		log::trace!(target: "xcm::currency_adapter", "can_check_in origin: {:?}, what: {:?}", _origin, what);
 		// Check we handle this asset.
 		let amount: Currency::Balance =
-			Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?;
+			Matcher::matches_fungible(what).ok_or(Error::AssetNotHandled)?;
 		match CheckedAccount::get() {
 			Some((checked_account, MintLocation::Local)) =>
 				Self::can_reduce_checked(checked_account, amount),
@@ -168,7 +168,7 @@ impl<
 
 	fn can_check_out(_dest: &MultiLocation, what: &MultiAsset, _context: &XcmContext) -> Result {
 		log::trace!(target: "xcm::currency_adapter", "check_out dest: {:?}, what: {:?}", _dest, what);
-		let amount = Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?;
+		let amount = Matcher::matches_fungible(what).ok_or(Error::AssetNotHandled)?;
 		match CheckedAccount::get() {
 			Some((checked_account, MintLocation::Local)) =>
 				Self::can_accrue_checked(checked_account, amount),
@@ -194,7 +194,7 @@ impl<
 	fn deposit_asset(what: &MultiAsset, who: &MultiLocation, _context: &XcmContext) -> Result {
 		log::trace!(target: "xcm::currency_adapter", "deposit_asset what: {:?}, who: {:?}", what, who);
 		// Check we handle this asset.
-		let amount = Matcher::matches_fungible(&what).ok_or(Error::AssetNotFound)?;
+		let amount = Matcher::matches_fungible(&what).ok_or(Error::AssetNotHandled)?;
 		let who =
 			AccountIdConverter::convert_ref(who).map_err(|()| Error::AccountIdConversionFailed)?;
 		let _imbalance = Currency::deposit_creating(&who, amount);
@@ -208,7 +208,7 @@ impl<
 	) -> result::Result<Assets, XcmError> {
 		log::trace!(target: "xcm::currency_adapter", "withdraw_asset what: {:?}, who: {:?}", what, who);
 		// Check we handle this asset.
-		let amount = Matcher::matches_fungible(what).ok_or(Error::AssetNotFound)?;
+		let amount = Matcher::matches_fungible(what).ok_or(Error::AssetNotHandled)?;
 		let who =
 			AccountIdConverter::convert_ref(who).map_err(|()| Error::AccountIdConversionFailed)?;
 		Currency::withdraw(&who, amount, WithdrawReasons::TRANSFER, AllowDeath)
@@ -223,7 +223,7 @@ impl<
 		_context: &XcmContext,
 	) -> result::Result<Assets, XcmError> {
 		log::trace!(target: "xcm::currency_adapter", "internal_transfer_asset asset: {:?}, from: {:?}, to: {:?}", asset, from, to);
-		let amount = Matcher::matches_fungible(asset).ok_or(Error::AssetNotFound)?;
+		let amount = Matcher::matches_fungible(asset).ok_or(Error::AssetNotHandled)?;
 		let from =
 			AccountIdConverter::convert_ref(from).map_err(|()| Error::AccountIdConversionFailed)?;
 		let to =

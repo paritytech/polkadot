@@ -120,13 +120,13 @@ pub use sp_runtime::{
 };
 
 #[cfg(feature = "kusama-native")]
-pub use kusama_runtime;
+pub use {kusama_runtime, kusama_runtime_constants};
 #[cfg(feature = "polkadot-native")]
-pub use polkadot_runtime;
+pub use {polkadot_runtime, polkadot_runtime_constants};
 #[cfg(feature = "rococo-native")]
-pub use rococo_runtime;
+pub use {rococo_runtime, rococo_runtime_constants};
 #[cfg(feature = "westend-native")]
-pub use westend_runtime;
+pub use {westend_runtime, westend_runtime_constants};
 
 /// Provides the header and block number for a hash.
 ///
@@ -346,7 +346,7 @@ type FullGrandpaBlockImport<RuntimeApi, ExecutorDispatch, ChainSelection = FullS
 	>;
 #[cfg(feature = "full-node")]
 type FullBeefyBlockImport<RuntimeApi, ExecutorDispatch, InnerBlockImport> =
-	beefy_gadget::import::BeefyBlockImport<
+	beefy::import::BeefyBlockImport<
 		Block,
 		FullBackend,
 		FullClient<RuntimeApi, ExecutorDispatch>,
@@ -466,7 +466,7 @@ fn new_partial<RuntimeApi, ExecutorDispatch, ChainSelection>(
 				>,
 				grandpa::LinkHalf<Block, FullClient<RuntimeApi, ExecutorDispatch>, ChainSelection>,
 				babe::BabeLink<Block>,
-				beefy_gadget::BeefyVoterLinks<Block>,
+				beefy::BeefyVoterLinks<Block>,
 			),
 			grandpa::SharedVoterState,
 			sp_consensus_babe::SlotDuration,
@@ -509,10 +509,11 @@ where
 	let justification_import = grandpa_block_import.clone();
 
 	let (beefy_block_import, beefy_voter_links, beefy_rpc_links) =
-		beefy_gadget::beefy_block_import_and_links(
+		beefy::beefy_block_import_and_links(
 			grandpa_block_import,
 			backend.clone(),
 			client.clone(),
+			config.prometheus_registry().cloned(),
 		);
 
 	let babe_config = babe::configuration(&*client)?;
@@ -796,22 +797,21 @@ where
 		.push(grandpa::grandpa_peers_set_config(grandpa_protocol_name.clone()));
 
 	let beefy_gossip_proto_name =
-		beefy_gadget::gossip_protocol_name(&genesis_hash, config.chain_spec.fork_id());
+		beefy::gossip_protocol_name(&genesis_hash, config.chain_spec.fork_id());
 	// `beefy_on_demand_justifications_handler` is given to `beefy-gadget` task to be run,
 	// while `beefy_req_resp_cfg` is added to `config.network.request_response_protocols`.
 	let (beefy_on_demand_justifications_handler, beefy_req_resp_cfg) =
-		beefy_gadget::communication::request_response::BeefyJustifsRequestHandler::new(
+		beefy::communication::request_response::BeefyJustifsRequestHandler::new(
 			&genesis_hash,
 			config.chain_spec.fork_id(),
 			client.clone(),
+			prometheus_registry.clone(),
 		);
 	if enable_beefy {
 		config
 			.network
 			.extra_sets
-			.push(beefy_gadget::communication::beefy_peers_set_config(
-				beefy_gossip_proto_name.clone(),
-			));
+			.push(beefy::communication::beefy_peers_set_config(beefy_gossip_proto_name.clone()));
 		config.network.request_response_protocols.push(beefy_req_resp_cfg);
 	}
 
@@ -1136,14 +1136,14 @@ where
 
 	if enable_beefy {
 		let justifications_protocol_name = beefy_on_demand_justifications_handler.protocol_name();
-		let network_params = beefy_gadget::BeefyNetworkParams {
+		let network_params = beefy::BeefyNetworkParams {
 			network: network.clone(),
 			gossip_protocol_name: beefy_gossip_proto_name,
 			justifications_protocol_name,
 			_phantom: core::marker::PhantomData::<Block>,
 		};
 		let payload_provider = beefy_primitives::mmr::MmrRootProvider::new(client.clone());
-		let beefy_params = beefy_gadget::BeefyParams {
+		let beefy_params = beefy::BeefyParams {
 			client: client.clone(),
 			backend: backend.clone(),
 			payload_provider,
@@ -1156,7 +1156,7 @@ where
 			on_demand_justifications_handler: beefy_on_demand_justifications_handler,
 		};
 
-		let gadget = beefy_gadget::start_beefy_gadget::<_, _, _, _, _, _>(beefy_params);
+		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _>(beefy_params);
 
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
 		// bring the node down with it to make sure it is noticed.
