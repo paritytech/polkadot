@@ -35,7 +35,7 @@
 //! number of groups as availability cores. Validator groups will be assigned to different availability cores
 //! over time.
 
-use frame_support::{pallet_prelude::*, traits::Len};
+use frame_support::pallet_prelude::*;
 use primitives::{
 	CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId, ScheduledCore,
 	ValidatorIndex,
@@ -107,15 +107,6 @@ pub mod pallet {
 	#[pallet::getter(fn claimqueue)]
 	pub(crate) type ClaimQueue<T> =
 		StorageValue<_, BTreeMap<CoreIndex, Vec<CoreAssignment>>, ValueQuery>;
-}
-
-pub type NumAssignmentsInLookahead = u32;
-
-#[derive(Encode, Decode, TypeInfo)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub struct LookaheadInfo {
-	core_idx: CoreIndex,
-	n_in_lookahead: NumAssignmentsInLookahead,
 }
 
 impl<T: Config> Pallet<T> {
@@ -204,7 +195,9 @@ impl<T: Config> Pallet<T> {
 				.for_each(|(freed_index, freed_reason)| {
 					match &cores[freed_index.0 as usize] {
 						CoreOccupied::Free => {},
-						CoreOccupied::Parachain => {},
+						CoreOccupied::Parachain => {
+							let _ignore = Self::remove_from_claimqueue_parachain(freed_index);
+						},
 						CoreOccupied::Parathread(entry) => {
 							match freed_reason {
 								FreedReason::Concluded => {
@@ -435,9 +428,6 @@ impl<T: Config> Pallet<T> {
 
 			let n_lookahead_used = ClaimQueue::<T>::get().get(&core_idx).len() as u32;
 			for _ in n_lookahead_used..n_lookahead {
-				// todo: try to fill lookahead while lookahead is not full or pop_assignment() returns none
-				// doesn_t work! parachains assigner never returns none...
-				// todo: write tests for optimal allocation; check invariants
 				match Self::add_to_claimqueue(core_idx, group_idx) {
 					Err(_) => break, // todo: logging
 					Ok(_) => (),
@@ -461,6 +451,15 @@ impl<T: Config> Pallet<T> {
 				Ok(())
 			},
 		}
+	}
+
+	fn remove_from_claimqueue_parachain(
+		core_idx: CoreIndex,
+	) -> Result<CoreAssignment, &'static str> {
+		ClaimQueue::<T>::mutate(|la| match la.get_mut(&core_idx) {
+			None => Err("core_idx not found in lookahead"),
+			Some(la_vec) => Ok(la_vec.remove(0)),
+		})
 	}
 
 	fn remove_from_claimqueue(
