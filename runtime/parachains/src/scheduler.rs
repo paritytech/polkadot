@@ -233,8 +233,6 @@ impl<T: Config> Pallet<T> {
 
 		let mut availability_cores = AvailabilityCores::<T>::get();
 		for (core_idx, para_id) in now_occupied {
-			// We remove as we assume the happy case that availability will usually conclude.
-			// If it times out, we will need to reinsert into parathread queue... there should be a better way, I believe
 			match Self::remove_from_claimqueue(core_idx, para_id) {
 				Err(_) => todo!(),
 				Ok(assignment) =>
@@ -355,10 +353,6 @@ impl<T: Config> Pallet<T> {
 
 	/// Return the next thing that will be scheduled on this core assuming it is currently
 	/// occupied and the candidate occupying it became available.
-	///
-	/// For parachains, this is always the ID of the parachain and no specified collator.
-	/// For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that
-	/// core, and is None if there isn't one.
 	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
 		ClaimQueue::<T>::get()
 			.get(&core)
@@ -374,34 +368,29 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Return the next thing that will be scheduled on this core assuming it is currently
-	/// occupied and the candidate occupying it became available.
-	///
-	/// For parachains, this is always the ID of the parachain and no specified collator.
-	/// For parathreads, this is based on the next item in the `ParathreadQueue` assigned to that
-	/// core, or if there isn't one, the claim that is currently occupying the core, as long
-	/// as the claim's retries would not exceed the limit. Otherwise None.
+	/// occupied and the candidate occupying it times out.
 	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {
 		Self::next_up_on_available(core)
 	}
 
 	// on new session
 	fn reschedule_occupied_cores(cores: Vec<CoreOccupied>) {
-		for (core_idx, core) in cores.iter().enumerate() {
+		for (core_idx, core) in cores.into_iter().enumerate() {
 			match core {
 				CoreOccupied::Free => continue,
 				CoreOccupied::Parachain => continue,
 				CoreOccupied::Parathread(entry) => T::AssignmentProvider::push_assignment_for_core(
 					CoreIndex(core_idx as u32),
-					Assignment::ParathreadA(entry.claim.clone()),
+					Assignment::ParathreadA(entry.claim),
 				),
 			}
 		}
 	}
 
 	//
-	// Lookahead related functions
+	//  ClaimQueue related functions
 	//
-	fn backing_lookahead() -> u32 {
+	fn claimqueue_lookahead() -> u32 {
 		// quck hack to give a value of 1 for tests
 		match <configuration::Pallet<T>>::config().scheduling_lookahead {
 			0 => 1,
@@ -434,7 +423,7 @@ impl<T: Config> Pallet<T> {
 			return
 		}
 
-		let n_lookahead = Self::backing_lookahead();
+		let n_lookahead = Self::claimqueue_lookahead();
 		let n_session_cores = T::AssignmentProvider::session_core_count();
 
 		for core_idx in 0..n_session_cores {
