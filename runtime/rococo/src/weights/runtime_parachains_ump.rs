@@ -51,10 +51,10 @@ impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 6_149 nanoseconds.
-		Weight::from_ref_time(2_328_083)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(2_328_083, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			// Standard Error: 13
-			.saturating_add(Weight::from_ref_time(1_853).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(1_853, 0).saturating_mul(s.into()))
 	}
 	/// Storage: Ump NeedsDispatch (r:1 w:1)
 	/// Proof Skipped: Ump NeedsDispatch (max_values: Some(1), max_size: None, mode: Measured)
@@ -69,8 +69,8 @@ impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo
 		//  Measured:  `234`
 		//  Estimated: `1926`
 		// Minimum execution time: 8_704 nanoseconds.
-		Weight::from_ref_time(8_997_000)
-			.saturating_add(Weight::from_proof_size(1926))
+		Weight::from_parts(8_997_000, 0)
+			.saturating_add(Weight::from_parts(0, 1926))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -83,8 +83,8 @@ impl<T: frame_system::Config> runtime_parachains::ump::WeightInfo for WeightInfo
 		//  Measured:  `219`
 		//  Estimated: `3193`
 		// Minimum execution time: 22_612 nanoseconds.
-		Weight::from_ref_time(22_947_000)
-			.saturating_add(Weight::from_proof_size(3193))
+		Weight::from_parts(22_947_000, 0)
+			.saturating_add(Weight::from_parts(0, 3193))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
