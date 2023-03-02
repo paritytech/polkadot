@@ -25,21 +25,23 @@ use futures::{
 
 use sc_keystore::LocalKeystore;
 
+use parity_scale_codec::Encode;
 use polkadot_node_primitives::{
 	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
 };
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalVotingMessage, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage,
-		DisputeDistributionMessage, ImportStatementsResult,
+		DisputeDistributionMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SubsystemSender,
 };
-use polkadot_node_subsystem_util::rolling_session_window::{
-	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
+use polkadot_node_subsystem_util::{
+	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable},
+	runtime::key_ownership_proof,
 };
 use polkadot_primitives::{
-	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
+	vstaging, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
 	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
 };
@@ -49,6 +51,7 @@ use crate::{
 	import::{CandidateEnvironment, CandidateVoteState},
 	is_potential_spam,
 	metrics::Metrics,
+	scraping::ScrapedUpdates,
 	status::{get_active_with_status, Clock},
 	DisputeCoordinatorSubsystem, LOG_TARGET,
 };
@@ -314,9 +317,104 @@ impl Initialized {
 				Ok(SessionWindowUpdate::Unchanged) => {},
 			};
 
+			let ScrapedUpdates { unapplied_slashes, on_chain_votes, .. } = scraped_updates;
+
+			for (session_index, candidate_hash, pending) in unapplied_slashes {
+				gum::info!(
+					target: LOG_TARGET,
+					?session_index,
+					?candidate_hash,
+					n_slashes = pending.keys.len(),
+					"Processing unapplied validator slashes",
+				);
+
+				let inclusions = self.scraper.get_blocks_including_candidate(&candidate_hash);
+				debug_assert!(
+					!inclusions.is_empty(),
+					"Couldn't find inclusion parent for an unapplied slash",
+				);
+
+				// Find the first inclusion parent that we can use
+				// to generate key ownership proof on.
+				// We use inclusion parents because of the proper session index.
+				let mut key_ownership_proofs = Vec::new();
+				let mut dispute_proofs = Vec::new();
+
+				for (_height, inclusion_parent) in inclusions {
+					for (validator_index, validator_id) in pending.keys.iter() {
+						if let Ok(Some(key_ownership_proof)) = key_ownership_proof(
+							ctx.sender(),
+							inclusion_parent,
+							validator_id.clone(),
+						)
+						.await
+						{
+							key_ownership_proofs.push(key_ownership_proof);
+							let time_slot = vstaging::slashing::DisputesTimeSlot::new(
+								session_index,
+								candidate_hash.clone(),
+							);
+							let dispute_proof = vstaging::slashing::DisputeProof {
+								time_slot,
+								kind: pending.kind,
+								validator_index: *validator_index,
+								validator_id: validator_id.clone(),
+							};
+							dispute_proofs.push(dispute_proof);
+						}
+					}
+
+					if !key_ownership_proofs.is_empty() {
+						debug_assert_eq!(key_ownership_proofs.len(), pending.keys.len());
+						break
+					}
+				}
+
+				debug_assert_eq!(key_ownership_proofs.len(), dispute_proofs.len());
+
+				for (key_ownership_proof, dispute_proof) in
+					key_ownership_proofs.into_iter().zip(dispute_proofs.into_iter())
+				{
+					let validator_id = dispute_proof.validator_id.clone();
+					let opaque_key_ownership_proof =
+						vstaging::slashing::OpaqueKeyOwnershipProof::new(
+							key_ownership_proof.encode(),
+						);
+					// TODO encapsulate runtime api calls better
+					let (tx, rx) = oneshot::channel();
+					ctx.sender()
+						.send_message(RuntimeApiMessage::Request(
+							new_leaf.hash,
+							RuntimeApiRequest::SubmitReportDisputeLost(
+								dispute_proof,
+								opaque_key_ownership_proof,
+								tx,
+							),
+						))
+						.await;
+					if let Err(error) = rx.await? {
+						gum::warn!(
+							target: LOG_TARGET,
+							?error,
+							?session_index,
+							?candidate_hash,
+							"Error reporting pending slash",
+						);
+					} else {
+						gum::info!(
+							target: LOG_TARGET,
+							?session_index,
+							?candidate_hash,
+							?validator_id,
+							"Successfully reported pending slash",
+						);
+					}
+				}
+			}
+
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
 			// so there is no point in running these in parallel.
-			for votes in scraped_updates.on_chain_votes {
+			for votes in on_chain_votes {
 				let _ = self.process_on_chain_votes(ctx, overlay_db, votes, now).await.map_err(
 					|error| {
 						gum::warn!(

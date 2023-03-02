@@ -27,9 +27,12 @@ use polkadot_node_subsystem::{
 	messages::ChainApiMessage, overseer, ActivatedLeaf, ActiveLeavesUpdate, ChainApiError,
 	SubsystemSender,
 };
-use polkadot_node_subsystem_util::runtime::{get_candidate_events, get_on_chain_votes};
+use polkadot_node_subsystem_util::runtime::{
+	get_candidate_events, get_on_chain_votes, get_unapplied_slashes,
+};
 use polkadot_primitives::{
-	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, ScrapedOnChainVotes,
+	vstaging, BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash,
+	ScrapedOnChainVotes, SessionIndex,
 };
 
 use crate::{
@@ -64,11 +67,16 @@ const LRU_OBSERVED_BLOCKS_CAPACITY: NonZeroUsize = match NonZeroUsize::new(20) {
 pub struct ScrapedUpdates {
 	pub on_chain_votes: Vec<ScrapedOnChainVotes>,
 	pub included_receipts: Vec<CandidateReceipt>,
+	pub unapplied_slashes: Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>,
 }
 
 impl ScrapedUpdates {
 	pub fn new() -> Self {
-		Self { on_chain_votes: Vec::new(), included_receipts: Vec::new() }
+		Self {
+			on_chain_votes: Vec::new(),
+			included_receipts: Vec::new(),
+			unapplied_slashes: Vec::new(),
+		}
 	}
 }
 
@@ -120,7 +128,7 @@ impl Inclusions {
 			.retain(|_, blocks_including| blocks_including.keys().len() > 0);
 	}
 
-	pub fn get(&mut self, candidate: &CandidateHash) -> Vec<(BlockNumber, Hash)> {
+	pub fn get(&self, candidate: &CandidateHash) -> Vec<(BlockNumber, Hash)> {
 		let mut inclusions_as_vec: Vec<(BlockNumber, Hash)> = Vec::new();
 		if let Some(blocks_including) = self.inclusions_inner.get(candidate) {
 			for (height, blocks_at_height) in blocks_including.iter() {
@@ -251,6 +259,11 @@ impl ChainScraper {
 				scraped_updates.on_chain_votes.push(votes);
 			}
 		}
+
+		// for unapplied slashes, we only look at the latest activated hash,
+		// it should accumulate them all
+		let unapplied_slashes = get_unapplied_slashes(sender, activated.hash).await?;
+		scraped_updates.unapplied_slashes = unapplied_slashes;
 
 		self.last_observed_blocks.put(activated.hash, ());
 
@@ -396,7 +409,7 @@ impl ChainScraper {
 	}
 
 	pub fn get_blocks_including_candidate(
-		&mut self,
+		&self,
 		candidate: &CandidateHash,
 	) -> Vec<(BlockNumber, Hash)> {
 		self.inclusions.get(candidate)
