@@ -80,7 +80,7 @@ impl<'a, Call> MatchXcm for Matcher<'a, Call> {
 			return Err(())
 		}
 
-		while cond(&self.xcm[self.current_idx]) && self.current_idx < self.total_inst {
+		while self.current_idx < self.total_inst && cond(&self.xcm[self.current_idx]) {
 			if let ControlFlow::Break(()) = f(&mut self.xcm[self.current_idx])? {
 				break
 			}
@@ -88,5 +88,22 @@ impl<'a, Call> MatchXcm for Matcher<'a, Call> {
 		}
 
 		Ok(self)
+	}
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use crate::v3::prelude::*;
+	use alloc::{vec, vec::Vec};
+
+	#[test]
+	fn match_next_inst_while_works() {
+		let mut xcm: Vec<Instruction<()>> = vec![ClearOrigin];
+
+		let _ = xcm[..]
+			.matcher()
+			.match_next_inst_while(|_| true, |_| Ok(ControlFlow::Continue(())))
+			.unwrap();
 	}
 }
