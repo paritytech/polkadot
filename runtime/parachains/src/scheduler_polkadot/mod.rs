@@ -76,6 +76,7 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 
 	fn session_core_count() -> u32 {
 		<crate::scheduler_parachains::Pallet<T>>::session_core_count()
+		//+ <configuration::Pallet<T>>::config().parathread_cores
 		//crate::scheduler_parathreads::Pallet<T>>::session_core_count()
 	}
 

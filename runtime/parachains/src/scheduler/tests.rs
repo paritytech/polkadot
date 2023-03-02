@@ -83,7 +83,7 @@ fn run_to_block(
 		Scheduler::initializer_initialize(b + 1);
 
 		// In the real runtime this is expected to be called by the `InclusionInherent` pallet.
-		Scheduler::clear_and_fill_lookahead(BTreeMap::new(), b + 1);
+		Scheduler::clear_and_fill_claimqueue(BTreeMap::new(), b + 1);
 	}
 }
 
@@ -789,7 +789,7 @@ fn schedule_clears_availability_cores() {
 
 		run_to_block(2, |_| None);
 
-		assert_eq!(Scheduler::lookahead().len(), 3);
+		assert_eq!(Scheduler::claimqueue().len(), 3);
 
 		// cores 0, 1, and 2 should be occupied. mark them as such.
 		Scheduler::occupied(vec![
@@ -805,13 +805,13 @@ fn schedule_clears_availability_cores() {
 			assert_eq!(cores[1].is_free(), false);
 			assert_eq!(cores[2].is_free(), false);
 
-			assert!(Scheduler::lookahead_is_empty());
+			assert!(Scheduler::claimqueue_is_empty());
 		}
 
 		run_to_block(3, |_| None);
 
 		// now note that cores 0 and 2 were freed.
-		Scheduler::fill_lookahead(
+		Scheduler::fill_claimqueue(
 			vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)]
 				.into_iter()
 				.collect(),
@@ -819,14 +819,14 @@ fn schedule_clears_availability_cores() {
 		);
 
 		{
-			let lookahead = Scheduler::lookahead();
+			let claimqueue = Scheduler::claimqueue();
 
-			let lookahead_0 = lookahead.get(&CoreIndex(0)).unwrap().clone();
-			let lookahead_2 = lookahead.get(&CoreIndex(2)).unwrap().clone();
-			assert_eq!(lookahead_0.len(), 1);
-			assert_eq!(lookahead_2.len(), 1);
+			let claimqueue_0 = claimqueue.get(&CoreIndex(0)).unwrap().clone();
+			let claimqueue_2 = claimqueue.get(&CoreIndex(2)).unwrap().clone();
+			assert_eq!(claimqueue_0.len(), 1);
+			assert_eq!(claimqueue_2.len(), 1);
 			assert_eq!(
-				lookahead_0,
+				claimqueue_0,
 				vec![CoreAssignment {
 					core: CoreIndex(0),
 					para_id: chain_a,
@@ -835,7 +835,7 @@ fn schedule_clears_availability_cores() {
 				}]
 			);
 			assert_eq!(
-				lookahead_2,
+				claimqueue_2,
 				vec![CoreAssignment {
 					core: CoreIndex(2),
 					para_id: chain_c,
@@ -1275,7 +1275,7 @@ fn next_up_on_available_is_parachain_always() {
 		run_to_block(2, |_| None);
 
 		{
-			assert_eq!(Scheduler::lookahead().len(), 1);
+			assert_eq!(Scheduler::claimqueue().len(), 1);
 			assert_eq!(Scheduler::availability_cores().len(), 1);
 
 			Scheduler::occupied(vec![(CoreIndex(0), chain_a)]);
@@ -1329,7 +1329,7 @@ fn next_up_on_time_out_is_parachain_always() {
 		run_to_block(2, |_| None);
 
 		{
-			assert_eq!(Scheduler::lookahead().len(), 1);
+			assert_eq!(Scheduler::claimqueue().len(), 1);
 			assert_eq!(Scheduler::availability_cores().len(), 1);
 
 			Scheduler::occupied(vec![(CoreIndex(0), chain_a)]);
@@ -1385,7 +1385,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			_ => None,
 		});
 
-		assert_eq!(Scheduler::lookahead().len(), 2);
+		assert_eq!(Scheduler::claimqueue().len(), 2);
 
 		let groups = ValidatorGroups::<Test>::get();
 		assert_eq!(groups.len(), 5);
@@ -1409,10 +1409,10 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			_ => None,
 		});
 
-		Scheduler::clear_and_fill_lookahead(BTreeMap::new(), 3);
+		Scheduler::clear_and_fill_claimqueue(BTreeMap::new(), 3);
 
 		assert_eq!(
-			Scheduler::lookahead(),
+			Scheduler::claimqueue(),
 			vec![(
 				CoreIndex(0),
 				vec![CoreAssignment {
