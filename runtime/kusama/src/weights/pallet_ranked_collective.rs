@@ -58,8 +58,8 @@ impl<T: frame_system::Config> pallet_ranked_collective::WeightInfo for WeightInf
 		//  Measured:  `76`
 		//  Estimated: `5006`
 		// Minimum execution time: 16_268 nanoseconds.
-		Weight::from_ref_time(16_687_000)
-			.saturating_add(Weight::from_proof_size(5006))
+		Weight::from_parts(16_687_000, 0)
+			.saturating_add(Weight::from_parts(0, 5006))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -77,15 +77,15 @@ impl<T: frame_system::Config> pallet_ranked_collective::WeightInfo for WeightInf
 		//  Measured:  `550 + r * (281 ±0)`
 		//  Estimated: `10064 + r * (7547 ±0)`
 		// Minimum execution time: 26_704 nanoseconds.
-		Weight::from_ref_time(31_276_838)
-			.saturating_add(Weight::from_proof_size(10064))
+		Weight::from_parts(31_276_838, 0)
+			.saturating_add(Weight::from_parts(0, 10064))
 			// Standard Error: 27_858
-			.saturating_add(Weight::from_ref_time(11_495_748).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(11_495_748, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().reads((3_u64).saturating_mul(r.into())))
 			.saturating_add(T::DbWeight::get().writes(4))
 			.saturating_add(T::DbWeight::get().writes((3_u64).saturating_mul(r.into())))
-			.saturating_add(Weight::from_proof_size(7547).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(0, 7547).saturating_mul(r.into()))
 	}
 	/// Storage: FellowshipCollective Members (r:1 w:1)
 	/// Proof: FellowshipCollective Members (max_values: None, max_size: Some(42), added: 2517, mode: MaxEncodedLen)
@@ -101,10 +101,10 @@ impl<T: frame_system::Config> pallet_ranked_collective::WeightInfo for WeightInf
 		//  Measured:  `248 + r * (17 ±0)`
 		//  Estimated: `5006`
 		// Minimum execution time: 18_832 nanoseconds.
-		Weight::from_ref_time(19_732_179)
-			.saturating_add(Weight::from_proof_size(5006))
+		Weight::from_parts(19_732_179, 0)
+			.saturating_add(Weight::from_parts(0, 5006))
 			// Standard Error: 4_824
-			.saturating_add(Weight::from_ref_time(306_796).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(306_796, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -122,10 +122,10 @@ impl<T: frame_system::Config> pallet_ranked_collective::WeightInfo for WeightInf
 		//  Measured:  `566 + r * (72 ±0)`
 		//  Estimated: `10064`
 		// Minimum execution time: 26_654 nanoseconds.
-		Weight::from_ref_time(31_282_870)
-			.saturating_add(Weight::from_proof_size(10064))
+		Weight::from_parts(31_282_870, 0)
+			.saturating_add(Weight::from_parts(0, 10064))
 			// Standard Error: 27_881
-			.saturating_add(Weight::from_ref_time(756_040).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(756_040, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -142,8 +142,8 @@ impl<T: frame_system::Config> pallet_ranked_collective::WeightInfo for WeightInf
 		//  Measured:  `704`
 		//  Estimated: `91308`
 		// Minimum execution time: 49_853 nanoseconds.
-		Weight::from_ref_time(50_469_000)
-			.saturating_add(Weight::from_proof_size(91308))
+		Weight::from_parts(50_469_000, 0)
+			.saturating_add(Weight::from_parts(0, 91308))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -159,13 +159,13 @@ impl<T: frame_system::Config> pallet_ranked_collective::WeightInfo for WeightInf
 		//  Measured:  `500 + n * (50 ±0)`
 		//  Estimated: `5964 + n * (2540 ±0)`
 		// Minimum execution time: 14_618 nanoseconds.
-		Weight::from_ref_time(17_728_262)
-			.saturating_add(Weight::from_proof_size(5964))
+		Weight::from_parts(17_728_262, 0)
+			.saturating_add(Weight::from_parts(0, 5964))
 			// Standard Error: 1_481
-			.saturating_add(Weight::from_ref_time(917_792).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(917_792, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(n.into())))
-			.saturating_add(Weight::from_proof_size(2540).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(0, 2540).saturating_mul(n.into()))
 	}
 }
