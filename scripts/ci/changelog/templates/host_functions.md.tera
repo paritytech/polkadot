@@ -11,7 +11,8 @@
         {%- set_global host_fn_count = host_fn_count + 1 -%}
             - {{ m_c::change(c=pr) }}
         {% endif -%}
-    {%- elif pr.meta.E and pr.meta.E.E4 -%}
+    {% endif -%}
+    {%- if pr.meta.E and pr.meta.E.E4 -%}
         {%- set_global upgrade_first = upgrade_first + 1 -%}
             - {{ m_c::change(c=pr) }}
         {% endif -%}
