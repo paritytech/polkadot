@@ -232,7 +232,8 @@ impl UmpQueueTracker for () {
 #[derive(Encode, Decode, Clone, MaxEncodedLen, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum AggregateMessageOrigin {
 	/// Incoming upwards message from a parachain.
-	UMP(ParaId),
+	#[codec(index = 0)]
+	Ump(ParaId),
 }
 
 #[cfg(feature = "runtime-benchmarks")]
