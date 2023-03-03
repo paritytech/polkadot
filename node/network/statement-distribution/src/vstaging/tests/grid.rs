@@ -122,7 +122,7 @@ fn backed_candidate_leads_to_advertisement() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -375,7 +375,7 @@ fn received_advertisement_before_confirmation_leads_to_request() {
 			send_peer_view_change(&mut overseer, peer_d.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -448,7 +448,7 @@ fn received_advertisement_before_confirmation_leads_to_request() {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -457,7 +457,7 @@ fn received_advertisement_before_confirmation_leads_to_request() {
 								persisted_validation_data: pvd.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -587,7 +587,7 @@ fn received_advertisement_after_backing_leads_to_acknowledgement() {
 			send_peer_view_change(&mut overseer, peer_e.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -675,7 +675,7 @@ fn received_advertisement_after_backing_leads_to_acknowledgement() {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -684,7 +684,7 @@ fn received_advertisement_after_backing_leads_to_acknowledgement() {
 								persisted_validation_data: pvd.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -880,7 +880,7 @@ fn received_advertisement_after_confirmation_before_backing() {
 			send_peer_view_change(&mut overseer, peer_e.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -968,7 +968,7 @@ fn received_advertisement_after_confirmation_before_backing() {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -977,7 +977,7 @@ fn received_advertisement_after_confirmation_before_backing() {
 								persisted_validation_data: pvd.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -1111,7 +1111,7 @@ fn additional_statements_are_shared_after_manifest_exchange() {
 			send_peer_view_change(&mut overseer, peer_e.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -1140,23 +1140,6 @@ fn additional_statements_are_shared_after_manifest_exchange() {
 			send_new_topology(&mut overseer, topology).await;
 		}
 
-		let statement_c = state
-			.sign_statement(
-				v_c,
-				CompactStatement::Seconded(candidate_hash),
-				&SigningContext { parent_hash: relay_parent, session_index: 1 },
-			)
-			.as_unchecked()
-			.clone();
-		let statement_d = state
-			.sign_statement(
-				v_d,
-				CompactStatement::Seconded(candidate_hash),
-				&SigningContext { parent_hash: relay_parent, session_index: 1 },
-			)
-			.as_unchecked()
-			.clone();
-
 		// Receive an advertisement from C.
 		{
 			let manifest = BackedCandidateManifest {
@@ -1184,7 +1167,14 @@ fn additional_statements_are_shared_after_manifest_exchange() {
 		// Should send a request to C.
 		{
 			let statements = vec![
-				statement_d.clone(),
+				state
+					.sign_statement(
+						v_d,
+						CompactStatement::Seconded(candidate_hash),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
 				state
 					.sign_statement(
 						v_e,
@@ -1200,7 +1190,7 @@ fn additional_statements_are_shared_after_manifest_exchange() {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -1209,7 +1199,7 @@ fn additional_statements_are_shared_after_manifest_exchange() {
 								persisted_validation_data: pvd.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -1396,16 +1386,6 @@ fn advertisement_sent_when_peer_enters_relay_parent_view() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
-		let (candidate, pvd) = make_candidate(
-			relay_parent,
-			1,
-			local_para,
-			vec![1, 2, 3].into(),
-			vec![4, 5, 6].into(),
-			Hash::repeat_byte(42).into(),
-		);
-		let candidate_hash = candidate.hash();
-
 		let test_leaf = TestLeaf {
 			number: 1,
 			hash: relay_parent,
@@ -1418,14 +1398,19 @@ fn advertisement_sent_when_peer_enters_relay_parent_view() {
 				})
 			}),
 			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
+				.map(|i| (ParaId::from(i as u32), PerParaData::new(1, vec![1, 2, 3].into())))
 				.collect(),
 		};
+
+		let (candidate, pvd) = make_candidate(
+			relay_parent,
+			1,
+			local_para,
+			test_leaf.para_data(local_para).head_data.clone(),
+			vec![4, 5, 6].into(),
+			Hash::repeat_byte(42).into(),
+		);
+		let candidate_hash = candidate.hash();
 
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
 		let target_group_validators =
@@ -1471,7 +1456,7 @@ fn advertisement_sent_when_peer_enters_relay_parent_view() {
 			send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -1729,7 +1714,7 @@ fn advertisement_not_re_sent_when_peer_re_enters_view() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -1976,7 +1961,7 @@ fn grid_statements_imported_to_backing() {
 			send_peer_view_change(&mut overseer, peer_e.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -2005,23 +1990,6 @@ fn grid_statements_imported_to_backing() {
 			send_new_topology(&mut overseer, topology).await;
 		}
 
-		let statement_c = state
-			.sign_statement(
-				v_c,
-				CompactStatement::Seconded(candidate_hash),
-				&SigningContext { parent_hash: relay_parent, session_index: 1 },
-			)
-			.as_unchecked()
-			.clone();
-		let statement_d = state
-			.sign_statement(
-				v_d,
-				CompactStatement::Seconded(candidate_hash),
-				&SigningContext { parent_hash: relay_parent, session_index: 1 },
-			)
-			.as_unchecked()
-			.clone();
-
 		// Receive an advertisement from C.
 		{
 			let manifest = BackedCandidateManifest {
@@ -2049,7 +2017,14 @@ fn grid_statements_imported_to_backing() {
 		// Should send a request to C.
 		{
 			let statements = vec![
-				statement_d.clone(),
+				state
+					.sign_statement(
+						v_d,
+						CompactStatement::Seconded(candidate_hash),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
 				state
 					.sign_statement(
 						v_e,
@@ -2065,7 +2040,7 @@ fn grid_statements_imported_to_backing() {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -2074,7 +2049,7 @@ fn grid_statements_imported_to_backing() {
 								persisted_validation_data: pvd.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -2245,7 +2220,7 @@ fn advertisements_rejected_from_incorrect_peers() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -2402,7 +2377,7 @@ fn manifest_rejected_with_unknown_relay_parent() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -2539,7 +2514,7 @@ fn manifest_rejected_when_not_a_validator() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -2681,7 +2656,7 @@ fn manifest_rejected_when_group_does_not_match_para() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -2831,7 +2806,7 @@ fn peer_reported_for_advertisement_conflicting_with_confirmed_candidate() {
 			send_peer_view_change(&mut overseer, peer_e.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -2919,7 +2894,7 @@ fn peer_reported_for_advertisement_conflicting_with_confirmed_candidate() {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -2928,7 +2903,7 @@ fn peer_reported_for_advertisement_conflicting_with_confirmed_candidate() {
 								persisted_validation_data: pvd.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}

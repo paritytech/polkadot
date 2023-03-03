@@ -14,9 +14,6 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-// TODO [now]: Remove once some tests are written.
-#![allow(unused)]
-
 use super::*;
 use crate::*;
 use polkadot_node_network_protocol::{
@@ -31,15 +28,12 @@ use polkadot_node_subsystem::messages::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
-use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::vstaging::{
-	AssignmentId, AssignmentPair, AsyncBackingParameters, BlockNumber, CandidateCommitments,
-	CandidateDescriptor, CommittedCandidateReceipt, CoreState, GroupRotationInfo, HeadData, Header,
-	IndexedVec, PersistedValidationData, ScheduledCore, SessionIndex, SessionInfo,
-	ValidationCodeHash, ValidatorPair,
+	AssignmentPair, AsyncBackingParameters, BlockNumber, CoreState, GroupRotationInfo, HeadData,
+	Header, IndexedVec, PersistedValidationData, ScheduledCore, SessionIndex, SessionInfo,
+	ValidatorPair,
 };
 use sc_keystore::LocalKeystore;
-use sc_network::config::RequestResponseConfig;
 use sp_application_crypto::Pair as PairT;
 use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 use sp_keyring::Sr25519Keyring;
@@ -49,7 +43,7 @@ use futures::Future;
 use parity_scale_codec::Encode;
 use rand::{Rng, SeedableRng};
 
-use std::{sync::Arc, time::Duration};
+use std::sync::Arc;
 
 mod cluster;
 mod grid;
@@ -74,7 +68,6 @@ struct TestConfig {
 
 #[derive(Debug, Clone)]
 struct TestLocalValidator {
-	validator_id: ValidatorId,
 	validator_index: ValidatorIndex,
 	group_index: GroupIndex,
 }
@@ -133,7 +126,6 @@ impl TestState {
 
 		let local = if let Some(local_pos) = local_validator_pos {
 			Some(TestLocalValidator {
-				validator_id: validators[local_pos].public().clone(),
 				validator_index: ValidatorIndex(local_pos as _),
 				group_index: GroupIndex((local_pos / config.group_size) as _),
 			})
@@ -180,10 +172,6 @@ impl TestState {
 				self.local.as_ref().map_or(true, |l| !exclude_local || l.validator_index != i)
 			})
 			.collect()
-	}
-
-	fn validator_id(&self, validator_index: ValidatorIndex) -> ValidatorId {
-		self.session_info.validators.get(validator_index).unwrap().clone()
 	}
 
 	fn discovery_id(&self, validator_index: ValidatorIndex) -> AuthorityDiscoveryId {
@@ -320,7 +308,6 @@ impl TestLeaf {
 
 async fn activate_leaf(
 	virtual_overseer: &mut VirtualOverseer,
-	para_id: ParaId,
 	leaf: &TestLeaf,
 	test_state: &TestState,
 	expect_session_info_request: bool,
@@ -340,7 +327,6 @@ async fn activate_leaf(
 
 	handle_leaf_activation(
 		virtual_overseer,
-		para_id,
 		leaf,
 		test_state,
 		expect_session_info_request,
@@ -350,13 +336,11 @@ async fn activate_leaf(
 
 async fn handle_leaf_activation(
 	virtual_overseer: &mut VirtualOverseer,
-	para_id: ParaId,
 	leaf: &TestLeaf,
 	test_state: &TestState,
 	expect_session_info_request: bool,
 ) {
 	let TestLeaf { number, hash, parent_hash, para_data, session, availability_cores } = leaf;
-	let PerParaData { min_relay_parent, head_data } = leaf.para_data(para_id);
 
 	assert_matches!(
 		virtual_overseer.recv().await,
@@ -427,7 +411,7 @@ async fn handle_leaf_activation(
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionInfo(s, tx))) if s == *session => {
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionInfo(s, tx))) if parent == *hash && s == *session => {
 				tx.send(Ok(Some(test_state.session_info.clone()))).unwrap();
 			}
 		);
@@ -455,7 +439,7 @@ async fn answer_expected_hypothetical_depth_request(
 				);
 			}
 
-			tx.send(responses);
+			tx.send(responses).unwrap();
 		}
 	)
 }
@@ -483,6 +467,8 @@ async fn connect_peer(
 		.await;
 }
 
+// TODO: Add some tests using this?
+#[allow(dead_code)]
 async fn disconnect_peer(virtual_overseer: &mut VirtualOverseer, peer: PeerId) {
 	virtual_overseer
 		.send(FromOrchestra::Communication {
@@ -527,20 +513,12 @@ async fn send_new_topology(virtual_overseer: &mut VirtualOverseer, topology: New
 		.await;
 }
 
-async fn overseer_recv_with_timeout(
-	overseer: &mut VirtualOverseer,
-	timeout: Duration,
-) -> Option<AllMessages> {
-	gum::trace!("waiting for message...");
-	overseer.recv().timeout(timeout).await
-}
-
 fn next_group_index(
-	local_group: GroupIndex,
+	group_index: GroupIndex,
 	validator_count: usize,
 	group_size: usize,
 ) -> GroupIndex {
-	let next_group = local_group.0 + 1;
+	let next_group = group_index.0 + 1;
 	let num_groups =
 		validator_count / group_size + if validator_count % group_size > 0 { 1 } else { 0 };
 	GroupIndex::from(next_group % num_groups as u32)

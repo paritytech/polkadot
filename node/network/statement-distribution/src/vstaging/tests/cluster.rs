@@ -36,16 +36,6 @@ fn share_seconded_circulated_to_cluster() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
-		let (candidate, pvd) = make_candidate(
-			relay_parent,
-			1,
-			local_para,
-			vec![1, 2, 3].into(),
-			vec![4, 5, 6].into(),
-			Hash::repeat_byte(42).into(),
-		);
-		let candidate_hash = candidate.hash();
-
 		let test_leaf = TestLeaf {
 			number: 1,
 			hash: relay_parent,
@@ -58,14 +48,19 @@ fn share_seconded_circulated_to_cluster() {
 				})
 			}),
 			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
+				.map(|i| (ParaId::from(i as u32), PerParaData::new(1, vec![1, 2, 3].into())))
 				.collect(),
 		};
+
+		let (candidate, pvd) = make_candidate(
+			relay_parent,
+			1,
+			local_para,
+			test_leaf.para_data(local_para).head_data.clone(),
+			vec![4, 5, 6].into(),
+			Hash::repeat_byte(42).into(),
+		);
+		let candidate_hash = candidate.hash();
 
 		// peer A is in group, has relay parent in view.
 		// peer B is in group, has no relay parent in view.
@@ -93,7 +88,7 @@ fn share_seconded_circulated_to_cluster() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -156,7 +151,6 @@ fn cluster_valid_statement_before_seconded_ignored() {
 
 	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
-		let local_para = ParaId::from(local_validator.group_index.0);
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
 		let test_leaf = TestLeaf {
@@ -171,12 +165,7 @@ fn cluster_valid_statement_before_seconded_ignored() {
 				})
 			}),
 			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
+				.map(|i| (ParaId::from(i as u32), PerParaData::new(1, vec![1, 2, 3].into())))
 				.collect(),
 		};
 
@@ -191,7 +180,7 @@ fn cluster_valid_statement_before_seconded_ignored() {
 		.await;
 
 		send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -243,7 +232,6 @@ fn cluster_statement_bad_signature() {
 
 	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
-		let local_para = ParaId::from(local_validator.group_index.0);
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
 		let test_leaf = TestLeaf {
@@ -258,12 +246,7 @@ fn cluster_statement_bad_signature() {
 				})
 			}),
 			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
+				.map(|i| (ParaId::from(i as u32), PerParaData::new(1, vec![1, 2, 3].into())))
 				.collect(),
 		};
 
@@ -280,7 +263,7 @@ fn cluster_statement_bad_signature() {
 		.await;
 
 		send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -343,7 +326,6 @@ fn useful_cluster_statement_from_non_cluster_peer_rejected() {
 
 	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
-		let local_para = ParaId::from(local_validator.group_index.0);
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
 		let test_leaf = TestLeaf {
@@ -358,12 +340,7 @@ fn useful_cluster_statement_from_non_cluster_peer_rejected() {
 				})
 			}),
 			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
+				.map(|i| (ParaId::from(i as u32), PerParaData::new(1, vec![1, 2, 3].into())))
 				.collect(),
 		};
 
@@ -382,7 +359,7 @@ fn useful_cluster_statement_from_non_cluster_peer_rejected() {
 		.await;
 
 		send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -432,7 +409,6 @@ fn statement_from_non_cluster_originator_unexpected() {
 
 	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
-		let local_para = ParaId::from(local_validator.group_index.0);
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
 		let test_leaf = TestLeaf {
@@ -463,7 +439,7 @@ fn statement_from_non_cluster_originator_unexpected() {
 		connect_peer(&mut overseer, peer_a.clone(), None).await;
 
 		send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -513,7 +489,6 @@ fn seconded_statement_leads_to_request() {
 
 	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
-		let local_para = ParaId::from(local_validator.group_index.0);
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
 		let test_leaf = TestLeaf {
@@ -549,7 +524,7 @@ fn seconded_statement_leads_to_request() {
 		.await;
 
 		send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -658,7 +633,7 @@ fn cluster_statements_shared_seconded_first() {
 			.await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -809,7 +784,7 @@ fn cluster_accounts_for_implicit_view() {
 			send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -879,7 +854,7 @@ fn cluster_accounts_for_implicit_view() {
 				.collect(),
 		};
 
-		activate_leaf(&mut overseer, local_para, &next_test_leaf, &state, false).await;
+		activate_leaf(&mut overseer, &next_test_leaf, &state, false).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -936,7 +911,6 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
-	let peer_b = PeerId::random();
 
 	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
@@ -987,7 +961,7 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 			send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -1033,7 +1007,7 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -1042,7 +1016,7 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 								persisted_validation_data: pvd.clone(),
 								statements: vec![],
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -1100,7 +1074,6 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 
 	let relay_parent = Hash::repeat_byte(1);
 	let peer_a = PeerId::random();
-	let peer_b = PeerId::random();
 
 	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
@@ -1151,7 +1124,7 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 			send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -1189,7 +1162,7 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 				assert_eq!(requests.len(), 1);
 				assert_matches!(
 					requests.pop().unwrap(),
-					Requests::AttestedCandidateVStaging(mut outgoing) => {
+					Requests::AttestedCandidateVStaging(outgoing) => {
 						assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
 						assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -1198,7 +1171,7 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 							persisted_validation_data: pvd.clone(),
 							statements: vec![],
 						};
-						outgoing.pending_response.send(Ok(res.encode()));
+						outgoing.pending_response.send(Ok(res.encode())).unwrap();
 					}
 				);
 			}
@@ -1234,7 +1207,7 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 				.collect(),
 		};
 
-		activate_leaf(&mut overseer, local_para, &next_test_leaf, &state, false).await;
+		activate_leaf(&mut overseer, &next_test_leaf, &state, false).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -1306,7 +1279,7 @@ fn ensure_seconding_limit_is_respected() {
 			vec![7, 8, 9].into(),
 			Hash::repeat_byte(43).into(),
 		);
-		let (candidate_3, pvd_3) = make_candidate(
+		let (candidate_3, _pvd_3) = make_candidate(
 			relay_parent,
 			1,
 			local_para,
@@ -1354,7 +1327,7 @@ fn ensure_seconding_limit_is_respected() {
 			send_peer_view_change(&mut overseer, peer_a.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,

@@ -42,10 +42,9 @@ fn cluster_peer_allowed_to_send_incomplete_statements() {
 	let peer_b = PeerId::random();
 	let peer_c = PeerId::random();
 
-	test_harness(config, |mut state, mut overseer| async move {
+	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
-		let peer_id = PeerId::random();
 
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
@@ -106,7 +105,7 @@ fn cluster_peer_allowed_to_send_incomplete_statements() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -157,13 +156,13 @@ fn cluster_peer_allowed_to_send_incomplete_statements() {
 			let statements = vec![b_seconded.clone()];
 			// `1` indicates statements NOT to request.
 			let mask = StatementFilter::blank(group_size);
-			let req = assert_matches!(
+			assert_matches!(
 				overseer.recv().await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 							assert_eq!(outgoing.payload.mask, mask);
@@ -173,7 +172,7 @@ fn cluster_peer_allowed_to_send_incomplete_statements() {
 								persisted_validation_data: pvd.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -236,7 +235,7 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 	let peer_d = PeerId::random();
 	let peer_e = PeerId::random();
 
-	test_harness(config, |mut state, mut overseer| async move {
+	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
 
 		let other_group =
@@ -325,7 +324,7 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 			send_peer_view_change(&mut overseer, peer_e.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -395,15 +394,13 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 					.as_unchecked()
 					.clone(),
 			];
-			// `1` indicates statements NOT to request.
-			let mask = StatementFilter::blank(group_size);
 			assert_matches!(
 				overseer.recv().await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash_1);
 
@@ -412,7 +409,7 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 								persisted_validation_data: pvd_1.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -479,15 +476,13 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 					.as_unchecked()
 					.clone(),
 			];
-			// `1` indicates statements NOT to request.
-			let mask = StatementFilter::blank(group_size);
 			assert_matches!(
 				overseer.recv().await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash_2);
 
@@ -496,7 +491,7 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 								persisted_validation_data: pvd_2.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -527,7 +522,7 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 		// NOTE: The manifest is immediately rejected before a request is made due to
 		// "over-seconding" validator 1. On the other hand, if the manifest does not include
 		// validator 1 as a seconder, then including its Second statement in the response instead
-		// fails with "Un-requested Statement In Response".
+		// would fail with "Un-requested Statement In Response".
 		{
 			let manifest = BackedCandidateManifest {
 				relay_parent,
@@ -549,38 +544,6 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 				),
 			)
 			.await;
-
-			let statements = vec![
-				state
-					.sign_statement(
-						v_c,
-						CompactStatement::Seconded(candidate_hash_3),
-						&SigningContext { parent_hash: relay_parent, session_index: 1 },
-					)
-					.as_unchecked()
-					.clone(),
-				state
-					.sign_statement(
-						v_d,
-						CompactStatement::Seconded(candidate_hash_3),
-						&SigningContext { parent_hash: relay_parent, session_index: 1 },
-					)
-					.as_unchecked()
-					.clone(),
-				state
-					.sign_statement(
-						v_e,
-						CompactStatement::Seconded(candidate_hash_3),
-						&SigningContext { parent_hash: relay_parent, session_index: 1 },
-					)
-					.as_unchecked()
-					.clone(),
-			];
-			// `1` indicates statements NOT to request.
-			let mask = StatementFilter {
-				seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 1, 0],
-				validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
-			};
 
 			assert_matches!(
 				overseer.recv().await,
@@ -610,7 +573,7 @@ fn peer_reported_for_not_enough_statements() {
 	let peer_d = PeerId::random();
 	let peer_e = PeerId::random();
 
-	test_harness(config, |mut state, mut overseer| async move {
+	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
 
 		let other_group =
@@ -681,7 +644,7 @@ fn peer_reported_for_not_enough_statements() {
 			send_peer_view_change(&mut overseer, peer_e.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, other_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -748,13 +711,13 @@ fn peer_reported_for_not_enough_statements() {
 
 		// We send a request to peer. Mock its response to include just one statement.
 		{
-			let req = assert_matches!(
+			assert_matches!(
 				overseer.recv().await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 							assert_eq!(outgoing.payload.mask, mask);
@@ -764,7 +727,7 @@ fn peer_reported_for_not_enough_statements() {
 								persisted_validation_data: pvd.clone(),
 								statements: statements.clone(),
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -805,7 +768,7 @@ fn peer_reported_for_not_enough_statements() {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -814,7 +777,7 @@ fn peer_reported_for_not_enough_statements() {
 								persisted_validation_data: pvd.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -864,10 +827,9 @@ fn peer_reported_for_duplicate_statements() {
 	let peer_b = PeerId::random();
 	let peer_c = PeerId::random();
 
-	test_harness(config, |mut state, mut overseer| async move {
+	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
-		let peer_id = PeerId::random();
 
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
@@ -928,7 +890,7 @@ fn peer_reported_for_duplicate_statements() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -977,13 +939,13 @@ fn peer_reported_for_duplicate_statements() {
 				.as_unchecked()
 				.clone();
 			let statements = vec![b_seconded.clone(), b_seconded.clone()];
-			let req = assert_matches!(
+			assert_matches!(
 				overseer.recv().await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -992,7 +954,7 @@ fn peer_reported_for_duplicate_statements() {
 								persisted_validation_data: pvd.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -1055,10 +1017,9 @@ fn peer_reported_for_providing_statements_with_invalid_signatures() {
 	let peer_b = PeerId::random();
 	let peer_c = PeerId::random();
 
-	test_harness(config, |mut state, mut overseer| async move {
+	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
-		let peer_id = PeerId::random();
 
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
@@ -1120,7 +1081,7 @@ fn peer_reported_for_providing_statements_with_invalid_signatures() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -1170,13 +1131,13 @@ fn peer_reported_for_providing_statements_with_invalid_signatures() {
 				.as_unchecked()
 				.clone();
 			let statements = vec![b_seconded_invalid.clone()];
-			let req = assert_matches!(
+			assert_matches!(
 				overseer.recv().await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -1185,7 +1146,7 @@ fn peer_reported_for_providing_statements_with_invalid_signatures() {
 								persisted_validation_data: pvd.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -1224,10 +1185,9 @@ fn peer_reported_for_providing_statements_with_wrong_validator_id() {
 	let peer_b = PeerId::random();
 	let peer_c = PeerId::random();
 
-	test_harness(config, |mut state, mut overseer| async move {
+	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
-		let peer_id = PeerId::random();
 
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
@@ -1264,7 +1224,6 @@ fn peer_reported_for_providing_statements_with_wrong_validator_id() {
 		let next_group_validators =
 			state.group_validators((local_validator.group_index.0 + 1).into(), true);
 		let v_a = other_group_validators[0];
-		let v_b = other_group_validators[1];
 		let v_c = next_group_validators[0];
 
 		// peer A is in group, has relay parent in view.
@@ -1291,7 +1250,7 @@ fn peer_reported_for_providing_statements_with_wrong_validator_id() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -1340,13 +1299,13 @@ fn peer_reported_for_providing_statements_with_wrong_validator_id() {
 				.as_unchecked()
 				.clone();
 			let statements = vec![c_seconded_invalid.clone()];
-			let req = assert_matches!(
+			assert_matches!(
 				overseer.recv().await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
 					assert_eq!(requests.len(), 1);
 					assert_matches!(
 						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(mut outgoing) => {
+						Requests::AttestedCandidateVStaging(outgoing) => {
 							assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
 							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
@@ -1355,7 +1314,7 @@ fn peer_reported_for_providing_statements_with_wrong_validator_id() {
 								persisted_validation_data: pvd.clone(),
 								statements,
 							};
-							outgoing.pending_response.send(Ok(res.encode()));
+							outgoing.pending_response.send(Ok(res.encode())).unwrap();
 						}
 					);
 				}
@@ -1456,7 +1415,7 @@ fn local_node_sanity_checks_incoming_requests() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -1551,29 +1510,24 @@ fn local_node_sanity_checks_incoming_requests() {
 		// Should drop requests with bitfields of the wrong size.
 		{
 			let mask = StatementFilter::blank(state.config.group_size + 1);
-			let (pending_response, rx) = oneshot::channel();
-			state
-				.req_sender
-				.send(RawIncomingRequest {
-					// Request from peer that received manifest.
-					peer: peer_c,
-					payload: request_vstaging::AttestedCandidateRequest {
+			let response = state
+				.send_request(
+					peer_c,
+					request_vstaging::AttestedCandidateRequest {
 						candidate_hash: candidate.hash(),
 						mask,
-					}
-					.encode(),
-					pending_response,
-				})
+					},
+				)
 				.await
-				.unwrap();
+				.await;
 
 			assert_matches!(
-				rx.await,
-				Ok(RawOutgoingResponse {
+				response,
+				RawOutgoingResponse {
 					result,
 					reputation_changes,
 					sent_feedback
-				}) => {
+				} => {
 					assert_matches!(result, Err(()));
 					assert_eq!(reputation_changes, vec![COST_INVALID_REQUEST_BITFIELD_SIZE.into_base_rep()]);
 					assert_matches!(sent_feedback, None);
@@ -1583,30 +1537,25 @@ fn local_node_sanity_checks_incoming_requests() {
 
 		// Local node should reject requests if we did not send a manifest to that peer.
 		{
-			let (pending_response, rx) = oneshot::channel();
-			state
-				.req_sender
-				.send(RawIncomingRequest {
-					// Request from peer that received manifest.
-					peer: peer_c,
-					payload: request_vstaging::AttestedCandidateRequest {
+			let response = state
+				.send_request(
+					peer_c,
+					request_vstaging::AttestedCandidateRequest {
 						candidate_hash: candidate.hash(),
 						mask: mask.clone(),
-					}
-					.encode(),
-					pending_response,
-				})
+					},
+				)
 				.await
-				.unwrap();
+				.await;
 
 			// Should get `COST_UNEXPECTED_REQUEST` response.
 			assert_matches!(
-				rx.await,
-				Ok(RawOutgoingResponse {
+				response,
+				RawOutgoingResponse {
 					result,
 					reputation_changes,
 					sent_feedback
-				}) => {
+				} => {
 					assert_matches!(result, Err(()));
 					assert_eq!(reputation_changes, vec![COST_UNEXPECTED_REQUEST.into_base_rep()]);
 					assert_matches!(sent_feedback, None);
@@ -1715,7 +1664,7 @@ fn local_node_respects_statement_mask() {
 			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
 		}
 
-		activate_leaf(&mut overseer, local_para, &test_leaf, &state, true).await;
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
 
 		answer_expected_hypothetical_depth_request(
 			&mut overseer,
@@ -1874,24 +1823,19 @@ fn local_node_respects_statement_mask() {
 
 		// Incoming request to local node. Local node should send statements, respecting mask.
 		{
-			let (pending_response, rx) = oneshot::channel();
-			state
-				.req_sender
-				.send(RawIncomingRequest {
-					// Request from peer that received manifest.
-					peer: peer_c,
-					payload: request_vstaging::AttestedCandidateRequest {
+			let response = state
+				.send_request(
+					peer_c,
+					request_vstaging::AttestedCandidateRequest {
 						candidate_hash: candidate.hash(),
 						mask,
-					}
-					.encode(),
-					pending_response,
-				})
+					},
+				)
 				.await
-				.unwrap();
+				.await;
 
 			let expected_statements = vec![statement_b];
-			assert_matches!(rx.await, Ok(full_response) => {
+			assert_matches!(response, full_response => {
 				// Response is the same for vstaging.
 				let request_vstaging::AttestedCandidateResponse { candidate_receipt, persisted_validation_data, statements } =
 					request_vstaging::AttestedCandidateResponse::decode(
