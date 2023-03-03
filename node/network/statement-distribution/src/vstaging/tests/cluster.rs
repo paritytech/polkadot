@@ -1389,14 +1389,7 @@ fn ensure_seconding_limit_is_respected() {
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(peers, _)) if peers == vec![peer_a]
 			);
 
-			answer_expected_hypothetical_depth_request(
-				&mut overseer,
-				vec![],
-				// TODO: Is this right?
-				None,
-				false,
-			)
-			.await;
+			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 		}
 
 		// Candidate 2.
@@ -1422,14 +1415,7 @@ fn ensure_seconding_limit_is_respected() {
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendValidationMessage(peers, _)) if peers == vec![peer_a]
 			);
 
-			answer_expected_hypothetical_depth_request(
-				&mut overseer,
-				vec![],
-				// TODO: Is this right?
-				None,
-				false,
-			)
-			.await;
+			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 		}
 
 		// Send first statement from peer A.

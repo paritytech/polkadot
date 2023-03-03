@@ -1247,7 +1247,7 @@ fn additional_statements_are_shared_after_manifest_exchange() {
 		)
 		.await;
 
-		// Receive messages from Backing subsystem.
+		// Statements are sent to the Backing subsystem.
 		{
 			assert_matches!(
 				overseer.recv().await,
@@ -1312,7 +1312,7 @@ fn additional_statements_are_shared_after_manifest_exchange() {
 			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 		}
 
-		// TODO: Receive a manifest about the same candidate from peer D. Contains different statements.
+		// Receive a manifest about the same candidate from peer D. Contains different statements.
 		{
 			let manifest = BackedCandidateManifest {
 				relay_parent,
@@ -1364,20 +1364,14 @@ fn additional_statements_are_shared_after_manifest_exchange() {
 						&messages[1].1,
 						Versioned::VStaging(protocol_vstaging::ValidationProtocol::StatementDistribution(
 							protocol_vstaging::StatementDistributionMessage::Statement(r, s)
-						)) if *r == relay_parent && s.unchecked_payload() == &CompactStatement::Seconded(candidate_hash)
+						)) if *r == relay_parent && s.unchecked_payload() == &CompactStatement::Seconded(candidate_hash) && s.unchecked_validator_index() == v_e
 					);
 				}
 			);
 		}
 
-		// TODO: Why is statement E not sent to peer D?
-
-		dbg!(overseer.recv().await);
-
 		overseer
 	});
-
-	todo!()
 }
 
 // Grid-sending validator view entering relay-parent leads to advertisement.
