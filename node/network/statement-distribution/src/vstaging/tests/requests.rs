@@ -46,36 +46,17 @@ fn cluster_peer_allowed_to_send_incomplete_statements() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
 		let candidate_hash = candidate.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
 		let v_a = other_group_validators[0];
@@ -156,27 +137,16 @@ fn cluster_peer_allowed_to_send_incomplete_statements() {
 			let statements = vec![b_seconded.clone()];
 			// `1` indicates statements NOT to request.
 			let mask = StatementFilter::blank(group_size);
-			assert_matches!(
-				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
-					assert_eq!(requests.len(), 1);
-					assert_matches!(
-						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(outgoing) => {
-							assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
-							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
-							assert_eq!(outgoing.payload.mask, mask);
-
-							let res = AttestedCandidateResponse {
-								candidate_receipt: candidate.clone(),
-								persisted_validation_data: pvd.clone(),
-								statements,
-							};
-							outgoing.pending_response.send(Ok(res.encode())).unwrap();
-						}
-					);
-				}
-			);
+			handle_sent_request(
+				&mut overseer,
+				peer_a,
+				candidate_hash,
+				mask,
+				candidate.clone(),
+				pvd.clone(),
+				statements,
+			)
+			.await;
 
 			assert_matches!(
 				overseer.recv().await,
@@ -242,11 +212,13 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 			next_group_index(local_validator.group_index, validator_count, group_size);
 		let other_para = ParaId::from(other_group.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate_1, pvd_1) = make_candidate(
 			relay_parent,
 			1,
 			other_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(other_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
@@ -254,7 +226,7 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 			relay_parent,
 			1,
 			other_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(other_para).head_data.clone(),
 			vec![7, 8, 9].into(),
 			Hash::repeat_byte(43).into(),
 		);
@@ -262,34 +234,13 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 			relay_parent,
 			1,
 			other_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(other_para).head_data.clone(),
 			vec![10, 11, 12].into(),
 			Hash::repeat_byte(44).into(),
 		);
 		let candidate_hash_1 = candidate_1.hash();
 		let candidate_hash_2 = candidate_2.hash();
 		let candidate_hash_3 = candidate_3.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		let target_group_validators = state.group_validators(other_group, true);
 		let v_c = target_group_validators[0];
@@ -394,26 +345,16 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 					.as_unchecked()
 					.clone(),
 			];
-			assert_matches!(
-				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
-					assert_eq!(requests.len(), 1);
-					assert_matches!(
-						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(outgoing) => {
-							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
-							assert_eq!(outgoing.payload.candidate_hash, candidate_hash_1);
-
-							let res = AttestedCandidateResponse {
-								candidate_receipt: candidate_1.clone(),
-								persisted_validation_data: pvd_1.clone(),
-								statements,
-							};
-							outgoing.pending_response.send(Ok(res.encode())).unwrap();
-						}
-					);
-				}
-			);
+			handle_sent_request(
+				&mut overseer,
+				peer_c,
+				candidate_hash_1,
+				StatementFilter::blank(group_size),
+				candidate_1.clone(),
+				pvd_1.clone(),
+				statements,
+			)
+			.await;
 
 			assert_matches!(
 				overseer.recv().await,
@@ -476,26 +417,16 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 					.as_unchecked()
 					.clone(),
 			];
-			assert_matches!(
-				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
-					assert_eq!(requests.len(), 1);
-					assert_matches!(
-						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(outgoing) => {
-							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
-							assert_eq!(outgoing.payload.candidate_hash, candidate_hash_2);
-
-							let res = AttestedCandidateResponse {
-								candidate_receipt: candidate_2.clone(),
-								persisted_validation_data: pvd_2.clone(),
-								statements,
-							};
-							outgoing.pending_response.send(Ok(res.encode())).unwrap();
-						}
-					);
-				}
-			);
+			handle_sent_request(
+				&mut overseer,
+				peer_c,
+				candidate_hash_2,
+				StatementFilter::blank(group_size),
+				candidate_2.clone(),
+				pvd_2.clone(),
+				statements,
+			)
+			.await;
 
 			assert_matches!(
 				overseer.recv().await,
@@ -580,36 +511,17 @@ fn peer_reported_for_not_enough_statements() {
 			next_group_index(local_validator.group_index, validator_count, group_size);
 		let other_para = ParaId::from(other_group.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
 			1,
 			other_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(other_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
 		let candidate_hash = candidate.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		let target_group_validators = state.group_validators(other_group, true);
 		let v_c = target_group_validators[0];
@@ -704,34 +616,20 @@ fn peer_reported_for_not_enough_statements() {
 			.clone();
 		let statements = vec![c_seconded.clone()];
 		// `1` indicates statements NOT to request.
-		let mask = StatementFilter {
-			seconded_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
-			validated_in_group: bitvec::bitvec![u8, Lsb0; 0, 0, 0],
-		};
+		let mask = StatementFilter::blank(group_size);
 
 		// We send a request to peer. Mock its response to include just one statement.
 		{
-			assert_matches!(
-				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
-					assert_eq!(requests.len(), 1);
-					assert_matches!(
-						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(outgoing) => {
-							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
-							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
-							assert_eq!(outgoing.payload.mask, mask);
-
-							let res = AttestedCandidateResponse {
-								candidate_receipt: candidate.clone(),
-								persisted_validation_data: pvd.clone(),
-								statements: statements.clone(),
-							};
-							outgoing.pending_response.send(Ok(res.encode())).unwrap();
-						}
-					);
-				}
-			);
+			handle_sent_request(
+				&mut overseer,
+				peer_c,
+				candidate_hash,
+				mask.clone(),
+				candidate.clone(),
+				pvd.clone(),
+				statements.clone(),
+			)
+			.await;
 
 			// The peer is reported for only sending one statement.
 			assert_matches!(
@@ -762,26 +660,16 @@ fn peer_reported_for_not_enough_statements() {
 					.as_unchecked()
 					.clone(),
 			];
-			assert_matches!(
-				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
-					assert_eq!(requests.len(), 1);
-					assert_matches!(
-						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(outgoing) => {
-							assert_eq!(outgoing.peer, Recipient::Peer(peer_c.clone()));
-							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
-
-							let res = AttestedCandidateResponse {
-								candidate_receipt: candidate.clone(),
-								persisted_validation_data: pvd.clone(),
-								statements,
-							};
-							outgoing.pending_response.send(Ok(res.encode())).unwrap();
-						}
-					);
-				}
-			);
+			handle_sent_request(
+				&mut overseer,
+				peer_c,
+				candidate_hash,
+				mask,
+				candidate.clone(),
+				pvd.clone(),
+				statements.clone(),
+			)
+			.await;
 
 			assert_matches!(
 				overseer.recv().await,
@@ -815,9 +703,10 @@ fn peer_reported_for_not_enough_statements() {
 // Test that a peer answering an `AttestedCandidateRequest` with duplicate statements is punished.
 #[test]
 fn peer_reported_for_duplicate_statements() {
+	let group_size = 3;
 	let config = TestConfig {
 		validator_count: 20,
-		group_size: 3,
+		group_size,
 		local_validator: true,
 		async_backing_params: None,
 	};
@@ -831,36 +720,17 @@ fn peer_reported_for_duplicate_statements() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
 		let candidate_hash = candidate.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
 		let v_a = other_group_validators[0];
@@ -939,26 +809,17 @@ fn peer_reported_for_duplicate_statements() {
 				.as_unchecked()
 				.clone();
 			let statements = vec![b_seconded.clone(), b_seconded.clone()];
-			assert_matches!(
-				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
-					assert_eq!(requests.len(), 1);
-					assert_matches!(
-						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(outgoing) => {
-							assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
-							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
-							let res = AttestedCandidateResponse {
-								candidate_receipt: candidate.clone(),
-								persisted_validation_data: pvd.clone(),
-								statements,
-							};
-							outgoing.pending_response.send(Ok(res.encode())).unwrap();
-						}
-					);
-				}
-			);
+			handle_sent_request(
+				&mut overseer,
+				peer_a,
+				candidate_hash,
+				StatementFilter::blank(group_size),
+				candidate.clone(),
+				pvd.clone(),
+				statements,
+			)
+			.await;
 
 			assert_matches!(
 				overseer.recv().await,
@@ -1005,9 +866,10 @@ fn peer_reported_for_duplicate_statements() {
 
 #[test]
 fn peer_reported_for_providing_statements_with_invalid_signatures() {
+	let group_size = 3;
 	let config = TestConfig {
 		validator_count: 20,
-		group_size: 3,
+		group_size,
 		local_validator: true,
 		async_backing_params: None,
 	};
@@ -1021,36 +883,17 @@ fn peer_reported_for_providing_statements_with_invalid_signatures() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
 		let candidate_hash = candidate.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
 		state.group_validators((local_validator.group_index.0 + 1).into(), true);
@@ -1131,26 +974,17 @@ fn peer_reported_for_providing_statements_with_invalid_signatures() {
 				.as_unchecked()
 				.clone();
 			let statements = vec![b_seconded_invalid.clone()];
-			assert_matches!(
-				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
-					assert_eq!(requests.len(), 1);
-					assert_matches!(
-						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(outgoing) => {
-							assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
-							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
-							let res = AttestedCandidateResponse {
-								candidate_receipt: candidate.clone(),
-								persisted_validation_data: pvd.clone(),
-								statements,
-							};
-							outgoing.pending_response.send(Ok(res.encode())).unwrap();
-						}
-					);
-				}
-			);
+			handle_sent_request(
+				&mut overseer,
+				peer_a,
+				candidate_hash,
+				StatementFilter::blank(group_size),
+				candidate.clone(),
+				pvd.clone(),
+				statements,
+			)
+			.await;
 
 			assert_matches!(
 				overseer.recv().await,
@@ -1173,9 +1007,10 @@ fn peer_reported_for_providing_statements_with_invalid_signatures() {
 
 #[test]
 fn peer_reported_for_providing_statements_with_wrong_validator_id() {
+	let group_size = 3;
 	let config = TestConfig {
 		validator_count: 20,
-		group_size: 3,
+		group_size,
 		local_validator: true,
 		async_backing_params: None,
 	};
@@ -1189,36 +1024,17 @@ fn peer_reported_for_providing_statements_with_wrong_validator_id() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
 		let candidate_hash = candidate.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
 		let next_group_validators =
@@ -1299,26 +1115,17 @@ fn peer_reported_for_providing_statements_with_wrong_validator_id() {
 				.as_unchecked()
 				.clone();
 			let statements = vec![c_seconded_invalid.clone()];
-			assert_matches!(
-				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
-					assert_eq!(requests.len(), 1);
-					assert_matches!(
-						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(outgoing) => {
-							assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
-							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
 
-							let res = AttestedCandidateResponse {
-								candidate_receipt: candidate.clone(),
-								persisted_validation_data: pvd.clone(),
-								statements,
-							};
-							outgoing.pending_response.send(Ok(res.encode())).unwrap();
-						}
-					);
-				}
-			);
+			handle_sent_request(
+				&mut overseer,
+				peer_a,
+				candidate_hash,
+				StatementFilter::blank(group_size),
+				candidate.clone(),
+				pvd.clone(),
+				statements,
+			)
+			.await;
 
 			assert_matches!(
 				overseer.recv().await,
@@ -1358,36 +1165,17 @@ fn local_node_sanity_checks_incoming_requests() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
 		let candidate_hash = candidate.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		// peer A is in group, has relay parent in view.
 		// peer B is in group, has no relay parent in view.
@@ -1588,36 +1376,17 @@ fn local_node_respects_statement_mask() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
 		let candidate_hash = candidate.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
 		let target_group_validators =

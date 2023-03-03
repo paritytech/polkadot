@@ -153,6 +153,24 @@ impl TestState {
 		TestState { config, local, validators, session_info, req_sender }
 	}
 
+	fn make_dummy_leaf(&self, relay_parent: Hash) -> TestLeaf {
+		TestLeaf {
+			number: 1,
+			hash: relay_parent,
+			parent_hash: Hash::repeat_byte(0),
+			session: 1,
+			availability_cores: self.make_availability_cores(|i| {
+				CoreState::Scheduled(ScheduledCore {
+					para_id: ParaId::from(i as u32),
+					collator: None,
+				})
+			}),
+			para_data: (0..self.session_info.validator_groups.len())
+				.map(|i| (ParaId::from(i as u32), PerParaData::new(1, vec![1, 2, 3].into())))
+				.collect(),
+		}
+	}
+
 	fn make_availability_cores(&self, f: impl Fn(usize) -> CoreState) -> Vec<CoreState> {
 		(0..self.session_info.validator_groups.len()).map(f).collect()
 	}
@@ -417,12 +435,15 @@ async fn handle_leaf_activation(
 	}
 }
 
+/// Intercepts an outgoing request, checks the fields, and sends the response.
 async fn handle_sent_request(
 	virtual_overseer: &mut VirtualOverseer,
 	peer: PeerId,
 	candidate_hash: CandidateHash,
+	mask: StatementFilter,
 	candidate_receipt: CommittedCandidateReceipt,
 	persisted_validation_data: PersistedValidationData,
+	statements: Vec<UncheckedSignedStatement>,
 ) {
 	assert_matches!(
 		virtual_overseer.recv().await,
@@ -433,11 +454,12 @@ async fn handle_sent_request(
 				Requests::AttestedCandidateVStaging(outgoing) => {
 					assert_eq!(outgoing.peer, Recipient::Peer(peer));
 					assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
+					assert_eq!(outgoing.payload.mask, mask);
 
 					let res = AttestedCandidateResponse {
 						candidate_receipt,
 						persisted_validation_data,
-						statements: vec![],
+						statements,
 					};
 					outgoing.pending_response.send(Ok(res.encode())).unwrap();
 				}

@@ -36,21 +36,7 @@ fn share_seconded_circulated_to_cluster() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| (ParaId::from(i as u32), PerParaData::new(1, vec![1, 2, 3].into())))
-				.collect(),
-		};
+		let test_leaf = state.make_dummy_leaf(relay_parent);
 
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
@@ -153,21 +139,7 @@ fn cluster_valid_statement_before_seconded_ignored() {
 		let local_validator = state.local.clone().unwrap();
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| (ParaId::from(i as u32), PerParaData::new(1, vec![1, 2, 3].into())))
-				.collect(),
-		};
+		let test_leaf = state.make_dummy_leaf(relay_parent);
 
 		// peer A is in group, has relay parent in view.
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
@@ -234,21 +206,7 @@ fn cluster_statement_bad_signature() {
 		let local_validator = state.local.clone().unwrap();
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| (ParaId::from(i as u32), PerParaData::new(1, vec![1, 2, 3].into())))
-				.collect(),
-		};
+		let test_leaf = state.make_dummy_leaf(relay_parent);
 
 		// peer A is in group, has relay parent in view.
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
@@ -328,21 +286,7 @@ fn useful_cluster_statement_from_non_cluster_peer_rejected() {
 		let local_validator = state.local.clone().unwrap();
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| (ParaId::from(i as u32), PerParaData::new(1, vec![1, 2, 3].into())))
-				.collect(),
-		};
+		let test_leaf = state.make_dummy_leaf(relay_parent);
 
 		// peer A is not in group, has relay parent in view.
 		let not_our_group =
@@ -411,26 +355,7 @@ fn statement_from_non_cluster_originator_unexpected() {
 		let local_validator = state.local.clone().unwrap();
 		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
 
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
+		let test_leaf = state.make_dummy_leaf(relay_parent);
 
 		// peer A is not in group, has relay parent in view.
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
@@ -477,9 +402,10 @@ fn statement_from_non_cluster_originator_unexpected() {
 
 #[test]
 fn seconded_statement_leads_to_request() {
+	let group_size = 3;
 	let config = TestConfig {
 		validator_count: 20,
-		group_size: 3,
+		group_size,
 		local_validator: true,
 		async_backing_params: None,
 	};
@@ -491,26 +417,7 @@ fn seconded_statement_leads_to_request() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
+		let test_leaf = state.make_dummy_leaf(relay_parent);
 
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
@@ -566,8 +473,16 @@ fn seconded_statement_leads_to_request() {
 				if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
 		);
 
-		handle_sent_request(&mut overseer, peer_a, candidate_hash, candidate.clone(), pvd.clone())
-			.await;
+		handle_sent_request(
+			&mut overseer,
+			peer_a,
+			candidate_hash,
+			StatementFilter::blank(group_size),
+			candidate.clone(),
+			pvd.clone(),
+			vec![],
+		)
+		.await;
 
 		assert_matches!(
 			overseer.recv().await,
@@ -597,36 +512,17 @@ fn cluster_statements_shared_seconded_first() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
 		let candidate_hash = candidate.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		// peer A is in group, no relay parent in view.
 		{
@@ -738,36 +634,17 @@ fn cluster_accounts_for_implicit_view() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
 		let candidate_hash = candidate.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		// peer A is in group, has relay parent in view.
 		// peer B is in group, has no relay parent in view.
@@ -840,26 +717,9 @@ fn cluster_accounts_for_implicit_view() {
 
 		// activate new leaf, which has relay-parent in implicit view.
 		let next_relay_parent = Hash::repeat_byte(2);
-		let next_test_leaf = TestLeaf {
-			number: 2,
-			hash: next_relay_parent,
-			parent_hash: relay_parent,
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
+		let mut next_test_leaf = state.make_dummy_leaf(next_relay_parent);
+		next_test_leaf.parent_hash = relay_parent;
+		next_test_leaf.number = 2;
 
 		activate_leaf(&mut overseer, &next_test_leaf, &state, false).await;
 
@@ -923,36 +783,17 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
 		let candidate_hash = candidate.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		// peer A is in group, has relay parent in view.
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
@@ -1072,9 +913,10 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 
 #[test]
 fn cluster_messages_imported_after_new_leaf_importable_check() {
+	let group_size = 3;
 	let config = TestConfig {
 		validator_count: 20,
-		group_size: 3,
+		group_size,
 		local_validator: true,
 		async_backing_params: None,
 	};
@@ -1086,26 +928,7 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
+		let test_leaf = state.make_dummy_leaf(relay_parent);
 
 		let (candidate, pvd) = make_candidate(
 			relay_parent,
@@ -1163,8 +986,16 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 				if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
 		);
 
-		handle_sent_request(&mut overseer, peer_a, candidate_hash, candidate.clone(), pvd.clone())
-			.await;
+		handle_sent_request(
+			&mut overseer,
+			peer_a,
+			candidate_hash,
+			StatementFilter::blank(group_size),
+			candidate.clone(),
+			pvd.clone(),
+			vec![],
+		)
+		.await;
 
 		assert_matches!(
 			overseer.recv().await,
@@ -1175,26 +1006,9 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 		answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 
 		let next_relay_parent = Hash::repeat_byte(2);
-		let next_test_leaf = TestLeaf {
-			number: 2,
-			hash: next_relay_parent,
-			parent_hash: relay_parent,
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
+		let mut next_test_leaf = state.make_dummy_leaf(next_relay_parent);
+		next_test_leaf.parent_hash = relay_parent;
+		next_test_leaf.number = 2;
 
 		activate_leaf(&mut overseer, &next_test_leaf, &state, false).await;
 
@@ -1252,11 +1066,13 @@ fn ensure_seconding_limit_is_respected() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
 		let (candidate_1, pvd_1) = make_candidate(
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![4, 5, 6].into(),
 			Hash::repeat_byte(42).into(),
 		);
@@ -1264,7 +1080,7 @@ fn ensure_seconding_limit_is_respected() {
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![7, 8, 9].into(),
 			Hash::repeat_byte(43).into(),
 		);
@@ -1272,34 +1088,13 @@ fn ensure_seconding_limit_is_respected() {
 			relay_parent,
 			1,
 			local_para,
-			vec![1, 2, 3].into(),
+			test_leaf.para_data(local_para).head_data.clone(),
 			vec![10, 11, 12].into(),
 			Hash::repeat_byte(44).into(),
 		);
 		let candidate_hash_1 = candidate_1.hash();
 		let candidate_hash_2 = candidate_2.hash();
 		let candidate_hash_3 = candidate_3.hash();
-
-		let test_leaf = TestLeaf {
-			number: 1,
-			hash: relay_parent,
-			parent_hash: Hash::repeat_byte(0),
-			session: 1,
-			availability_cores: state.make_availability_cores(|i| {
-				CoreState::Scheduled(ScheduledCore {
-					para_id: ParaId::from(i as u32),
-					collator: None,
-				})
-			}),
-			para_data: (0..state.session_info.validator_groups.len())
-				.map(|i| {
-					(
-						ParaId::from(i as u32),
-						PerParaData { min_relay_parent: 1, head_data: vec![1, 2, 3].into() },
-					)
-				})
-				.collect(),
-		};
 
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
 		let v_a = other_group_validators[0];
