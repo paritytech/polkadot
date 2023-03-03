@@ -51,7 +51,10 @@ pub type Version = u32;
 /// Creates an instruction matcher from an XCM. Since XCM versions differ, we need to make a trait
 /// here to unify the interfaces among them.
 pub trait CreateMatcher {
+	/// The concrete matcher type.
 	type Matcher;
+
+	/// Method that creates and returns the matcher type from the implementing type.
 	fn matcher(self) -> Self::Matcher;
 }
 
