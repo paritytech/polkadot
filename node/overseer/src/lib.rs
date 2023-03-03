@@ -540,7 +540,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	network_bridge_rx: NetworkBridgeRx,
 
-	#[subsystem(blocking, NetworkBridgeTxMessage, sends: [])]
+	#[subsystem(blocking, message_capacity: 32000, NetworkBridgeTxMessage, sends: [])]
 	network_bridge_tx: NetworkBridgeTx,
 
 	#[subsystem(blocking, ChainApiMessage, sends: [])]
