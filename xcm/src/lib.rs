@@ -120,7 +120,8 @@ pub trait MatchXcm {
 		C: Fn(&Self::Inst) -> bool,
 		F: FnMut(&mut Self::Inst) -> Result<ControlFlow<()>, Self::Error>;
 
-	/// Iterate instructions forward until `cond` returns false.
+	/// Iterate instructions forward until `cond` returns false. When there are no more instructions
+	/// to be read, an error is returned.
 	fn skip_inst_while<C>(self, cond: C) -> Result<Self, Self::Error>
 	where
 		Self: Sized,
