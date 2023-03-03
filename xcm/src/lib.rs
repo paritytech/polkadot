@@ -54,7 +54,7 @@ pub trait CreateMatcher {
 	/// The concrete matcher type.
 	type Matcher;
 
-	/// Method that creates and returns the matcher type from the implementing type.
+	/// Method that creates and returns the matcher type from `Self`.
 	fn matcher(self) -> Self::Matcher;
 }
 
