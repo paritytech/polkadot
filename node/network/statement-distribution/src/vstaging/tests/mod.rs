@@ -17,6 +17,7 @@
 use super::*;
 use crate::*;
 use polkadot_node_network_protocol::{
+	grid_topology::TopologyPeerInfo,
 	request_response::{outgoing::Recipient, ReqProtocolNames},
 	view, ObservedRole,
 };
@@ -173,6 +174,24 @@ impl TestState {
 
 	fn make_availability_cores(&self, f: impl Fn(usize) -> CoreState) -> Vec<CoreState> {
 		(0..self.session_info.validator_groups.len()).map(f).collect()
+	}
+
+	fn make_dummy_topology(&self) -> NewGossipTopology {
+		let validator_count = self.config.validator_count;
+		NewGossipTopology {
+			session: 1,
+			topology: SessionGridTopology::new(
+				(0..validator_count).collect(),
+				(0..validator_count)
+					.map(|i| TopologyPeerInfo {
+						peer_ids: Vec::new(),
+						validator_index: ValidatorIndex(i as u32),
+						discovery_id: AuthorityDiscoveryPair::generate().0.public(),
+					})
+					.collect(),
+			),
+			local_index: self.local.as_ref().map(|local| local.validator_index),
+		}
 	}
 
 	fn group_validators(

@@ -19,8 +19,7 @@ use super::*;
 use bitvec::order::Lsb0;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_network_protocol::{
-	grid_topology::TopologyPeerInfo, request_response::vstaging as request_vstaging,
-	vstaging::BackedCandidateManifest,
+	request_response::vstaging as request_vstaging, vstaging::BackedCandidateManifest,
 };
 use polkadot_primitives_test_helpers::make_candidate;
 use sc_network::config::{
@@ -286,23 +285,7 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		// Peer C advertises candidate 1.
 		{
@@ -567,23 +550,7 @@ fn peer_reported_for_not_enough_statements() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		let manifest = BackedCandidateManifest {
 			relay_parent,
@@ -1444,23 +1411,7 @@ fn local_node_respects_statement_mask() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		// Confirm the candidate locally so that we don't send out requests.
 		{

@@ -17,9 +17,8 @@
 use super::*;
 
 use bitvec::order::Lsb0;
-use polkadot_node_network_protocol::{
-	grid_topology::TopologyPeerInfo,
-	vstaging::{BackedCandidateAcknowledgement, BackedCandidateManifest},
+use polkadot_node_network_protocol::vstaging::{
+	BackedCandidateAcknowledgement, BackedCandidateManifest,
 };
 use polkadot_node_subsystem::messages::CandidateBackingMessage;
 use polkadot_primitives_test_helpers::make_candidate;
@@ -114,23 +113,7 @@ fn backed_candidate_leads_to_advertisement() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		// Confirm the candidate locally so that we don't send out requests.
 		{
@@ -348,23 +331,7 @@ fn received_advertisement_before_confirmation_leads_to_request() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		// Receive an advertisement from C on an unconfirmed candidate.
 		{
@@ -531,23 +498,7 @@ fn received_advertisement_after_backing_leads_to_acknowledgement() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		let manifest = BackedCandidateManifest {
 			relay_parent,
@@ -795,23 +746,7 @@ fn received_advertisement_after_confirmation_before_backing() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		let manifest = BackedCandidateManifest {
 			relay_parent,
@@ -997,23 +932,7 @@ fn additional_statements_are_shared_after_manifest_exchange() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		// Receive an advertisement from C.
 		{
@@ -1319,23 +1238,7 @@ fn advertisement_sent_when_peer_enters_relay_parent_view() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		// Confirm the candidate locally so that we don't send out requests.
 		{
@@ -1558,23 +1461,7 @@ fn advertisement_not_re_sent_when_peer_re_enters_view() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		// Confirm the candidate locally so that we don't send out requests.
 		{
@@ -1786,23 +1673,7 @@ fn grid_statements_imported_to_backing() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		// Receive an advertisement from C.
 		{
@@ -2017,23 +1888,7 @@ fn advertisements_rejected_from_incorrect_peers() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		let manifest = BackedCandidateManifest {
 			relay_parent,
@@ -2155,23 +2010,7 @@ fn manifest_rejected_with_unknown_relay_parent() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		let manifest = BackedCandidateManifest {
 			relay_parent: unknown_parent,
@@ -2273,23 +2112,7 @@ fn manifest_rejected_when_not_a_validator() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: None,
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		let manifest = BackedCandidateManifest {
 			relay_parent,
@@ -2396,23 +2219,7 @@ fn manifest_rejected_when_group_does_not_match_para() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		let manifest = BackedCandidateManifest {
 			relay_parent,
@@ -2527,23 +2334,7 @@ fn peer_reported_for_advertisement_conflicting_with_confirmed_candidate() {
 		.await;
 
 		// Send gossip topology.
-		{
-			let topology = NewGossipTopology {
-				session: 1,
-				topology: SessionGridTopology::new(
-					(0..validator_count).collect(),
-					(0..validator_count)
-						.map(|i| TopologyPeerInfo {
-							peer_ids: Vec::new(),
-							validator_index: ValidatorIndex(i as u32),
-							discovery_id: AuthorityDiscoveryPair::generate().0.public(),
-						})
-						.collect(),
-				),
-				local_index: Some(state.local.as_ref().unwrap().validator_index),
-			};
-			send_new_topology(&mut overseer, topology).await;
-		}
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
 
 		let manifest = BackedCandidateManifest {
 			relay_parent,
