@@ -1382,7 +1382,7 @@ fn additional_statements_are_shared_after_manifest_exchange() {
 
 // Grid-sending validator view entering relay-parent leads to advertisement.
 #[test]
-fn dvertisement_sent_when_peer_enters_relay_parent_view() {
+fn advertisement_sent_when_peer_enters_relay_parent_view() {
 	let validator_count = 6;
 	let group_size = 3;
 	let config = TestConfig {
