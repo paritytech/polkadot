@@ -489,7 +489,7 @@ fn seconded_statement_leads_to_request() {
 
 	test_harness(config, |state, mut overseer| async move {
 		let local_validator = state.local.clone().unwrap();
-		let candidate_hash = CandidateHash(Hash::repeat_byte(42));
+		let local_para = ParaId::from(local_validator.group_index.0);
 
 		let test_leaf = TestLeaf {
 			number: 1,
@@ -511,6 +511,16 @@ fn seconded_statement_leads_to_request() {
 				})
 				.collect(),
 		};
+
+		let (candidate, pvd) = make_candidate(
+			relay_parent,
+			1,
+			local_para,
+			test_leaf.para_data(local_para).head_data.clone(),
+			vec![4, 5, 6].into(),
+			Hash::repeat_byte(42).into(),
+		);
+		let candidate_hash = candidate.hash();
 
 		// peer A is in group, has relay parent in view.
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
@@ -556,19 +566,16 @@ fn seconded_statement_leads_to_request() {
 				if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
 		);
 
+		handle_sent_request(&mut overseer, peer_a, candidate_hash, candidate.clone(), pvd.clone())
+			.await;
+
 		assert_matches!(
 			overseer.recv().await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(requests, IfDisconnected::ImmediateError)) => {
-				assert_eq!(requests.len(), 1);
-				assert_matches!(
-					&requests[0],
-					Requests::AttestedCandidateVStaging(outgoing) => {
-						assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
-						assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
-					}
-				);
-			}
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+				if p == peer_a && r == BENEFIT_VALID_RESPONSE => { }
 		);
+
+		answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 
 		overseer
 	});
@@ -1079,16 +1086,6 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 		let local_validator = state.local.clone().unwrap();
 		let local_para = ParaId::from(local_validator.group_index.0);
 
-		let (candidate, pvd) = make_candidate(
-			relay_parent,
-			1,
-			local_para,
-			vec![1, 2, 3].into(),
-			vec![4, 5, 6].into(),
-			Hash::repeat_byte(42).into(),
-		);
-		let candidate_hash = candidate.hash();
-
 		let test_leaf = TestLeaf {
 			number: 1,
 			hash: relay_parent,
@@ -1109,6 +1106,16 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 				})
 				.collect(),
 		};
+
+		let (candidate, pvd) = make_candidate(
+			relay_parent,
+			1,
+			local_para,
+			test_leaf.para_data(local_para).head_data.clone(),
+			vec![4, 5, 6].into(),
+			Hash::repeat_byte(42).into(),
+		);
+		let candidate_hash = candidate.hash();
 
 		// peer A is in group, has relay parent in view.
 		let other_group_validators = state.group_validators(local_validator.group_index, true);
@@ -1156,26 +1163,8 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 				if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
 		);
 
-		assert_matches!(
-			overseer.recv().await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
-				assert_eq!(requests.len(), 1);
-				assert_matches!(
-					requests.pop().unwrap(),
-					Requests::AttestedCandidateVStaging(outgoing) => {
-						assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
-						assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
-
-						let res = AttestedCandidateResponse {
-							candidate_receipt: candidate.clone(),
-							persisted_validation_data: pvd.clone(),
-							statements: vec![],
-						};
-						outgoing.pending_response.send(Ok(res.encode())).unwrap();
-					}
-				);
-			}
-		);
+		handle_sent_request(&mut overseer, peer_a, candidate_hash, candidate.clone(), pvd.clone())
+			.await;
 
 		assert_matches!(
 			overseer.recv().await,

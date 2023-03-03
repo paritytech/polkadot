@@ -29,9 +29,9 @@ use polkadot_node_subsystem::messages::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::vstaging::{
-	AssignmentPair, AsyncBackingParameters, BlockNumber, CoreState, GroupRotationInfo, HeadData,
-	Header, IndexedVec, PersistedValidationData, ScheduledCore, SessionIndex, SessionInfo,
-	ValidatorPair,
+	AssignmentPair, AsyncBackingParameters, BlockNumber, CommittedCandidateReceipt, CoreState,
+	GroupRotationInfo, HeadData, Header, IndexedVec, PersistedValidationData, ScheduledCore,
+	SessionIndex, SessionInfo, ValidatorPair,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair as PairT;
@@ -271,6 +271,11 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	futures::executor::block_on(future::join(
 		async move {
 			let mut virtual_overseer = test_fut.await;
+			// Ensure we have handled all responses.
+			if let Ok(Some(msg)) = virtual_overseer.rx.try_next() {
+				panic!("Did not handle all responses: {:?}", msg);
+			}
+			// Conclude.
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		},
 		subsystem,
@@ -325,13 +330,7 @@ async fn activate_leaf(
 		))))
 		.await;
 
-	handle_leaf_activation(
-		virtual_overseer,
-		leaf,
-		test_state,
-		expect_session_info_request,
-	)
-	.await;
+	handle_leaf_activation(virtual_overseer, leaf, test_state, expect_session_info_request).await;
 }
 
 async fn handle_leaf_activation(
@@ -416,6 +415,35 @@ async fn handle_leaf_activation(
 			}
 		);
 	}
+}
+
+async fn handle_sent_request(
+	virtual_overseer: &mut VirtualOverseer,
+	peer: PeerId,
+	candidate_hash: CandidateHash,
+	candidate_receipt: CommittedCandidateReceipt,
+	persisted_validation_data: PersistedValidationData,
+) {
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
+			assert_eq!(requests.len(), 1);
+			assert_matches!(
+				requests.pop().unwrap(),
+				Requests::AttestedCandidateVStaging(outgoing) => {
+					assert_eq!(outgoing.peer, Recipient::Peer(peer));
+					assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
+
+					let res = AttestedCandidateResponse {
+						candidate_receipt,
+						persisted_validation_data,
+						statements: vec![],
+					};
+					outgoing.pending_response.send(Ok(res.encode())).unwrap();
+				}
+			);
+		}
+	);
 }
 
 async fn answer_expected_hypothetical_depth_request(
