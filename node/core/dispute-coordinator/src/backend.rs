@@ -105,7 +105,7 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		if let Some(val) = &self.recent_disputes {
 			return Ok(Some(val.clone()))
 		}
-		
+
 		self.inner.load_recent_disputes()
 	}
 

@@ -694,9 +694,9 @@ impl Initialized {
 		Ok(())
 	}
 
-	// We use fatal result rather than result here. Reason being, We for example increase 
-	// spam slots in this function. If then the import fails for some non fatal and 
-	// unrelated reason, we should likely actually decrement previously incremented spam 
+	// We use fatal result rather than result here. Reason being, We for example increase
+	// spam slots in this function. If then the import fails for some non fatal and
+	// unrelated reason, we should likely actually decrement previously incremented spam
 	// slots again, for non fatal errors - which is cumbersome and actually not needed
 	async fn handle_import_statements<Context>(
 		&mut self,
