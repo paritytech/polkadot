@@ -101,7 +101,7 @@ mod tests {
 	fn match_next_inst_while_works() {
 		let mut xcm: Vec<Instruction<()>> = vec![ClearOrigin];
 
-		let _ = xcm[..]
+		let _ = xcm
 			.matcher()
 			.match_next_inst_while(|_| true, |_| Ok(ControlFlow::Continue(())))
 			.unwrap();
