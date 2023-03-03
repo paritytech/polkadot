@@ -275,7 +275,15 @@ impl StatementWithPVD {
 	pub fn drop_pvd_from_signed(signed: SignedFullStatementWithPVD) -> SignedFullStatement {
 		signed
 			.convert_to_superpayload_with(|s| s.drop_pvd())
-			.expect("persisted_validation_data doesn't affect encoded_as; qed")
+			.expect("persisted_validation_data doesn't affect encode_as; qed")
+	}
+
+	/// Converts the statement to a compact signed statement by dropping the [`CommittedCandidateReceipt`]
+	/// and the [`PersistedValidationData`].
+	pub fn signed_to_compact(signed: SignedFullStatementWithPVD) -> Signed<CompactStatement> {
+		signed
+			.convert_to_superpayload_with(|s| s.to_compact())
+			.expect("doesn't affect encode_as; qed")
 	}
 }
 
@@ -612,4 +620,11 @@ pub fn maybe_compress_pov(pov: PoV) -> PoV {
 
 	let pov = PoV { block_data: BlockData(raw) };
 	pov
+}
+
+/// How many votes we need to consider a candidate backed.
+///
+/// WARNING: This has to be kept in sync with the runtime check in the inclusion module.
+pub fn minimum_votes(n_validators: usize) -> usize {
+	std::cmp::min(2, n_validators)
 }

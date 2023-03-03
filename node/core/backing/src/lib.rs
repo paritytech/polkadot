@@ -80,16 +80,16 @@ use futures::{
 
 use error::{Error, FatalResult};
 use polkadot_node_primitives::{
-	AvailableData, InvalidCandidate, PoV, SignedFullStatementWithPVD, StatementWithPVD,
-	ValidationResult, BACKING_EXECUTION_TIMEOUT,
+	minimum_votes, AvailableData, InvalidCandidate, PoV, SignedFullStatementWithPVD,
+	StatementWithPVD, ValidationResult, BACKING_EXECUTION_TIMEOUT,
 };
 use polkadot_node_subsystem::{
 	messages::{
 		AvailabilityDistributionMessage, AvailabilityStoreMessage, CanSecondRequest,
 		CandidateBackingMessage, CandidateValidationMessage, CollatorProtocolMessage,
-		HypotheticalCandidate, HypotheticalFrontierRequest, ProspectiveParachainsMessage,
-		ProvisionableData, ProvisionerMessage, RuntimeApiMessage, RuntimeApiRequest,
-		StatementDistributionMessage,
+		HypotheticalCandidate, HypotheticalFrontierRequest, IntroduceCandidateRequest,
+		ProspectiveParachainsMessage, ProvisionableData, ProvisionerMessage, RuntimeApiMessage,
+		RuntimeApiRequest, StatementDistributionMessage,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
@@ -372,13 +372,6 @@ struct AttestingData {
 	from_validator: ValidatorIndex,
 	/// Other backing validators we can try in case `from_validator` failed.
 	backing: Vec<ValidatorIndex>,
-}
-
-/// How many votes we need to consider a candidate backed.
-///
-/// WARNING: This has to be kept in sync with the runtime check in the inclusion module.
-fn minimum_votes(n_validators: usize) -> usize {
-	std::cmp::min(2, n_validators)
 }
 
 #[derive(Default)]
@@ -1514,10 +1507,12 @@ async fn import_statement<Context>(
 		if !per_candidate.contains_key(&candidate_hash) {
 			if rp_state.prospective_parachains_mode.is_enabled() {
 				let (tx, rx) = oneshot::channel();
-				ctx.send_message(ProspectiveParachainsMessage::CandidateSeconded(
-					candidate.descriptor().para_id,
-					candidate.clone(),
-					pvd.clone(),
+				ctx.send_message(ProspectiveParachainsMessage::IntroduceCandidate(
+					IntroduceCandidateRequest {
+						candidate_para: candidate.descriptor().para_id,
+						candidate_receipt: candidate.clone(),
+						persisted_validation_data: pvd.clone(),
+					},
 					tx,
 				))
 				.await;
@@ -1536,6 +1531,12 @@ async fn import_statement<Context>(
 							return Err(Error::RejectedByProspectiveParachains)
 						},
 				}
+
+				ctx.send_message(ProspectiveParachainsMessage::CandidateSeconded(
+					candidate.descriptor().para_id,
+					candidate_hash,
+				))
+				.await;
 			}
 
 			// Only save the candidate if it was approved by prospective parachains.

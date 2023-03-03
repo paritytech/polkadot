@@ -420,16 +420,25 @@ fn seconding_sanity_check_allowed() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(
-					candidate_para,
-					candidate_receipt,
-					_pvd,
+				ProspectiveParachainsMessage::IntroduceCandidate(
+					req,
 					tx,
 				),
-			) if candidate_receipt == candidate && candidate_para == para_id && pvd == _pvd => {
+			) if
+				req.candidate_receipt == candidate
+				&& req.candidate_para == para_id
+				&& pvd == req.persisted_validation_data => {
 				// Any non-empty response will do.
 				tx.send(vec![(leaf_a_hash, vec![0, 1, 2, 3])]).unwrap();
 			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(ProspectiveParachainsMessage::CandidateSeconded(
+				_,
+				_
+			))
 		);
 
 		assert_matches!(
@@ -557,16 +566,25 @@ fn seconding_sanity_check_disallowed() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(
-					candidate_para,
-					candidate_receipt,
-					_pvd,
+				ProspectiveParachainsMessage::IntroduceCandidate(
+					req,
 					tx,
 				),
-			) if candidate_receipt == candidate && candidate_para == para_id && pvd == _pvd => {
+			) if
+				req.candidate_receipt == candidate
+				&& req.candidate_para == para_id
+				&& pvd == req.persisted_validation_data => {
 				// Any non-empty response will do.
 				tx.send(vec![(leaf_a_hash, vec![0, 2, 3])]).unwrap();
 			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(ProspectiveParachainsMessage::CandidateSeconded(
+				_,
+				_
+			))
 		);
 
 		assert_matches!(
@@ -757,13 +775,14 @@ fn prospective_parachains_reject_candidate() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(
-					candidate_para,
-					candidate_receipt,
-					_pvd,
+				ProspectiveParachainsMessage::IntroduceCandidate(
+					req,
 					tx,
 				),
-			) if candidate_receipt == candidate && candidate_para == para_id && pvd == _pvd => {
+			) if
+				req.candidate_receipt == candidate
+				&& req.candidate_para == para_id
+				&& pvd == req.persisted_validation_data => {
 				// Reject it.
 				tx.send(Vec::new()).unwrap();
 			}
@@ -808,16 +827,25 @@ fn prospective_parachains_reject_candidate() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(
-					candidate_para,
-					candidate_receipt,
-					_pvd,
+				ProspectiveParachainsMessage::IntroduceCandidate(
+					req,
 					tx,
 				),
-			) if candidate_receipt == candidate && candidate_para == para_id && pvd == _pvd => {
+			) if
+				req.candidate_receipt == candidate
+				&& req.candidate_para == para_id
+				&& pvd == req.persisted_validation_data => {
 				// Any non-empty response will do.
 				tx.send(vec![(leaf_a_hash, vec![0, 2, 3])]).unwrap();
 			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(ProspectiveParachainsMessage::CandidateSeconded(
+				_,
+				_
+			))
 		);
 
 		assert_matches!(
@@ -939,18 +967,27 @@ fn second_multiple_candidates_per_relay_parent() {
 
 			// Prospective parachains are notified.
 			assert_matches!(
+						   virtual_overseer.recv().await,
+						   AllMessages::ProspectiveParachains(
+							   ProspectiveParachainsMessage::IntroduceCandidate(
+								   req,
+								   tx,
+							   ),
+						   ) if
+							   &req.candidate_receipt == candidate
+							   && req.candidate_para == para_id
+							   && pvd == req.persisted_validation_data
+			=> {
+							   // Any non-empty response will do.
+							   tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
+						   }
+					   );
+
+			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::ProspectiveParachains(
-					ProspectiveParachainsMessage::CandidateSeconded(
-						candidate_para,
-						candidate_receipt,
-						_pvd,
-						tx,
-					),
-				) if &candidate_receipt == candidate && candidate_para == para_id && pvd == _pvd => {
-					// Any non-empty response will do.
-					tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
-				}
+					ProspectiveParachainsMessage::CandidateSeconded(_, _)
+				)
 			);
 
 			assert_matches!(
@@ -1072,16 +1109,25 @@ fn backing_works() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(
-					candidate_para,
-					candidate_receipt,
-					_pvd,
+				ProspectiveParachainsMessage::IntroduceCandidate(
+					req,
 					tx,
 				),
-			) if candidate_receipt == candidate_a && candidate_para == para_id && pvd == _pvd => {
+			) if
+				req.candidate_receipt == candidate_a
+				&& req.candidate_para == para_id
+				&& pvd == req.persisted_validation_data => {
 				// Any non-empty response will do.
 				tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
 			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(ProspectiveParachainsMessage::CandidateSeconded(
+				_,
+				_
+			))
 		);
 
 		assert_validate_seconded_candidate(
@@ -1276,10 +1322,13 @@ fn concurrent_dependent_candidates() {
 			// Order is not guaranteed since we have 2 statements being handled concurrently.
 			match msg {
 				AllMessages::ProspectiveParachains(
-					ProspectiveParachainsMessage::CandidateSeconded(.., tx),
+					ProspectiveParachainsMessage::IntroduceCandidate(_, tx),
 				) => {
 					tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
 				},
+				AllMessages::ProspectiveParachains(
+					ProspectiveParachainsMessage::CandidateSeconded(_, _),
+				) => {},
 				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 					_,
 					RuntimeApiRequest::ValidationCodeByHash(_, tx),
@@ -1473,18 +1522,27 @@ fn seconding_sanity_check_occupy_same_depth() {
 
 			// Prospective parachains are notified.
 			assert_matches!(
+						   virtual_overseer.recv().await,
+						   AllMessages::ProspectiveParachains(
+							   ProspectiveParachainsMessage::IntroduceCandidate(
+								   req,
+								   tx,
+							   ),
+						   ) if
+							   &req.candidate_receipt == candidate
+							   && &req.candidate_para == para_id
+							   && pvd == req.persisted_validation_data
+			=> {
+							   // Any non-empty response will do.
+							   tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
+						   }
+					   );
+
+			assert_matches!(
 				virtual_overseer.recv().await,
 				AllMessages::ProspectiveParachains(
-					ProspectiveParachainsMessage::CandidateSeconded(
-						candidate_para,
-						candidate_receipt,
-						_pvd,
-						tx,
-					),
-				) if &candidate_receipt == candidate && candidate_para == *para_id && pvd == _pvd => {
-					// Any non-empty response will do.
-					tx.send(vec![(leaf_hash, vec![0, 2, 3])]).unwrap();
-				}
+					ProspectiveParachainsMessage::CandidateSeconded(_, _)
+				)
 			);
 
 			assert_matches!(
@@ -1610,16 +1668,26 @@ fn occupied_core_assignment() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::ProspectiveParachains(
-				ProspectiveParachainsMessage::CandidateSeconded(
-					candidate_para,
-					candidate_receipt,
-					_pvd,
+				ProspectiveParachainsMessage::IntroduceCandidate(
+					req,
 					tx,
 				),
-			) if candidate_receipt == candidate && candidate_para == para_id && pvd == _pvd => {
+			) if
+				req.candidate_receipt == candidate
+				&& req.candidate_para == para_id
+				&& pvd == req.persisted_validation_data
+			=> {
 				// Any non-empty response will do.
 				tx.send(vec![(leaf_a_hash, vec![0, 1, 2, 3])]).unwrap();
 			}
+		);
+
+		assert_matches!(
+			virtual_overseer.recv().await,
+			AllMessages::ProspectiveParachains(ProspectiveParachainsMessage::CandidateSeconded(
+				_,
+				_
+			))
 		);
 
 		assert_matches!(

@@ -589,11 +589,12 @@ pub mod v1 {
 
 /// vstaging network protocol types.
 pub mod vstaging {
+	use bitvec::{order::Lsb0, slice::BitSlice, vec::BitVec};
 	use parity_scale_codec::{Decode, Encode};
 
 	use polkadot_primitives::vstaging::{
-		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, Hash, Id as ParaId,
-		UncheckedSignedAvailabilityBitfield,
+		CandidateHash, CandidateIndex, CollatorId, CollatorSignature, GroupIndex, Hash,
+		Id as ParaId, UncheckedSignedAvailabilityBitfield, UncheckedSignedStatement,
 	};
 
 	use polkadot_node_primitives::{
@@ -609,17 +610,155 @@ pub mod vstaging {
 		Bitfield(Hash, UncheckedSignedAvailabilityBitfield),
 	}
 
+	/// Bitfields indicating the statements that are known or undesired
+	/// about a candidate.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct StatementFilter {
+		/// Seconded statements. '1' is known or undesired.
+		pub seconded_in_group: BitVec<u8, Lsb0>,
+		/// Valid statements. '1' is known or undesired.
+		pub validated_in_group: BitVec<u8, Lsb0>,
+	}
+
+	impl StatementFilter {
+		/// Create a new blank filter with the given group size.
+		pub fn blank(group_size: usize) -> Self {
+			StatementFilter {
+				seconded_in_group: BitVec::repeat(false, group_size),
+				validated_in_group: BitVec::repeat(false, group_size),
+			}
+		}
+
+		/// Create a new full filter with the given group size.
+		pub fn full(group_size: usize) -> Self {
+			StatementFilter {
+				seconded_in_group: BitVec::repeat(true, group_size),
+				validated_in_group: BitVec::repeat(true, group_size),
+			}
+		}
+
+		/// Whether the filter has a specific expected length, consistent across both
+		/// bitfields.
+		pub fn has_len(&self, len: usize) -> bool {
+			self.seconded_in_group.len() == len && self.validated_in_group.len() == len
+		}
+
+		/// Determine the number of backing validators in the statement filter.
+		pub fn backing_validators(&self) -> usize {
+			self.seconded_in_group
+				.iter()
+				.by_vals()
+				.zip(self.validated_in_group.iter().by_vals())
+				.filter(|&(s, v)| s || v) // no double-counting
+				.count()
+		}
+
+		/// Whether the statement filter has at least one seconded statement.
+		pub fn has_seconded(&self) -> bool {
+			self.seconded_in_group.iter().by_vals().any(|x| x)
+		}
+
+		/// Mask out `Seconded` statements in `self` according to the provided
+		/// bitvec. Bits appearing in `mask` will not appear in `self` afterwards.
+		pub fn mask_seconded(&mut self, mask: &BitSlice<u8, Lsb0>) {
+			for (mut x, mask) in self
+				.seconded_in_group
+				.iter_mut()
+				.zip(mask.iter().by_vals().chain(std::iter::repeat(false)))
+			{
+				// (x, mask) => x
+				// (true, true) => false
+				// (true, false) => true
+				// (false, true) => false
+				// (false, false) => false
+				*x = *x && !mask;
+			}
+		}
+
+		/// Mask out `Valid` statements in `self` according to the provided
+		/// bitvec. Bits appearing in `mask` will not appear in `self` afterwards.
+		pub fn mask_valid(&mut self, mask: &BitSlice<u8, Lsb0>) {
+			for (mut x, mask) in self
+				.validated_in_group
+				.iter_mut()
+				.zip(mask.iter().by_vals().chain(std::iter::repeat(false)))
+			{
+				// (x, mask) => x
+				// (true, true) => false
+				// (true, false) => true
+				// (false, true) => false
+				// (false, false) => false
+				*x = *x && !mask;
+			}
+		}
+	}
+
+	/// A manifest of a known backed candidate, along with a description
+	/// of the statements backing it.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct BackedCandidateManifest {
+		/// The relay-parent of the candidate.
+		pub relay_parent: Hash,
+		/// The hash of the candidate.
+		pub candidate_hash: CandidateHash,
+		/// The group index backing the candidate at the relay-parent.
+		pub group_index: GroupIndex,
+		/// The para ID of the candidate. It is illegal for this to
+		/// be a para ID which is not assigned to the group indicated
+		/// in this manifest.
+		pub para_id: ParaId,
+		/// The head-data corresponding to the candidate.
+		pub parent_head_data_hash: Hash,
+		/// A statement filter which indicates which validators in the
+		/// para's group at the relay-parent have validated this candidate
+		/// and issued statements about it, to the advertiser's knowledge.
+		///
+		/// This MUST have exactly the minimum amount of bytes
+		/// necessary to represent the number of validators in the assigned
+		/// backing group as-of the relay-parent.
+		pub statement_knowledge: StatementFilter,
+	}
+
+	/// An acknowledgement of a backed candidate being known.
+	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+	pub struct BackedCandidateAcknowledgement {
+		/// The hash of the candidate.
+		pub candidate_hash: CandidateHash,
+		/// A statement filter which indicates which validators in the
+		/// para's group at the relay-parent have validated this candidate
+		/// and issued statements about it, to the advertiser's knowledge.
+		///
+		/// This MUST have exactly the minimum amount of bytes
+		/// necessary to represent the number of validators in the assigned
+		/// backing group as-of the relay-parent.
+		pub statement_knowledge: StatementFilter,
+	}
+
 	/// Network messages used by the statement distribution subsystem.
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum StatementDistributionMessage {
-		// TODO [now]: notifications for v2
+		/// A notification of a signed statement in compact form.
+		#[codec(index = 0)]
+		Statement(Hash, UncheckedSignedStatement),
+
+		/// A notification of a backed candidate being known by the
+		/// sending node, for the purpose of being requested by the receiving node
+		/// if needed.
+		#[codec(index = 1)]
+		BackedCandidateManifest(BackedCandidateManifest),
+
+		/// A notification of a backed candidate being known by the sending node,
+		/// for the purpose of informing a receiving node which already has the candidate.
+		#[codec(index = 2)]
+		BackedCandidateKnown(BackedCandidateAcknowledgement),
+
 		/// All messages for V1 for compatibility with the statement distribution
 		/// protocol, for relay-parents that don't support asynchronous backing.
 		///
 		/// These are illegal to send to V1 peers, and illegal to send concerning relay-parents
 		/// which support asynchronous backing. This backwards compatibility should be
 		/// considered immediately deprecated and can be removed once the node software
-		/// is not required to support asynchronous backing anymore.
+		/// is not required to support logic from before asynchronous backing anymore.
 		#[codec(index = 255)]
 		V1Compatibility(crate::v1::StatementDistributionMessage),
 	}

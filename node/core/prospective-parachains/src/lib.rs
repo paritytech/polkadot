@@ -37,7 +37,7 @@ use futures::{channel::oneshot, prelude::*};
 use polkadot_node_subsystem::{
 	messages::{
 		ChainApiMessage, FragmentTreeMembership, HypotheticalCandidate,
-		HypotheticalFrontierRequest, ProspectiveParachainsMessage,
+		HypotheticalFrontierRequest, IntroduceCandidateRequest, ProspectiveParachainsMessage,
 		ProspectiveValidationDataRequest, RuntimeApiMessage, RuntimeApiRequest,
 	},
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
@@ -47,8 +47,7 @@ use polkadot_node_subsystem_util::{
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 };
 use polkadot_primitives::vstaging::{
-	BlockNumber, CandidateHash, CommittedCandidateReceipt, CoreState, Hash, Id as ParaId,
-	PersistedValidationData,
+	BlockNumber, CandidateHash, CoreState, Hash, Id as ParaId, PersistedValidationData,
 };
 
 use crate::{
@@ -136,8 +135,10 @@ async fn run_iteration<Context>(
 			},
 			FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},
 			FromOrchestra::Communication { msg } => match msg {
-				ProspectiveParachainsMessage::CandidateSeconded(para, candidate, pvd, tx) =>
-					handle_candidate_seconded(&mut *ctx, view, para, candidate, pvd, tx).await?,
+				ProspectiveParachainsMessage::IntroduceCandidate(request, tx) =>
+					handle_candidate_introduced(&mut *ctx, view, request, tx).await?,
+				ProspectiveParachainsMessage::CandidateSeconded(para, candidate_hash) =>
+					handle_candidate_seconded(view, para, candidate_hash),
 				ProspectiveParachainsMessage::CandidateBacked(para, candidate_hash) =>
 					handle_candidate_backed(&mut *ctx, view, para, candidate_hash).await?,
 				ProspectiveParachainsMessage::GetBackableCandidate(
@@ -289,14 +290,18 @@ fn prune_view_candidate_storage(view: &mut View, metrics: &Metrics) {
 }
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
-async fn handle_candidate_seconded<Context>(
+async fn handle_candidate_introduced<Context>(
 	_ctx: &mut Context,
 	view: &mut View,
-	para: ParaId,
-	candidate: CommittedCandidateReceipt,
-	pvd: PersistedValidationData,
+	request: IntroduceCandidateRequest,
 	tx: oneshot::Sender<FragmentTreeMembership>,
 ) -> JfyiErrorResult<()> {
+	let IntroduceCandidateRequest {
+		candidate_para: para,
+		candidate_receipt: candidate,
+		persisted_validation_data: pvd,
+	} = request;
+
 	// Add the candidate to storage.
 	// Then attempt to add it to all trees.
 	let storage = match view.candidate_storage.get_mut(&para) {
@@ -316,8 +321,9 @@ async fn handle_candidate_seconded<Context>(
 
 	let candidate_hash = match storage.add_candidate(candidate, pvd) {
 		Ok(c) => c,
-		Err(crate::fragment_tree::CandidateStorageInsertionError::CandidateAlreadyKnown(_)) => {
-			let _ = tx.send(Vec::new());
+		Err(crate::fragment_tree::CandidateStorageInsertionError::CandidateAlreadyKnown(c)) => {
+			// Candidate known - return existing fragment tree membership.
+			let _ = tx.send(fragment_tree_membership(&view.active_leaves, para, c));
 			return Ok(())
 		},
 		Err(
@@ -347,9 +353,43 @@ async fn handle_candidate_seconded<Context>(
 			}
 		}
 	}
+
+	if membership.is_empty() {
+		storage.remove_candidate(&candidate_hash);
+	}
+
 	let _ = tx.send(membership);
 
 	Ok(())
+}
+
+fn handle_candidate_seconded(view: &mut View, para: ParaId, candidate_hash: CandidateHash) {
+	let storage = match view.candidate_storage.get_mut(&para) {
+		None => {
+			gum::warn!(
+				target: LOG_TARGET,
+				para_id = ?para,
+				?candidate_hash,
+				"Received instruction to second unknown candidate",
+			);
+
+			return
+		},
+		Some(storage) => storage,
+	};
+
+	if !storage.contains(&candidate_hash) {
+		gum::warn!(
+			target: LOG_TARGET,
+			para_id = ?para,
+			?candidate_hash,
+			"Received instruction to second unknown candidate",
+		);
+
+		return
+	}
+
+	storage.mark_seconded(&candidate_hash);
 }
 
 #[overseer::contextbounds(ProspectiveParachains, prefix = self::overseer)]
@@ -365,7 +405,7 @@ async fn handle_candidate_backed<Context>(
 				target: LOG_TARGET,
 				para_id = ?para,
 				?candidate_hash,
-				"Received instruction to back candidate",
+				"Received instruction to back unknown candidate",
 			);
 
 			return Ok(())
@@ -378,7 +418,7 @@ async fn handle_candidate_backed<Context>(
 			target: LOG_TARGET,
 			para_id = ?para,
 			?candidate_hash,
-			"Received instruction to mark unknown candidate as backed.",
+			"Received instruction to back unknown candidate",
 		);
 
 		return Ok(())

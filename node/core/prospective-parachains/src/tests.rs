@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use ::polkadot_primitives_test_helpers::{dummy_candidate_receipt_bad_sig, dummy_hash};
 use assert_matches::assert_matches;
 use polkadot_node_subsystem::{
 	errors::RuntimeApiError,
@@ -27,12 +26,11 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::{
-	v2::{
-		CandidateCommitments, HeadData, Header, PersistedValidationData, ScheduledCore,
-		ValidationCodeHash,
-	},
 	vstaging::{AsyncBackingParameters, Constraints, InboundHrmpLimitations},
+	CommittedCandidateReceipt, HeadData, Header, PersistedValidationData, ScheduledCore,
+	ValidationCodeHash,
 };
+use polkadot_primitives_test_helpers::make_candidate;
 use std::sync::Arc;
 
 const ALLOWED_ANCESTRY_LEN: u32 = 3;
@@ -59,7 +57,7 @@ fn dummy_constraints(
 		ump_remaining: 10,
 		ump_remaining_bytes: 1_000,
 		max_ump_num_per_candidate: 10,
-		dmp_remaining_messages: vec![10],
+		dmp_remaining_messages: vec![],
 		hrmp_inbound: InboundHrmpLimitations { valid_watermarks },
 		hrmp_channels_out: vec![],
 		max_hrmp_num_per_candidate: 0,
@@ -68,42 +66,6 @@ fn dummy_constraints(
 		upgrade_restriction: None,
 		future_validation_code: None,
 	}
-}
-
-fn dummy_pvd(parent_head: HeadData, relay_parent_number: u32) -> PersistedValidationData {
-	PersistedValidationData {
-		parent_head,
-		relay_parent_number,
-		max_pov_size: MAX_POV_SIZE,
-		relay_parent_storage_root: dummy_hash(),
-	}
-}
-
-fn make_candidate(
-	leaf: &TestLeaf,
-	para_id: ParaId,
-	parent_head: HeadData,
-	head_data: HeadData,
-	validation_code_hash: ValidationCodeHash,
-) -> (CommittedCandidateReceipt, PersistedValidationData) {
-	let pvd = dummy_pvd(parent_head, leaf.number);
-	let commitments = CandidateCommitments {
-		head_data,
-		horizontal_messages: Default::default(),
-		upward_messages: Default::default(),
-		new_validation_code: None,
-		processed_downward_messages: 0,
-		hrmp_watermark: leaf.number,
-	};
-
-	let mut candidate = dummy_candidate_receipt_bad_sig(leaf.hash, Some(Default::default()));
-	candidate.commitments_hash = commitments.hash();
-	candidate.descriptor.para_id = para_id;
-	candidate.descriptor.persisted_validation_data_hash = pvd.hash();
-	candidate.descriptor.validation_code_hash = validation_code_hash;
-	let candidate = CommittedCandidateReceipt { descriptor: candidate.descriptor, commitments };
-
-	(candidate, pvd)
 }
 
 struct TestState {
@@ -334,25 +296,36 @@ async fn deactivate_leaf(virtual_overseer: &mut VirtualOverseer, hash: Hash) {
 		.await;
 }
 
-async fn second_candidate(
+async fn introduce_candidate(
 	virtual_overseer: &mut VirtualOverseer,
 	candidate: CommittedCandidateReceipt,
 	pvd: PersistedValidationData,
-	expected_candidate_response: Vec<(Hash, Vec<usize>)>,
 ) {
-	let (tx, rx) = oneshot::channel();
+	let req = IntroduceCandidateRequest {
+		candidate_para: candidate.descriptor().para_id,
+		candidate_receipt: candidate,
+		persisted_validation_data: pvd,
+	};
+	let (tx, _) = oneshot::channel();
+	virtual_overseer
+		.send(overseer::FromOrchestra::Communication {
+			msg: ProspectiveParachainsMessage::IntroduceCandidate(req, tx),
+		})
+		.await;
+}
+
+async fn second_candidate(
+	virtual_overseer: &mut VirtualOverseer,
+	candidate: CommittedCandidateReceipt,
+) {
 	virtual_overseer
 		.send(overseer::FromOrchestra::Communication {
 			msg: ProspectiveParachainsMessage::CandidateSeconded(
 				candidate.descriptor.para_id,
-				candidate,
-				pvd,
-				tx,
+				candidate.hash(),
 			),
 		})
 		.await;
-	let resp = rx.await.unwrap();
-	assert_eq!(resp, expected_candidate_response);
 }
 
 async fn back_candidate(
@@ -414,6 +387,7 @@ async fn get_hypothetical_frontier(
 	receipt: CommittedCandidateReceipt,
 	persisted_validation_data: PersistedValidationData,
 	fragment_tree_relay_parent: Hash,
+	backed_in_path_only: bool,
 	expected_depths: Vec<usize>,
 ) {
 	let hypothetical_candidate = HypotheticalCandidate::Complete {
@@ -424,7 +398,7 @@ async fn get_hypothetical_frontier(
 	let request = HypotheticalFrontierRequest {
 		candidates: vec![hypothetical_candidate.clone()],
 		fragment_tree_relay_parent: Some(fragment_tree_relay_parent),
-		backed_in_path_only: false,
+		backed_in_path_only,
 	};
 	let (tx, rx) = oneshot::channel();
 	virtual_overseer
@@ -433,8 +407,11 @@ async fn get_hypothetical_frontier(
 		})
 		.await;
 	let resp = rx.await.unwrap();
-	let expected_frontier =
-		vec![(hypothetical_candidate, vec![(fragment_tree_relay_parent, expected_depths)])];
+	let expected_frontier = if expected_depths.is_empty() {
+		vec![(hypothetical_candidate, vec![])]
+	} else {
+		vec![(hypothetical_candidate, vec![(fragment_tree_relay_parent, expected_depths)])]
+	};
 	assert_eq!(resp, expected_frontier);
 }
 
@@ -540,7 +517,8 @@ fn send_candidates_and_check_if_found() {
 
 		// Candidate A1
 		let (candidate_a1, pvd_a1) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
@@ -551,7 +529,8 @@ fn send_candidates_and_check_if_found() {
 
 		// Candidate A2
 		let (candidate_a2, pvd_a2) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			2.into(),
 			HeadData(vec![2, 3, 4]),
 			HeadData(vec![2]),
@@ -562,7 +541,8 @@ fn send_candidates_and_check_if_found() {
 
 		// Candidate B
 		let (candidate_b, pvd_b) = make_candidate(
-			&leaf_b,
+			leaf_b.hash,
+			leaf_b.number,
 			1.into(),
 			HeadData(vec![3, 4, 5]),
 			HeadData(vec![3]),
@@ -573,7 +553,8 @@ fn send_candidates_and_check_if_found() {
 
 		// Candidate C
 		let (candidate_c, pvd_c) = make_candidate(
-			&leaf_c,
+			leaf_c.hash,
+			leaf_c.number,
 			2.into(),
 			HeadData(vec![6, 7, 8]),
 			HeadData(vec![4]),
@@ -582,11 +563,11 @@ fn send_candidates_and_check_if_found() {
 		let candidate_hash_c = candidate_c.hash();
 		let response_c = vec![(leaf_c.hash, vec![0])];
 
-		// Second candidates.
-		second_candidate(&mut virtual_overseer, candidate_a1, pvd_a1, response_a1.clone()).await;
-		second_candidate(&mut virtual_overseer, candidate_a2, pvd_a2, response_a2.clone()).await;
-		second_candidate(&mut virtual_overseer, candidate_b, pvd_b, response_b.clone()).await;
-		second_candidate(&mut virtual_overseer, candidate_c, pvd_c, response_c.clone()).await;
+		// Introduce candidates.
+		introduce_candidate(&mut virtual_overseer, candidate_a1, pvd_a1).await;
+		introduce_candidate(&mut virtual_overseer, candidate_a2, pvd_a2).await;
+		introduce_candidate(&mut virtual_overseer, candidate_b, pvd_b).await;
+		introduce_candidate(&mut virtual_overseer, candidate_c, pvd_c).await;
 
 		// Check candidate tree membership.
 		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_a1, response_a1).await;
@@ -650,29 +631,30 @@ fn check_candidate_parent_leaving_view() {
 
 		// Candidate A1
 		let (candidate_a1, pvd_a1) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
 			test_state.validation_code_hash,
 		);
 		let candidate_hash_a1 = candidate_a1.hash();
-		let response_a1 = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate A2
 		let (candidate_a2, pvd_a2) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			2.into(),
 			HeadData(vec![2, 3, 4]),
 			HeadData(vec![2]),
 			test_state.validation_code_hash,
 		);
 		let candidate_hash_a2 = candidate_a2.hash();
-		let response_a2 = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate B
 		let (candidate_b, pvd_b) = make_candidate(
-			&leaf_b,
+			leaf_b.hash,
+			leaf_b.number,
 			1.into(),
 			HeadData(vec![3, 4, 5]),
 			HeadData(vec![3]),
@@ -683,7 +665,8 @@ fn check_candidate_parent_leaving_view() {
 
 		// Candidate C
 		let (candidate_c, pvd_c) = make_candidate(
-			&leaf_c,
+			leaf_c.hash,
+			leaf_c.number,
 			2.into(),
 			HeadData(vec![6, 7, 8]),
 			HeadData(vec![4]),
@@ -692,11 +675,11 @@ fn check_candidate_parent_leaving_view() {
 		let candidate_hash_c = candidate_c.hash();
 		let response_c = vec![(leaf_c.hash, vec![0])];
 
-		// Second candidates.
-		second_candidate(&mut virtual_overseer, candidate_a1, pvd_a1, response_a1.clone()).await;
-		second_candidate(&mut virtual_overseer, candidate_a2, pvd_a2, response_a2.clone()).await;
-		second_candidate(&mut virtual_overseer, candidate_b, pvd_b, response_b.clone()).await;
-		second_candidate(&mut virtual_overseer, candidate_c, pvd_c, response_c.clone()).await;
+		// Introduce candidates.
+		introduce_candidate(&mut virtual_overseer, candidate_a1, pvd_a1).await;
+		introduce_candidate(&mut virtual_overseer, candidate_a2, pvd_a2).await;
+		introduce_candidate(&mut virtual_overseer, candidate_b, pvd_b).await;
+		introduce_candidate(&mut virtual_overseer, candidate_c, pvd_c).await;
 
 		// Deactivate leaf A.
 		deactivate_leaf(&mut virtual_overseer, leaf_a.hash).await;
@@ -772,7 +755,8 @@ fn check_candidate_on_multiple_forks() {
 
 		// Candidate on leaf A.
 		let (candidate_a, pvd_a) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
@@ -783,7 +767,8 @@ fn check_candidate_on_multiple_forks() {
 
 		// Candidate on leaf B.
 		let (candidate_b, pvd_b) = make_candidate(
-			&leaf_b,
+			leaf_b.hash,
+			leaf_b.number,
 			1.into(),
 			HeadData(vec![3, 4, 5]),
 			HeadData(vec![1]),
@@ -794,7 +779,8 @@ fn check_candidate_on_multiple_forks() {
 
 		// Candidate on leaf C.
 		let (candidate_c, pvd_c) = make_candidate(
-			&leaf_c,
+			leaf_c.hash,
+			leaf_c.number,
 			1.into(),
 			HeadData(vec![5, 6, 7]),
 			HeadData(vec![1]),
@@ -803,28 +789,10 @@ fn check_candidate_on_multiple_forks() {
 		let candidate_hash_c = candidate_c.hash();
 		let response_c = vec![(leaf_c.hash, vec![0])];
 
-		// Second candidate on all three leaves.
-		second_candidate(
-			&mut virtual_overseer,
-			candidate_a.clone(),
-			pvd_a.clone(),
-			response_a.clone(),
-		)
-		.await;
-		second_candidate(
-			&mut virtual_overseer,
-			candidate_b.clone(),
-			pvd_b.clone(),
-			response_b.clone(),
-		)
-		.await;
-		second_candidate(
-			&mut virtual_overseer,
-			candidate_c.clone(),
-			pvd_c.clone(),
-			response_c.clone(),
-		)
-		.await;
+		// Introduce candidates on all three leaves.
+		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a).await;
+		introduce_candidate(&mut virtual_overseer, candidate_b.clone(), pvd_b).await;
+		introduce_candidate(&mut virtual_overseer, candidate_c.clone(), pvd_c).await;
 
 		// Check candidate tree membership.
 		get_membership(&mut virtual_overseer, 1.into(), candidate_hash_a, response_a).await;
@@ -861,18 +829,19 @@ fn check_backable_query() {
 
 		// Candidate A
 		let (candidate_a, pvd_a) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
 			test_state.validation_code_hash,
 		);
 		let candidate_hash_a = candidate_a.hash();
-		let response_a = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate B
 		let (mut candidate_b, pvd_b) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1]),
 			HeadData(vec![2]),
@@ -881,23 +850,24 @@ fn check_backable_query() {
 		// Set a field to make this candidate unique.
 		candidate_b.descriptor.para_head = Hash::from_low_u64_le(1000);
 		let candidate_hash_b = candidate_b.hash();
-		let response_b = vec![(leaf_a.hash, vec![1])];
+
+		// Introduce candidates.
+		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a).await;
+		introduce_candidate(&mut virtual_overseer, candidate_b.clone(), pvd_b).await;
+
+		// Should not get any backable candidates.
+		get_backable_candidate(
+			&mut virtual_overseer,
+			&leaf_a,
+			1.into(),
+			vec![candidate_hash_a],
+			None,
+		)
+		.await;
 
 		// Second candidates.
-		second_candidate(
-			&mut virtual_overseer,
-			candidate_a.clone(),
-			pvd_a.clone(),
-			response_a.clone(),
-		)
-		.await;
-		second_candidate(
-			&mut virtual_overseer,
-			candidate_b.clone(),
-			pvd_b.clone(),
-			response_b.clone(),
-		)
-		.await;
+		second_candidate(&mut virtual_overseer, candidate_a.clone()).await;
+		second_candidate(&mut virtual_overseer, candidate_b.clone()).await;
 
 		// Should not get any backable candidates.
 		get_backable_candidate(
@@ -953,7 +923,7 @@ fn check_backable_query() {
 
 // Test depth query.
 #[test]
-fn check_depth_query() {
+fn check_hypothetical_frontier_query() {
 	let test_state = TestState::default();
 	let view = test_harness(|mut virtual_overseer| async move {
 		// Leaf A
@@ -971,36 +941,36 @@ fn check_depth_query() {
 
 		// Candidate A.
 		let (candidate_a, pvd_a) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
 			test_state.validation_code_hash,
 		);
 		let candidate_hash_a = candidate_a.hash();
-		let response_a = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate B.
 		let (candidate_b, pvd_b) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1]),
 			HeadData(vec![2]),
 			test_state.validation_code_hash,
 		);
 		let candidate_hash_b = candidate_b.hash();
-		let response_b = vec![(leaf_a.hash, vec![1])];
 
 		// Candidate C.
 		let (candidate_c, pvd_c) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![2]),
 			HeadData(vec![3]),
 			test_state.validation_code_hash,
 		);
 		let candidate_hash_c = candidate_c.hash();
-		let response_c = vec![(leaf_a.hash, vec![2])];
 
 		// Get hypothetical frontier of candidate A before adding it.
 		get_hypothetical_frontier(
@@ -1009,18 +979,24 @@ fn check_depth_query() {
 			candidate_a.clone(),
 			pvd_a.clone(),
 			leaf_a.hash,
+			false,
+			vec![0],
+		)
+		.await;
+		// Should work with `backed_in_path_only: true`, too.
+		get_hypothetical_frontier(
+			&mut virtual_overseer,
+			candidate_hash_a,
+			candidate_a.clone(),
+			pvd_a.clone(),
+			leaf_a.hash,
+			true,
 			vec![0],
 		)
 		.await;
 
 		// Add candidate A.
-		second_candidate(
-			&mut virtual_overseer,
-			candidate_a.clone(),
-			pvd_a.clone(),
-			response_a.clone(),
-		)
-		.await;
+		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a.clone()).await;
 
 		// Get frontier of candidate A after adding it.
 		get_hypothetical_frontier(
@@ -1029,6 +1005,7 @@ fn check_depth_query() {
 			candidate_a.clone(),
 			pvd_a.clone(),
 			leaf_a.hash,
+			false,
 			vec![0],
 		)
 		.await;
@@ -1040,18 +1017,13 @@ fn check_depth_query() {
 			candidate_b.clone(),
 			pvd_b.clone(),
 			leaf_a.hash,
+			false,
 			vec![1],
 		)
 		.await;
 
 		// Add candidate B.
-		second_candidate(
-			&mut virtual_overseer,
-			candidate_b.clone(),
-			pvd_b.clone(),
-			response_b.clone(),
-		)
-		.await;
+		introduce_candidate(&mut virtual_overseer, candidate_b.clone(), pvd_b.clone()).await;
 
 		// Get frontier of candidate B after adding it.
 		get_hypothetical_frontier(
@@ -1060,6 +1032,7 @@ fn check_depth_query() {
 			candidate_b,
 			pvd_b.clone(),
 			leaf_a.hash,
+			false,
 			vec![1],
 		)
 		.await;
@@ -1071,27 +1044,45 @@ fn check_depth_query() {
 			candidate_c.clone(),
 			pvd_c.clone(),
 			leaf_a.hash,
+			false,
 			vec![2],
+		)
+		.await;
+		// Should be empty with `backed_in_path_only` because we haven't backed anything.
+		get_hypothetical_frontier(
+			&mut virtual_overseer,
+			candidate_hash_c,
+			candidate_c.clone(),
+			pvd_c.clone(),
+			leaf_a.hash,
+			true,
+			vec![],
 		)
 		.await;
 
 		// Add candidate C.
-		second_candidate(
-			&mut virtual_overseer,
-			candidate_c.clone(),
-			pvd_c.clone(),
-			response_c.clone(),
-		)
-		.await;
+		introduce_candidate(&mut virtual_overseer, candidate_c.clone(), pvd_c.clone()).await;
 
 		// Get frontier of candidate C after adding it.
 		get_hypothetical_frontier(
 			&mut virtual_overseer,
 			candidate_hash_c,
-			candidate_c,
+			candidate_c.clone(),
 			pvd_c.clone(),
 			leaf_a.hash,
+			false,
 			vec![2],
+		)
+		.await;
+		// Should be empty with `backed_in_path_only` because we haven't backed anything.
+		get_hypothetical_frontier(
+			&mut virtual_overseer,
+			candidate_hash_c,
+			candidate_c.clone(),
+			pvd_c.clone(),
+			leaf_a.hash,
+			true,
+			vec![],
 		)
 		.await;
 
@@ -1121,33 +1112,33 @@ fn check_pvd_query() {
 
 		// Candidate A.
 		let (candidate_a, pvd_a) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1, 2, 3]),
 			HeadData(vec![1]),
 			test_state.validation_code_hash,
 		);
-		let response_a = vec![(leaf_a.hash, vec![0])];
 
 		// Candidate B.
 		let (candidate_b, pvd_b) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![1]),
 			HeadData(vec![2]),
 			test_state.validation_code_hash,
 		);
-		let response_b = vec![(leaf_a.hash, vec![1])];
 
 		// Candidate C.
 		let (candidate_c, pvd_c) = make_candidate(
-			&leaf_a,
+			leaf_a.hash,
+			leaf_a.number,
 			1.into(),
 			HeadData(vec![2]),
 			HeadData(vec![3]),
 			test_state.validation_code_hash,
 		);
-		let response_c = vec![(leaf_a.hash, vec![2])];
 
 		// Get pvd of candidate A before adding it.
 		get_pvd(
@@ -1160,13 +1151,7 @@ fn check_pvd_query() {
 		.await;
 
 		// Add candidate A.
-		second_candidate(
-			&mut virtual_overseer,
-			candidate_a.clone(),
-			pvd_a.clone(),
-			response_a.clone(),
-		)
-		.await;
+		introduce_candidate(&mut virtual_overseer, candidate_a.clone(), pvd_a.clone()).await;
 		back_candidate(&mut virtual_overseer, &candidate_a, candidate_a.hash()).await;
 
 		// Get pvd of candidate A after adding it.
@@ -1190,8 +1175,7 @@ fn check_pvd_query() {
 		.await;
 
 		// Add candidate B.
-		second_candidate(&mut virtual_overseer, candidate_b, pvd_b.clone(), response_b.clone())
-			.await;
+		introduce_candidate(&mut virtual_overseer, candidate_b, pvd_b.clone()).await;
 
 		// Get pvd of candidate B after adding it.
 		get_pvd(
@@ -1214,8 +1198,7 @@ fn check_pvd_query() {
 		.await;
 
 		// Add candidate C.
-		second_candidate(&mut virtual_overseer, candidate_c, pvd_c.clone(), response_c.clone())
-			.await;
+		introduce_candidate(&mut virtual_overseer, candidate_c, pvd_c.clone()).await;
 
 		// Get pvd of candidate C after adding it.
 		get_pvd(

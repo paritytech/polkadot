@@ -887,6 +887,17 @@ pub enum GossipSupportMessage {
 	NetworkBridgeUpdate(NetworkBridgeEvent<net_protocol::GossipSupportNetworkMessage>),
 }
 
+/// Request introduction of a candidate into the prospective parachains subsystem.
+#[derive(Debug, PartialEq, Eq, Clone)]
+pub struct IntroduceCandidateRequest {
+	/// The para-id of the candidate.
+	pub candidate_para: ParaId,
+	/// The candidate receipt itself.
+	pub candidate_receipt: CommittedCandidateReceipt,
+	/// The persisted validation data of the candidate.
+	pub persisted_validation_data: PersistedValidationData,
+}
+
 /// A hypothetical candidate to be evaluated for frontier membership
 /// in the prospective parachains subsystem.
 ///
@@ -994,17 +1005,16 @@ pub type FragmentTreeMembership = Vec<(Hash, Vec<usize>)>;
 pub enum ProspectiveParachainsMessage {
 	/// Inform the Prospective Parachains Subsystem of a new candidate.
 	///
-	/// The response sender accepts the candidate membership, which is empty
-	/// if the candidate was already known.
-	CandidateSeconded(
-		ParaId,
-		CommittedCandidateReceipt,
-		PersistedValidationData,
-		oneshot::Sender<FragmentTreeMembership>,
-	),
-	/// Inform the Prospective Parachains Subsystem that a previously seconded candidate
-	/// has been backed. This requires that `CandidateSeconded` was sent for the candidate
-	/// some time in the past.
+	/// The response sender accepts the candidate membership, which is the existing
+	/// membership of the candidate if it was already known.
+	IntroduceCandidate(IntroduceCandidateRequest, oneshot::Sender<FragmentTreeMembership>),
+	/// Inform the Prospective Parachains Subsystem that a previously introduced candidate
+	/// has been seconded. This requires that the candidate was successfully introduced in
+	/// the past.
+	CandidateSeconded(ParaId, CandidateHash),
+	/// Inform the Prospective Parachains Subsystem that a previously introduced candidate
+	/// has been backed. This requires that the candidate was successfully introduced in
+	/// the past.
 	CandidateBacked(ParaId, CandidateHash),
 	/// Get a backable candidate hash for the given parachain, under the given relay-parent hash,
 	/// which is a descendant of the given candidate hashes. Returns `None` on the channel
