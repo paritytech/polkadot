@@ -559,7 +559,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(blocking, message_capacity: 131072, ApprovalDistributionMessage, sends: [
+	#[subsystem(blocking, message_capacity: 512000, ApprovalDistributionMessage, sends: [
 		NetworkBridgeTxMessage,
 		ApprovalVotingMessage,
 	])]
