@@ -52,7 +52,7 @@ parameter_types! {
 	///   95th: 484_818
 	///   75th: 467_914
 	pub const BlockExecutionWeight: Weight =
-		Weight::from_ref_time(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(468_724));
+		Weight::from_parts(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(468_724), 0);
 }
 
 #[cfg(test)]

@@ -53,12 +53,12 @@ impl<T: frame_system::Config> runtime_parachains::initializer::WeightInfo for We
 		//  Measured:  `28 + d * (11 ±0)`
 		//  Estimated: `519 + d * (11 ±0)`
 		// Minimum execution time: 3_562 nanoseconds.
-		Weight::from_ref_time(5_936_312)
-			.saturating_add(Weight::from_proof_size(519))
+		Weight::from_parts(5_936_312, 0)
+			.saturating_add(Weight::from_parts(0, 519))
 			// Standard Error: 4
-			.saturating_add(Weight::from_ref_time(1_313).saturating_mul(d.into()))
+			.saturating_add(Weight::from_parts(1_313, 0).saturating_mul(d.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
-			.saturating_add(Weight::from_proof_size(11).saturating_mul(d.into()))
+			.saturating_add(Weight::from_parts(0, 11).saturating_mul(d.into()))
 	}
 }
