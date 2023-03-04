@@ -53,12 +53,12 @@ impl<T: frame_system::Config> frame_election_provider_support::WeightInfo for We
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 6_256_446 nanoseconds.
-		Weight::from_ref_time(6_327_881_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(6_327_881_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			// Standard Error: 140_664
-			.saturating_add(Weight::from_ref_time(5_840_511).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(5_840_511, 0).saturating_mul(v.into()))
 			// Standard Error: 14_381_047
-			.saturating_add(Weight::from_ref_time(1_543_872_437).saturating_mul(d.into()))
+			.saturating_add(Weight::from_parts(1_543_872_437, 0).saturating_mul(d.into()))
 	}
 	/// The range of component `v` is `[1000, 2000]`.
 	/// The range of component `t` is `[500, 1000]`.
@@ -68,11 +68,11 @@ impl<T: frame_system::Config> frame_election_provider_support::WeightInfo for We
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 4_822_640 nanoseconds.
-		Weight::from_ref_time(4_870_840_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(4_870_840_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			// Standard Error: 150_173
-			.saturating_add(Weight::from_ref_time(5_687_544).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(5_687_544, 0).saturating_mul(v.into()))
 			// Standard Error: 15_353_175
-			.saturating_add(Weight::from_ref_time(1_784_144_004).saturating_mul(d.into()))
+			.saturating_add(Weight::from_parts(1_784_144_004, 0).saturating_mul(d.into()))
 	}
 }
