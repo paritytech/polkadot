@@ -791,7 +791,7 @@ fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	CandidateValidationMessage::ValidateFromChainState(
 		candidate_receipt,
 		pov,
-		Duration::default(),
+		Default::default(),
 		sender,
 	)
 }

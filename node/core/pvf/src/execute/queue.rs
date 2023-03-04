@@ -30,7 +30,6 @@ use futures::{
 	stream::{FuturesUnordered, StreamExt as _},
 	Future, FutureExt,
 };
-use polkadot_node_primitives::BACKING_EXECUTION_TIMEOUT;
 use polkadot_primitives::vstaging::{ExecutorParams, ExecutorParamsHash};
 use slotmap::HopSlotMap;
 use std::{
@@ -45,8 +44,7 @@ use std::{
 /// re-spawn a new worker to execute the job immediately.
 /// To make any sense and not to break things, the value should be greater than minimal execution
 /// timeout in use, and less than the block time.
-const MAX_KEEP_WAITING: Duration =
-	Duration::from_millis(BACKING_EXECUTION_TIMEOUT.as_millis() as u64 * 2);
+const MAX_KEEP_WAITING: Duration = Duration::from_secs(4);
 
 slotmap::new_key_type! { struct Worker; }
 

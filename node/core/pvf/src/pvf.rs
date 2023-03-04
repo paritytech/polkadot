@@ -23,26 +23,31 @@ use std::{
 	cmp::{Eq, PartialEq},
 	fmt,
 	sync::Arc,
+	time::Duration,
 };
 
-/// A struct that carries code of a parachain validation function, its hash, and a corresponding
-/// set of executor parameters.
+#[cfg(test)]
+use crate::host::tests::TEST_PREPARATION_TIMEOUT;
+
+/// A struct that carries code of a parachain validation function, its hash, a corresponding
+/// set of executor parameters, and a preparation timeout.
 ///
 /// Should be cheap to clone.
 #[derive(Clone, Encode, Decode)]
-pub struct PvfWithExecutorParams {
+pub struct PvfExhaustive {
 	pub(crate) code: Arc<Vec<u8>>,
 	pub(crate) code_hash: ValidationCodeHash,
 	pub(crate) executor_params: Arc<ExecutorParams>,
+	pub(crate) timeout: Duration,
 }
 
-impl PvfWithExecutorParams {
+impl PvfExhaustive {
 	/// Returns an instance of the PVF out of the given PVF code and executor params.
-	pub fn from_code(code: Vec<u8>, executor_params: ExecutorParams) -> Self {
+	pub fn from_code(code: Vec<u8>, executor_params: ExecutorParams, timeout: Duration) -> Self {
 		let code = Arc::new(code);
 		let code_hash = blake2_256(&code).into();
 		let executor_params = Arc::new(executor_params);
-		Self { code, code_hash, executor_params }
+		Self { code, code_hash, executor_params, timeout }
 	}
 
 	/// Returns artifact ID that corresponds to the PVF with given executor params
@@ -65,15 +70,25 @@ impl PvfWithExecutorParams {
 		self.executor_params.clone()
 	}
 
+	/// Returns preparation timeout
+	pub(crate) fn timeout(&self) -> Duration {
+		self.timeout
+	}
+
 	/// Creates a structure for tests
 	#[cfg(test)]
-	pub(crate) fn from_discriminator(num: u32) -> Self {
+	pub(crate) fn from_discriminator_and_timeout(num: u32, timeout: Duration) -> Self {
 		let descriminator_buf = num.to_le_bytes().to_vec();
-		Self::from_code(descriminator_buf, ExecutorParams::default())
+		Self::from_code(descriminator_buf, ExecutorParams::default(), timeout)
+	}
+
+	#[cfg(test)]
+	pub(crate) fn from_discriminator(num: u32) -> Self {
+		Self::from_discriminator_and_timeout(num, TEST_PREPARATION_TIMEOUT)
 	}
 }
 
-impl fmt::Debug for PvfWithExecutorParams {
+impl fmt::Debug for PvfExhaustive {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(
 			f,
@@ -83,11 +98,11 @@ impl fmt::Debug for PvfWithExecutorParams {
 	}
 }
 
-impl PartialEq for PvfWithExecutorParams {
+impl PartialEq for PvfExhaustive {
 	fn eq(&self, other: &Self) -> bool {
 		self.code_hash == other.code_hash &&
 			self.executor_params.hash() == other.executor_params.hash()
 	}
 }
 
-impl Eq for PvfWithExecutorParams {}
+impl Eq for PvfExhaustive {}
