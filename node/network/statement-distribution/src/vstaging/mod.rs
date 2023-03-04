@@ -1437,13 +1437,6 @@ fn handle_cluster_statement(
 		}
 	};
 
-	println!(
-		"got cluster statement {:?} by {:?} from {:?}",
-		statement.unchecked_payload(),
-		statement.unchecked_validator_index(),
-		cluster_sender_index
-	);
-
 	// Ensure the statement is correctly signed.
 	let checked_statement =
 		match check_statement_signature(session, &session_info.validators, relay_parent, statement)
@@ -2380,8 +2373,6 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 	};
 
 	while let Some(request) = state.request_manager.next_request(request_props, peer_advertised) {
-		println!("dispatching request {:?}", request.payload.candidate_hash);
-
 		// Peer is supposedly connected.
 		ctx.send_message(NetworkBridgeTxMessage::SendRequests(
 			vec![Requests::AttestedCandidateVStaging(request)],
@@ -2409,8 +2400,6 @@ pub(crate) async fn handle_response<Context>(
 	state: &mut State,
 	response: UnhandledResponse,
 ) {
-	println!("got response");
-
 	let &requests::CandidateIdentifier { relay_parent, candidate_hash, group_index } =
 		response.candidate_identifier();
 
@@ -2533,8 +2522,6 @@ pub(crate) fn answer_request(state: &mut State, message: ResponderMessage) {
 	// Signal to the responder that we started processing this request.
 	let _ = sent_feedback.send(());
 
-	println!("starting to answer request");
-
 	let confirmed = match state.candidates.get_confirmed(&candidate_hash) {
 		None => return, // drop request, candidate not known.
 		Some(c) => c,
@@ -2559,8 +2546,6 @@ pub(crate) fn answer_request(state: &mut State, message: ResponderMessage) {
 		None => return,
 		Some(d) => d,
 	};
-
-	println!("answering request");
 
 	let group_size = per_session
 		.groups
