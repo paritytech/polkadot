@@ -319,108 +319,7 @@ impl Initialized {
 
 			let ScrapedUpdates { unapplied_slashes, on_chain_votes, .. } = scraped_updates;
 
-			for (session_index, candidate_hash, pending) in unapplied_slashes {
-				gum::info!(
-					target: LOG_TARGET,
-					?session_index,
-					?candidate_hash,
-					n_slashes = pending.keys.len(),
-					"Processing unapplied validator slashes",
-				);
-
-				let inclusions = self.scraper.get_blocks_including_candidate(&candidate_hash);
-				debug_assert!(
-					!inclusions.is_empty(),
-					"Couldn't find inclusion parent for an unapplied slash",
-				);
-
-				// Find the first inclusion parent that we can use
-				// to generate key ownership proof on.
-				// We use inclusion parents because of the proper session index.
-				let mut key_ownership_proofs = Vec::new();
-				let mut dispute_proofs = Vec::new();
-
-				for (_height, inclusion_parent) in inclusions {
-					for (validator_index, validator_id) in pending.keys.iter() {
-						if let Ok(Some(key_ownership_proof)) = key_ownership_proof(
-							ctx.sender(),
-							inclusion_parent,
-							validator_id.clone(),
-						)
-						.await
-						{
-							key_ownership_proofs.push(key_ownership_proof);
-							let time_slot = vstaging::slashing::DisputesTimeSlot::new(
-								session_index,
-								candidate_hash.clone(),
-							);
-							let dispute_proof = vstaging::slashing::DisputeProof {
-								time_slot,
-								kind: pending.kind,
-								validator_index: *validator_index,
-								validator_id: validator_id.clone(),
-							};
-							dispute_proofs.push(dispute_proof);
-						}
-					}
-
-					if !key_ownership_proofs.is_empty() {
-						debug_assert_eq!(key_ownership_proofs.len(), pending.keys.len());
-						break
-					}
-				}
-
-				debug_assert_eq!(key_ownership_proofs.len(), dispute_proofs.len());
-
-				for (key_ownership_proof, dispute_proof) in
-					key_ownership_proofs.into_iter().zip(dispute_proofs.into_iter())
-				{
-					let validator_id = dispute_proof.validator_id.clone();
-					let opaque_key_ownership_proof =
-						vstaging::slashing::OpaqueKeyOwnershipProof::new(
-							key_ownership_proof.encode(),
-						);
-
-					let res = submit_report_dispute_lost(
-						ctx.sender(),
-						new_leaf.hash,
-						dispute_proof,
-						opaque_key_ownership_proof,
-					)
-					.await;
-
-					match res {
-						Err(error) => {
-							gum::warn!(
-								target: LOG_TARGET,
-								?error,
-								?session_index,
-								?candidate_hash,
-								"Error reporting pending slash",
-							);
-						},
-						Ok(Some(())) => {
-							gum::info!(
-								target: LOG_TARGET,
-								?session_index,
-								?candidate_hash,
-								?validator_id,
-								"Successfully reported pending slash",
-							);
-						},
-						Ok(None) => {
-							gum::debug!(
-								target: LOG_TARGET,
-								?session_index,
-								?candidate_hash,
-								?validator_id,
-								"Duplicate pending slash report",
-							);
-						},
-					}
-				}
-			}
-
+			self.process_unapplied_slashes(ctx, new_leaf.hash, unapplied_slashes).await;
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
 			// so there is no point in running these in parallel.
 			for votes in on_chain_votes {
@@ -437,6 +336,137 @@ impl Initialized {
 		}
 
 		Ok(())
+	}
+
+	/// For each unapplied (past-session) slash, report an unsigned extrinsic
+	/// to the runtime.
+	async fn process_unapplied_slashes<Context>(
+		&mut self,
+		ctx: &mut Context,
+		relay_parent: Hash,
+		unapplied_slashes: Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>,
+	) {
+		for (session_index, candidate_hash, pending) in unapplied_slashes {
+			gum::info!(
+				target: LOG_TARGET,
+				?session_index,
+				?candidate_hash,
+				n_slashes = pending.keys.len(),
+				"Processing unapplied validator slashes",
+			);
+
+			let inclusions = self.scraper.get_blocks_including_candidate(&candidate_hash);
+			debug_assert!(
+				!inclusions.is_empty(),
+				"Couldn't find inclusion parent for an unapplied slash",
+			);
+
+			// Find the first inclusion parent that we can use
+			// to generate key ownership proof on.
+			// We use inclusion parents because of the proper session index.
+			let mut key_ownership_proofs = Vec::new();
+			let mut dispute_proofs = Vec::new();
+
+			for (_height, inclusion_parent) in inclusions {
+				for (validator_index, validator_id) in pending.keys.iter() {
+					let res =
+						key_ownership_proof(ctx.sender(), inclusion_parent, validator_id.clone())
+							.await;
+
+					match res {
+						Ok(Some(key_ownership_proof)) => {
+							key_ownership_proofs.push(key_ownership_proof);
+							let time_slot = vstaging::slashing::DisputesTimeSlot::new(
+								session_index,
+								candidate_hash.clone(),
+							);
+							let dispute_proof = vstaging::slashing::DisputeProof {
+								time_slot,
+								kind: pending.kind,
+								validator_index: *validator_index,
+								validator_id: validator_id.clone(),
+							};
+							dispute_proofs.push(dispute_proof);
+						},
+						Ok(None) => {},
+						Err(error) => {
+							gum::debug!(
+								target: LOG_TARGET,
+								?error,
+								?session_index,
+								?candidate_hash,
+								?validator_id,
+								"Could not generate key ownership proof",
+							);
+						},
+					}
+				}
+
+				if !key_ownership_proofs.is_empty() {
+					debug_assert_eq!(key_ownership_proofs.len(), pending.keys.len());
+					break
+				}
+			}
+
+			let expected_keys = pending.keys.len();
+			let resolved_keys = key_ownership_proofs.len();
+			if resolved_keys < expected_keys {
+				gum::warn!(
+					target: LOG_TARGET,
+					?session_index,
+					?candidate_hash,
+					"Could not generate key ownership proofs for {} keys",
+					expected_keys - resolved_keys,
+				);
+			}
+			debug_assert_eq!(resolved_keys, dispute_proofs.len());
+
+			for (key_ownership_proof, dispute_proof) in
+				key_ownership_proofs.into_iter().zip(dispute_proofs.into_iter())
+			{
+				let validator_id = dispute_proof.validator_id.clone();
+				let opaque_key_ownership_proof =
+					vstaging::slashing::OpaqueKeyOwnershipProof::new(key_ownership_proof.encode());
+
+				let res = submit_report_dispute_lost(
+					ctx.sender(),
+					relay_parent,
+					dispute_proof,
+					opaque_key_ownership_proof,
+				)
+				.await;
+
+				match res {
+					Err(error) => {
+						gum::warn!(
+							target: LOG_TARGET,
+							?error,
+							?session_index,
+							?candidate_hash,
+							"Error reporting pending slash",
+						);
+					},
+					Ok(Some(())) => {
+						gum::info!(
+							target: LOG_TARGET,
+							?session_index,
+							?candidate_hash,
+							?validator_id,
+							"Successfully reported pending slash",
+						);
+					},
+					Ok(None) => {
+						gum::debug!(
+							target: LOG_TARGET,
+							?session_index,
+							?candidate_hash,
+							?validator_id,
+							"Duplicate pending slash report",
+						);
+					},
+				}
+			}
+		}
 	}
 
 	/// Scrapes on-chain votes (backing votes and concluded disputes) for a active leaf of the
