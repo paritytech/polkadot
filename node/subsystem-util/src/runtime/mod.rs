@@ -36,7 +36,8 @@ use polkadot_primitives::{
 use crate::{
 	request_availability_cores, request_candidate_events, request_key_ownership_proof,
 	request_on_chain_votes, request_session_index_for_child, request_session_info,
-	request_unapplied_slashes, request_validation_code_by_hash, request_validator_groups,
+	request_submit_report_dispute_lost, request_unapplied_slashes, request_validation_code_by_hash,
+	request_validator_groups,
 };
 
 /// Errors that can happen on runtime fetches.
@@ -369,4 +370,26 @@ where
 	Sender: SubsystemSender<RuntimeApiMessage>,
 {
 	recv_runtime(request_key_ownership_proof(relay_parent, validator_id, sender).await).await
+}
+
+/// Submit a past-session dispute slashing report.
+pub async fn submit_report_dispute_lost<Sender>(
+	sender: &mut Sender,
+	relay_parent: Hash,
+	dispute_proof: vstaging::slashing::DisputeProof,
+	key_ownership_proof: vstaging::slashing::OpaqueKeyOwnershipProof,
+) -> Result<Option<()>>
+where
+	Sender: SubsystemSender<RuntimeApiMessage>,
+{
+	recv_runtime(
+		request_submit_report_dispute_lost(
+			relay_parent,
+			dispute_proof,
+			key_ownership_proof,
+			sender,
+		)
+		.await,
+	)
+	.await
 }

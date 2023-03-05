@@ -32,13 +32,13 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalVotingMessage, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage,
-		DisputeDistributionMessage, ImportStatementsResult, RuntimeApiMessage, RuntimeApiRequest,
+		DisputeDistributionMessage, ImportStatementsResult,
 	},
-	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SubsystemSender,
+	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
 use polkadot_node_subsystem_util::{
 	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable},
-	runtime::key_ownership_proof,
+	runtime::{key_ownership_proof, submit_report_dispute_lost},
 };
 use polkadot_primitives::{
 	vstaging, BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
@@ -380,34 +380,43 @@ impl Initialized {
 						vstaging::slashing::OpaqueKeyOwnershipProof::new(
 							key_ownership_proof.encode(),
 						);
-					// TODO encapsulate runtime api calls better
-					let (tx, rx) = oneshot::channel();
-					ctx.sender()
-						.send_message(RuntimeApiMessage::Request(
-							new_leaf.hash,
-							RuntimeApiRequest::SubmitReportDisputeLost(
-								dispute_proof,
-								opaque_key_ownership_proof,
-								tx,
-							),
-						))
-						.await;
-					if let Err(error) = rx.await? {
-						gum::warn!(
-							target: LOG_TARGET,
-							?error,
-							?session_index,
-							?candidate_hash,
-							"Error reporting pending slash",
-						);
-					} else {
-						gum::info!(
-							target: LOG_TARGET,
-							?session_index,
-							?candidate_hash,
-							?validator_id,
-							"Successfully reported pending slash",
-						);
+
+					let res = submit_report_dispute_lost(
+						ctx.sender(),
+						new_leaf.hash,
+						dispute_proof,
+						opaque_key_ownership_proof,
+					)
+					.await;
+
+					match res {
+						Err(error) => {
+							gum::warn!(
+								target: LOG_TARGET,
+								?error,
+								?session_index,
+								?candidate_hash,
+								"Error reporting pending slash",
+							);
+						},
+						Ok(Some(())) => {
+							gum::info!(
+								target: LOG_TARGET,
+								?session_index,
+								?candidate_hash,
+								?validator_id,
+								"Successfully reported pending slash",
+							);
+						},
+						Ok(None) => {
+							gum::debug!(
+								target: LOG_TARGET,
+								?session_index,
+								?candidate_hash,
+								?validator_id,
+								"Duplicate pending slash report",
+							);
+						},
 					}
 				}
 			}

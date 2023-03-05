@@ -216,6 +216,7 @@ specialize_requests! {
 	fn request_session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>;SessionExecutorParams;
 	fn request_unapplied_slashes() -> Vec<(SessionIndex, CandidateHash, vstaging::slashing::PendingSlashes)>; UnappliedSlashes;
 	fn request_key_ownership_proof(validator_id: ValidatorId) -> Option<vstaging::slashing::OpaqueKeyOwnershipProof>; KeyOwnershipProof;
+	fn request_submit_report_dispute_lost(dp: vstaging::slashing::DisputeProof, okop: vstaging::slashing::OpaqueKeyOwnershipProof) -> Option<()>; SubmitReportDisputeLost;
 }
 
 /// Requests executor parameters from the runtime effective at given relay-parent. First obtains
