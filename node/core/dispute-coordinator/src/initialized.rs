@@ -694,6 +694,10 @@ impl Initialized {
 		Ok(())
 	}
 
+	// We use fatal result rather than result here. Reason being, We for example increase
+	// spam slots in this function. If then the import fails for some non fatal and
+	// unrelated reason, we should likely actually decrement previously incremented spam
+	// slots again, for non fatal errors - which is cumbersome and actually not needed
 	async fn handle_import_statements<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -702,7 +706,7 @@ impl Initialized {
 		session: SessionIndex,
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		now: Timestamp,
-	) -> Result<ImportStatementsResult> {
+	) -> FatalResult<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
 		if !self.rolling_session_window.contains(session) {
 			// It is not valid to participate in an ancient dispute (spam?) or too new.

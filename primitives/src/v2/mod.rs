@@ -1603,6 +1603,9 @@ pub fn supermajority_threshold(n: usize) -> usize {
 }
 
 /// Information about validator sets of a session.
+///
+/// NOTE: `SessionInfo` is frozen. Do not include new fields, consider creating a separate runtime
+/// API. Reasoning and further outlook [here](https://github.com/paritytech/polkadot/issues/6586).
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct SessionInfo {
