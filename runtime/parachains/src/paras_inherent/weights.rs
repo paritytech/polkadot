@@ -37,15 +37,15 @@ pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn enter_variable_disputes(v: u32) -> Weight {
 		// MAX Block Weight should fit 4 disputes
-		Weight::from_ref_time(80_000 * v as u64 + 80_000)
+		Weight::from_parts(80_000 * v as u64 + 80_000, 0)
 	}
 	fn enter_bitfields() -> Weight {
 		// MAX Block Weight should fit 4 backed candidates
-		Weight::from_ref_time(40_000u64)
+		Weight::from_parts(40_000u64, 0)
 	}
 	fn enter_backed_candidates_variable(v: u32) -> Weight {
 		// MAX Block Weight should fit 4 backed candidates
-		Weight::from_ref_time(40_000 * v as u64 + 40_000)
+		Weight::from_parts(40_000 * v as u64 + 40_000, 0)
 	}
 	fn enter_backed_candidate_code_upgrade() -> Weight {
 		Weight::zero()
