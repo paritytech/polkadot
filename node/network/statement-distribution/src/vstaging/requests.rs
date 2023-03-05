@@ -243,7 +243,7 @@ impl RequestManager {
 
 	/// Yields the next request to dispatch, if there is any.
 	///
-	/// This function accepts three closures as an argument.
+	/// This function accepts two closures as an argument.
 	///
 	/// The first closure is used to gather information about the desired
 	/// properties of a response, which is used to select targets and validate
@@ -347,10 +347,10 @@ impl RequestManager {
 	/// Await the next incoming response to a sent request, or immediately
 	/// return `None` if there are no pending responses.
 	pub async fn await_incoming(&mut self) -> Option<UnhandledResponse> {
-		match self.pending_responses.next().await {
-			None => None,
-			Some(response) => Some(UnhandledResponse { response }),
-		}
+		self.pending_responses
+			.next()
+			.await
+			.map(|response| UnhandledResponse { response })
 	}
 }
 

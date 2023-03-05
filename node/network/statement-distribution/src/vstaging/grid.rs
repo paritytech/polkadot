@@ -746,7 +746,7 @@ impl ReceivedManifests {
 	///
 	/// This assumes that the manifest has already been checked for
 	/// validity - i.e. that the bitvecs match the claimed group in size
-	/// and that that the manifest includes at least one `Seconded`
+	/// and that the manifest includes at least one `Seconded`
 	/// attestation and includes enough attestations for the candidate
 	/// to be backed.
 	///
@@ -900,11 +900,11 @@ impl FilterQuery for StatementFilter {
 /// concerning the candidate.
 #[derive(Debug, Clone)]
 struct MutualKnowledge {
-	/// Knowledge the remote peer has about the candidate. `Some` only if they
-	/// have advertised or requested the candidate.
+	/// Knowledge the remote peer has about the candidate, as far as we're aware.
+	/// `Some` only if they have advertised, acknowledged, or requested the candidate.
 	remote_knowledge: Option<StatementFilter>,
 	/// Knowledge we have indicated to the remote peer about the candidate.
-	/// `Some` only if we have advertised or requested the candidate
+	/// `Some` only if we have advertised, acknowledged, or requested the candidate
 	/// from them.
 	local_knowledge: Option<StatementFilter>,
 }

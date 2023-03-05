@@ -117,10 +117,12 @@ fn share_seconded_circulated_to_cluster() {
 			}
 		);
 
+		// sharing a `Seconded` message confirms a candidate, which leads to new
+		// fragment tree updates.
 		answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 
 		overseer
-	})
+	});
 }
 
 #[test]
