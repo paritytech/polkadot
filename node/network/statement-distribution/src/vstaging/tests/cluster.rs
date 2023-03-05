@@ -771,9 +771,10 @@ fn cluster_accounts_for_implicit_view() {
 
 #[test]
 fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
+	let group_size = 3;
 	let config = TestConfig {
 		validator_count: 20,
-		group_size: 3,
+		group_size,
 		local_validator: true,
 		async_backing_params: None,
 	};
@@ -851,31 +852,21 @@ fn cluster_messages_imported_after_confirmed_candidate_importable_check() {
 
 		// Send a request to peer and mock its response.
 		{
-			assert_matches!(
-				overseer.recv().await,
-				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
-					assert_eq!(requests.len(), 1);
-					assert_matches!(
-						requests.pop().unwrap(),
-						Requests::AttestedCandidateVStaging(outgoing) => {
-							assert_eq!(outgoing.peer, Recipient::Peer(peer_a.clone()));
-							assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
-
-							let res = AttestedCandidateResponse {
-								candidate_receipt: candidate.clone(),
-								persisted_validation_data: pvd.clone(),
-								statements: vec![],
-							};
-							outgoing.pending_response.send(Ok(res.encode())).unwrap();
-						}
-					);
-				}
-			);
+			handle_sent_request(
+				&mut overseer,
+				peer_a,
+				candidate_hash,
+				StatementFilter::blank(group_size),
+				candidate.clone(),
+				pvd.clone(),
+				vec![],
+			)
+			.await;
 
 			assert_matches!(
 				overseer.recv().await,
 				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-					if p == peer_a && r == BENEFIT_VALID_RESPONSE => { }
+					if p == peer_a && r == BENEFIT_VALID_RESPONSE
 			);
 		}
 
@@ -966,44 +957,53 @@ fn cluster_messages_imported_after_new_leaf_importable_check() {
 		)
 		.await;
 
-		let a_seconded = state
-			.sign_statement(
-				v_a,
-				CompactStatement::Seconded(candidate_hash),
-				&SigningContext { parent_hash: relay_parent, session_index: 1 },
+		// Peer sends `Seconded` statement.
+		{
+			let a_seconded = state
+				.sign_statement(
+					v_a,
+					CompactStatement::Seconded(candidate_hash),
+					&SigningContext { parent_hash: relay_parent, session_index: 1 },
+				)
+				.as_unchecked()
+				.clone();
+
+			send_peer_message(
+				&mut overseer,
+				peer_a.clone(),
+				protocol_vstaging::StatementDistributionMessage::Statement(
+					relay_parent,
+					a_seconded,
+				),
 			)
-			.as_unchecked()
-			.clone();
+			.await;
 
-		send_peer_message(
-			&mut overseer,
-			peer_a.clone(),
-			protocol_vstaging::StatementDistributionMessage::Statement(relay_parent, a_seconded),
-		)
-		.await;
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
+			);
+		}
 
-		assert_matches!(
-			overseer.recv().await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-				if p == peer_a && r == BENEFIT_VALID_STATEMENT_FIRST => { }
-		);
+		// Send a request to peer and mock its response.
+		{
+			handle_sent_request(
+				&mut overseer,
+				peer_a,
+				candidate_hash,
+				StatementFilter::blank(group_size),
+				candidate.clone(),
+				pvd.clone(),
+				vec![],
+			)
+			.await;
 
-		handle_sent_request(
-			&mut overseer,
-			peer_a,
-			candidate_hash,
-			StatementFilter::blank(group_size),
-			candidate.clone(),
-			pvd.clone(),
-			vec![],
-		)
-		.await;
-
-		assert_matches!(
-			overseer.recv().await,
-			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
-				if p == peer_a && r == BENEFIT_VALID_RESPONSE => { }
-		);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_a && r == BENEFIT_VALID_RESPONSE => { }
+			);
+		}
 
 		answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 
