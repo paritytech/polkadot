@@ -29,6 +29,7 @@
 use super::{
 	BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT, COST_IMPROPERLY_DECODED_RESPONSE,
 	COST_INVALID_RESPONSE, COST_INVALID_SIGNATURE, COST_UNREQUESTED_RESPONSE_STATEMENT,
+	REQUEST_RETRY_DELAY,
 };
 use crate::LOG_TARGET;
 
@@ -49,9 +50,12 @@ use polkadot_primitives::vstaging::{
 
 use futures::{future::BoxFuture, prelude::*, stream::FuturesUnordered};
 
-use std::collections::{
-	hash_map::{Entry as HEntry, HashMap},
-	HashSet, VecDeque,
+use std::{
+	collections::{
+		hash_map::{Entry as HEntry, HashMap},
+		HashSet, VecDeque,
+	},
+	time::SystemTime,
 };
 
 /// An identifier for a candidate.
@@ -84,7 +88,11 @@ struct TaggedResponse {
 pub struct RequestedCandidate {
 	priority: Priority,
 	known_by: VecDeque<PeerId>,
+	/// Has the request been sent out and a response not yet received?
 	in_flight: bool,
+	/// The timestamp for the latest time we received a response. If the response failed, we should
+	/// wait some time before retrying.
+	last_response_time: Option<SystemTime>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -166,6 +174,7 @@ impl RequestManager {
 					priority: Priority { attempts: 0, origin: Origin::Unspecified },
 					known_by: VecDeque::new(),
 					in_flight: false,
+					last_response_time: None,
 				}),
 				true,
 			),
@@ -284,6 +293,15 @@ impl RequestManager {
 
 			if entry.in_flight {
 				continue
+			}
+
+			if let Some(last_response_time) = entry.last_response_time {
+				let can_retry = SystemTime::now()
+					.duration_since(last_response_time)
+					.map_or(false, |delay| delay >= REQUEST_RETRY_DELAY);
+				if !can_retry {
+					continue
+				}
 			}
 
 			let props = match request_props(&id) {
@@ -484,6 +502,9 @@ impl UnhandledResponse {
 			Err(_) => unreachable!("requested candidates always have a priority entry; qed"),
 		};
 
+		// Set the last response time before clearing the `in_flight` flag. Otherwise, we may re-try
+		// the request as soon as we clear `in_flight`.
+		entry.last_response_time = Some(SystemTime::now());
 		entry.in_flight = false;
 		entry.priority.attempts += 1;
 

@@ -573,6 +573,7 @@ fn peer_reported_for_not_enough_statements() {
 			),
 		)
 		.await;
+
 		let c_seconded = state
 			.sign_statement(
 				v_c,
@@ -1565,6 +1566,304 @@ fn local_node_respects_statement_mask() {
 				assert_eq!(persisted_validation_data, pvd);
 				assert_eq!(statements, expected_statements);
 			});
+		}
+
+		overseer
+	});
+}
+
+#[test]
+fn should_delay_before_retrying_dropped_requests() {
+	let validator_count = 6;
+	let group_size = 3;
+	let config = TestConfig {
+		validator_count,
+		group_size,
+		local_validator: true,
+		async_backing_params: None,
+	};
+
+	let relay_parent = Hash::repeat_byte(1);
+	let peer_c = PeerId::random();
+	let peer_d = PeerId::random();
+	let peer_e = PeerId::random();
+
+	test_harness(config, |state, mut overseer| async move {
+		let local_validator = state.local.clone().unwrap();
+
+		let other_group =
+			next_group_index(local_validator.group_index, validator_count, group_size);
+		let other_para = ParaId::from(other_group.0);
+
+		let test_leaf = state.make_dummy_leaf(relay_parent);
+
+		let (candidate_1, pvd_1) = make_candidate(
+			relay_parent,
+			1,
+			other_para,
+			test_leaf.para_data(other_para).head_data.clone(),
+			vec![4, 5, 6].into(),
+			Hash::repeat_byte(42).into(),
+		);
+		let (candidate_2, pvd_2) = make_candidate(
+			relay_parent,
+			1,
+			other_para,
+			test_leaf.para_data(other_para).head_data.clone(),
+			vec![7, 8, 9].into(),
+			Hash::repeat_byte(43).into(),
+		);
+		let candidate_hash_1 = candidate_1.hash();
+		let candidate_hash_2 = candidate_2.hash();
+
+		let target_group_validators = state.group_validators(other_group, true);
+		let v_c = target_group_validators[0];
+		let v_d = target_group_validators[1];
+		let v_e = target_group_validators[2];
+
+		// Connect C, D, E
+		{
+			connect_peer(
+				&mut overseer,
+				peer_c.clone(),
+				Some(vec![state.discovery_id(v_c)].into_iter().collect()),
+			)
+			.await;
+
+			connect_peer(
+				&mut overseer,
+				peer_d.clone(),
+				Some(vec![state.discovery_id(v_d)].into_iter().collect()),
+			)
+			.await;
+
+			connect_peer(
+				&mut overseer,
+				peer_e.clone(),
+				Some(vec![state.discovery_id(v_e)].into_iter().collect()),
+			)
+			.await;
+
+			send_peer_view_change(&mut overseer, peer_c.clone(), view![relay_parent]).await;
+			send_peer_view_change(&mut overseer, peer_d.clone(), view![relay_parent]).await;
+			send_peer_view_change(&mut overseer, peer_e.clone(), view![relay_parent]).await;
+		}
+
+		activate_leaf(&mut overseer, &test_leaf, &state, true).await;
+
+		answer_expected_hypothetical_depth_request(
+			&mut overseer,
+			vec![],
+			Some(relay_parent),
+			false,
+		)
+		.await;
+
+		// Send gossip topology.
+		send_new_topology(&mut overseer, state.make_dummy_topology()).await;
+
+		// `1` indicates statements NOT to request.
+		let mask = StatementFilter::blank(group_size);
+
+		// Send a request about a candidate.
+		{
+			let manifest = BackedCandidateManifest {
+				relay_parent,
+				candidate_hash: candidate_hash_1,
+				group_index: other_group,
+				para_id: other_para,
+				parent_head_data_hash: pvd_1.parent_head.hash(),
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+				},
+			};
+
+			// Peer sends an announcement.
+			send_peer_message(
+				&mut overseer,
+				peer_c.clone(),
+				protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(
+					manifest.clone(),
+				),
+			)
+			.await;
+
+			// We send a request to peer. Drop the request without sending a response.
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
+					assert_eq!(requests.len(), 1);
+					assert_matches!(
+						requests.pop().unwrap(),
+						Requests::AttestedCandidateVStaging(outgoing) => {
+							assert_eq!(outgoing.peer, Recipient::Peer(peer_c));
+							assert_eq!(outgoing.payload.candidate_hash, candidate_hash_1);
+							assert_eq!(outgoing.payload.mask, mask);
+						}
+					);
+				}
+			);
+
+			assert_matches!(
+				overseer_recv_with_timeout(&mut overseer, Duration::from_millis(100)).await,
+				None
+			);
+		}
+
+		// We still send requests about different candidates as per usual.
+		{
+			let manifest = BackedCandidateManifest {
+				relay_parent,
+				candidate_hash: candidate_hash_2,
+				group_index: other_group,
+				para_id: other_para,
+				parent_head_data_hash: pvd_2.parent_head.hash(),
+				statement_knowledge: StatementFilter {
+					seconded_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 1],
+					validated_in_group: bitvec::bitvec![u8, Lsb0; 1, 1, 0],
+				},
+			};
+
+			// Peer sends an announcement.
+			send_peer_message(
+				&mut overseer,
+				peer_c.clone(),
+				protocol_vstaging::StatementDistributionMessage::BackedCandidateManifest(
+					manifest.clone(),
+				),
+			)
+			.await;
+
+			let statements = vec![
+				state
+					.sign_statement(
+						v_c,
+						CompactStatement::Seconded(candidate_hash_2),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+				state
+					.sign_statement(
+						v_d,
+						CompactStatement::Seconded(candidate_hash_2),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+				state
+					.sign_statement(
+						v_e,
+						CompactStatement::Seconded(candidate_hash_2),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+			];
+
+			// Don't drop this request.
+			handle_sent_request(
+				&mut overseer,
+				peer_c,
+				candidate_hash_2,
+				mask.clone(),
+				candidate_2.clone(),
+				pvd_2.clone(),
+				statements.clone(),
+			)
+			.await;
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_RESPONSE
+			);
+
+			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
+		}
+
+		// Sleep for the given amount of time. This should reset the delay for the first candidate.
+		futures_timer::Delay::new(REQUEST_RETRY_DELAY).await;
+
+		// We re-try the first request.
+		{
+			let statements = vec![
+				state
+					.sign_statement(
+						v_c,
+						CompactStatement::Seconded(candidate_hash_1),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+				state
+					.sign_statement(
+						v_d,
+						CompactStatement::Seconded(candidate_hash_1),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+				state
+					.sign_statement(
+						v_e,
+						CompactStatement::Seconded(candidate_hash_1),
+						&SigningContext { parent_hash: relay_parent, session_index: 1 },
+					)
+					.as_unchecked()
+					.clone(),
+			];
+			handle_sent_request(
+				&mut overseer,
+				peer_c,
+				candidate_hash_1,
+				mask,
+				candidate_1.clone(),
+				pvd_1.clone(),
+				statements.clone(),
+			)
+			.await;
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_STATEMENT
+			);
+
+			assert_matches!(
+				overseer.recv().await,
+				AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ReportPeer(p, r))
+					if p == peer_c && r == BENEFIT_VALID_RESPONSE
+			);
+
+			answer_expected_hypothetical_depth_request(&mut overseer, vec![], None, false).await;
 		}
 
 		overseer

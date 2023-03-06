@@ -246,6 +246,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				},
 			};
 
+			// TODO: Call this regularly instead of after every message?
 			vstaging::dispatch_requests(&mut ctx, &mut state).await;
 		}
 		Ok(())

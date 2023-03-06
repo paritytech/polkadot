@@ -58,9 +58,12 @@ use futures::{
 	SinkExt, StreamExt,
 };
 
-use std::collections::{
-	hash_map::{Entry, HashMap},
-	HashSet,
+use std::{
+	collections::{
+		hash_map::{Entry, HashMap},
+		HashSet,
+	},
+	time::Duration,
 };
 
 use crate::{
@@ -120,6 +123,9 @@ const BENEFIT_VALID_RESPONSE: Rep = Rep::BenefitMajor("Peer Answered Candidate R
 const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
 const BENEFIT_VALID_STATEMENT_FIRST: Rep =
 	Rep::BenefitMajorFirst("Peer was the first to provide a given valid statement");
+
+/// The amount of time to wait before retrying when the node sends a request and it is dropped.
+const REQUEST_RETRY_DELAY: Duration = Duration::from_secs(1);
 
 struct PerRelayParentState {
 	local_validator: Option<LocalValidatorState>,
