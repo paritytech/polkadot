@@ -59,9 +59,9 @@ impl<T: frame_system::Config> runtime_parachains::disputes::slashing::WeightInfo
 	// Storage: Staking ValidatorSlashInEra (r:1 w:0)
 	/// The range of component `n` is `[4, 1000]`.
 	fn report_dispute_lost(n: u32, ) -> Weight {
-		Weight::from_ref_time(115_056_000 as u64)
+		Weight::from_parts(115_056_000 as u64, 0)
 			// Standard Error: 1_000
-			.saturating_add(Weight::from_ref_time(128_000 as u64).saturating_mul(n as u64))
+			.saturating_add(Weight::from_parts(128_000 as u64, 0).saturating_mul(n as u64))
 			.saturating_add(T::DbWeight::get().reads(12 as u64))
 			.saturating_add(T::DbWeight::get().writes(4 as u64))
 	}
