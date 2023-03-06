@@ -30,7 +30,7 @@ genesis_state_generator = "undying-collator export-genesis-state --pov-size={{10
     name = "collator"
     image = "{{COL_IMAGE}}"
     command = "undying-collator"
-    args = ["-lparachain=debug", "--pov-size={{10000*(id-1999)}}", "--parachain-id={{id}}", "--pvf-complexity={{id - 1999}} --out-peers 15"]
+    args = ["-lparachain=debug", "--pov-size={{10000*(id-1999)}}", "--parachain-id={{id}}", "--pvf-complexity={{id - 1999}}"]
 
 {% endfor %}
 
