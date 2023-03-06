@@ -9,9 +9,8 @@ edition.workspace = true
 # Substrate Client
 sc-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 babe = { package = "sc-consensus-babe", git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", package = "sp-beefy" }
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy = { package = "sc-consensus-beefy", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa = { package = "sc-consensus-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 mmr-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master"}
 sc-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -35,7 +34,8 @@ telemetry = { package = "sc-telemetry", git = "https://github.com/paritytech/sub
 # Substrate Primitives
 sp-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master" }
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+beefy-primitives = { package = "sp-consensus-beefy", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa_primitives = { package = "sp-consensus-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-api = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -74,7 +74,7 @@ serde_json = "1.0.81"
 thiserror = "1.0.31"
 kvdb = "0.13.0"
 kvdb-rocksdb = { version = "0.17.0", optional = true }
-parity-db = { version = "0.4.3", optional = true }
+parity-db = { version = "0.4.4", optional = true }
 
 async-trait = "0.1.57"
 lru = "0.9"
