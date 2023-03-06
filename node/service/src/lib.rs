@@ -713,9 +713,9 @@ where
 	let backoff_authoring_blocks = {
 		let mut backoff = sc_consensus_slots::BackoffAuthoringOnFinalizedHeadLagging::default();
 
-		if config.chain_spec.is_rococo()
-			|| config.chain_spec.is_wococo()
-			|| config.chain_spec.is_versi()
+		if config.chain_spec.is_rococo() ||
+			config.chain_spec.is_wococo() ||
+			config.chain_spec.is_versi()
 		{
 			// it's a testnet that's in flux, finality has stalled sometimes due
 			// to operational issues and it's annoying to slow down block
@@ -727,10 +727,10 @@ where
 	};
 
 	// If not on a known test network, warn the user that BEEFY is still experimental.
-	if enable_beefy
-		&& !config.chain_spec.is_rococo()
-		&& !config.chain_spec.is_wococo()
-		&& !config.chain_spec.is_versi()
+	if enable_beefy &&
+		!config.chain_spec.is_rococo() &&
+		!config.chain_spec.is_wococo() &&
+		!config.chain_spec.is_versi()
 	{
 		gum::warn!("BEEFY is still experimental, usage on a production network is discouraged.");
 	}
@@ -1312,26 +1312,26 @@ pub fn new_chain_ops(
 	config.keystore = service::config::KeystoreConfig::InMemory;
 
 	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_rococo()
-		|| config.chain_spec.is_wococo()
-		|| config.chain_spec.is_versi()
+	if config.chain_spec.is_rococo() ||
+		config.chain_spec.is_wococo() ||
+		config.chain_spec.is_versi()
 	{
-		return chain_ops!(config, jaeger_agent, None; rococo_runtime, RococoExecutorDispatch, Rococo);
+		return chain_ops!(config, jaeger_agent, None; rococo_runtime, RococoExecutorDispatch, Rococo)
 	}
 
 	#[cfg(feature = "kusama-native")]
 	if config.chain_spec.is_kusama() {
-		return chain_ops!(config, jaeger_agent, None; kusama_runtime, KusamaExecutorDispatch, Kusama);
+		return chain_ops!(config, jaeger_agent, None; kusama_runtime, KusamaExecutorDispatch, Kusama)
 	}
 
 	#[cfg(feature = "westend-native")]
 	if config.chain_spec.is_westend() {
-		return chain_ops!(config, jaeger_agent, None; westend_runtime, WestendExecutorDispatch, Westend);
+		return chain_ops!(config, jaeger_agent, None; westend_runtime, WestendExecutorDispatch, Westend)
 	}
 
 	#[cfg(feature = "polkadot-native")]
 	{
-		return chain_ops!(config, jaeger_agent, None; polkadot_runtime, PolkadotExecutorDispatch, Polkadot);
+		return chain_ops!(config, jaeger_agent, None; polkadot_runtime, PolkadotExecutorDispatch, Polkadot)
 	}
 
 	#[cfg(not(feature = "polkadot-native"))]
@@ -1366,9 +1366,9 @@ pub fn build_full(
 	hwbench: Option<sc_sysinfo::HwBench>,
 ) -> Result<NewFull<Client>, Error> {
 	#[cfg(feature = "rococo-native")]
-	if config.chain_spec.is_rococo()
-		|| config.chain_spec.is_wococo()
-		|| config.chain_spec.is_versi()
+	if config.chain_spec.is_rococo() ||
+		config.chain_spec.is_wococo() ||
+		config.chain_spec.is_versi()
 	{
 		return new_full::<rococo_runtime::RuntimeApi, RococoExecutorDispatch, _>(
 			config,
@@ -1384,7 +1384,7 @@ pub fn build_full(
 			malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.with_client(Client::Rococo));
+		.map(|full| full.with_client(Client::Rococo))
 	}
 
 	#[cfg(feature = "kusama-native")]
@@ -1403,7 +1403,7 @@ pub fn build_full(
 			malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.with_client(Client::Kusama));
+		.map(|full| full.with_client(Client::Kusama))
 	}
 
 	#[cfg(feature = "westend-native")]
@@ -1422,7 +1422,7 @@ pub fn build_full(
 			malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.with_client(Client::Westend));
+		.map(|full| full.with_client(Client::Westend))
 	}
 
 	#[cfg(feature = "polkadot-native")]
@@ -1444,7 +1444,7 @@ pub fn build_full(
 			malus_finality_delay,
 			hwbench,
 		)
-		.map(|full| full.with_client(Client::Polkadot));
+		.map(|full| full.with_client(Client::Polkadot))
 	}
 
 	#[cfg(not(feature = "polkadot-native"))]
@@ -1483,7 +1483,7 @@ pub fn revert_backend(
 	let revertible = blocks.min(best_number - finalized);
 
 	if revertible == 0 {
-		return Ok(());
+		return Ok(())
 	}
 
 	let number = best_number - revertible;
