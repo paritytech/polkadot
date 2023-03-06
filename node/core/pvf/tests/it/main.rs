@@ -17,7 +17,7 @@
 use assert_matches::assert_matches;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
-	start, Config, InvalidCandidate, Metrics, PvfExhaustive, ValidationError, ValidationHost,
+	start, Config, InvalidCandidate, Metrics, PvfPrepData, ValidationError, ValidationHost,
 	JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 };
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
@@ -70,7 +70,7 @@ impl TestHost {
 			.lock()
 			.await
 			.execute_pvf(
-				PvfExhaustive::from_code(code.into(), executor_params, TEST_PREPARATION_TIMEOUT),
+				PvfPrepData::from_code(code.into(), executor_params, TEST_PREPARATION_TIMEOUT),
 				TEST_EXECUTION_TIMEOUT,
 				params.encode(),
 				polkadot_node_core_pvf::Priority::Normal,

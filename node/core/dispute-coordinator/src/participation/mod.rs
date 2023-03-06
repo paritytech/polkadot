@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
 use polkadot_primitives::{
-	BlockNumber, CandidateHash, CandidateReceipt, Hash, PvfTimeoutType, SessionIndex,
+	BlockNumber, CandidateHash, CandidateReceipt, Hash, PvfExecTimeoutKind, SessionIndex,
 };
 
 use crate::LOG_TARGET;
@@ -350,7 +350,7 @@ async fn participate(
 			validation_code,
 			req.candidate_receipt().clone(),
 			available_data.pov,
-			PvfTimeoutType::ApprovalExecution,
+			PvfExecTimeoutKind::Approval,
 			validation_tx,
 		))
 		.await;

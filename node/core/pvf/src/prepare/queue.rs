@@ -18,7 +18,7 @@
 
 use super::pool::{self, Worker};
 use crate::{
-	artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, PvfExhaustive, LOG_TARGET,
+	artifacts::ArtifactId, metrics::Metrics, PrepareResult, Priority, PvfPrepData, LOG_TARGET,
 };
 use always_assert::{always, never};
 use futures::{channel::mpsc, stream::StreamExt as _, Future, SinkExt};
@@ -37,7 +37,7 @@ pub enum ToQueue {
 	///
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue`] response.
-	Enqueue { priority: Priority, pvf: PvfExhaustive },
+	Enqueue { priority: Priority, pvf: PvfPrepData },
 }
 
 /// A response from queue.
@@ -82,7 +82,7 @@ slotmap::new_key_type! { pub struct Job; }
 struct JobData {
 	/// The priority of this job. Can be bumped.
 	priority: Priority,
-	pvf: PvfExhaustive,
+	pvf: PvfPrepData,
 	worker: Option<Worker>,
 }
 
@@ -220,13 +220,13 @@ async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fat
 async fn handle_enqueue(
 	queue: &mut Queue,
 	priority: Priority,
-	pvf: PvfExhaustive,
+	pvf: PvfPrepData,
 ) -> Result<(), Fatal> {
 	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?pvf.code_hash(),
 		?priority,
-		preparation_timeout = ?pvf.timeout(),
+		preparation_timeout = ?pvf.prep_timeout,
 		"PVF is enqueued for preparation.",
 	);
 	queue.metrics.prepare_enqueued();
@@ -497,8 +497,8 @@ mod tests {
 	use std::task::Poll;
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
-	fn pvf(discriminator: u32) -> PvfExhaustive {
-		PvfExhaustive::from_discriminator(discriminator)
+	fn pvf(descriminator: u32) -> PvfPrepData {
+		PvfPrepData::from_discriminator(discriminator)
 	}
 
 	async fn run_until<R>(
@@ -624,12 +624,12 @@ mod tests {
 		let mut test = Test::new(2, 3);
 
 		let priority = Priority::Normal;
-		test.send_queue(ToQueue::Enqueue { priority, pvf: PvfExhaustive::from_discriminator(1) });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: PvfExhaustive::from_discriminator(2) });
+		test.send_queue(ToQueue::Enqueue { priority, pvf: PvfPrepData::from_discriminator(1) });
+		test.send_queue(ToQueue::Enqueue { priority, pvf: PvfPrepData::from_discriminator(2) });
 		// Start a non-precheck preparation for this one.
 		test.send_queue(ToQueue::Enqueue {
 			priority,
-			pvf: PvfExhaustive::from_discriminator_and_timeout(3, TEST_PREPARATION_TIMEOUT * 3),
+			pvf: PvfPrepData::from_discriminator_and_timeout(3, TEST_PREPARATION_TIMEOUT * 3),
 		});
 
 		// Receive only two spawns.
@@ -657,7 +657,7 @@ mod tests {
 		// Enqueue a critical job.
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Critical,
-			pvf: PvfExhaustive::from_discriminator(4),
+			pvf: PvfPrepData::from_discriminator(4),
 		});
 
 		// 2 out of 2 are working, but there is a critical job incoming. That means that spawning
@@ -671,7 +671,7 @@ mod tests {
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
-			pvf: PvfExhaustive::from_discriminator(1),
+			pvf: PvfPrepData::from_discriminator(1),
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 		let w1 = test.workers.insert(());
@@ -681,7 +681,7 @@ mod tests {
 		// Enqueue a critical job, which warrants spawning over the soft limit.
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Critical,
-			pvf: PvfExhaustive::from_discriminator(2),
+			pvf: PvfPrepData::from_discriminator(2),
 		});
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
 
@@ -705,12 +705,12 @@ mod tests {
 		let mut test = Test::new(2, 2);
 
 		let priority = Priority::Normal;
-		test.send_queue(ToQueue::Enqueue { priority, pvf: PvfExhaustive::from_discriminator(1) });
-		test.send_queue(ToQueue::Enqueue { priority, pvf: PvfExhaustive::from_discriminator(2) });
+		test.send_queue(ToQueue::Enqueue { priority, pvf: PvfPrepData::from_discriminator(1) });
+		test.send_queue(ToQueue::Enqueue { priority, pvf: PvfPrepData::from_discriminator(2) });
 		// Start a non-precheck preparation for this one.
 		test.send_queue(ToQueue::Enqueue {
 			priority,
-			pvf: PvfExhaustive::from_discriminator_and_timeout(3, TEST_PREPARATION_TIMEOUT * 3),
+			pvf: PvfPrepData::from_discriminator_and_timeout(3, TEST_PREPARATION_TIMEOUT * 3),
 		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -744,7 +744,7 @@ mod tests {
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
-			pvf: PvfExhaustive::from_discriminator(1),
+			pvf: PvfPrepData::from_discriminator(1),
 		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
@@ -768,7 +768,7 @@ mod tests {
 
 		test.send_queue(ToQueue::Enqueue {
 			priority: Priority::Normal,
-			pvf: PvfExhaustive::from_discriminator(1),
+			pvf: PvfPrepData::from_discriminator(1),
 		});
 
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);

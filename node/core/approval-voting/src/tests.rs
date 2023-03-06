@@ -2427,7 +2427,7 @@ pub async fn handle_double_assignment_import(
 			},
 			AllMessages::CandidateValidation(
 				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx),
-			) if timeout == PvfTimeoutType::ApprovalExecution => {
+			) if timeout == PvfExecTimeoutKind::Approval => {
 				tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default())))
 					.unwrap();
 			},

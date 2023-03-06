@@ -49,7 +49,7 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt, CollatorId,
-	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PvfTimeoutType,
+	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PvfExecTimeoutKind,
 	SigningContext, ValidatorId, ValidatorIndex, ValidatorSignature, ValidityAttestation,
 };
 use sp_keystore::SyncCryptoStorePtr;
@@ -649,7 +649,7 @@ async fn request_candidate_validation(
 		.send_message(CandidateValidationMessage::ValidateFromChainState(
 			candidate_receipt,
 			pov,
-			PvfTimeoutType::BackingExecution,
+			PvfExecTimeoutKind::Backing,
 			tx,
 		))
 		.await;

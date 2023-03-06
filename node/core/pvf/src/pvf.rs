@@ -34,20 +34,24 @@ use crate::host::tests::TEST_PREPARATION_TIMEOUT;
 ///
 /// Should be cheap to clone.
 #[derive(Clone, Encode, Decode)]
-pub struct PvfExhaustive {
+pub struct PvfPrepData {
 	pub(crate) code: Arc<Vec<u8>>,
 	pub(crate) code_hash: ValidationCodeHash,
 	pub(crate) executor_params: Arc<ExecutorParams>,
-	pub(crate) timeout: Duration,
+	pub(crate) prep_timeout: Duration,
 }
 
-impl PvfExhaustive {
+impl PvfPrepData {
 	/// Returns an instance of the PVF out of the given PVF code and executor params.
-	pub fn from_code(code: Vec<u8>, executor_params: ExecutorParams, timeout: Duration) -> Self {
+	pub fn from_code(
+		code: Vec<u8>,
+		executor_params: ExecutorParams,
+		prep_timeout: Duration,
+	) -> Self {
 		let code = Arc::new(code);
 		let code_hash = blake2_256(&code).into();
 		let executor_params = Arc::new(executor_params);
-		Self { code, code_hash, executor_params, timeout }
+		Self { code, code_hash, executor_params, prep_timeout }
 	}
 
 	/// Returns artifact ID that corresponds to the PVF with given executor params
@@ -70,11 +74,6 @@ impl PvfExhaustive {
 		self.executor_params.clone()
 	}
 
-	/// Returns preparation timeout
-	pub(crate) fn timeout(&self) -> Duration {
-		self.timeout
-	}
-
 	/// Creates a structure for tests
 	#[cfg(test)]
 	pub(crate) fn from_discriminator_and_timeout(num: u32, timeout: Duration) -> Self {
@@ -88,21 +87,21 @@ impl PvfExhaustive {
 	}
 }
 
-impl fmt::Debug for PvfExhaustive {
+impl fmt::Debug for PvfPrepData {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(
 			f,
-			"Pvf {{ code, code_hash: {:?}, executor_params: {:?} }}",
-			self.code_hash, self.executor_params
+			"Pvf {{ code, code_hash: {:?}, executor_params: {:?}, prep_timeout: {:?} }}",
+			self.code_hash, self.executor_params, self.prep_timeout
 		)
 	}
 }
 
-impl PartialEq for PvfExhaustive {
+impl PartialEq for PvfPrepData {
 	fn eq(&self, other: &Self) -> bool {
 		self.code_hash == other.code_hash &&
 			self.executor_params.hash() == other.executor_params.hash()
 	}
 }
 
-impl Eq for PvfExhaustive {}
+impl Eq for PvfPrepData {}

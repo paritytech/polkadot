@@ -18,7 +18,7 @@ use super::worker::{self, Outcome};
 use crate::{
 	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
-	pvf::PvfExhaustive,
+	pvf::PvfPrepData,
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
 };
@@ -65,7 +65,7 @@ pub enum ToPool {
 	///
 	/// In either case, the worker is considered busy and no further `StartWork` messages should be
 	/// sent until either `Concluded` or `Rip` message is received.
-	StartWork { worker: Worker, pvf: PvfExhaustive, artifact_path: PathBuf },
+	StartWork { worker: Worker, pvf: PvfPrepData, artifact_path: PathBuf },
 }
 
 /// A message sent from pool to its client.
@@ -266,7 +266,7 @@ async fn start_work_task<Timer>(
 	metrics: Metrics,
 	worker: Worker,
 	idle: IdleWorker,
-	pvf: PvfExhaustive,
+	pvf: PvfPrepData,
 	cache_path: PathBuf,
 	artifact_path: PathBuf,
 	_preparation_timer: Option<Timer>,

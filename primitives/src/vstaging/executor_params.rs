@@ -21,7 +21,7 @@
 //! by the first element of the vector). Decoding to a usable semantics structure is
 //! done in `polkadot-node-core-pvf`.
 
-use crate::{BlakeTwo256, HashT as _, PvfTimeoutType};
+use crate::{BlakeTwo256, HashT as _, PvfExecTimeoutKind, PvfPrepTimeoutKind};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives::Hash;
 use scale_info::TypeInfo;
@@ -39,8 +39,10 @@ pub enum ExecutorParam {
 	/// Max. amount of memory the preparation worker is allowed to use during
 	/// pre-checking, in bytes
 	PrecheckingMaxMemory(u64),
-	/// PVF timeouts, millisec
-	PvfTimeout(PvfTimeoutType, u64),
+	/// PVF preparation timeouts, millisec
+	PvfPrepTimeout(PvfPrepTimeoutKind, u64),
+	/// PVF execution timeouts, millisec
+	PvfExecTimeout(PvfExecTimeoutKind, u64),
 }
 
 /// Unit type wrapper around [`type@Hash`] that represents an execution parameter set hash.
@@ -84,6 +86,22 @@ impl sp_std::fmt::LowerHex for ExecutorParamsHash {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub struct ExecutorParams(Vec<ExecutorParam>);
 
+macro_rules! timeout_by_kind {
+	($(#[$outer:meta])* $fn_name:ident($kind:ty, $variant:tt)) => {
+		$(#[$outer])*
+		pub fn $fn_name(&self, kind: $kind) -> Option<Duration> {
+			for param in &self.0 {
+				if let ExecutorParam::$variant(k, timeout) = param {
+					if kind == *k {
+						return Some(Duration::from_millis(*timeout))
+					}
+				}
+			}
+			None
+		}
+	}
+}
+
 impl ExecutorParams {
 	/// Creates a new, empty executor parameter set
 	pub fn new() -> Self {
@@ -95,16 +113,14 @@ impl ExecutorParams {
 		ExecutorParamsHash(BlakeTwo256::hash(&self.encode()))
 	}
 
-	/// Returns a PVF timeout, if any
-	pub fn pvf_timeout(&self, typ: PvfTimeoutType) -> Option<Duration> {
-		for p in &self.0 {
-			if let ExecutorParam::PvfTimeout(t, timeout) = p {
-				if typ == *t {
-					return Some(Duration::from_millis(*timeout))
-				}
-			}
-		}
-		None
+	timeout_by_kind! {
+		/// Returns a PVF preparation timeout, if any
+		pvf_prep_timeout(PvfPrepTimeoutKind, PvfPrepTimeout)
+	}
+
+	timeout_by_kind! {
+		/// Returns a PVF execution timeout, if any
+		pvf_exec_timeout(PvfExecTimeoutKind, PvfExecTimeout)
 	}
 }
 

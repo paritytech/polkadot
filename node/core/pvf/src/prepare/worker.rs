@@ -24,7 +24,7 @@ use crate::{
 	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
 	prepare::PrepareStats,
-	pvf::PvfExhaustive,
+	pvf::PvfPrepData,
 	worker_common::{
 		bytes_to_path, cpu_time_monitor_loop, framed_recv, framed_send, path_to_bytes,
 		spawn_with_program_path, tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
@@ -84,7 +84,7 @@ pub enum Outcome {
 pub async fn start_work(
 	metrics: &Metrics,
 	worker: IdleWorker,
-	pvf: PvfExhaustive,
+	pvf: PvfPrepData,
 	cache_path: &Path,
 	artifact_path: PathBuf,
 ) -> Outcome {
@@ -98,7 +98,7 @@ pub async fn start_work(
 	);
 
 	with_tmp_file(stream, pid, cache_path, |tmp_file, mut stream| async move {
-		let preparation_timeout = pvf.timeout();
+		let preparation_timeout = pvf.prep_timeout;
 		if let Err(err) = send_request(&mut stream, pvf, &tmp_file).await {
 			gum::warn!(
 				target: LOG_TARGET,
@@ -271,7 +271,7 @@ where
 
 async fn send_request(
 	stream: &mut UnixStream,
-	pvf: PvfExhaustive,
+	pvf: PvfPrepData,
 	tmp_file: &Path,
 ) -> io::Result<()> {
 	framed_send(stream, &pvf.encode()).await?;
@@ -279,12 +279,12 @@ async fn send_request(
 	Ok(())
 }
 
-async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfExhaustive, PathBuf)> {
+async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
 	let pvf = framed_recv(stream).await?;
-	let pvf = PvfExhaustive::decode(&mut &pvf[..]).map_err(|e| {
+	let pvf = PvfPrepData::decode(&mut &pvf[..]).map_err(|e| {
 		io::Error::new(
 			io::ErrorKind::Other,
-			format!("prepare pvf recv_request: failed to decode PvfExhaustive: {}", e),
+			format!("prepare pvf recv_request: failed to decode PvfPrepData: {}", e),
 		)
 	})?;
 	let tmp_file = framed_recv(stream).await?;
@@ -354,7 +354,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 			);
 
 			let cpu_time_start = ProcessTime::now();
-			let preparation_timeout = pvf.timeout();
+			let preparation_timeout = pvf.prep_timeout;
 
 			// Run the memory tracker.
 			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
@@ -454,7 +454,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 	});
 }
 
-fn prepare_artifact(pvf: PvfExhaustive) -> Result<CompiledArtifact, PrepareError> {
+fn prepare_artifact(pvf: PvfPrepData) -> Result<CompiledArtifact, PrepareError> {
 	panic::catch_unwind(|| {
 		let blob = match crate::executor_intf::prevalidate(&pvf.code()) {
 			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
