@@ -29,15 +29,19 @@ use std::{
 #[cfg(test)]
 use crate::host::tests::TEST_PREPARATION_TIMEOUT;
 
-/// A struct that carries code of a parachain validation function, its hash, a corresponding
-/// set of executor parameters, and a preparation timeout.
+/// A struct that carries the exhaustive set of data to prepare an artifact out of plain
+/// Wasm binary
 ///
 /// Should be cheap to clone.
 #[derive(Clone, Encode, Decode)]
 pub struct PvfPrepData {
+	/// Wasm code (uncompressed)
 	pub(crate) code: Arc<Vec<u8>>,
+	/// Wasm code hash
 	pub(crate) code_hash: ValidationCodeHash,
+	/// Executor environment parameters for the session for which artifact is prepared
 	pub(crate) executor_params: Arc<ExecutorParams>,
+	/// Preparation timeout
 	pub(crate) prep_timeout: Duration,
 }
 
