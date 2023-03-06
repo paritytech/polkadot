@@ -296,7 +296,7 @@ pub fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Er
 			path.parent().ok_or(Error::DatabasePathRequired)?.into(),
 			parachains_db::CacheSizes::default(),
 		)?,
-		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
+		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } => {
 			if paritydb_path.is_dir() && paritydb_path.exists() {
 				parachains_db::open_creating_paritydb(
 					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
@@ -307,7 +307,8 @@ pub fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Er
 					rocksdb_path.clone(),
 					parachains_db::CacheSizes::default(),
 				)?
-			},
+			}
+		},
 		DatabaseSource::Custom { .. } => {
 			unimplemented!("No polkadot subsystem db for custom source.");
 		},
@@ -615,6 +616,7 @@ pub struct NewFull<C> {
 	pub client: C,
 	pub overseer_handle: Option<Handle>,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
+	pub sync_service: Arc<sc_network_sync::SyncingService<Block>>,
 	pub rpc_handlers: RpcHandlers,
 	pub backend: Arc<FullBackend>,
 }
@@ -628,6 +630,7 @@ impl<C> NewFull<C> {
 			task_manager: self.task_manager,
 			overseer_handle: self.overseer_handle,
 			network: self.network,
+			sync_service: self.sync_service,
 			rpc_handlers: self.rpc_handlers,
 			backend: self.backend,
 		}
@@ -855,7 +858,7 @@ where
 		grandpa_hard_forks,
 	));
 
-	let (network, system_rpc_tx, tx_handler_controller, network_starter) =
+	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -923,6 +926,7 @@ where
 		client: client.clone(),
 		keystore: keystore_container.sync_keystore(),
 		network: network.clone(),
+		sync_service: sync_service.clone(),
 		rpc_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
@@ -1013,6 +1017,7 @@ where
 					runtime_client: overseer_client.clone(),
 					parachains_db,
 					network_service: network.clone(),
+					sync_service: sync_service.clone(),
 					authority_discovery_service,
 					pov_req_receiver,
 					chunk_req_receiver,
@@ -1092,8 +1097,8 @@ where
 			select_chain,
 			block_import,
 			env: proposer,
-			sync_oracle: network.clone(),
-			justification_sync_link: network.clone(),
+			sync_oracle: sync_service.clone(),
+			justification_sync_link: sync_service.clone(),
 			create_inherent_data_providers: move |parent, ()| {
 				let client_clone = client_clone.clone();
 				let overseer_handle = overseer_handle.clone();
@@ -1138,6 +1143,7 @@ where
 		let justifications_protocol_name = beefy_on_demand_justifications_handler.protocol_name();
 		let network_params = beefy::BeefyNetworkParams {
 			network: network.clone(),
+			sync: sync_service.clone(),
 			gossip_protocol_name: beefy_gossip_proto_name,
 			justifications_protocol_name,
 			_phantom: core::marker::PhantomData::<Block>,
@@ -1156,7 +1162,7 @@ where
 			on_demand_justifications_handler: beefy_on_demand_justifications_handler,
 		};
 
-		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _>(beefy_params);
+		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
 
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
 		// bring the node down with it to make sure it is noticed.
@@ -1236,6 +1242,7 @@ where
 			config,
 			link: link_half,
 			network: network.clone(),
+			sync: sync_service.clone(),
 			voting_rule,
 			prometheus_registry: prometheus_registry.clone(),
 			shared_voter_state,
@@ -1251,7 +1258,15 @@ where
 
 	network_starter.start_network();
 
-	Ok(NewFull { task_manager, client, overseer_handle, network, rpc_handlers, backend })
+	Ok(NewFull {
+		task_manager,
+		client,
+		overseer_handle,
+		network,
+		sync_service,
+		rpc_handlers,
+		backend,
+	})
 }
 
 #[cfg(feature = "full-node")]
