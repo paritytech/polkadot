@@ -366,7 +366,8 @@ parameter_types! {
 	pub const MaxElectableTargets: u16 = u16::MAX;
 	// Maximum winners that can be chosen as active validators
 	pub const MaxActiveValidators: u32 = 1000;
-
+	// We expect a successful election to take at least 25% of the signed and unsigned blocks.
+	pub MinBlocksBeforeEmergency: Perbill = Perbill::from_percent(25);
 }
 
 frame_election_provider_support::generate_solution_type!(
@@ -455,6 +456,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
 	type MaxWinners = MaxActiveValidators;
+	type MinBlocksBeforeEmergency = MinBlocksBeforeEmergency;
 }
 
 parameter_types! {
