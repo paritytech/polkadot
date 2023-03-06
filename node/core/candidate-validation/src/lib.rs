@@ -70,31 +70,10 @@ const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(3);
 const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(200);
 
 /// Default PVF timeouts. Must never be changed! Use executor environment parameters in
-/// `session_info` pallet to adjust them
-
-/// For prechecking requests, the time period after which the preparation worker is considered
-/// unresponsive and will be killed.
-// NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
+/// `session_info` pallet to adjust them. See also `PvfTimeoutType` docs.
 const DEFAULT_PRECHECK_PREPARATION_TIMEOUT: Duration = Duration::from_secs(60);
-
-/// For execution and heads-up requests, the time period after which the preparation worker is
-/// considered unresponsive and will be killed. More lenient than the timeout for prechecking to
-/// prevent honest validators from timing out on valid PVFs.
-// NOTE: If you change this make sure to fix the buckets of `pvf_preparation_time` metric.
 const DEFAULT_LENIENT_PREPARATION_TIMEOUT: Duration = Duration::from_secs(360);
-
-/// The amount of time to spend on execution during backing.
 const DEFAULT_BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
-
-/// The amount of time to spend on execution during approval or disputes.
-///
-/// This is deliberately much longer than the backing execution timeout to
-/// ensure that in the absence of extremely large disparities between hardware,
-/// blocks that pass backing are considered executable by approval checkers or
-/// dispute participants.
-///
-/// NOTE: If this value is increased significantly, also check the dispute coordinator to consider
-/// candidates longer into finalization: `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION`.
 const DEFAULT_APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 
 /// Configuration for the candidate validation subsystem
