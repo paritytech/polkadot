@@ -51,8 +51,8 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 169 nanoseconds.
-		Weight::from_ref_time(211_793)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(211_793, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	/// The range of component `i` is `[0, 1000000]`.
 	fn subtraction(_i: u32, ) -> Weight {
@@ -60,8 +60,8 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 172 nanoseconds.
-		Weight::from_ref_time(210_656)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(210_656, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	/// The range of component `i` is `[0, 1000000]`.
 	fn multiplication(_i: u32, ) -> Weight {
@@ -69,8 +69,8 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 173 nanoseconds.
-		Weight::from_ref_time(216_851)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(216_851, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	/// The range of component `i` is `[0, 1000000]`.
 	fn division(_i: u32, ) -> Weight {
@@ -78,16 +78,16 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 171 nanoseconds.
-		Weight::from_ref_time(210_747)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(210_747, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn hashing() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 24_801_107 nanoseconds.
-		Weight::from_ref_time(25_036_984_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(25_036_984_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	/// The range of component `i` is `[0, 100]`.
 	fn sr25519_verification(i: u32, ) -> Weight {
@@ -95,9 +95,9 @@ impl<T: frame_system::Config> frame_benchmarking::baseline::WeightInfo for Weigh
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 197 nanoseconds.
-		Weight::from_ref_time(220_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(220_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			// Standard Error: 18_400
-			.saturating_add(Weight::from_ref_time(47_299_555).saturating_mul(i.into()))
+			.saturating_add(Weight::from_parts(47_299_555, 0).saturating_mul(i.into()))
 	}
 }

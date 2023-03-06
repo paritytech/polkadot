@@ -179,11 +179,13 @@ fn handle_active_leaves_update(
 	per_relay_parent: &mut HashMap<Hash, PerRelayParent>,
 	inherent_delays: &mut InherentDelays,
 ) {
+	gum::trace!(target: LOG_TARGET, "Handle ActiveLeavesUpdate");
 	for deactivated in &update.deactivated {
 		per_relay_parent.remove(deactivated);
 	}
 
 	if let Some(leaf) = update.activated {
+		gum::trace!(target: LOG_TARGET, leaf_hash=?leaf.hash, "Adding delay");
 		let delay_fut = Delay::new(PRE_PROPOSE_TIMEOUT).map(move |_| leaf.hash).boxed();
 		per_relay_parent.insert(leaf.hash, PerRelayParent::new(leaf));
 		inherent_delays.push(delay_fut);
@@ -609,6 +611,10 @@ async fn select_candidates(
 		}
 	}
 
+	gum::trace!(target: LOG_TARGET,
+		leaf_hash=?relay_parent,
+		"before GetBackedCandidates");
+
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();
 	sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
@@ -617,6 +623,8 @@ async fn select_candidates(
 		tx,
 	));
 	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
+	gum::trace!(target: LOG_TARGET, leaf_hash=?relay_parent,
+				"Got {} backed candidates", candidates.len());
 
 	// `selected_candidates` is generated in ascending order by core index, and `GetBackedCandidates`
 	// _should_ preserve that property, but let's just make sure.

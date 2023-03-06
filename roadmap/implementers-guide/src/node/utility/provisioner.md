@@ -30,7 +30,14 @@ Dispute resolution is complex and is explained in substantially more detail [her
 
 ## Protocol
 
-Input: [`ProvisionerMessage`](../../types/overseer-protocol.md#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](../backing/candidate-backing.md), signed bitfields come from the [Bitfield Distribution subsystem](../availability/bitfield-distribution.md), and misbehavior reports and disputes come from the [Misbehavior Arbitration subsystem](misbehavior-arbitration.md).
+Input: [`ProvisionerMessage`](../../types/overseer-protocol.md#provisioner-message). Backed candidates come from the [Candidate Backing subsystem](../backing/candidate-backing.md), signed bitfields come from the [Bitfield Distribution subsystem](../availability/bitfield-distribution.md), and disputes come from the [Disputes Subsystem](../disputes/dispute-coordinator.md). Misbehavior reports are currently sent from the [Candidate Backing subsystem](../backing/candidate-backing.md) and contain the following misbehaviors:
+
+1. `Misbehavior::ValidityDoubleVote`
+2. `Misbehavior::MultipleCandidates`
+3. `Misbehavior::UnauthorizedStatement`
+4. `Misbehavior::DoubleSign`
+
+But we choose not to punish these forms of misbehavior for the time being. Risks from misbehavior are sufficiently mitigated at the protocol level via reputation changes. Punitive actions here may become desirable enough to dedicate time to in the future.
 
 At initialization, this subsystem has no outputs.
 

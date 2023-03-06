@@ -23,6 +23,7 @@
 #![no_std]
 extern crate alloc;
 
+use core::ops::ControlFlow;
 use derivative::Derivative;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input, MaxEncodedLen};
 use scale_info::TypeInfo;
@@ -46,6 +47,89 @@ pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
 
 /// A version of XCM.
 pub type Version = u32;
+
+/// Creates an instruction matcher from an XCM. Since XCM versions differ, we need to make a trait
+/// here to unify the interfaces among them.
+pub trait CreateMatcher {
+	/// The concrete matcher type.
+	type Matcher;
+
+	/// Method that creates and returns the matcher type from `Self`.
+	fn matcher(self) -> Self::Matcher;
+}
+
+/// API that allows to pattern-match against anything that is contained within an XCM.
+///
+/// The intended usage of the matcher API is to enable the ability to chain successive methods of
+/// this trait together, along with the ? operator for the purpose of facilitating the writing,
+/// maintenance and auditability of XCM barriers.
+///
+/// Example:
+/// ```rust
+/// use xcm::{
+/// 	v3::{Instruction, Matcher},
+/// 	CreateMatcher, MatchXcm,
+/// };
+///
+/// let mut msg = [Instruction::<()>::ClearOrigin];
+/// let res = msg
+/// 	.matcher()
+/// 	.assert_remaining_insts(1)?
+/// 	.match_next_inst(|inst| match inst {
+/// 		Instruction::<()>::ClearOrigin => Ok(()),
+/// 		_ => Err(()),
+/// 	});
+/// assert!(res.is_ok());
+///
+/// Ok::<(), ()>(())
+/// ```
+pub trait MatchXcm {
+	/// The concrete instruction type. Necessary to specify as it changes between XCM versions.
+	type Inst;
+	/// The `MultiLocation` type. Necessary to specify as it changes between XCM versions.
+	type Loc;
+	/// The error type to throw when errors happen during matching.
+	type Error;
+
+	/// Returns success if the number of instructions that still have not been iterated over
+	/// equals `n`, otherwise returns an error.
+	fn assert_remaining_insts(self, n: usize) -> Result<Self, Self::Error>
+	where
+		Self: Sized;
+
+	/// Accepts a closure `f` that contains an argument signifying the next instruction to be
+	/// iterated over. The closure can then be used to check whether the instruction matches a
+	/// given condition, and can also be used to mutate the fields of an instruction.
+	///
+	/// The closure `f` returns success when the instruction passes the condition, otherwise it
+	/// returns an error, which will ultimately be returned by this function.
+	fn match_next_inst<F>(self, f: F) -> Result<Self, Self::Error>
+	where
+		Self: Sized,
+		F: FnMut(&mut Self::Inst) -> Result<(), Self::Error>;
+
+	/// Attempts to continuously iterate through the instructions while applying `f` to each of
+	/// them, until either the last instruction or `cond` returns false.
+	///
+	/// If `f` returns an error, then iteration halts and the function returns that error.
+	/// Otherwise, `f` returns a `ControlFlow` which signifies whether the iteration breaks or
+	/// continues.
+	fn match_next_inst_while<C, F>(self, cond: C, f: F) -> Result<Self, Self::Error>
+	where
+		Self: Sized,
+		C: Fn(&Self::Inst) -> bool,
+		F: FnMut(&mut Self::Inst) -> Result<ControlFlow<()>, Self::Error>;
+
+	/// Iterate instructions forward until `cond` returns false. When there are no more instructions
+	/// to be read, an error is returned.
+	fn skip_inst_while<C>(self, cond: C) -> Result<Self, Self::Error>
+	where
+		Self: Sized,
+		C: Fn(&Self::Inst) -> bool,
+	{
+		Self::match_next_inst_while(self, cond, |_| Ok(ControlFlow::Continue(())))
+	}
+}
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Unsupported {}
