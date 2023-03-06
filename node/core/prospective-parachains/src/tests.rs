@@ -1374,7 +1374,7 @@ fn persists_pending_availability_candidate() {
 		let leaf_b_hash = Hash::from_low_u64_be(1);
 		let leaf_b_number = leaf_a.number + 1;
 
-		// Activate leaves.
+		// Activate leaf.
 		activate_leaf(&mut virtual_overseer, &leaf_a, &test_state).await;
 
 		// Candidate A

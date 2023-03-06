@@ -818,7 +818,7 @@ impl FragmentTree {
 				// 1. parent hash is correct
 				// 2. relay-parent does not move backwards.
 				// 3. all non-pending-availability candidates have relay-parent in scope.
-				// 3. candidate outputs fulfill constraints
+				// 4. candidate outputs fulfill constraints
 				let required_head_hash = child_constraints.required_parent.hash();
 				for candidate in storage.iter_para_children(&required_head_hash) {
 					let pending = self.scope.get_pending_availability(&candidate.candidate_hash);

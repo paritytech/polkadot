@@ -110,7 +110,7 @@ pub fn backing_state<T: initializer::Config>(
 	};
 
 	let pending_availability = {
-		// Note: the APi deals with a `Vec` as it is future-proof for cases
+		// Note: the API deals with a `Vec` as it is future-proof for cases
 		// where there may be multiple candidates pending availability at a time.
 		// But at the moment only one candidate can be pending availability per
 		// parachain.
