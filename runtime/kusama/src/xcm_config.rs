@@ -157,7 +157,7 @@ pub type Barrier = (
 pub struct SafeCallFilter;
 impl Contains<RuntimeCall> for SafeCallFilter {
 	fn contains(call: &RuntimeCall) -> bool {
-		#[cfg(feature = "runtime-benchmarks")]
+		#[cfg(any(feature = "std", feature = "runtime-benchmarks", test))]
 		{
 			if matches!(call, RuntimeCall::System(frame_system::Call::remark_with_event { .. })) {
 				return true
