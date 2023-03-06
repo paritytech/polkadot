@@ -497,8 +497,8 @@ mod tests {
 	use std::task::Poll;
 
 	/// Creates a new PVF which artifact id can be uniquely identified by the given number.
-	fn pvf(descriminator: u32) -> PvfExhaustive {
-		PvfExhaustive::from_discriminator(descriminator)
+	fn pvf(discriminator: u32) -> PvfExhaustive {
+		PvfExhaustive::from_discriminator(discriminator)
 	}
 
 	async fn run_until<R>(
