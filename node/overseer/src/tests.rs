@@ -47,14 +47,6 @@ use sp_core::crypto::Pair as _;
 
 use super::*;
 
-fn block_info_to_pair(blocks: impl IntoIterator<Item = BlockInfo>) -> Vec<(Hash, BlockNumber)> {
-	Vec::from_iter(
-		blocks
-			.into_iter()
-			.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number)),
-	)
-}
-
 type SpawnedSubsystem = crate::gen::SpawnedSubsystem<SubsystemError>;
 
 struct TestSubsystem1(metered::MeteredSender<usize>);
@@ -223,20 +215,16 @@ fn overseer_metrics_work() {
 	executor::block_on(async move {
 		let first_block_hash = [1; 32].into();
 		let second_block_hash = [2; 32].into();
-		let third_block_hash = [3; 32].into();
 
 		let first_block =
 			BlockInfo { hash: first_block_hash, parent_hash: [0; 32].into(), number: 1 };
 		let second_block =
 			BlockInfo { hash: second_block_hash, parent_hash: first_block_hash, number: 2 };
-		let third_block =
-			BlockInfo { hash: third_block_hash, parent_hash: second_block_hash, number: 3 };
 
 		let registry = prometheus::Registry::new();
 		let (overseer, handle) =
 			dummy_overseer_builder(spawner, MockSupportsParachains, Some(&registry))
 				.unwrap()
-				.leaves(block_info_to_pair(vec![first_block]))
 				.build()
 				.unwrap();
 
@@ -245,8 +233,8 @@ fn overseer_metrics_work() {
 
 		pin_mut!(overseer_fut);
 
+		handle.block_imported(first_block).await;
 		handle.block_imported(second_block).await;
-		handle.block_imported(third_block).await;
 		handle
 			.send_msg_anon(AllMessages::CandidateValidation(test_candidate_validation_msg()))
 			.await;
@@ -256,8 +244,8 @@ fn overseer_metrics_work() {
 			res = overseer_fut => {
 				assert!(res.is_ok());
 				let metrics = extract_metrics(&registry);
-				assert_eq!(metrics["activated"], 3);
-				assert_eq!(metrics["deactivated"], 2);
+				assert_eq!(metrics["activated"], 2);
+				assert_eq!(metrics["deactivated"], 1);
 				assert_eq!(metrics["relayed"], 1);
 			},
 			complete => (),
@@ -379,14 +367,11 @@ fn overseer_start_stop_works() {
 	executor::block_on(async move {
 		let first_block_hash = [1; 32].into();
 		let second_block_hash = [2; 32].into();
-		let third_block_hash = [3; 32].into();
 
 		let first_block =
 			BlockInfo { hash: first_block_hash, parent_hash: [0; 32].into(), number: 1 };
 		let second_block =
 			BlockInfo { hash: second_block_hash, parent_hash: first_block_hash, number: 2 };
-		let third_block =
-			BlockInfo { hash: third_block_hash, parent_hash: second_block_hash, number: 3 };
 
 		let (tx_5, mut rx_5) = metered::channel(64);
 		let (tx_6, mut rx_6) = metered::channel(64);
@@ -395,7 +380,6 @@ fn overseer_start_stop_works() {
 			.unwrap()
 			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
 			.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
-			.leaves(block_info_to_pair(vec![first_block]))
 			.build()
 			.unwrap();
 		let mut handle = Handle::new(handle);
@@ -406,16 +390,19 @@ fn overseer_start_stop_works() {
 		let mut ss5_results = Vec::new();
 		let mut ss6_results = Vec::new();
 
+		handle.block_imported(first_block).await;
 		handle.block_imported(second_block).await;
-		handle.block_imported(third_block).await;
 
 		let expected_heartbeats = vec![
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: first_block_hash,
-				number: 1,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: Some(ActivatedLeaf {
+					hash: first_block_hash,
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+					status: LeafStatus::Fresh,
+				}),
+				deactivated: Default::default(),
+			}),
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				activated: Some(ActivatedLeaf {
 					hash: second_block_hash,
@@ -424,15 +411,6 @@ fn overseer_start_stop_works() {
 					status: LeafStatus::Fresh,
 				}),
 				deactivated: [first_block_hash].as_ref().into(),
-			}),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
-				activated: Some(ActivatedLeaf {
-					hash: third_block_hash,
-					number: 3,
-					span: Arc::new(jaeger::Span::Disabled),
-					status: LeafStatus::Fresh,
-				}),
-				deactivated: [second_block_hash].as_ref().into(),
 			}),
 		];
 
@@ -494,7 +472,6 @@ fn overseer_finalize_works() {
 			.unwrap()
 			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
 			.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
-			.leaves(block_info_to_pair(vec![first_block, second_block]))
 			.build()
 			.unwrap();
 		let mut handle = Handle::new(handle);
@@ -505,22 +482,32 @@ fn overseer_finalize_works() {
 		let mut ss5_results = Vec::new();
 		let mut ss6_results = Vec::new();
 
+		// activate two blocks
+		handle.block_imported(first_block).await;
+		handle.block_imported(second_block).await;
+
 		// this should stop work on both forks we started with earlier.
 		handle.block_finalized(third_block).await;
 
 		let expected_heartbeats = vec![
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: first_block_hash,
-				number: 1,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
-			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate::start_work(ActivatedLeaf {
-				hash: second_block_hash,
-				number: 2,
-				span: Arc::new(jaeger::Span::Disabled),
-				status: LeafStatus::Fresh,
-			})),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: Some(ActivatedLeaf {
+					hash: first_block_hash,
+					number: 1,
+					span: Arc::new(jaeger::Span::Disabled),
+					status: LeafStatus::Fresh,
+				}),
+				deactivated: Default::default(),
+			}),
+			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
+				activated: Some(ActivatedLeaf {
+					hash: second_block_hash,
+					number: 2,
+					span: Arc::new(jaeger::Span::Disabled),
+					status: LeafStatus::Fresh,
+				}),
+				deactivated: Default::default(),
+			}),
 			OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 				deactivated: [first_block_hash, second_block_hash].as_ref().into(),
 				..Default::default()
@@ -590,7 +577,6 @@ fn overseer_finalize_leaf_preserves_it() {
 			.unwrap()
 			.replace_candidate_validation(move |_| TestSubsystem5(tx_5))
 			.replace_candidate_backing(move |_| TestSubsystem6(tx_6))
-			.leaves(block_info_to_pair(vec![first_block.clone(), second_block]))
 			.build()
 			.unwrap();
 		let mut handle = Handle::new(handle);
@@ -601,6 +587,8 @@ fn overseer_finalize_leaf_preserves_it() {
 		let mut ss5_results = Vec::new();
 		let mut ss6_results = Vec::new();
 
+		handle.block_imported(first_block.clone()).await;
+		handle.block_imported(second_block).await;
 		// This should stop work on the second block, but only the
 		// second block.
 		handle.block_finalized(first_block).await;

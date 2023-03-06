@@ -49,7 +49,6 @@ use {
 	polkadot_node_network_protocol::{
 		peer_set::PeerSetProtocolNames, request_response::ReqProtocolNames,
 	},
-	polkadot_overseer::BlockInfo,
 	sc_client_api::BlockBackend,
 	sp_core::traits::SpawnNamed,
 	sp_trie::PrefixedMemoryDB,
@@ -128,10 +127,6 @@ pub use {polkadot_runtime, polkadot_runtime_constants};
 pub use {rococo_runtime, rococo_runtime_constants};
 #[cfg(feature = "westend-native")]
 pub use {westend_runtime, westend_runtime_constants};
-
-/// The maximum number of active leaves we forward to the [`Overseer`] on startup.
-#[cfg(any(test, feature = "full-node"))]
-const MAX_ACTIVE_LEAVES: usize = 4;
 
 /// Provides the header and block number for a hash.
 ///
@@ -668,56 +663,6 @@ impl IsCollator {
 	}
 }
 
-/// Returns the active leaves the overseer should start with.
-#[cfg(feature = "full-node")]
-async fn active_leaves<RuntimeApi, ExecutorDispatch>(
-	select_chain: &impl SelectChain<Block>,
-	client: &FullClient<RuntimeApi, ExecutorDispatch>,
-) -> Result<Vec<BlockInfo>, Error>
-where
-	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
-		+ Send
-		+ Sync
-		+ 'static,
-	RuntimeApi::RuntimeApi:
-		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
-	ExecutorDispatch: NativeExecutionDispatch + 'static,
-{
-	let best_block = select_chain.best_chain().await?;
-
-	let mut leaves = select_chain
-		.leaves()
-		.await
-		.unwrap_or_default()
-		.into_iter()
-		.filter_map(|hash| {
-			let number = HeaderBackend::number(client, hash).ok()??;
-
-			// Only consider leaves that are in maximum an uncle of the best block.
-			if number < best_block.number().saturating_sub(1) {
-				return None
-			} else if hash == best_block.hash() {
-				return None
-			};
-
-			let parent_hash = client.header(hash).ok()??.parent_hash;
-
-			Some(BlockInfo { hash, parent_hash, number })
-		})
-		.collect::<Vec<_>>();
-
-	// Sort by block number and get the maximum number of leaves
-	leaves.sort_by_key(|b| b.number);
-
-	leaves.push(BlockInfo {
-		hash: best_block.hash(),
-		parent_hash: *best_block.parent_hash(),
-		number: *best_block.number(),
-	});
-
-	Ok(leaves.into_iter().rev().take(MAX_ACTIVE_LEAVES).collect())
-}
-
 pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
 	col_data: parachains_db::REAL_COLUMNS.col_availability_data,
 	col_meta: parachains_db::REAL_COLUMNS.col_availability_meta,
@@ -1009,10 +954,6 @@ where
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
-	// Cannot use the `RelayChainSelection`, since that'd require a setup _and running_ overseer
-	// which we are about to setup.
-	let active_leaves =
-		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
 	let authority_discovery_service = if auth_or_collator || overseer_enable_anyways {
 		use futures::StreamExt;
@@ -1068,7 +1009,6 @@ where
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
 				overseer_connector,
 				OverseerGenArgs {
-					leaves: active_leaves,
 					keystore,
 					runtime_client: overseer_client.clone(),
 					parachains_db,
