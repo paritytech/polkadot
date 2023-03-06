@@ -59,10 +59,10 @@ impl<T: frame_system::Config> pallet_bounties::WeightInfo for WeightInfo<T> {
 		//  Measured:  `242`
 		//  Estimated: `3102`
 		// Minimum execution time: 24_400 nanoseconds.
-		Weight::from_ref_time(25_972_758)
-			.saturating_add(Weight::from_proof_size(3102))
+		Weight::from_parts(25_972_758, 0)
+			.saturating_add(Weight::from_parts(0, 3102))
 			// Standard Error: 5
-			.saturating_add(Weight::from_ref_time(716).saturating_mul(d.into()))
+			.saturating_add(Weight::from_parts(716, 0).saturating_mul(d.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -71,48 +71,48 @@ impl<T: frame_system::Config> pallet_bounties::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn propose_curator() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn unassign_curator() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn accept_curator() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn award_bounty() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn claim_bounty() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	/// Storage: Bounties Bounties (r:1 w:1)
 	/// Proof: Bounties Bounties (max_values: None, max_size: Some(177), added: 2652, mode: MaxEncodedLen)
@@ -127,8 +127,8 @@ impl<T: frame_system::Config> pallet_bounties::WeightInfo for WeightInfo<T> {
 		//  Measured:  `546`
 		//  Estimated: `7746`
 		// Minimum execution time: 41_193 nanoseconds.
-		Weight::from_ref_time(41_719_000)
-			.saturating_add(Weight::from_proof_size(7746))
+		Weight::from_parts(41_719_000, 0)
+			.saturating_add(Weight::from_parts(0, 7746))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -137,16 +137,16 @@ impl<T: frame_system::Config> pallet_bounties::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn extend_bounty_expiry() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(0)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(0, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	/// Storage: Bounties BountyApprovals (r:1 w:1)
 	/// Proof: Bounties BountyApprovals (max_values: Some(1), max_size: Some(402), added: 897, mode: MaxEncodedLen)
@@ -156,7 +156,7 @@ impl<T: frame_system::Config> pallet_bounties::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `897`
 		// Minimum execution time: 0 nanoseconds.
-		Weight::from_ref_time(2_606_006)
-			.saturating_add(Weight::from_proof_size(897))
+		Weight::from_parts(2_606_006, 0)
+			.saturating_add(Weight::from_parts(0, 897))
 	}
 }

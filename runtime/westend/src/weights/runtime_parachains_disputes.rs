@@ -52,8 +52,8 @@ impl<T: frame_system::Config> runtime_parachains::disputes::WeightInfo for Weigh
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 2_740 nanoseconds.
-		Weight::from_ref_time(2_842_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(2_842_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 }
