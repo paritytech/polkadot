@@ -262,8 +262,19 @@ impl ChainScraper {
 
 		// for unapplied slashes, we only look at the latest activated hash,
 		// it should accumulate them all
-		let unapplied_slashes = get_unapplied_slashes(sender, activated.hash).await?;
-		scraped_updates.unapplied_slashes = unapplied_slashes;
+		match get_unapplied_slashes(sender, activated.hash).await {
+			Ok(unapplied_slashes) => {
+				scraped_updates.unapplied_slashes = unapplied_slashes;
+			},
+			Err(error) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					block_hash = ?activated.hash,
+					?error,
+					"Error fetching unapplied slashes.",
+				);
+			},
+		}
 
 		self.last_observed_blocks.put(activated.hash, ());
 
