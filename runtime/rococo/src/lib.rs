@@ -56,7 +56,7 @@ use beefy_primitives::{
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		Contains, EitherOfDiverse, Everything, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		PrivilegeCmp, StorageMapShim, WithdrawReasons,
 	},
 	weights::ConstantMultiplier,
@@ -770,6 +770,7 @@ impl pallet_utility::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	type PalletsOrigin = OriginCaller;
 	type WeightInfo = weights::pallet_utility::WeightInfo<Runtime>;
+	type CallFilter = Everything;
 }
 
 parameter_types! {

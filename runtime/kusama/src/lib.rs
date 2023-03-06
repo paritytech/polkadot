@@ -55,8 +55,8 @@ use frame_election_provider_support::{
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		ConstU32, Contains, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem,
-		PrivilegeCmp, StorageMapShim, WithdrawReasons,
+		ConstU32, Contains, EitherOf, EitherOfDiverse, Everything, InstanceFilter,
+		KeyOwnerProofSystem, StorageMapShim, WithdrawReasons,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
@@ -822,6 +822,7 @@ impl pallet_utility::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 	type PalletsOrigin = OriginCaller;
 	type WeightInfo = weights::pallet_utility::WeightInfo<Runtime>;
+	type CallFilter = Everything;
 }
 
 parameter_types! {
