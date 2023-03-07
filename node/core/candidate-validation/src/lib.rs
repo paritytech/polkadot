@@ -69,8 +69,8 @@ const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_secs(3);
 #[cfg(test)]
 const PVF_EXECUTION_RETRY_DELAY: Duration = Duration::from_millis(200);
 
-/// Default PVF timeouts. Must never be changed! Use executor environment parameters in
-/// `session_info` pallet to adjust them. See also `PvfTimeoutKind` docs.
+// Default PVF timeouts. Must never be changed! Use executor environment parameters in
+// `session_info` pallet to adjust them. See also `PvfTimeoutKind` docs.
 const DEFAULT_PRECHECK_PREPARATION_TIMEOUT: Duration = Duration::from_secs(60);
 const DEFAULT_LENIENT_PREPARATION_TIMEOUT: Duration = Duration::from_secs(360);
 const DEFAULT_BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
