@@ -46,6 +46,8 @@ mod queues;
 use queues::Queues;
 pub use queues::{ParticipationPriority, ParticipationRequest, QueueError};
 
+use crate::metrics::Metrics;
+
 /// How many participation processes do we want to run in parallel the most.
 ///
 /// This should be a relatively low value, while we might have a speedup once we fetched the data,
@@ -153,6 +155,7 @@ impl Participation {
 		ctx: &mut Context,
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
+		metrics: &Metrics,
 	) -> Result<()> {
 		// Participation already running - we can ignore that request:
 		if self.running_participations.contains(req.candidate_hash()) {
@@ -161,12 +164,12 @@ impl Participation {
 		// Available capacity - participate right away (if we already have a recent block):
 		if let Some((_, h)) = self.recent_block {
 			if self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
-				self.fork_participation(ctx, req, h)?;
+				self.fork_participation(ctx, req, h, metrics)?;
 				return Ok(())
 			}
 		}
 		// Out of capacity/no recent block yet - queue:
-		self.queue.queue(ctx.sender(), priority, req).await
+		self.queue.queue(ctx.sender(), priority, req, metrics).await
 	}
 
 	/// Message from a worker task was received - get the outcome.
@@ -182,11 +185,12 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		msg: WorkerMessage,
+		metrics: &Metrics,
 	) -> FatalResult<ParticipationStatement> {
 		let WorkerMessage(statement) = msg;
 		self.running_participations.remove(&statement.candidate_hash);
 		let recent_block = self.recent_block.expect("We never ever reset recent_block to `None` and we already received a result, so it must have been set before. qed.");
-		self.dequeue_until_capacity(ctx, recent_block.1).await?;
+		self.dequeue_until_capacity(ctx, recent_block.1, metrics).await?;
 		Ok(statement)
 	}
 
@@ -198,13 +202,14 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		update: &ActiveLeavesUpdate,
+		metrics: &Metrics,
 	) -> FatalResult<()> {
 		if let Some(activated) = &update.activated {
 			match self.recent_block {
 				None => {
 					self.recent_block = Some((activated.number, activated.hash));
 					// Work got potentially unblocked:
-					self.dequeue_until_capacity(ctx, activated.hash).await?;
+					self.dequeue_until_capacity(ctx, activated.hash, metrics).await?;
 				},
 				Some((number, _)) if activated.number > number => {
 					self.recent_block = Some((activated.number, activated.hash));
@@ -221,9 +226,10 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		included_receipts: &Vec<CandidateReceipt>,
+		metrics: &Metrics,
 	) -> Result<()> {
 		for receipt in included_receipts {
-			self.queue.prioritize_if_present(ctx.sender(), receipt).await?;
+			self.queue.prioritize_if_present(ctx.sender(), receipt, metrics).await?;
 		}
 		Ok(())
 	}
@@ -233,10 +239,11 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		recent_head: Hash,
+		metrics: &Metrics,
 	) -> FatalResult<()> {
 		while self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
-			if let Some(req) = self.queue.dequeue() {
-				self.fork_participation(ctx, req, recent_head)?;
+			if let Some(req) = self.queue.dequeue(metrics) {
+				self.fork_participation(ctx, req, recent_head, metrics)?;
 			} else {
 				break
 			}
@@ -250,12 +257,13 @@ impl Participation {
 		ctx: &mut Context,
 		req: ParticipationRequest,
 		recent_head: Hash,
+		metrics: &Metrics,
 	) -> FatalResult<()> {
 		if self.running_participations.insert(*req.candidate_hash()) {
 			let sender = ctx.sender().clone();
 			ctx.spawn(
 				"participation-worker",
-				participate(self.worker_sender.clone(), sender, recent_head, req).boxed(),
+				participate(self.worker_sender.clone(), sender, recent_head, req, metrics.clone()).boxed(),
 			)
 			.map_err(FatalError::SpawnFailed)?;
 		}
@@ -268,7 +276,9 @@ async fn participate(
 	mut sender: impl overseer::DisputeCoordinatorSenderTrait,
 	block_hash: Hash,
 	req: ParticipationRequest,
+	metrics: Metrics,
 ) {
+	let _measure_duration = metrics.time_participation();
 	#[cfg(test)]
 	// Hack for tests, so we get recovery messages not too early.
 	Delay::new(Duration::from_millis(100)).await;

@@ -25,6 +25,8 @@ use crate::{
 	LOG_TARGET,
 };
 
+use crate::metrics::Metrics;
+
 #[cfg(test)]
 mod tests;
 
@@ -129,7 +131,7 @@ impl ParticipationRequest {
 impl Queues {
 	/// Create new `Queues`.
 	pub fn new() -> Self {
-		Self { best_effort: BTreeMap::new(), priority: BTreeMap::new() }
+		Self { best_effort: BTreeMap::new(), priority: BTreeMap::new(), }
 	}
 
 	/// Will put message in queue, either priority or best effort depending on priority.
@@ -143,20 +145,24 @@ impl Queues {
 		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
+		metrics: &Metrics,
 	) -> Result<()> {
 		let comparator = CandidateComparator::new(sender, &req.candidate_receipt).await?;
 
-		self.queue_with_comparator(comparator, priority, req)?;
+		self.queue_with_comparator(comparator, priority, req, metrics)?;
 		Ok(())
 	}
 
 	/// Get the next best request for dispute participation if any.
 	/// First the priority queue is considered and then the best effort one.
-	pub fn dequeue(&mut self) -> Option<ParticipationRequest> {
+	pub fn dequeue(&mut self, metrics: &Metrics) -> Option<ParticipationRequest> {
 		if let Some(req) = self.pop_priority() {
+			metrics.report_priority_queue_size(self.priority.len() as u64);
 			return Some(req.1)
 		}
-		self.pop_best_effort().map(|d| d.1)
+		let request = self.pop_best_effort().map(|d| d.1);
+		metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
+		request
 	}
 
 	/// Reprioritizes any participation requests pertaining to the
@@ -165,21 +171,26 @@ impl Queues {
 		&mut self,
 		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
 		receipt: &CandidateReceipt,
+		metrics: &Metrics,
 	) -> Result<()> {
 		let comparator = CandidateComparator::new(sender, receipt).await?;
-		self.prioritize_with_comparator(comparator)?;
+		self.prioritize_with_comparator(comparator, metrics)?;
 		Ok(())
 	}
 
 	fn prioritize_with_comparator(
 		&mut self,
 		comparator: CandidateComparator,
+		metrics: &Metrics,
 	) -> std::result::Result<(), QueueError> {
 		if self.priority.len() >= PRIORITY_QUEUE_SIZE {
 			return Err(QueueError::PriorityFull)
 		}
 		if let Some(request) = self.best_effort.remove(&comparator) {
 			self.priority.insert(comparator, request);
+			// Report changes to both queue sizes
+			metrics.report_priority_queue_size(self.priority.len() as u64);
+			metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		}
 		Ok(())
 	}
@@ -189,6 +200,7 @@ impl Queues {
 		comparator: CandidateComparator,
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
+		metrics: &Metrics,
 	) -> std::result::Result<(), QueueError> {
 		if priority.is_priority() {
 			if self.priority.len() >= PRIORITY_QUEUE_SIZE {
@@ -197,6 +209,8 @@ impl Queues {
 			// Remove any best effort entry:
 			self.best_effort.remove(&comparator);
 			self.priority.insert(comparator, req);
+			metrics.report_priority_queue_size(self.priority.len() as u64);
+			metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		} else {
 			if self.priority.contains_key(&comparator) {
 				// The candidate is already in priority queue - don't
@@ -207,6 +221,7 @@ impl Queues {
 				return Err(QueueError::BestEffortFull)
 			}
 			self.best_effort.insert(comparator, req);
+			metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		}
 		Ok(())
 	}

@@ -32,6 +32,12 @@ struct MetricsInner {
 	vote_cleanup_time: prometheus::Histogram,
 	/// Number of refrained participations.
 	refrained_participations: prometheus::Counter<prometheus::U64>,
+	/// Distribution of participation durations.
+	participation_durations: prometheus::Histogram,
+	/// Size of participation priority queue
+	priority_queue_size: prometheus::Gauge<prometheus::U64>,
+	/// Size of participation best effort queue
+	best_effort_queue_size: prometheus::Gauge<prometheus::U64>,
 }
 
 /// Candidate validation metrics.
@@ -94,6 +100,25 @@ impl Metrics {
 	pub(crate) fn on_refrained_participation(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.refrained_participations.inc();
+		}
+	}
+
+	/// Provide a timer for participation durations which updates on drop.
+	pub(crate) fn time_participation(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.participation_durations.start_timer())
+	}
+
+	/// Set the priority_queue_size metric
+	pub fn report_priority_queue_size(&self, size: u64) {
+		if let Some(metrics) = &self.0 {
+			metrics.priority_queue_size.set(size);
+		}
+	}
+
+	/// Set the best_effort_queue_size metric
+	pub fn report_best_effort_queue_size(&self, size: u64) {
+		if let Some(metrics) = &self.0 {
+			metrics.best_effort_queue_size.set(size);
 		}
 	}
 }
@@ -161,6 +186,25 @@ impl metrics::Metrics for Metrics {
 					"polkadot_parachain_dispute_refrained_participations",
 					"Number of refrained participations. We refrain from participation if all of the following conditions are met: disputed candidate is not included, not backed and not confirmed.",
 				))?,
+				registry,
+			)?,
+			participation_durations: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_dispute_participation_durations",
+						"Time spent within fn Participation::participate",
+					)
+				)?,
+				registry,
+			)?,
+			priority_queue_size: prometheus::register(
+				prometheus::Gauge::new("polkadot_parachain_dispute_priority_queue_size", 
+				"Number of disputes waiting for local participation in the priority queue.")?,
+				registry,
+			)?,
+			best_effort_queue_size: prometheus::register(
+				prometheus::Gauge::new("polkadot_parachain_dispute_best_effort_queue_size", 
+				"Number of disputes waiting for local participation in the best effort queue.")?,
 				registry,
 			)?,
 		};
