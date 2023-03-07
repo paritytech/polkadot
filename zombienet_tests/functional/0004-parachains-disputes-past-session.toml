@@ -1,0 +1,50 @@
+[settings]
+timeout = 1000
+bootnode = true
+
+[relaychain.genesis.runtime.runtime_genesis_config.configuration.config]
+  max_validators_per_core = 1
+  needed_approvals = 3
+
+[relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "westend-local" # using westend-local to enable slashing
+chain_spec_command = "polkadot build-spec --chain westend-local --disable-default-bootnode"
+default_command = "polkadot"
+
+[relaychain.default_resources]
+limits = { memory = "4G", cpu = "2" }
+requests = { memory = "2G", cpu = "1" }
+
+  [[relaychain.nodes]]
+  name = "alice"
+  invulnerable = true # it will go offline, we don't want to disable it
+  args = [ "--alice", "-lparachain=debug" ]
+
+  [[relaychain.node_groups]]
+  name = "honest-validator"
+  count = 2
+  args = ["-lparachain=debug,runtime=debug"]
+
+  [[relaychain.node_groups]]
+  image = "{{MALUS_IMAGE}}"
+  name = "malus-validator"
+  command = "malus suggest-garbage-candidate"
+  args = ["-lparachain=debug,MALUS=trace"]
+  count = 1
+
+[[parachains]]
+id = 2000
+addToGenesis = true
+genesis_state_generator = "undying-collator export-genesis-state --pov-size=100000 --pvf-complexity=1"
+
+  [parachains.collator]
+  name = "collator01"
+  image = "{{COL_IMAGE}}"
+  command = "undying-collator"
+  args = ["-lparachain=debug", "--pov-size=100000", "--pvf-complexity=1", "--parachain-id=2000"]
+
+[types.Header]
+number = "u64"
+parent_hash = "Hash"
+post_state = "Hash"
