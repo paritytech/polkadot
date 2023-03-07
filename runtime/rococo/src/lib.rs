@@ -1797,6 +1797,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[api_version(2)]
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
 		fn beefy_genesis() -> Option<BlockNumber> {
 			Beefy::genesis_block()
@@ -1834,6 +1835,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[api_version(2)]
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
 		fn mmr_root() -> Result<Hash, mmr::Error> {
 			Ok(Mmr::mmr_root())

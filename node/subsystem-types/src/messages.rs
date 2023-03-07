@@ -68,7 +68,8 @@ pub enum CandidateBackingMessage {
 	/// given relay-parent (ref. by hash). This candidate must be validated.
 	Second(Hash, CandidateReceipt, PoV),
 	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
-	/// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
+	/// to a broader check by the Disputes Subsystem, though that escalation is deferred until the approval voting
+	/// stage to guarantee availability. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatement),
 }
 
