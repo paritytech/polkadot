@@ -81,6 +81,7 @@ impl TestState {
 			)
 			.await;
 			assert_chain_vote_request(&mut ctx_handle, &chain).await;
+			assert_unapplied_slashes_request(&mut ctx_handle, &chain).await;
 		};
 
 		let (scraper, _) = join(ChainScraper::new(ctx.sender(), leaf.clone()), overseer_fut)
@@ -242,6 +243,18 @@ async fn assert_chain_vote_request(virtual_overseer: &mut VirtualOverseer, _chai
 	);
 }
 
+async fn assert_unapplied_slashes_request(virtual_overseer: &mut VirtualOverseer, _chain: &[Hash]) {
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			_hash,
+			RuntimeApiRequest::UnappliedSlashes(tx),
+		)) => {
+			tx.send(Ok(Vec::new())).unwrap();
+		}
+	);
+}
+
 async fn assert_finalized_block_number_request(
 	virtual_overseer: &mut VirtualOverseer,
 	response: BlockNumber,
@@ -287,6 +300,7 @@ async fn overseer_process_active_leaves_update<F>(
 		assert_candidate_events_request(virtual_overseer, chain, event_generator.clone()).await;
 		assert_chain_vote_request(virtual_overseer, chain).await;
 	}
+	assert_unapplied_slashes_request(virtual_overseer, chain).await;
 }
 
 #[test]
