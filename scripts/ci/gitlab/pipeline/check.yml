@@ -2,31 +2,31 @@
 # Here are all jobs that are executed during "check" stage
 
 check-runtime:
-  stage:                           check
-  image:                           paritytech/tools:latest
+  stage: check
+  image: paritytech/tools:latest
   extends:
     - .kubernetes-env
   rules:
-    - if: $CI_COMMIT_REF_NAME =~ /^release-v[0-9]+\.[0-9]+.*$/      # i.e. release-v0.9.27
+    - if: $CI_COMMIT_REF_NAME =~ /^release-v[0-9]+\.[0-9]+.*$/ # i.e. release-v0.9.27
   variables:
-    GITLAB_API:                    "https://gitlab.parity.io/api/v4"
-    GITHUB_API_PROJECT:            "parity%2Finfrastructure%2Fgithub-api"
+    GITLAB_API: "https://gitlab.parity.io/api/v4"
+    GITHUB_API_PROJECT: "parity%2Finfrastructure%2Fgithub-api"
   script:
     - ./scripts/ci/gitlab/check_runtime.sh
-  allow_failure:                   true
+  allow_failure: true
 
 cargo-fmt:
-  stage:                           check
+  stage: check
   extends:
     - .docker-env
     - .test-refs
   script:
     - cargo +nightly --version
     - cargo +nightly fmt --all -- --check
-  allow_failure:                   true
+  allow_failure: true
 
 spellcheck:
-  stage:                           check
+  stage: check
   extends:
     - .docker-env
     - .test-refs
@@ -37,11 +37,11 @@ spellcheck:
     - echo "___Spellcheck is going to check your diff___"
     - cargo spellcheck list-files -vvv $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
     - time cargo spellcheck check -vvv --cfg=scripts/ci/gitlab/spellcheck.toml --checkers hunspell --code 1
-        $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
-  allow_failure:                   true
+      $(git diff --diff-filter=AM --name-only $(git merge-base ${CI_COMMIT_SHA} ${CI_DEFAULT_BRANCH} -- :^bridges))
+  allow_failure: true
 
 check-try-runtime:
-  stage:                           check
+  stage: check
   extends:
     - .docker-env
     - .test-refs
@@ -53,7 +53,7 @@ check-try-runtime:
 # More info can be found here: https://github.com/paritytech/polkadot/pull/5865
 # Works only in PRs with E1 label
 .check-runtime-migration:
-  stage:                           check
+  stage: check
   extends:
     - .docker-env
     - .test-pr-refs
@@ -79,39 +79,39 @@ check-try-runtime:
       fi
 
 check-runtime-migration-polkadot:
-  stage:                           check
+  stage: check
   extends:
     - .docker-env
     - .test-pr-refs
     - .compiler-info
     - .check-runtime-migration
   variables:
-    NETWORK:                       "polkadot"
+    NETWORK: "polkadot"
 
 check-runtime-migration-kusama:
-  stage:                           check
+  stage: check
   extends:
     - .docker-env
     - .test-pr-refs
     - .compiler-info
     - .check-runtime-migration
   variables:
-    NETWORK:                       "kusama"
+    NETWORK: "kusama"
 
 check-runtime-migration-westend:
-  stage:                           check
+  stage: check
   extends:
     - .docker-env
     - .test-pr-refs
     - .compiler-info
     - .check-runtime-migration
   variables:
-    NETWORK:                       "westend"
-  allow_failure:                   true
+    NETWORK: "westend"
+  allow_failure: true
 
 # is broken, need to fix
 check-no-default-features:
-  stage:                           check
+  stage: check
   extends:
     - .docker-env
     - .test-refs
@@ -124,8 +124,8 @@ check-no-default-features:
 
 # this is artificial job to run some build and tests using DAG
 job-starter:
-  stage:                           check
-  image:                           paritytech/tools:latest
+  stage: check
+  image: paritytech/tools:latest
   extends:
     - .kubernetes-env
     - .common-refs

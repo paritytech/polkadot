@@ -33,8 +33,8 @@ babe-primitives = { package = "sp-consensus-babe", git = "https://github.com/par
 consensus_common = { package = "sp-consensus", git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-benchmarking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa = { package = "sc-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
-grandpa_primitives = { package = "sp-finality-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa = { package = "sc-consensus-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
+grandpa_primitives = { package = "sp-consensus-grandpa", git = "https://github.com/paritytech/substrate", branch = "master" }
 inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-staking = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
