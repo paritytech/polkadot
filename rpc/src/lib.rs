@@ -24,7 +24,10 @@ use jsonrpsee::RpcModule;
 use polkadot_primitives::{AccountId, Balance, Block, BlockNumber, Hash, Nonce};
 use sc_client_api::AuxStore;
 use sc_consensus_babe::{BabeConfiguration, Epoch};
-use sc_finality_grandpa::FinalityProofProvider;
+use sc_consensus_beefy::communication::notification::{
+	BeefyBestBlockStream, BeefyVersionedFinalityProofStream,
+};
+use sc_consensus_grandpa::FinalityProofProvider;
 pub use sc_rpc::{DenyUnsafe, SubscriptionTaskExecutor};
 use sp_api::ProvideRuntimeApi;
 use sp_block_builder::BlockBuilder;
@@ -50,20 +53,17 @@ pub struct BabeDeps {
 /// Dependencies for GRANDPA
 pub struct GrandpaDeps<B> {
 	/// Voting round info.
-	pub shared_voter_state: sc_finality_grandpa::SharedVoterState,
+	pub shared_voter_state: sc_consensus_grandpa::SharedVoterState,
 	/// Authority set info.
-	pub shared_authority_set: sc_finality_grandpa::SharedAuthoritySet<Hash, BlockNumber>,
+	pub shared_authority_set: sc_consensus_grandpa::SharedAuthoritySet<Hash, BlockNumber>,
 	/// Receives notifications about justification events from Grandpa.
-	pub justification_stream: sc_finality_grandpa::GrandpaJustificationStream<Block>,
+	pub justification_stream: sc_consensus_grandpa::GrandpaJustificationStream<Block>,
 	/// Executor to drive the subscription manager in the Grandpa RPC handler.
 	pub subscription_executor: sc_rpc::SubscriptionTaskExecutor,
 	/// Finality proof provider.
 	pub finality_provider: Arc<FinalityProofProvider<B, Block>>,
 }
 
-use beefy_gadget::communication::notification::{
-	BeefyBestBlockStream, BeefyVersionedFinalityProofStream,
-};
 /// Dependencies for BEEFY
 pub struct BeefyDeps {
 	/// Receives notifications about finality proof events from BEEFY.
@@ -117,12 +117,12 @@ where
 	B: sc_client_api::Backend<Block> + Send + Sync + 'static,
 	B::State: sc_client_api::StateBackend<sp_runtime::traits::HashFor<Block>>,
 {
-	use beefy_gadget_rpc::{Beefy, BeefyApiServer};
 	use frame_rpc_system::{System, SystemApiServer};
 	use mmr_rpc::{Mmr, MmrApiServer};
 	use pallet_transaction_payment_rpc::{TransactionPayment, TransactionPaymentApiServer};
 	use sc_consensus_babe_rpc::{Babe, BabeApiServer};
-	use sc_finality_grandpa_rpc::{Grandpa, GrandpaApiServer};
+	use sc_consensus_beefy_rpc::{Beefy, BeefyApiServer};
+	use sc_consensus_grandpa_rpc::{Grandpa, GrandpaApiServer};
 	use sc_sync_state_rpc::{SyncState, SyncStateApiServer};
 	use substrate_state_trie_migration_rpc::{StateMigration, StateMigrationApiServer};
 
