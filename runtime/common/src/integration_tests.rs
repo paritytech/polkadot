@@ -24,7 +24,7 @@ use crate::{
 };
 use frame_support::{
 	assert_noop, assert_ok, parameter_types,
-	traits::{Currency, GenesisBuild, KeyOwnerProofSystem, OnFinalize, OnInitialize},
+	traits::{Currency, GenesisBuild, OnFinalize, OnInitialize},
 	weights::Weight,
 	PalletId,
 };
@@ -35,7 +35,7 @@ use primitives::{BlockNumber, HeadData, Header, Id as ParaId, ValidationCode, LO
 use runtime_parachains::{
 	configuration, origin, paras, shared, Origin as ParaOrigin, ParaLifecycle,
 };
-use sp_core::{crypto::KeyTypeId, H256};
+use sp_core::H256;
 use sp_io::TestExternalities;
 use sp_keystore::{testing::KeyStore, KeystoreExt};
 use sp_runtime::{
