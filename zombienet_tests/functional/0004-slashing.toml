@@ -20,7 +20,7 @@ requests = { memory = "2G", cpu = "1" }
   [[relaychain.node_groups]]
   name = "honest-validator"
   count = 80
-  args = ["-lparachain=debug,runtime=debug"]
+  args = ["-lparachain=debug,runtime=debug,sub-libp2p=debug,parachain::validator-discovery=trace"]
 
   [[relaychain.node_groups]]
   image = "{{MALUS_IMAGE}}"
@@ -38,7 +38,7 @@ genesis_state_generator = "undying-collator export-genesis-state --pov-size={{10
     image = "{{COL_IMAGE}}"
     name = "collator"
     command = "undying-collator"
-    args = ["-lparachain=debug", "--pov-size={{10000*(id-1999)}}", "--parachain-id={{id}}", "--pvf-complexity={{id - 1999}}"]
+    args = ["-lparachain=debug,sub-libp2p=debug,parachain::validator-discovery=trace", "--pov-size={{10000*(id-1999)}}", "--parachain-id={{id}}", "--pvf-complexity={{id - 1999}}"]
 {% endfor %}
 
 [types.Header]
