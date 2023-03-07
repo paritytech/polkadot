@@ -264,11 +264,20 @@ impl Participation {
 		request_timer: Option<prometheus::HistogramTimer>,
 		metrics: &Metrics,
 	) -> FatalResult<()> {
+		let participation_timer = metrics.time_participation();
 		if self.running_participations.insert(*req.candidate_hash()) {
 			let sender = ctx.sender().clone();
 			ctx.spawn(
 				"participation-worker",
-				participate(self.worker_sender.clone(), sender, recent_head, req, request_timer, metrics.clone()).boxed(),
+				participate(
+					self.worker_sender.clone(),
+					sender,
+					recent_head,
+					req,
+					request_timer,
+					participation_timer,
+				)
+				.boxed(),
 			)
 			.map_err(FatalError::SpawnFailed)?;
 		}
@@ -281,10 +290,9 @@ async fn participate(
 	mut sender: impl overseer::DisputeCoordinatorSenderTrait,
 	block_hash: Hash,
 	req: ParticipationRequest,
-	_request_timer: Option<prometheus::HistogramTimer>, // Stops timer and sends metric data when dropped
-	metrics: Metrics,
+	_request_timer: Option<prometheus::HistogramTimer>, // Sends metric data when dropped
+	_participation_timer: Option<prometheus::HistogramTimer>, // Sends metric data when dropped
 ) {
-	let _measure_duration = metrics.time_participation();
 	#[cfg(test)]
 	// Hack for tests, so we get recovery messages not too early.
 	Delay::new(Duration::from_millis(100)).await;

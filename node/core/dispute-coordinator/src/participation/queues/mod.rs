@@ -61,7 +61,8 @@ pub struct Queues {
 	priority: BTreeMap<CandidateComparator, ParticipationRequest>,
 
 	/// Timer handle for each participation request. Stored to measure full request
-	/// completion time.
+	/// completion time. Optimally these would have been stored in the participation
+	/// request itself, but HistogramTimer doesn't implement the Clone trait.
 	request_timers: BTreeMap<CandidateComparator, Option<prometheus::HistogramTimer>>,
 }
 
@@ -136,7 +137,11 @@ impl ParticipationRequest {
 impl Queues {
 	/// Create new `Queues`.
 	pub fn new() -> Self {
-		Self { best_effort: BTreeMap::new(), priority: BTreeMap::new(), request_timers: BTreeMap::new(), }
+		Self {
+			best_effort: BTreeMap::new(),
+			priority: BTreeMap::new(),
+			request_timers: BTreeMap::new(),
+		}
 	}
 
 	/// Will put message in queue, either priority or best effort depending on priority.
@@ -162,20 +167,23 @@ impl Queues {
 	/// Get the next best request for dispute participation if any.
 	/// First the priority queue is considered and then the best effort one.
 	/// We also get the corresponding request timer, if any.
-	pub fn dequeue(&mut self, metrics: &Metrics) -> (Option<ParticipationRequest>, Option<prometheus::HistogramTimer>) {
+	pub fn dequeue(
+		&mut self,
+		metrics: &Metrics,
+	) -> (Option<ParticipationRequest>, Option<prometheus::HistogramTimer>) {
 		if let Some((comp, req)) = self.pop_priority() {
 			metrics.report_priority_queue_size(self.priority.len() as u64);
 			if let Some(maybe_timer) = self.request_timers.remove(&comp) {
-				return (Some(req), maybe_timer);
+				return (Some(req), maybe_timer)
 			}
-			return (Some(req), None);
+			return (Some(req), None)
 		}
 		if let Some((comp, req)) = self.pop_best_effort() {
 			metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 			if let Some(maybe_timer) = self.request_timers.remove(&comp) {
-				return (Some(req), maybe_timer);
+				return (Some(req), maybe_timer)
 			}
-			return (Some(req), None);
+			return (Some(req), None)
 		}
 		(None, None)
 	}

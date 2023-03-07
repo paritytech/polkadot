@@ -75,7 +75,7 @@ async fn participate_with_commitments_hash<Context>(
 	let req = ParticipationRequest::new(candidate_receipt, session);
 
 	participation
-		.queue_participation(ctx, ParticipationPriority::BestEffort, req)
+		.queue_participation(ctx, ParticipationPriority::BestEffort, req, &Metrics::default())
 		.await
 }
 
@@ -104,6 +104,7 @@ async fn activate_leaf<Context>(
 				number: block_number,
 				status: LeafStatus::Fresh,
 			}),
+			&Metrics::default(),
 		)
 		.await
 }
@@ -207,7 +208,11 @@ fn same_req_wont_get_queued_if_participation_is_already_running() {
 		);
 
 		let result = participation
-			.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
+			.get_participation_result(
+				&mut ctx,
+				worker_receiver.next().await.unwrap(),
+				&Metrics::default(),
+			)
 			.await
 			.unwrap();
 
@@ -243,7 +248,11 @@ fn reqs_get_queued_when_out_of_capacity() {
 
 		for _ in 0..MAX_PARALLEL_PARTICIPATIONS + 1 {
 			let result = participation
-				.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
+				.get_participation_result(
+					&mut ctx,
+					worker_receiver.next().await.unwrap(),
+					&Metrics::default(),
+				)
 				.await
 				.unwrap();
 			assert_matches!(
@@ -356,7 +365,11 @@ fn cannot_participate_if_cannot_recover_available_data() {
 			"overseer did not receive recover available data message",
 		);
 		let result = participation
-			.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
+			.get_participation_result(
+				&mut ctx,
+				worker_receiver.next().await.unwrap(),
+				&Metrics::default(),
+			)
 			.await
 			.unwrap();
 		assert_matches!(
@@ -393,7 +406,11 @@ fn cannot_participate_if_cannot_recover_validation_code() {
 		);
 
 		let result = participation
-			.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
+			.get_participation_result(
+				&mut ctx,
+				worker_receiver.next().await.unwrap(),
+				&Metrics::default(),
+			)
 			.await
 			.unwrap();
 		assert_matches!(
@@ -424,7 +441,11 @@ fn cast_invalid_vote_if_available_data_is_invalid() {
 		);
 
 		let result = participation
-			.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
+			.get_participation_result(
+				&mut ctx,
+				worker_receiver.next().await.unwrap(),
+				&Metrics::default(),
+			)
 			.await
 			.unwrap();
 		assert_matches!(
@@ -461,7 +482,11 @@ fn cast_invalid_vote_if_validation_fails_or_is_invalid() {
 		);
 
 		let result = participation
-			.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
+			.get_participation_result(
+				&mut ctx,
+				worker_receiver.next().await.unwrap(),
+				&Metrics::default(),
+			)
 			.await
 			.unwrap();
 		assert_matches!(
@@ -498,7 +523,11 @@ fn cast_invalid_vote_if_commitments_dont_match() {
 		);
 
 		let result = participation
-			.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
+			.get_participation_result(
+				&mut ctx,
+				worker_receiver.next().await.unwrap(),
+				&Metrics::default(),
+			)
 			.await
 			.unwrap();
 		assert_matches!(
@@ -535,7 +564,11 @@ fn cast_valid_vote_if_validation_passes() {
 		);
 
 		let result = participation
-			.get_participation_result(&mut ctx, worker_receiver.next().await.unwrap())
+			.get_participation_result(
+				&mut ctx,
+				worker_receiver.next().await.unwrap(),
+				&Metrics::default(),
+			)
 			.await
 			.unwrap();
 		assert_matches!(

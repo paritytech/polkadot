@@ -34,8 +34,8 @@ struct MetricsInner {
 	refrained_participations: prometheus::Counter<prometheus::U64>,
 	/// Distribution of participation durations.
 	participation_durations: prometheus::Histogram,
-	/// Measures the duration of the full participation pipeline: From when 
-	/// a participation request is first queued to when participation in the 
+	/// Measures the duration of the full participation pipeline: From when
+	/// a participation request is first queued to when participation in the
 	/// requested dispute is complete.
 	participation_pipeline_durations: prometheus::Histogram,
 	/// Size of participation priority queue
@@ -108,13 +108,19 @@ impl Metrics {
 	}
 
 	/// Provide a timer for participation durations which updates on drop.
-	pub(crate) fn time_participation(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+	pub(crate) fn time_participation(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.participation_durations.start_timer())
 	}
 
 	/// Provide a timer for participation pipeline durations which updates on drop.
-	pub(crate) fn time_participation_pipeline(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
-		self.0.as_ref().map(|metrics| metrics.participation_pipeline_durations.start_timer())
+	pub(crate) fn time_participation_pipeline(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.participation_pipeline_durations.start_timer())
 	}
 
 	/// Set the priority_queue_size metric
