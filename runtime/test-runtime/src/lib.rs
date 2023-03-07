@@ -38,7 +38,7 @@ use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignatu
 use frame_election_provider_support::{onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, KeyOwnerProofSystem, WithdrawReasons},
+	traits::{Everything, WithdrawReasons},
 };
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_session::historical as session_historical;
@@ -66,7 +66,7 @@ use sp_runtime::{
 		SaturatedConversion, StaticLookup, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId, Perbill,
+	ApplyExtrinsicResult, Perbill,
 };
 use sp_staking::SessionIndex;
 #[cfg(any(feature = "std", test))]
