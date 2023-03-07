@@ -143,12 +143,12 @@ pub mod well_known_keys {
 	//
 	// The `StorageValue`, such as `ACTIVE_CONFIG` was obtained by calling:
 	//
-	//     <Self as Store>::ActiveConfig::hashed_key()
+	//     ActiveConfig::<T>::hashed_key()
 	//
 	// The `StorageMap` values require `prefix`, and for example for `hrmp_egress_channel_index`,
 	// it could be obtained like:
 	//
-	//     <Hrmp as Store>::HrmpEgressChannelsIndex::prefix_hash();
+	//     HrmpEgressChannelsIndex::<T>::prefix_hash();
 	//
 
 	/// The current epoch index.
