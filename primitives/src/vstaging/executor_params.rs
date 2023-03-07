@@ -31,17 +31,23 @@ use sp_std::{ops::Deref, time::Duration, vec, vec::Vec};
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub enum ExecutorParam {
 	/// Maximum number of memory pages (64KiB bytes per page) the executor can allocate.
+	#[codec(index = 1)]
 	MaxMemoryPages(u32),
 	/// Wasm logical stack size limit (max. number of Wasm values on stack)
+	#[codec(index = 2)]
 	StackLogicalMax(u32),
 	/// Executor machine stack size limit, in bytes
+	#[codec(index = 3)]
 	StackNativeMax(u32),
 	/// Max. amount of memory the preparation worker is allowed to use during
 	/// pre-checking, in bytes
+	#[codec(index = 4)]
 	PrecheckingMaxMemory(u64),
 	/// PVF preparation timeouts, millisec
+	#[codec(index = 5)]
 	PvfPrepTimeout(PvfPrepTimeoutKind, u64),
 	/// PVF execution timeouts, millisec
+	#[codec(index = 6)]
 	PvfExecTimeout(PvfExecTimeoutKind, u64),
 }
 
@@ -86,22 +92,6 @@ impl sp_std::fmt::LowerHex for ExecutorParamsHash {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub struct ExecutorParams(Vec<ExecutorParam>);
 
-macro_rules! timeout_by_kind {
-	($(#[$outer:meta])* $fn_name:ident($kind:ty, $variant:tt)) => {
-		$(#[$outer])*
-		pub fn $fn_name(&self, kind: $kind) -> Option<Duration> {
-			for param in &self.0 {
-				if let ExecutorParam::$variant(k, timeout) = param {
-					if kind == *k {
-						return Some(Duration::from_millis(*timeout))
-					}
-				}
-			}
-			None
-		}
-	}
-}
-
 impl ExecutorParams {
 	/// Creates a new, empty executor parameter set
 	pub fn new() -> Self {
@@ -113,14 +103,28 @@ impl ExecutorParams {
 		ExecutorParamsHash(BlakeTwo256::hash(&self.encode()))
 	}
 
-	timeout_by_kind! {
-		/// Returns a PVF preparation timeout, if any
-		pvf_prep_timeout(PvfPrepTimeoutKind, PvfPrepTimeout)
+	/// Returns a PVF preparation timeout, if any
+	pub fn pvf_prep_timeout(&self, kind: PvfPrepTimeoutKind) -> Option<Duration> {
+		for param in &self.0 {
+			if let ExecutorParam::PvfPrepTimeout(k, timeout) = param {
+				if kind == *k {
+					return Some(Duration::from_millis(*timeout))
+				}
+			}
+		}
+		None
 	}
 
-	timeout_by_kind! {
-		/// Returns a PVF execution timeout, if any
-		pvf_exec_timeout(PvfExecTimeoutKind, PvfExecTimeout)
+	/// Returns a PVF execution timeout, if any
+	pub fn pvf_exec_timeout(&self, kind: PvfExecTimeoutKind) -> Option<Duration> {
+		for param in &self.0 {
+			if let ExecutorParam::PvfExecTimeout(k, timeout) = param {
+				if kind == *k {
+					return Some(Duration::from_millis(*timeout))
+				}
+			}
+		}
+		None
 	}
 }
 
