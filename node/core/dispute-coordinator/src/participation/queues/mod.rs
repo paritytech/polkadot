@@ -26,6 +26,7 @@ use crate::{
 };
 
 use crate::metrics::Metrics;
+use polkadot_node_subsystem_util::metrics::prometheus::prometheus;
 
 #[cfg(test)]
 mod tests;
@@ -58,6 +59,10 @@ pub struct Queues {
 
 	/// Priority queue.
 	priority: BTreeMap<CandidateComparator, ParticipationRequest>,
+
+	/// Timer handle for each participation request. Stored to measure full request
+	/// completion time.
+	request_timers: BTreeMap<CandidateComparator, Option<prometheus::HistogramTimer>>,
 }
 
 /// A dispute participation request that can be queued.
@@ -131,7 +136,7 @@ impl ParticipationRequest {
 impl Queues {
 	/// Create new `Queues`.
 	pub fn new() -> Self {
-		Self { best_effort: BTreeMap::new(), priority: BTreeMap::new(), }
+		Self { best_effort: BTreeMap::new(), priority: BTreeMap::new(), request_timers: BTreeMap::new(), }
 	}
 
 	/// Will put message in queue, either priority or best effort depending on priority.
@@ -145,24 +150,34 @@ impl Queues {
 		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
+		timer: Option<prometheus::HistogramTimer>,
 		metrics: &Metrics,
 	) -> Result<()> {
 		let comparator = CandidateComparator::new(sender, &req.candidate_receipt).await?;
 
-		self.queue_with_comparator(comparator, priority, req, metrics)?;
+		self.queue_with_comparator(comparator, priority, req, timer, metrics)?;
 		Ok(())
 	}
 
 	/// Get the next best request for dispute participation if any.
 	/// First the priority queue is considered and then the best effort one.
-	pub fn dequeue(&mut self, metrics: &Metrics) -> Option<ParticipationRequest> {
-		if let Some(req) = self.pop_priority() {
+	/// We also get the corresponding request timer, if any.
+	pub fn dequeue(&mut self, metrics: &Metrics) -> (Option<ParticipationRequest>, Option<prometheus::HistogramTimer>) {
+		if let Some((comp, req)) = self.pop_priority() {
 			metrics.report_priority_queue_size(self.priority.len() as u64);
-			return Some(req.1)
+			if let Some(maybe_timer) = self.request_timers.remove(&comp) {
+				return (Some(req), maybe_timer);
+			}
+			return (Some(req), None);
 		}
-		let request = self.pop_best_effort().map(|d| d.1);
-		metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
-		request
+		if let Some((comp, req)) = self.pop_best_effort() {
+			metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
+			if let Some(maybe_timer) = self.request_timers.remove(&comp) {
+				return (Some(req), maybe_timer);
+			}
+			return (Some(req), None);
+		}
+		(None, None)
 	}
 
 	/// Reprioritizes any participation requests pertaining to the
@@ -200,6 +215,7 @@ impl Queues {
 		comparator: CandidateComparator,
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
+		timer: Option<prometheus::HistogramTimer>,
 		metrics: &Metrics,
 	) -> std::result::Result<(), QueueError> {
 		if priority.is_priority() {
@@ -207,7 +223,10 @@ impl Queues {
 				return Err(QueueError::PriorityFull)
 			}
 			// Remove any best effort entry:
-			self.best_effort.remove(&comparator);
+			if let None = self.best_effort.remove(&comparator) {
+				// Only insert new timer if request wasn't in either queue
+				self.request_timers.insert(comparator, timer);
+			}
 			self.priority.insert(comparator, req);
 			metrics.report_priority_queue_size(self.priority.len() as u64);
 			metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
@@ -221,6 +240,7 @@ impl Queues {
 				return Err(QueueError::BestEffortFull)
 			}
 			self.best_effort.insert(comparator, req);
+			self.request_timers.insert(comparator, timer);
 			metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		}
 		Ok(())

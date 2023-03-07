@@ -34,6 +34,10 @@ struct MetricsInner {
 	refrained_participations: prometheus::Counter<prometheus::U64>,
 	/// Distribution of participation durations.
 	participation_durations: prometheus::Histogram,
+	/// Measures the duration of the full participation pipeline: From when 
+	/// a participation request is first queued to when participation in the 
+	/// requested dispute is complete.
+	participation_pipeline_durations: prometheus::Histogram,
 	/// Size of participation priority queue
 	priority_queue_size: prometheus::Gauge<prometheus::U64>,
 	/// Size of participation best effort queue
@@ -106,6 +110,11 @@ impl Metrics {
 	/// Provide a timer for participation durations which updates on drop.
 	pub(crate) fn time_participation(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
 		self.0.as_ref().map(|metrics| metrics.participation_durations.start_timer())
+	}
+
+	/// Provide a timer for participation pipeline durations which updates on drop.
+	pub(crate) fn time_participation_pipeline(&self) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.participation_pipeline_durations.start_timer())
 	}
 
 	/// Set the priority_queue_size metric
@@ -193,6 +202,15 @@ impl metrics::Metrics for Metrics {
 					prometheus::HistogramOpts::new(
 						"polkadot_parachain_dispute_participation_durations",
 						"Time spent within fn Participation::participate",
+					)
+				)?,
+				registry,
+			)?,
+			participation_pipeline_durations: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_dispute_participation_pipeline_durations",
+						"Measures the duration of the full participation pipeline: From when a participation request is first queued to when participation in the requested dispute is complete.",
 					)
 				)?,
 				registry,

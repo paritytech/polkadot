@@ -47,6 +47,7 @@ use queues::Queues;
 pub use queues::{ParticipationPriority, ParticipationRequest, QueueError};
 
 use crate::metrics::Metrics;
+use polkadot_node_subsystem_util::metrics::prometheus::prometheus;
 
 /// How many participation processes do we want to run in parallel the most.
 ///
@@ -157,6 +158,8 @@ impl Participation {
 		req: ParticipationRequest,
 		metrics: &Metrics,
 	) -> Result<()> {
+		let request_timer = metrics.time_participation_pipeline();
+
 		// Participation already running - we can ignore that request:
 		if self.running_participations.contains(req.candidate_hash()) {
 			return Ok(())
@@ -164,12 +167,12 @@ impl Participation {
 		// Available capacity - participate right away (if we already have a recent block):
 		if let Some((_, h)) = self.recent_block {
 			if self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
-				self.fork_participation(ctx, req, h, metrics)?;
+				self.fork_participation(ctx, req, h, request_timer, metrics)?;
 				return Ok(())
 			}
 		}
 		// Out of capacity/no recent block yet - queue:
-		self.queue.queue(ctx.sender(), priority, req, metrics).await
+		self.queue.queue(ctx.sender(), priority, req, request_timer, metrics).await
 	}
 
 	/// Message from a worker task was received - get the outcome.
@@ -242,8 +245,9 @@ impl Participation {
 		metrics: &Metrics,
 	) -> FatalResult<()> {
 		while self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
-			if let Some(req) = self.queue.dequeue(metrics) {
-				self.fork_participation(ctx, req, recent_head, metrics)?;
+			let (maybe_req, maybe_timer) = self.queue.dequeue(metrics);
+			if let Some(req) = maybe_req {
+				self.fork_participation(ctx, req, recent_head, maybe_timer, metrics)?;
 			} else {
 				break
 			}
@@ -257,13 +261,14 @@ impl Participation {
 		ctx: &mut Context,
 		req: ParticipationRequest,
 		recent_head: Hash,
+		request_timer: Option<prometheus::HistogramTimer>,
 		metrics: &Metrics,
 	) -> FatalResult<()> {
 		if self.running_participations.insert(*req.candidate_hash()) {
 			let sender = ctx.sender().clone();
 			ctx.spawn(
 				"participation-worker",
-				participate(self.worker_sender.clone(), sender, recent_head, req, metrics.clone()).boxed(),
+				participate(self.worker_sender.clone(), sender, recent_head, req, request_timer, metrics.clone()).boxed(),
 			)
 			.map_err(FatalError::SpawnFailed)?;
 		}
@@ -276,6 +281,7 @@ async fn participate(
 	mut sender: impl overseer::DisputeCoordinatorSenderTrait,
 	block_hash: Hash,
 	req: ParticipationRequest,
+	_request_timer: Option<prometheus::HistogramTimer>, // Stops timer and sends metric data when dropped
 	metrics: Metrics,
 ) {
 	let _measure_duration = metrics.time_participation();
