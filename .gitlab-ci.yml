@@ -198,6 +198,8 @@ include:
   - scripts/ci/gitlab/pipeline/publish.yml
   # zombienet jobs
   - scripts/ci/gitlab/pipeline/zombienet.yml
+  # QA team's zombienet regression tests
+  - scripts/ci/gitlab/pipeline/regression.yml
 
 #### stage:                        .post
 
