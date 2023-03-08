@@ -98,6 +98,18 @@ pub mod fee {
 	}
 }
 
+/// XCM protocol related constants.
+pub mod xcm {
+	/// Pluralistic bodies existing within the consensus.
+	pub mod body {
+		// Preallocated for the Root body.
+		#[allow(dead_code)]
+		const ROOT_INDEX: u32 = 0;
+		// The bodies corresponding to the Polkadot OpenGov Origins.
+		pub const FELLOWSHIP_ADMIN_INDEX: u32 = 1;
+	}
+}
+
 #[cfg(test)]
 mod tests {
 	use super::{
