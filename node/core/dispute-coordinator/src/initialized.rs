@@ -164,9 +164,7 @@ impl Initialized {
 		B: Backend,
 	{
 		for (priority, request) in participations.drain(..) {
-			self.participation
-				.queue_participation(ctx, priority, request)
-				.await?;
+			self.participation.queue_participation(ctx, priority, request).await?;
 		}
 
 		{
@@ -192,10 +190,7 @@ impl Initialized {
 		if let Some(first_leaf) = first_leaf.take() {
 			// Also provide first leaf to participation for good measure.
 			self.participation
-				.process_active_leaves_update(
-					ctx,
-					&ActiveLeavesUpdate::start_work(first_leaf),
-				)
+				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf))
 				.await?;
 		}
 
@@ -282,15 +277,10 @@ impl Initialized {
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
 		log_error(
 			self.participation
-				.bump_to_priority_for_candidates(
-					ctx,
-					&scraped_updates.included_receipts,
-				)
+				.bump_to_priority_for_candidates(ctx, &scraped_updates.included_receipts)
 				.await,
 		)?;
-		self.participation
-			.process_active_leaves_update(ctx, &update)
-			.await?;
+		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
 			match self
