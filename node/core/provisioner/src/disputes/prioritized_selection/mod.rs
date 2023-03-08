@@ -100,7 +100,15 @@ where
 
 	// Fetch the onchain disputes. We'll do a prioritization based on them.
 	let onchain = match get_onchain_disputes(sender, leaf.hash).await {
-		Ok(r) => r,
+		Ok(r) => {
+			gum::trace!(
+				target: LOG_TARGET,
+				?leaf,
+				"Successfully fetched {} onchain disputes",
+				r.len()
+			);
+			r
+		},
 		Err(GetOnchainDisputesError::NotSupported(runtime_api_err, relay_parent)) => {
 			// Runtime version is checked before calling this method, so the error below should never happen!
 			gum::error!(
@@ -129,7 +137,9 @@ where
 			HashMap::new()
 		},
 	};
+	metrics.on_fetched_onchain_disputes(onchain.keys().len() as u64);
 
+	gum::trace!(target: LOG_TARGET, ?leaf, "Fetching recent disputes");
 	let recent_disputes = request_disputes(sender).await;
 	gum::trace!(
 		target: LOG_TARGET,
@@ -139,6 +149,8 @@ where
 		onchain.len(),
 	);
 
+	gum::trace!(target: LOG_TARGET, ?leaf, "Filtering recent disputes");
+
 	// Filter out unconfirmed disputes. However if the dispute is already onchain - don't skip it.
 	// In this case we'd better push as much fresh votes as possible to bring it to conclusion faster.
 	let recent_disputes = recent_disputes
@@ -146,6 +158,7 @@ where
 		.filter(|d| d.2.is_confirmed_concluded() || onchain.contains_key(&(d.0, d.1)))
 		.collect::<Vec<_>>();
 
+	gum::trace!(target: LOG_TARGET, ?leaf, "Partitioning recent disputes");
 	let partitioned = partition_recent_disputes(recent_disputes, &onchain);
 	metrics.on_partition_recent_disputes(&partitioned);
 
@@ -153,12 +166,15 @@ where
 		gum::warn!(
 			target: LOG_TARGET,
 			?leaf,
-			"Got {} inactive unknown onchain disputes. This should not happen!",
+			"Got {} inactive unknown onchain disputes. This should not happen in normal conditions!",
 			partitioned.inactive_unknown_onchain.len()
 		);
 	}
+
+	gum::trace!(target: LOG_TARGET, ?leaf, "Vote selection for recent disputes");
 	let result = vote_selection(sender, partitioned, &onchain).await;
 
+	gum::trace!(target: LOG_TARGET, ?leaf, "Convert to multi dispute statement set");
 	make_multi_dispute_statement_set(metrics, result)
 }
 
@@ -179,11 +195,13 @@ where
 	let mut result = BTreeMap::new();
 	let mut request_votes_counter = 0;
 	while !disputes.is_empty() {
+		gum::trace!(target: LOG_TARGET, "has to process {} disputes left", disputes.len());
 		let batch_size = std::cmp::min(VOTES_SELECTION_BATCH_SIZE, disputes.len());
 		let batch = Vec::from_iter(disputes.drain(0..batch_size));
 
 		// Filter votes which are already onchain
 		request_votes_counter += 1;
+		gum::trace!(target: LOG_TARGET, "requesting onchain votes",);
 		let votes = super::request_votes(sender, batch)
 			.await
 			.into_iter()
@@ -213,6 +231,7 @@ where
 				(session_index, candidate_hash, votes)
 			})
 			.collect::<Vec<_>>();
+		gum::trace!(target: LOG_TARGET, "got {} onchain votes after processing", votes.len());
 
 		// Check if votes are within the limit
 		for (session_index, candidate_hash, selected_votes) in votes {
@@ -221,8 +240,16 @@ where
 				// we are done - no more votes can be added. Importantly, we don't add any votes for a dispute here
 				// if we can't fit them all. This gives us an important invariant, that backing votes for
 				// disputes make it into the provisioned vote set.
+				gum::trace!(
+					target: LOG_TARGET,
+					?request_votes_counter,
+					?total_votes_len,
+					"vote_selection DisputeCoordinatorMessage::QueryCandidateVotes counter",
+				);
+
 				return result
 			}
+
 			result.insert((session_index, candidate_hash), selected_votes);
 			total_votes_len += votes_len
 		}
@@ -231,6 +258,7 @@ where
 	gum::trace!(
 		target: LOG_TARGET,
 		?request_votes_counter,
+		?total_votes_len,
 		"vote_selection DisputeCoordinatorMessage::QueryCandidateVotes counter",
 	);
 

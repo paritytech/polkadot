@@ -47,13 +47,13 @@ pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: System Account (r:1 w:1)
 	pub(crate) fn withdraw_asset() -> Weight {
-		Weight::from_ref_time(20_385_000 as u64)
+		Weight::from_parts(20_385_000 as u64, 0)
 			.saturating_add(T::DbWeight::get().reads(1 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: System Account (r:2 w:2)
 	pub(crate) fn transfer_asset() -> Weight {
-		Weight::from_ref_time(32_756_000 as u64)
+		Weight::from_parts(32_756_000 as u64, 0)
 			.saturating_add(T::DbWeight::get().reads(2 as u64))
 			.saturating_add(T::DbWeight::get().writes(2 as u64))
 	}
@@ -65,23 +65,23 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn transfer_reserve_asset() -> Weight {
-		Weight::from_ref_time(50_645_000 as u64)
+		Weight::from_parts(50_645_000 as u64, 0)
 			.saturating_add(T::DbWeight::get().reads(8 as u64))
 			.saturating_add(T::DbWeight::get().writes(5 as u64))
 	}
 	// Storage: Benchmark Override (r:0 w:0)
 	pub(crate) fn reserve_asset_deposited() -> Weight {
-		Weight::from_ref_time(2_000_000_000_000 as u64)
+		Weight::from_parts(2_000_000_000_000 as u64, 0)
 	}
 	// Storage: System Account (r:1 w:1)
 	pub(crate) fn receive_teleported_asset() -> Weight {
-		Weight::from_ref_time(19_595_000 as u64)
+		Weight::from_parts(19_595_000 as u64, 0)
 			.saturating_add(T::DbWeight::get().reads(1 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
 	// Storage: System Account (r:1 w:1)
 	pub(crate) fn deposit_asset() -> Weight {
-		Weight::from_ref_time(21_763_000 as u64)
+		Weight::from_parts(21_763_000 as u64, 0)
 			.saturating_add(T::DbWeight::get().reads(1 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
@@ -93,7 +93,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn deposit_reserve_asset() -> Weight {
-		Weight::from_ref_time(40_930_000 as u64)
+		Weight::from_parts(40_930_000 as u64, 0)
 			.saturating_add(T::DbWeight::get().reads(7 as u64))
 			.saturating_add(T::DbWeight::get().writes(4 as u64))
 	}
@@ -105,7 +105,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 	// Storage: Dmp DownwardMessageQueueHeads (r:1 w:1)
 	// Storage: Dmp DownwardMessageQueues (r:1 w:1)
 	pub(crate) fn initiate_teleport() -> Weight {
-		Weight::from_ref_time(40_788_000 as u64)
+		Weight::from_parts(40_788_000 as u64, 0)
 			.saturating_add(T::DbWeight::get().reads(7 as u64))
 			.saturating_add(T::DbWeight::get().writes(4 as u64))
 	}

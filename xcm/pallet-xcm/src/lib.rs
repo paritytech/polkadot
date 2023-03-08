@@ -79,63 +79,63 @@ pub trait WeightInfo {
 pub struct TestWeightInfo;
 impl WeightInfo for TestWeightInfo {
 	fn send() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn teleport_assets() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn reserve_transfer_assets() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn execute() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn force_xcm_version() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn force_default_xcm_version() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn force_subscribe_version_notify() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn force_unsubscribe_version_notify() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn migrate_supported_version() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn migrate_version_notifiers() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn already_notified_target() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn notify_current_targets() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn notify_target_migration_fail() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn migrate_version_notify_targets() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 
 	fn migrate_and_notify_old_targets() -> Weight {
-		Weight::from_ref_time(100_000_000)
+		Weight::from_parts(100_000_000, 0)
 	}
 }
 
