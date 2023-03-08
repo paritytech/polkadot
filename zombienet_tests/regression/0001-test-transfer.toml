@@ -1,0 +1,16 @@
+[settings]
+timeout = 1000
+provider = "native"
+
+[relaychain]
+# default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "polkadot-local"
+command = "polkadot"
+
+  [[relaychain.nodes]]
+  name = "alice"
+  args = ["-lruntime=debug,parachain=trace" ]
+
+  [[relaychain.nodes]]
+  name = "bob"
+  args = [ "-lruntime=debug,parachain=trace" ]
