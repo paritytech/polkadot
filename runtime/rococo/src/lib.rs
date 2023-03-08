@@ -2102,6 +2102,12 @@ sp_api::impl_runtime_apis! {
 				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7").to_vec().into(),
 				// Treasury Account
 				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da95ecffd7b6c0f78751baa9d281e0bfa3a6d6f646c70792f74727372790000000000000000000000000000000000000000").to_vec().into(),
+				// XcmPallet SupportedVersion
+				hex_literal::hex!("1405f2411d0af5a7ff397e7c9dc68d19908b4dae59e7d658f23d261c5e5db22b").to_vec().into(),
+				// XcmPallet VersionDiscoveryQueue
+				hex_literal::hex!("1405f2411d0af5a7ff397e7c9dc68d194a222ba0333561192e474c59ed8e30e1").to_vec().into(),
+				// XcmPallet SafeXcmVersion
+				hex_literal::hex!("1405f2411d0af5a7ff397e7c9dc68d196323ae84c43568be0d1394d5d0d522c4").to_vec().into(),
 			];
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
