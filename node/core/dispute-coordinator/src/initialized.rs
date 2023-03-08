@@ -96,7 +96,7 @@ impl Initialized {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
 		let (participation_sender, participation_receiver) = mpsc::channel(1);
-		let participation = Participation::new(participation_sender);
+		let participation = Participation::new(participation_sender, metrics.clone());
 		let highest_session = rolling_session_window.latest_session();
 
 		Self {
@@ -165,7 +165,7 @@ impl Initialized {
 	{
 		for (priority, request) in participations.drain(..) {
 			self.participation
-				.queue_participation(ctx, priority, request, &self.metrics)
+				.queue_participation(ctx, priority, request)
 				.await?;
 		}
 
@@ -195,7 +195,6 @@ impl Initialized {
 				.process_active_leaves_update(
 					ctx,
 					&ActiveLeavesUpdate::start_work(first_leaf),
-					&self.metrics,
 				)
 				.await?;
 		}
@@ -214,7 +213,7 @@ impl Initialized {
 						candidate_hash,
 						candidate_receipt,
 						outcome,
-					} = self.participation.get_participation_result(ctx, msg, &self.metrics).await?;
+					} = self.participation.get_participation_result(ctx, msg).await?;
 					if let Some(valid) = outcome.validity() {
 						gum::trace!(
 							target: LOG_TARGET,
@@ -286,12 +285,11 @@ impl Initialized {
 				.bump_to_priority_for_candidates(
 					ctx,
 					&scraped_updates.included_receipts,
-					&self.metrics,
 				)
 				.await,
 		)?;
 		self.participation
-			.process_active_leaves_update(ctx, &update, &self.metrics)
+			.process_active_leaves_update(ctx, &update)
 			.await?;
 
 		if let Some(new_leaf) = update.activated {
@@ -934,7 +932,6 @@ impl Initialized {
 					ctx,
 					priority,
 					ParticipationRequest::new(new_state.candidate_receipt().clone(), session),
-					&self.metrics,
 				)
 				.await;
 			log_error(r)?;

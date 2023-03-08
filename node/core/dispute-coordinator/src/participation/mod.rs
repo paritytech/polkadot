@@ -72,6 +72,8 @@ pub struct Participation {
 	worker_sender: WorkerMessageSender,
 	/// Some recent block for retrieving validation code from chain.
 	recent_block: Option<(BlockNumber, Hash)>,
+	/// Metrics handle cloned from Initialized
+	metrics: Metrics,
 }
 
 /// Message from worker tasks.
@@ -136,12 +138,13 @@ impl Participation {
 	/// The passed in sender will be used by background workers to communicate back their results.
 	/// The calling context should make sure to call `Participation::on_worker_message()` for the
 	/// received messages.
-	pub fn new(sender: WorkerMessageSender) -> Self {
+	pub fn new(sender: WorkerMessageSender, metrics: Metrics) -> Self {
 		Self {
 			running_participations: HashSet::new(),
-			queue: Queues::new(),
+			queue: Queues::new(metrics.clone()),
 			worker_sender: sender,
 			recent_block: None,
+			metrics,
 		}
 	}
 
@@ -156,9 +159,8 @@ impl Participation {
 		ctx: &mut Context,
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
-		metrics: &Metrics,
 	) -> Result<()> {
-		let request_timer = metrics.time_participation_pipeline();
+		let request_timer = self.metrics.time_participation_pipeline();
 
 		// Participation already running - we can ignore that request:
 		if self.running_participations.contains(req.candidate_hash()) {
@@ -167,12 +169,12 @@ impl Participation {
 		// Available capacity - participate right away (if we already have a recent block):
 		if let Some((_, h)) = self.recent_block {
 			if self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
-				self.fork_participation(ctx, req, h, request_timer, metrics)?;
+				self.fork_participation(ctx, req, h, request_timer)?;
 				return Ok(())
 			}
 		}
 		// Out of capacity/no recent block yet - queue:
-		self.queue.queue(ctx.sender(), priority, req, request_timer, metrics).await
+		self.queue.queue(ctx.sender(), priority, req, request_timer).await
 	}
 
 	/// Message from a worker task was received - get the outcome.
@@ -188,12 +190,11 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		msg: WorkerMessage,
-		metrics: &Metrics,
 	) -> FatalResult<ParticipationStatement> {
 		let WorkerMessage(statement) = msg;
 		self.running_participations.remove(&statement.candidate_hash);
 		let recent_block = self.recent_block.expect("We never ever reset recent_block to `None` and we already received a result, so it must have been set before. qed.");
-		self.dequeue_until_capacity(ctx, recent_block.1, metrics).await?;
+		self.dequeue_until_capacity(ctx, recent_block.1).await?;
 		Ok(statement)
 	}
 
@@ -205,14 +206,13 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		update: &ActiveLeavesUpdate,
-		metrics: &Metrics,
 	) -> FatalResult<()> {
 		if let Some(activated) = &update.activated {
 			match self.recent_block {
 				None => {
 					self.recent_block = Some((activated.number, activated.hash));
 					// Work got potentially unblocked:
-					self.dequeue_until_capacity(ctx, activated.hash, metrics).await?;
+					self.dequeue_until_capacity(ctx, activated.hash).await?;
 				},
 				Some((number, _)) if activated.number > number => {
 					self.recent_block = Some((activated.number, activated.hash));
@@ -229,10 +229,9 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		included_receipts: &Vec<CandidateReceipt>,
-		metrics: &Metrics,
 	) -> Result<()> {
 		for receipt in included_receipts {
-			self.queue.prioritize_if_present(ctx.sender(), receipt, metrics).await?;
+			self.queue.prioritize_if_present(ctx.sender(), receipt).await?;
 		}
 		Ok(())
 	}
@@ -242,12 +241,11 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		recent_head: Hash,
-		metrics: &Metrics,
 	) -> FatalResult<()> {
 		while self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
-			let (maybe_req, maybe_timer) = self.queue.dequeue(metrics);
+			let (maybe_req, maybe_timer) = self.queue.dequeue();
 			if let Some(req) = maybe_req {
-				self.fork_participation(ctx, req, recent_head, maybe_timer, metrics)?;
+				self.fork_participation(ctx, req, recent_head, maybe_timer)?;
 			} else {
 				break
 			}
@@ -262,9 +260,8 @@ impl Participation {
 		req: ParticipationRequest,
 		recent_head: Hash,
 		request_timer: Option<prometheus::HistogramTimer>,
-		metrics: &Metrics,
 	) -> FatalResult<()> {
-		let participation_timer = metrics.time_participation();
+		let participation_timer = self.metrics.time_participation();
 		if self.running_participations.insert(*req.candidate_hash()) {
 			let sender = ctx.sender().clone();
 			ctx.spawn(

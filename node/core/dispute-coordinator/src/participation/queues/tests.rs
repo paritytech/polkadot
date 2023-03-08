@@ -44,7 +44,8 @@ fn make_dummy_comparator(
 /// block number should be treated with lowest priority.
 #[test]
 fn ordering_works_as_expected() {
-	let mut queue = Queues::new();
+	let metrics = Metrics::default();
+	let mut queue = Queues::new(metrics.clone());
 	let req1 = make_participation_request(Hash::repeat_byte(0x01));
 	let req_prio = make_participation_request(Hash::repeat_byte(0x02));
 	let req3 = make_participation_request(Hash::repeat_byte(0x03));
@@ -52,14 +53,12 @@ fn ordering_works_as_expected() {
 	let req5_unknown_parent = make_participation_request(Hash::repeat_byte(0x05));
 	let req_full = make_participation_request(Hash::repeat_byte(0x06));
 	let req_prio_full = make_participation_request(Hash::repeat_byte(0x07));
-	let metrics = Metrics::default();
 	queue
 		.queue_with_comparator(
 			make_dummy_comparator(&req1, Some(1)),
 			ParticipationPriority::BestEffort,
 			req1.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 	queue
@@ -68,7 +67,6 @@ fn ordering_works_as_expected() {
 			ParticipationPriority::Priority,
 			req_prio.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 	queue
@@ -77,7 +75,6 @@ fn ordering_works_as_expected() {
 			ParticipationPriority::BestEffort,
 			req3.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 	queue
@@ -86,7 +83,6 @@ fn ordering_works_as_expected() {
 			ParticipationPriority::Priority,
 			req_prio_2.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 	queue
@@ -95,7 +91,6 @@ fn ordering_works_as_expected() {
 			ParticipationPriority::BestEffort,
 			req5_unknown_parent.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 	assert_matches!(
@@ -104,7 +99,6 @@ fn ordering_works_as_expected() {
 			ParticipationPriority::Priority,
 			req_prio_full,
 			metrics.time_participation_pipeline(),
-			&metrics,
 		),
 		Err(QueueError::PriorityFull)
 	);
@@ -114,7 +108,6 @@ fn ordering_works_as_expected() {
 			ParticipationPriority::BestEffort,
 			req_full,
 			metrics.time_participation_pipeline(),
-			&metrics,
 		),
 		Err(QueueError::BestEffortFull)
 	);
@@ -122,14 +115,14 @@ fn ordering_works_as_expected() {
 	// Timers have been stored for each request
 	assert_eq!(queue.request_timers.len(), 5);
 	// Prioritized queue is ordered correctly
-	assert_eq!(queue.dequeue(&metrics).0, Some(req_prio));
-	assert_eq!(queue.dequeue(&metrics).0, Some(req_prio_2));
+	assert_eq!(queue.dequeue().0, Some(req_prio));
+	assert_eq!(queue.dequeue().0, Some(req_prio_2));
 	// So is the best-effort
-	assert_eq!(queue.dequeue(&metrics).0, Some(req1));
-	assert_eq!(queue.dequeue(&metrics).0, Some(req3));
-	assert_eq!(queue.dequeue(&metrics).0, Some(req5_unknown_parent));
+	assert_eq!(queue.dequeue().0, Some(req1));
+	assert_eq!(queue.dequeue().0, Some(req3));
+	assert_eq!(queue.dequeue().0, Some(req5_unknown_parent));
 
-	assert_matches!(queue.dequeue(&metrics).0, None);
+	assert_matches!(queue.dequeue().0, None);
 	// Timers have been removed from storage along with requests
 	assert_eq!(queue.request_timers.len(), 0);
 }
@@ -137,12 +130,12 @@ fn ordering_works_as_expected() {
 /// No matter how often a candidate gets queued, it should only ever get dequeued once.
 #[test]
 fn candidate_is_only_dequeued_once() {
-	let mut queue = Queues::new();
+	let metrics = Metrics::default();
+	let mut queue = Queues::new(metrics.clone());
 	let req1 = make_participation_request(Hash::repeat_byte(0x01));
 	let req_prio = make_participation_request(Hash::repeat_byte(0x02));
 	let req_best_effort_then_prio = make_participation_request(Hash::repeat_byte(0x03));
 	let req_prio_then_best_effort = make_participation_request(Hash::repeat_byte(0x04));
-	let metrics = Metrics::default();
 
 	queue
 		.queue_with_comparator(
@@ -150,7 +143,6 @@ fn candidate_is_only_dequeued_once() {
 			ParticipationPriority::BestEffort,
 			req1.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 	queue
@@ -159,7 +151,6 @@ fn candidate_is_only_dequeued_once() {
 			ParticipationPriority::Priority,
 			req_prio.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 	// Insert same best effort again:
@@ -169,7 +160,6 @@ fn candidate_is_only_dequeued_once() {
 			ParticipationPriority::BestEffort,
 			req1.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 	// insert same prio again:
@@ -179,7 +169,6 @@ fn candidate_is_only_dequeued_once() {
 			ParticipationPriority::Priority,
 			req_prio.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 
@@ -190,7 +179,6 @@ fn candidate_is_only_dequeued_once() {
 			ParticipationPriority::BestEffort,
 			req_best_effort_then_prio.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 	// Then as prio:
@@ -200,12 +188,11 @@ fn candidate_is_only_dequeued_once() {
 			ParticipationPriority::Priority,
 			req_best_effort_then_prio.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 
 	// Make space in prio:
-	assert_eq!(queue.dequeue(&metrics).0, Some(req_prio));
+	assert_eq!(queue.dequeue().0, Some(req_prio));
 
 	// Insert first as prio:
 	queue
@@ -214,7 +201,6 @@ fn candidate_is_only_dequeued_once() {
 			ParticipationPriority::Priority,
 			req_prio_then_best_effort.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 	// Then as best effort:
@@ -224,17 +210,16 @@ fn candidate_is_only_dequeued_once() {
 			ParticipationPriority::BestEffort,
 			req_prio_then_best_effort.clone(),
 			metrics.time_participation_pipeline(),
-			&metrics,
 		)
 		.unwrap();
 
 	// Timers have been stored for each request
 	assert_eq!(queue.request_timers.len(), 3);
 
-	assert_eq!(queue.dequeue(&metrics).0, Some(req_best_effort_then_prio));
-	assert_eq!(queue.dequeue(&metrics).0, Some(req_prio_then_best_effort));
-	assert_eq!(queue.dequeue(&metrics).0, Some(req1));
-	assert_eq!(queue.dequeue(&metrics).0, None);
+	assert_eq!(queue.dequeue().0, Some(req_best_effort_then_prio));
+	assert_eq!(queue.dequeue().0, Some(req_prio_then_best_effort));
+	assert_eq!(queue.dequeue().0, Some(req1));
+	assert_eq!(queue.dequeue().0, None);
 
 	// Timers have been removed from storage along with requests
 	assert_eq!(queue.request_timers.len(), 0);

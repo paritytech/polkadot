@@ -64,6 +64,9 @@ pub struct Queues {
 	/// completion time. Optimally these would have been stored in the participation
 	/// request itself, but HistogramTimer doesn't implement the Clone trait.
 	request_timers: BTreeMap<CandidateComparator, Option<prometheus::HistogramTimer>>,
+
+	/// Handle for recording queues data in metrics
+	metrics: Metrics,
 }
 
 /// A dispute participation request that can be queued.
@@ -136,11 +139,12 @@ impl ParticipationRequest {
 
 impl Queues {
 	/// Create new `Queues`.
-	pub fn new() -> Self {
+	pub fn new(metrics: Metrics) -> Self {
 		Self {
 			best_effort: BTreeMap::new(),
 			priority: BTreeMap::new(),
 			request_timers: BTreeMap::new(),
+			metrics,
 		}
 	}
 
@@ -156,11 +160,10 @@ impl Queues {
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
 		timer: Option<prometheus::HistogramTimer>,
-		metrics: &Metrics,
 	) -> Result<()> {
 		let comparator = CandidateComparator::new(sender, &req.candidate_receipt).await?;
 
-		self.queue_with_comparator(comparator, priority, req, timer, metrics)?;
+		self.queue_with_comparator(comparator, priority, req, timer)?;
 		Ok(())
 	}
 
@@ -169,17 +172,16 @@ impl Queues {
 	/// We also get the corresponding request timer, if any.
 	pub fn dequeue(
 		&mut self,
-		metrics: &Metrics,
 	) -> (Option<ParticipationRequest>, Option<prometheus::HistogramTimer>) {
 		if let Some((comp, req)) = self.pop_priority() {
-			metrics.report_priority_queue_size(self.priority.len() as u64);
+			self.metrics.report_priority_queue_size(self.priority.len() as u64);
 			if let Some(maybe_timer) = self.request_timers.remove(&comp) {
 				return (Some(req), maybe_timer)
 			}
 			return (Some(req), None)
 		}
 		if let Some((comp, req)) = self.pop_best_effort() {
-			metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
+			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 			if let Some(maybe_timer) = self.request_timers.remove(&comp) {
 				return (Some(req), maybe_timer)
 			}
@@ -194,17 +196,15 @@ impl Queues {
 		&mut self,
 		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
 		receipt: &CandidateReceipt,
-		metrics: &Metrics,
 	) -> Result<()> {
 		let comparator = CandidateComparator::new(sender, receipt).await?;
-		self.prioritize_with_comparator(comparator, metrics)?;
+		self.prioritize_with_comparator(comparator)?;
 		Ok(())
 	}
 
 	fn prioritize_with_comparator(
 		&mut self,
 		comparator: CandidateComparator,
-		metrics: &Metrics,
 	) -> std::result::Result<(), QueueError> {
 		if self.priority.len() >= PRIORITY_QUEUE_SIZE {
 			return Err(QueueError::PriorityFull)
@@ -212,8 +212,8 @@ impl Queues {
 		if let Some(request) = self.best_effort.remove(&comparator) {
 			self.priority.insert(comparator, request);
 			// Report changes to both queue sizes
-			metrics.report_priority_queue_size(self.priority.len() as u64);
-			metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
+			self.metrics.report_priority_queue_size(self.priority.len() as u64);
+			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		}
 		Ok(())
 	}
@@ -224,7 +224,6 @@ impl Queues {
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
 		timer: Option<prometheus::HistogramTimer>,
-		metrics: &Metrics,
 	) -> std::result::Result<(), QueueError> {
 		if priority.is_priority() {
 			if self.priority.len() >= PRIORITY_QUEUE_SIZE {
@@ -236,8 +235,8 @@ impl Queues {
 				self.request_timers.insert(comparator, timer);
 			}
 			self.priority.insert(comparator, req);
-			metrics.report_priority_queue_size(self.priority.len() as u64);
-			metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
+			self.metrics.report_priority_queue_size(self.priority.len() as u64);
+			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		} else {
 			if self.priority.contains_key(&comparator) {
 				// The candidate is already in priority queue - don't
@@ -249,7 +248,7 @@ impl Queues {
 			}
 			self.best_effort.insert(comparator, req);
 			self.request_timers.insert(comparator, timer);
-			metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
+			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		}
 		Ok(())
 	}
