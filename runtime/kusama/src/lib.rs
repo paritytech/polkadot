@@ -1046,11 +1046,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				)
 			},
 			ProxyType::NominationPools => {
-				matches!(
-					c,
-					RuntimeCall::NominationPools(..) |
-					RuntimeCall::Utility(..)
-				)
+				matches!(c, RuntimeCall::NominationPools(..) | RuntimeCall::Utility(..))
 			},
 			ProxyType::IdentityJudgement => matches!(
 				c,

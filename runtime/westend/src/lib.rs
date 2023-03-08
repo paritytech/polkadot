@@ -824,11 +824,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				)
 			},
 			ProxyType::NominationPools => {
-				matches!(
-					c,
-					RuntimeCall::NominationPools(..) |
-					RuntimeCall::Utility(..)
-				)
+				matches!(c, RuntimeCall::NominationPools(..) | RuntimeCall::Utility(..))
 			},
 			ProxyType::SudoBalances => match c {
 				RuntimeCall::Sudo(pallet_sudo::Call::sudo { call: ref x }) => {
