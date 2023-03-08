@@ -74,7 +74,7 @@ type LocalOriginConverter = (
 	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
 );
 
-struct ExponentialWndPrice;
+pub struct ExponentialWndPrice;
 impl PriceForParachainDelivery for ExponentialWndPrice {
 	fn price_for_parachain_delivery(para: ParaId, _: &Xcm<()>) -> MultiAssets {
 		let factor = Percent::from_percent(101).saturating_pow(Dmp::dmq_length(para) as usize);

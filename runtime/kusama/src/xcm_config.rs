@@ -109,7 +109,7 @@ parameter_types! {
 	pub const MaxInstructions: u32 = 100;
 }
 
-struct ExponentialKsmPrice;
+pub struct ExponentialKsmPrice;
 impl PriceForParachainDelivery for ExponentialKsmPrice {
 	fn price_for_parachain_delivery(para: ParaId, _: &Xcm<()>) -> MultiAssets {
 		let factor = Percent::from_percent(101).saturating_pow(Dmp::dmq_length(para) as usize);
