@@ -65,8 +65,7 @@ pub(crate) struct RequestResultCache {
 	version: LruCache<Hash, u32>,
 	disputes: LruCache<Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
 
-	staging_validity_constraints:
-		LruCache<(Hash, ParaId), Option<vstaging_primitives::Constraints>>,
+	staging_para_backing_state: LruCache<(Hash, ParaId), Option<vstaging_primitives::BackingState>>,
 	staging_async_backing_parameters: LruCache<Hash, vstaging_primitives::AsyncBackingParameters>,
 }
 
@@ -96,7 +95,7 @@ impl Default for RequestResultCache {
 			version: LruCache::new(DEFAULT_CACHE_CAP),
 			disputes: LruCache::new(DEFAULT_CACHE_CAP),
 
-			staging_validity_constraints: LruCache::new(DEFAULT_CACHE_CAP),
+			staging_para_backing_state: LruCache::new(DEFAULT_CACHE_CAP),
 			staging_async_backing_parameters: LruCache::new(DEFAULT_CACHE_CAP),
 		}
 	}
@@ -394,19 +393,19 @@ impl RequestResultCache {
 		self.disputes.put(relay_parent, value);
 	}
 
-	pub(crate) fn staging_validity_constraints(
+	pub(crate) fn staging_para_backing_state(
 		&mut self,
 		key: (Hash, ParaId),
-	) -> Option<&Option<vstaging_primitives::Constraints>> {
-		self.staging_validity_constraints.get(&key)
+	) -> Option<&Option<vstaging_primitives::BackingState>> {
+		self.staging_para_backing_state.get(&key)
 	}
 
-	pub(crate) fn cache_staging_validity_constraints(
+	pub(crate) fn cache_staging_para_backing_state(
 		&mut self,
 		key: (Hash, ParaId),
-		value: Option<vstaging_primitives::Constraints>,
+		value: Option<vstaging_primitives::BackingState>,
 	) {
-		self.staging_validity_constraints.put(key, value);
+		self.staging_para_backing_state.put(key, value);
 	}
 
 	pub(crate) fn staging_async_backing_parameters(
@@ -461,6 +460,6 @@ pub(crate) enum RequestResult {
 	Version(Hash, u32),
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
 
-	StagingValidityConstraints(Hash, ParaId, Option<vstaging_primitives::Constraints>),
+	StagingParaBackingState(Hash, ParaId, Option<vstaging_primitives::BackingState>),
 	StagingAsyncBackingParameters(Hash, vstaging_primitives::AsyncBackingParameters),
 }

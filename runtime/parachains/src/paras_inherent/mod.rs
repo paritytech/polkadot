@@ -727,7 +727,7 @@ impl<T: Config> Pallet<T> {
 					&validator_public[..],
 					bitfields.clone(),
 					<scheduler::Pallet<T>>::core_para,
-					false,
+					true, // we must enact the previous candidate for subsequent validation
 				);
 
 			let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());

@@ -1488,8 +1488,8 @@ sp_api::impl_runtime_apis! {
 			runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
 		}
 
-		fn staging_validity_constraints(para_id: ParaId) -> Option<primitives::vstaging::Constraints> {
-			runtime_parachains::runtime_api_impl::vstaging::validity_constraints::<Runtime>(para_id)
+		fn staging_para_backing_state(para_id: ParaId) -> Option<primitives::vstaging::BackingState> {
+			runtime_parachains::runtime_api_impl::vstaging::backing_state::<Runtime>(para_id)
 		}
 
 		fn staging_async_backing_parameters() -> primitives::vstaging::AsyncBackingParameters {
