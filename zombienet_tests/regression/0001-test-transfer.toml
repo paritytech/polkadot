@@ -1,9 +1,8 @@
 [settings]
 timeout = 1000
-provider = "native"
 
 [relaychain]
-# default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "polkadot-local"
 command = "polkadot"
 

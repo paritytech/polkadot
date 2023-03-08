@@ -1,9 +1,9 @@
 Description: Deregister / Register Validator Smoke
 Network: ./0001-test-transfer.toml
-Creds: /dev/null
+Creds: config
 
 alice: is up within 30 seconds
 bob: is up within 30 seconds
 
-# send funds from alice to bob
+# send funds from alice to bob and check amounts are correct
 alice: js-script ./0001-test-transfer.js with "//Alice,//Bob,69420" return is 0 within 30 secs
