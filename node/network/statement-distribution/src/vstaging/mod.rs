@@ -125,7 +125,7 @@ const BENEFIT_VALID_STATEMENT_FIRST: Rep =
 	Rep::BenefitMajorFirst("Peer was the first to provide a given valid statement");
 
 /// The amount of time to wait before retrying when the node sends a request and it is dropped.
-const REQUEST_RETRY_DELAY: Duration = Duration::from_secs(1);
+pub const REQUEST_RETRY_DELAY: Duration = Duration::from_secs(1);
 
 struct PerRelayParentState {
 	local_validator: Option<LocalValidatorState>,
@@ -2319,6 +2319,10 @@ async fn apply_post_confirmation<Context>(
 /// Dispatch pending requests for candidate data & statements.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut State) {
+	if !state.request_manager.has_pending_requests() {
+		return
+	}
+
 	let peers = &state.peers;
 	let peer_advertised = |identifier: &CandidateIdentifier, peer: &_| {
 		let peer_data = peers.get(peer)?;

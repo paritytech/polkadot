@@ -38,6 +38,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{
 	rand,
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
+	TimeoutExt,
 };
 
 use futures::{channel::mpsc, prelude::*};
@@ -126,7 +127,7 @@ impl MuxedMessage {
 			from_v1_requester,
 			from_v1_responder,
 			from_responder,
-			receive_response
+			receive_response,
 		);
 		futures::select! {
 			msg = from_orchestra => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
@@ -190,6 +191,9 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		.map_err(FatalError::SpawnTask)?;
 
 		loop {
+			// Wait for the next message. Don't wait longer than `REQUEST_RETRY_DELAY`, to give us a
+			// chance to dispatch any requests that are on cooldown. A request may end up waiting
+			// longer than this delay, but it is not necessary to dispatch them promptly.
 			let message = MuxedMessage::receive(
 				&mut ctx,
 				&mut state,
@@ -197,9 +201,11 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				&mut v1_res_receiver,
 				&mut res_receiver,
 			)
+			.timeout(vstaging::REQUEST_RETRY_DELAY)
 			.await;
+
 			match message {
-				MuxedMessage::Subsystem(result) => {
+				Some(MuxedMessage::Subsystem(result)) => {
 					let result = self
 						.handle_subsystem_message(
 							&mut ctx,
@@ -215,7 +221,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						Err(jfyi) => gum::debug!(target: LOG_TARGET, error = ?jfyi),
 					}
 				},
-				MuxedMessage::V1Requester(result) => {
+				Some(MuxedMessage::V1Requester(result)) => {
 					let result = crate::legacy_v1::handle_requester_message(
 						&mut ctx,
 						&mut legacy_v1_state,
@@ -227,7 +233,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					.await;
 					log_error(result.map_err(From::from), "handle_requester_message")?;
 				},
-				MuxedMessage::V1Responder(result) => {
+				Some(MuxedMessage::V1Responder(result)) => {
 					let result = crate::legacy_v1::handle_responder_message(
 						&mut legacy_v1_state,
 						result.ok_or(FatalError::ResponderReceiverFinished)?,
@@ -235,18 +241,18 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					.await;
 					log_error(result.map_err(From::from), "handle_responder_message")?;
 				},
-				MuxedMessage::Responder(result) => {
+				Some(MuxedMessage::Responder(result)) => {
 					vstaging::answer_request(
 						&mut state,
 						result.ok_or(FatalError::RequesterReceiverFinished)?,
 					);
 				},
-				MuxedMessage::Response(result) => {
+				Some(MuxedMessage::Response(result)) => {
 					vstaging::handle_response(&mut ctx, &mut state, result).await;
 				},
+				None => (),
 			};
 
-			// TODO: Call this regularly instead of after every message?
 			vstaging::dispatch_requests(&mut ctx, &mut state).await;
 		}
 		Ok(())

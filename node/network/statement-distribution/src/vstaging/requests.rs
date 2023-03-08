@@ -55,7 +55,7 @@ use std::{
 		hash_map::{Entry as HEntry, HashMap},
 		HashSet, VecDeque,
 	},
-	time::SystemTime,
+	time::Instant,
 };
 
 /// An identifier for a candidate.
@@ -92,7 +92,25 @@ pub struct RequestedCandidate {
 	in_flight: bool,
 	/// The timestamp for the latest time we received a response. If the response failed, we should
 	/// wait some time before retrying.
-	last_response_time: Option<SystemTime>,
+	last_response_time: Option<Instant>,
+}
+
+impl RequestedCandidate {
+	fn is_pending(&self) -> bool {
+		if self.in_flight {
+			return false
+		}
+
+		if let Some(last_response_time) = self.last_response_time {
+			let can_retry =
+				Instant::now().duration_since(last_response_time) >= REQUEST_RETRY_DELAY;
+			if !can_retry {
+				return false
+			}
+		}
+
+		true
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -250,6 +268,17 @@ impl RequestManager {
 		}
 	}
 
+	/// Returns true if there are pending requests that are dispatchable.
+	pub fn has_pending_requests(&self) -> bool {
+		for (_id, entry) in &self.requests {
+			if entry.is_pending() {
+				return true
+			}
+		}
+
+		false
+	}
+
 	/// Yields the next request to dispatch, if there is any.
 	///
 	/// This function accepts two closures as an argument.
@@ -291,17 +320,8 @@ impl RequestManager {
 				Some(e) => e,
 			};
 
-			if entry.in_flight {
+			if !entry.is_pending() {
 				continue
-			}
-
-			if let Some(last_response_time) = entry.last_response_time {
-				let can_retry = SystemTime::now()
-					.duration_since(last_response_time)
-					.map_or(false, |delay| delay >= REQUEST_RETRY_DELAY);
-				if !can_retry {
-					continue
-				}
 			}
 
 			let props = match request_props(&id) {
@@ -504,7 +524,7 @@ impl UnhandledResponse {
 
 		// Set the last response time before clearing the `in_flight` flag. Otherwise, we may re-try
 		// the request as soon as we clear `in_flight`.
-		entry.last_response_time = Some(SystemTime::now());
+		entry.last_response_time = Some(Instant::now());
 		entry.in_flight = false;
 		entry.priority.attempts += 1;
 
