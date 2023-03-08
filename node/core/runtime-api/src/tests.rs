@@ -21,7 +21,7 @@ use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfigurati
 use polkadot_node_subsystem::SpawnGlue;
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_primitives::{
-	runtime_api::ParachainHost, vstaging, AuthorityDiscoveryId, Block, CandidateEvent,
+	runtime_api::ParachainHost, AuthorityDiscoveryId, Block, CandidateEvent,
 	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
 	InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
 	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
@@ -192,10 +192,6 @@ sp_api::mock_impl_runtime_apis! {
 			_assumption: OccupiedCoreAssumption,
 		) -> Option<ValidationCodeHash> {
 			self.validation_code_hash.get(&para).map(|c| c.clone())
-		}
-
-		fn staging_validity_constraints(_: ParaId) -> Option<vstaging::Constraints> {
-			unimplemented!("Staging API not implemented");
 		}
 	}
 
