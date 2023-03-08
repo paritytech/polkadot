@@ -17,7 +17,7 @@
 //! XCM configuration for Polkadot.
 
 use super::{
-	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, ParaId,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, Dmp, ParaId,
 	Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
 };
 use frame_support::{
@@ -25,8 +25,14 @@ use frame_support::{
 	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
-use runtime_common::{paras_registrar, xcm_sender, ToAuthor};
+use polkadot_runtime_constants::currency::CENTS;
+use runtime_common::{
+	paras_registrar,
+	xcm_sender::{ChildParachainRouter, PriceForParachainDelivery},
+	ToAuthor,
+};
 use sp_core::ConstU32;
+use sp_runtime::{traits::Saturating, Percent};
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
@@ -101,11 +107,22 @@ parameter_types! {
 	pub const MaxInstructions: u32 = 100;
 }
 
+struct ExponentialDotPrice;
+impl PriceForParachainDelivery for ExponentialDotPrice {
+	fn price_for_parachain_delivery(para: ParaId, _: &Xcm<()>) -> MultiAssets {
+		let factor = Percent::from_percent(101).saturating_pow(Dmp::dmq_length(para) as usize);
+		let base = CENTS.saturating_mul(3);
+
+		let amount = factor * base;
+		(Here, amount).into()
+	}
+}
+
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet, ()>,
+	ChildParachainRouter<Runtime, XcmPallet, ExponentialDotPrice>,
 );
 
 parameter_types! {

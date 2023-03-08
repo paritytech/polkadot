@@ -247,7 +247,7 @@ impl<T: Config> Pallet<T> {
 	/// Returns the number of pending downward messages addressed to the given para.
 	///
 	/// Returns 0 if the para doesn't have an associated downward message queue.
-	pub(crate) fn dmq_length(para: ParaId) -> u32 {
+	pub fn dmq_length(para: ParaId) -> u32 {
 		<Self as Store>::DownwardMessageQueues::decode_len(&para)
 			.unwrap_or(0)
 			.saturated_into::<u32>()

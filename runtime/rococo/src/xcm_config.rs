@@ -17,7 +17,7 @@
 //! XCM configuration for Rococo.
 
 use super::{
-	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, ParaId,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, Dmp, ParaId,
 	Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
 };
 use frame_support::{
@@ -25,8 +25,14 @@ use frame_support::{
 	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
-use runtime_common::{paras_registrar, xcm_sender, ToAuthor};
+use rococo_runtime_constants::currency::CENTS;
+use runtime_common::{
+	paras_registrar,
+	xcm_sender::{ChildParachainRouter, PriceForParachainDelivery},
+	ToAuthor,
+};
 use sp_core::ConstU32;
+use sp_runtime::{traits::Saturating, Percent};
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
@@ -82,11 +88,23 @@ parameter_types! {
 	/// The amount of weight an XCM operation takes. This is a safe overestimate.
 	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000_000_000, 64 * 1024);
 }
+
+struct ExponentialRocPrice;
+impl PriceForParachainDelivery for ExponentialRocPrice {
+	fn price_for_parachain_delivery(para: ParaId, _: &Xcm<()>) -> MultiAssets {
+		let factor = Percent::from_percent(101).saturating_pow(Dmp::dmq_length(para) as usize);
+		let base = CENTS.saturating_mul(3);
+
+		let amount = factor * base;
+		(Here, amount).into()
+	}
+}
+
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	xcm_sender::ChildParachainRouter<Runtime, XcmPallet, ()>,
+	ChildParachainRouter<Runtime, XcmPallet, ExponentialRocPrice>,
 );
 
 parameter_types! {
