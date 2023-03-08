@@ -7,6 +7,9 @@ _The content of this directory is meant to be used by Parity's private CI/CD inf
 `parachains`
     At the moment this directory only have one test related to parachains: `/parachains-smoke-test`, that check the parachain registration and the block height.
 
+`regression`
+    WIP: Includes basic runtime regression tests to be run against various runtimes
+
 ## Resources
 
 * [zombienet repo](https://github.com/paritytech/zombienet)

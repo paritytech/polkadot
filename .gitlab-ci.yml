@@ -133,6 +133,8 @@ default:
     - if: $CI_PIPELINE_SOURCE == "schedule"
       when: never
     - if: $CI_COMMIT_REF_NAME == "master"
+    # TODO: remove before merging
+    - if: $CI_COMMIT_REF_NAME == "mp-zombienet-regressions"
     - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/ # PRs
 
 .deploy-testnet-refs:
