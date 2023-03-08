@@ -1319,8 +1319,8 @@ impl<T: Config> Pallet<T> {
 		// The height of any changes we no longer should keep around.
 		let pruning_height = now - (code_retention_period + One::one());
 
-		let pruning_tasks_done = PastCodePruning::<T>::mutate(
-			|pruning_tasks: &mut Vec<(_, T::BlockNumber)>| {
+		let pruning_tasks_done =
+			PastCodePruning::<T>::mutate(|pruning_tasks: &mut Vec<(_, T::BlockNumber)>| {
 				let (pruning_tasks_done, pruning_tasks_to_do) = {
 					// find all past code that has just exited the pruning window.
 					let up_to_idx =
@@ -1356,8 +1356,7 @@ impl<T: Config> Pallet<T> {
 				}
 
 				pruning_tasks_done as u64
-			},
-		);
+			});
 
 		// 1 read for the meta for each pruning task, 1 read for the config
 		// 2 writes: updating the meta and pruning the code
@@ -1385,10 +1384,8 @@ impl<T: Config> Pallet<T> {
 
 		// account weight for `UpgradeCooldowns::get`.
 		weight += T::DbWeight::get().reads(1);
-		let cooldowns_expired = UpgradeCooldowns::<T>::get()
-			.iter()
-			.take_while(|&(_, at)| at <= &now)
-			.count();
+		let cooldowns_expired =
+			UpgradeCooldowns::<T>::get().iter().take_while(|&(_, at)| at <= &now).count();
 
 		// reserve weight for `initializer_finalize`:
 		// - 1 read and 1 write for `UpgradeCooldowns::mutate`.
@@ -1403,13 +1400,11 @@ impl<T: Config> Pallet<T> {
 	///
 	/// See `process_scheduled_upgrade_changes` for more details.
 	fn process_scheduled_upgrade_cooldowns(now: T::BlockNumber) {
-		UpgradeCooldowns::<T>::mutate(
-			|upgrade_cooldowns: &mut Vec<(ParaId, T::BlockNumber)>| {
-				for &(para, _) in upgrade_cooldowns.iter().take_while(|&(_, at)| at <= &now) {
-					UpgradeRestrictionSignal::<T>::remove(&para);
-				}
-			},
-		);
+		UpgradeCooldowns::<T>::mutate(|upgrade_cooldowns: &mut Vec<(ParaId, T::BlockNumber)>| {
+			for &(para, _) in upgrade_cooldowns.iter().take_while(|&(_, at)| at <= &now) {
+				UpgradeRestrictionSignal::<T>::remove(&para);
+			}
+		});
 	}
 
 	/// Goes over all PVF votes in progress, reinitializes ballots, increments ages and prunes the

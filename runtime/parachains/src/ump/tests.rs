@@ -96,14 +96,12 @@ fn assert_storage_consistency_exhaustive() {
 
 	// since we wipe the empty queues the sets of paras in queue contents, queue sizes and
 	// need dispatch set should all be equal.
-	let queue_contents_set = RelayDispatchQueues::<Test>::iter()
-		.map(|(k, _)| k)
-		.collect::<HashSet<ParaId>>();
+	let queue_contents_set =
+		RelayDispatchQueues::<Test>::iter().map(|(k, _)| k).collect::<HashSet<ParaId>>();
 	let queue_sizes_set = RelayDispatchQueueSize::<Test>::iter()
 		.map(|(k, _)| k)
 		.collect::<HashSet<ParaId>>();
-	let needs_dispatch_set =
-		NeedsDispatch::<Test>::get().into_iter().collect::<HashSet<ParaId>>();
+	let needs_dispatch_set = NeedsDispatch::<Test>::get().into_iter().collect::<HashSet<ParaId>>();
 	assert_eq!(queue_contents_set, queue_sizes_set);
 	assert_eq!(queue_contents_set, needs_dispatch_set);
 

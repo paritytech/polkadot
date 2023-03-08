@@ -286,17 +286,11 @@ fn para_past_code_pruning_in_initialize() {
 		}
 
 		let pruned_at: BlockNumber = included_block + code_retention_period + 1;
-		assert_eq!(
-			PastCodeHash::<Test>::get(&(id, at_block)),
-			Some(validation_code.hash())
-		);
+		assert_eq!(PastCodeHash::<Test>::get(&(id, at_block)), Some(validation_code.hash()));
 		check_code_is_stored(&validation_code);
 
 		run_to_block(pruned_at - 1, None);
-		assert_eq!(
-			PastCodeHash::<Test>::get(&(id, at_block)),
-			Some(validation_code.hash())
-		);
+		assert_eq!(PastCodeHash::<Test>::get(&(id, at_block)), Some(validation_code.hash()));
 		assert_eq!(Paras::past_code_meta(&id).most_recent_change(), Some(at_block));
 		check_code_is_stored(&validation_code);
 
@@ -440,10 +434,7 @@ fn code_upgrade_applied_after_delay() {
 			assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(expected_at));
 			assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 			assert_eq!(UpcomingUpgrades::<Test>::get(), vec![(para_id, expected_at)]);
-			assert_eq!(
-				UpgradeCooldowns::<Test>::get(),
-				vec![(para_id, next_possible_upgrade_at)]
-			);
+			assert_eq!(UpgradeCooldowns::<Test>::get(), vec![(para_id, next_possible_upgrade_at)]);
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
@@ -461,10 +452,7 @@ fn code_upgrade_applied_after_delay() {
 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
 			assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(expected_at));
 			assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
-			assert_eq!(
-				UpgradeGoAheadSignal::<Test>::get(&para_id),
-				Some(UpgradeGoAhead::GoAhead)
-			);
+			assert_eq!(UpgradeGoAheadSignal::<Test>::get(&para_id), Some(UpgradeGoAhead::GoAhead));
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
@@ -541,10 +529,7 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 			assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(expected_at));
 			assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 			assert_eq!(UpcomingUpgrades::<Test>::get(), vec![(para_id, expected_at)]);
-			assert_eq!(
-				UpgradeCooldowns::<Test>::get(),
-				vec![(para_id, next_possible_upgrade_at)]
-			);
+			assert_eq!(UpgradeCooldowns::<Test>::get(), vec![(para_id, next_possible_upgrade_at)]);
 			assert!(UpgradeGoAheadSignal::<Test>::get(&para_id).is_none());
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
@@ -557,10 +542,7 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 		// the upgrade.
 		{
 			// The signal should be set to go-ahead until the new head is actually processed.
-			assert_eq!(
-				UpgradeGoAheadSignal::<Test>::get(&para_id),
-				Some(UpgradeGoAhead::GoAhead),
-			);
+			assert_eq!(UpgradeGoAheadSignal::<Test>::get(&para_id), Some(UpgradeGoAhead::GoAhead),);
 
 			Paras::note_new_head(para_id, Default::default(), expected_at + 4);
 
@@ -615,10 +597,7 @@ fn submit_code_change_when_not_allowed_is_err() {
 
 		run_to_block(1, None);
 		Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
-		assert_eq!(
-			FutureCodeUpgrades::<Test>::get(&para_id),
-			Some(1 + validation_upgrade_delay)
-		);
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(1 + validation_upgrade_delay));
 		assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 		check_code_is_stored(&new_code);
 
@@ -688,10 +667,7 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 			UpgradeRestrictionSignal::<Test>::get(&para_id),
 			Some(UpgradeRestriction::Present),
 		);
-		assert_eq!(
-			FutureCodeUpgrades::<Test>::get(&para_id),
-			Some(0 + validation_upgrade_delay)
-		);
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(0 + validation_upgrade_delay));
 		assert!(!Paras::can_upgrade_validation_code(para_id));
 
 		run_to_block(31, None);
@@ -702,10 +678,7 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 
 		// And scheduling another upgrade does not do anything. `expected_at` is still the same.
 		Paras::schedule_code_upgrade(para_id, newer_code.clone(), 30, &Configuration::config());
-		assert_eq!(
-			FutureCodeUpgrades::<Test>::get(&para_id),
-			Some(0 + validation_upgrade_delay)
-		);
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(0 + validation_upgrade_delay));
 	});
 }
 
@@ -1643,10 +1616,7 @@ fn add_trusted_validation_code_insta_approval() {
 
 		// Verify that the code upgrade has `expected_at` set to `26`. This is the behavior
 		// equal to that of `pvf_checking_enabled: false`.
-		assert_eq!(
-			FutureCodeUpgrades::<Test>::get(&para_id),
-			Some(1 + validation_upgrade_delay)
-		);
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(1 + validation_upgrade_delay));
 
 		// Verify that the required events were emitted.
 		EventValidator::new()

@@ -151,9 +151,7 @@ impl<T: Config> Pallet<T> {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
-		if DownwardMessageQueues::<T>::decode_len(para).unwrap_or(0) >
-			MAX_MESSAGE_QUEUE_SIZE
-		{
+		if DownwardMessageQueues::<T>::decode_len(para).unwrap_or(0) > MAX_MESSAGE_QUEUE_SIZE {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
@@ -178,9 +176,7 @@ impl<T: Config> Pallet<T> {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
-		if DownwardMessageQueues::<T>::decode_len(para).unwrap_or(0) >
-			MAX_MESSAGE_QUEUE_SIZE
-		{
+		if DownwardMessageQueues::<T>::decode_len(para).unwrap_or(0) > MAX_MESSAGE_QUEUE_SIZE {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 

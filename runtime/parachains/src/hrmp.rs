@@ -583,8 +583,8 @@ pub mod pallet {
 		) -> DispatchResult {
 			let origin = ensure_parachain(<T as Config>::RuntimeOrigin::from(origin))?;
 			ensure!(
-				HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default()
-					as u32 <= open_requests,
+				HrmpOpenChannelRequestsList::<T>::decode_len().unwrap_or_default() as u32 <=
+					open_requests,
 				Error::<T>::WrongWitness
 			);
 			Self::cancel_open_request(origin, channel_id.clone())?;
@@ -684,10 +684,10 @@ impl<T: Config> Pallet<T> {
 
 			// we need a few extra bits of data to weigh this -- all of this is read internally
 			// anyways, so no overhead.
-			let ingress_count = HrmpIngressChannelsIndex::<T>::decode_len(outgoing_para)
-				.unwrap_or_default() as u32;
-			let egress_count = HrmpEgressChannelsIndex::<T>::decode_len(outgoing_para)
-				.unwrap_or_default() as u32;
+			let ingress_count =
+				HrmpIngressChannelsIndex::<T>::decode_len(outgoing_para).unwrap_or_default() as u32;
+			let egress_count =
+				HrmpEgressChannelsIndex::<T>::decode_len(outgoing_para).unwrap_or_default() as u32;
 			w = w.saturating_add(<T as Config>::WeightInfo::force_clean_hrmp(
 				ingress_count,
 				egress_count,
@@ -1103,8 +1103,7 @@ impl<T: Config> Pallet<T> {
 			//
 			// Note that having the latest entry greater than the current block number is a logical
 			// error.
-			let mut recipient_digest =
-				HrmpChannelDigests::<T>::get(&channel_id.recipient);
+			let mut recipient_digest = HrmpChannelDigests::<T>::get(&channel_id.recipient);
 			if let Some(cur_block_digest) = recipient_digest
 				.last_mut()
 				.filter(|(block_no, _)| *block_no == now)
@@ -1161,8 +1160,7 @@ impl<T: Config> Pallet<T> {
 			Error::<T>::OpenHrmpChannelAlreadyExists,
 		);
 
-		let egress_cnt =
-			HrmpEgressChannelsIndex::<T>::decode_len(&origin).unwrap_or(0) as u32;
+		let egress_cnt = HrmpEgressChannelsIndex::<T>::decode_len(&origin).unwrap_or(0) as u32;
 		let open_req_cnt = HrmpOpenChannelRequestCount::<T>::get(&origin);
 		let channel_num_limit = if <paras::Pallet<T>>::is_parathread(origin) {
 			config.hrmp_max_parathread_outbound_channels
@@ -1239,8 +1237,7 @@ impl<T: Config> Pallet<T> {
 		} else {
 			config.hrmp_max_parachain_inbound_channels
 		};
-		let ingress_cnt =
-			HrmpIngressChannelsIndex::<T>::decode_len(&origin).unwrap_or(0) as u32;
+		let ingress_cnt = HrmpIngressChannelsIndex::<T>::decode_len(&origin).unwrap_or(0) as u32;
 		let accepted_cnt = HrmpAcceptedChannelRequestCount::<T>::get(&origin);
 		ensure!(
 			ingress_cnt + accepted_cnt < channel_num_limit,
@@ -1367,8 +1364,7 @@ impl<T: Config> Pallet<T> {
 		// The ingress channels vector is sorted, thus `mqc_heads` is sorted as well.
 		let mut mqc_heads = Vec::with_capacity(sender_set.len());
 		for sender in sender_set {
-			let channel_metadata =
-				HrmpChannels::<T>::get(&HrmpChannelId { sender, recipient });
+			let channel_metadata = HrmpChannels::<T>::get(&HrmpChannelId { sender, recipient });
 			let mqc_head = channel_metadata
 				.and_then(|metadata| metadata.mqc_head)
 				.unwrap_or(Hash::default());
@@ -1437,12 +1433,8 @@ impl<T: Config> Pallet<T> {
 		};
 
 		assert_eq!(
-			HrmpOpenChannelRequests::<T>::iter()
-				.map(|(k, _)| k)
-				.collect::<BTreeSet<_>>(),
-			HrmpOpenChannelRequestsList::<T>::get()
-				.into_iter()
-				.collect::<BTreeSet<_>>(),
+			HrmpOpenChannelRequests::<T>::iter().map(|(k, _)| k).collect::<BTreeSet<_>>(),
+			HrmpOpenChannelRequestsList::<T>::get().into_iter().collect::<BTreeSet<_>>(),
 		);
 
 		// verify that the set of keys in `HrmpOpenChannelRequestCount` corresponds to the set
@@ -1457,9 +1449,7 @@ impl<T: Config> Pallet<T> {
 				.map(|(k, _)| k.sender)
 				.collect::<BTreeSet<_>>(),
 		);
-		for (open_channel_initiator, expected_num) in
-			HrmpOpenChannelRequestCount::<T>::iter()
-		{
+		for (open_channel_initiator, expected_num) in HrmpOpenChannelRequestCount::<T>::iter() {
 			let actual_num = HrmpOpenChannelRequests::<T>::iter()
 				.filter(|(ch, _)| ch.sender == open_channel_initiator)
 				.count() as u32;
@@ -1477,9 +1467,7 @@ impl<T: Config> Pallet<T> {
 				.map(|(k, _)| k.recipient)
 				.collect::<BTreeSet<_>>(),
 		);
-		for (channel_recipient, expected_num) in
-			HrmpAcceptedChannelRequestCount::<T>::iter()
-		{
+		for (channel_recipient, expected_num) in HrmpAcceptedChannelRequestCount::<T>::iter() {
 			let actual_num = HrmpOpenChannelRequests::<T>::iter()
 				.filter(|(ch, v)| ch.recipient == channel_recipient && v.confirmed)
 				.count() as u32;
@@ -1487,12 +1475,8 @@ impl<T: Config> Pallet<T> {
 		}
 
 		assert_eq!(
-			HrmpCloseChannelRequests::<T>::iter()
-				.map(|(k, _)| k)
-				.collect::<BTreeSet<_>>(),
-			HrmpCloseChannelRequestsList::<T>::get()
-				.into_iter()
-				.collect::<BTreeSet<_>>(),
+			HrmpCloseChannelRequests::<T>::iter().map(|(k, _)| k).collect::<BTreeSet<_>>(),
+			HrmpCloseChannelRequestsList::<T>::get().into_iter().collect::<BTreeSet<_>>(),
 		);
 
 		// A HRMP watermark can be None for an onboarded parachain. However, an offboarded parachain

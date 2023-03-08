@@ -414,9 +414,7 @@ impl<T: Config> Pallet<T> {
 				v.remove(i);
 			}
 		});
-		NextDispatchRoundStartWith::<T>::mutate(|v| {
-			*v = v.filter(|p| p == outgoing_para)
-		});
+		NextDispatchRoundStartWith::<T>::mutate(|v| *v = v.filter(|p| p == outgoing_para));
 
 		<T as Config>::WeightInfo::clean_ump_after_outgoing()
 	}
@@ -435,8 +433,7 @@ impl<T: Config> Pallet<T> {
 			})
 		}
 
-		let (mut para_queue_count, mut para_queue_size) =
-			RelayDispatchQueueSize::<T>::get(&para);
+		let (mut para_queue_count, mut para_queue_size) = RelayDispatchQueueSize::<T>::get(&para);
 
 		for (idx, msg) in upward_messages.into_iter().enumerate() {
 			let msg_size = msg.len() as u32;
@@ -478,17 +475,12 @@ impl<T: Config> Pallet<T> {
 				.iter()
 				.fold((0, 0), |(cnt, size), d| (cnt + 1, size + d.len() as u32));
 
-			RelayDispatchQueues::<T>::mutate(&para, |v| {
-				v.extend(upward_messages.into_iter())
-			});
+			RelayDispatchQueues::<T>::mutate(&para, |v| v.extend(upward_messages.into_iter()));
 
-			RelayDispatchQueueSize::<T>::mutate(
-				&para,
-				|(ref mut cnt, ref mut size)| {
-					*cnt += extra_count;
-					*size += extra_size;
-				},
-			);
+			RelayDispatchQueueSize::<T>::mutate(&para, |(ref mut cnt, ref mut size)| {
+				*cnt += extra_count;
+				*size += extra_size;
+			});
 
 			NeedsDispatch::<T>::mutate(|v| {
 				if let Err(i) = v.binary_search(&para) {

@@ -127,10 +127,7 @@ fn pending_next_session_but_we_upgrade_once_more() {
 
 		assert_ok!(Configuration::set_validation_upgrade_delay(RuntimeOrigin::root(), 100));
 		assert_eq!(Configuration::config(), initial_config);
-		assert_eq!(
-			PendingConfigs::<Test>::get(),
-			vec![(2, intermediate_config.clone())]
-		);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(2, intermediate_config.clone())]);
 
 		on_new_session(1);
 
@@ -148,10 +145,7 @@ fn pending_next_session_but_we_upgrade_once_more() {
 		on_new_session(2);
 
 		assert_eq!(Configuration::config(), intermediate_config);
-		assert_eq!(
-			PendingConfigs::<Test>::get(),
-			vec![(3, final_config.clone())]
-		);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(3, final_config.clone())]);
 
 		on_new_session(3);
 
@@ -175,10 +169,7 @@ fn scheduled_session_config_update_while_next_session_pending() {
 
 		assert_ok!(Configuration::set_validation_upgrade_delay(RuntimeOrigin::root(), 100));
 		assert_eq!(Configuration::config(), initial_config);
-		assert_eq!(
-			PendingConfigs::<Test>::get(),
-			vec![(2, intermediate_config.clone())]
-		);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(2, intermediate_config.clone())]);
 
 		on_new_session(1);
 
@@ -197,10 +188,7 @@ fn scheduled_session_config_update_while_next_session_pending() {
 		on_new_session(2);
 
 		assert_eq!(Configuration::config(), intermediate_config);
-		assert_eq!(
-			PendingConfigs::<Test>::get(),
-			vec![(3, final_config.clone())]
-		);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(3, final_config.clone())]);
 
 		on_new_session(3);
 
@@ -514,10 +502,7 @@ fn setting_pending_config_members() {
 		Configuration::set_pvf_voting_ttl(RuntimeOrigin::root(), new_config.pvf_voting_ttl)
 			.unwrap();
 
-		assert_eq!(
-			PendingConfigs::<Test>::get(),
-			vec![(shared::SESSION_DELAY, new_config)],
-		);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(shared::SESSION_DELAY, new_config)],);
 	})
 }
 
