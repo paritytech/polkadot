@@ -8763,6 +8763,7 @@ dependencies = [
  "serde_json",
  "smallvec",
  "sp-api",
+ "sp-arithmetic",
  "sp-authority-discovery",
  "sp-block-builder",
  "sp-consensus-babe",
