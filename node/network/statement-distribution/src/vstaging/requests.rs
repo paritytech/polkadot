@@ -156,7 +156,6 @@ impl<'a> Entry<'a> {
 
 /// A manager for outgoing requests.
 pub struct RequestManager {
-	pending_responses: FuturesUnordered<BoxFuture<'static, TaggedResponse>>,
 	requests: HashMap<CandidateIdentifier, RequestedCandidate>,
 	// sorted by priority.
 	by_priority: Vec<(Priority, CandidateIdentifier)>,
@@ -168,7 +167,6 @@ impl RequestManager {
 	/// Create a new [`RequestManager`].
 	pub fn new() -> Self {
 		RequestManager {
-			pending_responses: FuturesUnordered::new(),
 			requests: HashMap::new(),
 			by_priority: Vec::new(),
 			unique_identifiers: HashMap::new(),
@@ -292,10 +290,11 @@ impl RequestManager {
 	/// threshold and returns `None` if the peer is no longer connected.
 	pub fn next_request(
 		&mut self,
+		response_manager: &mut ResponseManager,
 		request_props: impl Fn(&CandidateIdentifier) -> Option<RequestProperties>,
 		peer_advertised: impl Fn(&CandidateIdentifier, &PeerId) -> Option<StatementFilter>,
 	) -> Option<OutgoingRequest<AttestedCandidateRequest>> {
-		if self.pending_responses.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
+		if response_manager.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
 			return None
 		}
 
@@ -351,7 +350,7 @@ impl RequestManager {
 			);
 
 			let stored_id = id.clone();
-			self.pending_responses.push(Box::pin(async move {
+			response_manager.push(Box::pin(async move {
 				TaggedResponse {
 					identifier: stored_id,
 					requested_peer: target,
@@ -381,14 +380,33 @@ impl RequestManager {
 
 		res
 	}
+}
+
+/// A manager for pending responses.
+pub struct ResponseManager {
+	pending_responses: FuturesUnordered<BoxFuture<'static, TaggedResponse>>,
+}
+
+impl ResponseManager {
+	pub fn new() -> Self {
+		Self { pending_responses: FuturesUnordered::new() }
+	}
 
 	/// Await the next incoming response to a sent request, or immediately
 	/// return `None` if there are no pending responses.
-	pub async fn await_incoming(&mut self) -> Option<UnhandledResponse> {
+	pub async fn incoming(&mut self) -> Option<UnhandledResponse> {
 		self.pending_responses
 			.next()
 			.await
 			.map(|response| UnhandledResponse { response })
+	}
+
+	fn len(&self) -> usize {
+		self.pending_responses.len()
+	}
+
+	fn push(&mut self, response: BoxFuture<'static, TaggedResponse>) {
+		self.pending_responses.push(response);
 	}
 }
 

@@ -77,7 +77,7 @@ use groups::Groups;
 use requests::{CandidateIdentifier, RequestProperties};
 use statement_store::{StatementOrigin, StatementStore};
 
-pub use requests::{RequestManager, UnhandledResponse};
+pub use requests::{RequestManager, ResponseManager, UnhandledResponse};
 
 mod candidates;
 mod cluster;
@@ -207,6 +207,7 @@ pub(crate) struct State {
 	keystore: SyncCryptoStorePtr,
 	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
 	request_manager: RequestManager,
+	response_manager: ResponseManager,
 }
 
 impl State {
@@ -221,6 +222,7 @@ impl State {
 			keystore,
 			authorities: HashMap::new(),
 			request_manager: RequestManager::new(),
+			response_manager: ResponseManager::new(),
 		}
 	}
 }
@@ -2384,7 +2386,11 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 		})
 	};
 
-	while let Some(request) = state.request_manager.next_request(request_props, peer_advertised) {
+	while let Some(request) = state.request_manager.next_request(
+		&mut state.response_manager,
+		request_props,
+		peer_advertised,
+	) {
 		// Peer is supposedly connected.
 		ctx.send_message(NetworkBridgeTxMessage::SendRequests(
 			vec![Requests::AttestedCandidateVStaging(request)],
@@ -2398,7 +2404,7 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 /// future never resolves. It is the responsibility of the user of this API
 /// to interrupt the future.
 pub(crate) async fn receive_response(state: &mut State) -> UnhandledResponse {
-	match state.request_manager.await_incoming().await {
+	match state.response_manager.incoming().await {
 		Some(r) => r,
 		None => futures::future::pending().await,
 	}
