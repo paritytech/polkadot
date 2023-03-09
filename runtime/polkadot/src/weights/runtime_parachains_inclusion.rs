@@ -55,10 +55,10 @@ impl<T: frame_system::Config> runtime_parachains::inclusion::WeightInfo for Weig
 		//  Measured:  `51490`
 		//  Estimated: `70587`
 		// Minimum execution time: 50_423 nanoseconds.
-		Weight::from_ref_time(160_584_092)
-			.saturating_add(Weight::from_proof_size(70587))
+		Weight::from_parts(160_584_092, 0)
+			.saturating_add(Weight::from_parts(0, 70587))
 			// Standard Error: 75_127
-			.saturating_add(Weight::from_ref_time(41_929_458).saturating_mul(i.into()))
+			.saturating_add(Weight::from_parts(41_929_458, 0).saturating_mul(i.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(i.into())))
