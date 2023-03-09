@@ -551,8 +551,7 @@ impl UnhandledResponse {
 			Err(_) => unreachable!("requested candidates always have a priority entry; qed"),
 		};
 
-		// Set the last response time before clearing the `in_flight` flag. Otherwise, we may re-try
-		// the request as soon as we clear `in_flight`.
+		// Set the next retry time before clearing the `in_flight` flag.
 		entry.next_retry_time = Some(Instant::now() + REQUEST_RETRY_DELAY);
 		entry.in_flight = false;
 		entry.priority.attempts += 1;
