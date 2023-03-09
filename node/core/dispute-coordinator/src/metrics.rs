@@ -39,9 +39,9 @@ struct MetricsInner {
 	/// requested dispute is complete.
 	participation_pipeline_durations: prometheus::Histogram,
 	/// Size of participation priority queue
-	priority_queue_size: prometheus::Gauge<prometheus::U64>,
+	participation_priority_queue_size: prometheus::Gauge<prometheus::U64>,
 	/// Size of participation best effort queue
-	best_effort_queue_size: prometheus::Gauge<prometheus::U64>,
+	participation_best_effort_queue_size: prometheus::Gauge<prometheus::U64>,
 }
 
 /// Candidate validation metrics.
@@ -126,14 +126,14 @@ impl Metrics {
 	/// Set the priority_queue_size metric
 	pub fn report_priority_queue_size(&self, size: u64) {
 		if let Some(metrics) = &self.0 {
-			metrics.priority_queue_size.set(size);
+			metrics.participation_priority_queue_size.set(size);
 		}
 	}
 
 	/// Set the best_effort_queue_size metric
 	pub fn report_best_effort_queue_size(&self, size: u64) {
 		if let Some(metrics) = &self.0 {
-			metrics.best_effort_queue_size.set(size);
+			metrics.participation_best_effort_queue_size.set(size);
 		}
 	}
 }
@@ -221,12 +221,12 @@ impl metrics::Metrics for Metrics {
 				)?,
 				registry,
 			)?,
-			priority_queue_size: prometheus::register(
+			participation_priority_queue_size: prometheus::register(
 				prometheus::Gauge::new("polkadot_parachain_dispute_priority_queue_size", 
 				"Number of disputes waiting for local participation in the priority queue.")?,
 				registry,
 			)?,
-			best_effort_queue_size: prometheus::register(
+			participation_best_effort_queue_size: prometheus::register(
 				prometheus::Gauge::new("polkadot_parachain_dispute_best_effort_queue_size", 
 				"Number of disputes waiting for local participation in the best effort queue.")?,
 				registry,
