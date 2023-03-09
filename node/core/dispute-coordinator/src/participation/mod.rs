@@ -25,13 +25,15 @@ use futures::{
 #[cfg(test)]
 use futures_timer::Delay;
 
-use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
+use polkadot_node_primitives::ValidationResult;
 use polkadot_node_subsystem::{
 	messages::{AvailabilityRecoveryMessage, CandidateValidationMessage},
 	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
-use polkadot_primitives::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
+use polkadot_primitives::{
+	BlockNumber, CandidateHash, CandidateReceipt, Hash, PvfExecTimeoutKind, SessionIndex,
+};
 
 use crate::LOG_TARGET;
 
@@ -348,7 +350,7 @@ async fn participate(
 			validation_code,
 			req.candidate_receipt().clone(),
 			available_data.pov,
-			APPROVAL_EXECUTION_TIMEOUT,
+			PvfExecTimeoutKind::Approval,
 			validation_tx,
 		))
 		.await;

@@ -396,7 +396,7 @@ impl MockValidateCandidateBackend {
 impl ValidationBackend for MockValidateCandidateBackend {
 	async fn validate_candidate(
 		&mut self,
-		_pvf_with_params: PvfWithExecutorParams,
+		_pvf: PvfPrepData,
 		_timeout: Duration,
 		_encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError> {
@@ -408,10 +408,7 @@ impl ValidationBackend for MockValidateCandidateBackend {
 		result
 	}
 
-	async fn precheck_pvf(
-		&mut self,
-		_pvf_with_params: PvfWithExecutorParams,
-	) -> Result<PrepareStats, PrepareError> {
+	async fn precheck_pvf(&mut self, _pvf: PvfPrepData) -> Result<PrepareStats, PrepareError> {
 		unreachable!()
 	}
 }
@@ -476,7 +473,7 @@ fn candidate_validation_ok_is_ok() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	})
@@ -535,7 +532,7 @@ fn candidate_validation_bad_return_is_invalid() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	});
@@ -606,7 +603,7 @@ fn candidate_validation_one_ambiguous_error_is_valid() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	})
@@ -666,7 +663,7 @@ fn candidate_validation_multiple_ambiguous_errors_is_invalid() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	})
@@ -718,7 +715,7 @@ fn candidate_validation_timeout_is_internal_error() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	});
@@ -770,7 +767,7 @@ fn candidate_validation_commitment_hash_mismatch_is_invalid() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	})
@@ -821,7 +818,7 @@ fn candidate_validation_code_mismatch_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		Duration::from_secs(0),
+		PvfExecTimeoutKind::Backing,
 		&Default::default(),
 	))
 	.unwrap();
@@ -884,7 +881,7 @@ fn compressed_code_works() {
 			validation_code,
 			candidate_receipt,
 			Arc::new(pov),
-			Duration::from_secs(0),
+			PvfExecTimeoutKind::Backing,
 			&metrics,
 		)
 	});
@@ -937,7 +934,7 @@ fn code_decompression_failure_is_error() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		Duration::from_secs(0),
+		PvfExecTimeoutKind::Backing,
 		&Default::default(),
 	));
 
@@ -990,7 +987,7 @@ fn pov_decompression_failure_is_invalid() {
 		validation_code,
 		candidate_receipt,
 		Arc::new(pov),
-		Duration::from_secs(0),
+		PvfExecTimeoutKind::Backing,
 		&Default::default(),
 	));
 
@@ -1011,17 +1008,14 @@ impl MockPreCheckBackend {
 impl ValidationBackend for MockPreCheckBackend {
 	async fn validate_candidate(
 		&mut self,
-		_pvf_with_params: PvfWithExecutorParams,
+		_pvf: PvfPrepData,
 		_timeout: Duration,
 		_encoded_params: Vec<u8>,
 	) -> Result<WasmValidationResult, ValidationError> {
 		unreachable!()
 	}
 
-	async fn precheck_pvf(
-		&mut self,
-		_pvf_with_params: PvfWithExecutorParams,
-	) -> Result<PrepareStats, PrepareError> {
+	async fn precheck_pvf(&mut self, _pvf: PvfPrepData) -> Result<PrepareStats, PrepareError> {
 		self.result.clone()
 	}
 }

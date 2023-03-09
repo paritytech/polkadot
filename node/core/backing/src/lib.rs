@@ -81,7 +81,7 @@ use futures::{
 use error::{Error, FatalResult};
 use polkadot_node_primitives::{
 	minimum_votes, AvailableData, InvalidCandidate, PoV, SignedFullStatementWithPVD,
-	StatementWithPVD, ValidationResult, BACKING_EXECUTION_TIMEOUT,
+	StatementWithPVD, ValidationResult,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -104,8 +104,8 @@ use polkadot_node_subsystem_util::{
 use polkadot_primitives::{
 	BackedCandidate, CandidateCommitments, CandidateHash, CandidateReceipt,
 	CommittedCandidateReceipt, CoreIndex, CoreState, Hash, Id as ParaId, PersistedValidationData,
-	SigningContext, ValidationCode, ValidatorId, ValidatorIndex, ValidatorSignature,
-	ValidityAttestation,
+	PvfExecTimeoutKind, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
+	ValidatorSignature, ValidityAttestation,
 };
 use sp_keystore::SyncCryptoStorePtr;
 use statement_table::{
@@ -563,7 +563,7 @@ async fn request_candidate_validation(
 			code,
 			candidate_receipt,
 			pov,
-			BACKING_EXECUTION_TIMEOUT,
+			PvfExecTimeoutKind::Backing,
 			tx,
 		))
 		.await;

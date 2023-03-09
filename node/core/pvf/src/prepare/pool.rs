@@ -18,7 +18,7 @@ use super::worker::{self, Outcome};
 use crate::{
 	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
-	pvf::PvfWithExecutorParams,
+	pvf::PvfPrepData,
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
 };
@@ -65,12 +65,7 @@ pub enum ToPool {
 	///
 	/// In either case, the worker is considered busy and no further `StartWork` messages should be
 	/// sent until either `Concluded` or `Rip` message is received.
-	StartWork {
-		worker: Worker,
-		pvf_with_params: PvfWithExecutorParams,
-		artifact_path: PathBuf,
-		preparation_timeout: Duration,
-	},
+	StartWork { worker: Worker, pvf: PvfPrepData, artifact_path: PathBuf },
 }
 
 /// A message sent from pool to its client.
@@ -214,7 +209,7 @@ fn handle_to_pool(
 			metrics.prepare_worker().on_begin_spawn();
 			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
 		},
-		ToPool::StartWork { worker, pvf_with_params, artifact_path, preparation_timeout } => {
+		ToPool::StartWork { worker, pvf, artifact_path } => {
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
 					let preparation_timer = metrics.time_preparation();
@@ -223,10 +218,9 @@ fn handle_to_pool(
 							metrics.clone(),
 							worker,
 							idle,
-							pvf_with_params,
+							pvf,
 							cache_path.to_owned(),
 							artifact_path,
-							preparation_timeout,
 							preparation_timer,
 						)
 						.boxed(),
@@ -272,21 +266,12 @@ async fn start_work_task<Timer>(
 	metrics: Metrics,
 	worker: Worker,
 	idle: IdleWorker,
-	pvf_with_params: PvfWithExecutorParams,
+	pvf: PvfPrepData,
 	cache_path: PathBuf,
 	artifact_path: PathBuf,
-	preparation_timeout: Duration,
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
-	let outcome = worker::start_work(
-		&metrics,
-		idle,
-		pvf_with_params,
-		&cache_path,
-		artifact_path,
-		preparation_timeout,
-	)
-	.await;
+	let outcome = worker::start_work(&metrics, idle, pvf, &cache_path, artifact_path).await;
 	PoolEvent::StartWork(worker, outcome)
 }
 
