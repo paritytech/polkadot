@@ -317,8 +317,9 @@ impl<T: Config> Pallet<T> {
 
 		log::debug!(
 			target: LOG_TARGET,
-			"[enter_inner] parent_header={:?} bitfields.len(): {}, backed_candidates.len(): {}, disputes.len(): {}",
+			"[enter_inner] parent_header={:?} bitfields={:?}, bitfields.len(): {}, backed_candidates.len(): {}, disputes.len(): {}",
 			parent_header.hash(),
+			signed_bitfields,
 			signed_bitfields.len(),
 			backed_candidates.len(),
 			disputes.len()
@@ -500,12 +501,7 @@ impl<T: Config> Pallet<T> {
 
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
 
-		let claimqueue = <scheduler::Pallet<T>>::claimqueue();
-		let scheduled: Vec<CoreAssignment> = claimqueue
-			.into_iter()
-			.map(|(_core_index, cas)| cas.first().unwrap().clone())
-			.collect();
-		log::debug!(target: LOG_TARGET, "scheduled: {:?}", scheduled);
+		let scheduled = <scheduler::Pallet<T>>::scheduled_claimqueue();
 		assure_sanity_backed_candidates::<T, _>(
 			parent_hash,
 			&backed_candidates,
@@ -712,12 +708,7 @@ impl<T: Config> Pallet<T> {
 			let now = <frame_system::Pallet<T>>::block_number();
 			<scheduler::Pallet<T>>::clear_and_fill_claimqueue(freed, now);
 
-			let claimqueue = <scheduler::Pallet<T>>::claimqueue();
-			let scheduled: Vec<CoreAssignment> = claimqueue
-				.into_iter()
-				.map(|(_core_index, cas)| cas.first().unwrap().clone())
-				.collect();
-
+			let scheduled = <scheduler::Pallet<T>>::scheduled_claimqueue();
 			let relay_parent_number = now - One::one();
 			let parent_storage_root = *parent_header.state_root();
 

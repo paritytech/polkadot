@@ -54,7 +54,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 	let config = <configuration::Pallet<T>>::config();
 
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
-	<scheduler::Pallet<T>>::clear_and_fill_claimqueue(BTreeMap::new(), now);
+	//<scheduler::Pallet<T>>::clear_and_fill_claimqueue(BTreeMap::new(), now);
 
 	let rotation_info = <scheduler::Pallet<T>>::group_rotation_info(now);
 
@@ -152,8 +152,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 		.collect();
 
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
-	for (_core_idx, claimqueue) in <scheduler::Pallet<T>>::claimqueue() {
-		let scheduled = &claimqueue[0];
+	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue() {
 		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(primitives::ScheduledCore {
 			para_id: scheduled.para_id,
 			collator: scheduled.required_collator().map(|c| c.clone()),

@@ -77,6 +77,4 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	fn get_availability_period(_core_idx: CoreIndex) -> T::BlockNumber {
 		<configuration::Pallet<T>>::config().chain_availability_period
 	}
-
-	fn clear(_core_idx: CoreIndex, _assignment: Assignment) {}
 }

@@ -120,22 +120,4 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 			//<crate::scheduler_parathreads::Pallet<T>>::get_availability_period(core_idx)
 		}
 	}
-
-	fn clear(core_idx: CoreIndex, assignment: Assignment) {
-		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
-
-		// We cannot rely on the CoreIndex to distinguish between parachains and -threads at this point
-		// as the number of parachains can change on new sessions.
-		// TODO: - check if this is correct.
-		//	     - find a better solution overall.
-		match assignment {
-			Assignment::Parachain(_) =>
-				<crate::scheduler_parachains::Pallet<T>>::clear(core_idx, assignment),
-			Assignment::ParathreadA(_) => {
-				let _core_idx = CoreIndex(core_idx.0 - parachains_cores);
-				todo!()
-				//<crate::scheduler_parathreads::Pallet<T>>::clear(core_idx, assignment)
-			},
-		}
-	}
 }

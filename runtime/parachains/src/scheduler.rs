@@ -106,7 +106,8 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn claimqueue)]
 	pub(crate) type ClaimQueue<T> =
-		StorageValue<_, BTreeMap<CoreIndex, Vec<CoreAssignment>>, ValueQuery>;
+		StorageValue<_, BTreeMap<CoreIndex, Vec<Option<CoreAssignment>>>, ValueQuery>;
+	// TODO: needs to keep track of order for rewards
 }
 
 impl<T: Config> Pallet<T> {
@@ -194,16 +195,14 @@ impl<T: Config> Pallet<T> {
 				.for_each(|(freed_index, freed_reason)| {
 					match &cores[freed_index.0 as usize] {
 						CoreOccupied::Free => {},
-						CoreOccupied::Parachain => {
-							let _ignore = Self::remove_from_claimqueue_parachain(freed_index);
-						},
-						CoreOccupied::Parathread(entry) => {
+						CoreOccupied::Parachain => {},
+						CoreOccupied::Parathread(_entry) => {
 							match freed_reason {
-								FreedReason::Concluded => {
-									let _ignore =
-										Self::remove_from_claimqueue(freed_index, entry.claim.0);
+								FreedReason::Concluded => {},
+								FreedReason::TimedOut => {
+									// TODO: push back to claimqueue
+									todo!();
 								},
-								FreedReason::TimedOut => {},
 							};
 						},
 					};
@@ -218,6 +217,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total cores.
 	/// This is efficient in the case that most scheduled cores are occupied.
+	///
 	pub(crate) fn occupied(now_occupied: Vec<(CoreIndex, ParaId)>) {
 		if now_occupied.is_empty() {
 			return
@@ -225,10 +225,10 @@ impl<T: Config> Pallet<T> {
 
 		let mut availability_cores = AvailabilityCores::<T>::get();
 		for (core_idx, para_id) in now_occupied {
-			match Self::remove_from_claimqueue(core_idx, para_id) {
+			match Self::mark_claimqueue(core_idx, para_id) {
 				Err(_) => todo!(),
-				Ok(assignment) =>
-					availability_cores[core_idx.0 as usize] = assignment.to_core_occupied(),
+				Ok((_idx, assignment)) =>
+					availability_cores[assignment.core.0 as usize] = assignment.to_core_occupied(),
 			}
 		}
 
@@ -349,13 +349,18 @@ impl<T: Config> Pallet<T> {
 		ClaimQueue::<T>::get()
 			.get(&core)
 			.and_then(|a| a.first().map(Self::assignment_to_scheduled_core))
+			.flatten()
 	}
 
-	fn assignment_to_scheduled_core(ca: &CoreAssignment) -> ScheduledCore {
-		match ca.kind.clone() {
-			AssignmentKind::Parachain => ScheduledCore { para_id: ca.para_id, collator: None },
-			AssignmentKind::Parathread(collator, _) =>
-				ScheduledCore { para_id: ca.para_id, collator: Some(collator) },
+	fn assignment_to_scheduled_core(ca: &Option<CoreAssignment>) -> Option<ScheduledCore> {
+		match ca {
+			None => None,
+			Some(ca) => match ca.kind.clone() {
+				AssignmentKind::Parachain =>
+					Some(ScheduledCore { para_id: ca.para_id, collator: None }),
+				AssignmentKind::Parathread(collator, _) =>
+					Some(ScheduledCore { para_id: ca.para_id, collator: Some(collator) }),
+			},
 		}
 	}
 
@@ -369,6 +374,7 @@ impl<T: Config> Pallet<T> {
 	fn reschedule_occupied_cores(cores: Vec<CoreOccupied>) {
 		for (core_idx, core) in cores.into_iter().enumerate() {
 			match core {
+				// temporary, generalise to remove distinction between chain and thread
 				CoreOccupied::Free => continue,
 				CoreOccupied::Parachain => continue,
 				CoreOccupied::Parathread(entry) => T::AssignmentProvider::push_assignment_for_core(
@@ -383,7 +389,7 @@ impl<T: Config> Pallet<T> {
 	//  ClaimQueue related functions
 	//
 	fn claimqueue_lookahead() -> u32 {
-		// quck hack to give a value of 1 for tests
+		// quick hack to give a value of 1 for tests
 		match <configuration::Pallet<T>>::config().scheduling_lookahead {
 			0 => 1,
 			n => n,
@@ -396,16 +402,16 @@ impl<T: Config> Pallet<T> {
 	) {
 		Self::clear_claimqueue();
 		Self::fill_claimqueue(just_freed_cores, now);
-		// TODO: return Lookahead?
 	}
 
 	// Clear lookahead
 	fn clear_claimqueue() {
-		for (_, cas) in ClaimQueue::<T>::take() {
-			for ca in cas.into_iter() {
-				T::AssignmentProvider::clear(ca.core, ca.to_assignment())
-			}
+		let mut cq = ClaimQueue::<T>::get();
+		for (_, vec) in cq.iter_mut() {
+			vec.retain(|e| *e != None);
 		}
+
+		ClaimQueue::<T>::set(cq);
 	}
 
 	fn fill_claimqueue(just_freed_cores: BTreeMap<CoreIndex, FreedReason>, now: T::BlockNumber) {
@@ -425,7 +431,8 @@ impl<T: Config> Pallet<T> {
 										  to be after the most recent session start; qed",
 			);
 
-			let n_lookahead_used = ClaimQueue::<T>::get().get(&core_idx).len() as u32;
+			let n_lookahead_used =
+				ClaimQueue::<T>::get().get(&core_idx).map_or(0, |v| v.len() as u32);
 			for _ in n_lookahead_used..n_lookahead {
 				match Self::add_to_claimqueue(core_idx, group_idx) {
 					Err(_) => break, // todo: logging
@@ -442,9 +449,9 @@ impl<T: Config> Pallet<T> {
 				let ca = ass.to_core_assignment(core_idx, group_idx);
 				ClaimQueue::<T>::mutate(|la| match la.get_mut(&core_idx) {
 					None => {
-						la.insert(core_idx, vec![ca]);
+						la.insert(core_idx, vec![Some(ca)]);
 					},
-					Some(la_vec) => la_vec.push(ca),
+					Some(la_vec) => la_vec.push(Some(ca)),
 				});
 
 				Ok(())
@@ -452,26 +459,32 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn remove_from_claimqueue_parachain(
-		core_idx: CoreIndex,
-	) -> Result<CoreAssignment, &'static str> {
-		ClaimQueue::<T>::mutate(|la| match la.get_mut(&core_idx) {
-			None => Err("core_idx not found in lookahead"),
-			Some(la_vec) => Ok(la_vec.remove(0)),
-		})
-	}
-
-	fn remove_from_claimqueue(
+	fn mark_claimqueue(
 		core_idx: CoreIndex,
 		para_id: ParaId,
-	) -> Result<CoreAssignment, &'static str> {
-		ClaimQueue::<T>::mutate(|la| match la.get_mut(&core_idx) {
-			None => Err("core_idx not found in lookahead"),
-			Some(la_vec) => match la_vec.iter().position(|a| a.para_id == para_id) {
-				None => Err("para id not found at core_idx lookahead"),
-				Some(idx) => Ok(la_vec.remove(idx)),
-			},
-		})
+	) -> Result<(CoreIndex, CoreAssignment), &'static str> {
+		let mut cq = ClaimQueue::<T>::get();
+		let la_vec = cq.get_mut(&core_idx).ok_or_else(|| "core_idx not found in lookahead")?;
+
+		let pos = la_vec
+			.iter()
+			.position(|a| a.as_ref().map_or(false, |v| v.para_id == para_id))
+			.ok_or_else(|| "para id not found at core_idx lookahead")?;
+
+		let ca = la_vec[pos].take().expect("position() above tells us this element exist.");
+		//[ParaId1, None, ParaId2, None, ...]
+		//				^ remove this -->
+		//[ParaId, None, None, ...] --> next block will read ParaId1 instead of None
+		//--> if pos+1 is None, remove and add in front
+		//--> [None, ParaId, None, ...]
+		ClaimQueue::<T>::set(cq);
+
+		Ok((CoreIndex::from(pos as u32), ca))
+	}
+
+	pub(crate) fn scheduled_claimqueue() -> Vec<CoreAssignment> {
+		let claimqueue = ClaimQueue::<T>::get();
+		claimqueue.into_iter().flat_map(|(_, v)| v.first().cloned()).flatten().collect()
 	}
 
 	#[cfg(test)]

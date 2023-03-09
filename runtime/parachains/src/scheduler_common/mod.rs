@@ -116,13 +116,13 @@ pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 
 	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment>;
 
+	// on session change
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
-
-	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId;
 
 	fn get_availability_period(core_idx: CoreIndex) -> T::BlockNumber;
 
-	fn clear(core_idx: CoreIndex, assignment: Assignment);
+	// This smells!
+	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId;
 }
 
 /// How a free core is scheduled to be assigned.
