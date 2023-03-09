@@ -228,7 +228,8 @@ impl UmpQueueTracker for () {
 
 /// Aggregate message origin for the `MessageQueue` pallet.
 ///
-/// Can be extended to serve further use-cases besides just UMP. Changing this possibly requires a migration.
+/// Can be extended to serve further use-cases besides just UMP. Is stored in storage, so any change
+/// to existing values will require a migration.
 #[derive(Encode, Decode, Clone, MaxEncodedLen, Eq, PartialEq, RuntimeDebug, TypeInfo)]
 pub enum AggregateMessageOrigin {
 	/// Incoming upwards message from a parachain.
