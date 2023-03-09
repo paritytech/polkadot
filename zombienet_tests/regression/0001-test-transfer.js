@@ -28,6 +28,7 @@ async function run(nodeName, networkInfo, jsArgs) {
     const sender_final_balance = sender_initial_balance - amount - fee;
     console.log(`Sender's current balance is ${sender_initial_balance}. Should end up as ${sender_final_balance}`);
 
+    // Send a transfer from Alice to Bob
     await new Promise(async (resolve, reject) => {
         const unsub = await api.tx.balances.transfer(recipient.address, amount)
           .signAndSend(sender , (result) => {

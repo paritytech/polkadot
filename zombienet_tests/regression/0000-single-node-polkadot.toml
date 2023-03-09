@@ -10,6 +10,3 @@ command = "polkadot"
   name = "alice"
   args = ["-lruntime=debug,parachain=trace" ]
 
-  [[relaychain.nodes]]
-  name = "bob"
-  args = [ "-lruntime=debug,parachain=trace" ]
