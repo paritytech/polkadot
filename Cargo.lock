@@ -6428,6 +6428,7 @@ name = "polkadot-approval-distribution"
 version = "0.9.37"
 dependencies = [
  "assert_matches",
+ "bitvec",
  "env_logger 0.9.0",
  "futures",
  "itertools",
@@ -7134,6 +7135,7 @@ name = "polkadot-node-network-protocol"
 version = "0.9.37"
 dependencies = [
  "async-trait",
+ "bitvec",
  "derive_more",
  "fatality",
  "futures",
@@ -7206,6 +7208,7 @@ name = "polkadot-node-subsystem-types"
 version = "0.9.37"
 dependencies = [
  "async-trait",
+ "bitvec",
  "derive_more",
  "futures",
  "orchestra",

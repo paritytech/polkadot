@@ -21,6 +21,7 @@
 #![warn(missing_docs)]
 
 use self::metrics::Metrics;
+use bitvec::vec::BitVec;
 use futures::{channel::oneshot, FutureExt as _};
 use itertools::Itertools;
 use net_protocol::peer_set::{ProtocolVersion, ValidationVersion};
@@ -104,8 +105,8 @@ struct ApprovalRouting {
 struct ApprovalEntry {
 	// The assignment certificate.
 	assignment: IndirectAssignmentCertV2,
-	// The candidates claimed by the certificate.
-	candidates: HashSet<CandidateIndex>,
+	// The candidates claimed by the certificate. A mapping between bit index and candidate index.
+	candidates: BitVec<u8, bitvec::order::Lsb0>,
 	// The approval signatures for each `CandidateIndex` claimed by the assignment certificate.
 	approvals: HashMap<CandidateIndex, IndirectSignedApprovalVote>,
 	// The validator index of the assignment signer.
@@ -114,17 +115,25 @@ struct ApprovalEntry {
 	routing_info: ApprovalRouting,
 }
 
+#[derive(Debug)]
+enum ApprovalEntryError {
+	InvalidValidatorIndex,
+	CandidateIndexOutOfBounds,
+	InvalidCandidateIndex,
+	DuplicateApproval,
+}
+
 impl ApprovalEntry {
 	pub fn new(
 		assignment: IndirectAssignmentCertV2,
-		candidates: Vec<CandidateIndex>,
+		candidates: BitVec<u8, bitvec::order::Lsb0>,
 		routing_info: ApprovalRouting,
 	) -> ApprovalEntry {
 		Self {
 			validator_index: assignment.validator,
 			assignment,
 			approvals: HashMap::with_capacity(candidates.len()),
-			candidates: HashSet::from_iter(candidates.into_iter()),
+			candidates,
 			routing_info,
 		}
 	}
@@ -132,25 +141,22 @@ impl ApprovalEntry {
 	// Create a `MessageSubject` to reference the assignment.
 	pub fn create_assignment_knowledge(&self, block_hash: Hash) -> (MessageSubject, MessageKind) {
 		(
-			MessageSubject(
-				block_hash,
-				self.candidates.iter().cloned().collect::<Vec<_>>(),
-				self.validator_index,
-			),
+			MessageSubject(block_hash, self.candidates.clone(), self.validator_index),
 			MessageKind::Assignment,
 		)
 	}
 
-	// Create a `MessageSubject` to reference the assignment.
+	// Create a `MessageSubject` to reference the approval.
 	pub fn create_approval_knowledge(
 		&self,
 		block_hash: Hash,
 		candidate_index: CandidateIndex,
 	) -> (MessageSubject, MessageKind) {
-		(
-			MessageSubject(block_hash, vec![candidate_index], self.validator_index),
-			MessageKind::Approval,
-		)
+		let mut bitfield =
+			bitvec::bitvec![u8, bitvec::order::Lsb0; 0; candidate_index as usize + 1];
+		bitfield.set(candidate_index as _, true);
+
+		(MessageSubject(block_hash, bitfield, self.validator_index), MessageKind::Approval)
 	}
 
 	// Updates routing information and returns the previous information if any.
@@ -169,28 +175,37 @@ impl ApprovalEntry {
 	}
 
 	// Records a new approval. Returns false if the claimed candidate is not found or we already have received the approval.
-	// TODO: use specific errors instead of `bool`.
-	pub fn note_approval(&mut self, approval: IndirectSignedApprovalVote) -> bool {
+	pub fn note_approval(
+		&mut self,
+		approval: IndirectSignedApprovalVote,
+	) -> Result<(), ApprovalEntryError> {
 		// First do some sanity checks:
 		// - check validator index matches
 		// - check claimed candidate
 		// - check for duplicate approval
 		if self.validator_index != approval.validator {
-			return false
+			return Err(ApprovalEntryError::InvalidValidatorIndex)
 		}
 
-		if !self.candidates.contains(&approval.candidate_index) ||
-			self.approvals.contains_key(&approval.candidate_index)
-		{
-			return false
+		if self.candidates.len() <= approval.candidate_index as usize {
+			return Err(ApprovalEntryError::CandidateIndexOutOfBounds)
 		}
 
-		self.approvals.insert(approval.candidate_index, approval).is_none()
+		if !self.candidates[approval.candidate_index as usize] {
+			return Err(ApprovalEntryError::InvalidCandidateIndex)
+		}
+
+		if self.approvals.contains_key(&approval.candidate_index) {
+			return Err(ApprovalEntryError::DuplicateApproval)
+		}
+
+		self.approvals.insert(approval.candidate_index, approval);
+		Ok(())
 	}
 
 	// Get the assignment certiticate and claimed candidates.
-	pub fn get_assignment(&self) -> (IndirectAssignmentCertV2, Vec<CandidateIndex>) {
-		(self.assignment.clone(), self.candidates.iter().cloned().collect::<Vec<_>>())
+	pub fn get_assignment(&self) -> (IndirectAssignmentCertV2, BitVec<u8, bitvec::order::Lsb0>) {
+		(self.assignment.clone(), self.candidates.clone())
 	}
 
 	// Get all approvals for all candidates claimed by the assignment.
@@ -248,7 +263,7 @@ enum MessageKind {
 // Assignments can span multiple candidates, while approvals refer to only one candidate.
 //
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-struct MessageSubject(Hash, pub Vec<CandidateIndex>, ValidatorIndex);
+struct MessageSubject(Hash, pub BitVec<u8, bitvec::order::Lsb0>, ValidatorIndex);
 
 #[derive(Debug, Clone, Default)]
 struct Knowledge {
@@ -290,13 +305,13 @@ impl Knowledge {
 		// In case of succesful insertion of multiple candidate assignments create additional
 		// entries for each assigned candidate. This fakes knowledge of individual assignments, but
 		// we need to share the same `MessageSubject` with the followup approval candidate index.
-		if kind == MessageKind::Assignment && success && message.1.len() > 1 {
-			message.1.iter().fold(success, |success, candidate_index| {
-				success &
-					self.insert(
-						MessageSubject(message.0.clone(), vec![*candidate_index], message.2),
-						kind,
-					)
+		if kind == MessageKind::Assignment && success && message.1.count_ones() > 1 {
+			message.1.iter_ones().fold(success, |success, candidate_index| {
+				let mut bitfield =
+					bitvec::bitvec![u8, bitvec::order::Lsb0; 0; candidate_index as usize + 1];
+				bitfield.set(candidate_index, true);
+
+				success & self.insert(MessageSubject(message.0.clone(), bitfield, message.2), kind)
 			})
 		} else {
 			success
@@ -336,7 +351,7 @@ struct BlockEntry {
 	pub session: SessionIndex,
 	/// Approval entries for whole block. These also contain all approvals in the cae of multiple candidates
 	/// being claimed by assignments.
-	approval_entries: HashMap<(ValidatorIndex, Vec<CandidateIndex>), ApprovalEntry>,
+	approval_entries: HashMap<(ValidatorIndex, BitVec<u8, bitvec::order::Lsb0>), ApprovalEntry>,
 }
 
 impl BlockEntry {
@@ -349,13 +364,13 @@ impl BlockEntry {
 		// First map one entry per candidate to the same key we will use in `approval_entries`.
 		// Key is (Validator_index, Vec<CandidateIndex>) that links the `ApprovalEntry` to the (K,V)
 		// entry in `candidate_entry.messages`.
-		for claimed_candidate_index in &entry.candidates {
-			match self.candidates.get_mut(*claimed_candidate_index as usize) {
+		for claimed_candidate_index in entry.candidates.iter_ones() {
+			match self.candidates.get_mut(claimed_candidate_index) {
 				Some(candidate_entry) => {
 					candidate_entry
 						.messages
 						.entry(entry.get_validator_index())
-						.or_insert(entry.candidates.iter().cloned().collect::<Vec<_>>());
+						.or_insert(entry.candidates.clone());
 				},
 				None => {
 					// This should never happen, but if it happens, it means the subsystem is broken.
@@ -370,10 +385,7 @@ impl BlockEntry {
 		}
 
 		self.approval_entries
-			.entry((
-				entry.validator_index,
-				entry.candidates.clone().into_iter().collect::<Vec<_>>(),
-			))
+			.entry((entry.validator_index, entry.candidates.clone()))
 			.or_insert(entry)
 	}
 
@@ -441,7 +453,7 @@ impl BlockEntry {
 #[derive(Debug, Default)]
 struct CandidateEntry {
 	// The value represents part of the lookup key in `approval_entries` to fetch the assignment and existing votes.
-	messages: HashMap<ValidatorIndex, Vec<CandidateIndex>>,
+	messages: HashMap<ValidatorIndex, BitVec<u8, bitvec::order::Lsb0>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -460,7 +472,7 @@ impl MessageSource {
 }
 
 enum PendingMessage {
-	Assignment(IndirectAssignmentCertV2, Vec<CandidateIndex>),
+	Assignment(IndirectAssignmentCertV2, BitVec<u8, bitvec::order::Lsb0>),
 	Approval(IndirectSignedApprovalVote),
 }
 
@@ -686,7 +698,7 @@ impl State {
 		ctx: &mut Context,
 		metrics: &Metrics,
 		peer_id: PeerId,
-		assignments: Vec<(IndirectAssignmentCertV2, Vec<CandidateIndex>)>,
+		assignments: Vec<(IndirectAssignmentCertV2, BitVec<u8, bitvec::order::Lsb0>)>,
 		rng: &mut R,
 	) where
 		R: CryptoRng + Rng,
@@ -761,7 +773,14 @@ impl State {
 					peer_id,
 					assignments
 						.into_iter()
-						.map(|(cert, candidate)| (cert.into(), vec![candidate]))
+						.map(|(cert, candidate)| {
+							// TODO: 1 liner would be better.
+							let mut bitfield =
+								bitvec::bitvec![u8, bitvec::order::Lsb0; 0; candidate as usize + 1];
+							bitfield.set(candidate as _, true);
+
+							(cert.into(), bitfield)
+						})
 						.collect::<Vec<_>>(),
 					rng,
 				)
@@ -907,7 +926,7 @@ impl State {
 		metrics: &Metrics,
 		source: MessageSource,
 		assignment: IndirectAssignmentCertV2,
-		claimed_candidate_indices: Vec<CandidateIndex>,
+		claimed_candidate_indices: BitVec<u8, bitvec::order::Lsb0>,
 		rng: &mut R,
 	) where
 		R: CryptoRng + Rng,
@@ -955,6 +974,15 @@ impl State {
 								"Duplicate assignment",
 							);
 							modify_reputation(ctx.sender(), peer_id, COST_DUPLICATE_MESSAGE).await;
+						} else {
+							gum::trace!(
+								target: LOG_TARGET,
+								?peer_id,
+								hash = ?block_hash,
+								?validator_index,
+								?message_subject,
+								"We sent the message to the peer while peer was sending it to us. Known race condition.",
+							);
 						}
 						return
 					}
@@ -1183,7 +1211,11 @@ impl State {
 		};
 
 		// compute metadata on the assignment.
-		let message_subject = MessageSubject(block_hash, vec![candidate_index], validator_index);
+		let mut bitfield =
+			bitvec::bitvec![u8, bitvec::order::Lsb0; 0; candidate_index as usize + 1];
+		bitfield.set(candidate_index as _, true);
+
+		let message_subject = MessageSubject(block_hash, bitfield, validator_index);
 		let message_kind = MessageKind::Approval;
 
 		if let Some(peer_id) = source.peer_id() {
@@ -1317,7 +1349,7 @@ impl State {
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the approval.
 		metrics.on_approval_imported();
 
-		if !approval_entry.note_approval(vote.clone()) {
+		if let Err(err) = approval_entry.note_approval(vote.clone()) {
 			// this would indicate a bug in approval-voting:
 			// - validator index mismatch
 			// - candidate index mismatch
@@ -1327,7 +1359,8 @@ impl State {
 				hash = ?block_hash,
 				?candidate_index,
 				?validator_index,
-				"Possible bug: Vote import failed: validator/candidate index mismatch or duplicate",
+				?err,
+				"Possible bug: Vote import failed",
 			);
 
 			return
@@ -1942,7 +1975,7 @@ pub const MAX_APPROVAL_BATCH_SIZE: usize = ensure_size_not_zero(
 // Low level helper for sending assignments.
 async fn send_assignments_batched_inner(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	batch: Vec<(IndirectAssignmentCertV2, Vec<CandidateIndex>)>,
+	batch: Vec<(IndirectAssignmentCertV2, BitVec<u8, bitvec::order::Lsb0>)>,
 	peers: &Vec<PeerId>,
 	// TODO: use `ValidationVersion`.
 	peer_version: u32,
@@ -1962,7 +1995,18 @@ async fn send_assignments_batched_inner(
 		// `IndirectAssignmentCertV2` -> `IndirectAssignmentCert`
 		let batch = batch
 			.into_iter()
-			.filter_map(|(cert, candidates)| cert.try_into().ok().map(|cert| (cert, candidates[0])))
+			.filter_map(|(cert, candidates)| {
+				cert.try_into().ok().map(|cert| {
+					(
+						cert,
+						// First 1 bit index is the candidate index.
+						candidates
+							.first_one()
+							.map(|index| index as CandidateIndex)
+							.expect("Assignment was checked for not being empty; qed"),
+					)
+				})
+			})
 			.collect();
 		sender
 			.send_message(NetworkBridgeTxMessage::SendValidationMessage(
@@ -1982,7 +2026,7 @@ async fn send_assignments_batched_inner(
 /// of assignments and can `select!` other tasks.
 pub(crate) async fn send_assignments_batched(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	v2_assignments: Vec<(IndirectAssignmentCertV2, Vec<CandidateIndex>)>,
+	v2_assignments: Vec<(IndirectAssignmentCertV2, BitVec<u8, bitvec::order::Lsb0>)>,
 	peers: &Vec<(PeerId, ProtocolVersion)>,
 ) {
 	let v1_peers = filter_by_peer_version(peers, ValidationVersion::V1.into());
@@ -1991,7 +2035,7 @@ pub(crate) async fn send_assignments_batched(
 	if v1_peers.len() > 0 {
 		let mut v1_assignments = v2_assignments.clone();
 		// Older peers(v1) do not understand `AssignmentsV2` messages, so we have to filter these out.
-		v1_assignments.retain(|(_, candidates)| candidates.len() == 1);
+		v1_assignments.retain(|(_, candidates)| candidates.count_ones() == 1);
 
 		let mut v1_batches = v1_assignments.into_iter().peekable();
 

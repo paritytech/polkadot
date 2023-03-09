@@ -426,12 +426,11 @@ impl_versioned_try_from!(
 /// Changes:
 /// - assignment cert type changed, see `IndirectAssignmentCertV2`.
 pub mod vstaging {
+	use bitvec::vec::BitVec;
 	use parity_scale_codec::{Decode, Encode};
 	use polkadot_node_primitives::approval::{
 		IndirectAssignmentCertV2, IndirectSignedApprovalVote,
 	};
-
-	use polkadot_primitives::CandidateIndex;
 
 	// Re-export stuff that has not changed since v1.
 	pub use crate::v1::{
@@ -461,10 +460,12 @@ pub mod vstaging {
 	#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 	pub enum ApprovalDistributionMessage {
 		/// Assignments for candidates in recent, unfinalized blocks.
+		/// We use a bitfield to reference claimed candidates, where the bit index is equal to candidate index.
 		///
 		/// Actually checking the assignment may yield a different result.
+		/// TODO: Look at getting rid of bitfield in the future.
 		#[codec(index = 0)]
-		Assignments(Vec<(IndirectAssignmentCertV2, Vec<CandidateIndex>)>),
+		Assignments(Vec<(IndirectAssignmentCertV2, BitVec<u8, bitvec::order::Lsb0>)>),
 		/// Approvals for candidates in some recent, unfinalized block.
 		#[codec(index = 1)]
 		Approvals(Vec<IndirectSignedApprovalVote>),

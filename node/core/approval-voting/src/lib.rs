@@ -50,9 +50,9 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, CoreIndex,
-	DisputeStatement, GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind,
-	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	ApprovalVote, BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, DisputeStatement,
+	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
+	ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -76,6 +76,7 @@ use std::{
 };
 
 use approval_checking::RequiredTranches;
+use bitvec::{order::Lsb0, vec::BitVec};
 use criteria::{AssignmentCriteria, RealAssignmentCriteria};
 use persisted_entries::{ApprovalEntry, BlockEntry, CandidateEntry};
 use time::{slot_number_to_tick, Clock, ClockExt, SystemClock, Tick};
@@ -1049,22 +1050,35 @@ async fn handle_actions<Context>(
 	Ok(conclude)
 }
 
+// TODO: Impl CandidateBitfield to wrap BitVec and implement invariants
 fn cores_to_candidate_indices(
 	core_indices: &Vec<CoreIndex>,
 	block_entry: &BlockEntry,
-) -> Vec<CandidateIndex> {
+) -> BitVec<u8, Lsb0> {
 	let mut candidate_indices = Vec::new();
 
+	// Map from core index to candidate index.
 	for claimed_core_index in core_indices {
 		if let Some(candidate_index) = block_entry
 			.candidates()
 			.iter()
 			.position(|(core_index, _)| core_index == claimed_core_index)
 		{
-			candidate_indices.push(candidate_index as _)
+			candidate_indices.push(candidate_index);
 		}
 	}
-	candidate_indices
+
+	// Invariant: bitfield size equal to the highest candidate index + 1 == MSB is always 1.
+	// Since we are using the bitfield as key in a hashmap, we need to ensure the invariant.
+	let bitfield_size =
+		if let Some(max_index) = candidate_indices.iter().max() { max_index + 1 } else { 32 }
+			as usize;
+	let mut bitfield = bitvec::bitvec![u8, Lsb0; 0; bitfield_size];
+
+	for candidate_index in candidate_indices {
+		bitfield.set(candidate_index as _, true);
+	}
+	bitfield
 }
 
 fn distribution_messages_for_activation(
@@ -1386,8 +1400,6 @@ async fn handle_approved_ancestor<Context>(
 ) -> SubsystemResult<Option<HighestApprovedAncestorBlock>> {
 	const MAX_TRACING_WINDOW: usize = 200;
 	const ABNORMAL_DEPTH_THRESHOLD: usize = 5;
-
-	use bitvec::{order::Lsb0, vec::BitVec};
 
 	let mut span =
 		jaeger::Span::new(&target, "approved-ancestor").with_stage(jaeger::Stage::ApprovalChecking);
@@ -1714,7 +1726,7 @@ fn check_and_import_assignment(
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	assignment: IndirectAssignmentCertV2,
-	candidate_indices: Vec<CandidateIndex>,
+	candidate_indices: BitVec<u8, Lsb0>,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
 	let tick_now = state.clock.tick_now();
 
@@ -1745,14 +1757,14 @@ fn check_and_import_assignment(
 	let mut claimed_core_indices = Vec::new();
 	let mut assigned_candidate_hashes = Vec::new();
 
-	for candidate_index in candidate_indices.iter() {
+	for candidate_index in candidate_indices.iter_ones() {
 		let (claimed_core_index, assigned_candidate_hash) =
-			match block_entry.candidate(*candidate_index as usize) {
+			match block_entry.candidate(candidate_index) {
 				Some((c, h)) => (*c, *h),
 				None =>
 					return Ok((
 						AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidateIndex(
-							*candidate_index,
+							candidate_index as _,
 						)),
 						Vec::new(),
 					)), // no candidate at core.
@@ -1763,7 +1775,7 @@ fn check_and_import_assignment(
 			None =>
 				return Ok((
 					AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidate(
-						*candidate_index,
+						candidate_index as _,
 						assigned_candidate_hash,
 					)),
 					Vec::new(),
@@ -1833,14 +1845,14 @@ fn check_and_import_assignment(
 		let mut is_duplicate = false;
 		// Import the assignments for all cores in the cert.
 		for (assigned_candidate_hash, candidate_index) in
-			assigned_candidate_hashes.iter().zip(candidate_indices)
+			assigned_candidate_hashes.iter().zip(candidate_indices.iter_ones())
 		{
 			let mut candidate_entry = match db.load_candidate_entry(&assigned_candidate_hash)? {
 				Some(c) => c,
 				None =>
 					return Ok((
 						AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidate(
-							candidate_index,
+							candidate_index as _,
 							*assigned_candidate_hash,
 						)),
 						Vec::new(),

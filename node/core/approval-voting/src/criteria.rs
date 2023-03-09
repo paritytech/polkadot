@@ -45,6 +45,7 @@ pub struct OurAssignment {
 	// Whether the assignment has been triggered already.
 	triggered: bool,
 	// The core indices obtained from the VRF output.
+	// TODO: make it a bitfield.
 	claimed_core_indices: Vec<CoreIndex>,
 }
 
@@ -75,7 +76,6 @@ impl OurAssignment {
 }
 
 impl From<crate::approval_db::v1::OurAssignment> for OurAssignment {
-	// TODO: OurAssignment changed -> migration for parachains db approval voting column.
 	fn from(entry: crate::approval_db::v1::OurAssignment) -> Self {
 		OurAssignment {
 			cert: entry.cert,
