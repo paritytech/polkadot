@@ -7135,7 +7135,6 @@ name = "polkadot-node-network-protocol"
 version = "0.9.37"
 dependencies = [
  "async-trait",
- "bitvec",
  "derive_more",
  "fatality",
  "futures",
@@ -7158,6 +7157,7 @@ dependencies = [
 name = "polkadot-node-primitives"
 version = "0.9.37"
 dependencies = [
+ "bitvec",
  "bounded-vec",
  "futures",
  "parity-scale-codec",

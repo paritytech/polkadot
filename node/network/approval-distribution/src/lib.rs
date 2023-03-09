@@ -21,7 +21,6 @@
 #![warn(missing_docs)]
 
 use self::metrics::Metrics;
-use bitvec::vec::BitVec;
 use futures::{channel::oneshot, FutureExt as _};
 use itertools::Itertools;
 use net_protocol::peer_set::{ProtocolVersion, ValidationVersion};
@@ -33,7 +32,7 @@ use polkadot_node_network_protocol::{
 	Versioned, View,
 };
 use polkadot_node_primitives::approval::{
-	BlockApprovalMeta, IndirectAssignmentCertV2, IndirectSignedApprovalVote,
+	v2::AssignmentBitfield, BlockApprovalMeta, IndirectAssignmentCertV2, IndirectSignedApprovalVote,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -106,7 +105,7 @@ struct ApprovalEntry {
 	// The assignment certificate.
 	assignment: IndirectAssignmentCertV2,
 	// The candidates claimed by the certificate. A mapping between bit index and candidate index.
-	candidates: BitVec<u8, bitvec::order::Lsb0>,
+	candidates: AssignmentBitfield,
 	// The approval signatures for each `CandidateIndex` claimed by the assignment certificate.
 	approvals: HashMap<CandidateIndex, IndirectSignedApprovalVote>,
 	// The validator index of the assignment signer.
@@ -126,7 +125,7 @@ enum ApprovalEntryError {
 impl ApprovalEntry {
 	pub fn new(
 		assignment: IndirectAssignmentCertV2,
-		candidates: BitVec<u8, bitvec::order::Lsb0>,
+		candidates: AssignmentBitfield,
 		routing_info: ApprovalRouting,
 	) -> ApprovalEntry {
 		Self {
@@ -152,11 +151,10 @@ impl ApprovalEntry {
 		block_hash: Hash,
 		candidate_index: CandidateIndex,
 	) -> (MessageSubject, MessageKind) {
-		let mut bitfield =
-			bitvec::bitvec![u8, bitvec::order::Lsb0; 0; candidate_index as usize + 1];
-		bitfield.set(candidate_index as _, true);
-
-		(MessageSubject(block_hash, bitfield, self.validator_index), MessageKind::Approval)
+		(
+			MessageSubject(block_hash, candidate_index.into(), self.validator_index),
+			MessageKind::Approval,
+		)
 	}
 
 	// Updates routing information and returns the previous information if any.
@@ -191,7 +189,7 @@ impl ApprovalEntry {
 			return Err(ApprovalEntryError::CandidateIndexOutOfBounds)
 		}
 
-		if !self.candidates[approval.candidate_index as usize] {
+		if !self.candidates.bit_at(approval.candidate_index as usize) {
 			return Err(ApprovalEntryError::InvalidCandidateIndex)
 		}
 
@@ -204,7 +202,7 @@ impl ApprovalEntry {
 	}
 
 	// Get the assignment certiticate and claimed candidates.
-	pub fn get_assignment(&self) -> (IndirectAssignmentCertV2, BitVec<u8, bitvec::order::Lsb0>) {
+	pub fn get_assignment(&self) -> (IndirectAssignmentCertV2, AssignmentBitfield) {
 		(self.assignment.clone(), self.candidates.clone())
 	}
 
@@ -263,7 +261,7 @@ enum MessageKind {
 // Assignments can span multiple candidates, while approvals refer to only one candidate.
 //
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-struct MessageSubject(Hash, pub BitVec<u8, bitvec::order::Lsb0>, ValidatorIndex);
+struct MessageSubject(Hash, pub AssignmentBitfield, ValidatorIndex);
 
 #[derive(Debug, Clone, Default)]
 struct Knowledge {
@@ -307,11 +305,15 @@ impl Knowledge {
 		// we need to share the same `MessageSubject` with the followup approval candidate index.
 		if kind == MessageKind::Assignment && success && message.1.count_ones() > 1 {
 			message.1.iter_ones().fold(success, |success, candidate_index| {
-				let mut bitfield =
-					bitvec::bitvec![u8, bitvec::order::Lsb0; 0; candidate_index as usize + 1];
-				bitfield.set(candidate_index, true);
-
-				success & self.insert(MessageSubject(message.0.clone(), bitfield, message.2), kind)
+				success &
+					self.insert(
+						MessageSubject(
+							message.0.clone(),
+							(candidate_index as CandidateIndex).into(),
+							message.2,
+						),
+						kind,
+					)
 			})
 		} else {
 			success
@@ -351,7 +353,7 @@ struct BlockEntry {
 	pub session: SessionIndex,
 	/// Approval entries for whole block. These also contain all approvals in the cae of multiple candidates
 	/// being claimed by assignments.
-	approval_entries: HashMap<(ValidatorIndex, BitVec<u8, bitvec::order::Lsb0>), ApprovalEntry>,
+	approval_entries: HashMap<(ValidatorIndex, AssignmentBitfield), ApprovalEntry>,
 }
 
 impl BlockEntry {
@@ -453,7 +455,7 @@ impl BlockEntry {
 #[derive(Debug, Default)]
 struct CandidateEntry {
 	// The value represents part of the lookup key in `approval_entries` to fetch the assignment and existing votes.
-	messages: HashMap<ValidatorIndex, BitVec<u8, bitvec::order::Lsb0>>,
+	messages: HashMap<ValidatorIndex, AssignmentBitfield>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -472,7 +474,7 @@ impl MessageSource {
 }
 
 enum PendingMessage {
-	Assignment(IndirectAssignmentCertV2, BitVec<u8, bitvec::order::Lsb0>),
+	Assignment(IndirectAssignmentCertV2, AssignmentBitfield),
 	Approval(IndirectSignedApprovalVote),
 }
 
@@ -698,7 +700,7 @@ impl State {
 		ctx: &mut Context,
 		metrics: &Metrics,
 		peer_id: PeerId,
-		assignments: Vec<(IndirectAssignmentCertV2, BitVec<u8, bitvec::order::Lsb0>)>,
+		assignments: Vec<(IndirectAssignmentCertV2, AssignmentBitfield)>,
 		rng: &mut R,
 	) where
 		R: CryptoRng + Rng,
@@ -773,14 +775,7 @@ impl State {
 					peer_id,
 					assignments
 						.into_iter()
-						.map(|(cert, candidate)| {
-							// TODO: 1 liner would be better.
-							let mut bitfield =
-								bitvec::bitvec![u8, bitvec::order::Lsb0; 0; candidate as usize + 1];
-							bitfield.set(candidate as _, true);
-
-							(cert.into(), bitfield)
-						})
+						.map(|(cert, candidate)| (cert.into(), candidate.into()))
 						.collect::<Vec<_>>(),
 					rng,
 				)
@@ -926,7 +921,7 @@ impl State {
 		metrics: &Metrics,
 		source: MessageSource,
 		assignment: IndirectAssignmentCertV2,
-		claimed_candidate_indices: BitVec<u8, bitvec::order::Lsb0>,
+		claimed_candidate_indices: AssignmentBitfield,
 		rng: &mut R,
 	) where
 		R: CryptoRng + Rng,
@@ -1211,11 +1206,7 @@ impl State {
 		};
 
 		// compute metadata on the assignment.
-		let mut bitfield =
-			bitvec::bitvec![u8, bitvec::order::Lsb0; 0; candidate_index as usize + 1];
-		bitfield.set(candidate_index as _, true);
-
-		let message_subject = MessageSubject(block_hash, bitfield, validator_index);
+		let message_subject = MessageSubject(block_hash, candidate_index.into(), validator_index);
 		let message_kind = MessageKind::Approval;
 
 		if let Some(peer_id) = source.peer_id() {
@@ -1975,7 +1966,7 @@ pub const MAX_APPROVAL_BATCH_SIZE: usize = ensure_size_not_zero(
 // Low level helper for sending assignments.
 async fn send_assignments_batched_inner(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	batch: Vec<(IndirectAssignmentCertV2, BitVec<u8, bitvec::order::Lsb0>)>,
+	batch: Vec<(IndirectAssignmentCertV2, AssignmentBitfield)>,
 	peers: &Vec<PeerId>,
 	// TODO: use `ValidationVersion`.
 	peer_version: u32,
@@ -2026,7 +2017,7 @@ async fn send_assignments_batched_inner(
 /// of assignments and can `select!` other tasks.
 pub(crate) async fn send_assignments_batched(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	v2_assignments: Vec<(IndirectAssignmentCertV2, BitVec<u8, bitvec::order::Lsb0>)>,
+	v2_assignments: Vec<(IndirectAssignmentCertV2, AssignmentBitfield)>,
 	peers: &Vec<(PeerId, ProtocolVersion)>,
 ) {
 	let v1_peers = filter_by_peer_version(peers, ValidationVersion::V1.into());

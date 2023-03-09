@@ -53,14 +53,113 @@ pub mod v1 {
 	pub const TRANCHE_RANDOMNESS_CONTEXT: &[u8] = b"A&V TRANCHE";
 }
 
-/// Static contexts use to generate randomness for v2 assignments.
+/// A list of primitives introduced by v2.
 pub mod v2 {
+	use parity_scale_codec::{Decode, Encode};
+	use std::ops::BitOr;
+
+	use super::{CandidateIndex, CoreIndex};
+	use bitvec::{prelude::Lsb0, vec::BitVec};
+
 	/// A static context associated with producing randomness for a core.
 	pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE v2";
 	/// A static context associated with producing randomness for v2 multi-core assignments.
 	pub const ASSIGNED_CORE_CONTEXT: &[u8] = b"A&V ASSIGNED v2";
 	/// A static context used for all relay-vrf-modulo VRFs for v2 multi-core assignments.
 	pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD v2";
+	/// A read-only bitvec wrapp to efficiently store candidate or core assignments. Each 1 bit identifies
+	/// a candidate(or core) by the bitfield bit index.
+	#[derive(Clone, Debug, Encode, Decode, Hash, PartialEq, Eq)]
+	pub struct AssignmentBitfield(BitVec<u8, bitvec::order::Lsb0>);
+
+	/// Errors that can occur when creating and manipulating bitfields.
+	#[derive(Debug)]
+	pub enum AssignmentBitfieldError {
+		/// All bits are zero.
+		NullAssignment,
+	}
+
+	impl AssignmentBitfield {
+		/// Returns the bit value at specified `index`. If `index` is greater than bitfield size,
+		/// returns `false`.
+		pub fn bit_at(&self, index: usize) -> bool {
+			if self.0.len() <= index {
+				false
+			} else {
+				self.0[index]
+			}
+		}
+
+		/// Returns number of bits.
+		pub fn len(&self) -> usize {
+			self.0.len()
+		}
+
+		/// Returns the number of 1 bits.
+		pub fn count_ones(&self) -> usize {
+			self.0.count_ones()
+		}
+
+		/// Returns the index of the first 1 bit.
+		pub fn first_one(&self) -> Option<usize> {
+			self.0.first_one()
+		}
+
+		/// Returns an iterator over inner bits.
+		pub fn iter_ones(&self) -> bitvec::slice::IterOnes<u8, bitvec::order::Lsb0> {
+			self.0.iter_ones()
+		}
+
+		/// For testing purpose, we want a inner mutable ref.
+		#[cfg(test)]
+		pub fn inner_mut(&mut self) -> &mut BitVec<u8, bitvec::order::Lsb0> {
+			&mut self.0
+		}
+	}
+
+	impl From<CoreIndex> for AssignmentBitfield {
+		fn from(value: CoreIndex) -> Self {
+			Self({
+				let mut bv = bitvec::bitvec![u8, Lsb0; 0; value.0 as usize + 1];
+				bv.set(value.0 as usize, true);
+				bv
+			})
+		}
+	}
+
+	impl From<CandidateIndex> for AssignmentBitfield {
+		fn from(value: CandidateIndex) -> Self {
+			Self({
+				let mut bv = bitvec::bitvec![u8, Lsb0; 0; value as usize + 1];
+				bv.set(value as usize, true);
+				bv
+			})
+		}
+	}
+
+	impl<T> TryFrom<Vec<T>> for AssignmentBitfield
+	where
+		T: Into<AssignmentBitfield>,
+	{
+		type Error = AssignmentBitfieldError;
+
+		fn try_from(mut value: Vec<T>) -> Result<Self, Self::Error> {
+			if value.is_empty() {
+				return Err(AssignmentBitfieldError::NullAssignment)
+			}
+
+			let initial_bitfield =
+				value.pop().expect("Just checked above it's not empty; qed").into();
+
+			Ok(Self(value.into_iter().fold(initial_bitfield.0, |initial_bitfield, element| {
+				let mut bitfield: AssignmentBitfield = element.into();
+				bitfield
+					.0
+					.resize(std::cmp::max(initial_bitfield.len(), bitfield.0.len()), false);
+				bitfield.0.bitor(initial_bitfield)
+			})))
+		}
+	}
 }
 
 /// random bytes derived from the VRF submitted within the block by the
@@ -325,4 +424,54 @@ pub fn babe_unsafe_vrf_info(header: &Header) -> Option<UnsafeVRFOutput> {
 	}
 
 	None
+}
+
+#[cfg(test)]
+mod test {
+	use super::{v2::AssignmentBitfield, *};
+
+	#[test]
+	fn test_assignment_bitfield_from_vec() {
+		let candidate_indices = vec![1, 7, 3, 10, 45, 8, 200, 2];
+		let bitfield = AssignmentBitfield::try_from(candidate_indices.clone()).unwrap();
+		let max_index = candidate_indices.iter().cloned().max().unwrap();
+
+		// Test 1 bits.
+		for index in candidate_indices.clone() {
+			assert!(bitfield.bit_at(index as usize));
+		}
+
+		// Test 0 bits.
+		for index in 0..max_index {
+			if candidate_indices.contains(&index) {
+				continue
+			}
+			assert!(!bitfield.bit_at(index as usize));
+		}
+	}
+
+	#[test]
+	fn test_assignment_bitfield_invariant_msb() {
+		let core_indices = vec![CoreIndex(1), CoreIndex(3), CoreIndex(10), CoreIndex(20)];
+		let mut bitfield = AssignmentBitfield::try_from(core_indices.clone()).unwrap();
+		assert!(bitfield.inner_mut().pop().unwrap());
+
+		for i in 0..1024 {
+			assert!(AssignmentBitfield::try_from(CoreIndex(i)).unwrap().inner_mut().pop().unwrap());
+			assert!(AssignmentBitfield::try_from(i).unwrap().inner_mut().pop().unwrap());
+		}
+	}
+
+	#[test]
+	fn test_assignment_bitfield_basic() {
+		let bitfield = AssignmentBitfield::try_from(CoreIndex(0)).unwrap();
+		assert!(bitfield.bit_at(0));
+		assert!(!bitfield.bit_at(1));
+		assert_eq!(bitfield.len(), 1);
+
+		let mut bitfield = AssignmentBitfield::try_from(20).unwrap();
+		assert!(bitfield.bit_at(20));
+		assert_eq!(bitfield.inner_mut().count_ones(), 1);
+		assert_eq!(bitfield.len(), 21);
+	}
 }

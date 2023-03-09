@@ -24,6 +24,7 @@
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
+		v2::{AssignmentBitfield, AssignmentBitfieldError},
 		AssignmentCertKindV2, BlockApprovalMeta, DelayTranche, IndirectAssignmentCertV2,
 		IndirectSignedApprovalVote,
 	},
@@ -50,9 +51,9 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, DisputeStatement,
-	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorPair, ValidatorSignature,
+	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, CoreIndex,
+	DisputeStatement, GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind,
+	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -986,14 +987,27 @@ async fn handle_actions<Context>(
 					},
 				};
 
-				// Get all candidate indices in case this is a compact module vrf assignment.
-				let candidate_indices =
-					cores_to_candidate_indices(&claimed_core_indices, &block_entry);
-
-				ctx.send_unbounded_message(ApprovalDistributionMessage::DistributeAssignment(
-					indirect_cert,
-					candidate_indices,
-				));
+				// Get an assignment bitfield for the given claimed cores.
+				match cores_to_candidate_indices(&claimed_core_indices, &block_entry) {
+					Ok(bitfield) => {
+						ctx.send_unbounded_message(
+							ApprovalDistributionMessage::DistributeAssignment(
+								indirect_cert,
+								bitfield,
+							),
+						);
+					},
+					Err(err) => {
+						// Never happens, it should only happen if no cores are claimed, which is a bug.
+						gum::warn!(
+							target: LOG_TARGET,
+							?block_hash,
+							?err,
+							"Failed to create assignment bitfield"
+						);
+						continue
+					},
+				};
 
 				match approvals_cache.get(&candidate_hash) {
 					Some(ApprovalOutcome::Approved) => {
@@ -1054,7 +1068,7 @@ async fn handle_actions<Context>(
 fn cores_to_candidate_indices(
 	core_indices: &Vec<CoreIndex>,
 	block_entry: &BlockEntry,
-) -> BitVec<u8, Lsb0> {
+) -> Result<AssignmentBitfield, AssignmentBitfieldError> {
 	let mut candidate_indices = Vec::new();
 
 	// Map from core index to candidate index.
@@ -1064,21 +1078,11 @@ fn cores_to_candidate_indices(
 			.iter()
 			.position(|(core_index, _)| core_index == claimed_core_index)
 		{
-			candidate_indices.push(candidate_index);
+			candidate_indices.push(candidate_index as CandidateIndex);
 		}
 	}
 
-	// Invariant: bitfield size equal to the highest candidate index + 1 == MSB is always 1.
-	// Since we are using the bitfield as key in a hashmap, we need to ensure the invariant.
-	let bitfield_size =
-		if let Some(max_index) = candidate_indices.iter().max() { max_index + 1 } else { 32 }
-			as usize;
-	let mut bitfield = bitvec::bitvec![u8, Lsb0; 0; bitfield_size];
-
-	for candidate_index in candidate_indices {
-		bitfield.set(candidate_index as _, true);
-	}
-	bitfield
+	AssignmentBitfield::try_from(candidate_indices)
 }
 
 fn distribution_messages_for_activation(
@@ -1129,30 +1133,59 @@ fn distribution_messages_for_activation(
 					match approval_entry.local_statements() {
 						(None, None) | (None, Some(_)) => {}, // second is impossible case.
 						(Some(assignment), None) => {
-							messages.push(ApprovalDistributionMessage::DistributeAssignment(
-								IndirectAssignmentCertV2 {
-									block_hash,
-									validator: assignment.validator_index(),
-									cert: assignment.cert().clone(),
-								},
-								cores_to_candidate_indices(
-									assignment.claimed_core_indices(),
-									&block_entry,
+							match cores_to_candidate_indices(
+								assignment.claimed_core_indices(),
+								&block_entry,
+							) {
+								Ok(bitfield) => messages.push(
+									ApprovalDistributionMessage::DistributeAssignment(
+										IndirectAssignmentCertV2 {
+											block_hash,
+											validator: assignment.validator_index(),
+											cert: assignment.cert().clone(),
+										},
+										bitfield,
+									),
 								),
-							));
+								Err(err) => {
+									// Should never happen. If we fail here it means the assignment is null (no cores claimed).
+									gum::warn!(
+										target: LOG_TARGET,
+										?block_hash,
+										?candidate_hash,
+										?err,
+										"Failed to create assignment bitfield",
+									);
+								},
+							}
 						},
 						(Some(assignment), Some(approval_sig)) => {
-							messages.push(ApprovalDistributionMessage::DistributeAssignment(
-								IndirectAssignmentCertV2 {
-									block_hash,
-									validator: assignment.validator_index(),
-									cert: assignment.cert().clone(),
-								},
-								cores_to_candidate_indices(
-									assignment.claimed_core_indices(),
-									&block_entry,
+							match cores_to_candidate_indices(
+								assignment.claimed_core_indices(),
+								&block_entry,
+							) {
+								Ok(bitfield) => messages.push(
+									ApprovalDistributionMessage::DistributeAssignment(
+										IndirectAssignmentCertV2 {
+											block_hash,
+											validator: assignment.validator_index(),
+											cert: assignment.cert().clone(),
+										},
+										bitfield,
+									),
 								),
-							));
+								Err(err) => {
+									gum::warn!(
+										target: LOG_TARGET,
+										?block_hash,
+										?candidate_hash,
+										?err,
+										"Failed to create assignment bitfield",
+									);
+									// If we didn't send assignment, we don't send approval.
+									continue
+								},
+							}
 
 							messages.push(ApprovalDistributionMessage::DistributeApproval(
 								IndirectSignedApprovalVote {
@@ -1726,7 +1759,7 @@ fn check_and_import_assignment(
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	assignment: IndirectAssignmentCertV2,
-	candidate_indices: BitVec<u8, Lsb0>,
+	candidate_indices: AssignmentBitfield,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
 	let tick_now = state.clock.tick_now();
 
