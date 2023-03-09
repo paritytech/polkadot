@@ -70,7 +70,7 @@ pub struct ParticipationRequest {
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
-	_request_timer: Arc<Option<prometheus::HistogramTimer>> // Sends metric data when request is dropped
+	_request_timer: Arc<Option<prometheus::HistogramTimer>>, // Sends metric data when request is dropped
 }
 
 /// Whether a `ParticipationRequest` should be put on best-effort or the priority queue.
@@ -114,8 +114,17 @@ pub enum QueueError {
 
 impl ParticipationRequest {
 	/// Create a new `ParticipationRequest` to be queued.
-	pub fn new(candidate_receipt: CandidateReceipt, session: SessionIndex, request_timer: Arc<Option<prometheus::HistogramTimer>>) -> Self {
-		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session, _request_timer: request_timer }
+	pub fn new(
+		candidate_receipt: CandidateReceipt,
+		session: SessionIndex,
+		request_timer: Arc<Option<prometheus::HistogramTimer>>,
+	) -> Self {
+		Self {
+			candidate_hash: candidate_receipt.hash(),
+			candidate_receipt,
+			session,
+			_request_timer: request_timer,
+		}
 	}
 
 	pub fn candidate_receipt(&'_ self) -> &'_ CandidateReceipt {
@@ -132,16 +141,16 @@ impl ParticipationRequest {
 		(candidate_hash, candidate_receipt)
 	}
 	// For tests we want to check whether requests are equal, but the
-	// request_timer field of ParticipationRequest doesn't implement 
+	// request_timer field of ParticipationRequest doesn't implement
 	// eq. This helper checks whether all other fields are equal,
 	// which is sufficient.
 	#[cfg(test)]
 	pub fn functionally_equal(&self, other: ParticipationRequest) -> bool {
-		if  &self.candidate_receipt == other.candidate_receipt() &&
+		if &self.candidate_receipt == other.candidate_receipt() &&
 			&self.candidate_hash == other.candidate_hash() &&
 			self.session == other.session()
 		{
-			return true;
+			return true
 		}
 		false
 	}
@@ -150,11 +159,7 @@ impl ParticipationRequest {
 impl Queues {
 	/// Create new `Queues`.
 	pub fn new(metrics: Metrics) -> Self {
-		Self {
-			best_effort: BTreeMap::new(),
-			priority: BTreeMap::new(),
-			metrics,
-		}
+		Self { best_effort: BTreeMap::new(), priority: BTreeMap::new(), metrics }
 	}
 
 	/// Will put message in queue, either priority or best effort depending on priority.
@@ -177,9 +182,7 @@ impl Queues {
 
 	/// Get the next best request for dispute participation if any.
 	/// First the priority queue is considered and then the best effort one.
-	pub fn dequeue(
-		&mut self,
-	) -> Option<ParticipationRequest> {
+	pub fn dequeue(&mut self) -> Option<ParticipationRequest> {
 		if let Some(req) = self.pop_priority() {
 			self.metrics.report_priority_queue_size(self.priority.len() as u64);
 			return Some(req.1)

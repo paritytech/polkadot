@@ -922,7 +922,11 @@ impl Initialized {
 				.queue_participation(
 					ctx,
 					priority,
-					ParticipationRequest::new(new_state.candidate_receipt().clone(), session, request_timer),
+					ParticipationRequest::new(
+						new_state.candidate_receipt().clone(),
+						session,
+						request_timer,
+					),
 				)
 				.await;
 			log_error(r)?;
