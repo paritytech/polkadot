@@ -60,8 +60,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `1012`
 		//  Estimated: `10386`
 		// Minimum execution time: 44_827 nanoseconds.
-		Weight::from_ref_time(45_309_000)
-			.saturating_add(Weight::from_proof_size(10386))
+		Weight::from_parts(45_309_000, 0)
+			.saturating_add(Weight::from_parts(0, 10386))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -80,8 +80,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `2179`
 		//  Estimated: `22888`
 		// Minimum execution time: 81_836 nanoseconds.
-		Weight::from_ref_time(82_905_000)
-			.saturating_add(Weight::from_proof_size(22888))
+		Weight::from_parts(82_905_000, 0)
+			.saturating_add(Weight::from_parts(0, 22888))
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(7))
 	}
@@ -108,8 +108,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `2390`
 		//  Estimated: `29790`
 		// Minimum execution time: 89_566 nanoseconds.
-		Weight::from_ref_time(90_530_000)
-			.saturating_add(Weight::from_proof_size(29790))
+		Weight::from_parts(90_530_000, 0)
+			.saturating_add(Weight::from_parts(0, 29790))
 			.saturating_add(T::DbWeight::get().reads(12))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}
@@ -127,10 +127,10 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `1008`
 		//  Estimated: `10442`
 		// Minimum execution time: 36_097 nanoseconds.
-		Weight::from_ref_time(37_091_545)
-			.saturating_add(Weight::from_proof_size(10442))
+		Weight::from_parts(37_091_545, 0)
+			.saturating_add(Weight::from_parts(0, 10442))
 			// Standard Error: 607
-			.saturating_add(Weight::from_ref_time(15_576).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(15_576, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -168,14 +168,14 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `2409 + s * (4 ±0)`
 		//  Estimated: `32482 + s * (4 ±0)`
 		// Minimum execution time: 78_221 nanoseconds.
-		Weight::from_ref_time(83_701_233)
-			.saturating_add(Weight::from_proof_size(32482))
+		Weight::from_parts(83_701_233, 0)
+			.saturating_add(Weight::from_parts(0, 32482))
 			// Standard Error: 2_659
-			.saturating_add(Weight::from_ref_time(1_196_861).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(1_196_861, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(13))
 			.saturating_add(T::DbWeight::get().writes(12))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(s.into())))
-			.saturating_add(Weight::from_proof_size(4).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(0, 4).saturating_mul(s.into()))
 	}
 	/// Storage: Staking Ledger (r:1 w:0)
 	/// Proof: Staking Ledger (max_values: None, max_size: Some(1091), added: 3566, mode: MaxEncodedLen)
@@ -204,8 +204,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `1373`
 		//  Estimated: `19615`
 		// Minimum execution time: 55_530 nanoseconds.
-		Weight::from_ref_time(56_209_000)
-			.saturating_add(Weight::from_proof_size(19615))
+		Weight::from_parts(56_209_000, 0)
+			.saturating_add(Weight::from_parts(0, 19615))
 			.saturating_add(T::DbWeight::get().reads(11))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -219,14 +219,14 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `1338 + k * (855 ±0)`
 		//  Estimated: `3566 + k * (3289 ±0)`
 		// Minimum execution time: 29_457 nanoseconds.
-		Weight::from_ref_time(23_700_522)
-			.saturating_add(Weight::from_proof_size(3566))
+		Weight::from_parts(23_700_522, 0)
+			.saturating_add(Weight::from_parts(0, 3566))
 			// Standard Error: 12_111
-			.saturating_add(Weight::from_ref_time(8_187_143).saturating_mul(k.into()))
+			.saturating_add(Weight::from_parts(8_187_143, 0).saturating_mul(k.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(k.into())))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(k.into())))
-			.saturating_add(Weight::from_proof_size(3289).saturating_mul(k.into()))
+			.saturating_add(Weight::from_parts(0, 3289).saturating_mul(k.into()))
 	}
 	/// Storage: Staking Ledger (r:1 w:0)
 	/// Proof: Staking Ledger (max_values: None, max_size: Some(1091), added: 3566, mode: MaxEncodedLen)
@@ -256,14 +256,14 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `2003 + n * (89 ±0)`
 		//  Estimated: `22244 + n * (2520 ±0)`
 		// Minimum execution time: 64_134 nanoseconds.
-		Weight::from_ref_time(65_154_921)
-			.saturating_add(Weight::from_proof_size(22244))
+		Weight::from_parts(65_154_921, 0)
+			.saturating_add(Weight::from_parts(0, 22244))
 			// Standard Error: 13_547
-			.saturating_add(Weight::from_ref_time(2_946_599).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(2_946_599, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(12))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(6))
-			.saturating_add(Weight::from_proof_size(2520).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(0, 2520).saturating_mul(n.into()))
 	}
 	/// Storage: Staking Ledger (r:1 w:0)
 	/// Proof: Staking Ledger (max_values: None, max_size: Some(1091), added: 3566, mode: MaxEncodedLen)
@@ -284,8 +284,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `1799`
 		//  Estimated: `18188`
 		// Minimum execution time: 58_419 nanoseconds.
-		Weight::from_ref_time(58_950_000)
-			.saturating_add(Weight::from_proof_size(18188))
+		Weight::from_parts(58_950_000, 0)
+			.saturating_add(Weight::from_parts(0, 18188))
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -298,8 +298,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `767`
 		//  Estimated: `3566`
 		// Minimum execution time: 13_899 nanoseconds.
-		Weight::from_ref_time(14_585_000)
-			.saturating_add(Weight::from_proof_size(3566))
+		Weight::from_parts(14_585_000, 0)
+			.saturating_add(Weight::from_parts(0, 3566))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -312,8 +312,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `866`
 		//  Estimated: `9679`
 		// Minimum execution time: 21_075 nanoseconds.
-		Weight::from_ref_time(21_355_000)
-			.saturating_add(Weight::from_proof_size(9679))
+		Weight::from_parts(21_355_000, 0)
+			.saturating_add(Weight::from_parts(0, 9679))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -324,8 +324,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 2_624 nanoseconds.
-		Weight::from_ref_time(2_786_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(2_786_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Staking ForceEra (r:0 w:1)
@@ -335,8 +335,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 11_010 nanoseconds.
-		Weight::from_ref_time(11_302_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(11_302_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Staking ForceEra (r:0 w:1)
@@ -346,8 +346,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 10_495 nanoseconds.
-		Weight::from_ref_time(10_888_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(10_888_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Staking ForceEra (r:0 w:1)
@@ -357,8 +357,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 10_878 nanoseconds.
-		Weight::from_ref_time(11_314_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(11_314_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Staking Invulnerables (r:0 w:1)
@@ -369,10 +369,10 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 2_887 nanoseconds.
-		Weight::from_ref_time(3_053_614)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(3_053_614, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			// Standard Error: 30
-			.saturating_add(Weight::from_ref_time(10_691).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(10_691, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Staking Bonded (r:1 w:1)
@@ -407,14 +407,14 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `2107 + s * (4 ±0)`
 		//  Estimated: `28115 + s * (4 ±0)`
 		// Minimum execution time: 70_968 nanoseconds.
-		Weight::from_ref_time(75_668_172)
-			.saturating_add(Weight::from_proof_size(28115))
+		Weight::from_parts(75_668_172, 0)
+			.saturating_add(Weight::from_parts(0, 28115))
 			// Standard Error: 3_888
-			.saturating_add(Weight::from_ref_time(1_173_892).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(1_173_892, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(11))
 			.saturating_add(T::DbWeight::get().writes(12))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(s.into())))
-			.saturating_add(Weight::from_proof_size(4).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(0, 4).saturating_mul(s.into()))
 	}
 	/// Storage: Staking UnappliedSlashes (r:1 w:1)
 	/// Proof Skipped: Staking UnappliedSlashes (max_values: None, max_size: None, mode: Measured)
@@ -424,10 +424,10 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `66604`
 		//  Estimated: `69079`
 		// Minimum execution time: 114_586 nanoseconds.
-		Weight::from_ref_time(830_663_472)
-			.saturating_add(Weight::from_proof_size(69079))
+		Weight::from_parts(830_663_472, 0)
+			.saturating_add(Weight::from_parts(0, 69079))
 			// Standard Error: 51_554
-			.saturating_add(Weight::from_ref_time(4_320_930).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(4_320_930, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -455,15 +455,15 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `34303 + n * (149 ±0)`
 		//  Estimated: `79842 + n * (8024 ±1)`
 		// Minimum execution time: 84_700 nanoseconds.
-		Weight::from_ref_time(80_513_026)
-			.saturating_add(Weight::from_proof_size(79842))
+		Weight::from_parts(80_513_026, 0)
+			.saturating_add(Weight::from_parts(0, 79842))
 			// Standard Error: 15_407
-			.saturating_add(Weight::from_ref_time(27_854_181).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(27_854_181, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().reads((3_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(2))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(n.into())))
-			.saturating_add(Weight::from_proof_size(8024).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(0, 8024).saturating_mul(n.into()))
 	}
 	/// Storage: Staking CurrentEra (r:1 w:0)
 	/// Proof: Staking CurrentEra (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
@@ -491,15 +491,15 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `62042 + n * (474 ±0)`
 		//  Estimated: `131052 + n * (16034 ±0)`
 		// Minimum execution time: 105_084 nanoseconds.
-		Weight::from_ref_time(51_347_015)
-			.saturating_add(Weight::from_proof_size(131052))
+		Weight::from_parts(51_347_015, 0)
+			.saturating_add(Weight::from_parts(0, 131052))
 			// Standard Error: 48_370
-			.saturating_add(Weight::from_ref_time(40_348_874).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(40_348_874, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(10))
 			.saturating_add(T::DbWeight::get().reads((5_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(3))
 			.saturating_add(T::DbWeight::get().writes((3_u64).saturating_mul(n.into())))
-			.saturating_add(Weight::from_proof_size(16034).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(0, 16034).saturating_mul(n.into()))
 	}
 	/// Storage: Staking Ledger (r:1 w:1)
 	/// Proof: Staking Ledger (max_values: None, max_size: Some(1091), added: 3566, mode: MaxEncodedLen)
@@ -519,10 +519,10 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `2180 + l * (5 ±0)`
 		//  Estimated: `25491`
 		// Minimum execution time: 81_058 nanoseconds.
-		Weight::from_ref_time(82_232_827)
-			.saturating_add(Weight::from_proof_size(25491))
+		Weight::from_parts(82_232_827, 0)
+			.saturating_add(Weight::from_parts(0, 25491))
 			// Standard Error: 6_083
-			.saturating_add(Weight::from_ref_time(97_408).saturating_mul(l.into()))
+			.saturating_add(Weight::from_parts(97_408, 0).saturating_mul(l.into()))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}
@@ -558,14 +558,14 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `2409 + s * (4 ±0)`
 		//  Estimated: `31989 + s * (4 ±0)`
 		// Minimum execution time: 83_594 nanoseconds.
-		Weight::from_ref_time(85_394_580)
-			.saturating_add(Weight::from_proof_size(31989))
+		Weight::from_parts(85_394_580, 0)
+			.saturating_add(Weight::from_parts(0, 31989))
 			// Standard Error: 2_216
-			.saturating_add(Weight::from_ref_time(1_152_305).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(1_152_305, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(12))
 			.saturating_add(T::DbWeight::get().writes(12))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(s.into())))
-			.saturating_add(Weight::from_proof_size(4).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(0, 4).saturating_mul(s.into()))
 	}
 	/// Storage: VoterList CounterForListNodes (r:1 w:0)
 	/// Proof: VoterList CounterForListNodes (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
@@ -610,19 +610,19 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0 + v * (3656 ±0) + n * (810 ±0)`
 		//  Estimated: `441556 + v * (16995 ±0) + n * (13191 ±0)`
 		// Minimum execution time: 494_448 nanoseconds.
-		Weight::from_ref_time(497_850_000)
-			.saturating_add(Weight::from_proof_size(441556))
+		Weight::from_parts(497_850_000, 0)
+			.saturating_add(Weight::from_parts(0, 441556))
 			// Standard Error: 1_877_946
-			.saturating_add(Weight::from_ref_time(60_221_703).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(60_221_703, 0).saturating_mul(v.into()))
 			// Standard Error: 187_127
-			.saturating_add(Weight::from_ref_time(16_161_800).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(16_161_800, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(173))
 			.saturating_add(T::DbWeight::get().reads((5_u64).saturating_mul(v.into())))
 			.saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(5))
 			.saturating_add(T::DbWeight::get().writes((3_u64).saturating_mul(v.into())))
-			.saturating_add(Weight::from_proof_size(16995).saturating_mul(v.into()))
-			.saturating_add(Weight::from_proof_size(13191).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(0, 16995).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(0, 13191).saturating_mul(n.into()))
 	}
 	/// Storage: VoterList CounterForListNodes (r:1 w:0)
 	/// Proof: VoterList CounterForListNodes (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
@@ -649,18 +649,18 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `3101 + v * (453 ±0) + n * (1257 ±0)`
 		//  Estimated: `425504 + v * (14551 ±0) + n * (12031 ±0)`
 		// Minimum execution time: 31_297_872 nanoseconds.
-		Weight::from_ref_time(31_410_990_000)
-			.saturating_add(Weight::from_proof_size(425504))
+		Weight::from_parts(31_410_990_000, 0)
+			.saturating_add(Weight::from_parts(0, 425504))
 			// Standard Error: 344_870
-			.saturating_add(Weight::from_ref_time(4_716_231).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(4_716_231, 0).saturating_mul(v.into()))
 			// Standard Error: 344_870
-			.saturating_add(Weight::from_ref_time(3_250_756).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(3_250_756, 0).saturating_mul(n.into()))
 			.saturating_add(T::DbWeight::get().reads(168))
 			.saturating_add(T::DbWeight::get().reads((5_u64).saturating_mul(v.into())))
 			.saturating_add(T::DbWeight::get().reads((4_u64).saturating_mul(n.into())))
 			.saturating_add(T::DbWeight::get().writes(2))
-			.saturating_add(Weight::from_proof_size(14551).saturating_mul(v.into()))
-			.saturating_add(Weight::from_proof_size(12031).saturating_mul(n.into()))
+			.saturating_add(Weight::from_parts(0, 14551).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(0, 12031).saturating_mul(n.into()))
 	}
 	/// Storage: Staking CounterForValidators (r:1 w:0)
 	/// Proof: Staking CounterForValidators (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
@@ -674,14 +674,14 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `917 + v * (50 ±0)`
 		//  Estimated: `3562 + v * (2520 ±0)`
 		// Minimum execution time: 3_903_963 nanoseconds.
-		Weight::from_ref_time(48_632_315)
-			.saturating_add(Weight::from_proof_size(3562))
+		Weight::from_parts(48_632_315, 0)
+			.saturating_add(Weight::from_parts(0, 3562))
 			// Standard Error: 21_723
-			.saturating_add(Weight::from_ref_time(7_872_443).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(7_872_443, 0).saturating_mul(v.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(v.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
-			.saturating_add(Weight::from_proof_size(2520).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(0, 2520).saturating_mul(v.into()))
 	}
 	/// Storage: Staking MinCommission (r:0 w:1)
 	/// Proof: Staking MinCommission (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
@@ -700,8 +700,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 6_184 nanoseconds.
-		Weight::from_ref_time(6_506_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(6_506_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
 	/// Storage: Staking MinCommission (r:0 w:1)
@@ -721,8 +721,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 5_703 nanoseconds.
-		Weight::from_ref_time(5_937_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(5_937_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
 	/// Storage: Staking Ledger (r:1 w:0)
@@ -750,8 +750,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `1954`
 		//  Estimated: `19694`
 		// Minimum execution time: 68_958 nanoseconds.
-		Weight::from_ref_time(71_763_000)
-			.saturating_add(Weight::from_proof_size(19694))
+		Weight::from_parts(71_763_000, 0)
+			.saturating_add(Weight::from_parts(0, 19694))
 			.saturating_add(T::DbWeight::get().reads(11))
 			.saturating_add(T::DbWeight::get().writes(6))
 	}
@@ -764,8 +764,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `627`
 		//  Estimated: `3019`
 		// Minimum execution time: 13_086 nanoseconds.
-		Weight::from_ref_time(13_390_000)
-			.saturating_add(Weight::from_proof_size(3019))
+		Weight::from_parts(13_390_000, 0)
+			.saturating_add(Weight::from_parts(0, 3019))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -776,8 +776,8 @@ impl<T: frame_system::Config> pallet_staking::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 2_986 nanoseconds.
-		Weight::from_ref_time(3_166_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(3_166_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 }

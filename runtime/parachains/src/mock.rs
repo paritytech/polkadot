@@ -25,7 +25,7 @@ use crate::{
 
 use frame_support::{
 	parameter_types,
-	traits::{GenesisBuild, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
+	traits::{GenesisBuild, ValidatorSet, ValidatorSetWithIdentification},
 	weights::Weight,
 };
 use frame_support_test::TestRandomness;
@@ -39,7 +39,7 @@ use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	KeyTypeId, Permill,
+	Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -148,23 +148,13 @@ impl pallet_babe::Config for Test {
 
 	type DisabledValidators = ();
 
-	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::IdentificationTuple;
-
-	type KeyOwnerProofSystem = ();
-
-	type HandleEquivocation = ();
-
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
+
+	type KeyOwnerProof = sp_core::Void;
+
+	type EquivocationReportSystem = ();
 }
 
 parameter_types! {

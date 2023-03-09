@@ -68,8 +68,8 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 		//  Measured:  `609`
 		//  Estimated: `26271`
 		// Minimum execution time: 41_409 nanoseconds.
-		Weight::from_ref_time(41_949_000)
-			.saturating_add(Weight::from_proof_size(26271))
+		Weight::from_parts(41_949_000, 0)
+			.saturating_add(Weight::from_parts(0, 26271))
 			.saturating_add(T::DbWeight::get().reads(10))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -92,8 +92,8 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 		//  Measured:  `873`
 		//  Estimated: `21456`
 		// Minimum execution time: 41_061 nanoseconds.
-		Weight::from_ref_time(41_725_000)
-			.saturating_add(Weight::from_proof_size(21456))
+		Weight::from_parts(41_725_000, 0)
+			.saturating_add(Weight::from_parts(0, 21456))
 			.saturating_add(T::DbWeight::get().reads(7))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -114,8 +114,8 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 		//  Measured:  `744`
 		//  Estimated: `15354`
 		// Minimum execution time: 37_443 nanoseconds.
-		Weight::from_ref_time(40_253_000)
-			.saturating_add(Weight::from_proof_size(15354))
+		Weight::from_parts(40_253_000, 0)
+			.saturating_add(Weight::from_parts(0, 15354))
 			.saturating_add(T::DbWeight::get().reads(6))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -138,20 +138,20 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 		//  Measured:  `254 + i * (131 ±0) + e * (131 ±0)`
 		//  Estimated: `6354 + i * (5742 ±0) + e * (5736 ±0)`
 		// Minimum execution time: 1_095_305 nanoseconds.
-		Weight::from_ref_time(1_102_171_000)
-			.saturating_add(Weight::from_proof_size(6354))
+		Weight::from_parts(1_102_171_000, 0)
+			.saturating_add(Weight::from_parts(0, 6354))
 			// Standard Error: 98_328
-			.saturating_add(Weight::from_ref_time(3_222_513).saturating_mul(i.into()))
+			.saturating_add(Weight::from_parts(3_222_513, 0).saturating_mul(i.into()))
 			// Standard Error: 98_328
-			.saturating_add(Weight::from_ref_time(3_343_772).saturating_mul(e.into()))
+			.saturating_add(Weight::from_parts(3_343_772, 0).saturating_mul(e.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().reads((2_u64).saturating_mul(i.into())))
 			.saturating_add(T::DbWeight::get().reads((2_u64).saturating_mul(e.into())))
 			.saturating_add(T::DbWeight::get().writes(4))
 			.saturating_add(T::DbWeight::get().writes((3_u64).saturating_mul(i.into())))
 			.saturating_add(T::DbWeight::get().writes((3_u64).saturating_mul(e.into())))
-			.saturating_add(Weight::from_proof_size(5742).saturating_mul(i.into()))
-			.saturating_add(Weight::from_proof_size(5736).saturating_mul(e.into()))
+			.saturating_add(Weight::from_parts(0, 5742).saturating_mul(i.into()))
+			.saturating_add(Weight::from_parts(0, 5736).saturating_mul(e.into()))
 	}
 	/// Storage: Configuration ActiveConfig (r:1 w:0)
 	/// Proof Skipped: Configuration ActiveConfig (max_values: Some(1), max_size: None, mode: Measured)
@@ -177,15 +177,15 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 		//  Measured:  `725 + c * (166 ±0)`
 		//  Estimated: `7371 + c * (18828 ±0)`
 		// Minimum execution time: 9_405 nanoseconds.
-		Weight::from_ref_time(4_666_821)
-			.saturating_add(Weight::from_proof_size(7371))
+		Weight::from_parts(4_666_821, 0)
+			.saturating_add(Weight::from_parts(0, 7371))
 			// Standard Error: 21_110
-			.saturating_add(Weight::from_ref_time(18_925_237).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(18_925_237, 0).saturating_mul(c.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().reads((7_u64).saturating_mul(c.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
 			.saturating_add(T::DbWeight::get().writes((6_u64).saturating_mul(c.into())))
-			.saturating_add(Weight::from_proof_size(18828).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(0, 18828).saturating_mul(c.into()))
 	}
 	/// Storage: Hrmp HrmpCloseChannelRequestsList (r:1 w:1)
 	/// Proof Skipped: Hrmp HrmpCloseChannelRequestsList (max_values: Some(1), max_size: None, mode: Measured)
@@ -205,15 +205,15 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 		//  Measured:  `307 + c * (155 ±0)`
 		//  Estimated: `2232 + c * (8361 ±0)`
 		// Minimum execution time: 6_303 nanoseconds.
-		Weight::from_ref_time(3_137_132)
-			.saturating_add(Weight::from_proof_size(2232))
+		Weight::from_parts(3_137_132, 0)
+			.saturating_add(Weight::from_parts(0, 2232))
 			// Standard Error: 14_988
-			.saturating_add(Weight::from_ref_time(11_754_128).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(11_754_128, 0).saturating_mul(c.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().reads((3_u64).saturating_mul(c.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
 			.saturating_add(T::DbWeight::get().writes((5_u64).saturating_mul(c.into())))
-			.saturating_add(Weight::from_proof_size(8361).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(0, 8361).saturating_mul(c.into()))
 	}
 	/// Storage: Hrmp HrmpOpenChannelRequestsList (r:1 w:1)
 	/// Proof Skipped: Hrmp HrmpOpenChannelRequestsList (max_values: Some(1), max_size: None, mode: Measured)
@@ -227,13 +227,13 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 		//  Measured:  `1022 + c * (13 ±0)`
 		//  Estimated: `7911 + c * (45 ±0)`
 		// Minimum execution time: 21_716 nanoseconds.
-		Weight::from_ref_time(26_754_962)
-			.saturating_add(Weight::from_proof_size(7911))
+		Weight::from_parts(26_754_962, 0)
+			.saturating_add(Weight::from_parts(0, 7911))
 			// Standard Error: 1_244
-			.saturating_add(Weight::from_ref_time(58_005).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(58_005, 0).saturating_mul(c.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
-			.saturating_add(Weight::from_proof_size(45).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(0, 45).saturating_mul(c.into()))
 	}
 	/// Storage: Hrmp HrmpOpenChannelRequestsList (r:1 w:1)
 	/// Proof Skipped: Hrmp HrmpOpenChannelRequestsList (max_values: Some(1), max_size: None, mode: Measured)
@@ -245,15 +245,15 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 		//  Measured:  `217 + c * (94 ±0)`
 		//  Estimated: `912 + c * (2664 ±0)`
 		// Minimum execution time: 5_229 nanoseconds.
-		Weight::from_ref_time(4_661_405)
-			.saturating_add(Weight::from_proof_size(912))
+		Weight::from_parts(4_661_405, 0)
+			.saturating_add(Weight::from_parts(0, 912))
 			// Standard Error: 3_567
-			.saturating_add(Weight::from_ref_time(3_157_636).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(3_157_636, 0).saturating_mul(c.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(c.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(c.into())))
-			.saturating_add(Weight::from_proof_size(2664).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(0, 2664).saturating_mul(c.into()))
 	}
 	/// Storage: Paras ParaLifecycles (r:2 w:0)
 	/// Proof Skipped: Paras ParaLifecycles (max_values: None, max_size: None, mode: Measured)
@@ -282,8 +282,8 @@ impl<T: frame_system::Config> runtime_parachains::hrmp::WeightInfo for WeightInf
 		//  Measured:  `609`
 		//  Estimated: `37389`
 		// Minimum execution time: 54_228 nanoseconds.
-		Weight::from_ref_time(54_782_000)
-			.saturating_add(Weight::from_proof_size(37389))
+		Weight::from_parts(54_782_000, 0)
+			.saturating_add(Weight::from_parts(0, 37389))
 			.saturating_add(T::DbWeight::get().reads(14))
 			.saturating_add(T::DbWeight::get().writes(8))
 	}
