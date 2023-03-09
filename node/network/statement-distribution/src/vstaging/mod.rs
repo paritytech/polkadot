@@ -2413,8 +2413,8 @@ pub(crate) async fn receive_response(response_manager: &mut ResponseManager) -> 
 /// Wait on the next soonest retry on a pending request. If there are no retries pending, this
 /// future never resolves. Note that this only signals that a request is ready to retry; the user of
 /// this API must call `dispatch_requests`.
-pub(crate) async fn wait_next_retry(request_manager: &mut RequestManager) {
-	match request_manager.next_retry() {
+pub(crate) async fn next_retry(request_manager: &mut RequestManager) {
+	match request_manager.next_retry_time() {
 		Some(instant) =>
 			futures_timer::Delay::new(instant.saturating_duration_since(Instant::now())).await,
 		None => futures::future::pending().await,

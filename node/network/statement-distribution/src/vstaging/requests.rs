@@ -276,7 +276,7 @@ impl RequestManager {
 	}
 
 	/// Returns an instant at which the next request to be retried will be ready.
-	pub fn next_retry(&mut self) -> Option<Instant> {
+	pub fn next_retry_time(&mut self) -> Option<Instant> {
 		let mut next = None;
 		for (_id, request) in &self.requests {
 			if let Some(next_retry_time) = request.next_retry_time {

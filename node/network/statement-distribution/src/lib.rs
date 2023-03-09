@@ -124,7 +124,7 @@ impl MuxedMessage {
 		let from_v1_responder = from_v1_responder.next();
 		let from_responder = from_responder.next();
 		let receive_response = vstaging::receive_response(&mut state.response_manager).fuse();
-		let retry_request = vstaging::wait_next_retry(&mut state.request_manager).fuse();
+		let retry_request = vstaging::next_retry(&mut state.request_manager).fuse();
 		futures::pin_mut!(
 			from_orchestra,
 			from_v1_requester,
