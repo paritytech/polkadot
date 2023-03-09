@@ -90,9 +90,8 @@ pub struct RequestedCandidate {
 	known_by: VecDeque<PeerId>,
 	/// Has the request been sent out and a response not yet received?
 	in_flight: bool,
-	/// The timestamp for the latest time we received a response. If the response failed, we should
-	/// wait some time before retrying.
-	last_response_time: Option<Instant>,
+	/// The timestamp for the next time we should retry if we the response failed.
+	next_retry_time: Option<Instant>,
 }
 
 impl RequestedCandidate {
@@ -101,9 +100,8 @@ impl RequestedCandidate {
 			return false
 		}
 
-		if let Some(last_response_time) = self.last_response_time {
-			let can_retry =
-				Instant::now().duration_since(last_response_time) >= REQUEST_RETRY_DELAY;
+		if let Some(next_retry_time) = self.next_retry_time {
+			let can_retry = Instant::now() >= next_retry_time;
 			if !can_retry {
 				return false
 			}
@@ -190,7 +188,7 @@ impl RequestManager {
 					priority: Priority { attempts: 0, origin: Origin::Unspecified },
 					known_by: VecDeque::new(),
 					in_flight: false,
-					last_response_time: None,
+					next_retry_time: None,
 				}),
 				true,
 			),
@@ -275,6 +273,19 @@ impl RequestManager {
 		}
 
 		false
+	}
+
+	/// Returns an instant at which the next request to be retried will be ready.
+	pub fn next_retry(&mut self) -> Option<Instant> {
+		let mut next = None;
+		for (_id, request) in &self.requests {
+			if let Some(next_retry_time) = request.next_retry_time {
+				if next.map_or(true, |next| next_retry_time < next) {
+					next = Some(next_retry_time);
+				}
+			}
+		}
+		next
 	}
 
 	/// Yields the next request to dispatch, if there is any.
@@ -542,7 +553,7 @@ impl UnhandledResponse {
 
 		// Set the last response time before clearing the `in_flight` flag. Otherwise, we may re-try
 		// the request as soon as we clear `in_flight`.
-		entry.last_response_time = Some(Instant::now());
+		entry.next_retry_time = Some(Instant::now() + REQUEST_RETRY_DELAY);
 		entry.in_flight = false;
 		entry.priority.attempts += 1;
 
@@ -943,6 +954,7 @@ mod tests {
 	#[test]
 	fn handle_outdated_response_due_to_requests_for_different_identifiers() {
 		let mut request_manager = RequestManager::new();
+		let mut response_manager = ResponseManager::new();
 
 		let relay_parent = Hash::from_low_u64_le(1);
 		let mut candidate_receipt = test_helpers::dummy_committed_candidate_receipt(relay_parent);
@@ -983,9 +995,13 @@ mod tests {
 			let peer_advertised = |_identifier: &CandidateIdentifier, _peer: &_| {
 				Some(StatementFilter::full(group_size))
 			};
-			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			let outgoing = request_manager
+				.next_request(&mut response_manager, request_props, peer_advertised)
+				.unwrap();
 			assert_eq!(outgoing.payload.candidate_hash, candidate);
-			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			let outgoing = request_manager
+				.next_request(&mut response_manager, request_props, peer_advertised)
+				.unwrap();
 			assert_eq!(outgoing.payload.candidate_hash, candidate);
 		}
 
@@ -1068,6 +1084,7 @@ mod tests {
 	#[test]
 	fn handle_outdated_response_due_to_garbage_collection() {
 		let mut request_manager = RequestManager::new();
+		let mut response_manager = ResponseManager::new();
 
 		let relay_parent = Hash::from_low_u64_le(1);
 		let mut candidate_receipt = test_helpers::dummy_committed_candidate_receipt(relay_parent);
@@ -1097,7 +1114,9 @@ mod tests {
 		{
 			let request_props =
 				|_identifier: &CandidateIdentifier| Some((&request_properties).clone());
-			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			let outgoing = request_manager
+				.next_request(&mut response_manager, request_props, peer_advertised)
+				.unwrap();
 			assert_eq!(outgoing.payload.candidate_hash, candidate);
 		}
 
@@ -1142,6 +1161,7 @@ mod tests {
 	#[test]
 	fn should_clean_up_after_successful_requests() {
 		let mut request_manager = RequestManager::new();
+		let mut response_manager = ResponseManager::new();
 
 		let relay_parent = Hash::from_low_u64_le(1);
 		let mut candidate_receipt = test_helpers::dummy_committed_candidate_receipt(relay_parent);
@@ -1174,7 +1194,9 @@ mod tests {
 		{
 			let request_props =
 				|_identifier: &CandidateIdentifier| Some((&request_properties).clone());
-			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			let outgoing = request_manager
+				.next_request(&mut response_manager, request_props, peer_advertised)
+				.unwrap();
 			assert_eq!(outgoing.payload.candidate_hash, candidate);
 		}
 

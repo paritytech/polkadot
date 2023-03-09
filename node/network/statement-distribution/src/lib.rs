@@ -38,7 +38,6 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{
 	rand,
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
-	TimeoutExt,
 };
 
 use futures::{channel::mpsc, prelude::*};
@@ -104,6 +103,9 @@ enum MuxedMessage {
 	Responder(Option<vstaging::ResponderMessage>),
 	/// Messages from answered requests.
 	Response(vstaging::UnhandledResponse),
+	/// Message that a request is ready to be retried. This just acts as a signal that we should
+	/// dispatch all pending requests again.
+	RetryRequest(()),
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
@@ -121,13 +123,15 @@ impl MuxedMessage {
 		let from_v1_requester = from_v1_requester.next();
 		let from_v1_responder = from_v1_responder.next();
 		let from_responder = from_responder.next();
-		let receive_response = vstaging::receive_response(state).fuse();
+		let receive_response = vstaging::receive_response(&mut state.response_manager).fuse();
+		let retry_request = vstaging::wait_next_retry(&mut state.request_manager).fuse();
 		futures::pin_mut!(
 			from_orchestra,
 			from_v1_requester,
 			from_v1_responder,
 			from_responder,
 			receive_response,
+			retry_request,
 		);
 		futures::select! {
 			msg = from_orchestra => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
@@ -135,6 +139,7 @@ impl MuxedMessage {
 			msg = from_v1_responder => MuxedMessage::V1Responder(msg),
 			msg = from_responder => MuxedMessage::Responder(msg),
 			msg = receive_response => MuxedMessage::Response(msg),
+			msg = retry_request => MuxedMessage::RetryRequest(msg),
 		}
 	}
 }
@@ -191,9 +196,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		.map_err(FatalError::SpawnTask)?;
 
 		loop {
-			// Wait for the next message. Don't wait longer than `REQUEST_RETRY_DELAY`, to give us a
-			// chance to dispatch any requests that are on cooldown. A request may end up waiting
-			// longer than this delay, but it is not necessary to dispatch them promptly.
+			// Wait for the next message.
 			let message = MuxedMessage::receive(
 				&mut ctx,
 				&mut state,
@@ -201,11 +204,10 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				&mut v1_res_receiver,
 				&mut res_receiver,
 			)
-			.timeout(vstaging::REQUEST_RETRY_DELAY)
 			.await;
 
 			match message {
-				Some(MuxedMessage::Subsystem(result)) => {
+				MuxedMessage::Subsystem(result) => {
 					let result = self
 						.handle_subsystem_message(
 							&mut ctx,
@@ -221,7 +223,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 						Err(jfyi) => gum::debug!(target: LOG_TARGET, error = ?jfyi),
 					}
 				},
-				Some(MuxedMessage::V1Requester(result)) => {
+				MuxedMessage::V1Requester(result) => {
 					let result = crate::legacy_v1::handle_requester_message(
 						&mut ctx,
 						&mut legacy_v1_state,
@@ -233,7 +235,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					.await;
 					log_error(result.map_err(From::from), "handle_requester_message")?;
 				},
-				Some(MuxedMessage::V1Responder(result)) => {
+				MuxedMessage::V1Responder(result) => {
 					let result = crate::legacy_v1::handle_responder_message(
 						&mut legacy_v1_state,
 						result.ok_or(FatalError::ResponderReceiverFinished)?,
@@ -241,16 +243,20 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 					.await;
 					log_error(result.map_err(From::from), "handle_responder_message")?;
 				},
-				Some(MuxedMessage::Responder(result)) => {
+				MuxedMessage::Responder(result) => {
 					vstaging::answer_request(
 						&mut state,
 						result.ok_or(FatalError::RequesterReceiverFinished)?,
 					);
 				},
-				Some(MuxedMessage::Response(result)) => {
+				MuxedMessage::Response(result) => {
 					vstaging::handle_response(&mut ctx, &mut state, result).await;
 				},
-				None => (),
+				MuxedMessage::RetryRequest(()) => {
+					// A pending request is ready to retry. This is only a signal to call
+					// `dispatch_requests` again.
+					()
+				},
 			};
 
 			vstaging::dispatch_requests(&mut ctx, &mut state).await;

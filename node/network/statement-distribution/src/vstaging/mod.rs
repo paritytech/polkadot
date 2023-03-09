@@ -63,7 +63,7 @@ use std::{
 		hash_map::{Entry, HashMap},
 		HashSet,
 	},
-	time::Duration,
+	time::{Duration, Instant},
 };
 
 use crate::{
@@ -206,8 +206,8 @@ pub(crate) struct State {
 	peers: HashMap<PeerId, PeerState>,
 	keystore: SyncCryptoStorePtr,
 	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
-	request_manager: RequestManager,
-	response_manager: ResponseManager,
+	pub request_manager: RequestManager,
+	pub response_manager: ResponseManager,
 }
 
 impl State {
@@ -2403,9 +2403,20 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 /// Wait on the next incoming response. If there are no requests pending, this
 /// future never resolves. It is the responsibility of the user of this API
 /// to interrupt the future.
-pub(crate) async fn receive_response(state: &mut State) -> UnhandledResponse {
-	match state.response_manager.incoming().await {
+pub(crate) async fn receive_response(response_manager: &mut ResponseManager) -> UnhandledResponse {
+	match response_manager.incoming().await {
 		Some(r) => r,
+		None => futures::future::pending().await,
+	}
+}
+
+/// Wait on the next soonest retry on a pending request. If there are no retries pending, this
+/// future never resolves. Note that this only signals that a request is ready to retry; the user of
+/// this API must call `dispatch_requests`.
+pub(crate) async fn wait_next_retry(request_manager: &mut RequestManager) {
+	match request_manager.next_retry() {
+		Some(instant) =>
+			futures_timer::Delay::new(instant.saturating_duration_since(Instant::now())).await,
 		None => futures::future::pending().await,
 	}
 }
