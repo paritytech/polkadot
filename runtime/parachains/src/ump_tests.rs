@@ -16,7 +16,7 @@
 
 use crate::{
 	inclusion::{
-		tests::run_to_block_default_notifications as run_to_block, AggregateMessageOrigin::UMP,
+		tests::run_to_block_default_notifications as run_to_block, AggregateMessageOrigin::Ump,
 		UmpAcceptanceCheckErr,
 	},
 	mock::{
@@ -378,7 +378,7 @@ fn service_overweight_unknown() {
 		assert_noop!(
 			<MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::MAX,
-				(UMP(0u32.into()), 0, 0)
+				(Ump(0u32.into()), 0, 0)
 			),
 			ExecuteOverweightError::NotFound,
 		);
@@ -412,21 +412,21 @@ fn overweight_queue_works() {
 			[
 				pallet_message_queue::Event::<Test>::Processed {
 					hash: hash_1.clone(),
-					origin: UMP(para_a),
+					origin: Ump(para_a),
 					weight_used: Weight::from_parts(301, 301),
 					success: true,
 				}
 				.into(),
 				pallet_message_queue::Event::<Test>::OverweightEnqueued {
 					hash: hash_2.clone(),
-					origin: UMP(para_a),
+					origin: Ump(para_a),
 					page_index: 0,
 					message_index: 1,
 				}
 				.into(),
 				pallet_message_queue::Event::<Test>::OverweightEnqueued {
 					hash: hash_3.clone(),
-					origin: UMP(para_a),
+					origin: Ump(para_a),
 					page_index: 0,
 					message_index: 2,
 				}
@@ -441,7 +441,7 @@ fn overweight_queue_works() {
 		assert_noop!(
 			<MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::from_parts(500, 500),
-				(UMP(para_a), 0, 2)
+				(Ump(para_a), 0, 2)
 			),
 			ExecuteOverweightError::InsufficientWeight,
 		);
@@ -449,12 +449,12 @@ fn overweight_queue_works() {
 		// ... and if we try to service it with just enough weight it will succeed as well.
 		assert_ok!(<MessageQueue as ServiceQueues>::execute_overweight(
 			Weight::from_parts(501, 501),
-			(UMP(para_a), 0, 2)
+			(Ump(para_a), 0, 2)
 		));
 		assert_last_event(
 			pallet_message_queue::Event::<Test>::Processed {
 				hash: hash_3,
-				origin: UMP(para_a),
+				origin: Ump(para_a),
 				weight_used: Weight::from_parts(501, 501),
 				success: true,
 			}
@@ -466,7 +466,7 @@ fn overweight_queue_works() {
 		assert_noop!(
 			<MessageQueue as ServiceQueues>::execute_overweight(
 				Weight::from_parts(501, 501),
-				(UMP(para_a), 0, 2)
+				(Ump(para_a), 0, 2)
 			),
 			ExecuteOverweightError::NotFound,
 		);

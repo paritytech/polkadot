@@ -1985,7 +1985,7 @@ fn session_change_wipes() {
 /// Assert that the encoding of a known `AggregateMessageOrigin` did not change.
 #[test]
 fn aggregate_origin_decode_regression_check() {
-	let ump = AggregateMessageOrigin::UMP(u32::MAX.into());
+	let ump = AggregateMessageOrigin::Ump(u32::MAX.into());
 	let raw = hex!("00ffffffff");
 	let decoded = AggregateMessageOrigin::decode_all(&mut &raw[..]);
 	assert_eq!(decoded, Ok(ump), "Migration needed for AggregateMessageOrigin");

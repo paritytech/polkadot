@@ -951,7 +951,7 @@ impl ProcessMessage for MessageProcessor {
 		meter: &mut WeightMeter,
 	) -> Result<bool, ProcessMessageError> {
 		let para = match origin {
-			AggregateMessageOrigin::UMP(para) => para,
+			AggregateMessageOrigin::Ump(para) => para,
 		};
 		xcm_builder::ProcessXcmMessage::<
 			Junction,

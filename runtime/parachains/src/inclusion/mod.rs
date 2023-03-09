@@ -240,7 +240,7 @@ pub enum AggregateMessageOrigin {
 impl From<u32> for AggregateMessageOrigin {
 	fn from(n: u32) -> Self {
 		// Some dummy for the benchmarks.
-		Self::UMP(n.into())
+		Self::Ump(n.into())
 	}
 }
 
@@ -473,7 +473,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	pub(crate) fn cleanup_outgoing_dmp_dispatch_queue(para: ParaId) {
-		T::MessageQueue::sweep_queue(AggregateMessageOrigin::UMP(para));
+		T::MessageQueue::sweep_queue(AggregateMessageOrigin::Ump(para));
 	}
 
 	/// Extract the freed cores based on cores that became available.
@@ -971,7 +971,7 @@ impl<T: Config> Pallet<T> {
 			})
 		}
 
-		let fp = T::MessageQueue::footprint(AggregateMessageOrigin::UMP(para));
+		let fp = T::MessageQueue::footprint(AggregateMessageOrigin::Ump(para));
 		let (para_queue_count, mut para_queue_size) = (fp.count, fp.size);
 
 		if para_queue_count
@@ -1032,7 +1032,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
-		T::MessageQueue::enqueue_messages(messages.into_iter(), AggregateMessageOrigin::UMP(para));
+		T::MessageQueue::enqueue_messages(messages.into_iter(), AggregateMessageOrigin::Ump(para));
 		<T as Config>::WeightInfo::receive_upward_messages(count)
 	}
 
@@ -1170,7 +1170,7 @@ impl<T: Config> OnQueueChanged<AggregateMessageOrigin> for Pallet<T> {
 	// Write back the remaining queue capacity into `relay_dispatch_queue_remaining_capacity`.
 	fn on_queue_changed(origin: AggregateMessageOrigin, count: u64, size: u64) {
 		let para = match origin {
-			AggregateMessageOrigin::UMP(p) => p,
+			AggregateMessageOrigin::Ump(p) => p,
 		};
 		// TODO maybe migrate this to u64
 		let (count, size) = (count.saturated_into(), size.saturated_into());
@@ -1325,6 +1325,6 @@ impl<T: Config> CandidateCheckContext<T> {
 
 impl<T: Config> UmpQueueTracker for Pallet<T> {
 	fn message_count(para: ParaId) -> u64 {
-		T::MessageQueue::footprint(AggregateMessageOrigin::UMP(para)).count
+		T::MessageQueue::footprint(AggregateMessageOrigin::Ump(para)).count
 	}
 }

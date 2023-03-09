@@ -438,7 +438,7 @@ impl ProcessMessage for TestProcessMessage {
 		meter: &mut WeightMeter,
 	) -> Result<bool, ProcessMessageError> {
 		let origin = match origin {
-			AggregateMessageOrigin::UMP(o) => o,
+			AggregateMessageOrigin::Ump(o) => o,
 		};
 
 		let required = match u32::decode(&mut &message[..]) {
