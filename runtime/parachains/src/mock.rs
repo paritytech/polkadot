@@ -31,6 +31,9 @@ use frame_support::{
 		ValidatorSetWithIdentification,
 	},
 	weights::{Weight, WeightMeter},
+	parameter_types,
+	traits::{GenesisBuild, ValidatorSet, ValidatorSetWithIdentification},
+	weights::Weight,
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
@@ -43,7 +46,7 @@ use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	KeyTypeId, Permill,
+	Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -162,6 +165,10 @@ impl pallet_babe::Config for Test {
 	type HandleEquivocation = ();
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
+
+	type KeyOwnerProof = sp_core::Void;
+
+	type EquivocationReportSystem = ();
 }
 
 parameter_types! {
