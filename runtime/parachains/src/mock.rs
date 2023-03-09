@@ -27,13 +27,10 @@ use crate::{
 use frame_support::{
 	assert_ok, parameter_types,
 	traits::{
-		GenesisBuild, KeyOwnerProofSystem, ProcessMessage, ProcessMessageError, ValidatorSet,
+		GenesisBuild, ProcessMessage, ProcessMessageError, ValidatorSet,
 		ValidatorSetWithIdentification,
 	},
 	weights::{Weight, WeightMeter},
-	parameter_types,
-	traits::{GenesisBuild, ValidatorSet, ValidatorSetWithIdentification},
-	weights::Weight,
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
@@ -153,21 +150,9 @@ impl pallet_babe::Config for Test {
 	// session module is the trigger
 	type EpochChangeTrigger = pallet_babe::ExternalTrigger;
 	type DisabledValidators = ();
-	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::Proof;
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::IdentificationTuple;
-	type KeyOwnerProofSystem = ();
-	type HandleEquivocation = ();
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
-
 	type KeyOwnerProof = sp_core::Void;
-
 	type EquivocationReportSystem = ();
 }
 
