@@ -20,7 +20,9 @@
 //! Within that context, things are plain-old-data. Within this module,
 //! data and logic are intertwined.
 
-use polkadot_node_primitives::approval::{AssignmentCertV2, DelayTranche, RelayVRFStory};
+use polkadot_node_primitives::approval::{
+	v2::AssignmentBitfield, AssignmentCertV2, DelayTranche, RelayVRFStory,
+};
 use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
 	ValidatorIndex, ValidatorSignature,
@@ -107,7 +109,7 @@ impl ApprovalEntry {
 	pub fn trigger_our_assignment(
 		&mut self,
 		tick_now: Tick,
-	) -> Option<(Vec<CoreIndex>, AssignmentCertV2, ValidatorIndex, DelayTranche)> {
+	) -> Option<(AssignmentBitfield, AssignmentCertV2, ValidatorIndex, DelayTranche)> {
 		let our = self.our_assignment.as_mut().and_then(|a| {
 			if a.triggered() {
 				return None
@@ -120,7 +122,7 @@ impl ApprovalEntry {
 		our.map(|a| {
 			self.import_assignment(a.tranche(), a.validator_index(), tick_now);
 
-			(a.claimed_core_indices().clone(), a.cert().clone(), a.validator_index(), a.tranche())
+			(a.assignment_bitfield().clone(), a.cert().clone(), a.validator_index(), a.tranche())
 		})
 	}
 

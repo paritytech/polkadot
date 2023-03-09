@@ -18,8 +18,8 @@
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
-	self as approval_types, AssignmentCert, AssignmentCertKind, AssignmentCertKindV2,
-	AssignmentCertV2, DelayTranche, RelayVRFStory,
+	self as approval_types, v2::AssignmentBitfield, AssignmentCert, AssignmentCertKind,
+	AssignmentCertKindV2, AssignmentCertV2, DelayTranche, RelayVRFStory,
 };
 use polkadot_primitives::{
 	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, IndexedVec, SessionInfo,
@@ -45,8 +45,7 @@ pub struct OurAssignment {
 	// Whether the assignment has been triggered already.
 	triggered: bool,
 	// The core indices obtained from the VRF output.
-	// TODO: make it a bitfield.
-	claimed_core_indices: Vec<CoreIndex>,
+	assignment_bitfield: AssignmentBitfield,
 }
 
 impl OurAssignment {
@@ -70,8 +69,8 @@ impl OurAssignment {
 		self.triggered = true;
 	}
 
-	pub(crate) fn claimed_core_indices(&self) -> &Vec<CoreIndex> {
-		&self.claimed_core_indices
+	pub(crate) fn assignment_bitfield(&self) -> &AssignmentBitfield {
+		&self.assignment_bitfield
 	}
 }
 
@@ -82,7 +81,7 @@ impl From<crate::approval_db::v1::OurAssignment> for OurAssignment {
 			tranche: entry.tranche,
 			validator_index: entry.validator_index,
 			triggered: entry.triggered,
-			claimed_core_indices: entry.claimed_core_indices,
+			assignment_bitfield: entry.assignment_bitfield,
 		}
 	}
 }
@@ -94,7 +93,7 @@ impl From<OurAssignment> for crate::approval_db::v1::OurAssignment {
 			tranche: entry.tranche,
 			validator_index: entry.validator_index,
 			triggered: entry.triggered,
-			claimed_core_indices: entry.claimed_core_indices,
+			assignment_bitfield: entry.assignment_bitfield,
 		}
 	}
 }
@@ -264,7 +263,7 @@ pub(crate) trait AssignmentCriteria {
 		// Backing groups for each "leaving core".
 		backing_groups: Vec<GroupIndex>,
 		// TODO: maybe define record or something else than tuple
-	) -> Result<(Vec<CoreIndex>, DelayTranche), InvalidAssignment>;
+	) -> Result<(AssignmentBitfield, DelayTranche), InvalidAssignment>;
 }
 
 pub(crate) struct RealAssignmentCriteria;
@@ -288,7 +287,7 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 		relay_vrf_story: RelayVRFStory,
 		assignment: &AssignmentCertV2,
 		backing_groups: Vec<GroupIndex>,
-	) -> Result<(Vec<CoreIndex>, DelayTranche), InvalidAssignment> {
+	) -> Result<(AssignmentBitfield, DelayTranche), InvalidAssignment> {
 		check_assignment_cert(
 			claimed_core_index,
 			validator_index,
@@ -462,7 +461,7 @@ fn compute_relay_vrf_modulo_assignments(
 				tranche: 0,
 				validator_index,
 				triggered: false,
-				claimed_core_indices: vec![core],
+				assignment_bitfield: core.into(),
 			});
 		}
 	}
@@ -525,7 +524,10 @@ fn compute_relay_vrf_modulo_assignments_v2(
 			tranche: 0,
 			validator_index,
 			triggered: false,
-			claimed_core_indices: assigned_cores.clone(),
+			assignment_bitfield: assigned_cores
+				.clone()
+				.try_into()
+				.expect("Just checked `!assigned_cores.is_empty()`; qed"),
 		}
 	}) {
 		for core_index in assigned_cores {
@@ -565,7 +567,7 @@ fn compute_relay_vrf_delay_assignments(
 			tranche,
 			validator_index,
 			triggered: false,
-			claimed_core_indices: vec![core],
+			assignment_bitfield: core.into(),
 		};
 
 		let used = match assignments.entry(core) {
@@ -645,7 +647,7 @@ pub(crate) fn check_assignment_cert(
 	relay_vrf_story: RelayVRFStory,
 	assignment: &AssignmentCertV2,
 	backing_groups: Vec<GroupIndex>,
-) -> Result<(Vec<CoreIndex>, DelayTranche), InvalidAssignment> {
+) -> Result<(AssignmentBitfield, DelayTranche), InvalidAssignment> {
 	use InvalidAssignmentReason as Reason;
 
 	let validator_public = config
@@ -705,11 +707,9 @@ pub(crate) fn check_assignment_cert(
 				})
 				.collect::<Vec<_>>();
 
-			if resulting_cores.is_empty() {
-				Err(InvalidAssignment(Reason::NullAssignment))
-			} else {
-				Ok((resulting_cores, 0))
-			}
+			AssignmentBitfield::try_from(resulting_cores)
+				.map(|bitfield| (bitfield, 0))
+				.map_err(|_| InvalidAssignment(Reason::NullAssignment))
 		},
 		AssignmentCertKindV2::RelayVRFModulo { sample } => {
 			if *sample >= config.relay_vrf_modulo_samples {
@@ -732,7 +732,7 @@ pub(crate) fn check_assignment_cert(
 			let core = relay_vrf_modulo_core(&vrf_in_out, config.n_cores);
 			// ensure that the `vrf_in_out` actually gives us the claimed core.
 			if core == claimed_core_index {
-				Ok((vec![core], 0))
+				Ok((core.into(), 0))
 			} else {
 				gum::debug!(
 					target: LOG_TARGET,
@@ -761,7 +761,7 @@ pub(crate) fn check_assignment_cert(
 				.map_err(|_| InvalidAssignment(Reason::VRFDelayOutputMismatch))?;
 
 			Ok((
-				vec![*core_index],
+				(*core_index).into(),
 				relay_vrf_delay_tranche(
 					&vrf_in_out,
 					config.n_delay_tranches,

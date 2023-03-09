@@ -51,9 +51,9 @@ use polkadot_node_subsystem_util::{
 	TimeoutExt,
 };
 use polkadot_primitives::{
-	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, CoreIndex,
-	DisputeStatement, GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind,
-	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
+	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
+	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
+	ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -743,7 +743,7 @@ enum Action {
 		tick: Tick,
 	},
 	LaunchApproval {
-		claimed_core_indices: Vec<CoreIndex>,
+		claimed_core_indices: AssignmentBitfield,
 		candidate_hash: CandidateHash,
 		indirect_cert: IndirectAssignmentCertV2,
 		assignment_tranche: DelayTranche,
@@ -1066,17 +1066,17 @@ async fn handle_actions<Context>(
 
 // TODO: Impl CandidateBitfield to wrap BitVec and implement invariants
 fn cores_to_candidate_indices(
-	core_indices: &Vec<CoreIndex>,
+	core_indices: &AssignmentBitfield,
 	block_entry: &BlockEntry,
 ) -> Result<AssignmentBitfield, AssignmentBitfieldError> {
 	let mut candidate_indices = Vec::new();
 
 	// Map from core index to candidate index.
-	for claimed_core_index in core_indices {
+	for claimed_core_index in core_indices.iter_ones() {
 		if let Some(candidate_index) = block_entry
 			.candidates()
 			.iter()
-			.position(|(core_index, _)| core_index == claimed_core_index)
+			.position(|(core_index, _)| core_index.0 == claimed_core_index as u32)
 		{
 			candidate_indices.push(candidate_index as CandidateIndex);
 		}
@@ -1134,7 +1134,7 @@ fn distribution_messages_for_activation(
 						(None, None) | (None, Some(_)) => {}, // second is impossible case.
 						(Some(assignment), None) => {
 							match cores_to_candidate_indices(
-								assignment.claimed_core_indices(),
+								assignment.assignment_bitfield(),
 								&block_entry,
 							) {
 								Ok(bitfield) => messages.push(
@@ -1161,7 +1161,7 @@ fn distribution_messages_for_activation(
 						},
 						(Some(assignment), Some(approval_sig)) => {
 							match cores_to_candidate_indices(
-								assignment.claimed_core_indices(),
+								assignment.assignment_bitfield(),
 								&block_entry,
 							) {
 								Ok(bitfield) => messages.push(
