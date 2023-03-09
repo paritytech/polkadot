@@ -217,7 +217,6 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total cores.
 	/// This is efficient in the case that most scheduled cores are occupied.
-	///
 	pub(crate) fn occupied(now_occupied: Vec<(CoreIndex, ParaId)>) {
 		if now_occupied.is_empty() {
 			return
@@ -346,10 +345,11 @@ impl<T: Config> Pallet<T> {
 	/// Return the next thing that will be scheduled on this core assuming it is currently
 	/// occupied and the candidate occupying it became available.
 	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
-		ClaimQueue::<T>::get()
-			.get(&core)
-			.and_then(|a| a.first().map(Self::assignment_to_scheduled_core))
-			.flatten()
+		ClaimQueue::<T>::get().get(&core).and_then(|a| {
+			a.iter()
+				.position(|e| e.is_some())
+				.and_then(|pos| Self::assignment_to_scheduled_core(&a[pos]))
+		})
 	}
 
 	fn assignment_to_scheduled_core(ca: &Option<CoreAssignment>) -> Option<ScheduledCore> {
@@ -408,7 +408,7 @@ impl<T: Config> Pallet<T> {
 	fn clear_claimqueue() {
 		let mut cq = ClaimQueue::<T>::get();
 		for (_, vec) in cq.iter_mut() {
-			vec.retain(|e| *e != None);
+			vec.retain(|e| e.is_some());
 		}
 
 		ClaimQueue::<T>::set(cq);
@@ -495,5 +495,15 @@ impl<T: Config> Pallet<T> {
 	#[cfg(test)]
 	pub(crate) fn claimqueue_is_empty() -> bool {
 		Self::claimqueue_sizes().iter().sum::<usize>() == 0
+	}
+
+	#[cfg(test)]
+	pub(crate) fn claimqueue_contains_only_none() -> bool {
+		let mut cq = ClaimQueue::<T>::get();
+		for (_, v) in cq.iter_mut() {
+			v.retain(|e| e.is_some());
+		}
+
+		cq.iter().map(|(_, v)| v.len()).sum::<usize>() == 0
 	}
 }
