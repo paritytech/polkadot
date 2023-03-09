@@ -388,7 +388,7 @@ impl Initialized {
 							key_ownership_proofs.push(key_ownership_proof);
 							let time_slot = vstaging::slashing::DisputesTimeSlot::new(
 								session_index,
-								candidate_hash.clone(),
+								candidate_hash,
 							);
 							let dispute_proof = vstaging::slashing::DisputeProof {
 								time_slot,
