@@ -748,7 +748,6 @@ enum Action {
 		indirect_cert: IndirectAssignmentCertV2,
 		assignment_tranche: DelayTranche,
 		relay_block_hash: Hash,
-		// candidate_index: CandidateIndex,
 		session: SessionIndex,
 		candidate: CandidateReceipt,
 		backing_group: GroupIndex,
@@ -1064,7 +1063,6 @@ async fn handle_actions<Context>(
 	Ok(conclude)
 }
 
-// TODO: Impl CandidateBitfield to wrap BitVec and implement invariants
 fn cores_to_candidate_indices(
 	core_indices: &AssignmentBitfield,
 	block_entry: &BlockEntry,
