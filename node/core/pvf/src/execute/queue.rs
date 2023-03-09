@@ -30,7 +30,6 @@ use futures::{
 	stream::{FuturesUnordered, StreamExt as _},
 	Future, FutureExt,
 };
-use polkadot_node_primitives::BACKING_EXECUTION_TIMEOUT;
 use polkadot_primitives::vstaging::{ExecutorParams, ExecutorParamsHash};
 use slotmap::HopSlotMap;
 use std::{
@@ -45,8 +44,7 @@ use std::{
 /// re-spawn a new worker to execute the job immediately.
 /// To make any sense and not to break things, the value should be greater than minimal execution
 /// timeout in use, and less than the block time.
-const MAX_KEEP_WAITING: Duration =
-	Duration::from_millis(BACKING_EXECUTION_TIMEOUT.as_millis() as u64 * 2);
+const MAX_KEEP_WAITING: Duration = Duration::from_secs(4);
 
 slotmap::new_key_type! { struct Worker; }
 
@@ -54,7 +52,7 @@ slotmap::new_key_type! { struct Worker; }
 pub enum ToQueue {
 	Enqueue {
 		artifact: ArtifactPathId,
-		execution_timeout: Duration,
+		exec_timeout: Duration,
 		params: Vec<u8>,
 		executor_params: ExecutorParams,
 		result_tx: ResultSender,
@@ -63,7 +61,7 @@ pub enum ToQueue {
 
 struct ExecuteJob {
 	artifact: ArtifactPathId,
-	execution_timeout: Duration,
+	exec_timeout: Duration,
 	params: Vec<u8>,
 	executor_params: ExecutorParams,
 	result_tx: ResultSender,
@@ -261,8 +259,7 @@ async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
 }
 
 fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
-	let ToQueue::Enqueue { artifact, execution_timeout, params, executor_params, result_tx } =
-		to_queue;
+	let ToQueue::Enqueue { artifact, exec_timeout, params, executor_params, result_tx } = to_queue;
 	gum::debug!(
 		target: LOG_TARGET,
 		validation_code_hash = ?artifact.id.code_hash,
@@ -271,7 +268,7 @@ fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
 	queue.metrics.execute_enqueued();
 	let job = ExecuteJob {
 		artifact,
-		execution_timeout,
+		exec_timeout,
 		params,
 		executor_params,
 		result_tx,
@@ -457,13 +454,9 @@ fn assign(queue: &mut Queue, worker: Worker, job: ExecuteJob) {
 	queue.mux.push(
 		async move {
 			let _timer = execution_timer;
-			let outcome = super::worker::start_work(
-				idle,
-				job.artifact.clone(),
-				job.execution_timeout,
-				job.params,
-			)
-			.await;
+			let outcome =
+				super::worker::start_work(idle, job.artifact.clone(), job.exec_timeout, job.params)
+					.await;
 			QueueEvent::StartWork(worker, outcome, job.artifact.id, job.result_tx)
 		}
 		.boxed(),
