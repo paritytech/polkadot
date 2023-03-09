@@ -32,8 +32,8 @@ use runtime_common::{
 	xcm_sender::{ChildParachainRouter, PriceForParachainDelivery},
 	ToAuthor,
 };
+use sp_arithmetic::{traits::Saturating, FixedPointNumber, FixedU128};
 use sp_core::ConstU32;
-use sp_runtime::{traits::Saturating, Percent};
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
@@ -112,10 +112,11 @@ parameter_types! {
 pub struct ExponentialKsmPrice;
 impl PriceForParachainDelivery for ExponentialKsmPrice {
 	fn price_for_parachain_delivery(para: ParaId, _: &Xcm<()>) -> MultiAssets {
-		let factor = Percent::from_percent(101).saturating_pow(Dmp::dmq_length(para) as usize);
+		let factor =
+			FixedU128::from_rational(101, 100).saturating_pow(Dmp::dmq_length(para) as usize);
 		let base = CENTS.saturating_mul(3);
 
-		let amount = factor * base;
+		let amount = factor.saturating_mul_int(base);
 		(Here, amount).into()
 	}
 }
