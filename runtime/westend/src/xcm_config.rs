@@ -31,7 +31,6 @@ use runtime_common::{
 };
 use sp_arithmetic::{traits::Saturating, FixedPointNumber, FixedU128};
 use sp_core::ConstU32;
-use sp_runtime::{traits::Saturating, Percent};
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
