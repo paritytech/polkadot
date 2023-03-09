@@ -1,0 +1,8 @@
+⚡ Found 3 strongly connected components which includes at least one cycle each
+cycle(001) ∈ α: ApprovalVoting ~~{"ApprovalDistributionMessage"}~~> ApprovalDistribution ~~{"ApprovalVotingMessage"}~~>  *
+cycle(002) ∈ β: CandidateBacking ~~{"StatementDistributionMessage"}~~> StatementDistribution ~~{"CandidateBackingMessage"}~~>  *
+cycle(003) ∈ γ: NetworkBridgeRx ~~{"GossipSupportMessage"}~~> GossipSupport ~~{"NetworkBridgeRxMessage"}~~>  *
+   Compiling polkadot-runtime-parachains v0.9.37 (/home/parity/code/polkadot/runtime/parachains)
+   Compiling polkadot-runtime v0.9.37 (/home/parity/code/polkadot/runtime/polkadot)
+   Compiling rococo-runtime v0.9.37 (/home/parity/code/polkadot/runtime/rococo)
+   Compiling polkadot-test-runtime v0.9.37 (/home/parity/code/polkadot/runtime/test-runtime)
