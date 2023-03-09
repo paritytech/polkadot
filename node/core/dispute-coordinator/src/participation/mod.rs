@@ -160,8 +160,6 @@ impl Participation {
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
 	) -> Result<()> {
-		let request_timer = self.metrics.time_participation_pipeline();
-
 		// Participation already running - we can ignore that request:
 		if self.running_participations.contains(req.candidate_hash()) {
 			return Ok(())
@@ -169,12 +167,12 @@ impl Participation {
 		// Available capacity - participate right away (if we already have a recent block):
 		if let Some((_, h)) = self.recent_block {
 			if self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
-				self.fork_participation(ctx, req, h, request_timer)?;
+				self.fork_participation(ctx, req, h)?;
 				return Ok(())
 			}
 		}
 		// Out of capacity/no recent block yet - queue:
-		self.queue.queue(ctx.sender(), priority, req, request_timer).await
+		self.queue.queue(ctx.sender(), priority, req).await
 	}
 
 	/// Message from a worker task was received - get the outcome.
@@ -243,9 +241,9 @@ impl Participation {
 		recent_head: Hash,
 	) -> FatalResult<()> {
 		while self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
-			let (maybe_req, maybe_timer) = self.queue.dequeue();
+			let maybe_req = self.queue.dequeue();
 			if let Some(req) = maybe_req {
-				self.fork_participation(ctx, req, recent_head, maybe_timer)?;
+				self.fork_participation(ctx, req, recent_head)?;
 			} else {
 				break
 			}
@@ -259,7 +257,6 @@ impl Participation {
 		ctx: &mut Context,
 		req: ParticipationRequest,
 		recent_head: Hash,
-		request_timer: Option<prometheus::HistogramTimer>,
 	) -> FatalResult<()> {
 		let participation_timer = self.metrics.time_participation();
 		if self.running_participations.insert(*req.candidate_hash()) {
@@ -271,7 +268,6 @@ impl Participation {
 					sender,
 					recent_head,
 					req,
-					request_timer,
 					participation_timer,
 				)
 				.boxed(),
@@ -286,8 +282,7 @@ async fn participate(
 	mut result_sender: WorkerMessageSender,
 	mut sender: impl overseer::DisputeCoordinatorSenderTrait,
 	block_hash: Hash,
-	req: ParticipationRequest,
-	_request_timer: Option<prometheus::HistogramTimer>, // Sends metric data when dropped
+	req: ParticipationRequest, // Sends metric data via request_timer field when dropped
 	_participation_timer: Option<prometheus::HistogramTimer>, // Sends metric data when dropped
 ) {
 	#[cfg(test)]

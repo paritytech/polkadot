@@ -72,7 +72,8 @@ async fn participate_with_commitments_hash<Context>(
 	};
 	let session = 1;
 
-	let req = ParticipationRequest::new(candidate_receipt, session);
+	let request_timer = Arc::new(participation.metrics.time_participation_pipeline());
+	let req = ParticipationRequest::new(candidate_receipt, session, request_timer);
 
 	participation
 		.queue_participation(ctx, ParticipationPriority::BestEffort, req)

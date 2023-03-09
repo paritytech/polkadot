@@ -916,12 +916,13 @@ impl Initialized {
 			} else {
 				self.metrics.on_queued_best_effort_participation();
 			}
+			let request_timer = Arc::new(self.metrics.time_participation_pipeline());
 			let r = self
 				.participation
 				.queue_participation(
 					ctx,
 					priority,
-					ParticipationRequest::new(new_state.candidate_receipt().clone(), session),
+					ParticipationRequest::new(new_state.candidate_receipt().clone(), session, request_timer),
 				)
 				.await;
 			log_error(r)?;

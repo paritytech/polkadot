@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{cmp::Ordering, collections::BTreeMap};
+use std::{cmp::Ordering, collections::BTreeMap, sync::Arc};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::ChainApiMessage, overseer};
@@ -60,21 +60,17 @@ pub struct Queues {
 	/// Priority queue.
 	priority: BTreeMap<CandidateComparator, ParticipationRequest>,
 
-	/// Timer handle for each participation request. Stored to measure full request
-	/// completion time. Optimally these would have been stored in the participation
-	/// request itself, but HistogramTimer doesn't implement the Clone trait.
-	request_timers: BTreeMap<CandidateComparator, Option<prometheus::HistogramTimer>>,
-
 	/// Handle for recording queues data in metrics
 	metrics: Metrics,
 }
 
 /// A dispute participation request that can be queued.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone)]
 pub struct ParticipationRequest {
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
+	_request_timer: Arc<Option<prometheus::HistogramTimer>> // Sends metric data when request is dropped
 }
 
 /// Whether a `ParticipationRequest` should be put on best-effort or the priority queue.
@@ -118,8 +114,8 @@ pub enum QueueError {
 
 impl ParticipationRequest {
 	/// Create a new `ParticipationRequest` to be queued.
-	pub fn new(candidate_receipt: CandidateReceipt, session: SessionIndex) -> Self {
-		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session }
+	pub fn new(candidate_receipt: CandidateReceipt, session: SessionIndex, request_timer: Arc<Option<prometheus::HistogramTimer>>) -> Self {
+		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session, _request_timer: request_timer }
 	}
 
 	pub fn candidate_receipt(&'_ self) -> &'_ CandidateReceipt {
@@ -135,6 +131,20 @@ impl ParticipationRequest {
 		let Self { candidate_hash, candidate_receipt, .. } = self;
 		(candidate_hash, candidate_receipt)
 	}
+	// For tests we want to check whether requests are equal, but the
+	// request_timer field of ParticipationRequest doesn't implement 
+	// eq. This helper checks whether all other fields are equal,
+	// which is sufficient.
+	#[cfg(test)]
+	pub fn functionally_equal(&self, other: ParticipationRequest) -> bool {
+		if  &self.candidate_receipt == other.candidate_receipt() &&
+			&self.candidate_hash == other.candidate_hash() &&
+			self.session == other.session()
+		{
+			return true;
+		}
+		false
+	}
 }
 
 impl Queues {
@@ -143,7 +153,6 @@ impl Queues {
 		Self {
 			best_effort: BTreeMap::new(),
 			priority: BTreeMap::new(),
-			request_timers: BTreeMap::new(),
 			metrics,
 		}
 	}
@@ -159,35 +168,27 @@ impl Queues {
 		sender: &mut impl overseer::DisputeCoordinatorSenderTrait,
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
-		timer: Option<prometheus::HistogramTimer>,
 	) -> Result<()> {
 		let comparator = CandidateComparator::new(sender, &req.candidate_receipt).await?;
 
-		self.queue_with_comparator(comparator, priority, req, timer)?;
+		self.queue_with_comparator(comparator, priority, req)?;
 		Ok(())
 	}
 
 	/// Get the next best request for dispute participation if any.
 	/// First the priority queue is considered and then the best effort one.
-	/// We also get the corresponding request timer, if any.
 	pub fn dequeue(
 		&mut self,
-	) -> (Option<ParticipationRequest>, Option<prometheus::HistogramTimer>) {
-		if let Some((comp, req)) = self.pop_priority() {
+	) -> Option<ParticipationRequest> {
+		if let Some(req) = self.pop_priority() {
 			self.metrics.report_priority_queue_size(self.priority.len() as u64);
-			if let Some(maybe_timer) = self.request_timers.remove(&comp) {
-				return (Some(req), maybe_timer)
-			}
-			return (Some(req), None)
+			return Some(req.1)
 		}
-		if let Some((comp, req)) = self.pop_best_effort() {
+		if let Some(req) = self.pop_best_effort() {
 			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
-			if let Some(maybe_timer) = self.request_timers.remove(&comp) {
-				return (Some(req), maybe_timer)
-			}
-			return (Some(req), None)
+			return Some(req.1)
 		}
-		(None, None)
+		None
 	}
 
 	/// Reprioritizes any participation requests pertaining to the
@@ -223,17 +224,13 @@ impl Queues {
 		comparator: CandidateComparator,
 		priority: ParticipationPriority,
 		req: ParticipationRequest,
-		timer: Option<prometheus::HistogramTimer>,
 	) -> std::result::Result<(), QueueError> {
 		if priority.is_priority() {
 			if self.priority.len() >= PRIORITY_QUEUE_SIZE {
 				return Err(QueueError::PriorityFull)
 			}
 			// Remove any best effort entry:
-			if let None = self.best_effort.remove(&comparator) {
-				// Only insert new timer if request wasn't in either queue
-				self.request_timers.insert(comparator, timer);
-			}
+			self.best_effort.remove(&comparator);
 			self.priority.insert(comparator, req);
 			self.metrics.report_priority_queue_size(self.priority.len() as u64);
 			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
@@ -247,7 +244,6 @@ impl Queues {
 				return Err(QueueError::BestEffortFull)
 			}
 			self.best_effort.insert(comparator, req);
-			self.request_timers.insert(comparator, timer);
 			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		}
 		Ok(())
