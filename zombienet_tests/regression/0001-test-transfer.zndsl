@@ -1,4 +1,4 @@
-Description: Deregister / Register Validator Smoke
+Description: Balance transfer regression test
 Network: ./0001-test-transfer.toml
 Creds: config
 
