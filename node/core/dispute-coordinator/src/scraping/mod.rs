@@ -241,7 +241,7 @@ impl ChainScraper {
 
 		let mut scraped_updates = ScrapedUpdates::new();
 		for (block_number, block_hash) in block_numbers.zip(block_hashes) {
-			gum::trace!(?block_number, ?block_hash, "In ancestor processing.");
+			gum::trace!(target: LOG_TARGET, ?block_number, ?block_hash, "In ancestor processing.");
 
 			let receipts_for_block =
 				self.process_candidate_events(sender, block_number, block_hash).await?;

@@ -201,6 +201,7 @@ impl TestNetworkHandle {
 			protocol: self.protocol_names.get_name(peer_set, protocol_version),
 			negotiated_fallback: None,
 			role: role.into(),
+			received_handshake: vec![],
 		})
 		.await;
 	}

@@ -19,8 +19,8 @@
 use crate::{configuration, disputes, dmp, hrmp, initializer, paras, session_info, shared, ump};
 use primitives::{
 	vstaging::{
-		AsyncBackingParameters, Constraints, ExecutorParams, InboundHrmpLimitations,
-		OutboundHrmpChannelLimitations,
+		AsyncBackingParameters, BackingState, CandidatePendingAvailability, Constraints,
+		ExecutorParams, InboundHrmpLimitations, OutboundHrmpChannelLimitations,
 	},
 	CandidateHash, DisputeState, Id as ParaId, SessionIndex,
 };
@@ -47,10 +47,10 @@ pub fn session_executor_params<T: session_info::Config>(
 	}
 }
 
-/// Implementation for `StagingValidityConstraints` function from the runtime API
-pub fn validity_constraints<T: initializer::Config>(
+/// Implementation for `StagingParaBackingState` function from the runtime API
+pub fn backing_state<T: initializer::Config>(
 	para_id: ParaId,
-) -> Option<Constraints<T::BlockNumber>> {
+) -> Option<BackingState<T::Hash, T::BlockNumber>> {
 	let config = <configuration::Pallet<T>>::config();
 	// Async backing is only expected to be enabled with a tracker capacity of 1.
 	// Subsequent configuration update gets applied on new session, which always
@@ -92,7 +92,7 @@ pub fn validity_constraints<T: initializer::Config>(
 		})
 		.collect();
 
-	Some(Constraints {
+	let constraints = Constraints {
 		min_relay_parent_number,
 		max_pov_size: config.max_pov_size,
 		max_code_size: config.max_code_size,
@@ -107,7 +107,33 @@ pub fn validity_constraints<T: initializer::Config>(
 		validation_code_hash,
 		upgrade_restriction,
 		future_validation_code,
-	})
+	};
+
+	let pending_availability = {
+		// Note: the API deals with a `Vec` as it is future-proof for cases
+		// where there may be multiple candidates pending availability at a time.
+		// But at the moment only one candidate can be pending availability per
+		// parachain.
+		crate::inclusion::PendingAvailability::<T>::get(&para_id)
+			.and_then(|pending| {
+				let commitments =
+					crate::inclusion::PendingAvailabilityCommitments::<T>::get(&para_id);
+				commitments.map(move |c| (pending, c))
+			})
+			.map(|(pending, commitments)| {
+				CandidatePendingAvailability {
+					candidate_hash: pending.candidate_hash(),
+					descriptor: pending.candidate_descriptor().clone(),
+					commitments,
+					relay_parent_number: pending.relay_parent_number(),
+					max_pov_size: constraints.max_pov_size, // assume always same in session.
+				}
+			})
+			.into_iter()
+			.collect()
+	};
+
+	Some(BackingState { constraints, pending_availability })
 }
 
 /// Implementation for `StagingAsyncBackingParameters` function from the runtime API

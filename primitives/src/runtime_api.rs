@@ -225,10 +225,10 @@ sp_api::decl_runtime_apis! {
 
 		/***** Asynchronous backing *****/
 
-		/// Returns the base constraints of the given para, if they exist.
+		/// Returns the state of parachain backing for a given para.
 		/// This is a staging method! Do not use on production runtimes!
 		#[api_version(99)]
-		fn staging_validity_constraints(_: ppp::Id) -> Option<vstaging::Constraints>;
+		fn staging_para_backing_state(_: ppp::Id) -> Option<vstaging::BackingState<H, N>>;
 
 		/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
 		#[api_version(99)]

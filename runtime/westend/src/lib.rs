@@ -222,24 +222,15 @@ impl pallet_babe::Config for Runtime {
 
 	type DisabledValidators = Session;
 
-	type KeyOwnerProofSystem = Historical;
-
-	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::IdentificationTuple;
-
-	type HandleEquivocation =
-		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
-
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
+
+	type KeyOwnerProof =
+		<Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
+
+	type EquivocationReportSystem =
+		pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
@@ -579,25 +570,14 @@ parameter_types! {
 impl pallet_grandpa::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 
-	type KeyOwnerProofSystem = Historical;
-
-	type KeyOwnerProof =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		GrandpaId,
-	)>>::IdentificationTuple;
-
-	type HandleEquivocation = pallet_grandpa::EquivocationHandler<
-		Self::KeyOwnerIdentification,
-		Offences,
-		ReportLongevity,
-	>;
-
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
 	type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
+
+	type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+
+	type EquivocationReportSystem =
+		pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
@@ -1097,19 +1077,6 @@ parameter_types! {
 	pub const MigrationMaxKeyLen: u32 = 512;
 }
 
-impl pallet_state_trie_migration::Config for Runtime {
-	type RuntimeEvent = RuntimeEvent;
-	type Currency = Balances;
-	type SignedDepositPerItem = MigrationSignedDepositPerItem;
-	type SignedDepositBase = MigrationSignedDepositBase;
-	type ControlOrigin = EnsureRoot<AccountId>;
-	type SignedFilter = frame_support::traits::NeverEnsureOrigin<AccountId>;
-
-	// Use same weights as substrate ones.
-	type WeightInfo = pallet_state_trie_migration::weights::SubstrateWeight<Runtime>;
-	type MaxKeyLen = MigrationMaxKeyLen;
-}
-
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1178,9 +1145,6 @@ construct_runtime! {
 		// Fast unstake pallet: extension to staking.
 		FastUnstake: pallet_fast_unstake = 30,
 
-		// State trie migration pallet, only temporary.
-		StateTrieMigration: pallet_state_trie_migration = 35,
-
 		// Parachains pallets. Start indices at 40 to leave room.
 		ParachainsOrigin: parachains_origin::{Pallet, Origin} = 41,
 		Configuration: parachains_configuration::{Pallet, Call, Storage, Config<T>} = 42,
@@ -1243,14 +1207,6 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
-	init_state_migration::InitMigrate,
-	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
-	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
-	parachains_ump::migration::v1::MigrateToV1<Runtime>,
-	// Remove stale entries in the set id -> session index storage map (after
-	// this release they will be properly pruned after the bonding duration has
-	// elapsed)
-	pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
 	/* Asynchronous backing mirgration */
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 );
@@ -1488,8 +1444,8 @@ sp_api::impl_runtime_apis! {
 			runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
 		}
 
-		fn staging_validity_constraints(para_id: ParaId) -> Option<primitives::vstaging::Constraints> {
-			runtime_parachains::runtime_api_impl::vstaging::validity_constraints::<Runtime>(para_id)
+		fn staging_para_backing_state(para_id: ParaId) -> Option<primitives::vstaging::BackingState> {
+			runtime_parachains::runtime_api_impl::vstaging::backing_state::<Runtime>(para_id)
 		}
 
 		fn staging_async_backing_parameters() -> primitives::vstaging::AsyncBackingParameters {
@@ -1950,43 +1906,47 @@ mod remote_tests {
 	}
 }
 
-mod init_state_migration {
+mod clean_state_migration {
 	use super::Runtime;
-	use frame_support::traits::OnRuntimeUpgrade;
-	use pallet_state_trie_migration::{AutoLimits, MigrationLimits, MigrationProcess};
+	use frame_support::{pallet_prelude::*, storage_alias, traits::OnRuntimeUpgrade};
+	use pallet_state_trie_migration::MigrationLimits;
+
 	#[cfg(not(feature = "std"))]
 	use sp_std::prelude::*;
 
+	#[storage_alias]
+	type AutoLimits = StorageValue<StateTrieMigration, Option<MigrationLimits>, ValueQuery>;
+
+	// Actual type of value is `MigrationTask<T>`, putting a dummy
+	// one to avoid the trait constraint on T.
+	// Since we only use `kill` it is fine.
+	#[storage_alias]
+	type MigrationProcess = StorageValue<StateTrieMigration, u32, ValueQuery>;
+
+	#[storage_alias]
+	type SignedMigrationMaxLimits = StorageValue<StateTrieMigration, MigrationLimits, OptionQuery>;
+
 	/// Initialize an automatic migration process.
-	pub struct InitMigrate;
-	impl OnRuntimeUpgrade for InitMigrate {
+	pub struct CleanMigrate;
+
+	impl OnRuntimeUpgrade for CleanMigrate {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-			frame_support::ensure!(
-				AutoLimits::<Runtime>::get().is_none(),
-				"Automigration already started."
-			);
 			Ok(Default::default())
 		}
 
 		fn on_runtime_upgrade() -> frame_support::weights::Weight {
-			if MigrationProcess::<Runtime>::get() == Default::default() &&
-				AutoLimits::<Runtime>::get().is_none()
-			{
-				AutoLimits::<Runtime>::put(Some(MigrationLimits { item: 160, size: 204800 }));
-				log::info!("Automatic trie migration started.");
-				<Runtime as frame_system::Config>::DbWeight::get().reads_writes(2, 1)
-			} else {
-				log::info!("Automatic trie migration not started.");
-				<Runtime as frame_system::Config>::DbWeight::get().reads(2)
-			}
+			MigrationProcess::kill();
+			AutoLimits::kill();
+			SignedMigrationMaxLimits::kill();
+			<Runtime as frame_system::Config>::DbWeight::get().writes(3)
 		}
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
 			frame_support::ensure!(
-				AutoLimits::<Runtime>::get().is_some(),
-				"Automigration started."
+				!AutoLimits::exists() && !SignedMigrationMaxLimits::exists(),
+				"State migration clean.",
 			);
 			Ok(())
 		}

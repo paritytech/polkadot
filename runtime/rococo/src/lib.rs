@@ -251,24 +251,15 @@ impl pallet_babe::Config for Runtime {
 
 	type DisabledValidators = Session;
 
-	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::IdentificationTuple;
-
-	type KeyOwnerProofSystem = Historical;
-
-	type HandleEquivocation =
-		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
-
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
+
+	type KeyOwnerProof =
+		<Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
+
+	type EquivocationReportSystem =
+		pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
@@ -669,25 +660,14 @@ parameter_types! {
 impl pallet_grandpa::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 
-	type KeyOwnerProof =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		GrandpaId,
-	)>>::IdentificationTuple;
-
-	type KeyOwnerProofSystem = Historical;
-
-	type HandleEquivocation = pallet_grandpa::EquivocationHandler<
-		Self::KeyOwnerIdentification,
-		Offences,
-		ReportLongevity,
-	>;
-
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
 	type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
+
+	type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+
+	type EquivocationReportSystem =
+		pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
@@ -1510,13 +1490,6 @@ pub type UncheckedExtrinsic =
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
-	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
-	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
-	parachains_ump::migration::v1::MigrateToV1<Runtime>,
-	// Remove stale entries in the set id -> session index storage map (after
-	// this release they will be properly pruned after the bonding duration has
-	// elapsed)
-	pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
 	/* Asynchronous backing mirgration */
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 );
@@ -1781,8 +1754,8 @@ sp_api::impl_runtime_apis! {
 			runtime_parachains::runtime_api_impl::vstaging::get_session_disputes::<Runtime>()
 		}
 
-		fn staging_validity_constraints(para_id: ParaId) -> Option<primitives::vstaging::Constraints> {
-			runtime_parachains::runtime_api_impl::vstaging::validity_constraints::<Runtime>(para_id)
+		fn staging_para_backing_state(para_id: ParaId) -> Option<primitives::vstaging::BackingState> {
+			runtime_parachains::runtime_api_impl::vstaging::backing_state::<Runtime>(para_id)
 		}
 
 		fn staging_async_backing_parameters() -> primitives::vstaging::AsyncBackingParameters {
@@ -1790,6 +1763,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[api_version(2)]
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
 		fn beefy_genesis() -> Option<BlockNumber> {
 			Beefy::genesis_block()
@@ -1827,6 +1801,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[api_version(2)]
 	impl mmr::MmrApi<Block, Hash, BlockNumber> for Runtime {
 		fn mmr_root() -> Result<Hash, mmr::Error> {
 			Ok(Mmr::mmr_root())

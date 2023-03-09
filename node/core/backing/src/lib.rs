@@ -713,7 +713,7 @@ async fn validate_and_make_available(
 			Err(candidate)
 		},
 		ValidationResult::Invalid(reason) => {
-			gum::debug!(
+			gum::warn!(
 				target: LOG_TARGET,
 				candidate_hash = ?candidate.hash(),
 				reason = ?reason,

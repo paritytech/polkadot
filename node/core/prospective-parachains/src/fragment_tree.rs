@@ -262,6 +262,16 @@ struct CandidateEntry {
 	state: CandidateState,
 }
 
+/// A candidate existing on-chain but pending availability, for special treatment
+/// in the [`Scope`].
+#[derive(Debug, Clone)]
+pub(crate) struct PendingAvailability {
+	/// The candidate hash.
+	pub candidate_hash: CandidateHash,
+	/// The block info of the relay parent.
+	pub relay_parent: RelayChainBlockInfo,
+}
+
 /// The scope of a [`FragmentTree`].
 #[derive(Debug)]
 pub(crate) struct Scope {
@@ -269,6 +279,7 @@ pub(crate) struct Scope {
 	relay_parent: RelayChainBlockInfo,
 	ancestors: BTreeMap<BlockNumber, RelayChainBlockInfo>,
 	ancestors_by_hash: HashMap<Hash, RelayChainBlockInfo>,
+	pending_availability: Vec<PendingAvailability>,
 	base_constraints: Constraints,
 	max_depth: usize,
 }
@@ -304,6 +315,7 @@ impl Scope {
 		para: ParaId,
 		relay_parent: RelayChainBlockInfo,
 		base_constraints: Constraints,
+		pending_availability: Vec<PendingAvailability>,
 		max_depth: usize,
 		ancestors: impl IntoIterator<Item = RelayChainBlockInfo>,
 	) -> Result<Self, UnexpectedAncestor> {
@@ -330,6 +342,7 @@ impl Scope {
 			para,
 			relay_parent,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			ancestors: ancestors_map,
 			ancestors_by_hash,
@@ -352,6 +365,14 @@ impl Scope {
 		}
 
 		self.ancestors_by_hash.get(hash).map(|info| info.clone())
+	}
+
+	/// Whether the candidate in question is one pending availability in this scope.
+	pub fn get_pending_availability(
+		&self,
+		candidate_hash: &CandidateHash,
+	) -> Option<&PendingAvailability> {
+		self.pending_availability.iter().find(|c| &c.candidate_hash == candidate_hash)
 	}
 
 	/// Get the base constraints of the scope
@@ -609,7 +630,12 @@ impl FragmentTree {
 					let parent_rp = self
 						.scope
 						.ancestor_by_hash(&node.relay_parent())
-						.expect("nodes in tree can only contain ancestors within scope; qed");
+						.or_else(|| {
+							self.scope
+								.get_pending_availability(&node.candidate_hash)
+								.map(|_| self.scope.earliest_relay_parent())
+						})
+						.expect("All nodes in tree are either pending availability or within scope; qed");
 
 					(node.cumulative_modifications.clone(), node.depth + 1, parent_rp)
 				},
@@ -713,11 +739,17 @@ impl FragmentTree {
 				.nodes
 				.iter()
 				.take_while(|n| n.parent == NodePointer::Root)
+				.filter(|n| self.scope.get_pending_availability(&n.candidate_hash).is_none())
 				.filter(|n| pred(&n.candidate_hash))
 				.map(|n| n.candidate_hash)
 				.next(),
-			NodePointer::Storage(ptr) =>
-				self.nodes[ptr].children.iter().filter(|n| pred(&n.1)).map(|n| n.1).next(),
+			NodePointer::Storage(ptr) => self.nodes[ptr]
+				.children
+				.iter()
+				.filter(|n| self.scope.get_pending_availability(&n.1).is_none())
+				.filter(|n| pred(&n.1))
+				.map(|n| n.1)
+				.next(),
 		}
 	}
 
@@ -750,7 +782,14 @@ impl FragmentTree {
 						let parent_rp = self
 							.scope
 							.ancestor_by_hash(&node.relay_parent())
-							.expect("nodes in tree can only contain ancestors within scope; qed");
+							.or_else(|| {
+								// if the relay-parent is out of scope _and_ it is in the tree,
+								// it must be a candidate pending availability.
+								self.scope
+									.get_pending_availability(&node.candidate_hash)
+									.map(|c| c.relay_parent.clone())
+							})
+							.expect("All nodes in tree are either pending availability or within scope; qed");
 
 						(node.cumulative_modifications.clone(), node.depth + 1, parent_rp)
 					},
@@ -777,21 +816,42 @@ impl FragmentTree {
 
 				// Add nodes to tree wherever
 				// 1. parent hash is correct
-				// 2. relay-parent does not move backwards
-				// 3. candidate outputs fulfill constraints
+				// 2. relay-parent does not move backwards.
+				// 3. all non-pending-availability candidates have relay-parent in scope.
+				// 4. candidate outputs fulfill constraints
 				let required_head_hash = child_constraints.required_parent.hash();
 				for candidate in storage.iter_para_children(&required_head_hash) {
-					let relay_parent = match self.scope.ancestor_by_hash(&candidate.relay_parent) {
-						None => continue, // not in chain
-						Some(info) => {
-							if info.number < earliest_rp.number {
-								// moved backwards
-								continue
-							}
+					let pending = self.scope.get_pending_availability(&candidate.candidate_hash);
+					let relay_parent = pending
+						.map(|p| p.relay_parent.clone())
+						.or_else(|| self.scope.ancestor_by_hash(&candidate.relay_parent));
 
-							info
-						},
+					let relay_parent = match relay_parent {
+						Some(r) => r,
+						None => continue,
 					};
+
+					// require: pending availability candidates don't move backwards
+					// and only those can be out-of-scope.
+					//
+					// earliest_rp can be before the earliest relay parent in the scope
+					// when the parent is a pending availability candidate as well, but
+					// only other pending candidates can have a relay parent out of scope.
+					let min_relay_parent_number = pending
+						.map(|p| match parent_pointer {
+							NodePointer::Root => p.relay_parent.number,
+							NodePointer::Storage(_) => earliest_rp.number,
+						})
+						.unwrap_or_else(|| {
+							std::cmp::max(
+								earliest_rp.number,
+								self.scope.earliest_relay_parent().number,
+							)
+						});
+
+					if relay_parent.number < min_relay_parent_number {
+						continue // relay parent moved backwards.
+					}
 
 					// don't add candidates where the parent already has it as a child.
 					if self.node_has_candidate_child(parent_pointer, &candidate.candidate_hash) {
@@ -799,9 +859,15 @@ impl FragmentTree {
 					}
 
 					let fragment = {
+						let mut constraints = child_constraints.clone();
+						if let Some(ref p) = pending {
+							// overwrite for candidates pending availability as a special-case.
+							constraints.min_relay_parent_number = p.relay_parent.number;
+						}
+
 						let f = Fragment::new(
 							relay_parent.clone(),
-							child_constraints.clone(),
+							constraints,
 							candidate.candidate.partial_clone(),
 						);
 
@@ -952,9 +1018,17 @@ mod tests {
 
 		let max_depth = 2;
 		let base_constraints = make_constraints(8, vec![8, 9], vec![1, 2, 3].into());
+		let pending_availability = Vec::new();
 
 		assert_matches!(
-			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors),
+			Scope::with_ancestors(
+				para_id,
+				relay_parent,
+				base_constraints,
+				pending_availability,
+				max_depth,
+				ancestors
+			),
 			Err(UnexpectedAncestor { number: 8, prev: 10 })
 		);
 	}
@@ -976,9 +1050,17 @@ mod tests {
 
 		let max_depth = 2;
 		let base_constraints = make_constraints(0, vec![], vec![1, 2, 3].into());
+		let pending_availability = Vec::new();
 
 		assert_matches!(
-			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors,),
+			Scope::with_ancestors(
+				para_id,
+				relay_parent,
+				base_constraints,
+				pending_availability,
+				max_depth,
+				ancestors,
+			),
 			Err(UnexpectedAncestor { number: 99999, prev: 0 })
 		);
 	}
@@ -1012,10 +1094,17 @@ mod tests {
 
 		let max_depth = 2;
 		let base_constraints = make_constraints(3, vec![2], vec![1, 2, 3].into());
+		let pending_availability = Vec::new();
 
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent, base_constraints, max_depth, ancestors)
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent,
+			base_constraints,
+			pending_availability,
+			max_depth,
+			ancestors,
+		)
+		.unwrap();
 
 		assert_eq!(scope.ancestors.len(), 2);
 		assert_eq!(scope.ancestors_by_hash.len(), 2);
@@ -1100,6 +1189,7 @@ mod tests {
 		let candidate_b_hash = candidate_b.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let ancestors = vec![RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1115,9 +1205,15 @@ mod tests {
 
 		storage.add_candidate(candidate_a, pvd_a).unwrap();
 		storage.add_candidate(candidate_b, pvd_b).unwrap();
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent_b_info, base_constraints, 4, ancestors)
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_b_info,
+			base_constraints,
+			pending_availability,
+			4,
+			ancestors,
+		)
+		.unwrap();
 		let tree = FragmentTree::populate(scope, &storage);
 
 		let candidates: Vec<_> = tree.candidates().collect();
@@ -1172,6 +1268,7 @@ mod tests {
 		let candidate_a2_hash = candidate_a2.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let ancestors = vec![RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1187,9 +1284,15 @@ mod tests {
 
 		storage.add_candidate(candidate_a, pvd_a).unwrap();
 		storage.add_candidate(candidate_b, pvd_b).unwrap();
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent_b_info, base_constraints, 4, ancestors)
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_b_info,
+			base_constraints,
+			pending_availability,
+			4,
+			ancestors,
+		)
+		.unwrap();
 		let mut tree = FragmentTree::populate(scope, &storage);
 
 		storage.add_candidate(candidate_a2, pvd_a2).unwrap();
@@ -1229,6 +1332,7 @@ mod tests {
 		let candidate_b_hash = candidate_b.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1237,9 +1341,15 @@ mod tests {
 		};
 
 		storage.add_candidate(candidate_a, pvd_a).unwrap();
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent_a_info, base_constraints, 4, vec![])
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_a_info,
+			base_constraints,
+			pending_availability,
+			4,
+			vec![],
+		)
+		.unwrap();
 		let mut tree = FragmentTree::populate(scope, &storage);
 
 		storage.add_candidate(candidate_b, pvd_b).unwrap();
@@ -1278,6 +1388,7 @@ mod tests {
 		let candidate_b_hash = candidate_b.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1286,9 +1397,15 @@ mod tests {
 		};
 
 		storage.add_candidate(candidate_a, pvd_a).unwrap();
-		let scope =
-			Scope::with_ancestors(para_id, relay_parent_a_info, base_constraints, 4, vec![])
-				.unwrap();
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_a_info,
+			base_constraints,
+			pending_availability,
+			4,
+			vec![],
+		)
+		.unwrap();
 		let mut tree = FragmentTree::populate(scope, &storage);
 
 		storage.add_candidate(candidate_b, pvd_b).unwrap();
@@ -1317,6 +1434,7 @@ mod tests {
 		);
 		let candidate_a_hash = candidate_a.hash();
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1330,6 +1448,7 @@ mod tests {
 			para_id,
 			relay_parent_a_info,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			vec![],
 		)
@@ -1381,6 +1500,7 @@ mod tests {
 		let candidate_b_hash = candidate_b.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1395,6 +1515,7 @@ mod tests {
 			para_id,
 			relay_parent_a_info,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			vec![],
 		)
@@ -1446,6 +1567,7 @@ mod tests {
 		let candidate_b_hash = candidate_b.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1460,6 +1582,7 @@ mod tests {
 			para_id,
 			relay_parent_a_info,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			vec![],
 		)
@@ -1542,6 +1665,7 @@ mod tests {
 		let candidate_a_hash = candidate_a.hash();
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1554,6 +1678,7 @@ mod tests {
 			para_id,
 			relay_parent_a_info,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			vec![],
 		)
@@ -1623,6 +1748,7 @@ mod tests {
 		);
 
 		let base_constraints = make_constraints(0, vec![0], vec![0x0a].into());
+		let pending_availability = Vec::new();
 
 		let relay_parent_a_info = RelayChainBlockInfo {
 			number: pvd_a.relay_parent_number,
@@ -1643,6 +1769,7 @@ mod tests {
 			para_id,
 			relay_parent_a_info,
 			base_constraints,
+			pending_availability,
 			max_depth,
 			vec![],
 		)
@@ -1705,6 +1832,107 @@ mod tests {
 				false,
 			),
 			vec![2], // non-empty if `false`.
+		);
+	}
+
+	#[test]
+	fn pending_availability_in_scope() {
+		let mut storage = CandidateStorage::new();
+
+		let para_id = ParaId::from(5u32);
+		let relay_parent_a = Hash::repeat_byte(1);
+		let relay_parent_b = Hash::repeat_byte(2);
+		let relay_parent_c = Hash::repeat_byte(3);
+
+		let (pvd_a, candidate_a) = make_committed_candidate(
+			para_id,
+			relay_parent_a,
+			0,
+			vec![0x0a].into(),
+			vec![0x0b].into(),
+			0,
+		);
+		let candidate_a_hash = candidate_a.hash();
+
+		let (pvd_b, candidate_b) = make_committed_candidate(
+			para_id,
+			relay_parent_b,
+			1,
+			vec![0x0b].into(),
+			vec![0x0c].into(),
+			1,
+		);
+
+		// Note that relay parent `a` is not allowed.
+		let base_constraints = make_constraints(1, vec![], vec![0x0a].into());
+
+		let relay_parent_a_info = RelayChainBlockInfo {
+			number: pvd_a.relay_parent_number,
+			hash: relay_parent_a,
+			storage_root: pvd_a.relay_parent_storage_root,
+		};
+		let pending_availability = vec![PendingAvailability {
+			candidate_hash: candidate_a_hash,
+			relay_parent: relay_parent_a_info,
+		}];
+
+		let relay_parent_b_info = RelayChainBlockInfo {
+			number: pvd_b.relay_parent_number,
+			hash: relay_parent_b,
+			storage_root: pvd_b.relay_parent_storage_root,
+		};
+		let relay_parent_c_info = RelayChainBlockInfo {
+			number: pvd_b.relay_parent_number + 1,
+			hash: relay_parent_c,
+			storage_root: Hash::zero(),
+		};
+
+		let max_depth = 4;
+		storage.add_candidate(candidate_a, pvd_a).unwrap();
+		storage.add_candidate(candidate_b, pvd_b).unwrap();
+		storage.mark_backed(&candidate_a_hash);
+
+		let scope = Scope::with_ancestors(
+			para_id,
+			relay_parent_c_info,
+			base_constraints,
+			pending_availability,
+			max_depth,
+			vec![relay_parent_b_info],
+		)
+		.unwrap();
+		let tree = FragmentTree::populate(scope, &storage);
+
+		let candidates: Vec<_> = tree.candidates().collect();
+		assert_eq!(candidates.len(), 2);
+		assert_eq!(tree.nodes.len(), 2);
+
+		let candidate_d_hash = CandidateHash(Hash::repeat_byte(0xAA));
+
+		assert_eq!(
+			tree.hypothetical_depths(
+				candidate_d_hash,
+				HypotheticalCandidate::Incomplete {
+					parent_head_data_hash: HeadData::from(vec![0x0b]).hash(),
+					relay_parent: relay_parent_c,
+				},
+				&storage,
+				false,
+			),
+			vec![1],
+		);
+
+		assert_eq!(
+			tree.hypothetical_depths(
+				candidate_d_hash,
+				HypotheticalCandidate::Incomplete {
+					parent_head_data_hash: HeadData::from(vec![0x0c]).hash(),
+					relay_parent: relay_parent_b,
+				},
+				&storage,
+				false,
+			),
+			vec![2],
 		);
 	}
 }
