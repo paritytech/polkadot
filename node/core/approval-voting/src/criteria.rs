@@ -629,7 +629,7 @@ pub(crate) enum InvalidAssignmentReason {
 /// Checks the crypto of an assignment cert. Failure conditions:
 ///   * Validator index out of bounds
 ///   * VRF signature check fails
-///   * VRF output doesn't match assigned core
+///   * VRF output doesn't match assigned cores
 ///   * Core is not covered by extra data in signature
 ///   * Core index out of bounds
 ///   * Sample is out of bounds
@@ -684,6 +684,11 @@ pub(crate) fn check_assignment_cert(
 				.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
 
 			// Get unique core assignments from the VRF wrt `config.n_cores`.
+			// Some of the core indices might be invalid, as there was no candidate included in the
+			// relay chain block for that core.
+			//
+			// The caller must check if the claimed candidate indices are valid
+			// and refer to the valid subset of cores outputed by the VRF here.
 			let vrf_unique_cores = relay_vrf_modulo_cores(
 				&vrf_in_out,
 				config.relay_vrf_modulo_samples,

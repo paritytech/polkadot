@@ -29,8 +29,10 @@ use polkadot_primitives::{
 };
 use sp_consensus_slots::Slot;
 
-use bitvec::{order::Lsb0 as BitOrderLsb0, slice::BitSlice, vec::BitVec};
+use bitvec::{order::Lsb0 as BitOrderLsb0, slice::BitSlice};
 use std::collections::BTreeMap;
+
+use crate::approval_db::v1::Bitfield;
 
 use super::{criteria::OurAssignment, time::Tick};
 
@@ -82,7 +84,7 @@ pub struct ApprovalEntry {
 	our_assignment: Option<OurAssignment>,
 	our_approval_sig: Option<ValidatorSignature>,
 	// `n_validators` bits.
-	assignments: BitVec<u8, BitOrderLsb0>,
+	assigned_validators: Bitfield,
 	approved: bool,
 }
 
@@ -94,10 +96,17 @@ impl ApprovalEntry {
 		our_assignment: Option<OurAssignment>,
 		our_approval_sig: Option<ValidatorSignature>,
 		// `n_validators` bits.
-		assignments: BitVec<u8, BitOrderLsb0>,
+		assigned_validators: Bitfield,
 		approved: bool,
 	) -> Self {
-		Self { tranches, backing_group, our_assignment, our_approval_sig, assignments, approved }
+		Self {
+			tranches,
+			backing_group,
+			our_assignment,
+			our_approval_sig,
+			assigned_validators,
+			approved,
+		}
 	}
 
 	// Access our assignment for this approval entry.
@@ -133,7 +142,10 @@ impl ApprovalEntry {
 
 	/// Whether a validator is already assigned.
 	pub fn is_assigned(&self, validator_index: ValidatorIndex) -> bool {
-		self.assignments.get(validator_index.0 as usize).map(|b| *b).unwrap_or(false)
+		self.assigned_validators
+			.get(validator_index.0 as usize)
+			.map(|b| *b)
+			.unwrap_or(false)
 	}
 
 	/// Import an assignment. No-op if already assigned on the same tranche.
@@ -160,14 +172,14 @@ impl ApprovalEntry {
 		};
 
 		self.tranches[idx].assignments.push((validator_index, tick_now));
-		self.assignments.set(validator_index.0 as _, true);
+		self.assigned_validators.set(validator_index.0 as _, true);
 	}
 
 	// Produce a bitvec indicating the assignments of all validators up to and
 	// including `tranche`.
-	pub fn assignments_up_to(&self, tranche: DelayTranche) -> BitVec<u8, BitOrderLsb0> {
+	pub fn assignments_up_to(&self, tranche: DelayTranche) -> Bitfield {
 		self.tranches.iter().take_while(|e| e.tranche <= tranche).fold(
-			bitvec::bitvec![u8, BitOrderLsb0; 0; self.assignments.len()],
+			bitvec::bitvec![u8, BitOrderLsb0; 0; self.assigned_validators.len()],
 			|mut a, e| {
 				for &(v, _) in &e.assignments {
 					a.set(v.0 as _, true);
@@ -195,12 +207,12 @@ impl ApprovalEntry {
 
 	/// Get the number of validators in this approval entry.
 	pub fn n_validators(&self) -> usize {
-		self.assignments.len()
+		self.assigned_validators.len()
 	}
 
 	/// Get the number of assignments by validators, including the local validator.
 	pub fn n_assignments(&self) -> usize {
-		self.assignments.count_ones()
+		self.assigned_validators.count_ones()
 	}
 
 	/// Get the backing group index of the approval entry.
@@ -228,7 +240,7 @@ impl From<crate::approval_db::v1::ApprovalEntry> for ApprovalEntry {
 			backing_group: entry.backing_group,
 			our_assignment: entry.our_assignment.map(Into::into),
 			our_approval_sig: entry.our_approval_sig.map(Into::into),
-			assignments: entry.assignments,
+			assigned_validators: entry.assigned_validators,
 			approved: entry.approved,
 		}
 	}
@@ -241,7 +253,7 @@ impl From<ApprovalEntry> for crate::approval_db::v1::ApprovalEntry {
 			backing_group: entry.backing_group,
 			our_assignment: entry.our_assignment.map(Into::into),
 			our_approval_sig: entry.our_approval_sig.map(Into::into),
-			assignments: entry.assignments,
+			assigned_validators: entry.assigned_validators,
 			approved: entry.approved,
 		}
 	}
@@ -255,7 +267,7 @@ pub struct CandidateEntry {
 	// Assignments are based on blocks, so we need to track assignments separately
 	// based on the block we are looking at.
 	pub block_assignments: BTreeMap<Hash, ApprovalEntry>,
-	pub approvals: BitVec<u8, BitOrderLsb0>,
+	pub approvals: Bitfield,
 }
 
 impl CandidateEntry {
@@ -338,7 +350,7 @@ pub struct BlockEntry {
 	// A bitfield where the i'th bit corresponds to the i'th candidate in `candidates`.
 	// The i'th bit is `true` iff the candidate has been approved in the context of this
 	// block. The block can be considered approved if the bitfield has all bits set to `true`.
-	pub approved_bitfield: BitVec<u8, BitOrderLsb0>,
+	pub approved_bitfield: Bitfield,
 	pub children: Vec<Hash>,
 }
 

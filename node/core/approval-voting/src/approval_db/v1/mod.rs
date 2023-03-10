@@ -191,7 +191,7 @@ pub struct ApprovalEntry {
 	pub our_assignment: Option<OurAssignment>,
 	pub our_approval_sig: Option<ValidatorSignature>,
 	// `n_validators` bits.
-	pub assignments: Bitfield,
+	pub assigned_validators: Bitfield,
 	pub approved: bool,
 }
 

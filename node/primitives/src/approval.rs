@@ -202,7 +202,7 @@ pub enum AssignmentCertKindV2 {
 		sample: u32,
 	},
 	/// Multiple assignment stories based on the VRF that authorized the relay-chain block where the
-	/// candidate was included.
+	/// candidates were included.
 	///
 	/// The context is [`v2::RELAY_VRF_MODULO_CONTEXT`]
 	RelayVRFModuloCompact,

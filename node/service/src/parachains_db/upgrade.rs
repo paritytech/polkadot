@@ -320,13 +320,12 @@ fn rocksdb_migrate_from_version_2_to_3(path: &Path) -> Result<(), Error> {
 		.ok_or_else(|| super::other_io_error("Invalid database path".into()))?;
 	let db_cfg = DatabaseConfig::with_columns(super::columns::v2::NUM_COLUMNS);
 	let db = Database::open(&db_cfg, db_path)?;
-	let entries = db.iter(super::columns::v2::COL_APPROVAL_DATA);
 
-	// TODO: find a more efficient way to wipe the column
-	let ops = entries
-		.filter_map(|result| result.ok())
-		.map(|(key, _)| DBOp::Delete { col: super::columns::v2::COL_APPROVAL_DATA, key })
-		.collect::<Vec<_>>();
+	// Wipe all entries in one operation.
+	let ops = vec![DBOp::DeletePrefix {
+		col: super::columns::v2::COL_APPROVAL_DATA,
+		prefix: kvdb::DBKey::from_slice(b""),
+	}];
 
 	let transaction = DBTransaction { ops };
 	db.write(transaction)?;
