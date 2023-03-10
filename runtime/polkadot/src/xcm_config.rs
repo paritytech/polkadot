@@ -130,9 +130,9 @@ match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
 	};
-	pub type CollectivesOrCollectivesPlurality: impl Contains<MultiLocation> = {
+	pub type CollectivesOrFellows: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(COLLECTIVES_ID)) } |
-		MultiLocation { parents: 0, interior: X2(Parachain(COLLECTIVES_ID), Plurality { .. }) }
+		MultiLocation { parents: 0, interior: X2(Parachain(COLLECTIVES_ID), Plurality { id: BodyId::Technical, .. }) }
 	};
 }
 
@@ -148,8 +148,8 @@ pub type Barrier = (
 			AllowTopLevelPaidExecutionFrom<Everything>,
 			// Subscriptions for version tracking are OK.
 			AllowSubscriptionsFrom<OnlyParachains>,
-			// Collectives and its pluralities get free execution.
-			AllowExplicitUnpaidExecutionFrom<CollectivesOrCollectivesPlurality>,
+			// Collectives and Fellows plurality get free execution.
+			AllowExplicitUnpaidExecutionFrom<CollectivesOrFellows>,
 		),
 		UniversalLocation,
 		ConstU32<8>,
