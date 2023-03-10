@@ -119,7 +119,7 @@ const COST_UNEXPECTED_REQUEST: Rep = Rep::CostMajor("Unexpected attested candida
 const BENEFIT_VALID_RESPONSE: Rep = Rep::BenefitMajor("Peer Answered Candidate Request");
 const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
 const BENEFIT_VALID_STATEMENT_FIRST: Rep =
-	Rep::BenefitMajorFirst("Peer was the first to provide a valid statement");
+	Rep::BenefitMajorFirst("Peer was the first to provide a given valid statement");
 
 struct PerRelayParentState {
 	local_validator: Option<LocalValidatorState>,
@@ -144,6 +144,7 @@ struct LocalValidatorState {
 	grid_tracker: GridTracker,
 }
 
+#[derive(Debug)]
 struct PerSessionState {
 	session_info: SessionInfo,
 	groups: Groups,
@@ -1006,6 +1007,7 @@ pub(crate) async fn share_local_statement<Context>(
 
 // two kinds of targets: those in our 'cluster' (currently just those in the same group),
 // and those we are propagating to through the grid.
+#[derive(Debug)]
 enum DirectTargetKind {
 	Cluster,
 	Grid,

@@ -88,9 +88,10 @@ pub enum CandidateBackingMessage {
 	/// Note that the Candidate Backing subsystem should second the given candidate in the context of the
 	/// given relay-parent (ref. by hash). This candidate must be validated.
 	Second(Hash, CandidateReceipt, PersistedValidationData, PoV),
-	/// Note a validator's statement about a particular candidate. Disagreements about validity must be escalated
-	/// to a broader check by the Disputes Subsystem, though that escalation is deferred until the approval voting
-	/// stage to guarantee availability. Agreements are simply tallied until a quorum is reached.
+	/// Note a validator's statement about a particular candidate in the context of the given
+	/// relay-parent. Disagreements about validity must be escalated to a broader check by the
+	/// Disputes Subsystem, though that escalation is deferred until the approval voting stage to
+	/// guarantee availability. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatementWithPVD),
 }
 

@@ -14,15 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-// TODO [now]: Remove once some tests are written.
-#![allow(unused)]
-
 use super::*;
 use crate::*;
 use polkadot_node_network_protocol::{
+	grid_topology::TopologyPeerInfo,
 	request_response::{outgoing::Recipient, ReqProtocolNames},
 	view, ObservedRole,
 };
+use polkadot_node_primitives::Statement;
 use polkadot_node_subsystem::messages::{
 	network_bridge_event::NewGossipTopology, AllMessages, ChainApiMessage, FragmentTreeMembership,
 	HypotheticalCandidate, NetworkBridgeEvent, ProspectiveParachainsMessage, RuntimeApiMessage,
@@ -31,10 +30,9 @@ use polkadot_node_subsystem::messages::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::vstaging::{
-	AssignmentId, AssignmentPair, AsyncBackingParameters, BlockNumber, CandidateCommitments,
-	CandidateDescriptor, CommittedCandidateReceipt, CoreState, GroupRotationInfo, HeadData, Header,
-	IndexedVec, PersistedValidationData, ScheduledCore, SessionIndex, SessionInfo,
-	ValidationCodeHash, ValidatorPair,
+	AssignmentPair, AsyncBackingParameters, BlockNumber, CommittedCandidateReceipt, CoreState,
+	GroupRotationInfo, HeadData, Header, IndexedVec, PersistedValidationData, ScheduledCore,
+	SessionIndex, SessionInfo, ValidatorPair,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair as PairT;
@@ -54,7 +52,7 @@ mod requests;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<StatementDistributionMessage>;
 
-const ASYNC_BACKING_PARAMETERS: AsyncBackingParameters =
+const DEFAULT_ASYNC_BACKING_PARAMETERS: AsyncBackingParameters =
 	AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };
 
 // Some deterministic genesis hash for req/res protocol names
@@ -66,11 +64,11 @@ struct TestConfig {
 	group_size: usize,
 	// whether the local node should be a validator
 	local_validator: bool,
+	async_backing_params: Option<AsyncBackingParameters>,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct TestLocalValidator {
-	validator_id: ValidatorId,
 	validator_index: ValidatorIndex,
 	group_index: GroupIndex,
 }
@@ -129,7 +127,6 @@ impl TestState {
 
 		let local = if let Some(local_pos) = local_validator_pos {
 			Some(TestLocalValidator {
-				validator_id: validators[local_pos].public().clone(),
 				validator_index: ValidatorIndex(local_pos as _),
 				group_index: GroupIndex((local_pos / config.group_size) as _),
 			})
@@ -157,8 +154,44 @@ impl TestState {
 		TestState { config, local, validators, session_info, req_sender }
 	}
 
+	fn make_dummy_leaf(&self, relay_parent: Hash) -> TestLeaf {
+		TestLeaf {
+			number: 1,
+			hash: relay_parent,
+			parent_hash: Hash::repeat_byte(0),
+			session: 1,
+			availability_cores: self.make_availability_cores(|i| {
+				CoreState::Scheduled(ScheduledCore {
+					para_id: ParaId::from(i as u32),
+					collator: None,
+				})
+			}),
+			para_data: (0..self.session_info.validator_groups.len())
+				.map(|i| (ParaId::from(i as u32), PerParaData::new(1, vec![1, 2, 3].into())))
+				.collect(),
+		}
+	}
+
 	fn make_availability_cores(&self, f: impl Fn(usize) -> CoreState) -> Vec<CoreState> {
 		(0..self.session_info.validator_groups.len()).map(f).collect()
+	}
+
+	fn make_dummy_topology(&self) -> NewGossipTopology {
+		let validator_count = self.config.validator_count;
+		NewGossipTopology {
+			session: 1,
+			topology: SessionGridTopology::new(
+				(0..validator_count).collect(),
+				(0..validator_count)
+					.map(|i| TopologyPeerInfo {
+						peer_ids: Vec::new(),
+						validator_index: ValidatorIndex(i as u32),
+						discovery_id: AuthorityDiscoveryPair::generate().0.public(),
+					})
+					.collect(),
+			),
+			local_index: self.local.as_ref().map(|local| local.validator_index),
+		}
 	}
 
 	fn group_validators(
@@ -178,10 +211,6 @@ impl TestState {
 			.collect()
 	}
 
-	fn validator_id(&self, validator_index: ValidatorIndex) -> ValidatorId {
-		self.session_info.validators.get(validator_index).unwrap().clone()
-	}
-
 	fn discovery_id(&self, validator_index: ValidatorIndex) -> AuthorityDiscoveryId {
 		self.session_info.discovery_keys[validator_index.0 as usize].clone()
 	}
@@ -198,6 +227,27 @@ impl TestState {
 
 		SignedStatement::new(statement, validator_index, signature, context, &pair.public())
 			.unwrap()
+	}
+
+	fn sign_full_statement(
+		&self,
+		validator_index: ValidatorIndex,
+		statement: Statement,
+		context: &SigningContext,
+		pvd: PersistedValidationData,
+	) -> SignedFullStatementWithPVD {
+		let payload = statement.to_compact().signing_payload(context);
+		let pair = &self.validators[validator_index.0 as usize];
+		let signature = pair.sign(&payload[..]);
+
+		SignedFullStatementWithPVD::new(
+			statement.supply_pvd(pvd),
+			validator_index,
+			signature,
+			context,
+			&pair.public(),
+		)
+		.unwrap()
 	}
 
 	// send a request out, returning a future which expects a response.
@@ -258,6 +308,11 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	futures::executor::block_on(future::join(
 		async move {
 			let mut virtual_overseer = test_fut.await;
+			// Ensure we have handled all responses.
+			if let Ok(Some(msg)) = virtual_overseer.rx.try_next() {
+				panic!("Did not handle all responses: {:?}", msg);
+			}
+			// Conclude.
 			virtual_overseer.send(FromOrchestra::Signal(OverseerSignal::Conclude)).await;
 		},
 		subsystem,
@@ -295,7 +350,6 @@ impl TestLeaf {
 
 async fn activate_leaf(
 	virtual_overseer: &mut VirtualOverseer,
-	para_id: ParaId,
 	leaf: &TestLeaf,
 	test_state: &TestState,
 	expect_session_info_request: bool,
@@ -313,32 +367,23 @@ async fn activate_leaf(
 		))))
 		.await;
 
-	handle_leaf_activation(
-		virtual_overseer,
-		para_id,
-		leaf,
-		test_state,
-		expect_session_info_request,
-	)
-	.await;
+	handle_leaf_activation(virtual_overseer, leaf, test_state, expect_session_info_request).await;
 }
 
 async fn handle_leaf_activation(
 	virtual_overseer: &mut VirtualOverseer,
-	para_id: ParaId,
 	leaf: &TestLeaf,
 	test_state: &TestState,
 	expect_session_info_request: bool,
 ) {
 	let TestLeaf { number, hash, parent_hash, para_data, session, availability_cores } = leaf;
-	let PerParaData { min_relay_parent, head_data } = leaf.para_data(para_id);
 
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::RuntimeApi(
 			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
 		) if parent == *hash => {
-			tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
+			tx.send(Ok(test_state.config.async_backing_params.unwrap_or(DEFAULT_ASYNC_BACKING_PARAMETERS))).unwrap();
 		}
 	);
 
@@ -402,11 +447,44 @@ async fn handle_leaf_activation(
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionInfo(s, tx))) if s == *session => {
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::SessionInfo(s, tx))) if parent == *hash && s == *session => {
 				tx.send(Ok(Some(test_state.session_info.clone()))).unwrap();
 			}
 		);
 	}
+}
+
+/// Intercepts an outgoing request, checks the fields, and sends the response.
+async fn handle_sent_request(
+	virtual_overseer: &mut VirtualOverseer,
+	peer: PeerId,
+	candidate_hash: CandidateHash,
+	mask: StatementFilter,
+	candidate_receipt: CommittedCandidateReceipt,
+	persisted_validation_data: PersistedValidationData,
+	statements: Vec<UncheckedSignedStatement>,
+) {
+	assert_matches!(
+		virtual_overseer.recv().await,
+		AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::SendRequests(mut requests, IfDisconnected::ImmediateError)) => {
+			assert_eq!(requests.len(), 1);
+			assert_matches!(
+				requests.pop().unwrap(),
+				Requests::AttestedCandidateVStaging(outgoing) => {
+					assert_eq!(outgoing.peer, Recipient::Peer(peer));
+					assert_eq!(outgoing.payload.candidate_hash, candidate_hash);
+					assert_eq!(outgoing.payload.mask, mask);
+
+					let res = AttestedCandidateResponse {
+						candidate_receipt,
+						persisted_validation_data,
+						statements,
+					};
+					outgoing.pending_response.send(Ok(res.encode())).unwrap();
+				}
+			);
+		}
+	);
 }
 
 async fn answer_expected_hypothetical_depth_request(
@@ -430,7 +508,7 @@ async fn answer_expected_hypothetical_depth_request(
 				);
 			}
 
-			tx.send(responses);
+			tx.send(responses).unwrap();
 		}
 	)
 }
@@ -458,6 +536,8 @@ async fn connect_peer(
 		.await;
 }
 
+// TODO: Add some tests using this?
+#[allow(dead_code)]
 async fn disconnect_peer(virtual_overseer: &mut VirtualOverseer, peer: PeerId) {
 	virtual_overseer
 		.send(FromOrchestra::Communication {
@@ -500,4 +580,15 @@ async fn send_new_topology(virtual_overseer: &mut VirtualOverseer, topology: New
 			),
 		})
 		.await;
+}
+
+fn next_group_index(
+	group_index: GroupIndex,
+	validator_count: usize,
+	group_size: usize,
+) -> GroupIndex {
+	let next_group = group_index.0 + 1;
+	let num_groups =
+		validator_count / group_size + if validator_count % group_size > 0 { 1 } else { 0 };
+	GroupIndex::from(next_group % num_groups as u32)
 }
