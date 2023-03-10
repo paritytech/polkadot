@@ -276,7 +276,7 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 		config: &Config,
 		leaving_cores: Vec<(CandidateHash, CoreIndex, GroupIndex)>,
 	) -> HashMap<CoreIndex, OurAssignment> {
-		compute_assignments(keystore, relay_vrf_story, config, leaving_cores, true)
+		compute_assignments(keystore, relay_vrf_story, config, leaving_cores, false)
 	}
 
 	fn check_assignment_cert(
