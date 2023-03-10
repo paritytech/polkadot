@@ -497,7 +497,7 @@ impl Wakeups {
 
 		for (tick, pruned) in pruned_wakeups {
 			if let BTMEntry::Occupied(mut entry) = self.wakeups.entry(tick) {
-				entry.get_mut().retain(|wakeup| pruned.contains(wakeup));
+				entry.get_mut().retain(|wakeup| !pruned.contains(wakeup));
 				if entry.get().is_empty() {
 					let _ = entry.remove();
 				}
