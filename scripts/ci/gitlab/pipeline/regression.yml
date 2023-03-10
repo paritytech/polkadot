@@ -23,4 +23,4 @@ zombienet-regression-test-balance-transfers:
   allow_failure: false
   retry: 2
   tags:
-    - zombienet-polkadot-regression-test
+    - zombienet-polkadot-integration-test
