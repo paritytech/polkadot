@@ -30,7 +30,7 @@ use runtime_common::{
 	xcm_sender::{ChildParachainRouter, PriceForParachainDelivery},
 	ToAuthor,
 };
-use sp_arithmetic::{traits::Saturating, FixedPointNumber};
+use sp_arithmetic::FixedPointNumber;
 use sp_core::ConstU32;
 use westend_runtime_constants::currency::CENTS;
 use xcm::latest::prelude::*;
