@@ -24,7 +24,7 @@ RUN export PATH="$PATH:$HOME/.cargo/bin" && \
 
 WORKDIR /usr/src/polkadot
 
-RUN cargo build --features fast-runtime --release --bin polkadot --features disputes --verbose
+RUN cargo build --release --bin polkadot --features disputes --verbose
 RUN cp -v /usr/src/polkadot/target/release/polkadot /usr/local/bin
 
 # check if executable works in this container

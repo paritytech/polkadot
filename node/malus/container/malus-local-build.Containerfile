@@ -24,7 +24,7 @@ RUN export PATH="$PATH:$HOME/.cargo/bin" && \
 
 WORKDIR /usr/src/polkadot-malus/polkadot
 
-RUN cargo build --features fast-runtime -p polkadot-test-malus --release --verbose
+RUN cargo build -p polkadot-test-malus --release --verbose
 RUN cp -v /usr/src/polkadot-malus/polkadot/target/release/malus /usr/local/bin
 
 # check if executable works in this container

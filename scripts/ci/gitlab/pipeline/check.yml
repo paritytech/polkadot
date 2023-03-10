@@ -68,7 +68,7 @@ check-try-runtime:
         echo "Found label runtime_migration. Running tests"
         export RUST_LOG=remote-ext=debug,runtime=debug
         echo "---------- Running try-runtime for ${NETWORK} ----------"
-        time cargo build --features fast-runtime --release -p "$NETWORK"-runtime
+        time cargo build --release -p "$NETWORK"-runtime
         time cargo run --release --features try-runtime try-runtime \
             --runtime ./target/release/wbuild/"$NETWORK"-runtime/target/wasm32-unknown-unknown/release/"$NETWORK"_runtime.wasm \
             -lruntime=debug \

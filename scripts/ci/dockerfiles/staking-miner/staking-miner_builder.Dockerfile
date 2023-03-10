@@ -10,7 +10,7 @@ LABEL description="This is the build stage. Here we create the binary."
 
 WORKDIR /app
 COPY . /app
-RUN cargo build --features fast-runtime --locked --$PROFILE --package staking-miner
+RUN cargo build --locked --$PROFILE --package staking-miner
 
 # ===== SECOND STAGE ======
 
