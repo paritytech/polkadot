@@ -222,12 +222,12 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			participation_priority_queue_size: prometheus::register(
-				prometheus::Gauge::new("polkadot_parachain_dispute_priority_queue_size", 
+				prometheus::Gauge::new("polkadot_parachain_dispute_participation_priority_queue_size", 
 				"Number of disputes waiting for local participation in the priority queue.")?,
 				registry,
 			)?,
 			participation_best_effort_queue_size: prometheus::register(
-				prometheus::Gauge::new("polkadot_parachain_dispute_best_effort_queue_size", 
+				prometheus::Gauge::new("polkadot_parachain_dispute_participation_best_effort_queue_size", 
 				"Number of disputes waiting for local participation in the best effort queue.")?,
 				registry,
 			)?,
