@@ -18,10 +18,8 @@
 
 use derive_more::Display;
 use polkadot_primitives::Hash;
-use sc_network_common::{
-	config::{NonDefaultSetConfig, SetConfig},
-	protocol::ProtocolName,
-};
+use sc_network::config::{NonDefaultSetConfig, SetConfig};
+use sc_network_common::protocol::ProtocolName;
 use std::{
 	collections::{hash_map::Entry, HashMap},
 	ops::{Index, IndexMut},
@@ -81,7 +79,7 @@ impl PeerSet {
 				fallback_names,
 				max_notification_size,
 				handshake: None,
-				set_config: sc_network_common::config::SetConfig {
+				set_config: SetConfig {
 					// we allow full nodes to connect to validators for gossip
 					// to ensure any `MIN_GOSSIP_PEERS` always include reserved peers
 					// we limit the amount of non-reserved slots to be less
@@ -141,18 +139,20 @@ impl PeerSet {
 		// Unfortunately, labels must be static strings, so we must manually cover them
 		// for all protocol versions here.
 		match self {
-			PeerSet::Validation =>
+			PeerSet::Validation => {
 				if version == ValidationVersion::V1.into() {
 					Some("validation/1")
 				} else {
 					None
-				},
-			PeerSet::Collation =>
+				}
+			},
+			PeerSet::Collation => {
 				if version == CollationVersion::V1.into() {
 					Some("collation/1")
 				} else {
 					None
-				},
+				}
+			},
 		}
 	}
 }
@@ -190,7 +190,7 @@ impl<T> IndexMut<PeerSet> for PerPeerSet<T> {
 pub fn peer_sets_info(
 	is_authority: IsAuthority,
 	peerset_protocol_names: &PeerSetProtocolNames,
-) -> Vec<sc_network_common::config::NonDefaultSetConfig> {
+) -> Vec<NonDefaultSetConfig> {
 	PeerSet::iter()
 		.map(|s| s.get_info(is_authority, &peerset_protocol_names))
 		.collect()
@@ -246,7 +246,7 @@ impl PeerSetProtocolNames {
 		let mut names = HashMap::new();
 		for protocol in PeerSet::iter() {
 			match protocol {
-				PeerSet::Validation =>
+				PeerSet::Validation => {
 					for version in ValidationVersion::iter() {
 						Self::register_main_protocol(
 							&mut protocols,
@@ -256,8 +256,9 @@ impl PeerSetProtocolNames {
 							&genesis_hash,
 							fork_id,
 						);
-					},
-				PeerSet::Collation =>
+					}
+				},
+				PeerSet::Collation => {
 					for version in CollationVersion::iter() {
 						Self::register_main_protocol(
 							&mut protocols,
@@ -267,7 +268,8 @@ impl PeerSetProtocolNames {
 							&genesis_hash,
 							fork_id,
 						);
-					},
+					}
+				},
 			}
 			Self::register_legacy_protocol(&mut protocols, protocol);
 		}
@@ -489,7 +491,7 @@ mod tests {
 
 		for protocol in PeerSet::iter() {
 			match protocol {
-				PeerSet::Validation =>
+				PeerSet::Validation => {
 					for version in ValidationVersion::iter() {
 						assert_eq!(
 							protocol_names.get_name(protocol, version.into()),
@@ -500,8 +502,9 @@ mod tests {
 								version.into(),
 							),
 						);
-					},
-				PeerSet::Collation =>
+					}
+				},
+				PeerSet::Collation => {
 					for version in CollationVersion::iter() {
 						assert_eq!(
 							protocol_names.get_name(protocol, version.into()),
@@ -512,7 +515,8 @@ mod tests {
 								version.into(),
 							),
 						);
-					},
+					}
+				},
 			}
 		}
 	}
@@ -521,18 +525,20 @@ mod tests {
 	fn all_protocol_versions_have_labels() {
 		for protocol in PeerSet::iter() {
 			match protocol {
-				PeerSet::Validation =>
+				PeerSet::Validation => {
 					for version in ValidationVersion::iter() {
 						protocol
 							.get_protocol_label(version.into())
 							.expect("All validation protocol versions must have a label.");
-					},
-				PeerSet::Collation =>
+					}
+				},
+				PeerSet::Collation => {
 					for version in CollationVersion::iter() {
 						protocol
 							.get_protocol_label(version.into())
 							.expect("All collation protocol versions must have a label.");
-					},
+					}
+				},
 			}
 		}
 	}
