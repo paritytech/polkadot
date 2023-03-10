@@ -108,12 +108,12 @@ fn ordering_works_as_expected() {
 	);
 
 	// Prioritized queue is ordered correctly
-	assert!(queue.dequeue().unwrap().functionally_equal(req_prio));
-	assert!(queue.dequeue().unwrap().functionally_equal(req_prio_2));
+	assert_eq!(queue.dequeue(), Some(req_prio));
+	assert_eq!(queue.dequeue(), Some(req_prio_2));
 	// So is the best-effort
-	assert!(queue.dequeue().unwrap().functionally_equal(req1));
-	assert!(queue.dequeue().unwrap().functionally_equal(req3));
-	assert!(queue.dequeue().unwrap().functionally_equal(req5_unknown_parent));
+	assert_eq!(queue.dequeue(), Some(req1));
+	assert_eq!(queue.dequeue(), Some(req3));
+	assert_eq!(queue.dequeue(), Some(req5_unknown_parent));
 
 	assert_matches!(queue.dequeue(), None);
 }
@@ -127,7 +127,7 @@ fn candidate_is_only_dequeued_once() {
 	let req_prio = make_participation_request(Hash::repeat_byte(0x02));
 	let req_best_effort_then_prio = make_participation_request(Hash::repeat_byte(0x03));
 	let req_prio_then_best_effort = make_participation_request(Hash::repeat_byte(0x04));
-
+	
 	queue
 		.queue_with_comparator(
 			make_dummy_comparator(&req1, None),
@@ -158,7 +158,6 @@ fn candidate_is_only_dequeued_once() {
 			req_prio.clone(),
 		)
 		.unwrap();
-
 	// Insert first as best effort:
 	queue
 		.queue_with_comparator(
@@ -177,7 +176,7 @@ fn candidate_is_only_dequeued_once() {
 		.unwrap();
 
 	// Make space in prio:
-	assert!(queue.dequeue().unwrap().functionally_equal(req_prio));
+	assert_eq!(queue.dequeue(), Some(req_prio));
 
 	// Insert first as prio:
 	queue
@@ -196,8 +195,8 @@ fn candidate_is_only_dequeued_once() {
 		)
 		.unwrap();
 
-	assert!(queue.dequeue().unwrap().functionally_equal(req_best_effort_then_prio));
-	assert!(queue.dequeue().unwrap().functionally_equal(req_prio_then_best_effort));
-	assert!(queue.dequeue().unwrap().functionally_equal(req1));
+	assert_eq!(queue.dequeue(), Some(req_best_effort_then_prio));
+	assert_eq!(queue.dequeue(), Some(req_prio_then_best_effort));
+	assert_eq!(queue.dequeue(), Some(req1));
 	assert_matches!(queue.dequeue(), None);
 }
