@@ -1689,6 +1689,33 @@ impl PvfCheckStatement {
 	}
 }
 
+/// Type discriminator for PVF preparation timeouts
+#[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PvfPrepTimeoutKind {
+	/// For prechecking requests, the time period after which the preparation worker is considered
+	/// unresponsive and will be killed.
+	Precheck,
+
+	/// For execution and heads-up requests, the time period after which the preparation worker is
+	/// considered unresponsive and will be killed. More lenient than the timeout for prechecking
+	/// to prevent honest validators from timing out on valid PVFs.
+	Lenient,
+}
+
+/// Type discriminator for PVF execution timeouts
+#[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PvfExecTimeoutKind {
+	/// The amount of time to spend on execution during backing.
+	Backing,
+
+	/// The amount of time to spend on execution during approval or disputes.
+	///
+	/// This should be much longer than the backing execution timeout to ensure that in the
+	/// absence of extremely large disparities between hardware, blocks that pass backing are
+	/// considered executable by approval checkers or dispute participants.
+	Approval,
+}
+
 #[cfg(test)]
 mod tests {
 	use super::*;
