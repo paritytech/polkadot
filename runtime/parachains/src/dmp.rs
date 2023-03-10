@@ -40,16 +40,12 @@ pub const MULTIPLICATIVE_FEE_FACTOR: FixedU128 = FixedU128::from_rational(101, 1
 pub enum QueueDownwardMessageError {
 	/// The message being sent exceeds the configured max message size.
 	ExceedsMaxMessageSize,
-	/// Enquing the message would exceed the max queue size.
-	ExceedsMaxQueueSize,
 }
 
 impl From<QueueDownwardMessageError> for SendError {
 	fn from(err: QueueDownwardMessageError) -> Self {
 		match err {
 			QueueDownwardMessageError::ExceedsMaxMessageSize => SendError::ExceedsMaxMessageSize,
-			QueueDownwardMessageError::ExceedsMaxQueueSize =>
-				SendError::Transport("exceeds queue size"),
 		}
 	}
 }
