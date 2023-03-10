@@ -239,8 +239,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn core_para(core_index: CoreIndex) -> Option<ParaId> {
 		let cores = AvailabilityCores::<T>::get();
 		match cores.get(core_index.0 as usize) {
-			None => None,
-			Some(CoreOccupied::Free) => None,
+			None | Some(CoreOccupied::Free) => None,
 			// NOTE: This is temporary
 			Some(x) => Some(T::AssignmentProvider::core_para(core_index, x)),
 		}
@@ -443,20 +442,17 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn add_to_claimqueue(core_idx: CoreIndex, group_idx: GroupIndex) -> Result<(), &'static str> {
-		match T::AssignmentProvider::pop_assignment_for_core(core_idx) {
-			None => Err("no assignments at core_idx"),
-			Some(ass) => {
-				let ca = ass.to_core_assignment(core_idx, group_idx);
-				ClaimQueue::<T>::mutate(|la| match la.get_mut(&core_idx) {
-					None => {
-						la.insert(core_idx, vec![Some(ca)]);
-					},
-					Some(la_vec) => la_vec.push(Some(ca)),
-				});
-
-				Ok(())
+		let ass = T::AssignmentProvider::pop_assignment_for_core(core_idx)
+			.ok_or_else(|| "no assignments at core_idx")?;
+		let ca = ass.to_core_assignment(core_idx, group_idx);
+		ClaimQueue::<T>::mutate(|la| match la.get_mut(&core_idx) {
+			None => {
+				la.insert(core_idx, vec![Some(ca)]);
 			},
-		}
+			Some(la_vec) => la_vec.push(Some(ca)),
+		});
+
+		Ok(())
 	}
 
 	fn mark_claimqueue(
