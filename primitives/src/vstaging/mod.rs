@@ -99,5 +99,32 @@ pub struct Constraints<N = BlockNumber> {
 	pub future_validation_code: Option<(N, ValidationCodeHash)>,
 }
 
+/// A candidate pending availability.
+#[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
+pub struct CandidatePendingAvailability<H = Hash, N = BlockNumber> {
+	/// The hash of the candidate.
+	pub candidate_hash: CandidateHash,
+	/// The candidate's descriptor.
+	pub descriptor: CandidateDescriptor<H>,
+	/// The commitments of the candidate.
+	pub commitments: CandidateCommitments,
+	/// The candidate's relay parent's number.
+	pub relay_parent_number: N,
+	/// The maximum Proof-of-Validity size allowed, in bytes.
+	pub max_pov_size: u32,
+}
+
+/// The per-parachain state of the backing system, including
+/// state-machine constraints and candidates pending availability.
+#[derive(RuntimeDebug, Clone, PartialEq, Encode, Decode, TypeInfo)]
+pub struct BackingState<H = Hash, N = BlockNumber> {
+	/// The state-machine constraints of the parachain.
+	pub constraints: Constraints<N>,
+	/// The candidates pending availability. These should be ordered, i.e. they should form
+	/// a sub-chain, where the first candidate builds on top of the required parent of the constraints
+	/// and each subsequent builds on top of the previous head-data.
+	pub pending_availability: Vec<CandidatePendingAvailability<H, N>>,
+}
+
 pub mod executor_params;
 pub use executor_params::{ExecutorParam, ExecutorParams, ExecutorParamsHash};

@@ -158,9 +158,9 @@ where
 			Disputes(relay_parent, disputes) =>
 				self.requests_cache.cache_disputes(relay_parent, disputes),
 
-			StagingValidityConstraints(relay_parent, para_id, constraints) => self
+			StagingParaBackingState(relay_parent, para_id, constraints) => self
 				.requests_cache
-				.cache_staging_validity_constraints((relay_parent, para_id), constraints),
+				.cache_staging_para_backing_state((relay_parent, para_id), constraints),
 			StagingAsyncBackingParameters(relay_parent, params) =>
 				self.requests_cache.cache_staging_async_backing_parameters(relay_parent, params),
 		}
@@ -277,9 +277,9 @@ where
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
 			Request::Disputes(sender) =>
 				query!(disputes(), sender).map(|sender| Request::Disputes(sender)),
-			Request::StagingValidityConstraints(para, sender) =>
-				query!(staging_validity_constraints(para), sender)
-					.map(|sender| Request::StagingValidityConstraints(para, sender)),
+			Request::StagingParaBackingState(para, sender) =>
+				query!(staging_para_backing_state(para), sender)
+					.map(|sender| Request::StagingParaBackingState(para, sender)),
 			Request::StagingAsyncBackingParameters(sender) =>
 				query!(staging_async_backing_parameters(), sender)
 					.map(|sender| Request::StagingAsyncBackingParameters(sender)),
@@ -502,11 +502,11 @@ where
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
 		Request::Disputes(sender) =>
 			query!(Disputes, disputes(), ver = Request::DISPUTES_RUNTIME_REQUIREMENT, sender),
-		Request::StagingValidityConstraints(para, sender) => {
+		Request::StagingParaBackingState(para, sender) => {
 			query!(
-				StagingValidityConstraints,
-				staging_validity_constraints(para),
-				ver = Request::VALIDITY_CONSTRAINTS,
+				StagingParaBackingState,
+				staging_para_backing_state(para),
+				ver = Request::STAGING_BACKING_STATE,
 				sender
 			)
 		},
@@ -514,7 +514,7 @@ where
 			query!(
 				StagingAsyncBackingParameters,
 				staging_async_backing_parameters(),
-				ver = Request::VALIDITY_CONSTRAINTS,
+				ver = Request::STAGING_BACKING_STATE,
 				sender
 			)
 		},

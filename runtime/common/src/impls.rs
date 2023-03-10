@@ -133,9 +133,9 @@ mod tests {
 	parameter_types! {
 		pub const BlockHashCount: u64 = 250;
 		pub BlockWeights: limits::BlockWeights = limits::BlockWeights::builder()
-			.base_block(Weight::from_ref_time(10))
+			.base_block(Weight::from_parts(10, 0))
 			.for_class(DispatchClass::all(), |weight| {
-				weight.base_extrinsic = Weight::from_ref_time(100);
+				weight.base_extrinsic = Weight::from_parts(100, 0);
 			})
 			.for_class(DispatchClass::non_mandatory(), |weight| {
 				weight.max_total = Some(Weight::from_parts(1024, u64::MAX));

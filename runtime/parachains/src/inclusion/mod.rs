@@ -118,6 +118,14 @@ impl<H, N> CandidatePendingAvailability<H, N> {
 		&self.descriptor
 	}
 
+	/// Get the candidate's relay parent's number.
+	pub(crate) fn relay_parent_number(&self) -> N
+	where
+		N: Clone,
+	{
+		self.relay_parent_number.clone()
+	}
+
 	#[cfg(any(feature = "runtime-benchmarks", test))]
 	pub(crate) fn new(
 		core: CoreIndex,

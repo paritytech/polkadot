@@ -17,8 +17,8 @@
 use assert_matches::assert_matches;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
-	start, Config, InvalidCandidate, Metrics, PvfWithExecutorParams, ValidationError,
-	ValidationHost, JOB_TIMEOUT_WALL_CLOCK_FACTOR,
+	start, Config, InvalidCandidate, Metrics, PvfPrepData, ValidationError, ValidationHost,
+	JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 };
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
 use polkadot_primitives::vstaging::{ExecutorParam, ExecutorParams};
@@ -30,6 +30,7 @@ mod worker_common;
 
 const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_puppet_worker");
 const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
+const TEST_PREPARATION_TIMEOUT: Duration = Duration::from_secs(3);
 
 struct TestHost {
 	_cache_dir: tempfile::TempDir,
@@ -69,7 +70,7 @@ impl TestHost {
 			.lock()
 			.await
 			.execute_pvf(
-				PvfWithExecutorParams::from_code(code.into(), executor_params),
+				PvfPrepData::from_code(code.into(), executor_params, TEST_PREPARATION_TIMEOUT),
 				TEST_EXECUTION_TIMEOUT,
 				params.encode(),
 				polkadot_node_core_pvf::Priority::Normal,

@@ -238,7 +238,7 @@ async fn assert_validate_seconded_candidate(
 			&_validation_code == validation_code &&
 			&*_pov == pov &&
 			&candidate_receipt.descriptor == candidate.descriptor() &&
-			timeout == BACKING_EXECUTION_TIMEOUT &&
+			timeout == PvfExecTimeoutKind::Backing &&
 			candidate.commitments.hash() == candidate_receipt.commitments_hash =>
 		{
 			tx.send(Ok(ValidationResult::Valid(

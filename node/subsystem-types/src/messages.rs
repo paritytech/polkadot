@@ -44,14 +44,14 @@ use polkadot_primitives::{
 	CollatorId, CommittedCandidateReceipt, CoreState, DisputeState, GroupIndex, GroupRotationInfo,
 	Hash, Header as BlockHeader, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
 	MultiDisputeStatementSet, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
-	SessionIndex, SessionInfo, SignedAvailabilityBitfield, SignedAvailabilityBitfields,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	PvfExecTimeoutKind, SessionIndex, SessionInfo, SignedAvailabilityBitfield,
+	SignedAvailabilityBitfields, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use polkadot_statement_table::v2::Misbehavior;
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
 	sync::Arc,
-	time::Duration,
 };
 
 /// Network events as transmitted to other subsystems, wrapped in their message types.
@@ -89,7 +89,9 @@ pub enum CandidateBackingMessage {
 	/// given relay-parent (ref. by hash). This candidate must be validated.
 	Second(Hash, CandidateReceipt, PersistedValidationData, PoV),
 	/// Note a validator's statement about a particular candidate in the context of the given
-	/// relay-parent. Agreements are simply tallied until a quorum is reached.
+	/// relay-parent. Disagreements about validity must be escalated to a broader check by the
+	/// Disputes Subsystem, though that escalation is deferred until the approval voting stage to
+	/// guarantee availability. Agreements are simply tallied until a quorum is reached.
 	Statement(Hash, SignedFullStatementWithPVD),
 }
 
@@ -141,7 +143,7 @@ pub enum CandidateValidationMessage {
 		CandidateReceipt,
 		Arc<PoV>,
 		/// Execution timeout
-		Duration,
+		PvfExecTimeoutKind,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 	/// Validate a candidate with provided, exhaustive parameters for validation.
@@ -159,7 +161,7 @@ pub enum CandidateValidationMessage {
 		CandidateReceipt,
 		Arc<PoV>,
 		/// Execution timeout
-		Duration,
+		PvfExecTimeoutKind,
 		oneshot::Sender<Result<ValidationResult, ValidationFailed>>,
 	),
 	/// Try to compile the given validation code and send back
@@ -637,9 +639,9 @@ pub enum RuntimeApiRequest {
 	),
 	/// Returns all on-chain disputes at given block number. Available in `v3`.
 	Disputes(RuntimeApiSender<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>),
-	/// Get the validity constraints of the given para.
+	/// Get the backing state of the given para.
 	/// This is a staging API that will not be available on production runtimes.
-	StagingValidityConstraints(ParaId, RuntimeApiSender<Option<vstaging_primitives::Constraints>>),
+	StagingParaBackingState(ParaId, RuntimeApiSender<Option<vstaging_primitives::BackingState>>),
 	/// Get candidate's acceptance limitations for asynchronous backing for a relay parent.
 	///
 	/// If it's not supported by the Runtime, the async backing is said to be disabled.
@@ -655,10 +657,10 @@ impl RuntimeApiRequest {
 	/// `ExecutorParams`
 	pub const EXECUTOR_PARAMS_RUNTIME_REQUIREMENT: u32 = 4;
 
-	/// Minimum version for validity constraints, required for async backing.
+	/// Minimum version for backing state, required for async backing.
 	///
 	/// 99 for now, should be adjusted to VSTAGING/actual runtime version once released.
-	pub const VALIDITY_CONSTRAINTS: u32 = 99;
+	pub const STAGING_BACKING_STATE: u32 = 99;
 }
 
 /// A message to the Runtime API subsystem.

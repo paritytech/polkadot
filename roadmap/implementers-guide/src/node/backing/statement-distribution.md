@@ -1,5 +1,7 @@
 # Statement Distribution
 
+This subsystem is responsible for distributing signed statements that we have generated and forwarding them. This subsystem sends received Candidate Receipts and statements to the [Candidate Backing subsystem](candidate-backing.md) to handle the validator's statements. On receiving `StatementDistributionMessage::Share`, this distributes the message across the network to ensure a fast backing process and getting all statements quickly for distribution.
+
 ## Overview
 
 **Goal:** every well-connected node is aware of every next potential parachain
