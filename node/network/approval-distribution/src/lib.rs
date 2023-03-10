@@ -308,7 +308,7 @@ impl Knowledge {
 				success &
 					self.insert(
 						MessageSubject(
-							message.0.clone(),
+							message.0,
 							(candidate_index as CandidateIndex).into(),
 							message.2,
 						),
@@ -1135,7 +1135,7 @@ impl State {
 				.as_ref()
 				.map(|t| t.local_grid_neighbors().route_to_peer(required_routing, &peer))
 			{
-				peers.push(peer.clone());
+				peers.push(peer);
 				continue
 			}
 
@@ -1147,7 +1147,7 @@ impl State {
 
 			if route_random {
 				approval_entry.routing_info_mut().random_routing.inc_sent();
-				peers.push(peer.clone());
+				peers.push(peer);
 			}
 		}
 
@@ -1172,9 +1172,7 @@ impl State {
 			let peers = peers
 				.iter()
 				.filter_map(|peer_id| {
-					self.peer_views
-						.get(peer_id)
-						.map(|peer_entry| (peer_id.clone(), peer_entry.version))
+					self.peer_views.get(peer_id).map(|peer_entry| (*peer_id, peer_entry.version))
 				})
 				.collect::<Vec<_>>();
 
@@ -1453,13 +1451,12 @@ impl State {
 			let sigs = block_entry
 				.get_approval_entries(index)
 				.into_iter()
-				.map(|approval_entry| {
+				.flat_map(|approval_entry| {
 					approval_entry
 						.get_approvals()
 						.into_iter()
 						.map(|approval| (approval.validator, approval.signature))
 				})
-				.flatten()
 				.collect::<HashMap<ValidatorIndex, ValidatorSignature>>();
 			all_sigs.extend(sigs);
 		}
