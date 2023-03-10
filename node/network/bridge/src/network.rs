@@ -22,14 +22,11 @@ use futures::{prelude::*, stream::BoxStream};
 use parity_scale_codec::Encode;
 
 use sc_network::{
-	multiaddr::Multiaddr, Event as NetworkEvent, IfDisconnected, NetworkService, OutboundFailure,
+	multiaddr::Multiaddr, Event as NetworkEvent, IfDisconnected, NetworkEventStream,
+	NetworkNotification, NetworkPeers, NetworkRequest, NetworkService, OutboundFailure,
 	RequestFailure,
 };
-use sc_network_common::{
-	config::parse_addr,
-	protocol::ProtocolName,
-	service::{NetworkEventStream, NetworkNotification, NetworkPeers, NetworkRequest},
-};
+use sc_network_common::{config::parse_addr, protocol::ProtocolName};
 
 use polkadot_node_network_protocol::{
 	peer_set::{PeerSet, PeerSetProtocolNames, ProtocolVersion},
@@ -193,8 +190,9 @@ impl Network for Arc<NetworkService<Block, Hash>> {
 				match pending_response
 					.send(Err(RequestFailure::Network(OutboundFailure::DialFailure)))
 				{
-					Err(_) =>
-						gum::debug!(target: LOG_TARGET, "Sending failed request response failed."),
+					Err(_) => {
+						gum::debug!(target: LOG_TARGET, "Sending failed request response failed.")
+					},
 					Ok(_) => {},
 				}
 				return
