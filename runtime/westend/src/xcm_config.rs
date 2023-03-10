@@ -17,8 +17,9 @@
 //! XCM configurations for Westend.
 
 use super::{
-	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, Dmp, ParaId, Runtime,
-	RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
+	parachains_dmp, parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, Dmp,
+	ParaId, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, TransactionByteFee, WeightToFee,
+	XcmPallet,
 };
 use frame_support::{
 	parameter_types,
@@ -76,12 +77,19 @@ type LocalOriginConverter = (
 
 pub struct ExponentialWndPrice;
 impl PriceForParachainDelivery for ExponentialWndPrice {
-	fn price_for_parachain_delivery(para: ParaId, _: &Xcm<()>) -> MultiAssets {
-		let factor =
-			FixedU128::from_rational(101, 100).saturating_pow(Dmp::dmq_length(para) as usize);
+	fn price_for_parachain_delivery(para: ParaId, msg: &Xcm<()>) -> MultiAssets {
 		let base = CENTS.saturating_mul(3);
+		let msg_fee = (msg.len() as u128).saturating_mul(TransactionByteFee::get());
 
-		let amount = factor.saturating_mul_int(base);
+		let excess_msgs =
+			Dmp::dmq_length(para).saturating_sub(parachains_dmp::MAX_MESSAGE_QUEUE_SIZE) as usize;
+		let factor = if excess_msgs != 0 {
+			Dmp::raise_fee_factor(excess_msgs)
+		} else {
+			Dmp::reduce_fee_factor(1)
+		};
+
+		let amount = factor.saturating_mul_int(base + msg_fee);
 		(Here, amount).into()
 	}
 }
