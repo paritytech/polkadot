@@ -27,7 +27,7 @@ polkadot="target/release/polkadot"
 
 # ensure the polkadot binary exists and is up to date
 if [ ! -x "$polkadot" ] || [ "$polkadot" -ot "$last_modified_rust_file" ]; then
-  cargo build --release
+  cargo build --features fast-runtime --release
 fi
 
 # setup variables
