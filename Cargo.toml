@@ -201,6 +201,7 @@ debug-assertions = true
 overflow-checks = true
 
 [features]
+default = ["fast-runtime"]
 runtime-benchmarks= [ "polkadot-cli/runtime-benchmarks" ]
 try-runtime = [ "polkadot-cli/try-runtime" ]
 fast-runtime = [ "polkadot-cli/fast-runtime" ]
