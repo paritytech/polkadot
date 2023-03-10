@@ -21,7 +21,7 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
-use jaeger::{PerLeafSpan, hash_to_trace_identifier};
+use jaeger::{hash_to_trace_identifier, PerLeafSpan};
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
@@ -479,7 +479,11 @@ impl Wakeups {
 		self.wakeups.entry(tick).or_default().push((block_hash, candidate_hash));
 	}
 
-	fn prune_finalized_wakeups(&mut self, finalized_number: BlockNumber, spans: &mut HashMap<Hash, PerLeafSpan>) {
+	fn prune_finalized_wakeups(
+		&mut self,
+		finalized_number: BlockNumber,
+		spans: &mut HashMap<Hash, PerLeafSpan>,
+	) {
 		let after = self.block_numbers.split_off(&(finalized_number + 1));
 		let pruned_blocks: HashSet<_> = std::mem::replace(&mut self.block_numbers, after)
 			.into_iter()
@@ -506,7 +510,6 @@ impl Wakeups {
 
 		// Remove all spans that are associated with pruned blocks.
 		spans.retain(|h, _| !pruned_blocks.contains(h));
-		
 	}
 
 	// Get the wakeup for a particular block/candidate combo, if any.
