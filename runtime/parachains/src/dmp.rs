@@ -36,12 +36,16 @@ pub const MAX_MESSAGE_QUEUE_SIZE: usize = 1024;
 pub enum QueueDownwardMessageError {
 	/// The message being sent exceeds the configured max message size.
 	ExceedsMaxMessageSize,
+	/// Enquing the message would exceed the max queue size.
+	ExceedsMaxQueueSize,
 }
 
 impl From<QueueDownwardMessageError> for SendError {
 	fn from(err: QueueDownwardMessageError) -> Self {
 		match err {
 			QueueDownwardMessageError::ExceedsMaxMessageSize => SendError::ExceedsMaxMessageSize,
+			QueueDownwardMessageError::ExceedsMaxQueueSize =>
+				SendError::Transport("exceeds queue size"),
 		}
 	}
 }
@@ -102,9 +106,6 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(crate) type DownwardMessageQueueHeads<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, Hash, ValueQuery>;
-
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {}
 }
 
 /// Routines and getters related to downward message passing.
@@ -155,7 +156,7 @@ impl<T: Config> Pallet<T> {
 		if <Self as Store>::DownwardMessageQueues::decode_len(para).unwrap_or(0) >
 			MAX_MESSAGE_QUEUE_SIZE
 		{
-			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+			return Err(QueueDownwardMessageError::ExceedsMaxQueueSize)
 		}
 
 		Ok(())
@@ -182,7 +183,7 @@ impl<T: Config> Pallet<T> {
 		if <Self as Store>::DownwardMessageQueues::decode_len(para).unwrap_or(0) >
 			MAX_MESSAGE_QUEUE_SIZE
 		{
-			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+			return Err(QueueDownwardMessageError::ExceedsMaxQueueSize)
 		}
 
 		let inbound =
