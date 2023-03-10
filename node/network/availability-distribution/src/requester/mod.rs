@@ -135,7 +135,7 @@ impl Requester {
 		span: &jaeger::Span,
 	) -> Result<()> {
 		let mut span = span
-			.child("request-chunks")
+			.child("request-chunks-new-head")
 			.with_string_tag("leaf", format!("{:?}", new_head.hash))
 			.with_stage(jaeger::Stage::AvailabilityDistribution);
 
@@ -153,7 +153,7 @@ impl Requester {
 		// Also spawn or bump tasks for candidates in ancestry in the same session.
 		for hash in std::iter::once(leaf).chain(ancestors_in_session) {
 			let span = span
-				.child("get-occupied-cores")
+				.child("request-chunks-ancestor")
 				.with_string_tag("leaf", format!("{:?}", hash.clone()))
 				.with_stage(jaeger::Stage::AvailabilityDistribution);
 
