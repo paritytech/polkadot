@@ -1071,7 +1071,7 @@ impl State {
 		}
 
 		// Invariant: to our knowledge, none of the peers except for the `source` know about the assignment.
-		metrics.on_assignment_imported();
+		metrics.on_assignment_imported(&assignment.cert.kind);
 
 		let topology = self.topologies.get_topology(entry.session);
 		let local = source == MessageSource::Local;
