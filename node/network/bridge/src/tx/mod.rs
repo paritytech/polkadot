@@ -235,7 +235,14 @@ where
 					WireMessage::ProtocolMessage(msg),
 					&metrics,
 				),
-				_ => unimplemented!("collation protocol has only v1; qed"),
+				_ => {
+					gum::warn!(
+						target: LOG_TARGET,
+						action = "SendCollationMessages",
+						num_messages = 1usize,
+						"Attempted to send collation message on invalid protocol version. Only v1 supported."
+					);
+				},
 			}
 		},
 		NetworkBridgeTxMessage::SendCollationMessages(msgs) => {
@@ -254,7 +261,12 @@ where
 						WireMessage::ProtocolMessage(msg),
 						&metrics,
 					),
-					_ => unimplemented!("collation protocol has only v1; qed"),
+					_ => gum::warn!(
+						target: LOG_TARGET,
+						action = "SendCollationMessages",
+						num_messages = 1usize,
+						"Attempted to send collation message on invalid protocol version"
+					),
 				}
 			}
 		},
