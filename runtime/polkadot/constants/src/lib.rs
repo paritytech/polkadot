@@ -113,9 +113,9 @@ pub mod xcm {
 
 /// Parachains.
 pub mod parachains {
-	/// Statemint parachain id.
+	/// Statemint parachain ID.
 	pub const STATEMINT_ID: u32 = 1000;
-	/// Collectives parachain id.
+	/// Collectives parachain ID.
 	pub const COLLECTIVES_ID: u32 = 1001;
 }
 
