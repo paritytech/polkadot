@@ -127,7 +127,7 @@ fn candidate_is_only_dequeued_once() {
 	let req_prio = make_participation_request(Hash::repeat_byte(0x02));
 	let req_best_effort_then_prio = make_participation_request(Hash::repeat_byte(0x03));
 	let req_prio_then_best_effort = make_participation_request(Hash::repeat_byte(0x04));
-	
+
 	queue
 		.queue_with_comparator(
 			make_dummy_comparator(&req1, None),
