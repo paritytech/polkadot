@@ -111,6 +111,14 @@ pub mod xcm {
 	}
 }
 
+/// Parachains.
+pub mod parachains {
+	/// Statemint parachain id.
+	pub const STATEMINT_ID: u32 = 1000;
+	/// Collectives parachain id.
+	pub const COLLECTIVES_ID: u32 = 1001;
+}
+
 #[cfg(test)]
 mod tests {
 	use super::{

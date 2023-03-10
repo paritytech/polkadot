@@ -26,15 +26,16 @@ use frame_support::{
 	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
-use polkadot_runtime_constants::xcm::body::FELLOWSHIP_ADMIN_INDEX;
+use pallet_xcm::XcmPassthrough;
+use polkadot_runtime_constants::{parachains::*, xcm::body::FELLOWSHIP_ADMIN_INDEX};
 use runtime_common::{paras_registrar, xcm_sender, ToAuthor};
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
-	AllowTopLevelPaidExecutionFrom, BackingToPlurality, ChildParachainAsNative,
-	ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,
-	IsConcrete, MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative,
+	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
+	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, BackingToPlurality,
+	ChildParachainAsNative, ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter,
+	FixedWeightBounds, IsConcrete, MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative,
 	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
 	WithComputedOrigin,
 };
@@ -94,6 +95,8 @@ type LocalOriginConverter = (
 	// If the origin kind is `Native` and the XCM origin is the `AccountId32` location, then it can
 	// be expressed using the `Signed` origin variant.
 	SignedAccountId32AsNative<ThisNetwork, RuntimeOrigin>,
+	// Xcm origins can be represented natively under the Xcm pallet's Xcm origin.
+	XcmPassthrough<RuntimeOrigin>,
 );
 
 parameter_types! {
@@ -113,8 +116,8 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Dot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(1000).into_location());
-	pub const CollectivesLocation: MultiLocation = Parachain(1001).into_location();
+	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(STATEMINT_ID).into_location());
+	pub const CollectivesLocation: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
 	pub const DotForCollectives: (MultiAssetFilter, MultiLocation) = (Dot::get(), CollectivesLocation::get());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
@@ -126,6 +129,10 @@ pub type TrustedTeleporters =
 match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
+	};
+	pub type CollectivesOrCollectivesPlurality: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(COLLECTIVES_ID)) } |
+		MultiLocation { parents: 0, interior: X2(Parachain(COLLECTIVES_ID), Plurality { .. }) }
 	};
 }
 
@@ -141,6 +148,8 @@ pub type Barrier = (
 			AllowTopLevelPaidExecutionFrom<Everything>,
 			// Subscriptions for version tracking are OK.
 			AllowSubscriptionsFrom<OnlyParachains>,
+			// Collectives and its pluralities get free execution.
+			AllowExplicitUnpaidExecutionFrom<CollectivesOrCollectivesPlurality>,
 		),
 		UniversalLocation,
 		ConstU32<8>,
@@ -304,7 +313,8 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			) |
 			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
 				..
-			}) => true,
+			}) |
+			RuntimeCall::Whitelist(pallet_whitelist::Call::whitelist_call { .. }) => true,
 			_ => false,
 		}
 	}
