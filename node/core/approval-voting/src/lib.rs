@@ -21,7 +21,7 @@
 //! of others. It uses this information to determine when candidates and blocks have
 //! been sufficiently approved to finalize.
 
-use jaeger::hash_to_trace_identifier;
+use jaeger::{PerLeafSpan, hash_to_trace_identifier};
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
@@ -479,7 +479,7 @@ impl Wakeups {
 		self.wakeups.entry(tick).or_default().push((block_hash, candidate_hash));
 	}
 
-	fn prune_finalized_wakeups(&mut self, finalized_number: BlockNumber) {
+	fn prune_finalized_wakeups(&mut self, finalized_number: BlockNumber, spans: &mut HashMap<Hash, PerLeafSpan>) {
 		let after = self.block_numbers.split_off(&(finalized_number + 1));
 		let pruned_blocks: HashSet<_> = std::mem::replace(&mut self.block_numbers, after)
 			.into_iter()
@@ -497,12 +497,16 @@ impl Wakeups {
 
 		for (tick, pruned) in pruned_wakeups {
 			if let BTMEntry::Occupied(mut entry) = self.wakeups.entry(tick) {
-				entry.get_mut().retain(|wakeup| !pruned.contains(wakeup));
+				entry.get_mut().retain(|wakeup| pruned.contains(wakeup));
 				if entry.get().is_empty() {
 					let _ = entry.remove();
 				}
 			}
 		}
+
+		// Remove all spans that are associated with pruned blocks.
+		spans.retain(|h, _| !pruned_blocks.contains(h));
+		
 	}
 
 	// Get the wakeup for a particular block/candidate combo, if any.
@@ -1238,11 +1242,12 @@ async fn handle_from_overseer<Context>(
 			crate::ops::canonicalize(db, block_number, block_hash)
 				.map_err(|e| SubsystemError::with_origin("db", e))?;
 
-			wakeups.prune_finalized_wakeups(block_number);
-
 			// `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans accordingly.
-			let hash_set = wakeups.block_numbers.values().flatten().collect::<HashSet<_>>();
-			state.spans.retain(|hash, _| hash_set.contains(hash));
+			wakeups.prune_finalized_wakeups(block_number, &mut state.spans);
+
+			// // `prune_finalized_wakeups` prunes all finalized block hashes. We prune spans accordingly.
+			// let hash_set = wakeups.block_numbers.values().flatten().collect::<HashSet<_>>();
+			// state.spans.retain(|hash, _| hash_set.contains(hash));
 
 			Vec::new()
 		},
