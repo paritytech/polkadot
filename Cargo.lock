@@ -5055,8 +5055,9 @@ dependencies = [
 
 [[package]]
 name = "orchestra"
-version = "0.0.7"
-source = "git+https://github.com/paritytech/orchestra?branch=master#58a6a595aea5d62f115cdae380aeaddeadbce325"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ecae97f74ddeb5c6ff00c98ef368423b4ec9a4d5ab48c0d909e84b7594b09718"
 dependencies = [
  "async-trait",
  "dyn-clonable",
@@ -5064,15 +5065,16 @@ dependencies = [
  "futures-timer",
  "orchestra-proc-macro",
  "pin-project",
- "prioritized-metered-channel 0.2.0 (git+https://github.com/paritytech/orchestra?branch=master)",
+ "prioritized-metered-channel",
  "thiserror",
  "tracing",
 ]
 
 [[package]]
 name = "orchestra-proc-macro"
-version = "0.0.7"
-source = "git+https://github.com/paritytech/orchestra?branch=master#58a6a595aea5d62f115cdae380aeaddeadbce325"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08a9846c70b1df02657dbe5b54fadbad0ea3b944623ebf3fcbf7f33ef859dcba"
 dependencies = [
  "expander 0.0.6",
  "itertools",
@@ -7126,7 +7128,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-test-service",
- "prioritized-metered-channel 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "prioritized-metered-channel",
  "prometheus-parse",
  "sc-cli",
  "sc-client-api",
@@ -7266,7 +7268,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "prioritized-metered-channel 0.2.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "prioritized-metered-channel",
  "rand 0.8.5",
  "sp-application-crypto",
  "sp-core",
@@ -7294,7 +7296,7 @@ dependencies = [
  "polkadot-node-subsystem-types",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "prioritized-metered-channel 0.2.0 (git+https://github.com/paritytech/orchestra?branch=master)",
+ "prioritized-metered-channel",
  "sc-client-api",
  "sp-api",
  "sp-core",
@@ -8097,24 +8099,9 @@ dependencies = [
 
 [[package]]
 name = "prioritized-metered-channel"
-version = "0.2.0"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "382698e48a268c832d0b181ed438374a6bb708a82a8ca273bb0f61c74cf209c4"
-dependencies = [
- "coarsetime",
- "crossbeam-queue",
- "derive_more",
- "futures",
- "futures-timer",
- "nanorand",
- "thiserror",
- "tracing",
-]
-
-[[package]]
-name = "prioritized-metered-channel"
-version = "0.2.0"
-source = "git+https://github.com/paritytech/orchestra?branch=master#58a6a595aea5d62f115cdae380aeaddeadbce325"
+checksum = "a3caef72a78ca8e77cbdfa87dd516ebb79d4cbe5b42e3b8435b463a8261339ff"
 dependencies = [
  "async-channel",
  "coarsetime",
@@ -8450,9 +8437,9 @@ checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
 
 [[package]]
 name = "rayon"
-version = "1.6.1"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6db3a213adf02b3bcfd2d3846bb41cb22857d131789e01df434fb7e7bc0759b7"
+checksum = "1d2df5196e37bcc87abebc0053e20787d73847bb33134a69841207dd0a47f03b"
 dependencies = [
  "either",
  "rayon-core",
@@ -8460,9 +8447,9 @@ dependencies = [
 
 [[package]]
 name = "rayon-core"
-version = "1.10.2"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "356a0625f1954f730c0201cdab48611198dc6ce21f4acff55089b5a78e6e835b"
+checksum = "4b8f95bd6966f5c87776639160a66bd8ab9895d9d4ab01ddba9fc60661aebe8d"
 dependencies = [
  "crossbeam-channel",
  "crossbeam-deque",
