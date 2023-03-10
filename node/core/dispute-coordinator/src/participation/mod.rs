@@ -243,7 +243,8 @@ impl Participation {
 		recent_head: Hash,
 	) -> FatalResult<()> {
 		while self.running_participations.len() < MAX_PARALLEL_PARTICIPATIONS {
-			if let Some(req) = self.queue.dequeue() {
+			let maybe_req = self.queue.dequeue();
+			if let Some(req) = maybe_req {
 				self.fork_participation(ctx, req, recent_head)?;
 			} else {
 				break

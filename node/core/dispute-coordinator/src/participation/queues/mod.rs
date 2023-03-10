@@ -140,22 +140,21 @@ impl ParticipationRequest {
 		let Self { candidate_hash, candidate_receipt, .. } = self;
 		(candidate_hash, candidate_receipt)
 	}
-}
-
-impl PartialEq for ParticipationRequest {
-	fn eq(&self, other: &Self) -> bool {
-		let ParticipationRequest {
-			candidate_receipt,
-			candidate_hash,
-			session: _session,
-			_request_timer,
-		} = self;
-		candidate_receipt == other.candidate_receipt() &&
-			candidate_hash == other.candidate_hash() &&
+	// For tests we want to check whether requests are equal, but the
+	// request_timer field of ParticipationRequest doesn't implement
+	// eq. This helper checks whether all other fields are equal,
+	// which is sufficient.
+	#[cfg(test)]
+	pub fn functionally_equal(&self, other: ParticipationRequest) -> bool {
+		if &self.candidate_receipt == other.candidate_receipt() &&
+			&self.candidate_hash == other.candidate_hash() &&
 			self.session == other.session()
+		{
+			return true
+		}
+		false
 	}
 }
-impl Eq for ParticipationRequest {}
 
 impl Queues {
 	/// Create new `Queues`.
