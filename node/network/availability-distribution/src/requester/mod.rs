@@ -213,7 +213,7 @@ impl Requester {
 				Entry::Occupied(mut e) =>
 				// Just book keeping - we are already requesting that chunk:
 				{
-					span.add_string_tag("alread-requested-chunk", "true");
+					span.add_string_tag("already-requested-chunk", "true");
 					e.get_mut().add_leaf(leaf);
 				},
 				Entry::Vacant(e) => {

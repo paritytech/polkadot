@@ -287,6 +287,7 @@ impl RunningTask {
 					continue
 				},
 			};
+			// We drop the span here, so that the span is not active while we recombine the chunk.
 			drop(_chunk_fetch_span);
 			let _chunk_recombine_span = span
 				.child("recombine-chunk")
@@ -309,6 +310,7 @@ impl RunningTask {
 					continue
 				},
 			};
+			// We drop the span so that the span is not active whilst we validate and store the chunk.
 			drop(_chunk_recombine_span);
 			let _chunk_validate_and_store_span = span
 				.child("validate-and-store-chunk")
