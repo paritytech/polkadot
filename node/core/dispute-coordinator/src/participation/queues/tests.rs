@@ -14,10 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::ParticipationPriority;
+use crate::{metrics::Metrics, ParticipationPriority};
 use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 use assert_matches::assert_matches;
 use polkadot_primitives::{BlockNumber, Hash};
+use std::sync::Arc;
 
 use super::{CandidateComparator, ParticipationRequest, QueueError, Queues};
 
@@ -26,7 +27,8 @@ fn make_participation_request(hash: Hash) -> ParticipationRequest {
 	let mut receipt = dummy_candidate_receipt(dummy_hash());
 	// make it differ:
 	receipt.commitments_hash = hash;
-	ParticipationRequest::new(receipt, 1)
+	let request_timer = Arc::new(Metrics::default().time_participation_pipeline());
+	ParticipationRequest::new(receipt, 1, request_timer)
 }
 
 /// Make dummy comparator for request, based on the given block number.
@@ -44,7 +46,8 @@ fn make_dummy_comparator(
 /// block number should be treated with lowest priority.
 #[test]
 fn ordering_works_as_expected() {
-	let mut queue = Queues::new();
+	let metrics = Metrics::default();
+	let mut queue = Queues::new(metrics.clone());
 	let req1 = make_participation_request(Hash::repeat_byte(0x01));
 	let req_prio = make_participation_request(Hash::repeat_byte(0x02));
 	let req3 = make_participation_request(Hash::repeat_byte(0x03));
@@ -91,7 +94,7 @@ fn ordering_works_as_expected() {
 		queue.queue_with_comparator(
 			make_dummy_comparator(&req_prio_full, Some(3)),
 			ParticipationPriority::Priority,
-			req_prio_full
+			req_prio_full,
 		),
 		Err(QueueError::PriorityFull)
 	);
@@ -99,7 +102,7 @@ fn ordering_works_as_expected() {
 		queue.queue_with_comparator(
 			make_dummy_comparator(&req_full, Some(3)),
 			ParticipationPriority::BestEffort,
-			req_full
+			req_full,
 		),
 		Err(QueueError::BestEffortFull)
 	);
@@ -118,7 +121,8 @@ fn ordering_works_as_expected() {
 /// No matter how often a candidate gets queued, it should only ever get dequeued once.
 #[test]
 fn candidate_is_only_dequeued_once() {
-	let mut queue = Queues::new();
+	let metrics = Metrics::default();
+	let mut queue = Queues::new(metrics.clone());
 	let req1 = make_participation_request(Hash::repeat_byte(0x01));
 	let req_prio = make_participation_request(Hash::repeat_byte(0x02));
 	let req_best_effort_then_prio = make_participation_request(Hash::repeat_byte(0x03));
@@ -154,7 +158,6 @@ fn candidate_is_only_dequeued_once() {
 			req_prio.clone(),
 		)
 		.unwrap();
-
 	// Insert first as best effort:
 	queue
 		.queue_with_comparator(
@@ -195,5 +198,5 @@ fn candidate_is_only_dequeued_once() {
 	assert_eq!(queue.dequeue(), Some(req_best_effort_then_prio));
 	assert_eq!(queue.dequeue(), Some(req_prio_then_best_effort));
 	assert_eq!(queue.dequeue(), Some(req1));
-	assert_eq!(queue.dequeue(), None);
+	assert_matches!(queue.dequeue(), None);
 }
