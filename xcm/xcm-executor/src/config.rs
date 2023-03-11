@@ -16,8 +16,8 @@
 
 use crate::traits::{
 	AssetExchange, AssetLock, CallDispatcher, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm,
-	FeeManager, OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds,
-	WeightTrader,
+	FeeManager, OnResponse, ProcessInstruction, ShouldExecute, TransactAsset,
+	VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 use frame_support::{
 	dispatch::{Dispatchable, GetDispatchInfo, Parameter, PostDispatchInfo},
@@ -106,4 +106,7 @@ pub trait Config {
 	/// Use this type to explicitly whitelist calls that cannot undergo recursion. This is a
 	/// temporary measure until we properly account for proof size weights for XCM instructions.
 	type SafeCallFilter: Contains<Self::RuntimeCall>;
+
+	/// The processor implementation that process XCM instructions
+	type ProcessInstruction: ProcessInstruction<Self::RuntimeCall>;
 }

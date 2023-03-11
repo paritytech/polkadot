@@ -307,6 +307,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = WithOriginFilter<SafeCallFilter>;
 	type SafeCallFilter = SafeCallFilter;
+	type ProcessInstruction = xcm_executor::XcmProcessor<Self>;
 }
 
 parameter_types! {
