@@ -30,8 +30,8 @@ use polkadot_node_subsystem_types::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_primitives::{
-	CandidateHash, CandidateReceipt, CollatorPair, InvalidDisputeStatementKind, SessionIndex,
-	ValidDisputeStatementKind, ValidatorIndex,
+	CandidateHash, CandidateReceipt, CollatorPair, InvalidDisputeStatementKind, PvfExecTimeoutKind,
+	SessionIndex, ValidDisputeStatementKind, ValidatorIndex,
 };
 
 use crate::{
@@ -106,7 +106,7 @@ where
 						ctx.send_message(CandidateValidationMessage::ValidateFromChainState(
 							candidate_receipt,
 							PoV { block_data: BlockData(Vec::new()) }.into(),
-							Default::default(),
+							PvfExecTimeoutKind::Backing,
 							tx,
 						))
 						.await;
@@ -779,7 +779,7 @@ fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	CandidateValidationMessage::ValidateFromChainState(
 		candidate_receipt,
 		pov,
-		Duration::default(),
+		PvfExecTimeoutKind::Backing,
 		sender,
 	)
 }
