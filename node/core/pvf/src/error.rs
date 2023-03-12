@@ -42,6 +42,8 @@ pub enum PrepareError {
 	/// The response from the worker is received, but the file cannot be renamed (moved) to the final destination
 	/// location. This state is reported by the validation host (not by the worker).
 	RenameTmpFileErr(String),
+	/// Node and worker version mismatch. May happen if the node binary has been upgraded in-place.
+	VersionMismatch,
 }
 
 impl PrepareError {
@@ -55,7 +57,8 @@ impl PrepareError {
 		use PrepareError::*;
 		match self {
 			Prevalidation(_) | Preparation(_) | Panic(_) => true,
-			TimedOut | IoErr(_) | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
+			TimedOut | IoErr(_) | CreateTmpFileErr(_) | RenameTmpFileErr(_) | VersionMismatch =>
+				false,
 		}
 	}
 }
@@ -71,6 +74,7 @@ impl fmt::Display for PrepareError {
 			IoErr(err) => write!(f, "prepare: io error while receiving response: {}", err),
 			CreateTmpFileErr(err) => write!(f, "prepare: error creating tmp file: {}", err),
 			RenameTmpFileErr(err) => write!(f, "prepare: error renaming tmp file: {}", err),
+			VersionMismatch => write!(f, "prepare: node and worker version mismatch"),
 		}
 	}
 }

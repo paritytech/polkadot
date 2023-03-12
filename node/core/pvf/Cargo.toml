@@ -41,6 +41,9 @@ sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = 
 sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
+[build-dependencies]
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
 [target.'cfg(target_os = "linux")'.dependencies]
 libc = "0.2.139"
 tikv-jemalloc-ctl = "0.5.0"

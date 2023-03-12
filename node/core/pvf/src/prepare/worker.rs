@@ -52,7 +52,13 @@ pub async fn spawn(
 	program_path: &Path,
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	spawn_with_program_path("prepare", program_path, &["prepare-worker"], spawn_timeout).await
+	spawn_with_program_path(
+		"prepare",
+		program_path,
+		&["prepare-worker", concat!("--node-impl-version=", env!("SUBSTRATE_CLI_IMPL_VERSION"))],
+		spawn_timeout,
+	)
+	.await
 }
 
 pub enum Outcome {
@@ -175,6 +181,15 @@ async fn handle_response(
 		Ok(result) => result,
 		// Timed out on the child. This should already be logged by the child.
 		Err(PrepareError::TimedOut) => return Outcome::TimedOut,
+		// Worker reported version mismatch
+		Err(PrepareError::VersionMismatch) => {
+			gum::error!(
+				target: LOG_TARGET,
+				%worker_pid,
+				"node and worker version mismatch",
+			);
+			std::process::exit(1);
+		},
 		Err(_) => return Outcome::Concluded { worker, result },
 	};
 
@@ -342,11 +357,26 @@ async fn recv_response(stream: &mut UnixStream, pid: u32) -> io::Result<PrepareR
 ///
 ///	7. Send the result of preparation back to the host. If any error occurred in the above steps, we
 ///	   send that in the `PrepareResult`.
-pub fn worker_entrypoint(socket_path: &str) {
+pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	worker_event_loop("prepare", socket_path, |rt_handle, mut stream| async move {
+		let worker_pid = std::process::id();
+		let mut version_checked = false;
 		loop {
-			let worker_pid = std::process::id();
 			let (pvf, dest) = recv_request(&mut stream).await?;
+			if !version_checked {
+				version_checked = true;
+				if let Some(version) = node_version {
+					if version != env!("SUBSTRATE_CLI_IMPL_VERSION") {
+						gum::error!(
+							target: LOG_TARGET,
+							%worker_pid,
+							"worker: node and worker version mismatch",
+						);
+						send_response(&mut stream, Err(PrepareError::VersionMismatch)).await?;
+						return Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"))
+					}
+				}
+			}
 			gum::debug!(
 				target: LOG_TARGET,
 				%worker_pid,

@@ -72,7 +72,7 @@ macro_rules! decl_puppet_worker_main {
 				},
 				"prepare-worker" => {
 					let socket_path = &args[2];
-					$crate::prepare_worker_entrypoint(socket_path);
+					$crate::prepare_worker_entrypoint(socket_path, None);
 				},
 				"execute-worker" => {
 					let socket_path = &args[2];
