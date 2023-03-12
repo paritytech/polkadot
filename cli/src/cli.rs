@@ -81,7 +81,8 @@ pub struct ValidationWorkerCommand {
 	/// The path to the validation host's socket.
 	pub socket_path: String,
 	/// Calling node implementation version
-	pub node_impl_version: Option<String>,
+	#[arg(long)]
+	pub node_impl_version: String,
 }
 
 #[allow(missing_docs)]

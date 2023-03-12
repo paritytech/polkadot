@@ -496,7 +496,7 @@ pub fn run() -> Result<()> {
 			{
 				polkadot_node_core_pvf::prepare_worker_entrypoint(
 					&cmd.socket_path,
-					cmd.node_impl_version.as_deref(),
+					Some(&cmd.node_impl_version),
 				);
 				Ok(())
 			}
