@@ -41,7 +41,7 @@ mod tests;
 /// The maximum number of disputes Provisioner will include in the inherent data.
 /// Serves as a protection not to flood the Runtime with excessive data.
 #[cfg(not(test))]
-pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200_000;
+pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 1_000;
 #[cfg(test)]
 pub const MAX_DISPUTE_VOTES_FORWARDED_TO_RUNTIME: usize = 200;
 
