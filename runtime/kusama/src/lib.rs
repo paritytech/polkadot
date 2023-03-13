@@ -1455,13 +1455,6 @@ pub type SignedExtra = (
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 
-pub struct StakingMigrationV11OldPallet;
-impl Get<&'static str> for StakingMigrationV11OldPallet {
-	fn get() -> &'static str {
-		"VoterList"
-	}
-}
-
 pub struct NominationPoolsMigrationV4OldPallet;
 impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 	fn get() -> Perbill {
