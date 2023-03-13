@@ -1430,6 +1430,7 @@ parameter_types! {
 	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
 	// Allow pools that got slashed up to 90% to remain operational.
 	pub const MaxPointsToBalance: u8 = 10;
+	pub const InitialGlobalMaxCommission: Perbill = Perbill::zero();
 }
 
 impl pallet_nomination_pools::Config for Runtime {
@@ -1446,6 +1447,7 @@ impl pallet_nomination_pools::Config for Runtime {
 	type PalletId = PoolsPalletId;
 	type MaxPointsToBalance = MaxPointsToBalance;
 	type WeightInfo = weights::pallet_nomination_pools::WeightInfo<Self>;
+	type InitialGlobalMaxCommission = InitialGlobalMaxCommission;
 }
 
 pub struct InitiateNominationPools;

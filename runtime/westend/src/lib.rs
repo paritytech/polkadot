@@ -1072,6 +1072,7 @@ impl auctions::Config for Runtime {
 parameter_types! {
 	pub const PoolsPalletId: PalletId = PalletId(*b"py/nopls");
 	pub const MaxPointsToBalance: u8 = 10;
+	pub const InitialGlobalMaxCommission: Perbill = Perbill::zero();
 }
 
 impl pallet_nomination_pools::Config for Runtime {
@@ -1088,6 +1089,7 @@ impl pallet_nomination_pools::Config for Runtime {
 	type MaxUnbonding = <Self as pallet_staking::Config>::MaxUnlockingChunks;
 	type PalletId = PoolsPalletId;
 	type MaxPointsToBalance = MaxPointsToBalance;
+	type InitialGlobalMaxCommission = InitialGlobalMaxCommission;
 }
 
 parameter_types! {
