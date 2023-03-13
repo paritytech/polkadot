@@ -473,7 +473,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
@@ -1155,7 +1154,7 @@ pub mod pallet {
 		))]
 		pub fn set_bypass_consistency_check(origin: OriginFor<T>, new: bool) -> DispatchResult {
 			ensure_root(origin)?;
-			<Self as Store>::BypassConsistencyCheck::put(new);
+			BypassConsistencyCheck::<T>::put(new);
 			Ok(())
 		}
 	}
@@ -1200,7 +1199,7 @@ impl<T: Config> Pallet<T> {
 		session_index: &SessionIndex,
 	) -> SessionChangeOutcome<T::BlockNumber> {
 		let pending_configs = <PendingConfigs<T>>::get();
-		let prev_config = <Self as Store>::ActiveConfig::get();
+		let prev_config = ActiveConfig::<T>::get();
 
 		// No pending configuration changes, so we're done.
 		if pending_configs.is_empty() {
@@ -1223,7 +1222,7 @@ impl<T: Config> Pallet<T> {
 		let new_config = past_and_present.pop().map(|(_, config)| config);
 		if let Some(ref new_config) = new_config {
 			// Apply the new configuration.
-			<Self as Store>::ActiveConfig::put(new_config);
+			ActiveConfig::<T>::put(new_config);
 		}
 
 		<PendingConfigs<T>>::put(future);
@@ -1240,7 +1239,7 @@ impl<T: Config> Pallet<T> {
 	/// only when enabling parachains runtime pallets for the first time on a chain which has
 	/// been running without them.
 	pub fn force_set_active_config(config: HostConfiguration<T::BlockNumber>) {
-		<Self as Store>::ActiveConfig::set(config);
+		ActiveConfig::<T>::set(config);
 	}
 
 	/// This function should be used to update members of the configuration.
@@ -1302,7 +1301,7 @@ impl<T: Config> Pallet<T> {
 		updater(&mut base_config);
 		let new_config = base_config;
 
-		if <Self as Store>::BypassConsistencyCheck::get() {
+		if BypassConsistencyCheck::<T>::get() {
 			// This will emit a warning each configuration update if the consistency check is
 			// bypassed. This is an attempt to make sure the bypass is not accidentally left on.
 			log::warn!(
