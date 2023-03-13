@@ -1603,6 +1603,9 @@ pub fn supermajority_threshold(n: usize) -> usize {
 }
 
 /// Information about validator sets of a session.
+///
+/// NOTE: `SessionInfo` is frozen. Do not include new fields, consider creating a separate runtime
+/// API. Reasoning and further outlook [here](https://github.com/paritytech/polkadot/issues/6586).
 #[derive(Clone, Encode, Decode, RuntimeDebug, TypeInfo)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub struct SessionInfo {
@@ -1684,6 +1687,33 @@ impl PvfCheckStatement {
 		const MAGIC: [u8; 4] = *b"VCPC"; // for "validation code pre-checking"
 		(MAGIC, self.accept, self.subject, self.session_index, self.validator_index).encode()
 	}
+}
+
+/// Type discriminator for PVF preparation timeouts
+#[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PvfPrepTimeoutKind {
+	/// For prechecking requests, the time period after which the preparation worker is considered
+	/// unresponsive and will be killed.
+	Precheck,
+
+	/// For execution and heads-up requests, the time period after which the preparation worker is
+	/// considered unresponsive and will be killed. More lenient than the timeout for prechecking
+	/// to prevent honest validators from timing out on valid PVFs.
+	Lenient,
+}
+
+/// Type discriminator for PVF execution timeouts
+#[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PvfExecTimeoutKind {
+	/// The amount of time to spend on execution during backing.
+	Backing,
+
+	/// The amount of time to spend on execution during approval or disputes.
+	///
+	/// This should be much longer than the backing execution timeout to ensure that in the
+	/// absence of extremely large disparities between hardware, blocks that pass backing are
+	/// considered executable by approval checkers or dispute participants.
+	Approval,
 }
 
 #[cfg(test)]

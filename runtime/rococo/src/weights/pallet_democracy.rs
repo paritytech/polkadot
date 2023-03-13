@@ -58,8 +58,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `4831`
 		//  Estimated: `23409`
 		// Minimum execution time: 35_009 nanoseconds.
-		Weight::from_ref_time(35_562_000)
-			.saturating_add(Weight::from_proof_size(23409))
+		Weight::from_parts(35_562_000, 0)
+			.saturating_add(Weight::from_parts(0, 23409))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -70,8 +70,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `3587`
 		//  Estimated: `5705`
 		// Minimum execution time: 32_327 nanoseconds.
-		Weight::from_ref_time(32_829_000)
-			.saturating_add(Weight::from_proof_size(5705))
+		Weight::from_parts(32_829_000, 0)
+			.saturating_add(Weight::from_parts(0, 5705))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -86,8 +86,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `3494`
 		//  Estimated: `12720`
 		// Minimum execution time: 44_432 nanoseconds.
-		Weight::from_ref_time(44_971_000)
-			.saturating_add(Weight::from_proof_size(12720))
+		Weight::from_parts(44_971_000, 0)
+			.saturating_add(Weight::from_parts(0, 12720))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -102,8 +102,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `3516`
 		//  Estimated: `12720`
 		// Minimum execution time: 44_198 nanoseconds.
-		Weight::from_ref_time(44_910_000)
-			.saturating_add(Weight::from_proof_size(12720))
+		Weight::from_parts(44_910_000, 0)
+			.saturating_add(Weight::from_parts(0, 12720))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -118,8 +118,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `365`
 		//  Estimated: `7712`
 		// Minimum execution time: 26_814 nanoseconds.
-		Weight::from_ref_time(27_292_000)
-			.saturating_add(Weight::from_proof_size(7712))
+		Weight::from_parts(27_292_000, 0)
+			.saturating_add(Weight::from_parts(0, 7712))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -142,8 +142,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `6003`
 		//  Estimated: `36392`
 		// Minimum execution time: 89_645 nanoseconds.
-		Weight::from_ref_time(90_833_000)
-			.saturating_add(Weight::from_proof_size(36392))
+		Weight::from_parts(90_833_000, 0)
+			.saturating_add(Weight::from_parts(0, 36392))
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(7))
 	}
@@ -156,8 +156,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `3415`
 		//  Estimated: `6340`
 		// Minimum execution time: 13_608 nanoseconds.
-		Weight::from_ref_time(14_008_000)
-			.saturating_add(Weight::from_proof_size(6340))
+		Weight::from_parts(14_008_000, 0)
+			.saturating_add(Weight::from_parts(0, 6340))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -168,8 +168,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_288 nanoseconds.
-		Weight::from_ref_time(3_531_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(3_531_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Democracy NextExternal (r:0 w:1)
@@ -179,8 +179,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_313 nanoseconds.
-		Weight::from_ref_time(3_500_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(3_500_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Democracy NextExternal (r:1 w:1)
@@ -196,8 +196,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `253`
 		//  Estimated: `3654`
 		// Minimum execution time: 27_758 nanoseconds.
-		Weight::from_ref_time(28_367_000)
-			.saturating_add(Weight::from_proof_size(3654))
+		Weight::from_parts(28_367_000, 0)
+			.saturating_add(Weight::from_parts(0, 3654))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(5))
 	}
@@ -212,8 +212,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `3518`
 		//  Estimated: `8868`
 		// Minimum execution time: 31_910 nanoseconds.
-		Weight::from_ref_time(32_522_000)
-			.saturating_add(Weight::from_proof_size(8868))
+		Weight::from_parts(32_522_000, 0)
+			.saturating_add(Weight::from_parts(0, 8868))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -230,8 +230,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `5882`
 		//  Estimated: `28033`
 		// Minimum execution time: 73_861 nanoseconds.
-		Weight::from_ref_time(74_543_000)
-			.saturating_add(Weight::from_proof_size(28033))
+		Weight::from_parts(74_543_000, 0)
+			.saturating_add(Weight::from_parts(0, 28033))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(4))
 	}
@@ -244,8 +244,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `238`
 		//  Estimated: `2528`
 		// Minimum execution time: 20_285 nanoseconds.
-		Weight::from_ref_time(20_556_000)
-			.saturating_add(Weight::from_proof_size(2528))
+		Weight::from_parts(20_556_000, 0)
+			.saturating_add(Weight::from_parts(0, 2528))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -261,14 +261,14 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `211 + r * (117 ±0)`
 		//  Estimated: `998 + r * (2676 ±0)`
 		// Minimum execution time: 7_440 nanoseconds.
-		Weight::from_ref_time(10_296_992)
-			.saturating_add(Weight::from_proof_size(998))
+		Weight::from_parts(10_296_992, 0)
+			.saturating_add(Weight::from_parts(0, 998))
 			// Standard Error: 5_598
-			.saturating_add(Weight::from_ref_time(2_783_476).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(2_783_476, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(r.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
-			.saturating_add(Weight::from_proof_size(2676).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(0, 2676).saturating_mul(r.into()))
 	}
 	/// Storage: Democracy LowestUnbaked (r:1 w:1)
 	/// Proof: Democracy LowestUnbaked (max_values: Some(1), max_size: Some(4), added: 499, mode: MaxEncodedLen)
@@ -288,14 +288,14 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `211 + r * (117 ±0)`
 		//  Estimated: `19318 + r * (2676 ±0)`
 		// Minimum execution time: 10_023 nanoseconds.
-		Weight::from_ref_time(14_953_199)
-			.saturating_add(Weight::from_proof_size(19318))
+		Weight::from_parts(14_953_199, 0)
+			.saturating_add(Weight::from_parts(0, 19318))
 			// Standard Error: 6_703
-			.saturating_add(Weight::from_ref_time(2_749_933).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(2_749_933, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(r.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
-			.saturating_add(Weight::from_proof_size(2676).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(0, 2676).saturating_mul(r.into()))
 	}
 	/// Storage: Democracy VotingOf (r:3 w:3)
 	/// Proof: Democracy VotingOf (max_values: None, max_size: Some(3795), added: 6270, mode: MaxEncodedLen)
@@ -309,15 +309,15 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `891 + r * (139 ±0)`
 		//  Estimated: `22584 + r * (2676 ±0)`
 		// Minimum execution time: 36_963 nanoseconds.
-		Weight::from_ref_time(43_759_217)
-			.saturating_add(Weight::from_proof_size(22584))
+		Weight::from_parts(43_759_217, 0)
+			.saturating_add(Weight::from_parts(0, 22584))
 			// Standard Error: 7_017
-			.saturating_add(Weight::from_ref_time(3_833_993).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(3_833_993, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(r.into())))
 			.saturating_add(T::DbWeight::get().writes(4))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(r.into())))
-			.saturating_add(Weight::from_proof_size(2676).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(0, 2676).saturating_mul(r.into()))
 	}
 	/// Storage: Democracy VotingOf (r:2 w:2)
 	/// Proof: Democracy VotingOf (max_values: None, max_size: Some(3795), added: 6270, mode: MaxEncodedLen)
@@ -329,15 +329,15 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `524 + r * (139 ±0)`
 		//  Estimated: `12540 + r * (2676 ±0)`
 		// Minimum execution time: 21_086 nanoseconds.
-		Weight::from_ref_time(23_113_225)
-			.saturating_add(Weight::from_proof_size(12540))
+		Weight::from_parts(23_113_225, 0)
+			.saturating_add(Weight::from_parts(0, 12540))
 			// Standard Error: 5_813
-			.saturating_add(Weight::from_ref_time(3_831_698).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(3_831_698, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(r.into())))
 			.saturating_add(T::DbWeight::get().writes(2))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(r.into())))
-			.saturating_add(Weight::from_proof_size(2676).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(0, 2676).saturating_mul(r.into()))
 	}
 	/// Storage: Democracy PublicProps (r:0 w:1)
 	/// Proof: Democracy PublicProps (max_values: Some(1), max_size: Some(16702), added: 17197, mode: MaxEncodedLen)
@@ -346,8 +346,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 3_266 nanoseconds.
-		Weight::from_ref_time(3_325_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(3_325_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Democracy VotingOf (r:1 w:1)
@@ -362,10 +362,10 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `556`
 		//  Estimated: `12647`
 		// Minimum execution time: 19_889 nanoseconds.
-		Weight::from_ref_time(26_324_448)
-			.saturating_add(Weight::from_proof_size(12647))
+		Weight::from_parts(26_324_448, 0)
+			.saturating_add(Weight::from_parts(0, 12647))
 			// Standard Error: 1_495
-			.saturating_add(Weight::from_ref_time(22_352).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(22_352, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -381,10 +381,10 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `557 + r * (22 ±0)`
 		//  Estimated: `12647`
 		// Minimum execution time: 24_827 nanoseconds.
-		Weight::from_ref_time(26_090_461)
-			.saturating_add(Weight::from_proof_size(12647))
+		Weight::from_parts(26_090_461, 0)
+			.saturating_add(Weight::from_parts(0, 12647))
 			// Standard Error: 597
-			.saturating_add(Weight::from_ref_time(57_287).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(57_287, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
@@ -398,10 +398,10 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `758 + r * (26 ±0)`
 		//  Estimated: `8946`
 		// Minimum execution time: 16_382 nanoseconds.
-		Weight::from_ref_time(19_142_641)
-			.saturating_add(Weight::from_proof_size(8946))
+		Weight::from_parts(19_142_641, 0)
+			.saturating_add(Weight::from_parts(0, 8946))
 			// Standard Error: 1_005
-			.saturating_add(Weight::from_ref_time(69_264).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(69_264, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -415,10 +415,10 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `758 + r * (26 ±0)`
 		//  Estimated: `8946`
 		// Minimum execution time: 16_322 nanoseconds.
-		Weight::from_ref_time(19_304_122)
-			.saturating_add(Weight::from_proof_size(8946))
+		Weight::from_parts(19_304_122, 0)
+			.saturating_add(Weight::from_parts(0, 8946))
 			// Standard Error: 1_054
-			.saturating_add(Weight::from_ref_time(67_276).saturating_mul(r.into()))
+			.saturating_add(Weight::from_parts(67_276, 0).saturating_mul(r.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -433,8 +433,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `395`
 		//  Estimated: `3193`
 		// Minimum execution time: 19_283 nanoseconds.
-		Weight::from_ref_time(19_989_000)
-			.saturating_add(Weight::from_proof_size(3193))
+		Weight::from_parts(19_989_000, 0)
+			.saturating_add(Weight::from_parts(0, 3193))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -447,8 +447,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `253`
 		//  Estimated: `3155`
 		// Minimum execution time: 17_636 nanoseconds.
-		Weight::from_ref_time(17_805_000)
-			.saturating_add(Weight::from_proof_size(3155))
+		Weight::from_parts(17_805_000, 0)
+			.saturating_add(Weight::from_parts(0, 3155))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -463,8 +463,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `4958`
 		//  Estimated: `19763`
 		// Minimum execution time: 33_929 nanoseconds.
-		Weight::from_ref_time(34_287_000)
-			.saturating_add(Weight::from_proof_size(19763))
+		Weight::from_parts(34_287_000, 0)
+			.saturating_add(Weight::from_parts(0, 19763))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -477,8 +477,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `4820`
 		//  Estimated: `19725`
 		// Minimum execution time: 30_741 nanoseconds.
-		Weight::from_ref_time(31_317_000)
-			.saturating_add(Weight::from_proof_size(19725))
+		Weight::from_parts(31_317_000, 0)
+			.saturating_add(Weight::from_parts(0, 19725))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -491,8 +491,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `216`
 		//  Estimated: `2566`
 		// Minimum execution time: 15_874 nanoseconds.
-		Weight::from_ref_time(16_183_000)
-			.saturating_add(Weight::from_proof_size(2566))
+		Weight::from_parts(16_183_000, 0)
+			.saturating_add(Weight::from_parts(0, 2566))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -505,8 +505,8 @@ impl<T: frame_system::Config> pallet_democracy::WeightInfo for WeightInfo<T> {
 		//  Measured:  `269`
 		//  Estimated: `5204`
 		// Minimum execution time: 19_214 nanoseconds.
-		Weight::from_ref_time(19_604_000)
-			.saturating_add(Weight::from_proof_size(5204))
+		Weight::from_parts(19_604_000, 0)
+			.saturating_add(Weight::from_parts(0, 5204))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}

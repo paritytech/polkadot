@@ -96,7 +96,7 @@ impl Initialized {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
 		let (participation_sender, participation_receiver) = mpsc::channel(1);
-		let participation = Participation::new(participation_sender);
+		let participation = Participation::new(participation_sender, metrics.clone());
 		let highest_session = rolling_session_window.latest_session();
 
 		Self {
@@ -272,6 +272,7 @@ impl Initialized {
 		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
+		gum::trace!(target: LOG_TARGET, timestamp = now, "Processing ActiveLeavesUpdate");
 		let scraped_updates =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
 		log_error(
@@ -314,8 +315,15 @@ impl Initialized {
 				Ok(SessionWindowUpdate::Unchanged) => {},
 			};
 
+			gum::trace!(
+				target: LOG_TARGET,
+				timestamp = now,
+				"Will process {} onchain votes",
+				scraped_updates.on_chain_votes.len()
+			);
+
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
-			// so there is no point in running these in parallel.
+			// so there is no point in running these in parallel
 			for votes in scraped_updates.on_chain_votes {
 				let _ = self.process_on_chain_votes(ctx, overlay_db, votes, now).await.map_err(
 					|error| {
@@ -329,6 +337,7 @@ impl Initialized {
 			}
 		}
 
+		gum::trace!(target: LOG_TARGET, timestamp = now, "Done processing ActiveLeavesUpdate");
 		Ok(())
 	}
 
@@ -347,26 +356,26 @@ impl Initialized {
 			return Ok(())
 		}
 
-		// Obtain the session info, for sake of `ValidatorId`s
-		// either from the rolling session window.
-		// Must be called _after_ `fn cache_session_info_for_head`
-		// which guarantees that the session info is available
-		// for the current session.
-		let session_info: SessionInfo =
-			if let Some(session_info) = self.rolling_session_window.session_info(session) {
-				session_info.clone()
-			} else {
-				gum::warn!(
-					target: LOG_TARGET,
-					?session,
-					"Could not retrieve session info from rolling session window",
-				);
-				return Ok(())
-			};
-
 		// Scraped on-chain backing votes for the candidates with
 		// the new active leaf as if we received them via gossip.
 		for (candidate_receipt, backers) in backing_validators_per_candidate {
+			// Obtain the session info, for sake of `ValidatorId`s
+			// either from the rolling session window.
+			// Must be called _after_ `fn cache_session_info_for_head`
+			// which guarantees that the session info is available
+			// for the current session.
+			let session_info: &SessionInfo =
+				if let Some(session_info) = self.rolling_session_window.session_info(session) {
+					session_info
+				} else {
+					gum::warn!(
+						target: LOG_TARGET,
+						?session,
+						"Could not retrieve session info from rolling session window",
+					);
+					return Ok(())
+				};
+
 			let relay_parent = candidate_receipt.descriptor.relay_parent;
 			let candidate_hash = candidate_receipt.hash();
 			gum::trace!(
@@ -454,10 +463,6 @@ impl Initialized {
 
 		// Import disputes from on-chain, this already went through a vote so it's assumed
 		// as verified. This will only be stored, gossiping it is not necessary.
-
-		// First try to obtain all the backings which ultimately contain the candidate
-		// receipt which we need.
-
 		for DisputeStatementSet { candidate_hash, session, statements } in disputes {
 			gum::trace!(
 				target: LOG_TARGET,
@@ -465,22 +470,22 @@ impl Initialized {
 				?session,
 				"Importing dispute votes from chain for candidate"
 			);
+			let session_info =
+				if let Some(session_info) = self.rolling_session_window.session_info(session) {
+					session_info
+				} else {
+					gum::warn!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?session,
+						"Could not retrieve session info from rolling session window for recently concluded dispute"
+					);
+					continue
+				};
+
 			let statements = statements
 				.into_iter()
 				.filter_map(|(dispute_statement, validator_index, validator_signature)| {
-					let session_info: SessionInfo = if let Some(session_info) =
-						self.rolling_session_window.session_info(session)
-					{
-						session_info.clone()
-					} else {
-						gum::warn!(
-								target: LOG_TARGET,
-								?candidate_hash,
-								?session,
-								"Could not retrieve session info from rolling session window for recently concluded dispute");
-						return None
-					};
-
 					let validator_public: ValidatorId = session_info
 						.validators
 						.get(validator_index)
@@ -490,25 +495,11 @@ impl Initialized {
 								?candidate_hash,
 								?session,
 								"Missing public key for validator {:?} that participated in concluded dispute",
-								&validator_index);
+								&validator_index
+							);
 							None
 						})
 						.cloned()?;
-
-					debug_assert!(
-						SignedDisputeStatement::new_checked(
-							dispute_statement.clone(),
-							candidate_hash,
-							session,
-							validator_public.clone(),
-							validator_signature.clone(),
-						).is_ok(),
-						"Scraped dispute votes had invalid signature! candidate: {:?}, session: {:?}, dispute_statement: {:?}, validator_public: {:?}",
-						candidate_hash,
-						session,
-						dispute_statement,
-						validator_public,
-					);
 
 					Some((
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
@@ -522,6 +513,10 @@ impl Initialized {
 					))
 				})
 				.collect::<Vec<_>>();
+			if statements.is_empty() {
+				gum::debug!(target: LOG_TARGET, "Skipping empty from chain dispute import");
+				continue
+			}
 			let import_result = self
 				.handle_import_statements(
 					ctx,
@@ -708,6 +703,10 @@ impl Initialized {
 		Ok(())
 	}
 
+	// We use fatal result rather than result here. Reason being, We for example increase
+	// spam slots in this function. If then the import fails for some non fatal and
+	// unrelated reason, we should likely actually decrement previously incremented spam
+	// slots again, for non fatal errors - which is cumbersome and actually not needed
 	async fn handle_import_statements<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -716,7 +715,7 @@ impl Initialized {
 		session: SessionIndex,
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		now: Timestamp,
-	) -> Result<ImportStatementsResult> {
+	) -> FatalResult<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
 		if !self.rolling_session_window.contains(session) {
 			// It is not valid to participate in an ancient dispute (spam?) or too new.
@@ -917,12 +916,17 @@ impl Initialized {
 			} else {
 				self.metrics.on_queued_best_effort_participation();
 			}
+			let request_timer = Arc::new(self.metrics.time_participation_pipeline());
 			let r = self
 				.participation
 				.queue_participation(
 					ctx,
 					priority,
-					ParticipationRequest::new(new_state.candidate_receipt().clone(), session),
+					ParticipationRequest::new(
+						new_state.candidate_receipt().clone(),
+						session,
+						request_timer,
+					),
 				)
 				.await;
 			log_error(r)?;

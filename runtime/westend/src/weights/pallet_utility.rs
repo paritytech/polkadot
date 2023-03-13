@@ -51,18 +51,18 @@ impl<T: frame_system::Config> pallet_utility::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 6_885 nanoseconds.
-		Weight::from_ref_time(11_162_365)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(11_162_365, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			// Standard Error: 2_439
-			.saturating_add(Weight::from_ref_time(4_637_012).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(4_637_012, 0).saturating_mul(c.into()))
 	}
 	fn as_derivative() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 5_203 nanoseconds.
-		Weight::from_ref_time(5_441_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(5_441_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	/// The range of component `c` is `[0, 1000]`.
 	fn batch_all(c: u32, ) -> Weight {
@@ -70,18 +70,18 @@ impl<T: frame_system::Config> pallet_utility::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 7_067 nanoseconds.
-		Weight::from_ref_time(11_552_327)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(11_552_327, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			// Standard Error: 2_783
-			.saturating_add(Weight::from_ref_time(4_935_647).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(4_935_647, 0).saturating_mul(c.into()))
 	}
 	fn dispatch_as() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 8_999 nanoseconds.
-		Weight::from_ref_time(9_297_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(9_297_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	/// The range of component `c` is `[0, 1000]`.
 	fn force_batch(c: u32, ) -> Weight {
@@ -89,9 +89,9 @@ impl<T: frame_system::Config> pallet_utility::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 6_876 nanoseconds.
-		Weight::from_ref_time(10_175_160)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(10_175_160, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			// Standard Error: 3_709
-			.saturating_add(Weight::from_ref_time(4_685_640).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(4_685_640, 0).saturating_mul(c.into()))
 	}
 }

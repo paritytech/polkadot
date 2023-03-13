@@ -52,8 +52,8 @@ impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 		//  Measured:  `69`
 		//  Estimated: `499`
 		// Minimum execution time: 4_006 nanoseconds.
-		Weight::from_ref_time(4_138_000)
-			.saturating_add(Weight::from_proof_size(499))
+		Weight::from_parts(4_138_000, 0)
+			.saturating_add(Weight::from_parts(0, 499))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -65,10 +65,10 @@ impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 		//  Measured:  `148 + s * (177 ±0)`
 		//  Estimated: `41438`
 		// Minimum execution time: 3_594 nanoseconds.
-		Weight::from_ref_time(6_761_828)
-			.saturating_add(Weight::from_proof_size(41438))
+		Weight::from_parts(6_761_828, 0)
+			.saturating_add(Weight::from_parts(0, 41438))
 			// Standard Error: 2_059
-			.saturating_add(Weight::from_ref_time(748_372).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(748_372, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -77,8 +77,8 @@ impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 5_590 nanoseconds.
-		Weight::from_ref_time(5_750_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(5_750_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	/// Storage: Preimage PreimageFor (r:1 w:1)
 	/// Proof: Preimage PreimageFor (max_values: None, max_size: Some(4194344), added: 4196819, mode: Measured)
@@ -90,13 +90,13 @@ impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 		//  Measured:  `211 + s * (1 ±0)`
 		//  Estimated: `5252 + s * (1 ±0)`
 		// Minimum execution time: 18_802 nanoseconds.
-		Weight::from_ref_time(18_921_000)
-			.saturating_add(Weight::from_proof_size(5252))
+		Weight::from_parts(18_921_000, 0)
+			.saturating_add(Weight::from_parts(0, 5252))
 			// Standard Error: 6
-			.saturating_add(Weight::from_ref_time(1_202).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(1_202, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
-			.saturating_add(Weight::from_proof_size(1).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(0, 1).saturating_mul(s.into()))
 	}
 	/// Storage: Scheduler Lookup (r:0 w:1)
 	/// Proof: Scheduler Lookup (max_values: None, max_size: Some(48), added: 2523, mode: MaxEncodedLen)
@@ -105,8 +105,8 @@ impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 7_123 nanoseconds.
-		Weight::from_ref_time(7_367_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(7_367_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	fn service_task_periodic() -> Weight {
@@ -114,24 +114,24 @@ impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 5_602 nanoseconds.
-		Weight::from_ref_time(5_698_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(5_698_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn execute_dispatch_signed() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 2_474 nanoseconds.
-		Weight::from_ref_time(2_548_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(2_548_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	fn execute_dispatch_unsigned() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `0`
 		//  Estimated: `0`
 		// Minimum execution time: 2_426 nanoseconds.
-		Weight::from_ref_time(2_498_000)
-			.saturating_add(Weight::from_proof_size(0))
+		Weight::from_parts(2_498_000, 0)
+			.saturating_add(Weight::from_parts(0, 0))
 	}
 	/// Storage: Scheduler Agenda (r:1 w:1)
 	/// Proof: Scheduler Agenda (max_values: None, max_size: Some(38963), added: 41438, mode: MaxEncodedLen)
@@ -141,10 +141,10 @@ impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 		//  Measured:  `148 + s * (177 ±0)`
 		//  Estimated: `41438`
 		// Minimum execution time: 13_226 nanoseconds.
-		Weight::from_ref_time(16_332_006)
-			.saturating_add(Weight::from_proof_size(41438))
+		Weight::from_parts(16_332_006, 0)
+			.saturating_add(Weight::from_parts(0, 41438))
 			// Standard Error: 2_602
-			.saturating_add(Weight::from_ref_time(746_554).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(746_554, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
@@ -158,10 +158,10 @@ impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 		//  Measured:  `148 + s * (177 ±0)`
 		//  Estimated: `41438`
 		// Minimum execution time: 16_987 nanoseconds.
-		Weight::from_ref_time(17_076_132)
-			.saturating_add(Weight::from_proof_size(41438))
+		Weight::from_parts(17_076_132, 0)
+			.saturating_add(Weight::from_parts(0, 41438))
 			// Standard Error: 2_072
-			.saturating_add(Weight::from_ref_time(1_314_099).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(1_314_099, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -175,10 +175,10 @@ impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 		//  Measured:  `325 + s * (185 ±0)`
 		//  Estimated: `43961`
 		// Minimum execution time: 16_114 nanoseconds.
-		Weight::from_ref_time(20_473_856)
-			.saturating_add(Weight::from_proof_size(43961))
+		Weight::from_parts(20_473_856, 0)
+			.saturating_add(Weight::from_parts(0, 43961))
 			// Standard Error: 3_322
-			.saturating_add(Weight::from_ref_time(776_525).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(776_525, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -192,10 +192,10 @@ impl<T: frame_system::Config> pallet_scheduler::WeightInfo for WeightInfo<T> {
 		//  Measured:  `351 + s * (185 ±0)`
 		//  Estimated: `43961`
 		// Minimum execution time: 18_404 nanoseconds.
-		Weight::from_ref_time(19_488_174)
-			.saturating_add(Weight::from_proof_size(43961))
+		Weight::from_parts(19_488_174, 0)
+			.saturating_add(Weight::from_parts(0, 43961))
 			// Standard Error: 2_853
-			.saturating_add(Weight::from_ref_time(1_338_942).saturating_mul(s.into()))
+			.saturating_add(Weight::from_parts(1_338_942, 0).saturating_mul(s.into()))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}

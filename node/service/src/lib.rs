@@ -49,7 +49,6 @@ use {
 	polkadot_node_network_protocol::{
 		peer_set::PeerSetProtocolNames, request_response::ReqProtocolNames,
 	},
-	polkadot_overseer::BlockInfo,
 	sc_client_api::BlockBackend,
 	sp_core::traits::SpawnNamed,
 	sp_trie::PrefixedMemoryDB,
@@ -128,10 +127,6 @@ pub use {polkadot_runtime, polkadot_runtime_constants};
 pub use {rococo_runtime, rococo_runtime_constants};
 #[cfg(feature = "westend-native")]
 pub use {westend_runtime, westend_runtime_constants};
-
-/// The maximum number of active leaves we forward to the [`Overseer`] on startup.
-#[cfg(any(test, feature = "full-node"))]
-const MAX_ACTIVE_LEAVES: usize = 4;
 
 /// Provides the header and block number for a hash.
 ///
@@ -301,7 +296,7 @@ pub fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Er
 			path.parent().ok_or(Error::DatabasePathRequired)?.into(),
 			parachains_db::CacheSizes::default(),
 		)?,
-		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } =>
+		DatabaseSource::Auto { paritydb_path, rocksdb_path, .. } => {
 			if paritydb_path.is_dir() && paritydb_path.exists() {
 				parachains_db::open_creating_paritydb(
 					paritydb_path.parent().ok_or(Error::DatabasePathRequired)?.into(),
@@ -312,7 +307,8 @@ pub fn open_database(db_source: &DatabaseSource) -> Result<Arc<dyn Database>, Er
 					rocksdb_path.clone(),
 					parachains_db::CacheSizes::default(),
 				)?
-			},
+			}
+		},
 		DatabaseSource::Custom { .. } => {
 			unimplemented!("No polkadot subsystem db for custom source.");
 		},
@@ -620,6 +616,7 @@ pub struct NewFull<C> {
 	pub client: C,
 	pub overseer_handle: Option<Handle>,
 	pub network: Arc<sc_network::NetworkService<Block, <Block as BlockT>::Hash>>,
+	pub sync_service: Arc<sc_network_sync::SyncingService<Block>>,
 	pub rpc_handlers: RpcHandlers,
 	pub backend: Arc<FullBackend>,
 }
@@ -633,6 +630,7 @@ impl<C> NewFull<C> {
 			task_manager: self.task_manager,
 			overseer_handle: self.overseer_handle,
 			network: self.network,
+			sync_service: self.sync_service,
 			rpc_handlers: self.rpc_handlers,
 			backend: self.backend,
 		}
@@ -666,56 +664,6 @@ impl IsCollator {
 	fn is_collator(&self) -> bool {
 		matches!(self, Self::Yes(_))
 	}
-}
-
-/// Returns the active leaves the overseer should start with.
-#[cfg(feature = "full-node")]
-async fn active_leaves<RuntimeApi, ExecutorDispatch>(
-	select_chain: &impl SelectChain<Block>,
-	client: &FullClient<RuntimeApi, ExecutorDispatch>,
-) -> Result<Vec<BlockInfo>, Error>
-where
-	RuntimeApi: ConstructRuntimeApi<Block, FullClient<RuntimeApi, ExecutorDispatch>>
-		+ Send
-		+ Sync
-		+ 'static,
-	RuntimeApi::RuntimeApi:
-		RuntimeApiCollection<StateBackend = sc_client_api::StateBackendFor<FullBackend, Block>>,
-	ExecutorDispatch: NativeExecutionDispatch + 'static,
-{
-	let best_block = select_chain.best_chain().await?;
-
-	let mut leaves = select_chain
-		.leaves()
-		.await
-		.unwrap_or_default()
-		.into_iter()
-		.filter_map(|hash| {
-			let number = HeaderBackend::number(client, hash).ok()??;
-
-			// Only consider leaves that are in maximum an uncle of the best block.
-			if number < best_block.number().saturating_sub(1) {
-				return None
-			} else if hash == best_block.hash() {
-				return None
-			};
-
-			let parent_hash = client.header(hash).ok()??.parent_hash;
-
-			Some(BlockInfo { hash, parent_hash, number })
-		})
-		.collect::<Vec<_>>();
-
-	// Sort by block number and get the maximum number of leaves
-	leaves.sort_by_key(|b| b.number);
-
-	leaves.push(BlockInfo {
-		hash: best_block.hash(),
-		parent_hash: *best_block.parent_hash(),
-		number: *best_block.number(),
-	});
-
-	Ok(leaves.into_iter().rev().take(MAX_ACTIVE_LEAVES).collect())
 }
 
 pub const AVAILABILITY_CONFIG: AvailabilityConfig = AvailabilityConfig {
@@ -910,7 +858,7 @@ where
 		grandpa_hard_forks,
 	));
 
-	let (network, system_rpc_tx, tx_handler_controller, network_starter) =
+	let (network, system_rpc_tx, tx_handler_controller, network_starter, sync_service) =
 		service::build_network(service::BuildNetworkParams {
 			config: &config,
 			client: client.clone(),
@@ -978,6 +926,7 @@ where
 		client: client.clone(),
 		keystore: keystore_container.sync_keystore(),
 		network: network.clone(),
+		sync_service: sync_service.clone(),
 		rpc_builder: Box::new(rpc_extensions_builder),
 		transaction_pool: transaction_pool.clone(),
 		task_manager: &mut task_manager,
@@ -1009,10 +958,6 @@ where
 
 	let overseer_client = client.clone();
 	let spawner = task_manager.spawn_handle();
-	// Cannot use the `RelayChainSelection`, since that'd require a setup _and running_ overseer
-	// which we are about to setup.
-	let active_leaves =
-		futures::executor::block_on(active_leaves(select_chain.as_longest_chain(), &*client))?;
 
 	let authority_discovery_service = if auth_or_collator || overseer_enable_anyways {
 		use futures::StreamExt;
@@ -1068,11 +1013,11 @@ where
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
 				overseer_connector,
 				OverseerGenArgs {
-					leaves: active_leaves,
 					keystore,
 					runtime_client: overseer_client.clone(),
 					parachains_db,
 					network_service: network.clone(),
+					sync_service: sync_service.clone(),
 					authority_discovery_service,
 					pov_req_receiver,
 					chunk_req_receiver,
@@ -1152,8 +1097,8 @@ where
 			select_chain,
 			block_import,
 			env: proposer,
-			sync_oracle: network.clone(),
-			justification_sync_link: network.clone(),
+			sync_oracle: sync_service.clone(),
+			justification_sync_link: sync_service.clone(),
 			create_inherent_data_providers: move |parent, ()| {
 				let client_clone = client_clone.clone();
 				let overseer_handle = overseer_handle.clone();
@@ -1198,6 +1143,7 @@ where
 		let justifications_protocol_name = beefy_on_demand_justifications_handler.protocol_name();
 		let network_params = beefy::BeefyNetworkParams {
 			network: network.clone(),
+			sync: sync_service.clone(),
 			gossip_protocol_name: beefy_gossip_proto_name,
 			justifications_protocol_name,
 			_phantom: core::marker::PhantomData::<Block>,
@@ -1216,7 +1162,7 @@ where
 			on_demand_justifications_handler: beefy_on_demand_justifications_handler,
 		};
 
-		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _>(beefy_params);
+		let gadget = beefy::start_beefy_gadget::<_, _, _, _, _, _, _>(beefy_params);
 
 		// Wococo's purpose is to be a testbed for BEEFY, so if it fails we'll
 		// bring the node down with it to make sure it is noticed.
@@ -1296,6 +1242,7 @@ where
 			config,
 			link: link_half,
 			network: network.clone(),
+			sync: sync_service.clone(),
 			voting_rule,
 			prometheus_registry: prometheus_registry.clone(),
 			shared_voter_state,
@@ -1311,7 +1258,15 @@ where
 
 	network_starter.start_network();
 
-	Ok(NewFull { task_manager, client, overseer_handle, network, rpc_handlers, backend })
+	Ok(NewFull {
+		task_manager,
+		client,
+		overseer_handle,
+		network,
+		sync_service,
+		rpc_handlers,
+		backend,
+	})
 }
 
 #[cfg(feature = "full-node")]
