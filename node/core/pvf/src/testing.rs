@@ -76,7 +76,7 @@ macro_rules! decl_puppet_worker_main {
 				},
 				"execute-worker" => {
 					let socket_path = &args[2];
-					$crate::execute_worker_entrypoint(socket_path);
+					$crate::execute_worker_entrypoint(socket_path, None);
 				},
 				other => panic!("unknown subcommand: {}", other),
 			}

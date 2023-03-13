@@ -66,6 +66,9 @@ pub enum ToPool {
 	/// In either case, the worker is considered busy and no further `StartWork` messages should be
 	/// sent until either `Concluded` or `Rip` message is received.
 	StartWork { worker: Worker, pvf: PvfPrepData, artifact_path: PathBuf },
+
+	/// Shutdown the pool
+	Shutdown,
 }
 
 /// A message sent from pool to its client.
@@ -87,6 +90,12 @@ pub enum FromPool {
 
 	/// The given worker ceased to exist.
 	Rip(Worker),
+
+	/// Worker and node version mismatch.
+	VersionMismatch,
+
+	/// Pool has killed all the workers and is ready for node shutdown.
+	ShutdownComplete,
 }
 
 struct WorkerData {
@@ -103,6 +112,7 @@ impl fmt::Debug for WorkerData {
 enum PoolEvent {
 	Spawn(IdleWorker, WorkerHandle),
 	StartWork(Worker, Outcome),
+	ShutdownComplete,
 }
 
 type Mux = FuturesUnordered<BoxFuture<'static, PoolEvent>>;
@@ -243,6 +253,11 @@ fn handle_to_pool(
 			// It may be absent if it were previously already removed by `purge_dead`.
 			let _ = attempt_retire(metrics, spawned, worker);
 		},
+		ToPool::Shutdown => {
+			gum::debug!(target: LOG_TARGET, "shutting down preparation pool");
+			spawned.clear();
+			mux.push(Box::pin(futures::future::ready(PoolEvent::ShutdownComplete)));
+		},
 	}
 }
 
@@ -349,7 +364,16 @@ fn handle_mux(
 
 					Ok(())
 				},
+				Outcome::VersionMismatch => {
+					reply(from_pool, FromPool::VersionMismatch)?;
+
+					Ok(())
+				},
 			}
+		},
+		PoolEvent::ShutdownComplete => {
+			reply(from_pool, FromPool::ShutdownComplete)?;
+			Ok(())
 		},
 	}
 }

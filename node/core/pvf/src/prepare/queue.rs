@@ -38,17 +38,25 @@ pub enum ToQueue {
 	/// Note that it is incorrect to enqueue the same PVF again without first receiving the
 	/// [`FromQueue`] response.
 	Enqueue { priority: Priority, pvf: PvfPrepData },
+	/// Instructs to shutdown the queue
+	Shutdown,
 }
 
 /// A response from queue.
 #[derive(Debug)]
-pub struct FromQueue {
+pub enum FromQueue {
 	/// Identifier of an artifact.
-	pub(crate) artifact_id: ArtifactId,
+	// pub(crate) artifact_id: ArtifactId,
 	/// Outcome of the PVF processing. [`Ok`] indicates that compiled artifact
 	/// is successfully stored on disk. Otherwise, an [error](crate::error::PrepareError)
 	/// is supplied.
-	pub(crate) result: PrepareResult,
+	// pub(crate) result: PrepareResult,
+	Outcome {
+		artifact_id: ArtifactId,
+		result: PrepareResult,
+	},
+	VersionMismatch,
+	ShutdownComplete,
 }
 
 #[derive(Default)]
@@ -132,6 +140,8 @@ impl Unscheduled {
 }
 
 struct Queue {
+	running: bool,
+
 	metrics: Metrics,
 
 	to_queue_rx: mpsc::Receiver<ToQueue>,
@@ -172,6 +182,7 @@ impl Queue {
 		from_pool_rx: mpsc::UnboundedReceiver<pool::FromPool>,
 	) -> Self {
 		Self {
+			running: true,
 			metrics,
 			to_queue_rx,
 			from_queue_tx,
@@ -210,8 +221,13 @@ impl Queue {
 
 async fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) -> Result<(), Fatal> {
 	match to_queue {
-		ToQueue::Enqueue { priority, pvf } => {
-			handle_enqueue(queue, priority, pvf).await?;
+		ToQueue::Enqueue { priority, pvf } =>
+			if queue.running {
+				handle_enqueue(queue, priority, pvf).await?;
+			},
+		ToQueue::Shutdown => {
+			queue.running = false;
+			queue.to_pool_tx.send(pool::ToPool::Shutdown).await.map_err(|_| Fatal)?;
 		},
 	}
 	Ok(())
@@ -274,6 +290,14 @@ async fn handle_from_pool(queue: &mut Queue, from_pool: pool::FromPool) -> Resul
 		Concluded { worker, rip, result } =>
 			handle_worker_concluded(queue, worker, rip, result).await?,
 		Rip(worker) => handle_worker_rip(queue, worker).await?,
+		VersionMismatch => queue
+			.from_queue_tx
+			.unbounded_send(FromQueue::VersionMismatch)
+			.map_err(|_| Fatal)?,
+		ShutdownComplete => queue
+			.from_queue_tx
+			.unbounded_send(FromQueue::ShutdownComplete)
+			.map_err(|_| Fatal)?,
 	}
 	Ok(())
 }
@@ -351,7 +375,7 @@ async fn handle_worker_concluded(
 		"prepare worker concluded",
 	);
 
-	reply(&mut queue.from_queue_tx, FromQueue { artifact_id, result })?;
+	reply(&mut queue.from_queue_tx, FromQueue::Outcome { artifact_id, result })?;
 
 	// Figure out what to do with the worker.
 	if rip {
@@ -616,7 +640,7 @@ mod tests {
 			result: Ok(PrepareStats::default()),
 		});
 
-		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
+		assert_matches!(test.poll_and_recv_from_queue().await, FromQueue::Outcome { artifact_id, .. } if artifact_id == pvf(1).as_artifact_id());
 	}
 
 	#[tokio::test]
@@ -735,7 +759,7 @@ mod tests {
 		// Since there is still work, the queue requested one extra worker to spawn to handle the
 		// remaining enqueued work items.
 		assert_eq!(test.poll_and_recv_to_pool().await, pool::ToPool::Spawn);
-		assert_eq!(test.poll_and_recv_from_queue().await.artifact_id, pvf(1).as_artifact_id());
+		assert_matches!(test.poll_and_recv_from_queue().await, FromQueue::Outcome { artifact_id, .. } if artifact_id == pvf(1).as_artifact_id());
 	}
 
 	#[tokio::test]
