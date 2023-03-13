@@ -346,6 +346,11 @@ parameter_types! {
 		EPOCH_DURATION_IN_SLOTS / 4,
 		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2)
 	);
+	// We expect a successful election to take at least 50% of the signed and unsigned blocks.
+	pub MinBlocksBeforeEmergency: u32 = prod_or_fast!(
+		EPOCH_DURATION_IN_SLOTS / 8,
+		(1/2 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 4)
+	);
 
 	// signed config
 	pub const SignedMaxSubmissions: u32 = 128;
@@ -366,8 +371,6 @@ parameter_types! {
 	pub const MaxElectableTargets: u16 = u16::MAX;
 	// Maximum winners that can be chosen as active validators
 	pub const MaxActiveValidators: u32 = 1000;
-	// We expect a successful election to take at least 25% of the signed and unsigned blocks.
-	pub MinBlocksBeforeEmergency: Perbill = Perbill::from_percent(25);
 }
 
 frame_election_provider_support::generate_solution_type!(

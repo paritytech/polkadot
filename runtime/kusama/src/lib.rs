@@ -410,7 +410,7 @@ parameter_types! {
 	/// cannot have active validators higher than this count.
 	pub const MaxActiveValidators: u32 = 2000;
 	// Emergency throttling disabled.
-	pub MinBlocksBeforeEmergency: Perbill = Perbill::zero();
+	pub MinBlocksBeforeEmergency: BlockNumber = BlockNumber::zero();
 }
 
 generate_solution_type!(
