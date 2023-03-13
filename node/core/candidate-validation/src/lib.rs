@@ -645,7 +645,7 @@ where
 			gum::warn!(
 				target: LOG_TARGET,
 				?para_id,
-				?error,
+				?e,
 				"Deterministic error occurred during preparation (should have been ruled out by pre-checking phase)",
 			);
 			Err(ValidationFailed(e))
