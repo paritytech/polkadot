@@ -32,7 +32,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_primitives::{
 	CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData, PersistedValidationData,
-	ScheduledCore,
+	PvfExecTimeoutKind, ScheduledCore,
 };
 use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
@@ -307,7 +307,7 @@ fn backing_second_works() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && &candidate_receipt.descriptor == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT &&  candidate.commitments.hash() == candidate_receipt.commitments_hash => {
+			) if pov == pov && &candidate_receipt.descriptor == candidate.descriptor() && timeout == PvfExecTimeoutKind::Backing &&  candidate.commitments.hash() == candidate_receipt.commitments_hash => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -453,7 +453,7 @@ fn backing_works() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && c.commitments_hash == candidate_a_commitments_hash=> {
+			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == PvfExecTimeoutKind::Backing && c.commitments_hash == candidate_a_commitments_hash=> {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -625,7 +625,7 @@ fn backing_works_while_validation_ongoing() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && candidate_a_commitments_hash == c.commitments_hash => {
+			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == PvfExecTimeoutKind::Backing && candidate_a_commitments_hash == c.commitments_hash => {
 				// we never validate the candidate. our local node
 				// shouldn't issue any statements.
 				std::mem::forget(tx);
@@ -777,7 +777,7 @@ fn backing_misbehavior_works() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && candidate_a_commitments_hash == c.commitments_hash => {
+			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == PvfExecTimeoutKind::Backing && candidate_a_commitments_hash == c.commitments_hash => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -921,7 +921,7 @@ fn backing_dont_second_invalid() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && c.descriptor() == candidate_a.descriptor() && timeout == PvfExecTimeoutKind::Backing => {
 				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
 			}
 		);
@@ -950,7 +950,7 @@ fn backing_dont_second_invalid() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && c.descriptor() == candidate_b.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT => {
+			) if pov == pov && c.descriptor() == candidate_b.descriptor() && timeout == PvfExecTimeoutKind::Backing => {
 				tx.send(Ok(
 					ValidationResult::Valid(CandidateCommitments {
 						head_data: expected_head_data.clone(),
@@ -1065,7 +1065,7 @@ fn backing_second_after_first_fails_works() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && c.descriptor() == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && c.commitments_hash == candidate.commitments.hash() => {
+			) if pov == pov && c.descriptor() == candidate.descriptor() && timeout == PvfExecTimeoutKind::Backing && c.commitments_hash == candidate.commitments.hash() => {
 				tx.send(Ok(ValidationResult::Invalid(InvalidCandidate::BadReturn))).unwrap();
 			}
 		);
@@ -1191,7 +1191,7 @@ fn backing_works_after_failed_validation() {
 					timeout,
 					tx,
 				)
-			) if pov == pov && c.descriptor() == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && c.commitments_hash == candidate.commitments.hash() => {
+			) if pov == pov && c.descriptor() == candidate.descriptor() && timeout == PvfExecTimeoutKind::Backing && c.commitments_hash == candidate.commitments.hash() => {
 				tx.send(Err(ValidationFailed("Internal test error".into()))).unwrap();
 			}
 		);
@@ -1544,7 +1544,7 @@ fn retry_works() {
 					timeout,
 					_tx,
 				)
-			) if pov == pov && c.descriptor() == candidate.descriptor() && timeout == BACKING_EXECUTION_TIMEOUT && c.commitments_hash == candidate.commitments.hash()
+			) if pov == pov && c.descriptor() == candidate.descriptor() && timeout == PvfExecTimeoutKind::Backing && c.commitments_hash == candidate.commitments.hash()
 		);
 		virtual_overseer
 	});

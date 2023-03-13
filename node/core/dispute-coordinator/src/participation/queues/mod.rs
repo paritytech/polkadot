@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{cmp::Ordering, collections::BTreeMap};
+use std::{cmp::Ordering, collections::BTreeMap, sync::Arc};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::ChainApiMessage, overseer};
@@ -24,6 +24,9 @@ use crate::{
 	error::{FatalError, FatalResult, Result},
 	LOG_TARGET,
 };
+
+use crate::metrics::Metrics;
+use polkadot_node_subsystem_util::metrics::prometheus::prometheus;
 
 #[cfg(test)]
 mod tests;
@@ -56,14 +59,18 @@ pub struct Queues {
 
 	/// Priority queue.
 	priority: BTreeMap<CandidateComparator, ParticipationRequest>,
+
+	/// Handle for recording queues data in metrics
+	metrics: Metrics,
 }
 
 /// A dispute participation request that can be queued.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug, Clone)]
 pub struct ParticipationRequest {
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
+	_request_timer: Arc<Option<prometheus::HistogramTimer>>, // Sends metric data when request is dropped
 }
 
 /// Whether a `ParticipationRequest` should be put on best-effort or the priority queue.
@@ -107,8 +114,17 @@ pub enum QueueError {
 
 impl ParticipationRequest {
 	/// Create a new `ParticipationRequest` to be queued.
-	pub fn new(candidate_receipt: CandidateReceipt, session: SessionIndex) -> Self {
-		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session }
+	pub fn new(
+		candidate_receipt: CandidateReceipt,
+		session: SessionIndex,
+		request_timer: Arc<Option<prometheus::HistogramTimer>>,
+	) -> Self {
+		Self {
+			candidate_hash: candidate_receipt.hash(),
+			candidate_receipt,
+			session,
+			_request_timer: request_timer,
+		}
 	}
 
 	pub fn candidate_receipt(&'_ self) -> &'_ CandidateReceipt {
@@ -126,10 +142,29 @@ impl ParticipationRequest {
 	}
 }
 
+// We want to compare participation requests in unit tests, so we
+// only implement Eq for tests.
+#[cfg(test)]
+impl PartialEq for ParticipationRequest {
+	fn eq(&self, other: &Self) -> bool {
+		let ParticipationRequest {
+			candidate_receipt,
+			candidate_hash,
+			session: _session,
+			_request_timer,
+		} = self;
+		candidate_receipt == other.candidate_receipt() &&
+			candidate_hash == other.candidate_hash() &&
+			self.session == other.session()
+	}
+}
+#[cfg(test)]
+impl Eq for ParticipationRequest {}
+
 impl Queues {
 	/// Create new `Queues`.
-	pub fn new() -> Self {
-		Self { best_effort: BTreeMap::new(), priority: BTreeMap::new() }
+	pub fn new(metrics: Metrics) -> Self {
+		Self { best_effort: BTreeMap::new(), priority: BTreeMap::new(), metrics }
 	}
 
 	/// Will put message in queue, either priority or best effort depending on priority.
@@ -154,9 +189,14 @@ impl Queues {
 	/// First the priority queue is considered and then the best effort one.
 	pub fn dequeue(&mut self) -> Option<ParticipationRequest> {
 		if let Some(req) = self.pop_priority() {
+			self.metrics.report_priority_queue_size(self.priority.len() as u64);
 			return Some(req.1)
 		}
-		self.pop_best_effort().map(|d| d.1)
+		if let Some(req) = self.pop_best_effort() {
+			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
+			return Some(req.1)
+		}
+		None
 	}
 
 	/// Reprioritizes any participation requests pertaining to the
@@ -180,6 +220,9 @@ impl Queues {
 		}
 		if let Some(request) = self.best_effort.remove(&comparator) {
 			self.priority.insert(comparator, request);
+			// Report changes to both queue sizes
+			self.metrics.report_priority_queue_size(self.priority.len() as u64);
+			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		}
 		Ok(())
 	}
@@ -197,6 +240,8 @@ impl Queues {
 			// Remove any best effort entry:
 			self.best_effort.remove(&comparator);
 			self.priority.insert(comparator, req);
+			self.metrics.report_priority_queue_size(self.priority.len() as u64);
+			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		} else {
 			if self.priority.contains_key(&comparator) {
 				// The candidate is already in priority queue - don't
@@ -207,6 +252,7 @@ impl Queues {
 				return Err(QueueError::BestEffortFull)
 			}
 			self.best_effort.insert(comparator, req);
+			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		}
 		Ok(())
 	}
