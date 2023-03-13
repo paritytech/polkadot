@@ -18,8 +18,10 @@
 
 use derive_more::Display;
 use polkadot_primitives::Hash;
-use sc_network::config::{NonDefaultSetConfig, SetConfig};
-use sc_network_common::protocol::ProtocolName;
+use sc_network::{
+	config::{NonDefaultSetConfig, SetConfig},
+	types::ProtocolName,
+};
 use std::{
 	collections::{hash_map::Entry, HashMap},
 	ops::{Index, IndexMut},
@@ -87,7 +89,7 @@ impl PeerSet {
 					in_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
 					out_peers: super::MIN_GOSSIP_PEERS as u32 / 2 - 1,
 					reserved_nodes: Vec::new(),
-					non_reserved_mode: sc_network_common::config::NonReservedPeerMode::Accept,
+					non_reserved_mode: sc_network::config::NonReservedPeerMode::Accept,
 				},
 			},
 			PeerSet::Collation => NonDefaultSetConfig {
@@ -101,9 +103,9 @@ impl PeerSet {
 					out_peers: 0,
 					reserved_nodes: Vec::new(),
 					non_reserved_mode: if is_authority == IsAuthority::Yes {
-						sc_network_common::config::NonReservedPeerMode::Accept
+						sc_network::config::NonReservedPeerMode::Accept
 					} else {
-						sc_network_common::config::NonReservedPeerMode::Deny
+						sc_network::config::NonReservedPeerMode::Deny
 					},
 				},
 			},
