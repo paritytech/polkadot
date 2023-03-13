@@ -183,9 +183,9 @@ impl metrics::Metrics for Metrics {
 						"Time spent in preparing PVF artifacts in seconds",
 					)
 					.buckets(vec![
-						// This is synchronized with the PRECHECK_PREPARATION_TIMEOUT=60s
-						// and LENIENT_PREPARATION_TIMEOUT=360s constants found in
-						// src/prepare/worker.rs
+						// This is synchronized with the `DEFAULT_PRECHECK_PREPARATION_TIMEOUT=60s`
+						// and `DEFAULT_LENIENT_PREPARATION_TIMEOUT=360s` constants found in
+						// node/core/candidate-validation/src/lib.rs
 						0.1,
 						0.5,
 						1.0,
@@ -209,8 +209,9 @@ impl metrics::Metrics for Metrics {
 						"polkadot_pvf_execution_time",
 						"Time spent in executing PVFs",
 					).buckets(vec![
-						// This is synchronized with `APPROVAL_EXECUTION_TIMEOUT`  and
-						// `BACKING_EXECUTION_TIMEOUT` constants in `node/primitives/src/lib.rs`
+						// This is synchronized with `DEFAULT_APPROVAL_EXECUTION_TIMEOUT` and
+						// `DEFAULT_BACKING_EXECUTION_TIMEOUT` constants in
+						// node/core/candidate-validation/src/lib.rs
 						0.01,
 						0.025,
 						0.05,
