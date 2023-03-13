@@ -16,7 +16,7 @@ end
 
 # Check if all the required ENV are set
 # This is especially convenient when testing locally
-def check_env()
+def check_env
   if ENV['CI'] != 'true' then
     logger("Running locally")
     vars = ['GITHUB_REF', 'GITHUB_TOKEN', 'GITHUB_WORKSPACE', 'GITHUB_REPOSITORY', 'RUSTC_STABLE', 'RUSTC_NIGHTLY']
