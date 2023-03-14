@@ -57,15 +57,6 @@ pub enum ToQueue {
 		executor_params: ExecutorParams,
 		result_tx: ResultSender,
 	},
-	Shutdown,
-}
-
-#[derive(Debug)]
-pub enum FromQueue {
-	// Node and worker version mismatch
-	VersionMismatch,
-	// Queue shutdown complete
-	ShutdownComplete,
 }
 
 struct ExecuteJob {
@@ -137,13 +128,10 @@ enum QueueEvent {
 type Mux = FuturesUnordered<BoxFuture<'static, QueueEvent>>;
 
 struct Queue {
-	running: bool,
 	metrics: Metrics,
 
 	/// The receiver that receives messages to the pool.
 	to_queue_rx: mpsc::Receiver<ToQueue>,
-	/// The sender for reporting error conditions
-	from_queue_tx: mpsc::UnboundedSender<FromQueue>,
 
 	program_path: PathBuf,
 	spawn_timeout: Duration,
@@ -161,15 +149,12 @@ impl Queue {
 		worker_capacity: usize,
 		spawn_timeout: Duration,
 		to_queue_rx: mpsc::Receiver<ToQueue>,
-		from_queue_tx: mpsc::UnboundedSender<FromQueue>,
 	) -> Self {
 		Self {
-			running: true,
 			metrics,
 			program_path,
 			spawn_timeout,
 			to_queue_rx,
-			from_queue_tx,
 			queue: VecDeque::new(),
 			mux: Mux::new(),
 			workers: Workers {
@@ -274,34 +259,23 @@ async fn purge_dead(metrics: &Metrics, workers: &mut Workers) {
 }
 
 fn handle_to_queue(queue: &mut Queue, to_queue: ToQueue) {
-	match to_queue {
-		ToQueue::Enqueue { artifact, exec_timeout, params, executor_params, result_tx } => {
-			if !queue.running {
-				return
-			}
-			gum::debug!(
-				target: LOG_TARGET,
-				validation_code_hash = ?artifact.id.code_hash,
-				"enqueueing an artifact for execution",
-			);
-			queue.metrics.execute_enqueued();
-			let job = ExecuteJob {
-				artifact,
-				exec_timeout,
-				params,
-				executor_params,
-				result_tx,
-				waiting_since: Instant::now(),
-			};
-			queue.queue.push_back(job);
-			queue.try_assign_next_job(None);
-		},
-		ToQueue::Shutdown => {
-			queue.running = false;
-			queue.workers.running.clear();
-			let _ = queue.from_queue_tx.unbounded_send(FromQueue::ShutdownComplete);
-		},
-	}
+	let ToQueue::Enqueue { artifact, exec_timeout, params, executor_params, result_tx } = to_queue;
+	gum::debug!(
+		target: LOG_TARGET,
+		validation_code_hash = ?artifact.id.code_hash,
+		"enqueueing an artifact for execution",
+	);
+	queue.metrics.execute_enqueued();
+	let job = ExecuteJob {
+		artifact,
+		exec_timeout,
+		params,
+		executor_params,
+		result_tx,
+		waiting_since: Instant::now(),
+	};
+	queue.queue.push_back(job);
+	queue.try_assign_next_job(None);
 }
 
 async fn handle_mux(queue: &mut Queue, event: QueueEvent) {
@@ -321,9 +295,6 @@ fn handle_worker_spawned(
 	handle: WorkerHandle,
 	job: ExecuteJob,
 ) {
-	if !queue.running {
-		return
-	}
 	queue.metrics.execute_worker().on_spawned();
 	queue.workers.spawn_inflight -= 1;
 	let worker = queue.workers.running.insert(WorkerData {
@@ -366,10 +337,6 @@ fn handle_job_finish(
 			Err(ValidationError::InvalidCandidate(InvalidCandidate::AmbiguousWorkerDeath)),
 			None,
 		),
-		Outcome::VersionMismatch => {
-			let _ = queue.from_queue_tx.unbounded_send(FromQueue::VersionMismatch);
-			return
-		},
 	};
 
 	queue.metrics.execute_finished();
@@ -501,17 +468,8 @@ pub fn start(
 	program_path: PathBuf,
 	worker_capacity: usize,
 	spawn_timeout: Duration,
-) -> (mpsc::Sender<ToQueue>, mpsc::UnboundedReceiver<FromQueue>, impl Future<Output = ()>) {
+) -> (mpsc::Sender<ToQueue>, impl Future<Output = ()>) {
 	let (to_queue_tx, to_queue_rx) = mpsc::channel(20);
-	let (from_queue_tx, from_queue_rx) = mpsc::unbounded();
-	let run = Queue::new(
-		metrics,
-		program_path,
-		worker_capacity,
-		spawn_timeout,
-		to_queue_rx,
-		from_queue_tx,
-	)
-	.run();
-	(to_queue_tx, from_queue_rx, run)
+	let run = Queue::new(metrics, program_path, worker_capacity, spawn_timeout, to_queue_rx).run();
+	(to_queue_tx, run)
 }

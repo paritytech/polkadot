@@ -207,7 +207,7 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 		from_prepare_pool,
 	);
 
-	let (to_execute_queue_tx, from_execute_queue_rx, run_execute_queue) = execute::start(
+	let (to_execute_queue_tx, run_execute_queue) = execute::start(
 		metrics,
 		config.execute_worker_program_path.to_owned(),
 		config.execute_workers_max_num,
@@ -229,7 +229,6 @@ pub fn start(config: Config, metrics: Metrics) -> (ValidationHost, impl Future<O
 			to_prepare_queue_tx,
 			from_prepare_queue_rx,
 			to_execute_queue_tx,
-			from_execute_queue_rx,
 			to_sweeper_tx,
 			awaiting_prepare: AwaitingPrepare::default(),
 		})
@@ -299,7 +298,6 @@ struct Inner {
 	from_prepare_queue_rx: mpsc::UnboundedReceiver<prepare::FromQueue>,
 
 	to_execute_queue_tx: mpsc::Sender<execute::ToQueue>,
-	from_execute_queue_rx: mpsc::UnboundedReceiver<execute::FromQueue>,
 	to_sweeper_tx: mpsc::Sender<PathBuf>,
 
 	awaiting_prepare: AwaitingPrepare,
@@ -316,7 +314,6 @@ async fn run(
 		mut artifacts,
 		to_host_rx,
 		from_prepare_queue_rx,
-		from_execute_queue_rx,
 		mut to_prepare_queue_tx,
 		mut to_execute_queue_tx,
 		mut to_sweeper_tx,
@@ -344,10 +341,6 @@ async fn run(
 
 	let mut to_host_rx = to_host_rx.fuse();
 	let mut from_prepare_queue_rx = from_prepare_queue_rx.fuse();
-	let mut from_execute_queue_rx = from_execute_queue_rx.fuse();
-
-	let mut prep_pipeline_shut_down = false;
-	let mut exec_pipeline_shut_down = false;
 
 	loop {
 		// biased to make it behave deterministically for tests.
@@ -402,23 +395,11 @@ async fn run(
 				break_if_fatal!(handle_prepare_done(
 					&cache_path,
 					&mut artifacts,
-					&mut to_prepare_queue_tx,
 					&mut to_execute_queue_tx,
 					&mut awaiting_prepare,
 					from_queue,
-					&mut prep_pipeline_shut_down,
 				).await);
 			},
-			from_execute_queue = from_execute_queue_rx.next() => {
-				let from_queue = break_if_fatal!(from_execute_queue.ok_or(Fatal));
-
-				// Only to report errors that are fatal to the whole node
-				break_if_fatal!(handle_execute_outcome(&mut to_prepare_queue_tx, &mut to_execute_queue_tx, from_queue, &mut exec_pipeline_shut_down).await);
-			},
-		}
-
-		if prep_pipeline_shut_down && exec_pipeline_shut_down {
-			std::process::exit(1);
 		}
 	}
 }
@@ -650,43 +631,12 @@ async fn handle_heads_up(
 async fn handle_prepare_done(
 	cache_path: &Path,
 	artifacts: &mut Artifacts,
-	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
 	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
 	awaiting_prepare: &mut AwaitingPrepare,
 	from_queue: prepare::FromQueue,
-	shut_down: &mut bool,
 ) -> Result<(), Fatal> {
-	match from_queue {
-		prepare::FromQueue::Outcome { artifact_id, result } =>
-			handle_prepare_outcome(
-				cache_path,
-				artifacts,
-				execute_queue,
-				awaiting_prepare,
-				artifact_id,
-				result,
-			)
-			.await,
-		prepare::FromQueue::VersionMismatch => {
-			prepare_queue.send(prepare::ToQueue::Shutdown).await.map_err(|_| Fatal)?;
-			execute_queue.send(execute::ToQueue::Shutdown).await.map_err(|_| Fatal)?;
-			Ok(())
-		},
-		prepare::FromQueue::ShutdownComplete => {
-			*shut_down = true;
-			Ok(())
-		},
-	}
-}
+	let prepare::FromQueue { artifact_id, result } = from_queue;
 
-async fn handle_prepare_outcome(
-	cache_path: &Path,
-	artifacts: &mut Artifacts,
-	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
-	awaiting_prepare: &mut AwaitingPrepare,
-	artifact_id: ArtifactId,
-	result: PrepareResult,
-) -> Result<(), Fatal> {
 	// Make some sanity checks and extract the current state.
 	let state = match artifacts.artifact_state_mut(&artifact_id) {
 		None => {
@@ -779,25 +729,6 @@ async fn handle_prepare_outcome(
 	};
 
 	Ok(())
-}
-
-async fn handle_execute_outcome(
-	prepare_queue: &mut mpsc::Sender<prepare::ToQueue>,
-	execute_queue: &mut mpsc::Sender<execute::ToQueue>,
-	from_queue: execute::FromQueue,
-	shut_down: &mut bool,
-) -> Result<(), Fatal> {
-	match from_queue {
-		execute::FromQueue::VersionMismatch => {
-			prepare_queue.send(prepare::ToQueue::Shutdown).await.map_err(|_| Fatal)?;
-			execute_queue.send(execute::ToQueue::Shutdown).await.map_err(|_| Fatal)?;
-			Ok(())
-		},
-		execute::FromQueue::ShutdownComplete => {
-			*shut_down = true;
-			Ok(())
-		},
-	}
 }
 
 async fn send_prepare(
@@ -959,7 +890,6 @@ pub(crate) mod tests {
 			let (to_prepare_queue_tx, to_prepare_queue_rx) = mpsc::channel(10);
 			let (from_prepare_queue_tx, from_prepare_queue_rx) = mpsc::unbounded();
 			let (to_execute_queue_tx, to_execute_queue_rx) = mpsc::channel(10);
-			let (_from_execute_queue_tx, from_execute_queue_rx) = mpsc::unbounded();
 			let (to_sweeper_tx, to_sweeper_rx) = mpsc::channel(10);
 
 			let run = run(Inner {
@@ -971,7 +901,6 @@ pub(crate) mod tests {
 				to_prepare_queue_tx,
 				from_prepare_queue_rx,
 				to_execute_queue_tx,
-				from_execute_queue_rx,
 				to_sweeper_tx,
 				awaiting_prepare: AwaitingPrepare::default(),
 			})
@@ -1188,7 +1117,7 @@ pub(crate) mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
 				result: Ok(PrepareStats::default()),
 			})
@@ -1204,7 +1133,7 @@ pub(crate) mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(2),
 				result: Ok(PrepareStats::default()),
 			})
@@ -1256,7 +1185,7 @@ pub(crate) mod tests {
 		);
 		// Send `Ok` right away and poll the host.
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
 				result: Ok(PrepareStats::default()),
 			})
@@ -1280,7 +1209,7 @@ pub(crate) mod tests {
 			prepare::ToQueue::Enqueue { .. }
 		);
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(2),
 				result: Err(PrepareError::TimedOut),
 			})
@@ -1326,7 +1255,7 @@ pub(crate) mod tests {
 		// Suppose the preparation failed, the execution queue is empty and both
 		// "clients" receive their results.
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
 				result: Err(PrepareError::TimedOut),
 			})
@@ -1363,7 +1292,7 @@ pub(crate) mod tests {
 			prepare::ToQueue::Enqueue { .. }
 		);
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(2),
 				result: Ok(PrepareStats::default()),
 			})
@@ -1398,7 +1327,7 @@ pub(crate) mod tests {
 		);
 		// Send a PrepareError.
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
 				result: Err(PrepareError::TimedOut),
 			})
@@ -1465,7 +1394,7 @@ pub(crate) mod tests {
 		);
 		// Send a PrepareError.
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
 				result: Err(PrepareError::TimedOut),
 			})
@@ -1517,7 +1446,7 @@ pub(crate) mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
 				result: Ok(PrepareStats::default()),
 			})
@@ -1567,7 +1496,7 @@ pub(crate) mod tests {
 		);
 		// Send a PrepareError.
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
 				result: Err(PrepareError::Prevalidation("reproducible error".into())),
 			})
@@ -1645,7 +1574,7 @@ pub(crate) mod tests {
 		);
 		// Send a PrepareError.
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
 				result: Err(PrepareError::TimedOut),
 			})
@@ -1693,7 +1622,7 @@ pub(crate) mod tests {
 		);
 
 		test.from_prepare_queue_tx
-			.send(prepare::FromQueue::Outcome {
+			.send(prepare::FromQueue {
 				artifact_id: artifact_id(1),
 				result: Ok(PrepareStats::default()),
 			})
