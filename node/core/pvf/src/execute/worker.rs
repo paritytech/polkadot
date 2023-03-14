@@ -48,7 +48,7 @@ pub async fn spawn(
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
 	let (mut idle_worker, worker_handle) =
-		spawn_with_program_path("execute", program_path, &["execute-worker"], spawn_timeout)
+		spawn_with_program_path("execute", program_path, &["execute-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")], spawn_timeout)
 			.await?;
 	send_handshake(&mut idle_worker.stream, Handshake { executor_params })
 		.await

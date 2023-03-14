@@ -413,12 +413,22 @@ async fn run(
 				let from_queue = break_if_fatal!(from_execute_queue.ok_or(Fatal));
 
 				// Only to report errors that are fatal to the whole node
-				break_if_fatal!(handle_execute_outcome(&mut to_prepare_queue_tx, &mut to_execute_queue_tx, from_queue, &mut exec_pipeline_shut_down).await);
+				break_if_fatal!(handle_execute_outcome(
+					&mut to_prepare_queue_tx,
+					&mut to_execute_queue_tx,
+					from_queue,
+					&mut exec_pipeline_shut_down
+				).await);
 			},
 		}
 
 		if prep_pipeline_shut_down && exec_pipeline_shut_down {
-			std::process::exit(1);
+			gum::error!(
+				target: LOG_TARGET,
+				"PVF pipelines shut down, PVF host exiting",
+			);
+			break;
+			// std::process::exit(1);
 		}
 	}
 }
@@ -668,11 +678,19 @@ async fn handle_prepare_done(
 			)
 			.await,
 		prepare::FromQueue::VersionMismatch => {
+			gum::debug!(
+				target: LOG_TARGET,
+				"host: prep pipeline reported version mismatch, signaling shutdown"
+			);
 			prepare_queue.send(prepare::ToQueue::Shutdown).await.map_err(|_| Fatal)?;
 			execute_queue.send(execute::ToQueue::Shutdown).await.map_err(|_| Fatal)?;
 			Ok(())
 		},
 		prepare::FromQueue::ShutdownComplete => {
+			gum::debug!(
+				target: LOG_TARGET,
+				"host: prep pipline signaled shutdown complete"
+			);
 			*shut_down = true;
 			Ok(())
 		},
@@ -789,11 +807,19 @@ async fn handle_execute_outcome(
 ) -> Result<(), Fatal> {
 	match from_queue {
 		execute::FromQueue::VersionMismatch => {
+			gum::debug!(
+				target: LOG_TARGET,
+				"host: exec pipeline reported version mismatch, signaling shutdown"
+			);
 			prepare_queue.send(prepare::ToQueue::Shutdown).await.map_err(|_| Fatal)?;
 			execute_queue.send(execute::ToQueue::Shutdown).await.map_err(|_| Fatal)?;
 			Ok(())
 		},
 		execute::FromQueue::ShutdownComplete => {
+			gum::debug!(
+				target: LOG_TARGET,
+				"host: exec pipline signaled shutdown complete"
+			);
 			*shut_down = true;
 			Ok(())
 		},
