@@ -64,7 +64,7 @@ CHAINSPEC_FILE="$ROOT/node/service/chain-specs/$RUNTIME.json"
 # count the number of bootnodes
 BOOTNODES=$( jq -r '.bootNodes | length' "$CHAINSPEC_FILE" )
 # Make a temporary dir for chainspec files
-CHAINSPEC_TMPDIR="$(mktemp -d -t "${RUNTIME}_chainspecs")"
+CHAINSPEC_TMPDIR="$(mktemp -d -t "${RUNTIME}_chainspecs_XXXXXX")"
 echo "[+] Using $CHAINSPEC_TMPDIR as temporary chainspec dir"
 # Store an array of the bad bootnodes
 BAD_BOOTNODES=()
