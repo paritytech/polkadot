@@ -18,7 +18,6 @@ use crate::{metrics::Metrics, ParticipationPriority};
 use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 use assert_matches::assert_matches;
 use polkadot_primitives::{BlockNumber, Hash};
-use std::sync::Arc;
 
 use super::{CandidateComparator, ParticipationRequest, QueueError, Queues};
 
@@ -27,7 +26,7 @@ fn make_participation_request(hash: Hash) -> ParticipationRequest {
 	let mut receipt = dummy_candidate_receipt(dummy_hash());
 	// make it differ:
 	receipt.commitments_hash = hash;
-	let request_timer = Arc::new(Metrics::default().time_participation_pipeline());
+	let request_timer = Metrics::default().time_participation_pipeline();
 	ParticipationRequest::new(receipt, 1, request_timer)
 }
 
