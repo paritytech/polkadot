@@ -16,7 +16,7 @@
 
 //! A module that is responsible for migration of storage.
 
-use crate::configuration::{self, Config, Pallet, Store, MAX_POV_SIZE};
+use crate::configuration::{self, ActiveConfig, Config, Pallet, MAX_POV_SIZE};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
 
@@ -230,7 +230,7 @@ minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 		}
 	};
 
-	if let Err(_) = <Pallet<T> as Store>::ActiveConfig::translate(|pre| pre.map(translate)) {
+	if let Err(_) = ActiveConfig::<T>::translate(|pre| pre.map(translate)) {
 		// `Err` is returned when the pre-migration type cannot be deserialized. This
 		// cannot happen if the migration runs correctly, i.e. against the expected version.
 		//
