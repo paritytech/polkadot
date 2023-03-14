@@ -1,0 +1,18 @@
+# checks all runtimes we care about (kusama, polkadot, westend) and ensures
+# the bootnodes in their respective chainspecs are contactable
+
+name: Check all bootnodes
+on: push
+
+jobs:
+  check_bootnodes:
+    strategy:
+      matrix:
+        runtime: [westend, kusama, polkadot]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+      - name: Check ${{ matrix.runtime }} bootnodes
+        shell: bash
+        run: scripts/ci/github/check_bootnodes.sh ${{ matrix.runtime }}
