@@ -1199,7 +1199,7 @@ pub type SignedExtra = (
 pub struct NominationPoolsMigrationV4OldPallet;
 impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 	fn get() -> Perbill {
-		Perbill::zero()
+		Perbill::from_percent(25)
 	}
 }
 
