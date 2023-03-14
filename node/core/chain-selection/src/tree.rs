@@ -360,7 +360,12 @@ fn apply_ancestor_reversions(
 	for revert_number in reversions {
 		let maybe_block_entry = load_ancestor(backend, block_hash, block_number, revert_number)?;
 		if let Some(block_entry) = &maybe_block_entry {
-			gum::trace!(target: LOG_TARGET, ?revert_number, ?block_entry.block_hash, "Block marked as reverted via scraped on-chain reversions");
+			gum::trace!(
+				target: LOG_TARGET,
+				?revert_number,
+				revert_hash = ?block_entry.block_hash,
+				"Block marked as reverted via scraped on-chain reversions"
+			);
 		}
 		revert_single_block_entry_if_present(
 			backend,
