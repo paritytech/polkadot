@@ -96,7 +96,7 @@ impl Initialized {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
 		let (participation_sender, participation_receiver) = mpsc::channel(1);
-		let participation = Participation::new(participation_sender);
+		let participation = Participation::new(participation_sender, metrics.clone());
 		let highest_session = rolling_session_window.latest_session();
 
 		Self {
@@ -916,12 +916,17 @@ impl Initialized {
 			} else {
 				self.metrics.on_queued_best_effort_participation();
 			}
+			let request_timer = Arc::new(self.metrics.time_participation_pipeline());
 			let r = self
 				.participation
 				.queue_participation(
 					ctx,
 					priority,
-					ParticipationRequest::new(new_state.candidate_receipt().clone(), session),
+					ParticipationRequest::new(
+						new_state.candidate_receipt().clone(),
+						session,
+						request_timer,
+					),
 				)
 				.await;
 			log_error(r)?;
