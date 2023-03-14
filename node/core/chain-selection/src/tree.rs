@@ -383,7 +383,12 @@ pub(crate) fn apply_single_reversion(
 	revert_hash: Hash,
 	revert_number: BlockNumber,
 ) -> Result<(), Error> {
-	gum::trace!(target: LOG_TARGET, ?revert_number, ?revert_hash, "Block marked as reverted via ChainSelectionMessage::RevertBlocks");
+	gum::trace!(
+		target: LOG_TARGET,
+		?revert_number,
+		?revert_hash,
+		"Block marked as reverted via ChainSelectionMessage::RevertBlocks"
+	);
 	let maybe_block_entry = backend.load_block_entry(&revert_hash)?;
 	revert_single_block_entry_if_present(
 		backend,
