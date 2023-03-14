@@ -79,13 +79,13 @@ fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
 
 fn assert_storage_consistency_exhaustive() {
 	// check that empty queues don't clutter the storage.
-	for (_para, queue) in <Ump as Store>::RelayDispatchQueues::iter() {
+	for (_para, queue) in RelayDispatchQueues::<Test>::iter() {
 		assert!(!queue.is_empty());
 	}
 
 	// actually count the counts and sizes in queues and compare them to the bookkept version.
-	for (para, queue) in <Ump as Store>::RelayDispatchQueues::iter() {
-		let (expected_count, expected_size) = <Ump as Store>::RelayDispatchQueueSize::get(para);
+	for (para, queue) in RelayDispatchQueues::<Test>::iter() {
+		let (expected_count, expected_size) = RelayDispatchQueueSize::<Test>::get(para);
 		let (actual_count, actual_size) = queue
 			.into_iter()
 			.fold((0, 0), |(acc_count, acc_size), x| (acc_count + 1, acc_size + x.len() as u32));
@@ -96,24 +96,22 @@ fn assert_storage_consistency_exhaustive() {
 
 	// since we wipe the empty queues the sets of paras in queue contents, queue sizes and
 	// need dispatch set should all be equal.
-	let queue_contents_set = <Ump as Store>::RelayDispatchQueues::iter()
+	let queue_contents_set =
+		RelayDispatchQueues::<Test>::iter().map(|(k, _)| k).collect::<HashSet<ParaId>>();
+	let queue_sizes_set = RelayDispatchQueueSize::<Test>::iter()
 		.map(|(k, _)| k)
 		.collect::<HashSet<ParaId>>();
-	let queue_sizes_set = <Ump as Store>::RelayDispatchQueueSize::iter()
-		.map(|(k, _)| k)
-		.collect::<HashSet<ParaId>>();
-	let needs_dispatch_set =
-		<Ump as Store>::NeedsDispatch::get().into_iter().collect::<HashSet<ParaId>>();
+	let needs_dispatch_set = NeedsDispatch::<Test>::get().into_iter().collect::<HashSet<ParaId>>();
 	assert_eq!(queue_contents_set, queue_sizes_set);
 	assert_eq!(queue_contents_set, needs_dispatch_set);
 
 	// `NextDispatchRoundStartWith` should point into a para that is tracked.
-	if let Some(para) = <Ump as Store>::NextDispatchRoundStartWith::get() {
+	if let Some(para) = NextDispatchRoundStartWith::<Test>::get() {
 		assert!(queue_contents_set.contains(&para));
 	}
 
 	// `NeedsDispatch` is always sorted.
-	assert!(<Ump as Store>::NeedsDispatch::get().windows(2).all(|xs| xs[0] <= xs[1]));
+	assert!(NeedsDispatch::<Test>::get().windows(2).all(|xs| xs[0] <= xs[1]));
 }
 
 #[test]
