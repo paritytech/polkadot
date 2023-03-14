@@ -533,7 +533,6 @@ pub mod pallet {
 	};
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -799,10 +798,10 @@ pub mod pallet {
 			new_code: ValidationCode,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			let maybe_prior_code_hash = <Self as Store>::CurrentCodeHash::get(&para);
+			let maybe_prior_code_hash = CurrentCodeHash::<T>::get(&para);
 			let new_code_hash = new_code.hash();
 			Self::increase_code_ref(&new_code_hash, &new_code);
-			<Self as Store>::CurrentCodeHash::insert(&para, new_code_hash);
+			CurrentCodeHash::<T>::insert(&para, new_code_hash);
 
 			let now = frame_system::Pallet::<T>::block_number();
 			if let Some(prior_code_hash) = maybe_prior_code_hash {
@@ -901,7 +900,7 @@ pub mod pallet {
 			ensure_root(origin)?;
 			let code_hash = validation_code.hash();
 
-			if let Some(vote) = <Self as Store>::PvfActiveVoteMap::get(&code_hash) {
+			if let Some(vote) = PvfActiveVoteMap::<T>::get(&code_hash) {
 				// Remove the existing vote.
 				PvfActiveVoteMap::<T>::remove(&code_hash);
 				PvfActiveVoteList::<T>::mutate(|l| {
@@ -921,7 +920,7 @@ pub mod pallet {
 				return Ok(())
 			}
 
-			if <Self as Store>::CodeByHash::contains_key(&code_hash) {
+			if CodeByHash::<T>::contains_key(&code_hash) {
 				// There is no vote, but the code exists. Nothing to do here.
 				return Ok(())
 			}
@@ -931,7 +930,7 @@ pub mod pallet {
 			//
 			// NOTE That we do not use `increase_code_ref` here, because the code is not yet used
 			// by any parachain.
-			<Self as Store>::CodeByHash::insert(code_hash, &validation_code);
+			CodeByHash::<T>::insert(code_hash, &validation_code);
 
 			Ok(())
 		}
@@ -948,8 +947,8 @@ pub mod pallet {
 			validation_code_hash: ValidationCodeHash,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			if <Self as Store>::CodeByHashRefs::get(&validation_code_hash) == 0 {
-				<Self as Store>::CodeByHash::remove(&validation_code_hash);
+			if CodeByHashRefs::<T>::get(&validation_code_hash) == 0 {
+				CodeByHash::<T>::remove(&validation_code_hash);
 			}
 			Ok(())
 		}
@@ -1151,7 +1150,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Set the current head of a parachain.
 	pub(crate) fn set_current_head(para: ParaId, new_head: HeadData) {
-		<Self as Store>::Heads::insert(&para, new_head);
+		Heads::<T>::insert(&para, new_head);
 		Self::deposit_event(Event::CurrentHeadUpdated(para));
 	}
 
@@ -1212,7 +1211,7 @@ impl<T: Config> Pallet<T> {
 				None | Some(ParaLifecycle::Parathread) | Some(ParaLifecycle::Parachain) => { /* Nothing to do... */
 				},
 				Some(ParaLifecycle::Onboarding) => {
-					if let Some(genesis_data) = <Self as Store>::UpcomingParasGenesis::take(&para) {
+					if let Some(genesis_data) = UpcomingParasGenesis::<T>::take(&para) {
 						Self::initialize_para_now(&mut parachains, para, &genesis_data);
 					}
 				},
@@ -1231,17 +1230,17 @@ impl<T: Config> Pallet<T> {
 				Some(ParaLifecycle::OffboardingParathread) => {
 					parachains.remove(para);
 
-					<Self as Store>::Heads::remove(&para);
-					<Self as Store>::FutureCodeUpgrades::remove(&para);
-					<Self as Store>::UpgradeGoAheadSignal::remove(&para);
-					<Self as Store>::UpgradeRestrictionSignal::remove(&para);
+					Heads::<T>::remove(&para);
+					FutureCodeUpgrades::<T>::remove(&para);
+					UpgradeGoAheadSignal::<T>::remove(&para);
+					UpgradeRestrictionSignal::<T>::remove(&para);
 					ParaLifecycles::<T>::remove(&para);
-					let removed_future_code_hash = <Self as Store>::FutureCodeHash::take(&para);
+					let removed_future_code_hash = FutureCodeHash::<T>::take(&para);
 					if let Some(removed_future_code_hash) = removed_future_code_hash {
 						Self::decrease_code_ref(&removed_future_code_hash);
 					}
 
-					let removed_code_hash = <Self as Store>::CurrentCodeHash::take(&para);
+					let removed_code_hash = CurrentCodeHash::<T>::take(&para);
 					if let Some(removed_code_hash) = removed_code_hash {
 						Self::note_past_code(para, now, now, removed_code_hash);
 					}
@@ -1258,13 +1257,13 @@ impl<T: Config> Pallet<T> {
 			//
 			// NOTE both of those iterates over the list and the outgoing. We do not expect either
 			//      of these to be large. Thus should be fine.
-			<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
+			UpcomingUpgrades::<T>::mutate(|upcoming_upgrades| {
 				*upcoming_upgrades = mem::take(upcoming_upgrades)
 					.into_iter()
 					.filter(|&(ref para, _)| !outgoing.contains(para))
 					.collect();
 			});
-			<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
+			UpgradeCooldowns::<T>::mutate(|upgrade_cooldowns| {
 				*upgrade_cooldowns = mem::take(upgrade_cooldowns)
 					.into_iter()
 					.filter(|&(ref para, _)| !outgoing.contains(para))
@@ -1290,15 +1289,15 @@ impl<T: Config> Pallet<T> {
 		now: T::BlockNumber,
 		old_code_hash: ValidationCodeHash,
 	) -> Weight {
-		<Self as Store>::PastCodeMeta::mutate(&id, |past_meta| {
+		PastCodeMeta::<T>::mutate(&id, |past_meta| {
 			past_meta.note_replacement(at, now);
 		});
 
-		<Self as Store>::PastCodeHash::insert(&(id, at), old_code_hash);
+		PastCodeHash::<T>::insert(&(id, at), old_code_hash);
 
 		// Schedule pruning for this past-code to be removed as soon as it
 		// exits the slashing window.
-		<Self as Store>::PastCodePruning::mutate(|pruning| {
+		PastCodePruning::<T>::mutate(|pruning| {
 			let insert_idx =
 				pruning.binary_search_by_key(&now, |&(_, b)| b).unwrap_or_else(|idx| idx);
 			pruning.insert(insert_idx, (id, now));
@@ -1320,8 +1319,8 @@ impl<T: Config> Pallet<T> {
 		// The height of any changes we no longer should keep around.
 		let pruning_height = now - (code_retention_period + One::one());
 
-		let pruning_tasks_done = <Self as Store>::PastCodePruning::mutate(
-			|pruning_tasks: &mut Vec<(_, T::BlockNumber)>| {
+		let pruning_tasks_done =
+			PastCodePruning::<T>::mutate(|pruning_tasks: &mut Vec<(_, T::BlockNumber)>| {
 				let (pruning_tasks_done, pruning_tasks_to_do) = {
 					// find all past code that has just exited the pruning window.
 					let up_to_idx =
@@ -1330,10 +1329,10 @@ impl<T: Config> Pallet<T> {
 				};
 
 				for (para_id, _) in pruning_tasks_to_do {
-					let full_deactivate = <Self as Store>::PastCodeMeta::mutate(&para_id, |meta| {
+					let full_deactivate = PastCodeMeta::<T>::mutate(&para_id, |meta| {
 						for pruned_repl_at in meta.prune_up_to(pruning_height) {
 							let removed_code_hash =
-								<Self as Store>::PastCodeHash::take(&(para_id, pruned_repl_at));
+								PastCodeHash::<T>::take(&(para_id, pruned_repl_at));
 
 							if let Some(removed_code_hash) = removed_code_hash {
 								Self::decrease_code_ref(&removed_code_hash);
@@ -1352,13 +1351,12 @@ impl<T: Config> Pallet<T> {
 					// This parachain has been removed and now the vestigial code
 					// has been removed from the state. clean up meta as well.
 					if full_deactivate {
-						<Self as Store>::PastCodeMeta::remove(&para_id);
+						PastCodeMeta::<T>::remove(&para_id);
 					}
 				}
 
 				pruning_tasks_done as u64
-			},
-		);
+			});
 
 		// 1 read for the meta for each pruning task, 1 read for the config
 		// 2 writes: updating the meta and pruning the code
@@ -1373,11 +1371,11 @@ impl<T: Config> Pallet<T> {
 	fn process_scheduled_upgrade_changes(now: T::BlockNumber) -> Weight {
 		// account weight for `UpcomingUpgrades::mutate`.
 		let mut weight = T::DbWeight::get().reads_writes(1, 1);
-		let upgrades_signaled = <Self as Store>::UpcomingUpgrades::mutate(
+		let upgrades_signaled = UpcomingUpgrades::<T>::mutate(
 			|upcoming_upgrades: &mut Vec<(ParaId, T::BlockNumber)>| {
 				let num = upcoming_upgrades.iter().take_while(|&(_, at)| at <= &now).count();
 				for (para, _) in upcoming_upgrades.drain(..num) {
-					<Self as Store>::UpgradeGoAheadSignal::insert(&para, UpgradeGoAhead::GoAhead);
+					UpgradeGoAheadSignal::<T>::insert(&para, UpgradeGoAhead::GoAhead);
 				}
 				num
 			},
@@ -1386,10 +1384,8 @@ impl<T: Config> Pallet<T> {
 
 		// account weight for `UpgradeCooldowns::get`.
 		weight += T::DbWeight::get().reads(1);
-		let cooldowns_expired = <Self as Store>::UpgradeCooldowns::get()
-			.iter()
-			.take_while(|&(_, at)| at <= &now)
-			.count();
+		let cooldowns_expired =
+			UpgradeCooldowns::<T>::get().iter().take_while(|&(_, at)| at <= &now).count();
 
 		// reserve weight for `initializer_finalize`:
 		// - 1 read and 1 write for `UpgradeCooldowns::mutate`.
@@ -1404,13 +1400,11 @@ impl<T: Config> Pallet<T> {
 	///
 	/// See `process_scheduled_upgrade_changes` for more details.
 	fn process_scheduled_upgrade_cooldowns(now: T::BlockNumber) {
-		<Self as Store>::UpgradeCooldowns::mutate(
-			|upgrade_cooldowns: &mut Vec<(ParaId, T::BlockNumber)>| {
-				for &(para, _) in upgrade_cooldowns.iter().take_while(|&(_, at)| at <= &now) {
-					<Self as Store>::UpgradeRestrictionSignal::remove(&para);
-				}
-			},
-		);
+		UpgradeCooldowns::<T>::mutate(|upgrade_cooldowns: &mut Vec<(ParaId, T::BlockNumber)>| {
+			for &(para, _) in upgrade_cooldowns.iter().take_while(|&(_, at)| at <= &now) {
+				UpgradeRestrictionSignal::<T>::remove(&para);
+			}
+		});
 	}
 
 	/// Goes over all PVF votes in progress, reinitializes ballots, increments ages and prunes the
@@ -1539,7 +1533,7 @@ impl<T: Config> Pallet<T> {
 		weight += T::DbWeight::get().reads_writes(1, 4);
 		FutureCodeUpgrades::<T>::insert(&id, expected_at);
 
-		<Self as Store>::UpcomingUpgrades::mutate(|upcoming_upgrades| {
+		UpcomingUpgrades::<T>::mutate(|upcoming_upgrades| {
 			let insert_idx = upcoming_upgrades
 				.binary_search_by_key(&expected_at, |&(_, b)| b)
 				.unwrap_or_else(|idx| idx);
@@ -1653,7 +1647,7 @@ impl<T: Config> Pallet<T> {
 			mem::replace(&mut genesis_data.validation_code, ValidationCode(Vec::new()));
 		UpcomingParasGenesis::<T>::insert(&id, genesis_data);
 		let validation_code_hash = validation_code.hash();
-		<Self as Store>::CurrentCodeHash::insert(&id, validation_code_hash);
+		CurrentCodeHash::<T>::insert(&id, validation_code_hash);
 
 		let cfg = configuration::Pallet::<T>::config();
 		Self::kick_off_pvf_check(
@@ -1814,7 +1808,7 @@ impl<T: Config> Pallet<T> {
 
 		weight += T::DbWeight::get().reads_writes(1, 1);
 		let next_possible_upgrade_at = relay_parent_number + cfg.validation_upgrade_cooldown;
-		<Self as Store>::UpgradeCooldowns::mutate(|upgrade_cooldowns| {
+		UpgradeCooldowns::<T>::mutate(|upgrade_cooldowns| {
 			let insert_idx = upgrade_cooldowns
 				.binary_search_by_key(&next_possible_upgrade_at, |&(_, b)| b)
 				.unwrap_or_else(|idx| idx);
@@ -1926,10 +1920,10 @@ impl<T: Config> Pallet<T> {
 	) -> Weight {
 		Heads::<T>::insert(&id, new_head);
 
-		if let Some(expected_at) = <Self as Store>::FutureCodeUpgrades::get(&id) {
+		if let Some(expected_at) = FutureCodeUpgrades::<T>::get(&id) {
 			if expected_at <= execution_context {
-				<Self as Store>::FutureCodeUpgrades::remove(&id);
-				<Self as Store>::UpgradeGoAheadSignal::remove(&id);
+				FutureCodeUpgrades::<T>::remove(&id);
+				UpgradeGoAheadSignal::<T>::remove(&id);
 
 				// Both should always be `Some` in this case, since a code upgrade is scheduled.
 				let new_code_hash = if let Some(new_code_hash) = FutureCodeHash::<T>::take(&id) {
@@ -2048,10 +2042,10 @@ impl<T: Config> Pallet<T> {
 	/// Returns the weight consumed.
 	fn increase_code_ref(code_hash: &ValidationCodeHash, code: &ValidationCode) -> Weight {
 		let mut weight = T::DbWeight::get().reads_writes(1, 1);
-		<Self as Store>::CodeByHashRefs::mutate(code_hash, |refs| {
+		CodeByHashRefs::<T>::mutate(code_hash, |refs| {
 			if *refs == 0 {
 				weight += T::DbWeight::get().writes(1);
-				<Self as Store>::CodeByHash::insert(code_hash, code);
+				CodeByHash::<T>::insert(code_hash, code);
 			}
 			*refs += 1;
 		});
@@ -2064,18 +2058,18 @@ impl<T: Config> Pallet<T> {
 	/// Returns the weight consumed.
 	fn decrease_code_ref(code_hash: &ValidationCodeHash) -> Weight {
 		let mut weight = T::DbWeight::get().reads(1);
-		let refs = <Self as Store>::CodeByHashRefs::get(code_hash);
+		let refs = CodeByHashRefs::<T>::get(code_hash);
 		if refs == 0 {
 			log::error!(target: LOG_TARGET, "Code refs is already zero for {:?}", code_hash);
 			return weight
 		}
 		if refs <= 1 {
 			weight += T::DbWeight::get().writes(2);
-			<Self as Store>::CodeByHash::remove(code_hash);
-			<Self as Store>::CodeByHashRefs::remove(code_hash);
+			CodeByHash::<T>::remove(code_hash);
+			CodeByHashRefs::<T>::remove(code_hash);
 		} else {
 			weight += T::DbWeight::get().writes(1);
-			<Self as Store>::CodeByHashRefs::insert(code_hash, refs - 1);
+			CodeByHashRefs::<T>::insert(code_hash, refs - 1);
 		}
 		weight
 	}
