@@ -403,7 +403,7 @@ parameter_types! {
 	/// cannot have active validators higher than this count.
 	pub const MaxActiveValidators: u32 = 1200;
 	// Emergency throttling disabled.
-	pub MinBlocksBeforeEmergency: BlockNumber = BlockNumber::zero();
+	pub MinBlocksBeforeEmergency: BlockNumber = 0;
 }
 
 generate_solution_type!(
