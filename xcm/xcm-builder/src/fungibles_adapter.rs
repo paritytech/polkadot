@@ -26,7 +26,7 @@ pub struct FungiblesTransferAdapter<Assets, Matcher, AccountIdConverter, Account
 	PhantomData<(Assets, Matcher, AccountIdConverter, AccountId)>,
 );
 impl<
-		Assets: fungibles::Transfer<AccountId>,
+		Assets: fungibles::Mutate<AccountId>,
 		Matcher: MatchesFungibles<Assets::AssetId, Assets::Balance>,
 		AccountIdConverter: Convert<MultiLocation, AccountId>,
 		AccountId: Clone, // can't get away without it since Currency is generic over it.
