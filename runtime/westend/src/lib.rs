@@ -1844,8 +1844,6 @@ sp_api::impl_runtime_apis! {
 				hex_literal::hex!("06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385").to_vec().into(),
 				// The transactional storage limit.
 				hex_literal::hex!("3a7472616e73616374696f6e5f6c6576656c3a").to_vec().into(),
-				// XcmPallet SupportedVersion
-				hex_literal::hex!("1405f2411d0af5a7ff397e7c9dc68d19908b4dae59e7d658f23d261c5e5db22b").to_vec().into(),
 				// XcmPallet VersionDiscoveryQueue
 				hex_literal::hex!("1405f2411d0af5a7ff397e7c9dc68d194a222ba0333561192e474c59ed8e30e1").to_vec().into(),
 				// XcmPallet SafeXcmVersion
