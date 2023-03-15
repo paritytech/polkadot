@@ -264,7 +264,9 @@ impl Response {
 }
 
 /// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host.
+/// the path to the socket used to communicate with the host. The `node_version`, if `Some`,
+/// is checked against the worker version. A mismatch results in immediate worker termination.
+/// `None` is used for tests and in other situations when version check is not necessary.
 pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	worker_event_loop("execute", socket_path, |rt_handle, mut stream| async move {
 		let worker_pid = std::process::id();
