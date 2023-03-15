@@ -41,13 +41,13 @@ use frame_election_provider_support::{generate_solution_type, onchain, Sequentia
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		ConstU32, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		ConstU32, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		PrivilegeCmp, WithdrawReasons,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
 };
-use frame_system::EnsureRoot;
+use frame_system::{EnsureRoot, EnsureWithSuccess};
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as session_historical;
@@ -426,6 +426,7 @@ impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
 		as
 		frame_election_provider_support::ElectionDataProvider
 	>::MaxVotesPerVoter;
+	type MaxWinners = MaxActiveValidators;
 
 	// The unsigned submissions have to respect the weight of the submit_unsigned call, thus their
 	// weight estimate function is wired to this call's weight.
@@ -826,6 +827,7 @@ parameter_types! {
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 	pub const RootSpendOriginMaxAmount: Balance = Balance::MAX;
+	pub const CouncilSpendOriginMaxAmount: Balance = Balance::MAX;
 }
 
 type ApproveOrigin = EitherOfDiverse<
@@ -849,7 +851,14 @@ impl pallet_treasury::Config for Runtime {
 	type SpendFunds = Bounties;
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
-	type SpendOrigin = frame_system::EnsureRootWithSuccess<AccountId, RootSpendOriginMaxAmount>;
+	type SpendOrigin = EitherOf<
+		frame_system::EnsureRootWithSuccess<AccountId, RootSpendOriginMaxAmount>,
+		EnsureWithSuccess<
+			pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
+			AccountId,
+			CouncilSpendOriginMaxAmount,
+		>,
+	>;
 }
 
 parameter_types! {
@@ -2467,7 +2476,7 @@ mod multiplier_tests {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
-	use frame_try_runtime::{runtime_decl_for_TryRuntime::TryRuntime, UpgradeCheckSelect};
+	use frame_try_runtime::{runtime_decl_for_try_runtime::TryRuntime, UpgradeCheckSelect};
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
 	};
