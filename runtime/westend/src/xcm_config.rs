@@ -24,13 +24,11 @@ use frame_support::{
 	parameter_types,
 	traits::{Contains, Everything, Nothing},
 };
-use parity_scale_codec::Encode;
 use runtime_common::{
 	paras_registrar,
-	xcm_sender::{ChildParachainRouter, ExponentialPrice, PriceForParachainDelivery},
+	xcm_sender::{ChildParachainRouter, ExponentialPrice},
 	ToAuthor,
 };
-use sp_arithmetic::FixedPointNumber;
 use sp_core::ConstU32;
 use westend_runtime_constants::currency::CENTS;
 use xcm::latest::prelude::*;

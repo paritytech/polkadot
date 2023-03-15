@@ -25,14 +25,12 @@ use frame_support::{
 	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
-use parity_scale_codec::Encode;
 use polkadot_runtime_constants::currency::CENTS;
 use runtime_common::{
 	paras_registrar,
-	xcm_sender::{ChildParachainRouter, ExponentialPrice, PriceForParachainDelivery},
+	xcm_sender::{ChildParachainRouter, ExponentialPrice},
 	ToAuthor,
 };
-use sp_arithmetic::FixedPointNumber;
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{

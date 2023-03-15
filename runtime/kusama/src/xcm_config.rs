@@ -27,13 +27,11 @@ use frame_support::{
 	weights::Weight,
 };
 use kusama_runtime_constants::currency::CENTS;
-use parity_scale_codec::Encode;
 use runtime_common::{
 	paras_registrar,
-	xcm_sender::{ChildParachainRouter, ExponentialPrice, PriceForParachainDelivery},
+	xcm_sender::{ChildParachainRouter, ExponentialPrice},
 	ToAuthor,
 };
-use sp_arithmetic::FixedPointNumber;
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
