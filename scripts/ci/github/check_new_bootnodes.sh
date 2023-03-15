@@ -1,6 +1,7 @@
 #!/bin/bash
+set -e
 # shellcheck source=scripts/ci/common/lib.sh
-source "../common/lib.sh"
+source "$(dirname "${0}")/../common/lib.sh"
 
 # This script checks any new bootnodes added since the last git commit
 
