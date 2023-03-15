@@ -24,4 +24,6 @@ jobs:
           polkadot --version
       - name: Check new bootnodes
         shell: bash
-        run: scripts/ci/github/check_new_bootnodes.sh
+        run: |
+          git fetch origin master
+          scripts/ci/github/check_new_bootnodes.sh
