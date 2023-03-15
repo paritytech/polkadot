@@ -17,7 +17,7 @@
 use crate::{error::PrepareError, host::PrepareResultSender, prepare::PrepareStats};
 use always_assert::always;
 use polkadot_parachain::primitives::ValidationCodeHash;
-use polkadot_primitives::vstaging::ExecutorParamsHash;
+use polkadot_primitives::ExecutorParamsHash;
 use std::{
 	collections::HashMap,
 	path::{Path, PathBuf},
@@ -219,7 +219,7 @@ impl Artifacts {
 #[cfg(test)]
 mod tests {
 	use super::{ArtifactId, Artifacts};
-	use polkadot_primitives::vstaging::ExecutorParamsHash;
+	use polkadot_primitives::ExecutorParamsHash;
 	use sp_core::H256;
 	use std::{path::Path, str::FromStr};
 

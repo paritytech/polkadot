@@ -30,7 +30,7 @@ use futures::{
 	stream::{FuturesUnordered, StreamExt as _},
 	Future, FutureExt,
 };
-use polkadot_primitives::vstaging::{ExecutorParams, ExecutorParamsHash};
+use polkadot_primitives::{ExecutorParams, ExecutorParamsHash};
 use slotmap::HopSlotMap;
 use std::{
 	collections::VecDeque,
