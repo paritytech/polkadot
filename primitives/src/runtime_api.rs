@@ -111,8 +111,8 @@
 //! from the stable primitives.
 
 use crate::{
-	vstaging, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, OccupiedCoreAssumption,
+	BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
+	CoreState, DisputeState, ExecutorParams, GroupRotationInfo, OccupiedCoreAssumption,
 	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
 	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
@@ -123,7 +123,7 @@ use sp_std::{collections::btree_map::BTreeMap, prelude::*};
 
 sp_api::decl_runtime_apis! {
 	/// The API for querying the state of parachains on-chain.
-	#[api_version(2)]
+	#[api_version(4)]
 	pub trait ParachainHost<H: Encode + Decode = pcp::v2::Hash, N: Encode + Decode = pcp::v2::BlockNumber> {
 		/// Get the current validators.
 		fn validators() -> Vec<ValidatorId>;
@@ -213,14 +213,10 @@ sp_api::decl_runtime_apis! {
 		fn validation_code_hash(para_id: ppp::Id, assumption: OccupiedCoreAssumption)
 			-> Option<ppp::ValidationCodeHash>;
 
-		/***** STAGING *****/
-
 		/// Returns all onchain disputes.
-		#[api_version(3)]
 		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>;
 
 		/// Returns execution parameters for the session.
-		#[api_version(4)]
-		fn session_executor_params(session_index: SessionIndex) -> Option<vstaging::ExecutorParams>;
+		fn session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>;
 	}
 }

@@ -33,8 +33,7 @@ test-linux-stable:
     - .common-refs
     - .pipeline-stopper-artifacts
   before_script:
-    - rustup show
-    - cargo --version
+    - !reference [.compiler-info, before_script]
     - !reference [.pipeline-stopper-vars, before_script]
   variables:
     RUST_TOOLCHAIN: stable
