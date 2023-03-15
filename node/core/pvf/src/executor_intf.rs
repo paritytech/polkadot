@@ -16,7 +16,7 @@
 
 //! Interface to the Substrate Executor
 
-use polkadot_primitives::vstaging::executor_params::{ExecutorParam, ExecutorParams};
+use polkadot_primitives::{ExecutorParam, ExecutorParams};
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{HeapAllocStrategy, InvokeMethod, WasmModule as _},
