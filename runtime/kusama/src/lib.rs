@@ -575,7 +575,7 @@ impl pallet_staking::Config for Runtime {
 	type NextNewSession = Session;
 	type MaxNominatorRewardedPerValidator = MaxNominatorRewardedPerValidator;
 	type OffendingValidatorsThreshold = OffendingValidatorsThreshold;
-	type VoterList = <Runtime as pallet_stake_tracker::Config>::VoterList;
+	type VoterList = pallet_stake_tracker::TrackedList<AccountId, VoterList>;
 	type TargetList = UseValidatorsMap<Self>;
 	type MaxUnlockingChunks = frame_support::traits::ConstU32<32>;
 	type HistoryDepth = frame_support::traits::ConstU32<84>;
