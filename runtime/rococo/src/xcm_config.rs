@@ -31,6 +31,7 @@ use runtime_common::{
 	xcm_sender::{ChildParachainRouter, ExponentialPrice},
 	ToAuthor,
 };
+use sp_arithmetic::FixedU128;
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -91,7 +92,7 @@ parameter_types! {
 	/// The base fee for the message delivery fees.
 	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
 	/// The factor to multiply by for the message delivery fees.
-	pub FeeFactor: u128 = Dmp::delivery_fee_factor();
+	pub FeeFactor: FixedU128 = Dmp::delivery_fee_factor();
 }
 
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
