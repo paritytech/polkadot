@@ -24,4 +24,4 @@ jobs:
           polkadot --version
       - name: Check ${{ matrix.runtime }} bootnodes
         shell: bash
-        run: scripts/ci/github/check_bootnodes.sh ${{ matrix.runtime }}
+        run: scripts/ci/github/check_bootnodes.sh node/service/chain-specs/${{ matrix.runtime }}.json
