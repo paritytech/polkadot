@@ -38,7 +38,7 @@ check_bootnode(){
         # BASE_PORT=$(sysctl net.inet.ip.portrange.first | awk '{print $2}')
         RPC_PORT=$((BASE_PORT + BOOTNODE_INDEX))
         echo "[+] Checking bootnode $BOOTNODE"
-        polkadot --chain "$FINAL_CHAINSPEC_FILE" --no-mdns --rpc-port=$RPC_PORT --tmp > /dev/null 2>&1 &
+        polkadot --chain "$FINAL_CHAINSPEC_FILE" --no-mdns --rpc-port=$RPC_PORT --tmp  > /dev/null 2>&1 &
         POLKADOT_PID=$!
         # We just spun up a bunch of nodes... probably want to wait a bit.
         sleep 60
