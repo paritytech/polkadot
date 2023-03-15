@@ -12,7 +12,7 @@ WAS_ERROR=0
 for RUNTIME in "${RUNTIMES[@]}"; do
     CHAINSPEC_FILE="node/service/chain-specs/$RUNTIME.json"
     # Get the bootnodes from master's chainspec
-    git show master:"$CHAINSPEC_FILE" | jq '{"oldNodes": .bootNodes}' > "$RUNTIME-old-bootnodes.json"
+    git show origin/master:"$CHAINSPEC_FILE" | jq '{"oldNodes": .bootNodes}' > "$RUNTIME-old-bootnodes.json"
     # Get the bootnodes from the current branch's chainspec
     git show HEAD:"$CHAINSPEC_FILE" | jq '{"newNodes": .bootNodes}' > "$RUNTIME-new-bootnodes.json"
     # Make a chainspec containing only the new bootnodes
