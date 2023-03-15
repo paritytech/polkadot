@@ -47,6 +47,24 @@ impl<T: Get<MultiAssets>> PriceForParachainDelivery for ConstantPrice<T> {
 	}
 }
 
+/// Implementation of `PriceForParachainDelivery` which returns an exponentially increasing price.
+/// The `A` type parameter is used to denote the asset ID that will be used for paying the delivery
+/// fee.
+///
+/// The formula for the fee is based on the sum of a base fee plus a message length fee, multiplied
+/// by a specified factor. In mathematical form, it is `F * (B + msg_len * M)`.
+pub struct ExponentialPrice<A, B, M, F>(sp_std::marker::PhantomData<(A, B, M, F)>);
+impl<A: Get<AssetId>, B: Get<u128>, M: Get<u128>, F: Get<u128>> PriceForParachainDelivery
+	for ExponentialPrice<A, B, M, F>
+{
+	fn price_for_parachain_delivery(_: ParaId, msg: &Xcm<()>) -> MultiAssets {
+		let msg_fee = (msg.encoded_size() as u128).saturating_mul(M::get());
+		let fee_sum = B::get().saturating_add(msg_fee);
+		let amount = F::get().saturating_mul(fee_sum);
+		(A::get(), amount).into()
+	}
+}
+
 /// XCM sender for relay chain. It only sends downward message.
 pub struct ChildParachainRouter<T, W, P>(PhantomData<(T, W, P)>);
 

@@ -17,17 +17,17 @@
 //! XCM configurations for Westend.
 
 use super::{
-	parachains_dmp, parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, Dmp,
-	ParaId, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, TransactionByteFee, WeightToFee,
-	XcmPallet,
+	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, Dmp, ParaId, Runtime,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, TransactionByteFee, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	parameter_types,
 	traits::{Contains, Everything, Nothing},
 };
+use parity_scale_codec::Encode;
 use runtime_common::{
 	paras_registrar,
-	xcm_sender::{ChildParachainRouter, PriceForParachainDelivery},
+	xcm_sender::{ChildParachainRouter, ExponentialPrice, PriceForParachainDelivery},
 	ToAuthor,
 };
 use sp_arithmetic::FixedPointNumber;
@@ -50,6 +50,12 @@ parameter_types! {
 	pub UniversalLocation: InteriorMultiLocation = ThisNetwork::get().into();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
+	/// The asset ID for the asset that we use to pay for message delivery fees.
+	pub FeeAssetId: AssetId = Concrete(Here.into());
+	/// The base fee for the message delivery fees.
+	pub const BaseDeliveryFee: u128 = CENTS.saturating_mul(3);
+	/// The factor to multiply by for the message delivery fees.
+	pub FeeFactor: u128 = Dmp::delivery_fee_factor();
 }
 
 pub type LocationConverter =
@@ -75,30 +81,15 @@ type LocalOriginConverter = (
 	ChildSystemParachainAsSuperuser<ParaId, RuntimeOrigin>,
 );
 
-pub struct ExponentialWndPrice;
-impl PriceForParachainDelivery for ExponentialWndPrice {
-	fn price_for_parachain_delivery(para: ParaId, msg: &Xcm<()>) -> MultiAssets {
-		let base = CENTS.saturating_mul(3);
-		let msg_fee = (msg.len() as u128).saturating_mul(TransactionByteFee::get());
-
-		let excess_msgs =
-			Dmp::dmq_length(para).saturating_sub(parachains_dmp::MAX_MESSAGE_QUEUE_SIZE) as usize;
-		let factor = if excess_msgs != 0 {
-			Dmp::raise_fee_factor(excess_msgs)
-		} else {
-			Dmp::reduce_fee_factor(1)
-		};
-
-		let amount = factor.saturating_mul_int(base + msg_fee);
-		(Here, amount).into()
-	}
-}
-
 /// The XCM router. When we want to send an XCM message, we use this type. It amalgamates all of our
 /// individual routers.
 pub type XcmRouter = (
 	// Only one router so far - use DMP to communicate with child parachains.
-	ChildParachainRouter<Runtime, XcmPallet, ExponentialWndPrice>,
+	ChildParachainRouter<
+		Runtime,
+		XcmPallet,
+		ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, FeeFactor>,
+	>,
 );
 
 parameter_types! {

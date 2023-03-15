@@ -32,7 +32,7 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
-pub const MAX_MESSAGE_QUEUE_SIZE: u32 = 1024;
+pub const MAX_MESSAGE_QUEUE_SIZE: usize = 1024;
 pub const MULTIPLICATIVE_FEE_FACTOR: FixedU128 = FixedU128::from_rational(101, 100); // 1.01
 
 /// An error sending a downward message.
@@ -113,6 +113,7 @@ pub mod pallet {
 
 	/// The number to multiply the base delivery fee by.
 	#[pallet::storage]
+	#[pallet::getter(fn delivery_fee_factor)]
 	pub(crate) type DeliveryFeeFactor<T: Config> =
 		StorageValue<_, FixedU128, ValueQuery, InitialFactor>;
 }
@@ -187,15 +188,20 @@ impl<T: Config> Pallet<T> {
 			InboundDownwardMessage { msg, sent_at: <frame_system::Pallet<T>>::block_number() };
 
 		// obtain the new link in the MQC and update the head.
-		<Self as Store>::DownwardMessageQueueHeads::mutate(para, |head| {
+		DownwardMessageQueueHeads::<T>::mutate(para, |head| {
 			let new_head =
 				BlakeTwo256::hash_of(&(*head, inbound.sent_at, T::Hashing::hash_of(&inbound.msg)));
 			*head = new_head;
 		});
 
-		<Self as Store>::DownwardMessageQueues::mutate(para, |v| {
+		let q_len = DownwardMessageQueues::<T>::mutate(para, |v| {
 			v.push(inbound);
+			v.len()
 		});
+
+		if q_len > MAX_MESSAGE_QUEUE_SIZE {
+			Self::increment_fee_factor();
+		}
 
 		Ok(())
 	}
@@ -222,7 +228,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Prunes the specified number of messages from the downward message queue of the given para.
 	pub(crate) fn prune_dmq(para: ParaId, processed_downward_messages: u32) -> Weight {
-		<Self as Store>::DownwardMessageQueues::mutate(para, |q| {
+		let q_len = DownwardMessageQueues::<T>::mutate(para, |q| {
 			let processed_downward_messages = processed_downward_messages as usize;
 			if processed_downward_messages > q.len() {
 				// reaching this branch is unexpected due to the constraint established by
@@ -231,7 +237,11 @@ impl<T: Config> Pallet<T> {
 			} else {
 				*q = q.split_off(processed_downward_messages);
 			}
+			q.len()
 		});
+		if q_len <= MAX_MESSAGE_QUEUE_SIZE {
+			Self::decrement_fee_factor();
+		}
 		T::DbWeight::get().reads_writes(1, 1)
 	}
 
@@ -245,7 +255,7 @@ impl<T: Config> Pallet<T> {
 	/// Returns the number of pending downward messages addressed to the given para.
 	///
 	/// Returns 0 if the para doesn't have an associated downward message queue.
-	pub fn dmq_length(para: ParaId) -> u32 {
+	pub(crate) fn dmq_length(para: ParaId) -> u32 {
 		<Self as Store>::DownwardMessageQueues::decode_len(&para)
 			.unwrap_or(0)
 			.saturated_into::<u32>()
@@ -258,28 +268,24 @@ impl<T: Config> Pallet<T> {
 		<Self as Store>::DownwardMessageQueues::get(&recipient)
 	}
 
-	/// Raise the delivery fee factor by a multiplicative factor to the power of `n`, and stores
-	/// the resulting value.
+	/// Raise the delivery fee factor by a multiplicative factor and stores the resulting value.
 	///
-	/// Returns the new delivery fee factor after the raise.
-	pub fn raise_fee_factor(n: usize) -> FixedU128 {
+	/// Returns the new delivery fee factor after the increment.
+	pub(crate) fn increment_fee_factor() -> FixedU128 {
 		<DeliveryFeeFactor<T>>::mutate(|f| {
-			let factor = MULTIPLICATIVE_FEE_FACTOR.saturating_pow(n);
-			*f = f.saturating_mul(factor);
+			*f = f.saturating_mul(MULTIPLICATIVE_FEE_FACTOR);
 			*f
 		})
 	}
 
-	/// Reduce the delivery fee factor by a multiplicative factor to the power of `n`, and stores
-	/// the resulting value.
+	/// Reduce the delivery fee factor by a multiplicative factor and stores the resulting value.
 	///
 	/// Does not reduce the fee factor below the initial value, which is currently set as 1.
 	///
-	/// Returns the new delivery fee factor after the reduction.
-	pub fn reduce_fee_factor(n: usize) -> FixedU128 {
+	/// Returns the new delivery fee factor after the decrement.
+	pub(crate) fn decrement_fee_factor() -> FixedU128 {
 		<DeliveryFeeFactor<T>>::mutate(|f| {
-			let factor = MULTIPLICATIVE_FEE_FACTOR.saturating_pow(n);
-			*f = InitialFactor::get().min(*f / factor);
+			*f = InitialFactor::get().min(*f / MULTIPLICATIVE_FEE_FACTOR);
 			*f
 		})
 	}
