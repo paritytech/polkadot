@@ -280,6 +280,7 @@ impl WorkerHandle {
 	) -> io::Result<Self> {
 		let mut child = process::Command::new(program.as_ref())
 			.args(extra_args)
+			.arg("--socket-path")
 			.arg(socket_path.as_ref().as_os_str())
 			.stdout(std::process::Stdio::piped())
 			.kill_on_drop(true)
