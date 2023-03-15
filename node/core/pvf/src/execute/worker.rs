@@ -47,9 +47,13 @@ pub async fn spawn(
 	executor_params: ExecutorParams,
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	let (mut idle_worker, worker_handle) =
-		spawn_with_program_path("execute", program_path, &["execute-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")], spawn_timeout)
-			.await?;
+	let (mut idle_worker, worker_handle) = spawn_with_program_path(
+		"execute",
+		program_path,
+		&["execute-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
+		spawn_timeout,
+	)
+	.await?;
 	send_handshake(&mut idle_worker.stream, Handshake { executor_params })
 		.await
 		.map_err(|error| {
@@ -77,9 +81,6 @@ pub enum Outcome {
 	InternalError { err: String, idle_worker: IdleWorker },
 	/// The execution time exceeded the hard limit. The worker is terminated.
 	HardTimeout,
-	/// The worker recognized a version mismatch between node software and worker.
-	/// Node should be shut down.
-	VersionMismatch,
 	/// An I/O error happened during communication with the worker. This may mean that the worker
 	/// process already died. The token is not returned in any case.
 	IoErr,
@@ -175,7 +176,6 @@ pub async fn start_work(
 		Response::InvalidCandidate(err) =>
 			Outcome::InvalidCandidate { err, idle_worker: IdleWorker { stream, pid } },
 		Response::TimedOut => Outcome::HardTimeout,
-		Response::VersionMismatch => Outcome::VersionMismatch,
 		Response::InternalError(err) =>
 			Outcome::InternalError { err, idle_worker: IdleWorker { stream, pid } },
 	}
@@ -251,7 +251,6 @@ pub enum Response {
 	InvalidCandidate(String),
 	TimedOut,
 	InternalError(String),
-	VersionMismatch,
 }
 
 impl Response {
@@ -269,11 +268,16 @@ impl Response {
 pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	worker_event_loop("execute", socket_path, |rt_handle, mut stream| async move {
 		let worker_pid = std::process::id();
-		let version_mismatch = if let Some(version) = node_version {
-			version != env!("SUBSTRATE_CLI_IMPL_VERSION")
-		} else {
-			false
-		};
+		if let Some(version) = node_version {
+			if version != env!("SUBSTRATE_CLI_IMPL_VERSION") {
+				gum::error!(
+					target: LOG_TARGET,
+					%worker_pid,
+					"Node and worker version mismatch, node needs restarting",
+				);
+				return Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"))
+			}
+		}
 
 		let handshake = recv_handshake(&mut stream).await?;
 		let executor = Arc::new(Executor::new(handshake.executor_params).map_err(|e| {
@@ -282,15 +286,6 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 
 		loop {
 			let (artifact_path, params, execution_timeout) = recv_request(&mut stream).await?;
-			if version_mismatch {
-				gum::error!(
-					target: LOG_TARGET,
-					%worker_pid,
-					"worker: node and worker version mismatch",
-				);
-				send_response(&mut stream, Response::VersionMismatch).await?;
-				return Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"))
-			}
 			gum::debug!(
 				target: LOG_TARGET,
 				%worker_pid,

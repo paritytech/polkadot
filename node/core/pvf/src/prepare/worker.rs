@@ -76,10 +76,6 @@ pub enum Outcome {
 	///
 	/// The worker is no longer usable and should be killed.
 	TimedOut,
-	/// The worker recognized a version mismatch between node software and worker.
-	///
-	/// Node should be shut down.
-	VersionMismatch,
 	/// An IO error occurred while receiving the result from the worker process.
 	///
 	/// This doesn't return an idle worker instance, thus this worker is no longer usable.
@@ -186,7 +182,14 @@ async fn handle_response(
 		// Timed out on the child. This should already be logged by the child.
 		Err(PrepareError::TimedOut) => return Outcome::TimedOut,
 		// Worker reported version mismatch
-		Err(PrepareError::VersionMismatch) => return Outcome::VersionMismatch,
+		Err(PrepareError::VersionMismatch) => {
+			gum::error!(
+				target: LOG_TARGET,
+				%worker_pid,
+				"node and worker version mismatch",
+			);
+			std::process::exit(1);
+		},
 		Err(_) => return Outcome::Concluded { worker, result },
 	};
 
@@ -357,23 +360,19 @@ async fn recv_response(stream: &mut UnixStream, pid: u32) -> io::Result<PrepareR
 pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	worker_event_loop("prepare", socket_path, |rt_handle, mut stream| async move {
 		let worker_pid = std::process::id();
-		let version_mismatch = if let Some(version) = node_version {
-			version != env!("SUBSTRATE_CLI_IMPL_VERSION")
-		} else {
-			false
-		};
-
-		loop {
-			let (pvf, dest) = recv_request(&mut stream).await?;
-			if version_mismatch {
+		if let Some(version) = node_version {
+			if version != env!("SUBSTRATE_CLI_IMPL_VERSION") {
 				gum::error!(
 					target: LOG_TARGET,
 					%worker_pid,
-					"worker: node and worker version mismatch",
+					"Node and worker version mismatch, node needs restarting",
 				);
-				send_response(&mut stream, Err(PrepareError::VersionMismatch)).await?;
 				return Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"))
 			}
+		}
+
+		loop {
+			let (pvf, dest) = recv_request(&mut stream).await?;
 			gum::debug!(
 				target: LOG_TARGET,
 				%worker_pid,
