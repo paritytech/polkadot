@@ -25,5 +25,4 @@ jobs:
       - name: Check new bootnodes
         shell: bash
         run: |
-          git fetch origin master
           scripts/ci/github/check_new_bootnodes.sh
