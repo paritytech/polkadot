@@ -160,21 +160,6 @@ impl PartialEq for ParticipationRequest {
 }
 #[cfg(test)]
 impl Eq for ParticipationRequest {}
-#[cfg(test)]
-impl Clone for ParticipationRequest {
-	fn clone(&self) -> Self {
-		ParticipationRequest {
-			candidate_receipt: self.candidate_receipt.clone(),
-			candidate_hash: self.candidate_hash.clone(),
-			session: self.session,
-			_request_timer: None,
-		}
-	}
-
-	fn clone_from(&mut self, source: &Self) {
-		*self = source.clone();
-	}
-}
 
 impl Queues {
 	/// Create new `Queues`.
