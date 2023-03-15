@@ -142,8 +142,8 @@ impl ParticipationRequest {
 	}
 }
 
-// We want to compare and clone participation requests in unit tests, so we
-// only implement Eq and Clone for tests.
+// We want to compare participation requests in unit tests, so we
+// only implement Eq for tests.
 #[cfg(test)]
 impl PartialEq for ParticipationRequest {
 	fn eq(&self, other: &Self) -> bool {
