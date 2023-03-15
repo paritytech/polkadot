@@ -136,6 +136,10 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type HasInitialized<T: Config> = StorageValue<_, ()>;
 
+	#[pallet::storage]
+	#[pallet::getter(fn weight_remaining)]
+	pub(crate) type WeightRemaining<T: Config> = StorageValue<_, Weight>;
+
 	/// Buffered session changes along with the block number at which they should be applied.
 	///
 	/// Typically this will be empty or one element long. Apart from that this item never hits
@@ -173,7 +177,10 @@ pub mod pallet {
 				hrmp::Pallet::<T>::initializer_initialize(now);
 
 			HasInitialized::<T>::set(Some(()));
-
+			let remaining = <T as frame_system::Config>::BlockWeights::get()
+				.max_block
+				.saturating_sub(total_weight);
+			WeightRemaining::<T>::set(Some(remaining));
 			total_weight
 		}
 

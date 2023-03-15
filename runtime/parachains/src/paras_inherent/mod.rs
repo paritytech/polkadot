@@ -338,7 +338,8 @@ impl<T: Config> Pallet<T> {
 
 		let current_session = <shared::Pallet<T>>::session_index();
 
-		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+		let max_block_weight = <initializer::Pallet<T>>::weight_remaining()
+			.unwrap_or(<T as frame_system::Config>::BlockWeights::get().max_block);
 
 		METRICS
 			.on_before_filter((candidates_weight + bitfields_weight + disputes_weight).ref_time());
@@ -390,7 +391,9 @@ impl<T: Config> Pallet<T> {
 			let (checked_disputes, checked_disputes_weight) = limit_and_sanitize_disputes::<T, _>(
 				disputes,
 				&dispute_set_validity_check,
-				max_block_weight,
+				max_block_weight
+					.saturating_sub(candidates_weight)
+					.saturating_sub(bitfields_weight),
 				&mut rng,
 			);
 			(
