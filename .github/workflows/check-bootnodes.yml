@@ -7,6 +7,7 @@ on: push
 jobs:
   check_bootnodes:
     strategy:
+      fail-fast: false
       matrix:
         runtime: [westend, kusama, polkadot]
     runs-on: ubuntu-latest
@@ -17,7 +18,7 @@ jobs:
         shell: bash
         run: |
           curl -L "$(curl -s https://api.github.com/repos/paritytech/polkadot/releases/latest \
-          | jq -r '.assets | .[] | select(.name == "polkadot").browser_download_url')"\
+          | jq -r '.assets | .[] | select(.name == "polkadot").browser_download_url')" \
           | sudo tee /usr/local/bin/polkadot > /dev/null
           sudo chmod +x /usr/local/bin/polkadot
           polkadot --version
