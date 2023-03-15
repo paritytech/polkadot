@@ -17,10 +17,11 @@
 use assert_matches::assert_matches;
 use parity_scale_codec::Encode as _;
 use polkadot_node_core_pvf::{
-	start, Config, InvalidCandidate, Metrics, Pvf, ValidationError, ValidationHost,
+	start, Config, InvalidCandidate, Metrics, PvfPrepData, ValidationError, ValidationHost,
 	JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 };
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
+use polkadot_primitives::vstaging::{ExecutorParam, ExecutorParams};
 use std::time::Duration;
 use tokio::sync::Mutex;
 
@@ -29,6 +30,7 @@ mod worker_common;
 
 const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_puppet_worker");
 const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
+const TEST_PREPARATION_TIMEOUT: Duration = Duration::from_secs(3);
 
 struct TestHost {
 	_cache_dir: tempfile::TempDir,
@@ -57,6 +59,7 @@ impl TestHost {
 		&self,
 		code: &[u8],
 		params: ValidationParams,
+		executor_params: ExecutorParams,
 	) -> Result<ValidationResult, ValidationError> {
 		let (result_tx, result_rx) = futures::channel::oneshot::channel();
 
@@ -67,7 +70,7 @@ impl TestHost {
 			.lock()
 			.await
 			.execute_pvf(
-				Pvf::from_code(code.into()),
+				PvfPrepData::from_code(code.into(), executor_params, TEST_PREPARATION_TIMEOUT),
 				TEST_EXECUTION_TIMEOUT,
 				params.encode(),
 				polkadot_node_core_pvf::Priority::Normal,
@@ -93,6 +96,7 @@ async fn terminates_on_timeout() {
 				relay_parent_number: 1,
 				relay_parent_storage_root: Default::default(),
 			},
+			Default::default(),
 		)
 		.await;
 
@@ -118,6 +122,7 @@ async fn ensure_parallel_execution() {
 			relay_parent_number: 1,
 			relay_parent_storage_root: Default::default(),
 		},
+		Default::default(),
 	);
 	let execute_pvf_future_2 = host.validate_candidate(
 		halt::wasm_binary_unwrap(),
@@ -127,6 +132,7 @@ async fn ensure_parallel_execution() {
 			relay_parent_number: 1,
 			relay_parent_storage_root: Default::default(),
 		},
+		Default::default(),
 	);
 
 	let start = std::time::Instant::now();
@@ -169,6 +175,7 @@ async fn execute_queue_doesnt_stall_if_workers_died() {
 				relay_parent_number: 1,
 				relay_parent_storage_root: Default::default(),
 			},
+			Default::default(),
 		)
 	}))
 	.await;
@@ -180,6 +187,55 @@ async fn execute_queue_doesnt_stall_if_workers_died() {
 	assert!(
 		duration >= max_duration,
 		"Expected duration {}ms to be greater than or equal to {}ms",
+		duration.as_millis(),
+		max_duration.as_millis()
+	);
+}
+
+#[tokio::test]
+async fn execute_queue_doesnt_stall_with_varying_executor_params() {
+	let host = TestHost::new_with_config(|cfg| {
+		cfg.execute_workers_max_num = 2;
+	});
+
+	let executor_params_1 = ExecutorParams::default();
+	let executor_params_2 = ExecutorParams::from(&[ExecutorParam::StackLogicalMax(1024)][..]);
+
+	// Here we spawn 6 validation jobs for the `halt` PVF and share those between 2 workers. Every
+	// 3rd job will have different set of executor parameters. All the workers should be killed
+	// and in this case the queue should respawn new workers with needed executor environment
+	// without waiting. The jobs will be executed in 3 batches, each running two jobs in parallel,
+	// and execution time would be roughly 3 * TEST_EXECUTION_TIMEOUT
+	let start = std::time::Instant::now();
+	futures::future::join_all((0u8..6).map(|i| {
+		host.validate_candidate(
+			halt::wasm_binary_unwrap(),
+			ValidationParams {
+				block_data: BlockData(Vec::new()),
+				parent_head: Default::default(),
+				relay_parent_number: 1,
+				relay_parent_storage_root: Default::default(),
+			},
+			match i % 3 {
+				0 => executor_params_1.clone(),
+				_ => executor_params_2.clone(),
+			},
+		)
+	}))
+	.await;
+
+	let duration = std::time::Instant::now().duration_since(start);
+	let min_duration = 3 * TEST_EXECUTION_TIMEOUT;
+	let max_duration = 4 * TEST_EXECUTION_TIMEOUT;
+	assert!(
+		duration >= min_duration,
+		"Expected duration {}ms to be greater than or equal to {}ms",
+		duration.as_millis(),
+		min_duration.as_millis()
+	);
+	assert!(
+		duration <= max_duration,
+		"Expected duration {}ms to be less than or equal to {}ms",
 		duration.as_millis(),
 		max_duration.as_millis()
 	);

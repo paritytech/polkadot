@@ -103,6 +103,18 @@ impl Default for TestState {
 	}
 }
 
+struct NoSyncOracle;
+
+impl sp_consensus::SyncOracle for NoSyncOracle {
+	fn is_major_syncing(&self) -> bool {
+		false
+	}
+
+	fn is_offline(&self) -> bool {
+		unimplemented!("not used")
+	}
+}
+
 fn test_harness<T: Future<Output = VirtualOverseer>>(
 	state: TestState,
 	store: Arc<dyn Database>,
@@ -122,6 +134,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		TEST_CONFIG,
 		state.pruning_config.clone(),
 		Box::new(state.clock),
+		Box::new(NoSyncOracle),
 		Metrics::default(),
 	);
 

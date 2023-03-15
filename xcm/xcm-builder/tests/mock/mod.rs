@@ -20,7 +20,7 @@ use frame_support::{
 	weights::Weight,
 };
 use parity_scale_codec::Encode;
-use sp_core::H256;
+use primitive_types::H256;
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 use sp_std::cell::RefCell;
 

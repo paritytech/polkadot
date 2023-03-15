@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::prepare::PrepareStats;
 use parity_scale_codec::{Decode, Encode};
-use std::{any::Any, fmt, time::Duration};
+use std::{any::Any, fmt};
 
-/// Result of PVF preparation performed by the validation host. Contains the elapsed CPU time if
+/// Result of PVF preparation performed by the validation host. Contains stats about the preparation if
 /// successful
-pub type PrepareResult = Result<Duration, PrepareError>;
+pub type PrepareResult = Result<PrepareStats, PrepareError>;
 
 /// An error that occurred during the prepare part of the PVF pipeline.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -119,12 +120,6 @@ impl From<PrepareError> for ValidationError {
 	fn from(error: PrepareError) -> Self {
 		// Here we need to classify the errors into two errors: deterministic and non-deterministic.
 		// See [`PrepareError::is_deterministic`].
-		//
-		// We treat the deterministic errors as `InvalidCandidate`. Should those occur they could
-		// potentially trigger disputes.
-		//
-		// All non-deterministic errors are qualified as `InternalError`s and will not trigger
-		// disputes.
 		if error.is_deterministic() {
 			ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
 		} else {

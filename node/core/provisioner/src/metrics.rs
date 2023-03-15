@@ -36,6 +36,9 @@ struct MetricsInner {
 
 	/// The disputes received from `disputes-coordinator` by partition
 	partitioned_disputes: prometheus::CounterVec<prometheus::U64>,
+
+	/// The disputes fetched from the runtime.
+	fetched_onchain_disputes: prometheus::Counter<prometheus::U64>,
 }
 
 /// Provisioner metrics.
@@ -143,6 +146,12 @@ impl Metrics {
 				.inc_by(inactive_concluded_known_onchain.len().try_into().unwrap_or(0));
 		}
 	}
+
+	pub(crate) fn on_fetched_onchain_disputes(&self, onchain_count: u64) {
+		if let Some(metrics) = &self.0 {
+			metrics.fetched_onchain_disputes.inc_by(onchain_count);
+		}
+	}
 }
 
 impl metrics::Metrics for Metrics {
@@ -202,9 +211,14 @@ impl metrics::Metrics for Metrics {
 				prometheus::CounterVec::new(
 					prometheus::Opts::new(
 						"polkadot_parachain_provisioner_partitioned_disputes",
-						"some fancy description",
+						"Number of disputes partitioned by type.",
 					),
 					&["partition"],
+				)?,
+				&registry,
+			)?,
+			fetched_onchain_disputes: prometheus::register(
+				prometheus::Counter::new("polkadot_parachain_fetched_onchain_disputes", "Number of disputes fetched from the runtime"
 				)?,
 				&registry,
 			)?,

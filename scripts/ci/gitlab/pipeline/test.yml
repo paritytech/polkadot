@@ -3,31 +3,31 @@
 
 # It's more like a check and it belongs to the previous stage, but we want to run this job with real tests in parallel
 find-fail-ci-phrase:
-  stage:                           test
+  stage: test
   variables:
-    CI_IMAGE:                      "paritytech/tools:latest"
-    ASSERT_REGEX:                  "FAIL-CI"
-    GIT_DEPTH:                     1
+    CI_IMAGE: "paritytech/tools:latest"
+    ASSERT_REGEX: "FAIL-CI"
+    GIT_DEPTH: 1
   extends:
     - .kubernetes-env
   script:
     - set +e
     - rg --line-number --hidden --type rust --glob '!{.git,target}' "$ASSERT_REGEX" .; exit_status=$?
-    - if [ $exit_status -eq 0 ]; then 
-        echo "$ASSERT_REGEX was found, exiting with 1";
-        exit 1;
+    - if [ $exit_status -eq 0 ]; then
+      echo "$ASSERT_REGEX was found, exiting with 1";
+      exit 1;
       else
-        echo "No $ASSERT_REGEX was found, exiting with 0";
-        exit 0;
+      echo "No $ASSERT_REGEX was found, exiting with 0";
+      exit 0;
       fi
 
 test-linux-stable:
-  stage:                           test
+  stage: test
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   # the job can be found in check.yml
   needs:
-    - job:                         job-starter
-      artifacts:                   false
+    - job: job-starter
+      artifacts: false
   extends:
     - .docker-env
     - .common-refs
@@ -44,22 +44,22 @@ test-linux-stable:
   script:
     - time cargo test --workspace --profile testnet --verbose --locked --features=runtime-benchmarks,runtime-metrics,try-runtime
 
-.check-dependent-project:          &check-dependent-project
-  stage:                           test
+.check-dependent-project: &check-dependent-project
+  stage: test
   extends:
     - .docker-env
     - .test-pr-refs
   script:
     - git clone
-        --depth=1
-        "--branch=$PIPELINE_SCRIPTS_TAG"
-        https://github.com/paritytech/pipeline-scripts
+      --depth=1
+      "--branch=$PIPELINE_SCRIPTS_TAG"
+      https://github.com/paritytech/pipeline-scripts
     - ./pipeline-scripts/check_dependent_project.sh
-        --org paritytech
-        --dependent-repo "$DEPENDENT_REPO"
-        --github-api-token "$GITHUB_PR_TOKEN"
-        --extra-dependencies "$EXTRA_DEPENDENCIES"
-        --companion-overrides "$COMPANION_OVERRIDES"
+      --org paritytech
+      --dependent-repo "$DEPENDENT_REPO"
+      --github-api-token "$GITHUB_PR_TOKEN"
+      --extra-dependencies "$EXTRA_DEPENDENCIES"
+      --companion-overrides "$COMPANION_OVERRIDES"
 
 check-dependent-cumulus:
   <<: *check-dependent-project
@@ -71,7 +71,7 @@ check-dependent-cumulus:
       cumulus: polkadot-v*
 
 test-node-metrics:
-  stage:                           test
+  stage: test
   extends:
     - .docker-env
     - .test-refs
@@ -85,7 +85,7 @@ test-node-metrics:
     - time cargo test  --profile testnet --verbose --locked --features=runtime-metrics -p polkadot-node-metrics
 
 test-deterministic-wasm:
-  stage:                           test
+  stage: test
   extends:
     - .docker-env
     - .test-refs
@@ -94,12 +94,12 @@ test-deterministic-wasm:
     - ./scripts/ci/gitlab/test_deterministic_wasm.sh
 
 cargo-clippy:
-  stage:                           test
+  stage: test
   # this is an artificial job dependency, for pipeline optimization using GitLab's DAGs
   # the job can be found in check.yml
   needs:
-    - job:                         job-starter
-      artifacts:                   false
+    - job: job-starter
+      artifacts: false
   variables:
     RUSTY_CACHIER_TOOLCHAIN: nightly
   extends:

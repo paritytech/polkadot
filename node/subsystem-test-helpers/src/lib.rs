@@ -457,7 +457,6 @@ mod tests {
 			dummy_overseer_builder(spawner.clone(), AlwaysSupportsParachains, None)
 				.unwrap()
 				.replace_collator_protocol(|_| ForwardSubsystem(tx))
-				.leaves(vec![])
 				.build()
 				.unwrap();
 

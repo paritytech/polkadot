@@ -30,6 +30,8 @@ pub mod purchase;
 pub mod slot_range;
 pub mod slots;
 pub mod traits;
+#[cfg(feature = "try-runtime")]
+pub mod try_runtime;
 pub mod xcm_sender;
 
 #[cfg(test)]

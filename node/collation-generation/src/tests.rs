@@ -39,8 +39,8 @@ mod handle_new_activations {
 
 	fn test_collation() -> Collation {
 		Collation {
-			upward_messages: vec![],
-			horizontal_messages: vec![],
+			upward_messages: Default::default(),
+			horizontal_messages: Default::default(),
 			new_validation_code: None,
 			head_data: dummy_head_data(),
 			proof_of_validity: MaybeCompressedPoV::Raw(PoV { block_data: BlockData(Vec::new()) }),

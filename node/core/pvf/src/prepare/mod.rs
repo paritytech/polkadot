@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright 2021-2023 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,10 +22,21 @@
 //! The pool will spawn workers in new processes and those should execute pass control to
 //! [`worker_entrypoint`].
 
+mod memory_stats;
 mod pool;
 mod queue;
 mod worker;
 
+pub use memory_stats::MemoryStats;
 pub use pool::start as start_pool;
 pub use queue::{start as start_queue, FromQueue, ToQueue};
 pub use worker::worker_entrypoint;
+
+use parity_scale_codec::{Decode, Encode};
+
+/// Preparation statistics, including the CPU time and memory taken.
+#[derive(Debug, Clone, Default, Encode, Decode)]
+pub struct PrepareStats {
+	cpu_time_elapsed: std::time::Duration,
+	memory_stats: MemoryStats,
+}

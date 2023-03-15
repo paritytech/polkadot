@@ -1,3 +1,19 @@
+// Copyright 2017-2023 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 mod pallet_xcm_benchmarks_fungible;
 mod pallet_xcm_benchmarks_generic;
 
@@ -32,7 +48,7 @@ trait WeighMultiAssets {
 }
 
 // Rococo only knows about one asset, the balances pallet.
-const MAX_ASSETS: u32 = 1;
+const MAX_ASSETS: u64 = 1;
 
 impl WeighMultiAssets for MultiAssetFilter {
 	fn weigh_multi_assets(&self, balances_weight: Weight) -> Weight {
@@ -46,9 +62,12 @@ impl WeighMultiAssets for MultiAssetFilter {
 					AssetTypes::Unknown => Weight::MAX,
 				})
 				.fold(Weight::zero(), |acc, x| acc.saturating_add(x)),
+			// We don't support any NFTs on Rococo, so these two variants will always match
+			// only 1 kind of fungible asset.
 			Self::Wild(AllOf { .. } | AllOfCounted { .. }) => balances_weight,
-			Self::Wild(AllCounted(count)) => balances_weight.saturating_mul(*count as u64),
-			Self::Wild(All) => balances_weight.saturating_mul(MAX_ASSETS as u64),
+			Self::Wild(AllCounted(count)) =>
+				balances_weight.saturating_mul(MAX_ASSETS.min(*count as u64)),
+			Self::Wild(All) => balances_weight.saturating_mul(MAX_ASSETS),
 		}
 	}
 }
@@ -258,4 +277,12 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for RococoXcmWeight<RuntimeCall> {
 	fn unpaid_execution(_: &WeightLimit, _: &Option<MultiLocation>) -> Weight {
 		XcmGeneric::<Runtime>::unpaid_execution()
 	}
+}
+
+#[test]
+fn all_counted_has_a_sane_weight_upper_limit() {
+	let assets = MultiAssetFilter::Wild(AllCounted(4294967295));
+	let weight = Weight::from_parts(1000, 1000);
+
+	assert_eq!(assets.weigh_multi_assets(weight), weight * MAX_ASSETS);
 }

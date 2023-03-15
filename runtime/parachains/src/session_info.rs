@@ -27,7 +27,10 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
 };
-use primitives::{AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo};
+use primitives::{
+	vstaging::{ExecutorParam, ExecutorParams},
+	AssignmentId, AuthorityDiscoveryId, SessionIndex, SessionInfo,
+};
 use sp_std::vec::Vec;
 
 pub use pallet::*;
@@ -36,6 +39,10 @@ pub mod migration;
 
 #[cfg(test)]
 mod tests;
+
+// The order of parameters should be deterministic, that is, one should not reorder them when
+// changing the array contents to avoid creating excessive pressure to PVF execution subsys.
+const EXECUTOR_PARAMS: [ExecutorParam; 0] = [];
 
 /// A type for representing the validator account id in a session.
 pub type AccountId<T> = <<T as Config>::ValidatorSet as ValidatorSet<
@@ -56,7 +63,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
@@ -102,6 +108,12 @@ pub mod pallet {
 	#[pallet::getter(fn account_keys)]
 	pub(crate) type AccountKeys<T: Config> =
 		StorageMap<_, Identity, SessionIndex, Vec<AccountId<T>>>;
+
+	/// Executor parameter set for a given session index
+	#[pallet::storage]
+	#[pallet::getter(fn session_executor_params)]
+	pub(crate) type SessionExecutorParams<T: Config> =
+		StorageMap<_, Identity, SessionIndex, ExecutorParams>;
 }
 
 /// An abstraction for the authority discovery pallet
@@ -153,6 +165,7 @@ impl<T: Config> Pallet<T> {
 				// Idx will be missing for a few sessions after the runtime upgrade.
 				// But it shouldn'be be a problem.
 				AccountKeys::<T>::remove(&idx);
+				SessionExecutorParams::<T>::remove(&idx);
 			}
 			// update `EarliestStoredSession` based on `config.dispute_period`
 			EarliestStoredSession::<T>::set(new_earliest_stored_session);
@@ -184,6 +197,10 @@ impl<T: Config> Pallet<T> {
 			dispute_period,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
+		SessionExecutorParams::<T>::insert(
+			&new_session_index,
+			ExecutorParams::from(&EXECUTOR_PARAMS[..]),
+		);
 	}
 
 	/// Called by the initializer to initialize the session info pallet.
