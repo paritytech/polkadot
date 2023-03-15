@@ -79,7 +79,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -146,8 +145,8 @@ impl<T: Config> Pallet<T> {
 
 	/// Remove all relevant storage items for an outgoing parachain.
 	fn clean_dmp_after_outgoing(outgoing_para: &ParaId) {
-		<Self as Store>::DownwardMessageQueues::remove(outgoing_para);
-		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
+		DownwardMessageQueues::<T>::remove(outgoing_para);
+		DownwardMessageQueueHeads::<T>::remove(outgoing_para);
 	}
 
 	/// Determine whether enqueuing a downward message to a specific recipient para would result
@@ -249,14 +248,14 @@ impl<T: Config> Pallet<T> {
 	/// associated with it.
 	#[cfg(test)]
 	fn dmq_mqc_head(para: ParaId) -> Hash {
-		<Self as Store>::DownwardMessageQueueHeads::get(&para)
+		DownwardMessageQueueHeads::<T>::get(&para)
 	}
 
 	/// Returns the number of pending downward messages addressed to the given para.
 	///
 	/// Returns 0 if the para doesn't have an associated downward message queue.
 	pub(crate) fn dmq_length(para: ParaId) -> u32 {
-		<Self as Store>::DownwardMessageQueues::decode_len(&para)
+		DownwardMessageQueues::<T>::decode_len(&para)
 			.unwrap_or(0)
 			.saturated_into::<u32>()
 	}
@@ -265,7 +264,7 @@ impl<T: Config> Pallet<T> {
 	///
 	/// The most recent messages are the latest in the vector.
 	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-		<Self as Store>::DownwardMessageQueues::get(&recipient)
+		DownwardMessageQueues::<T>::get(&recipient)
 	}
 
 	/// Raise the delivery fee factor by a multiplicative factor and stores the resulting value.
