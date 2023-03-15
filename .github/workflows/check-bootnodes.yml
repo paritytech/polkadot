@@ -2,7 +2,11 @@
 # the bootnodes in their respective chainspecs are contactable
 
 name: Check all bootnodes
-on: push
+on:
+  push:
+    branches:
+      # Catches v1.2.3 and v1.2.3-rc1
+      - release-v[0-9]+.[0-9]+.[0-9]+*
 
 jobs:
   check_bootnodes:
