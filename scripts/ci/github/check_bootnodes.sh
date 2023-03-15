@@ -7,11 +7,10 @@
 # been able to contact any other nodes, we can reason that the bootnode we used is not well-connected
 # or is otherwise uncontactable.
 
-# Root of the polkadot dir
-ROOT="$(dirname "${0}")/../../.."
 # shellcheck source=scripts/ci/common/lib.sh
-source "$ROOT/scripts/ci/common/lib.sh"
-RUNTIME="$1"
+source "$(dirname "${0}")/../common/lib.sh"
+CHAINSPEC_FILE="$1"
+RUNTIME=$(basename "$CHAINSPEC_FILE" | cut -d '.' -f 1)
 
 trap cleanup EXIT INT TERM
 
@@ -19,10 +18,9 @@ cleanup(){
     echo "[+] Script interrupted or ended. Cleaning up..."
     # Kill all the polkadot processes
     killall polkadot > /dev/null 2>&1
+    exit $1
 }
 
-# For each runtime
-CHAINSPEC_FILE="$ROOT/node/service/chain-specs/$RUNTIME.json"
 # count the number of bootnodes
 BOOTNODES=$( jq -r '.bootNodes | length' "$CHAINSPEC_FILE" )
 # Make a temporary dir for chainspec files
@@ -66,10 +64,8 @@ if [ ${#BAD_BOOTNODES[@]} -gt 0 ]; then
     for i in "${BAD_BOOTNODES[@]}"; do
         echo "    $i"
     done
-    cleanup
-    exit 1
+    cleanup 1
 else
     echo "[+] All bootnodes for $RUNTIME are contactable"
-    cleanup
-    exit 0
+    cleanup 0
 fi
