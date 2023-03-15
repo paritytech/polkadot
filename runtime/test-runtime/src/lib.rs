@@ -350,7 +350,7 @@ impl pallet_staking::Config for Runtime {
 	type BenchmarkingConfig = runtime_common::StakingBenchmarkingConfig;
 	type OnStakerSlash = ();
 	type WeightInfo = ();
-	type EventListener = StakeTracker;
+	type EventListeners = ();
 }
 
 parameter_types! {
