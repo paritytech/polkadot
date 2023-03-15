@@ -13,6 +13,13 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v3
+      - name: Install polkadot
+        shell: bash
+        run: |
+        curl https://api.github.com/repos/paritytech/polkadot/releases/latest\
+         | jq -r '.assets | .[] | select(.name == "polkadot").browser_download_url' | sudo tee /usr/local/bin/polkadot
+         chmod +x /usr/local/bin/polkadot
+         polkadot --version
       - name: Check ${{ matrix.runtime }} bootnodes
         shell: bash
         run: scripts/ci/github/check_bootnodes.sh ${{ matrix.runtime }}

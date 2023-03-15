@@ -29,7 +29,13 @@ check_bootnode(){
         jq ".bootNodes |= [.[$BOOTNODE_INDEX]] " < "$TMP_CHAINSPEC_FILE" > "$FINAL_CHAINSPEC_FILE"
         BOOTNODE=$( jq -r '.bootNodes[0]' < "$FINAL_CHAINSPEC_FILE" )
         # Get the first ephemeral port
-        BASE_PORT=$(sysctl net.inet.ip.portrange.first | awk '{print $2}')
+        if [[ "$OSTYPE" == "darwin"* ]]; then
+            BASE_PORT=$(sysctl net.inet.ip.portrange.first | awk '{print $2}')
+        else
+            BASE_PORT=$(sysctl net.ipv4.ip_local_port_range | awk '{print $3}')
+        fi
+        # If we're on a mac, use this instead
+        # BASE_PORT=$(sysctl net.inet.ip.portrange.first | awk '{print $2}')
         RPC_PORT=$((BASE_PORT + BOOTNODE_INDEX))
         echo "[+] Checking bootnode $BOOTNODE"
         polkadot --chain "$FINAL_CHAINSPEC_FILE" --no-mdns --rpc-port=$RPC_PORT --tmp > /dev/null 2>&1 &
