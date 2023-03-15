@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#![allow(clippy::clone_on_copy)]
+
 use super::*;
 use crate::*;
 use polkadot_node_network_protocol::{
@@ -502,7 +504,7 @@ async fn answer_expected_hypothetical_depth_request(
 			assert_eq!(req.backed_in_path_only, expected_backed_in_path_only);
 			for (i, (candidate, _)) in responses.iter().enumerate() {
 				assert!(
-					req.candidates.iter().find(|c| c == &candidate).is_some(),
+					req.candidates.iter().any(|c| &c == &candidate),
 					"did not receive request for hypothetical candidate {}",
 					i,
 				);
