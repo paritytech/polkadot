@@ -25,7 +25,7 @@ use crate::{
 
 use frame_support::{
 	parameter_types,
-	traits::{GenesisBuild, ValidatorSet, ValidatorSetWithIdentification, ConstU32},
+	traits::{ConstU32, GenesisBuild, ValidatorSet, ValidatorSetWithIdentification},
 	weights::Weight,
 };
 use frame_support_test::TestRandomness;
@@ -463,6 +463,3 @@ pub fn assert_last_event(generic_event: RuntimeEvent) {
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(event, &system_event);
 }
-
-#[test]
-fn do_test() {}

@@ -23,6 +23,9 @@ color-eyre = { version = "0.6.1", default-features = false }
 tikv-jemallocator = "0.5.0"
 
 # Crates in our workspace, defined as dependencies so we can pass them feature flags.
+polkadot-cli = { path = "cli", features = [ "kusama-native", "westend-native", "rococo-native" ]  }
+polkadot-node-core-pvf = { path = "node/core/pvf" }
+polkadot-overseer = { path = "node/overseer" }
 
 [dev-dependencies]
 assert_cmd = "2.0.4"
@@ -30,6 +33,7 @@ nix = { version = "0.26.1", features = ["signal"] }
 tempfile = "3.2.0"
 tokio = "1.24.2"
 substrate-rpc-client = { git = "https://github.com/paritytech/substrate", branch = "master" }
+polkadot-core-primitives = { path = "core-primitives" }
 
 [workspace]
 members = [
