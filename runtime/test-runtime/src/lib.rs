@@ -56,7 +56,7 @@ use runtime_common::{
 	claims, impl_runtime_weights, paras_sudo_wrapper, BlockHashCount, BlockLength,
 	SlowAdjustingFeeUpdate,
 };
-use sp_core::OpaqueMetadata;
+use sp_core::{OpaqueMetadata, ConstU32};
 use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str,
@@ -217,6 +217,10 @@ impl pallet_balances::Config for Runtime {
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = ();
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<1>;
+	type MaxFreezes = ConstU32<1>;
 }
 
 parameter_types! {

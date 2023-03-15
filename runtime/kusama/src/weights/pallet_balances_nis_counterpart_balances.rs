@@ -51,7 +51,7 @@ impl<T: frame_system::Config> pallet_balances::WeightInfo for WeightInfo<T> {
 	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
 	/// Storage: NisCounterpartBalances TotalIssuance (r:1 w:1)
 	/// Proof: NisCounterpartBalances TotalIssuance (max_values: Some(1), max_size: Some(16), added: 511, mode: MaxEncodedLen)
-	fn transfer() -> Weight {
+	fn transfer_allow_death() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `1887`
 		//  Estimated: `8288`
@@ -79,7 +79,7 @@ impl<T: frame_system::Config> pallet_balances::WeightInfo for WeightInfo<T> {
 	/// Proof: NisCounterpartBalances Account (max_values: None, max_size: Some(112), added: 2587, mode: MaxEncodedLen)
 	/// Storage: NisCounterpartBalances TotalIssuance (r:1 w:1)
 	/// Proof: NisCounterpartBalances TotalIssuance (max_values: Some(1), max_size: Some(16), added: 511, mode: MaxEncodedLen)
-	fn set_balance_creating() -> Weight {
+	fn force_set_balance_creating() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `1363`
 		//  Estimated: `3098`
@@ -95,7 +95,7 @@ impl<T: frame_system::Config> pallet_balances::WeightInfo for WeightInfo<T> {
 	/// Proof: System Account (max_values: None, max_size: Some(128), added: 2603, mode: MaxEncodedLen)
 	/// Storage: NisCounterpartBalances TotalIssuance (r:1 w:1)
 	/// Proof: NisCounterpartBalances TotalIssuance (max_values: Some(1), max_size: Some(16), added: 511, mode: MaxEncodedLen)
-	fn set_balance_killing() -> Weight {
+	fn force_set_balance_killing() -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `1921`
 		//  Estimated: `5701`
@@ -146,5 +146,8 @@ impl<T: frame_system::Config> pallet_balances::WeightInfo for WeightInfo<T> {
 			.saturating_add(Weight::from_parts(0, 2587))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
+	}
+	fn upgrade_accounts(_: u32) -> Weight {
+		Weight::from_parts(0, 0)
 	}
 }
