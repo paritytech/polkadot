@@ -181,15 +181,6 @@ async fn handle_response(
 		Ok(result) => result,
 		// Timed out on the child. This should already be logged by the child.
 		Err(PrepareError::TimedOut) => return Outcome::TimedOut,
-		// Worker reported version mismatch
-		Err(PrepareError::VersionMismatch) => {
-			gum::error!(
-				target: LOG_TARGET,
-				%worker_pid,
-				"node and worker version mismatch",
-			);
-			std::process::exit(1);
-		},
 		Err(_) => return Outcome::Concluded { worker, result },
 	};
 
