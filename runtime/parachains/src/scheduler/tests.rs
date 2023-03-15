@@ -865,7 +865,7 @@ fn schedule_rotates_groups() {
 			_ => None,
 		});
 
-		let session_start_block = <Scheduler as Store>::SessionStartBlock::get();
+		let session_start_block = SessionStartBlock::<Test>::get();
 		assert_eq!(session_start_block, 1);
 
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));
