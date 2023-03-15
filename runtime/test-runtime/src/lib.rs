@@ -56,7 +56,7 @@ use runtime_common::{
 	claims, impl_runtime_weights, paras_sudo_wrapper, BlockHashCount, BlockLength,
 	SlowAdjustingFeeUpdate,
 };
-use sp_core::{OpaqueMetadata, ConstU32};
+use sp_core::{ConstU32, OpaqueMetadata};
 use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str,

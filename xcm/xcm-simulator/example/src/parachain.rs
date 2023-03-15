@@ -22,7 +22,7 @@ use frame_support::{
 	traits::{EnsureOrigin, EnsureOriginWithArg, Everything, EverythingBut, Nothing},
 	weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
-use sp_core::{H256, ConstU32};
+use sp_core::{ConstU32, H256};
 use sp_runtime::{
 	testing::Header,
 	traits::{Hash, IdentityLookup},

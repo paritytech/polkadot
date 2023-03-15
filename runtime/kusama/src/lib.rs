@@ -20,7 +20,6 @@
 // `construct_runtime!` does a lot of recursion and requires us to increase the limit to 256.
 #![recursion_limit = "256"]
 
-use scale_info::TypeInfo;
 use pallet_nis::WithMaximumOf;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
@@ -35,6 +34,7 @@ use runtime_common::{
 	prod_or_fast, slots, BalanceToU256, BlockHashCount, BlockLength, CurrencyToVote,
 	SlowAdjustingFeeUpdate, U256ToBalance,
 };
+use scale_info::TypeInfo;
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
 use runtime_parachains::{
