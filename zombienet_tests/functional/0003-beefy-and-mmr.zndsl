@@ -2,12 +2,6 @@ Description: Test BEEFY voting and finality, test MMR proofs. Assumes Rococo ses
 Network: ./0003-beefy-and-mmr.toml
 Creds: config
 
-# Some sanity checks.
-validator-0: is up
-validator-1: is up
-validator-2: is up
-validator-3: is up
-
 # Check authority status.
 validator-0: reports node_roles is 4
 validator-1: reports node_roles is 4

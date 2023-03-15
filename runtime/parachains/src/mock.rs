@@ -25,7 +25,7 @@ use crate::{
 
 use frame_support::{
 	parameter_types,
-	traits::{GenesisBuild, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
+	traits::{GenesisBuild, ValidatorSet, ValidatorSetWithIdentification},
 	weights::Weight,
 };
 use frame_support_test::TestRandomness;
@@ -39,7 +39,7 @@ use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	KeyTypeId, Permill,
+	Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -148,23 +148,13 @@ impl pallet_babe::Config for Test {
 
 	type DisabledValidators = ();
 
-	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::IdentificationTuple;
-
-	type KeyOwnerProofSystem = ();
-
-	type HandleEquivocation = ();
-
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
+
+	type KeyOwnerProof = sp_core::Void;
+
+	type EquivocationReportSystem = ();
 }
 
 parameter_types! {
@@ -253,6 +243,7 @@ thread_local! {
 	pub static REWARD_VALIDATORS: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_AGAINST: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
+	pub static PUNISH_BACKERS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 }
 
 impl crate::disputes::RewardValidators for Test {
@@ -269,14 +260,18 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 		session: SessionIndex,
 		_: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		PUNISH_VALIDATORS_FOR.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
+		PUNISH_VALIDATORS_FOR
+			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())));
+		PUNISH_BACKERS_FOR.with(|r| r.borrow_mut().push((session, backers.into_iter().collect())));
 	}
 
 	fn punish_against_valid(
 		session: SessionIndex,
 		_: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		_backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_AGAINST
 			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
