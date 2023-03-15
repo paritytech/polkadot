@@ -157,6 +157,7 @@ pub trait TryAs<T> {
 
 macro_rules! versioned_type {
 	($(#[$attr:meta])* pub enum $n:ident {
+		$(#[$index3:meta])+
 		V3($v3:ty),
 	}) => {
 		#[derive(Derivative, Encode, Decode, TypeInfo)]
@@ -170,7 +171,7 @@ macro_rules! versioned_type {
 		#[codec(decode_bound())]
 		$(#[$attr])*
 		pub enum $n {
-			#[codec(index = 0)]
+			$(#[$index3])*
 			V3($v3),
 		}
 		impl $n {
@@ -215,7 +216,9 @@ macro_rules! versioned_type {
 	};
 
 	($(#[$attr:meta])* pub enum $n:ident {
+		$(#[$index2:meta])+
 		V2($v2:ty),
+		$(#[$index3:meta])+
 		V3($v3:ty),
 	}) => {
 		#[derive(Derivative, Encode, Decode, TypeInfo)]
@@ -229,9 +232,9 @@ macro_rules! versioned_type {
 		#[codec(decode_bound())]
 		$(#[$attr])*
 		pub enum $n {
-			#[codec(index = 0)]
+			$(#[$index2])*
 			V2($v2),
-			#[codec(index = 1)]
+			$(#[$index3])*
 			V3($v3),
 		}
 		impl $n {
@@ -305,6 +308,7 @@ macro_rules! versioned_type {
 versioned_type! {
 	/// A single version's `Response` value, together with its version code.
 	pub enum VersionedAssetId {
+		#[codec(index = 3)]
 		V3(v3::AssetId),
 	}
 }
@@ -312,7 +316,9 @@ versioned_type! {
 versioned_type! {
 	/// A single version's `Response` value, together with its version code.
 	pub enum VersionedResponse {
+		#[codec(index = 2)]
 		V2(v2::Response),
+		#[codec(index = 3)]
 		V3(v3::Response),
 	}
 }
@@ -321,7 +327,9 @@ versioned_type! {
 	/// A single `MultiLocation` value, together with its version code.
 	#[derive(Ord, PartialOrd)]
 	pub enum VersionedMultiLocation {
+		#[codec(index = 1)] // v2 is same as v1 and therefore re-using the v1 index
 		V2(v2::MultiLocation),
+		#[codec(index = 3)]
 		V3(v3::MultiLocation),
 	}
 }
@@ -329,7 +337,9 @@ versioned_type! {
 versioned_type! {
 	/// A single `InteriorMultiLocation` value, together with its version code.
 	pub enum VersionedInteriorMultiLocation {
+		#[codec(index = 2)] // while this is same as v1::Junctions, VersionedInteriorMultiLocation is introduced in v3
 		V2(v2::InteriorMultiLocation),
+		#[codec(index = 3)]
 		V3(v3::InteriorMultiLocation),
 	}
 }
@@ -337,7 +347,9 @@ versioned_type! {
 versioned_type! {
 	/// A single `MultiAsset` value, together with its version code.
 	pub enum VersionedMultiAsset {
+		#[codec(index = 1)] // v2 is same as v1 and therefore re-using the v1 index
 		V2(v2::MultiAsset),
+		#[codec(index = 3)]
 		V3(v3::MultiAsset),
 	}
 }
@@ -345,7 +357,9 @@ versioned_type! {
 versioned_type! {
 	/// A single `MultiAssets` value, together with its version code.
 	pub enum VersionedMultiAssets {
+		#[codec(index = 1)] // v2 is same as v1 and therefore re-using the v1 index
 		V2(v2::MultiAssets),
+		#[codec(index = 3)]
 		V3(v3::MultiAssets),
 	}
 }
