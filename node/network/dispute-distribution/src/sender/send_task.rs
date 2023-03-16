@@ -21,7 +21,8 @@ use futures::{future::RemoteHandle, Future, FutureExt};
 use polkadot_node_network_protocol::{
 	request_response::{
 		outgoing::RequestError,
-		v1::{DisputeRequest, DisputeResponse},
+		//v1::{DisputeRequest, DisputeResponse},
+		v2::{DisputeRequest, DisputeResponse},
 		OutgoingRequest, OutgoingResult, Recipient, Requests,
 	},
 	IfDisconnected,
@@ -286,7 +287,8 @@ async fn send_requests<Context, M: 'static + Send + Sync>(
 		let (outgoing, pending_response) =
 			OutgoingRequest::new(Recipient::Authority(receiver.clone()), req.clone());
 
-		reqs.push(Requests::DisputeSendingV1(outgoing));
+		// reqs.push(Requests::DisputeSendingV1(outgoing));
+		reqs.push(Requests::DisputeSendingV2(outgoing));
 
 		let fut = wait_response_task(
 			pending_response,

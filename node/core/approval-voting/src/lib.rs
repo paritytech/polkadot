@@ -35,7 +35,7 @@ use polkadot_node_subsystem::{
 		ApprovalVotingMessage, AssignmentCheckError, AssignmentCheckResult,
 		AvailabilityRecoveryMessage, BlockDescription, CandidateValidationMessage, ChainApiMessage,
 		ChainSelectionMessage, DisputeCoordinatorMessage, HighestApprovedAncestorBlock,
-		RuntimeApiMessage, RuntimeApiRequest,
+		RuntimeApiMessage, RuntimeApiRequest,LocalStatementResult,
 	},
 	overseer, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError, SubsystemResult,
 	SubsystemSender,
@@ -2364,6 +2364,8 @@ async fn launch_approval<Context>(
 							session_index,
 							candidate_hash,
 							candidate.clone(),
+							String::from("Invalid PoV recovery"),
+
 						);
 						metrics_guard.take().on_approval_invalid();
 					},
@@ -2429,6 +2431,7 @@ async fn launch_approval<Context>(
 					session_index,
 					candidate_hash,
 					candidate.clone(),
+					format!("{:?}", reason),
 				);
 
 				metrics_guard.take().on_approval_invalid();
@@ -2617,6 +2620,7 @@ fn issue_local_invalid_statement<Sender>(
 	session_index: SessionIndex,
 	candidate_hash: CandidateHash,
 	candidate: CandidateReceipt,
+	reason: String,
 ) where
 	Sender: overseer::ApprovalVotingSenderTrait,
 {
@@ -2633,6 +2637,6 @@ fn issue_local_invalid_statement<Sender>(
 		session_index,
 		candidate_hash,
 		candidate.clone(),
-		false,
+		LocalStatementResult::Invalid { reason }
 	));
 }

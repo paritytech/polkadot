@@ -35,7 +35,7 @@ use polkadot_node_network_protocol::{
 use polkadot_node_primitives::{
 	approval::{BlockApprovalMeta, IndirectAssignmentCert, IndirectSignedApprovalVote},
 	AvailableData, BabeEpoch, BlockWeight, CandidateVotes, CollationGenerationConfig,
-	CollationSecondedSignal, DisputeMessage, DisputeStatus, ErasureChunk, PoV,
+	CollationSecondedSignal, DisputeMessageV2, DisputeStatus, ErasureChunk, PoV,
 	SignedDisputeStatement, SignedFullStatement, ValidationResult,
 };
 use polkadot_primitives::{
@@ -191,6 +191,26 @@ impl Default for CollatorProtocolMessage {
 	}
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum LocalStatementResult {
+	Invalid {
+		// TODO: use an enum for reason
+		reason: String,
+	},
+	Valid,
+
+}
+
+impl LocalStatementResult {
+	pub fn is_valid(&self) -> bool {
+		if *self == LocalStatementResult::Valid {
+			true
+		} else {
+			false
+		}
+	}
+}
+
 /// Messages received by the dispute coordinator subsystem.
 ///
 /// NOTE: Any response oneshots might get cancelled if the `DisputeCoordinator` was not yet
@@ -247,8 +267,9 @@ pub enum DisputeCoordinatorMessage {
 		Vec<(SessionIndex, CandidateHash)>,
 		oneshot::Sender<Vec<(SessionIndex, CandidateHash, CandidateVotes)>>,
 	),
+
 	/// Sign and issue local dispute votes. A value of `true` indicates validity, and `false` invalidity.
-	IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, bool),
+	IssueLocalStatement(SessionIndex, CandidateHash, CandidateReceipt, LocalStatementResult),
 	/// Determine the highest undisputed block within the given chain, based on where candidates
 	/// were included. If even the base block should not be finalized due to a dispute,
 	/// then `None` should be returned on the channel.
@@ -280,7 +301,7 @@ pub enum ImportStatementsResult {
 pub enum DisputeDistributionMessage {
 	/// Tell dispute distribution to distribute an explicit dispute statement to
 	/// validators.
-	SendDispute(DisputeMessage),
+	SendDispute(DisputeMessageV2),
 }
 
 /// Messages received from other subsystems.

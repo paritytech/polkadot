@@ -25,8 +25,9 @@ use futures::{channel::oneshot, future::poll_fn, Future};
 
 use futures_timer::Delay;
 use indexmap::{map::Entry, IndexMap};
-use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
-use polkadot_node_primitives::{DisputeMessage, DisputeStatus};
+//use polkadot_node_network_protocol::request_response::v1::DisputeRequest;
+use polkadot_node_network_protocol::request_response::v2::DisputeRequest;
+use polkadot_node_primitives::{DisputeMessageV2, DisputeStatus};
 use polkadot_node_subsystem::{
 	messages::DisputeCoordinatorMessage, overseer, ActiveLeavesUpdate, SubsystemSender,
 };
@@ -126,7 +127,7 @@ impl<M: 'static + Send + Sync> DisputeSender<M> {
 		&mut self,
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
-		msg: DisputeMessage,
+		msg: DisputeMessageV2,
 	) -> Result<()> {
 		let req: DisputeRequest = msg.into();
 		let candidate_hash = req.0.candidate_receipt.hash();

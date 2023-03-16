@@ -39,6 +39,11 @@ use polkadot_primitives::{
 #[derive(Debug, Clone)]
 pub struct DisputeMessage(UncheckedDisputeMessage);
 
+/// A dispute initiating/participating message V2 that have been built from signed
+/// statements. This `UncheckedDisputeMessageV2` include the `reason`.
+#[derive(Debug, Clone)]
+pub struct DisputeMessageV2(UncheckedDisputeMessageV2);
+
 /// A `DisputeMessage` where signatures of statements have not yet been checked.
 #[derive(Clone, Encode, Decode, Debug)]
 pub struct UncheckedDisputeMessage {
@@ -53,6 +58,25 @@ pub struct UncheckedDisputeMessage {
 
 	/// The valid vote that makes this dispute request valid.
 	pub valid_vote: ValidDisputeVote,
+}
+
+/// A `DisputeMessage` where signatures of statements have not yet been checked.
+#[derive(Clone, Encode, Decode, Debug)]
+pub struct UncheckedDisputeMessageV2 {
+	/// The candidate being disputed.
+	pub candidate_receipt: CandidateReceipt,
+
+	/// The session the candidate appears in.
+	pub session_index: SessionIndex,
+
+	/// The invalid vote data that makes up this dispute.
+	pub invalid_vote: InvalidDisputeVote,
+
+	/// The valid vote that makes this dispute request valid.
+	pub valid_vote: ValidDisputeVote,
+
+	/// Reason
+	pub reason: String,
 }
 
 /// Things that can go wrong when constructing a `DisputeMessage`.
@@ -93,6 +117,38 @@ pub enum Error {
 	/// Provided index could not be found in `SessionInfo`.
 	#[error("The invalid statement had an invalid validator index")]
 	InvalidStatementInvalidValidatorIndex,
+}
+
+impl DisputeMessageV2 {
+	/// TODO-JV: complete docs.
+	pub fn from_signed_statements(
+		valid_statement: SignedDisputeStatement,
+		valid_index: ValidatorIndex,
+		invalid_statement: SignedDisputeStatement,
+		invalid_index: ValidatorIndex,
+		candidate_receipt: CandidateReceipt,
+		session_info: &SessionInfo,
+		reason: String,
+	) -> Result<Self, Error> {
+		let dispute_msg_v1 = DisputeMessage::from_signed_statements(
+			valid_statement,
+			valid_index,
+			invalid_statement,
+			invalid_index,
+			candidate_receipt.clone(),
+			session_info
+		)?;
+
+		let UncheckedDisputeMessage {session_index, valid_vote, invalid_vote, .. } = dispute_msg_v1.0;
+		Ok(DisputeMessageV2(UncheckedDisputeMessageV2 {
+			candidate_receipt,
+			session_index,
+			valid_vote,
+			invalid_vote,
+			reason,
+		}))
+	}
+
 }
 
 impl DisputeMessage {
@@ -262,6 +318,12 @@ impl UncheckedDisputeMessage {
 
 impl From<DisputeMessage> for UncheckedDisputeMessage {
 	fn from(message: DisputeMessage) -> Self {
+		message.0
+	}
+}
+
+impl From<DisputeMessageV2> for UncheckedDisputeMessageV2 {
+	fn from(message: DisputeMessageV2) -> Self {
 		message.0
 	}
 }

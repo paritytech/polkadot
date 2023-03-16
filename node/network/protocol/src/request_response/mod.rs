@@ -55,6 +55,9 @@ pub use outgoing::{OutgoingRequest, OutgoingResult, Recipient, Requests, Respons
 /// Actual versioned requests and responses, that are sent over the wire.
 pub mod v1;
 
+/// TODO-JV
+pub mod v2;
+
 /// A protocol per subsystem seems to make the most sense, this way we don't need any dispatching
 /// within protocols.
 #[derive(Copy, Clone, Debug, Hash, PartialEq, Eq, EnumIter)]
@@ -71,6 +74,8 @@ pub enum Protocol {
 	StatementFetchingV1,
 	/// Sending of dispute statements with application level confirmations.
 	DisputeSendingV1,
+	/// Sending of dispute statements (V2) with application level confirmations.
+	DisputeSendingV2
 }
 
 /// Minimum bandwidth we expect for validators - 500Mbit/s is the recommendation, so approximately
@@ -211,7 +216,7 @@ impl Protocol {
 				request_timeout: Duration::from_secs(1),
 				inbound_queue: tx,
 			},
-			Protocol::DisputeSendingV1 => RequestResponseConfig {
+			Protocol::DisputeSendingV1 | Protocol::DisputeSendingV2 => RequestResponseConfig {
 				name,
 				fallback_names,
 				max_request_size: 1_000,
@@ -265,6 +270,7 @@ impl Protocol {
 			// average, so something in the ballpark of 100 should be fine. Nodes will retry on
 			// failure, so having a good value here is mostly about performance tuning.
 			Protocol::DisputeSendingV1 => 100,
+			Protocol::DisputeSendingV2 => 100,
 		}
 	}
 
@@ -282,6 +288,7 @@ impl Protocol {
 			Protocol::AvailableDataFetchingV1 => "/polkadot/req_available_data/1",
 			Protocol::StatementFetchingV1 => "/polkadot/req_statement/1",
 			Protocol::DisputeSendingV1 => "/polkadot/send_dispute/1",
+			Protocol::DisputeSendingV2 => "/polkadot/send_dispute/2",
 		}
 	}
 }
@@ -337,6 +344,7 @@ impl ReqProtocolNames {
 			Protocol::AvailableDataFetchingV1 => "/req_available_data/1",
 			Protocol::StatementFetchingV1 => "/req_statement/1",
 			Protocol::DisputeSendingV1 => "/send_dispute/1",
+			Protocol::DisputeSendingV2 => "/send_dispute/2",
 		};
 
 		format!("{}{}", prefix, short_name).into()

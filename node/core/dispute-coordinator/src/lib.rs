@@ -32,7 +32,7 @@ use gum::CandidateHash;
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
+	CandidateVotes, DisputeMessageCheckError, SignedDisputeStatement, DisputeMessageV2,
 };
 use polkadot_node_subsystem::{
 	messages::DisputeDistributionMessage, overseer, ActivatedLeaf, FromOrchestra, OverseerSignal,
@@ -484,6 +484,7 @@ async fn send_dispute_messages<Context>(
 			vote_state.votes(),
 			our_vote_signed,
 			*validator_index,
+			String::from("TODO-JV")
 		) {
 			Err(err) => {
 				gum::debug!(target: LOG_TARGET, ?err, "Creating dispute message failed.");
@@ -508,13 +509,14 @@ pub enum DisputeMessageCreationError {
 	InvalidStatementCombination(DisputeMessageCheckError),
 }
 
-/// Create a `DisputeMessage` to be sent to `DisputeDistribution`.
+/// Create a `DisputeMessageV2` to be sent to `DisputeDistribution`.
 pub fn make_dispute_message(
 	info: &SessionInfo,
 	votes: &CandidateVotes,
 	our_vote: SignedDisputeStatement,
 	our_index: ValidatorIndex,
-) -> std::result::Result<DisputeMessage, DisputeMessageCreationError> {
+	reason: String,
+) -> std::result::Result<DisputeMessageV2, DisputeMessageCreationError> {
 	let validators = &info.validators;
 
 	let (valid_statement, valid_index, invalid_statement, invalid_index) =
@@ -554,13 +556,14 @@ pub fn make_dispute_message(
 			(other_vote, *validator_index, our_vote, our_index)
 		};
 
-	DisputeMessage::from_signed_statements(
+	DisputeMessageV2::from_signed_statements(
 		valid_statement,
 		valid_index,
 		invalid_statement,
 		invalid_index,
 		votes.candidate_receipt.clone(),
 		info,
+		reason,
 	)
 	.map_err(DisputeMessageCreationError::InvalidStatementCombination)
 }

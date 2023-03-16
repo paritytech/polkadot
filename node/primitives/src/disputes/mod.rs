@@ -32,7 +32,7 @@ use polkadot_primitives::{
 
 /// `DisputeMessage` and related types.
 mod message;
-pub use message::{DisputeMessage, Error as DisputeMessageCheckError, UncheckedDisputeMessage};
+pub use message::{DisputeMessage, DisputeMessageV2,   Error as DisputeMessageCheckError, UncheckedDisputeMessage, UncheckedDisputeMessageV2};
 mod status;
 pub use status::{dispute_is_inactive, DisputeStatus, Timestamp, ACTIVE_DURATION_SECS};
 
@@ -203,6 +203,23 @@ impl SignedDisputeStatement {
 				validator_signature,
 				session_index,
 			})
+	}
+
+	/// Create a new `SignedDisputeStatement` from a DisputeStatementV2, droping the reason.
+	pub fn new_checked_v2(
+		dispute_statement: DisputeStatement,
+		candidate_hash: CandidateHash,
+		session_index: SessionIndex,
+		validator_public: ValidatorId,
+		validator_signature: ValidatorSignature,
+	) -> Result<Self, ()> {
+		SignedDisputeStatement::new_checked(
+			dispute_statement,
+			candidate_hash,
+			session_index,
+			validator_public,
+			validator_signature,
+		)
 	}
 
 	/// Sign this statement with the given keystore and key. Pass `valid = true` to

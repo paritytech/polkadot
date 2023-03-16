@@ -31,7 +31,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalVotingMessage, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage,
-		DisputeDistributionMessage, ImportStatementsResult,
+		DisputeDistributionMessage, ImportStatementsResult, LocalStatementResult
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
@@ -217,13 +217,19 @@ impl Initialized {
 							?valid,
 							"Issuing local statement based on participation outcome."
 						);
+						let local_statement_result = if valid {
+							LocalStatementResult::Valid
+						} else {
+							LocalStatementResult::Invalid { reason: String::from("TODO-JC") }
+						};
+
 						self.issue_local_statement(
 							ctx,
 							&mut overlay_db,
 							candidate_hash,
 							candidate_receipt,
 							session,
-							valid,
+							local_statement_result,
 							clock.now(),
 						)
 						.await?;
@@ -983,6 +989,7 @@ impl Initialized {
 					&new_state.votes(),
 					statement,
 					validator_index,
+					String::from("TODO-JV"),
 				) {
 					Err(err) => {
 						gum::error!(
@@ -1100,7 +1107,8 @@ impl Initialized {
 		candidate_hash: CandidateHash,
 		candidate_receipt: CandidateReceipt,
 		session: SessionIndex,
-		valid: bool,
+		// TODO-JV: renaming valid to something more explicit about the enum.
+		valid: LocalStatementResult,
 		now: Timestamp,
 	) -> Result<()> {
 		gum::trace!(
@@ -1152,7 +1160,8 @@ impl Initialized {
 			let keystore = self.keystore.clone() as Arc<_>;
 			let res = SignedDisputeStatement::sign_explicit(
 				&keystore,
-				valid,
+				// TODO-JV
+				valid.is_valid(),
 				candidate_hash,
 				session,
 				env.validators()
@@ -1180,7 +1189,7 @@ impl Initialized {
 		// Get our message out:
 		for (statement, index) in &statements {
 			let dispute_message =
-				match make_dispute_message(env.session_info(), &votes, statement.clone(), *index) {
+				match make_dispute_message(env.session_info(), &votes, statement.clone(), *index, String::from("TODO-JV")) {
 					Err(err) => {
 						gum::debug!(target: LOG_TARGET, ?err, "Creating dispute message failed.");
 						continue

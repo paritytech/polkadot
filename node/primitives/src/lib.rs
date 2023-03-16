@@ -46,8 +46,8 @@ pub mod approval;
 /// Disputes related types.
 pub mod disputes;
 pub use disputes::{
-	dispute_is_inactive, CandidateVotes, DisputeMessage, DisputeMessageCheckError, DisputeStatus,
-	InvalidDisputeVote, SignedDisputeStatement, Timestamp, UncheckedDisputeMessage,
+	dispute_is_inactive, CandidateVotes, DisputeMessage, DisputeMessageV2,  DisputeMessageCheckError, DisputeStatus,
+	InvalidDisputeVote, SignedDisputeStatement, Timestamp, UncheckedDisputeMessage, UncheckedDisputeMessageV2,
 	ValidDisputeVote, ACTIVE_DURATION_SECS,
 };
 
