@@ -198,7 +198,6 @@ pub enum LocalStatementResult {
 		reason: String,
 	},
 	Valid,
-
 }
 
 impl LocalStatementResult {

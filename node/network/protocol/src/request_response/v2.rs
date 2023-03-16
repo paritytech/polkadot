@@ -1,9 +1,8 @@
 use parity_scale_codec::{Decode, Encode};
 
-use polkadot_node_primitives::{ DisputeMessageV2, UncheckedDisputeMessageV2};
+use polkadot_node_primitives::{DisputeMessageV2, UncheckedDisputeMessageV2};
 
 use super::{IsRequest, Protocol};
-
 
 /// A dispute request.
 ///

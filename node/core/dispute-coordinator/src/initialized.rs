@@ -31,7 +31,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	messages::{
 		ApprovalVotingMessage, BlockDescription, ChainSelectionMessage, DisputeCoordinatorMessage,
-		DisputeDistributionMessage, ImportStatementsResult, LocalStatementResult
+		DisputeDistributionMessage, ImportStatementsResult, LocalStatementResult,
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
@@ -1188,14 +1188,19 @@ impl Initialized {
 
 		// Get our message out:
 		for (statement, index) in &statements {
-			let dispute_message =
-				match make_dispute_message(env.session_info(), &votes, statement.clone(), *index, String::from("TODO-JV")) {
-					Err(err) => {
-						gum::debug!(target: LOG_TARGET, ?err, "Creating dispute message failed.");
-						continue
-					},
-					Ok(dispute_message) => dispute_message,
-				};
+			let dispute_message = match make_dispute_message(
+				env.session_info(),
+				&votes,
+				statement.clone(),
+				*index,
+				String::from("TODO-JV"),
+			) {
+				Err(err) => {
+					gum::debug!(target: LOG_TARGET, ?err, "Creating dispute message failed.");
+					continue
+				},
+				Ok(dispute_message) => dispute_message,
+			};
 
 			ctx.send_message(DisputeDistributionMessage::SendDispute(dispute_message)).await;
 		}

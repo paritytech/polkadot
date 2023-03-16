@@ -23,7 +23,10 @@ use polkadot_node_network_protocol::{
 		outgoing::RequestError,
 		//v1::{DisputeRequest, DisputeResponse},
 		v2::{DisputeRequest, DisputeResponse},
-		OutgoingRequest, OutgoingResult, Recipient, Requests,
+		OutgoingRequest,
+		OutgoingResult,
+		Recipient,
+		Requests,
 	},
 	IfDisconnected,
 };

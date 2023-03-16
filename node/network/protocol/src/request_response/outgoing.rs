@@ -42,7 +42,6 @@ pub enum Requests {
 	DisputeSendingV1(OutgoingRequest<v1::DisputeRequest>),
 	/// Requests for notifying about an ongoing dispute V2.
 	DisputeSendingV2(OutgoingRequest<v2::DisputeRequest>),
-
 }
 
 impl Requests {

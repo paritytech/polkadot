@@ -136,10 +136,11 @@ impl DisputeMessageV2 {
 			invalid_statement,
 			invalid_index,
 			candidate_receipt.clone(),
-			session_info
+			session_info,
 		)?;
 
-		let UncheckedDisputeMessage {session_index, valid_vote, invalid_vote, .. } = dispute_msg_v1.0;
+		let UncheckedDisputeMessage { session_index, valid_vote, invalid_vote, .. } =
+			dispute_msg_v1.0;
 		Ok(DisputeMessageV2(UncheckedDisputeMessageV2 {
 			candidate_receipt,
 			session_index,
@@ -148,7 +149,6 @@ impl DisputeMessageV2 {
 			reason,
 		}))
 	}
-
 }
 
 impl DisputeMessage {

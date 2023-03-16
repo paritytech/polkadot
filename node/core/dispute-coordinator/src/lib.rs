@@ -32,7 +32,7 @@ use gum::CandidateHash;
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	CandidateVotes, DisputeMessageCheckError, SignedDisputeStatement, DisputeMessageV2,
+	CandidateVotes, DisputeMessageCheckError, DisputeMessageV2, SignedDisputeStatement,
 };
 use polkadot_node_subsystem::{
 	messages::DisputeDistributionMessage, overseer, ActivatedLeaf, FromOrchestra, OverseerSignal,
@@ -484,7 +484,7 @@ async fn send_dispute_messages<Context>(
 			vote_state.votes(),
 			our_vote_signed,
 			*validator_index,
-			String::from("TODO-JV")
+			String::from("TODO-JV"),
 		) {
 			Err(err) => {
 				gum::debug!(target: LOG_TARGET, ?err, "Creating dispute message failed.");

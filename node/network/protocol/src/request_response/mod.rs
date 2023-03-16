@@ -75,7 +75,7 @@ pub enum Protocol {
 	/// Sending of dispute statements with application level confirmations.
 	DisputeSendingV1,
 	/// Sending of dispute statements (V2) with application level confirmations.
-	DisputeSendingV2
+	DisputeSendingV2,
 }
 
 /// Minimum bandwidth we expect for validators - 500Mbit/s is the recommendation, so approximately

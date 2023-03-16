@@ -32,7 +32,10 @@ use polkadot_primitives::{
 
 /// `DisputeMessage` and related types.
 mod message;
-pub use message::{DisputeMessage, DisputeMessageV2,   Error as DisputeMessageCheckError, UncheckedDisputeMessage, UncheckedDisputeMessageV2};
+pub use message::{
+	DisputeMessage, DisputeMessageV2, Error as DisputeMessageCheckError, UncheckedDisputeMessage,
+	UncheckedDisputeMessageV2,
+};
 mod status;
 pub use status::{dispute_is_inactive, DisputeStatus, Timestamp, ACTIVE_DURATION_SECS};
 
