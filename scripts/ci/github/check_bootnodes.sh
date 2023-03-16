@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# In this script, we check each bootnode for each runtime and ensure they are contactable.
+# In this script, we check each bootnode for a given chainspec file and ensure they are contactable.
 # We do this by removing every bootnode from the chainspec with the exception of the one
 # we want to check. Then we spin up a node using this new chainspec, wait a little while
 # and then check our local node's RPC endpoint for the number of peers. If the node hasn't
