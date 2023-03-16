@@ -384,13 +384,13 @@ impl Validator {
 
 		let validators = validators?;
 
-		Self::construct(&validators, signing_context, keystore).await
+		Self::construct(&validators, signing_context, keystore)
 	}
 
 	/// Construct a validator instance without performing runtime fetches.
 	///
 	/// This can be useful if external code also needs the same data.
-	pub async fn construct(
+	pub fn construct(
 		validators: &[ValidatorId],
 		signing_context: SigningContext,
 		keystore: KeystorePtr,

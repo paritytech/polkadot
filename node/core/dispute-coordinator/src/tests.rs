@@ -523,7 +523,6 @@ impl TestState {
 		let keystore = self.master_keystore.clone() as KeystorePtr;
 
 		SignedDisputeStatement::sign_explicit(&keystore, valid, candidate_hash, session, public)
-			.await
 			.unwrap()
 			.unwrap()
 	}
@@ -546,7 +545,6 @@ impl TestState {
 			index,
 			&validator_id,
 		)
-		.await
 		.unwrap()
 		.unwrap()
 		.into_unchecked();

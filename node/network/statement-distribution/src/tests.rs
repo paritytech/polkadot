@@ -1636,7 +1636,6 @@ fn share_prioritizes_backing_group() {
 				ValidatorIndex(4),
 				&ferdie_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -1818,7 +1817,6 @@ fn peer_cant_flood_with_large_statements() {
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -1828,7 +1826,6 @@ fn peer_cant_flood_with_large_statements() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -2107,7 +2104,6 @@ fn handle_multiple_seconded_statements() {
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -2117,7 +2113,6 @@ fn handle_multiple_seconded_statements() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -2210,7 +2205,6 @@ fn handle_multiple_seconded_statements() {
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -2220,7 +2214,6 @@ fn handle_multiple_seconded_statements() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
