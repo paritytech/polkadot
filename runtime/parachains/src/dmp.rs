@@ -284,7 +284,7 @@ impl<T: Config> Pallet<T> {
 	/// Returns the new delivery fee factor after the decrement.
 	pub(crate) fn decrement_fee_factor() -> FixedU128 {
 		<DeliveryFeeFactor<T>>::mutate(|f| {
-			*f = InitialFactor::get().min(*f / MULTIPLICATIVE_FEE_FACTOR);
+			*f = InitialFactor::get().max(*f / MULTIPLICATIVE_FEE_FACTOR);
 			*f
 		})
 	}
