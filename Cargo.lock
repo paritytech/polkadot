@@ -13798,6 +13798,8 @@ version = "0.9.39"
 dependencies = [
  "bounded-collections",
  "derivative",
+ "hex",
+ "hex-literal",
  "impl-trait-for-tuples",
  "log",
  "parity-scale-codec",
