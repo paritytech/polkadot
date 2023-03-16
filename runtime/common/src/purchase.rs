@@ -91,7 +91,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -196,7 +195,7 @@ pub mod pallet {
 		///
 		/// Origin must match the `ValidityOrigin`.
 		#[pallet::call_index(0)]
-		#[pallet::weight(Weight::from_ref_time(200_000_000) + T::DbWeight::get().reads_writes(4, 1))]
+		#[pallet::weight(Weight::from_parts(200_000_000, 0) + T::DbWeight::get().reads_writes(4, 1))]
 		pub fn create_account(
 			origin: OriginFor<T>,
 			who: T::AccountId,

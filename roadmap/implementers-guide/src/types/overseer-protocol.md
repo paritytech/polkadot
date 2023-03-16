@@ -309,7 +309,8 @@ enum CandidateBackingMessage {
   /// The PoV is expected to match the `pov_hash` in the descriptor.
   Second(Hash, CandidateReceipt, PoV),
   /// Note a peer validator's statement about a particular candidate. Disagreements about validity must be escalated
-  /// to a broader check by Misbehavior Arbitration. Agreements are simply tallied until a quorum is reached.
+  /// to a broader check by the Disputes Subsystem, though that escalation is deferred until the approval voting 
+  /// stage to guarantee availability. Agreements are simply tallied until a quorum is reached.
   Statement(Statement),
 }
 ```

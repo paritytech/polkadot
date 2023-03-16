@@ -49,7 +49,7 @@ use xcm_executor::{
 };
 
 pub type SovereignAccountOf = (
-	SiblingParachainConvertsVia<ParaId, AccountId>,
+	SiblingParachainConvertsVia<Sibling, AccountId>,
 	AccountId32Aliases<RelayNetwork, AccountId>,
 	ParentIsPreset<AccountId>,
 );
@@ -163,8 +163,8 @@ impl EnsureOriginWithArg<RuntimeOrigin, MultiLocation> for ForeignCreators {
 }
 
 parameter_types! {
-	pub const ReservedXcmpWeight: Weight = Weight::from_ref_time(WEIGHT_REF_TIME_PER_SECOND.saturating_div(4));
-	pub const ReservedDmpWeight: Weight = Weight::from_ref_time(WEIGHT_REF_TIME_PER_SECOND.saturating_div(4));
+	pub const ReservedXcmpWeight: Weight = Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_div(4), 0);
+	pub const ReservedDmpWeight: Weight = Weight::from_parts(WEIGHT_REF_TIME_PER_SECOND.saturating_div(4), 0);
 }
 
 parameter_types! {
@@ -260,7 +260,6 @@ pub mod mock_msg_queue {
 	impl<T: Config> Pallet<T> {}
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 

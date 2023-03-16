@@ -75,7 +75,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -135,8 +134,8 @@ impl<T: Config> Pallet<T> {
 
 	/// Remove all relevant storage items for an outgoing parachain.
 	fn clean_dmp_after_outgoing(outgoing_para: &ParaId) {
-		<Self as Store>::DownwardMessageQueues::remove(outgoing_para);
-		<Self as Store>::DownwardMessageQueueHeads::remove(outgoing_para);
+		DownwardMessageQueues::<T>::remove(outgoing_para);
+		DownwardMessageQueueHeads::<T>::remove(outgoing_para);
 	}
 
 	/// Determine whether enqueuing a downward message to a specific recipient para would result
@@ -152,9 +151,7 @@ impl<T: Config> Pallet<T> {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
-		if <Self as Store>::DownwardMessageQueues::decode_len(para).unwrap_or(0) >
-			MAX_MESSAGE_QUEUE_SIZE
-		{
+		if DownwardMessageQueues::<T>::decode_len(para).unwrap_or(0) > MAX_MESSAGE_QUEUE_SIZE {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
@@ -179,9 +176,7 @@ impl<T: Config> Pallet<T> {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
-		if <Self as Store>::DownwardMessageQueues::decode_len(para).unwrap_or(0) >
-			MAX_MESSAGE_QUEUE_SIZE
-		{
+		if DownwardMessageQueues::<T>::decode_len(para).unwrap_or(0) > MAX_MESSAGE_QUEUE_SIZE {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
@@ -189,13 +184,13 @@ impl<T: Config> Pallet<T> {
 			InboundDownwardMessage { msg, sent_at: <frame_system::Pallet<T>>::block_number() };
 
 		// obtain the new link in the MQC and update the head.
-		<Self as Store>::DownwardMessageQueueHeads::mutate(para, |head| {
+		DownwardMessageQueueHeads::<T>::mutate(para, |head| {
 			let new_head =
 				BlakeTwo256::hash_of(&(*head, inbound.sent_at, T::Hashing::hash_of(&inbound.msg)));
 			*head = new_head;
 		});
 
-		<Self as Store>::DownwardMessageQueues::mutate(para, |v| {
+		DownwardMessageQueues::<T>::mutate(para, |v| {
 			v.push(inbound);
 		});
 
@@ -224,7 +219,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Prunes the specified number of messages from the downward message queue of the given para.
 	pub(crate) fn prune_dmq(para: ParaId, processed_downward_messages: u32) -> Weight {
-		<Self as Store>::DownwardMessageQueues::mutate(para, |q| {
+		DownwardMessageQueues::<T>::mutate(para, |q| {
 			let processed_downward_messages = processed_downward_messages as usize;
 			if processed_downward_messages > q.len() {
 				// reaching this branch is unexpected due to the constraint established by
@@ -241,14 +236,14 @@ impl<T: Config> Pallet<T> {
 	/// associated with it.
 	#[cfg(test)]
 	fn dmq_mqc_head(para: ParaId) -> Hash {
-		<Self as Store>::DownwardMessageQueueHeads::get(&para)
+		DownwardMessageQueueHeads::<T>::get(&para)
 	}
 
 	/// Returns the number of pending downward messages addressed to the given para.
 	///
 	/// Returns 0 if the para doesn't have an associated downward message queue.
 	pub(crate) fn dmq_length(para: ParaId) -> u32 {
-		<Self as Store>::DownwardMessageQueues::decode_len(&para)
+		DownwardMessageQueues::<T>::decode_len(&para)
 			.unwrap_or(0)
 			.saturated_into::<u32>()
 	}
@@ -257,6 +252,6 @@ impl<T: Config> Pallet<T> {
 	///
 	/// The most recent messages are the latest in the vector.
 	pub(crate) fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<T::BlockNumber>> {
-		<Self as Store>::DownwardMessageQueues::get(&recipient)
+		DownwardMessageQueues::<T>::get(&recipient)
 	}
 }
