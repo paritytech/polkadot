@@ -22,12 +22,15 @@ fn encode_decode_versioned_asset_id_v3() {
 	let asset_id = VersionedAssetId::V3(v3::AssetId::Abstract([1; 32]));
 	let encoded = asset_id.encode();
 
-	assert_eq!(encoded, hex_literal::hex!("03010101010101010101010101010101010101010101010101010101010101010101"), "encode format changed");
+	assert_eq!(
+		encoded,
+		hex_literal::hex!("03010101010101010101010101010101010101010101010101010101010101010101"),
+		"encode format changed"
+	);
 	assert_eq!(encoded[0], 3, "bad version number");
 
 	let decoded = VersionedAssetId::decode(&mut &encoded[..]).unwrap();
 	assert_eq!(asset_id, decoded);
-
 }
 
 #[test]
@@ -128,7 +131,10 @@ fn encode_decode_versioned_multi_asset_v3() {
 
 #[test]
 fn encode_decode_versioned_multi_assets_v2() {
-	let assets = VersionedMultiAssets::V2(v2::MultiAssets::from(vec![v2::MultiAsset::from(((0, v2::Junctions::Here), 1))]));
+	let assets = VersionedMultiAssets::V2(v2::MultiAssets::from(vec![v2::MultiAsset::from((
+		(0, v2::Junctions::Here),
+		1,
+	))]));
 	let encoded = assets.encode();
 
 	assert_eq!(encoded, hex_literal::hex!("01040000000004"), "encode format changed");
@@ -140,7 +146,9 @@ fn encode_decode_versioned_multi_assets_v2() {
 
 #[test]
 fn encode_decode_versioned_multi_assets_v3() {
-	let assets = VersionedMultiAssets::V3(v3::MultiAssets::from(vec![(v3::MultiAsset::from((v3::MultiLocation::default(), 1)))]));
+	let assets = VersionedMultiAssets::V3(v3::MultiAssets::from(vec![
+		(v3::MultiAsset::from((v3::MultiLocation::default(), 1))),
+	]));
 	let encoded = assets.encode();
 
 	assert_eq!(encoded, hex_literal::hex!("03040000000004"), "encode format changed");
