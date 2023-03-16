@@ -1208,7 +1208,6 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
-	clean_state_migration::CleanMigrate,
 	pallet_nomination_pools::migration::v4::MigrateToV4<
 		Runtime,
 		NominationPoolsMigrationV4OldPallet,
