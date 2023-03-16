@@ -18,15 +18,16 @@
 //! functions.
 
 use crate::{
-	configuration, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
+	configuration, disputes, dmp, hrmp, inclusion, initializer, paras, paras_inherent, scheduler,
 	session_info, shared,
 };
 use primitives::{
-	AuthorityDiscoveryId, CandidateEvent, CommittedCandidateReceipt, CoreIndex, CoreOccupied,
-	CoreState, GroupIndex, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
-	InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	AuthorityDiscoveryId, CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreIndex,
+	CoreOccupied, CoreState, DisputeState, ExecutorParams, GroupIndex, GroupRotationInfo, Hash,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCore, OccupiedCoreAssumption,
+	PersistedValidationData, PvfCheckStatement, ScheduledCore, ScrapedOnChainVotes, SessionIndex,
+	SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use sp_runtime::traits::One;
 use sp_std::{collections::btree_map::BTreeMap, prelude::*};
@@ -398,4 +399,25 @@ where
 	with_assumption::<T, _, _>(para_id, assumption, || {
 		<paras::Pallet<T>>::current_code_hash(&para_id)
 	})
+}
+
+/// Implementation for `get_session_disputes` function from the runtime API
+pub fn get_session_disputes<T: disputes::Config>(
+) -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
+	<disputes::Pallet<T>>::disputes()
+}
+
+/// Get session executor parameter set
+pub fn session_executor_params<T: session_info::Config>(
+	session_index: SessionIndex,
+) -> Option<ExecutorParams> {
+	// This is to bootstrap the storage working around the runtime migration issue:
+	// https://github.com/paritytech/substrate/issues/9997
+	// After the bootstrap is complete (no less than 7 session passed with the runtime)
+	// this code should be replaced with a pure
+	// <session_info::Pallet<T>>::session_executor_params(session_index) call.
+	match <session_info::Pallet<T>>::session_executor_params(session_index) {
+		Some(ep) => Some(ep),
+		None => Some(ExecutorParams::default()),
+	}
 }

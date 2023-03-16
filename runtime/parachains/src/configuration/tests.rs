@@ -72,18 +72,18 @@ fn config_changes_after_2_session_boundary() {
 		// Verify that the current configuration has not changed and that there is a scheduled
 		// change for the SESSION_DELAY sessions in advance.
 		assert_eq!(Configuration::config(), old_config);
-		assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(2, config.clone())]);
 
 		on_new_session(1);
 
 		// One session has passed, we should be still waiting for the pending configuration.
 		assert_eq!(Configuration::config(), old_config);
-		assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(2, config.clone())]);
 
 		on_new_session(2);
 
 		assert_eq!(Configuration::config(), config);
-		assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![]);
 	})
 }
 
@@ -99,17 +99,17 @@ fn consecutive_changes_within_one_session() {
 		assert_ok!(Configuration::set_validation_upgrade_delay(RuntimeOrigin::root(), 100));
 		assert_ok!(Configuration::set_validation_upgrade_cooldown(RuntimeOrigin::root(), 100));
 		assert_eq!(Configuration::config(), old_config);
-		assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(2, config.clone())]);
 
 		on_new_session(1);
 
 		assert_eq!(Configuration::config(), old_config);
-		assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![(2, config.clone())]);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(2, config.clone())]);
 
 		on_new_session(2);
 
 		assert_eq!(Configuration::config(), config);
-		assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![]);
 	});
 }
 
@@ -127,10 +127,7 @@ fn pending_next_session_but_we_upgrade_once_more() {
 
 		assert_ok!(Configuration::set_validation_upgrade_delay(RuntimeOrigin::root(), 100));
 		assert_eq!(Configuration::config(), initial_config);
-		assert_eq!(
-			<Configuration as Store>::PendingConfigs::get(),
-			vec![(2, intermediate_config.clone())]
-		);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(2, intermediate_config.clone())]);
 
 		on_new_session(1);
 
@@ -141,22 +138,19 @@ fn pending_next_session_but_we_upgrade_once_more() {
 		// This should result in yet another configiguration change scheduled.
 		assert_eq!(Configuration::config(), initial_config);
 		assert_eq!(
-			<Configuration as Store>::PendingConfigs::get(),
+			PendingConfigs::<Test>::get(),
 			vec![(2, intermediate_config.clone()), (3, final_config.clone())]
 		);
 
 		on_new_session(2);
 
 		assert_eq!(Configuration::config(), intermediate_config);
-		assert_eq!(
-			<Configuration as Store>::PendingConfigs::get(),
-			vec![(3, final_config.clone())]
-		);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(3, final_config.clone())]);
 
 		on_new_session(3);
 
 		assert_eq!(Configuration::config(), final_config);
-		assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![]);
 	});
 }
 
@@ -175,10 +169,7 @@ fn scheduled_session_config_update_while_next_session_pending() {
 
 		assert_ok!(Configuration::set_validation_upgrade_delay(RuntimeOrigin::root(), 100));
 		assert_eq!(Configuration::config(), initial_config);
-		assert_eq!(
-			<Configuration as Store>::PendingConfigs::get(),
-			vec![(2, intermediate_config.clone())]
-		);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(2, intermediate_config.clone())]);
 
 		on_new_session(1);
 
@@ -190,22 +181,19 @@ fn scheduled_session_config_update_while_next_session_pending() {
 		// This should result in yet another configiguration change scheduled.
 		assert_eq!(Configuration::config(), initial_config);
 		assert_eq!(
-			<Configuration as Store>::PendingConfigs::get(),
+			PendingConfigs::<Test>::get(),
 			vec![(2, intermediate_config.clone()), (3, final_config.clone())]
 		);
 
 		on_new_session(2);
 
 		assert_eq!(Configuration::config(), intermediate_config);
-		assert_eq!(
-			<Configuration as Store>::PendingConfigs::get(),
-			vec![(3, final_config.clone())]
-		);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(3, final_config.clone())]);
 
 		on_new_session(3);
 
 		assert_eq!(Configuration::config(), final_config);
-		assert_eq!(<Configuration as Store>::PendingConfigs::get(), vec![]);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![]);
 	});
 }
 
@@ -240,7 +228,7 @@ fn invariants() {
 			Error::<Test>::InvalidNewValue
 		);
 
-		<Configuration as Store>::ActiveConfig::put(HostConfiguration {
+		ActiveConfig::<Test>::put(HostConfiguration {
 			chain_availability_period: 10,
 			thread_availability_period: 8,
 			minimum_validation_upgrade_delay: 11,
@@ -514,10 +502,7 @@ fn setting_pending_config_members() {
 		Configuration::set_pvf_voting_ttl(RuntimeOrigin::root(), new_config.pvf_voting_ttl)
 			.unwrap();
 
-		assert_eq!(
-			<Configuration as Store>::PendingConfigs::get(),
-			vec![(shared::SESSION_DELAY, new_config)],
-		);
+		assert_eq!(PendingConfigs::<Test>::get(), vec![(shared::SESSION_DELAY, new_config)],);
 	})
 }
 
@@ -539,7 +524,7 @@ fn verify_externally_accessible() {
 		let ground_truth = HostConfiguration::default();
 
 		// Make sure that the configuration is stored in the storage.
-		<Configuration as Store>::ActiveConfig::put(ground_truth.clone());
+		ActiveConfig::<Test>::put(ground_truth.clone());
 
 		// Extract the active config via the well known key.
 		let raw_active_config = sp_io::storage::get(well_known_keys::ACTIVE_CONFIG)
