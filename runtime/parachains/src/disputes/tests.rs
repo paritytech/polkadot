@@ -431,7 +431,7 @@ fn test_dispute_timeout() {
 		let stmts = filter_dispute_set(stmts);
 
 		assert_ok!(
-			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
+			Pallet::<Test>::process_checked_multi_dispute_data(&stmts),
 			vec![(9, candidate_hash.clone())],
 		);
 
@@ -579,7 +579,7 @@ fn test_provide_multi_dispute_is_providing() {
 
 		assert_ok!(
 			Pallet::<Test>::process_checked_multi_dispute_data(
-				stmts
+				&stmts
 					.into_iter()
 					.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
 					.collect()
@@ -644,7 +644,7 @@ fn test_disputes_with_missing_backing_votes_are_rejected() {
 		}];
 
 		assert!(Pallet::<Test>::process_checked_multi_dispute_data(
-			stmts
+			&stmts
 				.into_iter()
 				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
 				.collect()
@@ -714,7 +714,7 @@ fn test_freeze_on_note_included() {
 			],
 		}];
 		assert!(Pallet::<Test>::process_checked_multi_dispute_data(
-			stmts
+			&stmts
 				.into_iter()
 				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
 				.collect()
@@ -789,7 +789,7 @@ fn test_freeze_provided_against_supermajority_for_included() {
 
 		Pallet::<Test>::note_included(3, candidate_hash.clone(), 3);
 		assert!(Pallet::<Test>::process_checked_multi_dispute_data(
-			stmts
+			&stmts
 				.into_iter()
 				.map(CheckedDisputeStatementSet::unchecked_from_unchecked)
 				.collect()
@@ -891,7 +891,7 @@ mod unconfirmed_disputes {
 			let stmts = filter_dispute_set(stmts);
 
 			// Not confirmed => should be filtered out
-			assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![],);
+			assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(&stmts), vec![],);
 		});
 	}
 
@@ -903,7 +903,7 @@ mod unconfirmed_disputes {
 		let stmts = vec![CheckedDisputeStatementSet::unchecked_from_unchecked(stmts)];
 
 		assert_matches!(
-			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
+			Pallet::<Test>::process_checked_multi_dispute_data(&stmts),
 			Err(DispatchError::Module(ModuleError{index: _, error: _, message})) => assert_eq!(message, Some("UnconfirmedDispute"))
 		);
 
@@ -1011,7 +1011,7 @@ fn test_provide_multi_dispute_success_and_other() {
 		let stmts = filter_dispute_set(stmts);
 
 		assert_ok!(
-			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
+			Pallet::<Test>::process_checked_multi_dispute_data(&stmts),
 			vec![(3, candidate_hash.clone())],
 		);
 
@@ -1076,7 +1076,7 @@ fn test_provide_multi_dispute_success_and_other() {
 
 		let stmts = filter_dispute_set(stmts);
 		assert_ok!(
-			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
+			Pallet::<Test>::process_checked_multi_dispute_data(&stmts),
 			vec![(5, candidate_hash.clone())],
 		);
 
@@ -1098,7 +1098,7 @@ fn test_provide_multi_dispute_success_and_other() {
 			)],
 		}];
 		let stmts = filter_dispute_set(stmts);
-		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![]);
+		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(&stmts), vec![]);
 
 		let stmts = vec![
 			// 0, 4, and 5 vote against 5
@@ -1177,7 +1177,7 @@ fn test_provide_multi_dispute_success_and_other() {
 			},
 		];
 		let stmts = filter_dispute_set(stmts);
-		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![]);
+		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(&stmts), vec![]);
 
 		assert_eq!(
 			Pallet::<Test>::disputes(),
@@ -1386,7 +1386,7 @@ fn test_punish_post_conclusion() {
 
 		let stmts = filter_dispute_set(stmts);
 		assert_ok!(
-			Pallet::<Test>::process_checked_multi_dispute_data(stmts),
+			Pallet::<Test>::process_checked_multi_dispute_data(&stmts),
 			vec![(session, candidate_hash)],
 		);
 
@@ -1429,7 +1429,7 @@ fn test_punish_post_conclusion() {
 		}];
 
 		let stmts = filter_dispute_set(stmts);
-		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(stmts), vec![],);
+		assert_ok!(Pallet::<Test>::process_checked_multi_dispute_data(&stmts), vec![],);
 
 		// Ensure punishment for is called
 		assert_eq!(
