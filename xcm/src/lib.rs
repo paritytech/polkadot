@@ -42,6 +42,9 @@ pub mod latest {
 mod double_encoded;
 pub use double_encoded::DoubleEncoded;
 
+#[cfg(test)]
+mod tests;
+
 /// Maximum nesting level for XCM decoding.
 pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
 
@@ -157,6 +160,7 @@ pub trait TryAs<T> {
 
 macro_rules! versioned_type {
 	($(#[$attr:meta])* pub enum $n:ident {
+		$(#[$index3:meta])+
 		V3($v3:ty),
 	}) => {
 		#[derive(Derivative, Encode, Decode, TypeInfo)]
@@ -170,7 +174,7 @@ macro_rules! versioned_type {
 		#[codec(decode_bound())]
 		$(#[$attr])*
 		pub enum $n {
-			#[codec(index = 0)]
+			$(#[$index3])*
 			V3($v3),
 		}
 		impl $n {
@@ -215,7 +219,9 @@ macro_rules! versioned_type {
 	};
 
 	($(#[$attr:meta])* pub enum $n:ident {
+		$(#[$index2:meta])+
 		V2($v2:ty),
+		$(#[$index3:meta])+
 		V3($v3:ty),
 	}) => {
 		#[derive(Derivative, Encode, Decode, TypeInfo)]
@@ -229,9 +235,9 @@ macro_rules! versioned_type {
 		#[codec(decode_bound())]
 		$(#[$attr])*
 		pub enum $n {
-			#[codec(index = 0)]
+			$(#[$index2])*
 			V2($v2),
-			#[codec(index = 1)]
+			$(#[$index3])*
 			V3($v3),
 		}
 		impl $n {
@@ -300,93 +306,12 @@ macro_rules! versioned_type {
 			}
 		}
 	};
-
-	($(#[$attr:meta])* pub enum $n:ident {
-		V2($v2:ty),
-		V3($v3:ty),
-	}) => {
-		#[derive(Derivative, Encode, Decode, TypeInfo)]
-		#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
-		#[codec(encode_bound())]
-		#[codec(decode_bound())]
-		$(#[$attr])*
-		pub enum $n {
-			#[codec(index = 1)]
-			V2($v2),
-			#[codec(index = 2)]
-			V3($v3),
-		}
-		impl $n {
-			pub fn try_as<T>(&self) -> Result<&T, ()> where Self: TryAs<T> {
-				<Self as TryAs<T>>::try_as(&self)
-			}
-		}
-		impl TryAs<$v2> for $n {
-			fn try_as(&self) -> Result<&$v2, ()> {
-				match &self {
-					Self::V2(ref x) => Ok(x),
-					_ => Err(()),
-				}
-			}
-		}
-		impl TryAs<$v3> for $n {
-			fn try_as(&self) -> Result<&$v3, ()> {
-				match &self {
-					Self::V3(ref x) => Ok(x),
-					_ => Err(()),
-				}
-			}
-		}
-		impl IntoVersion for $n {
-			fn into_version(self, n: Version) -> Result<Self, ()> {
-				Ok(match n {
-					2 => Self::V2(self.try_into()?),
-					3 => Self::V3(self.try_into()?),
-					_ => return Err(()),
-				})
-			}
-		}
-		impl From<$v2> for $n {
-			fn from(x: $v2) -> Self {
-				$n::V2(x)
-			}
-		}
-		impl<T: Into<$v3>> From<T> for $n {
-			fn from(x: T) -> Self {
-				$n::V3(x.into())
-			}
-		}
-		impl TryFrom<$n> for $v2 {
-			type Error = ();
-			fn try_from(x: $n) -> Result<Self, ()> {
-				use $n::*;
-				match x {
-					V2(x) => Ok(x),
-					V3(x) => x.try_into(),
-				}
-			}
-		}
-		impl TryFrom<$n> for $v3 {
-			type Error = ();
-			fn try_from(x: $n) -> Result<Self, ()> {
-				use $n::*;
-				match x {
-					V2(x) => x.try_into(),
-					V3(x) => Ok(x),
-				}
-			}
-		}
-		impl MaxEncodedLen for $n {
-			fn max_encoded_len() -> usize {
-				<$v3>::max_encoded_len()
-			}
-		}
-	}
 }
 
 versioned_type! {
 	/// A single version's `Response` value, together with its version code.
 	pub enum VersionedAssetId {
+		#[codec(index = 3)]
 		V3(v3::AssetId),
 	}
 }
@@ -394,7 +319,9 @@ versioned_type! {
 versioned_type! {
 	/// A single version's `Response` value, together with its version code.
 	pub enum VersionedResponse {
+		#[codec(index = 2)]
 		V2(v2::Response),
+		#[codec(index = 3)]
 		V3(v3::Response),
 	}
 }
@@ -403,7 +330,9 @@ versioned_type! {
 	/// A single `MultiLocation` value, together with its version code.
 	#[derive(Ord, PartialOrd)]
 	pub enum VersionedMultiLocation {
+		#[codec(index = 1)] // v2 is same as v1 and therefore re-using the v1 index
 		V2(v2::MultiLocation),
+		#[codec(index = 3)]
 		V3(v3::MultiLocation),
 	}
 }
@@ -411,7 +340,9 @@ versioned_type! {
 versioned_type! {
 	/// A single `InteriorMultiLocation` value, together with its version code.
 	pub enum VersionedInteriorMultiLocation {
+		#[codec(index = 2)] // while this is same as v1::Junctions, VersionedInteriorMultiLocation is introduced in v3
 		V2(v2::InteriorMultiLocation),
+		#[codec(index = 3)]
 		V3(v3::InteriorMultiLocation),
 	}
 }
@@ -419,7 +350,9 @@ versioned_type! {
 versioned_type! {
 	/// A single `MultiAsset` value, together with its version code.
 	pub enum VersionedMultiAsset {
+		#[codec(index = 1)] // v2 is same as v1 and therefore re-using the v1 index
 		V2(v2::MultiAsset),
+		#[codec(index = 3)]
 		V3(v3::MultiAsset),
 	}
 }
@@ -427,7 +360,9 @@ versioned_type! {
 versioned_type! {
 	/// A single `MultiAssets` value, together with its version code.
 	pub enum VersionedMultiAssets {
+		#[codec(index = 1)] // v2 is same as v1 and therefore re-using the v1 index
 		V2(v2::MultiAssets),
+		#[codec(index = 3)]
 		V3(v3::MultiAssets),
 	}
 }
