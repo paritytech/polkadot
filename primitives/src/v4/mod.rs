@@ -1716,6 +1716,9 @@ pub enum PvfExecTimeoutKind {
 	Approval,
 }
 
+pub mod executor_params;
+pub use executor_params::{ExecutorParam, ExecutorParams, ExecutorParamsHash};
+
 #[cfg(test)]
 mod tests {
 	use super::*;
