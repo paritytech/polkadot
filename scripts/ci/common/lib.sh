@@ -165,8 +165,6 @@ check_bootnode(){
     # Wait a few seconds for the node to start up
     sleep 5
     POLKADOT_PID=$!
-    # Delete the temporary chainspec file now we're done spawning the node
-    rm "$TMP_CHAINSPEC_FILE"
 
     MAX_POLLS=10
     TIME_BETWEEN_POLLS=3
@@ -182,11 +180,15 @@ check_bootnode(){
         echo "[+] $PEERS peers found for $BOOTNODE"
         echo "    Bootnode appears contactable"
         kill $POLKADOT_PID
+        # Delete the temporary chainspec file now we're done running the node
+        rm "$TMP_CHAINSPEC_FILE"
         return 0
       fi
       sleep "$TIME_BETWEEN_POLLS"
     done
     kill $POLKADOT_PID
+    # Delete the temporary chainspec file now we're done running the node
+    rm "$TMP_CHAINSPEC_FILE"
     echo "[!] No peers found for $BOOTNODE"
     echo "    Bootnode appears unreachable"
     return 1
