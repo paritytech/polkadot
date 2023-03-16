@@ -624,13 +624,11 @@ impl<T: Config> Pallet<T> {
 			// we don't care about fresh or not disputes
 			// this writes them to storage, so let's query it via those means
 			// if this fails for whatever reason, that's ok
-			let _ = T::DisputesHandler::process_checked_multi_dispute_data(
-				&checked_disputes_sets,
-			)
-			.map_err(|e| {
-				log::warn!(target: LOG_TARGET, "MultiDisputesData failed to update: {:?}", e);
-				e
-			});
+			let _ = T::DisputesHandler::process_checked_multi_dispute_data(&checked_disputes_sets)
+				.map_err(|e| {
+					log::warn!(target: LOG_TARGET, "MultiDisputesData failed to update: {:?}", e);
+					e
+				});
 
 			// Contains the disputes that are concluded in the current session only,
 			// since these are the only ones that are relevant for the occupied cores
