@@ -557,17 +557,14 @@ mod tests {
 	use sp_application_crypto::sr25519;
 	use sp_core::crypto::Pair as PairT;
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
-	use sp_keystore::CryptoStore;
+	use sp_keystore::Keystore;
 
 	// sets up a keystore with the given keyring accounts.
 	async fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
 		let store = LocalKeystore::in_memory();
 
 		for s in accounts.iter().copied().map(|k| k.to_seed()) {
-			store
-				.sr25519_generate_new(ASSIGNMENT_KEY_TYPE_ID, Some(s.as_str()))
-				.await
-				.unwrap();
+			store.sr25519_generate_new(ASSIGNMENT_KEY_TYPE_ID, Some(s.as_str())).unwrap();
 		}
 
 		store
