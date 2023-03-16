@@ -30,7 +30,7 @@ use polkadot_node_network_protocol::{authority_discovery::AuthorityDiscovery, Pe
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 
 use polkadot_node_primitives::{DisputeMessage, SignedDisputeStatement};
 use polkadot_primitives::{
@@ -131,8 +131,8 @@ pub async fn make_explicit_signed(
 	candidate_hash: CandidateHash,
 	valid: bool,
 ) -> SignedDisputeStatement {
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-	SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, Some(&validator.to_seed()))
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+	Keystore::sr25519_generate_new(&*keystore, ValidatorId::ID, Some(&validator.to_seed()))
 		.expect("Insert key into keystore");
 
 	SignedDisputeStatement::sign_explicit(

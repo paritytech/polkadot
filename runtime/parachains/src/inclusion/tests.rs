@@ -37,7 +37,7 @@ use primitives::{
 	PARACHAIN_KEY_TYPE_ID,
 };
 use sc_keystore::LocalKeystore;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 use std::sync::Arc;
 use test_helpers::{
 	dummy_candidate_receipt, dummy_collator, dummy_collator_signature, dummy_hash,
@@ -107,7 +107,7 @@ pub(crate) async fn back_candidate(
 	candidate: CommittedCandidateReceipt,
 	validators: &[Sr25519Keyring],
 	group: &[ValidatorIndex],
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	signing_context: &SigningContext,
 	kind: BackingKind,
 ) -> BackedCandidate {
@@ -223,7 +223,7 @@ pub(crate) fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> 
 }
 
 pub(crate) async fn sign_bitfield(
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	key: &Sr25519Keyring,
 	validator_index: ValidatorIndex,
 	bitfield: AvailabilityBitfield,
@@ -384,9 +384,9 @@ fn bitfield_checks() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
@@ -731,9 +731,9 @@ fn supermajority_bitfields_trigger_availability() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
@@ -923,9 +923,9 @@ fn candidate_checks() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
@@ -1470,9 +1470,9 @@ fn backing_works() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
@@ -1750,9 +1750,9 @@ fn can_include_candidate_with_ok_code_upgrade() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
@@ -1859,9 +1859,9 @@ fn session_change_wipes() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),

@@ -1159,8 +1159,7 @@ impl Initialized {
 					.get(*index)
 					.expect("`controlled_indices` are derived from `validators`; qed")
 					.clone(),
-			)
-			.await;
+			);
 
 			match res {
 				Ok(Some(signed_dispute_statement)) => {
