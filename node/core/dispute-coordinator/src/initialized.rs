@@ -1034,6 +1034,15 @@ impl Initialized {
 		// will need to mark the candidate's relay parent as reverted.
 		if import_result.is_freshly_concluded_against() {
 			let blocks_including = self.scraper.get_blocks_including_candidate(&candidate_hash);
+			for (parent_block_number, parent_block_hash) in &blocks_including {
+				gum::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?parent_block_number,
+					?parent_block_hash,
+					"Dispute has just concluded against the candidate hash noted. Its parent will be marked as reverted."
+				);
+			}
 			if blocks_including.len() > 0 {
 				ctx.send_message(ChainSelectionMessage::RevertBlocks(blocks_including)).await;
 			} else {
