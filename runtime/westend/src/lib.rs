@@ -1834,32 +1834,11 @@ sp_api::impl_runtime_apis! {
 			type XcmBalances = pallet_xcm_benchmarks::fungible::Pallet::<Runtime>;
 			type XcmGeneric = pallet_xcm_benchmarks::generic::Pallet::<Runtime>;
 
-			let whitelist: Vec<TrackedStorageKey> = vec![
-				// Block Number
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef702a5c1b19ab7a04f536c519aca4983ac").to_vec().into(),
-				// Total Issuance
-				hex_literal::hex!("c2261276cc9d1f8598ea4b6a74b15c2f57c875e4cff74148e4628f264b974c80").to_vec().into(),
-				// Execution Phase
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7ff553b5a9862a516939d82b3d3d8661a").to_vec().into(),
-				// Event Count
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef70a98fdbe9ce6c55837576c60c7af3850").to_vec().into(),
-				// System Events
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef780d41e5e16056765bc8461851072c9d7").to_vec().into(),
-				// Treasury Account
-				hex_literal::hex!("26aa394eea5630e07c48ae0c9558cef7b99d880ec681799c0cf30e8886371da95ecffd7b6c0f78751baa9d281e0bfa3a6d6f646c70792f74727372790000000000000000000000000000000000000000").to_vec().into(),
-				// Dmp DownwardMessageQueueHeads
-				hex_literal::hex!("63f78c98723ddc9073523ef3beefda0c4d7fefc408aac59dbfe80a72ac8e3ce5").to_vec().into(),
-				// Dmp DownwardMessageQueues
-				hex_literal::hex!("63f78c98723ddc9073523ef3beefda0ca95dac46c07a40d91506e7637ec4ba57").to_vec().into(),
-				// Configuration ActiveConfig
-				hex_literal::hex!("06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385").to_vec().into(),
-				// The transactional storage limit.
-				hex_literal::hex!("3a7472616e73616374696f6e5f6c6576656c3a").to_vec().into(),
-				// XcmPallet VersionDiscoveryQueue
-				hex_literal::hex!("1405f2411d0af5a7ff397e7c9dc68d194a222ba0333561192e474c59ed8e30e1").to_vec().into(),
-				// XcmPallet SafeXcmVersion
-				hex_literal::hex!("1405f2411d0af5a7ff397e7c9dc68d196323ae84c43568be0d1394d5d0d522c4").to_vec().into(),
-			];
+			let mut whitelist: Vec<TrackedStorageKey> = AllPalletsWithSystem::whitelisted_storage_keys();
+			let treasury_key = frame_system::Account::<Runtime>::hashed_key_for(Treasury::account_id());
+			whitelist.push(treasury_key.to_vec().into());
+			// Transactional storage limit. Comes from frame_support
+			whitelist.push(hex_literal::hex!("3a7472616e73616374696f6e5f6c6576656c3a").to_vec().into());
 
 			let mut batches = Vec::<BenchmarkBatch>::new();
 			let params = (&config, &whitelist);
