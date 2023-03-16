@@ -560,7 +560,7 @@ mod tests {
 	use sp_keystore::Keystore;
 
 	// sets up a keystore with the given keyring accounts.
-	async fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
+	fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
 		let store = LocalKeystore::in_memory();
 
 		for s in accounts.iter().copied().map(|k| k.to_seed()) {
@@ -617,7 +617,7 @@ mod tests {
 
 	#[test]
 	fn assignments_produced_for_non_backing() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let c_a = CandidateHash(Hash::repeat_byte(0));
 		let c_b = CandidateHash(Hash::repeat_byte(1));
@@ -652,7 +652,7 @@ mod tests {
 
 	#[test]
 	fn assign_to_nonzero_core() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let c_a = CandidateHash(Hash::repeat_byte(0));
 		let c_b = CandidateHash(Hash::repeat_byte(1));
@@ -685,7 +685,7 @@ mod tests {
 
 	#[test]
 	fn succeeds_empty_for_0_cores() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let relay_vrf_story = RelayVRFStory([42u8; 32]);
 		let assignments = compute_assignments(
@@ -725,7 +725,7 @@ mod tests {
 		rotation_offset: usize,
 		f: impl Fn(&mut MutatedAssignment) -> Option<bool>, // None = skip
 	) {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let group_for_core = |i| GroupIndex(((i + rotation_offset) % n_cores) as _);
 
