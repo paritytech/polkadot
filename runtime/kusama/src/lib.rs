@@ -23,11 +23,11 @@
 use pallet_nis::WithMaximumOf;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
-	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	LOWEST_PUBLIC_ID,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
+	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, LOWEST_PUBLIC_ID,
 };
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
@@ -42,7 +42,7 @@ use runtime_parachains::{
 	inclusion::AggregateMessageOrigin, initializer as parachains_initializer,
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared,
 };
 
@@ -128,13 +128,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("kusama"),
 	impl_name: create_runtime_str!("parity-kusama"),
 	authoring_version: 2,
-	spec_version: 9370,
+	spec_version: 9390,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 19,
+	transaction_version: 20,
 	state_version: 0,
 };
 
@@ -436,6 +436,7 @@ impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
 		as
 		frame_election_provider_support::ElectionDataProvider
 	>::MaxVotesPerVoter;
+	type MaxWinners = MaxActiveValidators;
 
 	// The unsigned submissions have to respect the weight of the submit_unsigned call, thus their
 	// weight estimate function is wired to this call's weight.
@@ -1495,10 +1496,10 @@ pub type SignedExtra = (
 	pallet_transaction_payment::ChargeTransactionPayment<Runtime>,
 );
 
-pub struct StakingMigrationV11OldPallet;
-impl Get<&'static str> for StakingMigrationV11OldPallet {
-	fn get() -> &'static str {
-		"VoterList"
+pub struct NominationPoolsMigrationV4OldPallet;
+impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
+	fn get() -> Perbill {
+		Perbill::from_percent(10)
 	}
 }
 
@@ -1508,6 +1509,10 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 pub type Migrations = (
 	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
 	parachains_configuration::migration::MigrateV4ToV5<Runtime>,
+	pallet_nomination_pools::migration::v4::MigrateToV4<
+		Runtime,
+		NominationPoolsMigrationV4OldPallet,
+	>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
@@ -1609,6 +1614,14 @@ sp_api::impl_runtime_apis! {
 	impl sp_api::Metadata<Block> for Runtime {
 		fn metadata() -> OpaqueMetadata {
 			OpaqueMetadata::new(Runtime::metadata().into())
+		}
+
+		fn metadata_at_version(version: u32) -> Option<OpaqueMetadata> {
+			Runtime::metadata_at_version(version)
+		}
+
+		fn metadata_versions() -> sp_std::vec::Vec<u32> {
+			Runtime::metadata_versions()
 		}
 	}
 
@@ -1712,6 +1725,10 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::session_info::<Runtime>(index)
 		}
 
+		fn session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams> {
+			parachains_runtime_api_impl::session_executor_params::<Runtime>(session_index)
+		}
+
 		fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			parachains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
 		}
@@ -1745,6 +1762,10 @@ sp_api::impl_runtime_apis! {
 			-> Option<ValidationCodeHash>
 		{
 			parachains_runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
+		}
+
+		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
+			parachains_runtime_api_impl::get_session_disputes::<Runtime>()
 		}
 	}
 
@@ -2296,7 +2317,7 @@ mod multiplier_tests {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
-	use frame_try_runtime::{runtime_decl_for_TryRuntime::TryRuntime, UpgradeCheckSelect};
+	use frame_try_runtime::{runtime_decl_for_try_runtime::TryRuntime, UpgradeCheckSelect};
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
 	};

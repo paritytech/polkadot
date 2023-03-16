@@ -128,7 +128,7 @@ fn default_genesis_config() -> MockGenesisConfig {
 }
 
 fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
-	<Hrmp as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }).is_some()
+	HrmpChannels::<Test>::get(&HrmpChannelId { sender, recipient }).is_some()
 }
 
 #[test]

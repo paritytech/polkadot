@@ -46,7 +46,7 @@ The logic described above is implemented by the [paras] module.
 
 On the node-side, there is a PVF pre-checking [subsystem][pvf-prechecker-subsystem] that scans the chain for new PVFs via using [runtime APIs][pvf-runtime-api]. Upon finding a new PVF, the subsystem will initiate a PVF pre-checking request and wait for the result. Whenever the result is obtained, the subsystem will use the [runtime API][pvf-runtime-api] to submit a vote for the PVF. The vote is an unsigned transaction. The vote will be distributed via the gossip similarly to a normal transaction. Eventually a block producer will include the vote into the block where it will be handled by the [runtime][paras].
 
-## Pre-checking Summary
+## Summary
 
 Parachains' and parathreads' validation function is described by a wasm module that we refer to as a PVF.
 
@@ -54,7 +54,7 @@ In order to make the PVF usable for candidate validation it has to be registered
 
 As part of the registration process, it has to go through pre-checking. Pre-checking is a game of attempting preparation and reporting the results back on-chain.
 
-We define preparation as a process that: validates the consistency of the wasm binary (aka prevalidation) and the compilation of the wasm module into machine code (refered to as artifact).
+We define preparation as a process that: validates the consistency of the wasm binary (aka prevalidation) and the compilation of the wasm module into machine code (referred to as an artifact).
 
 Besides pre-checking, preparation can also be triggered by execution, since a compiled artifact is needed for the execution. If an artifact already exists, execution will skip preparation. If it does do preparation, execution uses a more lenient timeout than preparation, to avoid the situation where honest validators fail on valid, pre-checked PVFs.
 
