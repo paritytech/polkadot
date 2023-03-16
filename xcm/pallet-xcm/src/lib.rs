@@ -1764,6 +1764,46 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 	}
 }
 
+impl<T: Config> xcm_executor::traits::AssetLockInspect for Pallet<T> {
+	fn balance_locked(
+		id: AssetId,
+		owner: &MultiLocation,
+	) -> Result<MultiAsset, xcm_executor::traits::LockError> {
+		use xcm_executor::traits::LockError::*;
+		let sovereign_account = T::SovereignAccountOf::convert_ref(owner).map_err(|_| BadOwner)?;
+		let versioned_id: VersionedAssetId = id.into();
+		let key = (XCM_VERSION, sovereign_account, versioned_id);
+		if let Some(record) = RemoteLockedFungibles::<T>::get(&key) {
+			return Ok((id, record.amount).into())
+		}
+		Ok((id, 0u128).into())
+	}
+}
+
+impl<T: Config> xcm_executor::traits::LockUsersMutate for Pallet<T> {
+	fn inc_users(id: AssetId, owner: &MultiLocation) {
+		let sovereign_account = T::SovereignAccountOf::convert_ref(owner).unwrap(); // TODO fail
+		let versioned_id: VersionedAssetId = id.into();
+		let key = (XCM_VERSION, sovereign_account, versioned_id);
+		RemoteLockedFungibles::<T>::mutate(&key, |maybe_record| {
+			if let Some(ref mut record) = maybe_record {
+				record.users += 1
+			}
+		});
+	}
+
+	fn dec_users(id: AssetId, owner: &MultiLocation) {
+		let sovereign_account = T::SovereignAccountOf::convert_ref(owner).unwrap(); // TODO fail
+		let versioned_id: VersionedAssetId = id.into();
+		let key = (XCM_VERSION, sovereign_account, versioned_id);
+		RemoteLockedFungibles::<T>::mutate(&key, |maybe_record| {
+			if let Some(ref mut record) = maybe_record {
+				record.users -= 1
+			}
+		});
+	}
+}
+
 impl<T: Config> WrapVersion for Pallet<T> {
 	fn wrap_version<RuntimeCall>(
 		dest: &MultiLocation,

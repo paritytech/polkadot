@@ -150,3 +150,40 @@ impl AssetLock for () {
 		Err(LockError::NotApplicable)
 	}
 }
+
+pub trait Inspect {
+	fn balance_locked(id: AssetId, owner: &MultiLocation) -> Result<MultiAsset, LockError>;
+
+	// todo fn can_lock if max users
+}
+
+impl Inspect for () {
+	fn balance_locked(id: AssetId, owner: &MultiLocation) -> Result<MultiAsset, LockError> {
+		unimplemented!()
+	}
+}
+
+pub trait UsersInspect {
+	fn users(id: AssetId, owner: &MultiLocation) -> u32;
+}
+
+impl UsersInspect for () {
+	fn users(id: AssetId, owner: &MultiLocation) -> u32 {
+		unimplemented!()
+	}
+}
+
+pub trait UsersMutate {
+	fn inc_users(id: AssetId, owner: &MultiLocation);
+	fn dec_users(id: AssetId, owner: &MultiLocation);
+}
+
+impl UsersMutate for () {
+	fn dec_users(id: AssetId, owner: &MultiLocation) {
+		unimplemented!()
+	}
+
+	fn inc_users(id: AssetId, owner: &MultiLocation) {
+		unimplemented!()
+	}
+}
