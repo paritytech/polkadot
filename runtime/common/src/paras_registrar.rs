@@ -21,7 +21,7 @@ use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
 	pallet_prelude::Weight,
-	traits::{ConstU32, Currency, Get, ReservableCurrency},
+	traits::{Currency, Get, ReservableCurrency},
 };
 use frame_system::{self, ensure_root, ensure_signed};
 use primitives::{HeadData, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID};
@@ -658,7 +658,7 @@ mod tests {
 		assert_noop, assert_ok,
 		error::BadOrigin,
 		parameter_types,
-		traits::{GenesisBuild, OnFinalize, OnInitialize},
+		traits::{ConstU32, GenesisBuild, OnFinalize, OnInitialize},
 	};
 	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;

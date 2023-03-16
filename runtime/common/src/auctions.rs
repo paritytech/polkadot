@@ -25,7 +25,7 @@ use crate::{
 use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
-	traits::{ConstU32, Currency, Get, Randomness, ReservableCurrency},
+	traits::{Currency, Get, Randomness, ReservableCurrency},
 	weights::Weight,
 };
 pub use pallet::*;
@@ -679,7 +679,7 @@ mod tests {
 		assert_noop, assert_ok, assert_storage_noop,
 		dispatch::DispatchError::BadOrigin,
 		ord_parameter_types, parameter_types,
-		traits::{EitherOfDiverse, OnFinalize, OnInitialize},
+		traits::{ConstU32, EitherOfDiverse, OnFinalize, OnInitialize},
 	};
 	use frame_system::{EnsureRoot, EnsureSignedBy};
 	use pallet_balances;

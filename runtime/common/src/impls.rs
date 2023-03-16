@@ -17,7 +17,7 @@
 //! Auxiliary `struct`/`enum`s for polkadot runtime.
 
 use crate::NegativeImbalance;
-use frame_support::traits::{ConstU32, Currency, Imbalance, OnUnbalanced};
+use frame_support::traits::{Currency, Imbalance, OnUnbalanced};
 use primitives::Balance;
 use sp_runtime::Perquintill;
 
@@ -102,7 +102,11 @@ pub fn era_payout(
 mod tests {
 	use super::*;
 	use frame_support::{
-		dispatch::DispatchClass, parameter_types, traits::FindAuthor, weights::Weight, PalletId,
+		dispatch::DispatchClass,
+		parameter_types,
+		traits::{ConstU32, FindAuthor},
+		weights::Weight,
+		PalletId,
 	};
 	use frame_system::limits;
 	use primitives::AccountId;

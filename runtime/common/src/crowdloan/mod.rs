@@ -60,7 +60,7 @@ use frame_support::{
 	pallet_prelude::{DispatchResult, Weight},
 	storage::{child, ChildTriePrefixIterator},
 	traits::{
-		ConstU32, Currency,
+		Currency,
 		ExistenceRequirement::{self, AllowDeath, KeepAlive},
 		Get, ReservableCurrency,
 	},
@@ -861,7 +861,7 @@ mod tests {
 
 	use frame_support::{
 		assert_noop, assert_ok, parameter_types,
-		traits::{OnFinalize, OnInitialize},
+		traits::{ConstU32, OnFinalize, OnInitialize},
 	};
 	use primitives::Id as ParaId;
 	use sp_core::H256;
