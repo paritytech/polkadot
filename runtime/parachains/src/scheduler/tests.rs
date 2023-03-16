@@ -85,22 +85,22 @@ fn run_to_block(
 	}
 }
 
-//fn run_to_end_of_block(
-//	to: BlockNumber,
-//	new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,
-//) {
-//	run_to_block(to, &new_session);
-//
-//	Scheduler::initializer_finalize();
-//	Paras::initializer_finalize(to);
-//
-//	if let Some(notification) = new_session(to + 1) {
-//		Paras::initializer_on_new_session(&notification);
-//		Scheduler::initializer_on_new_session(&notification);
-//	}
-//
-//	System::on_finalize(to);
-//}
+fn run_to_end_of_block(
+	to: BlockNumber,
+	new_session: impl Fn(BlockNumber) -> Option<SessionChangeNotification<BlockNumber>>,
+) {
+	run_to_block(to, &new_session);
+
+	Scheduler::initializer_finalize();
+	Paras::initializer_finalize(to);
+
+	if let Some(notification) = new_session(to + 1) {
+		Paras::initializer_on_new_session(&notification);
+		Scheduler::initializer_on_new_session(&notification);
+	}
+
+	System::on_finalize(to);
+}
 
 fn default_config() -> HostConfiguration<BlockNumber> {
 	HostConfiguration {
@@ -1347,84 +1347,86 @@ fn next_up_on_time_out_is_parachain_always() {
 	});
 }
 
-//#[test]
-//fn session_change_requires_reschedule_dropping_removed_paras() {
-//	let mut config = default_config();
-//	config.scheduling_lookahead = 1;
-//	let genesis_config = MockGenesisConfig {
-//		configuration: crate::configuration::GenesisConfig { config, ..Default::default() },
-//		..Default::default()
-//	};
-//
-//	assert_eq!(default_config().parathread_cores, 3);
-//	new_test_ext(genesis_config).execute_with(|| {
-//		let chain_a = ParaId::from(1_u32);
-//		let chain_b = ParaId::from(2_u32);
-//
-//		// ensure that we have 5 groups by registering 2 parachains.
-//		schedule_blank_para(chain_a, ParaKind::Parachain);
-//		schedule_blank_para(chain_b, ParaKind::Parachain);
-//
-//		run_to_block(1, |number| match number {
-//			1 => Some(SessionChangeNotification {
-//				new_config: default_config(),
-//				validators: vec![
-//					ValidatorId::from(Sr25519Keyring::Alice.public()),
-//					ValidatorId::from(Sr25519Keyring::Bob.public()),
-//					ValidatorId::from(Sr25519Keyring::Charlie.public()),
-//					ValidatorId::from(Sr25519Keyring::Dave.public()),
-//					ValidatorId::from(Sr25519Keyring::Eve.public()),
-//					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
-//					ValidatorId::from(Sr25519Keyring::One.public()),
-//				],
-//				random_seed: [99; 32],
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//
-//		assert_eq!(Scheduler::claimqueue().len(), 2);
-//
-//		let groups = ValidatorGroups::<Test>::get();
-//		assert_eq!(groups.len(), 5);
-//
-//		assert_ok!(Paras::schedule_para_cleanup(chain_b));
-//		run_to_end_of_block(2, |number| match number {
-//			2 => Some(SessionChangeNotification {
-//				new_config: default_config(),
-//				validators: vec![
-//					ValidatorId::from(Sr25519Keyring::Alice.public()),
-//					ValidatorId::from(Sr25519Keyring::Bob.public()),
-//					ValidatorId::from(Sr25519Keyring::Charlie.public()),
-//					ValidatorId::from(Sr25519Keyring::Dave.public()),
-//					ValidatorId::from(Sr25519Keyring::Eve.public()),
-//					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
-//					ValidatorId::from(Sr25519Keyring::One.public()),
-//				],
-//				random_seed: [99; 32],
-//				..Default::default()
-//			}),
-//			_ => None,
-//		});
-//
-//		Scheduler::clear_and_fill_claimqueue(BTreeMap::new(), 3);
-//
-//		assert_eq!(
-//			Scheduler::claimqueue(),
-//			vec![(
-//				CoreIndex(0),
-//				vec![Some(CoreAssignment {
-//					core: CoreIndex(0),
-//					para_id: chain_a,
-//					kind: AssignmentKind::Parachain,
-//					group_idx: GroupIndex(0),
-//				})]
-//			)]
-//			.into_iter()
-//			.collect()
-//		);
-//	});
-//}
+#[test]
+fn session_change_requires_reschedule_dropping_removed_paras() {
+	let mut config = default_config();
+	config.scheduling_lookahead = 1;
+	let genesis_config = MockGenesisConfig {
+		configuration: crate::configuration::GenesisConfig { config, ..Default::default() },
+		..Default::default()
+	};
+
+	assert_eq!(default_config().parathread_cores, 3);
+	new_test_ext(genesis_config).execute_with(|| {
+		let chain_a = ParaId::from(1_u32);
+		let chain_b = ParaId::from(2_u32);
+
+		// ensure that we have 5 groups by registering 2 parachains.
+		schedule_blank_para(chain_a, ParaKind::Parachain);
+		schedule_blank_para(chain_b, ParaKind::Parachain);
+
+		run_to_block(1, |number| match number {
+			1 => Some(SessionChangeNotification {
+				new_config: default_config(),
+				validators: vec![
+					ValidatorId::from(Sr25519Keyring::Alice.public()),
+					ValidatorId::from(Sr25519Keyring::Bob.public()),
+					ValidatorId::from(Sr25519Keyring::Charlie.public()),
+					ValidatorId::from(Sr25519Keyring::Dave.public()),
+					ValidatorId::from(Sr25519Keyring::Eve.public()),
+					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
+					ValidatorId::from(Sr25519Keyring::One.public()),
+				],
+				random_seed: [99; 32],
+				..Default::default()
+			}),
+			_ => None,
+		});
+
+		// TODO: remove + ... once parathreads assigner is in use
+		assert_eq!(Scheduler::claimqueue().len() as u32 + default_config().parathread_cores, 5);
+
+		let groups = ValidatorGroups::<Test>::get();
+		// TODO: remove + ... once parathreads assigner is in use
+		assert_eq!(groups.len() as u32 + default_config().parathread_cores, 5);
+
+		assert_ok!(Paras::schedule_para_cleanup(chain_b));
+		run_to_end_of_block(2, |number| match number {
+			2 => Some(SessionChangeNotification {
+				new_config: default_config(),
+				validators: vec![
+					ValidatorId::from(Sr25519Keyring::Alice.public()),
+					ValidatorId::from(Sr25519Keyring::Bob.public()),
+					ValidatorId::from(Sr25519Keyring::Charlie.public()),
+					ValidatorId::from(Sr25519Keyring::Dave.public()),
+					ValidatorId::from(Sr25519Keyring::Eve.public()),
+					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
+					ValidatorId::from(Sr25519Keyring::One.public()),
+				],
+				random_seed: [99; 32],
+				..Default::default()
+			}),
+			_ => None,
+		});
+
+		Scheduler::clear_and_fill_claimqueue(BTreeMap::new(), 3);
+
+		assert_eq!(
+			Scheduler::claimqueue(),
+			vec![(
+				CoreIndex(0),
+				vec![Some(CoreAssignment {
+					core: CoreIndex(0),
+					para_id: chain_a,
+					kind: AssignmentKind::Parachain,
+					group_idx: GroupIndex(0),
+				})]
+			)]
+			.into_iter()
+			.collect()
+		);
+	});
+}
 
 //#[test]
 //fn parathread_claims_are_pruned_after_deregistration() {

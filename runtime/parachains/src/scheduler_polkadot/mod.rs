@@ -92,7 +92,7 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 			<crate::scheduler_parachains::Pallet<T>>::push_assignment_for_core(core_idx, assignment)
 		} else {
 			let _core_idx = CoreIndex(core_idx.0 - parachains_cores);
-			todo!()
+			//todo!()
 			//<crate::scheduler_parathreads::Pallet<T>>::push_assignment_for_core(
 			//	core_idx, assignment,
 			//)

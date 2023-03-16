@@ -109,6 +109,14 @@ impl Assignment {
 	pub fn to_core_assignment(&self, core_idx: CoreIndex, group_idx: GroupIndex) -> CoreAssignment {
 		CoreAssignment { core: core_idx, group_idx, kind: self.kind(), para_id: self.para_id() }
 	}
+
+	pub fn from_core_assignment(ca: CoreAssignment) -> Assignment {
+		match ca.kind {
+			AssignmentKind::Parachain => Assignment::Parachain(ca.para_id),
+			AssignmentKind::Parathread(collator_id, _retries) =>
+				Assignment::ParathreadA(ParathreadClaim(ca.para_id, collator_id)),
+		}
+	}
 }
 
 pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {

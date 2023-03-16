@@ -275,6 +275,7 @@ pub mod pallet {
 		freed
 	}
 
+	// enter is block import
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
@@ -466,9 +467,7 @@ impl<T: Config> Pallet<T> {
 				// unstable sort is fine, because core indices are unique
 				// i.e. the same candidate can't occupy 2 cores at once.
 				freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
-				<scheduler::Pallet<T>>::update_claimqueue_free_cores(
-					freed_disputed.into_iter().collect(),
-				);
+				<scheduler::Pallet<T>>::free_cores(freed_disputed.into_iter().collect());
 			}
 
 			disputed_bitfield
@@ -546,6 +545,7 @@ impl<T: Config> Pallet<T> {
 	}
 }
 
+// This is block creation?
 impl<T: Config> Pallet<T> {
 	/// Create the `ParachainsInherentData` that gets passed to [`Self::enter`] in [`Self::create_inherent`].
 	/// This code is pulled out of [`Self::create_inherent`] so it can be unit tested.
@@ -678,9 +678,7 @@ impl<T: Config> Pallet<T> {
 				// unstable sort is fine, because core indices are unique
 				// i.e. the same candidate can't occupy 2 cores at once.
 				freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
-				<scheduler::Pallet<T>>::update_claimqueue_free_cores(
-					freed_disputed.clone().into_iter().collect(),
-				);
+				<scheduler::Pallet<T>>::free_cores(freed_disputed.clone().into_iter().collect());
 			}
 
 			// The following 3 calls are equiv to a call to `process_bitfields`

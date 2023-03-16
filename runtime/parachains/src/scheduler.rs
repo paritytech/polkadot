@@ -135,9 +135,10 @@ impl<T: Config> Pallet<T> {
 		);
 
 		Self::reschedule_occupied_cores(AvailabilityCores::<T>::get());
+		Self::clear_claimqueue_to_assigners();
 
+		// clear all cores
 		AvailabilityCores::<T>::mutate(|cores| {
-			// clear all occupied cores.
 			for core in cores.iter_mut() {
 				*core = CoreOccupied::Free;
 			}
@@ -185,7 +186,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
 	/// for them being freed. The list is assumed to be sorted in ascending order by core index.
-	pub(crate) fn update_claimqueue_free_cores(just_freed_cores: BTreeMap<CoreIndex, FreedReason>) {
+	pub(crate) fn free_cores(just_freed_cores: BTreeMap<CoreIndex, FreedReason>) {
 		AvailabilityCores::<T>::mutate(|cores| {
 			let c_len = cores.len();
 
@@ -395,16 +396,29 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	fn clear_claimqueue_to_assigners() {
+		log::debug!(target: "runtime::scheduler", "clear_claimqueue_to_assigners()");
+		for (core_idx, cqv) in ClaimQueue::<T>::take() {
+			for ca in cqv.into_iter().flatten() {
+				T::AssignmentProvider::push_assignment_for_core(
+					core_idx,
+					Assignment::from_core_assignment(ca),
+				);
+			}
+		}
+	}
+
 	pub(crate) fn clear_and_fill_claimqueue(
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
 		now: T::BlockNumber,
 	) {
-		Self::clear_claimqueue();
+		Self::clear_claimqueue(now);
 		Self::fill_claimqueue(just_freed_cores, now);
 	}
 
 	// Clear lookahead
-	fn clear_claimqueue() {
+	fn clear_claimqueue(now: T::BlockNumber) {
+		log::debug!(target: "runtime::scheduler", "clear_claimqueue() running with block {:?}", now);
 		let mut cq = ClaimQueue::<T>::get();
 		for (_, vec) in cq.iter_mut() {
 			vec.retain(|e| e.is_some());
@@ -414,7 +428,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	fn fill_claimqueue(just_freed_cores: BTreeMap<CoreIndex, FreedReason>, now: T::BlockNumber) {
-		Self::update_claimqueue_free_cores(just_freed_cores);
+		Self::free_cores(just_freed_cores);
 
 		if ValidatorGroups::<T>::get().is_empty() {
 			return
@@ -422,6 +436,8 @@ impl<T: Config> Pallet<T> {
 
 		let n_lookahead = Self::claimqueue_lookahead();
 		let n_session_cores = T::AssignmentProvider::session_core_count();
+
+		log::debug!(target: "runtime::scheduler", "n_lookahead {:?}", n_lookahead);
 
 		for core_idx in 0..n_session_cores {
 			let core_idx = CoreIndex(core_idx);
@@ -432,6 +448,7 @@ impl<T: Config> Pallet<T> {
 
 			let n_lookahead_used =
 				ClaimQueue::<T>::get().get(&core_idx).map_or(0, |v| v.len() as u32);
+			log::debug!(target: "runtime::scheduler", "n_lookahead_used {:?}", n_lookahead_used);
 			for _ in n_lookahead_used..n_lookahead {
 				match Self::add_to_claimqueue(core_idx, group_idx) {
 					Err(_) => break, // todo: logging
@@ -483,15 +500,15 @@ impl<T: Config> Pallet<T> {
 		claimqueue.into_iter().flat_map(|(_, v)| v.first().cloned()).flatten().collect()
 	}
 
-	//#[cfg(test)]
-	//fn claimqueue_sizes() -> Vec<usize> {
-	//	ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
-	//}
+	#[cfg(test)]
+	fn claimqueue_sizes() -> Vec<usize> {
+		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
+	}
 
-	//#[cfg(test)]
-	//pub(crate) fn claimqueue_is_empty() -> bool {
-	//	Self::claimqueue_sizes().iter().sum::<usize>() == 0
-	//}
+	#[cfg(test)]
+	pub(crate) fn claimqueue_is_empty() -> bool {
+		Self::claimqueue_sizes().iter().sum::<usize>() == 0
+	}
 
 	#[cfg(test)]
 	pub(crate) fn claimqueue_contains_only_none() -> bool {
