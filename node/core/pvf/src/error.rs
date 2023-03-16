@@ -120,12 +120,6 @@ impl From<PrepareError> for ValidationError {
 	fn from(error: PrepareError) -> Self {
 		// Here we need to classify the errors into two errors: deterministic and non-deterministic.
 		// See [`PrepareError::is_deterministic`].
-		//
-		// We treat the deterministic errors as `InvalidCandidate`. Should those occur they could
-		// potentially trigger disputes.
-		//
-		// All non-deterministic errors are qualified as `InternalError`s and will not trigger
-		// disputes.
 		if error.is_deterministic() {
 			ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
 		} else {

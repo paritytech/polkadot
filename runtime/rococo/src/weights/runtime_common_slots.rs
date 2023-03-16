@@ -54,8 +54,8 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 		//  Measured:  `319`
 		//  Estimated: `5397`
 		// Minimum execution time: 25_539 nanoseconds.
-		Weight::from_ref_time(25_986_000)
-			.saturating_add(Weight::from_proof_size(5397))
+		Weight::from_parts(25_986_000, 0)
+			.saturating_add(Weight::from_parts(0, 5397))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
 	}
@@ -78,20 +78,20 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 		//  Measured:  `21 + c * (47 ±0) + t * (370 ±0)`
 		//  Estimated: `268854 + t * (7963 ±1) + c * (1076 ±28)`
 		// Minimum execution time: 644_685 nanoseconds.
-		Weight::from_ref_time(652_447_000)
-			.saturating_add(Weight::from_proof_size(268854))
+		Weight::from_parts(652_447_000, 0)
+			.saturating_add(Weight::from_parts(0, 268854))
 			// Standard Error: 83_715
-			.saturating_add(Weight::from_ref_time(2_714_585).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(2_714_585, 0).saturating_mul(c.into()))
 			// Standard Error: 83_715
-			.saturating_add(Weight::from_ref_time(14_134_445).saturating_mul(t.into()))
+			.saturating_add(Weight::from_parts(14_134_445, 0).saturating_mul(t.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(c.into())))
 			.saturating_add(T::DbWeight::get().reads((3_u64).saturating_mul(t.into())))
 			.saturating_add(T::DbWeight::get().writes(1))
 			.saturating_add(T::DbWeight::get().writes((1_u64).saturating_mul(c.into())))
 			.saturating_add(T::DbWeight::get().writes((3_u64).saturating_mul(t.into())))
-			.saturating_add(Weight::from_proof_size(7963).saturating_mul(t.into()))
-			.saturating_add(Weight::from_proof_size(1076).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(0, 7963).saturating_mul(t.into()))
+			.saturating_add(Weight::from_parts(0, 1076).saturating_mul(c.into()))
 	}
 	/// Storage: Slots Leases (r:1 w:1)
 	/// Proof Skipped: Slots Leases (max_values: None, max_size: None, mode: Measured)
@@ -102,8 +102,8 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 		//  Measured:  `3047`
 		//  Estimated: `26346`
 		// Minimum execution time: 97_924 nanoseconds.
-		Weight::from_ref_time(99_787_000)
-			.saturating_add(Weight::from_proof_size(26346))
+		Weight::from_parts(99_787_000, 0)
+			.saturating_add(Weight::from_parts(0, 26346))
 			.saturating_add(T::DbWeight::get().reads(9))
 			.saturating_add(T::DbWeight::get().writes(9))
 	}
@@ -122,8 +122,8 @@ impl<T: frame_system::Config> runtime_common::slots::WeightInfo for WeightInfo<T
 		//  Measured:  `734`
 		//  Estimated: `14065`
 		// Minimum execution time: 27_744 nanoseconds.
-		Weight::from_ref_time(28_667_000)
-			.saturating_add(Weight::from_proof_size(14065))
+		Weight::from_parts(28_667_000, 0)
+			.saturating_add(Weight::from_parts(0, 14065))
 			.saturating_add(T::DbWeight::get().reads(5))
 			.saturating_add(T::DbWeight::get().writes(3))
 	}
