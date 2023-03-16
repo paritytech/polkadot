@@ -1117,10 +1117,10 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 	/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
 	/// value.
 	fn report_outcome(
-		mut message: Xcm<()>,
+		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
 		timeout: Self::BlockNumber,
-	) -> Result<(Xcm<()>, Self::QueryId), XcmError> {
+	) -> Result<Self::QueryId, XcmError> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
 			.invert_target(&responder)
@@ -1129,13 +1129,13 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 		let response_info = QueryResponseInfo { destination, query_id, max_weight: Weight::zero() };
 		let report_error = Xcm(vec![ReportError(response_info)]);
 		message.0.insert(0, SetAppendix(report_error));
-		Ok((message, query_id))
+		Ok(query_id)
 	}
 
 	/// Attempt to remove and return the response of query with ID `query_id`.
 	///
 	/// Returns `None` if the response is not (yet) available.
-	fn take_response(query_id: Self::QueryId) -> Option<(Response, T::BlockNumber)> {
+	fn take_response(query_id: Self::QueryId) -> Option<(Response, Self::BlockNumber)> {
 		if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
 			let response = response.try_into().ok()?;
 			Queries::<T>::remove(query_id);
