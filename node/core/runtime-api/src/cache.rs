@@ -21,10 +21,11 @@ use sp_consensus_babe::Epoch;
 
 use polkadot_primitives::{
 	vstaging, AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent,
-	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams,
+	GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 
 /// For consistency we have the same capacity for all caches. We use 128 as we'll only need that
@@ -51,7 +52,7 @@ pub(crate) struct RequestResultCache {
 	validation_code_by_hash: LruCache<ValidationCodeHash, Option<ValidationCode>>,
 	candidate_pending_availability: LruCache<(Hash, ParaId), Option<CommittedCandidateReceipt>>,
 	candidate_events: LruCache<Hash, Vec<CandidateEvent>>,
-	session_executor_params: LruCache<SessionIndex, Option<vstaging::ExecutorParams>>,
+	session_executor_params: LruCache<SessionIndex, Option<ExecutorParams>>,
 	session_info: LruCache<SessionIndex, SessionInfo>,
 	dmq_contents: LruCache<(Hash, ParaId), Vec<InboundDownwardMessage<BlockNumber>>>,
 	inbound_hrmp_channels_contents:
@@ -274,14 +275,14 @@ impl RequestResultCache {
 	pub(crate) fn session_executor_params(
 		&mut self,
 		session_index: SessionIndex,
-	) -> Option<&Option<vstaging::ExecutorParams>> {
+	) -> Option<&Option<ExecutorParams>> {
 		self.session_executor_params.get(&session_index)
 	}
 
 	pub(crate) fn cache_session_executor_params(
 		&mut self,
 		session_index: SessionIndex,
-		value: Option<vstaging::ExecutorParams>,
+		value: Option<ExecutorParams>,
 	) {
 		self.session_executor_params.put(session_index, value);
 	}
@@ -450,7 +451,7 @@ pub(crate) enum RequestResult {
 	ValidationCodeByHash(Hash, ValidationCodeHash, Option<ValidationCode>),
 	CandidatePendingAvailability(Hash, ParaId, Option<CommittedCandidateReceipt>),
 	CandidateEvents(Hash, Vec<CandidateEvent>),
-	SessionExecutorParams(Hash, SessionIndex, Option<vstaging::ExecutorParams>),
+	SessionExecutorParams(Hash, SessionIndex, Option<ExecutorParams>),
 	SessionInfo(Hash, SessionIndex, Option<SessionInfo>),
 	DmqContents(Hash, ParaId, Vec<InboundDownwardMessage<BlockNumber>>),
 	InboundHrmpChannelsContents(

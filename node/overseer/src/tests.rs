@@ -30,8 +30,8 @@ use polkadot_node_subsystem_types::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_primitives::{
-	CandidateHash, CandidateReceipt, CollatorPair, InvalidDisputeStatementKind, SessionIndex,
-	ValidDisputeStatementKind, ValidatorIndex,
+	CandidateHash, CandidateReceipt, CollatorPair, InvalidDisputeStatementKind, PvfExecTimeoutKind,
+	SessionIndex, ValidDisputeStatementKind, ValidatorIndex,
 };
 
 use crate::{
@@ -106,7 +106,7 @@ where
 						ctx.send_message(CandidateValidationMessage::ValidateFromChainState(
 							candidate_receipt,
 							PoV { block_data: BlockData(Vec::new()) }.into(),
-							Default::default(),
+							PvfExecTimeoutKind::Backing,
 							tx,
 						))
 						.await;
@@ -779,7 +779,7 @@ fn test_candidate_validation_msg() -> CandidateValidationMessage {
 	CandidateValidationMessage::ValidateFromChainState(
 		candidate_receipt,
 		pov,
-		Duration::default(),
+		PvfExecTimeoutKind::Backing,
 		sender,
 	)
 }
@@ -1034,6 +1034,7 @@ fn overseer_all_subsystems_receive_signals_and_messages() {
 
 #[test]
 fn context_holds_onto_message_until_enough_signals_received() {
+	const CHANNEL_CAPACITY: usize = 1024;
 	let (candidate_validation_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (candidate_backing_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);
 	let (statement_distribution_bounded_tx, _) = metered::channel(CHANNEL_CAPACITY);

@@ -102,13 +102,13 @@ fn upgrade_at(
 }
 
 fn check_code_is_stored(validation_code: &ValidationCode) {
-	assert!(<Paras as Store>::CodeByHashRefs::get(validation_code.hash()) != 0);
-	assert!(<Paras as Store>::CodeByHash::contains_key(validation_code.hash()));
+	assert!(CodeByHashRefs::<Test>::get(validation_code.hash()) != 0);
+	assert!(CodeByHash::<Test>::contains_key(validation_code.hash()));
 }
 
 fn check_code_is_not_stored(validation_code: &ValidationCode) {
-	assert!(!<Paras as Store>::CodeByHashRefs::contains_key(validation_code.hash()));
-	assert!(!<Paras as Store>::CodeByHash::contains_key(validation_code.hash()));
+	assert!(!CodeByHashRefs::<Test>::contains_key(validation_code.hash()));
+	assert!(!CodeByHash::<Test>::contains_key(validation_code.hash()));
 }
 
 /// An utility for checking that certain events were deposited.
@@ -276,32 +276,26 @@ fn para_past_code_pruning_in_initialize() {
 		let validation_code = ValidationCode(vec![4, 5, 6]);
 
 		Paras::increase_code_ref(&validation_code.hash(), &validation_code);
-		<Paras as Store>::PastCodeHash::insert(&(id, at_block), &validation_code.hash());
-		<Paras as Store>::PastCodePruning::put(&vec![(id, included_block)]);
+		PastCodeHash::<Test>::insert(&(id, at_block), &validation_code.hash());
+		PastCodePruning::<Test>::put(&vec![(id, included_block)]);
 
 		{
 			let mut code_meta = Paras::past_code_meta(&id);
 			code_meta.note_replacement(at_block, included_block);
-			<Paras as Store>::PastCodeMeta::insert(&id, &code_meta);
+			PastCodeMeta::<Test>::insert(&id, &code_meta);
 		}
 
 		let pruned_at: BlockNumber = included_block + code_retention_period + 1;
-		assert_eq!(
-			<Paras as Store>::PastCodeHash::get(&(id, at_block)),
-			Some(validation_code.hash())
-		);
+		assert_eq!(PastCodeHash::<Test>::get(&(id, at_block)), Some(validation_code.hash()));
 		check_code_is_stored(&validation_code);
 
 		run_to_block(pruned_at - 1, None);
-		assert_eq!(
-			<Paras as Store>::PastCodeHash::get(&(id, at_block)),
-			Some(validation_code.hash())
-		);
+		assert_eq!(PastCodeHash::<Test>::get(&(id, at_block)), Some(validation_code.hash()));
 		assert_eq!(Paras::past_code_meta(&id).most_recent_change(), Some(at_block));
 		check_code_is_stored(&validation_code);
 
 		run_to_block(pruned_at, None);
-		assert!(<Paras as Store>::PastCodeHash::get(&(id, at_block)).is_none());
+		assert!(PastCodeHash::<Test>::get(&(id, at_block)).is_none());
 		assert!(Paras::past_code_meta(&id).most_recent_change().is_none());
 		check_code_is_not_stored(&validation_code);
 	});
@@ -377,7 +371,7 @@ fn note_past_code_sets_up_pruning_correctly() {
 		Paras::note_past_code(id_a, 10, 12, ValidationCode(vec![1, 2, 3]).hash());
 		Paras::note_past_code(id_b, 20, 23, ValidationCode(vec![4, 5, 6]).hash());
 
-		assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(id_a, 12), (id_b, 23)]);
+		assert_eq!(PastCodePruning::<Test>::get(), vec![(id_a, 12), (id_b, 23)]);
 		assert_eq!(
 			Paras::past_code_meta(&id_a),
 			ParaPastCodeMeta { upgrade_times: vec![upgrade_at(10, 12)], last_pruned: None }
@@ -437,13 +431,10 @@ fn code_upgrade_applied_after_delay() {
 			Paras::note_new_head(para_id, Default::default(), 1);
 
 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-			assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
-			assert_eq!(<Paras as Store>::UpcomingUpgrades::get(), vec![(para_id, expected_at)]);
-			assert_eq!(
-				<Paras as Store>::UpgradeCooldowns::get(),
-				vec![(para_id, next_possible_upgrade_at)]
-			);
+			assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(expected_at));
+			assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
+			assert_eq!(UpcomingUpgrades::<Test>::get(), vec![(para_id, expected_at)]);
+			assert_eq!(UpgradeCooldowns::<Test>::get(), vec![(para_id, next_possible_upgrade_at)]);
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
@@ -459,12 +450,9 @@ fn code_upgrade_applied_after_delay() {
 			Paras::note_new_head(para_id, Default::default(), expected_at - 1);
 
 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-			assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
-			assert_eq!(
-				<Paras as Store>::UpgradeGoAheadSignal::get(&para_id),
-				Some(UpgradeGoAhead::GoAhead)
-			);
+			assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(expected_at));
+			assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
+			assert_eq!(UpgradeGoAheadSignal::<Test>::get(&para_id), Some(UpgradeGoAhead::GoAhead));
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
@@ -479,12 +467,12 @@ fn code_upgrade_applied_after_delay() {
 
 			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(expected_at));
 			assert_eq!(
-				<Paras as Store>::PastCodeHash::get(&(para_id, expected_at)),
+				PastCodeHash::<Test>::get(&(para_id, expected_at)),
 				Some(original_code.hash()),
 			);
-			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
-			assert!(<Paras as Store>::FutureCodeHash::get(&para_id).is_none());
-			assert!(<Paras as Store>::UpgradeGoAheadSignal::get(&para_id).is_none());
+			assert!(FutureCodeUpgrades::<Test>::get(&para_id).is_none());
+			assert!(FutureCodeHash::<Test>::get(&para_id).is_none());
+			assert!(UpgradeGoAheadSignal::<Test>::get(&para_id).is_none());
 			assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
@@ -538,14 +526,11 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 			Paras::note_new_head(para_id, Default::default(), 1);
 
 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-			assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
-			assert_eq!(<Paras as Store>::UpcomingUpgrades::get(), vec![(para_id, expected_at)]);
-			assert_eq!(
-				<Paras as Store>::UpgradeCooldowns::get(),
-				vec![(para_id, next_possible_upgrade_at)]
-			);
-			assert!(<Paras as Store>::UpgradeGoAheadSignal::get(&para_id).is_none());
+			assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(expected_at));
+			assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
+			assert_eq!(UpcomingUpgrades::<Test>::get(), vec![(para_id, expected_at)]);
+			assert_eq!(UpgradeCooldowns::<Test>::get(), vec![(para_id, next_possible_upgrade_at)]);
+			assert!(UpgradeGoAheadSignal::<Test>::get(&para_id).is_none());
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 
 			expected_at
@@ -557,22 +542,19 @@ fn code_upgrade_applied_after_delay_even_when_late() {
 		// the upgrade.
 		{
 			// The signal should be set to go-ahead until the new head is actually processed.
-			assert_eq!(
-				<Paras as Store>::UpgradeGoAheadSignal::get(&para_id),
-				Some(UpgradeGoAhead::GoAhead),
-			);
+			assert_eq!(UpgradeGoAheadSignal::<Test>::get(&para_id), Some(UpgradeGoAhead::GoAhead),);
 
 			Paras::note_new_head(para_id, Default::default(), expected_at + 4);
 
 			assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(expected_at));
 
 			assert_eq!(
-				<Paras as Store>::PastCodeHash::get(&(para_id, expected_at)),
+				PastCodeHash::<Test>::get(&(para_id, expected_at)),
 				Some(original_code.hash()),
 			);
-			assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
-			assert!(<Paras as Store>::FutureCodeHash::get(&para_id).is_none());
-			assert!(<Paras as Store>::UpgradeGoAheadSignal::get(&para_id).is_none());
+			assert!(FutureCodeUpgrades::<Test>::get(&para_id).is_none());
+			assert!(FutureCodeHash::<Test>::get(&para_id).is_none());
+			assert!(UpgradeGoAheadSignal::<Test>::get(&para_id).is_none());
 			assert_eq!(Paras::current_code(&para_id), Some(new_code.clone()));
 		}
 	});
@@ -615,11 +597,8 @@ fn submit_code_change_when_not_allowed_is_err() {
 
 		run_to_block(1, None);
 		Paras::schedule_code_upgrade(para_id, new_code.clone(), 1, &Configuration::config());
-		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&para_id),
-			Some(1 + validation_upgrade_delay)
-		);
-		assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(1 + validation_upgrade_delay));
+		assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 		check_code_is_stored(&new_code);
 
 		// We expect that if an upgrade is signalled while there is already one pending we just
@@ -628,10 +607,10 @@ fn submit_code_change_when_not_allowed_is_err() {
 		assert!(!Paras::can_upgrade_validation_code(para_id));
 		Paras::schedule_code_upgrade(para_id, newer_code.clone(), 2, &Configuration::config());
 		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&para_id),
+			FutureCodeUpgrades::<Test>::get(&para_id),
 			Some(1 + validation_upgrade_delay), // did not change since the same assertion from the last time.
 		);
-		assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
+		assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 		check_code_is_not_stored(&newer_code);
 	});
 }
@@ -685,27 +664,21 @@ fn upgrade_restriction_elapsed_doesnt_mean_can_upgrade() {
 		Paras::schedule_code_upgrade(para_id, new_code.clone(), 0, &Configuration::config());
 		Paras::note_new_head(para_id, dummy_head_data(), 0);
 		assert_eq!(
-			<Paras as Store>::UpgradeRestrictionSignal::get(&para_id),
+			UpgradeRestrictionSignal::<Test>::get(&para_id),
 			Some(UpgradeRestriction::Present),
 		);
-		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&para_id),
-			Some(0 + validation_upgrade_delay)
-		);
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(0 + validation_upgrade_delay));
 		assert!(!Paras::can_upgrade_validation_code(para_id));
 
 		run_to_block(31, None);
-		assert!(<Paras as Store>::UpgradeRestrictionSignal::get(&para_id).is_none());
+		assert!(UpgradeRestrictionSignal::<Test>::get(&para_id).is_none());
 
 		// Note the para still cannot upgrade the validation code.
 		assert!(!Paras::can_upgrade_validation_code(para_id));
 
 		// And scheduling another upgrade does not do anything. `expected_at` is still the same.
 		Paras::schedule_code_upgrade(para_id, newer_code.clone(), 30, &Configuration::config());
-		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&para_id),
-			Some(0 + validation_upgrade_delay)
-		);
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(0 + validation_upgrade_delay));
 	});
 }
 
@@ -760,8 +733,8 @@ fn full_parachain_cleanup_storage() {
 			Paras::note_new_head(para_id, Default::default(), 1);
 
 			assert!(Paras::past_code_meta(&para_id).most_recent_change().is_none());
-			assert_eq!(<Paras as Store>::FutureCodeUpgrades::get(&para_id), Some(expected_at));
-			assert_eq!(<Paras as Store>::FutureCodeHash::get(&para_id), Some(new_code.hash()));
+			assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(expected_at));
+			assert_eq!(FutureCodeHash::<Test>::get(&para_id), Some(new_code.hash()));
 			assert_eq!(Paras::current_code(&para_id), Some(original_code.clone()));
 			check_code_is_stored(&original_code);
 			check_code_is_stored(&new_code);
@@ -789,15 +762,15 @@ fn full_parachain_cleanup_storage() {
 		// Why 7 and 8? See above, the clean up scheduled above was processed at the block 8.
 		// The initial upgrade was enacted at the block 7.
 		assert_eq!(Paras::past_code_meta(&para_id).most_recent_change(), Some(8));
-		assert_eq!(<Paras as Store>::PastCodeHash::get(&(para_id, 8)), Some(new_code.hash()));
-		assert_eq!(<Paras as Store>::PastCodePruning::get(), vec![(para_id, 7), (para_id, 8)]);
+		assert_eq!(PastCodeHash::<Test>::get(&(para_id, 8)), Some(new_code.hash()));
+		assert_eq!(PastCodePruning::<Test>::get(), vec![(para_id, 7), (para_id, 8)]);
 		check_code_is_stored(&original_code);
 		check_code_is_stored(&new_code);
 
 		// any future upgrades haven't been used to validate yet, so those
 		// are cleaned up immediately.
-		assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
-		assert!(<Paras as Store>::FutureCodeHash::get(&para_id).is_none());
+		assert!(FutureCodeUpgrades::<Test>::get(&para_id).is_none());
+		assert!(FutureCodeHash::<Test>::get(&para_id).is_none());
 		assert!(Paras::current_code(&para_id).is_none());
 
 		// run to do the final cleanup
@@ -806,9 +779,9 @@ fn full_parachain_cleanup_storage() {
 
 		// now the final cleanup: last past code cleaned up, and this triggers meta cleanup.
 		assert_eq!(Paras::past_code_meta(&para_id), Default::default());
-		assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 7)).is_none());
-		assert!(<Paras as Store>::PastCodeHash::get(&(para_id, 8)).is_none());
-		assert!(<Paras as Store>::PastCodePruning::get().is_empty());
+		assert!(PastCodeHash::<Test>::get(&(para_id, 7)).is_none());
+		assert!(PastCodeHash::<Test>::get(&(para_id, 8)).is_none());
+		assert!(PastCodePruning::<Test>::get().is_empty());
 		check_code_is_not_stored(&original_code);
 		check_code_is_not_stored(&new_code);
 	});
@@ -948,34 +921,34 @@ fn para_incoming_at_session() {
 			})
 			.for_each(sign_and_include_pvf_check_statement);
 
-		assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), vec![c, b, a],);
+		assert_eq!(ActionsQueue::<Test>::get(Paras::scheduled_session()), vec![c, b, a],);
 
 		// Lifecycle is tracked correctly
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&a), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&b), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&c), Some(ParaLifecycle::Onboarding));
 
 		// run to block without session change.
 		run_to_block(2, None);
 
 		assert_eq!(Paras::parachains(), Vec::new());
-		assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), vec![c, b, a],);
+		assert_eq!(ActionsQueue::<Test>::get(Paras::scheduled_session()), vec![c, b, a],);
 
 		// Lifecycle is tracked correctly
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&a), Some(ParaLifecycle::Onboarding));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&b), Some(ParaLifecycle::Onboarding));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&c), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&a), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&b), Some(ParaLifecycle::Onboarding));
+		assert_eq!(ParaLifecycles::<Test>::get(&c), Some(ParaLifecycle::Onboarding));
 
 		// Two sessions pass, so action queue is triggered
 		run_to_block(4, Some(vec![3, 4]));
 
 		assert_eq!(Paras::parachains(), vec![c, b]);
-		assert_eq!(<Paras as Store>::ActionsQueue::get(Paras::scheduled_session()), Vec::new());
+		assert_eq!(ActionsQueue::<Test>::get(Paras::scheduled_session()), Vec::new());
 
 		// Lifecycle is tracked correctly
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&a), Some(ParaLifecycle::Parathread));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&b), Some(ParaLifecycle::Parachain));
-		assert_eq!(<Paras as Store>::ParaLifecycles::get(&c), Some(ParaLifecycle::Parachain));
+		assert_eq!(ParaLifecycles::<Test>::get(&a), Some(ParaLifecycle::Parathread));
+		assert_eq!(ParaLifecycles::<Test>::get(&b), Some(ParaLifecycle::Parachain));
+		assert_eq!(ParaLifecycles::<Test>::get(&c), Some(ParaLifecycle::Parachain));
 
 		assert_eq!(Paras::current_code(&a), Some(vec![2].into()));
 		assert_eq!(Paras::current_code(&b), Some(vec![1].into()));
@@ -1054,18 +1027,18 @@ fn code_ref_is_cleaned_correctly() {
 		Paras::increase_code_ref(&code.hash(), &code);
 		Paras::increase_code_ref(&code.hash(), &code);
 
-		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 2);
+		assert!(CodeByHash::<Test>::contains_key(code.hash()));
+		assert_eq!(CodeByHashRefs::<Test>::get(code.hash()), 2);
 
 		Paras::decrease_code_ref(&code.hash());
 
-		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 1);
+		assert!(CodeByHash::<Test>::contains_key(code.hash()));
+		assert_eq!(CodeByHashRefs::<Test>::get(code.hash()), 1);
 
 		Paras::decrease_code_ref(&code.hash());
 
-		assert!(!<Paras as Store>::CodeByHash::contains_key(code.hash()));
-		assert!(!<Paras as Store>::CodeByHashRefs::contains_key(code.hash()));
+		assert!(!CodeByHash::<Test>::contains_key(code.hash()));
+		assert!(!CodeByHashRefs::<Test>::contains_key(code.hash()));
 	});
 }
 
@@ -1140,11 +1113,11 @@ fn pvf_check_coalescing_onboarding_and_upgrade() {
 			.for_each(sign_and_include_pvf_check_statement);
 
 		// Check that `b` actually onboards.
-		assert_eq!(<Paras as Store>::ActionsQueue::get(EXPECTED_SESSION + 2), vec![b]);
+		assert_eq!(ActionsQueue::<Test>::get(EXPECTED_SESSION + 2), vec![b]);
 
 		// Check that the upgrade got scheduled.
 		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&a),
+			FutureCodeUpgrades::<Test>::get(&a),
 			Some(RELAY_PARENT + validation_upgrade_delay),
 		);
 
@@ -1190,7 +1163,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 
 		// Make sure that we kicked off the PVF vote for this validation code and that the
 		// validation code is stored.
-		assert!(<Paras as Store>::PvfActiveVoteMap::get(&validation_code.hash()).is_some());
+		assert!(PvfActiveVoteMap::<Test>::get(&validation_code.hash()).is_some());
 		check_code_is_stored(&validation_code);
 
 		// Skip 2 sessions (i.e. `pvf_voting_ttl`) verifying that the code is still stored in
@@ -1204,7 +1177,7 @@ fn pvf_check_onboarding_reject_on_expiry() {
 
 		// Verify that the PVF is no longer stored and there is no active PVF vote.
 		check_code_is_not_stored(&validation_code);
-		assert!(<Paras as Store>::PvfActiveVoteMap::get(&validation_code.hash()).is_none());
+		assert!(PvfActiveVoteMap::<Test>::get(&validation_code.hash()).is_none());
 		assert!(Paras::pvfs_require_precheck().is_empty());
 
 		// Verify that at this point we can again try to initialize the same para.
@@ -1271,9 +1244,9 @@ fn pvf_check_upgrade_reject() {
 		// Verify that the new code is discarded.
 		check_code_is_not_stored(&new_code);
 
-		assert!(<Paras as Store>::PvfActiveVoteMap::get(&new_code.hash()).is_none());
+		assert!(PvfActiveVoteMap::<Test>::get(&new_code.hash()).is_none());
 		assert!(Paras::pvfs_require_precheck().is_empty());
-		assert!(<Paras as Store>::FutureCodeHash::get(&a).is_none());
+		assert!(FutureCodeHash::<Test>::get(&a).is_none());
 
 		// Verify that the required events were emitted.
 		EventValidator::new().started(&new_code, a).rejected(&new_code, a).check();
@@ -1516,7 +1489,7 @@ fn add_trusted_validation_code_inserts_with_no_users() {
 			RuntimeOrigin::root(),
 			validation_code.clone()
 		));
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(&validation_code.hash()), 0,);
+		assert_eq!(CodeByHashRefs::<Test>::get(&validation_code.hash()), 0,);
 	});
 }
 
@@ -1554,8 +1527,8 @@ fn poke_unused_validation_code_removes_code_cleanly() {
 			validation_code.hash()
 		));
 
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(&validation_code.hash()), 0);
-		assert!(!<Paras as Store>::CodeByHash::contains_key(&validation_code.hash()));
+		assert_eq!(CodeByHashRefs::<Test>::get(&validation_code.hash()), 0);
+		assert!(!CodeByHash::<Test>::contains_key(&validation_code.hash()));
 	});
 }
 
@@ -1598,15 +1571,15 @@ fn increase_code_ref_doesnt_have_allergy_on_add_trusted_validation_code() {
 		assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), code.clone()));
 		Paras::increase_code_ref(&code.hash(), &code);
 		Paras::increase_code_ref(&code.hash(), &code);
-		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 2);
+		assert!(CodeByHash::<Test>::contains_key(code.hash()));
+		assert_eq!(CodeByHashRefs::<Test>::get(code.hash()), 2);
 	});
 
 	new_test_ext(Default::default()).execute_with(|| {
 		assert_ok!(Paras::add_trusted_validation_code(RuntimeOrigin::root(), code.clone()));
 		Paras::decrease_code_ref(&code.hash());
-		assert!(<Paras as Store>::CodeByHash::contains_key(code.hash()));
-		assert_eq!(<Paras as Store>::CodeByHashRefs::get(code.hash()), 0);
+		assert!(CodeByHash::<Test>::contains_key(code.hash()));
+		assert_eq!(CodeByHashRefs::<Test>::get(code.hash()), 0);
 	});
 }
 
@@ -1643,10 +1616,7 @@ fn add_trusted_validation_code_insta_approval() {
 
 		// Verify that the code upgrade has `expected_at` set to `26`. This is the behavior
 		// equal to that of `pvf_checking_enabled: false`.
-		assert_eq!(
-			<Paras as Store>::FutureCodeUpgrades::get(&para_id),
-			Some(1 + validation_upgrade_delay)
-		);
+		assert_eq!(FutureCodeUpgrades::<Test>::get(&para_id), Some(1 + validation_upgrade_delay));
 
 		// Verify that the required events were emitted.
 		EventValidator::new()
@@ -1685,16 +1655,16 @@ fn add_trusted_validation_code_enacts_existing_pvf_vote() {
 
 		// No upgrade should be scheduled at this point. PVF pre-checking vote should run for
 		// that PVF.
-		assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_none());
-		assert!(<Paras as Store>::PvfActiveVoteMap::contains_key(&validation_code.hash()));
+		assert!(FutureCodeUpgrades::<Test>::get(&para_id).is_none());
+		assert!(PvfActiveVoteMap::<Test>::contains_key(&validation_code.hash()));
 
 		// Then we add a trusted validation code. That should conclude the vote.
 		assert_ok!(Paras::add_trusted_validation_code(
 			RuntimeOrigin::root(),
 			validation_code.clone()
 		));
-		assert!(<Paras as Store>::FutureCodeUpgrades::get(&para_id).is_some());
-		assert!(!<Paras as Store>::PvfActiveVoteMap::contains_key(&validation_code.hash()));
+		assert!(FutureCodeUpgrades::<Test>::get(&para_id).is_some());
+		assert!(!PvfActiveVoteMap::<Test>::contains_key(&validation_code.hash()));
 	});
 }
 
@@ -1706,7 +1676,7 @@ fn verify_upgrade_go_ahead_signal_is_externally_accessible() {
 
 	new_test_ext(Default::default()).execute_with(|| {
 		assert!(sp_io::storage::get(&well_known_keys::upgrade_go_ahead_signal(a)).is_none());
-		<Paras as Store>::UpgradeGoAheadSignal::insert(&a, UpgradeGoAhead::GoAhead);
+		UpgradeGoAheadSignal::<Test>::insert(&a, UpgradeGoAhead::GoAhead);
 		assert_eq!(
 			sp_io::storage::get(&well_known_keys::upgrade_go_ahead_signal(a)).unwrap(),
 			vec![1u8],
@@ -1722,7 +1692,7 @@ fn verify_upgrade_restriction_signal_is_externally_accessible() {
 
 	new_test_ext(Default::default()).execute_with(|| {
 		assert!(sp_io::storage::get(&well_known_keys::upgrade_restriction_signal(a)).is_none());
-		<Paras as Store>::UpgradeRestrictionSignal::insert(&a, UpgradeRestriction::Present);
+		UpgradeRestrictionSignal::<Test>::insert(&a, UpgradeRestriction::Present);
 		assert_eq!(
 			sp_io::storage::get(&well_known_keys::upgrade_restriction_signal(a)).unwrap(),
 			vec![0],
@@ -1783,7 +1753,7 @@ fn parachains_cache_is_set() {
 		drop(parachains_cache);
 
 		// In order after addition
-		assert_eq!(<Paras as Store>::Parachains::get(), vec![a]);
+		assert_eq!(Parachains::<Test>::get(), vec![a]);
 
 		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
 
@@ -1795,14 +1765,14 @@ fn parachains_cache_is_set() {
 		drop(parachains_cache);
 
 		// In order after removal
-		assert_eq!(<Paras as Store>::Parachains::get(), vec![]);
+		assert_eq!(Parachains::<Test>::get(), vec![]);
 
 		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
 
 		// Remove nonexisting element
 		parachains_cache.remove(a);
 		assert_storage_noop!(drop(parachains_cache));
-		assert_eq!(<Paras as Store>::Parachains::get(), vec![]);
+		assert_eq!(Parachains::<Test>::get(), vec![]);
 	});
 }
 
@@ -1826,7 +1796,7 @@ fn parachains_cache_preserves_order() {
 		drop(parachains_cache);
 
 		// In order after addition
-		assert_eq!(<Paras as Store>::Parachains::get(), vec![a, b, c, d]);
+		assert_eq!(Parachains::<Test>::get(), vec![a, b, c, d]);
 
 		let mut parachains_cache: ParachainsCache<Test> = ParachainsCache::new();
 
@@ -1838,6 +1808,6 @@ fn parachains_cache_preserves_order() {
 		drop(parachains_cache);
 
 		// In order after removal
-		assert_eq!(<Paras as Store>::Parachains::get(), vec![a, c]);
+		assert_eq!(Parachains::<Test>::get(), vec![a, c]);
 	});
 }

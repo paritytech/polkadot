@@ -17,10 +17,11 @@
 use async_trait::async_trait;
 use polkadot_primitives::{
 	runtime_api::ParachainHost, vstaging, Block, BlockNumber, CandidateCommitments, CandidateEvent,
-	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Hash, Id,
-	InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData,
-	PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode,
-	ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams,
+	GroupRotationInfo, Hash, Id, InboundDownwardMessage, InboundHrmpMessage,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
+	ValidatorSignature,
 };
 use sp_api::{ApiError, ApiExt, ProvideRuntimeApi};
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -214,7 +215,7 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 		session_index: SessionIndex,
-	) -> Result<Option<vstaging::ExecutorParams>, ApiError>;
+	) -> Result<Option<ExecutorParams>, ApiError>;
 
 	// === BABE API ===
 
@@ -346,7 +347,7 @@ where
 		&self,
 		at: Hash,
 		session_index: SessionIndex,
-	) -> Result<Option<vstaging::ExecutorParams>, ApiError> {
+	) -> Result<Option<ExecutorParams>, ApiError> {
 		self.runtime_api().session_executor_params(at, session_index)
 	}
 
