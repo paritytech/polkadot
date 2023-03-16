@@ -70,7 +70,7 @@ pub struct ParticipationRequest {
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
-	_request_timer: Option<prometheus::HistogramTimer>, // Sends metric data when request is dropped
+	request_timer: Option<prometheus::HistogramTimer>, // Sends metric data when request is dropped
 }
 
 /// Whether a `ParticipationRequest` should be put on best-effort or the priority queue.
@@ -119,12 +119,7 @@ impl ParticipationRequest {
 		session: SessionIndex,
 		request_timer: Option<prometheus::HistogramTimer>,
 	) -> Self {
-		Self {
-			candidate_hash: candidate_receipt.hash(),
-			candidate_receipt,
-			session,
-			_request_timer: request_timer,
-		}
+		Self { candidate_hash: candidate_receipt.hash(), candidate_receipt, session, request_timer }
 	}
 
 	pub fn candidate_receipt(&'_ self) -> &'_ CandidateReceipt {
@@ -151,7 +146,7 @@ impl PartialEq for ParticipationRequest {
 			candidate_receipt,
 			candidate_hash,
 			session: _session,
-			_request_timer,
+			request_timer: _,
 		} = self;
 		candidate_receipt == other.candidate_receipt() &&
 			candidate_hash == other.candidate_hash() &&
@@ -237,9 +232,23 @@ impl Queues {
 			if self.priority.len() >= PRIORITY_QUEUE_SIZE {
 				return Err(QueueError::PriorityFull)
 			}
-			// Remove any best effort entry:
-			self.best_effort.remove(&comparator);
-			self.priority.insert(comparator, req);
+			// Remove any best effort entry. If there is a timer, stop
+			// it without sending metric data.
+			if let Some(discarded_request) = self.best_effort.remove(&comparator) {
+				if let Some(timer) = discarded_request.request_timer {
+					timer.stop_and_discard();
+				}
+			}
+			// Keeping old request if any. This prevents request timers
+			// from resetting on each new request at the same priority
+			// level for the same candidate.
+			if self.priority.contains_key(&comparator) {
+				if let Some(timer) = req.request_timer {
+					timer.stop_and_discard();
+				}
+			} else {
+				self.priority.insert(comparator, req);
+			}
 			self.metrics.report_priority_queue_size(self.priority.len() as u64);
 			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		} else {
@@ -251,7 +260,16 @@ impl Queues {
 			if self.best_effort.len() >= BEST_EFFORT_QUEUE_SIZE {
 				return Err(QueueError::BestEffortFull)
 			}
-			self.best_effort.insert(comparator, req);
+			// Keeping old request if any. This prevents request timers
+			// from resetting on each new request at the same priority
+			// level for the same candidate.
+			if self.best_effort.contains_key(&comparator) {
+				if let Some(timer) = req.request_timer {
+					timer.stop_and_discard();
+				}
+			} else {
+				self.best_effort.insert(comparator, req);
+			}
 			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		}
 		Ok(())
