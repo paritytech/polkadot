@@ -545,9 +545,9 @@ pub trait XcmQueryHandler {
 	type BlockNumber;
 
 	fn report_outcome(
-		message: Xcm<()>,
+		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
 		timeout: Self::BlockNumber,
-	) -> result::Result<(Xcm<()>, Self::QueryId), Error>;
-	fn take_response(id: Self::QueryId) -> Option<(Response, T::BlockNumber)>;
+	) -> result::Result<Self::QueryId, Error>;
+	fn take_response(id: Self::QueryId) -> Option<(Response, Self::BlockNumber)>;
 }
