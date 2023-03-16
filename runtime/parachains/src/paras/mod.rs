@@ -2023,7 +2023,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	/// Returns whether the given ID refers to a para that is onboarding.
+	/// Returns whether the given ID refers to a para that is offboarding.
 	///
 	/// An invalid or non-offboarding para ID will return `false`.
 	pub fn is_offboarding(id: ParaId) -> bool {
