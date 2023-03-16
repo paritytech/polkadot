@@ -916,7 +916,7 @@ impl Initialized {
 			} else {
 				self.metrics.on_queued_best_effort_participation();
 			}
-			let request_timer = Arc::new(self.metrics.time_participation_pipeline());
+			let request_timer = self.metrics.time_participation_pipeline();
 			let r = self
 				.participation
 				.queue_participation(

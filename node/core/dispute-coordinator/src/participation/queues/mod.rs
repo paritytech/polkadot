@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{cmp::Ordering, collections::BTreeMap, sync::Arc};
+use std::{cmp::Ordering, collections::BTreeMap};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::ChainApiMessage, overseer};
@@ -65,12 +65,12 @@ pub struct Queues {
 }
 
 /// A dispute participation request that can be queued.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ParticipationRequest {
 	candidate_hash: CandidateHash,
 	candidate_receipt: CandidateReceipt,
 	session: SessionIndex,
-	_request_timer: Arc<Option<prometheus::HistogramTimer>>, // Sends metric data when request is dropped
+	_request_timer: Option<prometheus::HistogramTimer>, // Sends metric data when request is dropped
 }
 
 /// Whether a `ParticipationRequest` should be put on best-effort or the priority queue.
@@ -117,7 +117,7 @@ impl ParticipationRequest {
 	pub fn new(
 		candidate_receipt: CandidateReceipt,
 		session: SessionIndex,
-		request_timer: Arc<Option<prometheus::HistogramTimer>>,
+		request_timer: Option<prometheus::HistogramTimer>,
 	) -> Self {
 		Self {
 			candidate_hash: candidate_receipt.hash(),
@@ -142,8 +142,8 @@ impl ParticipationRequest {
 	}
 }
 
-// We want to compare participation requests in unit tests, so we
-// only implement Eq for tests.
+// We want to compare and clone participation requests in unit tests, so we
+// only implement Eq and Clone for tests.
 #[cfg(test)]
 impl PartialEq for ParticipationRequest {
 	fn eq(&self, other: &Self) -> bool {
