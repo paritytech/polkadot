@@ -150,6 +150,7 @@ check_bootnode(){
     BOOTNODE=$1
     BASE_CHAINSPEC=$2
     RUNTIME=$(basename "$BASE_CHAINSPEC" | cut -d '.' -f 1)
+    MIN_PEERS=1
 
     # Generate a temporary chainspec file containing only the bootnode we care about
     TMP_CHAINSPEC_FILE="$RUNTIME.$(echo "$BOOTNODE" | tr '/' '_').tmp.json"
@@ -160,29 +161,33 @@ check_bootnode(){
     RPC_PORT=$(python -c "import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()")
 
     echo "[+] Checking bootnode $BOOTNODE"
-    polkadot --chain "$TMP_CHAINSPEC_FILE" --no-mdns --rpc-port="$RPC_PORT" --tmp  > /dev/null 2>&1 &
+    polkadot --chain "$TMP_CHAINSPEC_FILE" --no-mdns --rpc-port="$RPC_PORT" --tmp > /dev/null 2>&1 &
+    # Wait a few seconds for the node to start up
+    sleep 5
     POLKADOT_PID=$!
-    # Wait a little while for the node to start up and attempt to start peering
-    sleep 60
-    # Delete the temporary chainspec file now we're done running the node
+    # Delete the temporary chainspec file now we're done spawning the node
     rm "$TMP_CHAINSPEC_FILE"
 
+    MAX_POLLS=10
+    TIME_BETWEEN_POLLS=3
+    for _ in $(seq 1 "$MAX_POLLS"); do
     # Check the health endpoint of the RPC node
-    PEERS="$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"system_health","params":[],"id":1}' http://localhost:"$RPC_PORT" | jq -r '.result.peers')"
-    # Clean up the node
-    kill -9 $POLKADOT_PID
-    # Sometimes due to machine load or other reasons, we don't get a response from the RPC node
-    # If $PEERS is an empty variable, mark the node as unreachable
-    if [ -z "$PEERS" ]; then
+      PEERS="$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"system_health","params":[],"id":1}' http://localhost:"$RPC_PORT" | jq -r '.result.peers')"
+      # Sometimes due to machine load or other reasons, we don't get a response from the RPC node
+      # If $PEERS is an empty variable, make it 0 so we can still do the comparison
+      if [ -z "$PEERS" ]; then
         PEERS=0
-    fi
-    if [ "$PEERS" -gt 0 ]; then
+      fi
+      if [ "$PEERS" -ge $MIN_PEERS ]; then
         echo "[+] $PEERS peers found for $BOOTNODE"
         echo "    Bootnode appears contactable"
+        kill $POLKADOT_PID
         return 0
-    else
-        echo "[!] $PEERS peers found for $BOOTNODE"
-        echo "    Bootnode appears unreachable"
-        return 1
-    fi
+      fi
+      sleep "$TIME_BETWEEN_POLLS"
+    done
+    kill $POLKADOT_PID
+    echo "[!] No peers found for $BOOTNODE"
+    echo "    Bootnode appears unreachable"
+    return 1
 }

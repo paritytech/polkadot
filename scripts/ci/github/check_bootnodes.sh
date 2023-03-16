@@ -35,8 +35,8 @@ for i in $(seq 0 $((BOOTNODES-1))); do
     # Check each bootnode in parallel
     check_bootnode "$BOOTNODE" "$CHAINSPEC_FILE" &
     PIDS+=($!)
-    # Hold off 10 seconds between attempting to spawn nodes to stop the machine from getting overloaded
-    sleep 10
+    # Hold off 1 second between attempting to spawn nodes to stop the machine from getting overloaded
+    sleep 1
 done
 RESPS=()
 # Wait for all the nodes to finish
