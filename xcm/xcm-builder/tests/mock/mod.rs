@@ -16,7 +16,7 @@
 
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, Nothing},
+	traits::{ConstU32, Everything, Nothing},
 	weights::Weight,
 };
 use parity_scale_codec::Encode;

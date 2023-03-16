@@ -18,7 +18,7 @@
 
 use frame_support::{
 	ensure,
-	traits::{Currency, Get, IsSubType, VestingSchedule},
+	traits::{ConstU32, Currency, Get, IsSubType, VestingSchedule},
 	weights::Weight,
 };
 pub use pallet::*;
@@ -786,6 +786,10 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	parameter_types! {

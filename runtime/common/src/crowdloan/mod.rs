@@ -60,7 +60,7 @@ use frame_support::{
 	pallet_prelude::{DispatchResult, Weight},
 	storage::{child, ChildTriePrefixIterator},
 	traits::{
-		Currency,
+		ConstU32, Currency,
 		ExistenceRequirement::{self, AllowDeath, KeepAlive},
 		Get, ReservableCurrency,
 	},
@@ -943,6 +943,10 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	#[derive(Copy, Clone, Eq, PartialEq, Debug)]

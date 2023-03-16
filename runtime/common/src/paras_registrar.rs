@@ -21,7 +21,7 @@ use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
 	pallet_prelude::Weight,
-	traits::{Currency, Get, ReservableCurrency},
+	traits::{ConstU32, Currency, Get, ReservableCurrency},
 };
 use frame_system::{self, ensure_root, ensure_signed};
 use primitives::{HeadData, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID};
@@ -750,6 +750,10 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	impl shared::Config for Test {}

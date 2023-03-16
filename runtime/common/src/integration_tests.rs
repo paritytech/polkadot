@@ -24,7 +24,7 @@ use crate::{
 };
 use frame_support::{
 	assert_noop, assert_ok, parameter_types,
-	traits::{Currency, GenesisBuild, OnFinalize, OnInitialize},
+	traits::{ConstU32, Currency, GenesisBuild, OnFinalize, OnInitialize},
 	weights::Weight,
 	PalletId,
 };

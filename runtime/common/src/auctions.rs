@@ -25,7 +25,7 @@ use crate::{
 use frame_support::{
 	dispatch::DispatchResult,
 	ensure,
-	traits::{Currency, Get, Randomness, ReservableCurrency},
+	traits::{ConstU32, Currency, Get, Randomness, ReservableCurrency},
 	weights::Weight,
 };
 pub use pallet::*;
@@ -748,6 +748,10 @@ mod tests {
 		type MaxLocks = ();
 		type MaxReserves = MaxReserves;
 		type ReserveIdentifier = [u8; 8];
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug)]

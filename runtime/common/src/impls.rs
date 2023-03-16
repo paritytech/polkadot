@@ -17,7 +17,7 @@
 //! Auxiliary `struct`/`enum`s for polkadot runtime.
 
 use crate::NegativeImbalance;
-use frame_support::traits::{Currency, Imbalance, OnUnbalanced};
+use frame_support::traits::{ConstU32, Currency, Imbalance, OnUnbalanced};
 use primitives::Balance;
 use sp_runtime::Perquintill;
 
@@ -182,6 +182,10 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	parameter_types! {
