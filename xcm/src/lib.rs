@@ -42,6 +42,9 @@ pub mod latest {
 mod double_encoded;
 pub use double_encoded::DoubleEncoded;
 
+#[cfg(test)]
+mod tests;
+
 /// Maximum nesting level for XCM decoding.
 pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
 
