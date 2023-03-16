@@ -539,3 +539,15 @@ pub fn send_xcm<T: SendXcm>(
 	let hash = T::deliver(ticket)?;
 	Ok((hash, price))
 }
+
+pub trait XcmQueryHandler {
+	type QueryId;
+	type BlockNumber;
+
+	fn report_outcome(
+		message: Xcm<()>,
+		responder: impl Into<MultiLocation>,
+		timeout: Self::BlockNumber,
+	) -> result::Result<(Xcm<()>, Self::QueryId), Error>;
+	fn take_response(id: Self::QueryId) -> Option<(Response, T::BlockNumber)>;
+}
