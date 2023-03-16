@@ -226,18 +226,20 @@ impl Queues {
 		&mut self,
 		comparator: CandidateComparator,
 		priority: ParticipationPriority,
-		req: ParticipationRequest,
+		mut req: ParticipationRequest,
 	) -> std::result::Result<(), QueueError> {
 		if priority.is_priority() {
 			if self.priority.len() >= PRIORITY_QUEUE_SIZE {
 				return Err(QueueError::PriorityFull)
 			}
-			// Remove any best effort entry. If there is a timer, stop
-			// it without sending metric data.
-			if let Some(discarded_request) = self.best_effort.remove(&comparator) {
-				if let Some(timer) = discarded_request.request_timer {
+			// Remove any best effort entry, using it to replace our new
+			// request. This preserves the original request timer from
+			// the older request.
+			if let Some(older_request) = self.best_effort.remove(&comparator) {
+				if let Some(timer) = req.request_timer {
 					timer.stop_and_discard();
 				}
+				req = older_request;
 			}
 			// Keeping old request if any. This prevents request timers
 			// from resetting on each new request at the same priority
