@@ -142,15 +142,11 @@ impl ParticipationRequest {
 #[cfg(test)]
 impl PartialEq for ParticipationRequest {
 	fn eq(&self, other: &Self) -> bool {
-		let ParticipationRequest {
-			candidate_receipt,
-			candidate_hash,
-			session: _session,
-			request_timer: _,
-		} = self;
+		let ParticipationRequest { candidate_receipt, candidate_hash, session, request_timer: _ } =
+			self;
 		candidate_receipt == other.candidate_receipt() &&
 			candidate_hash == other.candidate_hash() &&
-			self.session == other.session()
+			*session == other.session()
 	}
 }
 #[cfg(test)]
@@ -222,6 +218,18 @@ impl Queues {
 		Ok(())
 	}
 
+	/// Will put message in queue, either priority or best effort depending on priority.
+	///
+	/// If the message was already previously present on best effort, it will be moved to priority
+	/// if it is considered priority now.
+	///
+	/// Returns error in case a queue was found full already.
+	///
+	///  # Request timers
+	///
+	/// [`ParticipationRequest`]s contain request timers.
+	/// Where an old request would be replaced by a new one, we keep the old request.
+	/// This prevents request timers from resetting on each new request.
 	fn queue_with_comparator(
 		&mut self,
 		comparator: CandidateComparator,
@@ -233,17 +241,14 @@ impl Queues {
 				return Err(QueueError::PriorityFull)
 			}
 			// Remove any best effort entry, using it to replace our new
-			// request. This preserves the original request timer from
-			// the older request.
+			// request.
 			if let Some(older_request) = self.best_effort.remove(&comparator) {
 				if let Some(timer) = req.request_timer {
 					timer.stop_and_discard();
 				}
 				req = older_request;
 			}
-			// Keeping old request if any. This prevents request timers
-			// from resetting on each new request at the same priority
-			// level for the same candidate.
+			// Keeping old request if any.
 			if self.priority.contains_key(&comparator) {
 				if let Some(timer) = req.request_timer {
 					timer.stop_and_discard();
@@ -262,9 +267,7 @@ impl Queues {
 			if self.best_effort.len() >= BEST_EFFORT_QUEUE_SIZE {
 				return Err(QueueError::BestEffortFull)
 			}
-			// Keeping old request if any. This prevents request timers
-			// from resetting on each new request at the same priority
-			// level for the same candidate.
+			// Keeping old request if any.
 			if self.best_effort.contains_key(&comparator) {
 				if let Some(timer) = req.request_timer {
 					timer.stop_and_discard();
