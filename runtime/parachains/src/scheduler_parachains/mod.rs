@@ -54,7 +54,10 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 		<paras::Pallet<T>>::parachains().len() as u32
 	}
 
-	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
+	fn pop_assignment_for_core(
+		core_idx: CoreIndex,
+		_concluded_para: Option<ParaId>,
+	) -> Option<Assignment> {
 		<paras::Pallet<T>>::parachains()
 			.get(core_idx.0 as usize)
 			.copied()

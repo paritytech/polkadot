@@ -75,14 +75,20 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 		//crate::scheduler_parathreads::Pallet<T>>::session_core_count()
 	}
 
-	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment> {
+	fn pop_assignment_for_core(
+		core_idx: CoreIndex,
+		concluded_para: Option<ParaId>,
+	) -> Option<Assignment> {
 		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
 		if (0..parachains_cores).contains(&core_idx.0) {
-			<crate::scheduler_parachains::Pallet<T>>::pop_assignment_for_core(core_idx)
+			<crate::scheduler_parachains::Pallet<T>>::pop_assignment_for_core(
+				core_idx,
+				concluded_para,
+			)
 		} else {
 			let _core_idx = CoreIndex(core_idx.0 - parachains_cores);
 			todo!()
-			//<crate::scheduler_parathreads::Pallet<T>>::pop_assignment_for_core(core_idx)
+			//<crate::scheduler_parathreads::Pallet<T>>::pop_assignment_for_core(core_idx, concluded_para)
 		}
 	}
 

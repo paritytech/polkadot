@@ -275,7 +275,6 @@ pub mod pallet {
 		freed
 	}
 
-	// enter is block import
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
@@ -302,6 +301,7 @@ pub mod pallet {
 	}
 }
 
+// enter_inner is block import
 impl<T: Config> Pallet<T> {
 	pub(crate) fn enter_inner(
 		data: ParachainsInherentData<T::Header>,

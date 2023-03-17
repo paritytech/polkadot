@@ -122,7 +122,10 @@ impl Assignment {
 pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 	fn session_core_count() -> u32;
 
-	fn pop_assignment_for_core(core_idx: CoreIndex) -> Option<Assignment>;
+	fn pop_assignment_for_core(
+		core_idx: CoreIndex,
+		concluded_para: Option<ParaId>,
+	) -> Option<Assignment>;
 
 	// on session change
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
