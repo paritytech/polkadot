@@ -37,7 +37,7 @@ use rand_chacha::ChaCha20Rng;
 
 use sc_network::Multiaddr;
 use sp_application_crypto::{AppKey, ByteArray};
-use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 
 use polkadot_node_network_protocol::{
 	authority_discovery::AuthorityDiscovery, peer_set::PeerSet, GossipSupportNetworkMessage,
@@ -79,7 +79,7 @@ const LOW_CONNECTIVITY_WARN_THRESHOLD: usize = 90;
 
 /// The Gossip Support subsystem.
 pub struct GossipSupport<AD> {
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 
 	last_session_index: Option<SessionIndex>,
 	// Some(timestamp) if we failed to resolve
@@ -118,7 +118,7 @@ where
 	AD: AuthorityDiscovery,
 {
 	/// Create a new instance of the [`GossipSupport`] subsystem.
-	pub fn new(keystore: SyncCryptoStorePtr, authority_discovery: AD, metrics: Metrics) -> Self {
+	pub fn new(keystore: KeystorePtr, authority_discovery: AD, metrics: Metrics) -> Self {
 		// Initialize metrics to `0`.
 		metrics.on_is_not_authority();
 		metrics.on_is_not_parachain_validator();
@@ -248,7 +248,7 @@ where
 
 					// Remove all of our locally controlled validator indices so we don't connect to ourself.
 					let connections =
-						if remove_all_controlled(&self.keystore, &mut connections).await != 0 {
+						if remove_all_controlled(&self.keystore, &mut connections) != 0 {
 							connections
 						} else {
 							// If we control none of them, issue an empty connection request
@@ -260,7 +260,7 @@ where
 
 				if is_new_session {
 					// Gossip topology is only relevant for authorities in the current session.
-					let our_index = self.get_key_index_and_update_metrics(&session_info).await?;
+					let our_index = self.get_key_index_and_update_metrics(&session_info)?;
 
 					update_gossip_topology(
 						sender,
@@ -279,12 +279,12 @@ where
 	// Checks if the node is an authority and also updates `polkadot_node_is_authority` and
 	// `polkadot_node_is_parachain_validator` metrics accordingly.
 	// On success, returns the index of our keys in `session_info.discovery_keys`.
-	async fn get_key_index_and_update_metrics(
+	fn get_key_index_and_update_metrics(
 		&mut self,
 		session_info: &SessionInfo,
 	) -> Result<usize, util::Error> {
 		let authority_check_result =
-			ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys).await;
+			ensure_i_am_an_authority(&self.keystore, &session_info.discovery_keys);
 
 		match authority_check_result.as_ref() {
 			Ok(index) => {
@@ -457,12 +457,12 @@ async fn authorities_past_present_future(
 
 /// Return an error if we're not a validator in the given set (do not have keys).
 /// Otherwise, returns the index of our keys in `authorities`.
-async fn ensure_i_am_an_authority(
-	keystore: &SyncCryptoStorePtr,
+fn ensure_i_am_an_authority(
+	keystore: &KeystorePtr,
 	authorities: &[AuthorityDiscoveryId],
 ) -> Result<usize, util::Error> {
 	for (i, v) in authorities.iter().enumerate() {
-		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), AuthorityDiscoveryId::ID)]).await {
+		if Keystore::has_keys(&**keystore, &[(v.to_raw_vec(), AuthorityDiscoveryId::ID)]) {
 			return Ok(i)
 		}
 	}
@@ -470,13 +470,13 @@ async fn ensure_i_am_an_authority(
 }
 
 /// Filter out all controlled keys in the given set. Returns the number of keys removed.
-async fn remove_all_controlled(
-	keystore: &SyncCryptoStorePtr,
+fn remove_all_controlled(
+	keystore: &KeystorePtr,
 	authorities: &mut Vec<AuthorityDiscoveryId>,
 ) -> usize {
 	let mut to_remove = Vec::new();
 	for (i, v) in authorities.iter().enumerate() {
-		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), AuthorityDiscoveryId::ID)]).await {
+		if Keystore::has_keys(&**keystore, &[(v.to_raw_vec(), AuthorityDiscoveryId::ID)]) {
 			to_remove.push(i);
 		}
 	}
