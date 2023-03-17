@@ -32,7 +32,7 @@ use futures_timer::Delay;
 use sc_network as network;
 use sc_network::{config as netconfig, config::RequestResponseConfig, IfDisconnected};
 use sp_core::{testing::TaskExecutor, traits::SpawnNamed};
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 
 use polkadot_node_network_protocol::{
 	jaeger,
@@ -83,7 +83,7 @@ pub struct TestState {
 	pub session_info: SessionInfo,
 	/// Cores per relay chain block.
 	pub cores: HashMap<Hash, Vec<CoreState>>,
-	pub keystore: SyncCryptoStorePtr,
+	pub keystore: KeystorePtr,
 }
 
 impl Default for TestState {

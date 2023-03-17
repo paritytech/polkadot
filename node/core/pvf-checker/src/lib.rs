@@ -30,7 +30,7 @@ use polkadot_primitives::{
 	BlockNumber, Hash, PvfCheckStatement, SessionIndex, ValidationCodeHash, ValidatorId,
 	ValidatorIndex,
 };
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 use std::collections::HashSet;
 
 const LOG_TARGET: &str = "parachain::pvf-checker";
@@ -50,12 +50,12 @@ use self::{
 /// PVF pre-checking subsystem.
 pub struct PvfCheckerSubsystem {
 	enabled: bool,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 }
 
 impl PvfCheckerSubsystem {
-	pub fn new(enabled: bool, keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+	pub fn new(enabled: bool, keystore: KeystorePtr, metrics: Metrics) -> Self {
 		PvfCheckerSubsystem { enabled, keystore, metrics }
 	}
 }
@@ -123,7 +123,7 @@ struct State {
 #[overseer::contextbounds(PvfChecker, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 ) -> SubsystemResult<()> {
 	let mut state = State {
@@ -174,7 +174,7 @@ async fn run<Context>(
 async fn handle_pvf_check(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	metrics: &Metrics,
 	outcome: PreCheckOutcome,
 	validation_code_hash: ValidationCodeHash,
@@ -244,7 +244,7 @@ struct Conclude;
 async fn handle_from_overseer(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	metrics: &Metrics,
 	from_overseer: FromOrchestra<PvfCheckerMessage>,
 ) -> Option<Conclude> {
@@ -270,7 +270,7 @@ async fn handle_from_overseer(
 async fn handle_leaves_update(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	metrics: &Metrics,
 	update: ActiveLeavesUpdate,
 ) {
@@ -352,7 +352,7 @@ struct ActivationEffect {
 async fn examine_activation(
 	state: &mut State,
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	leaf_hash: Hash,
 	leaf_number: BlockNumber,
 ) -> Option<ActivationEffect> {
@@ -411,7 +411,7 @@ async fn examine_activation(
 /// returns the [`SigningCredentials`].
 async fn check_signing_credentials(
 	sender: &mut impl SubsystemSender<RuntimeApiMessage>,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	leaf: Hash,
 ) -> Option<SigningCredentials> {
 	let validators = match runtime_api::validators(sender, leaf).await {
@@ -427,12 +427,9 @@ async fn check_signing_credentials(
 		},
 	};
 
-	polkadot_node_subsystem_util::signing_key_and_index(&validators, keystore)
-		.await
-		.map(|(validator_key, validator_index)| SigningCredentials {
-			validator_key,
-			validator_index,
-		})
+	polkadot_node_subsystem_util::signing_key_and_index(&validators, keystore).map(
+		|(validator_key, validator_index)| SigningCredentials { validator_key, validator_index },
+	)
 }
 
 /// Signs and submits a vote for or against a given validation code.
@@ -440,7 +437,7 @@ async fn check_signing_credentials(
 /// If the validator already voted for the given code, this function does nothing.
 async fn sign_and_submit_pvf_check_statement(
 	sender: &mut impl overseer::PvfCheckerSenderTrait,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	voted: &mut HashSet<ValidationCodeHash>,
 	credentials: &SigningCredentials,
 	metrics: &Metrics,
@@ -482,9 +479,7 @@ async fn sign_and_submit_pvf_check_statement(
 		keystore,
 		&credentials.validator_key,
 		&stmt.signing_payload(),
-	)
-	.await
-	{
+	) {
 		Ok(Some(signature)) => signature,
 		Ok(None) => {
 			gum::warn!(

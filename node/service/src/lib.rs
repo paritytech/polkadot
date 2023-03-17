@@ -560,7 +560,7 @@ where
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
-		let keystore = keystore_container.sync_keystore();
+		let keystore = keystore_container.keystore();
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
@@ -924,7 +924,7 @@ where
 		config,
 		backend: backend.clone(),
 		client: client.clone(),
-		keystore: keystore_container.sync_keystore(),
+		keystore: keystore_container.keystore(),
 		network: network.clone(),
 		sync_service: sync_service.clone(),
 		rpc_builder: Box::new(rpc_extensions_builder),
@@ -1091,7 +1091,7 @@ where
 			overseer_handle.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
 		let slot_duration = babe_link.config().slot_duration();
 		let babe_config = babe::BabeParams {
-			keystore: keystore_container.sync_keystore(),
+			keystore: keystore_container.keystore(),
 			client: client.clone(),
 			select_chain,
 			block_import,
@@ -1135,8 +1135,7 @@ where
 
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
-	let keystore_opt =
-		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
+	let keystore_opt = if role.is_authority() { Some(keystore_container.keystore()) } else { None };
 
 	if enable_beefy {
 		let justifications_protocol_name = beefy_on_demand_justifications_handler.protocol_name();
