@@ -277,7 +277,7 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
 	/// Returns a vector of freshly created disputes.
 	fn process_checked_multi_dispute_data(
-		statement_sets: CheckedMultiDisputeStatementSet,
+		statement_sets: &CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError>;
 
 	/// Note that the given candidate has been included.
@@ -325,7 +325,7 @@ impl<BlockNumber: Ord> DisputesHandler<BlockNumber> for () {
 	}
 
 	fn process_checked_multi_dispute_data(
-		_statement_sets: CheckedMultiDisputeStatementSet,
+		_statement_sets: &CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		Ok(Vec::new())
 	}
@@ -379,7 +379,7 @@ where
 	}
 
 	fn process_checked_multi_dispute_data(
-		statement_sets: CheckedMultiDisputeStatementSet,
+		statement_sets: &CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		pallet::Pallet::<T>::process_checked_multi_dispute_data(statement_sets)
 	}
@@ -983,14 +983,14 @@ impl<T: Config> Pallet<T> {
 	/// and to fail the extrinsic on error. As invalid inherents are not allowed, the dirty state
 	/// is not committed.
 	pub(crate) fn process_checked_multi_dispute_data(
-		statement_sets: CheckedMultiDisputeStatementSet,
+		statement_sets: &CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		let config = <configuration::Pallet<T>>::config();
 
 		let mut fresh = Vec::with_capacity(statement_sets.len());
 		for statement_set in statement_sets {
 			let dispute_target = {
-				let statement_set: &DisputeStatementSet = statement_set.as_ref();
+				let statement_set = statement_set.as_ref();
 				(statement_set.session, statement_set.candidate_hash)
 			};
 			if Self::process_checked_dispute_data(
@@ -1126,7 +1126,7 @@ impl<T: Config> Pallet<T> {
 	/// Fails if the dispute data is invalid. Returns a Boolean indicating whether the
 	/// dispute is fresh.
 	fn process_checked_dispute_data(
-		set: CheckedDisputeStatementSet,
+		set: &CheckedDisputeStatementSet,
 		dispute_post_conclusion_acceptance_period: T::BlockNumber,
 	) -> Result<bool, DispatchError> {
 		// Dispute statement sets on any dispute which concluded
