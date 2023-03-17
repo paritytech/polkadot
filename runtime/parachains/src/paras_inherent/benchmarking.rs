@@ -15,12 +15,33 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::{inclusion, ParaId};
+use crate::{builder::BenchBuilder, disputes::Disputes, inclusion, ParaId};
+use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
+use primitives::{
+	v4::{CandidateDescriptor, DisputeState},
+	CandidateReceipt, CollatorId, CollatorSignature, Hash,
+};
+use sp_application_crypto::sr25519::{Public, Signature};
 use sp_std::collections::btree_map::BTreeMap;
 
-use crate::builder::BenchBuilder;
+fn make_candidate_receipt(para_id: u32) -> CandidateReceipt {
+	CandidateReceipt {
+		descriptor: CandidateDescriptor {
+			para_id: (para_id).into(),
+			relay_parent: Hash::repeat_byte(0),
+			collator: CollatorId::from(Public::from_raw([0u8; 32])),
+			persisted_validation_data_hash: Hash::repeat_byte(0),
+			pov_hash: Hash::repeat_byte(0),
+			erasure_root: Hash::repeat_byte(0),
+			signature: CollatorSignature::from(Signature([0u8; 64])),
+			para_head: Hash::repeat_byte(0),
+			validation_code_hash: Hash::repeat_byte(0).into(),
+		},
+		commitments_hash: Hash::repeat_byte(0),
+	}
+}
 
 benchmarks! {
 	// Variant over `v`, the number of dispute statements in a dispute statement set. This gives the
@@ -31,6 +52,26 @@ benchmarks! {
 		let scenario = BenchBuilder::<T>::new()
 			.set_dispute_sessions(&[2])
 			.build();
+
+		// fill in the storage with disputes
+		for c in 1..=100_000 as u32 {
+			let candidate = make_candidate_receipt(c);
+			let mut val_for =  bitvec![u8, BitOrderLsb0; 0; 2_000];
+			let mut val_ags =  bitvec![u8, BitOrderLsb0; 1; 2_000];
+			for i in 0..1_000 {
+				val_for.set(i, true);
+				val_ags.set(i, false);
+			}
+			let dispute = DisputeState::<T::BlockNumber> {
+				validators_for: val_for,
+				validators_against: val_ags,
+				start: (0 as u32).into(),
+				concluded_at: None,
+			};
+			<Disputes<T>>::insert(1 as SessionIndex, candidate.hash(), &dispute);
+		}
+
+		assert_eq!(<Disputes<T>>::iter().count(), 100_000);
 
 		let mut benchmark = scenario.data.clone();
 		let dispute = benchmark.disputes.pop().unwrap();
@@ -45,6 +86,8 @@ benchmarks! {
 	verify {
 		// Assert that the block was not discarded
 		assert!(Included::<T>::get().is_some());
+
+		assert!(<Disputes<T>>::iter().count() >= 100_000);
 
 		// Assert that there are on-chain votes that got scraped
 		let onchain_votes = OnChainVotes::<T>::get();

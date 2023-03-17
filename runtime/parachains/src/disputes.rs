@@ -454,7 +454,7 @@ pub mod pallet {
 
 	/// All ongoing or concluded disputes for the last several sessions.
 	#[pallet::storage]
-	pub(super) type Disputes<T: Config> = StorageDoubleMap<
+	pub(crate) type Disputes<T: Config> = StorageDoubleMap<
 		_,
 		Twox64Concat,
 		SessionIndex,
