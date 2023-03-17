@@ -323,7 +323,7 @@ async fn handle_active_leaves_update<Context>(
 
 	let signing_context = SigningContext { parent_hash: parent, session_index };
 	let validator =
-		match Validator::construct(&validators, signing_context.clone(), keystore.clone()).await {
+		match Validator::construct(&validators, signing_context.clone(), keystore.clone()) {
 			Ok(v) => Some(v),
 			Err(util::Error::NotAValidator) => None,
 			Err(e) => {

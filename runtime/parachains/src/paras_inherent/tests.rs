@@ -883,7 +883,6 @@ mod sanitizers {
 	use sp_core::crypto::UncheckedFrom;
 
 	use crate::mock::Test;
-	use futures::executor::block_on;
 	use keyring::Sr25519Keyring;
 	use primitives::PARACHAIN_KEY_TYPE_ID;
 	use sc_keystore::LocalKeystore;
@@ -935,13 +934,13 @@ mod sanitizers {
 		.enumerate()
 		.map(|(vi, ab)| {
 			let validator_index = ValidatorIndex::from(vi as u32);
-			block_on(SignedAvailabilityBitfield::sign(
+			SignedAvailabilityBitfield::sign(
 				&crypto_store,
 				AvailabilityBitfield::from(ab.clone()),
 				&signing_context,
 				validator_index,
 				&validator_public[vi],
-			))
+			)
 			.unwrap()
 			.unwrap()
 			.into_unchecked()
@@ -1202,14 +1201,14 @@ mod sanitizers {
 
 				collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-				let backed = block_on(back_candidate(
+				let backed = back_candidate(
 					candidate,
 					&validators,
 					group_validators(GroupIndex::from(idx0 as u32)).unwrap().as_ref(),
 					&keystore,
 					&signing_context,
 					BackingKind::Threshold,
-				));
+				);
 				backed
 			})
 			.collect::<Vec<_>>();
