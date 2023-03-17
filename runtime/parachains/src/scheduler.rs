@@ -532,15 +532,15 @@ impl<T: Config> Pallet<T> {
 		claimqueue.into_iter().flat_map(|(_, v)| v.first().cloned()).flatten().collect()
 	}
 
-	#[cfg(test)]
-	fn claimqueue_sizes() -> Vec<usize> {
-		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
-	}
+	//#[cfg(test)]
+	//fn claimqueue_sizes() -> Vec<usize> {
+	//	ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
+	//}
 
-	#[cfg(test)]
-	pub(crate) fn claimqueue_is_empty() -> bool {
-		Self::claimqueue_sizes().iter().sum::<usize>() == 0
-	}
+	//#[cfg(test)]
+	//pub(crate) fn claimqueue_is_empty() -> bool {
+	//	Self::claimqueue_sizes().iter().sum::<usize>() == 0
+	//}
 
 	#[cfg(test)]
 	pub(crate) fn claimqueue_contains_only_none() -> bool {
