@@ -43,7 +43,7 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use sp_keyring::sr25519::Keyring as Sr25519Keyring;
-use sp_keystore::CryptoStore;
+use sp_keystore::SyncCryptoStore;
 use std::{
 	pin::Pin,
 	sync::{
@@ -64,6 +64,8 @@ use super::{
 use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig};
 
 const SLOT_DURATION_MILLIS: u64 = 5000;
+
+const TIMEOUT: Duration = Duration::from_millis(2000);
 
 #[derive(Clone)]
 struct TestSyncOracle {
@@ -546,7 +548,6 @@ async fn overseer_recv_with_timeout(
 	overseer.recv().timeout(timeout).await
 }
 
-const TIMEOUT: Duration = Duration::from_millis(2000);
 async fn overseer_signal(overseer: &mut VirtualOverseer, signal: OverseerSignal) {
 	overseer
 		.send(FromOrchestra::Signal(signal))
@@ -2415,25 +2416,33 @@ pub async fn handle_double_assignment_import(
 	recover_available_data(virtual_overseer).await;
 	fetch_validation_code(virtual_overseer).await;
 
-	let first_message = virtual_overseer.recv().await;
-	let second_message = virtual_overseer.recv().await;
-
-	for msg in vec![first_message, second_message].into_iter() {
-		match msg {
-			AllMessages::ApprovalDistribution(
-				ApprovalDistributionMessage::DistributeAssignment(_, c_index),
-			) => {
-				assert_eq!(candidate_index, c_index);
-			},
-			AllMessages::CandidateValidation(
-				CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx),
-			) if timeout == PvfExecTimeoutKind::Approval => {
-				tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default())))
-					.unwrap();
-			},
-			_ => panic! {},
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeAssignment(
+			_,
+			c_index
+		)) => {
+			assert_eq!(candidate_index, c_index);
 		}
-	}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::CandidateValidation(CandidateValidationMessage::ValidateFromExhaustive(_, _, _, _, timeout, tx)) if timeout == PvfExecTimeoutKind::Approval => {
+			tx.send(Ok(ValidationResult::Valid(Default::default(), Default::default())))
+				.unwrap();
+		}
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeApproval(_))
+	);
+
+	assert_matches!(
+		overseer_recv(virtual_overseer).await,
+		AllMessages::ApprovalDistribution(ApprovalDistributionMessage::DistributeApproval(_))
+	);
 
 	// Assert that there are no more messages being sent by the subsystem
 	assert!(overseer_recv(virtual_overseer).timeout(TIMEOUT / 2).await.is_none());
