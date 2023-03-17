@@ -22,6 +22,7 @@ use crate::shared;
 use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_REF_TIME_PER_MILLIS};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
 use primitives::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
@@ -322,8 +323,12 @@ pub enum InconsistentError<BlockNumber> {
 	},
 	/// `validation_upgrade_delay` is less than or equal 1.
 	ValidationUpgradeDelayIsTooLow { validation_upgrade_delay: BlockNumber },
-	/// Maximum UMP message size (`MAX_UPWARD_MESSAGE_SIZE_BOUND`) exceeded.
+	/// Maximum UMP message size ([`MAX_UPWARD_MESSAGE_SIZE_BOUND`]) exceeded.
 	MaxUpwardMessageSizeExceeded { max_message_size: u32 },
+	/// Maximum HRMP message num ([`MAX_HORIZONTAL_MESSAGE_NUM`]) exceeded.
+	MaxHorizontalMessageNumExceeded { max_message_num: u32 },
+	/// Maximum UMP message num ([`MAX_UPWARD_MESSAGE_NUM`]) exceeded.
+	MaxUpwardMessageNumExceeded { max_message_num: u32 },
 	/// Maximum number of HRMP outbound channels exceeded.
 	MaxHrmpOutboundChannelsExceeded,
 	/// Maximum number of HRMP inbound channels exceeded.
@@ -396,6 +401,18 @@ where
 			})
 		}
 
+		if self.hrmp_max_message_num_per_candidate > MAX_HORIZONTAL_MESSAGE_NUM {
+			return Err(MaxHorizontalMessageNumExceeded {
+				max_message_num: self.hrmp_max_message_num_per_candidate,
+			})
+		}
+
+		if self.max_upward_message_num_per_candidate > MAX_UPWARD_MESSAGE_NUM {
+			return Err(MaxUpwardMessageNumExceeded {
+				max_message_num: self.max_upward_message_num_per_candidate,
+			})
+		}
+
 		if self.hrmp_max_parachain_outbound_channels > crate::hrmp::HRMP_MAX_OUTBOUND_CHANNELS_BOUND
 		{
 			return Err(MaxHrmpOutboundChannelsExceeded)
@@ -456,7 +473,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
@@ -1138,7 +1154,7 @@ pub mod pallet {
 		))]
 		pub fn set_bypass_consistency_check(origin: OriginFor<T>, new: bool) -> DispatchResult {
 			ensure_root(origin)?;
-			<Self as Store>::BypassConsistencyCheck::put(new);
+			BypassConsistencyCheck::<T>::put(new);
 			Ok(())
 		}
 	}
@@ -1183,7 +1199,7 @@ impl<T: Config> Pallet<T> {
 		session_index: &SessionIndex,
 	) -> SessionChangeOutcome<T::BlockNumber> {
 		let pending_configs = <PendingConfigs<T>>::get();
-		let prev_config = <Self as Store>::ActiveConfig::get();
+		let prev_config = ActiveConfig::<T>::get();
 
 		// No pending configuration changes, so we're done.
 		if pending_configs.is_empty() {
@@ -1206,7 +1222,7 @@ impl<T: Config> Pallet<T> {
 		let new_config = past_and_present.pop().map(|(_, config)| config);
 		if let Some(ref new_config) = new_config {
 			// Apply the new configuration.
-			<Self as Store>::ActiveConfig::put(new_config);
+			ActiveConfig::<T>::put(new_config);
 		}
 
 		<PendingConfigs<T>>::put(future);
@@ -1223,7 +1239,7 @@ impl<T: Config> Pallet<T> {
 	/// only when enabling parachains runtime pallets for the first time on a chain which has
 	/// been running without them.
 	pub fn force_set_active_config(config: HostConfiguration<T::BlockNumber>) {
-		<Self as Store>::ActiveConfig::set(config);
+		ActiveConfig::<T>::set(config);
 	}
 
 	/// This function should be used to update members of the configuration.
@@ -1285,7 +1301,7 @@ impl<T: Config> Pallet<T> {
 		updater(&mut base_config);
 		let new_config = base_config;
 
-		if <Self as Store>::BypassConsistencyCheck::get() {
+		if BypassConsistencyCheck::<T>::get() {
 			// This will emit a warning each configuration update if the consistency check is
 			// bypassed. This is an attempt to make sure the bypass is not accidentally left on.
 			log::warn!(

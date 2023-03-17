@@ -31,34 +31,34 @@ use runtime_parachains::{
 	dmp as parachains_dmp, hrmp as parachains_hrmp, inclusion as parachains_inclusion,
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
-	runtime_api_impl::v2 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
+	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use beefy_primitives::crypto::AuthorityId as BeefyId;
+use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
 use frame_election_provider_support::{generate_solution_type, onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
-		ConstU32, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
+		ConstU32, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		PrivilegeCmp, WithdrawReasons,
 	},
 	weights::ConstantMultiplier,
 	PalletId, RuntimeDebug,
 };
-use frame_system::EnsureRoot;
+use frame_system::{EnsureRoot, EnsureWithSuccess};
 use pallet_grandpa::{fg_primitives, AuthorityId as GrandpaId};
 use pallet_im_online::sr25519::AuthorityId as ImOnlineId;
 use pallet_session::historical as session_historical;
 use pallet_transaction_payment::{FeeDetails, RuntimeDispatchInfo};
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
 use primitives::{
-	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CommittedCandidateReceipt,
-	CoreState, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage, InboundHrmpMessage,
-	Moment, Nonce, OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes,
-	SessionInfo, Signature, ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex,
-	LOWEST_PUBLIC_ID,
+	AccountId, AccountIndex, Balance, BlockNumber, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
+	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, Moment, Nonce,
+	OccupiedCoreAssumption, PersistedValidationData, ScrapedOnChainVotes, SessionInfo, Signature,
+	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, LOWEST_PUBLIC_ID,
 };
 use sp_core::OpaqueMetadata;
 use sp_mmr_primitives as mmr;
@@ -114,13 +114,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9370,
+	spec_version: 9390,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 20,
+	transaction_version: 21,
 	state_version: 0,
 };
 
@@ -257,24 +257,15 @@ impl pallet_babe::Config for Runtime {
 
 	type DisabledValidators = Session;
 
-	type KeyOwnerProofSystem = Historical;
-
-	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::IdentificationTuple;
-
-	type HandleEquivocation =
-		pallet_babe::EquivocationHandler<Self::KeyOwnerIdentification, Offences, ReportLongevity>;
-
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
+
+	type KeyOwnerProof =
+		<Historical as KeyOwnerProofSystem<(KeyTypeId, pallet_babe::AuthorityId)>>::Proof;
+
+	type EquivocationReportSystem =
+		pallet_babe::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 parameter_types! {
@@ -435,6 +426,7 @@ impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
 		as
 		frame_election_provider_support::ElectionDataProvider
 	>::MaxVotesPerVoter;
+	type MaxWinners = MaxActiveValidators;
 
 	// The unsigned submissions have to respect the weight of the submit_unsigned call, thus their
 	// weight estimate function is wired to this call's weight.
@@ -670,6 +662,7 @@ impl pallet_democracy::Config for Runtime {
 	type LaunchPeriod = LaunchPeriod;
 	type VotingPeriod = VotingPeriod;
 	type MinimumDeposit = MinimumDeposit;
+	type SubmitOrigin = frame_system::EnsureSigned<AccountId>;
 	/// A straight majority of the council can decide what their next motion is.
 	type ExternalOrigin = EitherOfDiverse<
 		pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 1, 2>,
@@ -740,6 +733,7 @@ impl pallet_collective::Config<CouncilCollective> for Runtime {
 	type MaxProposals = CouncilMaxProposals;
 	type MaxMembers = CouncilMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type SetMembersOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_collective_council::WeightInfo<Runtime>;
 }
 
@@ -798,6 +792,7 @@ impl pallet_collective::Config<TechnicalCollective> for Runtime {
 	type MaxProposals = TechnicalMaxProposals;
 	type MaxMembers = TechnicalMaxMembers;
 	type DefaultVote = pallet_collective::PrimeDefaultVote;
+	type SetMembersOrigin = EnsureRoot<AccountId>;
 	type WeightInfo = weights::pallet_collective_technical_committee::WeightInfo<Runtime>;
 }
 
@@ -832,6 +827,7 @@ parameter_types! {
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 	pub const RootSpendOriginMaxAmount: Balance = Balance::MAX;
+	pub const CouncilSpendOriginMaxAmount: Balance = Balance::MAX;
 }
 
 type ApproveOrigin = EitherOfDiverse<
@@ -855,7 +851,14 @@ impl pallet_treasury::Config for Runtime {
 	type SpendFunds = Bounties;
 	type MaxApprovals = MaxApprovals;
 	type WeightInfo = weights::pallet_treasury::WeightInfo<Runtime>;
-	type SpendOrigin = frame_system::EnsureRootWithSuccess<AccountId, RootSpendOriginMaxAmount>;
+	type SpendOrigin = EitherOf<
+		frame_system::EnsureRootWithSuccess<AccountId, RootSpendOriginMaxAmount>,
+		EnsureWithSuccess<
+			pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
+			AccountId,
+			CouncilSpendOriginMaxAmount,
+		>,
+	>;
 }
 
 parameter_types! {
@@ -943,25 +946,14 @@ parameter_types! {
 impl pallet_grandpa::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
 
-	type KeyOwnerProof =
-		<Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		GrandpaId,
-	)>>::IdentificationTuple;
-
-	type KeyOwnerProofSystem = Historical;
-
-	type HandleEquivocation = pallet_grandpa::EquivocationHandler<
-		Self::KeyOwnerIdentification,
-		Offences,
-		ReportLongevity,
-	>;
-
 	type WeightInfo = ();
 	type MaxAuthorities = MaxAuthorities;
 	type MaxSetIdSessionEntries = MaxSetIdSessionEntries;
+
+	type KeyOwnerProof = <Historical as KeyOwnerProofSystem<(KeyTypeId, GrandpaId)>>::Proof;
+
+	type EquivocationReportSystem =
+		pallet_grandpa::EquivocationReportSystem<Self, Offences, Historical, ReportLongevity>;
 }
 
 /// Submits a transaction with the node's public and signature type. Adheres to the signed extension
@@ -1593,10 +1585,10 @@ pub type SignedExtra = (
 	claims::PrevalidateAttests<Runtime>,
 );
 
-pub struct StakingMigrationV11OldPallet;
-impl Get<&'static str> for StakingMigrationV11OldPallet {
-	fn get() -> &'static str {
-		"VoterList"
+pub struct NominationPoolsMigrationV4OldPallet;
+impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
+	fn get() -> Perbill {
+		Perbill::zero()
 	}
 }
 
@@ -1604,13 +1596,10 @@ impl Get<&'static str> for StakingMigrationV11OldPallet {
 ///
 /// Should be cleared after every release.
 pub type Migrations = (
-	// "Use 2D weights in XCM v3" <https://github.com/paritytech/polkadot/pull/6134>
-	pallet_xcm::migration::v1::MigrateToV1<Runtime>,
-	parachains_ump::migration::v1::MigrateToV1<Runtime>,
-	// Remove stale entries in the set id -> session index storage map (after
-	// this release they will be properly pruned after the bonding duration has
-	// elapsed)
-	pallet_grandpa::migrations::CleanupSetIdSessionMap<Runtime>,
+	pallet_nomination_pools::migration::v4::MigrateToV4<
+		Runtime,
+		NominationPoolsMigrationV4OldPallet,
+	>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
@@ -1707,6 +1696,14 @@ sp_api::impl_runtime_apis! {
 		fn metadata() -> OpaqueMetadata {
 			OpaqueMetadata::new(Runtime::metadata().into())
 		}
+
+		fn metadata_at_version(version: u32) -> Option<OpaqueMetadata> {
+			Runtime::metadata_at_version(version)
+		}
+
+		fn metadata_versions() -> sp_std::vec::Vec<u32> {
+			Runtime::metadata_versions()
+		}
 	}
 
 	impl block_builder_api::BlockBuilder<Block> for Runtime {
@@ -1736,7 +1733,21 @@ sp_api::impl_runtime_apis! {
 		Balance,
 	> for Runtime {
 		fn pending_rewards(member: AccountId) -> Balance {
-			NominationPools::pending_rewards(member).unwrap_or_default()
+			NominationPools::api_pending_rewards(member).unwrap_or_default()
+		}
+
+		fn points_to_balance(pool_id: pallet_nomination_pools::PoolId, points: Balance) -> Balance {
+			NominationPools::api_points_to_balance(pool_id, points)
+		}
+
+		fn balance_to_points(pool_id: pallet_nomination_pools::PoolId, new_funds: Balance) -> Balance {
+			NominationPools::api_balance_to_points(pool_id, new_funds)
+		}
+	}
+
+	impl pallet_staking_runtime_api::StakingApi<Block, Balance> for Runtime {
+		fn nominations_quota(balance: Balance) -> u32 {
+			Staking::api_nominations_quota(balance)
 		}
 	}
 
@@ -1819,6 +1830,10 @@ sp_api::impl_runtime_apis! {
 			parachains_runtime_api_impl::session_info::<Runtime>(index)
 		}
 
+		fn session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams> {
+			parachains_runtime_api_impl::session_executor_params::<Runtime>(session_index)
+		}
+
 		fn dmq_contents(recipient: ParaId) -> Vec<InboundDownwardMessage<BlockNumber>> {
 			parachains_runtime_api_impl::dmq_contents::<Runtime>(recipient)
 		}
@@ -1853,6 +1868,10 @@ sp_api::impl_runtime_apis! {
 		{
 			parachains_runtime_api_impl::validation_code_hash::<Runtime>(para_id, assumption)
 		}
+
+		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
+			parachains_runtime_api_impl::get_session_disputes::<Runtime>()
+		}
 	}
 
 	impl beefy_primitives::BeefyApi<Block> for Runtime {
@@ -1863,6 +1882,24 @@ sp_api::impl_runtime_apis! {
 
 		fn validator_set() -> Option<beefy_primitives::ValidatorSet<BeefyId>> {
 			// dummy implementation due to lack of BEEFY pallet.
+			None
+		}
+
+		fn submit_report_equivocation_unsigned_extrinsic(
+			_equivocation_proof: beefy_primitives::EquivocationProof<
+				BlockNumber,
+				BeefyId,
+				BeefySignature,
+			>,
+			_key_owner_proof: beefy_primitives::OpaqueKeyOwnershipProof,
+		) -> Option<()> {
+			None
+		}
+
+		fn generate_key_ownership_proof(
+			_set_id: beefy_primitives::ValidatorSetId,
+			_authority_id: BeefyId,
+		) -> Option<beefy_primitives::OpaqueKeyOwnershipProof> {
 			None
 		}
 	}
@@ -2455,7 +2492,7 @@ mod multiplier_tests {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
-	use frame_try_runtime::{runtime_decl_for_TryRuntime::TryRuntime, UpgradeCheckSelect};
+	use frame_try_runtime::{runtime_decl_for_try_runtime::TryRuntime, UpgradeCheckSelect};
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
 	};

@@ -4,7 +4,7 @@ GEM
     addressable (2.8.0)
       public_suffix (>= 2.0.2, < 5.0)
     ast (2.4.2)
-    changelogerator (0.9.1)
+    changelogerator (0.10.1)
       git_diff_parser (~> 3)
       octokit (~> 4)
     faraday (1.8.0)
@@ -70,7 +70,7 @@ PLATFORMS
   x86_64-darwin-22
 
 DEPENDENCIES
-  changelogerator (= 0.9.1)
+  changelogerator (= 0.10.1)
   git_diff_parser (~> 3)
   logger (~> 1.4)
   octokit (~> 4)

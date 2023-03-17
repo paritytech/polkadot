@@ -20,6 +20,7 @@ use crate::{
 };
 use frame_support::{pallet_prelude::*, traits::EnsureOrigin};
 use frame_system::pallet_prelude::*;
+use polkadot_parachain::primitives::UpwardMessages;
 use primitives::{Id as ParaId, UpwardMessage};
 use sp_std::{collections::btree_map::BTreeMap, fmt, marker::PhantomData, mem, prelude::*};
 use xcm::latest::Outcome;
@@ -28,7 +29,7 @@ pub use pallet::*;
 
 /// Maximum value that `config.max_upward_message_size` can be set to
 ///
-/// This is used for benchmarking sanely bounding relevant storate items. It is expected from the `configurations`
+/// This is used for benchmarking sanely bounding relevant storage items. It is expected from the `configurations`
 /// pallet to check these values before setting.
 pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 50 * 1024;
 /// Maximum amount of overweight messages that can exist in the queue at any given time.
@@ -214,7 +215,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
@@ -401,22 +401,20 @@ impl<T: Config> Pallet<T> {
 
 	/// Remove all relevant storage items for an outgoing parachain.
 	pub(crate) fn clean_ump_after_outgoing(outgoing_para: &ParaId) -> Weight {
-		<Self as Store>::RelayDispatchQueueSize::remove(outgoing_para);
-		<Self as Store>::RelayDispatchQueues::remove(outgoing_para);
+		RelayDispatchQueueSize::<T>::remove(outgoing_para);
+		RelayDispatchQueues::<T>::remove(outgoing_para);
 
 		// Remove the outgoing para from the `NeedsDispatch` list and from
 		// `NextDispatchRoundStartWith`.
 		//
 		// That's needed for maintaining invariant that `NextDispatchRoundStartWith` points to an
 		// existing item in `NeedsDispatch`.
-		<Self as Store>::NeedsDispatch::mutate(|v| {
+		NeedsDispatch::<T>::mutate(|v| {
 			if let Ok(i) = v.binary_search(outgoing_para) {
 				v.remove(i);
 			}
 		});
-		<Self as Store>::NextDispatchRoundStartWith::mutate(|v| {
-			*v = v.filter(|p| p == outgoing_para)
-		});
+		NextDispatchRoundStartWith::<T>::mutate(|v| *v = v.filter(|p| p == outgoing_para));
 
 		<T as Config>::WeightInfo::clean_ump_after_outgoing()
 	}
@@ -435,8 +433,7 @@ impl<T: Config> Pallet<T> {
 			})
 		}
 
-		let (mut para_queue_count, mut para_queue_size) =
-			<Self as Store>::RelayDispatchQueueSize::get(&para);
+		let (mut para_queue_count, mut para_queue_size) = RelayDispatchQueueSize::<T>::get(&para);
 
 		for (idx, msg) in upward_messages.into_iter().enumerate() {
 			let msg_size = msg.len() as u32;
@@ -470,10 +467,7 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
-	pub(crate) fn receive_upward_messages(
-		para: ParaId,
-		upward_messages: Vec<UpwardMessage>,
-	) -> Weight {
+	pub(crate) fn receive_upward_messages(para: ParaId, upward_messages: UpwardMessages) -> Weight {
 		let mut weight = Weight::zero();
 
 		if !upward_messages.is_empty() {
@@ -481,19 +475,14 @@ impl<T: Config> Pallet<T> {
 				.iter()
 				.fold((0, 0), |(cnt, size), d| (cnt + 1, size + d.len() as u32));
 
-			<Self as Store>::RelayDispatchQueues::mutate(&para, |v| {
-				v.extend(upward_messages.into_iter())
+			RelayDispatchQueues::<T>::mutate(&para, |v| v.extend(upward_messages.into_iter()));
+
+			RelayDispatchQueueSize::<T>::mutate(&para, |(ref mut cnt, ref mut size)| {
+				*cnt += extra_count;
+				*size += extra_size;
 			});
 
-			<Self as Store>::RelayDispatchQueueSize::mutate(
-				&para,
-				|(ref mut cnt, ref mut size)| {
-					*cnt += extra_count;
-					*size += extra_size;
-				},
-			);
-
-			<Self as Store>::NeedsDispatch::mutate(|v| {
+			NeedsDispatch::<T>::mutate(|v| {
 				if let Err(i) = v.binary_search(&para) {
 					v.insert(i, para);
 				}
@@ -594,13 +583,13 @@ impl<T: Config> Pallet<T> {
 	/// Puts a given upward message into the list of overweight messages allowing it to be executed
 	/// later.
 	fn stash_overweight(sender: ParaId, upward_message: Vec<u8>) -> OverweightIndex {
-		let index = <Self as Store>::OverweightCount::mutate(|count| {
+		let index = OverweightCount::<T>::mutate(|count| {
 			let index = *count;
 			*count += 1;
 			index
 		});
 
-		<Self as Store>::Overweight::insert(index, (sender, upward_message));
+		Overweight::<T>::insert(index, (sender, upward_message));
 		index
 	}
 }
@@ -716,8 +705,8 @@ struct NeedsDispatchCursor {
 
 impl NeedsDispatchCursor {
 	fn new<T: Config>() -> Self {
-		let needs_dispatch: Vec<ParaId> = <Pallet<T> as Store>::NeedsDispatch::get();
-		let start_with = <Pallet<T> as Store>::NextDispatchRoundStartWith::get();
+		let needs_dispatch: Vec<ParaId> = NeedsDispatch::<T>::get();
+		let start_with = NextDispatchRoundStartWith::<T>::get();
 
 		let initial_index = match start_with {
 			Some(para) => match needs_dispatch.binary_search(&para) {
@@ -768,7 +757,7 @@ impl NeedsDispatchCursor {
 	/// Flushes the dispatcher state into the persistent storage.
 	fn flush<T: Config>(self) {
 		let next_one = self.peek();
-		<Pallet<T> as Store>::NextDispatchRoundStartWith::set(next_one);
-		<Pallet<T> as Store>::NeedsDispatch::put(self.needs_dispatch);
+		NextDispatchRoundStartWith::<T>::set(next_one);
+		NeedsDispatch::<T>::put(self.needs_dispatch);
 	}
 }

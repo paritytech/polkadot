@@ -84,7 +84,6 @@ pub mod pallet {
 	use frame_system::{ensure_root, ensure_signed, pallet_prelude::*};
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	/// The module's configuration trait.
@@ -1883,7 +1882,7 @@ mod benchmarking {
 				pallet_babe::Pallet::<T>::on_initialize(duration + now + T::EndingPeriod::get());
 				let authorities = pallet_babe::Pallet::<T>::authorities();
 				let next_authorities = authorities.clone();
-				pallet_babe::Pallet::<T>::enact_epoch_change(authorities, next_authorities);
+				pallet_babe::Pallet::<T>::enact_epoch_change(authorities, next_authorities, None);
 			}
 
 		}: {

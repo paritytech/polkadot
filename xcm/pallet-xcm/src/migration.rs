@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{Config, Pallet, Store};
+use crate::{Config, Pallet, VersionNotifyTargets};
 use frame_support::{
 	pallet_prelude::*,
 	traits::{OnRuntimeUpgrade, StorageVersion},
@@ -48,7 +48,7 @@ pub mod v1 {
 					Some(translated)
 				};
 
-				<Pallet<T> as Store>::VersionNotifyTargets::translate_values(translate);
+				VersionNotifyTargets::<T>::translate_values(translate);
 
 				log::info!("v1 applied successfully");
 				STORAGE_VERSION.put::<Pallet<T>>();

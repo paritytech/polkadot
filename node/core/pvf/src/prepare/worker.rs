@@ -14,13 +14,17 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(target_os = "linux")]
+use super::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread};
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 use super::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
-use super::memory_stats::{get_max_rss_thread, observe_memory_metrics, MemoryStats};
+use super::memory_stats::MemoryStats;
 use crate::{
 	artifacts::CompiledArtifact,
 	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
+	prepare::PrepareStats,
+	pvf::PvfPrepData,
 	worker_common::{
 		bytes_to_path, cpu_time_monitor_loop, framed_recv, framed_send, path_to_bytes,
 		spawn_with_program_path, tmpfile_in, worker_event_loop, IdleWorker, SpawnErr, WorkerHandle,
@@ -31,11 +35,12 @@ use crate::{
 use cpu_time::ProcessTime;
 use futures::{pin_mut, select_biased, FutureExt};
 use parity_scale_codec::{Decode, Encode};
+
 use sp_core::hexdisplay::HexDisplay;
 use std::{
 	panic,
 	path::{Path, PathBuf},
-	sync::{mpsc::channel, Arc},
+	sync::mpsc::channel,
 	time::Duration,
 };
 use tokio::{io, net::UnixStream};
@@ -79,10 +84,9 @@ pub enum Outcome {
 pub async fn start_work(
 	metrics: &Metrics,
 	worker: IdleWorker,
-	code: Arc<Vec<u8>>,
+	pvf: PvfPrepData,
 	cache_path: &Path,
 	artifact_path: PathBuf,
-	preparation_timeout: Duration,
 ) -> Outcome {
 	let IdleWorker { stream, pid } = worker;
 
@@ -94,7 +98,8 @@ pub async fn start_work(
 	);
 
 	with_tmp_file(stream, pid, cache_path, |tmp_file, mut stream| async move {
-		if let Err(err) = send_request(&mut stream, code, &tmp_file, preparation_timeout).await {
+		let preparation_timeout = pvf.prep_timeout;
+		if let Err(err) = send_request(&mut stream, pvf, &tmp_file).await {
 			gum::warn!(
 				target: LOG_TARGET,
 				worker_pid = %pid,
@@ -118,12 +123,11 @@ pub async fn start_work(
 
 		match result {
 			// Received bytes from worker within the time limit.
-			Ok(Ok((prepare_result, memory_stats))) =>
+			Ok(Ok(prepare_result)) =>
 				handle_response(
 					metrics,
 					IdleWorker { stream, pid },
 					prepare_result,
-					memory_stats,
 					pid,
 					tmp_file,
 					artifact_path,
@@ -162,13 +166,12 @@ async fn handle_response(
 	metrics: &Metrics,
 	worker: IdleWorker,
 	result: PrepareResult,
-	memory_stats: Option<MemoryStats>,
-	pid: u32,
+	worker_pid: u32,
 	tmp_file: PathBuf,
 	artifact_path: PathBuf,
 	preparation_timeout: Duration,
 ) -> Outcome {
-	let cpu_time_elapsed = match result {
+	let PrepareStats { cpu_time_elapsed, memory_stats } = match result.clone() {
 		Ok(result) => result,
 		// Timed out on the child. This should already be logged by the child.
 		Err(PrepareError::TimedOut) => return Outcome::TimedOut,
@@ -179,7 +182,7 @@ async fn handle_response(
 		// The job didn't complete within the timeout.
 		gum::warn!(
 			target: LOG_TARGET,
-			worker_pid = %pid,
+			%worker_pid,
 			"prepare job took {}ms cpu time, exceeded preparation timeout {}ms. Clearing WIP artifact {}",
 			cpu_time_elapsed.as_millis(),
 			preparation_timeout.as_millis(),
@@ -190,7 +193,7 @@ async fn handle_response(
 
 	gum::debug!(
 		target: LOG_TARGET,
-		worker_pid = %pid,
+		%worker_pid,
 		"promoting WIP artifact {} to {}",
 		tmp_file.display(),
 		artifact_path.display(),
@@ -201,7 +204,7 @@ async fn handle_response(
 		Err(err) => {
 			gum::warn!(
 				target: LOG_TARGET,
-				worker_pid = %pid,
+				%worker_pid,
 				"failed to rename the artifact from {} to {}: {:?}",
 				tmp_file.display(),
 				artifact_path.display(),
@@ -213,9 +216,7 @@ async fn handle_response(
 
 	// If there were no errors up until now, log the memory stats for a successful preparation, if
 	// available.
-	if let Some(memory_stats) = memory_stats {
-		observe_memory_metrics(metrics, memory_stats, pid);
-	}
+	metrics.observe_preparation_memory_metrics(memory_stats);
 
 	outcome
 }
@@ -270,18 +271,22 @@ where
 
 async fn send_request(
 	stream: &mut UnixStream,
-	code: Arc<Vec<u8>>,
+	pvf: PvfPrepData,
 	tmp_file: &Path,
-	preparation_timeout: Duration,
 ) -> io::Result<()> {
-	framed_send(stream, &code).await?;
+	framed_send(stream, &pvf.encode()).await?;
 	framed_send(stream, path_to_bytes(tmp_file)).await?;
-	framed_send(stream, &preparation_timeout.encode()).await?;
 	Ok(())
 }
 
-async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, Duration)> {
-	let code = framed_recv(stream).await?;
+async fn recv_request(stream: &mut UnixStream) -> io::Result<(PvfPrepData, PathBuf)> {
+	let pvf = framed_recv(stream).await?;
+	let pvf = PvfPrepData::decode(&mut &pvf[..]).map_err(|e| {
+		io::Error::new(
+			io::ErrorKind::Other,
+			format!("prepare pvf recv_request: failed to decode PvfPrepData: {}", e),
+		)
+	})?;
 	let tmp_file = framed_recv(stream).await?;
 	let tmp_file = bytes_to_path(&tmp_file).ok_or_else(|| {
 		io::Error::new(
@@ -289,29 +294,14 @@ async fn recv_request(stream: &mut UnixStream) -> io::Result<(Vec<u8>, PathBuf, 
 			"prepare pvf recv_request: non utf-8 artifact path".to_string(),
 		)
 	})?;
-	let preparation_timeout = framed_recv(stream).await?;
-	let preparation_timeout = Duration::decode(&mut &preparation_timeout[..]).map_err(|e| {
-		io::Error::new(
-			io::ErrorKind::Other,
-			format!("prepare pvf recv_request: failed to decode duration: {:?}", e),
-		)
-	})?;
-	Ok((code, tmp_file, preparation_timeout))
+	Ok((pvf, tmp_file))
 }
 
-async fn send_response(
-	stream: &mut UnixStream,
-	result: PrepareResult,
-	memory_stats: Option<MemoryStats>,
-) -> io::Result<()> {
-	framed_send(stream, &result.encode()).await?;
-	framed_send(stream, &memory_stats.encode()).await
+async fn send_response(stream: &mut UnixStream, result: PrepareResult) -> io::Result<()> {
+	framed_send(stream, &result.encode()).await
 }
 
-async fn recv_response(
-	stream: &mut UnixStream,
-	pid: u32,
-) -> io::Result<(PrepareResult, Option<MemoryStats>)> {
+async fn recv_response(stream: &mut UnixStream, pid: u32) -> io::Result<PrepareResult> {
 	let result = framed_recv(stream).await?;
 	let result = PrepareResult::decode(&mut &result[..]).map_err(|e| {
 		// We received invalid bytes from the worker.
@@ -327,14 +317,7 @@ async fn recv_response(
 			format!("prepare pvf recv_response: failed to decode result: {:?}", e),
 		)
 	})?;
-	let memory_stats = framed_recv(stream).await?;
-	let memory_stats = Option::<MemoryStats>::decode(&mut &memory_stats[..]).map_err(|e| {
-		io::Error::new(
-			io::ErrorKind::Other,
-			format!("prepare pvf recv_response: failed to decode memory stats: {:?}", e),
-		)
-	})?;
-	Ok((result, memory_stats))
+	Ok(result)
 }
 
 /// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
@@ -362,14 +345,16 @@ async fn recv_response(
 pub fn worker_entrypoint(socket_path: &str) {
 	worker_event_loop("prepare", socket_path, |rt_handle, mut stream| async move {
 		loop {
-			let (code, dest, preparation_timeout) = recv_request(&mut stream).await?;
+			let worker_pid = std::process::id();
+			let (pvf, dest) = recv_request(&mut stream).await?;
 			gum::debug!(
 				target: LOG_TARGET,
-				worker_pid = %std::process::id(),
+				%worker_pid,
 				"worker: preparing artifact",
 			);
 
 			let cpu_time_start = ProcessTime::now();
+			let preparation_timeout = pvf.prep_timeout;
 
 			// Run the memory tracker.
 			#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
@@ -387,28 +372,29 @@ pub fn worker_entrypoint(socket_path: &str) {
 			// Spawn another thread for preparation.
 			let prepare_fut = rt_handle
 				.spawn_blocking(move || {
-					let prepare_result = prepare_artifact(&code);
+					let result = prepare_artifact(pvf);
 
 					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
-					let max_rss = get_max_rss_thread();
+					#[cfg(target_os = "linux")]
+					let result = result.map(|artifact| (artifact, get_max_rss_thread()));
 
-					(prepare_result, max_rss)
+					result
 				})
 				.fuse();
 
 			pin_mut!(cpu_time_monitor_fut);
 			pin_mut!(prepare_fut);
 
-			let (result, memory_stats) = select_biased! {
+			let result = select_biased! {
 				// If this future is not selected, the join handle is dropped and the thread will
 				// finish in the background.
 				join_res = cpu_time_monitor_fut => {
-					let result = match join_res {
+					match join_res {
 						Ok(Some(cpu_time_elapsed)) => {
 							// Log if we exceed the timeout and the other thread hasn't finished.
 							gum::warn!(
 								target: LOG_TARGET,
-								worker_pid = %std::process::id(),
+								%worker_pid,
 								"prepare job took {}ms cpu time, exceeded prepare timeout {}ms",
 								cpu_time_elapsed.as_millis(),
 								preparation_timeout.as_millis(),
@@ -417,28 +403,29 @@ pub fn worker_entrypoint(socket_path: &str) {
 						},
 						Ok(None) => Err(PrepareError::IoErr("error communicating over finished channel".into())),
 						Err(err) => Err(PrepareError::IoErr(err.to_string())),
-					};
-					(result, None)
+					}
 				},
-				compilation_res = prepare_fut => {
+				prepare_res = prepare_fut => {
 					let cpu_time_elapsed = cpu_time_start.elapsed();
 					let _ = cpu_time_monitor_tx.send(());
 
-					match compilation_res.unwrap_or_else(|err| (Err(PrepareError::IoErr(err.to_string())), None)) {
-						(Err(err), _) => {
+					match prepare_res.unwrap_or_else(|err| Err(PrepareError::IoErr(err.to_string()))) {
+						Err(err) => {
 							// Serialized error will be written into the socket.
-							(Err(err), None)
+							Err(err)
 						},
-						(Ok(compiled_artifact), max_rss) => {
+						Ok(ok) => {
 							// Stop the memory stats worker and get its observed memory stats.
 							#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 							let memory_tracker_stats =
-								get_memory_tracker_loop_stats(memory_tracker_fut, memory_tracker_tx).await;
-							#[cfg(not(any(target_os = "linux", feature = "jemalloc-allocator")))]
-							let memory_tracker_stats = None;
+								get_memory_tracker_loop_stats(memory_tracker_fut, memory_tracker_tx, worker_pid).await;
+							#[cfg(target_os = "linux")]
+							let (ok, max_rss) = ok;
 							let memory_stats = MemoryStats {
+								#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 								memory_tracker_stats,
-								max_rss: max_rss.map(|inner| inner.map_err(|e| e.to_string())),
+								#[cfg(target_os = "linux")]
+								max_rss: extract_max_rss_stat(max_rss, worker_pid),
 							};
 
 							// Write the serialized artifact into a temp file.
@@ -450,31 +437,31 @@ pub fn worker_entrypoint(socket_path: &str) {
 
 							gum::debug!(
 								target: LOG_TARGET,
-								worker_pid = %std::process::id(),
+								%worker_pid,
 								"worker: writing artifact to {}",
 								dest.display(),
 							);
-							tokio::fs::write(&dest, &compiled_artifact).await?;
+							tokio::fs::write(&dest, &ok).await?;
 
-							(Ok(cpu_time_elapsed), Some(memory_stats))
+							Ok(PrepareStats{cpu_time_elapsed, memory_stats})
 						},
 					}
 				},
 			};
 
-			send_response(&mut stream, result, memory_stats).await?;
+			send_response(&mut stream, result).await?;
 		}
 	});
 }
 
-fn prepare_artifact(code: &[u8]) -> Result<CompiledArtifact, PrepareError> {
+fn prepare_artifact(pvf: PvfPrepData) -> Result<CompiledArtifact, PrepareError> {
 	panic::catch_unwind(|| {
-		let blob = match crate::executor_intf::prevalidate(code) {
+		let blob = match crate::executor_intf::prevalidate(&pvf.code()) {
 			Err(err) => return Err(PrepareError::Prevalidation(format!("{:?}", err))),
 			Ok(b) => b,
 		};
 
-		match crate::executor_intf::prepare(blob) {
+		match crate::executor_intf::prepare(blob, &pvf.executor_params()) {
 			Ok(compiled_artifact) => Ok(CompiledArtifact::new(compiled_artifact)),
 			Err(err) => Err(PrepareError::Preparation(format!("{:?}", err))),
 		}
