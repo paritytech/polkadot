@@ -475,7 +475,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	candidate_backing: CandidateBacking,
 
-	#[subsystem(message_capacity: 32000, StatementDistributionMessage, sends: [
+	#[subsystem(StatementDistributionMessage, sends: [
 		NetworkBridgeTxMessage,
 		CandidateBackingMessage,
 		RuntimeApiMessage,
@@ -505,7 +505,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	bitfield_signing: BitfieldSigning,
 
-	#[subsystem(message_capacity: 32000, BitfieldDistributionMessage, sends: [
+	#[subsystem(BitfieldDistributionMessage, sends: [
 		RuntimeApiMessage,
 		NetworkBridgeTxMessage,
 		ProvisionerMessage,
@@ -559,7 +559,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(blocking, message_capacity: 131072, ApprovalDistributionMessage, sends: [
+	#[subsystem(blocking, message_capacity: 64000, ApprovalDistributionMessage, sends: [
 		NetworkBridgeTxMessage,
 		ApprovalVotingMessage,
 	])]
@@ -584,7 +584,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	gossip_support: GossipSupport,
 
-	#[subsystem(blocking, DisputeCoordinatorMessage, sends: [
+	#[subsystem(blocking, message_capacity: 32000, DisputeCoordinatorMessage, sends: [
 		RuntimeApiMessage,
 		ChainApiMessage,
 		DisputeDistributionMessage,
