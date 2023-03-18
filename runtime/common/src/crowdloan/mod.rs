@@ -991,9 +991,10 @@ mod tests {
 		let fund = Funds::<Test>::get(para).unwrap();
 		let account_id = Crowdloan::fund_account_id(fund.fund_index);
 		if winner {
+			let ed = <Test as pallet_balances::Config>::ExistentialDeposit::get();
 			let free_balance = Balances::free_balance(&account_id);
-			Balances::reserve(&account_id, free_balance)
-				.expect("should be able to reserve free balance");
+			Balances::reserve(&account_id, free_balance - ed)
+				.expect("should be able to reserve free balance minus ED");
 		} else {
 			let reserved_balance = Balances::reserved_balance(&account_id);
 			Balances::unreserve(&account_id, reserved_balance);
@@ -1786,6 +1787,7 @@ mod tests {
 	#[test]
 	fn withdraw_from_finished_works() {
 		new_test_ext().execute_with(|| {
+			assert_eq!(<Test as pallet_balances::Config>::ExistentialDeposit::get(), 1);
 			let para = new_para();
 			let index = NextFundIndex::<Test>::get();
 			let account_id = Crowdloan::fund_account_id(index);
@@ -1797,7 +1799,7 @@ mod tests {
 			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 100, None));
 			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(3), para, 50, None));
 			// simulate the reserving of para's funds. this actually happens in the Slots pallet.
-			assert_ok!(Balances::reserve(&account_id, 150));
+			assert_ok!(Balances::reserve(&account_id, 149));
 
 			run_to_block(19);
 			assert_noop!(
