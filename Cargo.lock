@@ -5067,9 +5067,9 @@ dependencies = [
 
 [[package]]
 name = "orchestra"
-version = "0.2.0"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecae97f74ddeb5c6ff00c98ef368423b4ec9a4d5ab48c0d909e84b7594b09718"
+checksum = "227585216d05ba65c7ab0a0450a3cf2cbd81a98862a54c4df8e14d5ac6adb015"
 dependencies = [
  "async-trait",
  "dyn-clonable",
@@ -5077,16 +5077,16 @@ dependencies = [
  "futures-timer",
  "orchestra-proc-macro",
  "pin-project",
- "prioritized-metered-channel",
+ "prioritized-metered-channel 0.2.0",
  "thiserror",
  "tracing",
 ]
 
 [[package]]
 name = "orchestra-proc-macro"
-version = "0.2.0"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08a9846c70b1df02657dbe5b54fadbad0ea3b944623ebf3fcbf7f33ef859dcba"
+checksum = "2871aadd82a2c216ee68a69837a526dfe788ecbe74c4c5038a6acdbff6653066"
 dependencies = [
  "expander 0.0.6",
  "itertools",
@@ -7139,7 +7139,7 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-test-service",
- "prioritized-metered-channel",
+ "prioritized-metered-channel 0.4.0",
  "prometheus-parse",
  "sc-cli",
  "sc-client-api",
@@ -7278,7 +7278,7 @@ dependencies = [
  "polkadot-overseer",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "prioritized-metered-channel",
+ "prioritized-metered-channel 0.4.0",
  "rand 0.8.5",
  "sp-application-crypto",
  "sp-core",
@@ -7306,7 +7306,7 @@ dependencies = [
  "polkadot-node-subsystem-types",
  "polkadot-primitives",
  "polkadot-primitives-test-helpers",
- "prioritized-metered-channel",
+ "prioritized-metered-channel 0.4.0",
  "sc-client-api",
  "sp-api",
  "sp-core",
@@ -8104,6 +8104,22 @@ dependencies = [
  "impl-serde",
  "scale-info",
  "uint",
+]
+
+[[package]]
+name = "prioritized-metered-channel"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "382698e48a268c832d0b181ed438374a6bb708a82a8ca273bb0f61c74cf209c4"
+dependencies = [
+ "coarsetime",
+ "crossbeam-queue",
+ "derive_more",
+ "futures",
+ "futures-timer",
+ "nanorand",
+ "thiserror",
+ "tracing",
 ]
 
 [[package]]
