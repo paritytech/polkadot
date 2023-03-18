@@ -1183,8 +1183,8 @@ impl pallet_balances::Config<NisCounterpartInstance> for Runtime {
 	type WeightInfo = weights::pallet_balances_nis_counterpart_balances::WeightInfo<Runtime>;
 	type HoldIdentifier = ();
 	type FreezeIdentifier = ();
-	type MaxHolds = ConstU32<1>;
-	type MaxFreezes = ConstU32<1>;
+	type MaxHolds = ConstU32<0>;
+	type MaxFreezes = ConstU32<0>;
 }
 
 parameter_types! {
