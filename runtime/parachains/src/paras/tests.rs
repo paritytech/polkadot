@@ -19,7 +19,7 @@ use frame_support::{assert_err, assert_ok, assert_storage_noop};
 use keyring::Sr25519Keyring;
 use primitives::{BlockNumber, ValidatorId, PARACHAIN_KEY_TYPE_ID};
 use sc_keystore::LocalKeystore;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 use std::sync::Arc;
 use test_helpers::{dummy_head_data, dummy_validation_code};
 
@@ -56,9 +56,9 @@ fn sign_and_include_pvf_check_statement(stmt: PvfCheckStatement) {
 }
 
 fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in VALIDATORS.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
