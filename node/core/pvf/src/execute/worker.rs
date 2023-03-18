@@ -275,8 +275,15 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				gum::error!(
 					target: LOG_TARGET,
 					%worker_pid,
-					"Node and worker version mismatch, node needs restarting",
+					"Node and worker version mismatch, node needs restarting, forcing shutdown",
 				);
+				unsafe {
+					// SAFETY: Neither `getppid()` nor `kill()` never fails
+					let ppid = libc::getppid();
+					if ppid > 1 {
+						libc::kill(ppid, libc::SIGKILL);
+					}
+				}
 				return Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"))
 			}
 		}
