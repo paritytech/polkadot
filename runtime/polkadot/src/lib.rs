@@ -1232,9 +1232,8 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					RuntimeCall::Registrar(..) |
 					RuntimeCall::Slots(..)
 			),
-			ProxyType::NominationPools => matches!(
-				c, RuntimeCall::NominationPools(..) | RuntimeCall::Utility(..)
-			),
+			ProxyType::NominationPools =>
+				matches!(c, RuntimeCall::NominationPools(..) | RuntimeCall::Utility(..)),
 		}
 	}
 	fn is_superset(&self, o: &Self) -> bool {
