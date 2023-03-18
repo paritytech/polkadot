@@ -761,6 +761,7 @@ pub enum ProxyType {
 	IdentityJudgement,
 	CancelProxy,
 	Auction,
+	NominationPools,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -841,6 +842,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					RuntimeCall::Crowdloan(..) |
 					RuntimeCall::Registrar(..) |
 					RuntimeCall::Slots(..)
+			),
+			ProxyType::NominationPools => matches!(
+				c, RuntimeCall::NominationPools(..) | RuntimeCall::Utility(..)
 			),
 		}
 	}

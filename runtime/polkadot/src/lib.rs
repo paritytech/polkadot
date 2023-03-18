@@ -1112,6 +1112,7 @@ pub enum ProxyType {
 	IdentityJudgement = 5,
 	CancelProxy = 6,
 	Auction = 7,
+	NominationPools = 8,
 }
 
 #[cfg(test)]
@@ -1230,6 +1231,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 					RuntimeCall::Crowdloan(..) |
 					RuntimeCall::Registrar(..) |
 					RuntimeCall::Slots(..)
+			),
+			ProxyType::NominationPools => matches!(
+				c, RuntimeCall::NominationPools(..) | RuntimeCall::Utility(..)
 			),
 		}
 	}
