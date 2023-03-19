@@ -37,7 +37,7 @@ use runtime_parachains::{
 };
 use sp_core::H256;
 use sp_io::TestExternalities;
-use sp_keystore::{testing::KeyStore, KeystoreExt};
+use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup, One},
 	transaction_validity::TransactionPriority,
@@ -279,7 +279,7 @@ pub fn new_test_ext() -> TestExternalities {
 		&mut t,
 	)
 	.unwrap();
-	let keystore = KeyStore::new();
+	let keystore = MemoryKeystore::new();
 	let mut ext: sp_io::TestExternalities = t.into();
 	ext.register_extension(KeystoreExt(Arc::new(keystore)));
 	ext.execute_with(|| System::set_block_number(1));

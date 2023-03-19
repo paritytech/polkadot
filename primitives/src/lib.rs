@@ -19,8 +19,8 @@
 #![warn(missing_docs)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-// `v2` is currently the latest stable version of the runtime API.
-pub mod v2;
+// `v4` is currently the latest stable version of the runtime API.
+pub mod v4;
 
 // The 'staging' version is special - it contains primitives which are
 // still in development. Once they are considered stable, they will be
@@ -33,7 +33,7 @@ pub mod runtime_api;
 
 // Current primitives not requiring versioning are exported here.
 // Primitives requiring versioning must not be exported and must be referred by an exact version.
-pub use v2::{
+pub use v4::{
 	byzantine_threshold, check_candidate_backing, collator_signature_payload, metric_definitions,
 	supermajority_threshold, well_known_keys, AbridgedHostConfiguration, AbridgedHrmpChannel,
 	AccountId, AccountIndex, AccountPublic, ApprovalVote, AssignmentId, AuthorityDiscoveryId,
@@ -42,10 +42,11 @@ pub use v2::{
 	CandidateReceipt, CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CollatorId,
 	CollatorSignature, CommittedCandidateReceipt, CompactStatement, ConsensusLog, CoreIndex,
 	CoreOccupied, CoreState, DisputeState, DisputeStatement, DisputeStatementSet, DownwardMessage,
-	EncodeAs, ExplicitDisputeStatement, GroupIndex, GroupRotationInfo, Hash, HashT, HeadData,
-	Header, HrmpChannelId, Id, InboundDownwardMessage, InboundHrmpMessage, IndexedVec,
-	InherentData, InvalidDisputeStatementKind, Moment, MultiDisputeStatementSet, Nonce,
-	OccupiedCore, OccupiedCoreAssumption, OutboundHrmpMessage, ParathreadClaim, ParathreadEntry,
+	EncodeAs, ExecutorParam, ExecutorParams, ExecutorParamsHash, ExplicitDisputeStatement,
+	GroupIndex, GroupRotationInfo, Hash, HashT, HeadData, Header, HrmpChannelId, Id,
+	InboundDownwardMessage, InboundHrmpMessage, IndexedVec, InherentData,
+	InvalidDisputeStatementKind, Moment, MultiDisputeStatementSet, Nonce, OccupiedCore,
+	OccupiedCoreAssumption, OutboundHrmpMessage, ParathreadClaim, ParathreadEntry,
 	PersistedValidationData, PvfCheckStatement, PvfExecTimeoutKind, PvfPrepTimeoutKind,
 	RuntimeMetricLabel, RuntimeMetricLabelValue, RuntimeMetricLabelValues, RuntimeMetricLabels,
 	RuntimeMetricOp, RuntimeMetricUpdate, ScheduledCore, ScrapedOnChainVotes, SessionIndex,
@@ -59,4 +60,4 @@ pub use v2::{
 };
 
 #[cfg(feature = "std")]
-pub use v2::{AssignmentPair, CollatorPair, ValidatorPair};
+pub use v4::{AssignmentPair, CollatorPair, ValidatorPair};

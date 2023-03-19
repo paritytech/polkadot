@@ -347,7 +347,7 @@ impl DisputeCoordinatorSubsystem {
 						?candidate_hash,
 						"Found valid dispute, with no vote from us on startup - participating."
 					);
-					let request_timer = Arc::new(self.metrics.time_participation_pipeline());
+					let request_timer = self.metrics.time_participation_pipeline();
 					participation_requests.push((
 						ParticipationPriority::with_priority_if(is_included),
 						ParticipationRequest::new(
