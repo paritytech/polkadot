@@ -186,7 +186,6 @@ pub mod pallet {
 	const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
@@ -875,7 +874,7 @@ mod tests {
 		traits::{AuctionStatus, OnSwap},
 	};
 	use ::test_helpers::{dummy_head_data, dummy_validation_code};
-	use sp_keystore::{testing::KeyStore, KeystoreExt};
+	use sp_keystore::{testing::MemoryKeystore, KeystoreExt};
 	use sp_runtime::{
 		testing::Header,
 		traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
@@ -1110,7 +1109,7 @@ mod tests {
 		}
 		.assimilate_storage(&mut t)
 		.unwrap();
-		let keystore = KeyStore::new();
+		let keystore = MemoryKeystore::new();
 		let mut t: sp_io::TestExternalities = t.into();
 		t.register_extension(KeystoreExt(Arc::new(keystore)));
 		t

@@ -96,7 +96,7 @@ impl Initialized {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
 		let (participation_sender, participation_receiver) = mpsc::channel(1);
-		let participation = Participation::new(participation_sender);
+		let participation = Participation::new(participation_sender, metrics.clone());
 		let highest_session = rolling_session_window.latest_session();
 
 		Self {
@@ -272,6 +272,7 @@ impl Initialized {
 		update: ActiveLeavesUpdate,
 		now: u64,
 	) -> Result<()> {
+		gum::trace!(target: LOG_TARGET, timestamp = now, "Processing ActiveLeavesUpdate");
 		let scraped_updates =
 			self.scraper.process_active_leaves_update(ctx.sender(), &update).await?;
 		log_error(
@@ -314,8 +315,15 @@ impl Initialized {
 				Ok(SessionWindowUpdate::Unchanged) => {},
 			};
 
+			gum::trace!(
+				target: LOG_TARGET,
+				timestamp = now,
+				"Will process {} onchain votes",
+				scraped_updates.on_chain_votes.len()
+			);
+
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
-			// so there is no point in running these in parallel.
+			// so there is no point in running these in parallel
 			for votes in scraped_updates.on_chain_votes {
 				let _ = self.process_on_chain_votes(ctx, overlay_db, votes, now).await.map_err(
 					|error| {
@@ -329,6 +337,7 @@ impl Initialized {
 			}
 		}
 
+		gum::trace!(target: LOG_TARGET, timestamp = now, "Done processing ActiveLeavesUpdate");
 		Ok(())
 	}
 
@@ -694,6 +703,10 @@ impl Initialized {
 		Ok(())
 	}
 
+	// We use fatal result rather than result here. Reason being, We for example increase
+	// spam slots in this function. If then the import fails for some non fatal and
+	// unrelated reason, we should likely actually decrement previously incremented spam
+	// slots again, for non fatal errors - which is cumbersome and actually not needed
 	async fn handle_import_statements<Context>(
 		&mut self,
 		ctx: &mut Context,
@@ -702,7 +715,7 @@ impl Initialized {
 		session: SessionIndex,
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		now: Timestamp,
-	) -> Result<ImportStatementsResult> {
+	) -> FatalResult<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
 		if !self.rolling_session_window.contains(session) {
 			// It is not valid to participate in an ancient dispute (spam?) or too new.
@@ -903,12 +916,17 @@ impl Initialized {
 			} else {
 				self.metrics.on_queued_best_effort_participation();
 			}
+			let request_timer = self.metrics.time_participation_pipeline();
 			let r = self
 				.participation
 				.queue_participation(
 					ctx,
 					priority,
-					ParticipationRequest::new(new_state.candidate_receipt().clone(), session),
+					ParticipationRequest::new(
+						new_state.candidate_receipt().clone(),
+						session,
+						request_timer,
+					),
 				)
 				.await;
 			log_error(r)?;
@@ -1016,6 +1034,15 @@ impl Initialized {
 		// will need to mark the candidate's relay parent as reverted.
 		if import_result.is_freshly_concluded_against() {
 			let blocks_including = self.scraper.get_blocks_including_candidate(&candidate_hash);
+			for (parent_block_number, parent_block_hash) in &blocks_including {
+				gum::trace!(
+					target: LOG_TARGET,
+					?candidate_hash,
+					?parent_block_number,
+					?parent_block_hash,
+					"Dispute has just concluded against the candidate hash noted. Its parent will be marked as reverted."
+				);
+			}
 			if blocks_including.len() > 0 {
 				ctx.send_message(ChainSelectionMessage::RevertBlocks(blocks_including)).await;
 			} else {
@@ -1141,8 +1168,7 @@ impl Initialized {
 					.get(*index)
 					.expect("`controlled_indices` are derived from `validators`; qed")
 					.clone(),
-			)
-			.await;
+			);
 
 			match res {
 				Ok(Some(signed_dispute_statement)) => {

@@ -51,7 +51,6 @@ pub mod pallet_test_notifier {
 	use xcm::latest::prelude::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]

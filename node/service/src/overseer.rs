@@ -34,15 +34,15 @@ pub use polkadot_overseer::{
 	HeadSupportsParachains,
 };
 use polkadot_overseer::{
-	metrics::Metrics as OverseerMetrics, BlockInfo, InitializedOverseerBuilder, MetricsTrait,
-	Overseer, OverseerConnector, OverseerHandle, SpawnGlue,
+	metrics::Metrics as OverseerMetrics, InitializedOverseerBuilder, MetricsTrait, Overseer,
+	OverseerConnector, OverseerHandle, SpawnGlue,
 };
 
 use polkadot_primitives::runtime_api::ParachainHost;
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 use sc_client_api::AuxStore;
 use sc_keystore::LocalKeystore;
-use sc_network_common::service::NetworkStateInfo;
+use sc_network::NetworkStateInfo;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
 use sp_consensus_babe::BabeApi;
@@ -81,8 +81,6 @@ where
 	RuntimeClient::Api: ParachainHost<Block> + BabeApi<Block> + AuthorityDiscoveryApi<Block>,
 	Spawner: 'static + SpawnNamed + Clone + Unpin,
 {
-	/// Set of initial relay chain leaves to track.
-	pub leaves: Vec<BlockInfo>,
 	/// The keystore to use for i.e. validator keys.
 	pub keystore: Arc<LocalKeystore>,
 	/// Runtime client generic, providing the `ProvieRuntimeApi` trait besides others.
@@ -91,6 +89,8 @@ where
 	pub parachains_db: Arc<dyn polkadot_node_subsystem_util::database::Database>,
 	/// Underlying network service implementation.
 	pub network_service: Arc<sc_network::NetworkService<Block, Hash>>,
+	/// Underlying syncing service implementation.
+	pub sync_service: Arc<sc_network_sync::SyncingService<Block>>,
 	/// Underlying authority discovery service.
 	pub authority_discovery_service: AuthorityDiscoveryService,
 	/// POV request receiver
@@ -131,11 +131,11 @@ where
 /// with all default values.
 pub fn prepared_overseer_builder<Spawner, RuntimeClient>(
 	OverseerGenArgs {
-		leaves,
 		keystore,
 		runtime_client,
 		parachains_db,
 		network_service,
+		sync_service,
 		authority_discovery_service,
 		pov_req_receiver,
 		chunk_req_receiver,
@@ -215,7 +215,7 @@ where
 		.network_bridge_rx(NetworkBridgeRxSubsystem::new(
 			network_service.clone(),
 			authority_discovery_service.clone(),
-			Box::new(network_service.clone()),
+			Box::new(sync_service.clone()),
 			network_bridge_metrics,
 			peerset_protocol_names,
 		))
@@ -231,7 +231,7 @@ where
 		.availability_store(AvailabilityStoreSubsystem::new(
 			parachains_db.clone(),
 			availability_config,
-			Box::new(network_service.clone()),
+			Box::new(sync_service.clone()),
 			Metrics::register(registry)?,
 		))
 		.bitfield_distribution(BitfieldDistributionSubsystem::new(Metrics::register(registry)?))
@@ -288,7 +288,7 @@ where
 			approval_voting_config,
 			parachains_db.clone(),
 			keystore.clone(),
-			Box::new(network_service.clone()),
+			Box::new(sync_service.clone()),
 			Metrics::register(registry)?,
 		))
 		.gossip_support(GossipSupportSubsystem::new(
@@ -309,11 +309,6 @@ where
 			Metrics::register(registry)?,
 		))
 		.chain_selection(ChainSelectionSubsystem::new(chain_selection_config, parachains_db))
-		.leaves(Vec::from_iter(
-			leaves
-				.into_iter()
-				.map(|BlockInfo { hash, parent_hash: _, number }| (hash, number)),
-		))
 		.activation_external_listeners(Default::default())
 		.span_per_active_leaf(Default::default())
 		.active_leaves(Default::default())
