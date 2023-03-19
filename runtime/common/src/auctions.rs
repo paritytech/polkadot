@@ -1434,6 +1434,7 @@ mod tests {
 	#[test]
 	fn initialize_winners_in_ending_period_works() {
 		new_test_ext().execute_with(|| {
+			assert_eq!(<Test as pallet_balances::Config>::ExistentialDeposit::get(), 1);
 			run_to_block(1);
 			assert_ok!(Auctions::new_auction(RuntimeOrigin::signed(6), 9, 1));
 			let para_1 = ParaId::from(1_u32);
@@ -1546,6 +1547,7 @@ mod tests {
 	#[test]
 	fn less_winning_samples_work() {
 		new_test_ext().execute_with(|| {
+			assert_eq!(<Test as pallet_balances::Config>::ExistentialDeposit::get(), 1);
 			EndingPeriod::set(30);
 			SampleLength::set(10);
 
