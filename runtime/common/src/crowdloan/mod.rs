@@ -419,6 +419,7 @@ pub mod pallet {
 
 			let deposit = T::SubmissionDeposit::get();
 
+			frame_system::Pallet::<T>::inc_providers(&Self::fund_account_id(fund_index));
 			CurrencyOf::<T>::reserve(&depositor, deposit)?;
 
 			Funds::<T>::insert(
@@ -575,6 +576,7 @@ pub mod pallet {
 			// can take care of that.
 			debug_assert!(Self::contribution_iterator(fund.fund_index).count().is_zero());
 
+			frame_system::Pallet::<T>::dec_providers(&Self::fund_account_id(fund.fund_index))?;
 			CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
 			Funds::<T>::remove(index);
 			Self::deposit_event(Event::<T>::Dissolved { para_id: index });
