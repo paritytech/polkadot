@@ -179,11 +179,13 @@ fn handle_active_leaves_update(
 	per_relay_parent: &mut HashMap<Hash, PerRelayParent>,
 	inherent_delays: &mut InherentDelays,
 ) {
+	gum::trace!(target: LOG_TARGET, "Handle ActiveLeavesUpdate");
 	for deactivated in &update.deactivated {
 		per_relay_parent.remove(deactivated);
 	}
 
 	if let Some(leaf) = update.activated {
+		gum::trace!(target: LOG_TARGET, leaf_hash=?leaf.hash, "Adding delay");
 		let delay_fut = Delay::new(PRE_PROPOSE_TIMEOUT).map(move |_| leaf.hash).boxed();
 		per_relay_parent.insert(leaf.hash, PerRelayParent::new(leaf));
 		inherent_delays.push(delay_fut);
@@ -324,7 +326,26 @@ fn note_provisionable_data(
 				.with_para_id(backed_candidate.descriptor().para_id);
 			per_relay_parent.backed_candidates.push(backed_candidate)
 		},
-		_ => {},
+		// We choose not to punish these forms of misbehavior for the time being.
+		// Risks from misbehavior are sufficiently mitigated at the protocol level
+		// via reputation changes. Punitive actions here may become desirable
+		// enough to dedicate time to in the future.
+		ProvisionableData::MisbehaviorReport(_, _, _) => {},
+		// We wait and do nothing here, preferring to initiate a dispute after the
+		// parablock candidate is included for the following reasons:
+		//
+		// 1. A dispute for a candidate triggered at any point before the candidate
+		// has been made available, including the backing stage, can't be
+		// guaranteed to conclude. Non-concluding disputes are unacceptable.
+		// 2. Candidates which haven't been made available don't pose a security
+		// risk as they can not be included, approved, or finalized.
+		//
+		// Currently we rely on approval checkers to trigger disputes for bad
+		// parablocks once they are included. But we can do slightly better by
+		// allowing disagreeing backers to record their disagreement and initiate a
+		// dispute once the parablock in question has been included. This potential
+		// change is tracked by: https://github.com/paritytech/polkadot/issues/3232
+		ProvisionableData::Dispute(_, _) => {},
 	}
 }
 
@@ -590,6 +611,10 @@ async fn select_candidates(
 		}
 	}
 
+	gum::trace!(target: LOG_TARGET,
+		leaf_hash=?relay_parent,
+		"before GetBackedCandidates");
+
 	// now get the backed candidates corresponding to these candidate receipts
 	let (tx, rx) = oneshot::channel();
 	sender.send_unbounded_message(CandidateBackingMessage::GetBackedCandidates(
@@ -598,6 +623,8 @@ async fn select_candidates(
 		tx,
 	));
 	let mut candidates = rx.await.map_err(|err| Error::CanceledBackedCandidates(err))?;
+	gum::trace!(target: LOG_TARGET, leaf_hash=?relay_parent,
+				"Got {} backed candidates", candidates.len());
 
 	// `selected_candidates` is generated in ascending order by core index, and `GetBackedCandidates`
 	// _should_ preserve that property, but let's just make sure.

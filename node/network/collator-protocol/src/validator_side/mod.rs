@@ -30,7 +30,7 @@ use std::{
 	time::{Duration, Instant},
 };
 
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
@@ -367,7 +367,7 @@ impl ActiveParas {
 	async fn assign_incoming(
 		&mut self,
 		sender: &mut impl SubsystemSender<RuntimeApiMessage>,
-		keystore: &SyncCryptoStorePtr,
+		keystore: &KeystorePtr,
 		new_relay_parents: impl IntoIterator<Item = Hash>,
 	) {
 		for relay_parent in new_relay_parents {
@@ -404,7 +404,6 @@ impl ActiveParas {
 
 			let para_now =
 				match polkadot_node_subsystem_util::signing_key_and_index(&validators, keystore)
-					.await
 					.and_then(|(_, index)| {
 						polkadot_node_subsystem_util::find_validator_group(&groups, index)
 					}) {
@@ -993,7 +992,7 @@ async fn remove_relay_parent(state: &mut State, relay_parent: Hash) -> Result<()
 async fn handle_our_view_change<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	view: OurView,
 ) -> Result<()> {
 	let old_view = std::mem::replace(&mut state.view, view);
@@ -1049,7 +1048,7 @@ async fn handle_our_view_change<Context>(
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	bridge_message: NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>,
 ) -> Result<()> {
 	use NetworkBridgeEvent::*;
@@ -1084,7 +1083,7 @@ async fn handle_network_msg<Context>(
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn process_msg<Context>(
 	ctx: &mut Context,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	msg: CollatorProtocolMessage,
 	state: &mut State,
 ) {
@@ -1165,7 +1164,7 @@ async fn process_msg<Context>(
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 ) -> std::result::Result<(), crate::error::FatalError> {

@@ -147,7 +147,7 @@ fn report_failed_transact_status_should_work() {
 	let r = XcmExecutor::<TestConfig>::execute_xcm(Parent, message, hash, weight_limit);
 	assert_eq!(r, Outcome::Complete(Weight::from_parts(70, 70)));
 	let expected_msg = Xcm(vec![QueryResponse {
-		response: Response::DispatchResult(MaybeErrorCode::Error(vec![2])),
+		response: Response::DispatchResult(vec![2].into()),
 		query_id: 42,
 		max_weight: Weight::from_parts(5000, 5000),
 		querier: Some(Here.into()),
@@ -197,7 +197,7 @@ fn expect_failed_transact_status_should_work() {
 			require_weight_at_most: Weight::from_parts(50, 50),
 			call: TestCall::OnlyRoot(Weight::from_parts(50, 50), None).encode().into(),
 		},
-		ExpectTransactStatus(MaybeErrorCode::Error(vec![2])),
+		ExpectTransactStatus(vec![2].into()),
 	]);
 	let hash = fake_message_hash(&message);
 	let weight_limit = Weight::from_parts(70, 70);
@@ -210,7 +210,7 @@ fn expect_failed_transact_status_should_work() {
 			require_weight_at_most: Weight::from_parts(50, 50),
 			call: TestCall::Any(Weight::from_parts(50, 50), None).encode().into(),
 		},
-		ExpectTransactStatus(MaybeErrorCode::Error(vec![2])),
+		ExpectTransactStatus(vec![2].into()),
 	]);
 	let hash = fake_message_hash(&message);
 	let weight_limit = Weight::from_parts(70, 70);

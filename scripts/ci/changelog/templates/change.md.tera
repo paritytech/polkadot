@@ -1,11 +1,11 @@
 {# This macro shows ONE change #}
 {%- macro change(c, cml="[C]", dot="[P]", sub="[S]") -%}
 
-{%- if c.meta.C and c.meta.C.value >= 7 -%}
+{%- if c.meta.C and c.meta.C.agg.max >= 7 -%}
 {%- set prio = " ‼️ HIGH" -%}
-{%- elif c.meta.C and c.meta.C.value >= 3 -%}
+{%- elif c.meta.C and c.meta.C.agg.max >= 3 -%}
 {%- set prio = " ❗️ Medium" -%}
-{%- elif c.meta.C and c.meta.C.value < 3 -%}
+{%- elif c.meta.C and c.meta.C.agg.max < 3 -%}
 {%- set prio = " Low" -%}
 {%- else -%}
 {%- set prio = "" -%}
@@ -13,13 +13,13 @@
 
 {%- set audit = "" -%}
 
-{%- if c.meta.D and c.meta.D.value == 1 -%}
+{%- if c.meta.D and c.meta.D.D1 -%}
 {%- set audit = "✅ audited " -%}
-{%- elif c.meta.D and c.meta.D.value == 2 -%}
+{%- elif c.meta.D and c.meta.D.D2 -%}
 {%- set audit = "✅ trivial " -%}
-{%- elif c.meta.D and c.meta.D.value == 3 -%}
+{%- elif c.meta.D and c.meta.D.D3 -%}
 {%- set audit = "✅ trivial " -%}
-{%- elif c.meta.D and c.meta.D.value == 5 -%}
+{%- elif c.meta.D and c.meta.D.D5 -%}
 {%- set audit = "⏳ pending non-critical audit " -%}
 {%- else -%}
 {%- set audit = "" -%}
@@ -31,6 +31,12 @@
 {%- set repo = sub -%}
 {%- else -%}
 {%- set repo = "   " -%}
+{%- endif -%}
+
+{%- if c.meta.T and c.meta.T.T6 -%}
+{%- set xcm = " [✉️ XCM]" -%}
+{%- else -%}
+{%- set xcm = "" -%}
 {%- endif -%}
 
 {{- repo }} {{ audit }}[`#{{c.number}}`]({{c.html_url}}) {{- prio }} - {{ c.title | capitalize | truncate(length=120, end="…") }}{{xcm }}
