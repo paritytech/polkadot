@@ -619,7 +619,7 @@ impl FragmentTree {
 		let mut depths = bitvec![u16, Msb0; 0; max_depth + 1];
 
 		// iterate over all nodes where parent head-data matches,
-		// relay-parent number is <= candidate, and depth <= max_depth.
+		// relay-parent number is <= candidate, and depth < max_depth.
 		let node_pointers = (0..self.nodes.len()).map(NodePointer::Storage);
 		for parent_pointer in std::iter::once(NodePointer::Root).chain(node_pointers) {
 			let (modifications, child_depth, earliest_rp) = match parent_pointer {
