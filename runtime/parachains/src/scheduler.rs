@@ -222,6 +222,7 @@ impl<T: Config> Pallet<T> {
 											),
 										);
 									} else {
+										// Consider max retried parathreads as concluded for the assignment provider
 										concluded_paras.insert(freed_index, entry.claim.0);
 									}
 								},
@@ -468,6 +469,7 @@ impl<T: Config> Pallet<T> {
 
 		log::debug!(target: "runtime::scheduler", "n_lookahead {:?}", n_lookahead);
 
+		let cq = ClaimQueue::<T>::get();
 		for core_idx in 0..n_session_cores {
 			let core_idx = CoreIndex(core_idx);
 			let group_idx = Self::group_assigned_to_core(core_idx, now).expect(
@@ -482,8 +484,7 @@ impl<T: Config> Pallet<T> {
 				Self::add_to_claimqueue(core_idx, ca);
 			}
 
-			let n_lookahead_used =
-				ClaimQueue::<T>::get().get(&core_idx).map_or(0, |v| v.len() as u32);
+			let n_lookahead_used = cq.get(&core_idx).map_or(0, |v| v.len() as u32);
 			log::debug!(target: "runtime::scheduler", "n_lookahead_used {:?}", n_lookahead_used);
 			for _ in n_lookahead_used..n_lookahead {
 				let concluded_para = concluded_paras.remove(&core_idx);
