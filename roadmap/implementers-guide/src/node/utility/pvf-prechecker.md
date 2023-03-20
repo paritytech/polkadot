@@ -35,6 +35,12 @@ Rejecting instead of abstaining is better in several ways:
 
 Also, if we only abstain, an attacker can specially craft a PVF wasm blob so that it will fail on e.g. 50% of the validators. In that case a supermajority will never be reached and the vote will repeat multiple times, most likely with the same result (since all votes are cleared on a session change). This is avoided by rejecting failed PVFs, and by only requiring 1/3 of validators to reject a PVF to reach a decision.
 
+### Note on Disputes
+
+Having a pre-checking phase allows us to make certain assumptions later when preparing the PVF for execution. If a runtime passed pre-checking, then we know that the runtime should be valid, and therefore any issue during preparation for execution can be assumed to be a local problem on the current node.
+
+For this reason, even deterministic preparation errors should not trigger disputes. And since we do not dispute as a result of the pre-checking phase, as stated above, it should be impossible for preparation in general to result in disputes.
+
 [overview]: ../../pvf-prechecking.md
 [Runtime API]: runtime-api.md
 [PVF pre-checking runtime API]: ../../runtime-api/pvf-prechecking.md
