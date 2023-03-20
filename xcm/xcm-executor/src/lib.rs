@@ -89,14 +89,8 @@ impl<Config: config::Config> XcmExecutor<Config> {
 	pub fn set_original_origin(&mut self, v: MultiLocation) {
 		self.state.set_original_origin(v)
 	}
-	pub fn trader(&self) -> &Config::Trader {
-		&self.processor.trader
-	}
-	pub fn set_trader(&mut self, v: Config::Trader) {
-		self.processor.trader = v
-	}
-	pub fn error(&self) -> &Option<(u32, XcmError)> {
-		&self.state.get_error()
+	pub fn error(&self) -> Option<(u32, XcmError)> {
+		self.state.get_error()
 	}
 	pub fn set_error(&mut self, v: Option<(u32, XcmError)>) {
 		self.state.set_error(v)

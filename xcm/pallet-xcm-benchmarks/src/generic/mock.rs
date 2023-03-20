@@ -132,6 +132,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = TestUniversalAliases;
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
+	type ProcessInstruction = xcm_executor::XcmProcessor<Self>;
 }
 
 impl crate::Config for Test {

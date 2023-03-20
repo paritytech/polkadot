@@ -56,7 +56,7 @@ impl<Call> XcVmRegisters<Call> {
 		&self.holding_limit
 	}
 	pub fn set_error(&mut self, v: Option<(u32, XcmError)>) {
-		self.state.error = v;
+		self.error = v;
 	}
 	pub fn set_original_origin(&mut self, v: MultiLocation) {
 		self.original_origin = v

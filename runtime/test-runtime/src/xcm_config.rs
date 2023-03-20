@@ -114,6 +114,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = super::RuntimeCall;
 	type SafeCallFilter = Everything;
+	type ProcessInstruction = xcm_executor::XcmProcessor<Self>;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
