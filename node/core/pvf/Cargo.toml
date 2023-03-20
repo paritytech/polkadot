@@ -15,6 +15,7 @@ cpu-time = "1.0.0"
 futures = "0.3.21"
 futures-timer = "3.0.2"
 gum = { package = "tracing-gum", path = "../../gum" }
+libc = "0.2.139"
 pin-project = "1.0.9"
 rand = "0.8.5"
 rayon = "1.6.1"
@@ -45,7 +46,6 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-libc = "0.2.139"
 tikv-jemalloc-ctl = "0.5.0"
 
 [dev-dependencies]
