@@ -790,7 +790,7 @@ pub enum CoreOccupied {
 	/// A parathread.
 	Parathread(ParathreadEntry),
 	/// A parachain.
-	Parachain, // TODO: add Id here to simply interface in scheduler
+	Parachain(Id),
 }
 
 impl CoreOccupied {
@@ -798,7 +798,7 @@ impl CoreOccupied {
 	pub fn is_free(&self) -> bool {
 		match self {
 			Self::Free => true,
-			Self::Parachain => false,
+			Self::Parachain(_) => false,
 			Self::Parathread(_) => false,
 		}
 	}

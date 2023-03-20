@@ -100,7 +100,7 @@ impl Assignment {
 
 	pub fn to_core_occupied(&self) -> CoreOccupied {
 		match self {
-			Assignment::Parachain(_) => CoreOccupied::Parachain,
+			Assignment::Parachain(para_id) => CoreOccupied::Parachain(*para_id),
 			Assignment::ParathreadA(claim) =>
 				CoreOccupied::Parathread(ParathreadEntry { claim: claim.clone(), retries: 0 }),
 		}
@@ -131,9 +131,6 @@ pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
 
 	fn get_availability_period(core_idx: CoreIndex) -> T::BlockNumber;
-
-	// This smells!
-	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId;
 }
 
 /// How a free core is scheduled to be assigned.
@@ -162,7 +159,7 @@ impl CoreAssignment {
 	/// Get the `CoreOccupied` from this.
 	pub fn to_core_occupied(&self) -> CoreOccupied {
 		match self.kind {
-			AssignmentKind::Parachain => CoreOccupied::Parachain,
+			AssignmentKind::Parachain => CoreOccupied::Parachain(self.para_id),
 			AssignmentKind::Parathread(ref collator, retries) =>
 				CoreOccupied::Parathread(ParathreadEntry {
 					claim: ParathreadClaim(self.para_id, collator.clone()),

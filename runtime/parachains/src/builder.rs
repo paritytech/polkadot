@@ -683,7 +683,11 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		// Mark all the used cores as occupied. We expect that their are `backed_and_concluding_cores`
 		// that are pending availability and that there are `used_cores - backed_and_concluding_cores `
 		// which are about to be disputed.
-		scheduler::AvailabilityCores::<T>::set(vec![CoreOccupied::Parachain; used_cores as usize]);
+		let cores = (0..used_cores)
+			.into_iter()
+			.map(|i| CoreOccupied::Parachain(ParaId::from(i as u32)))
+			.collect();
+		scheduler::AvailabilityCores::<T>::set(cores);
 
 		Bench::<T> {
 			data: ParachainsInherentData {

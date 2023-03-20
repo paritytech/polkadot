@@ -1031,7 +1031,7 @@ fn schedule_clears_availability_cores() {
 //		// assign some availability cores.
 //		{
 //			AvailabilityCores::<Test>::mutate(|cores| {
-//				cores[0] = CoreOccupied::Parachain;
+//				cores[0] = CoreOccupied::Parachain(chain_a);
 //				cores[1] = CoreOccupied::Parathread(ParathreadEntry {
 //					claim: ParathreadClaim(thread_a, collator),
 //					retries: 0,
@@ -1280,7 +1280,7 @@ fn next_up_on_available_is_parachain_always() {
 
 			let cores = Scheduler::availability_cores();
 			match cores[0] {
-				CoreOccupied::Parachain => {},
+				CoreOccupied::Parachain(_) => {},
 				_ => panic!("with no threads, only core should be a chain core"),
 			}
 
@@ -1334,7 +1334,7 @@ fn next_up_on_time_out_is_parachain_always() {
 
 			let cores = Scheduler::availability_cores();
 			match cores[0] {
-				CoreOccupied::Parachain => {},
+				CoreOccupied::Parachain(_) => {},
 				_ => panic!("with no threads, only core should be a chain core"),
 			}
 

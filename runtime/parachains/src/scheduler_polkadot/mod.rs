@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::pallet_prelude::*;
-use primitives::{CoreIndex, CoreOccupied, Id as ParaId};
+use primitives::{CoreIndex, Id as ParaId};
 use scale_info::TypeInfo;
 
 use crate::{
@@ -102,17 +102,6 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 			//<crate::scheduler_parathreads::Pallet<T>>::push_assignment_for_core(
 			//	core_idx, assignment,
 			//)
-		}
-	}
-
-	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
-		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
-		if (0..parachains_cores).contains(&core_idx.0) {
-			<crate::scheduler_parachains::Pallet<T>>::core_para(core_idx, core_occupied)
-		} else {
-			let _core_idx = CoreIndex(core_idx.0 - parachains_cores);
-			todo!()
-			//<crate::scheduler_parathreads::Pallet<T>>::core_para(core_idx, core_occupied)
 		}
 	}
 

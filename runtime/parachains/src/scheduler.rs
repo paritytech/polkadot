@@ -202,7 +202,7 @@ impl<T: Config> Pallet<T> {
 				.for_each(|(freed_index, freed_reason)| {
 					match &cores[freed_index.0 as usize] {
 						CoreOccupied::Free => {},
-						CoreOccupied::Parachain => {}, // If we ever do slot sharing parachains, this case needs to be handled
+						CoreOccupied::Parachain(_) => {}, // If we ever do slot sharing parachains, this case needs to be handled
 						CoreOccupied::Parathread(entry) => {
 							match freed_reason {
 								FreedReason::Concluded => {
@@ -264,8 +264,8 @@ impl<T: Config> Pallet<T> {
 		let cores = AvailabilityCores::<T>::get();
 		match cores.get(core_index.0 as usize) {
 			None | Some(CoreOccupied::Free) => None,
-			// NOTE: This is temporary
-			Some(x) => Some(T::AssignmentProvider::core_para(core_index, x)),
+			Some(CoreOccupied::Parachain(para_id)) => Some(*para_id),
+			Some(CoreOccupied::Parathread(entry)) => Some(entry.claim.0),
 		}
 	}
 
@@ -399,7 +399,7 @@ impl<T: Config> Pallet<T> {
 			match core {
 				// temporary, generalise to remove distinction between chain and thread
 				CoreOccupied::Free => continue,
-				CoreOccupied::Parachain => continue,
+				CoreOccupied::Parachain(_) => continue,
 				CoreOccupied::Parathread(entry) => T::AssignmentProvider::push_assignment_for_core(
 					CoreIndex(core_idx as u32),
 					Assignment::ParathreadA(entry.claim),

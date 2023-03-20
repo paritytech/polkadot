@@ -50,7 +50,7 @@ pub fn validator_groups<T: initializer::Config>(
 /// Implementation for the `availability_cores` function of the runtime API.
 pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
 	let cores = <scheduler::Pallet<T>>::availability_cores();
-	let parachains = <paras::Pallet<T>>::parachains();
+	//let parachains = <paras::Pallet<T>>::parachains();
 	let config = <configuration::Pallet<T>>::config();
 
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
@@ -99,8 +99,7 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 		.into_iter()
 		.enumerate()
 		.map(|(i, core)| match core {
-			CoreOccupied::Parachain => {
-				let para_id = parachains[i];
+			CoreOccupied::Parachain(para_id) => {
 				let pending_availability = <inclusion::Pallet<T>>::pending_availability(para_id)
 					.expect("Occupied core always has pending availability; qed");
 

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use primitives::{CoreIndex, CoreOccupied, Id as ParaId};
+use primitives::{CoreIndex, Id as ParaId};
 
 use crate::{
 	configuration,
@@ -65,17 +65,6 @@ impl<T: crate::scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	}
 
 	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
-
-	fn core_para(core_idx: CoreIndex, core_occupied: &CoreOccupied) -> ParaId {
-		match core_occupied {
-			CoreOccupied::Free => panic!("impossible"),
-			CoreOccupied::Parathread(_) => panic!("impossible"),
-			CoreOccupied::Parachain => {
-				let parachains = <paras::Pallet<T>>::parachains();
-				parachains[core_idx.0 as usize]
-			},
-		}
-	}
 
 	fn get_availability_period(_core_idx: CoreIndex) -> T::BlockNumber {
 		<configuration::Pallet<T>>::config().chain_availability_period
