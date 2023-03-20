@@ -22,8 +22,7 @@ reasons. As a result, all validators must have a up to date view of all possible
 parachain candidates + backing statements that could be placed on-chain in the
 next block.
 
-[This blog
-post](https://polkadot.network/blog/polkadot-v1-0-sharding-and-economic-security)
+[This blog post](https://polkadot.network/blog/polkadot-v1-0-sharding-and-economic-security)
 puts it another way: "Validators who aren't assigned to the parachain still
 listen for the attestations [statements] because whichever validator ends up
 being the author of the relay-chain block needs to bundle up attested parachain
@@ -155,11 +154,11 @@ backing subsystem itself.
 - Note that requesting is not an implicit acknowledgement, and an explicit
   acknowledgement must be sent upon receipt.
 
-## Statement distribution messages
+## Messages
 
-### Input
+### Incoming
 
-- `ActiveLeavesUpdate`
+- `ActiveLeaves`
   - Notification of a change in the set of active leaves.
 - `StatementDistributionMessage::Share`
   - Notification of a locally-originating statement. That is, this statement
@@ -186,7 +185,7 @@ backing subsystem itself.
     - Acknowledgement.
     - Handled by `handle_incoming_acknowledgement`
 
-### Output
+### Outgoing
 
 - `NetworkBridgeTxMessage::SendValidationMessages`
   - Sends a peer all pending messages / acknowledgements / statements for a
@@ -202,7 +201,7 @@ backing subsystem itself.
   - Gets the hypothetical frontier membership of candidates under active leaves'
     fragment trees.
 - `NetworkBridgeTxMessage::SendRequests`
-  - Sends requests, initiating request/response protocol.
+  - Sends requests, initiating the request/response protocol.
 
 ## Request/Response
 

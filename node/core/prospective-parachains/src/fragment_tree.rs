@@ -381,8 +381,8 @@ impl Scope {
 	}
 }
 
-// We use indices into a flat vector to refer to nodes in the tree.
-// Every tree also has an implicit root.
+/// We use indices into a flat vector to refer to nodes in the tree.
+/// Every tree also has an implicit root.
 #[derive(Debug, Clone, Copy, PartialEq)]
 enum NodePointer {
 	Root,
@@ -618,8 +618,8 @@ impl FragmentTree {
 		let max_depth = self.scope.max_depth;
 		let mut depths = bitvec![u16, Msb0; 0; max_depth + 1];
 
-		// iterate over all nodes < max_depth where parent head-data matches,
-		// relay-parent number is <= candidate, and depth < max_depth.
+		// iterate over all nodes where parent head-data matches,
+		// relay-parent number is <= candidate, and depth <= max_depth.
 		let node_pointers = (0..self.nodes.len()).map(NodePointer::Storage);
 		for parent_pointer in std::iter::once(NodePointer::Root).chain(node_pointers) {
 			let (modifications, child_depth, earliest_rp) = match parent_pointer {
@@ -665,46 +665,46 @@ impl FragmentTree {
 				};
 
 			let parent_head_hash = candidate.parent_head_data_hash();
-			if parent_head_hash == child_constraints.required_parent.hash() {
-				// We do additional checks for complete candidates.
-				if let HypotheticalCandidate::Complete {
-					ref receipt,
-					ref persisted_validation_data,
-				} = candidate
-				{
-					let prospective_candidate = ProspectiveCandidate {
-						commitments: Cow::Borrowed(&receipt.commitments),
-						collator: receipt.descriptor().collator.clone(),
-						collator_signature: receipt.descriptor().signature.clone(),
-						persisted_validation_data: persisted_validation_data.as_ref().clone(),
-						pov_hash: receipt.descriptor().pov_hash,
-						validation_code_hash: receipt.descriptor().validation_code_hash,
-					};
+			if parent_head_hash != child_constraints.required_parent.hash() {
+				continue
+			}
 
-					if Fragment::new(
-						candidate_relay_parent.clone(),
-						child_constraints,
-						prospective_candidate,
-					)
-					.is_err()
-					{
-						continue
-					}
-				}
+			// We do additional checks for complete candidates.
+			if let HypotheticalCandidate::Complete { ref receipt, ref persisted_validation_data } =
+				candidate
+			{
+				let prospective_candidate = ProspectiveCandidate {
+					commitments: Cow::Borrowed(&receipt.commitments),
+					collator: receipt.descriptor().collator.clone(),
+					collator_signature: receipt.descriptor().signature.clone(),
+					persisted_validation_data: persisted_validation_data.as_ref().clone(),
+					pov_hash: receipt.descriptor().pov_hash,
+					validation_code_hash: receipt.descriptor().validation_code_hash,
+				};
 
-				// Check that the path only contains backed candidates, if necessary.
-				if !backed_in_path_only ||
-					self.path_contains_backed_only_candidates(parent_pointer, candidate_storage)
+				if Fragment::new(
+					candidate_relay_parent.clone(),
+					child_constraints,
+					prospective_candidate,
+				)
+				.is_err()
 				{
-					depths.set(child_depth, true);
+					continue
 				}
+			}
+
+			// Check that the path only contains backed candidates, if necessary.
+			if !backed_in_path_only ||
+				self.path_contains_backed_only_candidates(parent_pointer, candidate_storage)
+			{
+				depths.set(child_depth, true);
 			}
 		}
 
 		depths.iter_ones().collect()
 	}
 
-	/// Select a candidate after the given `required_path` which pass
+	/// Select a candidate after the given `required_path` which passes
 	/// the predicate.
 	///
 	/// If there are multiple possibilities, this will select the first one.
@@ -1160,6 +1160,7 @@ mod tests {
 		assert!(storage.head_data_by_hash(&output_head_hash).is_none());
 	}
 
+	// [`FragmentTree::populate`] should pick up candidates that build on other candidates.
 	#[test]
 	fn populate_works_recursively() {
 		let mut storage = CandidateStorage::new();

@@ -115,7 +115,7 @@ impl View {
 	///
 	/// This returns a list of para-ids which are relevant to the leaf,
 	/// and the allowed relay parents for these paras under this leaf can be
-	/// queried with [`known_allowed_relay_parents_under`].
+	/// queried with [`View::known_allowed_relay_parents_under`].
 	///
 	/// No-op for known leaves.
 	pub async fn activate_leaf<Sender>(

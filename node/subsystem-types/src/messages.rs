@@ -529,7 +529,7 @@ pub enum ChainApiMessage {
 	/// Request the last finalized block number.
 	/// This request always succeeds.
 	FinalizedBlockNumber(ChainApiResponseChannel<BlockNumber>),
-	/// Request the `k` ancestors block hashes of a block with the given hash.
+	/// Request the `k` ancestor block hashes of a block with the given hash.
 	/// The response channel may return a `Vec` of size up to `k`
 	/// filled with ancestors hashes with the following order:
 	/// `parent`, `grandparent`, ... up to the hash of genesis block
