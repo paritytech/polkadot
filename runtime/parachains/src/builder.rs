@@ -221,8 +221,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Get the minimum number of validity votes in order for a backed candidate to be included.
 	#[cfg(feature = "runtime-benchmarks")]
-	pub(crate) fn fallback_min_validity_votes() -> u32 {
-		(Self::fallback_max_validators() / 2) + 1
+	pub(crate) fn fallback_min_backing_votes() -> u32 {
+		use crate::inclusion::minimum_backing_votes;
+		minimum_backing_votes(self.max_validators_per_core())
 	}
 
 	/// Create para id, core index, and grab the associated group index from the scheduler pallet.
