@@ -526,12 +526,14 @@ impl<T: Config> Pallet<T> {
 			.position(|a| a.as_ref().map_or(false, |v| v.para_id == para_id))
 			.ok_or_else(|| "para id not found at core_idx lookahead")?;
 
-		let ca = la_vec[pos].take().expect("position() above tells us this element exist.");
-		//[ParaId1, None, ParaId2, None, ...]
-		//				^ remove this -->
-		//[ParaId, None, None, ...] --> next block will read ParaId1 instead of None
-		//--> if pos+1 is None, remove and add in front
-		//--> [None, ParaId, None, ...]
+		let ca = la_vec
+			.remove(pos)
+			.expect("position() above tells us this element exist.")
+			.expect("position() above tells us this element exist.");
+		// Since the core is now occupied, the next entry in the claimqueue in order to achieve 12 second block times needs to be None
+		if la_vec.front() != Some(&None) {
+			la_vec.push_front(None);
+		}
 		ClaimQueue::<T>::set(cq);
 
 		Ok((CoreIndex::from(pos as u32), ca))
