@@ -5067,9 +5067,9 @@ dependencies = [
 
 [[package]]
 name = "orchestra"
-version = "0.2.0"
+version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecae97f74ddeb5c6ff00c98ef368423b4ec9a4d5ab48c0d909e84b7594b09718"
+checksum = "17e7d5b6bb115db09390bed8842c94180893dd83df3dfce7354f2a2aa090a4ee"
 dependencies = [
  "async-trait",
  "dyn-clonable",
@@ -5084,9 +5084,9 @@ dependencies = [
 
 [[package]]
 name = "orchestra-proc-macro"
-version = "0.2.0"
+version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "08a9846c70b1df02657dbe5b54fadbad0ea3b944623ebf3fcbf7f33ef859dcba"
+checksum = "c2af4dabb2286b0be0e9711d2d24e25f6217048b71210cffd3daddc3b5c84e1f"
 dependencies = [
  "expander 0.0.6",
  "itertools",
@@ -8108,11 +8108,10 @@ dependencies = [
 
 [[package]]
 name = "prioritized-metered-channel"
-version = "0.4.0"
+version = "0.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a3caef72a78ca8e77cbdfa87dd516ebb79d4cbe5b42e3b8435b463a8261339ff"
+checksum = "382698e48a268c832d0b181ed438374a6bb708a82a8ca273bb0f61c74cf209c4"
 dependencies = [
- "async-channel",
  "coarsetime",
  "crossbeam-queue",
  "derive_more",
@@ -8446,23 +8445,26 @@ checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
 
 [[package]]
 name = "rayon"
-version = "1.7.0"
+version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d2df5196e37bcc87abebc0053e20787d73847bb33134a69841207dd0a47f03b"
+checksum = "c06aca804d41dbc8ba42dfd964f0d01334eceb64314b9ecf7c5fad5188a06d90"
 dependencies = [
+ "autocfg",
+ "crossbeam-deque",
  "either",
  "rayon-core",
 ]
 
 [[package]]
 name = "rayon-core"
-version = "1.11.0"
+version = "1.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b8f95bd6966f5c87776639160a66bd8ab9895d9d4ab01ddba9fc60661aebe8d"
+checksum = "d78120e2c850279833f1dd3582f730c4ab53ed95aeaaaa862a2a5c71b1656d8e"
 dependencies = [
  "crossbeam-channel",
  "crossbeam-deque",
  "crossbeam-utils",
+ "lazy_static",
  "num_cpus",
 ]
 
