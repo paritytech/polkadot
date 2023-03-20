@@ -22,7 +22,7 @@ use std::collections::{
 use parity_scale_codec::{Decode, Encode};
 
 use sp_application_crypto::AppKey;
-use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
+use sp_keystore::{Error as KeystoreError, Keystore, KeystorePtr};
 
 use super::{Statement, UncheckedSignedFullStatement};
 use polkadot_primitives::{
@@ -207,8 +207,8 @@ impl SignedDisputeStatement {
 
 	/// Sign this statement with the given keystore and key. Pass `valid = true` to
 	/// indicate validity of the candidate, and `valid = false` to indicate invalidity.
-	pub async fn sign_explicit(
-		keystore: &SyncCryptoStorePtr,
+	pub fn sign_explicit(
+		keystore: &KeystorePtr,
 		valid: bool,
 		candidate_hash: CandidateHash,
 		session_index: SessionIndex,
@@ -221,13 +221,12 @@ impl SignedDisputeStatement {
 		};
 
 		let data = dispute_statement.payload_data(candidate_hash, session_index);
-		let signature = CryptoStore::sign_with(
+		let signature = Keystore::sign_with(
 			&**keystore,
 			ValidatorId::ID,
 			&validator_public.clone().into(),
 			&data,
-		)
-		.await?;
+		)?;
 
 		let signature = match signature {
 			Some(sig) =>

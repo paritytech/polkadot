@@ -883,11 +883,10 @@ mod sanitizers {
 	use sp_core::crypto::UncheckedFrom;
 
 	use crate::mock::Test;
-	use futures::executor::block_on;
 	use keyring::Sr25519Keyring;
 	use primitives::PARACHAIN_KEY_TYPE_ID;
 	use sc_keystore::LocalKeystore;
-	use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+	use sp_keystore::{Keystore, KeystorePtr};
 	use std::sync::Arc;
 
 	fn validator_pubkeys(val_ids: &[keyring::Sr25519Keyring]) -> Vec<ValidatorId> {
@@ -903,7 +902,7 @@ mod sanitizers {
 		let session_index = SessionIndex::from(0_u32);
 
 		let crypto_store = LocalKeystore::in_memory();
-		let crypto_store = Arc::new(crypto_store) as SyncCryptoStorePtr;
+		let crypto_store = Arc::new(crypto_store) as KeystorePtr;
 		let signing_context = SigningContext { parent_hash, session_index };
 
 		let validators = vec![
@@ -913,7 +912,7 @@ mod sanitizers {
 			keyring::Sr25519Keyring::Dave,
 		];
 		for validator in validators.iter() {
-			SyncCryptoStore::sr25519_generate_new(
+			Keystore::sr25519_generate_new(
 				&*crypto_store,
 				PARACHAIN_KEY_TYPE_ID,
 				Some(&validator.to_seed()),
@@ -935,13 +934,13 @@ mod sanitizers {
 		.enumerate()
 		.map(|(vi, ab)| {
 			let validator_index = ValidatorIndex::from(vi as u32);
-			block_on(SignedAvailabilityBitfield::sign(
+			SignedAvailabilityBitfield::sign(
 				&crypto_store,
 				AvailabilityBitfield::from(ab.clone()),
 				&signing_context,
 				validator_index,
 				&validator_public[vi],
-			))
+			)
 			.unwrap()
 			.unwrap()
 			.into_unchecked()
@@ -1142,7 +1141,7 @@ mod sanitizers {
 		let session_index = SessionIndex::from(0_u32);
 
 		let keystore = LocalKeystore::in_memory();
-		let keystore = Arc::new(keystore) as SyncCryptoStorePtr;
+		let keystore = Arc::new(keystore) as KeystorePtr;
 		let signing_context = SigningContext { parent_hash: relay_parent, session_index };
 
 		let validators = vec![
@@ -1152,7 +1151,7 @@ mod sanitizers {
 			keyring::Sr25519Keyring::Dave,
 		];
 		for validator in validators.iter() {
-			SyncCryptoStore::sr25519_generate_new(
+			Keystore::sr25519_generate_new(
 				&*keystore,
 				PARACHAIN_KEY_TYPE_ID,
 				Some(&validator.to_seed()),
@@ -1202,14 +1201,14 @@ mod sanitizers {
 
 				collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-				let backed = block_on(back_candidate(
+				let backed = back_candidate(
 					candidate,
 					&validators,
 					group_validators(GroupIndex::from(idx0 as u32)).unwrap().as_ref(),
 					&keystore,
 					&signing_context,
 					BackingKind::Threshold,
-				));
+				);
 				backed
 			})
 			.collect::<Vec<_>>();

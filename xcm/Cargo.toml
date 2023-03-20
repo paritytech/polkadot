@@ -18,6 +18,8 @@ xcm-procedural = { path = "procedural" }
 
 [dev-dependencies]
 sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+hex = "0.4.3"
+hex-literal = "0.3.4"
 
 [features]
 default = ["std"]
