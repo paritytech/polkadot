@@ -444,7 +444,13 @@ impl<T: Config> Pallet<T> {
 		log::debug!(target: "runtime::scheduler", "clear_claimqueue() running with block {:?}", now);
 		let mut cq = ClaimQueue::<T>::get();
 		for (_, vec) in cq.iter_mut() {
-			vec.retain(|e| e.is_some());
+			match vec.first() {
+				None => {},
+				Some(None) => {
+					vec.remove(0);
+				}, // TODO: change to VecDeque
+				Some(_) => {},
+			}
 		}
 
 		ClaimQueue::<T>::set(cq);
