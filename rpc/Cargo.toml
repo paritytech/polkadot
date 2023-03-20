@@ -18,6 +18,8 @@ sc-chain-spec = { git = "https://github.com/paritytech/substrate", branch = "mas
 sc-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-babe = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-babe-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-beefy = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-consensus-beefy-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-epochs = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-grandpa = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-consensus-grandpa-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
@@ -27,6 +29,4 @@ frame-rpc-system = { package = "substrate-frame-rpc-system", git = "https://gith
 mmr-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 pallet-transaction-payment-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sp-block-builder = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget = { git = "https://github.com/paritytech/substrate", branch = "master" }
-beefy-gadget-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }
 substrate-state-trie-migration-rpc = { git = "https://github.com/paritytech/substrate", branch = "master" }

@@ -23,6 +23,7 @@
 #![no_std]
 extern crate alloc;
 
+use core::ops::ControlFlow;
 use derivative::Derivative;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input, MaxEncodedLen};
 use scale_info::TypeInfo;
@@ -41,11 +42,97 @@ pub mod latest {
 mod double_encoded;
 pub use double_encoded::DoubleEncoded;
 
+#[cfg(test)]
+mod tests;
+
 /// Maximum nesting level for XCM decoding.
 pub const MAX_XCM_DECODE_DEPTH: u32 = 8;
 
 /// A version of XCM.
 pub type Version = u32;
+
+/// Creates an instruction matcher from an XCM. Since XCM versions differ, we need to make a trait
+/// here to unify the interfaces among them.
+pub trait CreateMatcher {
+	/// The concrete matcher type.
+	type Matcher;
+
+	/// Method that creates and returns the matcher type from `Self`.
+	fn matcher(self) -> Self::Matcher;
+}
+
+/// API that allows to pattern-match against anything that is contained within an XCM.
+///
+/// The intended usage of the matcher API is to enable the ability to chain successive methods of
+/// this trait together, along with the ? operator for the purpose of facilitating the writing,
+/// maintenance and auditability of XCM barriers.
+///
+/// Example:
+/// ```rust
+/// use xcm::{
+/// 	v3::{Instruction, Matcher},
+/// 	CreateMatcher, MatchXcm,
+/// };
+///
+/// let mut msg = [Instruction::<()>::ClearOrigin];
+/// let res = msg
+/// 	.matcher()
+/// 	.assert_remaining_insts(1)?
+/// 	.match_next_inst(|inst| match inst {
+/// 		Instruction::<()>::ClearOrigin => Ok(()),
+/// 		_ => Err(()),
+/// 	});
+/// assert!(res.is_ok());
+///
+/// Ok::<(), ()>(())
+/// ```
+pub trait MatchXcm {
+	/// The concrete instruction type. Necessary to specify as it changes between XCM versions.
+	type Inst;
+	/// The `MultiLocation` type. Necessary to specify as it changes between XCM versions.
+	type Loc;
+	/// The error type to throw when errors happen during matching.
+	type Error;
+
+	/// Returns success if the number of instructions that still have not been iterated over
+	/// equals `n`, otherwise returns an error.
+	fn assert_remaining_insts(self, n: usize) -> Result<Self, Self::Error>
+	where
+		Self: Sized;
+
+	/// Accepts a closure `f` that contains an argument signifying the next instruction to be
+	/// iterated over. The closure can then be used to check whether the instruction matches a
+	/// given condition, and can also be used to mutate the fields of an instruction.
+	///
+	/// The closure `f` returns success when the instruction passes the condition, otherwise it
+	/// returns an error, which will ultimately be returned by this function.
+	fn match_next_inst<F>(self, f: F) -> Result<Self, Self::Error>
+	where
+		Self: Sized,
+		F: FnMut(&mut Self::Inst) -> Result<(), Self::Error>;
+
+	/// Attempts to continuously iterate through the instructions while applying `f` to each of
+	/// them, until either the last instruction or `cond` returns false.
+	///
+	/// If `f` returns an error, then iteration halts and the function returns that error.
+	/// Otherwise, `f` returns a `ControlFlow` which signifies whether the iteration breaks or
+	/// continues.
+	fn match_next_inst_while<C, F>(self, cond: C, f: F) -> Result<Self, Self::Error>
+	where
+		Self: Sized,
+		C: Fn(&Self::Inst) -> bool,
+		F: FnMut(&mut Self::Inst) -> Result<ControlFlow<()>, Self::Error>;
+
+	/// Iterate instructions forward until `cond` returns false. When there are no more instructions
+	/// to be read, an error is returned.
+	fn skip_inst_while<C>(self, cond: C) -> Result<Self, Self::Error>
+	where
+		Self: Sized,
+		C: Fn(&Self::Inst) -> bool,
+	{
+		Self::match_next_inst_while(self, cond, |_| Ok(ControlFlow::Continue(())))
+	}
+}
 
 #[derive(Clone, Eq, PartialEq, Debug)]
 pub enum Unsupported {}
@@ -73,6 +160,7 @@ pub trait TryAs<T> {
 
 macro_rules! versioned_type {
 	($(#[$attr:meta])* pub enum $n:ident {
+		$(#[$index3:meta])+
 		V3($v3:ty),
 	}) => {
 		#[derive(Derivative, Encode, Decode, TypeInfo)]
@@ -86,7 +174,7 @@ macro_rules! versioned_type {
 		#[codec(decode_bound())]
 		$(#[$attr])*
 		pub enum $n {
-			#[codec(index = 0)]
+			$(#[$index3])*
 			V3($v3),
 		}
 		impl $n {
@@ -131,7 +219,9 @@ macro_rules! versioned_type {
 	};
 
 	($(#[$attr:meta])* pub enum $n:ident {
+		$(#[$index2:meta])+
 		V2($v2:ty),
+		$(#[$index3:meta])+
 		V3($v3:ty),
 	}) => {
 		#[derive(Derivative, Encode, Decode, TypeInfo)]
@@ -145,9 +235,9 @@ macro_rules! versioned_type {
 		#[codec(decode_bound())]
 		$(#[$attr])*
 		pub enum $n {
-			#[codec(index = 0)]
+			$(#[$index2])*
 			V2($v2),
-			#[codec(index = 1)]
+			$(#[$index3])*
 			V3($v3),
 		}
 		impl $n {
@@ -216,93 +306,12 @@ macro_rules! versioned_type {
 			}
 		}
 	};
-
-	($(#[$attr:meta])* pub enum $n:ident {
-		V2($v2:ty),
-		V3($v3:ty),
-	}) => {
-		#[derive(Derivative, Encode, Decode, TypeInfo)]
-		#[derivative(Clone(bound = ""), Eq(bound = ""), PartialEq(bound = ""), Debug(bound = ""))]
-		#[codec(encode_bound())]
-		#[codec(decode_bound())]
-		$(#[$attr])*
-		pub enum $n {
-			#[codec(index = 1)]
-			V2($v2),
-			#[codec(index = 2)]
-			V3($v3),
-		}
-		impl $n {
-			pub fn try_as<T>(&self) -> Result<&T, ()> where Self: TryAs<T> {
-				<Self as TryAs<T>>::try_as(&self)
-			}
-		}
-		impl TryAs<$v2> for $n {
-			fn try_as(&self) -> Result<&$v2, ()> {
-				match &self {
-					Self::V2(ref x) => Ok(x),
-					_ => Err(()),
-				}
-			}
-		}
-		impl TryAs<$v3> for $n {
-			fn try_as(&self) -> Result<&$v3, ()> {
-				match &self {
-					Self::V3(ref x) => Ok(x),
-					_ => Err(()),
-				}
-			}
-		}
-		impl IntoVersion for $n {
-			fn into_version(self, n: Version) -> Result<Self, ()> {
-				Ok(match n {
-					2 => Self::V2(self.try_into()?),
-					3 => Self::V3(self.try_into()?),
-					_ => return Err(()),
-				})
-			}
-		}
-		impl From<$v2> for $n {
-			fn from(x: $v2) -> Self {
-				$n::V2(x)
-			}
-		}
-		impl<T: Into<$v3>> From<T> for $n {
-			fn from(x: T) -> Self {
-				$n::V3(x.into())
-			}
-		}
-		impl TryFrom<$n> for $v2 {
-			type Error = ();
-			fn try_from(x: $n) -> Result<Self, ()> {
-				use $n::*;
-				match x {
-					V2(x) => Ok(x),
-					V3(x) => x.try_into(),
-				}
-			}
-		}
-		impl TryFrom<$n> for $v3 {
-			type Error = ();
-			fn try_from(x: $n) -> Result<Self, ()> {
-				use $n::*;
-				match x {
-					V2(x) => x.try_into(),
-					V3(x) => Ok(x),
-				}
-			}
-		}
-		impl MaxEncodedLen for $n {
-			fn max_encoded_len() -> usize {
-				<$v3>::max_encoded_len()
-			}
-		}
-	}
 }
 
 versioned_type! {
 	/// A single version's `Response` value, together with its version code.
 	pub enum VersionedAssetId {
+		#[codec(index = 3)]
 		V3(v3::AssetId),
 	}
 }
@@ -310,7 +319,9 @@ versioned_type! {
 versioned_type! {
 	/// A single version's `Response` value, together with its version code.
 	pub enum VersionedResponse {
+		#[codec(index = 2)]
 		V2(v2::Response),
+		#[codec(index = 3)]
 		V3(v3::Response),
 	}
 }
@@ -319,7 +330,9 @@ versioned_type! {
 	/// A single `MultiLocation` value, together with its version code.
 	#[derive(Ord, PartialOrd)]
 	pub enum VersionedMultiLocation {
+		#[codec(index = 1)] // v2 is same as v1 and therefore re-using the v1 index
 		V2(v2::MultiLocation),
+		#[codec(index = 3)]
 		V3(v3::MultiLocation),
 	}
 }
@@ -327,7 +340,9 @@ versioned_type! {
 versioned_type! {
 	/// A single `InteriorMultiLocation` value, together with its version code.
 	pub enum VersionedInteriorMultiLocation {
+		#[codec(index = 2)] // while this is same as v1::Junctions, VersionedInteriorMultiLocation is introduced in v3
 		V2(v2::InteriorMultiLocation),
+		#[codec(index = 3)]
 		V3(v3::InteriorMultiLocation),
 	}
 }
@@ -335,7 +350,9 @@ versioned_type! {
 versioned_type! {
 	/// A single `MultiAsset` value, together with its version code.
 	pub enum VersionedMultiAsset {
+		#[codec(index = 1)] // v2 is same as v1 and therefore re-using the v1 index
 		V2(v2::MultiAsset),
+		#[codec(index = 3)]
 		V3(v3::MultiAsset),
 	}
 }
@@ -343,7 +360,9 @@ versioned_type! {
 versioned_type! {
 	/// A single `MultiAssets` value, together with its version code.
 	pub enum VersionedMultiAssets {
+		#[codec(index = 1)] // v2 is same as v1 and therefore re-using the v1 index
 		V2(v2::MultiAssets),
+		#[codec(index = 3)]
 		V3(v3::MultiAssets),
 	}
 }
@@ -434,7 +453,7 @@ impl WrapVersion for AlwaysV2 {
 	}
 }
 
-/// `WrapVersion` implementation which attempts to always convert the XCM to version 2 before wrapping it.
+/// `WrapVersion` implementation which attempts to always convert the XCM to version 3 before wrapping it.
 pub struct AlwaysV3;
 impl WrapVersion for AlwaysV3 {
 	fn wrap_version<Call>(

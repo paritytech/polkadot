@@ -21,13 +21,16 @@ use frame_support::{
 	traits::{Contains, Get},
 };
 use polkadot_parachain::primitives::IsSystem;
-use sp_std::{marker::PhantomData, result::Result};
-use xcm::latest::{
-	Instruction::{self, *},
-	InteriorMultiLocation, Junction, Junctions,
-	Junctions::X1,
-	MultiLocation, Weight,
-	WeightLimit::*,
+use sp_std::{cell::Cell, marker::PhantomData, ops::ControlFlow, result::Result};
+use xcm::{
+	latest::{
+		Instruction::{self, *},
+		InteriorMultiLocation, Junction, Junctions,
+		Junctions::X1,
+		MultiLocation, Weight,
+		WeightLimit::*,
+	},
+	CreateMatcher, MatchXcm,
 };
 use xcm_executor::traits::{OnResponse, ShouldExecute};
 
@@ -77,32 +80,31 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowTopLevelPaidExecutionFro
 		// We will read up to 5 instructions. This allows up to 3 `ClearOrigin` instructions. We
 		// allow for more than one since anything beyond the first is a no-op and it's conceivable
 		// that composition of operations might result in more than one being appended.
-		let mut iter = instructions.iter_mut().take(5);
-		let i = iter.next().ok_or(())?;
-		match i {
-			ReceiveTeleportedAsset(..) |
-			WithdrawAsset(..) |
-			ReserveAssetDeposited(..) |
-			ClaimAsset { .. } => (),
-			_ => return Err(()),
-		}
-		let mut i = iter.next().ok_or(())?;
-		while let ClearOrigin = i {
-			i = iter.next().ok_or(())?;
-		}
-		match i {
-			BuyExecution { weight_limit: Limited(ref mut weight), .. }
-				if weight.all_gte(max_weight) =>
-			{
-				*weight = max_weight;
-				Ok(())
-			},
-			BuyExecution { ref mut weight_limit, .. } if weight_limit == &Unlimited => {
-				*weight_limit = Limited(max_weight);
-				Ok(())
-			},
-			_ => Err(()),
-		}
+		let end = instructions.len().min(5);
+		instructions[..end]
+			.matcher()
+			.match_next_inst(|inst| match inst {
+				ReceiveTeleportedAsset(..) |
+				WithdrawAsset(..) |
+				ReserveAssetDeposited(..) |
+				ClaimAsset { .. } => Ok(()),
+				_ => Err(()),
+			})?
+			.skip_inst_while(|inst| matches!(inst, ClearOrigin))?
+			.match_next_inst(|inst| match inst {
+				BuyExecution { weight_limit: Limited(ref mut weight), .. }
+					if weight.all_gte(max_weight) =>
+				{
+					*weight = max_weight;
+					Ok(())
+				},
+				BuyExecution { ref mut weight_limit, .. } if weight_limit == &Unlimited => {
+					*weight_limit = Limited(max_weight);
+					Ok(())
+				},
+				_ => Err(()),
+			})?;
+		Ok(())
 	}
 }
 
@@ -172,29 +174,34 @@ impl<
 			origin, instructions, max_weight, weight_credit,
 		);
 		let mut actual_origin = *origin;
-		let mut skipped = 0;
+		let skipped = Cell::new(0usize);
 		// NOTE: We do not check the validity of `UniversalOrigin` here, meaning that a malicious
 		// origin could place a `UniversalOrigin` in order to spoof some location which gets free
 		// execution. This technical could get it past the barrier condition, but the execution
 		// would instantly fail since the first instruction would cause an error with the
 		// invalid UniversalOrigin.
-		while skipped < MaxPrefixes::get() as usize {
-			match instructions.get(skipped) {
-				Some(UniversalOrigin(new_global)) => {
-					// Note the origin is *relative to local consensus*! So we need to escape local
-					// consensus with the `parents` before diving in into the `universal_location`.
-					actual_origin = X1(*new_global).relative_to(&LocalUniversal::get());
-				},
-				Some(DescendOrigin(j)) => {
-					actual_origin.append_with(*j).map_err(|_| ())?;
-				},
-				_ => break,
-			}
-			skipped += 1;
-		}
+		instructions.matcher().match_next_inst_while(
+			|_| skipped.get() < MaxPrefixes::get() as usize,
+			|inst| {
+				match inst {
+					UniversalOrigin(new_global) => {
+						// Note the origin is *relative to local consensus*! So we need to escape
+						// local consensus with the `parents` before diving in into the
+						// `universal_location`.
+						actual_origin = X1(*new_global).relative_to(&LocalUniversal::get());
+					},
+					DescendOrigin(j) => {
+						let Ok(_) = actual_origin.append_with(*j) else { return Err(()) };
+					},
+					_ => return Ok(ControlFlow::Break(())),
+				};
+				skipped.set(skipped.get() + 1);
+				Ok(ControlFlow::Continue(()))
+			},
+		)?;
 		InnerBarrier::should_execute(
 			&actual_origin,
-			&mut instructions[skipped..],
+			&mut instructions[skipped.get()..],
 			max_weight,
 			weight_credit,
 		)
@@ -241,12 +248,12 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowExplicitUnpaidExecutionF
 			origin, instructions, max_weight, _weight_credit,
 		);
 		ensure!(T::contains(origin), ());
-		match instructions.first() {
-			Some(UnpaidExecution { weight_limit: Limited(m), .. }) if m.all_gte(max_weight) =>
-				Ok(()),
-			Some(UnpaidExecution { weight_limit: Unlimited, .. }) => Ok(()),
+		instructions.matcher().match_next_inst(|inst| match inst {
+			UnpaidExecution { weight_limit: Limited(m), .. } if m.all_gte(max_weight) => Ok(()),
+			UnpaidExecution { weight_limit: Unlimited, .. } => Ok(()),
 			_ => Err(()),
-		}
+		})?;
+		Ok(())
 	}
 }
 
@@ -276,13 +283,16 @@ impl<ResponseHandler: OnResponse> ShouldExecute for AllowKnownQueryResponses<Res
 			"AllowKnownQueryResponses origin: {:?}, instructions: {:?}, max_weight: {:?}, weight_credit: {:?}",
 			origin, instructions, _max_weight, _weight_credit,
 		);
-		ensure!(instructions.len() == 1, ());
-		match instructions.first() {
-			Some(QueryResponse { query_id, querier, .. })
-				if ResponseHandler::expecting_response(origin, *query_id, querier.as_ref()) =>
-				Ok(()),
-			_ => Err(()),
-		}
+		instructions
+			.matcher()
+			.assert_remaining_insts(1)?
+			.match_next_inst(|inst| match inst {
+				QueryResponse { query_id, querier, .. }
+					if ResponseHandler::expecting_response(origin, *query_id, querier.as_ref()) =>
+					Ok(()),
+				_ => Err(()),
+			})?;
+		Ok(())
 	}
 }
 
@@ -302,9 +312,13 @@ impl<T: Contains<MultiLocation>> ShouldExecute for AllowSubscriptionsFrom<T> {
 			origin, instructions, _max_weight, _weight_credit,
 		);
 		ensure!(T::contains(origin), ());
-		match instructions {
-			&mut [SubscribeVersion { .. } | UnsubscribeVersion] => Ok(()),
-			_ => Err(()),
-		}
+		instructions
+			.matcher()
+			.assert_remaining_insts(1)?
+			.match_next_inst(|inst| match inst {
+				SubscribeVersion { .. } | UnsubscribeVersion => Ok(()),
+				_ => Err(()),
+			})?;
+		Ok(())
 	}
 }

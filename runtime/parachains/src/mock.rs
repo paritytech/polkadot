@@ -25,7 +25,7 @@ use crate::{
 
 use frame_support::{
 	parameter_types,
-	traits::{GenesisBuild, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
+	traits::{GenesisBuild, ValidatorSet, ValidatorSetWithIdentification},
 	weights::Weight,
 };
 use frame_support_test::TestRandomness;
@@ -39,7 +39,7 @@ use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	KeyTypeId, Permill,
+	Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -148,23 +148,13 @@ impl pallet_babe::Config for Test {
 
 	type DisabledValidators = ();
 
-	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::IdentificationTuple;
-
-	type KeyOwnerProofSystem = ();
-
-	type HandleEquivocation = ();
-
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
+
+	type KeyOwnerProof = sp_core::Void;
+
+	type EquivocationReportSystem = ();
 }
 
 parameter_types! {
@@ -437,7 +427,7 @@ impl inclusion::RewardValidators for TestRewardValidators {
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
-	use sp_keystore::{testing::KeyStore, KeystoreExt, SyncCryptoStorePtr};
+	use sp_keystore::{testing::MemoryKeystore, KeystoreExt, KeystorePtr};
 	use sp_std::sync::Arc;
 
 	sp_tracing::try_init_simple();
@@ -450,7 +440,7 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	GenesisBuild::<Test>::assimilate_storage(&state.paras, &mut t).unwrap();
 
 	let mut ext: TestExternalities = t.into();
-	ext.register_extension(KeystoreExt(Arc::new(KeyStore::new()) as SyncCryptoStorePtr));
+	ext.register_extension(KeystoreExt(Arc::new(MemoryKeystore::new()) as KeystorePtr));
 
 	ext
 }

@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 //! THIS FILE WAS AUTO-GENERATED USING THE SUBSTRATE BENCHMARK CLI VERSION 4.0.0-dev
-//! DATE: 2023-02-23 (Y/M/D)
+//! DATE: 2023-03-16 (Y/M/D)
 //! HOSTNAME: `bm5`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
 //!
 //! SHORT-NAME: `block`, LONG-NAME: `BlockExecution`, RUNTIME: `Development`
@@ -42,17 +42,17 @@ parameter_types! {
 	/// Calculated by multiplying the *Average* with `1.0` and adding `0`.
 	///
 	/// Stats nanoseconds:
-	///   Min, Max: 9_063_597, 9_605_760
-	///   Average:  9_225_024
-	///   Median:   9_197_375
-	///   Std-Dev:  83325.89
+	///   Min, Max: 6_708_387, 7_042_534
+	///   Average:  6_818_965
+	///   Median:   6_826_464
+	///   Std-Dev:  66350.7
 	///
 	/// Percentiles nanoseconds:
-	///   99th: 9_437_618
-	///   95th: 9_402_155
-	///   75th: 9_250_717
+	///   99th: 6_991_352
+	///   95th: 6_933_543
+	///   75th: 6_854_332
 	pub const BlockExecutionWeight: Weight =
-		Weight::from_ref_time(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(9_225_024));
+		Weight::from_parts(WEIGHT_REF_TIME_PER_NANOS.saturating_mul(6_818_965), 0);
 }
 
 #[cfg(test)]

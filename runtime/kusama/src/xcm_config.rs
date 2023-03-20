@@ -457,3 +457,19 @@ impl pallet_xcm::Config for Runtime {
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
 }
+
+#[test]
+fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
+	use parity_scale_codec::Decode;
+	use xcm::VersionedXcm;
+	use xcm_executor::traits::WeightBounds;
+	let blob = hex_literal::hex!("02140004000000000700e40b540213000000000700e40b54020006010700c817a804341801000006010b00c490bf4302140d010003ffffffff000100411f");
+	let Ok(VersionedXcm::V2(old_xcm)) =
+		VersionedXcm::<super::RuntimeCall>::decode(&mut &blob[..]) else { panic!("can't decode XCM blob") };
+	let mut xcm: Xcm<super::RuntimeCall> =
+		old_xcm.try_into().expect("conversion from v2 to v3 failed");
+	let weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut xcm)
+		.expect("weighing XCM failed");
+
+	assert_eq!(weight, Weight::from_parts(20_313_281_000, 65536));
+}
