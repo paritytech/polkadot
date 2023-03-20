@@ -14,7 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::{cmp::Ordering, collections::BTreeMap, collections::btree_map::Entry};
+use std::{
+	cmp::Ordering,
+	collections::{btree_map::Entry, BTreeMap},
+};
 
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::ChainApiMessage, overseer};
@@ -250,14 +253,13 @@ impl Queues {
 			}
 			// Keeping old request if any.
 			match self.priority.entry(comparator) {
-				Entry::Occupied(_) => {
+				Entry::Occupied(_) =>
 					if let Some(timer) = req.request_timer {
 						timer.stop_and_discard();
-					}
-				},
+					},
 				Entry::Vacant(vac) => {
 					vac.insert(req);
-				}
+				},
 			}
 			self.metrics.report_priority_queue_size(self.priority.len() as u64);
 			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
@@ -272,14 +274,13 @@ impl Queues {
 			}
 			// Keeping old request if any.
 			match self.best_effort.entry(comparator) {
-				Entry::Occupied(_) => {
+				Entry::Occupied(_) =>
 					if let Some(timer) = req.request_timer {
 						timer.stop_and_discard();
-					}
-				},
+					},
 				Entry::Vacant(vac) => {
 					vac.insert(req);
-				}
+				},
 			}
 			self.metrics.report_best_effort_queue_size(self.best_effort.len() as u64);
 		}
