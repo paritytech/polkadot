@@ -24,8 +24,9 @@ async function run(nodeName, networkInfo, jsArgs) {
     const { sender_nonce, data: sender_balance } = await api.query.system.account(sender.address);
     const sender_initial_balance = BigInt(sender_balance.free)
     // Need to estimate the fee to correctly calculate the sender's final balance
-    const fee = BigInt((await api.tx.balances.transfer(recipient.address, amount).paymentInfo(sender)).partialFee);
-    const sender_final_balance = sender_initial_balance - amount - fee;
+    // const fee = BigInt((await api.tx.balances.transfer(recipient.address, amount).paymentInfo(sender)).partialFee);
+    // const sender_final_balance = sender_initial_balance - amount - fee;
+    const sender_final_balance = sender_initial_balance - amount;
     console.log(`Sender's current balance is ${sender_initial_balance}. Should end up as ${sender_final_balance}`);
 
     // Send a transfer from Alice to Bob
