@@ -41,7 +41,10 @@ use primitives::{
 	ValidatorIndex,
 };
 use sp_runtime::traits::{One, Saturating};
-use sp_std::{collections::btree_map::BTreeMap, prelude::*};
+use sp_std::{
+	collections::{btree_map::BTreeMap, vec_deque::VecDeque},
+	prelude::*,
+};
 
 use crate::{
 	configuration,
@@ -106,7 +109,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn claimqueue)]
 	pub(crate) type ClaimQueue<T> =
-		StorageValue<_, BTreeMap<CoreIndex, Vec<Option<CoreAssignment>>>, ValueQuery>;
+		StorageValue<_, BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>>, ValueQuery>;
 	// TODO: needs to keep track of order for rewards
 }
 
@@ -445,11 +448,11 @@ impl<T: Config> Pallet<T> {
 		log::debug!(target: "runtime::scheduler", "clear_claimqueue() running with block {:?}", now);
 		let mut cq = ClaimQueue::<T>::get();
 		for (_, vec) in cq.iter_mut() {
-			match vec.first() {
+			match vec.front() {
 				None => {},
 				Some(None) => {
-					vec.remove(0);
-				}, // TODO: change to VecDeque
+					vec.pop_front();
+				},
 				Some(_) => {},
 			}
 		}
@@ -505,9 +508,9 @@ impl<T: Config> Pallet<T> {
 	fn add_to_claimqueue(core_idx: CoreIndex, ca: CoreAssignment) {
 		ClaimQueue::<T>::mutate(|la| match la.get_mut(&core_idx) {
 			None => {
-				la.insert(core_idx, vec![Some(ca)]);
+				la.insert(core_idx, vec![Some(ca)].into_iter().collect());
 			},
-			Some(la_vec) => la_vec.push(Some(ca)),
+			Some(la_vec) => la_vec.push_back(Some(ca)),
 		});
 	}
 
@@ -536,7 +539,7 @@ impl<T: Config> Pallet<T> {
 
 	pub(crate) fn scheduled_claimqueue() -> Vec<CoreAssignment> {
 		let claimqueue = ClaimQueue::<T>::get();
-		claimqueue.into_iter().flat_map(|(_, v)| v.first().cloned()).flatten().collect()
+		claimqueue.into_iter().flat_map(|(_, v)| v.front().cloned()).flatten().collect()
 	}
 
 	//#[cfg(test)]

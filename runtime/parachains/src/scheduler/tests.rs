@@ -1421,6 +1421,8 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 					kind: AssignmentKind::Parachain,
 					group_idx: GroupIndex(0),
 				})]
+				.into_iter()
+				.collect()
 			)]
 			.into_iter()
 			.collect()
