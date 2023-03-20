@@ -8205,12 +8205,13 @@ dependencies = [
 
 [[package]]
 name = "prometheus-parse"
-version = "0.2.2"
+version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c996f3caea1c51aa034c0d2dfd8447a12c555f4567b02677ef8a865ac4cce712"
+checksum = "0c2aa5feb83bf4b2c8919eaf563f51dbab41183de73ba2353c0e03cd7b6bd892"
 dependencies = [
  "chrono",
- "lazy_static",
+ "itertools",
+ "once_cell",
  "regex",
 ]
 
