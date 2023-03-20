@@ -42,15 +42,16 @@ pub const FOREIGN_CHAIN_PREFIX_RELAY: [u8; 36] = *b"ForeignChainAliasAccountPref
 ///
 /// Can be used as a converter in `SovereignSignedViaLocation`
 ///
+/// ## Example
 /// Assuming the following network layout.
 ///
-///           R
-///        /    \
-///       /      \   
-///     P1       P2
-///    / \       /  \
-///   /   \     /    \
-/// P1.1 P1.2  P2.1  P2.2
+///              R
+///           /    \
+///          /      \   
+///        P1       P2
+///        / \       / \
+///       /   \     /   \
+///     P1.1 P1.2  P2.1  P2.2
 ///
 /// Then a given account A will have the same alias accounts in the
 /// same plane. So, it is important which chain account A acts from.
