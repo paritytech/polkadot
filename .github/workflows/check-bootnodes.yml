@@ -1,4 +1,4 @@
-# checks all runtimes we care about (kusama, polkadot, westend) and ensures
+# checks all networks we care about (kusama, polkadot, westend) and ensures
 # the bootnodes in their respective chainspecs are contactable
 
 name: Check all bootnodes
