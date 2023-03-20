@@ -751,13 +751,11 @@ where
 
 	let chain_spec = config.chain_spec.cloned_box();
 
-	let local_keystore = basics.keystore_container.local_keystore();
+	let keystore = basics.keystore_container.local_keystore();
 	let auth_or_collator = role.is_authority() || is_collator.is_collator();
-	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
-
 	let pvf_checker_enabled = role.is_authority() && !is_collator.is_collator();
 
-	let select_chain = if requires_overseer_for_chain_sel {
+	let select_chain = if auth_or_collator {
 		let metrics =
 			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
 
@@ -1000,14 +998,7 @@ where
 		None
 	};
 
-	if local_keystore.is_none() {
-		gum::info!("Cannot run as validator without local keystore.");
-	}
-
-	let maybe_params =
-		local_keystore.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
-
-	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
+	let overseer_handle = if let Some(authority_discovery_service) = authority_discovery_service {
 		let (overseer, overseer_handle) = overseer_gen
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
 				overseer_connector,
@@ -1071,7 +1062,7 @@ where
 		Some(handle)
 	} else {
 		assert!(
-			!requires_overseer_for_chain_sel,
+			!auth_or_collator,
 			"Precondition congruence (false) is guaranteed by manual checking. qed"
 		);
 		None
