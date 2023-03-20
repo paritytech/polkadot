@@ -1291,7 +1291,7 @@ impl<T: Config> Pallet<T> {
 		// First, we need to decide what we should use as the base configuration.
 		let mut base_config = pending_configs
 			.last()
-			.map(|&(_, ref config)| config.clone())
+			.map(|(_, config)| config.clone())
 			.unwrap_or_else(Self::config);
 		let base_config_consistent = base_config.check_consistency().is_ok();
 
