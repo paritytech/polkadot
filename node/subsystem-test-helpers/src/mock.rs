@@ -19,20 +19,20 @@ use std::sync::Arc;
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 
 use polkadot_primitives::{AuthorityDiscoveryId, ValidatorId};
 
 /// Get mock keystore with `Ferdie` key.
-pub fn make_ferdie_keystore() -> SyncCryptoStorePtr {
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-	SyncCryptoStore::sr25519_generate_new(
+pub fn make_ferdie_keystore() -> KeystorePtr {
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+	Keystore::sr25519_generate_new(
 		&*keystore,
 		ValidatorId::ID,
 		Some(&Sr25519Keyring::Ferdie.to_seed()),
 	)
 	.expect("Insert key into keystore");
-	SyncCryptoStore::sr25519_generate_new(
+	Keystore::sr25519_generate_new(
 		&*keystore,
 		AuthorityDiscoveryId::ID,
 		Some(&Sr25519Keyring::Ferdie.to_seed()),

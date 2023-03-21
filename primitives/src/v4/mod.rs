@@ -187,6 +187,23 @@ pub mod well_known_keys {
 	pub const ACTIVE_CONFIG: &[u8] =
 		&hex!["06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385"];
 
+	/// Hash of the committed head data for a given registered para.
+	///
+	/// The storage entry stores wrapped `HeadData(Vec<u8>)`.
+	pub fn para_head(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["cd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix
+				.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
+
 	/// The upward message dispatch queue for the given para id.
 	///
 	/// The storage entry stores a tuple of two values:
