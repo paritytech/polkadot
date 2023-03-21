@@ -20,14 +20,9 @@ requests = { memory = "2G", cpu = "1" }
   invulnerable = true # it will go offline, we don't want to disable it
   args = ["-lparachain=debug,runtime=debug"]
 
-  [[relaychain.nodes]]
-  name = "bob"
-  invulnerable = true # it will go offline, we don't want to disable it
-  args = ["-lparachain=debug,runtime=debug"]
-
   [[relaychain.node_groups]]
   name = "honest-validator"
-  count = 4
+  count = 2
   args = ["-lparachain=debug,runtime=debug"]
 
   [[relaychain.node_groups]]

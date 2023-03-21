@@ -4,9 +4,8 @@ Creds: config
 
 alice: reports node_roles is 4
 
-# pause alice and bob so that disputes don't conclude
+# pause alice so that disputes don't conclude
 alice: pause
-bob: pause
 
 # Ensure parachain is registered.
 honest-validator-0: parachain 1000 is registered within 100 seconds
@@ -20,8 +19,7 @@ honest-validator-0: reports parachain_candidate_disputes_total is at least 1 wit
 # But should not resolve
 honest-validator-0: reports polkadot_parachain_disputes_finality_lag is at least 20 within 200 seconds
 
-# Now resume alice and bob
-bob: resume
+# Now resume alice
 alice: resume
 
 # Disputes should start concluding now
