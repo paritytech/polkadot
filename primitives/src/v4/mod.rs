@@ -1609,13 +1609,13 @@ where
 /// The maximum number of validators `f` which may safely be faulty.
 ///
 /// The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
-pub fn byzantine_threshold(n: usize) -> usize {
+pub const fn byzantine_threshold(n: usize) -> usize {
 	n.saturating_sub(1) / 3
 }
 
 /// The supermajority threshold of validators which represents a subset
 /// guaranteed to have at least f+1 honest validators.
-pub fn supermajority_threshold(n: usize) -> usize {
+pub const fn supermajority_threshold(n: usize) -> usize {
 	n - byzantine_threshold(n)
 }
 
