@@ -114,7 +114,7 @@ pub mod pallet {
 	#[pallet::storage]
 	#[pallet::getter(fn delivery_fee_factor)]
 	pub(crate) type DeliveryFeeFactor<T: Config> =
-		StorageValue<_, FixedU128, ValueQuery, InitialFactor>;
+		StorageMap<_, Twox64Concat, ParaId, FixedU128, ValueQuery, InitialFactor>;
 }
 
 /// Routines and getters related to downward message passing.
@@ -199,7 +199,7 @@ impl<T: Config> Pallet<T> {
 		});
 
 		if q_len > MAX_MESSAGE_QUEUE_SIZE {
-			Self::increment_fee_factor();
+			Self::increment_fee_factor(para);
 		}
 
 		Ok(())
@@ -239,7 +239,7 @@ impl<T: Config> Pallet<T> {
 			q.len()
 		});
 		if q_len <= MAX_MESSAGE_QUEUE_SIZE {
-			Self::decrement_fee_factor();
+			Self::decrement_fee_factor(para);
 		}
 		T::DbWeight::get().reads_writes(1, 1)
 	}
@@ -270,8 +270,8 @@ impl<T: Config> Pallet<T> {
 	/// Raise the delivery fee factor by a multiplicative factor and stores the resulting value.
 	///
 	/// Returns the new delivery fee factor after the increment.
-	pub(crate) fn increment_fee_factor() -> FixedU128 {
-		<DeliveryFeeFactor<T>>::mutate(|f| {
+	pub(crate) fn increment_fee_factor(para: ParaId) -> FixedU128 {
+		<DeliveryFeeFactor<T>>::mutate(para, |f| {
 			*f = f.saturating_mul(MULTIPLICATIVE_FEE_FACTOR);
 			*f
 		})
@@ -282,8 +282,8 @@ impl<T: Config> Pallet<T> {
 	/// Does not reduce the fee factor below the initial value, which is currently set as 1.
 	///
 	/// Returns the new delivery fee factor after the decrement.
-	pub(crate) fn decrement_fee_factor() -> FixedU128 {
-		<DeliveryFeeFactor<T>>::mutate(|f| {
+	pub(crate) fn decrement_fee_factor(para: ParaId) -> FixedU128 {
+		<DeliveryFeeFactor<T>>::mutate(para, |f| {
 			*f = InitialFactor::get().max(*f / MULTIPLICATIVE_FEE_FACTOR);
 			*f
 		})
