@@ -22,7 +22,7 @@ use frame_support::{
 	traits::{EnsureOrigin, EnsureOriginWithArg, Everything, EverythingBut, Nothing},
 	weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
-use sp_core::H256;
+use sp_core::{ConstU32, H256};
 use sp_runtime::{
 	testing::Header,
 	traits::{Hash, IdentityLookup},
@@ -85,7 +85,7 @@ impl frame_system::Config for Runtime {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
-	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	type MaxConsumers = ConstU32<16>;
 }
 
 parameter_types! {
@@ -104,6 +104,10 @@ impl pallet_balances::Config for Runtime {
 	type WeightInfo = ();
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<0>;
+	type MaxFreezes = ConstU32<0>;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -130,9 +134,9 @@ impl pallet_uniques::Config for Runtime {
 	type MetadataDepositBase = frame_support::traits::ConstU128<1_000>;
 	type AttributeDepositBase = frame_support::traits::ConstU128<1_000>;
 	type DepositPerByte = frame_support::traits::ConstU128<1>;
-	type StringLimit = frame_support::traits::ConstU32<64>;
-	type KeyLimit = frame_support::traits::ConstU32<64>;
-	type ValueLimit = frame_support::traits::ConstU32<128>;
+	type StringLimit = ConstU32<64>;
+	type KeyLimit = ConstU32<64>;
+	type ValueLimit = ConstU32<128>;
 	type Locker = ();
 	type WeightInfo = ();
 	#[cfg(feature = "runtime-benchmarks")]
@@ -416,7 +420,7 @@ impl pallet_xcm::Config for Runtime {
 	type CurrencyMatcher = ();
 	type TrustedLockers = ();
 	type SovereignAccountOf = LocationToAccountId;
-	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type MaxLockers = ConstU32<8>;
 	type WeightInfo = pallet_xcm::TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;

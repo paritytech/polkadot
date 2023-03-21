@@ -51,7 +51,7 @@ use polkadot_primitives::{
 pub use rand;
 use sp_application_crypto::AppKey;
 use sp_core::ByteArray;
-use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
+use sp_keystore::{Error as KeystoreError, Keystore, KeystorePtr};
 use std::time::Duration;
 use thiserror::Error;
 
@@ -265,21 +265,18 @@ pub async fn executor_params_at_relay_parent(
 }
 
 /// From the given set of validators, find the first key we can sign with, if any.
-pub async fn signing_key(
-	validators: &[ValidatorId],
-	keystore: &SyncCryptoStorePtr,
-) -> Option<ValidatorId> {
-	signing_key_and_index(validators, keystore).await.map(|(k, _)| k)
+pub fn signing_key(validators: &[ValidatorId], keystore: &KeystorePtr) -> Option<ValidatorId> {
+	signing_key_and_index(validators, keystore).map(|(k, _)| k)
 }
 
 /// From the given set of validators, find the first key we can sign with, if any, and return it
 /// along with the validator index.
-pub async fn signing_key_and_index(
+pub fn signing_key_and_index(
 	validators: &[ValidatorId],
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 ) -> Option<(ValidatorId, ValidatorIndex)> {
 	for (i, v) in validators.iter().enumerate() {
-		if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
+		if Keystore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]) {
 			return Some((v.clone(), ValidatorIndex(i as _)))
 		}
 	}
@@ -290,13 +287,12 @@ pub async fn signing_key_and_index(
 ///
 /// Returns `Ok(None)` if the private key that correponds to that validator ID is not found in the
 /// given keystore. Returns an error if the key could not be used for signing.
-pub async fn sign(
-	keystore: &SyncCryptoStorePtr,
+pub fn sign(
+	keystore: &KeystorePtr,
 	key: &ValidatorId,
 	data: &[u8],
 ) -> Result<Option<ValidatorSignature>, KeystoreError> {
-	let signature =
-		CryptoStore::sign_with(&**keystore, ValidatorId::ID, &key.into(), &data).await?;
+	let signature = Keystore::sign_with(&**keystore, ValidatorId::ID, &key.into(), &data)?;
 
 	match signature {
 		Some(sig) =>
@@ -372,11 +368,7 @@ pub struct Validator {
 
 impl Validator {
 	/// Get a struct representing this node's validator if this node is in fact a validator in the context of the given block.
-	pub async fn new<S>(
-		parent: Hash,
-		keystore: SyncCryptoStorePtr,
-		sender: &mut S,
-	) -> Result<Self, Error>
+	pub async fn new<S>(parent: Hash, keystore: KeystorePtr, sender: &mut S) -> Result<Self, Error>
 	where
 		S: SubsystemSender<RuntimeApiMessage>,
 	{
@@ -392,19 +384,19 @@ impl Validator {
 
 		let validators = validators?;
 
-		Self::construct(&validators, signing_context, keystore).await
+		Self::construct(&validators, signing_context, keystore)
 	}
 
 	/// Construct a validator instance without performing runtime fetches.
 	///
 	/// This can be useful if external code also needs the same data.
-	pub async fn construct(
+	pub fn construct(
 		validators: &[ValidatorId],
 		signing_context: SigningContext,
-		keystore: SyncCryptoStorePtr,
+		keystore: KeystorePtr,
 	) -> Result<Self, Error> {
 		let (key, index) =
-			signing_key_and_index(validators, &keystore).await.ok_or(Error::NotAValidator)?;
+			signing_key_and_index(validators, &keystore).ok_or(Error::NotAValidator)?;
 
 		Ok(Validator { signing_context, key, index })
 	}
@@ -425,11 +417,11 @@ impl Validator {
 	}
 
 	/// Sign a payload with this validator
-	pub async fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
+	pub fn sign<Payload: EncodeAs<RealPayload>, RealPayload: Encode>(
 		&self,
-		keystore: SyncCryptoStorePtr,
+		keystore: KeystorePtr,
 		payload: Payload,
 	) -> Result<Option<Signed<Payload, RealPayload>>, KeystoreError> {
-		Signed::sign(&keystore, payload, &self.signing_context, self.index, &self.key).await
+		Signed::sign(&keystore, payload, &self.signing_context, self.index, &self.key)
 	}
 }

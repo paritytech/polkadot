@@ -1,0 +1,28 @@
+# If a chainspec file is updated with new bootnodes, we check to make sure those bootnodes are contactable
+
+name: Check new bootnodes
+on:
+  pull_request:
+    paths:
+      - 'node/service/chain-specs/*.json'
+
+jobs:
+  check_bootnodes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Install polkadot
+        shell: bash
+        run: |
+          curl -L "$(curl -s https://api.github.com/repos/paritytech/polkadot/releases/latest \
+          | jq -r '.assets | .[] | select(.name == "polkadot").browser_download_url')" \
+          | sudo tee /usr/local/bin/polkadot > /dev/null
+          sudo chmod +x /usr/local/bin/polkadot
+          polkadot --version
+      - name: Check new bootnodes
+        shell: bash
+        run: |
+          scripts/ci/github/check_new_bootnodes.sh
