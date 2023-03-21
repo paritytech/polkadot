@@ -18,7 +18,7 @@
 
 use crate::v2::Error as OldError;
 use core::result;
-use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use parity_scale_codec::{Decode, Encode, FullCodec, MaxEncodedLen};
 use scale_info::TypeInfo;
 
 pub use sp_weights::Weight;
@@ -540,8 +540,15 @@ pub fn send_xcm<T: SendXcm>(
 	Ok((hash, price))
 }
 
+pub enum QueryResponseStatus<BlockNumber> {
+	Finished { response: Response, at: BlockNumber },
+	Pending,
+	NotFound,
+}
+
+/// Represents the
 pub trait XcmQueryHandler {
-	type QueryId;
+	type QueryId: FullCodec + MaxEncodedLen + TypeInfo + Clone + Eq + PartialEq + Debug + Copy;
 	type BlockNumber;
 
 	fn report_outcome(
@@ -549,5 +556,5 @@ pub trait XcmQueryHandler {
 		responder: impl Into<MultiLocation>,
 		timeout: Self::BlockNumber,
 	) -> result::Result<Self::QueryId, Error>;
-	fn take_response(id: Self::QueryId) -> Option<(Response, Self::BlockNumber)>;
+	fn take_response(id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber>;
 }

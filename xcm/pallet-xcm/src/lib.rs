@@ -1132,14 +1132,21 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 	/// Attempt to remove and return the response of query with ID `query_id`.
 	///
 	/// Returns `None` if the response is not (yet) available.
-	fn take_response(query_id: Self::QueryId) -> Option<(Response, Self::BlockNumber)> {
-		if let Some(QueryStatus::Ready { response, at }) = Queries::<T>::get(query_id) {
-			let response = response.try_into().ok()?;
-			Queries::<T>::remove(query_id);
-			Self::deposit_event(Event::ResponseTaken(query_id));
-			Some((response, at))
-		} else {
-			None
+	fn take_response(query_id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber> {
+		match Queries::<T>::get(query_id) {
+			Some(QueryStatus::Ready { response, at }) => {
+				let response = response.try_into();
+				match response {
+					Ok(response) => {
+						Queries::<T>::remove(query_id);
+						Self::deposit_event(Event::ResponseTaken(query_id));
+						QueryResponseStatus::Finished { response, at }
+					},
+					Err(_) => QueryResponseStatus::NotFound, // Found unexpected version
+				}
+			},
+			Some(QueryStatus::Pending { .. }) => QueryResponseStatus::Pending,
+			_ => QueryResponseStatus::NotFound,
 		}
 	}
 }
