@@ -16,7 +16,9 @@
 
 //! Runtime component for handling disputes of parachain candidates.
 
-use crate::{configuration, initializer::SessionChangeNotification, session_info};
+use crate::{
+	configuration, initializer::SessionChangeNotification, metrics::METRICS, session_info,
+};
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
@@ -1357,9 +1359,14 @@ fn check_signature(
 			ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload(),
 	};
 
-	if validator_signature.verify(&payload[..], &validator_public) {
-		Ok(())
-	} else {
-		Err(())
-	}
+	let start = frame_benchmarking::benchmarking::current_time();
+
+	let res =
+		if validator_signature.verify(&payload[..], &validator_public) { Ok(()) } else { Err(()) };
+
+	let end = frame_benchmarking::benchmarking::current_time();
+
+	METRICS.on_signature_check_complete(((end - start) / 1000) as f64); // ns -> us
+
+	res
 }
