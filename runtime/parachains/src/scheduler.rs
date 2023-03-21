@@ -436,9 +436,9 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn clear_and_fill_claimqueue(
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
 		now: T::BlockNumber,
-	) {
+	) -> Vec<CoreAssignment> {
 		Self::clear_claimqueue(now);
-		Self::fill_claimqueue(just_freed_cores, now);
+		Self::fill_claimqueue(just_freed_cores, now)
 	}
 
 	// Clear lookahead
@@ -458,49 +458,59 @@ impl<T: Config> Pallet<T> {
 		ClaimQueue::<T>::set(cq);
 	}
 
-	fn fill_claimqueue(just_freed_cores: BTreeMap<CoreIndex, FreedReason>, now: T::BlockNumber) {
+	fn fill_claimqueue(
+		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
+		now: T::BlockNumber,
+	) -> Vec<CoreAssignment> {
 		let (mut concluded_paras, mut timedout_paras) = Self::free_cores(just_freed_cores);
 
 		if ValidatorGroups::<T>::get().is_empty() {
-			return
-		}
+			// TODO: what do we do with concluded_paras and timedout_paras here?
+			Self::scheduled_claimqueue()
+		} else {
+			let n_lookahead = Self::claimqueue_lookahead();
+			let n_session_cores = T::AssignmentProvider::session_core_count();
 
-		let n_lookahead = Self::claimqueue_lookahead();
-		let n_session_cores = T::AssignmentProvider::session_core_count();
+			log::debug!(target: "runtime::scheduler", "n_lookahead {:?}", n_lookahead);
 
-		log::debug!(target: "runtime::scheduler", "n_lookahead {:?}", n_lookahead);
-
-		let cq = ClaimQueue::<T>::get();
-		for core_idx in 0..n_session_cores {
-			let core_idx = CoreIndex(core_idx);
-			let group_idx = Self::group_assigned_to_core(core_idx, now).expect(
-				"core is not out of bounds and we are guaranteed \
+			let cq = ClaimQueue::<T>::get();
+			for core_idx in 0..n_session_cores {
+				let core_idx = CoreIndex(core_idx);
+				let group_idx = Self::group_assigned_to_core(core_idx, now).expect(
+					"core is not out of bounds and we are guaranteed \
 										  to be after the most recent session start; qed",
-			);
+				);
 
-			// add previously timedout paras back into the queue
-			if let Some((para_id, assignment_kind)) = timedout_paras.remove(&core_idx) {
-				let ca =
-					CoreAssignment { core: core_idx, para_id, kind: assignment_kind, group_idx };
-				Self::add_to_claimqueue(core_idx, ca);
+				// add previously timedout paras back into the queue
+				if let Some((para_id, assignment_kind)) = timedout_paras.remove(&core_idx) {
+					let ca = CoreAssignment {
+						core: core_idx,
+						para_id,
+						kind: assignment_kind,
+						group_idx,
+					};
+					Self::add_to_claimqueue(core_idx, ca);
+				}
+
+				let n_lookahead_used = cq.get(&core_idx).map_or(0, |v| v.len() as u32);
+				log::debug!(target: "runtime::scheduler", "n_lookahead_used {:?}", n_lookahead_used);
+				for _ in n_lookahead_used..n_lookahead {
+					let concluded_para = concluded_paras.remove(&core_idx);
+					match T::AssignmentProvider::pop_assignment_for_core(core_idx, concluded_para) {
+						None => log::debug!("TODO"),
+						Some(ass) => {
+							let ca = ass.to_core_assignment(core_idx, group_idx);
+							Self::add_to_claimqueue(core_idx, ca);
+						},
+					};
+				}
 			}
 
-			let n_lookahead_used = cq.get(&core_idx).map_or(0, |v| v.len() as u32);
-			log::debug!(target: "runtime::scheduler", "n_lookahead_used {:?}", n_lookahead_used);
-			for _ in n_lookahead_used..n_lookahead {
-				let concluded_para = concluded_paras.remove(&core_idx);
-				match T::AssignmentProvider::pop_assignment_for_core(core_idx, concluded_para) {
-					None => log::debug!("TODO"),
-					Some(ass) => {
-						let ca = ass.to_core_assignment(core_idx, group_idx);
-						Self::add_to_claimqueue(core_idx, ca);
-					},
-				};
-			}
+			assert!(timedout_paras.is_empty());
+			assert!(concluded_paras.is_empty());
+
+			Self::scheduled_claimqueue()
 		}
-
-		assert!(timedout_paras.is_empty());
-		assert!(concluded_paras.is_empty());
 	}
 
 	fn add_to_claimqueue(core_idx: CoreIndex, ca: CoreAssignment) {

@@ -491,12 +491,10 @@ impl<T: Config> Pallet<T> {
 		// As a core is only occupied by a single work item, freed and freed_disputed are disjoint by design
 		// and can thus be appended without worrying about overwriting (key, value) pairs in freed.
 		freed.append(&mut freed_disputed.into_iter().collect());
-
-		<scheduler::Pallet<T>>::clear_and_fill_claimqueue(freed, now);
+		let scheduled = <scheduler::Pallet<T>>::clear_and_fill_claimqueue(freed, now);
 
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
 
-		let scheduled = <scheduler::Pallet<T>>::scheduled_claimqueue();
 		assure_sanity_backed_candidates::<T, _>(
 			parent_hash,
 			&backed_candidates,
@@ -696,9 +694,8 @@ impl<T: Config> Pallet<T> {
 			// and can thus be appended without worrying about overwriting (key, value) pairs in freed.
 			freed.append(&mut freed_disputed.into_iter().collect());
 			let now = <frame_system::Pallet<T>>::block_number();
-			<scheduler::Pallet<T>>::clear_and_fill_claimqueue(freed, now);
+			let scheduled = <scheduler::Pallet<T>>::clear_and_fill_claimqueue(freed, now);
 
-			let scheduled = <scheduler::Pallet<T>>::scheduled_claimqueue();
 			let relay_parent_number = now - One::one();
 			let parent_storage_root = *parent_header.state_root();
 
