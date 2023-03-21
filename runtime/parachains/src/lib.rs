@@ -51,7 +51,12 @@ mod mock;
 pub use origin::{ensure_parachain, Origin};
 pub use paras::ParaLifecycle;
 use primitives::{HeadData, Id as ParaId, ValidationCode};
-use sp_runtime::DispatchResult;
+use sp_runtime::{DispatchResult, FixedU128};
+
+/// Trait for tracking message delivery fees on a transport protocol.
+pub trait FeeTracker {
+	fn get_fee_factor(para: ParaId) -> FixedU128;
+}
 
 /// Schedule a para to be initialized at the start of the next session with the given genesis data.
 ///

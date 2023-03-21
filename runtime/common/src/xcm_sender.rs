@@ -21,9 +21,9 @@ use parity_scale_codec::Encode;
 use primitives::Id as ParaId;
 use runtime_parachains::{
 	configuration::{self, HostConfiguration},
-	dmp,
+	dmp, FeeTracker,
 };
-use sp_runtime::{FixedPointNumber, FixedU128};
+use sp_runtime::FixedPointNumber;
 use sp_std::{marker::PhantomData, prelude::*};
 use xcm::prelude::*;
 use SendError::*;
@@ -53,15 +53,15 @@ impl<T: Get<MultiAssets>> PriceForParachainDelivery for ConstantPrice<T> {
 /// fee.
 ///
 /// The formula for the fee is based on the sum of a base fee plus a message length fee, multiplied
-/// by a specified factor. In mathematical form, it is `F * (B + msg_len * M)`.
+/// by a specified factor. In mathematical form, it is `F * (B + encoded_msg_len * M)`.
 pub struct ExponentialPrice<A, B, M, F>(sp_std::marker::PhantomData<(A, B, M, F)>);
-impl<A: Get<AssetId>, B: Get<u128>, M: Get<u128>, F: Get<FixedU128>> PriceForParachainDelivery
+impl<A: Get<AssetId>, B: Get<u128>, M: Get<u128>, F: FeeTracker> PriceForParachainDelivery
 	for ExponentialPrice<A, B, M, F>
 {
-	fn price_for_parachain_delivery(_: ParaId, msg: &Xcm<()>) -> MultiAssets {
+	fn price_for_parachain_delivery(para: ParaId, msg: &Xcm<()>) -> MultiAssets {
 		let msg_fee = (msg.encoded_size() as u128).saturating_mul(M::get());
 		let fee_sum = B::get().saturating_add(msg_fee);
-		let amount = F::get().saturating_mul_int(fee_sum);
+		let amount = F::get_fee_factor(para).saturating_mul_int(fee_sum);
 		(A::get(), amount).into()
 	}
 }

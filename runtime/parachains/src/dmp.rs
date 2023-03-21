@@ -16,7 +16,7 @@
 
 use crate::{
 	configuration::{self, HostConfiguration},
-	initializer,
+	initializer, FeeTracker,
 };
 use frame_support::pallet_prelude::*;
 use primitives::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
@@ -287,5 +287,11 @@ impl<T: Config> Pallet<T> {
 			*f = InitialFactor::get().max(*f / MULTIPLICATIVE_FEE_FACTOR);
 			*f
 		})
+	}
+}
+
+impl<T: Config> FeeTracker for Pallet<T> {
+	fn get_fee_factor(para: ParaId) -> FixedU128 {
+		Pallet::<T>::delivery_fee_factor(para)
 	}
 }
