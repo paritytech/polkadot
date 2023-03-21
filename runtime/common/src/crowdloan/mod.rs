@@ -419,6 +419,7 @@ pub mod pallet {
 
 			let deposit = T::SubmissionDeposit::get();
 
+			frame_system::Pallet::<T>::inc_providers(&Self::fund_account_id(fund_index));
 			CurrencyOf::<T>::reserve(&depositor, deposit)?;
 
 			Funds::<T>::insert(
@@ -575,6 +576,7 @@ pub mod pallet {
 			// can take care of that.
 			debug_assert!(Self::contribution_iterator(fund.fund_index).count().is_zero());
 
+			frame_system::Pallet::<T>::dec_providers(&Self::fund_account_id(fund.fund_index))?;
 			CurrencyOf::<T>::unreserve(&fund.depositor, fund.deposit);
 			Funds::<T>::remove(index);
 			Self::deposit_event(Event::<T>::Dissolved { para_id: index });
@@ -861,7 +863,7 @@ mod tests {
 
 	use frame_support::{
 		assert_noop, assert_ok, parameter_types,
-		traits::{OnFinalize, OnInitialize},
+		traits::{ConstU32, OnFinalize, OnInitialize},
 	};
 	use primitives::Id as ParaId;
 	use sp_core::H256;
@@ -943,6 +945,10 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	#[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -987,9 +993,10 @@ mod tests {
 		let fund = Funds::<Test>::get(para).unwrap();
 		let account_id = Crowdloan::fund_account_id(fund.fund_index);
 		if winner {
+			let ed = <Test as pallet_balances::Config>::ExistentialDeposit::get();
 			let free_balance = Balances::free_balance(&account_id);
-			Balances::reserve(&account_id, free_balance)
-				.expect("should be able to reserve free balance");
+			Balances::reserve(&account_id, free_balance - ed)
+				.expect("should be able to reserve free balance minus ED");
 		} else {
 			let reserved_balance = Balances::reserved_balance(&account_id);
 			Balances::unreserve(&account_id, reserved_balance);
@@ -1613,7 +1620,7 @@ mod tests {
 			let account_id = Crowdloan::fund_account_id(index);
 
 			// user sends the crowdloan funds trying to make an accounting error
-			assert_ok!(Balances::transfer(RuntimeOrigin::signed(1), account_id, 10));
+			assert_ok!(Balances::transfer_allow_death(RuntimeOrigin::signed(1), account_id, 10));
 
 			// overfunded now
 			assert_eq!(Balances::free_balance(&account_id), 110);
@@ -1782,6 +1789,7 @@ mod tests {
 	#[test]
 	fn withdraw_from_finished_works() {
 		new_test_ext().execute_with(|| {
+			assert_eq!(<Test as pallet_balances::Config>::ExistentialDeposit::get(), 1);
 			let para = new_para();
 			let index = NextFundIndex::<Test>::get();
 			let account_id = Crowdloan::fund_account_id(index);
@@ -1793,7 +1801,7 @@ mod tests {
 			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(2), para, 100, None));
 			assert_ok!(Crowdloan::contribute(RuntimeOrigin::signed(3), para, 50, None));
 			// simulate the reserving of para's funds. this actually happens in the Slots pallet.
-			assert_ok!(Balances::reserve(&account_id, 150));
+			assert_ok!(Balances::reserve(&account_id, 149));
 
 			run_to_block(19);
 			assert_noop!(

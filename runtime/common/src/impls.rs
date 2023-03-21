@@ -102,11 +102,15 @@ pub fn era_payout(
 mod tests {
 	use super::*;
 	use frame_support::{
-		dispatch::DispatchClass, parameter_types, traits::FindAuthor, weights::Weight, PalletId,
+		dispatch::DispatchClass,
+		parameter_types,
+		traits::{ConstU32, FindAuthor},
+		weights::Weight,
+		PalletId,
 	};
 	use frame_system::limits;
 	use primitives::AccountId;
-	use sp_core::H256;
+	use sp_core::{ConstU64, H256};
 	use sp_runtime::{
 		testing::Header,
 		traits::{BlakeTwo256, IdentityLookup},
@@ -176,12 +180,16 @@ mod tests {
 		type Balance = u64;
 		type RuntimeEvent = RuntimeEvent;
 		type DustRemoval = ();
-		type ExistentialDeposit = ();
+		type ExistentialDeposit = ConstU64<1>;
 		type AccountStore = System;
 		type MaxLocks = ();
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	parameter_types! {
