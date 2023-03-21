@@ -172,7 +172,7 @@ pub mod prelude {
 	mod contents {
 		pub use super::super::{
 			send_xcm,
-			traits::XcmQueryHandler,
+			traits::{QueryResponseStatus, XcmQueryHandler},
 			validate_send, Ancestor, AncestorThen,
 			AssetId::{self, *},
 			AssetInstance::{self, *},
