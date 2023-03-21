@@ -89,7 +89,7 @@ use sp_runtime::traits::Get;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-use westend_runtime_constants::{currency::*, fee::*, time::*};
+use westend_runtime_constants::{currency::*, fee::*, inflation::*, time::*};
 
 mod bag_thresholds;
 mod weights;
@@ -463,6 +463,7 @@ impl pallet_bags_list::Config<VoterBagsListInstance> for Runtime {
 	type Score = sp_npos_elections::VoteWeight;
 }
 
+// NOTE: Changes to `ideal_stake` and `falloff` must also be applied in constants::inflation.
 pallet_staking_reward_curve::build! {
 	const REWARD_CURVE: PiecewiseLinear<'static> = curve!(
 		min_inflation: 0_025_000,
@@ -1683,6 +1684,9 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl pallet_staking_runtime_api::StakingApi<Block, Balance> for Runtime {
+		fn inflation_rate() -> Perquintill {
+			Staking::api_inflation_rate(IDEAL_STAKE_BASE, FALLOFF)
+		}
 		fn nominations_quota(balance: Balance) -> u32 {
 			Staking::api_nominations_quota(balance)
 		}

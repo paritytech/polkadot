@@ -93,7 +93,7 @@ use sp_runtime::traits::Get;
 pub use sp_runtime::BuildStorage;
 
 /// Constant values used within the runtime.
-use kusama_runtime_constants::{currency::*, fee::*, time::*};
+use kusama_runtime_constants::{currency::*, fee::*, inflation::*, time::*};
 
 // Weights used in the runtime.
 mod weights;
@@ -509,6 +509,15 @@ impl pallet_bags_list::Config<VoterBagsListInstance> for Runtime {
 	type Score = sp_npos_elections::VoteWeight;
 }
 
+pub struct AuctionedSlots;
+impl AuctionedSlots {
+	// all active para-ids that do not belong to a system or common good chain is the number
+	// of parachains that we should take into account for inflation.
+	fn get() -> u64 {
+		Paras::parachains().into_iter().filter(|i| *i >= LOWEST_PUBLIC_ID).count() as u64
+	}
+}
+
 pub struct EraPayout;
 impl pallet_staking::EraPayout<Balance> for EraPayout {
 	fn era_payout(
@@ -517,17 +526,14 @@ impl pallet_staking::EraPayout<Balance> for EraPayout {
 		era_duration_millis: u64,
 	) -> (Balance, Balance) {
 		// all para-ids that are currently active.
-		let auctioned_slots = Paras::parachains()
-			.into_iter()
-			// all active para-ids that do not belong to a system or common good chain is the number
-			// of parachains that we should take into account for inflation.
-			.filter(|i| *i >= LOWEST_PUBLIC_ID)
-			.count() as u64;
+		let auctioned_slots = AuctionedSlots::get();
 
 		const MAX_ANNUAL_INFLATION: Perquintill = Perquintill::from_percent(10);
 		const MILLISECONDS_PER_YEAR: u64 = 1000 * 3600 * 24 * 36525 / 100;
 
 		runtime_common::impls::era_payout(
+			IDEAL_STAKE_BASE,
+			FALLOFF,
 			total_staked,
 			Nis::issuance().other,
 			MAX_ANNUAL_INFLATION,
@@ -1967,7 +1973,7 @@ sp_api::impl_runtime_apis! {
 		AccountId,
 		Balance,
 	> for Runtime {
-		fn pending_rewards(member: AccountId) -> Balance {
+	fn pending_rewards(member: AccountId) -> Balance {
 			NominationPools::api_pending_rewards(member).unwrap_or_default()
 		}
 
@@ -1981,6 +1987,10 @@ sp_api::impl_runtime_apis! {
 	}
 
 	impl pallet_staking_runtime_api::StakingApi<Block, Balance> for Runtime {
+		fn inflation_rate() -> Perquintill {
+			let ideal_stake = runtime_common::impls::get_ideal_stake(AuctionedSlots::get(), IDEAL_STAKE_BASE);
+			Staking::api_inflation_rate(ideal_stake, FALLOFF)
+		}
 		fn nominations_quota(balance: Balance) -> u32 {
 			Staking::api_nominations_quota(balance)
 		}
