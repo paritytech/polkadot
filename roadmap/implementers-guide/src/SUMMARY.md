@@ -45,6 +45,7 @@
     - [Collator Protocol](node/collators/collator-protocol.md)
   - [Backing Subsystems](node/backing/README.md)
     - [Candidate Backing](node/backing/candidate-backing.md)
+    - [Prospective Parachains](node/backing/prospective-parachains.md)
     - [Statement Distribution](node/backing/statement-distribution.md)
     - [Statement Distribution (Legacy)](node/backing/statement-distribution-legacy.md)
   - [Availability Subsystems](node/availability/README.md)

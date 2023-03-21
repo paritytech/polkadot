@@ -16,6 +16,8 @@
 
 //! A tree utility for managing parachain fragments not referenced by the relay-chain.
 //!
+//! # Overview
+//!
 //! This module exposes two main types: [`FragmentTree`] and [`CandidateStorage`]
 //! which are meant to be used in close conjunction. Each tree is associated with a particular
 //! relay-parent, and it's expected that higher-level code will have a tree for each
@@ -24,8 +26,11 @@
 //! Trees only store indices into the [`CandidateStorage`] and the storage is meant to
 //! be pruned when trees are dropped by higher-level code.
 //!
-//! Each node in the tree represents a candidate. Nodes do not uniquely refer to a parachain
-//! block for two reasons.
+//! Each node in the tree represents a candidate.
+//!
+//! # Cycles
+//!
+//! Nodes do not uniquely refer to a parachain block for two reasons.
 //!   1. There's no requirement that head-data is unique
 //!      for a parachain. Furthermore, a parachain is under no obligation to be acyclic, and this is mostly
 //!      just because it's totally inefficient to enforce it. Practical use-cases are acyclic, but there is
@@ -53,6 +58,55 @@
 //! Our assumption is that the amount of candidates and parachains we consider will be reasonably
 //! bounded and in practice will not exceed a few thousand at any time. This naive implementation
 //! will still perform fairly well under these conditions, despite being somewhat wasteful of memory.
+//!
+//! # Main Types
+//!
+//! - [`FragmentTree`]
+//!   - Created with a given scope and populated from storage.
+//!     - [`FragmentTree::populate`]
+//!     - Can be populated recursively (i.e. `populate` will pick up
+//!       candidates that build on other candidates).
+//!   - Can add candidates either as children of the root or children of
+//!     other candidates.
+//!   - Can get the hypothetical depths for a hypothetical candidate.
+//!     - Also works for known candidates.
+//!     - Hypothetical candidates can be complete or incomplete.
+//!     - This is stricter for complete hypothetical candidates.
+//!     - Can optionally require that returned depths have all candidates in
+//!       the path from the root backed.
+//!   - Can have cycles.
+//!     - e.g. a candidate whose parent head data is the same as its own
+//!       head data is a cycle of 0.
+//!     - This would result in the candidate being populated in the tree
+//!       repeatedly all the way until the `max depth + 1` is reached.
+//!   - All nodes in the tree must be either pending availability or within
+//!     the scope.
+//!     - Within the scope means it's built off of the relay-parent or an
+//!       ancestor.
+//!     - If not within the scope but pending availability, use the scope's
+//!       earliest relay-parent as its relay-parent.
+//!       - TODO: Why?
+//! - [`Constraints`]
+//!   - As we build up fragment trees, these are incrementally modified (see
+//!     [`ConstraintModifications`]).
+//! - [`Scope`]
+//!   - Contains the relay-parent, a range of valid ancestors, constraints,
+//!     etc.
+//!   - Created with [`Scope::with_ancestors`].
+//!   - Rejects ancestors that skip blocks.
+//!   - Only takes ancestors up to min relay-parent (specified in the
+//!     constraints).
+//!   - Can also track candidates pending availability.
+//!   - Also specifies a max depth for the tree, which bounds its size in
+//!     the case of cycles.
+//! - [`CandidateStorage`]
+//!   - Stores candidates indexed in various ways.
+//!   - Create with [`CandidateStorage::new()`].
+//!   - Add candidates with `add_candidate`.
+//!
+//! This module makes use of types provided by the Inclusion Emulator
+//! module, such as [`Fragment`] and [`Constraints`]. These perform the actual
+//! job of checking for validity of prospective fragments.
 
 use std::{
 	borrow::Cow,
@@ -82,6 +136,8 @@ pub enum CandidateStorageInsertionError {
 	CandidateAlreadyKnown(CandidateHash),
 }
 
+/// Stores candidates and information about them such as their relay-parents and their backing
+/// states.
 pub(crate) struct CandidateStorage {
 	// Index from head data hash to candidate hashes with that head data as a parent.
 	by_parent_head: HashMap<Hash, HashSet<CandidateHash>>,

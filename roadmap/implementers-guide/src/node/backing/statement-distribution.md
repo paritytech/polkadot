@@ -163,27 +163,30 @@ backing subsystem itself.
 - `StatementDistributionMessage::Share`
   - Notification of a locally-originating statement. That is, this statement
     comes from our node and should be distributed to other nodes.
-  - Handled by `share_local_statement`
+  - Sent by the Backing Subsystem after it successfully imports a statement.
 - `StatementDistributionMessage::Backed`
   - Notification of a candidate being backed (received enough validity votes
     from the backing group).
-  - Handled by `handle_backed_candidate_message`
+  - Sent by the Backing Subsystem after it successfully imports a statement for
+    the first time and after sending ~Share~.
 - `StatementDistributionMessage::NetworkBridgeUpdate`
-  - Handled by `handle_network_update`
   - v1 compatibility
+    - Messages for the v1 protocol are routed to the legacy statement
+      distribution.
   - `Statement`
     - Notification of a signed statement.
-    - Handled by `handle_incoming_statement`
+    - Sent by a peer's Statement Distribution subsystem when circulating
+      statements.
   - `BackedCandidateManifest`
     - Notification of a backed candidate being known by the sending node.
     - For the candidate being requested by the receiving node if needed.
-    - Announcement
-    - Handled by `handle_incoming_manifest`
+    - Announcement.
+    - Sent by a peer's Statement Distribution subsystem.
   - `BackedCandidateKnown`
     - Notification of a backed candidate being known by the sending node.
     - For informing a receiving node which already has the candidate.
     - Acknowledgement.
-    - Handled by `handle_incoming_acknowledgement`
+    - Sent by a peer's Statement Distribution subsystem.
 
 ### Outgoing
 

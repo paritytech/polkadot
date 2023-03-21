@@ -16,6 +16,8 @@
 //! This is currently `v1` (`v2`?), but will evolve to `v3`.
 // TODO https://github.com/paritytech/polkadot/issues/4803
 //!
+//! # Overview
+//!
 //! A set of utilities for node-side code to emulate the logic the runtime uses for checking
 //! parachain blocks in order to build prospective parachains that are produced ahead of the
 //! relay chain. These utilities allow the node-side to predict, with high accuracy, what
@@ -112,6 +114,27 @@
 //!
 //! That means a few blocks of execution time lost, which is not a big deal for code upgrades
 //! in practice at most once every few weeks.
+//!
+//! # Main Types
+//!
+//! - [`Constraints`] & [`ConstraintModifications`]
+//!
+//!   - Can check modifications against constraints.
+//!   - Can apply modifications to constraints.
+//!   - Modifications can be stacked on top of each other.
+//!
+//! - [`Fragment`]
+//!
+//!   - A parachain block anchored to the relay-chain at a relay-parent,
+//!     that is valid under some operating constraints.
+//!   - Created with [`Fragment::new`]. Validates against operating
+//!     constraints.
+//!   - Can also validate against some constraints other than the operating
+//!     ones.
+//!
+//! - [`ProspectiveCandidate`]
+//!
+//!   - Contains key information about a prospective candidate.
 
 use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature,
