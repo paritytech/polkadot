@@ -27,9 +27,8 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
 };
-use primitives::{
-	AssignmentId, AuthorityDiscoveryId, ExecutorParam, ExecutorParams, SessionIndex, SessionInfo,
-};
+use frame_system::pallet_prelude::*;
+use primitives::{AssignmentId, AuthorityDiscoveryId, ExecutorParams, SessionIndex, SessionInfo};
 use sp_std::vec::Vec;
 
 pub use pallet::*;
@@ -38,10 +37,6 @@ pub mod migration;
 
 #[cfg(test)]
 mod tests;
-
-// The order of parameters should be deterministic, that is, one should not reorder them when
-// changing the array contents to avoid creating excessive pressure to PVF execution subsys.
-const EXECUTOR_PARAMS: [ExecutorParam; 0] = [];
 
 /// A type for representing the validator account id in a session.
 pub type AccountId<T> = <<T as Config>::ValidatorSet as ValidatorSet<
@@ -113,6 +108,25 @@ pub mod pallet {
 	#[pallet::getter(fn session_executor_params)]
 	pub(crate) type SessionExecutorParams<T: Config> =
 		StorageMap<_, Identity, SessionIndex, ExecutorParams>;
+
+	/// Pending executor parameters
+	#[pallet::storage]
+	pub(crate) type PendingExecutorParams<T: Config> =
+		StorageValue<_, Option<ExecutorParams>, ValueQuery>;
+
+	#[pallet::call]
+	impl<T: Config> Pallet<T> {
+		#[pallet::call_index(0)]
+		#[pallet::weight((
+			Weight::from_parts(0, 0), // FIXME: How do we calculate weights?
+			DispatchClass::Operational,
+		))]
+		pub fn set_executor_params(origin: OriginFor<T>, new: ExecutorParams) -> DispatchResult {
+			ensure_root(origin)?;
+			<PendingExecutorParams<T>>::put(Some(new));
+			Ok(())
+		}
+	}
 }
 
 /// An abstraction for the authority discovery pallet
@@ -196,10 +210,20 @@ impl<T: Config> Pallet<T> {
 			dispute_period,
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
-		SessionExecutorParams::<T>::insert(
-			&new_session_index,
-			ExecutorParams::from(&EXECUTOR_PARAMS[..]),
-		);
+
+		let new_executor_params = if let Some(executor_params) = <PendingExecutorParams<T>>::get() {
+			<PendingExecutorParams<T>>::put(&None);
+			executor_params
+		} else {
+			let current_session_index = <shared::Pallet<T>>::session_index();
+			if let Some(executor_params) = <SessionExecutorParams<T>>::get(current_session_index) {
+				executor_params
+			} else {
+				unreachable!("Current session executor params must always be present");
+			}
+		};
+
+		SessionExecutorParams::<T>::insert(&new_session_index, new_executor_params);
 	}
 
 	/// Called by the initializer to initialize the session info pallet.
