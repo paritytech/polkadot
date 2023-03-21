@@ -46,7 +46,7 @@ fn clone_request(request: &ParticipationRequest) -> ParticipationRequest {
 		candidate_receipt: request.candidate_receipt.clone(),
 		candidate_hash: request.candidate_hash.clone(),
 		session: request.session,
-		_request_timer: None,
+		request_timer: None,
 	}
 }
 

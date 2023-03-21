@@ -485,11 +485,10 @@ mod tests {
 		ord_parameter_types, parameter_types,
 		traits::{Currency, WithdrawReasons},
 	};
-	use pallet_balances::Error as BalancesError;
 	use sp_runtime::{
 		testing::Header,
 		traits::{BlakeTwo256, Dispatchable, IdentifyAccount, Identity, IdentityLookup, Verify},
-		MultiSignature,
+		ArithmeticError, MultiSignature,
 	};
 
 	type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
@@ -554,6 +553,10 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	parameter_types! {
@@ -815,6 +818,7 @@ mod tests {
 			);
 
 			// Account with vesting
+			Balances::make_free_balance_be(&alice(), 100);
 			assert_ok!(<Test as Config>::VestingSchedule::add_vesting_schedule(
 				&alice(),
 				100,
@@ -1127,6 +1131,7 @@ mod tests {
 			// Wrong Origin
 			assert_noop!(Purchase::payout(RuntimeOrigin::signed(alice()), alice(),), BadOrigin);
 			// Account with Existing Vesting Schedule
+			Balances::make_free_balance_be(&bob(), 100);
 			assert_ok!(
 				<Test as Config>::VestingSchedule::add_vesting_schedule(&bob(), 100, 1, 50,)
 			);
@@ -1163,8 +1168,8 @@ mod tests {
 				Permill::zero(),
 			));
 			assert_noop!(
-				Purchase::payout(RuntimeOrigin::signed(payment_account()), alice(),),
-				BalancesError::<Test, _>::InsufficientBalance
+				Purchase::payout(RuntimeOrigin::signed(payment_account()), alice()),
+				ArithmeticError::Underflow
 			);
 		});
 	}
