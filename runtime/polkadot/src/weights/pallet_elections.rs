@@ -313,11 +313,11 @@ impl<T: frame_system::Config> pallet_elections::WeightInfo for WeightInfo<T> {
 		Weight::from_parts(669_385_000, 0)
 			.saturating_add(Weight::from_proof_size(27508))
 			// Standard Error: 55_859
-			.saturating_add(Weight::from_parts(22_975_550).saturating_mul(c.into()))
+			.saturating_add(Weight::from_parts(22_975_550, 0).saturating_mul(c.into()))
 			// Standard Error: 5_585
-			.saturating_add(Weight::from_parts(355_587).saturating_mul(v.into()))
+			.saturating_add(Weight::from_parts(355_587, 0).saturating_mul(v.into()))
 			// Standard Error: 358
-			.saturating_add(Weight::from_parts(4_615).saturating_mul(e.into()))
+			.saturating_add(Weight::from_parts(4_615, 0).saturating_mul(e.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().reads((1_u64).saturating_mul(c.into())))
 			.saturating_add(T::DbWeight::get().writes(6))
