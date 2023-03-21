@@ -11,6 +11,8 @@
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 
+use primitives::ValidationCode;
+
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 use super::{
@@ -23,11 +25,13 @@ pub trait WeightInfo {
 	fn enter_variable_disputes(v: u32) -> Weight;
 	/// The weight of one bitfield.
 	fn enter_bitfields() -> Weight;
-	/// Variant over `v`, the count of validity votes for a backed candidate. This gives the weight
+	/// Variant over:
+	/// - `v`, the count of validity votes for a backed candidate.
+	/// - ump, total size of upward messages in bytes
+	/// - htmp, total size of horizontal messages in bytes
+	/// - code, size of new validation code if any in bytes
 	/// of a single backed candidate.
-	fn enter_backed_candidates_variable(v: u32) -> Weight;
-	/// The weight of a single backed candidate with a code upgrade.
-	fn enter_backed_candidate_code_upgrade() -> Weight;
+	fn enter_backed_candidate(v: u32, ump: u32, hrmp: u32, code: u32) -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -43,12 +47,9 @@ impl WeightInfo for TestWeightInfo {
 		// MAX Block Weight should fit 4 backed candidates
 		Weight::from_parts(40_000u64, 0)
 	}
-	fn enter_backed_candidates_variable(v: u32) -> Weight {
+	fn enter_backed_candidate(v: u32, _ump: u32, _hrmp: u32, _code: u32) -> Weight {
 		// MAX Block Weight should fit 4 backed candidates
 		Weight::from_parts(40_000 * v as u64 + 40_000, 0)
-	}
-	fn enter_backed_candidate_code_upgrade() -> Weight {
-		Weight::zero()
 	}
 }
 // To simplify benchmarks running as tests, we set all the weights to 0. `enter` will exit early
@@ -62,10 +63,7 @@ impl WeightInfo for TestWeightInfo {
 	fn enter_bitfields() -> Weight {
 		Weight::zero()
 	}
-	fn enter_backed_candidates_variable(_v: u32) -> Weight {
-		Weight::zero()
-	}
-	fn enter_backed_candidate_code_upgrade() -> Weight {
+	fn enter_backed_candidate(_v: u32, _ump: u32, _hrmp: u32, _code: u32) -> Weight {
 		Weight::zero()
 	}
 }
@@ -110,13 +108,26 @@ pub fn signed_bitfields_weight<T: Config>(bitfields_len: usize) -> Weight {
 pub fn backed_candidate_weight<T: frame_system::Config + Config>(
 	candidate: &BackedCandidate<T::Hash>,
 ) -> Weight {
-	if candidate.candidate.commitments.new_validation_code.is_some() {
-		<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate_code_upgrade()
-	} else {
-		<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidates_variable(
-			candidate.validity_votes.len() as u32,
-		)
-	}
+	let v = candidate.validity_votes.len() as u32;
+	let ump = candidate
+		.candidate
+		.commitments
+		.upward_messages
+		.iter()
+		.map(|m| m.len() as u32)
+		.sum();
+	let hrmp = candidate
+		.candidate
+		.commitments
+		.horizontal_messages
+		.iter()
+		.map(|m| m.data.len() as u32)
+		.sum();
+	let code = match &candidate.candidate.commitments.new_validation_code {
+		Some(ValidationCode(upgrade)) => upgrade.len() as u32,
+		None => 0,
+	};
+	<<T as Config>::WeightInfo as WeightInfo>::enter_backed_candidate(v, ump, hrmp, code)
 }
 
 pub fn backed_candidates_weight<T: frame_system::Config + Config>(

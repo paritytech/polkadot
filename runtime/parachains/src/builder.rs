@@ -15,10 +15,8 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	configuration, inclusion, initializer, paras,
-	paras::ParaKind,
-	paras_inherent::{self},
-	scheduler, session_info, shared,
+	configuration, inclusion, initializer, paras, paras::ParaKind, paras_inherent, scheduler,
+	session_info, shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
@@ -27,9 +25,9 @@ use primitives::{
 	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
 	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
 	HeadData, Id as ParaId, IndexedVec, InherentData as ParachainsInherentData,
-	InvalidDisputeStatementKind, PersistedValidationData, SessionIndex, SigningContext,
-	UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId, ValidatorIndex,
-	ValidityAttestation,
+	InvalidDisputeStatementKind, OutboundHrmpMessage, PersistedValidationData, SessionIndex,
+	SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId,
+	ValidatorIndex, ValidityAttestation,
 };
 use sp_core::{sr25519, H256};
 use sp_runtime::{
@@ -37,7 +35,7 @@ use sp_runtime::{
 	traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_map::BTreeMap, prelude::Vec, vec};
+use sp_std::{collections::btree_map::BTreeMap, iter::once, prelude::Vec, vec};
 
 fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
@@ -86,11 +84,8 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	/// will correspond to core index 3. There must be one entry for each core with a dispute
 	/// statement set.
 	dispute_sessions: Vec<u32>,
-	/// Map from core seed to number of validity votes.
-	backed_and_concluding_cores: BTreeMap<u32, u32>,
-	/// Make every candidate include a code upgrade by setting this to `Some` where the interior
-	/// value is the byte length of the new code.
-	code_upgrade: Option<u32>,
+	/// Map from core seed to data for a backed candidate.
+	backed_and_concluding_cores: BTreeMap<u32, BackedCandidateScenario>,
 	_phantom: sp_std::marker::PhantomData<T>,
 }
 
@@ -100,6 +95,18 @@ pub(crate) struct Bench<T: paras_inherent::Config> {
 	pub(crate) data: ParachainsInherentData<T::Header>,
 	pub(crate) _session: u32,
 	pub(crate) _block_number: T::BlockNumber,
+}
+
+#[derive(Copy, Clone)]
+pub struct BackedCandidateScenario {
+	/// Number of validity votes
+	pub validity_votes: u32,
+	/// Upward messages in bytes
+	pub ump: u32,
+	/// Horizontal messages in bytes
+	pub hrmp: u32,
+	/// Any code upgrade in bytes
+	pub code: u32,
 }
 
 impl<T: paras_inherent::Config> BenchBuilder<T> {
@@ -116,7 +123,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			dispute_statements: BTreeMap::new(),
 			dispute_sessions: Default::default(),
 			backed_and_concluding_cores: Default::default(),
-			code_upgrade: None,
 			_phantom: sp_std::marker::PhantomData::<T>,
 		}
 	}
@@ -136,16 +142,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Set a map from core/para id seed to number of validity votes.
 	pub(crate) fn set_backed_and_concluding_cores(
 		mut self,
-		backed_and_concluding_cores: BTreeMap<u32, u32>,
+		backed_and_concluding_cores: BTreeMap<u32, BackedCandidateScenario>,
 	) -> Self {
 		self.backed_and_concluding_cores = backed_and_concluding_cores;
-		self
-	}
-
-	/// Set to include a code upgrade for all backed candidates. The value will be the byte length
-	/// of the code.
-	pub(crate) fn set_code_upgrade(mut self, code_upgrade: impl Into<Option<u32>>) -> Self {
-		self.code_upgrade = code_upgrade.into();
 		self
 	}
 
@@ -306,7 +305,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	/// Create an `AvailabilityBitfield` where `concluding` is a map where each key is a core index
 	/// that is concluding and `cores` is the total number of cores in the system.
-	fn availability_bitvec(concluding: &BTreeMap<u32, u32>, cores: u32) -> AvailabilityBitfield {
+	fn availability_bitvec<C>(concluding: &BTreeMap<u32, C>, cores: u32) -> AvailabilityBitfield {
 		let mut bitfields = bitvec::bitvec![u8, bitvec::order::Lsb0; 0; 0];
 		for i in 0..cores {
 			if concluding.get(&(i as u32)).is_some() {
@@ -430,9 +429,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// `concluding_cores` is fully available. Additionally set up storage such that each
 	/// `concluding_cores`is pending becoming fully available so the generated bitfields will be
 	///  to the cores successfully being freed from the candidates being marked as available.
-	fn create_availability_bitfields(
+	fn create_availability_bitfields<C>(
 		&self,
-		concluding_cores: &BTreeMap<u32, u32>,
+		concluding_cores: &BTreeMap<u32, C>,
 		total_cores: u32,
 	) -> Vec<UncheckedSigned<AvailabilityBitfield>> {
 		let validators =
@@ -477,8 +476,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// validity votes.
 	fn create_backed_candidates(
 		&self,
-		cores_with_backed_candidates: &BTreeMap<u32, u32>,
-		includes_code_upgrade: Option<u32>,
+		cores_with_backed_candidates: &BTreeMap<u32, BackedCandidateScenario>,
 	) -> Vec<BackedCandidate<T::Hash>> {
 		let validators =
 			self.validators.as_ref().expect("must have some validators prior to calling");
@@ -486,8 +484,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		cores_with_backed_candidates
 			.iter()
-			.map(|(seed, num_votes)| {
-				assert!(*num_votes <= validators.len() as u32);
+			.map(|(seed, scenario)| {
+				assert!(scenario.validity_votes <= validators.len() as u32);
 				let (para_id, _core_idx, group_idx) = self.create_indexes(seed.clone());
 
 				// This generates a pair and adds it to the keystore, returning just the public.
@@ -535,22 +533,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						para_head: head_data.hash(),
 						validation_code_hash,
 					},
-					commitments: CandidateCommitments::<u32> {
-						upward_messages: Default::default(),
-						horizontal_messages: Default::default(),
-						new_validation_code: includes_code_upgrade
-							.map(|v| ValidationCode(vec![42u8; v as usize])),
-						head_data,
-						processed_downward_messages: 0,
-						hrmp_watermark: self.relay_parent_number(),
-					},
+					commitments: self.create_candidate_commitments(head_data, scenario),
 				};
 
 				let candidate_hash = candidate.hash();
 
 				let validity_votes: Vec<_> = group_validators
 					.iter()
-					.take(*num_votes as usize)
+					.take(scenario.validity_votes as usize)
 					.map(|val_idx| {
 						let public = validators.get(*val_idx).unwrap();
 						let sig = UncheckedSigned::<CompactStatement>::benchmark_sign(
@@ -636,6 +626,50 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			.collect()
 	}
 
+	fn create_candidate_commitments(
+		&self,
+		head_data: HeadData,
+		scenario: &BackedCandidateScenario,
+	) -> CandidateCommitments {
+		let config = crate::configuration::Pallet::<T>::config();
+		let upward_messages = {
+			let unbounded = create_messages(
+				scenario.ump,
+				config.max_upward_message_size,
+				config.max_upward_message_num_per_candidate,
+			)
+			.map(|m| m.collect())
+			.collect();
+			BoundedVec::truncate_from(unbounded)
+		};
+
+		let horizontal_messages = {
+			let unbounded = create_messages(
+				scenario.hrmp,
+				config.hrmp_channel_max_message_size,
+				config.hrmp_max_message_num_per_candidate,
+			)
+			.map(|m| OutboundHrmpMessage { recipient: Default::default(), data: m.collect() })
+			.collect();
+			BoundedVec::truncate_from(unbounded)
+		};
+
+		let new_validation_code = if scenario.code > 0 {
+			Some(ValidationCode(vec![42u8; scenario.code as usize]))
+		} else {
+			None
+		};
+
+		CandidateCommitments::<u32> {
+			upward_messages,
+			horizontal_messages,
+			new_validation_code,
+			head_data,
+			processed_downward_messages: 0,
+			hrmp_watermark: self.relay_parent_number(),
+		}
+	}
+
 	/// Build a scenario for testing or benchmarks.
 	///
 	/// Note that this API only allows building scenarios where the `backed_and_concluding_cores`
@@ -666,8 +700,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 		let bitfields =
 			builder.create_availability_bitfields(&builder.backed_and_concluding_cores, used_cores);
-		let backed_candidates = builder
-			.create_backed_candidates(&builder.backed_and_concluding_cores, builder.code_upgrade);
+		let backed_candidates =
+			builder.create_backed_candidates(&builder.backed_and_concluding_cores);
 
 		let disputes = builder.create_disputes(
 			builder.backed_and_concluding_cores.len() as u32,
@@ -700,4 +734,30 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			_block_number: builder.block_number,
 		}
 	}
+}
+
+/// Create messages with a total number of `num_bytes`.
+fn create_messages(
+	num_bytes: u32,
+	max_message_size: u32,
+	max_messages: u32,
+) -> impl Iterator<Item = impl Iterator<Item = u8>> {
+	let max_message_size = if max_message_size == 0 { num_bytes } else { max_message_size };
+	let num_full_messages = if num_bytes == 0 { 0 } else { num_bytes / max_message_size };
+	let last_message_size = if num_bytes == 0 { 0 } else { num_bytes % max_message_size };
+	assert!(
+		max_messages == 0 || num_full_messages + 1 <= max_messages,
+		"Too many messages generated!"
+	);
+
+	fn as_byte(u: u32) -> u8 {
+		u as u8
+	}
+
+	let last_message =
+		if last_message_size == 0 { vec![] } else { vec![(0..last_message_size).map(as_byte)] };
+
+	(0..num_full_messages)
+		.map(move |_| (0..max_message_size).map(as_byte))
+		.chain(last_message)
 }
