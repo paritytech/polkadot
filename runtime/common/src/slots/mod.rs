@@ -568,6 +568,10 @@ mod tests {
 		type MaxLocks = ();
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	parameter_types! {
@@ -844,9 +848,9 @@ mod tests {
 			// max_num different people are reserved for leases to Para ID 1
 			for i in 1u32..=max_num {
 				let j: u64 = i.into();
-				assert_ok!(Slots::lease_out(1.into(), &j, j * 10, i * i, i));
-				assert_eq!(Slots::deposit_held(1.into(), &j), j * 10);
-				assert_eq!(Balances::reserved_balance(j), j * 10);
+				assert_ok!(Slots::lease_out(1.into(), &j, j * 10 - 1, i * i, i));
+				assert_eq!(Slots::deposit_held(1.into(), &j), j * 10 - 1);
+				assert_eq!(Balances::reserved_balance(j), j * 10 - 1);
 			}
 
 			assert_ok!(Slots::clear_all_leases(RuntimeOrigin::root(), 1.into()));

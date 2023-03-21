@@ -643,7 +643,7 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// one more sweep for actually writing to storage.
-		let core_indices = core_indices_and_backers.iter().map(|&(ref c, _, _)| *c).collect();
+		let core_indices = core_indices_and_backers.iter().map(|(c, _, _)| *c).collect();
 		for (candidate, (core, backers, group)) in
 			candidates.into_iter().zip(core_indices_and_backers)
 		{

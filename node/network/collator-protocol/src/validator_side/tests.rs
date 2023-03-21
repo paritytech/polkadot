@@ -19,7 +19,7 @@ use assert_matches::assert_matches;
 use futures::{executor, future, Future};
 use sp_core::{crypto::Pair, Encode};
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{testing::KeyStore as TestKeyStore, SyncCryptoStore};
+use sp_keystore::{testing::MemoryKeystore, Keystore};
 use std::{iter, sync::Arc, task::Poll, time::Duration};
 
 use polkadot_node_network_protocol::{
@@ -130,7 +130,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let keystore = TestKeyStore::new();
+	let keystore = MemoryKeystore::new();
 	keystore
 		.sr25519_generate_new(
 			polkadot_primitives::PARACHAIN_KEY_TYPE_ID,
