@@ -28,10 +28,10 @@ use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{
-	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
-	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
-	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
-	ValidatorIndex, ValidityAttestation,
+	supermajority_threshold, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
+	CandidateDescriptor, CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex,
+	GroupIndex, Hash, HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields,
+	ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{traits::One, DispatchError};
@@ -899,9 +899,7 @@ impl<T: Config> Pallet<T> {
 }
 
 const fn availability_threshold(n_validators: usize) -> usize {
-	let mut threshold = (n_validators * 2) / 3;
-	threshold += (n_validators * 2) % 3;
-	threshold
+	supermajority_threshold(n_validators)
 }
 
 #[derive(derive_more::From, Debug)]
