@@ -2087,6 +2087,11 @@ sp_api::impl_runtime_apis! {
 					// Rococo doesn't support asset locking
 					Err(BenchmarkError::Skip)
 				}
+
+				fn bridged_destination() -> Result<(NetworkId, InteriorMultiLocation), BenchmarkError> {
+					// Rococo doesn't support exporting messages
+					Err(BenchmarkError::Skip)
+				}
 			}
 
 			let whitelist: Vec<TrackedStorageKey> = vec![

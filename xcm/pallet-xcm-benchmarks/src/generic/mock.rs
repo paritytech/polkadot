@@ -186,6 +186,11 @@ impl generic::Config for Test {
 		let assets: MultiAsset = (Concrete(Here.into()), 100).into();
 		Ok((Default::default(), Default::default(), assets))
 	}
+
+	fn bridged_destination() -> Result<(NetworkId, InteriorMultiLocation), BenchmarkError> {
+		// No MessageExporter in tests
+		Err(BenchmarkError::Skip)
+	}
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {

@@ -496,6 +496,23 @@ benchmarks! {
 		assert_eq!(executor.origin(), &Some(X1(alias).relative_to(&universal_location)));
 	}
 
+	export_message {
+		let mut executor = new_executor::<T>(Here.into_location());
+		let (network, destination) = T::bridged_destination()?;
+		let expected_message = Xcm(vec![TransferAsset {
+			assets: (Here, 100u128).into(),
+			beneficiary: Parachain(2).into(),
+		}]);
+		let xcm = Xcm(vec![ExportMessage {
+			network, destination, xcm: expected_message.clone(),
+		}]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		// The execute completing successfully is as good as we can check.
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
 	set_fees_mode {
 		let mut executor = new_executor::<T>(Default::default());
 		executor.set_fees_mode(FeesMode { jit_withdraw: false });
