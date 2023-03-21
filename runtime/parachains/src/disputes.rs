@@ -23,6 +23,7 @@ use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
 use frame_support::{ensure, traits::Get, weights::Weight};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_runtime_metrics::get_current_time;
 use primitives::{
 	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash,
 	CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CompactStatement, ConsensusLog,
@@ -1359,12 +1360,12 @@ fn check_signature(
 			ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload(),
 	};
 
-	let start = frame_benchmarking::benchmarking::current_time();
+	let start = get_current_time();
 
 	let res =
 		if validator_signature.verify(&payload[..], &validator_public) { Ok(()) } else { Err(()) };
 
-	let end = frame_benchmarking::benchmarking::current_time();
+	let end = get_current_time();
 
 	METRICS.on_signature_check_complete(((end - start) / 1000) as u64); // ns -> us
 

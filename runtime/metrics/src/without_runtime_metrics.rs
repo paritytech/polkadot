@@ -67,5 +67,10 @@ impl Histogram {
 	}
 
 	// Observe a value in the histogram
-	pub fn observe(&self, _value: f64) {}
+	pub fn observe(&self, _value: u64) {}
+}
+
+/// Dummy implementation - always 0
+pub fn get_current_time() -> u128 {
+	0
 }

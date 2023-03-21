@@ -140,3 +140,8 @@ impl Histogram {
 		Self::emit(&metric_update);
 	}
 }
+
+/// Returns current time in ns
+pub fn get_current_time() -> u128 {
+	frame_benchmarking::benchmarking::current_time()
+}
