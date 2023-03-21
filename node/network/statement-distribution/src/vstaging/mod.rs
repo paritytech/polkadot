@@ -49,7 +49,7 @@ use polkadot_primitives::vstaging::{
 	SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex,
 };
 
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 
 use fatality::Nested;
 use futures::{
@@ -156,7 +156,7 @@ struct PerSessionState {
 }
 
 impl PerSessionState {
-	async fn new(session_info: SessionInfo, keystore: &SyncCryptoStorePtr) -> Self {
+	fn new(session_info: SessionInfo, keystore: &KeystorePtr) -> Self {
 		let groups = Groups::new(session_info.validator_groups.clone());
 		let mut authority_lookup = HashMap::new();
 		for (i, ad) in session_info.discovery_keys.iter().cloned().enumerate() {
@@ -166,8 +166,7 @@ impl PerSessionState {
 		let local_validator = polkadot_node_subsystem_util::signing_key_and_index(
 			session_info.validators.iter(),
 			keystore,
-		)
-		.await;
+		);
 
 		PerSessionState {
 			session_info,
@@ -198,14 +197,14 @@ pub(crate) struct State {
 	per_relay_parent: HashMap<Hash, PerRelayParentState>,
 	per_session: HashMap<SessionIndex, PerSessionState>,
 	peers: HashMap<PeerId, PeerState>,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
 	request_manager: RequestManager,
 }
 
 impl State {
 	/// Create a new state.
-	pub(crate) fn new(keystore: SyncCryptoStorePtr) -> Self {
+	pub(crate) fn new(keystore: KeystorePtr) -> Self {
 		State {
 			implicit_view: Default::default(),
 			candidates: Default::default(),
@@ -468,7 +467,7 @@ pub(crate) async fn handle_active_leaves_update<Context>(
 
 			state
 				.per_session
-				.insert(session_index, PerSessionState::new(session_info, &state.keystore).await);
+				.insert(session_index, PerSessionState::new(session_info, &state.keystore));
 		}
 
 		let per_session = state

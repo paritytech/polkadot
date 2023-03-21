@@ -251,7 +251,7 @@ impl Future for ResetInterestTimeout {
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_primitives::v2::Hash;
+	use polkadot_primitives::Hash;
 	use sp_keyring::Sr25519Keyring;
 
 	#[test]

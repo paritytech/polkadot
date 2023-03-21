@@ -16,7 +16,7 @@
 
 //! A module that is responsible for migration of storage.
 
-use crate::scheduler::{self, AssignmentKind, Config, Pallet, Store};
+use crate::scheduler::{self, AssignmentKind, Config, Pallet, Scheduled};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use parity_scale_codec::{Decode, Encode};
 
@@ -39,7 +39,7 @@ pub fn on_runtime_upgrade<T: Config>() -> Weight {
 
 mod v0 {
 	use super::*;
-	use primitives::v2::{CoreIndex, GroupIndex, Id as ParaId};
+	use primitives::{CoreIndex, GroupIndex, Id as ParaId};
 
 	#[derive(Encode, Decode)]
 	pub struct CoreAssignment {
@@ -63,13 +63,11 @@ mod v1 {
 	use sp_std::vec::Vec;
 
 	pub fn migrate<T: Config>() -> Weight {
-		let _ = <Pallet<T> as Store>::Scheduled::translate(
-			|scheduled: Option<Vec<v0::CoreAssignment>>| {
-				scheduled.map(|scheduled| {
-					scheduled.into_iter().map(|old| scheduler::CoreAssignment::from(old)).collect()
-				})
-			},
-		);
+		let _ = Scheduled::<T>::translate(|scheduled: Option<Vec<v0::CoreAssignment>>| {
+			scheduled.map(|scheduled| {
+				scheduled.into_iter().map(|old| scheduler::CoreAssignment::from(old)).collect()
+			})
+		});
 
 		T::DbWeight::get().reads_writes(1, 1)
 	}

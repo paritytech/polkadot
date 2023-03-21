@@ -41,7 +41,7 @@ use polkadot_node_subsystem_util::{
 };
 
 use futures::{channel::mpsc, prelude::*};
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 
 use fatality::Nested;
 
@@ -65,7 +65,7 @@ const LOG_TARGET: &str = "parachain::statement-distribution";
 /// The statement distribution subsystem.
 pub struct StatementDistributionSubsystem<R> {
 	/// Pointer to a keystore, which is required for determining this node's validator index.
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	/// Receiver for incoming large statement requests.
 	v1_req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingRequest>>,
 	/// Receiver for incoming candidate requests.
@@ -142,7 +142,7 @@ impl MuxedMessage {
 impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 	/// Create a new Statement Distribution Subsystem
 	pub fn new(
-		keystore: SyncCryptoStorePtr,
+		keystore: KeystorePtr,
 		v1_req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
 		req_receiver: IncomingRequestReceiver<AttestedCandidateRequest>,
 		metrics: Metrics,

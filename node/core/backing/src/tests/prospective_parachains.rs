@@ -1059,19 +1059,17 @@ fn backing_works() {
 		let candidate_a_hash = candidate_a.hash();
 		let candidate_a_para_head = candidate_a.descriptor().para_head;
 
-		let public1 = CryptoStore::sr25519_generate_new(
+		let public1 = Keystore::sr25519_generate_new(
 			&*test_state.keystore,
 			ValidatorId::ID,
 			Some(&test_state.validators[5].to_seed()),
 		)
-		.await
 		.expect("Insert key into keystore");
-		let public2 = CryptoStore::sr25519_generate_new(
+		let public2 = Keystore::sr25519_generate_new(
 			&*test_state.keystore,
 			ValidatorId::ID,
 			Some(&test_state.validators[2].to_seed()),
 		)
-		.await
 		.expect("Insert key into keystore");
 
 		// Signing context should have a parent hash candidate is based on.
@@ -1084,7 +1082,6 @@ fn backing_works() {
 			ValidatorIndex(2),
 			&public2.into(),
 		)
-		.await
 		.ok()
 		.flatten()
 		.expect("should be signed");
@@ -1096,7 +1093,6 @@ fn backing_works() {
 			ValidatorIndex(5),
 			&public1.into(),
 		)
-		.await
 		.ok()
 		.flatten()
 		.expect("should be signed");
@@ -1255,19 +1251,17 @@ fn concurrent_dependent_candidates() {
 		let candidate_a_hash = candidate_a.hash();
 		let candidate_b_hash = candidate_b.hash();
 
-		let public1 = CryptoStore::sr25519_generate_new(
+		let public1 = Keystore::sr25519_generate_new(
 			&*test_state.keystore,
 			ValidatorId::ID,
 			Some(&test_state.validators[5].to_seed()),
 		)
-		.await
 		.expect("Insert key into keystore");
-		let public2 = CryptoStore::sr25519_generate_new(
+		let public2 = Keystore::sr25519_generate_new(
 			&*test_state.keystore,
 			ValidatorId::ID,
 			Some(&test_state.validators[2].to_seed()),
 		)
-		.await
 		.expect("Insert key into keystore");
 
 		// Signing context should have a parent hash candidate is based on.
@@ -1280,7 +1274,6 @@ fn concurrent_dependent_candidates() {
 			ValidatorIndex(2),
 			&public2.into(),
 		)
-		.await
 		.ok()
 		.flatten()
 		.expect("should be signed");
@@ -1294,7 +1287,6 @@ fn concurrent_dependent_candidates() {
 			ValidatorIndex(5),
 			&public1.into(),
 		)
-		.await
 		.ok()
 		.flatten()
 		.expect("should be signed");

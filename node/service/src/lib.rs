@@ -560,7 +560,7 @@ where
 
 	let rpc_extensions_builder = {
 		let client = client.clone();
-		let keystore = keystore_container.sync_keystore();
+		let keystore = keystore_container.keystore();
 		let transaction_pool = transaction_pool.clone();
 		let select_chain = select_chain.clone();
 		let chain_spec = config.chain_spec.cloned_box();
@@ -751,13 +751,11 @@ where
 
 	let chain_spec = config.chain_spec.cloned_box();
 
-	let local_keystore = basics.keystore_container.local_keystore();
+	let keystore = basics.keystore_container.local_keystore();
 	let auth_or_collator = role.is_authority() || is_collator.is_collator();
-	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
-
 	let pvf_checker_enabled = role.is_authority() && !is_collator.is_collator();
 
-	let select_chain = if requires_overseer_for_chain_sel {
+	let select_chain = if auth_or_collator {
 		let metrics =
 			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
 
@@ -931,7 +929,7 @@ where
 		config,
 		backend: backend.clone(),
 		client: client.clone(),
-		keystore: keystore_container.sync_keystore(),
+		keystore: keystore_container.keystore(),
 		network: network.clone(),
 		sync_service: sync_service.clone(),
 		rpc_builder: Box::new(rpc_extensions_builder),
@@ -968,8 +966,7 @@ where
 
 	let authority_discovery_service = if auth_or_collator || overseer_enable_anyways {
 		use futures::StreamExt;
-		use sc_network::Event;
-		use sc_network_common::service::NetworkEventStream;
+		use sc_network::{Event, NetworkEventStream};
 
 		let authority_discovery_role = if role.is_authority() {
 			sc_authority_discovery::Role::PublishAndDiscover(keystore_container.keystore())
@@ -1008,14 +1005,7 @@ where
 		None
 	};
 
-	if local_keystore.is_none() {
-		gum::info!("Cannot run as validator without local keystore.");
-	}
-
-	let maybe_params =
-		local_keystore.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
-
-	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
+	let overseer_handle = if let Some(authority_discovery_service) = authority_discovery_service {
 		let (overseer, overseer_handle) = overseer_gen
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
 				overseer_connector,
@@ -1081,7 +1071,7 @@ where
 		Some(handle)
 	} else {
 		assert!(
-			!requires_overseer_for_chain_sel,
+			!auth_or_collator,
 			"Precondition congruence (false) is guaranteed by manual checking. qed"
 		);
 		None
@@ -1101,7 +1091,7 @@ where
 			overseer_handle.as_ref().ok_or(Error::AuthoritiesRequireRealOverseer)?.clone();
 		let slot_duration = babe_link.config().slot_duration();
 		let babe_config = babe::BabeParams {
-			keystore: keystore_container.sync_keystore(),
+			keystore: keystore_container.keystore(),
 			client: client.clone(),
 			select_chain,
 			block_import,
@@ -1145,8 +1135,7 @@ where
 
 	// if the node isn't actively participating in consensus then it doesn't
 	// need a keystore, regardless of which protocol we use below.
-	let keystore_opt =
-		if role.is_authority() { Some(keystore_container.sync_keystore()) } else { None };
+	let keystore_opt = if role.is_authority() { Some(keystore_container.keystore()) } else { None };
 
 	if enable_beefy {
 		let justifications_protocol_name = beefy_on_demand_justifications_handler.protocol_name();

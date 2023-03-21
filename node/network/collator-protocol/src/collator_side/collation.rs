@@ -28,7 +28,7 @@ use polkadot_node_network_protocol::{
 	PeerId,
 };
 use polkadot_node_primitives::PoV;
-use polkadot_primitives::v2::{CandidateHash, CandidateReceipt, Hash, Id as ParaId};
+use polkadot_primitives::{CandidateHash, CandidateReceipt, Hash, Id as ParaId};
 
 /// The status of a collation as seen from the collator.
 pub enum CollationStatus {

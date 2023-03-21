@@ -20,11 +20,8 @@ use super::*;
 
 use polkadot_node_subsystem::messages::ChainApiMessage;
 use polkadot_primitives::{
-	v2::{
-		BlockNumber, CandidateCommitments, CommittedCandidateReceipt, Header, SigningContext,
-		ValidatorId,
-	},
-	vstaging as vstaging_primitives,
+	vstaging as vstaging_primitives, BlockNumber, CandidateCommitments, CommittedCandidateReceipt,
+	Header, SigningContext, ValidatorId,
 };
 
 const ASYNC_BACKING_PARAMETERS: vstaging_primitives::AsyncBackingParameters =
@@ -194,7 +191,7 @@ async fn update_view(
 
 async fn send_seconded_statement(
 	virtual_overseer: &mut VirtualOverseer,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	candidate: &CommittedCandidateReceipt,
 ) {
 	let signing_context = SigningContext { session_index: 0, parent_hash: Hash::zero() };
@@ -205,7 +202,6 @@ async fn send_seconded_statement(
 		ValidatorIndex(0),
 		&ValidatorId::from(Sr25519Keyring::Alice.public()),
 	)
-	.await
 	.ok()
 	.flatten()
 	.expect("should be signed");

@@ -19,10 +19,7 @@
 use super::*;
 
 use polkadot_node_subsystem::messages::{ChainApiMessage, ProspectiveParachainsMessage};
-use polkadot_primitives::{
-	v2::{Header, OccupiedCore},
-	vstaging as vstaging_primitives,
-};
+use polkadot_primitives::{vstaging as vstaging_primitives, Header, OccupiedCore};
 
 const ASYNC_BACKING_PARAMETERS: vstaging_primitives::AsyncBackingParameters =
 	vstaging_primitives::AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };

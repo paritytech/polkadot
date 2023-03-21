@@ -107,7 +107,7 @@ use polkadot_primitives::{
 	PvfExecTimeoutKind, SigningContext, ValidationCode, ValidatorId, ValidatorIndex,
 	ValidatorSignature, ValidityAttestation,
 };
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 use statement_table::{
 	generic::AttestedCandidate as TableAttestedCandidate,
 	v2::{
@@ -173,13 +173,13 @@ impl ValidatedCandidateCommand {
 
 /// The candidate backing subsystem.
 pub struct CandidateBackingSubsystem {
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 }
 
 impl CandidateBackingSubsystem {
 	/// Create a new instance of the `CandidateBackingSubsystem`.
-	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+	pub fn new(keystore: KeystorePtr, metrics: Metrics) -> Self {
 		Self { keystore, metrics }
 	}
 }
@@ -274,13 +274,13 @@ struct State {
 	/// the main task of the result.
 	background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
 	/// The handle to the keystore used for signing.
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 }
 
 impl State {
 	fn new(
 		background_validation_tx: mpsc::Sender<(Hash, ValidatedCandidateCommand)>,
-		keystore: SyncCryptoStorePtr,
+		keystore: KeystorePtr,
 	) -> Self {
 		State {
 			implicit_view: ImplicitView::default(),
@@ -296,7 +296,7 @@ impl State {
 #[overseer::contextbounds(CandidateBacking, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 ) -> FatalResult<()> {
 	let (background_validation_tx, mut background_validation_rx) = mpsc::channel(16);
@@ -961,7 +961,7 @@ async fn handle_active_leaves_update<Context>(
 async fn construct_per_relay_parent_state<Context>(
 	ctx: &mut Context,
 	relay_parent: Hash,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	mode: ProspectiveParachainsMode,
 ) -> Result<Option<PerRelayParentState>, Error> {
 	macro_rules! try_runtime_api {
@@ -1004,7 +1004,7 @@ async fn construct_per_relay_parent_state<Context>(
 
 	let signing_context = SigningContext { parent_hash: parent, session_index };
 	let validator =
-		match Validator::construct(&validators, signing_context.clone(), keystore.clone()).await {
+		match Validator::construct(&validators, signing_context.clone(), keystore.clone()) {
 			Ok(v) => Some(v),
 			Err(util::Error::NotAValidator) => None,
 			Err(e) => {
@@ -1447,10 +1447,10 @@ async fn handle_validated_candidate_command<Context>(
 	Ok(())
 }
 
-async fn sign_statement(
+fn sign_statement(
 	rp_state: &PerRelayParentState,
 	statement: StatementWithPVD,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: &Metrics,
 ) -> Option<SignedFullStatementWithPVD> {
 	let signed = rp_state
@@ -1458,7 +1458,6 @@ async fn sign_statement(
 		.validator
 		.as_ref()?
 		.sign(keystore, statement)
-		.await
 		.ok()
 		.flatten()?;
 	metrics.on_statement_signed();
@@ -1651,10 +1650,10 @@ async fn sign_import_and_distribute_statement<Context>(
 	rp_state: &mut PerRelayParentState,
 	per_candidate: &mut HashMap<CandidateHash, PerCandidateState>,
 	statement: StatementWithPVD,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: &Metrics,
 ) -> Result<Option<SignedFullStatementWithPVD>, Error> {
-	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics).await {
+	if let Some(signed_statement) = sign_statement(&*rp_state, statement, keystore, metrics) {
 		let summary = import_statement(ctx, rp_state, per_candidate, &signed_statement).await?;
 
 		// `Share` must always be sent before `Backed`. We send the latter in

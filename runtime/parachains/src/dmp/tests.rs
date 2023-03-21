@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System};
+use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System, Test};
 use hex_literal::hex;
 use parity_scale_codec::Encode;
 use primitives::BlockNumber;
@@ -73,9 +73,9 @@ fn clean_dmp_works() {
 		let outgoing_paras = vec![a, b];
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
-		assert!(<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
-		assert!(<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());
-		assert!(!<Dmp as Store>::DownwardMessageQueues::get(&c).is_empty());
+		assert!(DownwardMessageQueues::<Test>::get(&a).is_empty());
+		assert!(DownwardMessageQueues::<Test>::get(&b).is_empty());
+		assert!(!DownwardMessageQueues::<Test>::get(&c).is_empty());
 	});
 }
 

@@ -17,7 +17,7 @@
 //! Staging Primitives.
 
 // Put any primitives used by staging API functions here
-pub use crate::v2::*;
+pub use crate::v4::*;
 use sp_std::prelude::*;
 
 use parity_scale_codec::{Decode, Encode};
@@ -125,6 +125,3 @@ pub struct BackingState<H = Hash, N = BlockNumber> {
 	/// and each subsequent builds on top of the previous head-data.
 	pub pending_availability: Vec<CandidatePendingAvailability<H, N>>,
 }
-
-pub mod executor_params;
-pub use executor_params::{ExecutorParam, ExecutorParams, ExecutorParamsHash};

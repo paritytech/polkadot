@@ -21,7 +21,7 @@ use polkadot_node_core_pvf::{
 	JOB_TIMEOUT_WALL_CLOCK_FACTOR,
 };
 use polkadot_parachain::primitives::{BlockData, ValidationParams, ValidationResult};
-use polkadot_primitives::vstaging::{ExecutorParam, ExecutorParams};
+use polkadot_primitives::{ExecutorParam, ExecutorParams};
 use std::time::Duration;
 use tokio::sync::Mutex;
 

@@ -30,7 +30,7 @@ use polkadot_node_network_protocol::{authority_discovery::AuthorityDiscovery, Pe
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::AppKey;
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 
 use polkadot_node_primitives::{DisputeMessage, SignedDisputeStatement};
 use polkadot_primitives::{
@@ -126,13 +126,13 @@ pub fn make_candidate_receipt(relay_parent: Hash) -> CandidateReceipt {
 	}
 }
 
-pub async fn make_explicit_signed(
+pub fn make_explicit_signed(
 	validator: Sr25519Keyring,
 	candidate_hash: CandidateHash,
 	valid: bool,
 ) -> SignedDisputeStatement {
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-	SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, Some(&validator.to_seed()))
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+	Keystore::sr25519_generate_new(&*keystore, ValidatorId::ID, Some(&validator.to_seed()))
 		.expect("Insert key into keystore");
 
 	SignedDisputeStatement::sign_explicit(
@@ -142,12 +142,11 @@ pub async fn make_explicit_signed(
 		MOCK_SESSION_INDEX,
 		validator.public().into(),
 	)
-	.await
 	.expect("Keystore should be fine.")
 	.expect("Signing should work.")
 }
 
-pub async fn make_dispute_message(
+pub fn make_dispute_message(
 	candidate: CandidateReceipt,
 	valid_validator: ValidatorIndex,
 	invalid_validator: ValidatorIndex,
@@ -155,16 +154,14 @@ pub async fn make_dispute_message(
 	let candidate_hash = candidate.hash();
 	let before_request = Instant::now();
 	let valid_vote =
-		make_explicit_signed(MOCK_VALIDATORS[valid_validator.0 as usize], candidate_hash, true)
-			.await;
+		make_explicit_signed(MOCK_VALIDATORS[valid_validator.0 as usize], candidate_hash, true);
 	gum::trace!(
 		"Passed time for valid vote: {:#?}",
 		Instant::now().saturating_duration_since(before_request)
 	);
 	let before_request = Instant::now();
 	let invalid_vote =
-		make_explicit_signed(MOCK_VALIDATORS[invalid_validator.0 as usize], candidate_hash, false)
-			.await;
+		make_explicit_signed(MOCK_VALIDATORS[invalid_validator.0 as usize], candidate_hash, false);
 	gum::trace!(
 		"Passed time for invald vote: {:#?}",
 		Instant::now().saturating_duration_since(before_request)

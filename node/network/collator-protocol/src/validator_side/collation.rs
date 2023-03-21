@@ -33,7 +33,7 @@ use std::collections::VecDeque;
 use polkadot_node_network_protocol::PeerId;
 use polkadot_node_primitives::PoV;
 use polkadot_node_subsystem_util::runtime::ProspectiveParachainsMode;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, CandidateReceipt, CollatorId, Hash, Id as ParaId, PersistedValidationData,
 };
 

@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_util::{self as util, Validator};
 use polkadot_primitives::{AvailabilityBitfield, CoreState, Hash, ValidatorIndex};
-use sp_keystore::{Error as KeystoreError, SyncCryptoStorePtr};
+use sp_keystore::{Error as KeystoreError, KeystorePtr};
 use std::{collections::HashMap, iter::FromIterator, time::Duration};
 use wasm_timer::{Delay, Instant};
 
@@ -181,13 +181,13 @@ async fn construct_availability_bitfield(
 
 /// The bitfield signing subsystem.
 pub struct BitfieldSigningSubsystem {
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 }
 
 impl BitfieldSigningSubsystem {
 	/// Create a new instance of the `BitfieldSigningSubsystem`.
-	pub fn new(keystore: SyncCryptoStorePtr, metrics: Metrics) -> Self {
+	pub fn new(keystore: KeystorePtr, metrics: Metrics) -> Self {
 		Self { keystore, metrics }
 	}
 }
@@ -209,7 +209,7 @@ impl<Context> BitfieldSigningSubsystem {
 #[overseer::contextbounds(BitfieldSigning, prefix = self::overseer)]
 async fn run<Context>(
 	mut ctx: Context,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 ) -> SubsystemResult<()> {
 	// Track spawned jobs per active leaf.
@@ -251,7 +251,7 @@ async fn run<Context>(
 async fn handle_active_leaves_update<Sender>(
 	mut sender: Sender,
 	leaf: ActivatedLeaf,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	metrics: Metrics,
 ) -> Result<(), Error>
 where
@@ -310,7 +310,7 @@ where
 	let span_signing = span.child("signing");
 
 	let signed_bitfield =
-		match validator.sign(keystore, bitfield).await.map_err(|e| Error::Keystore(e))? {
+		match validator.sign(keystore, bitfield).map_err(|e| Error::Keystore(e))? {
 			Some(b) => b,
 			None => {
 				gum::error!(

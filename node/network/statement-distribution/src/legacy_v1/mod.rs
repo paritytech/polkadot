@@ -34,7 +34,7 @@ use polkadot_node_subsystem::{
 	messages::{CandidateBackingMessage, NetworkBridgeEvent, NetworkBridgeTxMessage},
 	overseer, ActivatedLeaf, PerLeafSpan, StatementDistributionSenderTrait,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
 	Id as ParaId, IndexedVec, OccupiedCoreAssumption, PersistedValidationData, SignedStatement,
 	SigningContext, UncheckedSignedStatement, ValidatorId, ValidatorIndex, ValidatorSignature,
@@ -47,7 +47,7 @@ use futures::{
 };
 use indexmap::{map::Entry as IEntry, IndexMap};
 use rand::Rng;
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 use util::runtime::RuntimeInfo;
 
 use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
@@ -113,7 +113,7 @@ pub(crate) struct State {
 
 impl State {
 	/// Create a new state.
-	pub(crate) fn new(keystore: SyncCryptoStorePtr) -> Self {
+	pub(crate) fn new(keystore: KeystorePtr) -> Self {
 		State {
 			peers: HashMap::new(),
 			topology_storage: Default::default(),

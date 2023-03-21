@@ -20,7 +20,7 @@ use crate::{
 	mock::{new_test_ext, MockGenesisConfig, ParasShared},
 };
 use keyring::Sr25519Keyring;
-use primitives::v2::Hash;
+use primitives::Hash;
 
 fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> {
 	val_ids.iter().map(|v| v.public().into()).collect()

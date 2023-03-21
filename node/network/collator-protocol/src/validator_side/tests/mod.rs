@@ -19,7 +19,7 @@ use assert_matches::assert_matches;
 use futures::{executor, future, Future};
 use sp_core::{crypto::Pair, Encode};
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{testing::KeyStore as TestKeyStore, SyncCryptoStore};
+use sp_keystore::Keystore;
 use std::{iter, sync::Arc, time::Duration};
 
 use polkadot_node_network_protocol::{
@@ -134,7 +134,7 @@ type VirtualOverseer = test_helpers::TestSubsystemContextHandle<CollatorProtocol
 
 struct TestHarness {
 	virtual_overseer: VirtualOverseer,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 }
 
 fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarness) -> T) {
@@ -148,15 +148,14 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let keystore = TestKeyStore::new();
-	keystore
-		.sr25519_generate_new(
-			polkadot_primitives::PARACHAIN_KEY_TYPE_ID,
-			Some(&Sr25519Keyring::Alice.to_seed()),
-		)
-		.unwrap();
+	let keystore = Arc::new(sc_keystore::LocalKeystore::in_memory());
+	Keystore::sr25519_generate_new(
+		&*keystore,
+		polkadot_primitives::PARACHAIN_KEY_TYPE_ID,
+		Some(&Sr25519Keyring::Alice.to_seed()),
+	)
+	.expect("Insert key into keystore");
 
-	let keystore: SyncCryptoStorePtr = Arc::new(keystore);
 	let subsystem = run(
 		context,
 		keystore.clone(),

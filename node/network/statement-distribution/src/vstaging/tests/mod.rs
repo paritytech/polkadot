@@ -278,7 +278,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 	let keystore = if config.local_validator {
 		test_helpers::mock::make_ferdie_keystore()
 	} else {
-		Arc::new(LocalKeystore::in_memory()) as SyncCryptoStorePtr
+		Arc::new(LocalKeystore::in_memory()) as KeystorePtr
 	};
 	let req_protocol_names = ReqProtocolNames::new(&GENESIS_HASH, None);
 	let (statement_req_receiver, _) = IncomingRequest::get_config_receiver(&req_protocol_names);

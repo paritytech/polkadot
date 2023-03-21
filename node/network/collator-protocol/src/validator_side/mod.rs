@@ -31,7 +31,7 @@ use std::{
 	time::{Duration, Instant},
 };
 
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 
 use polkadot_node_network_protocol::{
 	self as net_protocol,
@@ -59,7 +59,7 @@ use polkadot_node_subsystem_util::{
 	metrics::prometheus::prometheus::HistogramTimer,
 	runtime::{prospective_parachains_mode, ProspectiveParachainsMode},
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, CandidateReceipt, CollatorId, CoreState, Hash, Id as ParaId,
 	OccupiedCoreAssumption, PersistedValidationData,
 };
@@ -478,7 +478,7 @@ async fn assign_incoming<Sender>(
 	sender: &mut Sender,
 	group_assignment: &mut GroupAssignments,
 	current_assignments: &mut HashMap<ParaId, usize>,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	relay_parent: Hash,
 	relay_parent_mode: ProspectiveParachainsMode,
 ) -> Result<()>
@@ -502,7 +502,6 @@ where
 		.map_err(Error::CancelledAvailabilityCores)??;
 
 	let para_now = match polkadot_node_subsystem_util::signing_key_and_index(&validators, keystore)
-		.await
 		.and_then(|(_, index)| polkadot_node_subsystem_util::find_validator_group(&groups, index))
 	{
 		Some(group) => {
@@ -1235,7 +1234,7 @@ where
 async fn handle_our_view_change<Sender>(
 	sender: &mut Sender,
 	state: &mut State,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	view: OurView,
 ) -> Result<()>
 where
@@ -1367,7 +1366,7 @@ where
 async fn handle_network_msg<Context>(
 	ctx: &mut Context,
 	state: &mut State,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	bridge_message: NetworkBridgeEvent<net_protocol::CollatorProtocolMessage>,
 ) -> Result<()> {
 	use NetworkBridgeEvent::*;
@@ -1420,7 +1419,7 @@ async fn handle_network_msg<Context>(
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 async fn process_msg<Context>(
 	ctx: &mut Context,
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	msg: CollatorProtocolMessage,
 	state: &mut State,
 ) {
@@ -1541,7 +1540,7 @@ async fn process_msg<Context>(
 #[overseer::contextbounds(CollatorProtocol, prefix = self::overseer)]
 pub(crate) async fn run<Context>(
 	mut ctx: Context,
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	eviction_policy: crate::CollatorEvictionPolicy,
 	metrics: Metrics,
 ) -> std::result::Result<(), crate::error::FatalError> {
