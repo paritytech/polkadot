@@ -30,7 +30,7 @@ use futures::{channel::mpsc, FutureExt, StreamExt, TryFutureExt};
 
 use polkadot_node_network_protocol::authority_discovery::AuthorityDiscovery;
 use polkadot_node_subsystem_util::nesting_sender::NestingSender;
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 
 use polkadot_node_network_protocol::request_response::{incoming::IncomingRequestReceiver, v1};
 use polkadot_node_primitives::DISPUTE_WINDOW;
@@ -158,7 +158,7 @@ where
 {
 	/// Create a new instance of the dispute distribution.
 	pub fn new(
-		keystore: SyncCryptoStorePtr,
+		keystore: KeystorePtr,
 		req_receiver: IncomingRequestReceiver<v1::DisputeRequest>,
 		authority_discovery: AD,
 		metrics: Metrics,
