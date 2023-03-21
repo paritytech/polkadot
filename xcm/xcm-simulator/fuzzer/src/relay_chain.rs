@@ -22,8 +22,8 @@ use frame_support::{
 	weights::Weight,
 };
 
-use sp_core::{ConstU32, H256};
 use frame_system::EnsureRoot;
+use sp_core::{ConstU32, H256};
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 
 use polkadot_parachain::primitives::Id as ParaId;

@@ -231,7 +231,7 @@ pub mod pallet {
 		/// `pallet_xcm::CurrentXcmVersion`.
 		type AdvertisedXcmVersion: Get<XcmVersion>;
 
-		/// The origin that is allowed to call privileged operations on the XCM pallet 
+		/// The origin that is allowed to call privileged operations on the XCM pallet
 		type AdminOrigin: EnsureOrigin<<Self as SysConfig>::RuntimeOrigin>;
 
 		/// The assets which we consider a given origin is trusted if they claim to have placed a
