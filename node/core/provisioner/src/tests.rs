@@ -56,19 +56,17 @@ pub fn scheduled_core(id: u32) -> ScheduledCore {
 
 mod select_availability_bitfields {
 	use super::{super::*, default_bitvec, occupied_core};
-	use futures::executor::block_on;
 	use polkadot_primitives::{ScheduledCore, SigningContext, ValidatorId, ValidatorIndex};
 	use sp_application_crypto::AppKey;
-	use sp_keystore::{testing::KeyStore, CryptoStore, SyncCryptoStorePtr};
+	use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
 	use std::sync::Arc;
 
-	async fn signed_bitfield(
-		keystore: &SyncCryptoStorePtr,
+	fn signed_bitfield(
+		keystore: &KeystorePtr,
 		field: CoreAvailability,
 		validator_idx: ValidatorIndex,
 	) -> SignedAvailabilityBitfield {
-		let public = CryptoStore::sr25519_generate_new(&**keystore, ValidatorId::ID, None)
-			.await
+		let public = Keystore::sr25519_generate_new(&**keystore, ValidatorId::ID, None)
 			.expect("generated sr25519 key");
 		SignedAvailabilityBitfield::sign(
 			&keystore,
@@ -77,7 +75,6 @@ mod select_availability_bitfields {
 			validator_idx,
 			&public.into(),
 		)
-		.await
 		.ok()
 		.flatten()
 		.expect("Should be signed")
@@ -85,7 +82,7 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn not_more_than_one_per_validator() {
-		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
 		let mut bitvec = default_bitvec(2);
 		bitvec.set(0, true);
 		bitvec.set(1, true);
@@ -95,9 +92,9 @@ mod select_availability_bitfields {
 		// we pass in three bitfields with two validators
 		// this helps us check the postcondition that we get two bitfields back, for which the validators differ
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(0))),
-			block_on(signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(1))),
-			block_on(signed_bitfield(&keystore, bitvec, ValidatorIndex(1))),
+			signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(0)),
+			signed_bitfield(&keystore, bitvec.clone(), ValidatorIndex(1)),
+			signed_bitfield(&keystore, bitvec, ValidatorIndex(1)),
 		];
 
 		let mut selected_bitfields =
@@ -112,7 +109,7 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn each_corresponds_to_an_occupied_core() {
-		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
 		let bitvec = default_bitvec(3);
 
 		// invalid: bit on free core
@@ -134,9 +131,9 @@ mod select_availability_bitfields {
 		];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec0, ValidatorIndex(0))),
-			block_on(signed_bitfield(&keystore, bitvec1, ValidatorIndex(1))),
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2))),
+			signed_bitfield(&keystore, bitvec0, ValidatorIndex(0)),
+			signed_bitfield(&keystore, bitvec1, ValidatorIndex(1)),
+			signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2)),
 		];
 
 		let selected_bitfields =
@@ -149,7 +146,7 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn more_set_bits_win_conflicts() {
-		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
 		let mut bitvec = default_bitvec(2);
 		bitvec.set(0, true);
 
@@ -159,8 +156,8 @@ mod select_availability_bitfields {
 		let cores = vec![occupied_core(0), occupied_core(1)];
 
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec, ValidatorIndex(1))),
-			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
+			signed_bitfield(&keystore, bitvec, ValidatorIndex(1)),
+			signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1)),
 		];
 
 		let selected_bitfields =
@@ -171,7 +168,7 @@ mod select_availability_bitfields {
 
 	#[test]
 	fn more_complex_bitfields() {
-		let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
+		let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
 
 		let cores = vec![occupied_core(0), occupied_core(1), occupied_core(2), occupied_core(3)];
 
@@ -194,11 +191,11 @@ mod select_availability_bitfields {
 		// these are out of order but will be selected in order. The better
 		// bitfield for 3 will be selected.
 		let bitfields = vec![
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(3))),
-			block_on(signed_bitfield(&keystore, bitvec3.clone(), ValidatorIndex(3))),
-			block_on(signed_bitfield(&keystore, bitvec0.clone(), ValidatorIndex(0))),
-			block_on(signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2))),
-			block_on(signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1))),
+			signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(3)),
+			signed_bitfield(&keystore, bitvec3.clone(), ValidatorIndex(3)),
+			signed_bitfield(&keystore, bitvec0.clone(), ValidatorIndex(0)),
+			signed_bitfield(&keystore, bitvec2.clone(), ValidatorIndex(2)),
+			signed_bitfield(&keystore, bitvec1.clone(), ValidatorIndex(1)),
 		];
 
 		let selected_bitfields =

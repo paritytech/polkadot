@@ -16,7 +16,7 @@
 
 //! Interface to the Substrate Executor
 
-use polkadot_primitives::vstaging::executor_params::{ExecutorParam, ExecutorParams};
+use polkadot_primitives::{ExecutorParam, ExecutorParams};
 use sc_executor_common::{
 	runtime_blob::RuntimeBlob,
 	wasm_runtime::{HeapAllocStrategy, InvokeMethod, WasmModule as _},
@@ -126,6 +126,7 @@ fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, Strin
 			ExecutorParam::StackLogicalMax(slm) => stack_limit.logical_max = *slm,
 			ExecutorParam::StackNativeMax(snm) => stack_limit.native_stack_max = *snm,
 			ExecutorParam::PrecheckingMaxMemory(_) => (), // TODO: Not implemented yet
+			ExecutorParam::PvfPrepTimeout(_, _) | ExecutorParam::PvfExecTimeout(_, _) => (), // Not used here
 		}
 	}
 	sem.deterministic_stack_limit = Some(stack_limit);
