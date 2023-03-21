@@ -1033,7 +1033,6 @@ fn network_protocol_versioning() {
 			ValidatorIndex(0),
 			&validator,
 		)
-		.await
 		.ok()
 		.flatten()
 		.expect("should be signed");
