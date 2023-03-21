@@ -1494,7 +1494,7 @@ async fn import_statement<Context>(
 	// we need to create an entry in the `PerCandidateState` map.
 	//
 	// If the relay parent supports prospective parachains, we also need
-	// to inform the prospective parachains subsystem of the seconded candidate
+	// to inform the prospective parachains subsystem of the seconded candidate.
 	// If `ProspectiveParachainsMessage::Second` fails, then we return
 	// Error::RejectedByProspectiveParachains.
 	//

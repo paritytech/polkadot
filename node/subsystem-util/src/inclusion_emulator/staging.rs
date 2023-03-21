@@ -71,19 +71,20 @@
 //!
 //! ### Pruning Fragment Trees
 //!
-//! When the relay-chain advances, we want to compare the new constraints
-//!    of that relay-parent to the roots of the fragment trees we have. There are 3 cases.
+//! When the relay-chain advances, we want to compare the new constraints of that relay-parent to
+//! the roots of the fragment trees we have. There are 3 cases:
 //!
-//! 1. The root fragment is still valid under the new constraints. In this case, we do nothing.
-//!    This is the "prediction still uncertain" case.
-//! 2. The root fragment is invalid under the new constraints because it has been subsumed by the relay-chain.
-//!    in this case, we can discard the root and split & re-root the fragment tree
-//!    under its descendents and compare to the new constraints again.
-//!    This is the "prediction came true" case.
-//! 3. The root fragment is invalid under the new constraints because a competing parachain block has been included
-//!    or it would never be accepted for some other reason. In this case we can discard the entire
-//!    fragment tree.
-//!    This is the "prediction came false" case.
+//! 1. The root fragment is still valid under the new constraints. In this case, we do nothing. This
+//! is the "prediction still uncertain" case.
+//!
+//! 2. The root fragment is invalid under the new constraints because it has been subsumed by the
+//! relay-chain. In this case, we can discard the root and split & re-root the fragment tree under
+//! its descendents and compare to the new constraints again. This is the "prediction came true"
+//! case.
+//!
+//! 3. The root fragment is invalid under the new constraints because a competing parachain block
+//! has been included or it would never be accepted for some other reason. In this case we can
+//! discard the entire fragment tree. This is the "prediction came false" case.
 //!
 //! This is all a bit of a simplification because it assumes that the relay-chain advances without
 //! forks and is finalized instantly. In practice, the set of fragment-trees needs to be observable
