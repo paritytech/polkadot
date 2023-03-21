@@ -64,7 +64,7 @@ pub enum AssignmentKind {
 	/// A parachain.
 	Parachain,
 	/// A parathread.
-	Parathread(CollatorId, u32),
+	Parathread(CollatorId, u32), // u32 is retries
 }
 
 impl AssignmentKind {
@@ -94,7 +94,7 @@ impl Assignment {
 		match self {
 			Assignment::Parachain(_) => AssignmentKind::Parachain,
 			Assignment::ParathreadA(ParathreadClaim(_, collator_id)) =>
-				AssignmentKind::Parathread(collator_id.clone(), 3),
+				AssignmentKind::Parathread(collator_id.clone(), 0),
 		}
 	}
 
@@ -103,6 +103,14 @@ impl Assignment {
 			Assignment::Parachain(para_id) => CoreOccupied::Parachain(*para_id),
 			Assignment::ParathreadA(claim) =>
 				CoreOccupied::Parathread(ParathreadEntry { claim: claim.clone(), retries: 0 }),
+		}
+	}
+
+	pub fn from_core_occupied(co: CoreOccupied) -> Option<Assignment> {
+		match co {
+			CoreOccupied::Parachain(para_id) => Some(Assignment::Parachain(para_id)),
+			CoreOccupied::Parathread(entry) => Some(Assignment::ParathreadA(entry.claim)),
+			CoreOccupied::Free => None,
 		}
 	}
 

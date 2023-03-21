@@ -50,12 +50,8 @@ pub fn validator_groups<T: initializer::Config>(
 /// Implementation for the `availability_cores` function of the runtime API.
 pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T::BlockNumber>> {
 	let cores = <scheduler::Pallet<T>>::availability_cores();
-	//let parachains = <paras::Pallet<T>>::parachains();
 	let config = <configuration::Pallet<T>>::config();
-
 	let now = <frame_system::Pallet<T>>::block_number() + One::one();
-	//<scheduler::Pallet<T>>::clear_and_fill_claimqueue(BTreeMap::new(), now);
-
 	let rotation_info = <scheduler::Pallet<T>>::group_rotation_info(now);
 
 	let time_out_at = |backed_in_number, availability_period| {

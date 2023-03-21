@@ -405,7 +405,7 @@ impl<T: Config> Pallet<T> {
 		let expected_bits = <scheduler::Pallet<T>>::availability_cores().len();
 
 		// Handle disputes logic.
-		let disputed_bitfield = {
+		let (disputed_bitfield, freed_disputed) = {
 			let new_current_dispute_sets: Vec<_> = checked_disputes
 				.iter()
 				.map(AsRef::as_ref)
@@ -431,7 +431,7 @@ impl<T: Config> Pallet<T> {
 			// Process the dispute sets of the current session.
 			METRICS.on_current_session_disputes_processed(new_current_dispute_sets.len() as u64);
 
-			let mut freed_disputed = if !new_current_dispute_sets.is_empty() {
+			let freed_disputed = if !new_current_dispute_sets.is_empty() {
 				let concluded_invalid_disputes = new_current_dispute_sets
 					.iter()
 					.filter(|(session, candidate)| {
@@ -463,14 +463,7 @@ impl<T: Config> Pallet<T> {
 				freed_disputed.iter().map(|(core_index, _)| core_index),
 			);
 
-			if !freed_disputed.is_empty() {
-				// unstable sort is fine, because core indices are unique
-				// i.e. the same candidate can't occupy 2 cores at once.
-				freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
-				<scheduler::Pallet<T>>::free_cores(freed_disputed.into_iter().collect());
-			}
-
-			disputed_bitfield
+			(disputed_bitfield, freed_disputed)
 		};
 
 		METRICS.on_bitfields_processed(signed_bitfields.len() as u64);
@@ -494,7 +487,10 @@ impl<T: Config> Pallet<T> {
 		}
 
 		METRICS.on_candidates_included(freed_concluded.len() as u64);
-		let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
+		let mut freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
+		// As a core is only occupied by a single work item, freed and freed_disputed are disjoint by design
+		// and can thus be appended without worrying about overwriting (key, value) pairs in freed.
+		freed.append(&mut freed_disputed.into_iter().collect());
 
 		<scheduler::Pallet<T>>::clear_and_fill_claimqueue(freed, now);
 
@@ -665,7 +661,7 @@ impl<T: Config> Pallet<T> {
 				})
 				.collect::<BTreeSet<CandidateHash>>();
 
-			let mut freed_disputed: Vec<_> =
+			let freed_disputed: Vec<_> =
 				<inclusion::Pallet<T>>::collect_disputed(&current_concluded_invalid_disputes)
 					.into_iter()
 					.map(|core| (core, FreedReason::Concluded))
@@ -673,13 +669,6 @@ impl<T: Config> Pallet<T> {
 
 			let disputed_bitfield =
 				create_disputed_bitfield(expected_bits, freed_disputed.iter().map(|(x, _)| x));
-
-			if !freed_disputed.is_empty() {
-				// unstable sort is fine, because core indices are unique
-				// i.e. the same candidate can't occupy 2 cores at once.
-				freed_disputed.sort_unstable_by_key(|pair| pair.0); // sort by core index
-				<scheduler::Pallet<T>>::free_cores(freed_disputed.clone().into_iter().collect());
-			}
 
 			// The following 3 calls are equiv to a call to `process_bitfields`
 			// but we can retain access to `bitfields`.
@@ -702,7 +691,10 @@ impl<T: Config> Pallet<T> {
 					false,
 				);
 
-			let freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
+			let mut freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
+			// As a core is only occupied by a single work item, freed and freed_disputed are disjoint by design
+			// and can thus be appended without worrying about overwriting (key, value) pairs in freed.
+			freed.append(&mut freed_disputed.into_iter().collect());
 			let now = <frame_system::Pallet<T>>::block_number();
 			<scheduler::Pallet<T>>::clear_and_fill_claimqueue(freed, now);
 

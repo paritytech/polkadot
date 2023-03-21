@@ -189,7 +189,7 @@ impl<T: Config> Pallet<T> {
 
 	/// Free unassigned cores. Provide a list of cores that should be considered newly-freed along with the reason
 	/// for them being freed.
-	pub(crate) fn free_cores(
+	fn free_cores(
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
 	) -> (BTreeMap<CoreIndex, ParaId>, BTreeMap<CoreIndex, (ParaId, AssignmentKind)>) {
 		let mut timedout_paras = BTreeMap::new();
@@ -400,13 +400,11 @@ impl<T: Config> Pallet<T> {
 	// on new session
 	fn reschedule_occupied_cores(cores: Vec<CoreOccupied>) {
 		for (core_idx, core) in cores.into_iter().enumerate() {
-			match core {
-				// temporary, generalise to remove distinction between chain and thread
-				CoreOccupied::Free => continue,
-				CoreOccupied::Parachain(_) => continue,
-				CoreOccupied::Parathread(entry) => T::AssignmentProvider::push_assignment_for_core(
-					CoreIndex(core_idx as u32),
-					Assignment::ParathreadA(entry.claim),
+			match Assignment::from_core_occupied(core) {
+				None => continue,
+				Some(ass) => T::AssignmentProvider::push_assignment_for_core(
+					CoreIndex::from(core_idx as u32),
+					ass,
 				),
 			}
 		}
