@@ -132,7 +132,7 @@ impl Histogram {
 	}
 
 	// Observe a value in the histogram
-	pub fn observe(&self, value: f64) {
+	pub fn observe(&self, value: u64) {
 		let metric_update = RuntimeMetricUpdate {
 			metric_name: Vec::from(self.name),
 			op: RuntimeMetricOp::ObserveHistogram(value),

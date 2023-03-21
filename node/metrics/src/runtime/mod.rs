@@ -118,9 +118,11 @@ impl RuntimeMetricsProvider {
 	}
 
 	/// Observe a histogram
-	pub fn observe_histogram(&self, name: &str, value: f64) {
+	pub fn observe_histogram(&self, name: &str, value: u64) {
 		self.with_histograms_lock_held(|mut hashmap| {
-			hashmap.entry(name.to_owned()).and_modify(|histogram| histogram.observe(value));
+			hashmap
+				.entry(name.to_owned())
+				.and_modify(|histogram| histogram.observe(value as f64));
 			Ok(())
 		})
 	}

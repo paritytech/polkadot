@@ -1366,7 +1366,7 @@ fn check_signature(
 
 	let end = frame_benchmarking::benchmarking::current_time();
 
-	METRICS.on_signature_check_complete(((end - start) / 1000) as f64); // ns -> us
+	METRICS.on_signature_check_complete(((end - start) / 1000) as u64); // ns -> us
 
 	res
 }
