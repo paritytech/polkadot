@@ -10,7 +10,7 @@ bootnode = true
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
 chain = "westend-local" # using westend-local to enable slashing
-default_command = "./bin/polkadot-fast-runtime"
+default_command = "polkadot"
 
 [relaychain.default_resources]
 limits = { memory = "4G", cpu = "2" }
@@ -29,7 +29,7 @@ requests = { memory = "2G", cpu = "1" }
   [[relaychain.node_groups]]
   image = "{{MALUS_IMAGE}}"
   name = "malus-validator"
-  command = "./bin/malus suggest-garbage-candidate"
+  command = "malus suggest-garbage-candidate"
   args = ["-lMALUS=trace"]
   count = 1
 
@@ -39,7 +39,7 @@ cumulus_based = true
 
   [parachains.collator]
   name = "collator"
-  command = "./bin/cumulus"
+  command = "polkadot-parachain"
   image = "docker.io/parity/polkadot-parachain:latest"
   # image = "{{COL_IMAGE}}"
   args = ["-lparachain=debug"]
