@@ -5,6 +5,7 @@ bootnode = true
 [relaychain.genesis.runtime.configuration.config]
   max_validators_per_core = 1
   needed_approvals = 3
+  group_rotation_frequency = 4
 
 [relaychain]
 default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
@@ -29,7 +30,7 @@ requests = { memory = "2G", cpu = "1" }
   image = "{{MALUS_IMAGE}}"
   name = "malus-validator"
   command = "./bin/malus suggest-garbage-candidate"
-  args = ["-lparachain=debug,runtime=debug"]
+  args = ["-lMALUS=trace"]
   count = 1
 
 [[parachains]]
