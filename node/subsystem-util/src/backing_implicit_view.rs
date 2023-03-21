@@ -413,7 +413,7 @@ mod tests {
 		make_subsystem_context, TestSubsystemContextHandle,
 	};
 	use polkadot_overseer::SubsystemContext;
-	use polkadot_primitives::v2::Header;
+	use polkadot_primitives::Header;
 	use sp_core::testing::TaskExecutor;
 	use std::time::Duration;
 
