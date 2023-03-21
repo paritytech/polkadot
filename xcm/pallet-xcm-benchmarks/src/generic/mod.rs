@@ -75,10 +75,11 @@ pub mod pallet {
 		/// Return an unlocker, owner and assets that can be locked and unlocked.
 		fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError>;
 
-		/// A valid `(NetworkId, InteriorMultiLocation)` we can successfully export message to.
+		/// A `(MultiLocation, NetworkId, InteriorMultiLocation)` we can successfully export message to.
 		///
 		/// If set to `Err`, benchmarks which rely on `export_message` will be skipped.
-		fn bridged_destination() -> Result<(NetworkId, InteriorMultiLocation), BenchmarkError>;
+		fn export_message_origin_and_destination(
+		) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError>;
 	}
 
 	#[pallet::pallet]

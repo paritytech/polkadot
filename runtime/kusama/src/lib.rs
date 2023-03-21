@@ -2080,7 +2080,8 @@ sp_api::impl_runtime_apis! {
 					Err(BenchmarkError::Skip)
 				}
 
-				fn bridged_destination() -> Result<(NetworkId, InteriorMultiLocation), BenchmarkError> {
+				fn export_message_origin_and_destination(
+				) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError> {
 					// Kusama doesn't support exporting messages
 					Err(BenchmarkError::Skip)
 				}

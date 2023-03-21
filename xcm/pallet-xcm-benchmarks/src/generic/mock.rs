@@ -187,7 +187,8 @@ impl generic::Config for Test {
 		Ok((Default::default(), Default::default(), assets))
 	}
 
-	fn bridged_destination() -> Result<(NetworkId, InteriorMultiLocation), BenchmarkError> {
+	fn export_message_origin_and_destination(
+	) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError> {
 		// No MessageExporter in tests
 		Err(BenchmarkError::Skip)
 	}

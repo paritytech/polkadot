@@ -497,14 +497,12 @@ benchmarks! {
 	}
 
 	export_message {
-		let mut executor = new_executor::<T>(Here.into_location());
-		let (network, destination) = T::bridged_destination()?;
-		let expected_message = Xcm(vec![TransferAsset {
-			assets: (Here, 100u128).into(),
-			beneficiary: Parachain(2).into(),
-		}]);
+		let (origin, network, destination) = T::export_message_origin_and_destination()?;
+		let mut executor = new_executor::<T>(origin);
+		// Actual exported message has no bearing on this instruction's weight, use empty message.
+		let inner_xcm = Xcm(vec![]);
 		let xcm = Xcm(vec![ExportMessage {
-			network, destination, xcm: expected_message.clone(),
+			network, destination, xcm: inner_xcm,
 		}]);
 	}: {
 		executor.bench_process(xcm)?;
