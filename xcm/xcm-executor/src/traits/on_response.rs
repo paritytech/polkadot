@@ -99,18 +99,17 @@ impl VersionChangeNotifier for () {
 	}
 }
 
-// An indication of the state of an XCM command
-// - `Finished` - Indicates that the command was executed, and includes the Success or Error response of the command.
-// - `Pending` - Indicates being aware of the xCM command has not yet completed, or a response has
-//    not been returned yet
-// - `NotFound` - Not XCM command with the given `QueryId` was found
+/// The possible state of an XCM query response:
+/// - `Finished`: The response has arrived, and includes the inner Response and the block number it arrived at.
+/// - `Pending`: The response has not yet arrived, the XCM might still be executing or the response might be in transit.
+/// - `NotFound`: No response with the given `QueryId` was found, or the response was already queried and removed from local storage.
 pub enum QueryResponseStatus<BlockNumber> {
 	Finished { response: Response, at: BlockNumber },
 	Pending,
 	NotFound,
 }
 
-/// XcmQueryHandler provides a way execute XCM messages which we can track the execution status of.
+/// Provides methods to expect responses from XCMs and query their status.
 pub trait XcmQueryHandler {
 	type QueryId: FullCodec + MaxEncodedLen + TypeInfo + Clone + Eq + PartialEq + Debug + Copy;
 	type BlockNumber;
@@ -121,15 +120,12 @@ pub trait XcmQueryHandler {
 	///
 	/// - `message`: The message whose outcome should be reported.
 	/// - `responder`: The origin from which a response should be expected.
-	/// - `timeout`: The block number after which it is permissible for `notify` not to be
-	///   called even if a response is received.
+	/// - `timeout`: The block number after which it is permissible to return `NotFound` from `take_response`.
 	///
 	/// `report_outcome` may return an error if the `responder` is not invertible.
 	///
 	/// It is assumed that the querier of the response will be `Here`.
-	///
-	/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
-	/// value.
+	/// The response can be queried with `take_response`.
 	fn report_outcome(
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
@@ -138,6 +134,7 @@ pub trait XcmQueryHandler {
 
 	/// Attempt to remove and return the response of query with ID `query_id`.
 	///
-	/// Returns `None` if the response is not (yet) available.
+	/// Returns `Pending` if the response is not yet available.
+	/// Returns `NotFound` if the response is not available and won't ever be.
 	fn take_response(id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber>;
 }

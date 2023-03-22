@@ -1101,6 +1101,8 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 	type BlockNumber = T::BlockNumber;
 	type Error = XcmError;
 
+	/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
+	/// value.
 	fn report_outcome(
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
