@@ -790,11 +790,11 @@ fn schedule_clears_availability_cores() {
 		assert_eq!(Scheduler::claimqueue().len(), 3);
 
 		// cores 0, 1, and 2 should be occupied. mark them as such.
-		Scheduler::occupied(vec![
-			(CoreIndex(0), chain_a),
-			(CoreIndex(1), chain_b),
-			(CoreIndex(2), chain_c),
-		]);
+		Scheduler::occupied(
+			vec![(CoreIndex(0), chain_a), (CoreIndex(1), chain_b), (CoreIndex(2), chain_c)]
+				.into_iter()
+				.collect(),
+		);
 
 		{
 			let cores = AvailabilityCores::<Test>::get();
@@ -1276,7 +1276,7 @@ fn next_up_on_available_is_parachain_always() {
 			assert_eq!(Scheduler::claimqueue().len(), 1);
 			assert_eq!(Scheduler::availability_cores().len(), 1);
 
-			Scheduler::occupied(vec![(CoreIndex(0), chain_a)]);
+			Scheduler::occupied(vec![(CoreIndex(0), chain_a)].into_iter().collect());
 
 			let cores = Scheduler::availability_cores();
 			match cores[0] {
@@ -1330,7 +1330,7 @@ fn next_up_on_time_out_is_parachain_always() {
 			assert_eq!(Scheduler::claimqueue().len(), 1);
 			assert_eq!(Scheduler::availability_cores().len(), 1);
 
-			Scheduler::occupied(vec![(CoreIndex(0), chain_a)]);
+			Scheduler::occupied(vec![(CoreIndex(0), chain_a)].into_iter().collect());
 
 			let cores = Scheduler::availability_cores();
 			match cores[0] {

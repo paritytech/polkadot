@@ -112,6 +112,7 @@ pub mod pallet {
 		StorageValue<_, BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>>, ValueQuery>;
 }
 
+type PositionInClaimqueue = u32;
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the scheduler pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
@@ -244,19 +245,26 @@ impl<T: Config> Pallet<T> {
 	///
 	/// Complexity: O(n) in the number of scheduled cores, which is capped at the number of total cores.
 	/// This is efficient in the case that most scheduled cores are occupied.
-	pub(crate) fn occupied(now_occupied: Vec<(CoreIndex, ParaId)>) {
-		if now_occupied.is_empty() {
-			return
-		}
-
+	pub(crate) fn occupied(
+		now_occupied: BTreeMap<CoreIndex, ParaId>,
+	) -> BTreeMap<CoreIndex, PositionInClaimqueue> {
 		let mut availability_cores = AvailabilityCores::<T>::get();
-		for (core_idx, para_id) in now_occupied {
-			if let Ok((_idx, assignment)) = Self::mark_claimqueue(core_idx, para_id) {
-				availability_cores[assignment.core.0 as usize] = assignment.to_core_occupied();
-			}
-		}
+
+		let pos_mapping = now_occupied
+			.into_iter()
+			.flat_map(|(core_idx, para_id)| match Self::mark_claimqueue(core_idx, para_id) {
+				Err(_) => None,
+				Ok((pos_in_claimqueue, assignment)) => {
+					availability_cores[assignment.core.0 as usize] = assignment.to_core_occupied();
+
+					Some((core_idx, pos_in_claimqueue))
+				},
+			})
+			.collect();
 
 		AvailabilityCores::<T>::set(availability_cores);
+
+		pos_mapping
 	}
 
 	/// Get the para (chain or thread) ID assigned to a particular core or index, if any. Core indices
@@ -514,7 +522,7 @@ impl<T: Config> Pallet<T> {
 	fn mark_claimqueue(
 		core_idx: CoreIndex,
 		para_id: ParaId,
-	) -> Result<(CoreIndex, CoreAssignment), &'static str> {
+	) -> Result<(PositionInClaimqueue, CoreAssignment), &'static str> {
 		let mut cq = ClaimQueue::<T>::get();
 		let la_vec = cq.get_mut(&core_idx).ok_or_else(|| "core_idx not found in lookahead")?;
 
@@ -533,7 +541,7 @@ impl<T: Config> Pallet<T> {
 		}
 		ClaimQueue::<T>::set(cq);
 
-		Ok((CoreIndex::from(pos as u32), ca))
+		Ok((pos as u32, ca))
 	}
 
 	pub(crate) fn scheduled_claimqueue() -> Vec<CoreAssignment> {

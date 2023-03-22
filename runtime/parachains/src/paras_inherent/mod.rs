@@ -527,7 +527,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		// Note which of the scheduled cores were actually occupied by a backed candidate.
-		<scheduler::Pallet<T>>::occupied(occupied);
+		<scheduler::Pallet<T>>::occupied(occupied.into_iter().collect());
 
 		// Give some time slice to dispatch pending upward messages.
 		// this is max config.ump_service_total_weight
