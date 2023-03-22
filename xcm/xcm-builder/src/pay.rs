@@ -24,13 +24,13 @@ use sp_std::{marker::PhantomData, vec};
 use xcm::prelude::*;
 use xcm_executor::traits::{QueryResponseStatus, XcmQueryHandler};
 
-// `PayOverXcm` is a type which implements the `frame_support_traits::tokens::Pay` trait, to allow
-// for generic payments of a given `AssetKind` and `Balance` from an implied target, to a
-// beneficiary via XCM, and relying on an XCM `TransferAsset` operation.
-//
-// `PayOverXcm::pay` is asynchronous, and returns a `QueryId` which can then be used via
-// `check_payment` to check the status of the xcm transaction transaction.
-//
+/// Implementation of the `frame_support_traits::tokens::Pay` trait, to allow
+/// for generic payments of a given `AssetKind` and `Balance` from an implied origin, to a
+/// beneficiary via XCM, relying on the XCM `TransferAsset` instruction.
+///
+/// `PayOverXcm::pay` is asynchronous, and returns a `QueryId` which can then be used in
+/// `check_payment` to check the status of the XCM transaction.
+///
 pub struct PayOverXcm<DestChain, Router, Querier, BlockNumber, Timeout>(
 	PhantomData<(DestChain, Router, Querier, BlockNumber, Timeout)>,
 );
@@ -80,4 +80,10 @@ impl<
 			QueryResponseStatus::NotFound => PaymentStatus::Unknown,
 		}
 	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn ensure_successful(_: &Self::Beneficiary, amount: Self::Balance) {}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn ensure_concluded(_: Self::Id) {}
 }

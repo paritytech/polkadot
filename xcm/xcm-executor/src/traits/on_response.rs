@@ -99,13 +99,13 @@ impl VersionChangeNotifier for () {
 	}
 }
 
-/// The possible state of an XCM query response:
-/// - `Finished`: The response has arrived, and includes the inner Response and the block number it arrived at.
-/// - `Pending`: The response has not yet arrived, the XCM might still be executing or the response might be in transit.
-/// - `NotFound`: No response with the given `QueryId` was found, or the response was already queried and removed from local storage.
+/// The possible state of an XCM query response.
 pub enum QueryResponseStatus<BlockNumber> {
+	/// The response has arrived, and includes the inner Response and the block number it arrived at.
 	Finished { response: Response, at: BlockNumber },
+	/// The response has not yet arrived, the XCM might still be executing or the response might be in transit.
 	Pending,
+	/// No response with the given `QueryId` was found, or the response was already queried and removed from local storage.
 	NotFound,
 }
 
