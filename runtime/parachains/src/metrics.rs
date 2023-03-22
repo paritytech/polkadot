@@ -108,7 +108,7 @@ impl Metrics {
 		self.bitfields_signature_checks.with_label_values(&["invalid"]).inc_by(1);
 	}
 
-	pub fn on_signature_check_complete(&self, val: u64) {
+	pub fn on_signature_check_complete(&self, val: f64) {
 		self.signature_timings.observe(val);
 	}
 }

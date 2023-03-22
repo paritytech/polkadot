@@ -67,7 +67,7 @@ impl Histogram {
 	}
 
 	// Observe a value in the histogram
-	pub fn observe(&self, _value: u64) {}
+	pub fn observe(&self, _value: f64) {}
 }
 
 /// Dummy implementation - always 0

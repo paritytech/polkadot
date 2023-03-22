@@ -96,7 +96,7 @@ impl RuntimeMetricsProvider {
 		})
 	}
 
-	/// Increment a counter with labels by a value.
+	/// Increment a counter with labels by a value (in seconds)
 	pub fn inc_counter_vec_by(&self, name: &str, value: u64, labels: &RuntimeMetricLabelValues) {
 		self.with_counter_vecs_lock_held(|mut hashmap| {
 			hashmap.entry(name.to_owned()).and_modify(|counter_vec| {
@@ -118,11 +118,9 @@ impl RuntimeMetricsProvider {
 	}
 
 	/// Observe a histogram
-	pub fn observe_histogram(&self, name: &str, value: u64) {
+	pub fn observe_histogram(&self, name: &str, value: f64) {
 		self.with_histograms_lock_held(|mut hashmap| {
-			hashmap
-				.entry(name.to_owned())
-				.and_modify(|histogram| histogram.observe(value as f64));
+			hashmap.entry(name.to_owned()).and_modify(|histogram| histogram.observe(value));
 			Ok(())
 		})
 	}
