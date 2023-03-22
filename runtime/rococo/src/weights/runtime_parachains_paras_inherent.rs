@@ -133,7 +133,7 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	// Storage: ParasDisputes Included (r:0 w:1)
 	// Storage: Hrmp HrmpWatermarks (r:0 w:1)
 	// Storage: Paras Heads (r:0 w:1)
-	fn enter_backed_candidate(v: u32, _u: u32, _h: u32, _c: u32) -> Weight {
+	fn enter_backed_candidate(_v: u32, _u: u32, _h: u32, _c: u32) -> Weight {
 		Weight::from_parts(442_472_000 as u64, 0)
 			.saturating_add(T::DbWeight::get().reads(25 as u64))
 			.saturating_add(T::DbWeight::get().writes(14 as u64))
