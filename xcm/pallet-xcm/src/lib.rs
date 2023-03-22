@@ -1101,20 +1101,6 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 	type BlockNumber = T::BlockNumber;
 	type Error = XcmError;
 
-	/// Consume `message` and return another which is equivalent to it except that it reports
-	/// back the outcome.
-	///
-	/// - `message`: The message whose outcome should be reported.
-	/// - `responder`: The origin from which a response should be expected.
-	/// - `timeout`: The block number after which it is permissible for `notify` not to be
-	///   called even if a response is received.
-	///
-	/// `report_outcome` may return an error if the `responder` is not invertible.
-	///
-	/// It is assumed that the querier of the response will be `Here`.
-	///
-	/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
-	/// value.
 	fn report_outcome(
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
@@ -1131,9 +1117,6 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 		Ok(query_id)
 	}
 
-	/// Attempt to remove and return the response of query with ID `query_id`.
-	///
-	/// Returns `None` if the response is not (yet) available.
 	fn take_response(query_id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber> {
 		match Queries::<T>::get(query_id) {
 			Some(QueryStatus::Ready { response, at }) => {
