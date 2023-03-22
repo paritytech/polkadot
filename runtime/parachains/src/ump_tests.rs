@@ -27,7 +27,7 @@ use crate::{
 use frame_support::{
 	assert_noop, assert_ok,
 	pallet_prelude::*,
-	traits::{ExecuteOverweightError, ServiceQueues},
+	traits::{EnqueueMessage, ExecuteOverweightError, ServiceQueues},
 	weights::Weight,
 };
 use primitives::v4::{well_known_keys, Id as ParaId, UpwardMessage};
@@ -344,6 +344,66 @@ fn queue_enact_too_long_ignored() {
 	});
 }
 
+/// Check that the Inclusion pallet correctly updates the well known keys in the MQ handler.
+///
+/// Also checks that it works in the presence of overweight messages.
+#[test]
+fn relay_dispatch_queue_size_is_updated() {
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		let cfg = Configuration::config();
+
+		for p in 0..100 {
+			let para = p.into();
+			// Do some tricks with the weight such that the MQ pallet will process in order:
+			// Q0:0, Q1:0 … Q0:1, Q1:1 …
+			let m1 = (300u32 * (100 - p), "m1").encode();
+			let m2 = (300u32 * (100 - p), "m11").encode();
+
+			queue_upward_msg(para, m1);
+			queue_upward_msg(para, m2);
+
+			assert_queue_size(para, 2, 15);
+			assert_queue_remaining(
+				para,
+				cfg.max_upward_queue_count - 2,
+				cfg.max_upward_queue_size - 15,
+			);
+
+			// Now processing one message should also update the queue size.
+			MessageQueue::service_queues(Weight::from_all(300u64 * (100 - p) as u64));
+			assert_queue_remaining(
+				para,
+				cfg.max_upward_queue_count - 1,
+				cfg.max_upward_queue_size - 8,
+			);
+		}
+
+		// The messages of Q0…Q98 are overweight, so `service_queues` wont help.
+		for p in 0..98 {
+			MessageQueue::service_queues(Weight::from_all(u64::MAX));
+
+			let fp = MessageQueue::footprint(AggregateMessageOrigin::Ump(p.into()));
+			let (para_queue_count, para_queue_size) = (fp.count, fp.size);
+			assert_eq!(para_queue_count, 1, "count wrong for para: {}", p);
+			assert_eq!(para_queue_size, 8, "size wrong for para: {}", p);
+		}
+		// All queues are empty after processing overweight messages.
+		for p in 0..100 {
+			let para = p.into();
+			let _ = <MessageQueue as ServiceQueues>::execute_overweight(
+				Weight::from_all(u64::MAX),
+				(AggregateMessageOrigin::Ump(para), 0, 1),
+			);
+
+			assert_queue_remaining(para, cfg.max_upward_queue_count, cfg.max_upward_queue_size);
+			let fp = MessageQueue::footprint(AggregateMessageOrigin::Ump(p.into()));
+			let (para_queue_count, para_queue_size) = (fp.count, fp.size);
+			assert_eq!(para_queue_count, 0, "count wrong for para: {}", p);
+			assert_eq!(para_queue_size, 0, "size wrong for para: {}", p);
+		}
+	});
+}
+
 #[test]
 fn verify_relay_dispatch_queue_size_is_externally_accessible() {
 	// Make sure that the relay dispatch queue size storage entry is accessible via well known
@@ -396,8 +456,8 @@ fn assert_queue_remaining(para: ParaId, count: u32, size: u32) {
 		well_known_keys::relay_dispatch_queue_remaining_capacity(para)
 			.get()
 			.expect("No storage value");
-	assert_eq!(count, remaining_cnt);
-	assert_eq!(size, remaining_size);
+	assert_eq!(remaining_cnt, count, "Wrong number of remaining messages in Q{}", para);
+	assert_eq!(remaining_size, size, "Wrong remaining size in Q{}", para);
 }
 
 #[test]
