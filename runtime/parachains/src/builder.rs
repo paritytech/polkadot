@@ -72,8 +72,6 @@ pub(crate) struct BenchBuilder<T: paras_inherent::Config> {
 	session: SessionIndex,
 	/// Session we want the scenario to take place in. We will roll to this session.
 	target_session: u32,
-	/// Optionally set the max validators per core; otherwise uses the configuration value.
-	max_validators_per_core: Option<u32>,
 	/// Optionally set the max validators; otherwise uses the configuration value.
 	max_validators: Option<u32>,
 	/// Optionally set the number of dispute statements for each candidate.
@@ -118,7 +116,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 			block_number: Zero::zero(),
 			session: SessionIndex::from(0u32),
 			target_session: 2u32,
-			max_validators_per_core: None,
 			max_validators: None,
 			dispute_statements: BTreeMap::new(),
 			dispute_sessions: Default::default(),
@@ -201,21 +198,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self
 	}
 
-	/// Get the maximum number of validators per core.
-	fn max_validators_per_core(&self) -> u32 {
-		self.max_validators_per_core.unwrap_or(Self::fallback_max_validators_per_core())
-	}
-
-	/// Set maximum number of validators per core.
-	#[cfg(not(feature = "runtime-benchmarks"))]
-	pub(crate) fn set_max_validators_per_core(mut self, n: u32) -> Self {
-		self.max_validators_per_core = Some(n);
-		self
-	}
-
 	/// Get the maximum number of cores we expect from this configuration.
 	pub(crate) fn max_cores(&self) -> u32 {
-		self.max_validators() / self.max_validators_per_core()
+		self.max_validators() / Self::fallback_max_validators_per_core()
 	}
 
 	/// Get the minimum number of validity votes in order for a backed candidate to be included.

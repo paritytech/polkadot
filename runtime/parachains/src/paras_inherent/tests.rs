@@ -34,23 +34,17 @@ mod enter {
 		dispute_statements: BTreeMap<u32, u32>,
 		dispute_sessions: Vec<u32>,
 		backed_and_concluding: BTreeMap<u32, BackedCandidateScenario>,
-		num_validators_per_core: u32,
 	}
 
 	fn make_inherent_data(
-		TestConfig {
-			dispute_statements,
-			dispute_sessions,
-			backed_and_concluding,
-			num_validators_per_core,
-		}: TestConfig,
+		TestConfig { dispute_statements, dispute_sessions, backed_and_concluding }: TestConfig,
 	) -> Bench<Test> {
 		let builder = BenchBuilder::<Test>::new()
 			.set_max_validators(
 				(dispute_sessions.len() + backed_and_concluding.len()) as u32 *
-					num_validators_per_core,
+					BenchBuilder::<Test>::fallback_max_validators_per_core(),
 			)
-			.set_max_validators_per_core(num_validators_per_core)
+			// .set_max_validators_per_core(num_validators_per_core)
 			.set_dispute_statements(dispute_statements)
 			.set_backed_and_concluding_cores(backed_and_concluding)
 			.set_dispute_sessions(&dispute_sessions[..]);
@@ -75,7 +69,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![], // No disputes
 				backed_and_concluding,
-				num_validators_per_core: 1,
 			});
 
 			// We expect the scenario to have cores 0 & 1 with pending availability. The backed
@@ -246,7 +239,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![1, 2, 3 /* Session 3 too new, will get filtered out */],
 				backed_and_concluding,
-				num_validators_per_core: 5,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -319,7 +311,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 6,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -388,7 +379,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 6,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -437,7 +427,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 4,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -518,7 +507,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 4,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -574,7 +562,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 5,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -660,7 +647,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 5,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -746,7 +732,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 5,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
@@ -828,7 +813,6 @@ mod enter {
 				dispute_statements,
 				dispute_sessions: vec![2, 2, 1], // 3 cores with disputes
 				backed_and_concluding,
-				num_validators_per_core: 5,
 			});
 
 			let expected_para_inherent_data = scenario.data.clone();
