@@ -78,6 +78,7 @@ mod benchmarking;
 mod tests;
 
 const LOG_TARGET: &str = "runtime::inclusion-inherent";
+const MAX_DISPUTES_WEIGHT_PERCENT: Percent = Percent::from_percent(70);
 
 /// A bitfield concerning concluded disputes for candidates
 /// associated to the core index equivalent to the bit position.
@@ -342,7 +343,7 @@ impl<T: Config> Pallet<T> {
 
 		// At most 60% of total block space will be dispute votes.
 		let mut max_disputes_weight = Weight::from_parts(
-			Percent::from_percent(60).mul_floor(max_block_weight.ref_time()),
+			MAX_DISPUTES_WEIGHT_PERCENT.mul_floor(max_block_weight.ref_time()),
 			max_block_weight.proof_size(),
 		);
 
