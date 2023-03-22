@@ -81,7 +81,7 @@ fn run_to_block(
 		Scheduler::initializer_initialize(b + 1);
 
 		// In the real runtime this is expected to be called by the `InclusionInherent` pallet.
-		Scheduler::clear_and_fill_claimqueue(BTreeMap::new(), b + 1);
+		Scheduler::update_claimqueue(BTreeMap::new(), b + 1);
 	}
 }
 
@@ -1409,7 +1409,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			_ => None,
 		});
 
-		Scheduler::clear_and_fill_claimqueue(BTreeMap::new(), 3);
+		Scheduler::update_claimqueue(BTreeMap::new(), 3);
 
 		assert_eq!(
 			Scheduler::claimqueue(),

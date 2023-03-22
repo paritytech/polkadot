@@ -110,7 +110,6 @@ pub mod pallet {
 	#[pallet::getter(fn claimqueue)]
 	pub(crate) type ClaimQueue<T> =
 		StorageValue<_, BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>>, ValueQuery>;
-	// TODO: needs to keep track of order for rewards
 }
 
 impl<T: Config> Pallet<T> {
@@ -138,7 +137,7 @@ impl<T: Config> Pallet<T> {
 		);
 
 		Self::reschedule_occupied_cores(AvailabilityCores::<T>::get());
-		Self::clear_claimqueue_to_assigners();
+		Self::clear_claimqueue();
 
 		// clear all cores
 		AvailabilityCores::<T>::mutate(|cores| {
@@ -252,10 +251,8 @@ impl<T: Config> Pallet<T> {
 
 		let mut availability_cores = AvailabilityCores::<T>::get();
 		for (core_idx, para_id) in now_occupied {
-			match Self::mark_claimqueue(core_idx, para_id) {
-				Err(_) => todo!(),
-				Ok((_idx, assignment)) =>
-					availability_cores[assignment.core.0 as usize] = assignment.to_core_occupied(),
+			if let Ok((_idx, assignment)) = Self::mark_claimqueue(core_idx, para_id) {
+				availability_cores[assignment.core.0 as usize] = assignment.to_core_occupied();
 			}
 		}
 
@@ -414,15 +411,13 @@ impl<T: Config> Pallet<T> {
 	//  ClaimQueue related functions
 	//
 	fn claimqueue_lookahead() -> u32 {
-		// quick hack to give a value of 1 for tests
 		match <configuration::Pallet<T>>::config().scheduling_lookahead {
 			0 => 1,
 			n => n,
 		}
 	}
 
-	fn clear_claimqueue_to_assigners() {
-		log::debug!(target: "runtime::scheduler", "clear_claimqueue_to_assigners()");
+	fn clear_claimqueue() {
 		for (core_idx, cqv) in ClaimQueue::<T>::take() {
 			for ca in cqv.into_iter().flatten() {
 				T::AssignmentProvider::push_assignment_for_core(
@@ -433,17 +428,15 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	pub(crate) fn clear_and_fill_claimqueue(
+	pub(crate) fn update_claimqueue(
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
 		now: T::BlockNumber,
 	) -> Vec<CoreAssignment> {
-		Self::clear_claimqueue(now);
+		Self::move_claimqueue_forward();
 		Self::fill_claimqueue(just_freed_cores, now)
 	}
 
-	// Clear lookahead
-	fn clear_claimqueue(now: T::BlockNumber) {
-		log::debug!(target: "runtime::scheduler", "clear_claimqueue() running with block {:?}", now);
+	fn move_claimqueue_forward() {
 		let mut cq = ClaimQueue::<T>::get();
 		for (_, vec) in cq.iter_mut() {
 			match vec.front() {
@@ -470,10 +463,8 @@ impl<T: Config> Pallet<T> {
 		} else {
 			let n_lookahead = Self::claimqueue_lookahead();
 			let n_session_cores = T::AssignmentProvider::session_core_count();
-
-			log::debug!(target: "runtime::scheduler", "n_lookahead {:?}", n_lookahead);
-
 			let cq = ClaimQueue::<T>::get();
+
 			for core_idx in 0..n_session_cores {
 				let core_idx = CoreIndex(core_idx);
 				let group_idx = Self::group_assigned_to_core(core_idx, now).expect(
@@ -493,16 +484,14 @@ impl<T: Config> Pallet<T> {
 				}
 
 				let n_lookahead_used = cq.get(&core_idx).map_or(0, |v| v.len() as u32);
-				log::debug!(target: "runtime::scheduler", "n_lookahead_used {:?}", n_lookahead_used);
 				for _ in n_lookahead_used..n_lookahead {
 					let concluded_para = concluded_paras.remove(&core_idx);
-					match T::AssignmentProvider::pop_assignment_for_core(core_idx, concluded_para) {
-						None => log::debug!("TODO"),
-						Some(ass) => {
-							let ca = ass.to_core_assignment(core_idx, group_idx);
-							Self::add_to_claimqueue(core_idx, ca);
-						},
-					};
+					if let Some(ass) =
+						T::AssignmentProvider::pop_assignment_for_core(core_idx, concluded_para)
+					{
+						let ca = ass.to_core_assignment(core_idx, group_idx);
+						Self::add_to_claimqueue(core_idx, ca);
+					}
 				}
 			}
 
