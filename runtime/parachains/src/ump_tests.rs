@@ -103,6 +103,7 @@ mod check_upward_messages {
 		data.as_bytes().to_vec()
 	}
 
+	/// Check that these messages *could* be queued.
 	fn check(para: ParaId, msgs: Vec<UpwardMessage>, err: Option<UmpAcceptanceCheckErr>) {
 		assert_eq!(
 			ParaInclusion::check_upward_messages(&Configuration::config(), para, &msgs[..]).err(),
@@ -110,6 +111,7 @@ mod check_upward_messages {
 		);
 	}
 
+	/// Enqueue these upward messages.
 	fn queue(para: ParaId, msgs: Vec<UpwardMessage>) {
 		msgs.into_iter().for_each(|msg| super::queue_upward_msg(para, msg));
 	}
@@ -311,6 +313,25 @@ fn dispatch_correctly_handle_remove_of_latest() {
 		queue_upward_msg(b, b_msg_1.clone());
 		MessageQueue::service_queues(Weight::from_parts(900, 900));
 		assert_eq!(Processed::take(), vec![(a, a_msg_1), (a, a_msg_2), (b, b_msg_1)]);
+	});
+}
+
+#[test]
+#[cfg_attr(debug_assertions, should_panic = "Defensive failure has been triggered")]
+fn queue_enact_too_long_ignored() {
+	const P_0: ParaId = ParaId::new(0u32);
+
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		let max_enact = crate::inclusion::MaxUmpMessageLenOf::<Test>::get() as usize;
+		let m1 = (300u32, "a_msg_1").encode();
+		let m2 = vec![0u8; max_enact + 1];
+		let m3 = (300u32, "a_msg_3").encode();
+
+		// .. but the enact defensively ignores.
+		ParaInclusion::receive_upward_messages(P_0, &[m1.clone(), m2.clone(), m3.clone()]);
+		// There is one message in the queue now:
+		MessageQueue::service_queues(Weight::from_parts(900, 900));
+		assert_eq!(Processed::take(), vec![(P_0, m1), (P_0, m3)]);
 	});
 }
 
