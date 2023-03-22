@@ -974,10 +974,8 @@ impl<T: Config> Pallet<T> {
 		let fp = T::MessageQueue::footprint(AggregateMessageOrigin::Ump(para));
 		let (para_queue_count, mut para_queue_size) = (fp.count, fp.size);
 
-		if para_queue_count
-			.checked_add(additional_msgs as u64)
-			.map(|new| new > config.max_upward_queue_count as u64)
-			.unwrap_or(true)
+		if para_queue_count.saturating_add(additional_msgs as u64) >
+			config.max_upward_queue_count as u64
 		{
 			return Err(UmpAcceptanceCheckErr::CapacityExceeded {
 				count: para_queue_count.saturating_add(additional_msgs as u64),
@@ -996,10 +994,7 @@ impl<T: Config> Pallet<T> {
 			}
 			// make sure that the queue is not overfilled.
 			// we do it here only once since returning false invalidates the whole relay-chain block.
-			if para_queue_size
-				.checked_add(msg_size as u64)
-				.map(|new| new > config.max_upward_queue_size as u64)
-				.unwrap_or(true)
+			if para_queue_size.saturating_add(msg_size as u64) > config.max_upward_queue_size as u64
 			{
 				return Err(UmpAcceptanceCheckErr::TotalSizeExceeded {
 					total_size: para_queue_size.saturating_add(msg_size as u64),
