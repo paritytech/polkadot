@@ -246,7 +246,7 @@ impl From<u32> for AggregateMessageOrigin {
 }
 
 /// The maximal length of a UMP message.
-pub type MaxUmpMessageLen<T> =
+pub type MaxUmpMessageLenOf<T> =
 	<<T as Config>::MessageQueue as EnqueueMessage<AggregateMessageOrigin>>::MaxMessageLen;
 
 #[frame_support::pallet]
@@ -1032,7 +1032,7 @@ impl<T: Config> Pallet<T> {
 	/// Enqueues storage-bounded `upward_messages` from a `para`'s accepted candidate block.
 	pub(crate) fn receive_bounded_upward_messages(
 		para: ParaId,
-		messages: Vec<BoundedSlice<'_, u8, MaxUmpMessageLen<T>>>,
+		messages: Vec<BoundedSlice<'_, u8, MaxUmpMessageLenOf<T>>>,
 	) -> Weight {
 		let count = messages.len() as u32;
 		if count == 0 {
