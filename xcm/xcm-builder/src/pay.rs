@@ -22,30 +22,29 @@ use frame_support::traits::{
 };
 use sp_std::{marker::PhantomData, vec};
 use xcm::prelude::*;
+use xcm_executor::traits::{QueryResponseStatus, XcmQueryHandler};
 
-pub struct PayOverXcm<DestChain, Router, Querier, BlockNumber>(
-	PhantomData<(DestChain, Router, Querier, BlockNumber)>,
+pub struct PayOverXcm<DestChain, Router, Querier, BlockNumber, Timeout>(
+	PhantomData<(DestChain, Router, Querier, BlockNumber, Timeout)>,
 );
 impl<
 		DestChain: Get<xcm::v3::MultiLocation>,
 		Router: SendXcm,
 		Querier: XcmQueryHandler,
 		BlockNumber,
-	> Pay for PayOverXcm<DestChain, Router, Querier, BlockNumber>
+		Timeout: Get<Querier::BlockNumber>,
+	> Pay for PayOverXcm<DestChain, Router, Querier, BlockNumber, Timeout>
 {
 	type Beneficiary = MultiLocation;
 	type AssetKind = xcm::v3::AssetId;
 	type Balance = u128;
 	type Id = Querier::QueryId;
-	type Timeout = Querier::BlockNumber;
-	type Error = XcmError;
 
 	fn pay(
 		who: &Self::Beneficiary,
 		asset_kind: Self::AssetKind,
 		amount: Self::Balance,
-		timeout: Self::Timeout,
-	) -> Result<Self::Id, Self::Error> {
+	) -> Result<Self::Id, ()> {
 		let mut message = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			TransferAsset {
@@ -55,9 +54,11 @@ impl<
 			},
 		]);
 		let destination = DestChain::get();
-		let id = Querier::report_outcome(&mut message, destination, timeout)?;
-		let (ticket, _multiassets) = Router::validate(&mut Some(destination), &mut Some(message))?;
-		Router::deliver(ticket)?;
+		let id =
+			Querier::report_outcome(&mut message, destination, Timeout::get()).map_err(|_| ())?;
+		let (ticket, _multiassets) =
+			Router::validate(&mut Some(destination), &mut Some(message)).map_err(|_| ())?;
+		Router::deliver(ticket).map_err(|_| ())?;
 		Ok(id)
 	}
 

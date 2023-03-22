@@ -52,7 +52,8 @@ use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use xcm_executor::{
 	traits::{
-		ClaimAssets, DropAssets, MatchesFungible, OnResponse, VersionChangeNotifier, WeightBounds,
+		ClaimAssets, DropAssets, MatchesFungible, OnResponse, QueryResponseStatus,
+		VersionChangeNotifier, WeightBounds, XcmQueryHandler,
 	},
 	Assets,
 };
@@ -1101,6 +1102,7 @@ const MAX_ASSETS_FOR_TRANSFER: usize = 2;
 impl<T: Config> XcmQueryHandler for Pallet<T> {
 	type QueryId = u64;
 	type BlockNumber = T::BlockNumber;
+	type Error = XcmError;
 
 	/// Consume `message` and return another which is equivalent to it except that it reports
 	/// back the outcome.
@@ -1120,7 +1122,7 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 		message: &mut Xcm<()>,
 		responder: impl Into<MultiLocation>,
 		timeout: Self::BlockNumber,
-	) -> Result<Self::QueryId, XcmError> {
+	) -> Result<Self::QueryId, Self::Error> {
 		let responder = responder.into();
 		let destination = T::UniversalLocation::get()
 			.invert_target(&responder)

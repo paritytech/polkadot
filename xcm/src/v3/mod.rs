@@ -171,9 +171,7 @@ impl<Call> From<Xcm<Call>> for Vec<Instruction<Call>> {
 pub mod prelude {
 	mod contents {
 		pub use super::super::{
-			send_xcm,
-			traits::{QueryResponseStatus, XcmQueryHandler},
-			validate_send, Ancestor, AncestorThen,
+			send_xcm, validate_send, Ancestor, AncestorThen,
 			AssetId::{self, *},
 			AssetInstance::{self, *},
 			BodyId, BodyPart, Error as XcmError, ExecuteXcm,
