@@ -37,7 +37,7 @@ use sp_application_crypto::AppKey;
 use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 use sp_core::Pair as PairT;
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{testing::KeyStore, SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
 
 use std::{iter::FromIterator as _, sync::Arc, time::Duration};
 
@@ -92,13 +92,13 @@ fn prewarmed_state(
 fn state_with_view(
 	view: OurView,
 	relay_parent: Hash,
-) -> (ProtocolState, SigningContext, SyncCryptoStorePtr, ValidatorId) {
+) -> (ProtocolState, SigningContext, KeystorePtr, ValidatorId) {
 	let mut state = ProtocolState::default();
 
 	let signing_context = SigningContext { session_index: 1, parent_hash: relay_parent.clone() };
 
-	let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
-	let validator = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
+	let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
+	let validator = Keystore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
 		.expect("generating sr25519 key not to fail");
 
 	state.per_relay_parent = view
@@ -139,43 +139,43 @@ fn receive_invalid_signature() {
 	let signing_context = SigningContext { session_index: 1, parent_hash: hash_a.clone() };
 
 	// another validator not part of the validatorset
-	let keystore: SyncCryptoStorePtr = Arc::new(KeyStore::new());
-	let malicious = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
+	let keystore: KeystorePtr = Arc::new(MemoryKeystore::new());
+	let malicious = Keystore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
 		.expect("Malicious key created");
-	let validator_0 = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
-		.expect("key created");
-	let validator_1 = SyncCryptoStore::sr25519_generate_new(&*keystore, ValidatorId::ID, None)
-		.expect("key created");
+	let validator_0 =
+		Keystore::sr25519_generate_new(&*keystore, ValidatorId::ID, None).expect("key created");
+	let validator_1 =
+		Keystore::sr25519_generate_new(&*keystore, ValidatorId::ID, None).expect("key created");
 
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
-	let invalid_signed = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+	let invalid_signed = Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload.clone(),
 		&signing_context,
 		ValidatorIndex(0),
 		&malicious.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
-	let invalid_signed_2 = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+	let invalid_signed_2 = Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload.clone(),
 		&signing_context,
 		ValidatorIndex(1),
 		&malicious.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
 
-	let valid_signed = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+	let valid_signed = Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,
 		&signing_context,
 		ValidatorIndex(0),
 		&validator_0.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -263,13 +263,13 @@ fn receive_invalid_validator_index() {
 	state.peer_views.insert(peer_b.clone(), view![hash_a]);
 
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
-	let signed = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+	let signed = Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,
 		&signing_context,
 		ValidatorIndex(42),
 		&validator,
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -323,13 +323,13 @@ fn receive_duplicate_messages() {
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
-	let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+	let signed_bitfield = Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,
 		&signing_context,
 		ValidatorIndex(0),
 		&validator,
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -436,13 +436,13 @@ fn do_not_relay_message_twice() {
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
-	let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+	let signed_bitfield = Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,
 		&signing_context,
 		ValidatorIndex(0),
 		&validator,
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -547,13 +547,13 @@ fn changing_view() {
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
-	let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+	let signed_bitfield = Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,
 		&signing_context,
 		ValidatorIndex(0),
 		&validator,
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -708,13 +708,13 @@ fn do_not_send_message_back_to_origin() {
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
-	let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+	let signed_bitfield = Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,
 		&signing_context,
 		ValidatorIndex(0),
 		&validator,
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -823,13 +823,13 @@ fn topology_test() {
 
 	// create a signed message by validator 0
 	let payload = AvailabilityBitfield(bitvec![u8, bitvec::order::Lsb0; 1u8; 32]);
-	let signed_bitfield = executor::block_on(Signed::<AvailabilityBitfield>::sign(
+	let signed_bitfield = Signed::<AvailabilityBitfield>::sign(
 		&keystore,
 		payload,
 		&signing_context,
 		ValidatorIndex(0),
 		&validator,
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
