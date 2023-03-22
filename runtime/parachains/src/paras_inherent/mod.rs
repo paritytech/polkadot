@@ -50,6 +50,7 @@ use primitives::{
 use rand::{seq::SliceRandom, SeedableRng};
 
 use scale_info::TypeInfo;
+use sp_arithmetic::Percent;
 use sp_runtime::traits::{Header as HeaderT, One};
 use sp_std::{
 	cmp::Ordering,
@@ -305,8 +306,8 @@ impl<T: Config> Pallet<T> {
 		full_check: FullCheck,
 	) -> DispatchResultWithPostInfo {
 		let ParachainsInherentData {
-			bitfields: mut signed_bitfields,
-			mut backed_candidates,
+			bitfields: signed_bitfields,
+			backed_candidates,
 			parent_header,
 			mut disputes,
 		} = data;
@@ -331,13 +332,28 @@ impl<T: Config> Pallet<T> {
 
 		let now = <frame_system::Pallet<T>>::block_number();
 
-		let mut candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
-		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
+		let candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
+		let bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 		let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
 
 		let current_session = <shared::Pallet<T>>::session_index();
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
+
+		// At most 60% of total block space will be dispute votes.
+		let mut max_disputes_weight = Weight::from_parts(
+			Percent::from_percent(60).mul_floor(max_block_weight.ref_time()),
+			max_block_weight.proof_size(),
+		);
+
+		// Compute the excess weight value.
+		let spill = candidates_weight
+			.saturating_add(bitfields_weight)
+			.saturating_add(disputes_weight)
+			.saturating_sub(max_block_weight);
+
+		// Constrain max dispute weight to ensure block will not be overweight.
+		max_disputes_weight -= spill;
 
 		METRICS
 			.on_before_filter((candidates_weight + bitfields_weight + disputes_weight).ref_time());
@@ -366,28 +382,13 @@ impl<T: Config> Pallet<T> {
 				)
 			};
 
-			// In case of an overweight block, consume up to the entire block weight
-			// in disputes, since we will never process anything else, but invalidate
-			// the block. It's still reasonable to protect against a massive amount of disputes.
-			if candidates_weight
-				.saturating_add(bitfields_weight)
-				.saturating_add(disputes_weight)
-				.any_gt(max_block_weight)
-			{
-				log::warn!("Overweight para inherent data reached the runtime {:?}", parent_hash);
-				backed_candidates.clear();
-				candidates_weight = Weight::zero();
-				signed_bitfields.clear();
-				bitfields_weight = Weight::zero();
-			}
-
 			let entropy = compute_entropy::<T>(parent_hash);
 			let mut rng = rand_chacha::ChaChaRng::from_seed(entropy.into());
 
 			let (checked_disputes, checked_disputes_weight) = limit_and_sanitize_disputes::<T, _>(
 				disputes,
 				&dispute_set_validity_check,
-				max_block_weight,
+				max_disputes_weight,
 				&mut rng,
 			);
 			(

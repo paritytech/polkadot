@@ -7717,6 +7717,7 @@ dependencies = [
  "serde_json",
  "sp-api",
  "sp-application-crypto",
+ "sp-arithmetic",
  "sp-core",
  "sp-inherents",
  "sp-io",

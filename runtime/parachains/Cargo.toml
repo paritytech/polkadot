@@ -25,6 +25,7 @@ sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", 
 sp-keystore = { git = "https://github.com/paritytech/substrate", branch = "master", optional = true }
 sp-application-crypto = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
 sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false, optional = true }
+sp-arithmetic = { package = "sp-arithmetic", git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 
 pallet-authority-discovery = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 pallet-authorship = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
