@@ -476,7 +476,7 @@ impl parachains_inclusion::Config for Runtime {
 	type DisputesHandler = ParasDisputes;
 	type RewardValidators = RewardValidatorsWithEraPoints<Runtime>;
 	type MessageQueue = ();
-	type WeightInfo = (); // FAIL-CI todo
+	type WeightInfo = ();
 }
 
 impl parachains_disputes::Config for Runtime {

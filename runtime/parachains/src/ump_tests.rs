@@ -16,8 +16,8 @@
 
 use crate::{
 	inclusion::{
-		tests::run_to_block_default_notifications as run_to_block, AggregateMessageOrigin::Ump,
-		UmpAcceptanceCheckErr,
+		tests::run_to_block_default_notifications as run_to_block, AggregateMessageOrigin,
+		AggregateMessageOrigin::Ump, UmpAcceptanceCheckErr,
 	},
 	mock::{
 		assert_last_event, assert_last_events, new_test_ext, Configuration, MessageQueue,
