@@ -254,7 +254,7 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	/// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	/// Proof Skipped: Paras UpgradeGoAheadSignal (max_values: None, max_size: None, mode: Measured)
 	/// The range of component `v` is `[101, 200]`.
-	fn enter_backed_candidates_variable(v: u32, ) -> Weight {
+	fn enter_backed_candidate(v: u32, _u: u32, _h: u32, _c: u32) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `42678`
 		//  Estimated: `1233177`
@@ -332,14 +332,4 @@ impl<T: frame_system::Config> runtime_parachains::paras_inherent::WeightInfo for
 	/// Proof Skipped: Paras Heads (max_values: None, max_size: None, mode: Measured)
 	/// Storage: Paras UpgradeGoAheadSignal (r:0 w:1)
 	/// Proof Skipped: Paras UpgradeGoAheadSignal (max_values: None, max_size: None, mode: Measured)
-	fn enter_backed_candidate_code_upgrade() -> Weight {
-		// Proof Size summary in bytes:
-		//  Measured:  `42705`
-		//  Estimated: `1324293`
-		// Minimum execution time: 38_692_756 nanoseconds.
-		Weight::from_parts(38_855_318_000, 0)
-			.saturating_add(Weight::from_parts(0, 1324293))
-			.saturating_add(T::DbWeight::get().reads(31))
-			.saturating_add(T::DbWeight::get().writes(16))
-	}
 }
