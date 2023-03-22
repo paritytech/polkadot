@@ -27,7 +27,6 @@ use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup},
-	BuildStorage,
 };
 use xcm::latest::prelude::*;
 use xcm_builder::{AllowUnpaidExecutionFrom, MintLocation};
@@ -204,10 +203,4 @@ impl xcm_balances_benchmark::Config for Test {
 			<Balances as frame_support::traits::fungible::Inspect<u64>>::minimum_balance() as u128;
 		MultiAsset { id: Concrete(Here.into()), fun: Fungible(amount) }
 	}
-}
-
-pub fn new_test_ext() -> sp_io::TestExternalities {
-	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
-	sp_tracing::try_init_simple();
-	t.into()
 }
