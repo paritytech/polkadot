@@ -194,7 +194,7 @@ pub mod metric_definitions {
 		HistogramDefinition {
 			name: "polkadot_parachain_verify_dispute_signature",
 			description: "How much time does it take to verify a single validator signature of a dispute statement, in microseconds",
-			buckets: &[10.0, 50.0, 100.0, 200.0, 400.0, 800.0, 1000.0, 1500.0, 2000.0, 2500.0],
+			buckets: &[0.000004, 0.000005, 0.00001, 0.00002, 0.00003, 0.00004, 0.00005, 0.00006, 0.00007, 0.00008],
 
 
 	};
