@@ -153,6 +153,7 @@ impl pallet_elections::Config for Runtime {
 	type DesiredRunnersUp = DesiredRunnersUp;
 	type TermDuration = TermDuration;
 	type MaxVoters = MaxVoters;
+	type MaxCandidates = MaxCandidates;
 	type MaxVotesPerVoter = MaxVotesPerVoter;
 	type WeightInfo = weights::pallet_elections::WeightInfo<Runtime>;
 	type ElectionSolver = SequentialPhragmen<Self::AccountId, Perbill>;
