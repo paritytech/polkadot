@@ -4,17 +4,32 @@ The collation generation subsystem is executed on collator nodes and produces ca
 
 ## Protocol
 
-Input: `CollationGenerationMessage`
+Block authoring for Parachains currently works in the following way:
 
-```rust
-enum CollationGenerationMessage {
-  Initialize(CollationGenerationConfig),
-}
-```
+1.  A new relay chain block is imported.
+2.  The collation generation subsystem checks if the core associated to
+    the parachain is free and if yes, continues.
+3.  Collation generation calls our collator callback to generate a PoV.
+4.  Authoring logic determines if the current node should build a PoV.
+5.  Build new PoV and give it back to collation generation.
 
-No more than one initialization message should ever be sent to the collation generation subsystem.
+## Messages
 
-Output: `CollationDistributionMessage`
+### Incoming
+
+- `ActiveLeaves`
+  - Notification of a change in the set of active leaves.
+  - Triggers procedure outlined in "Protocol" section.
+- `CollationGenerationMessage::Initialize`
+  - Initializes the subsystem. Carries a config.
+  - No more than one initialization message should ever be sent to the collation
+    generation subsystem.
+  - Sent by a collator to initialize this subsystem.
+
+### Outgoing
+
+- `CollatorProtocolMessage::DistributeCollation`
+  - Provides a generated collation to distribute to validators.
 
 ## Functionality
 
@@ -94,15 +109,85 @@ pub struct CollationGenerationConfig {
 
 The configuration should be optional, to allow for the case where the node is not run with the capability to collate.
 
-On `ActiveLeavesUpdate`:
+### Summary in plain English
 
-* If there is no collation generation config, ignore.
-* Otherwise, for each `activated` head in the update:
-  * Determine if the para is scheduled on any core by fetching the `availability_cores` Runtime API.
-  * Determine an occupied core assumption to make about the para. Scheduled cores can make `OccupiedCoreAssumption::Free`.
-  * Use the Runtime API subsystem to fetch the full validation data.
-  * Invoke the `collator`, and use its outputs to produce a `CandidateReceipt`, signed with the configuration's `key`.
-  * Dispatch a [`CollatorProtocolMessage`][CPM]`::DistributeCollation(receipt, pov)`.
+- **Collation (output of a collator)**
+
+  - Contains the PoV (proof to verify the state transition of the
+    parachain) and other data.
+
+- **Collation result**
+
+  - Contains the collation, and an optional result sender for a
+    collation-seconded signal.
+
+- **Collation seconded signal**
+
+  - The signal that is returned when a collation was seconded by a
+    validator.
+
+- **Collation function**
+
+  - Called with the relay chain block the parablock will be built on top
+    of.
+  - Called with the validation data.
+    - Provides information about the state of the parachain on the relay
+      chain.
+
+- **Collation generation config**
+
+  - Contains collator's authentication key, collator function, and
+    parachain ID.
+
+## With Async Backing
+
+### Protocol
+
+- This will be more complicated as block production isn't bound to
+  importing a relay chain block anymore.
+
+- Parachains will build new blocks in fixed time frames as standalone
+  chains are doing this, e.g. every 6 seconds.
+
+- To support this we will need to separate the logic that determines
+  when to build a block, from the logic that determines on which relay
+  chain block to build.
+
+### When to build
+
+- For determining on when to build a new block we can reuse the slots
+  logic from Substrate.
+- We will let it run with the requested slot duration of the Parachain.
+- Then we will implement a custom `SlotWorker`.
+  - Every time this slot worker is triggered we will need to trigger
+    some logic to determine the next relay chain block to build on top
+    of.
+  - It will return the relay chain block in which context the block
+    should be built on, and the parachain block to build on top of.
+
+### On which relay block to build
+
+- This logic should be generic and should support sync / async backing.
+- For **synchronous backing** we will check the best relay chain block
+  to check if the core of our parachain is free.
+  - The parachain slot should be calculated based on the timestamp and
+    this should be calculated using `relay_chain_slot * slot_duration`.
+- For **asynchronous backing** we will be more free to choose the block
+  to build on, as we can also build on older relay chain blocks as well.
+  - We will probably need some kind of runtime api for the Parachain to
+    check if we want to build on a given relay chain block.
+  - So, for example to reject building too many parachain blocks on the
+    same relay chain block.
+  - The parachain slot should be calculated based on the timestamp and
+    this should be calculating using `relay_chain_slot * slot_duration +
+     parachain_slot_duration * unincluded_segment_len`.
+
+## Glossary
+
+- *Slot:* Time is divided into discrete slots. Each validator in the validator
+  set produces a verifiable random value, using a VRF, per slot. If below a
+  threshold, this allows the validator to author a new block for that slot.
+
+- *VRF:* Verifiable random function.
 
 [CP]: collator-protocol.md
-[CPM]: ../../types/overseer-protocol.md#collatorprotocolmessage

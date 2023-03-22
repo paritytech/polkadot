@@ -553,7 +553,6 @@ pub struct Overseer<SupportsParachains> {
 	chain_api: ChainApi,
 
 	#[subsystem(CollationGenerationMessage, sends: [
-		RuntimeApiMessage,
 		CollatorProtocolMessage,
 	])]
 	collation_generation: CollationGeneration,
