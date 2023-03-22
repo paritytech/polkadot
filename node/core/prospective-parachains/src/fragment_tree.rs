@@ -83,9 +83,6 @@
 //!     the scope.
 //!     - Within the scope means it's built off of the relay-parent or an
 //!       ancestor.
-//!     - If not within the scope but pending availability, use the scope's
-//!       earliest relay-parent as its relay-parent.
-//!       - TODO: Why?
 //! - [`Constraints`]
 //!   - As we build up fragment trees, these are incrementally modified (see
 //!     [`ConstraintModifications`]).
