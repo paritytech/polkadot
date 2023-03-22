@@ -151,17 +151,22 @@ mod check_upward_messages {
 		new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 			let _g = frame_support::StorageNoopGuard::default();
 			let max_size = Configuration::config().max_upward_message_size;
+			let max_per_candidate = Configuration::config().max_upward_message_num_per_candidate;
 
-			for msg_size in 0..max_size + 1 {
+			for msg_size in 0..=max_size {
 				check(P_0, vec![vec![0; msg_size as usize]], None);
 			}
-			// FAIL-CI: TODO test when the msg is not first
 			for msg_size in max_size + 1..max_size + 10 {
-				check(
-					P_0,
-					vec![vec![0; msg_size as usize]],
-					Some(UmpAcceptanceCheckErr::MessageSize { idx: 0, msg_size, max_size }),
-				);
+				for goods in 0..max_per_candidate {
+					let mut msgs = vec![vec![0; max_size as usize]; goods as usize];
+					msgs.push(vec![0; msg_size as usize]);
+
+					check(
+						P_0,
+						msgs,
+						Some(UmpAcceptanceCheckErr::MessageSize { idx: goods, msg_size, max_size }),
+					);
+				}
 			}
 		});
 	}

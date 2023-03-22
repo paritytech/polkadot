@@ -25,12 +25,12 @@ use crate::{
 };
 
 use frame_support::{
-	parameter_types,
+	parameter_types, assert_ok,
 	traits::{
-		ConstU32, GenesisBuild, ProcessMessage, ProcessMessageError, ValidatorSet,
+		GenesisBuild, ProcessMessage, ProcessMessageError, ValidatorSet,
 		ValidatorSetWithIdentification,
 	},
-	weights::Weight,
+	weights::{WeightMeter, Weight},
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
