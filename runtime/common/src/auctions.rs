@@ -679,7 +679,7 @@ mod tests {
 		assert_noop, assert_ok, assert_storage_noop,
 		dispatch::DispatchError::BadOrigin,
 		ord_parameter_types, parameter_types,
-		traits::{EitherOfDiverse, OnFinalize, OnInitialize},
+		traits::{ConstU32, EitherOfDiverse, OnFinalize, OnInitialize},
 	};
 	use frame_system::{EnsureRoot, EnsureSignedBy};
 	use pallet_balances;
@@ -748,6 +748,10 @@ mod tests {
 		type MaxLocks = ();
 		type MaxReserves = MaxReserves;
 		type ReserveIdentifier = [u8; 8];
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	#[derive(Eq, PartialEq, Ord, PartialOrd, Clone, Copy, Debug)]
@@ -1412,24 +1416,25 @@ mod tests {
 			let para_2 = ParaId::from(2_u32);
 
 			// Make a bid and reserve a balance
-			assert_ok!(Auctions::bid(RuntimeOrigin::signed(1), para_1, 1, 1, 4, 10));
-			assert_eq!(Balances::reserved_balance(1), 10);
-			assert_eq!(ReservedAmounts::<Test>::get((1, para_1)), Some(10));
+			assert_ok!(Auctions::bid(RuntimeOrigin::signed(1), para_1, 1, 1, 4, 9));
+			assert_eq!(Balances::reserved_balance(1), 9);
+			assert_eq!(ReservedAmounts::<Test>::get((1, para_1)), Some(9));
 			assert_eq!(Balances::reserved_balance(2), 0);
 			assert_eq!(ReservedAmounts::<Test>::get((2, para_2)), None);
 
 			// Bigger bid, reserves new balance and returns funds
-			assert_ok!(Auctions::bid(RuntimeOrigin::signed(2), para_2, 1, 1, 4, 20));
+			assert_ok!(Auctions::bid(RuntimeOrigin::signed(2), para_2, 1, 1, 4, 19));
 			assert_eq!(Balances::reserved_balance(1), 0);
 			assert_eq!(ReservedAmounts::<Test>::get((1, para_1)), None);
-			assert_eq!(Balances::reserved_balance(2), 20);
-			assert_eq!(ReservedAmounts::<Test>::get((2, para_2)), Some(20));
+			assert_eq!(Balances::reserved_balance(2), 19);
+			assert_eq!(ReservedAmounts::<Test>::get((2, para_2)), Some(19));
 		});
 	}
 
 	#[test]
 	fn initialize_winners_in_ending_period_works() {
 		new_test_ext().execute_with(|| {
+			assert_eq!(<Test as pallet_balances::Config>::ExistentialDeposit::get(), 1);
 			run_to_block(1);
 			assert_ok!(Auctions::new_auction(RuntimeOrigin::signed(6), 9, 1));
 			let para_1 = ParaId::from(1_u32);
@@ -1437,16 +1442,16 @@ mod tests {
 			let para_3 = ParaId::from(3_u32);
 
 			// Make bids
-			assert_ok!(Auctions::bid(RuntimeOrigin::signed(1), para_1, 1, 1, 4, 10));
-			assert_ok!(Auctions::bid(RuntimeOrigin::signed(2), para_2, 1, 3, 4, 20));
+			assert_ok!(Auctions::bid(RuntimeOrigin::signed(1), para_1, 1, 1, 4, 9));
+			assert_ok!(Auctions::bid(RuntimeOrigin::signed(2), para_2, 1, 3, 4, 19));
 
 			assert_eq!(
 				Auctions::auction_status(System::block_number()),
 				AuctionStatus::<u32>::StartingPeriod
 			);
 			let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
-			winning[SlotRange::ZeroThree as u8 as usize] = Some((1, para_1, 10));
-			winning[SlotRange::TwoThree as u8 as usize] = Some((2, para_2, 20));
+			winning[SlotRange::ZeroThree as u8 as usize] = Some((1, para_1, 9));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((2, para_2, 19));
 			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(9);
@@ -1468,14 +1473,14 @@ mod tests {
 				AuctionStatus::<u32>::EndingPeriod(1, 0)
 			);
 			assert_eq!(Auctions::winning(1), Some(winning));
-			assert_ok!(Auctions::bid(RuntimeOrigin::signed(3), para_3, 1, 3, 4, 30));
+			assert_ok!(Auctions::bid(RuntimeOrigin::signed(3), para_3, 1, 3, 4, 29));
 
 			run_to_block(12);
 			assert_eq!(
 				Auctions::auction_status(System::block_number()),
 				AuctionStatus::<u32>::EndingPeriod(2, 0)
 			);
-			winning[SlotRange::TwoThree as u8 as usize] = Some((3, para_3, 30));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((3, para_3, 29));
 			assert_eq!(Auctions::winning(2), Some(winning));
 		});
 	}
@@ -1542,6 +1547,7 @@ mod tests {
 	#[test]
 	fn less_winning_samples_work() {
 		new_test_ext().execute_with(|| {
+			assert_eq!(<Test as pallet_balances::Config>::ExistentialDeposit::get(), 1);
 			EndingPeriod::set(30);
 			SampleLength::set(10);
 
@@ -1552,16 +1558,16 @@ mod tests {
 			let para_3 = ParaId::from(3_u32);
 
 			// Make bids
-			assert_ok!(Auctions::bid(RuntimeOrigin::signed(1), para_1, 1, 11, 14, 10));
-			assert_ok!(Auctions::bid(RuntimeOrigin::signed(2), para_2, 1, 13, 14, 20));
+			assert_ok!(Auctions::bid(RuntimeOrigin::signed(1), para_1, 1, 11, 14, 9));
+			assert_ok!(Auctions::bid(RuntimeOrigin::signed(2), para_2, 1, 13, 14, 19));
 
 			assert_eq!(
 				Auctions::auction_status(System::block_number()),
 				AuctionStatus::<u32>::StartingPeriod
 			);
 			let mut winning = [None; SlotRange::SLOT_RANGE_COUNT];
-			winning[SlotRange::ZeroThree as u8 as usize] = Some((1, para_1, 10));
-			winning[SlotRange::TwoThree as u8 as usize] = Some((2, para_2, 20));
+			winning[SlotRange::ZeroThree as u8 as usize] = Some((1, para_1, 9));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((2, para_2, 19));
 			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(9);
@@ -1578,8 +1584,8 @@ mod tests {
 			assert_eq!(Auctions::winning(0), Some(winning));
 
 			// New bids update the current winning
-			assert_ok!(Auctions::bid(RuntimeOrigin::signed(3), para_3, 1, 14, 14, 30));
-			winning[SlotRange::ThreeThree as u8 as usize] = Some((3, para_3, 30));
+			assert_ok!(Auctions::bid(RuntimeOrigin::signed(3), para_3, 1, 14, 14, 29));
+			winning[SlotRange::ThreeThree as u8 as usize] = Some((3, para_3, 29));
 			assert_eq!(Auctions::winning(0), Some(winning));
 
 			run_to_block(20);
@@ -1590,8 +1596,8 @@ mod tests {
 			assert_eq!(Auctions::winning(1), Some(winning));
 			run_to_block(25);
 			// Overbid mid sample
-			assert_ok!(Auctions::bid(RuntimeOrigin::signed(3), para_3, 1, 13, 14, 30));
-			winning[SlotRange::TwoThree as u8 as usize] = Some((3, para_3, 30));
+			assert_ok!(Auctions::bid(RuntimeOrigin::signed(3), para_3, 1, 13, 14, 29));
+			winning[SlotRange::TwoThree as u8 as usize] = Some((3, para_3, 29));
 			assert_eq!(Auctions::winning(1), Some(winning));
 
 			run_to_block(30);
@@ -1611,8 +1617,8 @@ mod tests {
 			assert_eq!(
 				leases(),
 				vec![
-					((3.into(), 13), LeaseData { leaser: 3, amount: 30 }),
-					((3.into(), 14), LeaseData { leaser: 3, amount: 30 }),
+					((3.into(), 13), LeaseData { leaser: 3, amount: 29 }),
+					((3.into(), 14), LeaseData { leaser: 3, amount: 29 }),
 				]
 			);
 		});

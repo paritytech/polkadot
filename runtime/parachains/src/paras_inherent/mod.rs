@@ -412,8 +412,7 @@ impl<T: Config> Pallet<T> {
 			// Note that `process_checked_multi_dispute_data` will iterate and import each
 			// dispute; so the input here must be reasonably bounded,
 			// which is guaranteed by the checks and weight limitation above.
-			let _ =
-				T::DisputesHandler::process_checked_multi_dispute_data(checked_disputes.clone())?;
+			let _ = T::DisputesHandler::process_checked_multi_dispute_data(&checked_disputes)?;
 			METRICS.on_disputes_imported(checked_disputes.len() as u64);
 
 			if T::DisputesHandler::is_frozen() {
@@ -625,13 +624,11 @@ impl<T: Config> Pallet<T> {
 			// we don't care about fresh or not disputes
 			// this writes them to storage, so let's query it via those means
 			// if this fails for whatever reason, that's ok
-			let _ = T::DisputesHandler::process_checked_multi_dispute_data(
-				checked_disputes_sets.clone(),
-			)
-			.map_err(|e| {
-				log::warn!(target: LOG_TARGET, "MultiDisputesData failed to update: {:?}", e);
-				e
-			});
+			let _ = T::DisputesHandler::process_checked_multi_dispute_data(&checked_disputes_sets)
+				.map_err(|e| {
+					log::warn!(target: LOG_TARGET, "MultiDisputesData failed to update: {:?}", e);
+					e
+				});
 
 			// Contains the disputes that are concluded in the current session only,
 			// since these are the only ones that are relevant for the occupied cores
