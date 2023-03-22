@@ -17,23 +17,27 @@
 //! XCM configuration for Polkadot.
 
 use super::{
-	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective, ParaId,
-	Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
+	parachains_origin, AccountId, AllPalletsWithSystem, Balances, CouncilCollective,
+	FellowshipAdmin, ParaId, Runtime, RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin,
+	WeightToFee, XcmPallet,
 };
 use frame_support::{
 	match_types, parameter_types,
 	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
+use pallet_xcm::XcmPassthrough;
+use polkadot_runtime_constants::{system_parachain::*, xcm::body::FELLOWSHIP_ADMIN_INDEX};
 use runtime_common::{paras_registrar, xcm_sender, ToAuthor};
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowKnownQueryResponses, AllowSubscriptionsFrom,
-	AllowTopLevelPaidExecutionFrom, BackingToPlurality, ChildParachainAsNative,
-	ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds,
-	IsConcrete, MintLocation, SignedAccountId32AsNative, SignedToAccountId32,
-	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WithComputedOrigin,
+	AccountId32Aliases, AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses,
+	AllowSubscriptionsFrom, AllowTopLevelPaidExecutionFrom, BackingToPlurality,
+	ChildParachainAsNative, ChildParachainConvertsVia, CurrencyAdapter as XcmCurrencyAdapter,
+	FixedWeightBounds, IsConcrete, MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative,
+	SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit, UsingComponents,
+	WithComputedOrigin,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -91,6 +95,8 @@ type LocalOriginConverter = (
 	// If the origin kind is `Native` and the XCM origin is the `AccountId32` location, then it can
 	// be expressed using the `Signed` origin variant.
 	SignedAccountId32AsNative<ThisNetwork, RuntimeOrigin>,
+	// Xcm origins can be represented natively under the Xcm pallet's Xcm origin.
+	XcmPassthrough<RuntimeOrigin>,
 );
 
 parameter_types! {
@@ -110,8 +116,9 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Dot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(1000).into_location());
-	pub const DotForCollectives: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(1001).into_location());
+	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(STATEMINT_ID).into_location());
+	pub const CollectivesLocation: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
+	pub const DotForCollectives: (MultiAssetFilter, MultiLocation) = (Dot::get(), CollectivesLocation::get());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
@@ -122,6 +129,10 @@ pub type TrustedTeleporters =
 match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
+	};
+	pub type CollectivesOrFellows: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(COLLECTIVES_ID)) } |
+		MultiLocation { parents: 0, interior: X2(Parachain(COLLECTIVES_ID), Plurality { id: BodyId::Technical, .. }) }
 	};
 }
 
@@ -137,6 +148,8 @@ pub type Barrier = (
 			AllowTopLevelPaidExecutionFrom<Everything>,
 			// Subscriptions for version tracking are OK.
 			AllowSubscriptionsFrom<OnlyParachains>,
+			// Collectives and Fellows plurality get free execution.
+			AllowExplicitUnpaidExecutionFrom<CollectivesOrFellows>,
 		),
 		UniversalLocation,
 		ConstU32<8>,
@@ -300,7 +313,8 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			) |
 			RuntimeCall::XcmPallet(pallet_xcm::Call::limited_reserve_transfer_assets {
 				..
-			}) => true,
+			}) |
+			RuntimeCall::Whitelist(pallet_whitelist::Call::whitelist_call { .. }) => true,
 			_ => false,
 		}
 	}
@@ -339,6 +353,10 @@ impl xcm_executor::Config for XcmConfig {
 
 parameter_types! {
 	pub const CouncilBodyId: BodyId = BodyId::Executive;
+	// StakingAdmin pluralistic body.
+	pub const StakingAdminBodyId: BodyId = BodyId::Defense;
+	// FellowshipAdmin pluralistic body.
+	pub const FellowshipAdminBodyId: BodyId = BodyId::Index(FELLOWSHIP_ADMIN_INDEX);
 }
 
 #[cfg(feature = "runtime-benchmarks")]
@@ -356,17 +374,35 @@ pub type CouncilToPlurality = BackingToPlurality<
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location
 /// of this chain.
 pub type LocalOriginToLocation = (
-	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
-	// `Unit` body.
 	CouncilToPlurality,
 	// And a usual Signed origin to be used in XCM as a corresponding AccountId32
 	SignedToAccountId32<RuntimeOrigin, AccountId, ThisNetwork>,
 );
 
+/// Type to convert the `StakingAdmin` origin to a Plurality `MultiLocation` value.
+pub type StakingAdminToPlurality =
+	OriginToPluralityVoice<RuntimeOrigin, StakingAdmin, StakingAdminBodyId>;
+
+/// Type to convert the FellowshipAdmin origin to a Plurality `MultiLocation` value.
+pub type FellowshipAdminToPlurality =
+	OriginToPluralityVoice<RuntimeOrigin, FellowshipAdmin, FellowshipAdminBodyId>;
+
+/// Type to convert a pallet `Origin` type value into a `MultiLocation` value which represents an interior location
+/// of this chain for a destination chain.
+pub type LocalPalletOriginToLocation = (
+	// We allow an origin from the Collective pallet to be used in XCM as a corresponding Plurality of the
+	// `Unit` body.
+	CouncilToPlurality,
+	// StakingAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	StakingAdminToPlurality,
+	// FellowshipAdmin origin to be used in XCM as a corresponding Plurality `MultiLocation` value.
+	FellowshipAdminToPlurality,
+);
+
 impl pallet_xcm::Config for Runtime {
 	type RuntimeEvent = RuntimeEvent;
-	// Only allow the council to send messages.
-	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, CouncilToPlurality>;
+	// We only allow the root, the council, the fellowship admin and the staking admin to send messages.
+	type SendXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalPalletOriginToLocation>;
 	type XcmRouter = XcmRouter;
 	// Anyone can execute XCM messages locally...
 	type ExecuteXcmOrigin = xcm_builder::EnsureXcmOrigin<RuntimeOrigin, LocalOriginToLocation>;
