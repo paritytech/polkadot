@@ -14,6 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::Xcm;
+use core::result;
+use frame_support::{dispatch::fmt::Debug, pallet_prelude::TypeInfo};
+use parity_scale_codec::{FullCodec, MaxEncodedLen};
 use xcm::latest::{
 	Error as XcmError, MultiLocation, QueryId, Response, Result as XcmResult, Weight, XcmContext,
 };
@@ -93,4 +97,47 @@ impl VersionChangeNotifier for () {
 	fn is_subscribed(_: &MultiLocation) -> bool {
 		false
 	}
+}
+
+// An indication of the state of an XCM command
+// - `Finished` - Indicates that the command was executed, and includes the Success or Error response of the command.
+// - `Pending` - Indicates being aware of the xCM command has not yet completed, or a response has
+//    not been returned yet
+// - `NotFound` - Not XCM command with the given `QueryId` was found
+pub enum QueryResponseStatus<BlockNumber> {
+	Finished { response: Response, at: BlockNumber },
+	Pending,
+	NotFound,
+}
+
+/// XcmQueryHandler provides a way execute XCM messages which we can track the execution status of.
+pub trait XcmQueryHandler {
+	type QueryId: FullCodec + MaxEncodedLen + TypeInfo + Clone + Eq + PartialEq + Debug + Copy;
+	type BlockNumber;
+	type Error;
+
+	/// Consume `message` and return another which is equivalent to it except that it reports
+	/// back the outcome.
+	///
+	/// - `message`: The message whose outcome should be reported.
+	/// - `responder`: The origin from which a response should be expected.
+	/// - `timeout`: The block number after which it is permissible for `notify` not to be
+	///   called even if a response is received.
+	///
+	/// `report_outcome` may return an error if the `responder` is not invertible.
+	///
+	/// It is assumed that the querier of the response will be `Here`.
+	///
+	/// To check the status of the query, use `fn query()` passing the resultant `QueryId`
+	/// value.
+	fn report_outcome(
+		message: &mut Xcm<()>,
+		responder: impl Into<MultiLocation>,
+		timeout: Self::BlockNumber,
+	) -> result::Result<Self::QueryId, Self::Error>;
+
+	/// Attempt to remove and return the response of query with ID `query_id`.
+	///
+	/// Returns `None` if the response is not (yet) available.
+	fn take_response(id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber>;
 }
