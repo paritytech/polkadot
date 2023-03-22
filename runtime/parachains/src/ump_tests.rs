@@ -199,8 +199,12 @@ mod check_upward_messages {
 		new_test_ext(GenesisConfigBuilder::large_queue_count().build()).execute_with(|| {
 			let limit = Configuration::config().max_upward_queue_size as u64;
 			assert_eq!(pallet_message_queue::ItemHeader::<MessageQueueSize>::max_encoded_len(), 5);
+			assert!(
+				Configuration::config().max_upward_queue_size <
+					crate::inclusion::MaxUmpMessageLenOf::<Test>::get(),
+				"Test will not work"
+			);
 
-			// FAIL-CI: TODO why is the item header overhead not taken into account?
 			for _ in 0..limit {
 				check(P_0, vec![msg("1")], None);
 				queue(P_0, vec![msg("1")]);
