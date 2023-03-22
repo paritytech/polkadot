@@ -114,6 +114,7 @@ pub fn backed_candidate_weight<T: frame_system::Config + Config>(
 		.commitments
 		.upward_messages
 		.iter()
+		// We assume message sizes to never even come close to the limits of u32:
 		.map(|m| m.len() as u32)
 		.sum();
 	let hrmp = candidate
