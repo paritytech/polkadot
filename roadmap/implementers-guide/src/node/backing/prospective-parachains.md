@@ -1,4 +1,6 @@
-# Overview
+# Prospective Parachains
+
+## Overview
 
 **Purpose:** Tracks and handles prospective parachain fragments and informs
 other backing-stage subsystems of work to be done.
@@ -24,9 +26,9 @@ It also handles concerns such as:
   - session changes
   - predicting validator group assignments
 
-# Messages
+## Messages
 
-## Incoming
+### Incoming
 
 - `ActiveLeaves`
   - Notification of a change in the set of active leaves.
@@ -73,7 +75,7 @@ It also handles concerns such as:
   - Sent by the Collator Protocol subsystem (validator side) when
     handling a fetched collation result.
 
-## Outgoing
+### Outgoing
 
 - `RuntimeApiRequest::StagingParaBackingState`
   - Gets the backing state of the given para.
@@ -85,7 +87,7 @@ It also handles concerns such as:
 - `ChainApiMessage::BlockHeader`
   - Requests the block header by hash.
 
-# Glossary
+## Glossary
 
 - **Candidate storage:** Stores candidates and information about them
   such as their relay-parents and their backing states. Is indexed in
