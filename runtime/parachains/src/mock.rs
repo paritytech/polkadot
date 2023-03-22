@@ -25,12 +25,12 @@ use crate::{
 };
 
 use frame_support::{
-	assert_ok, parameter_types,
+	parameter_types,
 	traits::{
-		GenesisBuild, ProcessMessage, ProcessMessageError, ValidatorSet,
+		ConstU32, GenesisBuild, ProcessMessage, ProcessMessageError, ValidatorSet,
 		ValidatorSetWithIdentification,
 	},
-	weights::{Weight, WeightMeter},
+	weights::Weight,
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
@@ -117,11 +117,11 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
-	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	type MaxConsumers = ConstU32<16>;
 }
 
 parameter_types! {
-	pub static ExistentialDeposit: u64 = 0;
+	pub static ExistentialDeposit: u64 = 1;
 }
 
 impl pallet_balances::Config for Test {
@@ -134,6 +134,10 @@ impl pallet_balances::Config for Test {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<0>;
+	type MaxFreezes = ConstU32<0>;
 }
 
 parameter_types! {

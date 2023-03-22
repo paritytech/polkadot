@@ -21,7 +21,7 @@ use frame_support::{
 	traits::{Everything, Nothing},
 	weights::Weight,
 };
-use sp_core::H256;
+use sp_core::{ConstU32, H256};
 use sp_runtime::{testing::Header, traits::IdentityLookup, AccountId32};
 
 use polkadot_parachain::primitives::Id as ParaId;
@@ -66,7 +66,7 @@ impl frame_system::Config for Runtime {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
-	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	type MaxConsumers = ConstU32<16>;
 }
 
 parameter_types! {
@@ -85,6 +85,10 @@ impl pallet_balances::Config for Runtime {
 	type WeightInfo = ();
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<0>;
+	type MaxFreezes = ConstU32<0>;
 }
 
 impl shared::Config for Runtime {}
@@ -177,7 +181,7 @@ impl pallet_xcm::Config for Runtime {
 	type CurrencyMatcher = ();
 	type TrustedLockers = ();
 	type SovereignAccountOf = SovereignAccountOf;
-	type MaxLockers = frame_support::traits::ConstU32<8>;
+	type MaxLockers = ConstU32<8>;
 	type WeightInfo = pallet_xcm::TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;

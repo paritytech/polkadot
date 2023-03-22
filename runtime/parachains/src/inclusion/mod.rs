@@ -36,10 +36,10 @@ use frame_support::{
 use pallet_message_queue::OnQueueChanged;
 use parity_scale_codec::{Decode, Encode};
 use primitives::{
-	well_known_keys, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
-	CandidateDescriptor, CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex,
-	GroupIndex, Hash, HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields,
-	UpwardMessage, ValidatorId, ValidatorIndex, ValidityAttestation,
+	supermajority_threshold, well_known_keys, AvailabilityBitfield, BackedCandidate,
+	CandidateCommitments, CandidateDescriptor, CandidateHash, CandidateReceipt,
+	CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash, HeadData, Id as ParaId, SigningContext,
+	UncheckedSignedAvailabilityBitfields, ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{traits::One, DispatchError, SaturatedConversion, Saturating};
@@ -800,7 +800,7 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// one more sweep for actually writing to storage.
-		let core_indices = core_indices_and_backers.iter().map(|&(ref c, _, _)| *c).collect();
+		let core_indices = core_indices_and_backers.iter().map(|(c, _, _)| *c).collect();
 		for (candidate, (core, backers, group)) in
 			candidates.into_iter().zip(core_indices_and_backers)
 		{
@@ -1153,9 +1153,7 @@ impl<T: Config> Pallet<T> {
 }
 
 const fn availability_threshold(n_validators: usize) -> usize {
-	let mut threshold = (n_validators * 2) / 3;
-	threshold += (n_validators * 2) % 3;
-	threshold
+	supermajority_threshold(n_validators)
 }
 
 impl<BlockNumber> AcceptanceCheckErr<BlockNumber> {

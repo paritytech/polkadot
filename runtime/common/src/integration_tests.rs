@@ -24,7 +24,7 @@ use crate::{
 };
 use frame_support::{
 	assert_noop, assert_ok, parameter_types,
-	traits::{Currency, GenesisBuild, OnFinalize, OnInitialize},
+	traits::{ConstU32, Currency, GenesisBuild, OnFinalize, OnInitialize},
 	weights::Weight,
 	PalletId,
 };
@@ -178,6 +178,10 @@ impl pallet_balances::Config for Test {
 	type WeightInfo = ();
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<0>;
+	type MaxFreezes = ConstU32<0>;
 }
 
 impl configuration::Config for Test {
