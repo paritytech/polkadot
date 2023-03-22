@@ -38,7 +38,7 @@ pub use token_matching::{
 	Error, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,
 };
 mod on_response;
-pub use on_response::{OnResponse, VersionChangeNotifier};
+pub use on_response::{OnResponse, QueryResponseStatus, VersionChangeNotifier, XcmQueryHandler};
 mod should_execute;
 pub use should_execute::ShouldExecute;
 mod transact_asset;
