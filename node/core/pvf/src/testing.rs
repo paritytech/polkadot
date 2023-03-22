@@ -78,6 +78,9 @@ macro_rules! decl_puppet_worker_main {
 
 			let subcommand = &args[1];
 			match subcommand.as_ref() {
+				"exit" => {
+					std::process::exit(1);
+				},
 				"sleep" => {
 					std::thread::sleep(std::time::Duration::from_secs(5));
 				},

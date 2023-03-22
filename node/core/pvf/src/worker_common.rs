@@ -61,6 +61,8 @@ pub async fn spawn_with_program_path(
 				gum::warn!(
 					target: LOG_TARGET,
 					%debug_id,
+					?program_path,
+					?extra_args,
 					"cannot bind unix socket: {:?}",
 					err,
 				);
@@ -68,10 +70,12 @@ pub async fn spawn_with_program_path(
 			})?;
 
 			let handle =
-				WorkerHandle::spawn(program_path, extra_args, socket_path).map_err(|err| {
+				WorkerHandle::spawn(&program_path, extra_args, socket_path).map_err(|err| {
 					gum::warn!(
 						target: LOG_TARGET,
 						%debug_id,
+						?program_path,
+						?extra_args,
 						"cannot spawn a worker: {:?}",
 						err,
 					);
@@ -84,6 +88,8 @@ pub async fn spawn_with_program_path(
 						gum::warn!(
 							target: LOG_TARGET,
 							%debug_id,
+							?program_path,
+							?extra_args,
 							"cannot accept a worker: {:?}",
 							err,
 						);
@@ -92,6 +98,14 @@ pub async fn spawn_with_program_path(
 					Ok((IdleWorker { stream, pid: handle.id() }, handle))
 				}
 				_ = Delay::new(spawn_timeout).fuse() => {
+					gum::warn!(
+						target: LOG_TARGET,
+						%debug_id,
+						?program_path,
+						?extra_args,
+						?spawn_timeout,
+						"spawning and connecting to socket timed out",
+					);
 					Err(SpawnErr::AcceptTimeout)
 				}
 			}
@@ -162,6 +176,13 @@ where
 	F: FnMut(Handle, UnixStream) -> Fut,
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
+	gum::debug!(
+		target: LOG_TARGET,
+		worker_pid = %std::process::id(),
+		"starting pvf worker ({})",
+		debug_id,
+	);
+
 	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
 	let handle = rt.handle();
 	let err = rt
@@ -179,7 +200,7 @@ where
 	gum::debug!(
 		target: LOG_TARGET,
 		worker_pid = %std::process::id(),
-		"pvf worker ({}): {:?}",
+		"quitting pvf worker ({}): {:?}",
 		debug_id,
 		err,
 	);
