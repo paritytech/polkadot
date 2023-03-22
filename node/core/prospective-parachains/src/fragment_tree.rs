@@ -74,7 +74,7 @@
 //!     - This is stricter for complete hypothetical candidates.
 //!     - Can optionally require that returned depths have all candidates in
 //!       the path from the root backed.
-//!   - Can have cycles.
+//!   - Can have cycles, if the PVF is crafted in such a way that cycles are possible.
 //!     - e.g. a candidate whose parent head data is the same as its own
 //!       head data is a cycle of 0.
 //!     - This would result in the candidate being populated in the tree
