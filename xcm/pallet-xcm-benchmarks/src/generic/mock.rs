@@ -27,6 +27,7 @@ use sp_core::H256;
 use sp_runtime::{
 	testing::Header,
 	traits::{BlakeTwo256, IdentityLookup, TrailingZeroInput},
+	BuildStorage,
 };
 use xcm_builder::{
 	test_utils::{
@@ -185,6 +186,12 @@ impl generic::Config for Test {
 		let assets: MultiAsset = (Concrete(Here.into()), 100).into();
 		Ok((Default::default(), Default::default(), assets))
 	}
+}
+
+pub fn new_test_ext() -> sp_io::TestExternalities {
+	let t = GenesisConfig { ..Default::default() }.build_storage().unwrap();
+	sp_tracing::try_init_simple();
+	t.into()
 }
 
 pub struct AlwaysSignedByDefault<RuntimeOrigin>(core::marker::PhantomData<RuntimeOrigin>);
