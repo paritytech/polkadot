@@ -953,7 +953,6 @@ impl<T: Config> Pallet<T> {
 
 	/// Check that all the upward messages sent by a candidate pass the acceptance criteria. Returns
 	/// false, if any of the messages doesn't pass.
-	// FAIL-CI: TODO update docs
 	pub(crate) fn check_upward_messages(
 		config: &HostConfiguration<T::BlockNumber>,
 		para: ParaId,
