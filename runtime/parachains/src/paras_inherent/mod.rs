@@ -341,7 +341,7 @@ impl<T: Config> Pallet<T> {
 
 		let max_block_weight = <T as frame_system::Config>::BlockWeights::get().max_block;
 
-		// At most 60% of total block space will be dispute votes.
+		// At most `MAX_DISPUTES_WEIGHT_PERCENT` of total block space will be dispute votes.
 		let mut max_disputes_weight = Weight::from_parts(
 			MAX_DISPUTES_WEIGHT_PERCENT.mul_floor(max_block_weight.ref_time()),
 			max_block_weight.proof_size(),
@@ -354,7 +354,7 @@ impl<T: Config> Pallet<T> {
 			.saturating_sub(max_block_weight);
 
 		// Constrain max dispute weight to ensure block will not be overweight.
-		max_disputes_weight -= spill;
+		max_disputes_weight = max_disputes_weight.saturating_sub(spill);
 
 		METRICS
 			.on_before_filter((candidates_weight + bitfields_weight + disputes_weight).ref_time());
