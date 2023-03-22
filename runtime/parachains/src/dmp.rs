@@ -20,6 +20,7 @@ use crate::{
 };
 use frame_support::pallet_prelude::*;
 use primitives::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
+use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_runtime::{
 	traits::{BlakeTwo256, Hash as HashT, SaturatedConversion},
 	FixedU128, Saturating,
@@ -198,7 +199,11 @@ impl<T: Config> Pallet<T> {
 			v.len()
 		});
 
-		if q_len > MAX_MESSAGE_QUEUE_SIZE {
+		if q_len >
+			(MAX_POSSIBLE_ALLOCATION
+				.saturating_div(config.max_downward_message_size)
+				.saturating_div(2u32)) as usize
+		{
 			Self::increment_fee_factor(para);
 		}
 
@@ -238,7 +243,13 @@ impl<T: Config> Pallet<T> {
 			}
 			q.len()
 		});
-		if q_len <= MAX_MESSAGE_QUEUE_SIZE {
+
+		let config = configuration::ActiveConfig::<T>::get();
+		if q_len <=
+			(MAX_POSSIBLE_ALLOCATION
+				.saturating_div(config.max_downward_message_size)
+				.saturating_div(2u32)) as usize
+		{
 			Self::decrement_fee_factor(para);
 		}
 		T::DbWeight::get().reads_writes(1, 1)
