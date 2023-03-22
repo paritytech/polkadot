@@ -1031,9 +1031,10 @@ impl<T: Config> Pallet<T> {
 			return Weight::zero()
 		}
 
-		Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
 		T::MessageQueue::enqueue_messages(messages.into_iter(), AggregateMessageOrigin::Ump(para));
-		<T as Config>::WeightInfo::receive_upward_messages(count)
+		let weight = <T as Config>::WeightInfo::receive_upward_messages(count);
+		Self::deposit_event(Event::UpwardMessagesReceived { from: para, count });
+		weight
 	}
 
 	/// Cleans up all paras pending availability that the predicate returns true for.
