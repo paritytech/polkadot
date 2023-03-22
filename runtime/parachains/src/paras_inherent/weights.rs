@@ -27,11 +27,11 @@ pub trait WeightInfo {
 	fn enter_bitfields() -> Weight;
 	/// Variant over:
 	/// - `v`, the count of validity votes for a backed candidate.
-	/// - ump, total size of upward messages in bytes
-	/// - htmp, total size of horizontal messages in bytes
-	/// - code, size of new validation code if any in bytes
+	/// - u, total size of upward messages in bytes
+	/// - h, total size of horizontal messages in bytes
+	/// - c, size of new validation code if any in bytes
 	/// of a single backed candidate.
-	fn enter_backed_candidate(v: u32, ump: u32, hrmp: u32, code: u32) -> Weight;
+	fn enter_backed_candidate(v: u32, u: u32, h: u32, c: u32) -> Weight;
 }
 
 pub struct TestWeightInfo;

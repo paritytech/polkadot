@@ -20,7 +20,7 @@ use frame_benchmarking::{benchmarks, impl_benchmark_test_suite};
 use frame_system::RawOrigin;
 use sp_std::collections::btree_map::BTreeMap;
 
-use crate::builder::BenchBuilder;
+use crate::builder::{BackedCandidateScenario, BenchBuilder};
 
 benchmarks! {
 	// Variant over `v`, the number of dispute statements in a dispute statement set. This gives the
@@ -57,8 +57,14 @@ benchmarks! {
 
 	// The weight of one bitfield.
 	enter_bitfields {
+		let scenario = BackedCandidateScenario {
+			validity_votes: BenchBuilder::<T>::fallback_max_validators_per_core(),
+			ump: 0,
+			hrmp: 0,
+			code: 0
+		};
 		let cores_with_backed: BTreeMap<_, _>
-			= vec![(0, BenchBuilder::<T>::fallback_max_validators())]
+			= vec![(0, scenario)]
 				.into_iter()
 				.collect();
 
@@ -93,7 +99,6 @@ benchmarks! {
 	// - code, size of new validation code if any in bytes
 	// of a single backed candidate.
 	enter_backed_candidate {
-		let config = crate::configuration::Pallet::<T>::config();
 		// NOTE: the starting value must be over half of the max validators per group so the backed
 		// candidate is not rejected. Also, we cannot have more validity votes than validators in
 		// the group.
@@ -104,15 +109,15 @@ benchmarks! {
 		let v in (BenchBuilder::<T>::fallback_min_backing_votes())
 			..(BenchBuilder::<T>::fallback_max_validators_per_core());
 
-		let ump in 0 .. config.max_upward_message_num_per_candidate * config.max_upward_message_size;
-		let hrmp in 0 .. config.hrmp_max_message_num_per_candidate * config.hrmp_channel_max_message_size;
-		let code in 0 .. config.max_code_size;
+		let u in 0 .. (crate::configuration::Pallet::<T>::config().max_upward_message_num_per_candidate * crate::configuration::Pallet::<T>::config().max_upward_message_size);
+		let h in 0 .. (crate::configuration::Pallet::<T>::config().hrmp_max_message_num_per_candidate * crate::configuration::Pallet::<T>::config().hrmp_channel_max_message_size);
+		let c in 0 .. (crate::configuration::Pallet::<T>::config().max_code_size);
 
 		let candidate_scenario = BackedCandidateScenario {
 			validity_votes: v,
-			ump,
-			hrmp,
-			code,
+			ump: u,
+			hrmp: h,
+			code: c,
 		};
 
 		// Comment in for running rococo benchmarks
@@ -156,67 +161,6 @@ benchmarks! {
 			assert_eq!(header.hash(), descriptor.relay_parent);
 			assert_eq!(backing_validators.1.len(), v as usize);
 		}
-
-		assert_eq!(
-			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),
-			cores_with_backed.len()
-		);
-		assert_eq!(
-			inclusion::PendingAvailability::<T>::iter().count(),
-			cores_with_backed.len()
-		);
-	}
-
-	enter_backed_candidate_code_upgrade {
-		// For now we always assume worst case code size. In the future we could vary over this.
-		let v = crate::configuration::Pallet::<T>::config().max_code_size;
-
-		let cores_with_backed: BTreeMap<_, _>
-			= vec![(0, BenchBuilder::<T>::fallback_min_backing_votes())]
-				.into_iter()
-				.collect();
-
-		let scenario = BenchBuilder::<T>::new()
-			.set_backed_and_concluding_cores(cores_with_backed.clone())
-			.set_code_upgrade(v)
-			.build();
-
-		let mut benchmark = scenario.data.clone();
-
-		// There is 1 backed
-		assert_eq!(benchmark.backed_candidates.len(), 1);
-		assert_eq!(
-			benchmark.backed_candidates.get(0).unwrap().validity_votes.len() as u32,
-			BenchBuilder::<T>::fallback_min_backing_votes()
-		);
-
-		benchmark.bitfields.clear();
-		benchmark.disputes.clear();
-		crate::paras::benchmarking::generate_disordered_upgrades::<T>();
-	}: enter(RawOrigin::None, benchmark)
-	verify {
-		let max_validators_per_core = BenchBuilder::<T>::fallback_max_validators_per_core();
-		// Assert that the block was not discarded
-		assert!(Included::<T>::get().is_some());
-		// Assert that there are on-chain votes that got scraped
-		let onchain_votes = OnChainVotes::<T>::get();
-		assert!(onchain_votes.is_some());
-		let vote = onchain_votes.unwrap();
-		// Ensure that the votes are for the correct session
-		assert_eq!(vote.session, scenario._session);
-		// Ensure that there are an expected number of candidates
-		let header = BenchBuilder::<T>::header(scenario._block_number.clone());
-		// Traverse candidates and assert descriptors are as expected
-		for (para_id, backing_validators)
-			in vote.backing_validators_per_candidate.iter().enumerate() {
-				let descriptor = backing_validators.0.descriptor();
-				assert_eq!(ParaId::from(para_id), descriptor.para_id);
-				assert_eq!(header.hash(), descriptor.relay_parent);
-				assert_eq!(
-					backing_validators.1.len() as u32,
-					BenchBuilder::<T>::fallback_min_backing_votes()
-				);
-			}
 
 		assert_eq!(
 			inclusion::PendingAvailabilityCommitments::<T>::iter().count(),

@@ -35,7 +35,7 @@ use sp_runtime::{
 	traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_map::BTreeMap, iter::once, prelude::Vec, vec};
+use sp_std::{collections::btree_map::BTreeMap, prelude::Vec, vec};
 
 fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
@@ -222,7 +222,9 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	#[cfg(feature = "runtime-benchmarks")]
 	pub(crate) fn fallback_min_backing_votes() -> u32 {
 		use crate::inclusion::minimum_backing_votes;
-		minimum_backing_votes(self.max_validators_per_core())
+		minimum_backing_votes(Self::fallback_max_validators_per_core() as _)
+			.try_into()
+			.unwrap()
 	}
 
 	/// Create para id, core index, and grab the associated group index from the scheduler pallet.
