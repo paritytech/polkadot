@@ -1013,10 +1013,18 @@ impl<T: Config> Pallet<T> {
 	}
 
 	/// Enqueues `upward_messages` from a `para`'s accepted candidate block.
+	///
+	/// This function is infallible since the candidate was already accepted and we therefore need
+	/// to deal with the messages as given. Messages that are too long will be ignored since such
+	/// candidates should have already been rejected in [`Self::check_upward_messages`].
 	pub(crate) fn receive_upward_messages(para: ParaId, upward_messages: &[Vec<u8>]) -> Weight {
 		let bounded = upward_messages
 			.iter()
-			.filter_map(|d| BoundedSlice::try_from(&d[..]).ok())
+			.filter_map(|d| {
+				BoundedSlice::try_from(&d[..])
+					.defensive_proof("Too long inbound upward message in accepted candidate.")
+					.ok()
+			})
 			.collect();
 		Self::receive_bounded_upward_messages(para, bounded)
 	}
