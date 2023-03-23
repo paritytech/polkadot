@@ -403,7 +403,7 @@ parameter_types! {
 	/// cannot have active validators higher than this count.
 	pub const MaxActiveValidators: u32 = 2000;
 	// Emergency throttling disabled.
-	pub MinBlocksBeforeEmergency: BlockNumber = 0;
+	pub MinElectingBlocks: BlockNumber = 0;
 }
 
 generate_solution_type!(
@@ -493,7 +493,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
 	type MaxWinners = MaxActiveValidators;
-	type MinBlocksBeforeEmergency = MinBlocksBeforeEmergency;
+	type MinElectingBlocks = MinElectingBlocks;
 }
 
 parameter_types! {

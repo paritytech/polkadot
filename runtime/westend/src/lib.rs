@@ -338,10 +338,10 @@ parameter_types! {
 		EPOCH_DURATION_IN_SLOTS / 4,
 		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 2)
 	);
-	// We expect a successful election to take at least 50% of the signed and unsigned blocks.
-	pub MinBlocksBeforeEmergency: u32 = prod_or_fast!(
-		EPOCH_DURATION_IN_SLOTS / 8,
-		(1/2 * MINUTES).min(EpochDuration::get().saturated_into::<u32>() / 4)
+	// We expect a successful election to take at least one round of signed and unsigned blocks.
+	pub MinElectingBlocks: u32 = prod_or_fast!(
+		SignedPhase::get() + UnsignedPhase::get(),
+		(1 * MINUTES).min(EpochDuration::get().saturated_into::<u32>())
 	);
 
 	// signed config
@@ -452,7 +452,7 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 	type MaxElectingVoters = MaxElectingVoters;
 	type MaxElectableTargets = MaxElectableTargets;
 	type MaxWinners = MaxActiveValidators;
-	type MinBlocksBeforeEmergency = MinBlocksBeforeEmergency;
+	type MinElectingBlocks = MinElectingBlocks;
 }
 
 parameter_types! {
