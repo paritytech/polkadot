@@ -35,7 +35,7 @@ mod tests;
 
 pub const MAX_MESSAGE_QUEUE_SIZE: usize = 1024;
 pub const EXPONENTIAL_FEE_BASE: FixedU128 = FixedU128::from_rational(101, 100); // 1.01
-pub const MESSAGE_SIZE_FEE_BASE: FixedU128 = FixedU128::from_rational(1, 1000); //0.001
+pub const MESSAGE_SIZE_FEE_BASE: FixedU128 = FixedU128::from_rational(1, 1000); // 0.001
 
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
@@ -202,7 +202,8 @@ impl<T: Config> Pallet<T> {
 
 		if q_len >
 			(MAX_POSSIBLE_ALLOCATION
-				.saturating_div(config.max_downward_message_size)
+				.checked_div(config.max_downward_message_size)
+				.unwrap_or(51200u32)
 				.saturating_div(2u32)) as usize
 		{
 			let message_size_factor =
@@ -251,7 +252,8 @@ impl<T: Config> Pallet<T> {
 		let config = configuration::ActiveConfig::<T>::get();
 		if q_len <=
 			(MAX_POSSIBLE_ALLOCATION
-				.saturating_div(config.max_downward_message_size)
+				.checked_div(config.max_downward_message_size)
+				.unwrap_or(51200u32)
 				.saturating_div(2u32)) as usize
 		{
 			Self::decrement_fee_factor(para);
