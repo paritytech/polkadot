@@ -235,7 +235,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		notification: &SessionChangeNotification<T::BlockNumber>,
 	) {
-		let &SessionChangeNotification { ref validators, ref new_config, .. } = notification;
+		let SessionChangeNotification { validators, new_config, .. } = notification;
 		let config = new_config;
 
 		let mut thread_queue = ParathreadQueue::<T>::get();
