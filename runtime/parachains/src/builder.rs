@@ -15,8 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::{
-	configuration, inclusion, initializer, paras, paras::ParaKind, paras_inherent, scheduler,
-	session_info, shared,
+	configuration,
+	hrmp::{HrmpChannel, HrmpChannels},
+	inclusion, initializer, paras,
+	paras::ParaKind,
+	paras_inherent, scheduler, session_info, shared,
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
@@ -24,7 +27,7 @@ use primitives::{
 	collator_signature_payload, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
 	CandidateDescriptor, CandidateHash, CollatorId, CollatorSignature, CommittedCandidateReceipt,
 	CompactStatement, CoreIndex, CoreOccupied, DisputeStatement, DisputeStatementSet, GroupIndex,
-	HeadData, Id as ParaId, IndexedVec, InherentData as ParachainsInherentData,
+	HeadData, HrmpChannelId, Id as ParaId, IndexedVec, InherentData as ParachainsInherentData,
 	InvalidDisputeStatementKind, OutboundHrmpMessage, PersistedValidationData, SessionIndex,
 	SigningContext, UncheckedSigned, ValidDisputeStatementKind, ValidationCode, ValidatorId,
 	ValidatorIndex, ValidityAttestation,
@@ -520,7 +523,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 						para_head: head_data.hash(),
 						validation_code_hash,
 					},
-					commitments: self.create_candidate_commitments(head_data, scenario),
+					commitments: self.create_candidate_commitments(para_id, head_data, scenario),
 				};
 
 				let candidate_hash = candidate.hash();
@@ -615,6 +618,7 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 
 	fn create_candidate_commitments(
 		&self,
+		para_id: ParaId,
 		head_data: HeadData,
 		scenario: &BackedCandidateScenario,
 	) -> CandidateCommitments {
@@ -631,13 +635,39 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		};
 
 		let horizontal_messages = {
-			let unbounded = create_messages(
+			let unbounded: Vec<_> = create_messages(
 				scenario.hrmp,
 				config.hrmp_channel_max_message_size,
 				config.hrmp_max_message_num_per_candidate,
 			)
-			.map(|m| OutboundHrmpMessage { recipient: Default::default(), data: m.collect() })
 			.collect();
+
+			for n in 0..unbounded.len() {
+				let channel_id =
+					HrmpChannelId { sender: para_id, recipient: para_id + n as u32 + 1 };
+				HrmpChannels::<T>::insert(
+					&channel_id,
+					HrmpChannel {
+						sender_deposit: 42,
+						recipient_deposit: 42,
+						max_capacity: 10_000_000,
+						max_total_size: 1_000_000_000,
+						max_message_size: 10_000_000,
+						msg_count: 0,
+						total_size: 0,
+						mqc_head: None,
+					},
+				);
+			}
+
+			let unbounded = unbounded
+				.into_iter()
+				.enumerate()
+				.map(|(n, m)| OutboundHrmpMessage {
+					recipient: para_id + n as u32 + 1,
+					data: m.collect(),
+				})
+				.collect();
 			BoundedVec::truncate_from(unbounded)
 		};
 
@@ -732,17 +762,17 @@ fn create_messages(
 	let max_message_size = if max_message_size == 0 { num_bytes } else { max_message_size };
 	let num_full_messages = if num_bytes == 0 { 0 } else { num_bytes / max_message_size };
 	let last_message_size = if num_bytes == 0 { 0 } else { num_bytes % max_message_size };
+	let last_message =
+		if last_message_size == 0 { vec![] } else { vec![(0..last_message_size).map(as_byte)] };
+
 	assert!(
-		max_messages == 0 || num_full_messages + 1 <= max_messages,
-		"Too many messages generated!"
+		max_messages == 0 || num_full_messages + last_message.len() as u32 <= max_messages,
+		"Too many messages generated. max_messages: {}, num_full_messages: {}, num_bytes: {}, max_message_size: {}, last_message_size: {}", max_messages, num_full_messages, num_bytes, max_message_size, last_message_size,
 	);
 
 	fn as_byte(u: u32) -> u8 {
 		u as u8
 	}
-
-	let last_message =
-		if last_message_size == 0 { vec![] } else { vec![(0..last_message_size).map(as_byte)] };
 
 	(0..num_full_messages)
 		.map(move |_| (0..max_message_size).map(as_byte))
