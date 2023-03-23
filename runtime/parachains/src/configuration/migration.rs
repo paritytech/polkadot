@@ -282,8 +282,8 @@ mod tests {
 
 	#[test]
 	fn test_migrate_to_v5() {
-		// Host configuration has lots of fields. However, in this migration we add only a couple of
-		// fields. The most important part to check are a couple of the last fields. We also pick
+		// Host configuration has lots of fields. However, in this migration we only remove one field.
+		// The most important part to check are a couple of the last fields. We also pick
 		// extra fields to check arbitrarily, e.g. depending on their position (i.e. the middle) and
 		// also their type.
 		//
