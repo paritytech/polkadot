@@ -1,0 +1,31 @@
+# checks all networks we care about (kusama, polkadot, westend) and ensures
+# the bootnodes in their respective chainspecs are contactable
+
+name: Check all bootnodes
+on:
+  push:
+    branches:
+      # Catches v1.2.3 and v1.2.3-rc1
+      - release-v[0-9]+.[0-9]+.[0-9]+*
+
+jobs:
+  check_bootnodes:
+    strategy:
+      fail-fast: false
+      matrix:
+        runtime: [westend, kusama, polkadot]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v3
+      - name: Install polkadot
+        shell: bash
+        run: |
+          curl -L "$(curl -s https://api.github.com/repos/paritytech/polkadot/releases/latest \
+          | jq -r '.assets | .[] | select(.name == "polkadot").browser_download_url')" \
+          | sudo tee /usr/local/bin/polkadot > /dev/null
+          sudo chmod +x /usr/local/bin/polkadot
+          polkadot --version
+      - name: Check ${{ matrix.runtime }} bootnodes
+        shell: bash
+        run: scripts/ci/github/check_bootnodes.sh node/service/chain-specs/${{ matrix.runtime }}.json

@@ -138,7 +138,7 @@ struct State {
     earliest_session: SessionIndex,
     session_info: Vec<SessionInfo>,
     babe_epoch: Option<BabeEpoch>, // information about a cached BABE epoch.
-    keystore: KeyStore,
+    keystore: Keystore,
 
     // A scheduler which keeps at most one wakeup per hash, candidate hash pair and
     // maps such pairs to `Tick`s.

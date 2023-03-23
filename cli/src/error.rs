@@ -29,6 +29,7 @@ pub enum Error {
 	SubstrateTracing(#[from] sc_tracing::logging::Error),
 
 	#[error(transparent)]
+	#[cfg(feature = "hostperfcheck")]
 	PerfCheck(#[from] polkadot_performance_test::PerfCheckError),
 
 	#[cfg(not(feature = "pyroscope"))]
@@ -48,6 +49,12 @@ pub enum Error {
 	#[error("Command is not implemented")]
 	CommandNotImplemented,
 
+	#[error(transparent)]
+	Storage(#[from] sc_storage_monitor::Error),
+
 	#[error("Other: {0}")]
 	Other(String),
+
+	#[error("This subcommand is only available when compiled with `{feature}`")]
+	FeatureNotEnabled { feature: &'static str },
 }

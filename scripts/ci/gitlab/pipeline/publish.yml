@@ -5,7 +5,7 @@
 # Release image is handled by the Github Action here:
 # .github/workflows/publish-docker-release.yml
 publish-polkadot-debug-image:
-  stage:                           publish
+  stage: publish
   extends:
     - .kubernetes-env
     - .build-push-image
@@ -16,19 +16,19 @@ publish-polkadot-debug-image:
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_PIPELINE_SOURCE == "schedule"
     - if: $CI_COMMIT_REF_NAME == "master"
-    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/                         # PRs
-    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/              # i.e. v1.0, v2.1rc1
+    - if: $CI_COMMIT_REF_NAME =~ /^[0-9]+$/ # PRs
+    - if: $CI_COMMIT_REF_NAME =~ /^v[0-9]+\.[0-9]+.*$/ # i.e. v1.0, v2.1rc1
   variables:
-    CI_IMAGE:                      ${BUILDAH_IMAGE}
-    GIT_STRATEGY:                  none
-    DOCKER_USER:                   ${PARITYPR_USER}
-    DOCKER_PASS:                   ${PARITYPR_PASS}
+    CI_IMAGE: ${BUILDAH_IMAGE}
+    GIT_STRATEGY: none
+    DOCKER_USER: ${PARITYPR_USER}
+    DOCKER_PASS: ${PARITYPR_PASS}
     # scripts/ci/dockerfiles/polkadot_injected_debug.Dockerfile
-    DOCKERFILE:                    ci/dockerfiles/polkadot_injected_debug.Dockerfile
-    IMAGE_NAME:                    docker.io/paritypr/polkadot-debug
+    DOCKERFILE: ci/dockerfiles/polkadot_injected_debug.Dockerfile
+    IMAGE_NAME: docker.io/paritypr/polkadot-debug
   needs:
-    - job:                         build-linux-stable
-      artifacts:                   true
+    - job: build-linux-stable
+      artifacts: true
   after_script:
     # pass artifacts to the zombienet-tests job
     # https://docs.gitlab.com/ee/ci/multi_project_pipelines.html#with-variable-inheritance
@@ -38,26 +38,26 @@ publish-polkadot-debug-image:
     reports:
       # this artifact is used in zombienet-tests job
       dotenv: ./artifacts/parachains.env
-    expire_in:                     1 days
+    expire_in: 1 days
 
 publish-test-collators-image:
   # service image for Simnet
-  stage:                           publish
+  stage: publish
   extends:
     - .kubernetes-env
     - .build-push-image
     - .zombienet-refs
   variables:
-    CI_IMAGE:                      ${BUILDAH_IMAGE}
-    GIT_STRATEGY:                  none
-    DOCKER_USER:                   ${PARITYPR_USER}
-    DOCKER_PASS:                   ${PARITYPR_PASS}
+    CI_IMAGE: ${BUILDAH_IMAGE}
+    GIT_STRATEGY: none
+    DOCKER_USER: ${PARITYPR_USER}
+    DOCKER_PASS: ${PARITYPR_PASS}
     # scripts/ci/dockerfiles/collator_injected.Dockerfile
-    DOCKERFILE:                    ci/dockerfiles/collator_injected.Dockerfile
-    IMAGE_NAME:                    docker.io/paritypr/colander
+    DOCKERFILE: ci/dockerfiles/collator_injected.Dockerfile
+    IMAGE_NAME: docker.io/paritypr/colander
   needs:
-    - job:                         build-test-collators
-      artifacts:                   true
+    - job: build-test-collators
+      artifacts: true
   after_script:
     - buildah logout --all
     # pass artifacts to the zombienet-tests job
@@ -70,22 +70,22 @@ publish-test-collators-image:
 
 publish-malus-image:
   # service image for Simnet
-  stage:                           publish
+  stage: publish
   extends:
     - .kubernetes-env
     - .build-push-image
     - .zombienet-refs
   variables:
-    CI_IMAGE:                      ${BUILDAH_IMAGE}
-    GIT_STRATEGY:                  none
-    DOCKER_USER:                   ${PARITYPR_USER}
-    DOCKER_PASS:                   ${PARITYPR_PASS}
+    CI_IMAGE: ${BUILDAH_IMAGE}
+    GIT_STRATEGY: none
+    DOCKER_USER: ${PARITYPR_USER}
+    DOCKER_PASS: ${PARITYPR_PASS}
     # scripts/ci/dockerfiles/malus_injected.Dockerfile
-    DOCKERFILE:                    ci/dockerfiles/malus_injected.Dockerfile
-    IMAGE_NAME:                    docker.io/paritypr/malus
+    DOCKERFILE: ci/dockerfiles/malus_injected.Dockerfile
+    IMAGE_NAME: docker.io/paritypr/malus
   needs:
-    - job:                         build-malus
-      artifacts:                   true
+    - job: build-malus
+      artifacts: true
   after_script:
     - buildah logout "$IMAGE_NAME"
     # pass artifacts to the zombienet-tests job
@@ -97,35 +97,34 @@ publish-malus-image:
       dotenv: ./artifacts/malus.env
 
 publish-staking-miner-image:
-  stage:                           publish
+  stage: publish
   extends:
     - .kubernetes-env
     - .build-push-image
     - .publish-refs
   variables:
-    CI_IMAGE:                      ${BUILDAH_IMAGE}
+    CI_IMAGE: ${BUILDAH_IMAGE}
     # scripts/ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
-    DOCKERFILE:                    ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
-    IMAGE_NAME:                    docker.io/paritytech/staking-miner
-    GIT_STRATEGY:                  none
-    DOCKER_USER:                   ${Docker_Hub_User_Parity}
-    DOCKER_PASS:                   ${Docker_Hub_Pass_Parity}
+    DOCKERFILE: ci/dockerfiles/staking-miner/staking-miner_injected.Dockerfile
+    IMAGE_NAME: docker.io/paritytech/staking-miner
+    GIT_STRATEGY: none
+    DOCKER_USER: ${Docker_Hub_User_Parity}
+    DOCKER_PASS: ${Docker_Hub_Pass_Parity}
   needs:
-    - job:                         build-staking-miner
-      artifacts:                   true
-
+    - job: build-staking-miner
+      artifacts: true
 
 publish-s3-release:
-  stage:                           publish
+  stage: publish
   extends:
     - .kubernetes-env
   needs:
-    - job:                         build-linux-stable
-      artifacts:                   true
+    - job: build-linux-stable
+      artifacts: true
   variables:
-    CI_IMAGE:                      paritytech/awscli:latest
-    GIT_STRATEGY:                  none
-    PREFIX:                        "builds/polkadot/${ARCH}-${DOCKER_OS}"
+    CI_IMAGE: paritytech/awscli:latest
+    GIT_STRATEGY: none
+    PREFIX: "builds/polkadot/${ARCH}-${DOCKER_OS}"
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
@@ -138,10 +137,10 @@ publish-s3-release:
     - aws s3 sync --acl public-read ./artifacts/ s3://${AWS_BUCKET}/${PREFIX}/${VERSION}/
     - echo "update objects at https://releases.parity.io/${PREFIX}/${EXTRATAG}"
     - find ./artifacts -type f | while read file; do
-        name="${file#./artifacts/}";
-        aws s3api copy-object
-          --copy-source ${AWS_BUCKET}/${PREFIX}/${VERSION}/${name}
-          --bucket ${AWS_BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
+      name="${file#./artifacts/}";
+      aws s3api copy-object
+      --copy-source ${AWS_BUCKET}/${PREFIX}/${VERSION}/${name}
+      --bucket ${AWS_BUCKET} --key ${PREFIX}/${EXTRATAG}/${name};
       done
     - |
       cat <<-EOM
@@ -154,14 +153,14 @@ publish-s3-release:
       EOM
   after_script:
     - aws s3 ls s3://${AWS_BUCKET}/${PREFIX}/${EXTRATAG}/
-        --recursive --human-readable --summarize
+      --recursive --human-readable --summarize
 
 publish-rustdoc:
-  stage:                           publish
+  stage: publish
   extends:
     - .kubernetes-env
   variables:
-    CI_IMAGE:                      paritytech/tools:latest
+    CI_IMAGE: paritytech/tools:latest
   rules:
     - if: $CI_PIPELINE_SOURCE == "pipeline"
       when: never
@@ -170,10 +169,10 @@ publish-rustdoc:
   # `needs:` can be removed after CI image gets nonroot. In this case `needs:` stops other
   # artifacts from being dowloaded by this job.
   needs:
-    - job:                         build-rustdoc
-      artifacts:                   true
-    - job:                         build-implementers-guide
-      artifacts:                   true
+    - job: build-rustdoc
+      artifacts: true
+    - job: build-implementers-guide
+      artifacts: true
   script:
     # Save README and docs
     - cp -r ./crate-docs/ /tmp/doc/
@@ -209,27 +208,27 @@ publish-rustdoc:
     # We don't want to mark the entire job failed if there's nothing to
     # publish though, hence the `|| true`.
     - git commit -m "Updated docs for ${CI_COMMIT_REF_NAME}" ||
-        echo "___Nothing to commit___"
+      echo "___Nothing to commit___"
     - git push origin gh-pages --force
     - echo "___Rustdoc was successfully published to https://paritytech.github.io/polkadot/___"
   after_script:
     - rm -rf .git/ ./*
 
 .update-substrate-template-repository:
-  stage:                           publish
-  extends:                         .kubernetes-env
+  stage: publish
+  extends: .kubernetes-env
   variables:
-    GIT_STRATEGY:                  none
+    GIT_STRATEGY: none
   rules:
     # The template is only updated for FINAL releases
     # i.e. the rule should not cover RC or patch releases
-    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+$/                     # e.g. v1.0
-    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/             # e.g. v1.0.0
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+$/ # e.g. v1.0
+    - if: $CI_COMMIT_TAG =~ /^v[0-9]+\.[0-9]+\.[0-9]+$/ # e.g. v1.0.0
   script:
     - git clone --depth=1 --branch="$PIPELINE_SCRIPTS_TAG" https://github.com/paritytech/pipeline-scripts
-    - export POLKADOT_BRANCH="polkadot-v$CI_COMMIT_TAG"
-    - git clone --depth=1 --branch="$POLKADOT_BRANCH" https://github.com/paritytech/substrate
-    - cd substrate
+    - export POLKADOT_BRANCH="polkadot-$CI_COMMIT_TAG"
+    - git clone --depth=1 --branch="$POLKADOT_BRANCH" https://github.com/paritytech/"$TEMPLATE_SOURCE"
+    - cd "$TEMPLATE_SOURCE"
     - ../pipeline-scripts/update_substrate_template.sh
       --repo-name "$TARGET_REPOSITORY"
       --template-path "$TEMPLATE_PATH"
@@ -238,14 +237,16 @@ publish-rustdoc:
 
 # Ref: https://github.com/paritytech/opstooling/issues/111
 update-node-template:
-  extends:                         .update-substrate-template-repository
+  extends: .update-substrate-template-repository
   variables:
-    TARGET_REPOSITORY:             substrate-node-template
-    TEMPLATE_PATH:                 bin/node-template
+    TARGET_REPOSITORY: substrate-node-template
+    TEMPLATE_SOURCE: substrate
+    TEMPLATE_PATH: bin/node-template
 
 # Ref: https://github.com/paritytech/opstooling/issues/111
 update-parachain-template:
-  extends:                         .update-substrate-template-repository
+  extends: .update-substrate-template-repository
   variables:
-    TARGET_REPOSITORY:             substrate-parachain-template
-    TEMPLATE_PATH:                 parachain-template
+    TARGET_REPOSITORY: substrate-parachain-template
+    TEMPLATE_SOURCE: cumulus
+    TEMPLATE_PATH: parachain-template

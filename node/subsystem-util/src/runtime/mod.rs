@@ -23,7 +23,7 @@ use lru::LruCache;
 use parity_scale_codec::Encode;
 use sp_application_crypto::AppKey;
 use sp_core::crypto::ByteArray;
-use sp_keystore::{CryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 
 use polkadot_node_subsystem::{messages::RuntimeApiMessage, overseer, SubsystemSender};
 use polkadot_primitives::{
@@ -49,7 +49,7 @@ pub struct Config {
 	/// Needed for retrieval of `ValidatorInfo`
 	///
 	/// Pass `None` if you are not interested.
-	pub keystore: Option<SyncCryptoStorePtr>,
+	pub keystore: Option<KeystorePtr>,
 
 	/// How many sessions should we keep in the cache?
 	pub session_cache_lru_size: NonZeroUsize,
@@ -69,7 +69,7 @@ pub struct RuntimeInfo {
 	session_info_cache: LruCache<SessionIndex, ExtendedSessionInfo>,
 
 	/// Key store for determining whether we are a validator and what `ValidatorIndex` we have.
-	keystore: Option<SyncCryptoStorePtr>,
+	keystore: Option<KeystorePtr>,
 }
 
 /// `SessionInfo` with additional useful data for validator nodes.
@@ -102,7 +102,7 @@ impl Default for Config {
 
 impl RuntimeInfo {
 	/// Create a new `RuntimeInfo` for convenient runtime fetches.
-	pub fn new(keystore: Option<SyncCryptoStorePtr>) -> Self {
+	pub fn new(keystore: Option<KeystorePtr>) -> Self {
 		Self::new_with_config(Config { keystore, ..Default::default() })
 	}
 
@@ -171,7 +171,7 @@ impl RuntimeInfo {
 				recv_runtime(request_session_info(parent, session_index, sender).await)
 					.await?
 					.ok_or(JfyiError::NoSuchSession(session_index))?;
-			let validator_info = self.get_validator_info(&session_info).await?;
+			let validator_info = self.get_validator_info(&session_info)?;
 
 			let full_info = ExtendedSessionInfo { session_info, validator_info };
 
@@ -206,8 +206,8 @@ impl RuntimeInfo {
 	///
 	///
 	/// Returns: `None` if not a parachain validator.
-	async fn get_validator_info(&self, session_info: &SessionInfo) -> Result<ValidatorInfo> {
-		if let Some(our_index) = self.get_our_index(&session_info.validators).await {
+	fn get_validator_info(&self, session_info: &SessionInfo) -> Result<ValidatorInfo> {
+		if let Some(our_index) = self.get_our_index(&session_info.validators) {
 			// Get our group index:
 			let our_group =
 				session_info.validator_groups.iter().enumerate().find_map(|(i, g)| {
@@ -228,13 +228,13 @@ impl RuntimeInfo {
 	/// Get our `ValidatorIndex`.
 	///
 	/// Returns: None if we are not a validator.
-	async fn get_our_index(
+	fn get_our_index(
 		&self,
 		validators: &IndexedVec<ValidatorIndex, ValidatorId>,
 	) -> Option<ValidatorIndex> {
 		let keystore = self.keystore.as_ref()?;
 		for (i, v) in validators.iter().enumerate() {
-			if CryptoStore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]).await {
+			if Keystore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]) {
 				return Some(ValidatorIndex(i as u32))
 			}
 		}

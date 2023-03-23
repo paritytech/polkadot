@@ -150,7 +150,7 @@ fn deregister_parachain(id: ParaId) {
 }
 
 fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
-	<Hrmp as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }).is_some()
+	HrmpChannels::<Test>::get(&HrmpChannelId { sender, recipient }).is_some()
 }
 
 #[test]
@@ -278,8 +278,10 @@ fn send_recv_messages() {
 		// A sends a message to B
 		run_to_block(6, Some(vec![6]));
 		assert!(channel_exists(para_a, para_b));
-		let msgs =
-			vec![OutboundHrmpMessage { recipient: para_b, data: b"this is an emergency".to_vec() }];
+		let msgs: HorizontalMessages =
+			vec![OutboundHrmpMessage { recipient: para_b, data: b"this is an emergency".to_vec() }]
+				.try_into()
+				.unwrap();
 		let config = Configuration::config();
 		assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
 		let _ = Hrmp::queue_outbound_hrmp(para_a, msgs);
@@ -313,13 +315,17 @@ fn hrmp_mqc_head_fixture() {
 		run_to_block(3, Some(vec![3]));
 		let _ = Hrmp::queue_outbound_hrmp(
 			para_a,
-			vec![OutboundHrmpMessage { recipient: para_b, data: vec![1, 2, 3] }],
+			vec![OutboundHrmpMessage { recipient: para_b, data: vec![1, 2, 3] }]
+				.try_into()
+				.unwrap(),
 		);
 
 		run_to_block(4, None);
 		let _ = Hrmp::queue_outbound_hrmp(
 			para_a,
-			vec![OutboundHrmpMessage { recipient: para_b, data: vec![4, 5, 6] }],
+			vec![OutboundHrmpMessage { recipient: para_b, data: vec![4, 5, 6] }]
+				.try_into()
+				.unwrap(),
 		);
 
 		assert_eq!(
@@ -381,7 +387,10 @@ fn check_sent_messages() {
 		run_to_block(6, Some(vec![6]));
 		assert!(Paras::is_valid_para(para_a));
 
-		let msgs = vec![OutboundHrmpMessage { recipient: para_b, data: b"knock".to_vec() }];
+		let msgs: HorizontalMessages =
+			vec![OutboundHrmpMessage { recipient: para_b, data: b"knock".to_vec() }]
+				.try_into()
+				.unwrap();
 		let config = Configuration::config();
 		assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
 		let _ = Hrmp::queue_outbound_hrmp(para_a, msgs.clone());

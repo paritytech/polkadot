@@ -15,13 +15,3 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! Put implementations of functions from staging APIs here.
-
-use crate::disputes;
-use primitives::{CandidateHash, DisputeState, SessionIndex};
-use sp_std::prelude::*;
-
-/// Implementation for `get_session_disputes` function from the runtime API
-pub fn get_session_disputes<T: disputes::Config>(
-) -> Vec<(SessionIndex, CandidateHash, DisputeState<T::BlockNumber>)> {
-	<disputes::Pallet<T>>::disputes()
-}

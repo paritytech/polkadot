@@ -17,8 +17,8 @@ jobs:
     steps:
       - id: get-rust-versions
         run: |
-          echo "::set-output name=stable::$(rustc +stable --version)"
-          echo "::set-output name=nightly::$(rustc +nightly --version)"
+          echo "stable=$(rustc +stable --version)" >> $GITHUB_OUTPUT
+          echo "nightly=$(rustc +nightly --version)" >> $GITHUB_OUTPUT
 
   build-runtimes:
     runs-on: ubuntu-latest
@@ -166,7 +166,7 @@ jobs:
           ls "$RUNTIME_DIR/${{ matrix.runtime }}"
           runtime_ver=$(ruby script.rb)
           echo "Found version: >$runtime_ver<"
-          echo "::set-output name=runtime_ver::$runtime_ver"
+          echo "runtime_ver=$runtime_ver" >> $GITHUB_OUTPUT
 
       - name: Upload compressed ${{ matrix.runtime }} wasm
         uses: actions/upload-release-asset@v1
