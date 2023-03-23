@@ -75,6 +75,10 @@ pub enum Error {
 
 	#[error(transparent)]
 	SubsystemError(#[from] SubsystemError),
+
+	#[fatal]
+	#[error(transparent)]
+	OverseerExited(SubsystemError),
 }
 
 /// Used by `get_onchain_disputes` to represent errors related to fetching on-chain disputes from the Runtime
