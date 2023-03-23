@@ -34,7 +34,8 @@ pub use pallet::*;
 mod tests;
 
 pub const MAX_MESSAGE_QUEUE_SIZE: usize = 1024;
-pub const MULTIPLICATIVE_FEE_FACTOR: FixedU128 = FixedU128::from_rational(101, 100); // 1.01
+pub const EXPONENTIAL_FEE_BASE: FixedU128 = FixedU128::from_rational(101, 100); // 1.01
+pub const MESSAGE_SIZE_FEE_BASE: FixedU128 = FixedU128::from_rational(1001, 1000); //1.001
 
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
@@ -204,7 +205,10 @@ impl<T: Config> Pallet<T> {
 				.saturating_div(config.max_downward_message_size)
 				.saturating_div(2u32)) as usize
 		{
-			Self::increment_fee_factor(para);
+			let message_size_factor =
+				FixedU128::from_inner(serialized_len.saturating_div(1024) as u128)
+					.saturating_mul(MESSAGE_SIZE_FEE_BASE);
+			Self::increment_fee_factor(para, message_size_factor);
 		}
 
 		Ok(())
@@ -281,9 +285,9 @@ impl<T: Config> Pallet<T> {
 	/// Raise the delivery fee factor by a multiplicative factor and stores the resulting value.
 	///
 	/// Returns the new delivery fee factor after the increment.
-	pub(crate) fn increment_fee_factor(para: ParaId) -> FixedU128 {
+	pub(crate) fn increment_fee_factor(para: ParaId, message_size_factor: FixedU128) -> FixedU128 {
 		<DeliveryFeeFactor<T>>::mutate(para, |f| {
-			*f = f.saturating_mul(MULTIPLICATIVE_FEE_FACTOR);
+			*f = f.saturating_mul(EXPONENTIAL_FEE_BASE + message_size_factor);
 			*f
 		})
 	}
@@ -295,7 +299,7 @@ impl<T: Config> Pallet<T> {
 	/// Returns the new delivery fee factor after the decrement.
 	pub(crate) fn decrement_fee_factor(para: ParaId) -> FixedU128 {
 		<DeliveryFeeFactor<T>>::mutate(para, |f| {
-			*f = InitialFactor::get().max(*f / MULTIPLICATIVE_FEE_FACTOR);
+			*f = InitialFactor::get().max(*f / EXPONENTIAL_FEE_BASE);
 			*f
 		})
 	}
