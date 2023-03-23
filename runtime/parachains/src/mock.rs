@@ -18,7 +18,7 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
-	scheduler, scheduler_polkadot, session_info, shared,
+	scheduler, scheduler_on_demand, scheduler_parachains, scheduler_polkadot, session_info, shared,
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
@@ -61,6 +61,8 @@ frame_support::construct_runtime!(
 		ParaInherent: paras_inherent,
 		Scheduler: scheduler,
 		SchedulerPolkadot: scheduler_polkadot,
+		OnDemandAssigner: scheduler_on_demand,
+		ParachainsAssigner: scheduler_parachains,
 		Initializer: initializer,
 		Dmp: dmp,
 		Ump: ump,
@@ -296,6 +298,19 @@ impl crate::scheduler_polkadot::Config for Test {}
 impl crate::scheduler::Config for Test {
 	type AssignmentProvider = crate::scheduler_polkadot::Pallet<Test>;
 }
+
+impl crate::scheduler_polkadot::Config for Test {
+	type ParachainsAssignmentProvider = ParachainsAssigner;
+	type OnDemandAssignmentProvider = OnDemandAssigner;
+}
+
+impl crate::scheduler_parachains::Config for Test {}
+
+impl crate::scheduler_on_demand::Config for Test {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+}
+
 impl crate::inclusion::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = Disputes;
