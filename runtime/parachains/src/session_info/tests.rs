@@ -19,13 +19,13 @@ use crate::{
 	configuration::HostConfiguration,
 	initializer::SessionChangeNotification,
 	mock::{
-		new_test_ext, Configuration, MockGenesisConfig, Origin, ParasShared, SessionInfo, System,
-		Test,
+		new_test_ext, Configuration, MockGenesisConfig, ParasShared, RuntimeOrigin, SessionInfo,
+		System, Test,
 	},
 	util::take_active_subset,
 };
 use keyring::Sr25519Keyring;
-use primitives::v2::{BlockNumber, ValidatorId, ValidatorIndex};
+use primitives::{BlockNumber, ValidatorId, ValidatorIndex};
 
 fn run_to_block(
 	to: BlockNumber,
@@ -109,7 +109,7 @@ fn session_pruning_is_based_on_dispute_period() {
 
 		// changing `dispute_period` works
 		let dispute_period = 5;
-		Configuration::set_dispute_period(Origin::root(), dispute_period).unwrap();
+		Configuration::set_dispute_period(RuntimeOrigin::root(), dispute_period).unwrap();
 
 		// Dispute period does not automatically change
 		let config = Configuration::config();
@@ -124,7 +124,7 @@ fn session_pruning_is_based_on_dispute_period() {
 
 		// Increase dispute period even more
 		let new_dispute_period = 16;
-		Configuration::set_dispute_period(Origin::root(), new_dispute_period).unwrap();
+		Configuration::set_dispute_period(RuntimeOrigin::root(), new_dispute_period).unwrap();
 
 		run_to_block(210, session_changes);
 		assert_eq!(EarliestStoredSession::<Test>::get(), 21 - dispute_period);
@@ -154,7 +154,7 @@ fn session_info_is_based_on_config() {
 		assert_eq!(session.needed_approvals, 3);
 
 		// change some param
-		Configuration::set_needed_approvals(Origin::root(), 42).unwrap();
+		Configuration::set_needed_approvals(RuntimeOrigin::root(), 42).unwrap();
 		// 2 sessions later
 		run_to_block(3, new_session_every_block);
 		let session = Sessions::<Test>::get(&3).unwrap();
@@ -201,7 +201,7 @@ fn session_info_active_subsets() {
 		});
 		let session = Sessions::<Test>::get(&1).unwrap();
 
-		assert_eq!(session.validators, validators);
+		assert_eq!(session.validators.to_vec(), validators);
 		assert_eq!(
 			session.discovery_keys,
 			take_active_subset_and_inactive(&active_set, &unscrambled_discovery),

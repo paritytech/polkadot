@@ -39,7 +39,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 use pallet_babe::{self, ParentBlockRandomness};
-use primitives::v2::{
+use primitives::{
 	BackedCandidate, CandidateHash, CandidateReceipt, CheckedDisputeStatementSet,
 	CheckedMultiDisputeStatementSet, CoreIndex, DisputeStatementSet,
 	InherentData as ParachainsInherentData, MultiDisputeStatementSet, ScrapedOnChainVotes,
@@ -104,7 +104,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -277,6 +276,7 @@ pub mod pallet {
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Enter the paras inherent. This will process bitfields and backed candidates.
+		#[pallet::call_index(0)]
 		#[pallet::weight((
 			paras_inherent_total_weight::<T>(
 				data.backed_candidates.as_slice(),
@@ -348,7 +348,6 @@ impl<T: Config> Pallet<T> {
 		let (checked_disputes, total_consumed_weight) = {
 			// Obtain config params..
 			let config = <configuration::Pallet<T>>::config();
-			let max_spam_slots = config.dispute_max_spam_slots;
 			let post_conclusion_acceptance_period =
 				config.dispute_post_conclusion_acceptance_period;
 
@@ -362,7 +361,6 @@ impl<T: Config> Pallet<T> {
 			let dispute_set_validity_check = move |set| {
 				T::DisputesHandler::filter_dispute_data(
 					set,
-					max_spam_slots,
 					post_conclusion_acceptance_period,
 					verify_dispute_sigs,
 				)
@@ -373,8 +371,8 @@ impl<T: Config> Pallet<T> {
 			// the block. It's still reasonable to protect against a massive amount of disputes.
 			if candidates_weight
 				.saturating_add(bitfields_weight)
-				.saturating_add(disputes_weight) >
-				max_block_weight
+				.saturating_add(disputes_weight)
+				.any_gt(max_block_weight)
 			{
 				log::warn!("Overweight para inherent data reached the runtime {:?}", parent_hash);
 				backed_candidates.clear();
@@ -414,8 +412,7 @@ impl<T: Config> Pallet<T> {
 			// Note that `process_checked_multi_dispute_data` will iterate and import each
 			// dispute; so the input here must be reasonably bounded,
 			// which is guaranteed by the checks and weight limitation above.
-			let _ =
-				T::DisputesHandler::process_checked_multi_dispute_data(checked_disputes.clone())?;
+			let _ = T::DisputesHandler::process_checked_multi_dispute_data(&checked_disputes)?;
 			METRICS.on_disputes_imported(checked_disputes.len() as u64);
 
 			if T::DisputesHandler::is_frozen() {
@@ -513,7 +510,7 @@ impl<T: Config> Pallet<T> {
 		METRICS.on_candidates_sanitized(backed_candidates.len() as u64);
 
 		// Process backed candidates according to scheduled cores.
-		let parent_storage_root = parent_header.state_root().clone();
+		let parent_storage_root = *parent_header.state_root();
 		let inclusion::ProcessedCandidates::<<T::Header as HeaderT>::Hash> {
 			core_indices: occupied,
 			candidate_receipt_with_backing_validator_indices,
@@ -594,7 +591,6 @@ impl<T: Config> Pallet<T> {
 		}
 
 		let config = <configuration::Pallet<T>>::config();
-		let max_spam_slots = config.dispute_max_spam_slots;
 		let post_conclusion_acceptance_period = config.dispute_post_conclusion_acceptance_period;
 
 		// TODO: Better if we can convert this to `with_transactional` and handle an error if
@@ -608,7 +604,6 @@ impl<T: Config> Pallet<T> {
 			let dispute_statement_set_valid = move |set: DisputeStatementSet| {
 				T::DisputesHandler::filter_dispute_data(
 					set,
-					max_spam_slots,
 					post_conclusion_acceptance_period,
 					// `DisputeCoordinator` on the node side only forwards
 					// valid dispute statement sets and hence this does not
@@ -629,13 +624,11 @@ impl<T: Config> Pallet<T> {
 			// we don't care about fresh or not disputes
 			// this writes them to storage, so let's query it via those means
 			// if this fails for whatever reason, that's ok
-			let _ = T::DisputesHandler::process_checked_multi_dispute_data(
-				checked_disputes_sets.clone(),
-			)
-			.map_err(|e| {
-				log::warn!(target: LOG_TARGET, "MultiDisputesData failed to update: {:?}", e);
-				e
-			});
+			let _ = T::DisputesHandler::process_checked_multi_dispute_data(&checked_disputes_sets)
+				.map_err(|e| {
+					log::warn!(target: LOG_TARGET, "MultiDisputesData failed to update: {:?}", e);
+					e
+				});
 
 			// Contains the disputes that are concluded in the current session only,
 			// since these are the only ones that are relevant for the occupied cores
@@ -711,7 +704,7 @@ impl<T: Config> Pallet<T> {
 			let scheduled = <scheduler::Pallet<T>>::scheduled();
 
 			let relay_parent_number = now - One::one();
-			let parent_storage_root = parent_header.state_root().clone();
+			let parent_storage_root = *parent_header.state_root();
 
 			let check_ctx = CandidateCheckContext::<T>::new(now, relay_parent_number);
 			let backed_candidates = sanitize_backed_candidates::<T, _>(
@@ -753,7 +746,7 @@ impl<T: Config> Pallet<T> {
 			&mut rng,
 		);
 
-		if actual_weight > max_block_weight {
+		if actual_weight.any_gt(max_block_weight) {
 			log::warn!(target: LOG_TARGET, "Post weight limiting weight is still too large.");
 		}
 
@@ -820,7 +813,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		// preferred indices originate from outside
 		if let Some(item) = selectables.get(preferred_idx) {
 			let updated = weight_acc.saturating_add(weight_fn(item));
-			if updated > weight_limit {
+			if updated.any_gt(weight_limit) {
 				continue
 			}
 			weight_acc = updated;
@@ -833,7 +826,7 @@ fn random_sel<X, F: Fn(&X) -> Weight>(
 		let item = &selectables[idx];
 		let updated = weight_acc.saturating_add(weight_fn(item));
 
-		if updated > weight_limit {
+		if updated.any_gt(weight_limit) {
 			continue
 		}
 		weight_acc = updated;
@@ -877,7 +870,7 @@ fn apply_weight_limit<T: Config + inclusion::Config>(
 	let total = total_bitfields_weight.saturating_add(total_candidates_weight);
 
 	// candidates + bitfields fit into the block
-	if max_consumable_weight >= total {
+	if max_consumable_weight.all_gte(total) {
 		return total
 	}
 
@@ -1201,7 +1194,7 @@ fn compute_entropy<T: Config>(parent_hash: T::Hash) -> [u8; 32] {
 	// known 2 epochs ago. it is marginally better than using the parent block
 	// hash since it's harder to influence the VRF output than the block hash.
 	let vrf_random = ParentBlockRandomness::<T>::random(&CANDIDATE_SEED_SUBJECT[..]).0;
-	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT.clone();
+	let mut entropy: [u8; 32] = CANDIDATE_SEED_SUBJECT;
 	if let Some(vrf_random) = vrf_random {
 		entropy.as_mut().copy_from_slice(vrf_random.as_ref());
 	} else {
@@ -1243,7 +1236,7 @@ fn limit_and_sanitize_disputes<
 	// The total weight if all disputes would be included
 	let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
 
-	if disputes_weight > max_consumable_weight {
+	if disputes_weight.any_gt(max_consumable_weight) {
 		let mut checked_acc = Vec::<CheckedDisputeStatementSet>::with_capacity(disputes.len());
 
 		// Since the disputes array is sorted, we may use binary search to find the beginning of
@@ -1274,7 +1267,7 @@ fn limit_and_sanitize_disputes<
 				dss.statements.len() as u32,
 			);
 			let updated = weight_acc.saturating_add(dispute_weight);
-			if max_consumable_weight >= updated {
+			if max_consumable_weight.all_gte(updated) {
 				// only apply the weight if the validity check passes
 				if let Some(checked) = dispute_statement_set_valid(dss.clone()) {
 					checked_acc.push(checked);

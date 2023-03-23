@@ -145,10 +145,19 @@ These updates are posted from the [Network Bridge Subsystem](../node/utility/net
 struct NewGossipTopology {
 	/// The session index this topology corresponds to.
 	session: SessionIndex,
-	/// Neighbors in the 'X' dimension of the grid.
-	our_neighbors_x: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
-	/// Neighbors in the 'Y' dimension of the grid.
-	our_neighbors_y: HashMap<AuthorityDiscoveryId, TopologyPeerInfo>,
+	/// The topology itself.
+	topology: SessionGridTopology,
+	/// The local validator index, if any.
+	local_index: Option<ValidatorIndex>,
+}
+
+struct SessionGridTopology {
+	/// An array mapping validator indices to their indices in the
+	/// shuffling itself. This has the same size as the number of validators
+	/// in the session.
+	shuffled_indices: Vec<usize>,
+	/// The canonical shuffling of validators for the session.
+	canonical_shuffling: Vec<TopologyPeerInfo>,
 }
 
 struct TopologyPeerInfo {
@@ -157,6 +166,9 @@ struct TopologyPeerInfo {
 	/// The index of the validator in the discovery keys of the corresponding
 	/// `SessionInfo`. This can extend _beyond_ the set of active parachain validators.
 	validator_index: ValidatorIndex,
+	/// The authority discovery public key of the validator in the corresponding
+	/// `SessionInfo`.
+	discovery_id: AuthorityDiscoveryId,
 }
 
 enum NetworkBridgeEvent<M> {

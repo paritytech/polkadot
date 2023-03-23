@@ -32,7 +32,7 @@ use tempfile::tempdir;
 
 pub mod common;
 
-static RUNTIMES: [&'static str; 4] = ["polkadot", "kusama", "westend", "rococo"];
+static RUNTIMES: [&str; 4] = ["polkadot", "kusama", "westend", "rococo"];
 
 /// `benchmark block` works for all dev runtimes using the wasm executor.
 #[tokio::test]
@@ -54,7 +54,7 @@ async fn build_chain(runtime: &str, base_path: &Path) -> Result<(), String> {
 	let mut cmd = Command::new(cargo_bin("polkadot"))
 		.stdout(process::Stdio::piped())
 		.stderr(process::Stdio::piped())
-		.args(["--chain", &runtime, "--force-authoring", "--alice"])
+		.args(["--chain", runtime, "--force-authoring", "--alice"])
 		.arg("-d")
 		.arg(base_path)
 		.arg("--no-hardware-benchmarks")
@@ -77,7 +77,7 @@ async fn build_chain(runtime: &str, base_path: &Path) -> Result<(), String> {
 fn benchmark_block(runtime: &str, base_path: &Path, block: u32) -> Result<(), String> {
 	// Invoke `benchmark block` with all options to make sure that they are valid.
 	let status = Command::new(cargo_bin("polkadot"))
-		.args(["benchmark", "block", "--chain", &runtime])
+		.args(["benchmark", "block", "--chain", runtime])
 		.arg("-d")
 		.arg(base_path)
 		.args(["--from", &block.to_string(), "--to", &block.to_string()])

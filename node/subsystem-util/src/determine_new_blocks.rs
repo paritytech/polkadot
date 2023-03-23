@@ -18,7 +18,7 @@
 
 use futures::{channel::oneshot, prelude::*};
 use polkadot_node_subsystem::{messages::ChainApiMessage, SubsystemSender};
-use polkadot_primitives::v2::{BlockNumber, Hash, Header};
+use polkadot_primitives::{BlockNumber, Hash, Header};
 
 /// Given a new chain-head hash, this determines the hashes of all new blocks we should track
 /// metadata for, given this head.
@@ -65,7 +65,7 @@ where
 	}
 
 	'outer: loop {
-		let &(ref last_hash, ref last_header) = ancestry
+		let (last_hash, last_header) = ancestry
 			.last()
 			.expect("ancestry has length 1 at initialization and is only added to; qed");
 

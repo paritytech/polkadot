@@ -25,6 +25,7 @@ use polkadot_cli::{
 		OverseerConnector, OverseerGen, OverseerGenArgs, OverseerHandle, ParachainHost,
 		ProvideRuntimeApi,
 	},
+	Cli,
 };
 use polkadot_node_subsystem::SpawnGlue;
 use sp_core::traits::SpawnNamed;
@@ -36,11 +37,27 @@ use crate::{
 
 use std::sync::Arc;
 
+#[derive(Debug, clap::Parser)]
+#[clap(rename_all = "kebab-case")]
+#[allow(missing_docs)]
+pub struct BackGarbageCandidateOptions {
+	/// Determines the percentage of garbage candidates that should be backed.
+	/// Defaults to 100% of garbage candidates being backed.
+	#[clap(short, long, ignore_case = true, default_value_t = 100, value_parser = clap::value_parser!(u8).range(0..=100))]
+	pub percentage: u8,
+
+	#[clap(flatten)]
+	pub cli: Cli,
+}
+
 /// Generates an overseer that replaces the candidate validation subsystem with our malicious
 /// variant.
-pub(crate) struct BackGarbageCandidate;
+pub(crate) struct BackGarbageCandidates {
+	/// The probability of behaving maliciously.
+	pub percentage: u8,
+}
 
-impl OverseerGen for BackGarbageCandidate {
+impl OverseerGen for BackGarbageCandidates {
 	fn generate<'a, Spawner, RuntimeClient>(
 		&self,
 		connector: OverseerConnector,
@@ -55,6 +72,7 @@ impl OverseerGen for BackGarbageCandidate {
 		let validation_filter = ReplaceValidationResult::new(
 			FakeCandidateValidation::BackingAndApprovalValid,
 			FakeCandidateValidationError::InvalidOutputs,
+			f64::from(self.percentage),
 			SpawnGlue(spawner),
 		);
 

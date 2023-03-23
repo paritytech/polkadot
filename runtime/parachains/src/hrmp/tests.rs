@@ -15,12 +15,15 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::{
-	new_test_ext, Configuration, Event as MockEvent, Hrmp, MockGenesisConfig, Paras, ParasShared,
-	System, Test,
+use crate::{
+	mock::{
+		new_test_ext, Configuration, Hrmp, MockGenesisConfig, Paras, ParasShared,
+		RuntimeEvent as MockEvent, RuntimeOrigin, System, Test,
+	},
+	paras::ParaKind,
 };
 use frame_support::{assert_noop, assert_ok, traits::Currency as _};
-use primitives::v2::BlockNumber;
+use primitives::BlockNumber;
 use std::collections::BTreeMap;
 
 fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
@@ -130,7 +133,7 @@ fn register_parachain_with_balance(id: ParaId, balance: Balance) {
 	assert_ok!(Paras::schedule_para_initialize(
 		id,
 		crate::paras::ParaGenesisArgs {
-			parachain: true,
+			para_kind: ParaKind::Parachain,
 			genesis_head: vec![1].into(),
 			validation_code: vec![1].into(),
 		},
@@ -147,7 +150,7 @@ fn deregister_parachain(id: ParaId) {
 }
 
 fn channel_exists(sender: ParaId, recipient: ParaId) -> bool {
-	<Hrmp as Store>::HrmpChannels::get(&HrmpChannelId { sender, recipient }).is_some()
+	HrmpChannels::<Test>::get(&HrmpChannelId { sender, recipient }).is_some()
 }
 
 #[test]
@@ -181,6 +184,34 @@ fn open_channel_works() {
 			.iter()
 			.any(|record| record.event ==
 				MockEvent::Hrmp(Event::OpenChannelAccepted(para_a, para_b))));
+
+		// Advance to a block 6, but without session change. That means that the channel has
+		// not been created yet.
+		run_to_block(6, None);
+		assert!(!channel_exists(para_a, para_b));
+		Hrmp::assert_storage_consistency_exhaustive();
+
+		// Now let the session change happen and thus open the channel.
+		run_to_block(8, Some(vec![8]));
+		assert!(channel_exists(para_a, para_b));
+	});
+}
+
+#[test]
+fn force_open_channel_works() {
+	let para_a = 1.into();
+	let para_b = 3.into();
+
+	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
+		// We need both A & B to be registered and live parachains.
+		register_parachain(para_a);
+		register_parachain(para_b);
+
+		run_to_block(5, Some(vec![4, 5]));
+		Hrmp::force_open_hrmp_channel(RuntimeOrigin::root(), para_a, para_b, 2, 8).unwrap();
+		Hrmp::assert_storage_consistency_exhaustive();
+		assert!(System::events().iter().any(|record| record.event ==
+			MockEvent::Hrmp(Event::HrmpChannelForceOpened(para_a, para_b, 2, 8))));
 
 		// Advance to a block 6, but without session change. That means that the channel has
 		// not been created yet.
@@ -247,8 +278,10 @@ fn send_recv_messages() {
 		// A sends a message to B
 		run_to_block(6, Some(vec![6]));
 		assert!(channel_exists(para_a, para_b));
-		let msgs =
-			vec![OutboundHrmpMessage { recipient: para_b, data: b"this is an emergency".to_vec() }];
+		let msgs: HorizontalMessages =
+			vec![OutboundHrmpMessage { recipient: para_b, data: b"this is an emergency".to_vec() }]
+				.try_into()
+				.unwrap();
 		let config = Configuration::config();
 		assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
 		let _ = Hrmp::queue_outbound_hrmp(para_a, msgs);
@@ -282,13 +315,17 @@ fn hrmp_mqc_head_fixture() {
 		run_to_block(3, Some(vec![3]));
 		let _ = Hrmp::queue_outbound_hrmp(
 			para_a,
-			vec![OutboundHrmpMessage { recipient: para_b, data: vec![1, 2, 3] }],
+			vec![OutboundHrmpMessage { recipient: para_b, data: vec![1, 2, 3] }]
+				.try_into()
+				.unwrap(),
 		);
 
 		run_to_block(4, None);
 		let _ = Hrmp::queue_outbound_hrmp(
 			para_a,
-			vec![OutboundHrmpMessage { recipient: para_b, data: vec![4, 5, 6] }],
+			vec![OutboundHrmpMessage { recipient: para_b, data: vec![4, 5, 6] }]
+				.try_into()
+				.unwrap(),
 		);
 
 		assert_eq!(
@@ -350,7 +387,10 @@ fn check_sent_messages() {
 		run_to_block(6, Some(vec![6]));
 		assert!(Paras::is_valid_para(para_a));
 
-		let msgs = vec![OutboundHrmpMessage { recipient: para_b, data: b"knock".to_vec() }];
+		let msgs: HorizontalMessages =
+			vec![OutboundHrmpMessage { recipient: para_b, data: b"knock".to_vec() }]
+				.try_into()
+				.unwrap();
 		let config = Configuration::config();
 		assert!(Hrmp::check_outbound_hrmp(&config, para_a, &msgs).is_ok());
 		let _ = Hrmp::queue_outbound_hrmp(para_a, msgs.clone());
@@ -387,7 +427,7 @@ fn check_sent_messages() {
 
 #[test]
 fn verify_externally_accessible() {
-	use primitives::v2::{well_known_keys, AbridgedHrmpChannel};
+	use primitives::{well_known_keys, AbridgedHrmpChannel};
 
 	let para_a = 20.into();
 	let para_b = 21.into();

@@ -21,14 +21,11 @@ use polkadot_node_primitives::{BabeAllowedSlots, BabeEpoch, BabeEpochConfigurati
 use polkadot_node_subsystem::SpawnGlue;
 use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_primitives::{
-	runtime_api::ParachainHost,
-	v2::{
-		AuthorityDiscoveryId, Block, BlockNumber, CandidateEvent, CandidateHash,
-		CommittedCandidateReceipt, CoreState, DisputeState, GroupRotationInfo, Id as ParaId,
-		InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-		PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-		ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
-	},
+	runtime_api::ParachainHost, AuthorityDiscoveryId, Block, CandidateEvent,
+	CommittedCandidateReceipt, CoreState, GroupRotationInfo, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use sp_api::ProvideRuntimeApi;
 use sp_authority_discovery::AuthorityDiscoveryApi;
@@ -89,7 +86,7 @@ sp_api::mock_impl_runtime_apis! {
 		}
 
 		fn availability_cores(&self) -> Vec<CoreState> {
-			let _ = self.availability_cores_wait.lock().unwrap();
+			let _lock = self.availability_cores_wait.lock().unwrap();
 			self.availability_cores.clone()
 		}
 
@@ -115,7 +112,7 @@ sp_api::mock_impl_runtime_apis! {
 		fn check_validation_outputs(
 			&self,
 			para_id: ParaId,
-			_commitments: polkadot_primitives::v2::CandidateCommitments,
+			_commitments: polkadot_primitives::CandidateCommitments,
 		) -> bool {
 			self.validation_outputs_results
 				.get(&para_id)
@@ -196,10 +193,6 @@ sp_api::mock_impl_runtime_apis! {
 		) -> Option<ValidationCodeHash> {
 			self.validation_code_hash.get(&para).map(|c| c.clone())
 		}
-
-		fn staging_get_disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
-			unimplemented!()
-		}
 	}
 
 	impl BabeApi<Block> for MockRuntimeApi {
@@ -227,7 +220,7 @@ sp_api::mock_impl_runtime_apis! {
 		}
 
 		fn submit_report_equivocation_unsigned_extrinsic(
-			_equivocation_proof: sp_consensus_babe::EquivocationProof<polkadot_primitives::v2::Header>,
+			_equivocation_proof: sp_consensus_babe::EquivocationProof<polkadot_primitives::Header>,
 			_key_owner_proof: sp_consensus_babe::OpaqueKeyOwnershipProof,
 		) -> Option<()> {
 			None
@@ -456,7 +449,7 @@ fn requests_check_validation_outputs() {
 	let relay_parent = [1; 32].into();
 	let para_a = ParaId::from(5_u32);
 	let para_b = ParaId::from(6_u32);
-	let commitments = polkadot_primitives::v2::CandidateCommitments::default();
+	let commitments = polkadot_primitives::CandidateCommitments::default();
 	let spawner = sp_core::testing::TaskExecutor::new();
 
 	runtime_api.validation_outputs_results.insert(para_a, false);
@@ -526,10 +519,10 @@ fn requests_session_index_for_child() {
 
 fn dummy_session_info() -> SessionInfo {
 	SessionInfo {
-		validators: vec![],
+		validators: Default::default(),
 		discovery_keys: vec![],
 		assignment_keys: vec![],
-		validator_groups: vec![],
+		validator_groups: Default::default(),
 		n_cores: 4u32,
 		zeroth_delay_tranche_width: 0u32,
 		relay_vrf_modulo_samples: 0u32,

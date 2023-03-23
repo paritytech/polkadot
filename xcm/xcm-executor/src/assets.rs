@@ -23,9 +23,9 @@ use sp_std::{
 use xcm::latest::{
 	AssetId, AssetInstance,
 	Fungibility::{Fungible, NonFungible},
-	MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation,
+	InteriorMultiLocation, MultiAsset, MultiAssetFilter, MultiAssets, MultiLocation,
 	WildFungibility::{Fungible as WildFungible, NonFungible as WildNonFungible},
-	WildMultiAsset::{All, AllOf},
+	WildMultiAsset::{All, AllCounted, AllOf, AllOfCounted},
 };
 
 /// List of non-wildcard fungible and non-fungible assets.
@@ -60,7 +60,7 @@ impl From<Vec<MultiAsset>> for Assets {
 
 impl From<MultiAssets> for Assets {
 	fn from(assets: MultiAssets) -> Assets {
-		assets.drain().into()
+		assets.into_inner().into()
 	}
 }
 
@@ -100,17 +100,17 @@ impl Assets {
 	}
 
 	/// A borrowing iterator over the fungible assets.
-	pub fn fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
+	pub fn fungible_assets_iter(&self) -> impl Iterator<Item = MultiAsset> + '_ {
 		self.fungible
 			.iter()
-			.map(|(id, &amount)| MultiAsset { fun: Fungible(amount), id: id.clone() })
+			.map(|(id, &amount)| MultiAsset { fun: Fungible(amount), id: *id })
 	}
 
 	/// A borrowing iterator over the non-fungible assets.
-	pub fn non_fungible_assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
+	pub fn non_fungible_assets_iter(&self) -> impl Iterator<Item = MultiAsset> + '_ {
 		self.non_fungible
 			.iter()
-			.map(|(id, instance)| MultiAsset { fun: NonFungible(instance.clone()), id: id.clone() })
+			.map(|(id, instance)| MultiAsset { fun: NonFungible(*instance), id: *id })
 	}
 
 	/// A consuming iterator over all assets.
@@ -126,7 +126,7 @@ impl Assets {
 	}
 
 	/// A borrowing iterator over all assets.
-	pub fn assets_iter<'a>(&'a self) -> impl Iterator<Item = MultiAsset> + 'a {
+	pub fn assets_iter(&self) -> impl Iterator<Item = MultiAsset> + '_ {
 		self.fungible_assets_iter().chain(self.non_fungible_assets_iter())
 	}
 
@@ -210,20 +210,20 @@ impl Assets {
 	}
 
 	/// Mutate the assets to be interpreted as the same assets from the perspective of a `target`
-	/// chain. The local chain's `ancestry` is provided.
+	/// chain. The local chain's `context` is provided.
 	///
 	/// Any assets which were unable to be reanchored are introduced into `failed_bin`.
 	pub fn reanchor(
 		&mut self,
 		target: &MultiLocation,
-		ancestry: &MultiLocation,
+		context: InteriorMultiLocation,
 		mut maybe_failed_bin: Option<&mut Self>,
 	) {
 		let mut fungible = Default::default();
 		mem::swap(&mut self.fungible, &mut fungible);
 		self.fungible = fungible
 			.into_iter()
-			.filter_map(|(mut id, amount)| match id.reanchor(target, ancestry) {
+			.filter_map(|(mut id, amount)| match id.reanchor(target, context) {
 				Ok(()) => Some((id, amount)),
 				Err(()) => {
 					maybe_failed_bin.as_mut().map(|f| f.fungible.insert(id, amount));
@@ -235,7 +235,7 @@ impl Assets {
 		mem::swap(&mut self.non_fungible, &mut non_fungible);
 		self.non_fungible = non_fungible
 			.into_iter()
-			.filter_map(|(mut class, inst)| match class.reanchor(target, ancestry) {
+			.filter_map(|(mut class, inst)| match class.reanchor(target, context) {
 				Ok(()) => Some((class, inst)),
 				Err(()) => {
 					maybe_failed_bin.as_mut().map(|f| f.non_fungible.insert((class, inst)));
@@ -245,18 +245,42 @@ impl Assets {
 			.collect();
 	}
 
+	/// Returns `true` if `asset` is contained within `self`.
+	pub fn contains_asset(&self, asset: &MultiAsset) -> bool {
+		match asset {
+			MultiAsset { fun: Fungible(amount), id } =>
+				self.fungible.get(id).map_or(false, |a| a >= amount),
+			MultiAsset { fun: NonFungible(instance), id } =>
+				self.non_fungible.contains(&(*id, *instance)),
+		}
+	}
+
+	/// Returns `true` if all `assets` are contained within `self`.
+	pub fn contains_assets(&self, assets: &MultiAssets) -> bool {
+		assets.inner().iter().all(|a| self.contains_asset(a))
+	}
+
+	/// Returns `true` if all `assets` are contained within `self`.
+	pub fn contains(&self, assets: &Assets) -> bool {
+		assets
+			.fungible
+			.iter()
+			.all(|(k, v)| self.fungible.get(k).map_or(false, |a| a >= v)) &&
+			self.non_fungible.is_superset(&assets.non_fungible)
+	}
+
 	/// Returns an error unless all `assets` are contained in `self`. In the case of an error, the first asset in
 	/// `assets` which is not wholly in `self` is returned.
 	pub fn ensure_contains(&self, assets: &MultiAssets) -> Result<(), TakeError> {
 		for asset in assets.inner().iter() {
 			match asset {
-				MultiAsset { fun: Fungible(ref amount), ref id } => {
+				MultiAsset { fun: Fungible(amount), id } => {
 					if self.fungible.get(id).map_or(true, |a| a < amount) {
-						return Err(TakeError::AssetUnderflow((id.clone(), *amount).into()))
+						return Err(TakeError::AssetUnderflow((*id, *amount).into()))
 					}
 				},
-				MultiAsset { fun: NonFungible(ref instance), ref id } => {
-					let id_instance = (id.clone(), instance.clone());
+				MultiAsset { fun: NonFungible(instance), id } => {
+					let id_instance = (*id, *instance);
 					if !self.non_fungible.contains(&id_instance) {
 						return Err(TakeError::AssetUnderflow(id_instance.into()))
 					}
@@ -272,7 +296,8 @@ impl Assets {
 	/// reducing it by assets it does not contain. In this case, the function is infallible. If `saturate` is `false`
 	/// and `mask` references a definite asset which `self` does not contain then an error is returned.
 	///
-	/// The number of unique assets which are removed will never be any greater than `limit`.
+	/// The number of unique assets which are removed will respect the `count` parameter in the
+	/// counted wildcard variants.
 	///
 	/// Returns `Ok` with the definite assets token from `self` and mutates `self` to its value minus
 	/// `mask`. Returns `Err` in the non-saturating case where `self` did not contain (enough of) a definite asset to
@@ -281,17 +306,18 @@ impl Assets {
 		&mut self,
 		mask: MultiAssetFilter,
 		saturate: bool,
-		limit: usize,
 	) -> Result<Assets, TakeError> {
 		let mut taken = Assets::new();
+		let maybe_limit = mask.limit().map(|x| x as usize);
 		match mask {
-			MultiAssetFilter::Wild(All) =>
-				if self.fungible.len() + self.non_fungible.len() <= limit {
+			// TODO: Counted variants where we define `limit`.
+			MultiAssetFilter::Wild(All) | MultiAssetFilter::Wild(AllCounted(_)) => {
+				if maybe_limit.map_or(true, |l| self.len() <= l) {
 					return Ok(self.swapped(Assets::new()))
 				} else {
 					let fungible = mem::replace(&mut self.fungible, Default::default());
 					fungible.into_iter().for_each(|(c, amount)| {
-						if taken.len() < limit {
+						if maybe_limit.map_or(true, |l| taken.len() < l) {
 							taken.fungible.insert(c, amount);
 						} else {
 							self.fungible.insert(c, amount);
@@ -299,22 +325,26 @@ impl Assets {
 					});
 					let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
 					non_fungible.into_iter().for_each(|(c, instance)| {
-						if taken.len() < limit {
+						if maybe_limit.map_or(true, |l| taken.len() < l) {
 							taken.non_fungible.insert((c, instance));
 						} else {
 							self.non_fungible.insert((c, instance));
 						}
 					});
-				},
-			MultiAssetFilter::Wild(AllOf { fun: WildFungible, id }) => {
-				if let Some((id, amount)) = self.fungible.remove_entry(&id) {
-					taken.fungible.insert(id, amount);
 				}
 			},
+			MultiAssetFilter::Wild(AllOfCounted { fun: WildFungible, id, .. }) |
+			MultiAssetFilter::Wild(AllOf { fun: WildFungible, id }) =>
+				if maybe_limit.map_or(true, |l| l >= 1) {
+					if let Some((id, amount)) = self.fungible.remove_entry(&id) {
+						taken.fungible.insert(id, amount);
+					}
+				},
+			MultiAssetFilter::Wild(AllOfCounted { fun: WildNonFungible, id, .. }) |
 			MultiAssetFilter::Wild(AllOf { fun: WildNonFungible, id }) => {
 				let non_fungible = mem::replace(&mut self.non_fungible, Default::default());
 				non_fungible.into_iter().for_each(|(c, instance)| {
-					if c == id && taken.len() < limit {
+					if c == id && maybe_limit.map_or(true, |l| taken.len() < l) {
 						taken.non_fungible.insert((c, instance));
 					} else {
 						self.non_fungible.insert((c, instance));
@@ -325,7 +355,7 @@ impl Assets {
 				if !saturate {
 					self.ensure_contains(&assets)?;
 				}
-				for asset in assets.drain().into_iter() {
+				for asset in assets.into_inner().into_iter() {
 					match asset {
 						MultiAsset { fun: Fungible(amount), id } => {
 							let (remove, amount) = match self.fungible.get_mut(&id) {
@@ -350,9 +380,6 @@ impl Assets {
 							}
 						},
 					}
-					if taken.len() == limit {
-						break
-					}
 				}
 			},
 		}
@@ -364,16 +391,7 @@ impl Assets {
 	/// Returns `Ok` with the non-wildcard equivalence of `mask` taken and mutates `self` to its value minus
 	/// `mask` if `self` contains `asset`, and return `Err` otherwise.
 	pub fn saturating_take(&mut self, asset: MultiAssetFilter) -> Assets {
-		self.general_take(asset, true, usize::max_value())
-			.expect("general_take never results in error when saturating")
-	}
-
-	/// Mutates `self` to its original value less `mask` and returns `true` iff it contains at least `mask`.
-	///
-	/// Returns `Ok` with the non-wildcard equivalence of `mask` taken and mutates `self` to its value minus
-	/// `mask` if `self` contains `asset`, and return `Err` otherwise.
-	pub fn limited_saturating_take(&mut self, asset: MultiAssetFilter, limit: usize) -> Assets {
-		self.general_take(asset, true, limit)
+		self.general_take(asset, true)
 			.expect("general_take never results in error when saturating")
 	}
 
@@ -382,7 +400,7 @@ impl Assets {
 	/// Returns `Ok` with the non-wildcard equivalence of `asset` taken and mutates `self` to its value minus
 	/// `asset` if `self` contains `asset`, and return `Err` otherwise.
 	pub fn try_take(&mut self, mask: MultiAssetFilter) -> Result<Assets, TakeError> {
-		self.general_take(mask, false, usize::max_value())
+		self.general_take(mask, false)
 	}
 
 	/// Consumes `self` and returns its original value excluding `asset` iff it contains at least `asset`.
@@ -415,47 +433,72 @@ impl Assets {
 
 	/// Return the assets in `self`, but (asset-wise) of no greater value than `mask`.
 	///
-	/// Result is undefined if `mask` includes elements which match to the same asset more than once.
+	/// The number of unique assets which are returned will respect the `count` parameter in the
+	/// counted wildcard variants of `mask`.
 	///
 	/// Example:
 	///
 	/// ```
 	/// use xcm_executor::Assets;
 	/// use xcm::latest::prelude::*;
-	/// let assets_i_have: Assets = vec![ (Here, 100).into(), (vec![0], 100).into() ].into();
-	/// let assets_they_want: MultiAssetFilter = vec![ (Here, 200).into(), (vec![0], 50).into() ].into();
+	/// let assets_i_have: Assets = vec![ (Here, 100).into(), ([0; 32], 100).into() ].into();
+	/// let assets_they_want: MultiAssetFilter = vec![ (Here, 200).into(), ([0; 32], 50).into() ].into();
 	///
 	/// let assets_we_can_trade: Assets = assets_i_have.min(&assets_they_want);
 	/// assert_eq!(assets_we_can_trade.into_assets_iter().collect::<Vec<_>>(), vec![
-	/// 	(Here, 100).into(), (vec![0], 50).into(),
+	/// 	(Here, 100).into(), ([0; 32], 50).into(),
 	/// ]);
 	/// ```
 	pub fn min(&self, mask: &MultiAssetFilter) -> Assets {
 		let mut masked = Assets::new();
+		let maybe_limit = mask.limit().map(|x| x as usize);
+		if maybe_limit.map_or(false, |l| l == 0) {
+			return masked
+		}
 		match mask {
-			MultiAssetFilter::Wild(All) => return self.clone(),
-			MultiAssetFilter::Wild(AllOf { fun: WildFungible, id }) => {
-				if let Some(&amount) = self.fungible.get(&id) {
-					masked.fungible.insert(id.clone(), amount);
+			MultiAssetFilter::Wild(All) | MultiAssetFilter::Wild(AllCounted(_)) => {
+				if maybe_limit.map_or(true, |l| self.len() <= l) {
+					return self.clone()
+				} else {
+					for (&c, &amount) in self.fungible.iter() {
+						masked.fungible.insert(c, amount);
+						if maybe_limit.map_or(false, |l| masked.len() >= l) {
+							return masked
+						}
+					}
+					for (c, instance) in self.non_fungible.iter() {
+						masked.non_fungible.insert((*c, *instance));
+						if maybe_limit.map_or(false, |l| masked.len() >= l) {
+							return masked
+						}
+					}
 				}
 			},
-			MultiAssetFilter::Wild(AllOf { fun: WildNonFungible, id }) => {
-				self.non_fungible.iter().for_each(|(ref c, ref instance)| {
+			MultiAssetFilter::Wild(AllOfCounted { fun: WildFungible, id, .. }) |
+			MultiAssetFilter::Wild(AllOf { fun: WildFungible, id }) =>
+				if let Some(&amount) = self.fungible.get(&id) {
+					masked.fungible.insert(*id, amount);
+				},
+			MultiAssetFilter::Wild(AllOfCounted { fun: WildNonFungible, id, .. }) |
+			MultiAssetFilter::Wild(AllOf { fun: WildNonFungible, id }) =>
+				for (c, instance) in self.non_fungible.iter() {
 					if c == id {
-						masked.non_fungible.insert((c.clone(), instance.clone()));
+						masked.non_fungible.insert((*c, *instance));
+						if maybe_limit.map_or(false, |l| masked.len() >= l) {
+							return masked
+						}
 					}
-				});
-			},
+				},
 			MultiAssetFilter::Definite(assets) =>
 				for asset in assets.inner().iter() {
 					match asset {
-						MultiAsset { fun: Fungible(ref amount), ref id } => {
+						MultiAsset { fun: Fungible(amount), id } => {
 							if let Some(m) = self.fungible.get(id) {
-								masked.subsume((id.clone(), Fungible(*amount.min(m))).into());
+								masked.subsume((*id, Fungible(*amount.min(m))).into());
 							}
 						},
-						MultiAsset { fun: NonFungible(ref instance), ref id } => {
-							let id_instance = (id.clone(), instance.clone());
+						MultiAsset { fun: NonFungible(instance), id } => {
+							let id_instance = (*id, *instance);
 							if self.non_fungible.contains(&id_instance) {
 								masked.subsume(id_instance.into());
 							}
@@ -474,12 +517,12 @@ mod tests {
 	#[allow(non_snake_case)]
 	/// Abstract fungible constructor
 	fn AF(id: u8, amount: u128) -> MultiAsset {
-		(vec![id], amount).into()
+		([id; 32], amount).into()
 	}
 	#[allow(non_snake_case)]
 	/// Abstract non-fungible constructor
 	fn ANF(class: u8, instance_id: u8) -> MultiAsset {
-		(vec![class], vec![instance_id]).into()
+		([class; 32], [instance_id; 4]).into()
 	}
 	#[allow(non_snake_case)]
 	/// Concrete fungible constructor
@@ -587,10 +630,37 @@ mod tests {
 	}
 
 	#[test]
+	fn min_counted_works() {
+		let mut assets = Assets::new();
+		assets.subsume(AF(1, 100));
+		assets.subsume(ANF(2, 20));
+		assets.subsume(CNF(40));
+		assets.subsume(AF(10, 50));
+		assets.subsume(ANF(2, 40));
+		assets.subsume(ANF(2, 30));
+		assets.subsume(CF(3000));
+		assets.subsume(CNF(80));
+		assets.subsume(ANF(3, 10));
+		let fungible = WildMultiAsset::from(([1u8; 32], WildFungible)).counted(2).into();
+		let non_fungible = WildMultiAsset::from(([2u8; 32], WildNonFungible)).counted(2).into();
+		let all = WildMultiAsset::AllCounted(6).into();
+
+		let fungible = assets.min(&fungible);
+		let fungible = fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(fungible, vec![AF(1, 100)]);
+		let non_fungible = assets.min(&non_fungible);
+		let non_fungible = non_fungible.assets_iter().collect::<Vec<_>>();
+		assert_eq!(non_fungible, vec![ANF(2, 20), ANF(2, 30)]);
+		let all = assets.min(&all);
+		let all = all.assets_iter().collect::<Vec<_>>();
+		assert_eq!(all, vec![CF(3000), AF(1, 100), AF(10, 50), CNF(40), CNF(80), ANF(2, 20),]);
+	}
+
+	#[test]
 	fn min_all_abstract_works() {
 		let assets = test_assets();
-		let fungible = Wild((vec![1], WildFungible).into());
-		let non_fungible = Wild((vec![2], WildNonFungible).into());
+		let fungible = Wild(([1u8; 32], WildFungible).into());
+		let non_fungible = Wild(([2u8; 32], WildNonFungible).into());
 
 		let fungible = assets.min(&fungible);
 		let fungible = fungible.assets_iter().collect::<Vec<_>>();
@@ -650,8 +720,8 @@ mod tests {
 	#[test]
 	fn saturating_take_all_abstract_works() {
 		let mut assets = test_assets();
-		let fungible = Wild((vec![1], WildFungible).into());
-		let non_fungible = Wild((vec![2], WildNonFungible).into());
+		let fungible = Wild(([1u8; 32], WildFungible).into());
+		let non_fungible = Wild(([2u8; 32], WildNonFungible).into());
 
 		let fungible = assets.saturating_take(fungible);
 		let fungible = fungible.assets_iter().collect::<Vec<_>>();
@@ -702,5 +772,76 @@ mod tests {
 
 		let assets = assets1.into_assets_iter().collect::<Vec<_>>();
 		assert_eq!(assets, vec![AF(1, 50), ANF(2, 20)]);
+	}
+
+	#[test]
+	fn try_take_all_counted_works() {
+		let mut assets = Assets::new();
+		assets.subsume(AF(1, 100));
+		assets.subsume(ANF(2, 20));
+		assets.subsume(CNF(40));
+		assets.subsume(AF(10, 50));
+		assets.subsume(ANF(2, 40));
+		assets.subsume(ANF(2, 30));
+		assets.subsume(CF(3000));
+		assets.subsume(CNF(80));
+		assets.subsume(ANF(3, 10));
+		let all = assets.try_take(WildMultiAsset::AllCounted(6).into()).unwrap();
+		assert_eq!(
+			MultiAssets::from(all).inner(),
+			&vec![CF(3000), AF(1, 100), AF(10, 50), CNF(40), CNF(80), ANF(2, 20),]
+		);
+		assert_eq!(MultiAssets::from(assets).inner(), &vec![ANF(2, 30), ANF(2, 40), ANF(3, 10),]);
+	}
+
+	#[test]
+	fn try_take_fungibles_counted_works() {
+		let mut assets = Assets::new();
+		assets.subsume(AF(1, 100));
+		assets.subsume(ANF(2, 20));
+		assets.subsume(CNF(40));
+		assets.subsume(AF(10, 50));
+		assets.subsume(ANF(2, 40));
+		assets.subsume(ANF(2, 30));
+		assets.subsume(CF(3000));
+		assets.subsume(CNF(80));
+		assets.subsume(ANF(3, 10));
+		let mask = WildMultiAsset::from(([1u8; 32], WildFungible)).counted(2).into();
+		let taken = assets.try_take(mask).unwrap();
+		assert_eq!(MultiAssets::from(taken).inner(), &vec![AF(1, 100)]);
+		assert_eq!(
+			MultiAssets::from(assets).inner(),
+			&vec![
+				CF(3000),
+				AF(10, 50),
+				CNF(40),
+				CNF(80),
+				ANF(2, 20),
+				ANF(2, 30),
+				ANF(2, 40),
+				ANF(3, 10),
+			]
+		);
+	}
+
+	#[test]
+	fn try_take_non_fungibles_counted_works() {
+		let mut assets = Assets::new();
+		assets.subsume(AF(1, 100));
+		assets.subsume(ANF(2, 20));
+		assets.subsume(CNF(40));
+		assets.subsume(AF(10, 50));
+		assets.subsume(ANF(2, 40));
+		assets.subsume(ANF(2, 30));
+		assets.subsume(CF(3000));
+		assets.subsume(CNF(80));
+		assets.subsume(ANF(3, 10));
+		let mask = WildMultiAsset::from(([2u8; 32], WildNonFungible)).counted(2).into();
+		let taken = assets.try_take(mask).unwrap();
+		assert_eq!(MultiAssets::from(taken).inner(), &vec![ANF(2, 20), ANF(2, 30),]);
+		assert_eq!(
+			MultiAssets::from(assets).inner(),
+			&vec![CF(3000), AF(1, 100), AF(10, 50), CNF(40), CNF(80), ANF(2, 40), ANF(3, 10),]
+		);
 	}
 }

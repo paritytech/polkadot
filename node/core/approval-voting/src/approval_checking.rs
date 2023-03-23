@@ -18,7 +18,7 @@
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, slice::BitSlice};
 use polkadot_node_primitives::approval::DelayTranche;
-use polkadot_primitives::v2::ValidatorIndex;
+use polkadot_primitives::ValidatorIndex;
 
 use crate::{
 	persisted_entries::{ApprovalEntry, CandidateEntry, TrancheEntry},
@@ -282,8 +282,8 @@ impl State {
 
 /// Constructs an infinite iterator from an array of `TrancheEntry` values. Any missing tranches
 /// are filled with empty assignments, as they are needed to compute the approved tranches.
-fn filled_tranche_iterator<'a>(
-	tranches: &'a [TrancheEntry],
+fn filled_tranche_iterator(
+	tranches: &[TrancheEntry],
 ) -> impl Iterator<Item = (DelayTranche, &[(ValidatorIndex, Tick)])> {
 	let mut gap_end = None;
 
@@ -460,7 +460,7 @@ mod tests {
 	use crate::{approval_db, BTreeMap};
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0, vec::BitVec};
-	use polkadot_primitives::v2::GroupIndex;
+	use polkadot_primitives::GroupIndex;
 
 	#[test]
 	fn pending_is_not_approved() {

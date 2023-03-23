@@ -140,10 +140,16 @@ impl metrics::Metrics for Metrics {
 				registry,
 			)?,
 			get_chunk: prometheus::register(
-				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
-					"polkadot_parachain_av_store_get_chunk",
-					"Time spent fetching requested chunks.`",
-				))?,
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_av_store_get_chunk",
+						"Time spent fetching requested chunks.`",
+					)
+					.buckets(vec![
+						0.000625, 0.00125, 0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.1, 0.25,
+						0.5, 1.0, 2.5, 5.0, 10.0,
+					]),
+				)?,
 				registry,
 			)?,
 		};

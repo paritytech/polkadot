@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-pub use polkadot_primitives::v2::{CandidateHash, Hash};
+pub use polkadot_primitives::{CandidateHash, Hash};
 
 #[derive(Default, Debug)]
 struct Y {
@@ -32,7 +32,7 @@ fn plain() {
 fn wo_alias() {
 	let a: i32 = 7;
 	error!(target: "foo",
-		"Something something {}, {:?}, or maybe {}",
+		"Something something {}, {b:?}, or maybe {c}",
 		a,
 		b = Y::default(),
 		c = a

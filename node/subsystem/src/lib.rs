@@ -34,6 +34,9 @@ pub use polkadot_node_subsystem_types::{
 /// Re-export of all messages type, including the wrapper type.
 pub mod messages {
 	pub use super::overseer::AllMessages;
+	// generated, empty message types
+	pub use super::overseer::messages::*;
+	// deliberately defined messages
 	pub use polkadot_node_subsystem_types::messages::*;
 }
 

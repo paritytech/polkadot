@@ -23,11 +23,11 @@ use sc_cli::{RuntimeVersion, SubstrateCli};
 #[derive(Debug, Parser)]
 pub enum Subcommand {
 	/// Export the genesis state of the parachain.
-	#[clap(name = "export-genesis-state")]
+	#[command(name = "export-genesis-state")]
 	ExportGenesisState(ExportGenesisStateCommand),
 
 	/// Export the genesis wasm of the parachain.
-	#[clap(name = "export-genesis-wasm")]
+	#[command(name = "export-genesis-wasm")]
 	ExportGenesisWasm(ExportGenesisWasmCommand),
 }
 
@@ -35,16 +35,16 @@ pub enum Subcommand {
 #[derive(Debug, Parser)]
 pub struct ExportGenesisStateCommand {
 	/// Id of the parachain this collator collates for.
-	#[clap(long, default_value = "100")]
+	#[arg(long, default_value_t = 100)]
 	pub parachain_id: u32,
 
 	/// The target raw PoV size in bytes. Minimum value is 64.
-	#[clap(long, default_value = "1024")]
+	#[arg(long, default_value_t = 1024)]
 	pub pov_size: usize,
 
 	/// The PVF execution complexity. Actually specifies how  many iterations/signatures
 	/// we compute per block.
-	#[clap(long, default_value = "1")]
+	#[arg(long, default_value_t = 1)]
 	pub pvf_complexity: u32,
 }
 
@@ -54,29 +54,30 @@ pub struct ExportGenesisWasmCommand {}
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
+#[group(skip)]
 pub struct RunCmd {
 	#[allow(missing_docs)]
 	#[clap(flatten)]
 	pub base: sc_cli::RunCmd,
 
 	/// Id of the parachain this collator collates for.
-	#[clap(long, default_value = "2000")]
+	#[arg(long, default_value_t = 2000)]
 	pub parachain_id: u32,
 
 	/// The target raw PoV size in bytes. Minimum value is 64.
-	#[clap(long, default_value = "1024")]
+	#[arg(long, default_value_t = 1024)]
 	pub pov_size: usize,
 
 	/// The PVF execution complexity. Actually specifies how many iterations/signatures
 	/// we compute per block.
-	#[clap(long, default_value = "1")]
+	#[arg(long, default_value_t = 1)]
 	pub pvf_complexity: u32,
 }
 
 #[allow(missing_docs)]
 #[derive(Debug, Parser)]
 pub struct Cli {
-	#[clap(subcommand)]
+	#[command(subcommand)]
 	pub subcommand: Option<Subcommand>,
 
 	#[clap(flatten)]

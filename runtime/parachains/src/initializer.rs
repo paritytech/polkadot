@@ -21,7 +21,7 @@
 
 use crate::{
 	configuration::{self, HostConfiguration},
-	disputes::DisputesHandler,
+	disputes::{self, DisputesHandler as _, SlashingHandler as _},
 	dmp, hrmp, inclusion, paras, scheduler, session_info, shared, ump,
 };
 use frame_support::{
@@ -30,7 +30,7 @@ use frame_support::{
 };
 use frame_system::limits::BlockWeights;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
+use primitives::{BlockNumber, ConsensusLog, SessionIndex, ValidatorId};
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
 
@@ -58,6 +58,9 @@ pub struct SessionChangeNotification<BlockNumber> {
 	/// New session index.
 	pub session_index: SessionIndex,
 }
+
+/// Number of validators (not only parachain) in a session.
+pub type ValidatorSetCount = u32;
 
 impl<BlockNumber: Default + From<u32>> Default for SessionChangeNotification<BlockNumber> {
 	fn default() -> Self {
@@ -96,7 +99,6 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -109,6 +111,7 @@ pub mod pallet {
 		+ scheduler::Config
 		+ inclusion::Config
 		+ session_info::Config
+		+ disputes::Config
 		+ dmp::Config
 		+ ump::Config
 		+ hrmp::Config
@@ -116,7 +119,7 @@ pub mod pallet {
 		/// A randomness beacon.
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
 		/// An origin which is allowed to force updates to parachains.
-		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::Origin>;
+		type ForceOrigin: EnsureOrigin<<Self as frame_system::Config>::RuntimeOrigin>;
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 	}
@@ -163,6 +166,7 @@ pub mod pallet {
 				inclusion::Pallet::<T>::initializer_initialize(now) +
 				session_info::Pallet::<T>::initializer_initialize(now) +
 				T::DisputesHandler::initializer_initialize(now) +
+				T::SlashingHandler::initializer_initialize(now) +
 				dmp::Pallet::<T>::initializer_initialize(now) +
 				ump::Pallet::<T>::initializer_initialize(now) +
 				hrmp::Pallet::<T>::initializer_initialize(now);
@@ -177,6 +181,7 @@ pub mod pallet {
 			hrmp::Pallet::<T>::initializer_finalize();
 			ump::Pallet::<T>::initializer_finalize();
 			dmp::Pallet::<T>::initializer_finalize();
+			T::SlashingHandler::initializer_finalize();
 			T::DisputesHandler::initializer_finalize();
 			session_info::Pallet::<T>::initializer_finalize();
 			inclusion::Pallet::<T>::initializer_finalize();
@@ -204,6 +209,7 @@ pub mod pallet {
 		/// Issue a signal to the consensus engine to forcibly act as though all parachain
 		/// blocks in all relay chain blocks up to and including the given number in the current
 		/// chain are valid and should be finalized.
+		#[pallet::call_index(0)]
 		#[pallet::weight((
 			<T as Config>::WeightInfo::force_approve(
 				frame_system::Pallet::<T>::digest().logs.len() as u32,
@@ -241,7 +247,7 @@ impl<T: Config> Pallet<T> {
 
 		let validators = shared::Pallet::<T>::initializer_on_new_session(
 			session_index,
-			random_seed.clone(),
+			random_seed,
 			&new_config,
 			all_validators,
 		);
@@ -260,6 +266,7 @@ impl<T: Config> Pallet<T> {
 		inclusion::Pallet::<T>::initializer_on_new_session(&notification);
 		session_info::Pallet::<T>::initializer_on_new_session(&notification);
 		T::DisputesHandler::initializer_on_new_session(&notification);
+		T::SlashingHandler::initializer_on_new_session(session_index);
 		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		ump::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);

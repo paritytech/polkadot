@@ -62,7 +62,8 @@ OUTPUT=$(
   --wasm-execution=compiled \
   --weight-path="runtime/${runtime}/constants/src/weights/" \
   --warmup=10 \
-  --repeat=100
+  --repeat=100 \
+  --header=./file_header.txt
 )
 if [ $? -ne 0 ]; then
   echo "$OUTPUT" >> "$ERR_FILE"

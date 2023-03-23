@@ -20,6 +20,7 @@
 
 use std::{
 	collections::{HashMap, VecDeque},
+	num::NonZeroUsize,
 	pin::Pin,
 	time::Duration,
 };
@@ -55,9 +56,9 @@ use polkadot_node_subsystem::{
 	SubsystemResult,
 };
 use polkadot_node_subsystem_util::request_session_info;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, BlakeTwo256, BlockNumber, CandidateHash, CandidateReceipt, GroupIndex,
-	Hash, HashT, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
+	Hash, HashT, IndexedVec, SessionIndex, SessionInfo, ValidatorId, ValidatorIndex,
 };
 
 mod error;
@@ -77,7 +78,10 @@ const LOG_TARGET: &str = "parachain::availability-recovery";
 const N_PARALLEL: usize = 50;
 
 // Size of the LRU cache where we keep recovered data.
-const LRU_SIZE: usize = 16;
+const LRU_SIZE: NonZeroUsize = match NonZeroUsize::new(16) {
+	Some(cap) => cap,
+	None => panic!("Availability-recovery cache size must be non-zero."),
+};
 
 const COST_INVALID_REQUEST: Rep = Rep::CostMajor("Peer sent unparsable request");
 
@@ -130,7 +134,7 @@ struct RecoveryParams {
 	validator_authority_keys: Vec<AuthorityDiscoveryId>,
 
 	/// Validators relevant to this `RecoveryTask`.
-	validators: Vec<ValidatorId>,
+	validators: IndexedVec<ValidatorIndex, ValidatorId>,
 
 	/// The number of pieces needed.
 	threshold: usize,
@@ -334,8 +338,7 @@ impl RequestChunksFromValidators {
 					index: validator_index,
 				};
 
-				let (req, res) =
-					OutgoingRequest::new(Recipient::Authority(validator), raw_request.clone());
+				let (req, res) = OutgoingRequest::new(Recipient::Authority(validator), raw_request);
 				requests.push(Requests::ChunkFetchingV1(req));
 
 				params.metrics.on_chunk_request_issued();
@@ -358,7 +361,7 @@ impl RequestChunksFromValidators {
 		sender
 			.send_message(NetworkBridgeTxMessage::SendRequests(
 				requests,
-				IfDisconnected::ImmediateError,
+				IfDisconnected::TryConnect,
 			))
 			.await;
 	}
@@ -376,49 +379,20 @@ impl RequestChunksFromValidators {
 			self.total_received_responses += 1;
 
 			match request_result {
-				Ok(Some(chunk)) => {
-					// Check merkle proofs of any received chunks.
-
-					let validator_index = chunk.index;
-
-					if let Ok(anticipated_hash) =
-						branch_hash(&params.erasure_root, chunk.proof(), chunk.index.0 as usize)
-					{
-						let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
-
-						if erasure_chunk_hash != anticipated_hash {
-							metrics.on_chunk_request_invalid();
-							self.error_count += 1;
-
-							gum::debug!(
-								target: LOG_TARGET,
-								candidate_hash = ?params.candidate_hash,
-								?validator_index,
-								"Merkle proof mismatch",
-							);
-						} else {
-							metrics.on_chunk_request_succeeded();
-
-							gum::trace!(
-								target: LOG_TARGET,
-								candidate_hash = ?params.candidate_hash,
-								?validator_index,
-								"Received valid chunk.",
-							);
-							self.received_chunks.insert(validator_index, chunk);
-						}
+				Ok(Some(chunk)) =>
+					if is_chunk_valid(params, &chunk) {
+						metrics.on_chunk_request_succeeded();
+						gum::trace!(
+							target: LOG_TARGET,
+							candidate_hash = ?params.candidate_hash,
+							validator_index = ?chunk.index,
+							"Received valid chunk",
+						);
+						self.received_chunks.insert(chunk.index, chunk);
 					} else {
 						metrics.on_chunk_request_invalid();
 						self.error_count += 1;
-
-						gum::debug!(
-							target: LOG_TARGET,
-							candidate_hash = ?params.candidate_hash,
-							?validator_index,
-							"Invalid Merkle proof",
-						);
-					}
-				},
+					},
 				Ok(None) => {
 					metrics.on_chunk_request_no_such_chunk();
 					self.error_count += 1;
@@ -507,7 +481,20 @@ impl RequestChunksFromValidators {
 					self.shuffling.retain(|i| !chunk_indices.contains(i));
 
 					for chunk in chunks {
-						self.received_chunks.insert(chunk.index, chunk);
+						if is_chunk_valid(params, &chunk) {
+							gum::trace!(
+								target: LOG_TARGET,
+								candidate_hash = ?params.candidate_hash,
+								validator_index = ?chunk.index,
+								"Found valid chunk on disk"
+							);
+							self.received_chunks.insert(chunk.index, chunk);
+						} else {
+							gum::error!(
+								target: LOG_TARGET,
+								"Loaded invalid chunk from disk! Disk/Db corruption _very_ likely - please fix ASAP!"
+							);
+						};
 					}
 				},
 				Err(oneshot::Canceled) => {
@@ -607,6 +594,35 @@ const fn is_unavailable(
 	threshold: usize,
 ) -> bool {
 	received_chunks + requesting_chunks + unrequested_validators < threshold
+}
+
+/// Check validity of a chunk.
+fn is_chunk_valid(params: &RecoveryParams, chunk: &ErasureChunk) -> bool {
+	let anticipated_hash =
+		match branch_hash(&params.erasure_root, chunk.proof(), chunk.index.0 as usize) {
+			Ok(hash) => hash,
+			Err(e) => {
+				gum::debug!(
+					target: LOG_TARGET,
+					candidate_hash = ?params.candidate_hash,
+					validator_index = ?chunk.index,
+					error = ?e,
+					"Invalid Merkle proof",
+				);
+				return false
+			},
+		};
+	let erasure_chunk_hash = BlakeTwo256::hash(&chunk.chunk);
+	if anticipated_hash != erasure_chunk_hash {
+		gum::debug!(
+			target: LOG_TARGET,
+			candidate_hash = ?params.candidate_hash,
+			validator_index = ?chunk.index,
+			"Merkle proof mismatch"
+		);
+		return false
+	}
+	true
 }
 
 /// Re-encode the data into erasure chunks in order to verify
@@ -819,7 +835,7 @@ async fn handle_signal(state: &mut State, signal: OverseerSignal) -> SubsystemRe
 		OverseerSignal::Conclude => Ok(true),
 		OverseerSignal::ActiveLeaves(ActiveLeavesUpdate { activated, .. }) => {
 			// if activated is non-empty, set state.live_block to the highest block in `activated`
-			for activated in activated {
+			if let Some(activated) = activated {
 				if activated.number > state.live_block.0 {
 					state.live_block = (activated.number, activated.hash)
 				}
@@ -854,7 +870,7 @@ async fn launch_recovery_task<Context>(
 	};
 
 	let phase = backing_group
-		.and_then(|g| session_info.validator_groups.get(g.0 as usize))
+		.and_then(|g| session_info.validator_groups.get(g))
 		.map(|group| Source::RequestFromBackers(RequestFromBackers::new(group.clone())))
 		.unwrap_or_else(|| {
 			Source::RequestChunks(RequestChunksFromValidators::new(params.validators.len() as _))
@@ -956,7 +972,7 @@ async fn query_full_data<Context>(
 	ctx.send_message(AvailabilityStoreMessage::QueryAvailableData(candidate_hash, tx))
 		.await;
 
-	Ok(rx.await.map_err(error::Error::CanceledQueryFullData)?)
+	rx.await.map_err(error::Error::CanceledQueryFullData)
 }
 
 #[overseer::contextbounds(AvailabilityRecovery, prefix = self::overseer)]

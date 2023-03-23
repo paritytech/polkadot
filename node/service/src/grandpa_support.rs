@@ -23,7 +23,7 @@ use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use crate::HeaderProvider;
 
 #[cfg(feature = "full-node")]
-use polkadot_primitives::v2::{Block, Hash};
+use polkadot_primitives::{Block, Hash};
 
 /// Returns the block hash of the block at the given `target_number` by walking
 /// backwards from the given `current_header`.
@@ -224,7 +224,7 @@ mod tests {
 		TestClientBuilder, TestClientBuilderExt,
 	};
 	use sp_blockchain::HeaderBackend;
-	use sp_runtime::{generic::BlockId, traits::Header};
+	use sp_runtime::traits::Header;
 	use std::sync::Arc;
 
 	#[test]
@@ -232,13 +232,16 @@ mod tests {
 		let _ = env_logger::try_init();
 
 		let client = Arc::new(TestClientBuilder::new().build());
+		let mut hashes = vec![];
+		hashes.push(client.info().genesis_hash);
 
 		let mut push_blocks = {
 			let mut client = client.clone();
 
-			move |n| {
+			move |hashes: &mut Vec<_>, n| {
 				for _ in 0..n {
 					let block = client.init_polkadot_block_builder().build().unwrap().block;
+					hashes.push(block.header.hash());
 					futures::executor::block_on(client.import(BlockOrigin::Own, block)).unwrap();
 				}
 			}
@@ -246,7 +249,7 @@ mod tests {
 
 		let get_header = {
 			let client = client.clone();
-			move |n| client.header(&BlockId::Number(n)).unwrap().unwrap()
+			move |n| client.expect_header(n).unwrap()
 		};
 
 		// the rule should filter all votes after block #20
@@ -254,7 +257,7 @@ mod tests {
 		let voting_rule = super::PauseAfterBlockFor(20, 30);
 
 		// add 10 blocks
-		push_blocks(10);
+		push_blocks(&mut hashes, 10);
 		assert_eq!(client.info().best_number, 10);
 
 		// we have not reached the pause block
@@ -262,38 +265,38 @@ mod tests {
 		assert_eq!(
 			futures::executor::block_on(voting_rule.restrict_vote(
 				client.clone(),
-				&get_header(0),
-				&get_header(10),
-				&get_header(10)
+				&get_header(hashes[0]),
+				&get_header(hashes[10]),
+				&get_header(hashes[10])
 			)),
 			None,
 		);
 
 		// add 15 more blocks
 		// best block: #25
-		push_blocks(15);
+		push_blocks(&mut hashes, 15);
 
 		// we are targeting the pause block,
 		// the vote should not be restricted
 		assert_eq!(
 			futures::executor::block_on(voting_rule.restrict_vote(
 				client.clone(),
-				&get_header(10),
-				&get_header(20),
-				&get_header(20)
+				&get_header(hashes[10]),
+				&get_header(hashes[20]),
+				&get_header(hashes[20])
 			)),
 			None,
 		);
 
 		// we are past the pause block, votes should
 		// be limited to the pause block.
-		let pause_block = get_header(20);
+		let pause_block = get_header(hashes[20]);
 		assert_eq!(
 			futures::executor::block_on(voting_rule.restrict_vote(
 				client.clone(),
-				&get_header(10),
-				&get_header(21),
-				&get_header(21)
+				&get_header(hashes[10]),
+				&get_header(hashes[21]),
+				&get_header(hashes[21])
 			)),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
@@ -304,15 +307,15 @@ mod tests {
 			futures::executor::block_on(voting_rule.restrict_vote(
 				client.clone(),
 				&pause_block, // #20
-				&get_header(21),
-				&get_header(21),
+				&get_header(hashes[21]),
+				&get_header(hashes[21]),
 			)),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
 
 		// add 30 more blocks
 		// best block: #55
-		push_blocks(30);
+		push_blocks(&mut hashes, 30);
 
 		// we're at the last block of the pause, this block
 		// should still be considered in the pause period
@@ -320,8 +323,8 @@ mod tests {
 			futures::executor::block_on(voting_rule.restrict_vote(
 				client.clone(),
 				&pause_block, // #20
-				&get_header(50),
-				&get_header(50),
+				&get_header(hashes[50]),
+				&get_header(hashes[50]),
 			)),
 			Some((pause_block.hash(), *pause_block.number())),
 		);
@@ -331,8 +334,8 @@ mod tests {
 			futures::executor::block_on(voting_rule.restrict_vote(
 				client.clone(),
 				&pause_block, // #20
-				&get_header(51),
-				&get_header(51),
+				&get_header(hashes[51]),
+				&get_header(hashes[51]),
 			)),
 			None,
 		);

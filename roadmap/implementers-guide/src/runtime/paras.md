@@ -172,7 +172,7 @@ PastCodePruning: Vec<(ParaId, BlockNumber)>;
 /// The change will be applied after the first parablock for this ID included which executes
 /// in the context of a relay chain block with a number >= `expected_at`.
 FutureCodeUpgrades: map ParaId => Option<BlockNumber>;
-/// The actual future code of a para.
+/// Hash of the actual future code of a para.
 FutureCodeHash: map ParaId => Option<ValidationCodeHash>;
 /// This is used by the relay-chain to communicate to a parachain a go-ahead with in the upgrade procedure.
 ///
@@ -246,8 +246,8 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
 1. Do pruning based on all entries in `PastCodePruning` with `BlockNumber <= now`. Update the
    corresponding `PastCodeMeta` and `PastCode` accordingly.
 1. Toggle the upgrade related signals
-  1. Collect all `(para_id, expected_at)` from `UpcomingUpgrades` where `expected_at <= now` and prune them. For each para pruned set `UpgradeGoAheadSignal` to `GoAhead`.
-  1. Collect all `(para_id, next_possible_upgrade_at)` from `UpgradeCooldowns` where `next_possible_upgrade_at <= now` and prune them. For each para pruned set `UpgradeRestrictionSignal` to `Present`.
+  1. Collect all `(para_id, expected_at)` from `UpcomingUpgrades` where `expected_at <= now` and prune them. For each para pruned set `UpgradeGoAheadSignal` to `GoAhead`. Reserve weight for the state modification to upgrade each para pruned.
+  1. Collect all `(para_id, next_possible_upgrade_at)` from `UpgradeCooldowns` where `next_possible_upgrade_at <= now`. For each para obtained this way reserve weight to remove its `UpgradeRestrictionSignal` on finalization.
 
 ## Routines
 
@@ -275,4 +275,4 @@ In case the PVF pre-checking is enabled, or the new code is not already present 
 
 ## Finalization
 
-No finalization routine runs for this module.
+Collect all `(para_id, next_possible_upgrade_at)` from `UpgradeCooldowns` where `next_possible_upgrade_at <= now` and prune them. For each para pruned remove its `UpgradeRestrictionSignal`.

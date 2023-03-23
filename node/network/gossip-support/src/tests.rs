@@ -29,6 +29,7 @@ use sp_consensus_babe::{AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch
 use sp_core::crypto::Pair as PairT;
 use sp_keyring::Sr25519Keyring;
 
+use polkadot_node_network_protocol::grid_topology::{SessionGridTopology, TopologyPeerInfo};
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest},
@@ -36,6 +37,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt as _;
+use polkadot_primitives::{GroupIndex, IndexedVec};
 use test_helpers::mock::make_ferdie_keystore;
 
 use super::*;
@@ -73,13 +75,15 @@ lazy_static! {
 	// [1 3]
 	// [0  ]
 
-	static ref ROW_NEIGHBORS: Vec<(AuthorityDiscoveryId, ValidatorIndex)> = vec![
-		(Sr25519Keyring::Charlie.public().into(), ValidatorIndex::from(2)),
+	static ref EXPECTED_SHUFFLING: Vec<usize> = vec![6, 4, 0, 5, 2, 3, 1];
+
+	static ref ROW_NEIGHBORS: Vec<ValidatorIndex> = vec![
+		ValidatorIndex::from(2),
 	];
 
-	static ref COLUMN_NEIGHBORS: Vec<(AuthorityDiscoveryId, ValidatorIndex)> = vec![
-		(Sr25519Keyring::Two.public().into(), ValidatorIndex::from(5)),
-		(Sr25519Keyring::Eve.public().into(), ValidatorIndex::from(3)),
+	static ref COLUMN_NEIGHBORS: Vec<ValidatorIndex> = vec![
+		ValidatorIndex::from(3),
+		ValidatorIndex::from(5),
 	];
 }
 
@@ -117,14 +121,14 @@ impl MockAuthorityDiscovery {
 impl AuthorityDiscovery for MockAuthorityDiscovery {
 	async fn get_addresses_by_authority_id(
 		&mut self,
-		authority: polkadot_primitives::v2::AuthorityDiscoveryId,
+		authority: polkadot_primitives::AuthorityDiscoveryId,
 	) -> Option<HashSet<sc_network::Multiaddr>> {
 		self.addrs.get(&authority).cloned()
 	}
 	async fn get_authority_ids_by_peer_id(
 		&mut self,
 		peer_id: polkadot_node_network_protocol::PeerId,
-	) -> Option<HashSet<polkadot_primitives::v2::AuthorityDiscoveryId>> {
+	) -> Option<HashSet<polkadot_primitives::AuthorityDiscoveryId>> {
 		self.authorities.get(&peer_id).cloned()
 	}
 }
@@ -216,7 +220,9 @@ fn make_session_info() -> SessionInfo {
 		validators: AUTHORITY_KEYRINGS.iter().map(|k| k.public().into()).collect(),
 		discovery_keys: AUTHORITIES.clone(),
 		assignment_keys: AUTHORITY_KEYRINGS.iter().map(|k| k.public().into()).collect(),
-		validator_groups: vec![all_validator_indices],
+		validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
+			all_validator_indices,
+		]),
 		n_cores: 1,
 		zeroth_delay_tranche_width: 1,
 		relay_vrf_modulo_samples: 1,
@@ -257,12 +263,31 @@ async fn test_neighbors(overseer: &mut VirtualOverseer, expected_session: Sessio
 		overseer_recv(overseer).await,
 		AllMessages::NetworkBridgeRx(NetworkBridgeRxMessage::NewGossipTopology {
 			session: got_session,
-			our_neighbors_x,
-			our_neighbors_y,
+			local_index,
+			canonical_shuffling,
+			shuffled_indices,
 		}) => {
 			assert_eq!(expected_session, got_session);
-			let mut got_row: Vec<_> = our_neighbors_x.into_iter().collect();
-			let mut got_column: Vec<_> = our_neighbors_y.into_iter().collect();
+			assert_eq!(local_index, Some(ValidatorIndex(6)));
+			assert_eq!(shuffled_indices, EXPECTED_SHUFFLING.clone());
+
+			let grid_topology = SessionGridTopology::new(
+				shuffled_indices,
+				canonical_shuffling.into_iter()
+					.map(|(a, v)| TopologyPeerInfo {
+						validator_index: v,
+						discovery_id: a,
+						peer_ids: Vec::new(),
+					})
+					.collect(),
+			);
+
+			let grid_neighbors = grid_topology
+				.compute_grid_neighbors_for(local_index.unwrap())
+				.unwrap();
+
+			let mut got_row: Vec<_> = grid_neighbors.validator_indices_x.into_iter().collect();
+			let mut got_column: Vec<_> = grid_neighbors.validator_indices_y.into_iter().collect();
 			got_row.sort();
 			got_column.sort();
 			assert_eq!(got_row, ROW_NEIGHBORS.clone());
@@ -476,6 +501,64 @@ fn issues_connection_request_to_past_present_future() {
 }
 
 #[test]
+fn disconnect_when_not_in_past_present_future() {
+	sp_tracing::try_init_simple();
+	let hash = Hash::repeat_byte(0xAA);
+	test_harness(make_subsystem(), |mut virtual_overseer| async move {
+		let overseer = &mut virtual_overseer;
+		overseer_signal_active_leaves(overseer, hash).await;
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionIndexForChild(tx),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				tx.send(Ok(1)).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::SessionInfo(s, tx),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				assert_eq!(s, 1);
+				let mut heute_leider_nicht = make_session_info();
+				heute_leider_nicht.discovery_keys = AUTHORITIES_WITHOUT_US.clone();
+				tx.send(Ok(Some(heute_leider_nicht))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::Authorities(tx),
+			)) => {
+				assert_eq!(relay_parent, hash);
+				tx.send(Ok(AUTHORITIES_WITHOUT_US.clone())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(overseer).await,
+			AllMessages::NetworkBridgeTx(NetworkBridgeTxMessage::ConnectToResolvedValidators {
+				validator_addrs,
+				peer_set,
+			}) => {
+				assert!(validator_addrs.is_empty());
+				assert_eq!(peer_set, PeerSet::Validation);
+			}
+		);
+
+		virtual_overseer
+	});
+}
+
+#[test]
 fn test_log_output() {
 	sp_tracing::try_init_simple();
 	let alice: AuthorityDiscoveryId = Sr25519Keyring::Alice.public().into();
@@ -635,27 +718,4 @@ fn issues_a_connection_request_when_last_request_was_mostly_unresolved() {
 
 	assert_eq!(state.last_session_index, Some(1));
 	assert!(state.last_failure.is_none());
-}
-
-#[test]
-fn test_matrix_neighbors() {
-	for (our_index, len, expected_row, expected_column) in vec![
-		(0usize, 1usize, vec![], vec![]),
-		(1, 2, vec![], vec![0usize]),
-		(0, 9, vec![1, 2], vec![3, 6]),
-		(9, 10, vec![], vec![0, 3, 6]),
-		(10, 11, vec![9], vec![1, 4, 7]),
-		(7, 11, vec![6, 8], vec![1, 4, 10]),
-	]
-	.into_iter()
-	{
-		let matrix = matrix_neighbors(our_index, len);
-		let mut row_result: Vec<_> = matrix.row_neighbors.collect();
-		let mut column_result: Vec<_> = matrix.column_neighbors.collect();
-		row_result.sort();
-		column_result.sort();
-
-		assert_eq!(row_result, expected_row);
-		assert_eq!(column_result, expected_column);
-	}
 }

@@ -6,7 +6,7 @@ The public key of a keypair used by a validator for determining assignments to a
 
 ## `AssignmentCert`
 
-An `AssignmentCert`, short for Assignment Certificate, is a piece of data provided by a validator to prove that they have been selected to perform secondary approval checks on an included candidate.
+An `AssignmentCert`, short for Assignment Certificate, is a piece of data provided by a validator to prove that they have been selected to perform approval checks on an included candidate.
 
 These certificates can be checked in the context of a specific block, candidate, and validator assignment VRF key. The block state will also provide further context about the availability core states at that block.
 

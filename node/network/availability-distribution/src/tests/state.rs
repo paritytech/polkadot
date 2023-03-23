@@ -32,7 +32,7 @@ use futures_timer::Delay;
 use sc_network as network;
 use sc_network::{config as netconfig, config::RequestResponseConfig, IfDisconnected};
 use sp_core::{testing::TaskExecutor, traits::SpawnNamed};
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 
 use polkadot_node_network_protocol::{
 	jaeger,
@@ -47,11 +47,11 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, LeafStatus, OverseerSignal,
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, CoreState, GroupIndex, Hash, Id as ParaId, ScheduledCore, SessionInfo,
 	ValidatorIndex,
 };
-use test_helpers::{mock::make_ferdie_keystore, SingleItemSink};
+use test_helpers::mock::make_ferdie_keystore;
 
 use super::mock::{make_session_info, OccupiedCoreBuilder};
 use crate::LOG_TARGET;
@@ -83,7 +83,7 @@ pub struct TestState {
 	pub session_info: SessionInfo,
 	/// Cores per relay chain block.
 	pub cores: HashMap<Hash, Vec<CoreState>>,
-	pub keystore: SyncCryptoStorePtr,
+	pub keystore: KeystorePtr,
 }
 
 impl Default for TestState {
@@ -295,7 +295,7 @@ impl TestState {
 }
 
 async fn overseer_signal(
-	mut tx: SingleItemSink<FromOrchestra<AvailabilityDistributionMessage>>,
+	mut tx: mpsc::Sender<FromOrchestra<AvailabilityDistributionMessage>>,
 	msg: impl Into<OverseerSignal>,
 ) {
 	let msg = msg.into();

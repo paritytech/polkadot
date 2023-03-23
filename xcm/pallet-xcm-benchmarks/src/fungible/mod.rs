@@ -18,6 +18,7 @@
 
 pub use pallet::*;
 
+#[cfg(feature = "runtime-benchmarks")]
 pub mod benchmarking;
 #[cfg(test)]
 mod mock;
@@ -33,14 +34,10 @@ pub mod pallet {
 		type TransactAsset: frame_support::traits::fungible::Mutate<Self::AccountId>;
 
 		/// The account used to check assets being teleported.
-		type CheckedAccount: Get<Option<Self::AccountId>>;
+		type CheckedAccount: Get<Option<(Self::AccountId, xcm_builder::MintLocation)>>;
 
 		/// A trusted location which we allow teleports from, and the asset we allow to teleport.
 		type TrustedTeleporter: Get<Option<(xcm::latest::MultiLocation, xcm::latest::MultiAsset)>>;
-
-		/// A trusted location where reserve assets are stored, and the asset we allow to be
-		/// reserves.
-		type TrustedReserve: Get<Option<(xcm::latest::MultiLocation, xcm::latest::MultiAsset)>>;
 
 		/// Give me a fungible asset that your asset transactor is going to accept.
 		fn get_multi_asset() -> xcm::latest::MultiAsset;

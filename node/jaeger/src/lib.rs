@@ -129,7 +129,7 @@ impl Jaeger {
 			"jaeger-collector",
 			Some("jaeger"),
 			Box::pin(async move {
-				match async_std::net::UdpSocket::bind("0.0.0.0:0").await {
+				match tokio::net::UdpSocket::bind("0.0.0.0:0").await {
 					Ok(udp_socket) => loop {
 						let buf = traces_out.next().await;
 						// UDP sending errors happen only either if the API is misused or in case of missing privilege.

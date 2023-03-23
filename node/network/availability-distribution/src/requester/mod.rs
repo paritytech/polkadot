@@ -37,7 +37,7 @@ use polkadot_node_subsystem::{
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
 use polkadot_node_subsystem_util::runtime::{get_occupied_cores, RuntimeInfo};
-use polkadot_primitives::v2::{CandidateHash, Hash, OccupiedCore, SessionIndex};
+use polkadot_primitives::{CandidateHash, Hash, OccupiedCore, SessionIndex};
 
 use super::{FatalError, Metrics, Result, LOG_TARGET};
 

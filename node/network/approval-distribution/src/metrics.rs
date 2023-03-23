@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use polkadot_node_subsystem_util::metrics::{prometheus, Metrics as MetricsTrait};
+use polkadot_node_metrics::metrics::{prometheus, Metrics as MetricsTrait};
 
 /// Approval Distribution metrics.
 #[derive(Default, Clone)]
@@ -127,7 +127,7 @@ impl MetricsTrait for Metrics {
 				prometheus::Histogram::with_opts(prometheus::HistogramOpts::new(
 					"polkadot_parachain_time_unify_with_peer",
 					"Time spent within fn `unify_with_peer`.",
-				))?,
+				).buckets(vec![0.000625, 0.00125,0.0025, 0.005, 0.0075, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,]))?,
 				registry,
 			)?,
 			time_import_pending_now_known: prometheus::register(

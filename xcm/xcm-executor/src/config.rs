@@ -15,19 +15,20 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use crate::traits::{
-	ClaimAssets, ConvertOrigin, DropAssets, FilterAssetLocation, InvertLocation, OnResponse,
-	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
+	AssetExchange, AssetLock, CallDispatcher, ClaimAssets, ConvertOrigin, DropAssets, ExportXcm,
+	FeeManager, OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds,
+	WeightTrader,
 };
 use frame_support::{
-	dispatch::{Dispatchable, Parameter},
-	weights::{GetDispatchInfo, PostDispatchInfo},
+	dispatch::{Dispatchable, GetDispatchInfo, Parameter, PostDispatchInfo},
+	traits::{Contains, ContainsPair, Get, PalletsInfoAccess},
 };
-use xcm::latest::SendXcm;
+use xcm::prelude::*;
 
 /// The trait to parameterize the `XcmExecutor`.
 pub trait Config {
 	/// The outer call dispatch type.
-	type Call: Parameter + Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo;
+	type RuntimeCall: Parameter + Dispatchable<PostInfo = PostDispatchInfo> + GetDispatchInfo;
 
 	/// How to send an onward XCM message.
 	type XcmSender: SendXcm;
@@ -36,22 +37,22 @@ pub trait Config {
 	type AssetTransactor: TransactAsset;
 
 	/// How to get a call origin from a `OriginKind` value.
-	type OriginConverter: ConvertOrigin<<Self::Call as Dispatchable>::Origin>;
+	type OriginConverter: ConvertOrigin<<Self::RuntimeCall as Dispatchable>::RuntimeOrigin>;
 
-	/// Combinations of (Location, Asset) pairs which we trust as reserves.
-	type IsReserve: FilterAssetLocation;
+	/// Combinations of (Asset, Location) pairs which we trust as reserves.
+	type IsReserve: ContainsPair<MultiAsset, MultiLocation>;
 
-	/// Combinations of (Location, Asset) pairs which we trust as teleporters.
-	type IsTeleporter: FilterAssetLocation;
+	/// Combinations of (Asset, Location) pairs which we trust as teleporters.
+	type IsTeleporter: ContainsPair<MultiAsset, MultiLocation>;
 
-	/// Means of inverting a location.
-	type LocationInverter: InvertLocation;
+	/// This chain's Universal Location.
+	type UniversalLocation: Get<InteriorMultiLocation>;
 
 	/// Whether we should execute the given XCM at all.
 	type Barrier: ShouldExecute;
 
 	/// The means of determining an XCM message's weight.
-	type Weigher: WeightBounds<Self::Call>;
+	type Weigher: WeightBounds<Self::RuntimeCall>;
 
 	/// The means of purchasing weight credit for XCM execution.
 	type Trader: WeightTrader;
@@ -63,9 +64,46 @@ pub trait Config {
 	/// end of execution.
 	type AssetTrap: DropAssets;
 
+	/// Handler for asset locking.
+	type AssetLocker: AssetLock;
+
+	/// Handler for exchanging assets.
+	type AssetExchanger: AssetExchange;
+
 	/// The handler for when there is an instruction to claim assets.
 	type AssetClaims: ClaimAssets;
 
 	/// How we handle version subscription requests.
 	type SubscriptionService: VersionChangeNotifier;
+
+	/// Information on all pallets.
+	type PalletInstancesInfo: PalletsInfoAccess;
+
+	/// The maximum number of assets we target to have in the Holding Register at any one time.
+	///
+	/// NOTE: In the worse case, the Holding Register may contain up to twice as many assets as this
+	/// and any benchmarks should take that into account.
+	type MaxAssetsIntoHolding: Get<u32>;
+
+	/// Configure the fees.
+	type FeeManager: FeeManager;
+
+	/// The method of exporting a message.
+	type MessageExporter: ExportXcm;
+
+	/// The origin locations and specific universal junctions to which they are allowed to elevate
+	/// themselves.
+	type UniversalAliases: Contains<(MultiLocation, Junction)>;
+
+	/// The call dispatcher used by XCM.
+	///
+	/// XCM will use this to dispatch any calls. When no special call dispatcher is required,
+	/// this can be set to the same type as `Self::Call`.
+	type CallDispatcher: CallDispatcher<Self::RuntimeCall>;
+
+	/// The safe call filter for `Transact`.
+	///
+	/// Use this type to explicitly whitelist calls that cannot undergo recursion. This is a
+	/// temporary measure until we properly account for proof size weights for XCM instructions.
+	type SafeCallFilter: Contains<Self::RuntimeCall>;
 }

@@ -26,7 +26,7 @@
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::{AvailableData, Proof};
-use polkadot_primitives::v2::{BlakeTwo256, Hash as H256, HashT};
+use polkadot_primitives::{BlakeTwo256, Hash as H256, HashT};
 use sp_core::Blake2Hasher;
 use sp_trie::{
 	trie_types::{TrieDBBuilder, TrieDBMutBuilderV0 as TrieDBMutBuilder},
@@ -216,7 +216,7 @@ pub struct Branches<'a, I> {
 impl<'a, I: AsRef<[u8]>> Branches<'a, I> {
 	/// Get the trie root.
 	pub fn root(&self) -> H256 {
-		self.root.clone()
+		self.root
 	}
 }
 

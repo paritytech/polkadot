@@ -57,7 +57,7 @@ use signal_hook::consts::signal::*;
 use signal_hook_tokio::Signals;
 use sp_npos_elections::BalancingConfig;
 use sp_runtime::{traits::Block as BlockT, DeserializeOwned};
-use std::{ops::Deref, sync::Arc};
+use std::{ops::Deref, sync::Arc, time::Duration};
 use tracing_subscriber::{fmt, EnvFilter};
 
 pub(crate) enum AnyRuntime {
@@ -94,7 +94,7 @@ macro_rules! construct_runtime_prelude {
 					let crate::signer::Signer { account, pair, .. } = signer;
 
 					let local_call = EPMCall::<Runtime>::submit { raw_solution: Box::new(raw_solution) };
-					let call: Call = <EPMCall<Runtime> as std::convert::TryInto<Call>>::try_into(local_call)
+					let call: RuntimeCall = <EPMCall<Runtime> as std::convert::TryInto<RuntimeCall>>::try_into(local_call)
 						.expect("election provider pallet must exist in the runtime, thus \
 							inner call can be converted, qed."
 						);
@@ -295,11 +295,16 @@ frame_support::parameter_types! {
 
 /// Build the Ext at hash with all the data of `ElectionProviderMultiPhase` and any additional
 /// pallets.
-async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
+async fn create_election_ext<T, B>(
 	client: SharedRpcClient,
 	at: Option<B::Hash>,
 	additional: Vec<String>,
-) -> Result<Ext, Error<T>> {
+) -> Result<Ext, Error<T>>
+where
+	T: EPM::Config,
+	B: BlockT + DeserializeOwned,
+	B::Header: DeserializeOwned,
+{
 	use frame_support::{storage::generator::StorageMap, traits::PalletInfo};
 	use sp_core::hashing::twox_128;
 
@@ -312,13 +317,14 @@ async fn create_election_ext<T: EPM::Config, B: BlockT + DeserializeOwned>(
 			transport: client.into_inner().into(),
 			at,
 			pallets,
+			hashed_prefixes: vec![<frame_system::BlockHash<T>>::prefix_hash()],
+			hashed_keys: vec![[twox_128(b"System"), twox_128(b"Number")].concat()],
 			..Default::default()
 		}))
-		.inject_hashed_prefix(&<frame_system::BlockHash<T>>::prefix_hash())
-		.inject_hashed_key(&[twox_128(b"System"), twox_128(b"Number")].concat())
 		.build()
 		.await
 		.map_err(|why| Error::RemoteExternalities(why))
+		.map(|rx| rx.inner_ext)
 }
 
 /// Compute the election. It expects to NOT be `Phase::Off`. In other words, the snapshot must
@@ -420,6 +426,7 @@ fn mine_dpos<T: EPM::Config>(ext: &mut Ext) -> Result<(), Error<T>> {
 
 pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 	rpc: &SharedRpcClient,
+	print: bool,
 ) -> Result<(), Error<T>> {
 	let linked_version = T::Version::get();
 	let on_chain_version = rpc
@@ -427,10 +434,31 @@ pub(crate) async fn check_versions<T: frame_system::Config + EPM::Config>(
 		.await
 		.expect("runtime version RPC should always work; qed");
 
-	log::debug!(target: LOG_TARGET, "linked version {:?}", linked_version);
-	log::debug!(target: LOG_TARGET, "on-chain version {:?}", on_chain_version);
+	let do_print = || {
+		log::info!(
+			target: LOG_TARGET,
+			"linked version {:?}",
+			(&linked_version.spec_name, &linked_version.spec_version)
+		);
+		log::info!(
+			target: LOG_TARGET,
+			"on-chain version {:?}",
+			(&on_chain_version.spec_name, &on_chain_version.spec_version)
+		);
+	};
 
-	if linked_version != on_chain_version {
+	if print {
+		do_print();
+	}
+
+	// we relax the checking here a bit, which should not cause any issues in production (a chain
+	// that messes up its spec name is highly unlikely), but it allows us to do easier testing.
+	if linked_version.spec_name != on_chain_version.spec_name ||
+		linked_version.spec_version != on_chain_version.spec_version
+	{
+		if !print {
+			do_print();
+		}
 		log::error!(
 			target: LOG_TARGET,
 			"VERSION MISMATCH: any transaction will fail with bad-proof"
@@ -485,7 +513,7 @@ async fn handle_signals(mut signals: Signals) {
 async fn main() {
 	fmt().with_env_filter(EnvFilter::from_default_env()).init();
 
-	let Opt { uri, command } = Opt::parse();
+	let Opt { uri, command, connection_timeout, request_timeout } = Opt::parse();
 	log::debug!(target: LOG_TARGET, "attempting to connect to {:?}", uri);
 
 	let signals = Signals::new(&[SIGTERM, SIGINT, SIGQUIT]).expect("Failed initializing Signals");
@@ -493,7 +521,13 @@ async fn main() {
 	let signals_task = tokio::spawn(handle_signals(signals));
 
 	let rpc = loop {
-		match SharedRpcClient::new(&uri).await {
+		match SharedRpcClient::new(
+			&uri,
+			Duration::from_secs(connection_timeout as u64),
+			Duration::from_secs(request_timeout as u64),
+		)
+		.await
+		{
 			Ok(client) => break client,
 			Err(why) => {
 				log::warn!(
@@ -552,7 +586,7 @@ async fn main() {
 	log::info!(target: LOG_TARGET, "connected to chain {:?}", chain);
 
 	any_runtime_unit! {
-		check_versions::<Runtime>(&rpc).await
+		check_versions::<Runtime>(&rpc, true).await
 	};
 
 	let outcome = any_runtime! {

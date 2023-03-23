@@ -18,7 +18,7 @@
 
 use crate::{configuration, paras::*, shared::Pallet as ParasShared};
 use frame_system::RawOrigin;
-use primitives::v2::{HeadData, Id as ParaId, ValidationCode, ValidatorId, ValidatorIndex};
+use primitives::{HeadData, Id as ParaId, ValidationCode, ValidatorId, ValidatorIndex};
 use sp_application_crypto::RuntimeAppPublic;
 
 // Constants for the benchmarking
@@ -140,7 +140,7 @@ where
 				&mut parachains,
 				id,
 				&ParaGenesisArgs {
-					parachain: true,
+					para_kind: ParaKind::Parachain,
 					genesis_head: HeadData(vec![1, 2, 3, 4]),
 					validation_code: old_validation_code,
 				},
@@ -159,7 +159,7 @@ where
 			let r = Pallet::<T>::schedule_para_initialize(
 				id,
 				ParaGenesisArgs {
-					parachain: true,
+					para_kind: ParaKind::Parachain,
 					genesis_head: HeadData(vec![1, 2, 3, 4]),
 					validation_code: validation_code(),
 				},
@@ -170,7 +170,8 @@ where
 }
 
 /// Generates a list of votes combined with signatures for the active validator set. The number of
-/// votes is equal to the minimum number of votes required to reach the supermajority.
+/// votes is equal to the minimum number of votes required to reach the threshold for either accept
+/// or reject.
 fn generate_statements<T>(
 	vote_outcome: VoteOutcome,
 ) -> impl Iterator<Item = (PvfCheckStatement, ValidatorSignature)>
@@ -179,7 +180,11 @@ where
 {
 	let validators = ParasShared::<T>::active_validator_keys();
 
-	let required_votes = primitives::v2::supermajority_threshold(validators.len());
+	let accept_threshold = primitives::supermajority_threshold(validators.len());
+	let required_votes = match vote_outcome {
+		VoteOutcome::Accept => accept_threshold,
+		VoteOutcome::Reject => validators.len() - accept_threshold,
+	};
 	(0..required_votes).map(move |validator_index| {
 		let stmt = PvfCheckStatement {
 			accept: vote_outcome == VoteOutcome::Accept,

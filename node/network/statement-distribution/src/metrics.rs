@@ -17,8 +17,10 @@
 use polkadot_node_subsystem_util::metrics::{self, prometheus};
 
 /// Buckets more suitable for checking the typical latency values
-const HISTOGRAM_LATENCY_BUCKETS: &[f64] =
-	&[0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.75, 0.9, 1.0, 1.2, 1.5, 1.75];
+const HISTOGRAM_LATENCY_BUCKETS: &[f64] = &[
+	0.000025, 0.00005, 0.000075, 0.0001, 0.0003125, 0.000625, 0.00125, 0.0025, 0.005, 0.01, 0.025,
+	0.05, 0.1,
+];
 
 #[derive(Clone)]
 struct MetricsInner {

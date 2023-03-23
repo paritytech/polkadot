@@ -28,7 +28,7 @@ The session change routine works as follows:
 ## Routines
 
 ```rust
-enum InconsistentErrror {
+enum InconsistentError {
   // ...
 }
 

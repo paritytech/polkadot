@@ -16,10 +16,11 @@
 
 use super::{metrics::Metrics, *};
 use assert_matches::assert_matches;
-use futures::executor::{self, block_on};
+use futures::executor;
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_network_protocol::{
+	grid_topology::{SessionGridTopology, TopologyPeerInfo},
 	peer_set::ValidationVersion,
 	request_response::{
 		v1::{StatementFetchingRequest, StatementFetchingResponse},
@@ -34,7 +35,9 @@ use polkadot_node_subsystem::{
 	ActivatedLeaf, LeafStatus,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
-use polkadot_primitives::v2::{Hash, Id as ParaId, SessionInfo, ValidationCode};
+use polkadot_primitives::{
+	GroupIndex, Hash, Id as ParaId, IndexedVec, SessionInfo, ValidationCode, ValidatorId,
+};
 use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
 };
@@ -42,7 +45,7 @@ use sc_keystore::LocalKeystore;
 use sp_application_crypto::{sr25519::Pair, AppKey, Pair as TraitPair};
 use sp_authority_discovery::AuthorityPair;
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{CryptoStore, SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 use std::{iter::FromIterator as _, sync::Arc, time::Duration};
 
 // Some deterministic genesis hash for protocol names
@@ -82,19 +85,19 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	};
 
 	let mut head_data = ActiveHeadData::new(
-		validators,
+		IndexedVec::<ValidatorIndex, ValidatorId>::from(validators),
 		session_index,
 		PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 	);
 
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-	let alice_public = SyncCryptoStore::sr25519_generate_new(
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+	let alice_public = Keystore::sr25519_generate_new(
 		&*keystore,
 		ValidatorId::ID,
 		Some(&Sr25519Keyring::Alice.to_seed()),
 	)
 	.unwrap();
-	let bob_public = SyncCryptoStore::sr25519_generate_new(
+	let bob_public = Keystore::sr25519_generate_new(
 		&*keystore,
 		ValidatorId::ID,
 		Some(&Sr25519Keyring::Bob.to_seed()),
@@ -102,13 +105,13 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	.unwrap();
 
 	// note A
-	let a_seconded_val_0 = block_on(SignedFullStatement::sign(
+	let a_seconded_val_0 = SignedFullStatement::sign(
 		&keystore,
 		Statement::Seconded(candidate_a.clone()),
 		&signing_context,
 		ValidatorIndex(0),
 		&alice_public.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -129,13 +132,13 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	assert_matches!(noted, NotedStatement::UsefulButKnown);
 
 	// note B
-	let statement = block_on(SignedFullStatement::sign(
+	let statement = SignedFullStatement::sign(
 		&keystore,
 		Statement::Seconded(candidate_b.clone()),
 		&signing_context,
 		ValidatorIndex(0),
 		&alice_public.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -146,13 +149,13 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	assert_matches!(noted, NotedStatement::Fresh(_));
 
 	// note C (beyond 2 - ignored)
-	let statement = block_on(SignedFullStatement::sign(
+	let statement = SignedFullStatement::sign(
 		&keystore,
 		Statement::Seconded(candidate_c.clone()),
 		&signing_context,
 		ValidatorIndex(0),
 		&alice_public.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -164,13 +167,13 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	assert_matches!(noted, NotedStatement::NotUseful);
 
 	// note B (new validator)
-	let statement = block_on(SignedFullStatement::sign(
+	let statement = SignedFullStatement::sign(
 		&keystore,
 		Statement::Seconded(candidate_b.clone()),
 		&signing_context,
 		ValidatorIndex(1),
 		&bob_public.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -181,13 +184,13 @@ fn active_head_accepts_only_2_seconded_per_validator() {
 	assert_matches!(noted, NotedStatement::Fresh(_));
 
 	// note C (new validator)
-	let statement = block_on(SignedFullStatement::sign(
+	let statement = SignedFullStatement::sign(
 		&keystore,
 		Statement::Seconded(candidate_c.clone()),
 		&signing_context,
 		ValidatorIndex(1),
 		&bob_public.into(),
-	))
+	)
 	.ok()
 	.flatten()
 	.expect("should be signed");
@@ -405,21 +408,21 @@ fn peer_view_update_sends_messages() {
 	let session_index = 1;
 	let signing_context = SigningContext { parent_hash: hash_c, session_index };
 
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 
-	let alice_public = SyncCryptoStore::sr25519_generate_new(
+	let alice_public = Keystore::sr25519_generate_new(
 		&*keystore,
 		ValidatorId::ID,
 		Some(&Sr25519Keyring::Alice.to_seed()),
 	)
 	.unwrap();
-	let bob_public = SyncCryptoStore::sr25519_generate_new(
+	let bob_public = Keystore::sr25519_generate_new(
 		&*keystore,
 		ValidatorId::ID,
 		Some(&Sr25519Keyring::Bob.to_seed()),
 	)
 	.unwrap();
-	let charlie_public = SyncCryptoStore::sr25519_generate_new(
+	let charlie_public = Keystore::sr25519_generate_new(
 		&*keystore,
 		ValidatorId::ID,
 		Some(&Sr25519Keyring::Charlie.to_seed()),
@@ -428,18 +431,18 @@ fn peer_view_update_sends_messages() {
 
 	let new_head_data = {
 		let mut data = ActiveHeadData::new(
-			validators,
+			IndexedVec::<ValidatorIndex, ValidatorId>::from(validators),
 			session_index,
 			PerLeafSpan::new(Arc::new(jaeger::Span::Disabled), "test"),
 		);
 
-		let statement = block_on(SignedFullStatement::sign(
+		let statement = SignedFullStatement::sign(
 			&keystore,
 			Statement::Seconded(candidate.clone()),
 			&signing_context,
 			ValidatorIndex(0),
 			&alice_public.into(),
-		))
+		)
 		.ok()
 		.flatten()
 		.expect("should be signed");
@@ -450,13 +453,13 @@ fn peer_view_update_sends_messages() {
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
-		let statement = block_on(SignedFullStatement::sign(
+		let statement = SignedFullStatement::sign(
 			&keystore,
 			Statement::Valid(candidate_hash),
 			&signing_context,
 			ValidatorIndex(1),
 			&bob_public.into(),
-		))
+		)
 		.ok()
 		.flatten()
 		.expect("should be signed");
@@ -467,13 +470,13 @@ fn peer_view_update_sends_messages() {
 
 		assert_matches!(noted, NotedStatement::Fresh(_));
 
-		let statement = block_on(SignedFullStatement::sign(
+		let statement = SignedFullStatement::sign(
 			&keystore,
 			Statement::Valid(candidate_hash),
 			&signing_context,
 			ValidatorIndex(2),
 			&charlie_public.into(),
-		))
+		)
 		.ok()
 		.flatten()
 		.expect("should be signed");
@@ -509,7 +512,7 @@ fn peer_view_update_sends_messages() {
 	let peer = PeerId::random();
 
 	executor::block_on(async move {
-		let mut topology: SessionGridTopology = Default::default();
+		let mut topology = GridNeighbors::empty();
 		topology.peers_x = HashSet::from_iter(vec![peer.clone()].into_iter());
 		update_peer_view_and_maybe_send_unlocked(
 			peer.clone(),
@@ -611,13 +614,12 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 	executor::block_on(async move {
 		let signing_context = SigningContext { parent_hash: hash_b, session_index };
 
-		let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-		let alice_public = CryptoStore::sr25519_generate_new(
+		let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+		let alice_public = Keystore::sr25519_generate_new(
 			&*keystore,
 			ValidatorId::ID,
 			Some(&Sr25519Keyring::Alice.to_seed()),
 		)
-		.await
 		.unwrap();
 
 		let statement = SignedFullStatement::sign(
@@ -627,7 +629,6 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 			ValidatorIndex(0),
 			&alice_public.into(),
 		)
-		.await
 		.ok()
 		.flatten()
 		.expect("should be signed");
@@ -639,7 +640,7 @@ fn circulated_statement_goes_to_all_peers_with_view() {
 		};
 		let statement = StoredStatement { comparator: &comparator, statement: &statement };
 
-		let mut topology: SessionGridTopology = Default::default();
+		let mut topology = GridNeighbors::empty();
 		topology.peers_x =
 			HashSet::from_iter(vec![peer_a.clone(), peer_b.clone(), peer_c.clone()].into_iter());
 		let needs_dependents = circulate_statement(
@@ -824,13 +825,12 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		let statement = {
 			let signing_context = SigningContext { parent_hash: hash_a, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let alice_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -840,7 +840,6 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -1068,13 +1067,12 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		let statement = {
 			let signing_context = SigningContext { parent_hash: hash_a, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let alice_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -1084,7 +1082,6 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -1624,13 +1621,12 @@ fn share_prioritizes_backing_group() {
 		let statement = {
 			let signing_context = SigningContext { parent_hash: hash_a, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let ferdie_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let ferdie_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Ferdie.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -1640,7 +1636,6 @@ fn share_prioritizes_backing_group() {
 				ValidatorIndex(4),
 				&ferdie_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -1816,13 +1811,12 @@ fn peer_cant_flood_with_large_statements() {
 		let statement = {
 			let signing_context = SigningContext { parent_hash: hash_a, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let alice_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -1832,7 +1826,6 @@ fn peer_cant_flood_with_large_statements() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -2019,42 +2012,77 @@ fn handle_multiple_seconded_statements() {
 				.await;
 		}
 
-		// Explicitly add all `lucky` peers to the gossip peers to ensure that neither `peerA` not `peerB`
-		// receive statements
+		// Set up a topology which puts peers a & b in a column together.
 		let gossip_topology = {
-			let mut t = network_bridge_event::NewGossipTopology {
-				session: 1,
-				our_neighbors_x: HashMap::new(),
-				our_neighbors_y: HashMap::new(),
-			};
+			// create a lucky_peers+1 * lucky_peers+1 grid topology where we are at index 2, sharing
+			// a row with peer_a (0) and peer_b (1) and a column with all the lucky peers.
+			// the rest is filled with junk.
+			// This is an absolute garbage hack depending on quirks of the implementation
+			// and not on sound architecture.
 
-			// Create a topology to ensure that we send messages not to `peer_a`/`peer_b`
-			for (i, peer) in lucky_peers.iter().enumerate() {
-				let authority_id = AuthorityPair::generate().0.public();
-				t.our_neighbors_y.insert(
-					authority_id,
-					network_bridge_event::TopologyPeerInfo {
-						peer_ids: vec![peer.clone()],
-						validator_index: (i as u32 + 2_u32).into(),
-					},
-				);
+			let n_lucky = lucky_peers.len();
+			let dim = n_lucky + 1;
+			let grid_size = dim * dim;
+			let topology_peer_info: Vec<_> = (0..grid_size)
+				.map(|i| {
+					if i == 0 {
+						TopologyPeerInfo {
+							peer_ids: vec![peer_a.clone()],
+							validator_index: ValidatorIndex(0),
+							discovery_id: AuthorityPair::generate().0.public(),
+						}
+					} else if i == 1 {
+						TopologyPeerInfo {
+							peer_ids: vec![peer_b.clone()],
+							validator_index: ValidatorIndex(1),
+							discovery_id: AuthorityPair::generate().0.public(),
+						}
+					} else if i == 2 {
+						TopologyPeerInfo {
+							peer_ids: vec![],
+							validator_index: ValidatorIndex(2),
+							discovery_id: AuthorityPair::generate().0.public(),
+						}
+					} else if (i - 2) % dim == 0 {
+						let lucky_index = ((i - 2) / dim) - 1;
+						TopologyPeerInfo {
+							peer_ids: vec![lucky_peers[lucky_index].clone()],
+							validator_index: ValidatorIndex(i as _),
+							discovery_id: AuthorityPair::generate().0.public(),
+						}
+					} else {
+						TopologyPeerInfo {
+							peer_ids: vec![PeerId::random()],
+							validator_index: ValidatorIndex(i as _),
+							discovery_id: AuthorityPair::generate().0.public(),
+						}
+					}
+				})
+				.collect();
+
+			// also a hack: this is only required to be accurate for
+			// the validator indices we compute grid neighbors for.
+			let mut shuffled_indices = vec![0; grid_size];
+			shuffled_indices[2] = 2;
+
+			// Some sanity checking to make sure this hack is set up correctly.
+			let topology = SessionGridTopology::new(shuffled_indices, topology_peer_info);
+			let grid_neighbors = topology.compute_grid_neighbors_for(ValidatorIndex(2)).unwrap();
+			assert_eq!(grid_neighbors.peers_x.len(), 25);
+			assert!(grid_neighbors.peers_x.contains(&peer_a));
+			assert!(grid_neighbors.peers_x.contains(&peer_b));
+			assert!(!grid_neighbors.peers_y.contains(&peer_b));
+			assert!(!grid_neighbors.route_to_peer(RequiredRouting::GridY, &peer_b));
+			assert_eq!(grid_neighbors.peers_y.len(), lucky_peers.len());
+			for lucky in &lucky_peers {
+				assert!(grid_neighbors.peers_y.contains(lucky));
 			}
-			t.our_neighbors_x.insert(
-				AuthorityPair::generate().0.public(),
-				network_bridge_event::TopologyPeerInfo {
-					peer_ids: vec![peer_a.clone()],
-					validator_index: 0_u32.into(),
-				},
-			);
-			t.our_neighbors_x.insert(
-				AuthorityPair::generate().0.public(),
-				network_bridge_event::TopologyPeerInfo {
-					peer_ids: vec![peer_b.clone()],
-					validator_index: 1_u32.into(),
-				},
-			);
 
-			t
+			network_bridge_event::NewGossipTopology {
+				session: 1,
+				topology,
+				local_index: Some(ValidatorIndex(2)),
+			}
 		};
 
 		handle
@@ -2070,13 +2098,12 @@ fn handle_multiple_seconded_statements() {
 		let statement = {
 			let signing_context = SigningContext { parent_hash: relay_parent_hash, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let alice_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -2086,7 +2113,6 @@ fn handle_multiple_seconded_statements() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -2173,13 +2199,12 @@ fn handle_multiple_seconded_statements() {
 		let statement = {
 			let signing_context = SigningContext { parent_hash: relay_parent_hash, session_index };
 
-			let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
-			let alice_public = CryptoStore::sr25519_generate_new(
+			let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
+			let alice_public = Keystore::sr25519_generate_new(
 				&*keystore,
 				ValidatorId::ID,
 				Some(&Sr25519Keyring::Alice.to_seed()),
 			)
-			.await
 			.unwrap();
 
 			SignedFullStatement::sign(
@@ -2189,7 +2214,6 @@ fn handle_multiple_seconded_statements() {
 				ValidatorIndex(0),
 				&alice_public.into(),
 			)
-			.await
 			.ok()
 			.flatten()
 			.expect("should be signed")
@@ -2283,7 +2307,7 @@ fn handle_multiple_seconded_statements() {
 }
 
 fn make_session_info(validators: Vec<Pair>, groups: Vec<Vec<u32>>) -> SessionInfo {
-	let validator_groups: Vec<Vec<ValidatorIndex>> = groups
+	let validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>> = groups
 		.iter()
 		.map(|g| g.into_iter().map(|v| ValidatorIndex(*v)).collect())
 		.collect();

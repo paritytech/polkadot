@@ -15,10 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System};
+use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System, Test};
 use hex_literal::hex;
 use parity_scale_codec::Encode;
-use primitives::v2::BlockNumber;
+use primitives::BlockNumber;
 
 pub(crate) fn run_to_block(to: BlockNumber, new_session: Option<Vec<BlockNumber>>) {
 	while System::block_number() < to {
@@ -73,9 +73,9 @@ fn clean_dmp_works() {
 		let outgoing_paras = vec![a, b];
 		Dmp::initializer_on_new_session(&notification, &outgoing_paras);
 
-		assert!(<Dmp as Store>::DownwardMessageQueues::get(&a).is_empty());
-		assert!(<Dmp as Store>::DownwardMessageQueues::get(&b).is_empty());
-		assert!(!<Dmp as Store>::DownwardMessageQueues::get(&c).is_empty());
+		assert!(DownwardMessageQueues::<Test>::get(&a).is_empty());
+		assert!(DownwardMessageQueues::<Test>::get(&b).is_empty());
+		assert!(!DownwardMessageQueues::<Test>::get(&c).is_empty());
 	});
 }
 
@@ -184,7 +184,7 @@ fn queue_downward_message_critical() {
 #[test]
 fn verify_dmq_mqc_head_is_externally_accessible() {
 	use hex_literal::hex;
-	use primitives::v2::well_known_keys;
+	use primitives::well_known_keys;
 
 	let a = ParaId::from(2020);
 

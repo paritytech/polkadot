@@ -64,7 +64,7 @@ where
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
 
-	for (_score, idx) in indices {
+	for (_score, _bn, idx) in indices {
 		let key = StorageKey(EPM::SignedSubmissionsMap::<T>::hashed_key_for(idx));
 
 		if let Some(submission) = rpc
@@ -81,20 +81,36 @@ where
 	Ok(())
 }
 
+/// `true` if `our_score` should pass the onchain `best_score` with the given strategy.
+pub(crate) fn score_passes_strategy(
+	our_score: sp_npos_elections::ElectionScore,
+	best_score: sp_npos_elections::ElectionScore,
+	strategy: SubmissionStrategy,
+) -> bool {
+	match strategy {
+		SubmissionStrategy::Always => true,
+		SubmissionStrategy::IfLeading =>
+			our_score == best_score ||
+				our_score.strict_threshold_better(best_score, Perbill::zero()),
+		SubmissionStrategy::ClaimBetterThan(epsilon) =>
+			our_score.strict_threshold_better(best_score, epsilon),
+		SubmissionStrategy::ClaimNoWorseThan(epsilon) =>
+			!best_score.strict_threshold_better(our_score, epsilon),
+	}
+}
+
 /// Reads all current solutions and checks the scores according to the `SubmissionStrategy`.
-async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
+async fn ensure_strategy_met<T: EPM::Config, B: BlockT>(
 	rpc: &SharedRpcClient,
 	at: Hash,
 	score: sp_npos_elections::ElectionScore,
 	strategy: SubmissionStrategy,
 	max_submissions: u32,
 ) -> Result<(), Error<T>> {
-	let epsilon = match strategy {
-		// don't care about current scores.
-		SubmissionStrategy::Always => return Ok(()),
-		SubmissionStrategy::IfLeading => Perbill::zero(),
-		SubmissionStrategy::ClaimBetterThan(epsilon) => epsilon,
-	};
+	// don't care about current scores.
+	if matches!(strategy, SubmissionStrategy::Always) {
+		return Ok(())
+	}
 
 	let indices_key = StorageKey(EPM::SignedSubmissionIndices::<T>::hashed_key().to_vec());
 
@@ -104,34 +120,15 @@ async fn ensure_no_better_solution<T: EPM::Config, B: BlockT>(
 		.map_err::<Error<T>, _>(Into::into)?
 		.unwrap_or_default();
 
-	let mut is_best_score = true;
-	let mut scores = 0;
-
-	log::debug!(target: LOG_TARGET, "submitted solutions on chain: {:?}", indices);
-
-	// BTreeMap is ordered, take last to get the max score.
-	for (curr_max_score, _) in indices.into_iter() {
-		if !score.strict_threshold_better(curr_max_score, epsilon) {
-			log::warn!(target: LOG_TARGET, "mined score is not better; skipping to submit");
-			is_best_score = false;
-		}
-
-		if score == curr_max_score {
-			log::warn!(
-				target: LOG_TARGET,
-				"mined score has the same score as already submitted score"
-			);
-		}
-
-		// Indices can't be bigger than u32::MAX so can't overflow.
-		scores += 1;
+	if indices.len() >= max_submissions as usize {
+		log::debug!(target: LOG_TARGET, "The submissions queue is full");
 	}
 
-	if scores == max_submissions {
-		log::warn!(target: LOG_TARGET, "The submissions queue is full");
-	}
+	// default score is all zeros, any score is better than it.
+	let best_score = indices.last().map(|(score, _, _)| *score).unwrap_or_default();
+	log::debug!(target: LOG_TARGET, "best onchain score is {:?}", best_score);
 
-	if is_best_score {
+	if score_passes_strategy(score, best_score, strategy) {
 		Ok(())
 	} else {
 		Err(Error::StrategyNotSatisfied)
@@ -233,7 +230,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			// block on this because if this fails there is no way to recover from
 			// that error i.e, upgrade/downgrade required.
-			if let Err(err) = crate::check_versions::<Runtime>(&rpc).await {
+			if let Err(err) = crate::check_versions::<Runtime>(&rpc, false).await {
 				let _ = tx.send(err.into());
 				return;
 			}
@@ -314,9 +311,14 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				}
 			};
 
-			let ensure_no_better_fut = tokio::spawn(async move {
-				ensure_no_better_solution::<Runtime, Block>(&rpc1, latest_head, score, config.submission_strategy,
-					SignedMaxSubmissions::get()).await
+			let ensure_strategy_met_fut = tokio::spawn(async move {
+				ensure_strategy_met::<Runtime, Block>(
+					&rpc1,
+					latest_head,
+					score,
+					config.submission_strategy,
+					SignedMaxSubmissions::get()
+				).await
 			});
 
 			let ensure_signed_phase_fut = tokio::spawn(async move {
@@ -325,7 +327,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			// Run the calls in parallel and return once all has completed or any failed.
 			if let Err(err) = tokio::try_join!(
-				flatten(ensure_no_better_fut),
+				flatten(ensure_strategy_met_fut),
 				flatten(ensure_signed_phase_fut),
 			) {
 				log::debug!(target: LOG_TARGET, "Skipping to submit at block {}; {}", at.number, err);
@@ -370,14 +372,14 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					TransactionStatus::Ready |
 					TransactionStatus::Broadcast(_) |
 					TransactionStatus::Future => continue,
-					TransactionStatus::InBlock(hash) => {
+					TransactionStatus::InBlock((hash, _)) => {
 						log::info!(target: LOG_TARGET, "included at {:?}", hash);
 						let key = StorageKey(
 							frame_support::storage::storage_prefix(b"System", b"Events").to_vec(),
 						);
 
 						let events = match rpc.get_storage_and_decode::<
-							Vec<frame_system::EventRecord<Event, <Block as BlockT>::Hash>>,
+							Vec<frame_system::EventRecord<RuntimeEvent, <Block as BlockT>::Hash>>,
 						>(&key, Some(hash))
 						.await {
 							Ok(rp) => rp.unwrap_or_default(),
@@ -399,7 +401,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 					TransactionStatus::Retracted(hash) => {
 						log::info!(target: LOG_TARGET, "Retracted at {:?}", hash);
 					},
-					TransactionStatus::Finalized(hash) => {
+					TransactionStatus::Finalized((hash, _)) => {
 						log::info!(target: LOG_TARGET, "Finalized at {:?}", hash);
 						break
 					},
@@ -420,3 +422,46 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 monitor_cmd_for!(polkadot);
 monitor_cmd_for!(kusama);
 monitor_cmd_for!(westend);
+
+#[cfg(test)]
+pub mod tests {
+	use super::*;
+
+	#[test]
+	fn score_passes_strategy_works() {
+		let s = |x| sp_npos_elections::ElectionScore { minimal_stake: x, ..Default::default() };
+		let two = Perbill::from_percent(2);
+
+		// anything passes Always
+		assert!(score_passes_strategy(s(0), s(0), SubmissionStrategy::Always));
+		assert!(score_passes_strategy(s(5), s(0), SubmissionStrategy::Always));
+		assert!(score_passes_strategy(s(5), s(10), SubmissionStrategy::Always));
+
+		// if leading
+		assert!(score_passes_strategy(s(0), s(0), SubmissionStrategy::IfLeading));
+		assert!(score_passes_strategy(s(1), s(0), SubmissionStrategy::IfLeading));
+		assert!(score_passes_strategy(s(2), s(0), SubmissionStrategy::IfLeading));
+		assert!(!score_passes_strategy(s(5), s(10), SubmissionStrategy::IfLeading));
+		assert!(!score_passes_strategy(s(9), s(10), SubmissionStrategy::IfLeading));
+		assert!(score_passes_strategy(s(10), s(10), SubmissionStrategy::IfLeading));
+
+		// if better by 2%
+		assert!(!score_passes_strategy(s(50), s(100), SubmissionStrategy::ClaimBetterThan(two)));
+		assert!(!score_passes_strategy(s(100), s(100), SubmissionStrategy::ClaimBetterThan(two)));
+		assert!(!score_passes_strategy(s(101), s(100), SubmissionStrategy::ClaimBetterThan(two)));
+		assert!(!score_passes_strategy(s(102), s(100), SubmissionStrategy::ClaimBetterThan(two)));
+		assert!(score_passes_strategy(s(103), s(100), SubmissionStrategy::ClaimBetterThan(two)));
+		assert!(score_passes_strategy(s(150), s(100), SubmissionStrategy::ClaimBetterThan(two)));
+
+		// if no less than 2% worse
+		assert!(!score_passes_strategy(s(50), s(100), SubmissionStrategy::ClaimNoWorseThan(two)));
+		assert!(!score_passes_strategy(s(97), s(100), SubmissionStrategy::ClaimNoWorseThan(two)));
+		assert!(score_passes_strategy(s(98), s(100), SubmissionStrategy::ClaimNoWorseThan(two)));
+		assert!(score_passes_strategy(s(99), s(100), SubmissionStrategy::ClaimNoWorseThan(two)));
+		assert!(score_passes_strategy(s(100), s(100), SubmissionStrategy::ClaimNoWorseThan(two)));
+		assert!(score_passes_strategy(s(101), s(100), SubmissionStrategy::ClaimNoWorseThan(two)));
+		assert!(score_passes_strategy(s(102), s(100), SubmissionStrategy::ClaimNoWorseThan(two)));
+		assert!(score_passes_strategy(s(103), s(100), SubmissionStrategy::ClaimNoWorseThan(two)));
+		assert!(score_passes_strategy(s(150), s(100), SubmissionStrategy::ClaimNoWorseThan(two)));
+	}
+}

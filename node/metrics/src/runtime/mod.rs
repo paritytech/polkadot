@@ -24,7 +24,7 @@
 #![cfg(feature = "runtime-metrics")]
 
 use codec::Decode;
-use primitives::v2::{
+use primitives::{
 	metric_definitions::{CounterDefinition, CounterVecDefinition},
 	RuntimeMetricLabelValues, RuntimeMetricOp, RuntimeMetricUpdate,
 };

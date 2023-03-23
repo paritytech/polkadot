@@ -17,14 +17,14 @@
 //! Tests for the Westend Runtime Configuration
 
 use crate::*;
-use xcm::latest::{AssetId::*, Fungibility::*, MultiLocation};
+use xcm::latest::prelude::*;
 
 #[test]
 fn remove_keys_weight_is_sensible() {
 	use runtime_common::crowdloan::WeightInfo;
 	let max_weight = <Runtime as crowdloan::Config>::WeightInfo::refund(RemoveKeysLimit::get());
 	// Max remove keys limit should be no more than half the total block weight.
-	assert!(max_weight * 2 < BlockWeights::get().max_block);
+	assert!((max_weight * 2).all_lt(BlockWeights::get().max_block));
 }
 
 #[test]
@@ -35,19 +35,17 @@ fn sample_size_is_sensible() {
 	let max_weight: frame_support::weights::Weight =
 		RocksDbWeight::get().reads_writes(samples.into(), samples.into());
 	// Max sample cleanup should be no more than half the total block weight.
-	assert!(max_weight * 2 < BlockWeights::get().max_block);
-	assert!(
-		<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2 <
-			BlockWeights::get().max_block
-	);
+	assert!((max_weight * 2).all_lt(BlockWeights::get().max_block));
+	assert!((<Runtime as auctions::Config>::WeightInfo::on_initialize() * 2)
+		.all_lt(BlockWeights::get().max_block));
 }
 
 #[test]
 fn call_size() {
 	assert!(
-		core::mem::size_of::<Call>() <= 230,
-		"size of Call is more than 230 bytes: some calls have too big arguments, use Box to reduce \
-		the size of Call.
+		core::mem::size_of::<RuntimeCall>() <= 230,
+		"size of RuntimeCall is more than 230 bytes: some calls have too big arguments, use Box to reduce \
+		the size of RuntimeCall.
 		If the limit is too strong, maybe consider increase the limit to 300.",
 	);
 }
@@ -59,13 +57,13 @@ fn sanity_check_teleport_assets_weight() {
 	// so this test will certainly ensure that this problem does not occur.
 	use frame_support::dispatch::GetDispatchInfo;
 	let weight = pallet_xcm::Call::<Runtime>::teleport_assets {
-		dest: Box::new(xcm::VersionedMultiLocation::V1(MultiLocation::here())),
-		beneficiary: Box::new(xcm::VersionedMultiLocation::V1(MultiLocation::here())),
-		assets: Box::new((Concrete(MultiLocation::here()), Fungible(200_000)).into()),
+		dest: Box::new(Here.into()),
+		beneficiary: Box::new(Here.into()),
+		assets: Box::new((Here, 200_000).into()),
 		fee_asset_item: 0,
 	}
 	.get_dispatch_info()
 	.weight;
 
-	assert!(weight * 50 < BlockWeights::get().max_block);
+	assert!((weight * 50).all_lt(BlockWeights::get().max_block));
 }

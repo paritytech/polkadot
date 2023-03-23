@@ -16,7 +16,7 @@
 
 //! Declaration of the parachain specific origin and a pallet that hosts it.
 
-use primitives::v2::Id as ParaId;
+use primitives::Id as ParaId;
 use sp_runtime::traits::BadOrigin;
 use sp_std::result;
 
@@ -46,7 +46,6 @@ pub mod pallet {
 	use frame_support::pallet_prelude::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]

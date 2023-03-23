@@ -38,7 +38,7 @@ use crate::{
 };
 
 use polkadot_node_primitives::BlockWeight;
-use polkadot_primitives::v2::{BlockNumber, Hash};
+use polkadot_primitives::{BlockNumber, Hash};
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
@@ -235,16 +235,21 @@ impl Backend for DbBackend {
 			self.inner.iter_with_prefix(self.config.col_data, &STAGNANT_AT_PREFIX[..]);
 
 		let val = stagnant_at_iter
-			.filter_map(|(k, v)| {
-				match (decode_stagnant_at_key(&mut &k[..]), <Vec<_>>::decode(&mut &v[..]).ok()) {
-					(Some(at), Some(stagnant_at)) => Some((at, stagnant_at)),
-					_ => None,
-				}
+			.filter_map(|r| match r {
+				Ok((k, v)) =>
+					match (decode_stagnant_at_key(&mut &k[..]), <Vec<_>>::decode(&mut &v[..]).ok())
+					{
+						(Some(at), Some(stagnant_at)) => Some(Ok((at, stagnant_at))),
+						_ => None,
+					},
+				Err(e) => Some(Err(e)),
 			})
 			.enumerate()
-			.take_while(|(idx, (at, _))| *at <= up_to.into() && *idx < max_elements)
+			.take_while(|(idx, r)| {
+				r.as_ref().map_or(true, |(at, _)| *at <= up_to.into() && *idx < max_elements)
+			})
 			.map(|(_, v)| v)
-			.collect::<Vec<_>>();
+			.collect::<Result<Vec<_>, _>>()?;
 
 		Ok(val)
 	}
@@ -254,10 +259,13 @@ impl Backend for DbBackend {
 			self.inner.iter_with_prefix(self.config.col_data, &BLOCK_HEIGHT_PREFIX[..]);
 
 		let val = blocks_at_height_iter
-			.filter_map(|(k, _)| decode_block_height_key(&k[..]))
+			.filter_map(|r| match r {
+				Ok((k, _)) => decode_block_height_key(&k[..]).map(Ok),
+				Err(e) => Some(Err(e)),
+			})
 			.next();
 
-		Ok(val)
+		val.transpose().map_err(Error::from)
 	}
 
 	fn load_blocks_by_number(&self, number: BlockNumber) -> Result<Vec<Hash>, Error> {

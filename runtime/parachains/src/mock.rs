@@ -25,21 +25,21 @@ use crate::{
 
 use frame_support::{
 	parameter_types,
-	traits::{GenesisBuild, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
+	traits::{ConstU32, GenesisBuild, ValidatorSet, ValidatorSetWithIdentification},
 	weights::Weight,
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
-use primitives::v2::{
-	AuthorityDiscoveryId, Balance, BlockNumber, Header, Moment, SessionIndex, UpwardMessage,
-	ValidatorIndex,
+use primitives::{
+	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
+	UpwardMessage, ValidatorIndex,
 };
 use sp_core::H256;
 use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	KeyTypeId, Permill,
+	Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -73,16 +73,18 @@ frame_support::construct_runtime!(
 
 impl<C> frame_system::offchain::SendTransactionTypes<C> for Test
 where
-	Call: From<C>,
+	RuntimeCall: From<C>,
 {
 	type Extrinsic = UncheckedExtrinsic;
-	type OverarchingCall = Call;
+	type OverarchingCall = RuntimeCall;
 }
 
 parameter_types! {
 	pub const BlockHashCount: u32 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
-		frame_system::limits::BlockWeights::simple_max(Weight::from_ref_time(4 * 1024 * 1024));
+		frame_system::limits::BlockWeights::simple_max(
+			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
+		);
 }
 
 pub type AccountId = u64;
@@ -92,8 +94,8 @@ impl frame_system::Config for Test {
 	type BlockWeights = BlockWeights;
 	type BlockLength = ();
 	type DbWeight = ();
-	type Origin = Origin;
-	type Call = Call;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeCall = RuntimeCall;
 	type Index = u64;
 	type BlockNumber = BlockNumber;
 	type Hash = H256;
@@ -101,7 +103,7 @@ impl frame_system::Config for Test {
 	type AccountId = u64;
 	type Lookup = IdentityLookup<u64>;
 	type Header = Header;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type BlockHashCount = BlockHashCount;
 	type Version = ();
 	type PalletInfo = PalletInfo;
@@ -111,11 +113,11 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
-	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	type MaxConsumers = ConstU32<16>;
 }
 
 parameter_types! {
-	pub static ExistentialDeposit: u64 = 0;
+	pub static ExistentialDeposit: u64 = 1;
 }
 
 impl pallet_balances::Config for Test {
@@ -123,11 +125,15 @@ impl pallet_balances::Config for Test {
 	type MaxReserves = ();
 	type ReserveIdentifier = [u8; 8];
 	type Balance = Balance;
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type DustRemoval = ();
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<0>;
+	type MaxFreezes = ConstU32<0>;
 }
 
 parameter_types! {
@@ -146,23 +152,13 @@ impl pallet_babe::Config for Test {
 
 	type DisabledValidators = ();
 
-	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::IdentificationTuple;
-
-	type KeyOwnerProofSystem = ();
-
-	type HandleEquivocation = ();
-
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
+
+	type KeyOwnerProof = sp_core::Void;
+
+	type EquivocationReportSystem = ();
 }
 
 parameter_types! {
@@ -213,7 +209,7 @@ impl frame_support::traits::EstimateNextSessionRotation<u32> for TestNextSession
 }
 
 impl crate::paras::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = crate::paras::TestWeightInfo;
 	type UnsignedPriority = ParasUnsignedPriority;
 	type NextSessionRotation = TestNextSessionRotation;
@@ -226,7 +222,7 @@ parameter_types! {
 }
 
 impl crate::ump::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type UmpSink = TestUmpSink;
 	type FirstMessageFactorPercent = FirstMessageFactorPercent;
 	type ExecuteOverweightOrigin = frame_system::EnsureRoot<AccountId>;
@@ -234,16 +230,16 @@ impl crate::ump::Config for Test {
 }
 
 impl crate::hrmp::Config for Test {
-	type Event = Event;
-	type Origin = Origin;
+	type RuntimeOrigin = RuntimeOrigin;
+	type RuntimeEvent = RuntimeEvent;
 	type Currency = pallet_balances::Pallet<Test>;
 	type WeightInfo = crate::hrmp::TestWeightInfo;
 }
 
 impl crate::disputes::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type RewardValidators = Self;
-	type PunishValidators = Self;
+	type SlashingHandler = Self;
 	type WeightInfo = crate::disputes::TestWeightInfo;
 }
 
@@ -251,7 +247,7 @@ thread_local! {
 	pub static REWARD_VALIDATORS: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_AGAINST: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
-	pub static PUNISH_VALIDATORS_INCONCLUSIVE: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
+	pub static PUNISH_BACKERS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 }
 
 impl crate::disputes::RewardValidators for Test {
@@ -263,36 +259,41 @@ impl crate::disputes::RewardValidators for Test {
 	}
 }
 
-impl crate::disputes::PunishValidators for Test {
+impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 	fn punish_for_invalid(
 		session: SessionIndex,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		_: CandidateHash,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
+		backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_FOR
-			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())));
+		PUNISH_BACKERS_FOR.with(|r| r.borrow_mut().push((session, backers.into_iter().collect())));
 	}
 
 	fn punish_against_valid(
 		session: SessionIndex,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
+		_: CandidateHash,
+		losers: impl IntoIterator<Item = ValidatorIndex>,
+		_backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_AGAINST
-			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
 	}
 
-	fn punish_inconclusive(
-		session: SessionIndex,
-		validators: impl IntoIterator<Item = ValidatorIndex>,
-	) {
-		PUNISH_VALIDATORS_INCONCLUSIVE
-			.with(|r| r.borrow_mut().push((session, validators.into_iter().collect())))
+	fn initializer_initialize(_now: BlockNumber) -> Weight {
+		Weight::zero()
 	}
+
+	fn initializer_finalize() {}
+
+	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
 impl crate::scheduler::Config for Test {}
 
 impl crate::inclusion::Config for Test {
-	type Event = Event;
+	type RuntimeEvent = RuntimeEvent;
 	type DisputesHandler = Disputes;
 	type RewardValidators = TestRewardValidators;
 }
@@ -375,7 +376,7 @@ std::thread_local! {
 	static PROCESSED: RefCell<Vec<(ParaId, UpwardMessage)>> = RefCell::new(vec![]);
 }
 
-/// Return which messages have been processed by `pocess_upward_message` and clear the buffer.
+/// Return which messages have been processed by `process_upward_message` and clear the buffer.
 pub fn take_processed() -> Vec<(ParaId, UpwardMessage)> {
 	PROCESSED.with(|opt_hook| std::mem::take(&mut *opt_hook.borrow_mut()))
 }
@@ -392,10 +393,10 @@ impl UmpSink for TestUmpSink {
 		max_weight: Weight,
 	) -> Result<Weight, (MessageId, Weight)> {
 		let weight = match u32::decode(&mut &actual_msg[..]) {
-			Ok(w) => Weight::from_ref_time(w as u64),
+			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Ok(Weight::zero()), // same as the real `UmpSink`
 		};
-		if weight > max_weight {
+		if weight.any_gt(max_weight) {
 			let id = sp_io::hashing::blake2_256(actual_msg);
 			return Err((id, weight))
 		}
@@ -430,7 +431,7 @@ impl inclusion::RewardValidators for TestRewardValidators {
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
-	use sp_keystore::{testing::KeyStore, KeystoreExt, SyncCryptoStorePtr};
+	use sp_keystore::{testing::MemoryKeystore, KeystoreExt, KeystorePtr};
 	use sp_std::sync::Arc;
 
 	sp_tracing::try_init_simple();
@@ -443,7 +444,7 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	GenesisBuild::<Test>::assimilate_storage(&state.paras, &mut t).unwrap();
 
 	let mut ext: TestExternalities = t.into();
-	ext.register_extension(KeystoreExt(Arc::new(KeyStore::new()) as SyncCryptoStorePtr));
+	ext.register_extension(KeystoreExt(Arc::new(MemoryKeystore::new()) as KeystorePtr));
 
 	ext
 }
@@ -455,9 +456,9 @@ pub struct MockGenesisConfig {
 	pub paras: crate::paras::GenesisConfig,
 }
 
-pub fn assert_last_event(generic_event: Event) {
+pub fn assert_last_event(generic_event: RuntimeEvent) {
 	let events = frame_system::Pallet::<Test>::events();
-	let system_event: <Test as frame_system::Config>::Event = generic_event.into();
+	let system_event: <Test as frame_system::Config>::RuntimeEvent = generic_event.into();
 	// compare to the last event record
 	let frame_system::EventRecord { event, .. } = &events[events.len() - 1];
 	assert_eq!(event, &system_event);

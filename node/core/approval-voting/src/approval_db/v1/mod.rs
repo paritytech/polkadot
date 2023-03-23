@@ -20,7 +20,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{AssignmentCert, DelayTranche};
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
 	ValidatorIndex, ValidatorSignature,
 };
@@ -90,41 +90,45 @@ impl Backend for DbBackend {
 			match op {
 				BackendWriteOp::WriteStoredBlockRange(stored_block_range) => {
 					tx.put_vec(
-						self.config.col_data,
+						self.config.col_approval_data,
 						&STORED_BLOCKS_KEY,
 						stored_block_range.encode(),
 					);
 				},
 				BackendWriteOp::DeleteStoredBlockRange => {
-					tx.delete(self.config.col_data, &STORED_BLOCKS_KEY);
+					tx.delete(self.config.col_approval_data, &STORED_BLOCKS_KEY);
 				},
 				BackendWriteOp::WriteBlocksAtHeight(h, blocks) => {
-					tx.put_vec(self.config.col_data, &blocks_at_height_key(h), blocks.encode());
+					tx.put_vec(
+						self.config.col_approval_data,
+						&blocks_at_height_key(h),
+						blocks.encode(),
+					);
 				},
 				BackendWriteOp::DeleteBlocksAtHeight(h) => {
-					tx.delete(self.config.col_data, &blocks_at_height_key(h));
+					tx.delete(self.config.col_approval_data, &blocks_at_height_key(h));
 				},
 				BackendWriteOp::WriteBlockEntry(block_entry) => {
 					let block_entry: BlockEntry = block_entry.into();
 					tx.put_vec(
-						self.config.col_data,
+						self.config.col_approval_data,
 						&block_entry_key(&block_entry.block_hash),
 						block_entry.encode(),
 					);
 				},
 				BackendWriteOp::DeleteBlockEntry(hash) => {
-					tx.delete(self.config.col_data, &block_entry_key(&hash));
+					tx.delete(self.config.col_approval_data, &block_entry_key(&hash));
 				},
 				BackendWriteOp::WriteCandidateEntry(candidate_entry) => {
 					let candidate_entry: CandidateEntry = candidate_entry.into();
 					tx.put_vec(
-						self.config.col_data,
+						self.config.col_approval_data,
 						&candidate_entry_key(&candidate_entry.candidate.hash()),
 						candidate_entry.encode(),
 					);
 				},
 				BackendWriteOp::DeleteCandidateEntry(candidate_hash) => {
-					tx.delete(self.config.col_data, &candidate_entry_key(&candidate_hash));
+					tx.delete(self.config.col_approval_data, &candidate_entry_key(&candidate_hash));
 				},
 			}
 		}
@@ -149,7 +153,9 @@ pub type Bitfield = BitVec<u8, BitOrderLsb0>;
 #[derive(Debug, Clone, Copy)]
 pub struct Config {
 	/// The column family in the database where data is stored.
-	pub col_data: u32,
+	pub col_approval_data: u32,
+	/// The column of the database where rolling session window data is stored.
+	pub col_session_data: u32,
 }
 
 /// Details pertaining to our assignment on a block.
@@ -243,10 +249,10 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 pub(crate) fn load_decode<D: Decode>(
 	store: &dyn Database,
-	col_data: u32,
+	col_approval_data: u32,
 	key: &[u8],
 ) -> Result<Option<D>> {
-	match store.get(col_data, key)? {
+	match store.get(col_approval_data, key)? {
 		None => Ok(None),
 		Some(raw) => D::decode(&mut &raw[..]).map(Some).map_err(Into::into),
 	}
@@ -303,7 +309,7 @@ pub fn load_stored_blocks(
 	store: &dyn Database,
 	config: &Config,
 ) -> SubsystemResult<Option<StoredBlockRange>> {
-	load_decode(store, config.col_data, STORED_BLOCKS_KEY)
+	load_decode(store, config.col_approval_data, STORED_BLOCKS_KEY)
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 }
 
@@ -313,7 +319,7 @@ pub fn load_blocks_at_height(
 	config: &Config,
 	block_number: &BlockNumber,
 ) -> SubsystemResult<Vec<Hash>> {
-	load_decode(store, config.col_data, &blocks_at_height_key(*block_number))
+	load_decode(store, config.col_approval_data, &blocks_at_height_key(*block_number))
 		.map(|x| x.unwrap_or_default())
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 }
@@ -324,7 +330,7 @@ pub fn load_block_entry(
 	config: &Config,
 	block_hash: &Hash,
 ) -> SubsystemResult<Option<BlockEntry>> {
-	load_decode(store, config.col_data, &block_entry_key(block_hash))
+	load_decode(store, config.col_approval_data, &block_entry_key(block_hash))
 		.map(|u: Option<BlockEntry>| u.map(|v| v.into()))
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 }
@@ -335,7 +341,7 @@ pub fn load_candidate_entry(
 	config: &Config,
 	candidate_hash: &CandidateHash,
 ) -> SubsystemResult<Option<CandidateEntry>> {
-	load_decode(store, config.col_data, &candidate_entry_key(candidate_hash))
+	load_decode(store, config.col_approval_data, &candidate_entry_key(candidate_hash))
 		.map(|u: Option<CandidateEntry>| u.map(|v| v.into()))
 		.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 }

@@ -1,0 +1,49 @@
+[settings]
+timeout = 1000
+
+[relaychain]
+default_image = "{{ZOMBIENET_INTEGRATION_TEST_IMAGE}}"
+chain = "rococo-local"
+
+
+  [[relaychain.nodes]]
+  name = "alice"
+  args = [ "-lparachain=debug,runtime=debug", "--db paritydb" ]
+
+  [[relaychain.nodes]]
+  name = "bob"
+  args = [ "-lparachain=debug,runtime=debug", "--db rocksdb" ]
+
+  [[relaychain.nodes]]
+  name = "charlie"
+  args = [ "-lparachain=debug,runtime=debug", "--db paritydb" ]
+
+  [[relaychain.nodes]]
+  name = "dave"
+  args = [ "-lparachain=debug,runtime=debug", "--db rocksdb" ]
+
+
+[[parachains]]
+id = 2000
+addToGenesis = true
+
+  [parachains.collator]
+  name = "collator01"
+  image = "{{COL_IMAGE}}"
+  command = "undying-collator"
+  args = ["-lparachain=debug"]
+
+[[parachains]]
+id = 2001
+addToGenesis = true
+
+  [parachains.collator]
+  name = "collator02"
+  image = "{{COL_IMAGE}}"
+  command = "undying-collator"
+  args = ["-lparachain=debug"]
+
+[types.Header]
+number = "u64"
+parent_hash = "Hash"
+post_state = "Hash"

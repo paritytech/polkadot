@@ -17,15 +17,26 @@
 //! Various traits used in configuring the executor.
 
 mod conversion;
-pub use conversion::{Convert, ConvertOrigin, Decoded, Encoded, Identity, InvertLocation, JustTry};
+pub use conversion::{
+	CallDispatcher, Convert, ConvertOrigin, Decoded, Encoded, Identity, JustTry, WithOriginFilter,
+};
 mod drop_assets;
 pub use drop_assets::{ClaimAssets, DropAssets};
+mod asset_lock;
+pub use asset_lock::{AssetLock, Enact, LockError};
+mod asset_exchange;
+pub use asset_exchange::AssetExchange;
+mod export;
+pub use export::{export_xcm, validate_export, ExportXcm};
+mod fee_manager;
+pub use fee_manager::{FeeManager, FeeReason};
 mod filter_asset_location;
+#[allow(deprecated)]
 pub use filter_asset_location::FilterAssetLocation;
-mod matches_fungible;
-pub use matches_fungible::MatchesFungible;
-mod matches_fungibles;
-pub use matches_fungibles::{Error, MatchesFungibles};
+mod token_matching;
+pub use token_matching::{
+	Error, MatchesFungible, MatchesFungibles, MatchesNonFungible, MatchesNonFungibles,
+};
 mod on_response;
 pub use on_response::{OnResponse, VersionChangeNotifier};
 mod should_execute;
@@ -34,3 +45,13 @@ mod transact_asset;
 pub use transact_asset::TransactAsset;
 mod weight;
 pub use weight::{WeightBounds, WeightTrader};
+
+pub mod prelude {
+	pub use super::{
+		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, Convert, ConvertOrigin,
+		Decoded, DropAssets, Enact, Encoded, Error, ExportXcm, FeeManager, FeeReason, Identity,
+		JustTry, LockError, MatchesFungible, MatchesFungibles, MatchesNonFungible,
+		MatchesNonFungibles, OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier,
+		WeightBounds, WeightTrader, WithOriginFilter,
+	};
+}

@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::{PeerSet, ProtocolVersion};
-use polkadot_node_subsystem_util::metrics::{self, prometheus};
+use polkadot_node_metrics::metrics::{self, prometheus};
 
 /// Metrics for the network bridge.
 #[derive(Clone, Default)]

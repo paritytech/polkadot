@@ -14,13 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Test kit to simulate cross-chain message passing and XCM execution
+//! Test kit to simulate cross-chain message passing and XCM execution.
 
 pub use codec::Encode;
 pub use paste;
 
 pub use frame_support::{traits::Get, weights::Weight};
-pub use sp_io::TestExternalities;
+pub use sp_io::{hashing::blake2_256, TestExternalities};
 pub use sp_std::{cell::RefCell, collections::vec_deque::VecDeque, marker::PhantomData};
 
 pub use polkadot_core_primitives::BlockNumber as RelayBlockNumber;
@@ -62,6 +62,7 @@ pub enum MessageKind {
 	Xcmp,
 }
 
+/// Encodes the provided XCM message based on the `message_kind`.
 pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 	match message_kind {
 		MessageKind::Ump | MessageKind::Dmp => VersionedXcm::<()>::from(message).encode(),
@@ -76,6 +77,23 @@ pub fn encode_xcm(message: Xcm<()>, message_kind: MessageKind) -> Vec<u8> {
 	}
 }
 
+pub fn fake_message_hash<T>(message: &Xcm<T>) -> XcmHash {
+	message.using_encoded(blake2_256)
+}
+
+/// The macro is implementing upward message passing(UMP) for the provided relay
+/// chain struct. The struct has to provide the XCM configuration for the relay
+/// chain.
+///
+/// ```ignore
+/// decl_test_relay_chain! {
+///	    pub struct Relay {
+///	        Runtime = relay_chain::Runtime,
+///	        XcmConfig = relay_chain::XcmConfig,
+///	        new_ext = relay_ext(),
+///	    }
+///	}
+/// ```
 #[macro_export]
 #[rustfmt::skip]
 macro_rules! decl_test_relay_chain {
@@ -108,6 +126,21 @@ macro_rules! decl_test_relay_chain {
 	};
 }
 
+/// The macro is implementing the `XcmMessageHandlerT` and `DmpMessageHandlerT`
+/// traits for the provided parachain struct. Expects the provided parachain
+/// struct to define the XcmpMessageHandler and DmpMessageHandler pallets that
+/// contain the message handling logic.
+///
+/// ```ignore
+/// decl_test_parachain! {
+///	    pub struct ParaA {
+///	        Runtime = parachain::Runtime,
+///	        XcmpMessageHandler = parachain::MsgQueue,
+///	        DmpMessageHandler = parachain::MsgQueue,
+///	        new_ext = para_ext(),
+///	    }
+/// }
+/// ```
 #[macro_export]
 macro_rules! decl_test_parachain {
 	(
@@ -153,6 +186,7 @@ macro_rules! decl_test_parachain {
 	};
 }
 
+/// Implements the `TestExt` trait for a specified struct.
 #[macro_export]
 macro_rules! __impl_ext {
 	// entry point: generate ext name
@@ -202,6 +236,23 @@ thread_local! {
 		= RefCell::new(VecDeque::new());
 }
 
+/// Declares a test network that consists of a relay chain and multiple
+/// parachains. Expects a network struct as an argument and implements testing
+/// functionality, `ParachainXcmRouter` and the `RelayChainXcmRouter`. The
+/// struct needs to contain the relay chain struct and an indexed list of
+/// parachains that are going to be in the network.
+///
+/// ```ignore
+/// decl_test_network! {
+///	    pub struct ExampleNet {
+///	        relay_chain = Relay,
+///	        parachains = vec![
+///	            (1, ParaA),
+///	            (2, ParaB),
+///	        ],
+///	    }
+/// }
+/// ```
 #[macro_export]
 macro_rules! decl_test_network {
 	(
@@ -210,21 +261,22 @@ macro_rules! decl_test_network {
 			parachains = vec![ $( ($para_id:expr, $parachain:ty), )* ],
 		}
 	) => {
+		use $crate::Encode;
 		pub struct $name;
 
 		impl $name {
 			pub fn reset() {
 				use $crate::{TestExt, VecDeque};
-				// Reset relay chain message bus
+				// Reset relay chain message bus.
 				$crate::RELAY_MESSAGE_BUS.with(|b| b.replace(VecDeque::new()));
-				// Reset parachain message bus
+				// Reset parachain message bus.
 				$crate::PARA_MESSAGE_BUS.with(|b| b.replace(VecDeque::new()));
 				<$relay_chain>::reset_ext();
 				$( <$parachain>::reset_ext(); )*
 			}
 		}
 
-		/// Check if any messages exist in either message bus
+		/// Check if any messages exist in either message bus.
 		fn exists_messages_in_any_bus() -> bool {
 			use $crate::{RELAY_MESSAGE_BUS, PARA_MESSAGE_BUS};
 			let no_relay_messages_left = RELAY_MESSAGE_BUS.with(|b| b.borrow().is_empty());
@@ -246,7 +298,7 @@ macro_rules! decl_test_network {
 							$crate::Weight::MAX,
 						);
 						if let Err((id, required)) = r {
-							return Err($crate::XcmError::WeightLimitReached(required.ref_time()));
+							return Err($crate::XcmError::WeightLimitReached(required));
 						}
 					},
 					$(
@@ -296,45 +348,65 @@ macro_rules! decl_test_network {
 		pub struct ParachainXcmRouter<T>($crate::PhantomData<T>);
 
 		impl<T: $crate::Get<$crate::ParaId>> $crate::SendXcm for ParachainXcmRouter<T> {
-			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::SendResult {
+			type Ticket = ($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>);
+			fn validate(
+				destination: &mut Option<$crate::MultiLocation>,
+				message: &mut Option<$crate::Xcm<()>>,
+			) -> $crate::SendResult<($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>)> {
 				use $crate::{UmpSink, XcmpMessageHandlerT};
 
-				let destination = destination.into();
-				match destination.interior() {
-					$crate::Junctions::Here if destination.parent_count() == 1 => {
-						$crate::PARA_MESSAGE_BUS.with(
-							|b| b.borrow_mut().push_back((T::get(), destination, message)));
-						Ok(())
-					},
+				let d = destination.take().ok_or($crate::SendError::MissingArgument)?;
+				match (d.interior(), d.parent_count()) {
+					($crate::Junctions::Here, 1) => {},
 					$(
-						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 1 => {
-							$crate::PARA_MESSAGE_BUS.with(
-								|b| b.borrow_mut().push_back((T::get(), destination, message)));
-							Ok(())
-						},
+						($crate::X1($crate::Parachain(id)), 1) if id == &$para_id => {}
 					)*
-					_ => Err($crate::SendError::CannotReachDestination(destination, message)),
+					_ => {
+						*destination = Some(d);
+						return Err($crate::SendError::NotApplicable)
+					},
 				}
+				let m = message.take().ok_or($crate::SendError::MissingArgument)?;
+				Ok(((T::get(), d, m), $crate::MultiAssets::new()))
+			}
+			fn deliver(
+				triple: ($crate::ParaId, $crate::MultiLocation, $crate::Xcm<()>),
+			) -> Result<$crate::XcmHash, $crate::SendError> {
+				let hash = $crate::fake_message_hash(&triple.2);
+				$crate::PARA_MESSAGE_BUS.with(|b| b.borrow_mut().push_back(triple));
+				Ok(hash)
 			}
 		}
 
 		/// XCM router for relay chain.
 		pub struct RelayChainXcmRouter;
 		impl $crate::SendXcm for RelayChainXcmRouter {
-			fn send_xcm(destination: impl Into<$crate::MultiLocation>, message: $crate::Xcm<()>) -> $crate::SendResult {
+			type Ticket = ($crate::MultiLocation, $crate::Xcm<()>);
+			fn validate(
+				destination: &mut Option<$crate::MultiLocation>,
+				message: &mut Option<$crate::Xcm<()>>,
+			) -> $crate::SendResult<($crate::MultiLocation, $crate::Xcm<()>)> {
 				use $crate::DmpMessageHandlerT;
 
-				let destination = destination.into();
-				match destination.interior() {
+				let d = destination.take().ok_or($crate::SendError::MissingArgument)?;
+				match (d.interior(), d.parent_count()) {
 					$(
-						$crate::X1($crate::Parachain(id)) if *id == $para_id && destination.parent_count() == 0 => {
-							$crate::RELAY_MESSAGE_BUS.with(
-								|b| b.borrow_mut().push_back((destination, message)));
-							Ok(())
-						},
+						($crate::X1($crate::Parachain(id)), 0) if id == &$para_id => {},
 					)*
-					_ => Err($crate::SendError::Unroutable),
+					_ => {
+						*destination = Some(d);
+						return Err($crate::SendError::NotApplicable)
+					},
 				}
+				let m = message.take().ok_or($crate::SendError::MissingArgument)?;
+				Ok(((d, m), $crate::MultiAssets::new()))
+			}
+			fn deliver(
+				pair: ($crate::MultiLocation, $crate::Xcm<()>),
+			) -> Result<$crate::XcmHash, $crate::SendError> {
+				let hash = $crate::fake_message_hash(&pair.1);
+				$crate::RELAY_MESSAGE_BUS.with(|b| b.borrow_mut().push_back(pair));
+				Ok(hash)
 			}
 		}
 	};

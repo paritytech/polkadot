@@ -14,15 +14,18 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{
+	btree_map::{Entry as Bentry, Keys as Bkeys},
+	BTreeMap, BTreeSet,
+};
 
 use parity_scale_codec::{Decode, Encode};
 
 use sp_application_crypto::AppKey;
-use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
+use sp_keystore::{Error as KeystoreError, Keystore, KeystorePtr};
 
 use super::{Statement, UncheckedSignedFullStatement};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, CandidateReceipt, DisputeStatement, InvalidDisputeStatementKind, SessionIndex,
 	SigningContext, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
@@ -30,6 +33,8 @@ use polkadot_primitives::v2::{
 /// `DisputeMessage` and related types.
 mod message;
 pub use message::{DisputeMessage, Error as DisputeMessageCheckError, UncheckedDisputeMessage};
+mod status;
+pub use status::{dispute_is_inactive, DisputeStatus, Timestamp, ACTIVE_DURATION_SECS};
 
 /// A checked dispute statement from an associated validator.
 #[derive(Debug, Clone)]
@@ -47,7 +52,7 @@ pub struct CandidateVotes {
 	/// The receipt of the candidate itself.
 	pub candidate_receipt: CandidateReceipt,
 	/// Votes of validity, sorted by validator index.
-	pub valid: BTreeMap<ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature)>,
+	pub valid: ValidCandidateVotes,
 	/// Votes of invalidity, sorted by validator index.
 	pub invalid: BTreeMap<ValidatorIndex, (InvalidDisputeStatementKind, ValidatorSignature)>,
 }
@@ -64,6 +69,99 @@ impl CandidateVotes {
 		let mut keys: BTreeSet<_> = self.valid.keys().cloned().collect();
 		keys.extend(self.invalid.keys().cloned());
 		keys
+	}
+}
+
+#[derive(Debug, Clone)]
+/// Valid candidate votes.
+///
+/// Prefere backing votes over other votes.
+pub struct ValidCandidateVotes {
+	votes: BTreeMap<ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature)>,
+}
+
+impl ValidCandidateVotes {
+	/// Create new empty `ValidCandidateVotes`
+	pub fn new() -> Self {
+		Self { votes: BTreeMap::new() }
+	}
+	/// Insert a vote, replacing any already existing vote.
+	///
+	/// Except, for backing votes: Backing votes are always kept, and will never get overridden.
+	/// Import of other king of `valid` votes, will be ignored if a backing vote is already
+	/// present. Any already existing `valid` vote, will be overridden by any given backing vote.
+	///
+	/// Returns: true, if the insert had any effect.
+	pub fn insert_vote(
+		&mut self,
+		validator_index: ValidatorIndex,
+		kind: ValidDisputeStatementKind,
+		sig: ValidatorSignature,
+	) -> bool {
+		match self.votes.entry(validator_index) {
+			Bentry::Vacant(vacant) => {
+				vacant.insert((kind, sig));
+				true
+			},
+			Bentry::Occupied(mut occupied) => match occupied.get().0 {
+				ValidDisputeStatementKind::BackingValid(_) |
+				ValidDisputeStatementKind::BackingSeconded(_) => false,
+				ValidDisputeStatementKind::Explicit |
+				ValidDisputeStatementKind::ApprovalChecking => {
+					occupied.insert((kind, sig));
+					kind != occupied.get().0
+				},
+			},
+		}
+	}
+
+	/// Retain any votes that match the given criteria.
+	pub fn retain<F>(&mut self, f: F)
+	where
+		F: FnMut(&ValidatorIndex, &mut (ValidDisputeStatementKind, ValidatorSignature)) -> bool,
+	{
+		self.votes.retain(f)
+	}
+
+	/// Get all the validator indeces we have votes for.
+	pub fn keys(
+		&self,
+	) -> Bkeys<'_, ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature)> {
+		self.votes.keys()
+	}
+
+	/// Get read only direct access to underlying map.
+	pub fn raw(
+		&self,
+	) -> &BTreeMap<ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature)> {
+		&self.votes
+	}
+}
+
+impl FromIterator<(ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature))>
+	for ValidCandidateVotes
+{
+	fn from_iter<T>(iter: T) -> Self
+	where
+		T: IntoIterator<Item = (ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature))>,
+	{
+		Self { votes: BTreeMap::from_iter(iter) }
+	}
+}
+
+impl From<ValidCandidateVotes>
+	for BTreeMap<ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature)>
+{
+	fn from(wrapped: ValidCandidateVotes) -> Self {
+		wrapped.votes
+	}
+}
+impl IntoIterator for ValidCandidateVotes {
+	type Item = (ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature));
+	type IntoIter = <BTreeMap<ValidatorIndex, (ValidDisputeStatementKind, ValidatorSignature)> as IntoIterator>::IntoIter;
+
+	fn into_iter(self) -> Self::IntoIter {
+		self.votes.into_iter()
 	}
 }
 
@@ -109,8 +207,8 @@ impl SignedDisputeStatement {
 
 	/// Sign this statement with the given keystore and key. Pass `valid = true` to
 	/// indicate validity of the candidate, and `valid = false` to indicate invalidity.
-	pub async fn sign_explicit(
-		keystore: &SyncCryptoStorePtr,
+	pub fn sign_explicit(
+		keystore: &KeystorePtr,
 		valid: bool,
 		candidate_hash: CandidateHash,
 		session_index: SessionIndex,
@@ -123,13 +221,12 @@ impl SignedDisputeStatement {
 		};
 
 		let data = dispute_statement.payload_data(candidate_hash, session_index);
-		let signature = CryptoStore::sign_with(
+		let signature = Keystore::sign_with(
 			&**keystore,
 			ValidatorId::ID,
 			&validator_public.clone().into(),
 			&data,
-		)
-		.await?;
+		)?;
 
 		let signature = match signature {
 			Some(sig) =>

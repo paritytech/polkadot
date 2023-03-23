@@ -49,7 +49,7 @@ impl futures::Stream for Metronome {
 		loop {
 			match self.state {
 				MetronomeState::SetAlarm => {
-					let val = self.period.clone();
+					let val = self.period;
 					self.delay.reset(val);
 					self.state = MetronomeState::Snooze;
 				},

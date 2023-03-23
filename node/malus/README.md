@@ -13,8 +13,8 @@ The first argument determines the behavior strain. The currently supported are:
 To define integration tests create file
 in the toml format as used with [zombienet][zombienet]
 under `./integrationtests` describing the network to spawn and
-also the `feature` file (with `.feature` extension ) using the format
-defined in the [DSL doc](https://github.com/paritytech/zombienet/blob/main/docs/testing-dsl-definition.md).
+also the `zndsl` file (with `.zndsl` extension ) using the format
+defined in the [(DSL[(**D**omain **S**pecific **L**anguage)]) doc](https://paritytech.github.io/zombienet/cli/test-dsl-definition-spec.html).
 
 ## Usage
 
@@ -37,7 +37,7 @@ gcloud container clusters get-credentials "parity-zombienet" --zone "europe-west
 # launching the actual test
 cd zombienet
 npm run build
-node dist/cli.js test <path to polkadot repo>/node/malus/integrationtests/0001-dispute-valid-block.feature
+node dist/cli.js test <path to polkadot repo>/node/malus/integrationtests/0001-dispute-valid-block.zndsl
 
 # Access  logs (in google cloud storage)
 gsutil ls gs://zombienet-logs/zombie-<namespace uniqueId>/logs/

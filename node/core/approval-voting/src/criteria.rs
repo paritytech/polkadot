@@ -20,8 +20,9 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
-use polkadot_primitives::v2::{
-	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, SessionInfo, ValidatorIndex,
+use polkadot_primitives::{
+	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, IndexedVec, SessionInfo,
+	ValidatorIndex,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::ByteArray;
@@ -138,7 +139,7 @@ pub(crate) struct Config {
 	/// The assignment public keys for validators.
 	assignment_keys: Vec<AssignmentId>,
 	/// The groups of validators assigned to each core.
-	validator_groups: Vec<Vec<ValidatorIndex>>,
+	validator_groups: IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	/// The number of availability cores used by the protocol during this session.
 	n_cores: u32,
 	/// The zeroth delay tranche width.
@@ -154,10 +155,10 @@ impl<'a> From<&'a SessionInfo> for Config {
 		Config {
 			assignment_keys: s.assignment_keys.clone(),
 			validator_groups: s.validator_groups.clone(),
-			n_cores: s.n_cores.clone(),
-			zeroth_delay_tranche_width: s.zeroth_delay_tranche_width.clone(),
-			relay_vrf_modulo_samples: s.relay_vrf_modulo_samples.clone(),
-			n_delay_tranches: s.n_delay_tranches.clone(),
+			n_cores: s.n_cores,
+			zeroth_delay_tranche_width: s.zeroth_delay_tranche_width,
+			relay_vrf_modulo_samples: s.relay_vrf_modulo_samples,
+			n_delay_tranches: s.n_delay_tranches,
 		}
 	}
 }
@@ -541,32 +542,29 @@ pub(crate) fn check_assignment_cert(
 }
 
 fn is_in_backing_group(
-	validator_groups: &[Vec<ValidatorIndex>],
+	validator_groups: &IndexedVec<GroupIndex, Vec<ValidatorIndex>>,
 	validator: ValidatorIndex,
 	group: GroupIndex,
 ) -> bool {
-	validator_groups.get(group.0 as usize).map_or(false, |g| g.contains(&validator))
+	validator_groups.get(group).map_or(false, |g| g.contains(&validator))
 }
 
 #[cfg(test)]
 mod tests {
 	use super::*;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
-	use polkadot_primitives::v2::{Hash, ASSIGNMENT_KEY_TYPE_ID};
+	use polkadot_primitives::{Hash, ASSIGNMENT_KEY_TYPE_ID};
 	use sp_application_crypto::sr25519;
 	use sp_core::crypto::Pair as PairT;
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
-	use sp_keystore::CryptoStore;
+	use sp_keystore::Keystore;
 
 	// sets up a keystore with the given keyring accounts.
-	async fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
+	fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
 		let store = LocalKeystore::in_memory();
 
 		for s in accounts.iter().copied().map(|k| k.to_seed()) {
-			store
-				.sr25519_generate_new(ASSIGNMENT_KEY_TYPE_ID, Some(s.as_str()))
-				.await
-				.unwrap();
+			store.sr25519_generate_new(ASSIGNMENT_KEY_TYPE_ID, Some(s.as_str())).unwrap();
 		}
 
 		store
@@ -590,7 +588,10 @@ mod tests {
 			.collect()
 	}
 
-	fn basic_groups(n_validators: usize, n_groups: usize) -> Vec<Vec<ValidatorIndex>> {
+	fn basic_groups(
+		n_validators: usize,
+		n_groups: usize,
+	) -> IndexedVec<GroupIndex, Vec<ValidatorIndex>> {
 		let size = n_validators / n_groups;
 		let big_groups = n_validators % n_groups;
 		let scraps = n_groups * size;
@@ -616,7 +617,7 @@ mod tests {
 
 	#[test]
 	fn assignments_produced_for_non_backing() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let c_a = CandidateHash(Hash::repeat_byte(0));
 		let c_b = CandidateHash(Hash::repeat_byte(1));
@@ -631,10 +632,10 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![
+				validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 					vec![ValidatorIndex(0)],
 					vec![ValidatorIndex(1), ValidatorIndex(2)],
-				],
+				]),
 				n_cores: 2,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
@@ -651,7 +652,7 @@ mod tests {
 
 	#[test]
 	fn assign_to_nonzero_core() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let c_a = CandidateHash(Hash::repeat_byte(0));
 		let c_b = CandidateHash(Hash::repeat_byte(1));
@@ -666,10 +667,10 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![
+				validator_groups: IndexedVec::<GroupIndex, Vec<ValidatorIndex>>::from(vec![
 					vec![ValidatorIndex(0)],
 					vec![ValidatorIndex(1), ValidatorIndex(2)],
-				],
+				]),
 				n_cores: 2,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
@@ -684,7 +685,7 @@ mod tests {
 
 	#[test]
 	fn succeeds_empty_for_0_cores() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let relay_vrf_story = RelayVRFStory([42u8; 32]);
 		let assignments = compute_assignments(
@@ -696,7 +697,7 @@ mod tests {
 					Sr25519Keyring::Bob,
 					Sr25519Keyring::Charlie,
 				]),
-				validator_groups: vec![],
+				validator_groups: Default::default(),
 				n_cores: 0,
 				zeroth_delay_tranche_width: 10,
 				relay_vrf_modulo_samples: 3,
@@ -724,7 +725,7 @@ mod tests {
 		rotation_offset: usize,
 		f: impl Fn(&mut MutatedAssignment) -> Option<bool>, // None = skip
 	) {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let group_for_core = |i| GroupIndex(((i + rotation_offset) % n_cores) as _);
 

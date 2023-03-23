@@ -16,7 +16,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use polkadot_primitives::v2::{CandidateHash, SessionIndex, ValidatorIndex};
+use polkadot_primitives::{CandidateHash, SessionIndex, ValidatorIndex};
 
 use crate::LOG_TARGET;
 

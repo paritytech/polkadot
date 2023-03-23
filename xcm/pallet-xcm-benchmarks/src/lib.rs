@@ -22,7 +22,7 @@ use codec::Encode;
 use frame_benchmarking::{account, BenchmarkError};
 use sp_std::prelude::*;
 use xcm::latest::prelude::*;
-use xcm_executor::traits::Convert;
+use xcm_executor::{traits::Convert, Config as XcmConfig};
 
 pub mod fungible;
 pub mod generic;
@@ -36,7 +36,7 @@ pub trait Config: frame_system::Config {
 	///
 	/// These might affect the execution of XCM messages, such as defining how the
 	/// `TransactAsset` is implemented.
-	type XcmConfig: xcm_executor::Config;
+	type XcmConfig: XcmConfig;
 
 	/// A converter between a multi-location to a sovereign account.
 	type AccountIdConverter: Convert<MultiLocation, Self::AccountId>;
@@ -46,7 +46,7 @@ pub trait Config: frame_system::Config {
 	fn valid_destination() -> Result<MultiLocation, BenchmarkError>;
 
 	/// Worst case scenario for a holding account in this runtime.
-	fn worst_case_holding() -> MultiAssets;
+	fn worst_case_holding(depositable_count: u32) -> MultiAssets;
 }
 
 const SEED: u32 = 0;
@@ -54,17 +54,17 @@ const SEED: u32 = 0;
 /// The XCM executor to use for doing stuff.
 pub type ExecutorOf<T> = xcm_executor::XcmExecutor<<T as Config>::XcmConfig>;
 /// The overarching call type.
-pub type OverArchingCallOf<T> = <T as frame_system::Config>::Call;
+pub type OverArchingCallOf<T> = <T as frame_system::Config>::RuntimeCall;
 /// The asset transactor of our executor
-pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::AssetTransactor;
+pub type AssetTransactorOf<T> = <<T as Config>::XcmConfig as XcmConfig>::AssetTransactor;
 /// The call type of executor's config. Should eventually resolve to the same overarching call type.
-pub type XcmCallOf<T> = <<T as Config>::XcmConfig as xcm_executor::Config>::Call;
+pub type XcmCallOf<T> = <<T as Config>::XcmConfig as XcmConfig>::RuntimeCall;
 
-pub fn mock_worst_case_holding() -> MultiAssets {
-	const HOLDING_FUNGIBLES: u32 = 99;
-	const HOLDING_NON_FUNGIBLES: u32 = 99;
+pub fn mock_worst_case_holding(depositable_count: u32, max_assets: u32) -> MultiAssets {
 	let fungibles_amount: u128 = 100;
-	(0..HOLDING_FUNGIBLES)
+	let holding_fungibles = max_assets / 2 - depositable_count;
+	let holding_non_fungibles = holding_fungibles;
+	(0..holding_fungibles)
 		.map(|i| {
 			MultiAsset {
 				id: Concrete(GeneralIndex(i as u128).into()),
@@ -73,7 +73,7 @@ pub fn mock_worst_case_holding() -> MultiAssets {
 			.into()
 		})
 		.chain(core::iter::once(MultiAsset { id: Concrete(Here.into()), fun: Fungible(u128::MAX) }))
-		.chain((0..HOLDING_NON_FUNGIBLES).map(|i| MultiAsset {
+		.chain((0..holding_non_fungibles).map(|i| MultiAsset {
 			id: Concrete(GeneralIndex(i as u128).into()),
 			fun: NonFungible(asset_instance_from(i)),
 		}))
@@ -89,7 +89,7 @@ pub fn asset_instance_from(x: u32) -> AssetInstance {
 }
 
 pub fn new_executor<T: Config>(origin: MultiLocation) -> ExecutorOf<T> {
-	ExecutorOf::<T>::new(origin)
+	ExecutorOf::<T>::new(origin, [0; 32])
 }
 
 /// Build a multi-location from an account id.
@@ -99,7 +99,7 @@ fn account_id_junction<T: frame_system::Config>(index: u32) -> Junction {
 	encoded.resize(32, 0u8);
 	let mut id = [0u8; 32];
 	id.copy_from_slice(&encoded);
-	Junction::AccountId32 { network: NetworkId::Any, id }
+	Junction::AccountId32 { network: None, id }
 }
 
 pub fn account_and_location<T: Config>(index: u32) -> (T::AccountId, MultiLocation) {
