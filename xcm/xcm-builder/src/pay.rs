@@ -22,7 +22,7 @@ use frame_support::traits::{
 };
 use sp_std::{marker::PhantomData, vec};
 use xcm::prelude::*;
-use xcm_executor::traits::{QueryResponseStatus, XcmQueryHandler};
+use xcm_executor::traits::{Convert, QueryResponseStatus, XcmQueryHandler};
 
 /// Implementation of the `frame_support_traits::tokens::Pay` trait, to allow
 /// for generic payments of a given `AssetKind` and `Balance` from an implied origin, to a
@@ -31,18 +31,27 @@ use xcm_executor::traits::{QueryResponseStatus, XcmQueryHandler};
 /// `PayOverXcm::pay` is asynchronous, and returns a `QueryId` which can then be used in
 /// `check_payment` to check the status of the XCM transaction.
 ///
-pub struct PayOverXcm<DestChain, Router, Querier, BlockNumber, Timeout>(
-	PhantomData<(DestChain, Router, Querier, BlockNumber, Timeout)>,
-);
+pub struct PayOverXcm<
+	DestChain,
+	Router,
+	Querier,
+	BlockNumber,
+	Timeout,
+	AccountId,
+	AccountIdConverter,
+>(PhantomData<(DestChain, Router, Querier, BlockNumber, Timeout, AccountId, AccountIdConverter)>);
 impl<
 		DestChain: Get<xcm::v3::MultiLocation>,
 		Router: SendXcm,
 		Querier: XcmQueryHandler,
 		BlockNumber,
 		Timeout: Get<Querier::BlockNumber>,
-	> Pay for PayOverXcm<DestChain, Router, Querier, BlockNumber, Timeout>
+		AccountId: Clone,
+		AccountIdConverter: Convert<MultiLocation, AccountId>,
+	> Pay
+	for PayOverXcm<DestChain, Router, Querier, BlockNumber, Timeout, AccountId, AccountIdConverter>
 {
-	type Beneficiary = MultiLocation;
+	type Beneficiary = AccountId;
 	type AssetKind = xcm::v3::AssetId;
 	type Balance = u128;
 	type Id = Querier::QueryId;
@@ -52,10 +61,11 @@ impl<
 		asset_kind: Self::AssetKind,
 		amount: Self::Balance,
 	) -> Result<Self::Id, ()> {
+		let beneficiary = AccountIdConverter::reverse(who.clone()).map_err(|_| ())?;
 		let mut message = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			TransferAsset {
-				beneficiary: *who,
+				beneficiary,
 				assets: vec![MultiAsset { id: asset_kind, fun: Fungibility::Fungible(amount) }]
 					.into(),
 			},
