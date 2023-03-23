@@ -19,6 +19,7 @@
 use crate::configuration::{self, ActiveConfig, Config, Pallet, MAX_POV_SIZE};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
+use sp_runtime::Perbill;
 
 /// The current storage version.
 ///
@@ -82,6 +83,10 @@ pub mod v4 {
 		pub pvf_checking_enabled: bool,
 		pub pvf_voting_ttl: SessionIndex,
 		pub minimum_validation_upgrade_delay: BlockNumber,
+		pub on_demand_base_fee: Balance,
+		pub on_demand_fee_variability: Perbill,
+		pub on_demand_queue_max_size: u32,
+		pub on_demand_target_queue_utilization: Perbill,
 	}
 
 	impl<BlockNumber: Default + From<u32>> Default for OldHostConfiguration<BlockNumber> {
@@ -133,6 +138,10 @@ pub mod v4 {
 				pvf_checking_enabled: false,
 				pvf_voting_ttl: 2u32.into(),
 				minimum_validation_upgrade_delay: 2.into(),
+				on_demand_queue_max_size: 10_000u32,
+				on_demand_base_fee: 10_000u128,
+				on_demand_fee_variability: Perbill::from_percent(3),
+				on_demand_target_queue_utilization: Perbill::from_percent(25),
 			}
 		}
 	}
@@ -227,6 +236,11 @@ ump_max_individual_weight                : pre.ump_max_individual_weight,
 pvf_checking_enabled                     : pre.pvf_checking_enabled,
 pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
+on_demand_base_fee                       : pre.on_demand_base_fee,
+on_demand_fee_variability                : pre.on_demand_fee_variability,
+on_demand_queue_max_size                 : pre.on_demand_queue_max_size,
+on_demand_target_queue_utilization       : pre.on_demand_target_queue_utilization,
+
 		}
 	};
 

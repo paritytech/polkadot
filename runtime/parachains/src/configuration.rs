@@ -24,7 +24,7 @@ use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
 use primitives::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
-use sp_runtime::traits::Zero;
+use sp_runtime::{traits::Zero, Perbill};
 use sp_std::prelude::*;
 
 #[cfg(test)]
@@ -164,6 +164,15 @@ pub struct HostConfiguration<BlockNumber> {
 	pub parathread_cores: u32,
 	/// The number of retries that a parathread author has to submit their block.
 	pub parathread_retries: u32,
+	/// The maximum queue size of the pay as you go module.
+	pub on_demand_queue_max_size: u32,
+	/// The target utilization of the spot price queue in percentages.
+	pub on_demand_target_queue_utilization: Perbill,
+	/// How quickly the fee rises in reaction to increased utilization.
+	/// The lower the number the slower the increase.
+	pub on_demand_fee_variability: Perbill,
+	/// The minimum amount needed to claim a slot in the spot pricing queue.
+	pub on_demand_base_fee: Balance,
 	/// How often parachain groups should be rotated across parachains.
 	///
 	/// Must be non-zero.
@@ -290,6 +299,10 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
+			on_demand_queue_max_size: 10_000u32,
+			on_demand_base_fee: 10_000u128,
+			on_demand_fee_variability: Perbill::from_percent(3),
+			on_demand_target_queue_utilization: Perbill::from_percent(25),
 		}
 	}
 }
