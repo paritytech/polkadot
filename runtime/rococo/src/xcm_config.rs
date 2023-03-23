@@ -25,6 +25,7 @@ use frame_support::{
 	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
+use frame_system::EnsureRoot;
 use rococo_runtime_constants::currency::CENTS;
 use runtime_common::{
 	paras_registrar,
@@ -378,4 +379,5 @@ impl pallet_xcm::Config for Runtime {
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }

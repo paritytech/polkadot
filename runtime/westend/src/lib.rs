@@ -1756,8 +1756,8 @@ sp_api::impl_runtime_apis! {
 			impl runtime_parachains::disputes::slashing::benchmarking::Config for Runtime {}
 
 			use xcm::latest::{
-				AssetId::*, Fungibility::*, Junction, Junctions::*, MultiAsset, MultiAssets,
-				MultiLocation, Response,
+				AssetId::*, Fungibility::*, InteriorMultiLocation, Junction, Junctions::*,
+				MultiAsset, MultiAssets, MultiLocation, NetworkId, Response,
 			};
 			use xcm_config::{Westmint, TokenLocation};
 
@@ -1831,6 +1831,12 @@ sp_api::impl_runtime_apis! {
 
 				fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
 					// Westend doesn't support asset locking
+					Err(BenchmarkError::Skip)
+				}
+
+				fn export_message_origin_and_destination(
+				) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError> {
+					// Westend doesn't support exporting messages
 					Err(BenchmarkError::Skip)
 				}
 			}
