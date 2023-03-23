@@ -195,7 +195,5 @@ pub mod metric_definitions {
 			name: "polkadot_parachain_verify_dispute_signature",
 			description: "How much time does it take to verify a single validator signature of a dispute statement, in microseconds",
 			buckets: &[0.0, 0.00005, 0.00006, 0.00007, 0.00008, 0.00009, 0.0001, 0.0005, 0.001, 0.002, 0.005, 0.01, 0.05, 0.1,],
-
-
 	};
 }
