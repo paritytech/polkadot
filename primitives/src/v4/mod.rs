@@ -143,12 +143,12 @@ pub mod well_known_keys {
 	//
 	// The `StorageValue`, such as `ACTIVE_CONFIG` was obtained by calling:
 	//
-	//     <Self as Store>::ActiveConfig::hashed_key()
+	//     ActiveConfig::<T>::hashed_key()
 	//
 	// The `StorageMap` values require `prefix`, and for example for `hrmp_egress_channel_index`,
 	// it could be obtained like:
 	//
-	//     <Hrmp as Store>::HrmpEgressChannelsIndex::prefix_hash();
+	//     HrmpEgressChannelsIndex::<T>::prefix_hash();
 	//
 
 	/// The current epoch index.
@@ -186,6 +186,23 @@ pub mod well_known_keys {
 	/// The storage entry should be accessed as an `AbridgedHostConfiguration` encoded value.
 	pub const ACTIVE_CONFIG: &[u8] =
 		&hex!["06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385"];
+
+	/// Hash of the committed head data for a given registered para.
+	///
+	/// The storage entry stores wrapped `HeadData(Vec<u8>)`.
+	pub fn para_head(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["cd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix
+				.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
 
 	/// The upward message dispatch queue for the given para id.
 	///
@@ -1592,13 +1609,13 @@ where
 /// The maximum number of validators `f` which may safely be faulty.
 ///
 /// The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
-pub fn byzantine_threshold(n: usize) -> usize {
+pub const fn byzantine_threshold(n: usize) -> usize {
 	n.saturating_sub(1) / 3
 }
 
 /// The supermajority threshold of validators which represents a subset
 /// guaranteed to have at least f+1 honest validators.
-pub fn supermajority_threshold(n: usize) -> usize {
+pub const fn supermajority_threshold(n: usize) -> usize {
 	n - byzantine_threshold(n)
 }
 
@@ -1688,6 +1705,36 @@ impl PvfCheckStatement {
 		(MAGIC, self.accept, self.subject, self.session_index, self.validator_index).encode()
 	}
 }
+
+/// Type discriminator for PVF preparation timeouts
+#[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PvfPrepTimeoutKind {
+	/// For prechecking requests, the time period after which the preparation worker is considered
+	/// unresponsive and will be killed.
+	Precheck,
+
+	/// For execution and heads-up requests, the time period after which the preparation worker is
+	/// considered unresponsive and will be killed. More lenient than the timeout for prechecking
+	/// to prevent honest validators from timing out on valid PVFs.
+	Lenient,
+}
+
+/// Type discriminator for PVF execution timeouts
+#[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PvfExecTimeoutKind {
+	/// The amount of time to spend on execution during backing.
+	Backing,
+
+	/// The amount of time to spend on execution during approval or disputes.
+	///
+	/// This should be much longer than the backing execution timeout to ensure that in the
+	/// absence of extremely large disparities between hardware, blocks that pass backing are
+	/// considered executable by approval checkers or dispute participants.
+	Approval,
+}
+
+pub mod executor_params;
+pub use executor_params::{ExecutorParam, ExecutorParams, ExecutorParamsHash};
 
 #[cfg(test)]
 mod tests {
