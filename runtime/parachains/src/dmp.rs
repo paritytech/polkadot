@@ -35,7 +35,7 @@ mod tests;
 
 pub const MAX_MESSAGE_QUEUE_SIZE: usize = 1024;
 pub const EXPONENTIAL_FEE_BASE: FixedU128 = FixedU128::from_rational(101, 100); // 1.01
-pub const MESSAGE_SIZE_FEE_BASE: FixedU128 = FixedU128::from_rational(1001, 1000); //1.001
+pub const MESSAGE_SIZE_FEE_BASE: FixedU128 = FixedU128::from_rational(1, 1000); //0.001
 
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
