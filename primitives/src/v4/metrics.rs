@@ -28,7 +28,7 @@ pub enum RuntimeMetricOp {
 	/// Increment a counter metric by value.
 	IncrementCounter(u64),
 	/// Observe histogram value
-	ObserveHistogram(f64),
+	ObserveHistogram(u128),
 }
 
 /// Runtime metric update event.

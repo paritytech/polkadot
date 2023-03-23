@@ -1367,7 +1367,7 @@ fn check_signature(
 
 	let end = get_current_time();
 
-	METRICS.on_signature_check_complete((end.saturating_sub(start) as f64) / 1_000_000_000.0); // ns -> sec
+	METRICS.on_signature_check_complete(end.saturating_sub(start)); // ns
 
 	res
 }
