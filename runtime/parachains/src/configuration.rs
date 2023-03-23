@@ -27,7 +27,7 @@ use primitives::{
 	vstaging::AsyncBackingParams, Balance, ExecutorParams, SessionIndex, MAX_CODE_SIZE,
 	MAX_HEAD_DATA_SIZE, MAX_POV_SIZE,
 };
-use sp_runtime::traits::Zero;
+use sp_runtime::{traits::Zero, Perbill};
 use sp_std::prelude::*;
 
 #[cfg(test)]
@@ -171,6 +171,15 @@ pub struct HostConfiguration<BlockNumber> {
 	pub parathread_cores: u32,
 	/// The number of retries that a parathread author has to submit their block.
 	pub parathread_retries: u32,
+	/// The maximum queue size of the pay as you go module.
+	pub on_demand_queue_max_size: u32,
+	/// The target utilization of the spot price queue in percentages.
+	pub on_demand_target_queue_utilization: Perbill,
+	/// How quickly the fee rises in reaction to increased utilization.
+	/// The lower the number the slower the increase.
+	pub on_demand_fee_variability: Perbill,
+	/// The minimum amount needed to claim a slot in the spot pricing queue.
+	pub on_demand_base_fee: Balance,
 	/// How often parachain groups should be rotated across parachains.
 	///
 	/// Must be non-zero.
@@ -299,6 +308,10 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
 			executor_params: Default::default(),
+			on_demand_queue_max_size: 10_000u32,
+			on_demand_base_fee: 10_000_000u128,
+			on_demand_fee_variability: Perbill::from_percent(3),
+			on_demand_target_queue_utilization: Perbill::from_percent(25),
 		}
 	}
 }
@@ -1181,6 +1194,60 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.executor_params = new;
+			})
+		}
+
+		/// Set the on demand (parathreads) base fee.
+		#[pallet::call_index(47)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			DispatchClass::Operational,
+		))]
+		pub fn set_on_demand_base_fee(origin: OriginFor<T>, new: Balance) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.on_demand_base_fee = new;
+			})
+		}
+
+		/// Set the on demand (parathreads) fee variability.
+		#[pallet::call_index(48)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			DispatchClass::Operational,
+		))]
+		pub fn set_on_demand_fee_variability(origin: OriginFor<T>, new: Perbill) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.on_demand_fee_variability = new;
+			})
+		}
+
+		/// Set the on demand (parathreads) queue max size.
+		#[pallet::call_index(49)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			DispatchClass::Operational,
+		))]
+		pub fn set_on_demand_queue_max_size(origin: OriginFor<T>, new: u32) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.on_demand_queue_max_size = new;
+			})
+		}
+		/// Set the on demand (parathreads) fee variability.
+		#[pallet::call_index(50)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			DispatchClass::Operational,
+		))]
+		pub fn set_on_demand_target_queue_utilization(
+			origin: OriginFor<T>,
+			new: Perbill,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.on_demand_target_queue_utilization = new;
 			})
 		}
 	}

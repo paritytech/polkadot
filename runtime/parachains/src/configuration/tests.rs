@@ -327,6 +327,10 @@ fn setting_pending_config_members() {
 			pvf_voting_ttl: 3,
 			minimum_validation_upgrade_delay: 20,
 			executor_params: Default::default(),
+			on_demand_queue_max_size: 10_000u32,
+			on_demand_base_fee: 10_000_000u128,
+			on_demand_fee_variability: Perbill::from_percent(3),
+			on_demand_target_queue_utilization: Perbill::from_percent(25),
 		};
 
 		Configuration::set_validation_upgrade_cooldown(

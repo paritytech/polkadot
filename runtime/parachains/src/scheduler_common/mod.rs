@@ -96,7 +96,7 @@ impl Assignment {
 	}
 }
 
-pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
+pub trait AssignmentProvider<BlockNumber> {
 	fn session_core_count() -> u32;
 
 	fn new_session();
@@ -109,7 +109,7 @@ pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 	// on session change
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
 
-	fn get_availability_period(core_idx: CoreIndex) -> T::BlockNumber;
+	fn get_availability_period(core_idx: CoreIndex) -> BlockNumber;
 
 	fn get_max_retries(core_idx: CoreIndex) -> u32;
 }

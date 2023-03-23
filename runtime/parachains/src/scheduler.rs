@@ -50,10 +50,9 @@ use crate::{
 	configuration,
 	initializer::SessionChangeNotification,
 	paras,
-	scheduler_common::{CoreAssignment, FreedReason},
+	scheduler_common::{Assignment, AssignmentProvider, CoreAssignment, FreedReason},
 };
 
-use crate::scheduler_common::{Assignment, AssignmentProvider};
 pub use pallet::*;
 
 #[cfg(test)]
@@ -67,7 +66,6 @@ pub mod migration;
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
-	use crate::scheduler_common::AssignmentProvider;
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
@@ -76,7 +74,7 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config + paras::Config {
-		type AssignmentProvider: AssignmentProvider<Self>;
+		type AssignmentProvider: AssignmentProvider<Self::BlockNumber>;
 	}
 
 	/// All the validator groups. One for each core. Indices are into `ActiveValidators` - not the
