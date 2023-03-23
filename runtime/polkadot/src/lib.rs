@@ -27,14 +27,14 @@ use runtime_common::{
 };
 
 use runtime_parachains::{
+	assigner_parachains as parachains_assigner_parachains,
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
 	inclusion as parachains_inclusion, initializer as parachains_initializer,
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	scheduler, scheduler_polkadot, session_info as parachains_session_info,
-	shared as parachains_shared, ump as parachains_ump,
+	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -1137,11 +1137,12 @@ impl parachains_hrmp::Config for Runtime {
 impl parachains_paras_inherent::Config for Runtime {
 	type WeightInfo = weights::runtime_parachains_paras_inherent::WeightInfo<Runtime>;
 }
-impl runtime_parachains::scheduler_polkadot::Config for Runtime {}
-impl runtime_parachains::scheduler_parachains::Config for Runtime {}
+
 impl parachains_scheduler::Config for Runtime {
-	type AssignmentProvider = runtime_parachains::scheduler_polkadot::Pallet<Runtime>;
+	type AssignmentProvider = ParaAssignmentProvider;
 }
+
+impl parachains_assigner_parachains::Config for Runtime {}
 
 impl parachains_initializer::Config for Runtime {
 	type Randomness = pallet_babe::RandomnessFromOneEpochAgo<Runtime>;
@@ -1310,7 +1311,6 @@ construct_runtime! {
 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
 		Scheduler: pallet_scheduler::{Pallet, Call, Storage, Event<T>} = 1,
 		Preimage: pallet_preimage::{Pallet, Call, Storage, Event<T>} = 10,
-		SchedulerPolkadot: scheduler_polkadot::{Pallet, Storage} = 41,
 
 		// Babe must be before session.
 		Babe: pallet_babe::{Pallet, Call, Storage, Config, ValidateUnsigned} = 2,
@@ -1396,6 +1396,7 @@ construct_runtime! {
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned} = 63,
+		ParaAssignmentProvider: parachains_assigner_parachains::{Pallet} = 64,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>} = 70,
@@ -1465,7 +1466,7 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = scheduler::migration::v1::MigrateToV1<Runtime>;
+	pub type Unreleased = parachains_scheduler::migration::v1::MigrateToV1<Runtime>;
 }
 
 /// Unchecked extrinsic type as expected by this runtime.

@@ -20,6 +20,7 @@ use crate::configuration::{self, ActiveConfig, Config, Pallet, PendingConfigs, M
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::vstaging::AsyncBackingParams;
+use sp_runtime::Perbill;
 use sp_std::vec::Vec;
 
 /// The current storage version.
@@ -235,6 +236,11 @@ async_backing_params                     : AsyncBackingParams { max_candidate_de
 
 // Default executor parameters set is empty
 executor_params                          : Default::default(),
+
+on_demand_queue_max_size                 : 10_000u32,
+on_demand_base_fee                       : 10_000_000u128,
+on_demand_fee_variability                : Perbill::from_percent(3),
+on_demand_target_queue_utilization       : Perbill::from_percent(25),
 		}
 	};
 

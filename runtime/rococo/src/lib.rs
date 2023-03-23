@@ -38,14 +38,15 @@ use scale_info::TypeInfo;
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
 use runtime_parachains::{
+	assigner as parachains_assigner, assigner_on_demand as parachains_assigner_on_demand,
+	assigner_parachains as parachains_assigner_parachains,
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
 	inclusion as parachains_inclusion, initializer as parachains_initializer,
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
 	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	scheduler, scheduler_parachains, session_info as parachains_session_info,
-	shared as parachains_shared, ump as parachains_ump,
+	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -77,7 +78,7 @@ use sp_runtime::{
 		Extrinsic as ExtrinsicT, Keccak256, OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
-	ApplyExtrinsicResult, KeyTypeId, Perbill, Percent, Permill,
+	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
 };
 use sp_staking::SessionIndex;
 #[cfg(any(feature = "std", test))]
@@ -1065,9 +1066,31 @@ impl parachains_paras_inherent::Config for Runtime {
 	type WeightInfo = weights::runtime_parachains_paras_inherent::WeightInfo<Runtime>;
 }
 
-impl runtime_parachains::scheduler_parachains::Config for Runtime {}
 impl parachains_scheduler::Config for Runtime {
-	type AssignmentProvider = scheduler_parachains::Pallet<Runtime>;
+	type AssignmentProvider = ParaAssignmentProvider;
+}
+
+parameter_types! {
+	pub const OnDemandMaxEntries: u32 = 10_000;
+	pub const OnDemandMaxParaIdsInAffinityMap: u32 = 500;
+	pub const OnDemandMaxUpperBoundLookahead: u32 = 2;
+	pub const OnDemandTrafficDefaultValue: FixedU128 = FixedU128::from_u32(1);
+}
+
+impl parachains_assigner_on_demand::Config for Runtime {
+	type RuntimeEvent = RuntimeEvent;
+	type Currency = Balances;
+	type MaxEntries = OnDemandMaxEntries;
+	type MaxParaIdsInAffinityMap = OnDemandMaxParaIdsInAffinityMap;
+	type MaxUpperBoundLookahead = OnDemandMaxUpperBoundLookahead;
+	type TrafficDefaultValue = OnDemandTrafficDefaultValue;
+}
+
+impl parachains_assigner_parachains::Config for Runtime {}
+
+impl parachains_assigner::Config for Runtime {
+	type OnDemandAssignmentProvider = OnDemandAssignmentProvider;
+	type ParachainsAssignmentProvider = ParachainsAssignmentProvider;
 }
 
 impl parachains_initializer::Config for Runtime {
@@ -1422,6 +1445,9 @@ construct_runtime! {
 		ParaSessionInfo: parachains_session_info::{Pallet, Storage} = 61,
 		ParasDisputes: parachains_disputes::{Pallet, Call, Storage, Event<T>} = 62,
 		ParasSlashing: parachains_slashing::{Pallet, Call, Storage, ValidateUnsigned} = 63,
+		ParaAssignmentProvider: parachains_assigner::{Pallet, Storage} = 64,
+		OnDemandAssignmentProvider: parachains_assigner_on_demand::{Pallet, Call, Storage, Event<T>} = 65,
+		ParachainsAssignmentProvider: parachains_assigner_parachains::{Pallet} = 66,
 
 		// Parachain Onboarding Pallets. Start indices at 70 to leave room.
 		Registrar: paras_registrar::{Pallet, Call, Storage, Event<T>, Config} = 70,
@@ -1498,7 +1524,7 @@ pub mod migrations {
 	);
 
 	/// Unreleased migrations. Add new ones here:
-	pub type Unreleased = scheduler::migration::v1::MigrateToV1<Runtime>;
+	pub type Unreleased = parachains_scheduler::migration::v1::MigrateToV1<Runtime>;
 }
 
 /// Executive: handles dispatch to the various modules.

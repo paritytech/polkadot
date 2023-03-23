@@ -28,6 +28,7 @@ use crate::{
 		//SchedulerParathreads, System, Test,
 		new_test_ext,
 		MockGenesisConfig,
+		//OnDemandAssigner,
 		Paras,
 		ParasShared,
 		Scheduler,
@@ -51,6 +52,13 @@ fn schedule_blank_para(id: ParaId, parakind: ParaKind) {
 		}
 	));
 }
+
+//fn order_parathread(id: ParaId) {
+//	assert_ok!(OnDemandAssigner::add_parathread_entry(ParathreadEntry {
+//		claim: ParathreadClaim(id, None),
+//		retries: 0,
+//	}));
+//}
 
 fn run_to_block(
 	to: BlockNumber,
@@ -949,8 +957,8 @@ fn availability_predicate_works() {
 	//let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 	assert!(
-		chain_availability_period < thread_availability_period &&
-			thread_availability_period < group_rotation_frequency
+		chain_availability_period < thread_availability_period
+			&& thread_availability_period < group_rotation_frequency
 	);
 
 	let chain_a = ParaId::from(1_u32);
@@ -1331,12 +1339,10 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			_ => None,
 		});
 
-		// TODO: remove + ... once parathreads assigner is in use
-		assert_eq!(Scheduler::claimqueue().len() as u32 + default_config().parathread_cores, 5);
+		assert_eq!(Scheduler::claimqueue().len(), 2);
 
 		let groups = ValidatorGroups::<Test>::get();
-		// TODO: remove + ... once parathreads assigner is in use
-		assert_eq!(groups.len() as u32 + default_config().parathread_cores, 5);
+		assert_eq!(groups.len(), 5);
 
 		assert_ok!(Paras::schedule_para_cleanup(chain_b));
 		run_to_end_of_block(2, |number| match number {
@@ -1396,12 +1402,10 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			_ => None,
 		});
 
-		// TODO: remove + ... once parathreads assigner is in use
-		assert_eq!(Scheduler::claimqueue().len() as u32 + default_config().parathread_cores, 5);
+		assert_eq!(Scheduler::claimqueue().len(), 2);
 
 		let groups = ValidatorGroups::<Test>::get();
-		// TODO: remove + ... once parathreads assigner is in use
-		assert_eq!(groups.len() as u32 + default_config().parathread_cores, 5);
+		assert_eq!(groups.len(), 5);
 
 		Scheduler::update_claimqueue(BTreeMap::new(), 4);
 
