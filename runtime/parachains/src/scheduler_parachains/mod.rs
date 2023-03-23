@@ -39,16 +39,10 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config:
-		frame_system::Config
-		+ configuration::Config
-		+ paras::Config
-		+ crate::scheduler::pallet::Config
-	{
-	}
+	pub trait Config: frame_system::Config + configuration::Config + paras::Config {}
 }
 
-impl<T: Config> AssignmentProvider<T> for Pallet<T> {
+impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 	fn session_core_count() -> u32 {
 		<paras::Pallet<T>>::parachains().len() as u32
 	}

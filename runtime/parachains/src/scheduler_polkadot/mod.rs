@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright 2023 Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -38,23 +38,27 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config:
-		frame_system::Config
-		+ configuration::Config
-		+ paras::Config
-		+ crate::scheduler_parachains::Config
-	{
+	pub trait Config: frame_system::Config + configuration::Config + paras::Config {
+		type ParachainsAssignmentProvider: AssignmentProvider<Self::BlockNumber>;
+		type OnDemandAssignmentProvider: AssignmentProvider<Self::BlockNumber>;
 	}
 
 	#[pallet::storage]
 	pub(crate) type NumParachains<T> = StorageValue<_, Option<u32>, ValueQuery>;
 }
 
-impl<T: Config> AssignmentProvider<T> for Pallet<T> {
+// Aliases to make the impl more readable.
+type ParachainAssigner<T> = <T as Config>::ParachainsAssignmentProvider;
+type OnDemandAssigner<T> = <T as Config>::OnDemandAssignmentProvider;
+
+impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 	fn session_core_count() -> u32 {
-		<crate::scheduler_parachains::Pallet<T>>::session_core_count()
-		//+ <configuration::Pallet<T>>::config().parathread_cores
-		//crate::scheduler_parathreads::Pallet<T>>::session_core_count()
+		let parachain_cores =
+			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::session_core_count();
+		let on_demand_cores =
+			<OnDemandAssigner<T> as AssignmentProvider<T::BlockNumber>>::session_core_count();
+
+		parachain_cores.saturating_add(on_demand_cores)
 	}
 
 	fn new_session() {
@@ -66,41 +70,49 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 		core_idx: CoreIndex,
 		concluded_para: Option<ParaId>,
 	) -> Option<Assignment> {
-		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
-		if (0..parachains_cores).contains(&core_idx.0) {
-			<crate::scheduler_parachains::Pallet<T>>::pop_assignment_for_core(
+		let parachain_cores =
+			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::session_core_count();
+
+		if (0..parachain_cores).contains(&core_idx.0) {
+			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::pop_assignment_for_core(
 				core_idx,
 				concluded_para,
 			)
 		} else {
-			let _core_idx = CoreIndex(core_idx.0 - parachains_cores);
-			todo!()
-			//<crate::scheduler_parathreads::Pallet<T>>::pop_assignment_for_core(core_idx, concluded_para)
+			<OnDemandAssigner<T> as AssignmentProvider<T::BlockNumber>>::pop_assignment_for_core(
+				core_idx,
+				concluded_para,
+			)
 		}
 	}
 
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
-		let parachain_cores = NumParachains::<T>::get()
-			.unwrap_or_else(|| <crate::scheduler_parachains::Pallet<T>>::session_core_count());
+		let parachain_cores = NumParachains::<T>::get().unwrap_or_else(|| {
+			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::session_core_count()
+		});
 		if (0..parachain_cores).contains(&core_idx.0) {
-			<crate::scheduler_parachains::Pallet<T>>::push_assignment_for_core(core_idx, assignment)
+			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::push_assignment_for_core(
+				core_idx, assignment,
+			)
 		} else {
-			let _core_idx = CoreIndex(core_idx.0 - parachain_cores);
-			todo!()
-			//<crate::scheduler_parathreads::Pallet<T>>::push_assignment_for_core(
-			//	core_idx, assignment,
-			//)
+			<OnDemandAssigner<T> as AssignmentProvider<T::BlockNumber>>::push_assignment_for_core(
+				core_idx, assignment,
+			)
 		}
 	}
 
 	fn get_availability_period(core_idx: CoreIndex) -> T::BlockNumber {
-		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
-		if (0..parachains_cores).contains(&core_idx.0) {
-			<crate::scheduler_parachains::Pallet<T>>::get_availability_period(core_idx)
+		let parachain_cores =
+			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::session_core_count();
+
+		if (0..parachain_cores).contains(&core_idx.0) {
+			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::get_availability_period(
+				core_idx,
+			)
 		} else {
-			let _core_idx = CoreIndex(core_idx.0 - parachains_cores);
-			todo!()
-			//<crate::scheduler_parathreads::Pallet<T>>::get_availability_period(core_idx)
+			<OnDemandAssigner<T> as AssignmentProvider<T::BlockNumber>>::get_availability_period(
+				core_idx,
+			)
 		}
 	}
 }
