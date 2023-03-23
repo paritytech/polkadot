@@ -199,13 +199,11 @@ impl<T: Config> Pallet<T> {
 			v.push(inbound);
 			v.len()
 		});
-
-		if q_len >
-			(MAX_POSSIBLE_ALLOCATION
-				.checked_div(config.max_downward_message_size)
-				.unwrap_or(51200u32)
-				.saturating_div(2u32)) as usize
-		{
+		let delivery_fee_limit = (MAX_POSSIBLE_ALLOCATION
+			.checked_div(config.max_downward_message_size)
+			.unwrap_or(51200u32)
+			.saturating_div(2u32)) as usize;
+		if q_len > delivery_fee_limit {
 			let message_size_factor =
 				FixedU128::from_inner(serialized_len.saturating_div(1024) as u128)
 					.saturating_mul(MESSAGE_SIZE_FEE_BASE);
@@ -250,12 +248,11 @@ impl<T: Config> Pallet<T> {
 		});
 
 		let config = configuration::ActiveConfig::<T>::get();
-		if q_len <=
-			(MAX_POSSIBLE_ALLOCATION
-				.checked_div(config.max_downward_message_size)
-				.unwrap_or(51200u32)
-				.saturating_div(2u32)) as usize
-		{
+		let delivery_fee_limit = (MAX_POSSIBLE_ALLOCATION
+			.checked_div(config.max_downward_message_size)
+			.unwrap_or(51200u32)
+			.saturating_div(2u32)) as usize;
+		if q_len <= delivery_fee_limit {
 			Self::decrement_fee_factor(para);
 		}
 		T::DbWeight::get().reads_writes(1, 1)
