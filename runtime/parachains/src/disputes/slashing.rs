@@ -705,22 +705,26 @@ where
 		};
 
 		match SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(call.into()) {
-			Ok(()) => log::info!(
-				target: LOG_TARGET,
-				"Submitted dispute slashing report, session({}), index({}), kind({:?})",
-				session_index,
-				validator_index,
-				kind,
-			),
-			Err(()) => log::error!(
-				target: LOG_TARGET,
-				"Error submitting dispute slashing report, session({}), index({}), kind({:?})",
-				session_index,
-				validator_index,
-				kind,
-			),
+			Ok(()) => {
+				log::info!(
+					target: LOG_TARGET,
+					"Submitted dispute slashing report, session({}), index({}), kind({:?})",
+					session_index,
+					validator_index,
+					kind,
+				);
+				Ok(())
+			},
+			Err(()) => {
+				log::error!(
+					target: LOG_TARGET,
+					"Error submitting dispute slashing report, session({}), index({}), kind({:?})",
+					session_index,
+					validator_index,
+					kind,
+				);
+				Err(sp_runtime::DispatchError::Other(""))
+			},
 		}
-
-		Ok(())
 	}
 }
