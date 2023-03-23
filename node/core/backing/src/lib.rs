@@ -199,7 +199,8 @@ async fn run_iteration<Context>(
 				}
 			}
 			from_overseer = ctx.recv().fuse() => {
-				match from_overseer? {
+				// Map the error to ensure that the subsystem exits when the overseer is gone.
+				match from_overseer.map_err(Error::OverseerExited)? {
 					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) => handle_active_leaves_update(
 						&mut *ctx,
 						update,
