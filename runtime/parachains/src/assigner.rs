@@ -62,7 +62,8 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 	}
 
 	fn new_session() {
-		let n_parachains = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
+		let n_parachains =
+			<ParachainAssigner<T> as AssignmentProvider<T::BlockNumber>>::session_core_count();
 		NumParachains::<T>::mutate(|val| *val = Some(n_parachains));
 	}
 

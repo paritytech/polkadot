@@ -27,7 +27,7 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{
 		tokens::{ExistenceRequirement, WithdrawReasons},
-		ConstU32, Currency,
+		Currency,
 	},
 };
 use frame_system::pallet_prelude::*;
@@ -58,6 +58,12 @@ pub struct SpotClaim {
 impl From<SpotClaim> for ParathreadClaim {
 	fn from(se: SpotClaim) -> Self {
 		Self(se.para_id, se.collator_id)
+	}
+}
+
+impl From<ParathreadClaim> for SpotClaim {
+	fn from(se: ParathreadClaim) -> Self {
+		Self { para_id: se.0, collator_id: se.1 }
 	}
 }
 
@@ -114,7 +120,10 @@ const MAX_UPPER_BOUND_LOOKAHEAD: u32 = 100;
 /// The default value for the traffic multiplier.
 const TRAFFIC_DEFAULT_VALUE: FixedU128 = FixedU128::from_u32(1);
 
-#[derive(Encode, Decode, TypeInfo)]
+//#[derive(Encode, Decode, TypeInfo)]
+#[derive(
+	Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, TypeInfo, RuntimeDebug,
+)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 struct CoreAffinityCount {
 	core_idx: CoreIndex,
@@ -140,11 +149,27 @@ pub mod pallet {
 
 		/// The runtime's definition of a Currency.
 		type Currency: Currency<Self::AccountId>;
+
+		/// The number of paraids in the map is bounded by the number of
+		/// `config.parathread_cores` * `config.scheduling_lookahead` in the worst case.
+		#[pallet::constant]
+		type MaxParaIdsInAffinityMap: Get<u32>;
+
+		/// The upper limit of how many claims can be entered into storage
+		#[pallet::constant]
+		type MaxClaims: Get<u32>;
+
+		#[pallet::constant]
+		type MaxUpperBoundLookahead: Get<u32>;
+
+		/// The default value for the traffic multiplier.
+		#[pallet::constant]
+		type TrafficDefaultValue: Get<FixedU128>;
 	}
 
 	#[pallet::type_value]
-	pub fn SpotTrafficOnEmpty() -> FixedU128 {
-		TRAFFIC_DEFAULT_VALUE
+	pub fn SpotTrafficOnEmpty<T: Config>() -> FixedU128 {
+		T::TrafficDefaultValue::get()
 	}
 
 	#[pallet::type_value]
@@ -153,13 +178,14 @@ pub mod pallet {
 	}
 
 	#[pallet::type_value]
-	pub fn OnDemandQueueOnEmpty<T: Config>() -> BoundedVec<SpotClaim, ConstU32<MAX_CLAIMS>> {
+	pub fn OnDemandQueueOnEmpty<T: Config>() -> BoundedVec<SpotClaim, T::MaxClaims> {
 		BoundedVec::truncate_from(Vec::new())
 	}
 
 	// TODO getters are on the way out, remove this one preemptively
 	#[pallet::storage]
-	pub(super) type SpotTraffic<T> = StorageValue<_, FixedU128, ValueQuery, SpotTrafficOnEmpty>;
+	pub(super) type SpotTraffic<T: Config> =
+		StorageValue<_, FixedU128, ValueQuery, SpotTrafficOnEmpty<T>>;
 
 	/// An accounting mechanism for already scheduled claims. This prevents the scheduling of two
 	/// or more parablocks of the same `ParaId` to be scheduled to be included in the same relay chain
@@ -174,25 +200,12 @@ pub mod pallet {
 	/// message queue at a later point if needed.
 	// TODO naming is hard
 	#[pallet::storage]
-	pub type OnDemandQueue<T: Config> = StorageValue<
-		_,
-		BoundedVec<SpotClaim, ConstU32<MAX_CLAIMS>>,
-		ValueQuery,
-		OnDemandQueueOnEmpty<T>,
-	>;
+	pub type OnDemandQueue<T: Config> =
+		StorageValue<_, BoundedVec<SpotClaim, T::MaxClaims>, ValueQuery, OnDemandQueueOnEmpty<T>>;
 
 	#[pallet::storage]
 	pub(super) type ParaIdAffinity<T: Config> =
 		StorageMap<_, Twox256, ParaId, CoreAffinityCount, OptionQuery>;
-
-	#[pallet::storage]
-	pub(super) type CoreIndexAffinity<T: Config> = StorageMap<
-		_,
-		Twox256,
-		CoreIndex,
-		BoundedVec<ParaId, ConstU32<MAX_UPPER_BOUND_LOOKAHEAD>>,
-		OptionQuery,
-	>;
 
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
@@ -284,7 +297,6 @@ where
 		let config = <configuration::Pallet<T>>::config();
 		// Calculate spot price multiplier and store it.
 		let traffic = SpotTraffic::<T>::get();
-		let queue = OnDemandQueue::<T>::get();
 		let spot_traffic = calculate_spot_traffic(
 			traffic,
 			config.on_demand_queue_max_size,
@@ -302,7 +314,7 @@ where
 	pub(crate) fn initializer_finalize() {}
 
 	pub(crate) fn initializer_on_new_session(
-		notification: &SessionChangeNotification<T::BlockNumber>,
+		_notification: &SessionChangeNotification<T::BlockNumber>,
 	) {
 	}
 
@@ -333,38 +345,49 @@ where
 		}
 	}
 
-	/// Attempts to reduce the affinity of a specific `ParaId` by reducing the count
-	/// in `ParaIdAffinity` by 1 and removing the first instance of the `ParaId` in the
-	/// `CoreIndexAffinity` map. If the count reaches 0 and the `CoreIndexAffinity`, the `ParaIdAffinity` entry is deleted
-	/// along with the `CoreIndexAffinity` entry.
-	fn reduce_affinity(para_id: ParaId) -> bool {
-		// TODO implement me
-		false
+	/// Decreases the affinity of a `ParaId` to a specified `CoreIndex`.
+	/// Subtracts from the count of the `CoreAffinityCount` if an entry is found and the core_idx matches.
+	/// When the count reaches 0, the entry is removed.
+	/// A non-existant entry is a no-op.
+	fn decrease_affinity(para_id: ParaId, core_idx: CoreIndex) {
+		match ParaIdAffinity::<T>::get(para_id) {
+			Some(affinity) =>
+				if affinity.core_idx == core_idx {
+					let new_count = affinity.count.saturating_sub(1);
+					if new_count > 0 {
+						ParaIdAffinity::<T>::insert(
+							para_id,
+							CoreAffinityCount { core_idx, count: new_count },
+						)
+					} else {
+						ParaIdAffinity::<T>::remove(para_id)
+					}
+				},
+			None => {},
+		}
 	}
 
+	/// Increases the affinity of a `ParaId` to a specified `CoreIndex`.
+	/// Adds to the count of the `CoreAffinityCount` if an entry is found and the core_idx matches.
+	/// A non-existant entry will be initialized with a count of 1 and uses the  supplied `CoreIndex`.
 	fn increase_affinity(para_id: ParaId, core_idx: CoreIndex) -> bool {
-		ParaIdAffinity::<T>::mutate(para_id, |affinity| {
-			// Having Some(affinity) here is impossible as the `pos` var already selects
-			// a claim that is not an element in the map.
-			if affinity.is_none() {
-				*affinity = Some(CoreAffinityCount { core_idx, count: 1 });
-			} else {
-				// TODO implement me
-			}
-		});
-
-		CoreIndexAffinity::<T>::mutate(
-			core_idx,
-			|affinity: &mut Option<BoundedVec<ParaId, ConstU32<MAX_UPPER_BOUND_LOOKAHEAD>>>| {
-				// Having Some(affinity) here is impossible as the `pos` var already selects
-				// a claim that is not an element in the map.
-				if affinity.is_none() {
-					let v: Vec<ParaId> = vec![];
-					*affinity = Some(BoundedVec::truncate_from(v));
+		match ParaIdAffinity::<T>::get(para_id) {
+			Some(affinity) => {
+				if affinity.core_idx == core_idx {
+					let new_count = affinity.count.saturating_add(1);
+					ParaIdAffinity::<T>::insert(
+						para_id,
+						CoreAffinityCount { core_idx, count: new_count },
+					);
+					return true
 				}
+				return false
 			},
-		);
-		false
+			None => {
+				ParaIdAffinity::<T>::insert(para_id, CoreAffinityCount { core_idx, count: 1 });
+				return true
+			},
+		}
 	}
 }
 
@@ -373,6 +396,8 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 		let config = <configuration::Pallet<T>>::config();
 		config.parathread_cores
 	}
+
+	fn new_session() {}
 
 	/// Take the next queued claim that is available for a given core index.
 	/// Parameters:
@@ -386,56 +411,67 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 		// If there's no previous `ParaId` coming from the scheduler we can grab the next `ParaId` in the queue with no affinity.
 		// The assumption being that this only happens when the core has never popped a claim in this session.
 		match previous_para {
-			Some(para) => {
-				ParaIdAffinity::<T>::get(para);
-				// TODO shim, remove
-				let mut queue: BoundedVec<SpotClaim, ConstU32<MAX_CLAIMS>> =
-					OnDemandQueue::<T>::get();
-				let claim = queue.remove(0);
-				return Some(Assignment::ParathreadA(claim.into()))
-				// TODO end shim
-			},
-			None => {
-				// The scheduler still has some paraids attached to it but it reports no previous_para.
-				// Do not process.
-				if CoreIndexAffinity::<T>::get(core_idx).is_some() {
-					return None
+			Some(prev_para_id) => {
+				if let Some(prev_para_affinity) = ParaIdAffinity::<T>::get(prev_para_id) {
+					let mut queue: BoundedVec<SpotClaim, T::MaxClaims> = OnDemandQueue::<T>::get();
+					let pos = queue.iter().position(|elem| {
+						let queue_elem = ParaIdAffinity::<T>::get(&elem.para_id);
+						match queue_elem {
+							Some(a) => return a.core_idx == prev_para_affinity.core_idx,
+							None => return true,
+						}
+					});
+
+					if let Some(i) = pos {
+						let claim = queue.remove(i);
+
+						// Equivalent to decreasing the affinity if the claim `ParaId` matches the previous `ParaId`
+						if claim.para_id != prev_para_id {
+							Pallet::<T>::increase_affinity(claim.para_id, core_idx);
+						}
+						return Some(Assignment::ParathreadA(claim.into()))
+					}
 				}
 
-				let mut queue: BoundedVec<SpotClaim, ConstU32<MAX_CLAIMS>> =
-					OnDemandQueue::<T>::get();
+				return None
+			},
+			None => {
+				let mut queue: BoundedVec<SpotClaim, T::MaxClaims> = OnDemandQueue::<T>::get();
 				let pos =
 					queue.iter().position(|elem| ParaIdAffinity::<T>::get(&elem.para_id).is_none());
 				// Add claim to affinity maps and remove from queue.
 				if let Some(i) = pos {
 					let claim = queue.remove(i);
-					ParaIdAffinity::<T>::mutate(claim.para_id, |affinity| {
-						// Having Some(affinity) here is impossible as the `pos` var already selects
-						// a claim that is not an element in the map.
-						if affinity.is_none() {
-							*affinity = Some(CoreAffinityCount { core_idx, count: 1 });
-						}
-					});
-					CoreIndexAffinity::<T>::mutate(core_idx, |affinity| {
-						if affinity.is_none() {
-							let aff_vec: Vec<ParaId> = vec![claim.para_id];
-							*affinity = Some(BoundedVec::truncate_from(aff_vec));
-						}
-					});
-
+					Pallet::<T>::increase_affinity(claim.para_id, core_idx);
 					// Write changes to storage.
 					OnDemandQueue::<T>::set(queue);
 
 					return Some(Assignment::ParathreadA(claim.into()))
 				}
+
 				return None
 			},
 		}
 	}
 
-	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {}
+	/// Pushes assignment back to the queue
+	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
+		match assignment {
+			Assignment::ParathreadA(pushback_claim) => {
+				let claim: SpotClaim = pushback_claim.into();
+				Pallet::<T>::decrease_affinity(claim.para_id, core_idx);
+				match Pallet::<T>::add_parathread_claim(claim) {
+					Ok(_) => {},
+					Err(_) => {},
+				}
+			},
+			Assignment::Parachain(_para_id) => {
+				// We should never end up here
+			},
+		}
+	}
 
-	fn get_availability_period(core_index: CoreIndex) -> T::BlockNumber {
+	fn get_availability_period(_core_index: CoreIndex) -> T::BlockNumber {
 		let config = <configuration::Pallet<T>>::config();
 		config.thread_availability_period
 	}

@@ -25,6 +25,9 @@
 
 extern crate core;
 
+pub mod assigner;
+pub mod assigner_on_demand;
+pub mod assigner_parachains;
 pub mod configuration;
 pub mod disputes;
 pub mod dmp;
@@ -38,9 +41,6 @@ pub mod paras_inherent;
 pub mod reward_points;
 pub mod scheduler;
 pub mod scheduler_common;
-pub mod scheduler_on_demand;
-pub mod scheduler_parachains;
-pub mod scheduler_polkadot;
 pub mod session_info;
 pub mod shared;
 pub mod ump;

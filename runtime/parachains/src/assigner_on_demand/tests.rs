@@ -16,12 +16,12 @@
 
 use super::*;
 use crate::{
+	assigner::on_demand::Error,
 	mock::{
 		new_test_ext, MockGenesisConfig, OnDemandAssigner, Paras, ParasShared, RuntimeOrigin,
 		Scheduler, System, Test,
 	},
 	paras::{ParaGenesisArgs, ParaKind},
-	scheduler_on_demand::Error,
 };
 use frame_support::{assert_noop, assert_ok, error::BadOrigin};
 use keyring::Sr25519Keyring;

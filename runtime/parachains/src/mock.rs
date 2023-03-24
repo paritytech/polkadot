@@ -17,8 +17,9 @@
 //! Mocks for all the traits.
 
 use crate::{
+	assigner::{self, on_demand as assigner_on_demand, parachains as assigner_parachains},
 	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
-	scheduler, scheduler_on_demand, scheduler_parachains, scheduler_polkadot, session_info, shared,
+	scheduler, session_info, shared,
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
@@ -60,9 +61,9 @@ frame_support::construct_runtime!(
 		ParaInclusion: inclusion,
 		ParaInherent: paras_inherent,
 		Scheduler: scheduler,
-		SchedulerPolkadot: scheduler_polkadot,
-		OnDemandAssigner: scheduler_on_demand,
-		ParachainsAssigner: scheduler_parachains,
+		Assigner: assigner,
+		OnDemandAssigner: assigner_on_demand,
+		ParachainsAssigner: assigner_parachains,
 		Initializer: initializer,
 		Dmp: dmp,
 		Ump: ump,
@@ -293,20 +294,18 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
-impl crate::scheduler_parachains::Config for Test {}
-impl crate::scheduler_polkadot::Config for Test {}
 impl crate::scheduler::Config for Test {
-	type AssignmentProvider = crate::scheduler_polkadot::Pallet<Test>;
+	type AssignmentProvider = Assigner;
 }
 
-impl crate::scheduler_polkadot::Config for Test {
+impl assigner::Config for Test {
 	type ParachainsAssignmentProvider = ParachainsAssigner;
 	type OnDemandAssignmentProvider = OnDemandAssigner;
 }
 
-impl crate::scheduler_parachains::Config for Test {}
+impl assigner_parachains::Config for Test {}
 
-impl crate::scheduler_on_demand::Config for Test {
+impl assigner_on_demand::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
 }
