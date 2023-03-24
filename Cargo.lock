@@ -5149,9 +5149,9 @@ dependencies = [
 
 [[package]]
 name = "orchestra"
-version = "0.0.4"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17e7d5b6bb115db09390bed8842c94180893dd83df3dfce7354f2a2aa090a4ee"
+checksum = "227585216d05ba65c7ab0a0450a3cf2cbd81a98862a54c4df8e14d5ac6adb015"
 dependencies = [
  "async-trait",
  "dyn-clonable",
@@ -5166,9 +5166,9 @@ dependencies = [
 
 [[package]]
 name = "orchestra-proc-macro"
-version = "0.0.4"
+version = "0.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c2af4dabb2286b0be0e9711d2d24e25f6217048b71210cffd3daddc3b5c84e1f"
+checksum = "2871aadd82a2c216ee68a69837a526dfe788ecbe74c4c5038a6acdbff6653066"
 dependencies = [
  "expander 0.0.6",
  "itertools",
