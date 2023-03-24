@@ -339,7 +339,7 @@ mod tests {
 			let mut configs_to_check = configuration::PendingConfigs::<Test>::get();
 			configs_to_check.push((0, v5.clone()));
 
-			for (session, v4) in configs_to_check {
+			for (_, v4) in configs_to_check {
 				#[rustfmt::skip]
 				{
 					assert_eq!(v4.max_code_size                            , v5.max_code_size);
