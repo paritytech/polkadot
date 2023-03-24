@@ -37,9 +37,7 @@ use runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
-use frame_election_provider_support::{
-	generate_solution_type, onchain, SequentialPhragmen, NposSolver,
-};
+use frame_election_provider_support::{generate_solution_type, onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{
@@ -1999,6 +1997,7 @@ sp_api::impl_runtime_apis! {
 mod test_fees {
 	use super::*;
 	use crate::governance::old::*;
+	use frame_election_provider_support::NposSolver;
 	use frame_support::{dispatch::GetDispatchInfo, weights::WeightToFee as WeightToFeeT};
 	use keyring::Sr25519Keyring::{Alice, Charlie};
 	use pallet_transaction_payment::Multiplier;
