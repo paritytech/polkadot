@@ -16,11 +16,10 @@
 
 //! A module that is responsible for migration of storage.
 
-use crate::configuration::{self, ActiveConfig, Config, Pallet, MAX_POV_SIZE};
+use crate::configuration::{self, ActiveConfig, Config, Pallet, PendingConfigs, MAX_POV_SIZE};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
-
-use super::PendingConfigs;
+use sp_std::vec::Vec;
 
 /// The current storage version.
 ///
