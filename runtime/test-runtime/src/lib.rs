@@ -530,6 +530,8 @@ impl parachains_hrmp::Config for Runtime {
 	type WeightInfo = parachains_hrmp::TestWeightInfo;
 }
 
+impl polkadot_runtime_parachains::scheduler_parachains::Config for Runtime {}
+impl crate::scheduler_polkadot::Config for Runtime {}
 impl parachains_scheduler::Config for Runtime {
 	type AssignmentProvider = crate::scheduler_polkadot::Pallet<Runtime>;
 }

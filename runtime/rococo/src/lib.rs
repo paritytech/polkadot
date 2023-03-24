@@ -1062,6 +1062,7 @@ impl parachains_paras_inherent::Config for Runtime {
 	type WeightInfo = weights::runtime_parachains_paras_inherent::WeightInfo<Runtime>;
 }
 
+impl runtime_parachains::scheduler_parachains::Config for Runtime {}
 impl parachains_scheduler::Config for Runtime {
 	type AssignmentProvider = scheduler_parachains::Pallet<Runtime>;
 }
