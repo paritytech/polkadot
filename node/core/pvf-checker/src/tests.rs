@@ -29,7 +29,7 @@ use polkadot_primitives::{
 	BlockNumber, Hash, Header, PvfCheckStatement, SessionIndex, ValidationCode, ValidationCodeHash,
 	ValidatorId,
 };
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_core::testing::TaskExecutor;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::Keystore;
