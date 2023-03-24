@@ -138,6 +138,7 @@ impl<T: Config> Pallet<T> {
 
 		Self::reschedule_occupied_cores(AvailabilityCores::<T>::get());
 		Self::clear_claimqueue();
+		T::AssignmentProvider::new_session();
 
 		// clear all cores
 		AvailabilityCores::<T>::mutate(|cores| {
@@ -251,8 +252,8 @@ impl<T: Config> Pallet<T> {
 
 		let pos_mapping = now_occupied
 			.into_iter()
-			.flat_map(|(core_idx, para_id)| match Self::mark_claimqueue(core_idx, para_id) {
-				Err(_) => None,
+			.flat_map(|(core_idx, para_id)| match Self::remove_from_claimqueue(core_idx, para_id) {
+				Err(_) => None, // TODO: report back?
 				Ok((pos_in_claimqueue, assignment)) => {
 					availability_cores[assignment.core.0 as usize] = assignment.to_core_occupied();
 
@@ -424,6 +425,7 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
+	// on new session
 	fn clear_claimqueue() {
 		for (core_idx, cqv) in ClaimQueue::<T>::take() {
 			for ca in cqv.into_iter().flatten() {
@@ -518,7 +520,8 @@ impl<T: Config> Pallet<T> {
 		});
 	}
 
-	fn mark_claimqueue(
+	/// Returns `CoreAssignment` with `para_id` at `core_idx` if found.
+	fn remove_from_claimqueue(
 		core_idx: CoreIndex,
 		para_id: ParaId,
 	) -> Result<(PositionInClaimqueue, CoreAssignment), &'static str> {
@@ -548,15 +551,15 @@ impl<T: Config> Pallet<T> {
 		claimqueue.into_iter().flat_map(|(_, v)| v.front().cloned()).flatten().collect()
 	}
 
-	//#[cfg(test)]
-	//fn claimqueue_sizes() -> Vec<usize> {
-	//	ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
-	//}
+	#[cfg(test)]
+	fn claimqueue_sizes() -> Vec<usize> {
+		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
+	}
 
-	//#[cfg(test)]
-	//pub(crate) fn claimqueue_is_empty() -> bool {
-	//	Self::claimqueue_sizes().iter().sum::<usize>() == 0
-	//}
+	#[cfg(test)]
+	pub(crate) fn claimqueue_is_empty() -> bool {
+		Self::claimqueue_sizes().iter().sum::<usize>() == 0
+	}
 
 	#[cfg(test)]
 	pub(crate) fn claimqueue_contains_only_none() -> bool {

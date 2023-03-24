@@ -18,7 +18,7 @@
 
 use crate::{
 	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
-	scheduler, session_info, shared,
+	scheduler, scheduler_polkadot, session_info, shared,
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
@@ -60,6 +60,7 @@ frame_support::construct_runtime!(
 		ParaInclusion: inclusion,
 		ParaInherent: paras_inherent,
 		Scheduler: scheduler,
+		SchedulerPolkadot: scheduler_polkadot,
 		Initializer: initializer,
 		Dmp: dmp,
 		Ump: ump,
@@ -290,6 +291,8 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 	fn initializer_on_new_session(_: SessionIndex) {}
 }
 
+impl crate::scheduler_parachains::Config for Test {}
+impl crate::scheduler_polkadot::Config for Test {}
 impl crate::scheduler::Config for Test {
 	type AssignmentProvider = crate::scheduler_polkadot::Pallet<Test>;
 }

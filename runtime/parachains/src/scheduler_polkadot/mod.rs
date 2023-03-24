@@ -16,32 +16,18 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{CoreIndex, Id as ParaId};
-use scale_info::TypeInfo;
 
 use crate::{
 	configuration,
 	//initializer::SessionChangeNotification,
 	paras,
-	scheduler,
 	scheduler_common::{Assignment, AssignmentProvider},
 };
 
 pub use pallet::*;
-use sp_std::collections::btree_map::BTreeMap;
 
 //#[cfg(test)]
 //mod tests;
-
-type SubIndex = u32;
-
-#[derive(Encode, Decode, TypeInfo)]
-#[cfg_attr(test, derive(PartialEq, Debug))]
-pub enum ProviderCases {
-	ParachainsProvider(SubIndex),
-	ParathreadsProvicer(SubIndex),
-}
-
-pub type SubIndexMapping = BTreeMap<CoreIndex, ProviderCases>;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -61,17 +47,19 @@ pub mod pallet {
 	}
 
 	#[pallet::storage]
-	pub(crate) type SubIndex<T> = StorageValue<_, SubIndexMapping, ValueQuery>;
-
-	#[pallet::storage]
-	pub(crate) type ParaIdCoreMap<T> = StorageValue<_, BTreeMap<ParaId, CoreIndex>, ValueQuery>;
+	pub(crate) type NumParachains<T> = StorageValue<_, Option<u32>, ValueQuery>;
 }
 
-impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
+impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 	fn session_core_count() -> u32 {
 		<crate::scheduler_parachains::Pallet<T>>::session_core_count()
 		//+ <configuration::Pallet<T>>::config().parathread_cores
 		//crate::scheduler_parathreads::Pallet<T>>::session_core_count()
+	}
+
+	fn new_session() {
+		let n_parachains = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
+		NumParachains::<T>::mutate(|val| *val = Some(n_parachains));
 	}
 
 	fn pop_assignment_for_core(
@@ -92,12 +80,13 @@ impl<T: scheduler::pallet::Config> AssignmentProvider<T> for Pallet<T> {
 	}
 
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
-		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
-		if (0..parachains_cores).contains(&core_idx.0) {
+		let parachain_cores = NumParachains::<T>::get()
+			.unwrap_or_else(|| <crate::scheduler_parachains::Pallet<T>>::session_core_count());
+		if (0..parachain_cores).contains(&core_idx.0) {
 			<crate::scheduler_parachains::Pallet<T>>::push_assignment_for_core(core_idx, assignment)
 		} else {
-			let _core_idx = CoreIndex(core_idx.0 - parachains_cores);
-			//todo!()
+			let _core_idx = CoreIndex(core_idx.0 - parachain_cores);
+			todo!()
 			//<crate::scheduler_parathreads::Pallet<T>>::push_assignment_for_core(
 			//	core_idx, assignment,
 			//)

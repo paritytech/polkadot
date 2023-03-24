@@ -333,7 +333,6 @@ impl<T: Config> Pallet<T> {
 		);
 
 		let now = <frame_system::Pallet<T>>::block_number();
-
 		let mut candidates_weight = backed_candidates_weight::<T>(&backed_candidates);
 		let mut bitfields_weight = signed_bitfields_weight::<T>(signed_bitfields.len());
 		let disputes_weight = multi_dispute_statement_sets_weight::<T, _, _>(&disputes);
@@ -565,7 +564,6 @@ impl<T: Config> Pallet<T> {
 		);
 
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
-
 		if parent_hash != parent_header.hash() {
 			log::warn!(
 				target: LOG_TARGET,

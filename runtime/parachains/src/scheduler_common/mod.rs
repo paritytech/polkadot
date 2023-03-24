@@ -130,6 +130,8 @@ impl Assignment {
 pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 	fn session_core_count() -> u32;
 
+	fn new_session();
+
 	fn pop_assignment_for_core(
 		core_idx: CoreIndex,
 		concluded_para: Option<ParaId>,

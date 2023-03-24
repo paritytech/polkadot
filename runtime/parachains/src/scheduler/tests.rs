@@ -1427,6 +1427,66 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			.into_iter()
 			.collect()
 		);
+
+		// Add parachain back
+		schedule_blank_para(chain_b, ParaKind::Parachain);
+
+		run_to_block(3, |number| match number {
+			3 => Some(SessionChangeNotification {
+				new_config: default_config(),
+				validators: vec![
+					ValidatorId::from(Sr25519Keyring::Alice.public()),
+					ValidatorId::from(Sr25519Keyring::Bob.public()),
+					ValidatorId::from(Sr25519Keyring::Charlie.public()),
+					ValidatorId::from(Sr25519Keyring::Dave.public()),
+					ValidatorId::from(Sr25519Keyring::Eve.public()),
+					ValidatorId::from(Sr25519Keyring::Ferdie.public()),
+					ValidatorId::from(Sr25519Keyring::One.public()),
+				],
+				random_seed: [99; 32],
+				..Default::default()
+			}),
+			_ => None,
+		});
+
+		// TODO: remove + ... once parathreads assigner is in use
+		assert_eq!(Scheduler::claimqueue().len() as u32 + default_config().parathread_cores, 5);
+
+		let groups = ValidatorGroups::<Test>::get();
+		// TODO: remove + ... once parathreads assigner is in use
+		assert_eq!(groups.len() as u32 + default_config().parathread_cores, 5);
+
+		Scheduler::update_claimqueue(BTreeMap::new(), 4);
+
+		assert_eq!(
+			Scheduler::claimqueue(),
+			vec![
+				(
+					CoreIndex(0),
+					vec![Some(CoreAssignment {
+						core: CoreIndex(0),
+						para_id: chain_a,
+						kind: AssignmentKind::Parachain,
+						group_idx: GroupIndex(0),
+					})]
+					.into_iter()
+					.collect()
+				),
+				(
+					CoreIndex(1),
+					vec![Some(CoreAssignment {
+						core: CoreIndex(1),
+						para_id: chain_b,
+						kind: AssignmentKind::Parachain,
+						group_idx: GroupIndex(1),
+					})]
+					.into_iter()
+					.collect()
+				),
+			]
+			.into_iter()
+			.collect()
+		);
 	});
 }
 
