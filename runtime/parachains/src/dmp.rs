@@ -108,8 +108,9 @@ pub mod pallet {
 	pub(crate) type DownwardMessageQueueHeads<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, Hash, ValueQuery>;
 
-	frame_support::parameter_types! {
-		pub InitialFactor: FixedU128 = FixedU128::from_u32(1);
+	#[pallet::type_value]
+	pub fn InitialFactor() -> FixedU128 {
+		FixedU128::from_u32(1)
 	}
 
 	/// The number to multiply the base delivery fee by.
@@ -205,7 +206,7 @@ impl<T: Config> Pallet<T> {
 			.saturating_div(2u32)) as usize;
 		if q_len > delivery_fee_limit {
 			let message_size_factor =
-				FixedU128::from_inner(serialized_len.saturating_div(1024) as u128)
+				FixedU128::from_u32(serialized_len.saturating_div(1024) as u32)
 					.saturating_mul(MESSAGE_SIZE_FEE_BASE);
 			Self::increment_fee_factor(para, message_size_factor);
 		}

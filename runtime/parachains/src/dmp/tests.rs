@@ -205,3 +205,45 @@ fn verify_dmq_mqc_head_is_externally_accessible() {
 		);
 	});
 }
+
+#[test]
+fn verify_fee_increment_and_decrement() {
+	let a = ParaId::from(123);
+
+	let mut genesis = default_genesis_config();
+	// Sets `delivery_fee_limit` to 1 message
+	genesis.configuration.config.max_downward_message_size = 16_777_216;
+
+	new_test_ext(genesis).execute_with(|| {
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), FixedU128::from_u32(1));
+
+		// Under fee limit
+		queue_downward_message(a, vec![1]).unwrap();
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), FixedU128::from_u32(1));
+
+		// Limit reached so fee is increased
+		queue_downward_message(a, vec![1]).unwrap();
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), FixedU128::from_float(1.01));
+
+		Dmp::prune_dmq(a, 1);
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), FixedU128::from_u32(1));
+
+		// 10 Kb message adds additional 0.001 per KB fee factor
+		let big_message = [0; 10240].to_vec();
+		queue_downward_message(a, big_message).unwrap();
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), FixedU128::from_float(1.02));
+
+		queue_downward_message(a, vec![1]).unwrap();
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), FixedU128::from_float(1.0302));
+		Dmp::prune_dmq(a, 3);
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), FixedU128::from_float(1.02));
+		assert_eq!(Dmp::dmq_length(a), 0);
+
+		// Messages under limit will keep decreasing fee factor until base fee factor is reached
+		queue_downward_message(a, vec![1]).unwrap();
+		Dmp::prune_dmq(a, 1);
+		queue_downward_message(a, vec![1]).unwrap();
+		Dmp::prune_dmq(a, 1);
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), FixedU128::from_u32(1));
+	});
+}
