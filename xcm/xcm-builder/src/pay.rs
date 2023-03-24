@@ -92,8 +92,10 @@ impl<
 	}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn ensure_successful(_: &Self::Beneficiary, amount: Self::Balance) {}
+	fn ensure_successful(_: &Self::Beneficiary, _: Self::Balance) {}
 
 	#[cfg(feature = "runtime-benchmarks")]
-	fn ensure_concluded(_: Self::Id) {}
+	fn ensure_concluded(id: Self::Id) {
+		Querier::expect_response(id);
+	}
 }
