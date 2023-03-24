@@ -5157,7 +5157,24 @@ dependencies = [
  "dyn-clonable",
  "futures",
  "futures-timer",
- "orchestra-proc-macro",
+ "orchestra-proc-macro 0.0.4",
+ "pin-project",
+ "prioritized-metered-channel",
+ "thiserror",
+ "tracing",
+]
+
+[[package]]
+name = "orchestra"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "227585216d05ba65c7ab0a0450a3cf2cbd81a98862a54c4df8e14d5ac6adb015"
+dependencies = [
+ "async-trait",
+ "dyn-clonable",
+ "futures",
+ "futures-timer",
+ "orchestra-proc-macro 0.0.5",
  "pin-project",
  "prioritized-metered-channel",
  "thiserror",
@@ -5169,6 +5186,21 @@ name = "orchestra-proc-macro"
 version = "0.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2af4dabb2286b0be0e9711d2d24e25f6217048b71210cffd3daddc3b5c84e1f"
+dependencies = [
+ "expander 0.0.6",
+ "itertools",
+ "petgraph",
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "orchestra-proc-macro"
+version = "0.0.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2871aadd82a2c216ee68a69837a526dfe788ecbe74c4c5038a6acdbff6653066"
 dependencies = [
  "expander 0.0.6",
  "itertools",
@@ -7324,7 +7356,7 @@ dependencies = [
  "async-trait",
  "derive_more",
  "futures",
- "orchestra",
+ "orchestra 0.0.5",
  "polkadot-node-jaeger",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
@@ -7390,7 +7422,7 @@ dependencies = [
  "futures",
  "futures-timer",
  "lru 0.9.0",
- "orchestra",
+ "orchestra 0.0.4",
  "parking_lot 0.12.1",
  "polkadot-node-metrics",
  "polkadot-node-network-protocol",
