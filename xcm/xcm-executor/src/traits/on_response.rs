@@ -132,6 +132,10 @@ pub trait XcmQueryHandler {
 		timeout: Self::BlockNumber,
 	) -> result::Result<Self::QueryId, Self::Error>;
 
+	/// Makes sure to expect a response with the given id
+	/// Used for bencharks.
+	fn expect_response(id: Self::QueryId);
+
 	/// Attempt to remove and return the response of query with ID `query_id`.
 	///
 	/// Returns `Pending` if the response is not yet available.
