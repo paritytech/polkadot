@@ -12,19 +12,66 @@ other backing-stage subsystems of work to be done.
 Asynchronous backing changes the runtime to accept parachain candidates from a
 certain allowed range of historic relay-parents. This means we can now build
 *prospective parachains* – that is, trees of potential (but likely) future
-parachain blocks. This is the subsystem responsible for doing so. Other
-subsystems such as Backing rely on Prospective Parachains, e.g. for determining
-if a candidate can be seconded. This subsystem is the main coordinator of work
-within the node for the collation and backing phases of parachain consensus.
+parachain blocks. This is the subsystem responsible for doing so.
 
-Prospective Parachains is primarily an implementation of fragment trees. See the
-"Fragment Trees" section. (TODO) (Also see the Inclusion Emulator page.)
+Other subsystems such as Backing rely on Prospective Parachains, e.g. for
+determining if a candidate can be seconded. This subsystem is the main
+coordinator of work within the node for the collation and backing phases of
+parachain consensus.
 
-It also handles concerns such as:
+Prospective Parachains is primarily an implementation of fragment trees. It also
+handles concerns such as:
 
-  - the relay-chain being forkful
-  - session changes
-  - predicting validator group assignments
+- the relay-chain being forkful
+- session changes
+- predicting validator group assignments
+
+See the following sections for more details.
+
+TODO: move these sections the mod docs if there are too many implementation
+details?
+
+### Fragment Trees
+
+This subsystem builds up fragment trees, which are trees of prospective para
+candidates. Each path through the tree represents a possible state transition
+path for the para. Each potential candidate is a fragment, or a node, in the
+tree. Candidates are validated against constraints as they are added.
+
+This subsystem builds up trees for each relay-chain block in the view, for each
+para. These fragment trees are used for:
+
+- providing backable candidates to other subsystems
+- sanity-checking that candidates can be seconded
+- getting seconded candidates under active leaves
+- etc.
+
+For example, here is a tree with several possible paths:
+
+```
+Para Head registered by the relay chain:     committed_head
+                                                  ↲  ↳
+depth 0:                                  head_0_a    head_0_b
+                                             ↲            ↳
+depth 1:                             head_1_a              head_1_b
+                                  ↲      |     ↳
+depth 2:                 head_2_a1   head_2_a2  head_2_a3
+```
+
+### The Relay-Chain Being Forkful
+
+We account for the same candidate possibly appearing in different forks. While
+we still build fragment trees for each head in each fork, we are efficient with
+how we reference candidates to save space.
+
+### Session Changes
+
+TODO: Is this about ensuring that trees don't span multiple sessions? I don't
+see where this is done.
+
+### Predicting Validator Group Assignments
+
+TODO: Where is this done?
 
 ## Messages
 
@@ -32,6 +79,7 @@ It also handles concerns such as:
 
 - `ActiveLeaves`
   - Notification of a change in the set of active leaves.
+  - Constructs fragment trees for each para for each new leaf.
 - `ProspectiveParachainsMessage::IntroduceCandidate`
   - Informs the subsystem of a new candidate.
   - Sent by the Backing Subsystem when it is importing a statement for a
@@ -55,12 +103,12 @@ It also handles concerns such as:
 - `ProspectiveParachainsMessage::GetHypotheticalFrontier`
   - Gets the hypothetical frontier membership of candidates with the
     given properties under the specified active leaves' fragment trees.
-  - Sent by the Backing Subsystem when checking whether a candidate can
+  - Sent by the Backing Subsystem when sanity-checking whether a candidate can
     be seconded based on its hypothetical frontiers.
 - `ProspectiveParachainsMessage::GetTreeMembership`
   - Gets the membership of the candidate in all fragment trees.
-  - Sent by the Backing Subsystem when it updates the candidates
-    seconded at various depths under active leaves.
+  - Sent by the Backing Subsystem when it needs to update the candidates
+    seconded at various depths under new active leaves.
 - `ProspectiveParachainsMessage::GetMinimumRelayParents`
   - Gets the minimum accepted relay-parent number for each para in the
     fragment tree for the given relay-chain block hash.
@@ -78,7 +126,8 @@ It also handles concerns such as:
 ### Outgoing
 
 - `RuntimeApiRequest::StagingParaBackingState`
-  - Gets the backing state of the given para.
+  - Gets the backing state of the given para (the constraints of the para and
+    candidates pending availability).
 - `RuntimeApiRequest::AvailabilityCores`
   - Gets information on all availability cores.
 - `ChainApiMessage::Ancestors`
@@ -97,10 +146,13 @@ It also handles concerns such as:
     block.
   - Exhaustively define the set of valid inputs and outputs to parachain
     execution.
-- **Fragment:** A prospective parachain block. Fragments are anchored to
-  the relay-chain at a particular relay-parent.
-- **Fragment tree:** A parachain fragment not referenced by the
-  relay-chain. It is a tree of prospective parachain blocks.
+- **Fragment:** A prospective para block (that is, a block not yet referenced by
+  the relay-chain). Fragments are anchored to the relay-chain at a particular
+  relay-parent.
+- **Fragment tree:**
+  - A tree of fragments. Together, these fragments define one or more
+    prospective paths a parachain's state may transition through.
+  - See the "Fragment Tree" section.
 - **Inclusion emulation:** Emulation of the logic that the runtime uses
   for checking parachain blocks.
 - **Prospective parachains:** Trees of potential (but likely) future

@@ -28,6 +28,8 @@
 //! a parachain block, anchored to the relay-chain at a particular relay-chain block, known as the
 //! relay-parent.
 //!
+//! ## Fragment Validity
+//!
 //! Every relay-parent is implicitly associated with a unique set of [`Constraints`] that describe
 //! the properties that must be true for a block to be included in a direct child of that block,
 //! assuming there is no intermediate parachain block pending availability.
@@ -131,10 +133,6 @@
 //!     constraints.
 //!   - Can also validate against some constraints other than the operating
 //!     ones.
-//!
-//! - [`ProspectiveCandidate`]
-//!
-//!   - Contains key information about a prospective candidate.
 
 use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature,

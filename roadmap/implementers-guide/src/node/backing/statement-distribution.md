@@ -163,7 +163,8 @@ backing subsystem itself.
 - `StatementDistributionMessage::Share`
   - Notification of a locally-originating statement. That is, this statement
     comes from our node and should be distributed to other nodes.
-  - Sent by the Backing Subsystem after it successfully imports a statement.
+  - Sent by the Backing Subsystem after it successfully imports a
+    locally-originating statement.
 - `StatementDistributionMessage::Backed`
   - Notification of a candidate being backed (received enough validity votes
     from the backing group).
