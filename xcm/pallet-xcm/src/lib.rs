@@ -244,6 +244,12 @@ pub mod pallet {
 		/// The maximum number of local XCM locks that a single account may have.
 		type MaxLockers: Get<u32>;
 
+		/// The maximum number of consumers a single remote lock may have.
+		type MaxRemoteLockConsumers: Get<u32>;
+
+		/// The ID type for remote lock consumers.
+		type RemoteLockIdentifier: Parameter + Member + MaxEncodedLen + Ord + Copy;
+
 		/// Weight information for extrinsics in this pallet.
 		type WeightInfo: WeightInfo;
 
@@ -582,11 +588,20 @@ pub mod pallet {
 		StorageValue<_, VersionMigrationStage, OptionQuery>;
 
 	#[derive(Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, TypeInfo, MaxEncodedLen)]
-	pub struct RemoteLockedFungibleRecord {
+	#[scale_info(skip_type_params(MaxConsumers))]
+	pub struct RemoteLockedFungibleRecord<RemoteLockIdentifier, MaxConsumers: Get<u32>> {
 		pub amount: u128,
 		pub owner: VersionedMultiLocation,
 		pub locker: VersionedMultiLocation,
-		pub users: u32,
+		pub consumers: BoundedVec<(RemoteLockIdentifier, u128), MaxConsumers>,
+	}
+
+	impl<LockId, MaxConsumers: Get<u32>> RemoteLockedFungibleRecord<LockId, MaxConsumers> {
+		/// Amount of the remote lock in use by consumers.
+		/// Returns zero if the remote lock has no consumers.
+		pub fn amount_held(&self) -> u128 {
+			self.consumers.iter().max_by(|x, y| x.1.cmp(&y.1)).map_or(0, |max| max.1)
+		}
 	}
 
 	/// Fungible assets which we know are locked on a remote chain.
@@ -598,7 +613,7 @@ pub mod pallet {
 			NMapKey<Blake2_128Concat, T::AccountId>,
 			NMapKey<Blake2_128Concat, VersionedAssetId>,
 		),
-		RemoteLockedFungibleRecord,
+		RemoteLockedFungibleRecord<T::RemoteLockIdentifier, T::MaxRemoteLockConsumers>,
 		OptionQuery,
 	>;
 
@@ -1665,11 +1680,12 @@ impl<T: Config> xcm_executor::traits::Enact for ReduceTicket<T> {
 		use xcm_executor::traits::LockError::UnexpectedState;
 		let mut record = RemoteLockedFungibles::<T>::get(&self.key).ok_or(UnexpectedState)?;
 		ensure!(self.locker == record.locker && self.owner == record.owner, UnexpectedState);
-		ensure!(record.users == 0, UnexpectedState);
-		record.amount = record.amount.checked_sub(self.amount).ok_or(UnexpectedState)?;
-		if record.amount == 0 {
+		let new_amount = record.amount.checked_sub(self.amount).ok_or(UnexpectedState)?;
+		ensure!(record.consumers.len() == 0 || new_amount >= record.amount_held(), UnexpectedState);
+		if new_amount == 0 {
 			RemoteLockedFungibles::<T>::remove(&self.key);
 		} else {
+			record.amount = new_amount;
 			RemoteLockedFungibles::<T>::insert(&self.key, &record);
 		}
 		Ok(())
@@ -1729,11 +1745,12 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		let owner = owner.into();
 		let id: VersionedAssetId = asset.id.into();
 		let key = (XCM_VERSION, account, id);
-		let mut record = RemoteLockedFungibleRecord { amount, owner, locker, users: 0 };
+		let mut record =
+			RemoteLockedFungibleRecord { amount, owner, locker, consumers: BoundedVec::default() };
 		if let Some(old) = RemoteLockedFungibles::<T>::get(&key) {
 			// Make sure that the new record wouldn't clobber any old data.
 			ensure!(old.locker == record.locker && old.owner == record.owner, WouldClobber);
-			record.users = old.users;
+			record.consumers = old.consumers;
 			record.amount = record.amount.max(old.amount);
 		}
 		RemoteLockedFungibles::<T>::insert(&key, record);
@@ -1760,8 +1777,12 @@ impl<T: Config> xcm_executor::traits::AssetLock for Pallet<T> {
 		let record = RemoteLockedFungibles::<T>::get(&key).ok_or(NotLocked)?;
 		// Make sure that the record contains what we expect and there's enough to unlock.
 		ensure!(locker == record.locker && owner == record.owner, WouldClobber);
-		ensure!(record.users == 0, InUse);
 		ensure!(record.amount >= amount, NotEnoughLocked);
+		ensure!(
+			record.consumers.len() == 0 ||
+				record.amount.saturating_sub(amount) >= record.amount_held(),
+			InUse
+		);
 		Ok(ReduceTicket { key, amount, locker, owner })
 	}
 }
