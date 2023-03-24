@@ -20,6 +20,8 @@ use crate::configuration::{self, ActiveConfig, Config, Pallet, MAX_POV_SIZE};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
 
+use super::PendingConfigs;
+
 /// The current storage version.
 ///
 /// v0-v1: <https://github.com/paritytech/polkadot/pull/3575>
@@ -38,7 +40,7 @@ pub mod v5 {
 
 	// Copied over from configuration.rs @ de9e147695b9f1be8bd44e07861a31e483c8343a and removed
 	// all the comments, and changed the Weight struct to OldWeight
-	#[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug)]
+	#[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug, Clone)]
 	pub struct OldHostConfiguration<BlockNumber> {
 		pub max_code_size: u32,
 		pub max_head_data_size: u32,
@@ -236,11 +238,27 @@ minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 		// to be unlikely to be caused by this. So we just log. Maybe it'll work out still?
 		log::error!(
 			target: configuration::LOG_TARGET,
-			"unexpected error when performing translation of the configuration type during storage upgrade to v4."
+			"unexpected error when performing translation of the active configuration during storage upgrade to v5."
 		);
 	}
 
-	T::DbWeight::get().reads_writes(1, 1)
+	if let Err(_) = PendingConfigs::<T>::translate(|pre| {
+		pre.map(
+			|v: Vec<(primitives::SessionIndex, v5::OldHostConfiguration<BlockNumberFor<T>>)>| {
+				v.into_iter()
+					.map(|(session, config)| (session, translate(config)))
+					.collect::<Vec<_>>()
+			},
+		)
+	}) {
+		log::error!(
+			target: configuration::LOG_TARGET,
+			"unexpected error when performing translation of the pending configuration during storage upgrade to v5."
+		);
+	}
+
+	let num_configs = (PendingConfigs::<T>::get().len() + 1) as u64;
+	T::DbWeight::get().reads_writes(num_configs, num_configs)
 }
 
 #[cfg(test)]
@@ -301,61 +319,72 @@ mod tests {
 			..Default::default()
 		};
 
+		let mut pending_configs = Vec::new();
+		pending_configs.push((100, v4.clone()));
+		pending_configs.push((300, v4.clone()));
+
 		new_test_ext(Default::default()).execute_with(|| {
 			// Implant the v4 version in the state.
 			frame_support::storage::unhashed::put_raw(
 				&configuration::ActiveConfig::<Test>::hashed_key(),
 				&v4.encode(),
 			);
+			frame_support::storage::unhashed::put_raw(
+				&configuration::PendingConfigs::<Test>::hashed_key(),
+				&pending_configs.encode(),
+			);
 
 			migrate_to_v5::<Test>();
 
 			let v5 = configuration::ActiveConfig::<Test>::get();
+			let mut configs_to_check = configuration::PendingConfigs::<Test>::get();
+			configs_to_check.push((0, v5.clone()));
 
-			#[rustfmt::skip]
-			{
-				assert_eq!(v4.max_code_size                            , v5.max_code_size);
-				assert_eq!(v4.max_head_data_size                       , v5.max_head_data_size);
-				assert_eq!(v4.max_upward_queue_count                   , v5.max_upward_queue_count);
-				assert_eq!(v4.max_upward_queue_size                    , v5.max_upward_queue_size);
-				assert_eq!(v4.max_upward_message_size                  , v5.max_upward_message_size);
-				assert_eq!(v4.max_upward_message_num_per_candidate     , v5.max_upward_message_num_per_candidate);
-				assert_eq!(v4.hrmp_max_message_num_per_candidate       , v5.hrmp_max_message_num_per_candidate);
-				assert_eq!(v4.validation_upgrade_cooldown              , v5.validation_upgrade_cooldown);
-				assert_eq!(v4.validation_upgrade_delay                 , v5.validation_upgrade_delay);
-				assert_eq!(v4.max_pov_size                             , v5.max_pov_size);
-				assert_eq!(v4.max_downward_message_size                , v5.max_downward_message_size);
-				assert_eq!(v4.ump_service_total_weight                 , v5.ump_service_total_weight);
-				assert_eq!(v4.hrmp_max_parachain_outbound_channels     , v5.hrmp_max_parachain_outbound_channels);
-				assert_eq!(v4.hrmp_max_parathread_outbound_channels    , v5.hrmp_max_parathread_outbound_channels);
-				assert_eq!(v4.hrmp_sender_deposit                      , v5.hrmp_sender_deposit);
-				assert_eq!(v4.hrmp_recipient_deposit                   , v5.hrmp_recipient_deposit);
-				assert_eq!(v4.hrmp_channel_max_capacity                , v5.hrmp_channel_max_capacity);
-				assert_eq!(v4.hrmp_channel_max_total_size              , v5.hrmp_channel_max_total_size);
-				assert_eq!(v4.hrmp_max_parachain_inbound_channels      , v5.hrmp_max_parachain_inbound_channels);
-				assert_eq!(v4.hrmp_max_parathread_inbound_channels     , v5.hrmp_max_parathread_inbound_channels);
-				assert_eq!(v4.hrmp_channel_max_message_size            , v5.hrmp_channel_max_message_size);
-				assert_eq!(v4.code_retention_period                    , v5.code_retention_period);
-				assert_eq!(v4.parathread_cores                         , v5.parathread_cores);
-				assert_eq!(v4.parathread_retries                       , v5.parathread_retries);
-				assert_eq!(v4.group_rotation_frequency                 , v5.group_rotation_frequency);
-				assert_eq!(v4.chain_availability_period                , v5.chain_availability_period);
-				assert_eq!(v4.thread_availability_period               , v5.thread_availability_period);
-				assert_eq!(v4.scheduling_lookahead                     , v5.scheduling_lookahead);
-				assert_eq!(v4.max_validators_per_core                  , v5.max_validators_per_core);
-				assert_eq!(v4.max_validators                           , v5.max_validators);
-				assert_eq!(v4.dispute_period                           , v5.dispute_period);
-				assert_eq!(v4.no_show_slots                            , v5.no_show_slots);
-				assert_eq!(v4.n_delay_tranches                         , v5.n_delay_tranches);
-				assert_eq!(v4.zeroth_delay_tranche_width               , v5.zeroth_delay_tranche_width);
-				assert_eq!(v4.needed_approvals                         , v5.needed_approvals);
-				assert_eq!(v4.relay_vrf_modulo_samples                 , v5.relay_vrf_modulo_samples);
-				assert_eq!(v4.ump_max_individual_weight                , v5.ump_max_individual_weight);
-				assert_eq!(v4.pvf_checking_enabled                     , v5.pvf_checking_enabled);
-				assert_eq!(v4.pvf_voting_ttl                           , v5.pvf_voting_ttl);
-				assert_eq!(v4.minimum_validation_upgrade_delay         , v5.minimum_validation_upgrade_delay);
-
-			}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
+			for (session, v4) in configs_to_check {
+				#[rustfmt::skip]
+				{
+					assert_eq!(v4.max_code_size                            , v5.max_code_size);
+					assert_eq!(v4.max_head_data_size                       , v5.max_head_data_size);
+					assert_eq!(v4.max_upward_queue_count                   , v5.max_upward_queue_count);
+					assert_eq!(v4.max_upward_queue_size                    , v5.max_upward_queue_size);
+					assert_eq!(v4.max_upward_message_size                  , v5.max_upward_message_size);
+					assert_eq!(v4.max_upward_message_num_per_candidate     , v5.max_upward_message_num_per_candidate);
+					assert_eq!(v4.hrmp_max_message_num_per_candidate       , v5.hrmp_max_message_num_per_candidate);
+					assert_eq!(v4.validation_upgrade_cooldown              , v5.validation_upgrade_cooldown);
+					assert_eq!(v4.validation_upgrade_delay                 , v5.validation_upgrade_delay);
+					assert_eq!(v4.max_pov_size                             , v5.max_pov_size);
+					assert_eq!(v4.max_downward_message_size                , v5.max_downward_message_size);
+					assert_eq!(v4.ump_service_total_weight                 , v5.ump_service_total_weight);
+					assert_eq!(v4.hrmp_max_parachain_outbound_channels     , v5.hrmp_max_parachain_outbound_channels);
+					assert_eq!(v4.hrmp_max_parathread_outbound_channels    , v5.hrmp_max_parathread_outbound_channels);
+					assert_eq!(v4.hrmp_sender_deposit                      , v5.hrmp_sender_deposit);
+					assert_eq!(v4.hrmp_recipient_deposit                   , v5.hrmp_recipient_deposit);
+					assert_eq!(v4.hrmp_channel_max_capacity                , v5.hrmp_channel_max_capacity);
+					assert_eq!(v4.hrmp_channel_max_total_size              , v5.hrmp_channel_max_total_size);
+					assert_eq!(v4.hrmp_max_parachain_inbound_channels      , v5.hrmp_max_parachain_inbound_channels);
+					assert_eq!(v4.hrmp_max_parathread_inbound_channels     , v5.hrmp_max_parathread_inbound_channels);
+					assert_eq!(v4.hrmp_channel_max_message_size            , v5.hrmp_channel_max_message_size);
+					assert_eq!(v4.code_retention_period                    , v5.code_retention_period);
+					assert_eq!(v4.parathread_cores                         , v5.parathread_cores);
+					assert_eq!(v4.parathread_retries                       , v5.parathread_retries);
+					assert_eq!(v4.group_rotation_frequency                 , v5.group_rotation_frequency);
+					assert_eq!(v4.chain_availability_period                , v5.chain_availability_period);
+					assert_eq!(v4.thread_availability_period               , v5.thread_availability_period);
+					assert_eq!(v4.scheduling_lookahead                     , v5.scheduling_lookahead);
+					assert_eq!(v4.max_validators_per_core                  , v5.max_validators_per_core);
+					assert_eq!(v4.max_validators                           , v5.max_validators);
+					assert_eq!(v4.dispute_period                           , v5.dispute_period);
+					assert_eq!(v4.no_show_slots                            , v5.no_show_slots);
+					assert_eq!(v4.n_delay_tranches                         , v5.n_delay_tranches);
+					assert_eq!(v4.zeroth_delay_tranche_width               , v5.zeroth_delay_tranche_width);
+					assert_eq!(v4.needed_approvals                         , v5.needed_approvals);
+					assert_eq!(v4.relay_vrf_modulo_samples                 , v5.relay_vrf_modulo_samples);
+					assert_eq!(v4.ump_max_individual_weight                , v5.ump_max_individual_weight);
+					assert_eq!(v4.pvf_checking_enabled                     , v5.pvf_checking_enabled);
+					assert_eq!(v4.pvf_voting_ttl                           , v5.pvf_voting_ttl);
+					assert_eq!(v4.minimum_validation_upgrade_delay         , v5.minimum_validation_upgrade_delay);
+				}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
+			}
 		});
 	}
 }
