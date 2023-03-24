@@ -37,6 +37,7 @@ rand = "0.8.5"
 
 [features]
 default = []
+fast-runtime = ["polkadot-cli/fast-runtime"]
 
 [dev-dependencies]
 polkadot-node-subsystem-test-helpers = { path = "../subsystem-test-helpers" }
