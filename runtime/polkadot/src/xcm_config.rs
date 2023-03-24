@@ -26,6 +26,7 @@ use frame_support::{
 	traits::{Contains, Everything, Nothing},
 	weights::Weight,
 };
+use frame_system::EnsureRoot;
 use pallet_xcm::XcmPassthrough;
 use polkadot_runtime_constants::{system_parachain::*, xcm::body::FELLOWSHIP_ADMIN_INDEX};
 use runtime_common::{paras_registrar, xcm_sender, ToAuthor};
@@ -425,4 +426,5 @@ impl pallet_xcm::Config for Runtime {
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
