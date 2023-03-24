@@ -38,7 +38,7 @@ use runtime_parachains::{
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
 use frame_election_provider_support::{
-	generate_solution_type, onchain, SequentialPhragmen,
+	generate_solution_type, onchain, SequentialPhragmen, NposSolver,
 };
 use frame_support::{
 	construct_runtime, parameter_types,
