@@ -1136,6 +1136,15 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 			_ => QueryResponseStatus::NotFound,
 		}
 	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	fn expect_response(id: Self::QueryId) {
+		let query_status = QueryStatus::Ready {
+			response: VersionedResponse::V3(Response::Null),
+			at: Self::BlockNumber::default(),
+		};
+		Queries::<T>::insert(id, query_status);
+	}
 }
 
 impl<T: Config> Pallet<T> {
