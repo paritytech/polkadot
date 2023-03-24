@@ -1486,7 +1486,6 @@ mod benches {
 		[pallet_preimage, Preimage]
 		[pallet_proxy, Proxy]
 		[pallet_scheduler, Scheduler]
-		[pallet_scheduler_polkadot, SchedulerPolkadot]
 		[pallet_session, SessionBench::<Runtime>]
 		[pallet_staking, Staking]
 		[frame_system, SystemBench::<Runtime>]
