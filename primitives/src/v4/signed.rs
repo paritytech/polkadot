@@ -18,7 +18,7 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 #[cfg(feature = "std")]
-use application_crypto::{AppCrypto, Wraps};
+use application_crypto::AppCrypto;
 #[cfg(feature = "std")]
 use sp_keystore::{Error as KeystoreError, KeystorePtr};
 use sp_std::prelude::Vec;
@@ -253,14 +253,12 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	) -> Result<Option<Self>, KeystoreError> {
 		let data = Self::payload_data(&payload, context);
 		let signature =
-			keystore
-				.sr25519_sign(ValidatorId::ID, key.as_inner_ref(), &data)?
-				.map(|sig| Self {
-					payload,
-					validator_index,
-					signature: sig.into(),
-					real_payload: std::marker::PhantomData,
-				});
+			keystore.sr25519_sign(ValidatorId::ID, key.as_ref(), &data)?.map(|sig| Self {
+				payload,
+				validator_index,
+				signature: sig.into(),
+				real_payload: std::marker::PhantomData,
+			});
 		Ok(signature)
 	}
 

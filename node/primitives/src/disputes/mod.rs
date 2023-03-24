@@ -21,7 +21,7 @@ use std::collections::{
 
 use parity_scale_codec::{Decode, Encode};
 
-use sp_application_crypto::{AppCrypto, Wraps};
+use sp_application_crypto::AppCrypto;
 use sp_keystore::{Error as KeystoreError, KeystorePtr};
 
 use super::{Statement, UncheckedSignedFullStatement};
@@ -222,7 +222,7 @@ impl SignedDisputeStatement {
 
 		let data = dispute_statement.payload_data(candidate_hash, session_index);
 		let signature = keystore
-			.sr25519_sign(ValidatorId::ID, validator_public.as_inner_ref(), &data)?
+			.sr25519_sign(ValidatorId::ID, validator_public.as_ref(), &data)?
 			.map(|sig| Self {
 				dispute_statement,
 				candidate_hash,

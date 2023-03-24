@@ -49,7 +49,7 @@ use polkadot_primitives::{
 	ValidatorSignature,
 };
 pub use rand;
-use sp_application_crypto::{AppCrypto, Wraps};
+use sp_application_crypto::AppCrypto;
 use sp_core::ByteArray;
 use sp_keystore::{Error as KeystoreError, KeystorePtr};
 use std::time::Duration;
@@ -293,7 +293,7 @@ pub fn sign(
 	data: &[u8],
 ) -> Result<Option<ValidatorSignature>, KeystoreError> {
 	let signature = keystore
-		.sr25519_sign(ValidatorId::ID, key.as_inner_ref(), data)?
+		.sr25519_sign(ValidatorId::ID, key.as_ref(), data)?
 		.map(|sig| sig.into());
 	Ok(signature)
 }
