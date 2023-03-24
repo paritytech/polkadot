@@ -297,7 +297,6 @@ fn setting_pending_config_members() {
 			max_validators: None,
 			dispute_period: 239,
 			dispute_post_conclusion_acceptance_period: 10,
-			dispute_conclusion_by_time_out_period: 512,
 			no_show_slots: 240,
 			n_delay_tranches: 241,
 			zeroth_delay_tranche_width: 242,
@@ -387,11 +386,6 @@ fn setting_pending_config_members() {
 		Configuration::set_dispute_post_conclusion_acceptance_period(
 			RuntimeOrigin::root(),
 			new_config.dispute_post_conclusion_acceptance_period,
-		)
-		.unwrap();
-		Configuration::set_dispute_conclusion_by_time_out_period(
-			RuntimeOrigin::root(),
-			new_config.dispute_conclusion_by_time_out_period,
 		)
 		.unwrap();
 		Configuration::set_no_show_slots(RuntimeOrigin::root(), new_config.no_show_slots).unwrap();

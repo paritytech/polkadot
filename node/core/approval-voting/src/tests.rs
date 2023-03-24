@@ -43,7 +43,7 @@ use assert_matches::assert_matches;
 use async_trait::async_trait;
 use parking_lot::Mutex;
 use sp_keyring::sr25519::Keyring as Sr25519Keyring;
-use sp_keystore::SyncCryptoStore;
+use sp_keystore::Keystore;
 use std::{
 	pin::Pin,
 	sync::{
@@ -2312,12 +2312,8 @@ fn subsystem_validate_approvals_cache() {
 	let store = config.backend();
 
 	test_harness(config, |test_harness| async move {
-		let TestHarness {
-			mut virtual_overseer,
-			clock,
-			sync_oracle_handle: _sync_oracle_handle,
-			..
-		} = test_harness;
+		let TestHarness { mut virtual_overseer, clock, sync_oracle_handle: _sync_oracle_handle } =
+			test_harness;
 
 		assert_matches!(
 			overseer_recv(&mut virtual_overseer).await,
@@ -2399,7 +2395,7 @@ fn subsystem_validate_approvals_cache() {
 }
 
 /// Ensure that when two assignments are imported, only one triggers the Approval Checking work
-pub async fn handle_double_assignment_import(
+async fn handle_double_assignment_import(
 	virtual_overseer: &mut VirtualOverseer,
 	candidate_index: CandidateIndex,
 ) {
