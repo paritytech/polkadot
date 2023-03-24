@@ -85,3 +85,6 @@ pub use universal_exports::{
 	HaulBlobError, HaulBlobExporter, NetworkExportTable, SovereignPaidRemoteExporter,
 	UnpaidLocalExporter, UnpaidRemoteExporter,
 };
+
+mod transactional;
+pub use transactional::FrameTransactionalProcessor;

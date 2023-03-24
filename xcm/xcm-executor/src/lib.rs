@@ -31,8 +31,8 @@ use xcm::latest::prelude::*;
 pub mod traits;
 use traits::{
 	validate_export, AssetExchange, AssetLock, CallDispatcher, ClaimAssets, ConvertOrigin,
-	DropAssets, Enact, ExportXcm, FeeManager, FeeReason, OnResponse, ShouldExecute, TransactAsset,
-	VersionChangeNotifier, WeightBounds, WeightTrader,
+	DropAssets, Enact, ExportXcm, FeeManager, FeeReason, OnResponse, ProcessTransaction,
+	ShouldExecute, TransactAsset, VersionChangeNotifier, WeightBounds, WeightTrader,
 };
 
 mod assets;
@@ -473,13 +473,19 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		);
 		match instr {
 			WithdrawAsset(assets) => {
-				// Take `assets` from the origin account (on-chain) and place in holding.
-				let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
-				for asset in assets.into_inner().into_iter() {
-					Config::AssetTransactor::withdraw_asset(&asset, &origin, Some(&self.context))?;
-					self.subsume_asset(asset)?;
-				}
-				Ok(())
+				Config::TransactionalProcessor::process_transaction(|| -> Result<(), XcmError> {
+					// Take `assets` from the origin account (on-chain) and place in holding.
+					let origin = *self.origin_ref().ok_or(XcmError::BadOrigin)?;
+					for asset in assets.into_inner().into_iter() {
+						Config::AssetTransactor::withdraw_asset(
+							&asset,
+							&origin,
+							Some(&self.context),
+						)?;
+						self.subsume_asset(asset)?;
+					}
+					Ok(())
+				})
 			},
 			ReserveAssetDeposited(assets) => {
 				// check whether we trust origin to be our reserve location for this asset.

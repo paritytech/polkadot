@@ -39,6 +39,8 @@ pub use token_matching::{
 };
 mod on_response;
 pub use on_response::{OnResponse, VersionChangeNotifier};
+mod process_transaction;
+pub use process_transaction::ProcessTransaction;
 mod should_execute;
 pub use should_execute::ShouldExecute;
 mod transact_asset;
@@ -51,7 +53,7 @@ pub mod prelude {
 		export_xcm, validate_export, AssetExchange, AssetLock, ClaimAssets, Convert, ConvertOrigin,
 		Decoded, DropAssets, Enact, Encoded, Error, ExportXcm, FeeManager, FeeReason, Identity,
 		JustTry, LockError, MatchesFungible, MatchesFungibles, MatchesNonFungible,
-		MatchesNonFungibles, OnResponse, ShouldExecute, TransactAsset, VersionChangeNotifier,
-		WeightBounds, WeightTrader, WithOriginFilter,
+		MatchesNonFungibles, OnResponse, ProcessTransaction, ShouldExecute, TransactAsset,
+		VersionChangeNotifier, WeightBounds, WeightTrader, WithOriginFilter,
 	};
 }

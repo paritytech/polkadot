@@ -1,0 +1,44 @@
+// Copyright 2021 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+use frame_support::{
+	pallet_prelude::DispatchError,
+	storage::{with_transaction, TransactionOutcome},
+};
+use xcm::latest::prelude::*;
+use xcm_executor::traits::ProcessTransaction;
+
+pub struct FrameTransactionalProcessor;
+impl ProcessTransaction for FrameTransactionalProcessor {
+	fn process_transaction<F>(f: F) -> Result<(), XcmError>
+	where
+		F: FnOnce() -> Result<(), XcmError>,
+	{
+		let transaction_outcome =
+			with_transaction(|| -> TransactionOutcome<Result<_, DispatchError>> {
+				let outcome = f();
+				match &outcome {
+					Ok(_) => TransactionOutcome::Commit(Ok(None)),
+					Err(err) => TransactionOutcome::Rollback(Ok(Some(*err))),
+				}
+			});
+		match transaction_outcome {
+			Ok(None) => Ok(()),
+			Ok(Some(err)) => Err(err),
+			Err(err) => Err(XcmError::FailedToTransactAsset(err.into())),
+		}
+	}
+}
