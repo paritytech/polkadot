@@ -41,7 +41,7 @@ pub struct PayOverXcm<
 	AccountIdConverter,
 >(PhantomData<(DestChain, Router, Querier, BlockNumber, Timeout, AccountId, AccountIdConverter)>);
 impl<
-		DestChain: Get<xcm::v3::MultiLocation>,
+		DestChain: Get<xcm::latest::MultiLocation>,
 		Router: SendXcm,
 		Querier: XcmQueryHandler,
 		BlockNumber,
@@ -52,7 +52,7 @@ impl<
 	for PayOverXcm<DestChain, Router, Querier, BlockNumber, Timeout, AccountId, AccountIdConverter>
 {
 	type Beneficiary = AccountId;
-	type AssetKind = xcm::v3::AssetId;
+	type AssetKind = xcm::latest::AssetId;
 	type Balance = u128;
 	type Id = Querier::QueryId;
 
