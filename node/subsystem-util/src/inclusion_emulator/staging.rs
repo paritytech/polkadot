@@ -116,23 +116,6 @@
 //!
 //! That means a few blocks of execution time lost, which is not a big deal for code upgrades
 //! in practice at most once every few weeks.
-//!
-//! # Main Types
-//!
-//! - [`Constraints`] & [`ConstraintModifications`]
-//!
-//!   - Can check modifications against constraints.
-//!   - Can apply modifications to constraints.
-//!   - Modifications can be stacked on top of each other.
-//!
-//! - [`Fragment`]
-//!
-//!   - A parachain block anchored to the relay-chain at a relay-parent,
-//!     that is valid under some operating constraints.
-//!   - Created with [`Fragment::new`]. Validates against operating
-//!     constraints.
-//!   - Can also validate against some constraints other than the operating
-//!     ones.
 
 use polkadot_primitives::vstaging::{
 	BlockNumber, CandidateCommitments, CollatorId, CollatorSignature,
