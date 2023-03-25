@@ -397,7 +397,7 @@ parameter_types! {
 	/// targets. Whilst this is the case, we cannot and shall not increase the size of the
 	/// validator intentions.
 	pub ElectionBounds: frame_election_provider_support::ElectionBounds =
-		ElectionBoundsBuilder::new().voters_count(MaxElectingVoters::get()).build();
+		ElectionBoundsBuilder::new().voters_count(MaxElectingVoters::get().into()).build();
 	pub NposSolutionPriority: TransactionPriority =
 		Perbill::from_percent(90) * TransactionPriority::max_value();
 	/// Setup election pallet to support maximum winners upto 2000. This will mean Staking Pallet
@@ -422,7 +422,7 @@ impl onchain::Config for OnChainSeqPhragmen {
 	type DataProvider = Staking;
 	type WeightInfo = weights::frame_election_provider_support::WeightInfo<Runtime>;
 	type MaxWinners = MaxActiveValidators;
-	type ElectionBounds = ElectionBounds;
+	type Bounds = ElectionBounds;
 }
 
 impl pallet_election_provider_multi_phase::MinerConfig for Runtime {
