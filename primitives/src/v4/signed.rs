@@ -18,9 +18,9 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 #[cfg(feature = "std")]
-use application_crypto::AppKey;
+use application_crypto::AppCrypto;
 #[cfg(feature = "std")]
-use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
+use sp_keystore::{Error as KeystoreError, KeystorePtr};
 use sp_std::prelude::Vec;
 
 use primitives::RuntimeDebug;
@@ -86,14 +86,14 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> Signed<Payload, RealPa
 
 	/// Create a new `Signed` by signing data.
 	#[cfg(feature = "std")]
-	pub async fn sign<H: Encode>(
-		keystore: &SyncCryptoStorePtr,
+	pub fn sign<H: Encode>(
+		keystore: &KeystorePtr,
 		payload: Payload,
 		context: &SigningContext<H>,
 		validator_index: ValidatorIndex,
 		key: &ValidatorId,
 	) -> Result<Option<Self>, KeystoreError> {
-		let r = UncheckedSigned::sign(keystore, payload, context, validator_index, key).await?;
+		let r = UncheckedSigned::sign(keystore, payload, context, validator_index, key)?;
 		Ok(r.map(Self))
 	}
 
@@ -244,8 +244,8 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 
 	/// Sign this payload with the given context and key, storing the validator index.
 	#[cfg(feature = "std")]
-	async fn sign<H: Encode>(
-		keystore: &SyncCryptoStorePtr,
+	fn sign<H: Encode>(
+		keystore: &KeystorePtr,
 		payload: Payload,
 		context: &SigningContext<H>,
 		validator_index: ValidatorIndex,
@@ -253,20 +253,13 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 	) -> Result<Option<Self>, KeystoreError> {
 		let data = Self::payload_data(&payload, context);
 		let signature =
-			CryptoStore::sign_with(&**keystore, ValidatorId::ID, &key.into(), &data).await?;
-
-		let signature = match signature {
-			Some(sig) =>
-				sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?,
-			None => return Ok(None),
-		};
-
-		Ok(Some(Self {
-			payload,
-			validator_index,
-			signature,
-			real_payload: std::marker::PhantomData,
-		}))
+			keystore.sr25519_sign(ValidatorId::ID, key.as_ref(), &data)?.map(|sig| Self {
+				payload,
+				validator_index,
+				signature: sig.into(),
+				real_payload: std::marker::PhantomData,
+			});
+		Ok(signature)
 	}
 
 	/// Validate the payload given the context and public key
