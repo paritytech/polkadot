@@ -31,7 +31,6 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 use polkadot_node_primitives::{
 	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
 };
-use polkadot_node_subsystem_util::rolling_session_window::RollingSessionWindow;
 use polkadot_primitives::{
 	CandidateReceipt, DisputeStatement, IndexedVec, SessionIndex, SessionInfo,
 	ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
@@ -56,10 +55,9 @@ impl<'a> CandidateEnvironment<'a> {
 	/// Return: `None` in case session is outside of session window.
 	pub fn new(
 		keystore: &LocalKeystore,
-		session_window: &'a RollingSessionWindow,
+		session: &'a SessionInfo,
 		session_index: SessionIndex,
 	) -> Option<Self> {
-		let session = session_window.session_info(session_index)?;
 		let controlled_indices = find_controlled_validator_indices(keystore, &session.validators);
 		Some(Self { session_index, session, controlled_indices })
 	}
