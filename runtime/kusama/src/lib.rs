@@ -1481,6 +1481,7 @@ pub type Migrations = (
 		Runtime,
 		NominationPoolsMigrationV4OldPallet,
 	>,
+	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 );
 
