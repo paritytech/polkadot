@@ -711,6 +711,13 @@ fn bitfield_checks() {
 }
 
 #[test]
+fn availability_threshold_is_supermajority() {
+	assert_eq!(3, availability_threshold(4));
+	assert_eq!(5, availability_threshold(6));
+	assert_eq!(7, availability_threshold(9));
+}
+
+#[test]
 fn supermajority_bitfields_trigger_availability() {
 	let chain_a = ParaId::from(1_u32);
 	let chain_b = ParaId::from(2_u32);
