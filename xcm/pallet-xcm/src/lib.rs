@@ -157,7 +157,6 @@ pub mod pallet {
 	}
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
@@ -231,6 +230,9 @@ pub mod pallet {
 		/// The latest supported version that we advertise. Generally just set it to
 		/// `pallet_xcm::CurrentXcmVersion`.
 		type AdvertisedXcmVersion: Get<XcmVersion>;
+
+		/// The origin that is allowed to call privileged operations on the XCM pallet
+		type AdminOrigin: EnsureOrigin<<Self as SysConfig>::RuntimeOrigin>;
 
 		/// The assets which we consider a given origin is trusted if they claim to have placed a
 		/// lock.
@@ -916,7 +918,7 @@ pub mod pallet {
 			location: Box<MultiLocation>,
 			xcm_version: XcmVersion,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::AdminOrigin::ensure_origin(origin)?;
 			let location = *location;
 			SupportedVersion::<T>::insert(
 				XCM_VERSION,
@@ -938,7 +940,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			maybe_xcm_version: Option<XcmVersion>,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::AdminOrigin::ensure_origin(origin)?;
 			SafeXcmVersion::<T>::set(maybe_xcm_version);
 			Ok(())
 		}
@@ -953,7 +955,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			location: Box<VersionedMultiLocation>,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::AdminOrigin::ensure_origin(origin)?;
 			let location: MultiLocation =
 				(*location).try_into().map_err(|()| Error::<T>::BadLocation)?;
 			Self::request_version_notify(location).map_err(|e| {
@@ -977,7 +979,7 @@ pub mod pallet {
 			origin: OriginFor<T>,
 			location: Box<VersionedMultiLocation>,
 		) -> DispatchResult {
-			ensure_root(origin)?;
+			T::AdminOrigin::ensure_origin(origin)?;
 			let location: MultiLocation =
 				(*location).try_into().map_err(|()| Error::<T>::BadLocation)?;
 			Self::unrequest_version_notify(location).map_err(|e| {

@@ -32,6 +32,16 @@ struct MetricsInner {
 	vote_cleanup_time: prometheus::Histogram,
 	/// Number of refrained participations.
 	refrained_participations: prometheus::Counter<prometheus::U64>,
+	/// Distribution of participation durations.
+	participation_durations: prometheus::Histogram,
+	/// Measures the duration of the full participation pipeline: From when
+	/// a participation request is first queued to when participation in the
+	/// requested dispute is complete.
+	participation_pipeline_durations: prometheus::Histogram,
+	/// Size of participation priority queue
+	participation_priority_queue_size: prometheus::Gauge<prometheus::U64>,
+	/// Size of participation best effort queue
+	participation_best_effort_queue_size: prometheus::Gauge<prometheus::U64>,
 }
 
 /// Candidate validation metrics.
@@ -94,6 +104,36 @@ impl Metrics {
 	pub(crate) fn on_refrained_participation(&self) {
 		if let Some(metrics) = &self.0 {
 			metrics.refrained_participations.inc();
+		}
+	}
+
+	/// Provide a timer for participation durations which updates on drop.
+	pub(crate) fn time_participation(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0.as_ref().map(|metrics| metrics.participation_durations.start_timer())
+	}
+
+	/// Provide a timer for participation pipeline durations which updates on drop.
+	pub(crate) fn time_participation_pipeline(
+		&self,
+	) -> Option<metrics::prometheus::prometheus::HistogramTimer> {
+		self.0
+			.as_ref()
+			.map(|metrics| metrics.participation_pipeline_durations.start_timer())
+	}
+
+	/// Set the priority_queue_size metric
+	pub fn report_priority_queue_size(&self, size: u64) {
+		if let Some(metrics) = &self.0 {
+			metrics.participation_priority_queue_size.set(size);
+		}
+	}
+
+	/// Set the best_effort_queue_size metric
+	pub fn report_best_effort_queue_size(&self, size: u64) {
+		if let Some(metrics) = &self.0 {
+			metrics.participation_best_effort_queue_size.set(size);
 		}
 	}
 }
@@ -161,6 +201,34 @@ impl metrics::Metrics for Metrics {
 					"polkadot_parachain_dispute_refrained_participations",
 					"Number of refrained participations. We refrain from participation if all of the following conditions are met: disputed candidate is not included, not backed and not confirmed.",
 				))?,
+				registry,
+			)?,
+			participation_durations: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_dispute_participation_durations",
+						"Time spent within fn Participation::participate",
+					)
+				)?,
+				registry,
+			)?,
+			participation_pipeline_durations: prometheus::register(
+				prometheus::Histogram::with_opts(
+					prometheus::HistogramOpts::new(
+						"polkadot_parachain_dispute_participation_pipeline_durations",
+						"Measures the duration of the full participation pipeline: From when a participation request is first queued to when participation in the requested dispute is complete.",
+					)
+				)?,
+				registry,
+			)?,
+			participation_priority_queue_size: prometheus::register(
+				prometheus::Gauge::new("polkadot_parachain_dispute_participation_priority_queue_size", 
+				"Number of disputes waiting for local participation in the priority queue.")?,
+				registry,
+			)?,
+			participation_best_effort_queue_size: prometheus::register(
+				prometheus::Gauge::new("polkadot_parachain_dispute_participation_best_effort_queue_size", 
+				"Number of disputes waiting for local participation in the best effort queue.")?,
 				registry,
 			)?,
 		};

@@ -16,7 +16,7 @@
 
 use futures::{future::Either, FutureExt, StreamExt, TryFutureExt};
 
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 
 use polkadot_node_network_protocol::request_response::{v1, IncomingRequestReceiver};
 use polkadot_node_subsystem::{
@@ -83,11 +83,7 @@ impl<Context> AvailabilityDistributionSubsystem {
 #[overseer::contextbounds(AvailabilityDistribution, prefix = self::overseer)]
 impl AvailabilityDistributionSubsystem {
 	/// Create a new instance of the availability distribution.
-	pub fn new(
-		keystore: SyncCryptoStorePtr,
-		recvs: IncomingRequestReceivers,
-		metrics: Metrics,
-	) -> Self {
+	pub fn new(keystore: KeystorePtr, recvs: IncomingRequestReceivers, metrics: Metrics) -> Self {
 		let runtime = RuntimeInfo::new(Some(keystore));
 		Self { runtime, recvs, metrics }
 	}

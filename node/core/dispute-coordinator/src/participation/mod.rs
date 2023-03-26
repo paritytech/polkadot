@@ -25,13 +25,15 @@ use futures::{
 #[cfg(test)]
 use futures_timer::Delay;
 
-use polkadot_node_primitives::{ValidationResult, APPROVAL_EXECUTION_TIMEOUT};
+use polkadot_node_primitives::ValidationResult;
 use polkadot_node_subsystem::{
 	messages::{AvailabilityRecoveryMessage, CandidateValidationMessage},
 	overseer, ActiveLeavesUpdate, RecoveryError,
 };
 use polkadot_node_subsystem_util::runtime::get_validation_code_by_hash;
-use polkadot_primitives::{BlockNumber, CandidateHash, CandidateReceipt, Hash, SessionIndex};
+use polkadot_primitives::{
+	BlockNumber, CandidateHash, CandidateReceipt, Hash, PvfExecTimeoutKind, SessionIndex,
+};
 
 use crate::LOG_TARGET;
 
@@ -45,6 +47,9 @@ pub use tests::{participation_full_happy_path, participation_missing_availabilit
 mod queues;
 use queues::Queues;
 pub use queues::{ParticipationPriority, ParticipationRequest, QueueError};
+
+use crate::metrics::Metrics;
+use polkadot_node_subsystem_util::metrics::prometheus::prometheus;
 
 /// How many participation processes do we want to run in parallel the most.
 ///
@@ -69,6 +74,8 @@ pub struct Participation {
 	worker_sender: WorkerMessageSender,
 	/// Some recent block for retrieving validation code from chain.
 	recent_block: Option<(BlockNumber, Hash)>,
+	/// Metrics handle cloned from Initialized
+	metrics: Metrics,
 }
 
 /// Message from worker tasks.
@@ -133,12 +140,13 @@ impl Participation {
 	/// The passed in sender will be used by background workers to communicate back their results.
 	/// The calling context should make sure to call `Participation::on_worker_message()` for the
 	/// received messages.
-	pub fn new(sender: WorkerMessageSender) -> Self {
+	pub fn new(sender: WorkerMessageSender, metrics: Metrics) -> Self {
 		Self {
 			running_participations: HashSet::new(),
-			queue: Queues::new(),
+			queue: Queues::new(metrics.clone()),
 			worker_sender: sender,
 			recent_block: None,
+			metrics,
 		}
 	}
 
@@ -251,11 +259,19 @@ impl Participation {
 		req: ParticipationRequest,
 		recent_head: Hash,
 	) -> FatalResult<()> {
+		let participation_timer = self.metrics.time_participation();
 		if self.running_participations.insert(*req.candidate_hash()) {
 			let sender = ctx.sender().clone();
 			ctx.spawn(
 				"participation-worker",
-				participate(self.worker_sender.clone(), sender, recent_head, req).boxed(),
+				participate(
+					self.worker_sender.clone(),
+					sender,
+					recent_head,
+					req,
+					participation_timer,
+				)
+				.boxed(),
 			)
 			.map_err(FatalError::SpawnFailed)?;
 		}
@@ -267,7 +283,8 @@ async fn participate(
 	mut result_sender: WorkerMessageSender,
 	mut sender: impl overseer::DisputeCoordinatorSenderTrait,
 	block_hash: Hash,
-	req: ParticipationRequest,
+	req: ParticipationRequest, // Sends metric data via request_timer field when dropped
+	_participation_timer: Option<prometheus::HistogramTimer>, // Sends metric data when dropped
 ) {
 	#[cfg(test)]
 	// Hack for tests, so we get recovery messages not too early.
@@ -348,7 +365,7 @@ async fn participate(
 			validation_code,
 			req.candidate_receipt().clone(),
 			available_data.pov,
-			APPROVAL_EXECUTION_TIMEOUT,
+			PvfExecTimeoutKind::Approval,
 			validation_tx,
 		))
 		.await;

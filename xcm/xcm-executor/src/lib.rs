@@ -820,7 +820,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 				Ok(())
 			},
 			ExportMessage { network, destination, xcm } => {
-				// The actual message send to the bridge for forwarding is prepended with `UniversalOrigin`
+				// The actual message sent to the bridge for forwarding is prepended with `UniversalOrigin`
 				// and `DescendOrigin` in order to ensure that the message is executed with this Origin.
 				//
 				// Prepend the desired message with instructions which effectively rewrite the origin.
