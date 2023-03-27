@@ -28,7 +28,7 @@ use sp_std::vec::Vec;
 /// v1-v2: <https://github.com/paritytech/polkadot/pull/4420>
 /// v2-v3: <https://github.com/paritytech/polkadot/pull/6091>
 /// v3-v4: <https://github.com/paritytech/polkadot/pull/6345>
-/// v4-v5: <https://github.com/paritytech/polkadot/pull/6937>
+/// v4-v5: <https://github.com/paritytech/polkadot/pull/6937> + <https://github.com/paritytech/polkadot/pull/6961>
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
 
 pub mod v5 {
