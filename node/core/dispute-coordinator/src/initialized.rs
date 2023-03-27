@@ -440,6 +440,7 @@ impl Initialized {
 					session,
 					statements,
 					now,
+					leaf_hash,
 				)
 				.await?;
 			match import_result {
@@ -516,6 +517,7 @@ impl Initialized {
 					session,
 					statements,
 					now,
+					leaf_hash,
 				)
 				.await?;
 			match import_result {
@@ -557,6 +559,7 @@ impl Initialized {
 					?session,
 					"DisputeCoordinatorMessage::ImportStatements"
 				);
+				let parent_hash = candidate_receipt.descriptor.relay_parent;
 				let outcome = self
 					.handle_import_statements(
 						ctx,
@@ -565,6 +568,7 @@ impl Initialized {
 						session,
 						statements,
 						now,
+						parent_hash, // TODO: will the relay parent do the job?
 					)
 					.await?;
 				let report = move || match pending_confirmation {
@@ -705,6 +709,7 @@ impl Initialized {
 		session: SessionIndex,
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		now: Timestamp,
+		leaf_hash: Hash,
 	) -> FatalResult<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
 		if self.session_is_ancient(session) {
@@ -714,7 +719,7 @@ impl Initialized {
 
 		let session_info = &self
 			.runtime_info
-			.get_session_info_by_index(ctx.sender(), fix_me, session)
+			.get_session_info_by_index(ctx.sender(), leaf_hash, session)
 			.await?
 			.session_info;
 
@@ -1197,6 +1202,7 @@ impl Initialized {
 		}
 
 		// Do import
+		let relay_parent = candidate_receipt.descriptor.relay_parent; //TODO: Again... is this okay?
 		if !statements.is_empty() {
 			match self
 				.handle_import_statements(
@@ -1206,6 +1212,7 @@ impl Initialized {
 					session,
 					statements,
 					now,
+					relay_parent,
 				)
 				.await?
 			{
@@ -1231,7 +1238,7 @@ impl Initialized {
 		Ok(())
 	}
 
-	fn session_is_ancient(self, session_idx: SessionIndex) -> bool {
+	fn session_is_ancient(&self, session_idx: SessionIndex) -> bool {
 		return session_idx < self.highest_session.saturating_sub(6 - 1) // TODO: use constant here
 	}
 }
