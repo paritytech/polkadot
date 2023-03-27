@@ -1497,6 +1497,7 @@ pub type UncheckedExtrinsic =
 pub type Migrations = (
 	/* Asynchronous backing mirgration */
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 );
 
 /// Executive: handles dispatch to the various modules.

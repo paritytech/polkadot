@@ -36,7 +36,6 @@
 //! over time.
 
 use frame_support::pallet_prelude::*;
-use frame_system::pallet_prelude::*;
 use primitives::{
 	CollatorId, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
 	ParathreadClaim, ParathreadEntry, ScheduledCore, ValidatorIndex,
@@ -52,7 +51,9 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
-mod migration;
+pub mod migration;
+
+const LOG_TARGET: &str = "runtime::scheduler";
 
 /// A queued parathread entry, pre-assigned to a core.
 #[derive(Encode, Decode, TypeInfo)]
@@ -165,13 +166,6 @@ pub mod pallet {
 
 	#[pallet::config]
 	pub trait Config: frame_system::Config + configuration::Config + paras::Config {}
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		fn on_runtime_upgrade() -> Weight {
-			migration::on_runtime_upgrade::<T>()
-		}
-	}
 
 	/// All the validator groups. One for each core. Indices are into `ActiveValidators` - not the
 	/// broader set of Polkadot validators, but instead just the subset used for parachains during

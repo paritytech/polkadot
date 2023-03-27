@@ -16,29 +16,14 @@
 
 //! A module that is responsible for migration of storage.
 
-use crate::scheduler::{self, AssignmentKind, Config, Pallet, Scheduled};
-use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
-use parity_scale_codec::{Decode, Encode};
+use frame_support::traits::StorageVersion;
 
 /// The current storage version.
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
-/// Call this during the next runtime upgrade for this module.
-pub fn on_runtime_upgrade<T: Config>() -> Weight {
-	let mut weight: Weight = Weight::zero();
-
-	if StorageVersion::get::<Pallet<T>>() == 0 {
-		weight = weight
-			.saturating_add(v1::migrate::<T>())
-			.saturating_add(T::DbWeight::get().writes(1));
-		StorageVersion::new(1).put::<Pallet<T>>();
-	}
-
-	weight
-}
-
 mod v0 {
-	use super::*;
+	use crate::scheduler::{self, AssignmentKind};
+	use parity_scale_codec::{Decode, Encode};
 	use primitives::{CoreIndex, GroupIndex, Id as ParaId};
 
 	#[derive(Encode, Decode)]
@@ -58,11 +43,35 @@ mod v0 {
 
 /// V1: Group index is dropped from the core assignment, it's explicitly computed during
 /// candidates processing.
-mod v1 {
+pub mod v1 {
 	use super::*;
+	use crate::scheduler::{self, Config, Pallet, Scheduled};
+	use frame_support::{pallet_prelude::*, traits::OnRuntimeUpgrade, weights::Weight};
 	use sp_std::vec::Vec;
 
-	pub fn migrate<T: Config>() -> Weight {
+	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
+	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
+		fn on_runtime_upgrade() -> Weight {
+			let mut weight: Weight = Weight::zero();
+
+			if StorageVersion::get::<Pallet<T>>() < STORAGE_VERSION {
+				log::info!(target: scheduler::LOG_TARGET, "Migrating scheduler storage to v1");
+				weight = weight
+					.saturating_add(migrate::<T>())
+					.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+				STORAGE_VERSION.put::<Pallet<T>>();
+			} else {
+				log::info!(
+					target: scheduler::LOG_TARGET,
+					"Scheduler storage up to date - no need for migration"
+				);
+			}
+
+			weight
+		}
+	}
+
+	fn migrate<T: Config>() -> Weight {
 		let _ = Scheduled::<T>::translate(|scheduled: Option<Vec<v0::CoreAssignment>>| {
 			scheduled.map(|scheduled| {
 				scheduled.into_iter().map(|old| scheduler::CoreAssignment::from(old)).collect()

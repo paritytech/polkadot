@@ -1216,6 +1216,7 @@ pub type Migrations = (
 	>,
 	/* Asynchronous backing mirgration */
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
