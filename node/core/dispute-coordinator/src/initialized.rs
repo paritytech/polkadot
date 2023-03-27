@@ -172,7 +172,13 @@ impl Initialized {
 			let mut overlay_db = OverlayedBackend::new(backend);
 			for votes in on_chain_votes {
 				let _ = self
-					.process_on_chain_votes(ctx, &mut overlay_db, votes, clock.now())
+					.process_on_chain_votes(
+						ctx,
+						&mut overlay_db,
+						votes,
+						clock.now(),
+						first_leaf.hash,
+					)
 					.await
 					.map_err(|error| {
 						gum::warn!(
@@ -324,15 +330,16 @@ impl Initialized {
 			// The `runtime-api` subsystem has an internal queue which serializes the execution,
 			// so there is no point in running these in parallel
 			for votes in scraped_updates.on_chain_votes {
-				let _ = self.process_on_chain_votes(ctx, overlay_db, votes, now).await.map_err(
-					|error| {
+				let _ = self
+					.process_on_chain_votes(ctx, overlay_db, votes, now, new_leaf.hash)
+					.await
+					.map_err(|error| {
 						gum::warn!(
 							target: LOG_TARGET,
 							?error,
 							"Skipping scraping block due to error",
 						);
-					},
-				);
+					});
 			}
 		}
 
@@ -348,6 +355,7 @@ impl Initialized {
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		votes: ScrapedOnChainVotes,
 		now: u64,
+		leaf_hash: Hash,
 	) -> Result<()> {
 		let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = votes;
 
@@ -461,7 +469,7 @@ impl Initialized {
 			);
 			let session_info = &self
 				.runtime_info
-				.get_session_info_by_index(ctx.sender(), fix_me, session)
+				.get_session_info_by_index(ctx.sender(), leaf_hash, session)
 				.await?
 				.session_info;
 
