@@ -568,7 +568,7 @@ impl Initialized {
 						session,
 						statements,
 						now,
-						parent_hash, // TODO: will the relay parent do the job?
+						parent_hash,
 					)
 					.await?;
 				let report = move || match pending_confirmation {
@@ -1202,7 +1202,7 @@ impl Initialized {
 		}
 
 		// Do import
-		let relay_parent = candidate_receipt.descriptor.relay_parent; //TODO: Again... is this okay?
+		let relay_parent = candidate_receipt.descriptor.relay_parent;
 		if !statements.is_empty() {
 			match self
 				.handle_import_statements(
