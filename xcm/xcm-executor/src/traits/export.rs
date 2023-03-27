@@ -31,7 +31,7 @@ use xcm::latest::prelude::*;
 /// destination must accept the local location to represent that location or the operation will
 /// fail.
 pub trait ExportXcm {
-	/// Intermediate value which connects the two phaases of the export operation.
+	/// Intermediate value which connects the two phases of the export operation.
 	type Ticket;
 
 	/// Check whether the given `message` is deliverable to the given `destination` on `network`,

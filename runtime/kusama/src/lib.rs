@@ -1481,6 +1481,7 @@ pub type Migrations = (
 		Runtime,
 		NominationPoolsMigrationV4OldPallet,
 	>,
+	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
@@ -2105,6 +2106,12 @@ sp_api::impl_runtime_apis! {
 
 				fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
 					// Kusama doesn't support asset locking
+					Err(BenchmarkError::Skip)
+				}
+
+				fn export_message_origin_and_destination(
+				) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError> {
+					// Kusama doesn't support exporting messages
 					Err(BenchmarkError::Skip)
 				}
 			}
