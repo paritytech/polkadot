@@ -69,12 +69,19 @@ use super::{
 
 const SESSION_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
 
+// Initial data for `dispute-coordinator`. It is provided only at first start.
+pub struct InitialData {
+	pub participations: Vec<(ParticipationPriority, ParticipationRequest)>,
+	pub votes: Vec<ScrapedOnChainVotes>,
+	pub leaf: ActivatedLeaf,
+}
+
 /// After the first active leaves update we transition to `Initialized` state.
 ///
 /// Before the first active leaves update we can't really do much. We cannot check incoming
 /// statements for validity, we cannot query orderings, we have no valid `RollingSessionWindow`,
 /// ...
-pub struct Initialized {
+pub(crate) struct Initialized {
 	keystore: Arc<LocalKeystore>,
 	runtime_info: RuntimeInfo,
 	highest_session: SessionIndex,
@@ -118,30 +125,20 @@ impl Initialized {
 
 	/// Run the initialized subsystem.
 	///
-	/// Optionally supply initial participations and a first leaf to process.
+	/// `initialization_data` is optional. It is passed on first start and is `None` on subsystem restarts.
 	pub async fn run<B, Context>(
 		mut self,
 		mut ctx: Context,
 		mut backend: B,
-		mut participations: Vec<(ParticipationPriority, ParticipationRequest)>,
-		mut votes: Vec<ScrapedOnChainVotes>,
-		mut first_leaf: Option<ActivatedLeaf>,
+		mut initial_data: Option<InitialData>,
 		clock: Box<dyn Clock>,
 	) -> FatalResult<()>
 	where
 		B: Backend,
 	{
 		loop {
-			let res = self
-				.run_until_error(
-					&mut ctx,
-					&mut backend,
-					&mut participations,
-					&mut votes,
-					&mut first_leaf,
-					&*clock,
-				)
-				.await;
+			let res =
+				self.run_until_error(&mut ctx, &mut backend, &mut initial_data, &*clock).await;
 			if let Ok(()) = res {
 				gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
 				return Ok(())
@@ -159,21 +156,21 @@ impl Initialized {
 		&mut self,
 		ctx: &mut Context,
 		backend: &mut B,
-		participations: &mut Vec<(ParticipationPriority, ParticipationRequest)>,
-		on_chain_votes: &mut Vec<ScrapedOnChainVotes>,
-		first_leaf: &mut Option<ActivatedLeaf>,
+		initial_data: &mut Option<InitialData>,
 		clock: &dyn Clock,
 	) -> Result<()>
 	where
 		B: Backend,
 	{
-		for (priority, request) in participations.drain(..) {
-			self.participation.queue_participation(ctx, priority, request).await?;
-		}
-
+		if let Some(InitialData { participations, votes: on_chain_votes, leaf: first_leaf }) =
+			initial_data.take()
 		{
+			for (priority, request) in participations {
+				self.participation.queue_participation(ctx, priority, request).await?;
+			}
+
 			let mut overlay_db = OverlayedBackend::new(backend);
-			for votes in on_chain_votes.drain(..) {
+			for votes in on_chain_votes {
 				let _ = self
 					.process_on_chain_votes(ctx, &mut overlay_db, votes, clock.now())
 					.await
@@ -189,9 +186,7 @@ impl Initialized {
 				let ops = overlay_db.into_write_ops();
 				backend.write(ops)?;
 			}
-		}
 
-		if let Some(first_leaf) = first_leaf.take() {
 			// Also provide first leaf to participation for good measure.
 			self.participation
 				.process_active_leaves_update(ctx, &ActiveLeavesUpdate::start_work(first_leaf))

@@ -66,7 +66,7 @@ pub(crate) mod error;
 
 /// Subsystem after receiving the first active leaf.
 mod initialized;
-use initialized::Initialized;
+use initialized::{InitialData, Initialized};
 
 /// Provider of data scraped from chain.
 ///
@@ -188,7 +188,7 @@ impl DisputeCoordinatorSubsystem {
 		};
 
 		initialized
-			.run(ctx, backend, participations, votes, Some(first_leaf), clock)
+			.run(ctx, backend, Some(InitialData { participations, votes, leaf: first_leaf }), clock)
 			.await
 	}
 
