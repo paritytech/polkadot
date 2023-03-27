@@ -940,6 +940,7 @@ pub enum ProxyType {
 	CancelProxy,
 	Auction,
 	Society,
+	NominationPools,
 }
 
 impl Default for ProxyType {
@@ -1023,6 +1024,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 						RuntimeCall::Session(..) | RuntimeCall::Utility(..) |
 						RuntimeCall::FastUnstake(..)
 				)
+			},
+			ProxyType::NominationPools => {
+				matches!(c, RuntimeCall::NominationPools(..) | RuntimeCall::Utility(..))
 			},
 			ProxyType::IdentityJudgement => matches!(
 				c,

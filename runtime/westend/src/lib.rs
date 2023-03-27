@@ -765,6 +765,7 @@ pub enum ProxyType {
 	IdentityJudgement,
 	CancelProxy,
 	Auction,
+	NominationPools,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -823,6 +824,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 						RuntimeCall::Session(..) | RuntimeCall::Utility(..) |
 						RuntimeCall::FastUnstake(..)
 				)
+			},
+			ProxyType::NominationPools => {
+				matches!(c, RuntimeCall::NominationPools(..) | RuntimeCall::Utility(..))
 			},
 			ProxyType::SudoBalances => match c {
 				RuntimeCall::Sudo(pallet_sudo::Call::sudo { call: ref x }) => {
