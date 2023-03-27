@@ -1218,7 +1218,6 @@ pub type Migrations = (
 	>,
 	// Unreleased - add new migrations here:
 	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
-	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
