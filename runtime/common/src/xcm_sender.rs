@@ -107,3 +107,49 @@ impl<T: configuration::Config + dmp::Config, W: xcm::WrapVersion, P: PriceForPar
 			.map_err(|_| SendError::Transport(&"Error placing into DMP queue"))
 	}
 }
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use frame_support::parameter_types;
+	use runtime_parachains::FeeTracker;
+	use sp_runtime::FixedU128;
+
+	parameter_types! {
+		pub const BaseDeliveryFee: u128 = 300_000_000;
+		pub const TransactionByteFee: u128 = 1_000_000;
+		pub FeeAssetId: AssetId = Concrete(Here.into());
+	}
+
+	struct TestFeeTracker;
+	impl FeeTracker for TestFeeTracker {
+		fn get_fee_factor(_: ParaId) -> FixedU128 {
+			FixedU128::from_rational(101, 100)
+		}
+	}
+
+	type TestExponentialPrice =
+		ExponentialPrice<FeeAssetId, BaseDeliveryFee, TransactionByteFee, TestFeeTracker>;
+
+	#[test]
+	fn exponential_price_correct_price_calculation() {
+		// message size = 1
+		assert_eq!(
+			TestExponentialPrice::price_for_parachain_delivery(123.into(), &Xcm(vec![])),
+			(FeeAssetId::get(), 304_010_000).into()
+		);
+		// message size = 2
+		assert_eq!(
+			TestExponentialPrice::price_for_parachain_delivery(123.into(), &Xcm(vec![ClearOrigin])),
+			(FeeAssetId::get(), 305_020_000).into()
+		);
+		// message size = 4
+		assert_eq!(
+			TestExponentialPrice::price_for_parachain_delivery(
+				123.into(),
+				&Xcm(vec![SetAppendix(Xcm(vec![ClearOrigin]))])
+			),
+			(FeeAssetId::get(), 307_040_000).into()
+		);
+	}
+}
