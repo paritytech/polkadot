@@ -143,7 +143,7 @@ pub mod v5 {
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
 			log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
 
-			ensure!(StorageVersion::get::<Pallet<T>>() == 3, "The migration requires version 3");
+			ensure!(StorageVersion::get::<Pallet<T>>() == 4, "The migration requires version 4");
 			Ok(Vec::new())
 		}
 
