@@ -26,7 +26,8 @@ use futures::{
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
+	disputes::ValidCandidateVotes, new_session_window_size, CandidateVotes, DisputeStatus,
+	SessionWindowSize, SignedDisputeStatement, Timestamp,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -35,8 +36,9 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
-use polkadot_node_subsystem_util::rolling_session_window::{
-	RollingSessionWindow, SessionWindowUpdate, SessionsUnavailable,
+use polkadot_node_subsystem_util::{
+	rolling_session_window::{SessionWindowUpdate, SessionsUnavailable},
+	runtime::RuntimeInfo,
 };
 use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
@@ -65,6 +67,8 @@ use super::{
 	OverlayedBackend,
 };
 
+const SESSION_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
+
 /// After the first active leaves update we transition to `Initialized` state.
 ///
 /// Before the first active leaves update we can't really do much. We cannot check incoming
@@ -72,7 +76,7 @@ use super::{
 /// ...
 pub struct Initialized {
 	keystore: Arc<LocalKeystore>,
-	rolling_session_window: RollingSessionWindow,
+	runtime_info: RuntimeInfo,
 	highest_session: SessionIndex,
 	spam_slots: SpamSlots,
 	participation: Participation,
@@ -89,19 +93,19 @@ impl Initialized {
 	/// Make initialized subsystem, ready to `run`.
 	pub fn new(
 		subsystem: DisputeCoordinatorSubsystem,
-		rolling_session_window: RollingSessionWindow,
+		runtime_info: RuntimeInfo,
 		spam_slots: SpamSlots,
 		scraper: ChainScraper,
+		highest_session: SessionIndex,
 	) -> Self {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
 		let (participation_sender, participation_receiver) = mpsc::channel(1);
 		let participation = Participation::new(participation_sender, metrics.clone());
-		let highest_session = rolling_session_window.latest_session();
 
 		Self {
 			keystore,
-			rolling_session_window,
+			runtime_info,
 			highest_session,
 			spam_slots,
 			scraper,
@@ -360,23 +364,13 @@ impl Initialized {
 		// the new active leaf as if we received them via gossip.
 		for (candidate_receipt, backers) in backing_validators_per_candidate {
 			// Obtain the session info, for sake of `ValidatorId`s
-			// either from the rolling session window.
-			// Must be called _after_ `fn cache_session_info_for_head`
-			// which guarantees that the session info is available
-			// for the current session.
-			let session_info: &SessionInfo =
-				if let Some(session_info) = self.rolling_session_window.session_info(session) {
-					session_info
-				} else {
-					gum::warn!(
-						target: LOG_TARGET,
-						?session,
-						"Could not retrieve session info from rolling session window",
-					);
-					return Ok(())
-				};
-
 			let relay_parent = candidate_receipt.descriptor.relay_parent;
+			let session_info: &SessionInfo = &self
+				.runtime_info
+				.get_session_info_by_index(ctx.sender(), relay_parent, session) // TODO: is it correct to use `relay_parent` here??
+				.await?
+				.session_info;
+
 			let candidate_hash = candidate_receipt.hash();
 			gum::trace!(
 				target: LOG_TARGET,
@@ -470,18 +464,11 @@ impl Initialized {
 				?session,
 				"Importing dispute votes from chain for candidate"
 			);
-			let session_info =
-				if let Some(session_info) = self.rolling_session_window.session_info(session) {
-					session_info
-				} else {
-					gum::warn!(
-						target: LOG_TARGET,
-						?candidate_hash,
-						?session,
-						"Could not retrieve session info from rolling session window for recently concluded dispute"
-					);
-					continue
-				};
+			let session_info = &self
+				.runtime_info
+				.get_session_info_by_index(ctx.sender(), fix_me, session)
+				.await?
+				.session_info;
 
 			let statements = statements
 				.into_iter()
@@ -717,16 +704,18 @@ impl Initialized {
 		now: Timestamp,
 	) -> FatalResult<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
-		if !self.rolling_session_window.contains(session) {
+		if self.session_is_ancient(session) {
 			// It is not valid to participate in an ancient dispute (spam?) or too new.
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
-		let env = match CandidateEnvironment::new(
-			&self.keystore,
-			&self.rolling_session_window,
-			session,
-		) {
+		let session_info = &self
+			.runtime_info
+			.get_session_info_by_index(ctx.sender(), fix_me, session)
+			.await?
+			.session_info;
+
+		let env = match CandidateEnvironment::new(&self.keystore, session_info, session) {
 			None => {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -1120,12 +1109,17 @@ impl Initialized {
 			?now,
 			"Issuing local statement for candidate!"
 		);
+		let session_info = &self
+			.runtime_info
+			.get_session_info_by_index(
+				ctx.sender(),
+				candidate_receipt.descriptor.relay_parent,
+				session,
+			)
+			.await?
+			.session_info;
 		// Load environment:
-		let env = match CandidateEnvironment::new(
-			&self.keystore,
-			&self.rolling_session_window,
-			session,
-		) {
+		let env = match CandidateEnvironment::new(&self.keystore, session_info, session) {
 			None => {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -1232,6 +1226,10 @@ impl Initialized {
 		}
 
 		Ok(())
+	}
+
+	fn session_is_ancient(self, session_idx: SessionIndex) -> bool {
+		return session_idx < self.highest_session.saturating_sub(6 - 1) // TODO: use constant here
 	}
 }
 

@@ -41,6 +41,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::{
 	database::Database,
 	rolling_session_window::{DatabaseParams, RollingSessionWindow},
+	runtime::RuntimeInfo,
 };
 use polkadot_primitives::{DisputeStatement, ScrapedOnChainVotes, SessionInfo, ValidatorIndex};
 
@@ -213,28 +214,20 @@ impl DisputeCoordinatorSubsystem {
 			let db_params =
 				DatabaseParams { db: self.store.clone(), db_column: self.config.col_session_data };
 
-			let (first_leaf, rolling_session_window) =
-				match get_rolling_session_window(ctx, db_params).await {
-					Ok(Some(update)) => update,
-					Ok(None) => {
-						gum::info!(target: LOG_TARGET, "received `Conclude` signal, exiting");
-						return Ok(None)
-					},
-					Err(e) => {
-						e.split()?.log();
-						continue
-					},
-				};
+			let first_leaf = match wait_for_first_leaf(ctx).await {
+				Ok(Some(activated_leaf)) => activated_leaf,
+				Ok(None) => continue,
+				Err(e) => {
+					e.split()?.log();
+					continue
+				},
+			};
 
+			let mut runtime_info = RuntimeInfo::new(None);
+			// TODO: fill in the cache here?
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
 			let (participations, votes, spam_slots, ordering_provider) = match self
-				.handle_startup(
-					ctx,
-					first_leaf.clone(),
-					&rolling_session_window,
-					&mut overlay_db,
-					clock,
-				)
+				.handle_startup(ctx, first_leaf.clone(), &mut runtime_info, &mut overlay_db, clock)
 				.await
 			{
 				Ok(v) => v,
@@ -248,11 +241,21 @@ impl DisputeCoordinatorSubsystem {
 				backend.write(ops)?;
 			}
 
+			// We assume the highest session means in the new context
+			let highest_session =
+				runtime_info.get_session_index_for_child(ctx.sender(), first_leaf.hash).await?;
+
 			return Ok(Some((
 				participations,
 				votes,
 				first_leaf,
-				Initialized::new(self, rolling_session_window, spam_slots, ordering_provider),
+				Initialized::new(
+					self,
+					runtime_info,
+					spam_slots,
+					ordering_provider,
+					highest_session,
+				),
 				backend,
 			)))
 		}
@@ -267,7 +270,7 @@ impl DisputeCoordinatorSubsystem {
 		&self,
 		ctx: &mut Context,
 		initial_head: ActivatedLeaf,
-		rolling_session_window: &RollingSessionWindow,
+		runtime_info: &mut RuntimeInfo,
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		clock: &dyn Clock,
 	) -> Result<(
@@ -276,8 +279,13 @@ impl DisputeCoordinatorSubsystem {
 		SpamSlots,
 		ChainScraper,
 	)> {
+		// TODO: this is supposed to be 'earliest session'. What it means in this context?
+		let session_idx_at_startup = runtime_info
+			.get_session_index_for_child(ctx.sender(), initial_head.hash)
+			.await?;
+
 		// Prune obsolete disputes:
-		db::v1::note_earliest_session(overlay_db, rolling_session_window.earliest_session())?;
+		db::v1::note_earliest_session(overlay_db, session_idx_at_startup)?;
 
 		let now = clock.now();
 
@@ -292,23 +300,26 @@ impl DisputeCoordinatorSubsystem {
 			},
 		};
 
+		let session_info = &runtime_info
+			.get_session_info(ctx.sender(), initial_head.hash)
+			.await?
+			.session_info;
 		let mut participation_requests = Vec::new();
 		let mut spam_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
 		let (scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
 		for ((session, ref candidate_hash), _) in active_disputes {
-			let env =
-				match CandidateEnvironment::new(&self.keystore, &rolling_session_window, session) {
-					None => {
-						gum::warn!(
-							target: LOG_TARGET,
-							session,
-							"We are lacking a `SessionInfo` for handling db votes on startup."
-						);
+			let env = match CandidateEnvironment::new(&self.keystore, &session_info, session) {
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						session,
+						"We are lacking a `SessionInfo` for handling db votes on startup."
+					);
 
-						continue
-					},
-					Some(env) => env,
-				};
+					continue
+				},
+				Some(env) => env,
+			};
 
 			let votes: CandidateVotes =
 				match overlay_db.load_candidate_votes(session, candidate_hash) {
