@@ -133,23 +133,35 @@ mod tests {
 
 	#[test]
 	fn exponential_price_correct_price_calculation() {
-		// message size = 1
+		let id: ParaId = 123.into();
+		let b: u128 = BaseDeliveryFee::get();
+		let m: u128 = TransactionByteFee::get();
+
+		// F * (B + msg_length * M)
+		// message_length = 1
+		let result: u128 = TestFeeTracker::get_fee_factor(id.clone()).saturating_mul_int(b + m);
 		assert_eq!(
-			TestExponentialPrice::price_for_parachain_delivery(123.into(), &Xcm(vec![])),
-			(FeeAssetId::get(), 304_010_000).into()
+			TestExponentialPrice::price_for_parachain_delivery(id.clone(), &Xcm(vec![])),
+			(FeeAssetId::get(), result).into()
 		);
+
 		// message size = 2
+		let result: u128 =
+			TestFeeTracker::get_fee_factor(id.clone()).saturating_mul_int(b + (2 * m));
 		assert_eq!(
-			TestExponentialPrice::price_for_parachain_delivery(123.into(), &Xcm(vec![ClearOrigin])),
-			(FeeAssetId::get(), 305_020_000).into()
+			TestExponentialPrice::price_for_parachain_delivery(id.clone(), &Xcm(vec![ClearOrigin])),
+			(FeeAssetId::get(), result).into()
 		);
+
 		// message size = 4
+		let result: u128 =
+			TestFeeTracker::get_fee_factor(id.clone()).saturating_mul_int(b + (4 * m));
 		assert_eq!(
 			TestExponentialPrice::price_for_parachain_delivery(
-				123.into(),
+				id.clone(),
 				&Xcm(vec![SetAppendix(Xcm(vec![ClearOrigin]))])
 			),
-			(FeeAssetId::get(), 307_040_000).into()
+			(FeeAssetId::get(), result).into()
 		);
 	}
 }
