@@ -1207,13 +1207,18 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 
 /// All migrations that will run on the next runtime upgrade.
 ///
-/// Should be cleared after every release.
+/// This contains the combined migrations of the last 10 releases. It allows to skip runtime
+/// upgrades in case governance decides to do so.
+#[allow(deprecated)]
 pub type Migrations = (
+	// 0.9.40
 	clean_state_migration::CleanMigrate,
 	pallet_nomination_pools::migration::v4::MigrateToV4<
 		Runtime,
 		NominationPoolsMigrationV4OldPallet,
 	>,
+	// Unreleased - add new migrations here:
+	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 );
 
