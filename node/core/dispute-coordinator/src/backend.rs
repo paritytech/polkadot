@@ -91,15 +91,6 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 			self.candidate_votes.is_empty()
 	}
 
-	/// Load the earliest session, if any.
-	pub fn load_earliest_session(&self) -> FatalResult<Option<SessionIndex>> {
-		if let Some(val) = self.earliest_session {
-			return Ok(Some(val))
-		}
-
-		self.inner.load_earliest_session()
-	}
-
 	/// Load the recent disputes, if any.
 	pub fn load_recent_disputes(&self) -> FatalResult<Option<RecentDisputes>> {
 		if let Some(val) = &self.recent_disputes {
@@ -120,13 +111,6 @@ impl<'a, B: 'a + Backend> OverlayedBackend<'a, B> {
 		}
 
 		self.inner.load_candidate_votes(session, candidate_hash)
-	}
-
-	/// Prepare a write to the "earliest session" field of the DB.
-	///
-	/// Later calls to this function will override earlier ones.
-	pub fn write_earliest_session(&mut self, session: SessionIndex) {
-		self.earliest_session = Some(session);
 	}
 
 	/// Prepare a write to the recent disputes stored in the DB.

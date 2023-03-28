@@ -272,14 +272,6 @@ impl DisputeCoordinatorSubsystem {
 		SpamSlots,
 		ChainScraper,
 	)> {
-		// TODO: this is supposed to be 'earliest session'. What it means in this context?
-		let session_idx_at_startup = runtime_info
-			.get_session_index_for_child(ctx.sender(), initial_head.hash)
-			.await?;
-
-		// Prune obsolete disputes:
-		db::v1::note_earliest_session(overlay_db, session_idx_at_startup)?;
-
 		let now = clock.now();
 
 		let active_disputes = match overlay_db.load_recent_disputes() {

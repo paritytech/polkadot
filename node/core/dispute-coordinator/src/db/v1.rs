@@ -19,7 +19,7 @@
 use polkadot_node_primitives::DisputeStatus;
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::{
-	CandidateHash, CandidateReceipt, Hash, InvalidDisputeStatementKind, SessionIndex,
+	CandidateHash, CandidateReceipt, InvalidDisputeStatementKind, SessionIndex,
 	ValidDisputeStatementKind, ValidatorIndex, ValidatorSignature,
 };
 
@@ -28,7 +28,7 @@ use std::sync::Arc;
 use parity_scale_codec::{Decode, Encode};
 
 use crate::{
-	backend::{Backend, BackendWriteOp, OverlayedBackend},
+	backend::{Backend, BackendWriteOp},
 	error::{FatalError, FatalResult},
 	metrics::Metrics,
 	LOG_TARGET,
@@ -307,51 +307,6 @@ pub(crate) fn load_recent_disputes(
 ) -> FatalResult<Option<RecentDisputes>> {
 	load_decode(db, config.col_dispute_data, RECENT_DISPUTES_KEY)
 		.map_err(|e| FatalError::DbReadFailed(e))
-}
-
-/// Maybe prune data in the DB based on the provided session index.
-///
-/// This is intended to be called on every block, and as such will be used to populate the DB on
-/// first launch. If the on-disk data does not need to be pruned, only a single storage read
-/// will be performed.
-///
-/// If one or more ancient sessions are pruned, all metadata on candidates within the ancient
-/// session will be deleted.
-pub(crate) fn note_earliest_session(
-	overlay_db: &mut OverlayedBackend<'_, impl Backend>,
-	new_earliest_session: SessionIndex,
-) -> FatalResult<()> {
-	match overlay_db.load_earliest_session()? {
-		None => {
-			// First launch - write new-earliest.
-			overlay_db.write_earliest_session(new_earliest_session);
-		},
-		Some(prev_earliest) if new_earliest_session > prev_earliest => {
-			// Prune all data in the outdated sessions.
-			overlay_db.write_earliest_session(new_earliest_session);
-
-			// Clear recent disputes metadata.
-			{
-				let mut recent_disputes = overlay_db.load_recent_disputes()?.unwrap_or_default();
-
-				let lower_bound = (new_earliest_session, CandidateHash(Hash::repeat_byte(0x00)));
-
-				let new_recent_disputes = recent_disputes.split_off(&lower_bound);
-				// Any remanining disputes are considered ancient and must be pruned.
-				let pruned_disputes = recent_disputes;
-
-				if pruned_disputes.len() != 0 {
-					overlay_db.write_recent_disputes(new_recent_disputes);
-					// Note: Deleting old candidate votes is handled in `write` based on the earliest session.
-				}
-			}
-		},
-		Some(_) => {
-			// nothing to do.
-		},
-	}
-
-	Ok(())
 }
 
 /// Until what session votes have been cleaned up already.
