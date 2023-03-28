@@ -1493,8 +1493,8 @@ pub type Migrations = (
 		NominationPoolsMigrationV4OldPallet,
 	>,
 	// Unreleased - add new migrations here:
-	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
-	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	//pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
+	//parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 	scheduler::migration::v1::MigrateToV1<Runtime>,
 );
 
