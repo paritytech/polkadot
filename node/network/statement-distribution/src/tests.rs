@@ -42,7 +42,7 @@ use polkadot_primitives_test_helpers::{
 	dummy_committed_candidate_receipt, dummy_hash, AlwaysZeroRng,
 };
 use sc_keystore::LocalKeystore;
-use sp_application_crypto::{sr25519::Pair, AppKey, Pair as TraitPair};
+use sp_application_crypto::{sr25519::Pair, AppCrypto, Pair as TraitPair};
 use sp_authority_discovery::AuthorityPair;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{Keystore, KeystorePtr};

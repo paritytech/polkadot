@@ -193,8 +193,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub dispute_period: SessionIndex,
 	/// How long after dispute conclusion to accept statements.
 	pub dispute_post_conclusion_acceptance_period: BlockNumber,
-	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
-	pub dispute_conclusion_by_time_out_period: BlockNumber,
 	/// The amount of consensus slots that must pass between submitting an assignment and
 	/// submitting an approval vote before a validator is considered a no-show.
 	///
@@ -262,7 +260,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_validators: None,
 			dispute_period: 6,
 			dispute_post_conclusion_acceptance_period: 100.into(),
-			dispute_conclusion_by_time_out_period: 200.into(),
 			n_delay_tranches: Default::default(),
 			zeroth_delay_tranche_width: Default::default(),
 			needed_approvals: Default::default(),
@@ -762,22 +759,6 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.dispute_post_conclusion_acceptance_period = new;
-			})
-		}
-
-		/// Set the dispute conclusion by time out period.
-		#[pallet::call_index(17)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_block_number(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_dispute_conclusion_by_time_out_period(
-			origin: OriginFor<T>,
-			new: T::BlockNumber,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.dispute_conclusion_by_time_out_period = new;
 			})
 		}
 
