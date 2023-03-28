@@ -16,7 +16,7 @@
 
 use super::*;
 use crate::{
-	assigner::on_demand::Error,
+	assigner_on_demand::Error,
 	mock::{
 		new_test_ext, MockGenesisConfig, OnDemandAssigner, Paras, ParasShared, RuntimeOrigin,
 		Scheduler, System, Test,

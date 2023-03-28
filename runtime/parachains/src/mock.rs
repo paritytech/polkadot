@@ -17,9 +17,8 @@
 //! Mocks for all the traits.
 
 use crate::{
-	assigner::{self, on_demand as assigner_on_demand, parachains as assigner_parachains},
-	configuration, disputes, dmp, hrmp, inclusion, initializer, origin, paras, paras_inherent,
-	scheduler, session_info, shared,
+	assigner, assigner_on_demand, assigner_parachains, configuration, disputes, dmp, hrmp,
+	inclusion, initializer, origin, paras, paras_inherent, scheduler, session_info, shared,
 	ump::{self, MessageId, UmpSink},
 	ParaId,
 };
@@ -40,7 +39,7 @@ use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	Permill,
+	FixedU128, Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -305,9 +304,20 @@ impl assigner::Config for Test {
 
 impl assigner_parachains::Config for Test {}
 
+parameter_types! {
+	pub const OnDemandMaxClaims: u32 = 10_000;
+	pub const OnDemandMaxParaIdsInAffinityMap: u32 = 500;
+	pub const OnDemandMaxUpperBoundLookahead: u32 = 2;
+	pub const OnDemandTrafficDefaultValue: FixedU128 = FixedU128::from_u32(1);
+}
+
 impl assigner_on_demand::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type Currency = Balances;
+	type MaxClaims = OnDemandMaxClaims;
+	type MaxParaIdsInAffinityMap = OnDemandMaxParaIdsInAffinityMap;
+	type MaxUpperBoundLookahead = OnDemandMaxUpperBoundLookahead;
+	type TrafficDefaultValue = OnDemandTrafficDefaultValue;
 }
 
 impl crate::inclusion::Config for Test {
