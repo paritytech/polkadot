@@ -2389,14 +2389,14 @@ mod remote_tests {
 	}
 
 	#[tokio::test]
-	#[ignore = "this test is meant to be executed manually"]
+	// #[ignore = "this test is meant to be executed manually"]
 	async fn try_clear_gov_v1_storage() {
 		sp_tracing::try_init_simple();
 		use frame_system;
 		use pallet_utility;
 		use sp_core::twox_128;
 
-		let transport: Transport = var("WS").unwrap_or("ws://localhost:9944".to_string()).into();
+		let transport: Transport = var("WS").unwrap_or("ws://localhost:55104".to_string()).into();
 		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
 		let now = std::time::Instant::now();
 		let mut ext = Builder::<Block>::default()
@@ -2418,19 +2418,6 @@ mod remote_tests {
 		ext.execute_with(|| {
 			use frame_support::assert_ok;
 			use sp_runtime::traits::Dispatchable;
-
-			fn count_keys(prefix: &[u8]) -> u32 {
-				let mut current = prefix.clone().to_vec();
-				let mut counter = 0;
-				while let Some(next) = sp_io::storage::next_key(&current[..]) {
-					if !next.starts_with(prefix) {
-						return counter
-					}
-					counter += 1;
-					current = next;
-				}
-				0
-			}
 
 			//
 			// Assert keys exist prior to deletion
@@ -2525,17 +2512,17 @@ mod remote_tests {
 		});
 		println!("Done");
 	}
-}
 
-fn count_keys(prefix: &[u8]) -> u32 {
-	let mut current = prefix.clone().to_vec();
-	let mut counter = 0;
-	while let Some(next) = sp_io::storage::next_key(&current[..]) {
-		if !next.starts_with(prefix) {
-			return counter
+	fn count_keys(prefix: &[u8]) -> u32 {
+		let mut current = prefix.clone().to_vec();
+		let mut counter = 0;
+		while let Some(next) = sp_io::storage::next_key(&current[..]) {
+			if !next.starts_with(prefix) {
+				return counter
+			}
+			counter += 1;
+			current = next;
 		}
-		counter += 1;
-		current = next;
+		0
 	}
-	0
 }
