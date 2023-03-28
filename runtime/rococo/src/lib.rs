@@ -1493,11 +1493,9 @@ pub type UncheckedExtrinsic =
 
 /// All migrations that will run on the next runtime upgrade.
 ///
-/// Should be cleared after every release.
-pub type Migrations = (
-	/* Asynchronous backing mirgration */
-	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-);
+/// This contains the combined migrations of the last 10 releases. It allows to skip runtime
+/// upgrades in case governance decides to do so.
+pub type Migrations = parachains_configuration::migration::v5::MigrateToV5<Runtime>;
 
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<

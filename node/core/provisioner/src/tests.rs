@@ -57,7 +57,7 @@ pub fn scheduled_core(id: u32) -> ScheduledCore {
 mod select_availability_bitfields {
 	use super::{super::*, default_bitvec, occupied_core};
 	use polkadot_primitives::{ScheduledCore, SigningContext, ValidatorId, ValidatorIndex};
-	use sp_application_crypto::AppKey;
+	use sp_application_crypto::AppCrypto;
 	use sp_keystore::{testing::MemoryKeystore, Keystore, KeystorePtr};
 	use std::sync::Arc;
 

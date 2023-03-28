@@ -21,7 +21,7 @@ use std::num::NonZeroUsize;
 use lru::LruCache;
 
 use parity_scale_codec::Encode;
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_core::crypto::ByteArray;
 use sp_keystore::{Keystore, KeystorePtr};
 
