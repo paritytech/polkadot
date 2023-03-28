@@ -2417,7 +2417,7 @@ mod remote_tests {
 			use sp_runtime::traits::Dispatchable;
 
 			//
-			// Assert keys exist prior to deletion
+			// Assert keys exist prior to deletion and create calls to delete them
 			//
 			let pallets = vec![
 				"Decocracy",
@@ -2442,12 +2442,12 @@ mod remote_tests {
 				.collect::<Vec<_>>();
 
 			//
-			// Create batch call to kill all gov v1 storage
+			// Create batch call to kill keys
 			//
 			let batch = pallet_utility::Call::<Runtime>::batch { calls };
 
 			//
-			// Execute call and assert storage has been removed
+			// Execute call and assert no keys remain
 			//
 			assert_ok!(RuntimeCall::Utility(batch).dispatch(RuntimeOrigin::root()));
 			pallets.for_each(|p| {
