@@ -38,7 +38,7 @@ use sp_runtime::{
 	traits::{Header as HeaderT, One, TrailingZeroInput, Zero},
 	RuntimeAppPublic,
 };
-use sp_std::{collections::btree_map::BTreeMap, prelude::Vec, vec};
+use sp_std::{cmp, collections::btree_map::BTreeMap, prelude::Vec, vec};
 
 fn mock_validation_code() -> ValidationCode {
 	ValidationCode(vec![1, 2, 3])
@@ -127,6 +127,22 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		}
 	}
 
+	/// Make sure config contains suitable values for benchmarking.
+	///
+	/// Fallback values are chosen based on current Kusama values at the time of writing.
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn adjust_config_benchmarking() {
+		let mut config = configuration::Pallet::<T>::config();
+		config.max_upward_message_num_per_candidate =
+			Self::fallback_max_upward_message_num_per_candidate();
+		config.max_upward_message_size = Self::fallback_max_upward_message_size();
+		config.hrmp_max_message_num_per_candidate =
+			Self::fallback_hrmp_max_message_num_per_candidate();
+		config.hrmp_channel_max_message_size = Self::fallback_hrmp_channel_max_message_size();
+		config.max_code_size = Self::fallback_max_code_size();
+		configuration::Pallet::<T>::force_set_active_config(config);
+	}
+
 	/// Set the session index for each dispute statement set (in other words, set the session the
 	/// the dispute statement set's relay chain block is from). Indexes of `dispute_sessions`
 	/// correspond to a core, which is offset by the number of entries for
@@ -175,6 +191,49 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Maximum number of validators participating in parachains consensus (a.k.a. active validators).
 	fn max_validators(&self) -> u32 {
 		self.max_validators.unwrap_or(Self::fallback_max_validators())
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn fallback_max_upward_message_num_per_candidate() -> u32 {
+		// Make sure we get some benchmark data, no matter what (values are current Kusama values
+		// at the time of writing):
+		let min_value = 10;
+		cmp::max(
+			configuration::Pallet::<T>::config().max_upward_message_num_per_candidate,
+			min_value,
+		)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn fallback_max_upward_message_size() -> u32 {
+		// Make sure we get some benchmark data, no matter what (values are current Kusama values
+		// at the time of writing):
+		let min_value = 51_200;
+		cmp::max(configuration::Pallet::<T>::config().max_upward_message_size, min_value)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn fallback_hrmp_max_message_num_per_candidate() -> u32 {
+		// Make sure we get some benchmark data, no matter what (values are current Kusama values
+		// at the time of writing):
+		let min_value = 10;
+		cmp::max(configuration::Pallet::<T>::config().hrmp_max_message_num_per_candidate, min_value)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn fallback_hrmp_channel_max_message_size() -> u32 {
+		// Make sure we get some benchmark data, no matter what (values are current Kusama values
+		// at the time of writing):
+		let min_value = 102_400;
+		cmp::max(configuration::Pallet::<T>::config().hrmp_channel_max_message_size, min_value)
+	}
+
+	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn fallback_max_code_size() -> u32 {
+		// Make sure we get some benchmark data, no matter what (values are current Kusama values
+		// at the time of writing):
+		let min_value = 3_145_728;
+		cmp::max(configuration::Pallet::<T>::config().max_code_size, min_value)
 	}
 
 	/// Set the maximum number of active validators.

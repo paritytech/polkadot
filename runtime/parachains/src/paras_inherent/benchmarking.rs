@@ -94,9 +94,9 @@ benchmarks! {
 
 	// Variant over:
 	// - `v`, the count of validity votes for a backed candidate.
-	// - u, total size of upward messages in bytes
-	// - h, total size of horizontal messages in bytes
-	// - c, size of new validation code if any in bytes
+	// - `u`, total size of upward messages in bytes
+	// - `h`, total size of horizontal messages in bytes
+	// - `c`, size of new validation code if any in bytes
 	// of a single backed candidate.
 	enter_backed_candidate {
 		// NOTE: the starting value must be over half of the max validators per group so the backed
@@ -109,9 +109,11 @@ benchmarks! {
 		let v in (BenchBuilder::<T>::fallback_min_backing_votes())
 			..(BenchBuilder::<T>::fallback_max_validators_per_core());
 
-		let u in 0 .. (crate::configuration::Pallet::<T>::config().max_upward_message_num_per_candidate * crate::configuration::Pallet::<T>::config().max_upward_message_size);
-		let h in 0 .. (crate::configuration::Pallet::<T>::config().hrmp_max_message_num_per_candidate * crate::configuration::Pallet::<T>::config().hrmp_channel_max_message_size);
-		let c in 0 .. (crate::configuration::Pallet::<T>::config().max_code_size);
+		let u in 0 .. (BenchBuilder::<T>::fallback_max_upward_message_num_per_candidate() * BenchBuilder::<T>::fallback_max_upward_message_size());
+		let h in 0 .. (BenchBuilder::<T>::fallback_hrmp_max_message_num_per_candidate() * BenchBuilder::<T>::fallback_hrmp_channel_max_message_size());
+		let c in 0 .. (BenchBuilder::<T>::fallback_max_code_size());
+
+		BenchBuilder::<T>::adjust_config_benchmarking();
 
 		let candidate_scenario = BackedCandidateScenario {
 			validity_votes: v,
