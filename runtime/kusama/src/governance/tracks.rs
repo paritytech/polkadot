@@ -60,6 +60,8 @@ const SUP_MEDIUM_SPENDER: Curve =
 	Curve::make_reciprocal(16, 28, percent(1), percent(0), percent(50));
 const APP_BIG_SPENDER: Curve = Curve::make_linear(28, 28, percent(50), percent(100));
 const SUP_BIG_SPENDER: Curve = Curve::make_reciprocal(20, 28, percent(1), percent(0), percent(50));
+const APP_EVENT_SPENDER: Curve = Curve::make_linear(28, 28, percent(50), percent(100));
+const SUP_EVENT_SPENDER: Curve = Curve::make_reciprocal(20, 28, percent(1), percent(0), percent(50));
 const APP_WHITELISTED_CALLER: Curve =
 	Curve::make_reciprocal(16, 28 * 24, percent(96), percent(50), percent(100));
 const SUP_WHITELISTED_CALLER: Curve =
@@ -276,6 +278,20 @@ const TRACKS_DATA: [(u16, pallet_referenda::TrackInfo<Balance, BlockNumber>); 15
 			min_support: SUP_BIG_SPENDER,
 		},
 	),
+	(
+		35,
+		pallet_referenda::TrackInfo {
+			name: "event_spender",
+			max_deciding: 50,
+			decision_deposit: 400 * QUID,
+			prepare_period: 4 * HOURS,
+			decision_period: 14 * DAYS,
+			confirm_period: 48 * HOURS,
+			min_enactment_period: 24 * HOURS,
+			min_approval: APP_EVENT_SPENDER,
+			min_support: SUP_EVENT_SPENDER,
+		},
+	),
 ];
 
 pub struct TracksInfo;
@@ -310,6 +326,7 @@ impl pallet_referenda::TracksInfo<Balance, BlockNumber> for TracksInfo {
 				origins::Origin::SmallSpender => Ok(32),
 				origins::Origin::MediumSpender => Ok(33),
 				origins::Origin::BigSpender => Ok(34),
+				origins::Origin::EventSpender => Ok(35),
 				_ => Err(()),
 			}
 		} else {

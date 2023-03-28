@@ -48,16 +48,18 @@ pub mod pallet_custom_origins {
 		ReferendumCanceller,
 		/// Origin able to kill referenda.
 		ReferendumKiller,
-		/// Origin able to spend up to 1 KSM from the treasury at once.
+		/// Origin able to spend up to 8.33 KSM from the treasury at once.
 		SmallTipper,
-		/// Origin able to spend up to 5 KSM from the treasury at once.
+		/// Origin able to spend up to 33 KSM from the treasury at once.
 		BigTipper,
-		/// Origin able to spend up to 50 KSM from the treasury at once.
+		/// Origin able to spend up to 333 KSM from the treasury at once.
 		SmallSpender,
-		/// Origin able to spend up to 500 KSM from the treasury at once.
+		/// Origin able to spend up to 3,333 KSM from the treasury at once.
 		MediumSpender,
-		/// Origin able to spend up to 5,000 KSM from the treasury at once.
+		/// Origin able to spend up to 33,333 KSM from the treasury at once.
 		BigSpender,
+		/// Origin able to spend up to 7,777 KSM from the treasury to fund ecosystem events.
+		EventSpender,
 		/// Origin able to dispatch a whitelisted call.
 		WhitelistedCaller,
 		/// Origin commanded by any members of the Polkadot Fellowship (no Dan grade needed).
@@ -175,6 +177,7 @@ pub mod pallet_custom_origins {
 			MediumSpender = 100 * GRAND,
 			BigSpender = 1_000 * GRAND,
 			Treasurer = 10_000 * GRAND,
+			EventSpender = 7_777 * UNITS,
 		}
 	}
 
