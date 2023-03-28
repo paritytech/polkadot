@@ -18,9 +18,9 @@ use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
 #[cfg(feature = "std")]
-use application_crypto::AppKey;
+use application_crypto::AppCrypto;
 #[cfg(feature = "std")]
-use sp_keystore::{Error as KeystoreError, Keystore, KeystorePtr};
+use sp_keystore::{Error as KeystoreError, KeystorePtr};
 use sp_std::prelude::Vec;
 
 use primitives::RuntimeDebug;
@@ -252,20 +252,14 @@ impl<Payload: EncodeAs<RealPayload>, RealPayload: Encode> UncheckedSigned<Payloa
 		key: &ValidatorId,
 	) -> Result<Option<Self>, KeystoreError> {
 		let data = Self::payload_data(&payload, context);
-		let signature = Keystore::sign_with(&**keystore, ValidatorId::ID, &key.into(), &data)?;
-
-		let signature = match signature {
-			Some(sig) =>
-				sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?,
-			None => return Ok(None),
-		};
-
-		Ok(Some(Self {
-			payload,
-			validator_index,
-			signature,
-			real_payload: std::marker::PhantomData,
-		}))
+		let signature =
+			keystore.sr25519_sign(ValidatorId::ID, key.as_ref(), &data)?.map(|sig| Self {
+				payload,
+				validator_index,
+				signature: sig.into(),
+				real_payload: std::marker::PhantomData,
+			});
+		Ok(signature)
 	}
 
 	/// Validate the payload given the context and public key
