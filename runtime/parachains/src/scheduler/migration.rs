@@ -98,7 +98,7 @@ pub mod v1 {
 		let scheduled = Scheduled::<T>::take();
 		let sched_len = scheduled.len() as u64;
 		for core_assignment in scheduled {
-			Pallet::<T>::add_to_claimqueue(core_assignment.core, core_assignment);
+			Pallet::<T>::add_to_claimqueue(core_assignment);
 		}
 
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(sched_len, sched_len));

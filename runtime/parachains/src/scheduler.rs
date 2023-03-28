@@ -495,7 +495,7 @@ impl<T: Config> Pallet<T> {
 						kind: assignment_kind,
 						group_idx,
 					};
-					Self::add_to_claimqueue(core_idx, ca);
+					Self::add_to_claimqueue(ca);
 				}
 
 				let n_lookahead_used = cq.get(&core_idx).map_or(0, |v| v.len() as u32);
@@ -505,7 +505,7 @@ impl<T: Config> Pallet<T> {
 						T::AssignmentProvider::pop_assignment_for_core(core_idx, concluded_para)
 					{
 						let ca = ass.to_core_assignment(core_idx, group_idx);
-						Self::add_to_claimqueue(core_idx, ca);
+						Self::add_to_claimqueue(ca);
 					}
 				}
 			}
@@ -517,10 +517,10 @@ impl<T: Config> Pallet<T> {
 		}
 	}
 
-	fn add_to_claimqueue(core_idx: CoreIndex, ca: CoreAssignment) {
-		ClaimQueue::<T>::mutate(|la| match la.get_mut(&core_idx) {
+	fn add_to_claimqueue(ca: CoreAssignment) {
+		ClaimQueue::<T>::mutate(|la| match la.get_mut(&ca.core) {
 			None => {
-				la.insert(core_idx, vec![Some(ca)].into_iter().collect());
+				la.insert(ca.core, vec![Some(ca)].into_iter().collect());
 			},
 			Some(la_vec) => la_vec.push_back(Some(ca)),
 		});
