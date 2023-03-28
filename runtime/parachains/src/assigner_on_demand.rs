@@ -110,10 +110,7 @@ fn calculate_spot_traffic(
 }
 
 
-//#[derive(Encode, Decode, TypeInfo)]
-#[derive(
-	Encode, Decode, Default, PartialOrd, Ord, Eq, PartialEq, Clone, Copy, TypeInfo, RuntimeDebug,
-)]
+#[derive(Encode, Decode, Default, Clone, Copy, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 struct CoreAffinityCount {
 	core_idx: CoreIndex,
