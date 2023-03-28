@@ -44,8 +44,8 @@ use runtime_parachains::{
 	origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent,
 	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	scheduler_parachains, session_info as parachains_session_info, shared as parachains_shared,
-	ump as parachains_ump,
+	scheduler, scheduler_parachains, session_info as parachains_session_info,
+	shared as parachains_shared, ump as parachains_ump,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -1499,7 +1499,10 @@ pub type UncheckedExtrinsic =
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so.
-pub type Migrations = parachains_configuration::migration::v5::MigrateToV5<Runtime>;
+pub type Migrations = (
+	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	scheduler::migration::v1::MigrateToV1<Runtime>,
+);
 
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<

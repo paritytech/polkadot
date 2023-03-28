@@ -62,7 +62,7 @@ mod tests;
 /// The current storage version
 const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
 const LOG_TARGET: &str = "runtime::scheduler";
-mod migration;
+pub mod migration;
 
 #[frame_support::pallet]
 pub mod pallet {

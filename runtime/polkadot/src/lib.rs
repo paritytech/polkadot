@@ -32,8 +32,8 @@ use runtime_parachains::{
 	initializer as parachains_initializer, origin as parachains_origin, paras as parachains_paras,
 	paras_inherent as parachains_paras_inherent, reward_points as parachains_reward_points,
 	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
-	scheduler_polkadot, session_info as parachains_session_info, shared as parachains_shared,
-	ump as parachains_ump,
+	scheduler, scheduler_polkadot, session_info as parachains_session_info,
+	shared as parachains_shared, ump as parachains_ump,
 };
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
@@ -1432,6 +1432,7 @@ pub type Migrations = (
 	// Unreleased - add new migrations here:
 	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	scheduler::migration::v1::MigrateToV1<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
