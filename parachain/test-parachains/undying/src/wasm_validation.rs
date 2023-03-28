@@ -39,7 +39,9 @@ pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
 		head_data: GenericHeadData(new_head.encode()),
 		new_validation_code: None,
 		upward_messages: sp_std::vec::Vec::new().try_into().expect("empty vec fits within bounds"),
-		horizontal_messages: hrmp_messages.try_into().expect("bounds must be higher than possible number of messages"),
+		horizontal_messages: hrmp_messages
+			.try_into()
+			.expect("bounds must be higher than possible number of messages"),
 		processed_downward_messages: inbound_dmq_messages,
 		hrmp_watermark: params.relay_parent_number,
 	})

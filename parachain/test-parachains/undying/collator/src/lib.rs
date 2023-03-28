@@ -352,7 +352,7 @@ impl Collator {
 
 				let collation = Collation {
 				  upward_messages: Default::default(),
-					horizontal_messages: outbound_messages.try_into().expect("bound for the vector must be higher than number of messages",
+					horizontal_messages: outbound_messages.try_into().expect("bound for the vector must be higher than number of messages"),
 					new_validation_code: None,
 					head_data: head_data.encode().into(),
 					proof_of_validity: MaybeCompressedPoV::Raw(pov.clone()),

@@ -18,7 +18,7 @@
 //! blocks of the `Undying` parachain.
 
 use async_trait::async_trait;
-use polkadot_primitives::v2::{Hash, InboundDownwardMessage, InboundHrmpMessage};
+use polkadot_primitives::{Hash, InboundDownwardMessage, InboundHrmpMessage};
 use polkadot_service::ParaId;
 use sp_api::ApiError;
 use std::{collections::BTreeMap, sync::Arc};

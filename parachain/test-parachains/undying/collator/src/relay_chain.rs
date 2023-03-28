@@ -20,8 +20,7 @@
 use async_trait::async_trait;
 use polkadot_client::{ClientHandle, ExecuteWithClient};
 use polkadot_primitives::{
-	runtime_api::ParachainHost,
-	v2::{Block, BlockId, Hash, InboundDownwardMessage, InboundHrmpMessage},
+	runtime_api::ParachainHost, Block, Hash, InboundDownwardMessage, InboundHrmpMessage,
 };
 use polkadot_service::{AuxStore, ParaId};
 use sp_api::{ApiError, ProvideRuntimeApi};
@@ -73,9 +72,7 @@ where
 		para_id: ParaId,
 		relay_parent: Hash,
 	) -> Result<Vec<InboundDownwardMessage>, ApiError> {
-		self.full_client
-			.runtime_api()
-			.dmq_contents(&BlockId::Hash(relay_parent), para_id)
+		self.full_client.runtime_api().dmq_contents(relay_parent, para_id)
 	}
 
 	async fn retrieve_all_inbound_hrmp_channel_contents(
@@ -85,7 +82,7 @@ where
 	) -> Result<BTreeMap<ParaId, Vec<InboundHrmpMessage>>, ApiError> {
 		self.full_client
 			.runtime_api()
-			.inbound_hrmp_channels_contents(&BlockId::Hash(relay_parent), para_id)
+			.inbound_hrmp_channels_contents(relay_parent, para_id)
 	}
 }
 
