@@ -60,7 +60,7 @@ pub mod v1 {
 			log::trace!(
 				target: crate::scheduler::LOG_TARGET,
 				"Scheduled before migration: {}",
-				Scheduled::<T>::iter().count()
+				Scheduled::<T>::get().len()
 			);
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() == 0,
@@ -78,7 +78,7 @@ pub mod v1 {
 				"Storage version should be `1` after the migration"
 			);
 			ensure!(
-				Scheduled::<T>::iter().count() == 0,
+				Scheduled::<T>::get().len() == 0,
 				"Scheduled should be empty after the migration"
 			);
 
@@ -102,7 +102,8 @@ pub mod v1 {
 		}
 
 		// 2x as once for Scheduled and once for Claimqueue
-		weight = weight.saturating_add(T::DbWeight::get().reads_writes(2 * sched_len, 2 * sched_len));
+		weight =
+			weight.saturating_add(T::DbWeight::get().reads_writes(2 * sched_len, 2 * sched_len));
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(pq_len, pq_len));
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(pci_len, pci_len));
 
