@@ -32,7 +32,7 @@ use polkadot_node_subsystem::messages::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::vstaging::{
-	AssignmentPair, AsyncBackingParameters, BlockNumber, CommittedCandidateReceipt, CoreState,
+	AssignmentPair, AsyncBackingParams, BlockNumber, CommittedCandidateReceipt, CoreState,
 	GroupRotationInfo, HeadData, Header, IndexedVec, PersistedValidationData, ScheduledCore,
 	SessionIndex, SessionInfo, ValidatorPair,
 };
@@ -54,8 +54,8 @@ mod requests;
 
 type VirtualOverseer = test_helpers::TestSubsystemContextHandle<StatementDistributionMessage>;
 
-const DEFAULT_ASYNC_BACKING_PARAMETERS: AsyncBackingParameters =
-	AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };
+const DEFAULT_ASYNC_BACKING_PARAMETERS: AsyncBackingParams =
+	AsyncBackingParams { max_candidate_depth: 4, allowed_ancestry_len: 3 };
 
 // Some deterministic genesis hash for req/res protocol names
 const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
@@ -66,7 +66,7 @@ struct TestConfig {
 	group_size: usize,
 	// whether the local node should be a validator
 	local_validator: bool,
-	async_backing_params: Option<AsyncBackingParameters>,
+	async_backing_params: Option<AsyncBackingParams>,
 }
 
 #[derive(Debug, Clone)]
@@ -383,7 +383,7 @@ async fn handle_leaf_activation(
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParams(tx))
 		) if parent == *hash => {
 			tx.send(Ok(test_state.config.async_backing_params.unwrap_or(DEFAULT_ASYNC_BACKING_PARAMETERS))).unwrap();
 		}

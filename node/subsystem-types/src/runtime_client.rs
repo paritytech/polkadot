@@ -206,10 +206,10 @@ pub trait RuntimeApiSubsystemClient {
 	// === Asynchronous backing API ===
 
 	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
-	async fn staging_async_backing_parameters(
+	async fn staging_async_backing_params(
 		&self,
 		at: Hash,
-	) -> Result<polkadot_primitives::vstaging::AsyncBackingParameters, ApiError>;
+	) -> Result<polkadot_primitives::vstaging::AsyncBackingParams, ApiError>;
 
 	/// Get the execution environment parameter set by parent hash, if stored
 	async fn session_executor_params(
@@ -400,10 +400,10 @@ where
 	}
 
 	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
-	async fn staging_async_backing_parameters(
+	async fn staging_async_backing_params(
 		&self,
 		at: Hash,
-	) -> Result<polkadot_primitives::vstaging::AsyncBackingParameters, ApiError> {
-		self.runtime_api().staging_async_backing_parameters(at)
+	) -> Result<polkadot_primitives::vstaging::AsyncBackingParams, ApiError> {
+		self.runtime_api().staging_async_backing_params(at)
 	}
 }

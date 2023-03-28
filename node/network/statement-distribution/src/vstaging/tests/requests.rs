@@ -192,7 +192,7 @@ fn peer_reported_for_providing_statements_meant_to_be_masked_out() {
 		validator_count,
 		group_size,
 		local_validator: true,
-		async_backing_params: Some(AsyncBackingParameters {
+		async_backing_params: Some(AsyncBackingParams {
 			// Makes `seconding_limit: 2` (easier to hit the limit).
 			max_candidate_depth: 1,
 			allowed_ancestry_len: 3,

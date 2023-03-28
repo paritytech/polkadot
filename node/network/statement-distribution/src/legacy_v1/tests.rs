@@ -38,7 +38,7 @@ use polkadot_node_primitives::{
 use polkadot_node_subsystem::{
 	jaeger,
 	messages::{network_bridge_event, AllMessages, RuntimeApiMessage, RuntimeApiRequest},
-	ActivatedLeaf, LeafStatus,
+	ActivatedLeaf, LeafStatus, RuntimeApiError,
 };
 use polkadot_node_subsystem_test_helpers::mock::make_ferdie_keystore;
 use polkadot_primitives::{
@@ -56,6 +56,10 @@ use std::{iter::FromIterator as _, sync::Arc, time::Duration};
 
 // Some deterministic genesis hash for protocol names
 const GENESIS_HASH: Hash = Hash::repeat_byte(0xff);
+
+const ASYNC_BACKING_DISABLED_ERROR: RuntimeApiError =
+	RuntimeApiError::NotSupported { runtime_api_name: "test-runtime" };
+
 fn dummy_pvd() -> PersistedValidationData {
 	PersistedValidationData {
 		parent_head: HeadData(vec![7, 8, 9]),
@@ -791,11 +795,11 @@ fn receiving_from_one_sends_to_another_and_to_candidate_backing() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParams(tx))
 			)
 				if r == hash_a
 			=> {
-				let _ = tx.send(Err(polkadot_node_subsystem::RuntimeApiError::NotSupported{runtime_api_name: "async_backing_parameters"}));
+				let _ = tx.send(Err(ASYNC_BACKING_DISABLED_ERROR));
 			}
 		);
 
@@ -1024,11 +1028,11 @@ fn receiving_large_statement_from_one_sends_to_another_and_to_candidate_backing(
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParams(tx))
 			)
 				if r == hash_a
 			=> {
-				let _ = tx.send(Err(polkadot_node_subsystem::RuntimeApiError::NotSupported{runtime_api_name: "async_backing_parameters"}));
+				let _ = tx.send(Err(ASYNC_BACKING_DISABLED_ERROR));
 			}
 		);
 
@@ -1563,11 +1567,11 @@ fn share_prioritizes_backing_group() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParams(tx))
 			)
 				if r == hash_a
 			=> {
-				let _ = tx.send(Err(polkadot_node_subsystem::RuntimeApiError::NotSupported{runtime_api_name: "async_backing_parameters"}));
+				let _ = tx.send(Err(ASYNC_BACKING_DISABLED_ERROR));
 			}
 		);
 
@@ -1878,11 +1882,11 @@ fn peer_cant_flood_with_large_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParams(tx))
 			)
 				if r == hash_a
 			=> {
-				let _ = tx.send(Err(polkadot_node_subsystem::RuntimeApiError::NotSupported{runtime_api_name: "async_backing_parameters"}));
+				let _ = tx.send(Err(ASYNC_BACKING_DISABLED_ERROR));
 			}
 		);
 
@@ -2096,11 +2100,11 @@ fn handle_multiple_seconded_statements() {
 		assert_matches!(
 			handle.recv().await,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+				RuntimeApiMessage::Request(r, RuntimeApiRequest::StagingAsyncBackingParams(tx))
 			)
 				if r == relay_parent_hash
 			=> {
-				let _ = tx.send(Err(polkadot_node_subsystem::RuntimeApiError::NotSupported{runtime_api_name: "async_backing_parameters"}));
+				let _ = tx.send(Err(ASYNC_BACKING_DISABLED_ERROR));
 			}
 		);
 

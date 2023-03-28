@@ -221,7 +221,7 @@ specialize_requests! {
 	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
 		-> Option<ValidationCodeHash>; ValidationCodeHash;
 	fn request_on_chain_votes() -> Option<ScrapedOnChainVotes>; FetchOnChainVotes;
-	fn request_staging_async_backing_parameters() -> vstaging_primitives::AsyncBackingParameters; StagingAsyncBackingParameters;
+	fn request_staging_async_backing_params() -> vstaging_primitives::AsyncBackingParams; StagingAsyncBackingParams;
 	fn request_session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>; SessionExecutorParams;
 }
 

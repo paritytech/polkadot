@@ -1471,8 +1471,8 @@ sp_api::impl_runtime_apis! {
 			runtime_parachains::runtime_api_impl::vstaging::backing_state::<Runtime>(para_id)
 		}
 
-		fn staging_async_backing_parameters() -> primitives::vstaging::AsyncBackingParameters {
-			runtime_parachains::runtime_api_impl::vstaging::async_backing_parameters::<Runtime>()
+		fn staging_async_backing_params() -> primitives::vstaging::AsyncBackingParams {
+			runtime_parachains::runtime_api_impl::vstaging::async_backing_params::<Runtime>()
 		}
 	}
 

@@ -26,7 +26,7 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
 use polkadot_primitives::{
-	vstaging::{AsyncBackingParameters, BackingState, Constraints, InboundHrmpLimitations},
+	vstaging::{AsyncBackingParams, BackingState, Constraints, InboundHrmpLimitations},
 	CommittedCandidateReceipt, HeadData, Header, PersistedValidationData, ScheduledCore,
 	ValidationCodeHash,
 };
@@ -34,8 +34,8 @@ use polkadot_primitives_test_helpers::make_candidate;
 use std::sync::Arc;
 
 const ALLOWED_ANCESTRY_LEN: u32 = 3;
-const ASYNC_BACKING_PARAMETERS: AsyncBackingParameters =
-	AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: ALLOWED_ANCESTRY_LEN };
+const ASYNC_BACKING_PARAMETERS: AsyncBackingParams =
+	AsyncBackingParams { max_candidate_depth: 4, allowed_ancestry_len: ALLOWED_ANCESTRY_LEN };
 
 const ASYNC_BACKING_DISABLED_ERROR: RuntimeApiError =
 	RuntimeApiError::NotSupported { runtime_api_name: "test-runtime" };
@@ -214,7 +214,7 @@ async fn handle_leaf_activation(
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParams(tx))
 		) if parent == *hash => {
 			tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
 		}
@@ -480,7 +480,7 @@ fn should_do_no_work_if_async_backing_disabled_for_leaf() {
 		assert_matches!(
 			virtual_overseer.recv().await,
 			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+				RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParams(tx))
 			) if parent == hash => {
 				tx.send(Err(ASYNC_BACKING_DISABLED_ERROR)).unwrap();
 			}
