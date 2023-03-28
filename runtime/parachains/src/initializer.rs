@@ -20,6 +20,7 @@
 //! This module can throw fatal errors if session-change notifications are received after initialization.
 
 use crate::{
+	assigner_on_demand,
 	configuration::{self, HostConfiguration},
 	disputes::{self, DisputesHandler as _, SlashingHandler as _},
 	dmp, hrmp, inclusion, paras, scheduler, session_info, shared, ump,
@@ -115,6 +116,7 @@ pub mod pallet {
 		+ dmp::Config
 		+ ump::Config
 		+ hrmp::Config
+		+ assigner_on_demand::Config
 	{
 		/// A randomness beacon.
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
@@ -169,7 +171,8 @@ pub mod pallet {
 				T::SlashingHandler::initializer_initialize(now) +
 				dmp::Pallet::<T>::initializer_initialize(now) +
 				ump::Pallet::<T>::initializer_initialize(now) +
-				hrmp::Pallet::<T>::initializer_initialize(now);
+				hrmp::Pallet::<T>::initializer_initialize(now) +
+				assigner_on_demand::Pallet::<T>::initializer_initialize(now);
 
 			HasInitialized::<T>::set(Some(()));
 
