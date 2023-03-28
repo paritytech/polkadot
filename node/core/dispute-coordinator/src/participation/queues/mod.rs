@@ -134,7 +134,7 @@ impl ParticipationRequest {
 	pub fn session(&self) -> SessionIndex {
 		self.session
 	}
-	pub fn timer(&self) -> &Option<prometheus::HistogramTimer {
+	pub fn timer(&self) -> &Option<prometheus::HistogramTimer> {
 		&self.request_timer
 	}
 	pub fn into_candidate_info(self) -> (CandidateHash, CandidateReceipt) {
