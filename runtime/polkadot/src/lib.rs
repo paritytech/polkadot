@@ -2420,7 +2420,7 @@ mod remote_tests {
 			// Assert keys exist prior to deletion and create calls to delete them
 			//
 			let pallets = vec![
-				"Decocracy",
+				"Democracy",
 				"Council",
 				"TechnicalCommittee",
 				"PhragmenElection",
