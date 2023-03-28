@@ -227,18 +227,3 @@ fn place_order_works() {
 		);
 	});
 }
-
-#[test]
-fn parathreadclaimqueue_add_claim_works() {
-	let para_a = ParaId::from(111);
-	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
-	//let mut queue = OnDemandQueue::get();
-	let n_parathread_cores = 10;
-
-	// Queue defaults to empty and the next offset is also empty
-	//assert!(queue.len() == 0);
-
-	//queue.enqueue_claim(SpotClaim { para_id: para_a, collator_id: collator });
-
-	//assert!(queue.len() == 1);
-}
