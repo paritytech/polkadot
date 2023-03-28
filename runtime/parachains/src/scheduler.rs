@@ -557,7 +557,7 @@ impl<T: Config> Pallet<T> {
 		claimqueue.into_iter().flat_map(|(_, v)| v.front().cloned()).flatten().collect()
 	}
 
-	//#[cfg(test)]
+	#[cfg(feature = "try-runtime")]
 	fn claimqueue_len() -> usize {
 		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).sum()
 	}
