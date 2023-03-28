@@ -209,11 +209,8 @@ fn verify_dmq_mqc_head_is_externally_accessible() {
 #[test]
 fn verify_fee_increment_and_decrement() {
 	let a = ParaId::from(123);
-
 	let mut genesis = default_genesis_config();
-	// Sets `delivery_fee_limit` to 1 message
-	genesis.configuration.config.max_downward_message_size = 16_777_216;
-
+	genesis.configuration.config.max_downward_message_size = 51200;
 	new_test_ext(genesis).execute_with(|| {
 		let default = InitialFactor::get();
 		assert_eq!(DeliveryFeeFactor::<Test>::get(a), default);
@@ -255,5 +252,20 @@ fn verify_fee_increment_and_decrement() {
 		queue_downward_message(a, vec![1]).unwrap();
 		Dmp::prune_dmq(a, 1);
 		assert_eq!(DeliveryFeeFactor::<Test>::get(a), default);
+	});
+}
+
+#[test]
+#[should_panic]
+fn verify_fee_reaches_high_value() {
+	let a = ParaId::from(123);
+	let mut genesis = default_genesis_config();
+	genesis.configuration.config.max_downward_message_size = 51200;
+	new_test_ext(genesis).execute_with(|| {
+		let big_message = [0; 51000].to_vec();
+		loop {
+			queue_downward_message(a, big_message.clone()).unwrap();
+			assert!(DeliveryFeeFactor::<Test>::get(a) < FixedU128::from_u32(u32::MAX));
+		}
 	});
 }

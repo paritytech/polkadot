@@ -19,6 +19,7 @@ use crate::{
 	initializer, FeeTracker,
 };
 use frame_support::pallet_prelude::*;
+use frame_system::pallet_prelude::*;
 use primitives::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_runtime::{
@@ -34,8 +35,8 @@ pub use pallet::*;
 mod tests;
 
 pub const MAX_MESSAGE_QUEUE_SIZE: usize = 1024;
-pub const EXPONENTIAL_FEE_BASE: FixedU128 = FixedU128::from_rational(101, 100); // 1.01
-pub const MESSAGE_SIZE_FEE_BASE: FixedU128 = FixedU128::from_rational(1, 1000); // 0.001
+const EXPONENTIAL_FEE_BASE: FixedU128 = FixedU128::from_rational(101, 100); // 1.01
+const MESSAGE_SIZE_FEE_BASE: FixedU128 = FixedU128::from_rational(1, 1000); // 0.001
 
 /// An error sending a downward message.
 #[cfg_attr(test, derive(Debug))]
@@ -85,7 +86,12 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + configuration::Config {}
+	pub trait Config: frame_system::Config + configuration::Config {
+		/// A limit on the number of messages in any `DownwardMessageQueue`.
+		/// When the limit is reached the `DeliveryFeeFactor` will increase.
+		#[pallet::constant]
+		type MessageQueueFeeLimit: Get<u32>;
+	}
 
 	/// The downward messages addressed for a certain para.
 	#[pallet::storage]
@@ -108,6 +114,7 @@ pub mod pallet {
 	pub(crate) type DownwardMessageQueueHeads<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, Hash, ValueQuery>;
 
+	/// Initialization value for the DeliveryFee factor.
 	#[pallet::type_value]
 	pub fn InitialFactor() -> FixedU128 {
 		FixedU128::from_u32(1)
@@ -118,6 +125,24 @@ pub mod pallet {
 	#[pallet::getter(fn delivery_fee_factor)]
 	pub(crate) type DeliveryFeeFactor<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, FixedU128, ValueQuery, InitialFactor>;
+
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		#[cfg(feature = "std")]
+		fn integrity_test() {
+			sp_io::TestExternalities::default().execute_with(|| {
+				let max_msg_size =
+					configuration::ActiveConfig::<T>::get().max_downward_message_size;
+				assert!(
+					T::MessageQueueFeeLimit::get() <=
+						MAX_POSSIBLE_ALLOCATION
+							.checked_div(max_msg_size)
+							.unwrap_or(640u32)
+							.saturating_div(2u32)
+				);
+			});
+		}
+	}
 }
 
 /// Routines and getters related to downward message passing.
@@ -200,11 +225,7 @@ impl<T: Config> Pallet<T> {
 			v.push(inbound);
 			v.len()
 		});
-		let delivery_fee_limit = (MAX_POSSIBLE_ALLOCATION
-			.checked_div(config.max_downward_message_size)
-			.unwrap_or(51200u32)
-			.saturating_div(2u32)) as usize;
-		if q_len > delivery_fee_limit {
+		if q_len > T::MessageQueueFeeLimit::get() as usize {
 			let message_size_factor =
 				FixedU128::from_u32(serialized_len.saturating_div(1024) as u32)
 					.saturating_mul(MESSAGE_SIZE_FEE_BASE);
@@ -248,12 +269,7 @@ impl<T: Config> Pallet<T> {
 			q.len()
 		});
 
-		let config = configuration::ActiveConfig::<T>::get();
-		let delivery_fee_limit = (MAX_POSSIBLE_ALLOCATION
-			.checked_div(config.max_downward_message_size)
-			.unwrap_or(51200u32)
-			.saturating_div(2u32)) as usize;
-		if q_len <= delivery_fee_limit {
+		if q_len <= T::MessageQueueFeeLimit::get() as usize {
 			Self::decrement_fee_factor(para);
 		}
 		T::DbWeight::get().reads_writes(1, 1)

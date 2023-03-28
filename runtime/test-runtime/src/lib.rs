@@ -509,7 +509,13 @@ impl parachains_paras::Config for Runtime {
 	type NextSessionRotation = Babe;
 }
 
-impl parachains_dmp::Config for Runtime {}
+parameter_types! {
+	pub const MessageQueueFeeLimit: u32 = 320;
+}
+
+impl parachains_dmp::Config for Runtime {
+	type MessageQueueFeeLimit = MessageQueueFeeLimit;
+}
 
 parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;

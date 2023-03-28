@@ -1110,7 +1110,13 @@ impl parachains_ump::Config for Runtime {
 	type WeightInfo = weights::runtime_parachains_ump::WeightInfo<Runtime>;
 }
 
-impl parachains_dmp::Config for Runtime {}
+parameter_types! {
+	pub const MessageQueueFeeLimit: u32 = 320;
+}
+
+impl parachains_dmp::Config for Runtime {
+	type MessageQueueFeeLimit = MessageQueueFeeLimit;
+}
 
 impl parachains_hrmp::Config for Runtime {
 	type RuntimeOrigin = RuntimeOrigin;
