@@ -558,13 +558,13 @@ impl<T: Config> Pallet<T> {
 	}
 
 	//#[cfg(test)]
-	//fn claimqueue_sizes() -> Vec<usize> {
-	//	ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
-	//}
+	fn claimqueue_len() -> usize {
+		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).sum()
+	}
 
 	//#[cfg(test)]
 	//pub(crate) fn claimqueue_is_empty() -> bool {
-	//	Self::claimqueue_sizes().iter().sum::<usize>() == 0
+	//	Self::claimqueue_len() == 0
 	//}
 
 	#[cfg(test)]

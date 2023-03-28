@@ -32,6 +32,10 @@ pub mod v1 {
 	pub(super) type ParathreadClaimIndex<T: Config> =
 		StorageValue<Pallet<T>, Vec<ParaId>, ValueQuery>;
 
+	#[storage_alias]
+	pub(super) type ScheduledLen<T: crate::scheduler::pallet::Config> =
+		StorageValue<Pallet<T>, u32, ValueQuery>;
+
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 		fn on_runtime_upgrade() -> Weight {
@@ -67,6 +71,8 @@ pub mod v1 {
 				"Storage version should be less than `1` before the migration",
 			);
 
+			ScheduledLen::<T>::set(Scheduled::<T>::get().len() as u32);
+
 			Ok(Vec::new())
 		}
 
@@ -80,6 +86,11 @@ pub mod v1 {
 			ensure!(
 				Scheduled::<T>::get().len() == 0,
 				"Scheduled should be empty after the migration"
+			);
+
+			ensure!(
+				Pallet::<T>::claimqueue_len() as u32 == ScheduledLen::<T>::get(),
+				"Scheduled completely moved to ClaimQueue after migration"
 			);
 
 			Ok(())
