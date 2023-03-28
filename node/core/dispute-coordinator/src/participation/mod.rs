@@ -160,13 +160,11 @@ impl Participation {
 		&mut self,
 		ctx: &mut Context,
 		priority: ParticipationPriority,
-		req: ParticipationRequest,
+		mut req: ParticipationRequest,
 	) -> Result<()> {
 		// Participation already running - we can ignore that request, discarding its timer:
 		if self.running_participations.contains(req.candidate_hash()) {
-			if let Some(timer) = req.timer() {
-				timer.stop_and_discard();
-			}
+			req.discard_timer();
 			return Ok(())
 		}
 		// Available capacity - participate right away (if we already have a recent block):

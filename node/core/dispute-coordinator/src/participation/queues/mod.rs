@@ -134,8 +134,10 @@ impl ParticipationRequest {
 	pub fn session(&self) -> SessionIndex {
 		self.session
 	}
-	pub fn timer(&self) -> &Option<prometheus::HistogramTimer> {
-		&self.request_timer
+	pub fn discard_timer(&mut self) {
+		if let Some(timer) = self.request_timer.take() {
+			timer.stop_and_discard();
+		}
 	}
 	pub fn into_candidate_info(self) -> (CandidateHash, CandidateReceipt) {
 		let Self { candidate_hash, candidate_receipt, .. } = self;
@@ -249,17 +251,12 @@ impl Queues {
 			// Remove any best effort entry, using it to replace our new
 			// request.
 			if let Some(older_request) = self.best_effort.remove(&comparator) {
-				if let Some(timer) = req.timer() {
-					timer.stop_and_discard();
-				}
+				req.discard_timer();
 				req = older_request;
 			}
 			// Keeping old request if any.
 			match self.priority.entry(comparator) {
-				Entry::Occupied(_) =>
-					if let Some(timer) = req.timer() {
-						timer.stop_and_discard();
-					},
+				Entry::Occupied(_) => req.discard_timer(),
 				Entry::Vacant(vac) => {
 					vac.insert(req);
 				},
@@ -277,10 +274,7 @@ impl Queues {
 			}
 			// Keeping old request if any.
 			match self.best_effort.entry(comparator) {
-				Entry::Occupied(_) =>
-					if let Some(timer) = req.timer() {
-						timer.stop_and_discard();
-					},
+				Entry::Occupied(_) => req.discard_timer(),
 				Entry::Vacant(vac) => {
 					vac.insert(req);
 				},
