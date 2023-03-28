@@ -35,12 +35,12 @@ pub struct PayOverXcm<Sender, Router, Querier, Timeout, Beneficiary, AssetKind>(
 	PhantomData<(Sender, Router, Querier, Timeout, Beneficiary, AssetKind)>,
 );
 impl<
-		Sender: Get<xcm::v3::MultiLocation>,
+		Sender: Get<(MultiLocation, InteriorMultiLocation)>,
 		Router: SendXcm,
 		Querier: XcmQueryHandler,
 		Timeout: Get<Querier::BlockNumber>,
-		Beneficiary: Into<xcm::v3::MultiLocation> + Clone,
-		AssetKind: Into<xcm::v3::AssetId>,
+		Beneficiary: Into<MultiLocation> + Clone,
+		AssetKind: Into<AssetId>,
 	> Pay for PayOverXcm<Sender, Router, Querier, Timeout, Beneficiary, AssetKind>
 {
 	type Beneficiary = Beneficiary;
@@ -53,8 +53,7 @@ impl<
 		asset_kind: Self::AssetKind,
 		amount: Self::Balance,
 	) -> Result<Self::Id, ()> {
-		let (dest, maybe_sender) = Sender::get().split_last_interior();
-		let sender = maybe_sender.map(|s| Junctions::X1(s)).ok_or(())?;
+		let (dest, sender) = Sender::get();
 		let mut message = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 			DescendOrigin(sender),
