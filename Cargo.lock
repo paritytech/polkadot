@@ -11112,6 +11112,7 @@ dependencies = [
  "libsecp256k1",
  "log",
  "parity-scale-codec",
+ "rustversion",
  "secp256k1",
  "sp-core",
  "sp-externalities",
@@ -12007,6 +12008,7 @@ dependencies = [
 name = "test-parachain-halt"
 version = "0.9.39"
 dependencies = [
+ "rustversion",
  "substrate-wasm-builder",
 ]
 
