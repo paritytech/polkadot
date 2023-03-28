@@ -39,8 +39,8 @@ use polkadot_node_subsystem::{
 use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
-	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidDisputeStatementKind, ValidatorId, ValidatorIndex,
+	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, ValidDisputeStatementKind,
+	ValidatorId, ValidatorIndex,
 };
 
 use crate::{
@@ -118,7 +118,7 @@ impl Initialized {
 
 	/// Run the initialized subsystem.
 	///
-	/// `initialization_data` is optional. It is passed on first start and is `None` on subsystem restarts.
+	/// `initial_data` is optional. It is passed on first start and is `None` on subsystem restarts.
 	pub async fn run<B, Context>(
 		mut self,
 		mut ctx: Context,
@@ -355,7 +355,7 @@ impl Initialized {
 		for (candidate_receipt, backers) in backing_validators_per_candidate {
 			// Obtain the session info, for sake of `ValidatorId`s
 			let relay_parent = candidate_receipt.descriptor.relay_parent;
-			let session_info: &SessionInfo = &self
+			let session_info = &self
 				.runtime_info
 				.get_session_info_by_index(ctx.sender(), relay_parent, session) // TODO: is it correct to use `relay_parent` here??
 				.await?
