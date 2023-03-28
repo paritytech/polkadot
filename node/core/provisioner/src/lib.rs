@@ -144,7 +144,8 @@ async fn run_iteration<Context>(
 	loop {
 		futures::select! {
 			from_overseer = ctx.recv().fuse() => {
-				match from_overseer? {
+				// Map the error to ensure that the subsystem exits when the overseer is gone.
+				match from_overseer.map_err(Error::OverseerExited)? {
 					FromOrchestra::Signal(OverseerSignal::ActiveLeaves(update)) =>
 						handle_active_leaves_update(update, per_relay_parent, inherent_delays),
 					FromOrchestra::Signal(OverseerSignal::BlockFinalized(..)) => {},

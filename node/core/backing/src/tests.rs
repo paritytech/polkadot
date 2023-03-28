@@ -34,7 +34,7 @@ use polkadot_primitives::{
 	CandidateDescriptor, CollatorId, GroupRotationInfo, HeadData, PersistedValidationData,
 	PvfExecTimeoutKind, ScheduledCore,
 };
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::Keystore;
 use sp_tracing as _;
