@@ -2426,17 +2426,17 @@ mod remote_tests {
 				"PhragmenElection",
 				"TechnicalMembership",
 				"Treasury",
-			]
-			.iter();
+			];
 			let calls = pallets
+				.iter()
 				.map(|pallet| {
-					let prefix = twox_128(pallet);
-					let count = count_keys(&prefix);
-					assert!(count > 0, "No keys found for pallet {}", pallet);
-					dbg!(pallet, count);
+					let prefix = twox_128(pallet.as_bytes());
+					let subkeys = count_keys(&prefix);
+					assert!(subkeys > 0, "No keys found for pallet {}", pallet);
+					dbg!(pallet, subkeys);
 					RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
-						prefix,
-						subkeys: count,
+						prefix: prefix.to_vec(),
+						subkeys,
 					})
 				})
 				.collect::<Vec<_>>();
@@ -2449,12 +2449,14 @@ mod remote_tests {
 			//
 			// Execute call and assert no keys remain
 			//
+			println!("Executing...");
 			assert_ok!(RuntimeCall::Utility(batch).dispatch(RuntimeOrigin::root()));
-			pallets.for_each(|p| {
-				let prefix = twox_128(p);
-				let count = count_keys(&prefix);
-				dbg!(p, count);
-				assert_eq!(count, 0);
+			println!("Executed!");
+			pallets.iter().for_each(|p| {
+				let prefix = twox_128(p.as_bytes());
+				let subkeys = count_keys(&prefix);
+				dbg!(p, subkeys);
+				assert_eq!(subkeys, 0);
 			});
 		});
 		println!("Done");
