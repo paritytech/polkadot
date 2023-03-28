@@ -435,8 +435,18 @@ impl Initialized {
 				key_ownership_proofs.into_iter().zip(dispute_proofs.into_iter())
 			{
 				let validator_id = dispute_proof.validator_id.clone();
+				let encoded_key_ownership_proof = key_ownership_proof.encode();
+
+				gum::info!(
+					target: LOG_TARGET,
+					?session_index,
+					?candidate_hash,
+					key_ownership_proof_len = encoded_key_ownership_proof.len(),
+					"Trying to submit a slashing report",
+				);
+
 				let opaque_key_ownership_proof =
-					vstaging::slashing::OpaqueKeyOwnershipProof::new(key_ownership_proof.encode());
+					vstaging::slashing::OpaqueKeyOwnershipProof::new(encoded_key_ownership_proof);
 
 				let res = submit_report_dispute_lost(
 					ctx.sender(),
