@@ -67,49 +67,6 @@ impl From<ParathreadClaim> for SpotClaim {
 	}
 }
 
-/// The spot price multiplier. This is based on the transaction fee calculations defined in:
-/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#setting-transaction-fees
-///
-/// Returns:
-/// - An `Option<FixedU128>` in the range of `1.0`- `FixedU128::MAX`
-/// Parameters:
-/// - `traffic`: The previously calculated multiplier, can never go below 1.0.
-/// - `queue_capacity`: The max size of the order book.
-/// - `queue_size`: How many orders are currently in the order book.
-/// - `target_queue_utilisation`: How much of the queue_capacity should be ideally occupied, expressed in percentages(perbill).
-/// - `variability`: A variability factor, i.e. how quickly the spot price adjusts. This number can be chosen by
-///                  p/(k*(1-s)) where p is the desired ratio increase in spot price over k number of blocks.
-///                  s is the target_queue_utilisation. A concrete example: v = 0.05/(20*(1-0.25)) = 0.0033.
-// TODO maybe replace with impls of Multiplier/TargetedFeeAdjustment from pallet-transaction-payment
-fn calculate_spot_traffic(
-	traffic: FixedU128,
-	queue_capacity: u32,
-	queue_size: u32,
-	target_queue_utilisation: Perbill,
-	variability: Perbill,
-) -> Option<FixedU128> {
-	if queue_capacity > 0 {
-		// (queue_size / queue_capacity) - target_queue_utilisation
-		let queue_util_diff = FixedU128::from_rational(queue_size.into(), queue_capacity.into())
-			.checked_sub(&target_queue_utilisation.into())?;
-		// variability * queue_util_diff
-		let var_times_qud = queue_util_diff.const_checked_mul(variability.into())?;
-		// variability^2 * queue_util_diff^2
-		let var_times_qud_pow = var_times_qud.const_checked_mul(var_times_qud)?;
-		// (variability^2 * queue_util_diff^2)/2
-		let div_by_two = var_times_qud_pow.const_checked_div(2.into())?;
-		// traffic * (1 + queue_util_diff) + div_by_two
-		let vtq_add_one = var_times_qud.checked_add(&FixedU128::from_u32(1))?;
-		let inner_add = vtq_add_one.checked_add(&div_by_two)?;
-		match traffic.const_checked_mul(inner_add) {
-			Some(t) => return Some(t.max(FixedU128::from_u32(1))),
-			None => {},
-		}
-	}
-	None
-}
-
-
 #[derive(Encode, Decode, Default, Clone, Copy, TypeInfo)]
 #[cfg_attr(test, derive(PartialEq, Debug))]
 struct CoreAffinityCount {
@@ -270,7 +227,7 @@ where
 		let config = <configuration::Pallet<T>>::config();
 		// Calculate spot price multiplier and store it.
 		let traffic = SpotTraffic::<T>::get();
-		let spot_traffic = calculate_spot_traffic(
+		let spot_traffic = Self::calculate_spot_traffic(
 			traffic,
 			config.on_demand_queue_max_size,
 			Self::queue_size(),
@@ -289,6 +246,49 @@ where
 	pub(crate) fn initializer_on_new_session(
 		_notification: &SessionChangeNotification<T::BlockNumber>,
 	) {
+	}
+
+	/// The spot price multiplier. This is based on the transaction fee calculations defined in:
+	/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#setting-transaction-fees
+	///
+	/// Returns:
+	/// - An `Option<FixedU128>` in the range of `1.0`- `FixedU128::MAX`
+	/// Parameters:
+	/// - `traffic`: The previously calculated multiplier, can never go below 1.0.
+	/// - `queue_capacity`: The max size of the order book.
+	/// - `queue_size`: How many orders are currently in the order book.
+	/// - `target_queue_utilisation`: How much of the queue_capacity should be ideally occupied, expressed in percentages(perbill).
+	/// - `variability`: A variability factor, i.e. how quickly the spot price adjusts. This number can be chosen by
+	///                  p/(k*(1-s)) where p is the desired ratio increase in spot price over k number of blocks.
+	///                  s is the target_queue_utilisation. A concrete example: v = 0.05/(20*(1-0.25)) = 0.0033.
+	// TODO maybe replace with impls of Multiplier/TargetedFeeAdjustment from pallet-transaction-payment
+	pub(crate) fn calculate_spot_traffic(
+		traffic: FixedU128,
+		queue_capacity: u32,
+		queue_size: u32,
+		target_queue_utilisation: Perbill,
+		variability: Perbill,
+	) -> Option<FixedU128> {
+		if queue_capacity > 0 {
+			// (queue_size / queue_capacity) - target_queue_utilisation
+			let queue_util_diff =
+				FixedU128::from_rational(queue_size.into(), queue_capacity.into())
+					.checked_sub(&target_queue_utilisation.into())?;
+			// variability * queue_util_diff
+			let var_times_qud = queue_util_diff.const_checked_mul(variability.into())?;
+			// variability^2 * queue_util_diff^2
+			let var_times_qud_pow = var_times_qud.const_checked_mul(var_times_qud)?;
+			// (variability^2 * queue_util_diff^2)/2
+			let div_by_two = var_times_qud_pow.const_checked_div(2.into())?;
+			// traffic * (1 + queue_util_diff) + div_by_two
+			let vtq_add_one = var_times_qud.checked_add(&FixedU128::from_u32(1))?;
+			let inner_add = vtq_add_one.checked_add(&div_by_two)?;
+			match traffic.const_checked_mul(inner_add) {
+				Some(t) => return Some(t.max(FixedU128::from_u32(1))),
+				None => {},
+			}
+		}
+		None
 	}
 
 	pub fn add_parathread_claim(claim: SpotClaim) -> Result<(), DispatchError> {

@@ -117,7 +117,7 @@ impl GenesisConfigBuilder {
 
 #[test]
 fn spot_traffic_capacity_zero_returns_none() {
-	let res = calculate_spot_traffic(
+	let res = OnDemandAssigner::calculate_spot_traffic(
 		FixedU128::from(u128::MAX),
 		0u32,
 		u32::MAX,
@@ -129,7 +129,7 @@ fn spot_traffic_capacity_zero_returns_none() {
 
 #[test]
 fn spot_traffic_queue_size_larger_than_capacity_returns_none() {
-	let res = calculate_spot_traffic(
+	let res = OnDemandAssigner::calculate_spot_traffic(
 		FixedU128::from(u128::MAX),
 		1u32,
 		2u32,
@@ -141,7 +141,7 @@ fn spot_traffic_queue_size_larger_than_capacity_returns_none() {
 
 #[test]
 fn spot_traffic_calculation_identity() {
-	let res = calculate_spot_traffic(
+	let res = OnDemandAssigner::calculate_spot_traffic(
 		FixedU128::from_u32(1),
 		1000,
 		100,
@@ -153,7 +153,7 @@ fn spot_traffic_calculation_identity() {
 
 #[test]
 fn spot_traffic_calculation_u32_max() {
-	let res = calculate_spot_traffic(
+	let res = OnDemandAssigner::calculate_spot_traffic(
 		FixedU128::from_u32(1),
 		u32::MAX,
 		u32::MAX,
@@ -165,7 +165,7 @@ fn spot_traffic_calculation_u32_max() {
 
 #[test]
 fn spot_traffic_calculation_u32_traffic_max() {
-	let res = calculate_spot_traffic(
+	let res = OnDemandAssigner::calculate_spot_traffic(
 		FixedU128::from(u128::MAX),
 		u32::MAX,
 		u32::MAX,
@@ -179,7 +179,7 @@ fn spot_traffic_calculation_u32_traffic_max() {
 fn sustained_target_increases_spot_traffic() {
 	let mut traffic = FixedU128::from_u32(1u32);
 	for _ in 0..50 {
-		traffic = calculate_spot_traffic(
+		traffic = OnDemandAssigner::calculate_spot_traffic(
 			traffic,
 			100,
 			12,
