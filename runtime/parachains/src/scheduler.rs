@@ -59,6 +59,11 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
+/// The current storage version
+const STORAGE_VERSION: StorageVersion = StorageVersion::new(0);
+const LOG_TARGET: &str = "runtime::scheduler";
+mod migration;
+
 #[frame_support::pallet]
 pub mod pallet {
 	use super::*;
@@ -66,6 +71,7 @@ pub mod pallet {
 
 	#[pallet::pallet]
 	#[pallet::without_storage_info]
+	#[pallet::storage_version(STORAGE_VERSION)]
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
