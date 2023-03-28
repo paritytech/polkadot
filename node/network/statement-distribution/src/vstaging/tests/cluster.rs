@@ -1055,7 +1055,7 @@ fn ensure_seconding_limit_is_respected() {
 		validator_count: 20,
 		group_size: 4,
 		local_validator: true,
-		async_backing_params: Some(AsyncBackingParameters {
+		async_backing_params: Some(AsyncBackingParams {
 			max_candidate_depth: 1,
 			allowed_ancestry_len: 3,
 		}),

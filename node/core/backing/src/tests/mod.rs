@@ -36,7 +36,7 @@ use polkadot_primitives::{
 	CandidateDescriptor, GroupRotationInfo, HeadData, PersistedValidationData, PvfExecTimeoutKind,
 	ScheduledCore, SessionIndex,
 };
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::Keystore;
 use sp_tracing as _;
@@ -243,7 +243,7 @@ async fn test_startup(virtual_overseer: &mut VirtualOverseer, test_state: &TestS
 	assert_matches!(
 		virtual_overseer.recv().await,
 		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParameters(tx))
+			RuntimeApiMessage::Request(parent, RuntimeApiRequest::StagingAsyncBackingParams(tx))
 		) if parent == test_state.relay_parent => {
 			tx.send(Err(ASYNC_BACKING_DISABLED_ERROR)).unwrap();
 		}

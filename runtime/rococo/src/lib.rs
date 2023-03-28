@@ -1493,10 +1493,11 @@ pub type UncheckedExtrinsic =
 
 /// All migrations that will run on the next runtime upgrade.
 ///
-/// Should be cleared after every release.
+/// This contains the combined migrations of the last 10 releases. It allows to skip runtime
+/// upgrades in case governance decides to do so.
 pub type Migrations = (
-	/* Asynchronous backing mirgration */
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	/* Asynchronous backing mirgration */
 	parachains_scheduler::migration::v1::MigrateToV1<Runtime>,
 );
 
@@ -1772,8 +1773,8 @@ sp_api::impl_runtime_apis! {
 			runtime_parachains::runtime_api_impl::vstaging::backing_state::<Runtime>(para_id)
 		}
 
-		fn staging_async_backing_parameters() -> primitives::vstaging::AsyncBackingParameters {
-			runtime_parachains::runtime_api_impl::vstaging::async_backing_parameters::<Runtime>()
+		fn staging_async_backing_params() -> primitives::vstaging::AsyncBackingParams {
+			runtime_parachains::runtime_api_impl::vstaging::async_backing_params::<Runtime>()
 		}
 	}
 

@@ -49,9 +49,9 @@ use polkadot_primitives::{
 	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 pub use rand;
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_core::ByteArray;
-use sp_keystore::{Error as KeystoreError, Keystore, KeystorePtr};
+use sp_keystore::{Error as KeystoreError, KeystorePtr};
 use std::time::Duration;
 use thiserror::Error;
 
@@ -221,7 +221,7 @@ specialize_requests! {
 	fn request_validation_code_hash(para_id: ParaId, assumption: OccupiedCoreAssumption)
 		-> Option<ValidationCodeHash>; ValidationCodeHash;
 	fn request_on_chain_votes() -> Option<ScrapedOnChainVotes>; FetchOnChainVotes;
-	fn request_staging_async_backing_parameters() -> vstaging_primitives::AsyncBackingParameters; StagingAsyncBackingParameters;
+	fn request_staging_async_backing_params() -> vstaging_primitives::AsyncBackingParams; StagingAsyncBackingParams;
 	fn request_session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>; SessionExecutorParams;
 }
 
@@ -288,7 +288,7 @@ pub fn signing_key_and_index<'a>(
 	keystore: &KeystorePtr,
 ) -> Option<(ValidatorId, ValidatorIndex)> {
 	for (i, v) in validators.into_iter().enumerate() {
-		if Keystore::has_keys(&**keystore, &[(v.to_raw_vec(), ValidatorId::ID)]) {
+		if keystore.has_keys(&[(v.to_raw_vec(), ValidatorId::ID)]) {
 			return Some((v.clone(), ValidatorIndex(i as _)))
 		}
 	}
@@ -304,13 +304,10 @@ pub fn sign(
 	key: &ValidatorId,
 	data: &[u8],
 ) -> Result<Option<ValidatorSignature>, KeystoreError> {
-	let signature = Keystore::sign_with(&**keystore, ValidatorId::ID, &key.into(), &data)?;
-
-	match signature {
-		Some(sig) =>
-			Ok(Some(sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?)),
-		None => Ok(None),
-	}
+	let signature = keystore
+		.sr25519_sign(ValidatorId::ID, key.as_ref(), data)?
+		.map(|sig| sig.into());
+	Ok(signature)
 }
 
 /// Find the validator group the given validator index belongs to.

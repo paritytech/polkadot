@@ -33,7 +33,7 @@ use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{AvailabilityBitfield, Signed, ValidatorIndex};
 use rand_chacha::ChaCha12Rng;
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_authority_discovery::AuthorityPair as AuthorityDiscoveryPair;
 use sp_core::Pair as PairT;
 use sp_keyring::Sr25519Keyring;

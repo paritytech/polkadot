@@ -21,8 +21,8 @@ use super::*;
 use polkadot_node_subsystem::messages::{ChainApiMessage, ProspectiveParachainsMessage};
 use polkadot_primitives::{vstaging as vstaging_primitives, Header, OccupiedCore};
 
-const ASYNC_BACKING_PARAMETERS: vstaging_primitives::AsyncBackingParameters =
-	vstaging_primitives::AsyncBackingParameters { max_candidate_depth: 4, allowed_ancestry_len: 3 };
+const ASYNC_BACKING_PARAMETERS: vstaging_primitives::AsyncBackingParams =
+	vstaging_primitives::AsyncBackingParams { max_candidate_depth: 4, allowed_ancestry_len: 3 };
 
 fn get_parent_hash(hash: Hash) -> Hash {
 	Hash::from_low_u64_be(hash.to_low_u64_be() + 1)
@@ -52,7 +52,7 @@ async fn update_view(
 			overseer_recv(virtual_overseer).await,
 			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 				parent,
-				RuntimeApiRequest::StagingAsyncBackingParameters(tx),
+				RuntimeApiRequest::StagingAsyncBackingParams(tx),
 			)) => {
 				tx.send(Ok(ASYNC_BACKING_PARAMETERS)).unwrap();
 				(parent, new_view.get(&parent).copied().expect("Unknown parent requested"))

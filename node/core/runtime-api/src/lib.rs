@@ -161,8 +161,8 @@ where
 			StagingParaBackingState(relay_parent, para_id, constraints) => self
 				.requests_cache
 				.cache_staging_para_backing_state((relay_parent, para_id), constraints),
-			StagingAsyncBackingParameters(relay_parent, params) =>
-				self.requests_cache.cache_staging_async_backing_parameters(relay_parent, params),
+			StagingAsyncBackingParams(relay_parent, params) =>
+				self.requests_cache.cache_staging_async_backing_params(relay_parent, params),
 		}
 	}
 
@@ -280,9 +280,9 @@ where
 			Request::StagingParaBackingState(para, sender) =>
 				query!(staging_para_backing_state(para), sender)
 					.map(|sender| Request::StagingParaBackingState(para, sender)),
-			Request::StagingAsyncBackingParameters(sender) =>
-				query!(staging_async_backing_parameters(), sender)
-					.map(|sender| Request::StagingAsyncBackingParameters(sender)),
+			Request::StagingAsyncBackingParams(sender) =>
+				query!(staging_async_backing_params(), sender)
+					.map(|sender| Request::StagingAsyncBackingParams(sender)),
 		}
 	}
 
@@ -510,10 +510,10 @@ where
 				sender
 			)
 		},
-		Request::StagingAsyncBackingParameters(sender) => {
+		Request::StagingAsyncBackingParams(sender) => {
 			query!(
-				StagingAsyncBackingParameters,
-				staging_async_backing_parameters(),
+				StagingAsyncBackingParams,
+				staging_async_backing_params(),
 				ver = Request::STAGING_BACKING_STATE,
 				sender
 			)

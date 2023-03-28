@@ -202,7 +202,7 @@ include:
   - scripts/ci/gitlab/pipeline/zombienet.yml
   # timestamp handler
   - project: parity/infrastructure/ci_cd/shared
-    ref: v0.1
+    ref: v0.2
     file: /common/timestamp.yml
 
 #### stage:                        .post
