@@ -17,9 +17,10 @@
 use codec::Encode;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, Nothing},
+	traits::{ConstU32, Everything, Nothing},
 	weights::Weight,
 };
+use frame_system::EnsureRoot;
 use polkadot_parachain::primitives::Id as ParaId;
 use polkadot_runtime_parachains::origin;
 use sp_core::H256;
@@ -242,6 +243,10 @@ impl pallet_balances::Config for Test {
 	type WeightInfo = ();
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<0>;
+	type MaxFreezes = ConstU32<0>;
 }
 
 parameter_types! {
@@ -340,6 +345,7 @@ impl pallet_xcm::Config for Test {
 	type WeightInfo = TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
+	type AdminOrigin = EnsureRoot<AccountId>;
 }
 
 impl origin::Config for Test {}

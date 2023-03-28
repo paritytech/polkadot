@@ -16,11 +16,14 @@
 
 //! Runtime component for handling disputes of parachain candidates.
 
-use crate::{configuration, initializer::SessionChangeNotification, session_info};
+use crate::{
+	configuration, initializer::SessionChangeNotification, metrics::METRICS, session_info,
+};
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
-use frame_support::{ensure, traits::Get, weights::Weight};
+use frame_support::{ensure, weights::Weight};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_runtime_metrics::get_current_time;
 use primitives::{
 	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash,
 	CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CompactStatement, ConsensusLog,
@@ -277,7 +280,7 @@ pub trait DisputesHandler<BlockNumber: Ord> {
 	/// Handle sets of dispute statements corresponding to 0 or more candidates.
 	/// Returns a vector of freshly created disputes.
 	fn process_checked_multi_dispute_data(
-		statement_sets: CheckedMultiDisputeStatementSet,
+		statement_sets: &CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError>;
 
 	/// Note that the given candidate has been included.
@@ -325,7 +328,7 @@ impl<BlockNumber: Ord> DisputesHandler<BlockNumber> for () {
 	}
 
 	fn process_checked_multi_dispute_data(
-		_statement_sets: CheckedMultiDisputeStatementSet,
+		_statement_sets: &CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		Ok(Vec::new())
 	}
@@ -379,7 +382,7 @@ where
 	}
 
 	fn process_checked_multi_dispute_data(
-		statement_sets: CheckedMultiDisputeStatementSet,
+		statement_sets: &CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		pallet::Pallet::<T>::process_checked_multi_dispute_data(statement_sets)
 	}
@@ -503,9 +506,6 @@ pub mod pallet {
 		/// A dispute has concluded for or against a candidate.
 		/// `\[para id, candidate hash, dispute result\]`
 		DisputeConcluded(CandidateHash, DisputeResult),
-		/// A dispute has timed out due to insufficient participation.
-		/// `\[para id, candidate hash\]`
-		DisputeTimedOut(CandidateHash),
 		/// A dispute has concluded with supermajority against a candidate.
 		/// Block authors should no longer build on top of this head and should
 		/// instead revert the block at the given height. This should be the
@@ -911,26 +911,8 @@ impl StatementSetFilter {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes module.
-	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		let config = <configuration::Pallet<T>>::config();
-
-		let mut weight = Weight::zero();
-		for (session_index, candidate_hash, mut dispute) in <Disputes<T>>::iter() {
-			weight += T::DbWeight::get().reads_writes(1, 0);
-
-			if dispute.concluded_at.is_none() &&
-				dispute.start + config.dispute_conclusion_by_time_out_period < now
-			{
-				Self::deposit_event(Event::DisputeTimedOut(candidate_hash));
-
-				dispute.concluded_at = Some(now);
-				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
-
-				weight += T::DbWeight::get().writes(1);
-			}
-		}
-
-		weight
+	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+		Weight::zero()
 	}
 
 	/// Called by the initializer to finalize the disputes pallet.
@@ -983,14 +965,14 @@ impl<T: Config> Pallet<T> {
 	/// and to fail the extrinsic on error. As invalid inherents are not allowed, the dirty state
 	/// is not committed.
 	pub(crate) fn process_checked_multi_dispute_data(
-		statement_sets: CheckedMultiDisputeStatementSet,
+		statement_sets: &CheckedMultiDisputeStatementSet,
 	) -> Result<Vec<(SessionIndex, CandidateHash)>, DispatchError> {
 		let config = <configuration::Pallet<T>>::config();
 
 		let mut fresh = Vec::with_capacity(statement_sets.len());
 		for statement_set in statement_sets {
 			let dispute_target = {
-				let statement_set: &DisputeStatementSet = statement_set.as_ref();
+				let statement_set = statement_set.as_ref();
 				(statement_set.session, statement_set.candidate_hash)
 			};
 			if Self::process_checked_dispute_data(
@@ -1126,7 +1108,7 @@ impl<T: Config> Pallet<T> {
 	/// Fails if the dispute data is invalid. Returns a Boolean indicating whether the
 	/// dispute is fresh.
 	fn process_checked_dispute_data(
-		set: CheckedDisputeStatementSet,
+		set: &CheckedDisputeStatementSet,
 		dispute_post_conclusion_acceptance_period: T::BlockNumber,
 	) -> Result<bool, DispatchError> {
 		// Dispute statement sets on any dispute which concluded
@@ -1357,9 +1339,14 @@ fn check_signature(
 			ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload(),
 	};
 
-	if validator_signature.verify(&payload[..], &validator_public) {
-		Ok(())
-	} else {
-		Err(())
-	}
+	let start = get_current_time();
+
+	let res =
+		if validator_signature.verify(&payload[..], &validator_public) { Ok(()) } else { Err(()) };
+
+	let end = get_current_time();
+
+	METRICS.on_signature_check_complete(end.saturating_sub(start)); // ns
+
+	res
 }

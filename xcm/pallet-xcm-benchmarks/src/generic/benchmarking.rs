@@ -496,6 +496,27 @@ benchmarks! {
 		assert_eq!(executor.origin(), &Some(X1(alias).relative_to(&universal_location)));
 	}
 
+	export_message {
+		let x in 1 .. 1000;
+		// The `inner_xcm` influences `ExportMessage` total weight based on
+		// `inner_xcm.encoded_size()`, so for this benchmark use smallest encoded instruction
+		// to approximate weight per "unit" of encoded size; then actual weight can be estimated
+		// to be `inner_xcm.encoded_size() * benchmarked_unit`.
+		// Use `ClearOrigin` as the small encoded instruction.
+		let inner_xcm = Xcm(vec![ClearOrigin; x as usize]);
+		// Get `origin`, `network` and `destination` from configured runtime.
+		let (origin, network, destination) = T::export_message_origin_and_destination()?;
+		let mut executor = new_executor::<T>(origin);
+		let xcm = Xcm(vec![ExportMessage {
+			network, destination, xcm: inner_xcm,
+		}]);
+	}: {
+		executor.bench_process(xcm)?;
+	} verify {
+		// The execute completing successfully is as good as we can check.
+		// TODO: Potentially add new trait to XcmSender to detect a queued outgoing message. #4426
+	}
+
 	set_fees_mode {
 		let mut executor = new_executor::<T>(Default::default());
 		executor.set_fees_mode(FeesMode { jit_withdraw: false });
