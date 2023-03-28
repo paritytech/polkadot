@@ -38,15 +38,11 @@ use polkadot_node_subsystem::{
 	messages::DisputeDistributionMessage, overseer, ActivatedLeaf, FromOrchestra, OverseerSignal,
 	SpawnedSubsystem, SubsystemError,
 };
-use polkadot_node_subsystem_util::{
-	database::Database,
-	rolling_session_window::{DatabaseParams, RollingSessionWindow},
-	runtime::RuntimeInfo,
-};
+use polkadot_node_subsystem_util::{database::Database, runtime::RuntimeInfo};
 use polkadot_primitives::{DisputeStatement, ScrapedOnChainVotes, SessionInfo, ValidatorIndex};
 
 use crate::{
-	error::{FatalResult, JfyiError, Result},
+	error::{FatalResult, Result},
 	metrics::Metrics,
 	status::{get_active_with_status, SystemClock},
 };
@@ -211,9 +207,6 @@ impl DisputeCoordinatorSubsystem {
 		B: Backend + 'static,
 	{
 		loop {
-			let db_params =
-				DatabaseParams { db: self.store.clone(), db_column: self.config.col_session_data };
-
 			let first_leaf = match wait_for_first_leaf(ctx).await {
 				Ok(Some(activated_leaf)) => activated_leaf,
 				Ok(None) => continue,
@@ -382,25 +375,6 @@ impl DisputeCoordinatorSubsystem {
 		}
 
 		Ok((participation_requests, votes, SpamSlots::recover_from_state(spam_disputes), scraper))
-	}
-}
-
-/// Wait for `ActiveLeavesUpdate` on startup, returns `None` if `Conclude` signal came first.
-#[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
-async fn get_rolling_session_window<Context>(
-	ctx: &mut Context,
-	db_params: DatabaseParams,
-) -> Result<Option<(ActivatedLeaf, RollingSessionWindow)>> {
-	if let Some(leaf) = { wait_for_first_leaf(ctx) }.await? {
-		let sender = ctx.sender().clone();
-		Ok(Some((
-			leaf.clone(),
-			RollingSessionWindow::new(sender, leaf.hash, db_params)
-				.await
-				.map_err(JfyiError::RollingSessionWindow)?,
-		)))
-	} else {
-		Ok(None)
 	}
 }
 

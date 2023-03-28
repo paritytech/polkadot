@@ -36,10 +36,7 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
-use polkadot_node_subsystem_util::{
-	rolling_session_window::{SessionWindowUpdate, SessionsUnavailable},
-	runtime::RuntimeInfo,
-};
+use polkadot_node_subsystem_util::runtime::RuntimeInfo;
 use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
 	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, SessionInfo,
@@ -47,7 +44,7 @@ use polkadot_primitives::{
 };
 
 use crate::{
-	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
+	error::{log_error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	import::{CandidateEnvironment, CandidateVoteState},
 	is_potential_spam,
 	metrics::Metrics,
@@ -57,7 +54,7 @@ use crate::{
 
 use super::{
 	backend::Backend,
-	db, make_dispute_message,
+	make_dispute_message,
 	participation::{
 		self, Participation, ParticipationPriority, ParticipationRequest, ParticipationStatement,
 		WorkerMessageReceiver,
@@ -90,9 +87,6 @@ pub(crate) struct Initialized {
 	scraper: ChainScraper,
 	participation_receiver: WorkerMessageReceiver,
 	metrics: Metrics,
-	// This tracks only rolling session window failures.
-	// It can be a `Vec` if the need to track more arises.
-	error: Option<SessionsUnavailable>,
 }
 
 #[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
@@ -119,7 +113,6 @@ impl Initialized {
 			participation,
 			participation_receiver,
 			metrics,
-			error: None,
 		}
 	}
 
@@ -288,37 +281,31 @@ impl Initialized {
 		self.participation.process_active_leaves_update(ctx, &update).await?;
 
 		if let Some(new_leaf) = update.activated {
-			match self
-				.rolling_session_window
-				.cache_session_info_for_head(ctx.sender(), new_leaf.hash)
-				.await
-			{
+			let session_idx =
+				self.runtime_info.get_session_index_for_child(ctx.sender(), new_leaf.hash).await;
+
+			match session_idx {
+				Ok(session_idx) => {
+					// Dummy fetch to ensure the session is cached
+					let _ = self
+						.runtime_info
+						.get_session_info_by_index(ctx.sender(), new_leaf.hash, session_idx)
+						.await?;
+
+					if session_idx > self.highest_session {
+						self.highest_session = session_idx;
+						self.spam_slots
+							.prune_old(session_idx.saturating_sub(SESSION_WINDOW_SIZE.get() - 1));
+					}
+				},
 				Err(e) => {
 					gum::warn!(
 						target: LOG_TARGET,
 						err = ?e,
 						"Failed to update session cache for disputes",
 					);
-					self.error = Some(e);
 				},
-				Ok(SessionWindowUpdate::Advanced {
-					new_window_end: window_end,
-					new_window_start,
-					..
-				}) => {
-					self.error = None;
-					let session = window_end;
-					if self.highest_session < session {
-						gum::trace!(target: LOG_TARGET, session, "Observed new session. Pruning");
-
-						self.highest_session = session;
-
-						db::v1::note_earliest_session(overlay_db, new_window_start)?;
-						self.spam_slots.prune_old(new_window_start);
-					}
-				},
-				Ok(SessionWindowUpdate::Unchanged) => {},
-			};
+			}
 
 			gum::trace!(
 				target: LOG_TARGET,
@@ -587,9 +574,6 @@ impl Initialized {
 				}
 			},
 			DisputeCoordinatorMessage::RecentDisputes(tx) => {
-				// Return error if session information is missing.
-				self.ensure_available_session_info()?;
-
 				gum::trace!(target: LOG_TARGET, "Loading recent disputes from db");
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
@@ -603,9 +587,6 @@ impl Initialized {
 				);
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
-				// Return error if session information is missing.
-				self.ensure_available_session_info()?;
-
 				gum::trace!(target: LOG_TARGET, "DisputeCoordinatorMessage::ActiveDisputes");
 
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
@@ -623,9 +604,6 @@ impl Initialized {
 				);
 			},
 			DisputeCoordinatorMessage::QueryCandidateVotes(query, tx) => {
-				// Return error if session information is missing.
-				self.ensure_available_session_info()?;
-
 				gum::trace!(target: LOG_TARGET, "DisputeCoordinatorMessage::QueryCandidateVotes");
 
 				let mut query_output = Vec::new();
@@ -667,8 +645,6 @@ impl Initialized {
 				block_descriptions,
 				tx,
 			} => {
-				// Return error if session information is missing.
-				self.ensure_available_session_info()?;
 				gum::trace!(
 					target: LOG_TARGET,
 					"DisputeCoordinatorMessage::DetermineUndisputedChain"
@@ -686,15 +662,6 @@ impl Initialized {
 		}
 
 		Ok(Box::new(|| Ok(())))
-	}
-
-	// Helper function for checking subsystem errors in message processing.
-	fn ensure_available_session_info(&self) -> Result<()> {
-		if let Some(subsystem_error) = self.error.clone() {
-			return Err(Error::RollingSessionWindow(subsystem_error))
-		}
-
-		Ok(())
 	}
 
 	// We use fatal result rather than result here. Reason being, We for example increase
@@ -1239,7 +1206,7 @@ impl Initialized {
 	}
 
 	fn session_is_ancient(&self, session_idx: SessionIndex) -> bool {
-		return session_idx < self.highest_session.saturating_sub(6 - 1) // TODO: use constant here
+		return session_idx < self.highest_session.saturating_sub(SESSION_WINDOW_SIZE.get() - 1)
 	}
 }
 
