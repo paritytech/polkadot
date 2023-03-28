@@ -2323,12 +2323,10 @@ mod multiplier_tests {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
-	use frame_support::dispatch::GetDispatchInfo;
 	use frame_try_runtime::{runtime_decl_for_try_runtime::TryRuntime, UpgradeCheckSelect};
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
 	};
-	use runtime_common::elections;
 	use std::env::var;
 
 	#[tokio::test]
@@ -2398,7 +2396,6 @@ mod remote_tests {
 
 		let transport: Transport = var("WS").unwrap_or("ws://localhost:55104".to_string()).into();
 		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
-		let now = std::time::Instant::now();
 		let mut ext = Builder::<Block>::default()
 			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
 				Mode::OfflineOrElseOnline(
@@ -2422,93 +2419,43 @@ mod remote_tests {
 			//
 			// Assert keys exist prior to deletion
 			//
-			let democracy_key_prefix = twox_128(b"Democracy");
-			let council_key_prefix = twox_128(b"Council");
-			let technical_committee_key_prefix = twox_128(b"TechnicalCommittee");
-			let phragmen_election_key_prefix = twox_128(b"PhragmenElection");
-			let technical_membership_key_prefix = twox_128(b"TechnicalMembership");
-
-			let treasury_key_prefix = twox_128(b"Treasury");
-			let democracy_key_count = count_keys(&democracy_key_prefix);
-			let council_key_count = count_keys(&council_key_prefix);
-			let technical_committee_key_count = count_keys(&technical_committee_key_prefix);
-			let phragmen_election_key_count = count_keys(&phragmen_election_key_prefix);
-			let technical_membership_key_count = count_keys(&technical_membership_key_prefix);
-			let treasury_key_count = count_keys(&treasury_key_prefix);
-			let total = democracy_key_count +
-				council_key_count +
-				technical_committee_key_count +
-				phragmen_election_key_count +
-				technical_membership_key_count +
-				treasury_key_count;
-			dbg!(
-				democracy_key_count,
-				council_key_count,
-				technical_committee_key_count,
-				phragmen_election_key_count,
-				technical_membership_key_count,
-				treasury_key_count,
-				total
-			);
+			let pallets = vec![
+				"Decocracy",
+				"Council",
+				"TechnicalCommittee",
+				"PhragmenElection",
+				"TechnicalMembership",
+				"Treasury",
+			]
+			.iter();
+			let calls = pallets
+				.map(|pallet| {
+					let prefix = twox_128(pallet);
+					let count = count_keys(&prefix);
+					assert!(count > 0, "No keys found for pallet {}", pallet);
+					dbg!(pallet, count);
+					RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
+						prefix,
+						subkeys: count,
+					})
+				})
+				.collect::<Vec<_>>();
 
 			//
 			// Create batch call to kill all gov v1 storage
 			//
-			let democracy_call = RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
-				prefix: democracy_key_prefix.into(),
-				subkeys: democracy_key_count,
-			});
-			let council_call = RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
-				prefix: council_key_prefix.into(),
-				subkeys: council_key_count,
-			});
-			let technical_committee_call =
-				RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
-					prefix: technical_committee_key_prefix.into(),
-					subkeys: technical_committee_key_count,
-				});
-			let phragmen_election_call =
-				RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
-					prefix: phragmen_election_key_prefix.into(),
-					subkeys: phragmen_election_key_count,
-				});
-			let technical_membership_call =
-				RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
-					prefix: technical_membership_key_prefix.into(),
-					subkeys: technical_membership_key_count,
-				});
-			let treasury_call = RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
-				prefix: treasury_key_prefix.into(),
-				subkeys: treasury_key_count,
-			});
-
-			let batch = pallet_utility::Call::<Runtime>::batch {
-				calls: vec![
-					democracy_call.into(),
-					council_call.into(),
-					technical_committee_call.into(),
-					phragmen_election_call.into(),
-					technical_membership_call.into(),
-					treasury_call.into(),
-				],
-			};
+			let batch = pallet_utility::Call::<Runtime>::batch { calls };
 
 			//
 			// Execute call and assert storage has been removed
 			//
 			assert_ok!(RuntimeCall::Utility(batch).dispatch(RuntimeOrigin::root()));
-			let democracy_key_count = count_keys(&democracy_key_prefix);
-			let council_key_count = count_keys(&council_key_prefix);
-			let technical_committee_key_count = count_keys(&technical_committee_key_prefix);
-			let phragmen_election_key_count = count_keys(&phragmen_election_key_prefix);
-			let technical_membership_key_count = count_keys(&technical_membership_key_prefix);
-			let treasury_key_count = count_keys(&treasury_key_prefix);
-			assert_eq!(democracy_key_count, 0);
-			assert_eq!(council_key_count, 0);
-			assert_eq!(technical_committee_key_count, 0);
-			assert_eq!(phragmen_election_key_count, 0);
-			assert_eq!(technical_membership_key_count, 0);
-			assert_eq!(treasury_key_count, 0);
+			pallets.for_each(|p| {
+				let prefix = twox_128(p);
+				let count = count_keys(&prefix);
+				dbg!(p, count);
+				assert_eq!(count, 0);
+			});
 		});
 		println!("Done");
 	}
