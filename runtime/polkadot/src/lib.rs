@@ -189,7 +189,7 @@ pub struct OriginPrivilegeCmp;
 impl PrivilegeCmp<OriginCaller> for OriginPrivilegeCmp {
 	fn cmp_privilege(left: &OriginCaller, right: &OriginCaller) -> Option<Ordering> {
 		if left == right {
-			return Some(Ordering::Equal);
+			return Some(Ordering::Equal)
 		}
 
 		match (left, right) {
@@ -1013,28 +1013,26 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::NominationPools(..) |
 				RuntimeCall::FastUnstake(..)
 			),
-			ProxyType::Governance => matches!(
-				c,
-				RuntimeCall::Democracy(..)
-					| RuntimeCall::Council(..)
-					| RuntimeCall::TechnicalCommittee(..)
-					| RuntimeCall::PhragmenElection(..)
-					| RuntimeCall::Treasury(..)
-					| RuntimeCall::Bounties(..)
-					| RuntimeCall::Tips(..)
-					| RuntimeCall::Utility(..)
-					| RuntimeCall::ChildBounties(..)
-					| RuntimeCall::ConvictionVoting(..)
-					| RuntimeCall::Referenda(..)
-					| RuntimeCall::Whitelist(..)
-			),
+			ProxyType::Governance =>
+				matches!(
+					c,
+					RuntimeCall::Democracy(..) |
+						RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
+						RuntimeCall::PhragmenElection(..) |
+						RuntimeCall::Treasury(..) |
+						RuntimeCall::Bounties(..) |
+						RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
+						RuntimeCall::ChildBounties(..) |
+						RuntimeCall::ConvictionVoting(..) |
+						RuntimeCall::Referenda(..) |
+						RuntimeCall::Whitelist(..)
+				),
 			ProxyType::Staking => {
 				matches!(
 					c,
-					RuntimeCall::Staking(..)
-						| RuntimeCall::Session(..)
-						| RuntimeCall::Utility(..)
-						| RuntimeCall::FastUnstake(..)
+					RuntimeCall::Staking(..) |
+						RuntimeCall::Session(..) | RuntimeCall::Utility(..) |
+						RuntimeCall::FastUnstake(..)
 				)
 			},
 			ProxyType::NominationPools => {
@@ -1042,18 +1040,18 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 			},
 			ProxyType::IdentityJudgement => matches!(
 				c,
-				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. })
-					| RuntimeCall::Utility(..)
+				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. }) |
+					RuntimeCall::Utility(..)
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. }))
 			},
 			ProxyType::Auction => matches!(
 				c,
-				RuntimeCall::Auctions(..)
-					| RuntimeCall::Crowdloan(..)
-					| RuntimeCall::Registrar(..)
-					| RuntimeCall::Slots(..)
+				RuntimeCall::Auctions(..) |
+					RuntimeCall::Crowdloan(..) |
+					RuntimeCall::Registrar(..) |
+					RuntimeCall::Slots(..)
 			),
 		}
 	}
@@ -2159,8 +2157,8 @@ mod test_fees {
 		};
 
 		let mut active = target_voters;
-		while weight_with(active).all_lte(OffchainSolutionWeightLimit::get())
-			|| active == target_voters
+		while weight_with(active).all_lte(OffchainSolutionWeightLimit::get()) ||
+			active == target_voters
 		{
 			active += 1;
 		}
@@ -2218,8 +2216,8 @@ mod multiplier_tests {
 	#[test]
 	fn multiplier_can_grow_from_zero() {
 		let minimum_multiplier = MinimumMultiplier::get();
-		let target = TargetBlockFullness::get()
-			* BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		let target = TargetBlockFullness::get() *
+			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
 		// if the min is too small, then this will not change, and we are doomed forever.
 		// the weight is 1/100th bigger than target.
 		run_with_system_weight(target.saturating_mul(101) / 100, || {
@@ -2325,16 +2323,18 @@ mod multiplier_tests {
 #[cfg(all(test, feature = "try-runtime"))]
 mod remote_tests {
 	use super::*;
+	use frame_support::dispatch::GetDispatchInfo;
 	use frame_try_runtime::{runtime_decl_for_try_runtime::TryRuntime, UpgradeCheckSelect};
 	use remote_externalities::{
 		Builder, Mode, OfflineConfig, OnlineConfig, SnapshotConfig, Transport,
 	};
+	use runtime_common::elections;
 	use std::env::var;
 
 	#[tokio::test]
 	async fn run_migrations() {
 		if var("RUN_MIGRATION_TESTS").is_err() {
-			return;
+			return
 		}
 
 		sp_tracing::try_init_simple();
@@ -2419,54 +2419,123 @@ mod remote_tests {
 			use frame_support::assert_ok;
 			use sp_runtime::traits::Dispatchable;
 
+			fn count_keys(prefix: &[u8]) -> u32 {
+				let mut current = prefix.clone().to_vec();
+				let mut counter = 0;
+				while let Some(next) = sp_io::storage::next_key(&current[..]) {
+					if !next.starts_with(prefix) {
+						return counter
+					}
+					counter += 1;
+					current = next;
+				}
+				0
+			}
+
 			//
 			// Assert keys exist prior to deletion
 			//
-			let public_prop_count = <pallet_democracy::PublicPropCount<Runtime>>::get();
-			assert!(public_prop_count > 0);
-			// TODO: assert other keys
+			let democracy_key_prefix = twox_128(b"Democracy");
+			let council_key_prefix = twox_128(b"Council");
+			let technical_committee_key_prefix = twox_128(b"TechnicalCommittee");
+			let phragmen_election_key_prefix = twox_128(b"PhragmenElection");
+			let technical_membership_key_prefix = twox_128(b"TechnicalMembership");
+
+			let treasury_key_prefix = twox_128(b"Treasury");
+			let democracy_key_count = count_keys(&democracy_key_prefix);
+			let council_key_count = count_keys(&council_key_prefix);
+			let technical_committee_key_count = count_keys(&technical_committee_key_prefix);
+			let phragmen_election_key_count = count_keys(&phragmen_election_key_prefix);
+			let technical_membership_key_count = count_keys(&technical_membership_key_prefix);
+			let treasury_key_count = count_keys(&treasury_key_prefix);
+			let total = democracy_key_count +
+				council_key_count +
+				technical_committee_key_count +
+				phragmen_election_key_count +
+				technical_membership_key_count +
+				treasury_key_count;
+			dbg!(
+				democracy_key_count,
+				council_key_count,
+				technical_committee_key_count,
+				phragmen_election_key_count,
+				technical_membership_key_count,
+				treasury_key_count,
+				total
+			);
 
 			//
 			// Create batch call to kill all gov v1 storage
 			//
-			let democracy_call = RuntimeCall::System(frame_system::Call::kill_prefix {
-				// 0xf2794c22e353e9a839f12faab03a911b
-				prefix: twox_128(b"Democracy").into(),
-				subkeys: 500_000,
+			let democracy_call = RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
+				prefix: democracy_key_prefix.into(),
+				subkeys: democracy_key_count,
 			});
-			let collective_call = RuntimeCall::System(frame_system::Call::kill_prefix {
-				// 0xf9922c78cfa3c316d27a3eb48145ab1b
-				prefix: twox_128(b"Collective").into(),
-				subkeys: 500_000,
+			let council_call = RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
+				prefix: council_key_prefix.into(),
+				subkeys: council_key_count,
 			});
-			let elections_phragmen_call = RuntimeCall::System(frame_system::Call::kill_prefix {
-				// 0x4d45a146e2a002ba470f48b9ed9a3e23
-				prefix: twox_128(b"ElectionsPhragmen").into(),
-				subkeys: 500_000,
+			let technical_committee_call =
+				RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
+					prefix: technical_committee_key_prefix.into(),
+					subkeys: technical_committee_key_count,
+				});
+			let phragmen_election_call =
+				RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
+					prefix: phragmen_election_key_prefix.into(),
+					subkeys: phragmen_election_key_count,
+				});
+			let technical_membership_call =
+				RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
+					prefix: technical_membership_key_prefix.into(),
+					subkeys: technical_membership_key_count,
+				});
+			let treasury_call = RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
+				prefix: treasury_key_prefix.into(),
+				subkeys: treasury_key_count,
 			});
-			let membership_call = RuntimeCall::System(frame_system::Call::kill_prefix {
-				prefix: twox_128(b"Membership").into(),
-				subkeys: 500_000,
-			});
-			let batch = RuntimeCall::Utility(pallet_utility::Call::batch {
+
+			let batch = pallet_utility::Call::<Runtime>::batch {
 				calls: vec![
 					democracy_call.into(),
-					collective_call.into(),
-					elections_phragmen_call.into(),
-					membership_call.into(),
+					council_call.into(),
+					technical_committee_call.into(),
+					phragmen_election_call.into(),
+					technical_membership_call.into(),
+					treasury_call.into(),
 				],
-			});
-			let batch_weight = batch.get_dispatch_info().weight;
-			dbg!(batch_weight);
+			};
 
 			//
 			// Execute call and assert storage has been removed
 			//
-			assert_ok!(batch.dispatch(RuntimeOrigin::root()));
-			let public_prop_count = <pallet_democracy::PublicPropCount<Runtime>>::get();
-			assert_eq!(public_prop_count, 0);
-			// TODO: assert other storage items
+			assert_ok!(RuntimeCall::Utility(batch).dispatch(RuntimeOrigin::root()));
+			let democracy_key_count = count_keys(&democracy_key_prefix);
+			let council_key_count = count_keys(&council_key_prefix);
+			let technical_committee_key_count = count_keys(&technical_committee_key_prefix);
+			let phragmen_election_key_count = count_keys(&phragmen_election_key_prefix);
+			let technical_membership_key_count = count_keys(&technical_membership_key_prefix);
+			let treasury_key_count = count_keys(&treasury_key_prefix);
+			assert_eq!(democracy_key_count, 0);
+			assert_eq!(council_key_count, 0);
+			assert_eq!(technical_committee_key_count, 0);
+			assert_eq!(phragmen_election_key_count, 0);
+			assert_eq!(technical_membership_key_count, 0);
+			assert_eq!(treasury_key_count, 0);
 		});
 		println!("Done");
 	}
+}
+
+fn count_keys(prefix: &[u8]) -> u32 {
+	let mut current = prefix.clone().to_vec();
+	let mut counter = 0;
+	while let Some(next) = sp_io::storage::next_key(&current[..]) {
+		if !next.starts_with(prefix) {
+			return counter
+		}
+		counter += 1;
+		current = next;
+	}
+	0
 }
