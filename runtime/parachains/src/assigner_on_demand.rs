@@ -109,16 +109,6 @@ fn calculate_spot_traffic(
 	None
 }
 
-// The number of paraids in the map is bounded by the number of `config.parathread_cores` * `config.scheduling_lookahead`
-// in the worst case.
-const MAX_PARAIDS_IN_AFFINITY_MAP: u32 = 500;
-
-// The upper limit of how many claims can be entered into storage
-const MAX_CLAIMS: u32 = 10_000;
-
-const MAX_UPPER_BOUND_LOOKAHEAD: u32 = 100;
-/// The default value for the traffic multiplier.
-const TRAFFIC_DEFAULT_VALUE: FixedU128 = FixedU128::from_u32(1);
 
 //#[derive(Encode, Decode, TypeInfo)]
 #[derive(
