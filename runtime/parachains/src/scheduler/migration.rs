@@ -101,9 +101,8 @@ pub mod v1 {
 			Pallet::<T>::add_to_claimqueue(core_assignment);
 		}
 
-		weight = weight.saturating_add(T::DbWeight::get().reads_writes(sched_len, sched_len));
-		// This is for add_to_claimqueue()
-		weight = weight.saturating_add(T::DbWeight::get().reads_writes(sched_len, sched_len));
+		// 2x as once for Scheduled and once for Claimqueue
+		weight = weight.saturating_add(T::DbWeight::get().reads_writes(2 * sched_len, 2 * sched_len));
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(pq_len, pq_len));
 		weight = weight.saturating_add(T::DbWeight::get().reads_writes(pci_len, pci_len));
 
