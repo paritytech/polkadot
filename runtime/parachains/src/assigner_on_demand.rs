@@ -173,11 +173,6 @@ pub mod pallet {
 	}
 
 	#[pallet::type_value]
-	pub fn ScheduledClaimsOnEmpty() -> Vec<Vec<ParaId>> {
-		vec![]
-	}
-
-	#[pallet::type_value]
 	pub fn OnDemandQueueOnEmpty<T: Config>() -> BoundedVec<SpotClaim, T::MaxClaims> {
 		BoundedVec::truncate_from(Vec::new())
 	}
@@ -186,15 +181,6 @@ pub mod pallet {
 	#[pallet::storage]
 	pub(super) type SpotTraffic<T: Config> =
 		StorageValue<_, FixedU128, ValueQuery, SpotTrafficOnEmpty<T>>;
-
-	/// An accounting mechanism for already scheduled claims. This prevents the scheduling of two
-	/// or more parablocks of the same `ParaId` to be scheduled to be included in the same relay chain
-	/// block.
-	///
-	/// Bounded by the number of parathread cores and scheduling lookahead. Reasonably, 10 * 50 = 500.
-	#[pallet::storage]
-	pub(crate) type ScheduledClaims<T> =
-		StorageValue<_, Vec<Vec<ParaId>>, ValueQuery, ScheduledClaimsOnEmpty>;
 
 	/// The order storage. A simple bounded vec will do for now but this can be changed to a
 	/// message queue at a later point if needed.
