@@ -23,17 +23,29 @@ use polkadot_node_primitives::{
 	maybe_compress_pov, Collation, CollationResult, CollationSecondedSignal, CollatorFn,
 	MaybeCompressedPoV, PoV, Statement,
 };
-use polkadot_primitives::{CollatorId, CollatorPair, Hash};
-use sp_core::Pair;
+use polkadot_primitives::{
+	CollatorId, CollatorPair, Hash, InboundDownwardMessage, InboundHrmpMessage, OutboundHrmpMessage,
+};
+use polkadot_service::ParaId;
+use sp_core::{traits::SpawnNamed, Pair};
 use std::{
-	collections::HashMap,
+	collections::{BTreeMap, HashMap},
 	sync::{
 		atomic::{AtomicU32, Ordering},
 		Arc, Mutex,
 	},
 	time::Duration,
 };
-use test_parachain_undying::{execute, hash_state, BlockData, GraveyardState, HeadData};
+use test_parachain_undying::{
+	execute, hash_state, BlockData, GraveyardState, HeadData, HrmpChannelConfiguration, LOG_TARGET,
+};
+
+pub mod metrics;
+pub mod relay_chain;
+
+use metrics::Metrics;
+
+use relay_chain::RelayChainInterface;
 
 /// Default PoV size which also drives state size.
 const DEFAULT_POV_SIZE: usize = 1000;
@@ -45,7 +57,9 @@ fn calculate_head_and_state_for_number(
 	number: u64,
 	graveyard_size: usize,
 	pvf_complexity: u32,
-) -> (HeadData, GraveyardState) {
+	hrmp_channels: Vec<HrmpChannelConfiguration>,
+	inbound_messages: &BTreeMap<ParaId, Vec<InboundHrmpMessage>>,
+) -> (HeadData, GraveyardState, Vec<OutboundHrmpMessage<ParaId>>) {
 	let index = 0u64;
 	let mut graveyard = vec![0u8; graveyard_size * graveyard_size];
 	let zombies = 0;
@@ -56,19 +70,32 @@ fn calculate_head_and_state_for_number(
 		*grave = i as u8;
 	});
 
+	log::debug!(target: LOG_TARGET, "received messages from {} parachains", inbound_messages.len());
+	let inbound_hrmp_messages = inbound_messages.values().flatten().cloned().collect::<Vec<_>>();
+	log::debug!(target: LOG_TARGET, "received {} messages in total", inbound_messages.len());
+
 	let mut state = GraveyardState { index, graveyard, zombies, seal };
 	let mut head =
 		HeadData { number: 0, parent_hash: Hash::default().into(), post_state: hash_state(&state) };
+	let mut messages: Vec<OutboundHrmpMessage<ParaId>> = Vec::new();
 
 	while head.number < number {
-		let block = BlockData { state, tombstones: 1_000, iterations: pvf_complexity };
-		let (new_head, new_state) =
+		let block = BlockData {
+			state,
+			tombstones: 1_000,
+			iterations: pvf_complexity,
+			hrmp_channels: hrmp_channels.clone(),
+			inbound_hrmp_messages: inbound_hrmp_messages.clone(),
+			dmq_messages: vec![],
+		};
+		let (new_head, new_state, new_messages) =
 			execute(head.hash(), head.clone(), block).expect("Produces valid block");
 		head = new_head;
 		state = new_state;
+		messages = new_messages;
 	}
 
-	(head, state)
+	(head, state, messages)
 }
 
 /// The state of the undying parachain.
@@ -89,11 +116,17 @@ struct State {
 	/// TODO: Implement a static state, and use `ballast` to inflate the PoV size. This way
 	/// we can just discard the `ballast` before processing the block.
 	graveyard_size: usize,
+	/// Configuration of the HRMP channels to be sent/received
+	hrmp_channels: Vec<HrmpChannelConfiguration>,
 }
 
 impl State {
 	/// Init the genesis state.
-	fn genesis(graveyard_size: usize, pvf_complexity: u32) -> Self {
+	fn genesis(
+		graveyard_size: usize,
+		pvf_complexity: u32,
+		hrmp_channels: Vec<HrmpChannelConfiguration>,
+	) -> Self {
 		let index = 0u64;
 		let mut graveyard = vec![0u8; graveyard_size * graveyard_size];
 		let zombies = 0;
@@ -116,13 +149,19 @@ impl State {
 			best_block: 0,
 			pvf_complexity,
 			graveyard_size,
+			hrmp_channels,
 		}
 	}
 
 	/// Advance the state and produce a new block based on the given `parent_head`.
 	///
-	/// Returns the new [`BlockData`] and the new [`HeadData`].
-	fn advance(&mut self, parent_head: HeadData) -> (BlockData, HeadData) {
+	/// Returns the new [`BlockData`] and the new [`HeadData`] along with a set of [`OutboundHrmpMessage`].
+	fn advance(
+		&mut self,
+		parent_head: HeadData,
+		inbound_messages: BTreeMap<ParaId, Vec<InboundHrmpMessage>>,
+		dmq_messages: Vec<InboundDownwardMessage>,
+	) -> (BlockData, HeadData, Vec<OutboundHrmpMessage<ParaId>>) {
 		self.best_block = parent_head.number;
 
 		let state = if let Some(head_data) = self.number_to_head.get(&self.best_block) {
@@ -131,22 +170,37 @@ impl State {
 					parent_head.number,
 					self.graveyard_size,
 					self.pvf_complexity,
+					self.hrmp_channels.clone(),
+					&inbound_messages,
 				)
 				.1
 			})
 		} else {
-			let (_, state) = calculate_head_and_state_for_number(
+			let (_, state, _) = calculate_head_and_state_for_number(
 				parent_head.number,
 				self.graveyard_size,
 				self.pvf_complexity,
+				self.hrmp_channels.clone(),
+				&inbound_messages,
 			);
 			state
 		};
 
-		// Start with prev state and transaction to execute (place 1000 tombstones).
-		let block = BlockData { state, tombstones: 1000, iterations: self.pvf_complexity };
+		let inbound_hrmp_messages =
+			inbound_messages.values().flatten().cloned().collect::<Vec<_>>();
+		log::debug!(target: LOG_TARGET, "received {} messages in total", inbound_messages.len());
 
-		let (new_head, new_state) =
+		// Start with prev state and transaction to execute (place 1000 tombstones).
+		let block = BlockData {
+			state,
+			tombstones: 1000,
+			iterations: self.pvf_complexity,
+			hrmp_channels: self.hrmp_channels.clone(),
+			dmq_messages,
+			inbound_hrmp_messages,
+		};
+
+		let (new_head, new_state, messages) =
 			execute(parent_head.hash(), parent_head, block.clone()).expect("Produces valid block");
 
 		let new_head_arc = Arc::new(new_head.clone());
@@ -154,7 +208,7 @@ impl State {
 		self.head_to_state.insert(new_head_arc.clone(), new_state);
 		self.number_to_head.insert(new_head.number, new_head_arc);
 
-		(block, new_head)
+		(block, new_head, messages)
 	}
 }
 
@@ -163,18 +217,26 @@ pub struct Collator {
 	state: Arc<Mutex<State>>,
 	key: CollatorPair,
 	seconded_collations: Arc<AtomicU32>,
+	para_id: ParaId,
+	metrics: Metrics,
 }
 
 impl Default for Collator {
 	fn default() -> Self {
-		Self::new(DEFAULT_POV_SIZE, DEFAULT_PVF_COMPLEXITY)
+		Self::new(DEFAULT_POV_SIZE, DEFAULT_PVF_COMPLEXITY, Vec::new(), 0, Default::default())
 	}
 }
 
 impl Collator {
 	/// Create a new collator instance with the state initialized from genesis and `pov_size`
 	/// parameter. The same parameter needs to be passed when exporting the genesis state.
-	pub fn new(pov_size: usize, pvf_complexity: u32) -> Self {
+	pub fn new(
+		pov_size: usize,
+		pvf_complexity: u32,
+		hrmp_channels: Vec<HrmpChannelConfiguration>,
+		para_id: u32,
+		metrics: Metrics,
+	) -> Self {
 		let graveyard_size = ((pov_size / std::mem::size_of::<u8>()) as f64).sqrt().ceil() as usize;
 
 		log::info!(
@@ -187,9 +249,15 @@ impl Collator {
 		log::info!("PVF time complexity: {}", pvf_complexity);
 
 		Self {
-			state: Arc::new(Mutex::new(State::genesis(graveyard_size, pvf_complexity))),
+			state: Arc::new(Mutex::new(State::genesis(
+				graveyard_size,
+				pvf_complexity,
+				hrmp_channels,
+			))),
 			key: CollatorPair::generate().0,
 			seconded_collations: Arc::new(AtomicU32::new(0)),
+			para_id: para_id.into(),
+			metrics,
 		}
 	}
 
@@ -225,71 +293,107 @@ impl Collator {
 	pub fn create_collation_function(
 		&self,
 		spawner: impl SpawnNamed + Clone + 'static,
+		relay_chain_interface: Arc<dyn RelayChainInterface>,
 	) -> CollatorFn {
 		use futures::FutureExt as _;
 
 		let state = self.state.clone();
 		let seconded_collations = self.seconded_collations.clone();
+		let para_id = self.para_id;
+		let metrics = self.metrics.clone();
 
 		Box::new(move |relay_parent, validation_data| {
+			let relay_chain_interface = relay_chain_interface.clone();
+			let state = state.clone();
+			let seconded_collations = seconded_collations.clone();
+			let spawner = spawner.clone();
+			let metrics = metrics.clone();
+			let relay_parent_number = validation_data.relay_parent_number;
 			let parent = HeadData::decode(&mut &validation_data.parent_head.0[..])
 				.expect("Decodes parent head");
 
-			let (block_data, head_data) = state.lock().unwrap().advance(parent);
-
-			log::info!(
-				"created a new collation on relay-parent({}): {:?}",
-				relay_parent,
-				head_data,
-			);
-
-			// The pov is the actually the initial state and the transactions.
-			let pov = PoV { block_data: block_data.encode().into() };
-
-			let collation = Collation {
-				upward_messages: Default::default(),
-				horizontal_messages: Default::default(),
-				new_validation_code: None,
-				head_data: head_data.encode().into(),
-				proof_of_validity: MaybeCompressedPoV::Raw(pov.clone()),
-				processed_downward_messages: 0,
-				hrmp_watermark: validation_data.relay_parent_number,
-			};
-
-			log::info!("Raw PoV size for collation: {} bytes", pov.block_data.0.len(),);
-			let compressed_pov = maybe_compress_pov(pov);
-
-			log::info!(
-				"Compressed PoV size for collation: {} bytes",
-				compressed_pov.block_data.0.len(),
-			);
-
-			let (result_sender, recv) = oneshot::channel::<CollationSecondedSignal>();
-			let seconded_collations = seconded_collations.clone();
-			spawner.spawn(
-				"undying-collator-seconded",
-				None,
-				async move {
-					if let Ok(res) = recv.await {
-						if !matches!(
-							res.statement.payload(),
-							Statement::Seconded(s) if s.descriptor.pov_hash == compressed_pov.hash(),
-						) {
-							log::error!(
-								"Seconded statement should match our collation: {:?}",
-								res.statement.payload()
-							);
-							std::process::exit(-1);
-						}
-
-						seconded_collations.fetch_add(1, Ordering::Relaxed);
+			async move {
+				let inbound_messages = relay_chain_interface
+					.retrieve_all_inbound_hrmp_channel_contents(para_id, relay_parent)
+					.await
+					.unwrap_or_else(|_| BTreeMap::new());
+				let dmq_messages = relay_chain_interface
+					.retrieve_dmq_contents(para_id, relay_parent)
+					.await
+					.unwrap_or_else(|_| vec![]);
+				let hrmp_messages_count: usize =
+					inbound_messages.values().map(|msg_vec| msg_vec.len()).sum();
+				for (source, messages) in inbound_messages.iter() {
+					for msg in messages.iter().filter(|msg| !msg.data.is_empty()) {
+						metrics.on_hrmp_inbound(u32::from(*source), msg.data.len());
 					}
 				}
-				.boxed(),
-			);
 
-			async move { Some(CollationResult { collation, result_sender: Some(result_sender) }) }
-				.boxed()
+				let dmq_messages_count = dmq_messages.len();
+
+				let (block_data, head_data, outbound_messages) =
+					state.lock().unwrap().advance(parent, inbound_messages, dmq_messages);
+
+				for outbound_msg in outbound_messages.iter() {
+					metrics.on_hrmp_outbound(u32::from(outbound_msg.recipient), outbound_msg.data.len());
+				}
+
+				log::info!(
+					"created a new collation on relay-parent({}): {:?}; {} hrmp messages received, {} dmq messages discarded, {} messages sent",
+					relay_parent,
+					head_data,
+					hrmp_messages_count,
+					dmq_messages_count,
+					outbound_messages.len()
+				);
+
+				// The pov is the actually the initial state and the transactions.
+				let pov = PoV { block_data: block_data.encode().into() };
+
+				let collation = Collation {
+				  upward_messages: Default::default(),
+					horizontal_messages: outbound_messages.try_into().expect("bound for the vector must be higher than number of messages"),
+					new_validation_code: None,
+					head_data: head_data.encode().into(),
+					proof_of_validity: MaybeCompressedPoV::Raw(pov.clone()),
+					processed_downward_messages: dmq_messages_count as u32,
+					hrmp_watermark: relay_parent_number,
+				};
+
+				log::info!("Raw PoV size for collation: {} bytes", pov.block_data.0.len(),);
+				let compressed_pov = maybe_compress_pov(pov);
+
+				log::info!(
+					"Compressed PoV size for collation: {} bytes",
+					compressed_pov.block_data.0.len(),
+				);
+
+				let (result_sender, recv) = oneshot::channel::<CollationSecondedSignal>();
+				let seconded_collations = seconded_collations.clone();
+				spawner.spawn(
+					"undying-collator-seconded",
+					None,
+					async move {
+						if let Ok(res) = recv.await {
+							if !matches!(
+								res.statement.payload(),
+								Statement::Seconded(s) if s.descriptor.pov_hash == compressed_pov.hash(),
+							) {
+								log::error!(
+									"Seconded statement should match our collation: {:?}",
+									res.statement.payload()
+								);
+								std::process::exit(-1);
+							}
+
+							seconded_collations.fetch_add(1, Ordering::Relaxed);
+						}
+					}
+					.boxed(),
+				);
+				Some(CollationResult { collation, result_sender: Some(result_sender) })
+			}
+			.boxed()
 		})
 	}
 
@@ -323,20 +427,41 @@ impl Collator {
 	}
 }
 
-use sp_core::traits::SpawnNamed;
-
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use async_trait::async_trait;
 	use futures::executor::block_on;
 	use polkadot_parachain::primitives::{ValidationParams, ValidationResult};
 	use polkadot_primitives::{Hash, PersistedValidationData};
+	use sp_api::ApiError;
+
+	struct FakeRuntime;
+	#[async_trait]
+	impl RelayChainInterface for FakeRuntime {
+		async fn retrieve_dmq_contents(
+			&self,
+			_para_id: ParaId,
+			_relay_parent: Hash,
+		) -> Result<Vec<InboundDownwardMessage>, ApiError> {
+			Ok(Vec::new())
+		}
+
+		async fn retrieve_all_inbound_hrmp_channel_contents(
+			&self,
+			_para_id: ParaId,
+			_relay_parent: Hash,
+		) -> Result<BTreeMap<ParaId, Vec<InboundHrmpMessage>>, ApiError> {
+			Ok(BTreeMap::new())
+		}
+	}
 
 	#[test]
 	fn collator_works() {
 		let spawner = sp_core::testing::TaskExecutor::new();
-		let collator = Collator::new(1_000, 1);
-		let collation_function = collator.create_collation_function(spawner);
+		let collator = Collator::new(1_000, 1, Vec::new(), 1001, Default::default());
+		let collation_function =
+			collator.create_collation_function(spawner, Arc::new(FakeRuntime {}));
 
 		for i in 0..5 {
 			let parent_head =
@@ -389,17 +514,24 @@ mod tests {
 
 	#[test]
 	fn advance_to_state_when_parent_head_is_missing() {
-		let collator = Collator::new(1_000, 1);
+		let collator = Collator::new(1_000, 1, Vec::new(), 1001, Default::default());
 		let graveyard_size = collator.state.lock().unwrap().graveyard_size;
 
-		let mut head = calculate_head_and_state_for_number(10, graveyard_size, 1).0;
+		let mut head = calculate_head_and_state_for_number(
+			10,
+			graveyard_size,
+			1,
+			Vec::new(),
+			&BTreeMap::new(),
+		)
+		.0;
 
 		for i in 1..10 {
-			head = collator.state.lock().unwrap().advance(head).1;
+			head = collator.state.lock().unwrap().advance(head, BTreeMap::new(), Vec::new()).1;
 			assert_eq!(10 + i, head.number);
 		}
 
-		let collator = Collator::new(1_000, 1);
+		let collator = Collator::new(1_000, 1, Vec::new(), 1001, Default::default());
 		let mut second_head = collator
 			.state
 			.lock()
@@ -412,7 +544,12 @@ mod tests {
 			.clone();
 
 		for _ in 1..20 {
-			second_head = collator.state.lock().unwrap().advance(second_head.clone()).1;
+			second_head = collator
+				.state
+				.lock()
+				.unwrap()
+				.advance(second_head.clone(), BTreeMap::new(), Vec::new())
+				.1;
 		}
 
 		assert_eq!(second_head, head);

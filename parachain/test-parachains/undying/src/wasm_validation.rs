@@ -26,22 +26,23 @@ pub extern "C" fn validate_block(params: *const u8, len: usize) -> u64 {
 	let parent_head =
 		HeadData::decode(&mut &params.parent_head.0[..]).expect("invalid parent head format.");
 
-	let mut block_data =
+	let block_data =
 		BlockData::decode(&mut &params.block_data.0[..]).expect("invalid block data format.");
 
 	let parent_hash = crate::keccak256(&params.parent_head.0[..]);
+	let inbound_dmq_messages = block_data.dmq_messages.len() as u32;
 
-	let (new_head, _) =
+	let (new_head, _, hrmp_messages) =
 		crate::execute(parent_hash, parent_head, block_data).expect("Executes block");
 
 	parachain::write_result(&ValidationResult {
 		head_data: GenericHeadData(new_head.encode()),
 		new_validation_code: None,
 		upward_messages: sp_std::vec::Vec::new().try_into().expect("empty vec fits within bounds"),
-		horizontal_messages: sp_std::vec::Vec::new()
+		horizontal_messages: hrmp_messages
 			.try_into()
-			.expect("empty vec fits within bounds"),
-		processed_downward_messages: 0,
+			.expect("bounds must be higher than possible number of messages"),
+		processed_downward_messages: inbound_dmq_messages,
 		hrmp_watermark: params.relay_parent_number,
 	})
 }

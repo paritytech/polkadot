@@ -17,12 +17,11 @@
 //! Basic parachain that adds a number as part of its state.
 
 #![no_std]
-#![cfg_attr(
-	not(feature = "std"),
-	feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler)
-)]
+#![cfg_attr(not(feature = "std"), feature(core_intrinsics, lang_items, alloc_error_handler))]
 
+use parachain::primitives::Id as ParaId;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_core_primitives::{InboundDownwardMessage, InboundHrmpMessage, OutboundHrmpMessage};
 use sp_std::vec::Vec;
 use tiny_keccak::{Hasher as _, Keccak};
 
@@ -32,7 +31,7 @@ mod wasm_validation;
 #[cfg(not(feature = "std"))]
 #[global_allocator]
 static ALLOC: dlmalloc::GlobalDlmalloc = dlmalloc::GlobalDlmalloc;
-const LOG_TARGET: &str = "runtime::undying";
+pub const LOG_TARGET: &str = "runtime::undying";
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -81,6 +80,7 @@ pub struct GraveyardState {
 	/// The unsigned integer tracks the number of tombstones raised on
 	/// each grave.
 	pub graveyard: Vec<u8>,
+
 	// TODO: Add zombies. All of the graves produce zombies at a regular interval
 	// defined in blocks. The number of zombies produced scales with the tombstones.
 	// This would allow us to have a configurable and reproducible PVF execution time.
@@ -90,16 +90,41 @@ pub struct GraveyardState {
 	pub seal: [u8; 32],
 }
 
+/// A structure that configures HRMP messages produced by undying collator
+#[derive(Clone, Encode, Decode, Debug)]
+pub struct HrmpChannelConfiguration {
+	/// Where to send HRMP messages
+	pub destination_para_id: u32,
+	/// Message size
+	pub message_size: u32,
+	/// Probability to send message on each iteration in percents (0..100), default = 100
+	pub send_probability: u8,
+	/// Stop on reaching specific block (do not stop if `None`)
+	pub stop_on_block: Option<u64>,
+}
+
+impl Default for HrmpChannelConfiguration {
+	fn default() -> Self {
+		Self { destination_para_id: 0, message_size: 0, send_probability: 100, stop_on_block: None }
+	}
+}
+
 /// Block data for this parachain.
 #[derive(Default, Clone, Encode, Decode, Debug)]
 pub struct BlockData {
 	/// The state
 	pub state: GraveyardState,
+	/// Inbound messages processed
+	pub inbound_hrmp_messages: Vec<InboundHrmpMessage>,
+	/// DMQ messages
+	pub dmq_messages: Vec<InboundDownwardMessage>,
 	/// The number of tombstones to erect per iteration. For each tombstone placed
 	/// a hash operation is performed as CPU burn.
 	pub tombstones: u64,
 	/// The number of iterations to perform.
 	pub iterations: u32,
+	/// Configured HRMP channels
+	pub hrmp_channels: Vec<HrmpChannelConfiguration>,
 }
 
 pub fn hash_state(state: &GraveyardState) -> [u8; 32] {
@@ -107,7 +132,10 @@ pub fn hash_state(state: &GraveyardState) -> [u8; 32] {
 }
 
 /// Executes all graveyard transactions in the block.
-pub fn execute_transaction(mut block_data: BlockData) -> GraveyardState {
+pub fn execute_transaction(
+	mut block_data: BlockData,
+	inbound_messages: &Vec<InboundHrmpMessage>,
+) -> GraveyardState {
 	let graveyard_size = block_data.state.graveyard.len();
 
 	for _ in 0..block_data.iterations {
@@ -122,6 +150,7 @@ pub fn execute_transaction(mut block_data: BlockData) -> GraveyardState {
 		block_data.state.seal = hash_state(&block_data.state);
 	}
 
+	block_data.inbound_hrmp_messages = inbound_messages.clone();
 	block_data.state
 }
 
@@ -135,7 +164,7 @@ pub fn execute(
 	parent_hash: [u8; 32],
 	parent_head: HeadData,
 	block_data: BlockData,
-) -> Result<(HeadData, GraveyardState), StateMismatch> {
+) -> Result<(HeadData, GraveyardState, Vec<OutboundHrmpMessage<ParaId>>), StateMismatch> {
 	assert_eq!(parent_hash, parent_head.hash());
 
 	if hash_state(&block_data.state) != parent_head.post_state {
@@ -149,7 +178,29 @@ pub fn execute(
 	}
 
 	// We need to clone the block data as the fn will mutate it's state.
-	let new_state = execute_transaction(block_data.clone());
+	let new_state = execute_transaction(block_data.clone(), &block_data.inbound_hrmp_messages);
+	let messages = block_data
+		.hrmp_channels
+		.iter()
+		.filter_map(|channel| {
+			// Skip on stop
+			if matches!(channel.stop_on_block, Some(last_block) if last_block <= parent_head.number)
+			{
+				return None
+			}
+			// Skip by probability
+			let prob = prob_from_hash(&parent_hash);
+			if prob > channel.send_probability as f32 / 100.0 {
+				None
+			} else {
+				let mut data = sp_std::vec::Vec::with_capacity(channel.message_size as usize);
+				for _ in 0..channel.message_size {
+					data.push(0_u8);
+				}
+				Some(OutboundHrmpMessage { recipient: channel.destination_para_id.into(), data })
+			}
+		})
+		.collect::<Vec<_>>();
 
 	Ok((
 		HeadData {
@@ -158,5 +209,11 @@ pub fn execute(
 			post_state: hash_state(&new_state),
 		},
 		new_state,
+		messages,
 	))
+}
+
+// Returns coin probability based on hash (assuming that the hash value is indistinguishable from random)
+fn prob_from_hash(hash: &[u8; 32]) -> f32 {
+	hash[0] as f32 / u8::MAX as f32
 }

@@ -218,12 +218,12 @@ impl fmt::Debug for OutboundHrmpAcceptanceErr {
 			),
 			TotalSizeExceeded { idx, total_size, limit } => write!(
 				fmt,
-				"sending the HRMP message at index {} would exceed the neogitiated channel total size  ({} > {})",
+				"sending the HRMP message at index {} would exceed the negotiated channel total size  ({} > {})",
 				idx, total_size, limit,
 			),
 			CapacityExceeded { idx, count, limit } => write!(
 				fmt,
-				"sending the HRMP message at index {} would exceed the neogitiated channel capacity  ({} > {})",
+				"sending the HRMP message at index {} would exceed the negotiated channel capacity  ({} > {})",
 				idx, count, limit,
 			),
 		}

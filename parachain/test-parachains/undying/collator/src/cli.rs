@@ -18,6 +18,74 @@
 
 use clap::Parser;
 use sc_cli::{RuntimeVersion, SubstrateCli};
+use std::{collections::HashMap, str::FromStr};
+use test_parachain_undying::HrmpChannelConfiguration;
+
+/// Utility enum for parse HRMP config from a string
+#[derive(Clone, Debug, strum::Display, thiserror::Error)]
+pub enum HrmpConfigParseError {
+	IntParseError,
+	MissingDestination,
+	MissingMessageSize,
+	BadKeyValuePair,
+}
+
+/// Utility structure to process HRMP channels configuration from CLI
+#[derive(Debug, Clone)]
+pub struct CliHrmpChannelConfiguration(pub HrmpChannelConfiguration);
+
+/// This implementation is used to parse HRMP channels configuration from a command
+/// line. This should be two numbers separated by `:`, where a first number is the
+/// target parachain id and the second number is the message size in bytes.
+/// For example, a configuration of `2:100` will send 100 bytes of data to the
+/// parachain id 2 on each block. The HRMP channel must be configured in the genesis
+/// block to be able to use this parameter.
+impl FromStr for CliHrmpChannelConfiguration {
+	type Err = HrmpConfigParseError;
+
+	fn from_str(s: &str) -> Result<Self, Self::Err> {
+		let params_hash = s
+			.split(&[';', ','])
+			.map(|element| {
+				let pairs = element.split('=').collect::<Vec<_>>();
+				if pairs.len() != 2 {
+					Err(HrmpConfigParseError::BadKeyValuePair)
+				} else {
+					Ok((pairs[0].to_owned(), pairs[1].to_owned()))
+				}
+			})
+			.collect::<Result<HashMap<String, String>, _>>()?;
+		let destination_para_id = params_hash
+			.get("destination")
+			.ok_or_else(|| HrmpConfigParseError::MissingDestination)?
+			.parse::<u32>()
+			.map_err(|_| HrmpConfigParseError::IntParseError)?;
+		let message_size = params_hash
+			.get("size")
+			.ok_or_else(|| HrmpConfigParseError::MissingMessageSize)?
+			.parse::<u32>()
+			.map_err(|_| HrmpConfigParseError::IntParseError)?;
+
+		let mut res =
+			HrmpChannelConfiguration { destination_para_id, message_size, ..Default::default() };
+
+		if let Some(prob_value) = params_hash.get("probability") {
+			let value =
+				prob_value.parse::<u8>().map_err(|_| HrmpConfigParseError::IntParseError)?;
+			// We do not do sanity checks here, as u8 is limited by 0..255, so it will be fine
+			// to use that as send probability / 100.0
+			res.send_probability = value;
+		}
+
+		if let Some(stop_value) = params_hash.get("stop") {
+			let value =
+				stop_value.parse::<u64>().map_err(|_| HrmpConfigParseError::IntParseError)?;
+			res.stop_on_block = Some(value);
+		}
+
+		Ok(CliHrmpChannelConfiguration(res))
+	}
+}
 
 /// Sub-commands supported by the collator.
 #[derive(Debug, Parser)]
@@ -72,6 +140,16 @@ pub struct RunCmd {
 	/// we compute per block.
 	#[arg(long, default_value_t = 1)]
 	pub pvf_complexity: u32,
+
+	/// Configuration of the HRMP channels in a form of comma separated `key=value` pairs (for example, `destination=101,size=100`).
+	///
+	/// HRMP parameters have the following attributes: {n}
+	/// * `destination`: destination parachain (required) {n}
+	/// * `size`: size of message to be sent (required) {n}
+	/// * `probability`: send message at specified probability (in percent) {n}
+	/// * `stop`: stop sending after block number N
+	#[clap(long)]
+	pub hrmp_params: Vec<CliHrmpChannelConfiguration>,
 }
 
 #[allow(missing_docs)]

@@ -12018,6 +12018,7 @@ dependencies = [
  "dlmalloc",
  "log",
  "parity-scale-codec",
+ "polkadot-core-primitives",
  "polkadot-parachain",
  "sp-io",
  "sp-std",
@@ -12029,13 +12030,16 @@ dependencies = [
 name = "test-parachain-undying-collator"
 version = "0.9.39"
 dependencies = [
+ "async-trait",
  "clap 4.0.15",
  "futures",
  "futures-timer",
  "log",
  "parity-scale-codec",
  "polkadot-cli",
+ "polkadot-client",
  "polkadot-node-core-pvf",
+ "polkadot-node-metrics",
  "polkadot-node-primitives",
  "polkadot-node-subsystem",
  "polkadot-parachain",
@@ -12044,10 +12048,13 @@ dependencies = [
  "polkadot-test-service",
  "sc-cli",
  "sc-service",
+ "sp-api",
  "sp-core",
  "sp-keyring",
+ "strum",
  "substrate-test-utils",
  "test-parachain-undying",
+ "thiserror",
  "tokio",
 ]
 
