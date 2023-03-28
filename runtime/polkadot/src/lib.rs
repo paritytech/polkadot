@@ -189,7 +189,7 @@ pub struct OriginPrivilegeCmp;
 impl PrivilegeCmp<OriginCaller> for OriginPrivilegeCmp {
 	fn cmp_privilege(left: &OriginCaller, right: &OriginCaller) -> Option<Ordering> {
 		if left == right {
-			return Some(Ordering::Equal)
+			return Some(Ordering::Equal);
 		}
 
 		match (left, right) {
@@ -1013,26 +1013,28 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 				RuntimeCall::NominationPools(..) |
 				RuntimeCall::FastUnstake(..)
 			),
-			ProxyType::Governance =>
-				matches!(
-					c,
-					RuntimeCall::Democracy(..) |
-						RuntimeCall::Council(..) | RuntimeCall::TechnicalCommittee(..) |
-						RuntimeCall::PhragmenElection(..) |
-						RuntimeCall::Treasury(..) |
-						RuntimeCall::Bounties(..) |
-						RuntimeCall::Tips(..) | RuntimeCall::Utility(..) |
-						RuntimeCall::ChildBounties(..) |
-						RuntimeCall::ConvictionVoting(..) |
-						RuntimeCall::Referenda(..) |
-						RuntimeCall::Whitelist(..)
-				),
+			ProxyType::Governance => matches!(
+				c,
+				RuntimeCall::Democracy(..)
+					| RuntimeCall::Council(..)
+					| RuntimeCall::TechnicalCommittee(..)
+					| RuntimeCall::PhragmenElection(..)
+					| RuntimeCall::Treasury(..)
+					| RuntimeCall::Bounties(..)
+					| RuntimeCall::Tips(..)
+					| RuntimeCall::Utility(..)
+					| RuntimeCall::ChildBounties(..)
+					| RuntimeCall::ConvictionVoting(..)
+					| RuntimeCall::Referenda(..)
+					| RuntimeCall::Whitelist(..)
+			),
 			ProxyType::Staking => {
 				matches!(
 					c,
-					RuntimeCall::Staking(..) |
-						RuntimeCall::Session(..) | RuntimeCall::Utility(..) |
-						RuntimeCall::FastUnstake(..)
+					RuntimeCall::Staking(..)
+						| RuntimeCall::Session(..)
+						| RuntimeCall::Utility(..)
+						| RuntimeCall::FastUnstake(..)
 				)
 			},
 			ProxyType::NominationPools => {
@@ -1040,18 +1042,18 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 			},
 			ProxyType::IdentityJudgement => matches!(
 				c,
-				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. }) |
-					RuntimeCall::Utility(..)
+				RuntimeCall::Identity(pallet_identity::Call::provide_judgement { .. })
+					| RuntimeCall::Utility(..)
 			),
 			ProxyType::CancelProxy => {
 				matches!(c, RuntimeCall::Proxy(pallet_proxy::Call::reject_announcement { .. }))
 			},
 			ProxyType::Auction => matches!(
 				c,
-				RuntimeCall::Auctions(..) |
-					RuntimeCall::Crowdloan(..) |
-					RuntimeCall::Registrar(..) |
-					RuntimeCall::Slots(..)
+				RuntimeCall::Auctions(..)
+					| RuntimeCall::Crowdloan(..)
+					| RuntimeCall::Registrar(..)
+					| RuntimeCall::Slots(..)
 			),
 		}
 	}
@@ -2157,8 +2159,8 @@ mod test_fees {
 		};
 
 		let mut active = target_voters;
-		while weight_with(active).all_lte(OffchainSolutionWeightLimit::get()) ||
-			active == target_voters
+		while weight_with(active).all_lte(OffchainSolutionWeightLimit::get())
+			|| active == target_voters
 		{
 			active += 1;
 		}
@@ -2216,8 +2218,8 @@ mod multiplier_tests {
 	#[test]
 	fn multiplier_can_grow_from_zero() {
 		let minimum_multiplier = MinimumMultiplier::get();
-		let target = TargetBlockFullness::get() *
-			BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
+		let target = TargetBlockFullness::get()
+			* BlockWeights::get().get(DispatchClass::Normal).max_total.unwrap();
 		// if the min is too small, then this will not change, and we are doomed forever.
 		// the weight is 1/100th bigger than target.
 		run_with_system_weight(target.saturating_mul(101) / 100, || {
@@ -2332,7 +2334,7 @@ mod remote_tests {
 	#[tokio::test]
 	async fn run_migrations() {
 		if var("RUN_MIGRATION_TESTS").is_err() {
-			return
+			return;
 		}
 
 		sp_tracing::try_init_simple();
@@ -2362,8 +2364,7 @@ mod remote_tests {
 	#[ignore = "this test is meant to be executed manually"]
 	async fn try_fast_unstake_all() {
 		sp_tracing::try_init_simple();
-		let transport: Transport =
-			var("WS").unwrap_or("wss://rpc.polkadot.io:443".to_string()).into();
+		let transport: Transport = var("WS").unwrap_or("ws://localhost:9944".to_string()).into();
 		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
 		let mut ext = Builder::<Block>::default()
 			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
@@ -2385,5 +2386,87 @@ mod remote_tests {
 			pallet_fast_unstake::ErasToCheckPerBlock::<Runtime>::put(1);
 			runtime_common::try_runtime::migrate_all_inactive_nominators::<Runtime>()
 		});
+	}
+
+	#[tokio::test]
+	#[ignore = "this test is meant to be executed manually"]
+	async fn try_clear_gov_v1_storage() {
+		sp_tracing::try_init_simple();
+		use frame_system;
+		use pallet_utility;
+		use sp_core::twox_128;
+
+		let transport: Transport = var("WS").unwrap_or("ws://localhost:9944".to_string()).into();
+		let maybe_state_snapshot: Option<SnapshotConfig> = var("SNAP").map(|s| s.into()).ok();
+		let now = std::time::Instant::now();
+		let mut ext = Builder::<Block>::default()
+			.mode(if let Some(state_snapshot) = maybe_state_snapshot {
+				Mode::OfflineOrElseOnline(
+					OfflineConfig { state_snapshot: state_snapshot.clone() },
+					OnlineConfig {
+						transport,
+						state_snapshot: Some(state_snapshot),
+						..Default::default()
+					},
+				)
+			} else {
+				Mode::Online(OnlineConfig { transport, ..Default::default() })
+			})
+			.build()
+			.await
+			.unwrap();
+		ext.execute_with(|| {
+			use frame_support::assert_ok;
+			use sp_runtime::traits::Dispatchable;
+
+			//
+			// Assert keys exist prior to deletion
+			//
+			let public_prop_count = <pallet_democracy::PublicPropCount<Runtime>>::get();
+			assert!(public_prop_count > 0);
+			// TODO: assert other keys
+
+			//
+			// Create batch call to kill all gov v1 storage
+			//
+			let democracy_call = RuntimeCall::System(frame_system::Call::kill_prefix {
+				// 0xf2794c22e353e9a839f12faab03a911b
+				prefix: twox_128(b"Democracy").into(),
+				subkeys: 500_000,
+			});
+			let collective_call = RuntimeCall::System(frame_system::Call::kill_prefix {
+				// 0xf9922c78cfa3c316d27a3eb48145ab1b
+				prefix: twox_128(b"Collective").into(),
+				subkeys: 500_000,
+			});
+			let elections_phragmen_call = RuntimeCall::System(frame_system::Call::kill_prefix {
+				// 0x4d45a146e2a002ba470f48b9ed9a3e23
+				prefix: twox_128(b"ElectionsPhragmen").into(),
+				subkeys: 500_000,
+			});
+			let membership_call = RuntimeCall::System(frame_system::Call::kill_prefix {
+				prefix: twox_128(b"Membership").into(),
+				subkeys: 500_000,
+			});
+			let batch = RuntimeCall::Utility(pallet_utility::Call::batch {
+				calls: vec![
+					democracy_call.into(),
+					collective_call.into(),
+					elections_phragmen_call.into(),
+					membership_call.into(),
+				],
+			});
+			let batch_weight = batch.get_dispatch_info().weight;
+			dbg!(batch_weight);
+
+			//
+			// Execute call and assert storage has been removed
+			//
+			assert_ok!(batch.dispatch(RuntimeOrigin::root()));
+			let public_prop_count = <pallet_democracy::PublicPropCount<Runtime>>::get();
+			assert_eq!(public_prop_count, 0);
+			// TODO: assert other storage items
+		});
+		println!("Done");
 	}
 }
