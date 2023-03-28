@@ -24,7 +24,7 @@ use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
 use primitives::{
-	vstaging::AsyncBackingParameters, Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE,
+	vstaging::AsyncBackingParams, Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE,
 	MAX_POV_SIZE,
 };
 use sp_runtime::traits::Zero;
@@ -122,7 +122,7 @@ pub struct HostConfiguration<BlockNumber> {
 	 */
 
 	/// Asynchronous backing parameters.
-	pub async_backing_parameters: AsyncBackingParameters,
+	pub async_backing_params: AsyncBackingParams,
 	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
@@ -248,7 +248,7 @@ pub struct HostConfiguration<BlockNumber> {
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
 	fn default() -> Self {
 		Self {
-			async_backing_parameters: AsyncBackingParameters {
+			async_backing_params: AsyncBackingParams {
 				max_candidate_depth: 0,
 				allowed_ancestry_len: 0,
 			},
@@ -1154,13 +1154,13 @@ pub mod pallet {
 			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
 			DispatchClass::Operational,
 		))]
-		pub fn set_async_backing_parameters(
+		pub fn set_async_backing_params(
 			origin: OriginFor<T>,
-			new: AsyncBackingParameters,
+			new: AsyncBackingParams,
 		) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
-				config.async_backing_parameters = new;
+				config.async_backing_params = new;
 			})
 		}
 	}

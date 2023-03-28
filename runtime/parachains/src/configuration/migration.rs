@@ -19,7 +19,7 @@
 use crate::configuration::{self, ActiveConfig, Config, Pallet, PendingConfigs, MAX_POV_SIZE};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
-use primitives::vstaging::AsyncBackingParameters;
+use primitives::vstaging::AsyncBackingParams;
 use sp_std::vec::Vec;
 
 /// The current storage version.
@@ -229,7 +229,7 @@ pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 
 // Default values are zeroes, thus it's ensured allowed ancestry never crosses the upgrade block.
-async_backing_parameters                 : AsyncBackingParameters { max_candidate_depth: 0, allowed_ancestry_len: 0 },
+async_backing_params                 : AsyncBackingParams { max_candidate_depth: 0, allowed_ancestry_len: 0 },
 		}
 	};
 
@@ -389,8 +389,8 @@ mod tests {
 				}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
 
 				// additional checks for async backing.
-				assert_eq!(v5.async_backing_parameters.allowed_ancestry_len, 0);
-				assert_eq!(v5.async_backing_parameters.max_candidate_depth, 0);
+				assert_eq!(v5.async_backing_params.allowed_ancestry_len, 0);
+				assert_eq!(v5.async_backing_params.max_candidate_depth, 0);
 			}
 		});
 	}

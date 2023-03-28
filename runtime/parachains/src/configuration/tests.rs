@@ -281,7 +281,7 @@ fn consistency_bypass_works() {
 fn setting_pending_config_members() {
 	new_test_ext(Default::default()).execute_with(|| {
 		let new_config = HostConfiguration {
-			async_backing_parameters: primitives::vstaging::AsyncBackingParameters {
+			async_backing_params: primitives::vstaging::AsyncBackingParams {
 				allowed_ancestry_len: 0,
 				max_candidate_depth: 0,
 			},
