@@ -183,7 +183,7 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		OnDemandOrderPlaced,
+		OnDemandOrderPlaced { spot_price: BalanceOf<T> },
 	}
 
 	#[pallet::error]
@@ -253,7 +253,7 @@ pub mod pallet {
 
 			match res {
 				Ok(_) => {
-					Pallet::<T>::deposit_event(Event::<T>::OnDemandOrderPlaced);
+					Pallet::<T>::deposit_event(Event::<T>::OnDemandOrderPlaced { spot_price });
 					return Ok(())
 				},
 				Err(err) => return Err(err),
