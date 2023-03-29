@@ -19,7 +19,8 @@ impl<P: Get<&'static str>> RemovePallet<P> {
 			counter += 1;
 			current = next;
 		}
-		(counter, RocksDbWeight::get().reads_writes(counter, counter))
+		// Extra read for initial prefix read.
+		(counter, RocksDbWeight::get().reads_writes(counter + 1, counter))
 	}
 }
 impl<P: Get<&'static str>> frame_support::traits::OnRuntimeUpgrade for RemovePallet<P> {
