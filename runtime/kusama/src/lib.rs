@@ -1477,14 +1477,13 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 	}
 }
 
-// Types for RemovePallet
+// RemovePallet parameter types
 parameter_types! {
 	pub DemocracyStr: &'static str = "Democracy";
 	pub CouncilStr: &'static str = "Council";
 	pub TechnicalCommitteeStr: &'static str = "TechnicalCommittee";
 	pub PhragmenElectionStr: &'static str = "PhragmenElection";
 	pub TechnicalMembershipStr: &'static str = "TechnicalMembership";
-	pub TreasuryStr: &'static str = "Treasury";
 }
 
 /// All migrations that will run on the next runtime upgrade.
@@ -1507,7 +1506,6 @@ pub type Migrations = (
 	RemovePallet<TechnicalCommitteeStr>,
 	RemovePallet<PhragmenElectionStr>,
 	RemovePallet<TechnicalCommitteeStr>,
-	RemovePallet<TreasuryStr>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
