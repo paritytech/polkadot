@@ -27,7 +27,6 @@ use frame_support::{
 	pallet_prelude::*,
 	traits::{OneSessionHandler, ValidatorSet, ValidatorSetWithIdentification},
 };
-use frame_system::pallet_prelude::*;
 use primitives::{AssignmentId, AuthorityDiscoveryId, ExecutorParams, SessionIndex, SessionInfo};
 use sp_std::vec::Vec;
 
@@ -108,25 +107,6 @@ pub mod pallet {
 	#[pallet::getter(fn session_executor_params)]
 	pub(crate) type SessionExecutorParams<T: Config> =
 		StorageMap<_, Identity, SessionIndex, ExecutorParams>;
-
-	/// Pending executor parameters
-	#[pallet::storage]
-	pub(crate) type PendingExecutorParams<T: Config> =
-		StorageValue<_, ExecutorParams, OptionQuery>;
-
-	#[pallet::call]
-	impl<T: Config> Pallet<T> {
-		#[pallet::call_index(0)]
-		#[pallet::weight((
-			Weight::from_parts(0, 0), // FIXME: How do we calculate weights?
-			DispatchClass::Operational,
-		))]
-		pub fn set_executor_params(origin: OriginFor<T>, new: ExecutorParams) -> DispatchResult {
-			ensure_root(origin)?;
-			<PendingExecutorParams<T>>::put(new);
-			Ok(())
-		}
-	}
 }
 
 /// An abstraction for the authority discovery pallet
@@ -211,19 +191,8 @@ impl<T: Config> Pallet<T> {
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
 
-		let new_executor_params = if let Some(executor_params) = <PendingExecutorParams<T>>::get() {
-			<PendingExecutorParams<T>>::kill();
-			executor_params
-		} else {
-			let current_session_index = new_session_index.saturating_sub(1);
-			if let Some(executor_params) = <SessionExecutorParams<T>>::get(current_session_index) {
-				executor_params
-			} else {
-				frame_support::defensive!("Current session executor params must always be present");
-				Default::default()
-			}
-		};
-
+		let new_executor_params =
+			<configuration::Pallet<T>>::next_session_executor_params().unwrap_or_default();
 		SessionExecutorParams::<T>::insert(&new_session_index, new_executor_params);
 	}
 

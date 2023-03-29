@@ -23,7 +23,9 @@ use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_REF_TIME_PER_M
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
-use primitives::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
+use primitives::{
+	Balance, ExecutorParams, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE,
+};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
@@ -510,6 +512,13 @@ pub mod pallet {
 	/// is meant to be used only as the last resort.
 	#[pallet::storage]
 	pub(crate) type BypassConsistencyCheck<T: Config> = StorageValue<_, bool, ValueQuery>;
+
+	/// Execution environment parameters (changes are applied on the initialization of the next
+	/// session by `session_info` pallet)
+	#[pallet::storage]
+	#[pallet::getter(fn next_session_executor_params)]
+	pub(crate) type NextSessionExecutorParams<T: Config> =
+		StorageValue<_, ExecutorParams, OptionQuery>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig<T: Config> {
@@ -1155,6 +1164,20 @@ pub mod pallet {
 		pub fn set_bypass_consistency_check(origin: OriginFor<T>, new: bool) -> DispatchResult {
 			ensure_root(origin)?;
 			BypassConsistencyCheck::<T>::put(new);
+			Ok(())
+		}
+
+		#[pallet::call_index(45)]
+		#[pallet::weight((
+			Weight::from_parts(0, 0), // FIXME: Benchmark weights
+			DispatchClass::Operational,
+		))]
+		pub fn set_next_session_executor_params(
+			origin: OriginFor<T>,
+			new: ExecutorParams,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			<NextSessionExecutorParams<T>>::put(new);
 			Ok(())
 		}
 	}
