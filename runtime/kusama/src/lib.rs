@@ -1329,16 +1329,14 @@ impl pallet_nomination_pools::Config for Runtime {
 
 pub struct RemoveGovV1Storage;
 impl RemoveGovV1Storage {
-	fn get_pallets() -> Vec<&'static str> {
-		vec![
-			"Democracy",
-			"Council",
-			"TechnicalCommittee",
-			"PhragmenElection",
-			"TechnicalMembership",
-			"Treasury",
-		]
-	}
+	const MODULES: [&'static str; 6] = [
+		"Democracy",
+		"Council",
+		"TechnicalCommittee",
+		"PhragmenElection",
+		"TechnicalMembership",
+		"Treasury",
+	];
 
 	fn count_keys(prefix: &[u8]) -> u32 {
 		let mut current = prefix.clone().to_vec();
@@ -1360,7 +1358,7 @@ impl frame_support::traits::OnRuntimeUpgrade for RemoveGovV1Storage {
 
 		// Create a 'kill_prefix' call for each pallet we wish to remove keys for
 		let mut total_keys = 0;
-		let calls = Self::get_pallets()
+		let calls = Self::MODULES
 			.iter()
 			.map(|pallet| {
 				let prefix = twox_128(pallet.as_bytes());
@@ -1384,8 +1382,7 @@ impl frame_support::traits::OnRuntimeUpgrade for RemoveGovV1Storage {
 			}
 		} else {
 			log::info!(target: "runtime::kusama", "Gov V1 keys already removed 🤙");
-			<Runtime as frame_system::Config>::DbWeight::get()
-				.reads(Self::get_pallets().len() as u64)
+			<Runtime as frame_system::Config>::DbWeight::get().reads(Self::MODULES.len() as u64)
 		}
 	}
 
