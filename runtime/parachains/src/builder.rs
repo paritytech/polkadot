@@ -130,16 +130,21 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// Make sure config contains suitable values for benchmarking.
 	///
 	/// Fallback values are chosen based on current Kusama values at the time of writing.
-	#[cfg(feature = "runtime-benchmarks")]
 	pub(crate) fn adjust_config_benchmarking() {
 		let mut config = configuration::Pallet::<T>::config();
+
 		config.max_upward_message_num_per_candidate =
 			Self::fallback_max_upward_message_num_per_candidate();
 		config.max_upward_message_size = Self::fallback_max_upward_message_size();
+		config.max_upward_queue_count = Self::fallback_max_upward_queue_count();
+		config.max_upward_queue_size = Self::fallback_max_upward_queue_size();
+
 		config.hrmp_max_message_num_per_candidate =
 			Self::fallback_hrmp_max_message_num_per_candidate();
 		config.hrmp_channel_max_message_size = Self::fallback_hrmp_channel_max_message_size();
+
 		config.max_code_size = Self::fallback_max_code_size();
+
 		configuration::Pallet::<T>::force_set_active_config(config);
 	}
 
@@ -193,7 +198,14 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		self.max_validators.unwrap_or(Self::fallback_max_validators())
 	}
 
-	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn fallback_max_upward_queue_count() -> u32 {
+		// Make sure we can at least queue as many messages as are allowed in a single candidate.
+		cmp::max(
+			Self::fallback_max_upward_message_num_per_candidate(),
+			configuration::Pallet::<T>::config().max_upward_queue_count,
+		)
+	}
+
 	pub(crate) fn fallback_max_upward_message_num_per_candidate() -> u32 {
 		// Make sure we get some benchmark data, no matter what (values are current Kusama values
 		// at the time of writing):
@@ -204,7 +216,15 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		)
 	}
 
-	#[cfg(feature = "runtime-benchmarks")]
+	pub(crate) fn fallback_max_upward_queue_size() -> u32 {
+		// Make sure we can at least queue as many messages as are allowed in a single candidate.
+		cmp::max(
+			Self::fallback_max_upward_message_size() *
+				Self::fallback_max_upward_message_num_per_candidate(),
+			configuration::Pallet::<T>::config().max_upward_queue_size,
+		)
+	}
+
 	pub(crate) fn fallback_max_upward_message_size() -> u32 {
 		// Make sure we get some benchmark data, no matter what (values are current Kusama values
 		// at the time of writing):
@@ -212,7 +232,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		cmp::max(configuration::Pallet::<T>::config().max_upward_message_size, min_value)
 	}
 
-	#[cfg(feature = "runtime-benchmarks")]
 	pub(crate) fn fallback_hrmp_max_message_num_per_candidate() -> u32 {
 		// Make sure we get some benchmark data, no matter what (values are current Kusama values
 		// at the time of writing):
@@ -220,7 +239,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		cmp::max(configuration::Pallet::<T>::config().hrmp_max_message_num_per_candidate, min_value)
 	}
 
-	#[cfg(feature = "runtime-benchmarks")]
 	pub(crate) fn fallback_hrmp_channel_max_message_size() -> u32 {
 		// Make sure we get some benchmark data, no matter what (values are current Kusama values
 		// at the time of writing):
@@ -228,7 +246,6 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 		cmp::max(configuration::Pallet::<T>::config().hrmp_channel_max_message_size, min_value)
 	}
 
-	#[cfg(feature = "runtime-benchmarks")]
 	pub(crate) fn fallback_max_code_size() -> u32 {
 		// Make sure we get some benchmark data, no matter what (values are current Kusama values
 		// at the time of writing):
@@ -753,6 +770,8 @@ impl<T: paras_inherent::Config> BenchBuilder<T> {
 	/// `backed_and_concluding_cores.len() + dispute_sessions.len()` must be less than the max
 	/// number of cores.
 	pub(crate) fn build(self) -> Bench<T> {
+		// Necessary for benchmarks to succeed:
+		Self::adjust_config_benchmarking();
 		// Make sure relevant storage is cleared. This is just to get the asserts to work when
 		// running tests because it seems the storage is not cleared in between.
 		#[allow(deprecated)]
