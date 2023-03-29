@@ -22,7 +22,7 @@ use frame_support::traits::{
 };
 use sp_std::{marker::PhantomData, vec};
 use xcm::prelude::*;
-use xcm_executor::traits::{Convert, QueryResponseStatus, XcmQueryHandler};
+use xcm_executor::traits::{QueryResponseStatus, XcmQueryHandler};
 
 /// Implementation of the `frame_support_traits::tokens::Pay` trait, to allow
 /// for generic payments of a given `AssetKind` and `Balance` from an implied origin, to a
@@ -31,28 +31,20 @@ use xcm_executor::traits::{Convert, QueryResponseStatus, XcmQueryHandler};
 /// `PayOverXcm::pay` is asynchronous, and returns a `QueryId` which can then be used in
 /// `check_payment` to check the status of the XCM transaction.
 ///
-pub struct PayOverXcm<
-	DestChain,
-	Router,
-	Querier,
-	BlockNumber,
-	Timeout,
-	AccountId,
-	AccountIdConverter,
->(PhantomData<(DestChain, Router, Querier, BlockNumber, Timeout, AccountId, AccountIdConverter)>);
+pub struct PayOverXcm<Sender, Router, Querier, Timeout, Beneficiary, AssetKind>(
+	PhantomData<(Sender, Router, Querier, Timeout, Beneficiary, AssetKind)>,
+);
 impl<
-		DestChain: Get<xcm::latest::MultiLocation>,
+		Sender: Get<(MultiLocation, InteriorMultiLocation)>,
 		Router: SendXcm,
 		Querier: XcmQueryHandler,
-		BlockNumber,
 		Timeout: Get<Querier::BlockNumber>,
-		AccountId: Clone,
-		AccountIdConverter: Convert<MultiLocation, AccountId>,
-	> Pay
-	for PayOverXcm<DestChain, Router, Querier, BlockNumber, Timeout, AccountId, AccountIdConverter>
+		Beneficiary: Into<MultiLocation> + Clone,
+		AssetKind: Into<AssetId>,
+	> Pay for PayOverXcm<Sender, Router, Querier, Timeout, Beneficiary, AssetKind>
 {
-	type Beneficiary = AccountId;
-	type AssetKind = xcm::latest::AssetId;
+	type Beneficiary = Beneficiary;
+	type AssetKind = AssetKind;
 	type Balance = u128;
 	type Id = Querier::QueryId;
 
@@ -61,20 +53,21 @@ impl<
 		asset_kind: Self::AssetKind,
 		amount: Self::Balance,
 	) -> Result<Self::Id, ()> {
-		let beneficiary = AccountIdConverter::reverse(who.clone()).map_err(|_| ())?;
+		let (dest, sender) = Sender::get();
 		let mut message = Xcm(vec![
 			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+			DescendOrigin(sender),
 			TransferAsset {
-				beneficiary,
-				assets: vec![MultiAsset { id: asset_kind, fun: Fungibility::Fungible(amount) }]
-					.into(),
+				beneficiary: who.clone().into(),
+				assets: vec![MultiAsset {
+					id: asset_kind.into(),
+					fun: Fungibility::Fungible(amount),
+				}]
+				.into(),
 			},
 		]);
-		let destination = DestChain::get();
-		let id =
-			Querier::report_outcome(&mut message, destination, Timeout::get()).map_err(|_| ())?;
-		let (ticket, _) =
-			Router::validate(&mut Some(destination), &mut Some(message)).map_err(|_| ())?;
+		let id = Querier::report_outcome(&mut message, dest, Timeout::get()).map_err(|_| ())?;
+		let (ticket, _) = Router::validate(&mut Some(dest), &mut Some(message)).map_err(|_| ())?;
 		Router::deliver(ticket).map_err(|_| ())?;
 		Ok(id)
 	}
