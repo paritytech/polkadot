@@ -284,11 +284,23 @@ impl Initialized {
 
 			match session_idx {
 				Ok(session_idx) => {
-					// Dummy fetch to ensure the session is cached
-					let _ = self
+					// Dummy fetch to ensure the session is cached.
+					match self
 						.runtime_info
 						.get_session_info_by_index(ctx.sender(), new_leaf.hash, session_idx)
-						.await?;
+						.await
+					{
+						Ok(_) => { /* do nothing */ },
+						Err(e) => {
+							gum::warn!(
+								target: LOG_TARGET,
+								session_idx,
+								leaf_hash = ?new_leaf.hash,
+								err = ?e,
+								"Error caching SessionInfo on ActiveLeaves update"
+							);
+						},
+					}
 
 					if session_idx > self.highest_session {
 						self.highest_session = session_idx;
