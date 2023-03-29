@@ -472,11 +472,23 @@ impl Initialized {
 				?session,
 				"Importing dispute votes from chain for candidate"
 			);
-			let session_info = &self
+			let session_info = match self
 				.runtime_info
 				.get_session_info_by_index(ctx.sender(), leaf_hash, session)
-				.await?
-				.session_info;
+				.await
+			{
+				Ok(extended_session_info) => &extended_session_info.session_info,
+				Err(err) => {
+					gum::warn!(
+						target: LOG_TARGET,
+						?candidate_hash,
+						?session,
+						?err,
+						"Could not retrieve session info for recently concluded dispute"
+					);
+					continue
+				},
+			};
 
 			let statements = statements
 				.into_iter()
