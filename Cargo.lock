@@ -7686,6 +7686,7 @@ name = "polkadot-runtime-metrics"
 version = "0.9.39"
 dependencies = [
  "bs58",
+ "frame-benchmarking",
  "parity-scale-codec",
  "polkadot-primitives",
  "sp-std",
