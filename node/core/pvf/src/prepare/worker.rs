@@ -360,7 +360,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 					%worker_pid,
 					"Node and worker version mismatch, node needs restarting, forcing shutdown",
 				);
-				crate::kill_node_in_emergency();
+				crate::kill_parent_node_in_emergency();
 				return Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"))
 			}
 		}
