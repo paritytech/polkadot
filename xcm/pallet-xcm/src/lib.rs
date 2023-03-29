@@ -588,15 +588,15 @@ pub mod pallet {
 		StorageValue<_, VersionMigrationStage, OptionQuery>;
 
 	#[derive(Clone, Encode, Decode, Eq, PartialEq, Ord, PartialOrd, TypeInfo, MaxEncodedLen)]
-	#[scale_info(skip_type_params(MaxConsumers))]
-	pub struct RemoteLockedFungibleRecord<RemoteLockIdentifier, MaxConsumers: Get<u32>> {
+	#[scale_info(skip_type_params(MaxUsers))]
+	pub struct RemoteLockedFungibleRecord<RemoteLockIdentifier, MaxUsers: Get<u32>> {
 		pub amount: u128,
 		pub owner: VersionedMultiLocation,
 		pub locker: VersionedMultiLocation,
-		pub users: BoundedVec<(RemoteLockIdentifier, u128), MaxConsumers>,
+		pub users: BoundedVec<(RemoteLockIdentifier, u128), MaxUsers>,
 	}
 
-	impl<LockId, MaxConsumers: Get<u32>> RemoteLockedFungibleRecord<LockId, MaxConsumers> {
+	impl<LockId, MaxUsers: Get<u32>> RemoteLockedFungibleRecord<LockId, MaxUsers> {
 		/// Amount of the remote lock in use by users.
 		/// Returns zero if the remote lock has no users.
 		pub fn amount_held(&self) -> u128 {
