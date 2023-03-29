@@ -21,10 +21,10 @@ use crate::{
 };
 use codec::Encode;
 use jsonrpsee::core::Error as RpcError;
-use std::sync::Arc;
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::storage::StorageKey;
 use sp_runtime::Perbill;
+use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex};
 use EPM::{signed::SubmissionIndicesOf, SignedSubmissionOf};
 
@@ -306,6 +306,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 			let rpc1 = rpc.clone();
 			let rpc2 = rpc.clone();
+			let rpc3 = rpc.clone();
 
 			let latest_head = match get_latest_head::<Runtime>(&rpc, &config.listen).await {
 				Ok(hash) => hash,
@@ -329,10 +330,16 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				ensure_signed_phase::<Runtime, Block>(&rpc2, latest_head).await
 			});
 
+			let account = signer.account.clone();
+			let no_prev_sol_fut = tokio::spawn(async move {
+				ensure_no_previous_solution::<Runtime, Block>(&rpc3, latest_head, &account).await
+			});
+
 			// Run the calls in parallel and return once all has completed or any failed.
 			if let Err(err) = tokio::try_join!(
 				flatten(ensure_strategy_met_fut),
 				flatten(ensure_signed_phase_fut),
+				flatten(no_prev_sol_fut),
 			) {
 				log::debug!(target: LOG_TARGET, "Skipping to submit at block {}; {}", at.number, err);
 				return;
