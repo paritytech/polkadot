@@ -359,7 +359,7 @@ impl Initialized {
 		overlay_db: &mut OverlayedBackend<'_, impl Backend>,
 		votes: ScrapedOnChainVotes,
 		now: u64,
-		leaf_hash: Hash,
+		block_hash: Hash,
 	) -> Result<()> {
 		let ScrapedOnChainVotes { session, backing_validators_per_candidate, disputes } = votes;
 
@@ -444,7 +444,7 @@ impl Initialized {
 					session,
 					statements,
 					now,
-					leaf_hash,
+					block_hash,
 				)
 				.await?;
 			match import_result {
@@ -474,7 +474,7 @@ impl Initialized {
 			);
 			let session_info = match self
 				.runtime_info
-				.get_session_info_by_index(ctx.sender(), leaf_hash, session)
+				.get_session_info_by_index(ctx.sender(), block_hash, session)
 				.await
 			{
 				Ok(extended_session_info) => &extended_session_info.session_info,
@@ -533,7 +533,7 @@ impl Initialized {
 					session,
 					statements,
 					now,
-					leaf_hash,
+					block_hash,
 				)
 				.await?;
 			match import_result {
