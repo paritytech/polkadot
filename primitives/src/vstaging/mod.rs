@@ -18,6 +18,7 @@
 
 // Put any primitives used by staging APIs functions here
 pub use crate::v4::*;
+pub mod slashing;
 use sp_std::prelude::*;
 
 use parity_scale_codec::{Decode, Encode};
