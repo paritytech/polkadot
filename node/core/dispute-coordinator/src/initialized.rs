@@ -564,10 +564,11 @@ impl Initialized {
 							validator_public.clone(),
 							validator_signature.clone(),
 						).is_ok(),
-						"Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}",
+						"Scraped backing votes had invalid signature! candidate: {:?}, session: {:?}, validator_public: {:?}, validator_index: {}",
 						candidate_hash,
 						session,
 						validator_public,
+						validator_index.0,
 					);
 					let signed_dispute_statement =
 						SignedDisputeStatement::new_unchecked_from_trusted_source(
