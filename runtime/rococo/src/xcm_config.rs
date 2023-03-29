@@ -362,7 +362,7 @@ impl pallet_xcm::Config for Runtime {
 	type TrustedLockers = ();
 	type SovereignAccountOf = LocationConverter;
 	type MaxLockers = ConstU32<8>;
-	type MaxRemoteLockConsumers = ConstU32<0>;
+	type MaxRemoteLockUsers = ConstU32<0>;
 	type RemoteLockIdentifier = ();
 	type WeightInfo = crate::weights::pallet_xcm::WeightInfo<Runtime>;
 	#[cfg(feature = "runtime-benchmarks")]
