@@ -686,7 +686,7 @@ impl Initialized {
 		session: SessionIndex,
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		now: Timestamp,
-		leaf_hash: Hash,
+		block_hash: Hash,
 	) -> FatalResult<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
 		if self.session_is_ancient(session) {
@@ -696,7 +696,7 @@ impl Initialized {
 
 		let session_info = &self
 			.runtime_info
-			.get_session_info_by_index(ctx.sender(), leaf_hash, session)
+			.get_session_info_by_index(ctx.sender(), block_hash, session)
 			.await?
 			.session_info;
 
