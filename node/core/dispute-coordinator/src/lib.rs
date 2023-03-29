@@ -24,7 +24,7 @@
 //! validation results as well as a sink for votes received by other subsystems. When importing a dispute vote from
 //! another node, this will trigger dispute participation to recover and validate the block.
 
-use std::sync::Arc;
+use std::{num::NonZeroUsize, sync::Arc};
 
 use futures::FutureExt;
 
@@ -32,13 +32,17 @@ use gum::CandidateHash;
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
+	new_session_window_size, CandidateVotes, DisputeMessage, DisputeMessageCheckError,
+	SessionWindowSize, SignedDisputeStatement,
 };
 use polkadot_node_subsystem::{
 	messages::DisputeDistributionMessage, overseer, ActivatedLeaf, FromOrchestra, OverseerSignal,
 	SpawnedSubsystem, SubsystemError,
 };
-use polkadot_node_subsystem_util::{database::Database, runtime::RuntimeInfo};
+use polkadot_node_subsystem_util::{
+	database::Database,
+	runtime::{Config as RuntimeInfoConfig, RuntimeInfo},
+};
 use polkadot_primitives::{DisputeStatement, ScrapedOnChainVotes, SessionInfo, ValidatorIndex};
 
 use crate::{
@@ -107,6 +111,8 @@ use crate::status::Clock;
 mod tests;
 
 pub(crate) const LOG_TARGET: &str = "parachain::dispute-coordinator";
+
+const SESSION_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
 
 /// An implementation of the dispute coordinator subsystem.
 pub struct DisputeCoordinatorSubsystem {
@@ -216,8 +222,13 @@ impl DisputeCoordinatorSubsystem {
 				},
 			};
 
-			let mut runtime_info = RuntimeInfo::new(None);
-			// TODO: fill in the cache here?
+			// `RuntimeInfo` cache should match the dispute `SESSION_WINDOW_SIZE` so that we can
+			// keep all sessions for a dispute window
+			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
+				keystore: None,
+				session_cache_lru_size: NonZeroUsize::new(SESSION_WINDOW_SIZE.get() as usize)
+					.expect("SESSION_WINDOW_SIZE can't be 0; qed."),
+			});
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
 			let (participations, votes, spam_slots, ordering_provider) = match self
 				.handle_startup(ctx, first_leaf.clone(), &mut runtime_info, &mut overlay_db, clock)
@@ -234,9 +245,45 @@ impl DisputeCoordinatorSubsystem {
 				backend.write(ops)?;
 			}
 
-			// We assume the highest session means in the new context
+			// We assume the highest session is the passed leaf. If we can't get the session index
+			// we can't initialize the subsystem so we'll wait for a new leaf
 			let highest_session =
-				runtime_info.get_session_index_for_child(ctx.sender(), first_leaf.hash).await?;
+				match runtime_info.get_session_index_for_child(ctx.sender(), first_leaf.hash).await
+				{
+					Ok(session_idx) => session_idx,
+					Err(e) => {
+						gum::warn!(
+							target: LOG_TARGET,
+							leaf_hash = ?first_leaf.hash,
+							err = ?e,
+							"Can't get session index during subsystem initialization. Retrying."
+						);
+						continue // the initialization loop
+					},
+				};
+
+			// Cache the sessions. A failure to fetch a session here is not that critical so we
+			// won't abort the initialization
+			for idx in
+				highest_session.saturating_sub(SESSION_WINDOW_SIZE.get() - 1)..highest_session
+			{
+				match runtime_info
+					.get_session_info_by_index(ctx.sender(), first_leaf.hash, idx)
+					.await
+				{
+					Ok(_) => { /* do nothing */ },
+					Err(e) => {
+						gum::warn!(
+							target: LOG_TARGET,
+							leaf_hash = ?first_leaf.hash,
+							session_idx = idx,
+							err = ?e,
+							"Can't cache SessionInfo during subsystem initialization. Skipping session."
+						);
+						continue // the caching loop
+					},
+				}
+			}
 
 			return Ok(Some((
 				participations,

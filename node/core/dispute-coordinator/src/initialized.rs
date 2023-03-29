@@ -26,8 +26,7 @@ use futures::{
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	disputes::ValidCandidateVotes, new_session_window_size, CandidateVotes, DisputeStatus,
-	SessionWindowSize, SignedDisputeStatement, Timestamp,
+	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -49,7 +48,7 @@ use crate::{
 	is_potential_spam,
 	metrics::Metrics,
 	status::{get_active_with_status, Clock},
-	DisputeCoordinatorSubsystem, LOG_TARGET,
+	DisputeCoordinatorSubsystem, LOG_TARGET, SESSION_WINDOW_SIZE,
 };
 
 use super::{
@@ -63,8 +62,6 @@ use super::{
 	spam_slots::SpamSlots,
 	OverlayedBackend,
 };
-
-const SESSION_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
 
 // Initial data for `dispute-coordinator`. It is provided only at first start.
 pub struct InitialData {
