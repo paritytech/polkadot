@@ -1505,7 +1505,7 @@ pub type Migrations = (
 	RemovePallet<CouncilStr>,
 	RemovePallet<TechnicalCommitteeStr>,
 	RemovePallet<PhragmenElectionStr>,
-	RemovePallet<TechnicalCommitteeStr>,
+	RemovePallet<TechnicalMembershipStr>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
