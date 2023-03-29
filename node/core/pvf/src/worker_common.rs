@@ -61,6 +61,8 @@ pub async fn spawn_with_program_path(
 				gum::warn!(
 					target: LOG_TARGET,
 					%debug_id,
+					?program_path,
+					?extra_args,
 					"cannot bind unix socket: {:?}",
 					err,
 				);
@@ -68,10 +70,12 @@ pub async fn spawn_with_program_path(
 			})?;
 
 			let handle =
-				WorkerHandle::spawn(program_path, extra_args, socket_path).map_err(|err| {
+				WorkerHandle::spawn(&program_path, extra_args, socket_path).map_err(|err| {
 					gum::warn!(
 						target: LOG_TARGET,
 						%debug_id,
+						?program_path,
+						?extra_args,
 						"cannot spawn a worker: {:?}",
 						err,
 					);
@@ -84,6 +88,8 @@ pub async fn spawn_with_program_path(
 						gum::warn!(
 							target: LOG_TARGET,
 							%debug_id,
+							?program_path,
+							?extra_args,
 							"cannot accept a worker: {:?}",
 							err,
 						);
@@ -92,6 +98,14 @@ pub async fn spawn_with_program_path(
 					Ok((IdleWorker { stream, pid: handle.id() }, handle))
 				}
 				_ = Delay::new(spawn_timeout).fuse() => {
+					gum::warn!(
+						target: LOG_TARGET,
+						%debug_id,
+						?program_path,
+						?extra_args,
+						?spawn_timeout,
+						"spawning and connecting to socket timed out",
+					);
 					Err(SpawnErr::AcceptTimeout)
 				}
 			}
@@ -162,6 +176,13 @@ where
 	F: FnMut(Handle, UnixStream) -> Fut,
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
+	gum::debug!(
+		target: LOG_TARGET,
+		worker_pid = %std::process::id(),
+		"starting pvf worker ({})",
+		debug_id,
+	);
+
 	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
 	let handle = rt.handle();
 	let err = rt
@@ -179,7 +200,7 @@ where
 	gum::debug!(
 		target: LOG_TARGET,
 		worker_pid = %std::process::id(),
-		"pvf worker ({}): {:?}",
+		"quitting pvf worker ({}): {:?}",
 		debug_id,
 		err,
 	);
@@ -280,6 +301,7 @@ impl WorkerHandle {
 	) -> io::Result<Self> {
 		let mut child = process::Command::new(program.as_ref())
 			.args(extra_args)
+			.arg("--socket-path")
 			.arg(socket_path.as_ref().as_os_str())
 			.stdout(std::process::Stdio::piped())
 			.kill_on_drop(true)
@@ -392,4 +414,21 @@ pub async fn framed_recv(r: &mut (impl AsyncRead + Unpin)) -> io::Result<Vec<u8>
 	let mut buf = vec![0; len];
 	r.read_exact(&mut buf).await?;
 	Ok(buf)
+}
+
+/// In case of node and worker version mismatch (as a result of in-place upgrade), send `SIGKILL`
+/// to the node to tear it down and prevent it from raising disputes on valid candidates. Node
+/// restart should be handled by the node owner. As node exits, unix sockets opened to workers
+/// get closed by the OS and other workers receive error on socket read and also exit. Preparation
+/// jobs are written to the temporary files that are renamed to real artifacts on the node side, so
+/// no leftover artifacts are possible.
+pub(crate) fn kill_parent_node_in_emergency() {
+	unsafe {
+		// SAFETY: `getpid()` never fails but may return "no-parent" (0) or "parent-init" (1) in
+		// some corner cases, which is checked. `kill()` never fails.
+		let ppid = libc::getppid();
+		if ppid > 1 {
+			libc::kill(ppid, libc::SIGKILL);
+		}
+	}
 }

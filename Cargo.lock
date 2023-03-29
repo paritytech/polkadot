@@ -7161,6 +7161,7 @@ dependencies = [
  "sp-maybe-compressed-blob",
  "sp-tracing",
  "sp-wasm-interface",
+ "substrate-build-script-utils",
  "tempfile",
  "test-parachain-adder",
  "test-parachain-halt",
