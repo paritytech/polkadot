@@ -32,7 +32,10 @@ use polkadot_node_subsystem::{Span, Stage};
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::{CandidateHash, CommittedCandidateReceipt, Hash};
 
-use crate::{metrics::Metrics, COST_WRONG_HASH, LOG_TARGET};
+use crate::{
+	legacy_v1::{COST_WRONG_HASH, LOG_TARGET},
+	metrics::Metrics,
+};
 
 // In case we failed fetching from our known peers, how long we should wait before attempting a
 // retry, even though we have not yet discovered any new peers. Or in other words how long to

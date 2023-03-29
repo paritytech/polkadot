@@ -35,6 +35,7 @@ OnChainVotes: Option<ScrapedOnChainVotes>,
     1. Set `Included` as `Some`.
     1. Unpack `ParachainsInherentData` into `signed_bitfields`, `backed_candidates`, `parent_header`, and `disputes`.
     1. Hash the parent header and make sure that it corresponds to the block hash of the parent (tracked by the `frame_system` FRAME module).
+    1. Add a previous block to the `AllowedRelayParents` before anything else and read the resulting value from `shared` storage.
     1. Calculate the `candidate_weight`, `bitfields_weight`, and `disputes_weight`.
     1. If the sum of `candidate_weight`, `bitfields_weight`, and `disputes_weight` is greater than the max block weight we do the following with the goal of prioritizing the inclusion of disputes without making it game-able by block authors:
       1. clear `bitfields` and set `bitfields_weight` equal to 0.
@@ -48,10 +49,9 @@ OnChainVotes: Option<ScrapedOnChainVotes>,
     1. If `Scheduler::availability_timeout_predicate` is `Some`, invoke `Inclusion::collect_pending` using it and annotate each of those freed cores with `FreedReason::TimedOut`.
     1. Combine and sort the the bitfield-freed cores and the timed-out cores.
     1. Invoke `Scheduler::clear`
-    1. Invoke `Scheduler::schedule(freed_cores, System::current_block())`
-    1. Extract `parent_storage_root` from the parent header,
+    1. Invoke `Scheduler::schedule(freed_cores, System::current_block())` 
     1. If `Disputes::concluded_invalid(current_session, candidate)` is true for any of the `backed_candidates`, fail.
-    1. Invoke the `Inclusion::process_candidates` routine with the parameters `(parent_storage_root, backed_candidates, Scheduler::scheduled(), Scheduler::group_validators)`.
+    1. Invoke the `Inclusion::process_candidates` routine with the parameters `(allowed_relay_parents, backed_candidates, Scheduler::scheduled(), Scheduler::group_validators)`.
     1. Deconstruct the returned `ProcessedCandidates` value into `occupied` core indices, and backing validators by candidate `backing_validators_per_candidate` represented by `Vec<(CandidateReceipt, Vec<(ValidatorIndex, ValidityAttestation)>)>`.
     1. Set `OnChainVotes` to `ScrapedOnChainVotes`, based on the `current_session`, concluded `disputes`, and `backing_validators_per_candidate`.
     1. Call `Scheduler::occupied` using the `occupied` core indices of the returned  above, first sorting the list of assigned core indices.
@@ -68,6 +68,7 @@ OnChainVotes: Option<ScrapedOnChainVotes>,
 * `create_inherent_inner(data: &InherentData) -> Option<ParachainsInherentData<T::Header>>`
   1. Unpack `InherentData` into its parts, `bitfields`, `backed_candidates`, `disputes` and the `parent_header`. If data cannot be unpacked return `None`.
   1. Hash the `parent_header` and make sure that it corresponds to the block hash of the parent (tracked by the `frame_system` FRAME module).
+  1. Read `AllowedRelayParents` from `shared` storage and add a previous block to this value so that we operate with the same look-back as in `enter`.
   1. Invoke `Disputes::filter_multi_dispute_data` to remove duplicates et al from `disputes`.
   1. Run the following within a  `with_transaction` closure to avoid side effects (we are essentially replicating the logic that would otherwise happen within `enter` so we can get the filtered bitfields and the `concluded_invalid_disputes` + `scheduled` to use in filtering the `backed_candidates`.):
     1. Invoke `Disputes::provide_multi_dispute_data`.
@@ -81,7 +82,7 @@ OnChainVotes: Option<ScrapedOnChainVotes>,
     1. Invoke `scheduler::Pallet<T>>::schedule` with `freed` and the current block number to create the same schedule of the cores that `enter` will create.
     1. Read the new `<scheduler::Pallet<T>>::scheduled()` into `schedule`.
     1. From the `with_transaction` closure return `concluded_invalid_disputes`, `bitfields`, and `scheduled`.
-  1. Invoke `sanitize_backed_candidates` using the `scheduled` return from the `with_transaction` and pass the closure `|candidate_hash: CandidateHash| -> bool { DisputesHandler::concluded_invalid(current_session, candidate_hash) }` for the param `candidate_has_concluded_invalid_dispute`.
+  1. Invoke `sanitize_backed_candidates` using the `scheduled` return from the `with_transaction` and pass the closure `|candidate_idx: usize, candidate_hash: CandidateHash| -> bool` which returns `true` either if the candidate is concluded to be invalid during the dispute or it doesn't pass the verification in the context of the most recent parachain head, such as relay-parent being out-of-bounds or commitments hashes mismatch.
   1. create a `rng` from `rand_chacha::ChaChaRng::from_seed(compute_entropy::<T>(parent_hash))`.
   1. Invoke `limit_disputes` with the max block weight and `rng`, storing the returned weigh in `remaining_weight`.
   1. Fill up the remaining of the block weight with backed candidates and bitfields by invoking `apply_weight_limit` with `remaining_weigh` and `rng`.

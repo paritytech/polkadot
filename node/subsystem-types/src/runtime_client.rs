@@ -182,12 +182,13 @@ pub trait RuntimeApiSubsystemClient {
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError>;
 
-	/// Get the execution environment parameter set by parent hash, if stored
-	async fn session_executor_params(
+	/// Returns the state of parachain backing for a given para.
+	/// This is a staging method! Do not use on production runtimes!
+	async fn staging_para_backing_state(
 		&self,
 		at: Hash,
-		session_index: SessionIndex,
-	) -> Result<Option<ExecutorParams>, ApiError>;
+		para_id: Id,
+	) -> Result<Option<polkadot_primitives::vstaging::BackingState>, ApiError>;
 
 	// === BABE API ===
 
@@ -201,6 +202,21 @@ pub trait RuntimeApiSubsystemClient {
 		&self,
 		at: Hash,
 	) -> std::result::Result<Vec<sp_authority_discovery::AuthorityId>, ApiError>;
+
+	// === Asynchronous backing API ===
+
+	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
+	async fn staging_async_backing_params(
+		&self,
+		at: Hash,
+	) -> Result<polkadot_primitives::vstaging::AsyncBackingParams, ApiError>;
+
+	/// Get the execution environment parameter set by parent hash, if stored
+	async fn session_executor_params(
+		&self,
+		at: Hash,
+		session_index: SessionIndex,
+	) -> Result<Option<ExecutorParams>, ApiError>;
 }
 
 #[async_trait]
@@ -373,5 +389,21 @@ where
 		at: Hash,
 	) -> Result<Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>, ApiError> {
 		self.runtime_api().disputes(at)
+	}
+
+	async fn staging_para_backing_state(
+		&self,
+		at: Hash,
+		para_id: Id,
+	) -> Result<Option<polkadot_primitives::vstaging::BackingState>, ApiError> {
+		self.runtime_api().staging_para_backing_state(at, para_id)
+	}
+
+	/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
+	async fn staging_async_backing_params(
+		&self,
+		at: Hash,
+	) -> Result<polkadot_primitives::vstaging::AsyncBackingParams, ApiError> {
+		self.runtime_api().staging_async_backing_params(at)
 	}
 }

@@ -1360,6 +1360,7 @@ sp_api::impl_runtime_apis! {
 		}
 	}
 
+	#[api_version(99)]
 	impl primitives::runtime_api::ParachainHost<Block, Hash, BlockNumber> for Runtime {
 		fn validators() -> Vec<ValidatorId> {
 			parachains_runtime_api_impl::validators::<Runtime>()
@@ -1464,6 +1465,14 @@ sp_api::impl_runtime_apis! {
 
 		fn disputes() -> Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)> {
 			parachains_runtime_api_impl::get_session_disputes::<Runtime>()
+		}
+
+		fn staging_para_backing_state(para_id: ParaId) -> Option<primitives::vstaging::BackingState> {
+			runtime_parachains::runtime_api_impl::vstaging::backing_state::<Runtime>(para_id)
+		}
+
+		fn staging_async_backing_params() -> primitives::vstaging::AsyncBackingParams {
+			runtime_parachains::runtime_api_impl::vstaging::async_backing_params::<Runtime>()
 		}
 	}
 

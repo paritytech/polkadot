@@ -46,6 +46,7 @@
   - [Backing Subsystems](node/backing/README.md)
     - [Candidate Backing](node/backing/candidate-backing.md)
     - [Statement Distribution](node/backing/statement-distribution.md)
+    - [Statement Distribution (Legacy)](node/backing/statement-distribution-legacy.md)
   - [Availability Subsystems](node/availability/README.md)
     - [Availability Distribution](node/availability/availability-distribution.md)
     - [Availability Recovery](node/availability/availability-recovery.md)

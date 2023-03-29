@@ -20,11 +20,12 @@ use lru::LruCache;
 use sp_consensus_babe::Epoch;
 
 use polkadot_primitives::{
-	AuthorityDiscoveryId, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
-	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo, Hash,
-	Id as ParaId, InboundDownwardMessage, InboundHrmpMessage, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidationCode, ValidationCodeHash, ValidatorId, ValidatorIndex, ValidatorSignature,
+	vstaging as vstaging_primitives, AuthorityDiscoveryId, BlockNumber, CandidateCommitments,
+	CandidateEvent, CandidateHash, CommittedCandidateReceipt, CoreState, DisputeState,
+	ExecutorParams, GroupRotationInfo, Hash, Id as ParaId, InboundDownwardMessage,
+	InboundHrmpMessage, OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement,
+	ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidationCode, ValidationCodeHash,
+	ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 
 /// For consistency we have the same capacity for all caches. We use 128 as we'll only need that
@@ -63,6 +64,9 @@ pub(crate) struct RequestResultCache {
 		LruCache<(Hash, ParaId, OccupiedCoreAssumption), Option<ValidationCodeHash>>,
 	version: LruCache<Hash, u32>,
 	disputes: LruCache<Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
+
+	staging_para_backing_state: LruCache<(Hash, ParaId), Option<vstaging_primitives::BackingState>>,
+	staging_async_backing_params: LruCache<Hash, vstaging_primitives::AsyncBackingParams>,
 }
 
 impl Default for RequestResultCache {
@@ -90,6 +94,9 @@ impl Default for RequestResultCache {
 			validation_code_hash: LruCache::new(DEFAULT_CACHE_CAP),
 			version: LruCache::new(DEFAULT_CACHE_CAP),
 			disputes: LruCache::new(DEFAULT_CACHE_CAP),
+
+			staging_para_backing_state: LruCache::new(DEFAULT_CACHE_CAP),
+			staging_async_backing_params: LruCache::new(DEFAULT_CACHE_CAP),
 		}
 	}
 }
@@ -385,6 +392,36 @@ impl RequestResultCache {
 	) {
 		self.disputes.put(relay_parent, value);
 	}
+
+	pub(crate) fn staging_para_backing_state(
+		&mut self,
+		key: (Hash, ParaId),
+	) -> Option<&Option<vstaging_primitives::BackingState>> {
+		self.staging_para_backing_state.get(&key)
+	}
+
+	pub(crate) fn cache_staging_para_backing_state(
+		&mut self,
+		key: (Hash, ParaId),
+		value: Option<vstaging_primitives::BackingState>,
+	) {
+		self.staging_para_backing_state.put(key, value);
+	}
+
+	pub(crate) fn staging_async_backing_params(
+		&mut self,
+		key: &Hash,
+	) -> Option<&vstaging_primitives::AsyncBackingParams> {
+		self.staging_async_backing_params.get(key)
+	}
+
+	pub(crate) fn cache_staging_async_backing_params(
+		&mut self,
+		key: Hash,
+		value: vstaging_primitives::AsyncBackingParams,
+	) {
+		self.staging_async_backing_params.put(key, value);
+	}
 }
 
 pub(crate) enum RequestResult {
@@ -422,4 +459,7 @@ pub(crate) enum RequestResult {
 	ValidationCodeHash(Hash, ParaId, OccupiedCoreAssumption, Option<ValidationCodeHash>),
 	Version(Hash, u32),
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
+
+	StagingParaBackingState(Hash, ParaId, Option<vstaging_primitives::BackingState>),
+	StagingAsyncBackingParams(Hash, vstaging_primitives::AsyncBackingParams),
 }

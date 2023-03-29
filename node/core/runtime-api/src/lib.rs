@@ -157,6 +157,12 @@ where
 				self.requests_cache.cache_version(relay_parent, version),
 			Disputes(relay_parent, disputes) =>
 				self.requests_cache.cache_disputes(relay_parent, disputes),
+
+			StagingParaBackingState(relay_parent, para_id, constraints) => self
+				.requests_cache
+				.cache_staging_para_backing_state((relay_parent, para_id), constraints),
+			StagingAsyncBackingParams(relay_parent, params) =>
+				self.requests_cache.cache_staging_async_backing_params(relay_parent, params),
 		}
 	}
 
@@ -271,6 +277,12 @@ where
 					.map(|sender| Request::ValidationCodeHash(para, assumption, sender)),
 			Request::Disputes(sender) =>
 				query!(disputes(), sender).map(|sender| Request::Disputes(sender)),
+			Request::StagingParaBackingState(para, sender) =>
+				query!(staging_para_backing_state(para), sender)
+					.map(|sender| Request::StagingParaBackingState(para, sender)),
+			Request::StagingAsyncBackingParams(sender) =>
+				query!(staging_async_backing_params(), sender)
+					.map(|sender| Request::StagingAsyncBackingParams(sender)),
 		}
 	}
 
@@ -490,5 +502,21 @@ where
 			query!(ValidationCodeHash, validation_code_hash(para, assumption), ver = 2, sender),
 		Request::Disputes(sender) =>
 			query!(Disputes, disputes(), ver = Request::DISPUTES_RUNTIME_REQUIREMENT, sender),
+		Request::StagingParaBackingState(para, sender) => {
+			query!(
+				StagingParaBackingState,
+				staging_para_backing_state(para),
+				ver = Request::STAGING_BACKING_STATE,
+				sender
+			)
+		},
+		Request::StagingAsyncBackingParams(sender) => {
+			query!(
+				StagingAsyncBackingParams,
+				staging_async_backing_params(),
+				ver = Request::STAGING_BACKING_STATE,
+				sender
+			)
+		},
 	}
 }

@@ -111,10 +111,10 @@
 //! from the stable primitives.
 
 use crate::{
-	BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash, CommittedCandidateReceipt,
-	CoreState, DisputeState, ExecutorParams, GroupRotationInfo, OccupiedCoreAssumption,
-	PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo,
-	ValidatorId, ValidatorIndex, ValidatorSignature,
+	vstaging, BlockNumber, CandidateCommitments, CandidateEvent, CandidateHash,
+	CommittedCandidateReceipt, CoreState, DisputeState, ExecutorParams, GroupRotationInfo,
+	OccupiedCoreAssumption, PersistedValidationData, PvfCheckStatement, ScrapedOnChainVotes,
+	SessionIndex, SessionInfo, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives as pcp;
@@ -218,5 +218,16 @@ sp_api::decl_runtime_apis! {
 
 		/// Returns execution parameters for the session.
 		fn session_executor_params(session_index: SessionIndex) -> Option<ExecutorParams>;
+
+		/***** Asynchronous backing *****/
+
+		/// Returns the state of parachain backing for a given para.
+		/// This is a staging method! Do not use on production runtimes!
+		#[api_version(99)]
+		fn staging_para_backing_state(_: ppp::Id) -> Option<vstaging::BackingState<H, N>>;
+
+		/// Returns candidate's acceptance limitations for asynchronous backing for a relay parent.
+		#[api_version(99)]
+		fn staging_async_backing_params() -> vstaging::AsyncBackingParams;
 	}
 }

@@ -274,7 +274,7 @@ pub(crate) fn compute_assignments(
 	// Ignore any cores where the assigned group is our own.
 	let leaving_cores = leaving_cores
 		.into_iter()
-		.filter(|&(_, _, ref g)| !is_in_backing_group(&config.validator_groups, index, *g))
+		.filter(|(_, _, g)| !is_in_backing_group(&config.validator_groups, index, *g))
 		.map(|(c_hash, core, _)| (c_hash, core))
 		.collect::<Vec<_>>();
 
@@ -496,7 +496,7 @@ pub(crate) fn check_assignment_cert(
 		return Err(InvalidAssignment(Reason::IsInBackingGroup))
 	}
 
-	let &(ref vrf_output, ref vrf_proof) = &assignment.vrf;
+	let (vrf_output, vrf_proof) = &assignment.vrf;
 	match assignment.kind {
 		AssignmentCertKind::RelayVRFModulo { sample } => {
 			if sample >= config.relay_vrf_modulo_samples {

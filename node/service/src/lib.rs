@@ -834,12 +834,19 @@ where
 	config.network.request_response_protocols.push(cfg);
 	let (chunk_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
-	let (collation_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	let (collation_req_v1_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
+	config.network.request_response_protocols.push(cfg);
+	let (collation_req_vstaging_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
 	let (available_data_req_receiver, cfg) =
 		IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
 	let (statement_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
+	config.network.request_response_protocols.push(cfg);
+	let (candidate_req_vstaging_receiver, cfg) =
+		IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
 	let (dispute_req_receiver, cfg) = IncomingRequest::get_config_receiver(&req_protocol_names);
 	config.network.request_response_protocols.push(cfg);
@@ -1011,9 +1018,11 @@ where
 					authority_discovery_service,
 					pov_req_receiver,
 					chunk_req_receiver,
-					collation_req_receiver,
+					collation_req_v1_receiver,
+					collation_req_vstaging_receiver,
 					available_data_req_receiver,
 					statement_req_receiver,
+					candidate_req_vstaging_receiver,
 					dispute_req_receiver,
 					registry: prometheus_registry.as_ref(),
 					spawner,

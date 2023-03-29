@@ -78,7 +78,13 @@ where
 	) -> Option<FromOrchestra<Self::Message>> {
 		match msg {
 			FromOrchestra::Communication {
-				msg: CandidateBackingMessage::Second(relay_parent, ref candidate, ref _pov),
+				msg:
+					CandidateBackingMessage::Second(
+						relay_parent,
+						ref candidate,
+						ref _validation_data,
+						ref _pov,
+					),
 			} => {
 				gum::debug!(
 					target: MALUS,
@@ -149,8 +155,10 @@ where
 						"Fetched validation data."
 					);
 
-					let malicious_available_data =
-						AvailableData { pov: Arc::new(pov.clone()), validation_data };
+					let malicious_available_data = AvailableData {
+						pov: Arc::new(pov.clone()),
+						validation_data: validation_data.clone(),
+					};
 
 					let pov_hash = pov.hash();
 					let erasure_root = {
@@ -204,6 +212,7 @@ where
 						msg: CandidateBackingMessage::Second(
 							relay_parent,
 							malicious_candidate,
+							validation_data,
 							pov,
 						),
 					};

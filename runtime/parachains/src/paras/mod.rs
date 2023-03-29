@@ -470,6 +470,7 @@ impl<BlockNumber> PvfCheckActiveVoteState<BlockNumber> {
 pub trait WeightInfo {
 	fn force_set_current_code(c: u32) -> Weight;
 	fn force_set_current_head(s: u32) -> Weight;
+	fn force_set_most_recent_context() -> Weight;
 	fn force_schedule_code_upgrade(c: u32) -> Weight;
 	fn force_note_new_head(s: u32) -> Weight;
 	fn force_queue_action() -> Weight;
@@ -489,6 +490,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn force_set_current_head(_s: u32) -> Weight {
+		Weight::MAX
+	}
+	fn force_set_most_recent_context() -> Weight {
 		Weight::MAX
 	}
 	fn force_schedule_code_upgrade(_c: u32) -> Weight {
@@ -643,6 +647,12 @@ pub mod pallet {
 	#[pallet::getter(fn para_head)]
 	pub(super) type Heads<T: Config> = StorageMap<_, Twox64Concat, ParaId, HeadData>;
 
+	/// The context (relay-chain block number) of the most recent parachain head.
+	#[pallet::storage]
+	#[pallet::getter(fn para_most_recent_context)]
+	pub(super) type MostRecentContext<T: Config> =
+		StorageMap<_, Twox64Concat, ParaId, T::BlockNumber>;
+
 	/// The validation code hash of every live para.
 	///
 	/// Corresponding code can be retrieved with [`CodeByHash`].
@@ -689,6 +699,7 @@ pub mod pallet {
 	///
 	/// Corresponding code can be retrieved with [`CodeByHash`].
 	#[pallet::storage]
+	#[pallet::getter(fn future_code_hash)]
 	pub(super) type FutureCodeHash<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, ValidationCodeHash>;
 
@@ -715,6 +726,7 @@ pub mod pallet {
 	/// NOTE that this field is used by parachains via merkle storage proofs, therefore changing
 	/// the format will require migration of parachains.
 	#[pallet::storage]
+	#[pallet::getter(fn upgrade_restriction_signal)]
 	pub(super) type UpgradeRestrictionSignal<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, UpgradeRestriction>;
 
@@ -1050,6 +1062,19 @@ pub mod pallet {
 				Ok(Some(<T as Config>::WeightInfo::include_pvf_check_statement()).into())
 			}
 		}
+
+		/// Set the storage for the current parachain head data immediately.
+		#[pallet::call_index(8)]
+		#[pallet::weight(<T as Config>::WeightInfo::force_set_most_recent_context())]
+		pub fn force_set_most_recent_context(
+			origin: OriginFor<T>,
+			para: ParaId,
+			context: T::BlockNumber,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			MostRecentContext::<T>::insert(&para, context);
+			Ok(())
+		}
 	}
 
 	#[pallet::validate_unsigned]
@@ -1231,6 +1256,7 @@ impl<T: Config> Pallet<T> {
 					parachains.remove(para);
 
 					Heads::<T>::remove(&para);
+					MostRecentContext::<T>::remove(&para);
 					FutureCodeUpgrades::<T>::remove(&para);
 					UpgradeGoAheadSignal::<T>::remove(&para);
 					UpgradeRestrictionSignal::<T>::remove(&para);
@@ -1919,6 +1945,7 @@ impl<T: Config> Pallet<T> {
 		execution_context: T::BlockNumber,
 	) -> Weight {
 		Heads::<T>::insert(&id, new_head);
+		MostRecentContext::<T>::insert(&id, execution_context);
 
 		if let Some(expected_at) = FutureCodeUpgrades::<T>::get(&id) {
 			if expected_at <= execution_context {
@@ -2114,6 +2141,7 @@ impl<T: Config> Pallet<T> {
 		}
 
 		Heads::<T>::insert(&id, &genesis_data.genesis_head);
+		MostRecentContext::<T>::insert(&id, T::BlockNumber::from(0u32));
 	}
 }
 

@@ -153,6 +153,8 @@ Parachains: Vec<ParaId>,
 ParaLifecycle: map ParaId => Option<ParaLifecycle>,
 /// The head-data of every registered para.
 Heads: map ParaId => Option<HeadData>;
+/// The context (relay-chain block number) of the most recent parachain head.
+MostRecentContext: map ParaId => BlockNumber;
 /// The validation code hash of every live para.
 CurrentCodeHash: map ParaId => Option<ValidationCodeHash>;
 /// Actual past code hash, indicated by the para id as well as the block number at which it became outdated.
@@ -220,14 +222,12 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
 
 1. Execute all queued actions for paralifecycle changes:
   1. Clean up outgoing paras.
-     1. This means removing the entries under `Heads`, `CurrentCode`, `FutureCodeUpgrades`, and
-        `FutureCode`. An according entry should be added to `PastCode`, `PastCodeMeta`, and
-        `PastCodePruning` using the outgoing `ParaId` and removed `CurrentCode` value. This is
-        because any outdated validation code must remain available on-chain for a determined amount
+     1. This means removing the entries under `Heads`, `CurrentCode`, `FutureCodeUpgrades`,
+        `FutureCode` and `MostRecentContext`. An according entry should be added to `PastCode`, `PastCodeMeta`, and `PastCodePruning` using the outgoing `ParaId` and removed `CurrentCode` value. This is because any outdated validation code must remain available on-chain for a determined amount
         of blocks, and validation code outdated by de-registering the para is still subject to that
         invariant.
   1. Apply all incoming paras by initializing the `Heads` and `CurrentCode` using the genesis
-     parameters.
+     parameters as well as `MostRecentContext` to `0`.
   1. Amend the `Parachains` list and `ParaLifecycle` to reflect changes in registered parachains.
   1. Amend the `ParaLifecycle` set to reflect changes in registered parathreads.
   1. Upgrade all parathreads that should become parachains, updating the `Parachains` list and
@@ -261,8 +261,7 @@ CodeByHash: map ValidationCodeHash => Option<ValidationCode>
   executed in the context of a relay-chain block with number >= `relay_parent + config.validation_upgrade_delay`. If the upgrade is scheduled `UpgradeRestrictionSignal` is set and it will remain set until `relay_parent + config.validation_upgrade_cooldown`.
 In case the PVF pre-checking is enabled, or the new code is not already present in the storage, then the PVF pre-checking run will be scheduled for that validation code. If the pre-checking concludes with rejection, then the upgrade is canceled. Otherwise, after pre-checking is concluded the upgrade will be scheduled and be enacted as described above.
 * `note_new_head(ParaId, HeadData, BlockNumber)`: note that a para has progressed to a new head,
-  where the new head was executed in the context of a relay-chain block with given number. This will
-  apply pending code upgrades based on the block number provided. If an upgrade took place it will clear the `UpgradeGoAheadSignal`.
+  where the new head was executed in the context of a relay-chain block with given number, the latter value is inserted into the `MostRecentContext` mapping. This will apply pending code upgrades based on the block number provided. If an upgrade took place it will clear the `UpgradeGoAheadSignal`.
 * `lifecycle(ParaId) -> Option<ParaLifecycle>`: Return the `ParaLifecycle` of a para.
 * `is_parachain(ParaId) -> bool`: Returns true if the para ID references any live parachain,
   including those which may be transitioning to a parathread in the future.
