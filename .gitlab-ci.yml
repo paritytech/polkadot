@@ -32,7 +32,7 @@ variables:
   GIT_STRATEGY: fetch
   GIT_DEPTH: 100
   CI_SERVER_NAME: "GitLab CI"
-  CI_IMAGE: "paritytech/ci-linux@sha256:7c76c3f9639f919447abbf9db535588178fde4df583d6926444d44cc20c094e6" # staging 2023-03-20
+  CI_IMAGE: "paritytech/ci-linux:production"
   BUILDAH_IMAGE: "quay.io/buildah/stable:v1.27"
   DOCKER_OS: "debian:stretch"
   ARCH: "x86_64"
@@ -202,7 +202,7 @@ include:
   - scripts/ci/gitlab/pipeline/zombienet.yml
   # timestamp handler
   - project: parity/infrastructure/ci_cd/shared
-    ref: v0.1
+    ref: v0.2
     file: /common/timestamp.yml
 
 #### stage:                        .post

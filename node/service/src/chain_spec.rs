@@ -743,14 +743,6 @@ fn kusama_staging_testnet_config_genesis(wasm_binary: &[u8]) -> kusama::GenesisC
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		phragmen_election: Default::default(),
-		democracy: Default::default(),
-		council: kusama::CouncilConfig { members: vec![], phantom: Default::default() },
-		technical_committee: kusama::TechnicalCommitteeConfig {
-			members: vec![],
-			phantom: Default::default(),
-		},
-		technical_membership: Default::default(),
 		babe: kusama::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),
@@ -1442,14 +1434,6 @@ pub fn kusama_testnet_genesis(
 			slash_reward_fraction: Perbill::from_percent(10),
 			..Default::default()
 		},
-		phragmen_election: Default::default(),
-		democracy: kusama::DemocracyConfig::default(),
-		council: kusama::CouncilConfig { members: vec![], phantom: Default::default() },
-		technical_committee: kusama::TechnicalCommitteeConfig {
-			members: vec![],
-			phantom: Default::default(),
-		},
-		technical_membership: Default::default(),
 		babe: kusama::BabeConfig {
 			authorities: Default::default(),
 			epoch_config: Some(kusama::BABE_GENESIS_EPOCH_CONFIG),

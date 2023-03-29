@@ -45,7 +45,7 @@ use polkadot_node_subsystem::{
 
 use polkadot_node_subsystem_util::TimeoutExt;
 use sc_keystore::LocalKeystore;
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_core::{sr25519::Pair, testing::TaskExecutor, Pair as PairT};
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{Keystore, KeystorePtr};
@@ -562,18 +562,18 @@ impl TestState {
 		let validator_id = self.validators[index.0 as usize].public();
 
 		let payload = ApprovalVote(candidate_hash).signing_payload(session);
-		let signature =
-			Keystore::sign_with(&*keystore, ValidatorId::ID, &validator_id.into(), &payload[..])
-				.ok()
-				.flatten()
-				.unwrap();
+		let signature = keystore
+			.sr25519_sign(ValidatorId::ID, &validator_id, &payload)
+			.ok()
+			.flatten()
+			.unwrap();
 
 		SignedDisputeStatement::new_unchecked_from_trusted_source(
 			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
 			candidate_hash,
 			session,
 			validator_id.into(),
-			signature.try_into().unwrap(),
+			signature.into(),
 		)
 	}
 
