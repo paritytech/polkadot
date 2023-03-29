@@ -35,6 +35,7 @@ use runtime_common::{
 	SlowAdjustingFeeUpdate, U256ToBalance,
 };
 use scale_info::TypeInfo;
+use sp_io::hashing::twox_128;
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
 use runtime_parachains::{
@@ -1326,6 +1327,97 @@ impl pallet_nomination_pools::Config for Runtime {
 	type MaxPointsToBalance = MaxPointsToBalance;
 }
 
+pub struct RemoveGovV1Storage;
+impl RemoveGovV1Storage {
+	fn get_pallets() -> Vec<&'static str> {
+		vec![
+			"Democracy",
+			"Council",
+			"TechnicalCommittee",
+			"PhragmenElection",
+			"TechnicalMembership",
+			"Treasury",
+		]
+	}
+
+	fn count_keys(prefix: &[u8]) -> u32 {
+		let mut current = prefix.clone().to_vec();
+		let mut counter = 0;
+		while let Some(next) = sp_io::storage::next_key(&current[..]) {
+			if !next.starts_with(prefix) {
+				return counter
+			}
+			counter += 1;
+			current = next;
+		}
+		0
+	}
+}
+impl frame_support::traits::OnRuntimeUpgrade for RemoveGovV1Storage {
+	fn on_runtime_upgrade() -> frame_support::weights::Weight {
+		use frame_support::dispatch::GetDispatchInfo;
+		use sp_runtime::traits::Dispatchable;
+
+		// Create a 'kill_prefix' call for each pallet we wish to remove keys for
+		let mut total_keys = 0;
+		let calls = Self::get_pallets()
+			.iter()
+			.map(|pallet| {
+				let prefix = twox_128(pallet.as_bytes());
+				let subkeys = Self::count_keys(&prefix);
+				total_keys += subkeys;
+				RuntimeCall::System(frame_system::Call::<Runtime>::kill_prefix {
+					prefix: prefix.to_vec(),
+					subkeys,
+				})
+			})
+			.collect::<Vec<_>>();
+
+		if total_keys > 0 {
+			// Wrap all 'kill_prefix' calls in a single batch transaction
+			log::info!(target: "runtime::kusama", "removing {} Gov V1 keys 💣", total_keys);
+			let batch = pallet_utility::Call::<Runtime>::batch { calls };
+			let estimated_weight = batch.get_dispatch_info().weight;
+			match RuntimeCall::Utility(batch).dispatch(RuntimeOrigin::root()) {
+				Ok(post_info) => post_info.actual_weight.unwrap_or_default(),
+				Err(_) => estimated_weight,
+			}
+		} else {
+			log::info!(target: "runtime::kusama", "Gov V1 keys already removed 🤙");
+			<Runtime as frame_system::Config>::DbWeight::get()
+				.reads(Self::get_pallets().len() as u64)
+		}
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
+		Self::get_pallets().iter().for_each(|p| {
+			let prefix = twox_128(p.as_bytes());
+			let subkeys = Self::count_keys(&prefix);
+			if subkeys > 0 {
+				log::info!(target: "runtime::kusama","Found {} keys for Gov V1 pallet {} pre-removal", subkeys, p);
+			} else {
+				log::warn!(target: "runtime::kusama","No keys found for Gov V1 pallet {} pre-removal", p)
+			};
+		});
+		Ok(vec![])
+	}
+
+	#[cfg(feature = "try-runtime")]
+	fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+		Self::get_pallets().iter().for_each(|p| {
+			let prefix = twox_128(p.as_bytes());
+			let subkeys = Self::count_keys(&prefix);
+			if subkeys > 0 {
+				log::error!(target: "runtime::kusama","{} Gov V1 pallet {} remaining post-removal ❗", subkeys, p);
+			} else {
+				log::info!(target: "runtime::kusama","No {} keys remaining post-removal 🎉", p)
+			}
+		});
+		Ok(())
+	}
+}
+
 construct_runtime! {
 	pub enum Runtime where
 		Block = Block,
@@ -1491,6 +1583,7 @@ pub type Migrations = (
 	// Unreleased - add new migrations here:
 	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	RemoveGovV1Storage,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
