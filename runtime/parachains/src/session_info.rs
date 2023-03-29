@@ -112,7 +112,7 @@ pub mod pallet {
 	/// Pending executor parameters
 	#[pallet::storage]
 	pub(crate) type PendingExecutorParams<T: Config> =
-		StorageValue<_, Option<ExecutorParams>, ValueQuery>;
+		StorageValue<_, ExecutorParams, OptionQuery>;
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
@@ -123,7 +123,7 @@ pub mod pallet {
 		))]
 		pub fn set_executor_params(origin: OriginFor<T>, new: ExecutorParams) -> DispatchResult {
 			ensure_root(origin)?;
-			<PendingExecutorParams<T>>::put(Some(new));
+			<PendingExecutorParams<T>>::put(new);
 			Ok(())
 		}
 	}
@@ -212,14 +212,15 @@ impl<T: Config> Pallet<T> {
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
 
 		let new_executor_params = if let Some(executor_params) = <PendingExecutorParams<T>>::get() {
-			<PendingExecutorParams<T>>::put(&None);
+			<PendingExecutorParams<T>>::kill();
 			executor_params
 		} else {
-			let current_session_index = <shared::Pallet<T>>::session_index();
+			let current_session_index = new_session_index.saturating_sub(1);
 			if let Some(executor_params) = <SessionExecutorParams<T>>::get(current_session_index) {
 				executor_params
 			} else {
-				unreachable!("Current session executor params must always be present");
+				frame_support::defensive!("Current session executor params must always be present");
+				Default::default()
 			}
 		};
 
