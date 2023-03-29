@@ -1430,9 +1430,9 @@ pub type Migrations = (
 		NominationPoolsMigrationV4OldPallet,
 	>,
 	// Unreleased - add new migrations here:
-	scheduler::migration::v1::MigrateToV1<Runtime>,
 	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	scheduler::migration::v1::MigrateToV1<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
