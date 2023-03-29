@@ -1395,9 +1395,9 @@ impl frame_support::traits::OnRuntimeUpgrade for RemoveGovV1Storage {
 			let prefix = twox_128(p.as_bytes());
 			let subkeys = Self::count_keys(&prefix);
 			if subkeys > 0 {
-				log::info!(target: "runtime::kusama","Found {} keys for Gov V1 pallet {} pre-removal", subkeys, p);
+				log::info!(target: "runtime::kusama", "Found {} keys for Gov V1 pallet {} pre-removal", subkeys, p);
 			} else {
-				log::warn!(target: "runtime::kusama","No keys found for Gov V1 pallet {} pre-removal", p)
+				log::warn!(target: "runtime::kusama", "No keys found for Gov V1 pallet {} pre-removal", p)
 			};
 		});
 		Ok(vec![])
