@@ -36,7 +36,7 @@ use polkadot_node_subsystem::{
 	},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, FromOrchestra, OverseerSignal,
 };
-use polkadot_node_subsystem_util::runtime::RuntimeInfo;
+use polkadot_node_subsystem_util::runtime::{Error as RuntimeError, RuntimeInfo};
 use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CompactStatement, DisputeStatement,
 	DisputeStatementSet, Hash, ScrapedOnChainVotes, SessionIndex, ValidDisputeStatementKind,
@@ -44,7 +44,7 @@ use polkadot_primitives::{
 };
 
 use crate::{
-	error::{log_error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
+	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	import::{CandidateEnvironment, CandidateVoteState},
 	is_potential_spam,
 	metrics::Metrics,
@@ -85,6 +85,9 @@ pub(crate) struct Initialized {
 	scraper: ChainScraper,
 	participation_receiver: WorkerMessageReceiver,
 	metrics: Metrics,
+	// This tracks only rolling session window failures.
+	// It can be a `Vec` if the need to track more arises.
+	error: Option<RuntimeError>,
 }
 
 #[overseer::contextbounds(DisputeCoordinator, prefix = self::overseer)]
@@ -111,6 +114,7 @@ impl Initialized {
 			participation,
 			participation_receiver,
 			metrics,
+			error: None,
 		}
 	}
 
@@ -290,7 +294,9 @@ impl Initialized {
 						.get_session_info_by_index(ctx.sender(), new_leaf.hash, session_idx)
 						.await
 					{
-						Ok(_) => { /* do nothing */ },
+						Ok(_) => {
+							self.error = None;
+						},
 						Err(e) => {
 							gum::warn!(
 								target: LOG_TARGET,
@@ -299,6 +305,7 @@ impl Initialized {
 								err = ?e,
 								"Error caching SessionInfo on ActiveLeaves update"
 							);
+							self.error = Some(e);
 						},
 					}
 
@@ -584,6 +591,9 @@ impl Initialized {
 				}
 			},
 			DisputeCoordinatorMessage::RecentDisputes(tx) => {
+				// Return error if session information is missing.
+				self.ensure_available_session_info()?;
+
 				gum::trace!(target: LOG_TARGET, "Loading recent disputes from db");
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
 					disputes
@@ -597,6 +607,9 @@ impl Initialized {
 				);
 			},
 			DisputeCoordinatorMessage::ActiveDisputes(tx) => {
+				// Return error if session information is missing.
+				self.ensure_available_session_info()?;
+
 				gum::trace!(target: LOG_TARGET, "DisputeCoordinatorMessage::ActiveDisputes");
 
 				let recent_disputes = if let Some(disputes) = overlay_db.load_recent_disputes()? {
@@ -614,6 +627,9 @@ impl Initialized {
 				);
 			},
 			DisputeCoordinatorMessage::QueryCandidateVotes(query, tx) => {
+				// Return error if session information is missing.
+				self.ensure_available_session_info()?;
+
 				gum::trace!(target: LOG_TARGET, "DisputeCoordinatorMessage::QueryCandidateVotes");
 
 				let mut query_output = Vec::new();
@@ -655,6 +671,8 @@ impl Initialized {
 				block_descriptions,
 				tx,
 			} => {
+				// Return error if session information is missing.
+				self.ensure_available_session_info()?;
 				gum::trace!(
 					target: LOG_TARGET,
 					"DisputeCoordinatorMessage::DetermineUndisputedChain"
@@ -672,6 +690,14 @@ impl Initialized {
 		}
 
 		Ok(Box::new(|| Ok(())))
+	}
+
+	// Helper function for checking subsystem errors in message processing.
+	fn ensure_available_session_info(&self) -> Result<()> {
+		match self.error {
+			Some(_) => Err(Error::SessionInfo),
+			None => Ok(()),
+		}
 	}
 
 	// We use fatal result rather than result here. Reason being, We for example increase
