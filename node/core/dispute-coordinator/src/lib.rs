@@ -32,8 +32,8 @@ use gum::CandidateHash;
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	new_session_window_size, CandidateVotes, DisputeMessage, DisputeMessageCheckError,
-	SessionWindowSize, SignedDisputeStatement,
+	CandidateVotes, DisputeMessage, DisputeMessageCheckError, SignedDisputeStatement,
+	DISPUTE_WINDOW,
 };
 use polkadot_node_subsystem::{
 	messages::DisputeDistributionMessage, overseer, ActivatedLeaf, FromOrchestra, OverseerSignal,
@@ -111,8 +111,6 @@ use crate::status::Clock;
 mod tests;
 
 pub(crate) const LOG_TARGET: &str = "parachain::dispute-coordinator";
-
-const SESSION_WINDOW_SIZE: SessionWindowSize = new_session_window_size!(6);
 
 /// An implementation of the dispute coordinator subsystem.
 pub struct DisputeCoordinatorSubsystem {
@@ -222,12 +220,12 @@ impl DisputeCoordinatorSubsystem {
 				},
 			};
 
-			// `RuntimeInfo` cache should match the dispute `SESSION_WINDOW_SIZE` so that we can
+			// `RuntimeInfo` cache should match `DISPUTE_WINDOW` so that we can
 			// keep all sessions for a dispute window
 			let mut runtime_info = RuntimeInfo::new_with_config(RuntimeInfoConfig {
 				keystore: None,
-				session_cache_lru_size: NonZeroUsize::new(SESSION_WINDOW_SIZE.get() as usize)
-					.expect("SESSION_WINDOW_SIZE can't be 0; qed."),
+				session_cache_lru_size: NonZeroUsize::new(DISPUTE_WINDOW.get() as usize)
+					.expect("DISPUTE_WINDOW can't be 0; qed."),
 			});
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
 			let (participations, votes, spam_slots, ordering_provider) = match self
@@ -264,9 +262,7 @@ impl DisputeCoordinatorSubsystem {
 
 			// Cache the sessions. A failure to fetch a session here is not that critical so we
 			// won't abort the initialization
-			for idx in
-				highest_session.saturating_sub(SESSION_WINDOW_SIZE.get() - 1)..highest_session
-			{
+			for idx in highest_session.saturating_sub(DISPUTE_WINDOW.get() - 1)..highest_session {
 				match runtime_info
 					.get_session_info_by_index(ctx.sender(), first_leaf.hash, idx)
 					.await

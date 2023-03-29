@@ -26,7 +26,8 @@ use futures::{
 use sc_keystore::LocalKeystore;
 
 use polkadot_node_primitives::{
-	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement, Timestamp,
+	disputes::ValidCandidateVotes, CandidateVotes, DisputeStatus, SignedDisputeStatement,
+	Timestamp, DISPUTE_WINDOW,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -48,7 +49,7 @@ use crate::{
 	is_potential_spam,
 	metrics::Metrics,
 	status::{get_active_with_status, Clock},
-	DisputeCoordinatorSubsystem, LOG_TARGET, SESSION_WINDOW_SIZE,
+	DisputeCoordinatorSubsystem, LOG_TARGET,
 };
 
 use super::{
@@ -292,7 +293,7 @@ impl Initialized {
 					if session_idx > self.highest_session {
 						self.highest_session = session_idx;
 						self.spam_slots
-							.prune_old(session_idx.saturating_sub(SESSION_WINDOW_SIZE.get() - 1));
+							.prune_old(session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1));
 					}
 				},
 				Err(e) => {
@@ -1203,7 +1204,7 @@ impl Initialized {
 	}
 
 	fn session_is_ancient(&self, session_idx: SessionIndex) -> bool {
-		return session_idx < self.highest_session.saturating_sub(SESSION_WINDOW_SIZE.get() - 1)
+		return session_idx < self.highest_session.saturating_sub(DISPUTE_WINDOW.get() - 1)
 	}
 }
 
