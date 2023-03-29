@@ -297,15 +297,15 @@ impl Initialized {
 						Ok(_) => {
 							self.error = None;
 						},
-						Err(e) => {
+						Err(err) => {
 							gum::warn!(
 								target: LOG_TARGET,
 								session_idx,
 								leaf_hash = ?new_leaf.hash,
-								err = ?e,
+								?err,
 								"Error caching SessionInfo on ActiveLeaves update"
 							);
-							self.error = Some(e);
+							self.error = Some(err);
 						},
 					}
 
@@ -315,10 +315,10 @@ impl Initialized {
 							.prune_old(session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1));
 					}
 				},
-				Err(e) => {
+				Err(err) => {
 					gum::warn!(
 						target: LOG_TARGET,
-						err = ?e,
+						?err,
 						"Failed to update session cache for disputes",
 					);
 				},
@@ -1192,10 +1192,10 @@ impl Initialized {
 					statements.push((signed_dispute_statement, *index));
 				},
 				Ok(None) => {},
-				Err(e) => {
+				Err(err) => {
 					gum::error!(
 						target: LOG_TARGET,
-						err = ?e,
+						?err,
 						"Encountered keystore error while signing dispute statement",
 					);
 				},
