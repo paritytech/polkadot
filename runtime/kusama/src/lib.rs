@@ -1409,9 +1409,9 @@ impl frame_support::traits::OnRuntimeUpgrade for RemoveGovV1Storage {
 			let prefix = twox_128(p.as_bytes());
 			let subkeys = Self::count_keys(&prefix);
 			if subkeys > 0 {
-				log::error!(target: "runtime::kusama","{} Gov V1 pallet {} remaining post-removal ❗", subkeys, p);
+				log::error!(target: "runtime::kusama", "{} Gov V1 pallet {} remaining post-removal ❗", subkeys, p);
 			} else {
-				log::info!(target: "runtime::kusama","No {} keys remaining post-removal 🎉", p)
+				log::info!(target: "runtime::kusama", "No {} keys remaining post-removal 🎉", p)
 			}
 		});
 		Ok(())
