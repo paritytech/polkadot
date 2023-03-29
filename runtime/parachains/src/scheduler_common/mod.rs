@@ -43,11 +43,6 @@ use primitives::{
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
 
-//use crate::initializer::SessionChangeNotification;
-
-//#[cfg(test)]
-//mod tests;
-
 /// Reasons a core might be freed
 #[derive(Clone, Copy)]
 pub enum FreedReason {
@@ -158,6 +153,15 @@ pub struct CoreAssignment {
 }
 
 impl CoreAssignment {
+	pub fn new(
+		core: CoreIndex,
+		para_id: ParaId,
+		kind: AssignmentKind,
+		group_idx: GroupIndex,
+	) -> Self {
+		CoreAssignment { core, para_id, kind, group_idx }
+	}
+
 	/// Get the ID of a collator who is required to collate this block.
 	pub fn required_collator(&self) -> Option<&CollatorId> {
 		match self.kind {

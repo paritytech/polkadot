@@ -118,6 +118,9 @@ pub mod pallet {
 }
 
 type PositionInClaimqueue = u32;
+type TimedoutParas = BTreeMap<CoreIndex, (ParaId, AssignmentKind)>;
+type ConcludedParas = BTreeMap<CoreIndex, ParaId>;
+
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the scheduler pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
@@ -197,7 +200,7 @@ impl<T: Config> Pallet<T> {
 	/// for them being freed.
 	fn free_cores(
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
-	) -> (BTreeMap<CoreIndex, ParaId>, BTreeMap<CoreIndex, (ParaId, AssignmentKind)>) {
+	) -> (ConcludedParas, TimedoutParas) {
 		let mut timedout_paras = BTreeMap::new();
 		let mut concluded_paras = BTreeMap::new();
 		let config = <configuration::Pallet<T>>::config();
@@ -474,7 +477,7 @@ impl<T: Config> Pallet<T> {
 
 		if ValidatorGroups::<T>::get().is_empty() {
 			// TODO: what do we do with concluded_paras and timedout_paras here?
-			Self::scheduled_claimqueue()
+			vec![]
 		} else {
 			let n_lookahead = Self::claimqueue_lookahead();
 			let n_session_cores = T::AssignmentProvider::session_core_count();
@@ -489,12 +492,7 @@ impl<T: Config> Pallet<T> {
 
 				// add previously timedout paras back into the queue
 				if let Some((para_id, assignment_kind)) = timedout_paras.remove(&core_idx) {
-					let ca = CoreAssignment {
-						core: core_idx,
-						para_id,
-						kind: assignment_kind,
-						group_idx,
-					};
+					let ca = CoreAssignment::new(core_idx, para_id, assignment_kind, group_idx);
 					Self::add_to_claimqueue(ca);
 				}
 
@@ -543,6 +541,7 @@ impl<T: Config> Pallet<T> {
 			.remove(pos)
 			.expect("position() above tells us this element exist.")
 			.expect("position() above tells us this element exist.");
+
 		// Since the core is now occupied, the next entry in the claimqueue in order to achieve 12 second block times needs to be None
 		if la_vec.front() != Some(&None) {
 			la_vec.push_front(None);
@@ -552,20 +551,21 @@ impl<T: Config> Pallet<T> {
 		Ok((pos as u32, ca))
 	}
 
+	// Temporary to imitate the old schedule() call. Will disappear when we make the scheduler AB ready
 	pub(crate) fn scheduled_claimqueue() -> Vec<CoreAssignment> {
 		let claimqueue = ClaimQueue::<T>::get();
 		claimqueue.into_iter().flat_map(|(_, v)| v.front().cloned()).flatten().collect()
 	}
 
-	#[cfg(feature = "try-runtime")]
+	#[cfg(any(feature = "try-runtime", test))]
 	fn claimqueue_len() -> usize {
 		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).sum()
 	}
 
-	//#[cfg(test)]
-	//pub(crate) fn claimqueue_is_empty() -> bool {
-	//	Self::claimqueue_len() == 0
-	//}
+	#[cfg(test)]
+	pub(crate) fn claimqueue_is_empty() -> bool {
+		Self::claimqueue_len() == 0
+	}
 
 	#[cfg(test)]
 	pub(crate) fn claimqueue_contains_only_none() -> bool {

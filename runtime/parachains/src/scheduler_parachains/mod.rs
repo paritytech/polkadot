@@ -16,19 +16,11 @@
 
 use primitives::{CoreIndex, Id as ParaId};
 
-use crate::{
-	configuration,
-	//initializer::SessionChangeNotification,
-	paras,
-	scheduler_common::Assignment,
-};
+use crate::{configuration, paras, scheduler_common::Assignment};
 
 pub use pallet::*;
 
 use crate::scheduler_common::AssignmentProvider;
-
-//#[cfg(test)]
-//mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {

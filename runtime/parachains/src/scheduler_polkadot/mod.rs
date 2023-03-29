@@ -18,16 +18,11 @@ use frame_support::pallet_prelude::*;
 use primitives::{CoreIndex, Id as ParaId};
 
 use crate::{
-	configuration,
-	//initializer::SessionChangeNotification,
-	paras,
+	configuration, paras,
 	scheduler_common::{Assignment, AssignmentProvider},
 };
 
 pub use pallet::*;
-
-//#[cfg(test)]
-//mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
