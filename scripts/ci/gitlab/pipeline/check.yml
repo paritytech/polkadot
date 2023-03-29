@@ -58,6 +58,9 @@ check-try-runtime:
     - .docker-env
     - .test-pr-refs
     - .compiler-info
+  env:
+    WASMTIME_BACKTRACE_DETAILS: 1
+    RUST_BACKTRACE: full
   script:
     - |
       export has_runtimemigration_label=$(curl -sS -H "Accept: application/vnd.github+json" \
