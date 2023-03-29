@@ -21,10 +21,11 @@ use crate::{
 };
 use codec::Encode;
 use jsonrpsee::core::Error as RpcError;
+use std::sync::Arc;
 use sc_transaction_pool_api::TransactionStatus;
 use sp_core::storage::StorageKey;
 use sp_runtime::Perbill;
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Mutex};
 use EPM::{signed::SubmissionIndicesOf, SignedSubmissionOf};
 
 /// Ensure that now is the signed phase.
@@ -170,6 +171,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 
 		let mut subscription = heads_subscription().await?;
 		let (tx, mut rx) = mpsc::unbounded_channel::<StakingMinerError>();
+		let submit_lock = Arc::new(Mutex::new(()));
 
 		loop {
 			let at = tokio::select! {
@@ -201,9 +203,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			// Spawn task and non-recoverable errors are sent back to the main task
 			// such as if the connection has been closed.
 			tokio::spawn(
-				send_and_watch_extrinsic(rpc.clone(), tx.clone(), at, signer.clone(), config.clone())
+				send_and_watch_extrinsic(rpc.clone(), tx.clone(), at, signer.clone(), config.clone(), submit_lock.clone())
 			);
-
 		}
 
 		/// Construct extrinsic at given block and watch it.
@@ -213,6 +214,7 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 			at: Header,
 			signer: Signer,
 			config: MonitorConfig,
+			submit_lock: Arc<Mutex<()>>,
 		) {
 
 			async fn flatten<T>(
@@ -254,6 +256,8 @@ macro_rules! monitor_cmd_for { ($runtime:tt) => { paste::paste! {
 				log::debug!(target: LOG_TARGET, "Skipping block {}; {}", at.number, err);
 				return;
 			}
+
+			let _lock = submit_lock.lock().await;
 
 			let mut ext = match crate::create_election_ext::<Runtime, Block>(rpc.clone(), Some(hash), vec![]).await {
 				Ok(ext) => ext,
