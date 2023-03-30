@@ -27,55 +27,42 @@
 //! items (and performing other heavy migrations) over multiple blocks.
 //! (https://github.com/paritytech/substrate/issues/13690)
 
-use frame_support::weights::constants::RocksDbWeight;
+use frame_support::{storage::unhashed::contains_prefixed_key, weights::constants::RocksDbWeight};
 use sp_core::Get;
-use sp_io::hashing::twox_128;
+use sp_io::{hashing::twox_128, storage::clear_prefix, KillStorageResult};
 use sp_std::{marker::PhantomData, vec::Vec};
 
 pub struct RemovePallet<P: Get<&'static str>>(PhantomData<P>);
-impl<P: Get<&'static str>> RemovePallet<P> {
-	fn clear_keys(dry_run: bool) -> (u64, frame_support::weights::Weight) {
-		let prefix = twox_128(P::get().as_bytes());
-		let mut current = prefix.clone().to_vec();
-		let mut counter = 0;
-		while let Some(next) = sp_io::storage::next_key(&current[..]) {
-			if !next.starts_with(&prefix) {
-				break
-			}
-			if !dry_run {
-				sp_io::storage::clear(&next);
-			}
-			counter += 1;
-			current = next;
-		}
-		// Extra read for initial prefix read.
-		(counter, RocksDbWeight::get().reads_writes(counter + 1, counter))
-	}
-}
 impl<P: Get<&'static str>> frame_support::traits::OnRuntimeUpgrade for RemovePallet<P> {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
-		Self::clear_keys(false).1
+		let hashed_prefix = twox_128(P::get().as_bytes());
+		let keys_removed = match clear_prefix(&hashed_prefix, None) {
+			KillStorageResult::AllRemoved(value) => value,
+			KillStorageResult::SomeRemaining(value) => value,
+		} as u64;
+
+		log::info!("Removed {} {} keys 🧹", keys_removed, P::get());
+
+		RocksDbWeight::get().reads_writes(keys_removed + 1, keys_removed)
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-		let (key_count, _) = Self::clear_keys(true);
-		if key_count > 0 {
-			log::info!("Found {} keys for pallet {} pre-removal 👀", key_count, P::get());
-		} else {
-			log::warn!("No keys found for pallet {} pre-removal ⚠️", P::get());
-		}
+		let hashed_prefix = twox_128(P::get().as_bytes());
+		match contains_prefixed_key(&hashed_prefix) {
+			true => log::info!("Found {} keys pre-removal 👀", P::get()),
+			false => log::warn!("No {} keys found pre-removal ⚠️", P::get()),
+		};
 		Ok(Vec::new())
 	}
 
 	#[cfg(feature = "try-runtime")]
 	fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
-		let (key_count, _) = Self::clear_keys(true);
-		if key_count > 0 {
-			log::error!("{} pallet {} keys remaining post-removal ❗", key_count, P::get());
-		} else {
-			log::info!("No {} keys remaining post-removal 🎉", P::get())
-		}
+		let hashed_prefix = twox_128(P::get().as_bytes());
+		match contains_prefixed_key(&hashed_prefix) {
+			true => log::error!("{} has keys remaining post-removal ❗", P::get()),
+			false => log::info!("No {} keys found post-removal 🎉", P::get()),
+		};
 		Ok(())
 	}
 }
