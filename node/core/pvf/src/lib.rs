@@ -114,6 +114,7 @@ pub use pvf::PvfPrepData;
 
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
+pub(crate) use worker_common::kill_parent_node_in_emergency;
 pub use worker_common::JOB_TIMEOUT_WALL_CLOCK_FACTOR;
 
 pub use execute::worker_entrypoint as execute_worker_entrypoint;
