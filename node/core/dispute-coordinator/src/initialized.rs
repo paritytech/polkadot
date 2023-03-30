@@ -44,6 +44,7 @@ use polkadot_primitives::{
 };
 
 use crate::{
+	db,
 	error::{log_error, Error, FatalError, FatalResult, JfyiError, JfyiResult, Result},
 	import::{CandidateEnvironment, CandidateVoteState},
 	is_potential_spam,
@@ -311,6 +312,10 @@ impl Initialized {
 
 					if session_idx > self.highest_session {
 						self.highest_session = session_idx;
+						db::v1::note_earliest_session(
+							overlay_db,
+							session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1),
+						)?;
 						self.spam_slots
 							.prune_old(session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1));
 					}

@@ -328,10 +328,20 @@ impl DisputeCoordinatorSubsystem {
 			},
 		};
 
+		let session_idx = runtime_info
+			.get_session_index_for_child(ctx.sender(), initial_head.hash)
+			.await?;
 		let session_info = &runtime_info
-			.get_session_info(ctx.sender(), initial_head.hash)
+			.get_session_info_by_index(ctx.sender(), initial_head.hash, session_idx)
 			.await?
 			.session_info;
+
+		// Prune obsolete disputes:
+		db::v1::note_earliest_session(
+			overlay_db,
+			session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1),
+		)?;
+
 		let mut participation_requests = Vec::new();
 		let mut spam_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
 		let (scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
