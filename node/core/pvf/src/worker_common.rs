@@ -416,7 +416,7 @@ pub async fn framed_recv(r: &mut (impl AsyncRead + Unpin)) -> io::Result<Vec<u8>
 	Ok(buf)
 }
 
-/// In case of node and worker version mismatch (as a result of in-place upgrade), send `SIGKILL`
+/// In case of node and worker version mismatch (as a result of in-place upgrade), send `SIGTERM`
 /// to the node to tear it down and prevent it from raising disputes on valid candidates. Node
 /// restart should be handled by the node owner. As node exits, unix sockets opened to workers
 /// get closed by the OS and other workers receive error on socket read and also exit. Preparation
@@ -428,7 +428,7 @@ pub(crate) fn kill_parent_node_in_emergency() {
 		// some corner cases, which is checked. `kill()` never fails.
 		let ppid = libc::getppid();
 		if ppid > 1 {
-			libc::kill(ppid, libc::SIGKILL);
+			libc::kill(ppid, libc::SIGTERM);
 		}
 	}
 }
