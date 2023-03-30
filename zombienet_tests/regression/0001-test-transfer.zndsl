@@ -1,0 +1,8 @@
+Description: Balance transfer regression test
+Network: ./0000-single-node-polkadot.toml
+Creds: config
+
+alice: is up within 30 seconds
+
+# send funds from alice to bob and check amounts are correct
+alice: js-script ./0001-test-transfer.js with "//Alice,//Bob,69420" return is 0 within 30 secs

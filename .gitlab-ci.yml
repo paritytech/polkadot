@@ -36,7 +36,7 @@ variables:
   BUILDAH_IMAGE: "quay.io/buildah/stable:v1.27"
   DOCKER_OS: "debian:stretch"
   ARCH: "x86_64"
-  ZOMBIENET_IMAGE: "docker.io/paritytech/zombienet:v1.3.37"
+  ZOMBIENET_IMAGE: "docker.io/paritytech/zombienet:v1.3.41"
 
 default:
   cache: {}
@@ -200,6 +200,8 @@ include:
   - scripts/ci/gitlab/pipeline/publish.yml
   # zombienet jobs
   - scripts/ci/gitlab/pipeline/zombienet.yml
+  # QA team's zombienet regression tests
+  - scripts/ci/gitlab/pipeline/regression.yml
   # timestamp handler
   - project: parity/infrastructure/ci_cd/shared
     ref: v0.2
