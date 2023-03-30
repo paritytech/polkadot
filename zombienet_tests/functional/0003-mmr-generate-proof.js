@@ -6,7 +6,8 @@ async function run(_, networkInfo, nodeNames) {
     })
   );
 
-  const proof = await apis[0].rpc.mmr.generateProof([1]);
+  // generate proof on arbitrary node
+  const proof = await apis[Math.floor(Math.random(0, apis.length - 1))].rpc.mmr.generateProof([1]);
 
   const proofVerifications = await Promise.all(
     apis.map(async (api) => {
