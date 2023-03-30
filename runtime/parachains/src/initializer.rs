@@ -181,6 +181,7 @@ pub mod pallet {
 
 		fn on_finalize(now: T::BlockNumber) {
 			// reverse initialization order.
+			assigner_on_demand::Pallet::<T>::initializer_finalize();
 			hrmp::Pallet::<T>::initializer_finalize();
 			ump::Pallet::<T>::initializer_finalize();
 			dmp::Pallet::<T>::initializer_finalize();
@@ -273,6 +274,7 @@ impl<T: Config> Pallet<T> {
 		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		ump::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
+		assigner_on_demand::Pallet::<T>::initializer_on_new_session(&notification);
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied
