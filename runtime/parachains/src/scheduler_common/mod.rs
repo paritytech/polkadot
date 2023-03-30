@@ -85,14 +85,7 @@ impl Assignment {
 		}
 	}
 
-	pub fn kind(&self) -> AssignmentKind {
-		match self {
-			Assignment::Parachain(_) => AssignmentKind::Parachain,
-			Assignment::ParathreadA(ParathreadClaim(_, collator_id)) =>
-				AssignmentKind::Parathread(collator_id.clone(), 0),
-		}
-	}
-
+	// This happens on session change. We don't rescheduled pay-as-you-go parachains if they have been tried to run at least once
 	pub fn from_core_occupied(co: CoreOccupied) -> Option<Assignment> {
 		match co {
 			CoreOccupied::Parachain(para_id) => Some(Assignment::Parachain(para_id)),
@@ -107,7 +100,13 @@ impl Assignment {
 	}
 
 	pub fn to_core_assignment(&self, core_idx: CoreIndex, group_idx: GroupIndex) -> CoreAssignment {
-		CoreAssignment { core: core_idx, group_idx, kind: self.kind(), para_id: self.para_id() }
+		let kind = match self {
+			Assignment::Parachain(_) => AssignmentKind::Parachain,
+			Assignment::ParathreadA(ParathreadClaim(_, collator_id)) =>
+				AssignmentKind::Parathread(collator_id.clone(), 0),
+		};
+
+		CoreAssignment { core: core_idx, group_idx, kind, para_id: self.para_id() }
 	}
 
 	pub fn from_core_assignment(ca: CoreAssignment) -> Assignment {
