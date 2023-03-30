@@ -1484,6 +1484,7 @@ parameter_types! {
 	pub TechnicalCommitteeStr: &'static str = "TechnicalCommittee";
 	pub PhragmenElectionStr: &'static str = "PhragmenElection";
 	pub TechnicalMembershipStr: &'static str = "TechnicalMembership";
+	pub TipsStr: &'static str = "Tips";
 }
 
 /// All migrations that will run on the next runtime upgrade.
@@ -1500,12 +1501,13 @@ pub type Migrations = (
 	// Unreleased - add new migrations here:
 	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-	// Gov V1 pallets
+	// Deprecated Gov V1 pallets
 	RemovePallet<DemocracyStr>,
 	RemovePallet<CouncilStr>,
 	RemovePallet<TechnicalCommitteeStr>,
 	RemovePallet<PhragmenElectionStr>,
 	RemovePallet<TechnicalMembershipStr>,
+	RemovePallet<TipsStr>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
