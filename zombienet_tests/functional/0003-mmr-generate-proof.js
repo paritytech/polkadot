@@ -1,13 +1,15 @@
-async function run(nodeName, networkInfo, args) {
-  const { wsUri, userDefinedTypes } = networkInfo.nodesByName[nodeName];
-  const api = await zombie.connect(wsUri, userDefinedTypes);
+async function run(_, networkInfo, nodeNames) {
+  const apis = await Promise.all(
+    nodeNames.map(async (nodeName) => {
+      const { wsUri, userDefinedTypes } = networkInfo.nodesByName[nodeName];
+      return await zombie.connect(wsUri, userDefinedTypes);
+    })
+  );
 
-  const proof = await api.rpc.mmr.generateProof([1]);
+  const proof = await apis[0].rpc.mmr.generateProof([1]);
 
   const proofVerifications = await Promise.all(
-    args.map(async (nodeName) => {
-      const { wsUri, userDefinedTypes } = networkInfo.nodesByName[nodeName];
-      const api = await zombie.connect(wsUri, userDefinedTypes);
+    apis.map(async (api) => {
       return api.rpc.mmr.verifyProof(proof);
     })
   );
