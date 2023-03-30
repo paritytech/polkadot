@@ -22,7 +22,7 @@ use frame_support::traits::{
 };
 use sp_std::{marker::PhantomData, vec};
 use xcm::prelude::*;
-use xcm_executor::traits::{QueryResponseStatus, XcmQueryHandler};
+use xcm_executor::traits::{FinishedQuery, QueryResponseStatus, XcmQueryHandler};
 
 /// Implementation of the `frame_support_traits::tokens::Pay` trait, to allow
 /// for generic payments of a given `AssetKind` and `Balance` from an implied origin, to a
@@ -74,13 +74,17 @@ impl<
 
 	fn check_payment(id: Self::Id) -> PaymentStatus {
 		match Querier::take_response(id) {
-			QueryResponseStatus::Finished { response, at: _ } => match response {
-				Response::ExecutionResult(Some(_)) => PaymentStatus::Failure,
-				Response::ExecutionResult(None) => PaymentStatus::Success,
-				_ => PaymentStatus::Unknown,
-			},
+			QueryResponseStatus::Finished(FinishedQuery::Response { response, at: _ }) =>
+				match response {
+					Response::ExecutionResult(Some(_)) => PaymentStatus::Failure,
+					Response::ExecutionResult(None) => PaymentStatus::Success,
+					_ => PaymentStatus::Unknown,
+				},
 			QueryResponseStatus::Pending => PaymentStatus::InProgress,
-			QueryResponseStatus::NotFound => PaymentStatus::Unknown,
+			QueryResponseStatus::NotFound |
+			QueryResponseStatus::UnexpectedVersion |
+			QueryResponseStatus::Finished(FinishedQuery::VersionNotification { .. }) =>
+				PaymentStatus::Unknown,
 		}
 	}
 

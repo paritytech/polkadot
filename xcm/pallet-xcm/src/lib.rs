@@ -52,7 +52,7 @@ use frame_system::pallet_prelude::*;
 pub use pallet::*;
 use xcm_executor::{
 	traits::{
-		ClaimAssets, DropAssets, MatchesFungible, OnResponse, QueryResponseStatus,
+		ClaimAssets, DropAssets, FinishedQuery, MatchesFungible, OnResponse, QueryResponseStatus,
 		VersionChangeNotifier, WeightBounds, XcmQueryHandler,
 	},
 	Assets,
@@ -1130,13 +1130,24 @@ impl<T: Config> XcmQueryHandler for Pallet<T> {
 					Ok(response) => {
 						Queries::<T>::remove(query_id);
 						Self::deposit_event(Event::ResponseTaken(query_id));
-						QueryResponseStatus::Finished { response, at }
+						QueryResponseStatus::Finished(FinishedQuery::Response { response, at })
 					},
-					Err(_) => QueryResponseStatus::NotFound, // Found unexpected version
+					Err(_) => QueryResponseStatus::UnexpectedVersion,
+				}
+			},
+			Some(QueryStatus::VersionNotifier { origin, is_active }) => {
+				let origin = origin.try_into();
+				match origin {
+					Ok(origin) =>
+						QueryResponseStatus::Finished(FinishedQuery::VersionNotification {
+							origin,
+							is_active,
+						}),
+					Err(_) => QueryResponseStatus::UnexpectedVersion,
 				}
 			},
 			Some(QueryStatus::Pending { .. }) => QueryResponseStatus::Pending,
-			_ => QueryResponseStatus::NotFound,
+			None => QueryResponseStatus::NotFound,
 		}
 	}
 
