@@ -27,7 +27,10 @@ use polkadot_parachain::primitives::Id as ParaId;
 use sp_runtime::traits::{AccountIdConversion, BlakeTwo256, Hash};
 use xcm::{latest::QueryResponseInfo, prelude::*};
 use xcm_builder::AllowKnownQueryResponses;
-use xcm_executor::{traits::ShouldExecute, XcmExecutor};
+use xcm_executor::{
+	traits::{FinishedQuery, QueryResponseStatus, ShouldExecute, XcmQueryHandler},
+	XcmExecutor,
+};
 
 const ALICE: AccountId = AccountId::new([0u8; 32]);
 const BOB: AccountId = AccountId::new([1u8; 32]);
@@ -163,7 +166,10 @@ fn report_outcome_works() {
 			))
 		);
 
-		let response = Some((Response::ExecutionResult(None), 1));
+		let response = QueryResponseStatus::Finished(FinishedQuery::Response {
+			response: Response::ExecutionResult(None),
+			at: 1,
+		});
 		assert_eq!(XcmPallet::take_response(0), response);
 	});
 }
@@ -263,7 +269,10 @@ fn custom_querier_works() {
 			))
 		);
 
-		let response = Some((Response::ExecutionResult(None), 1));
+		let response = QueryResponseStatus::Finished(FinishedQuery::Response {
+			response: Response::ExecutionResult(None),
+			at: 1,
+		});
 		assert_eq!(XcmPallet::take_response(0), response);
 	});
 }
