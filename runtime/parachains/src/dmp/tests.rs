@@ -15,8 +15,10 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System, Test};
-use crate::configuration::ActiveConfig;
+use crate::{
+	configuration::ActiveConfig,
+	mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System, Test},
+};
 use frame_support::assert_ok;
 use hex_literal::hex;
 use parity_scale_codec::Encode;
@@ -263,11 +265,12 @@ fn verify_fee_factor_reaches_high_value() {
 	let mut genesis = default_genesis_config();
 	genesis.configuration.config.max_downward_message_size = 51200;
 	new_test_ext(genesis).execute_with(|| {
-		let max_messages = Dmp::dmq_max_length(ActiveConfig::<Test>::get().max_downward_message_size);
+		let max_messages =
+			Dmp::dmq_max_length(ActiveConfig::<Test>::get().max_downward_message_size);
 		let mut total_fee_factor = FixedU128::from_float(1.0);
 		for _ in 1..max_messages {
 			assert_ok!(queue_downward_message(a, vec![]));
-			total_fee_factor =  total_fee_factor + (DeliveryFeeFactor::<Test>::get(a));
+			total_fee_factor = total_fee_factor + (DeliveryFeeFactor::<Test>::get(a));
 		}
 		assert!(total_fee_factor > FixedU128::from_u32(100_000_000));
 	});
