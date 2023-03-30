@@ -268,19 +268,8 @@ impl Response {
 /// is checked against the worker version. A mismatch results in immediate worker termination.
 /// `None` is used for tests and in other situations when version check is not necessary.
 pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
-	worker_event_loop("execute", socket_path, |rt_handle, mut stream| async move {
+	worker_event_loop("execute", socket_path, node_version, |rt_handle, mut stream| async move {
 		let worker_pid = std::process::id();
-		if let Some(version) = node_version {
-			if version != env!("SUBSTRATE_CLI_IMPL_VERSION") {
-				gum::error!(
-					target: LOG_TARGET,
-					%worker_pid,
-					"Node and worker version mismatch, node needs restarting, forcing shutdown",
-				);
-				crate::kill_parent_node_in_emergency();
-				return Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"))
-			}
-		}
 
 		let handshake = recv_handshake(&mut stream).await?;
 		let executor = Arc::new(Executor::new(handshake.executor_params).map_err(|e| {
