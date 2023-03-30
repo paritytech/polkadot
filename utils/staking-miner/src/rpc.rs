@@ -131,6 +131,7 @@ impl SharedRpcClient {
 			.connection_timeout(connection_timeout)
 			.max_request_body_size(u32::MAX)
 			.request_timeout(request_timeout)
+			.max_concurrent_requests(u32::MAX as usize)
 			.build(uri)
 			.await?;
 		Ok(Self(Arc::new(client)))
