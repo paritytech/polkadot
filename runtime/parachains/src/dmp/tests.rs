@@ -16,6 +16,8 @@
 
 use super::*;
 use crate::mock::{new_test_ext, Configuration, Dmp, MockGenesisConfig, Paras, System, Test};
+use crate::configuration::ActiveConfig;
+use frame_support::assert_ok;
 use hex_literal::hex;
 use parity_scale_codec::Encode;
 use primitives::BlockNumber;
@@ -210,7 +212,7 @@ fn verify_dmq_mqc_head_is_externally_accessible() {
 fn verify_fee_increment_and_decrement() {
 	let a = ParaId::from(123);
 	let mut genesis = default_genesis_config();
-	genesis.configuration.config.max_downward_message_size = 51200;
+	genesis.configuration.config.max_downward_message_size = 16777216;
 	new_test_ext(genesis).execute_with(|| {
 		let default = InitialFactor::get();
 		assert_eq!(DeliveryFeeFactor::<Test>::get(a), default);
@@ -256,16 +258,17 @@ fn verify_fee_increment_and_decrement() {
 }
 
 #[test]
-#[should_panic]
-fn verify_fee_reaches_high_value() {
+fn verify_fee_factor_reaches_high_value() {
 	let a = ParaId::from(123);
 	let mut genesis = default_genesis_config();
 	genesis.configuration.config.max_downward_message_size = 51200;
 	new_test_ext(genesis).execute_with(|| {
-		let big_message = [0; 51000].to_vec();
-		loop {
-			queue_downward_message(a, big_message.clone()).unwrap();
-			assert!(DeliveryFeeFactor::<Test>::get(a) < FixedU128::from_u32(u32::MAX));
+		let max_messages = Dmp::dmq_max_length(ActiveConfig::<Test>::get().max_downward_message_size);
+		let mut total_fee_factor = FixedU128::from_float(1.0);
+		for _ in 1..max_messages {
+			assert_ok!(queue_downward_message(a, vec![]));
+			total_fee_factor =  total_fee_factor + (DeliveryFeeFactor::<Test>::get(a));
 		}
+		assert!(total_fee_factor > FixedU128::from_u32(100_000_000));
 	});
 }

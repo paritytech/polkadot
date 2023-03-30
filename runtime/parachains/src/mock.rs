@@ -215,13 +215,7 @@ impl crate::paras::Config for Test {
 	type NextSessionRotation = TestNextSessionRotation;
 }
 
-parameter_types! {
-	pub const MessageQueueFeeLimit: u32 = 1;
-}
-
-impl crate::dmp::Config for Test {
-	type MessageQueueFeeLimit = MessageQueueFeeLimit;
-}
+impl crate::dmp::Config for Test {}
 
 parameter_types! {
 	pub const FirstMessageFactorPercent: u64 = 100;

@@ -14,12 +14,26 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+//! To prevent Out of Memory errors on the `DownwardMessageQueue`,
+//! an exponential fee factor (`DeliveryFeeFactor`) is set
+//! The fee factor increments exponentially after the number of messages in the `DownwardMessageQueue`
+//! pass a threshold. This threshold is set as:
+//! //Maximum max sized messages that can be send to the DownwardMessageQueue before it runs out of memory
+//! `max_messsages = MAX_POSSIBLE_ALLOCATION / max_downward_message_size`
+//! `threshold = max_messages / THRESHOLD_FACTOR`
+//! Based on the THRESHOLD_FACTOR, the threshold is set as a fraction of the total messages.
+//! The DeliveryFeeFactor increases for a message over the threshold by:
+//! `DeliveryFeeFactor = DeliveryFeeFactor * (EXPONENTIAL_FEE_BASE + MESSAGE_SIZE_FEE_BASE * message_size_in_KB)
+//! And Decreases when the number of messages in the `DownwardMessageQueue` fall below the threshold by:
+//! `DeliveryFeeFactor = DeliveryFeeFactor / EXPONENTIAL_FEE_BASE`
+//! As an extra defensive measure, a `max_messages` hard limit is set to the number of messages in the DownwardMessageQueue.
+//! Messages that would increase the number of messages in the queue above this hard limit are dropped.
+
 use crate::{
 	configuration::{self, HostConfiguration},
 	initializer, FeeTracker,
 };
 use frame_support::pallet_prelude::*;
-use frame_system::pallet_prelude::*;
 use primitives::{DownwardMessage, Hash, Id as ParaId, InboundDownwardMessage};
 use sp_core::MAX_POSSIBLE_ALLOCATION;
 use sp_runtime::{
@@ -34,8 +48,8 @@ pub use pallet::*;
 #[cfg(test)]
 mod tests;
 
-pub const MAX_MESSAGE_QUEUE_SIZE: usize = 1024;
-const EXPONENTIAL_FEE_BASE: FixedU128 = FixedU128::from_rational(101, 100); // 1.01
+const THRESHOLD_FACTOR: u32 = 2;
+const EXPONENTIAL_FEE_BASE: FixedU128 = FixedU128::from_rational(105, 100); // 1.05
 const MESSAGE_SIZE_FEE_BASE: FixedU128 = FixedU128::from_rational(1, 1000); // 0.001
 
 /// An error sending a downward message.
@@ -86,12 +100,7 @@ pub mod pallet {
 	pub struct Pallet<T>(_);
 
 	#[pallet::config]
-	pub trait Config: frame_system::Config + configuration::Config {
-		/// A limit on the number of messages in any `DownwardMessageQueue`.
-		/// When the limit is reached the `DeliveryFeeFactor` will increase.
-		#[pallet::constant]
-		type MessageQueueFeeLimit: Get<u32>;
-	}
+	pub trait Config: frame_system::Config + configuration::Config {}
 
 	/// The downward messages addressed for a certain para.
 	#[pallet::storage]
@@ -125,26 +134,7 @@ pub mod pallet {
 	#[pallet::getter(fn delivery_fee_factor)]
 	pub(crate) type DeliveryFeeFactor<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, FixedU128, ValueQuery, InitialFactor>;
-
-	#[pallet::hooks]
-	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
-		#[cfg(feature = "std")]
-		fn integrity_test() {
-			sp_io::TestExternalities::default().execute_with(|| {
-				let max_msg_size =
-					configuration::ActiveConfig::<T>::get().max_downward_message_size;
-				assert!(
-					T::MessageQueueFeeLimit::get() <=
-						MAX_POSSIBLE_ALLOCATION
-							.checked_div(max_msg_size)
-							.unwrap_or(640u32)
-							.saturating_div(2u32)
-				);
-			});
-		}
-	}
 }
-
 /// Routines and getters related to downward message passing.
 impl<T: Config> Pallet<T> {
 	/// Block initialization logic, called by initializer.
@@ -182,11 +172,16 @@ impl<T: Config> Pallet<T> {
 	/// `queue_downward_message` with the same parameters will be successful.
 	pub fn can_queue_downward_message(
 		config: &HostConfiguration<T::BlockNumber>,
-		_: &ParaId,
+		para: &ParaId,
 		msg: &DownwardMessage,
 	) -> Result<(), QueueDownwardMessageError> {
 		let serialized_len = msg.len() as u32;
 		if serialized_len > config.max_downward_message_size {
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+		}
+
+		// Hard limit on Queue size
+		if Self::dmq_length(*para) > Self::dmq_max_length(config.max_downward_message_size) {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
@@ -211,6 +206,11 @@ impl<T: Config> Pallet<T> {
 			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
 		}
 
+		// Hard limit on Queue size
+		if Self::dmq_length(para) > Self::dmq_max_length(config.max_downward_message_size) {
+			return Err(QueueDownwardMessageError::ExceedsMaxMessageSize)
+		}
+
 		let inbound =
 			InboundDownwardMessage { msg, sent_at: <frame_system::Pallet<T>>::block_number() };
 
@@ -225,7 +225,10 @@ impl<T: Config> Pallet<T> {
 			v.push(inbound);
 			v.len()
 		});
-		if q_len > T::MessageQueueFeeLimit::get() as usize {
+
+		let threshold =
+			Self::dmq_max_length(config.max_downward_message_size).saturating_div(THRESHOLD_FACTOR);
+		if q_len > (threshold as usize) {
 			let message_size_factor =
 				FixedU128::from_u32(serialized_len.saturating_div(1024) as u32)
 					.saturating_mul(MESSAGE_SIZE_FEE_BASE);
@@ -269,7 +272,10 @@ impl<T: Config> Pallet<T> {
 			q.len()
 		});
 
-		if q_len <= T::MessageQueueFeeLimit::get() as usize {
+		let config = configuration::ActiveConfig::<T>::get();
+		let threshold =
+			Self::dmq_max_length(config.max_downward_message_size).saturating_div(THRESHOLD_FACTOR);
+		if q_len <= (threshold as usize) {
 			Self::decrement_fee_factor(para);
 		}
 		T::DbWeight::get().reads_writes(1, 1)
@@ -289,6 +295,10 @@ impl<T: Config> Pallet<T> {
 		DownwardMessageQueues::<T>::decode_len(&para)
 			.unwrap_or(0)
 			.saturated_into::<u32>()
+	}
+
+	fn dmq_max_length(max_downward_message_size: u32) -> u32 {
+		MAX_POSSIBLE_ALLOCATION.checked_div(max_downward_message_size).unwrap_or(0)
 	}
 
 	/// Returns the downward message queue contents for the given para.
