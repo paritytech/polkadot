@@ -111,6 +111,7 @@ pub mod pallet {
 	#[pallet::getter(fn session_start_block)]
 	pub(crate) type SessionStartBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
+	/// One entry for each availability core. The `VecDeque` represents the assignments to be scheduled on that core.
 	#[pallet::storage]
 	#[pallet::getter(fn claimqueue)]
 	pub(crate) type ClaimQueue<T> =

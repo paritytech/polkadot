@@ -74,37 +74,40 @@ impl AssignmentKind {
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 pub enum Assignment {
 	Parachain(ParaId),
-	ParathreadA(ParathreadClaim),
+	ParathreadA(ParathreadClaim, u32), // retries
 }
 
 impl Assignment {
 	pub fn para_id(&self) -> ParaId {
 		match self {
 			Assignment::Parachain(para_id) => *para_id,
-			Assignment::ParathreadA(ParathreadClaim(para_id, _)) => *para_id,
+			Assignment::ParathreadA(ParathreadClaim(para_id, _), _) => *para_id,
 		}
 	}
 
 	pub fn kind(&self) -> AssignmentKind {
 		match self {
 			Assignment::Parachain(_) => AssignmentKind::Parachain,
-			Assignment::ParathreadA(ParathreadClaim(_, collator_id)) =>
-				AssignmentKind::Parathread(collator_id.clone(), 0),
+			Assignment::ParathreadA(ParathreadClaim(_, collator_id), retries) =>
+				AssignmentKind::Parathread(collator_id.clone(), *retries),
 		}
 	}
 
 	pub fn to_core_occupied(&self) -> CoreOccupied {
 		match self {
 			Assignment::Parachain(para_id) => CoreOccupied::Parachain(*para_id),
-			Assignment::ParathreadA(claim) =>
-				CoreOccupied::Parathread(ParathreadEntry { claim: claim.clone(), retries: 0 }),
+			Assignment::ParathreadA(claim, retries) => CoreOccupied::Parathread(ParathreadEntry {
+				claim: claim.clone(),
+				retries: *retries,
+			}),
 		}
 	}
 
 	pub fn from_core_occupied(co: CoreOccupied) -> Option<Assignment> {
 		match co {
 			CoreOccupied::Parachain(para_id) => Some(Assignment::Parachain(para_id)),
-			CoreOccupied::Parathread(entry) => Some(Assignment::ParathreadA(entry.claim)),
+			CoreOccupied::Parathread(entry) =>
+				Some(Assignment::ParathreadA(entry.claim, entry.retries)),
 			CoreOccupied::Free => None,
 		}
 	}
@@ -116,8 +119,8 @@ impl Assignment {
 	pub fn from_core_assignment(ca: CoreAssignment) -> Assignment {
 		match ca.kind {
 			AssignmentKind::Parachain => Assignment::Parachain(ca.para_id),
-			AssignmentKind::Parathread(collator_id, _retries) =>
-				Assignment::ParathreadA(ParathreadClaim(ca.para_id, collator_id)),
+			AssignmentKind::Parathread(collator_id, retries) =>
+				Assignment::ParathreadA(ParathreadClaim(ca.para_id, collator_id), retries),
 		}
 	}
 }
@@ -185,8 +188,8 @@ impl CoreAssignment {
 	pub fn to_assignment(&self) -> Assignment {
 		match self.kind.clone() {
 			AssignmentKind::Parachain => Assignment::Parachain(self.para_id),
-			AssignmentKind::Parathread(collator, _) =>
-				Assignment::ParathreadA(ParathreadClaim(self.para_id, collator)),
+			AssignmentKind::Parathread(collator, retries) =>
+				Assignment::ParathreadA(ParathreadClaim(self.para_id, collator), retries),
 		}
 	}
 
