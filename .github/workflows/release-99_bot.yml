@@ -31,7 +31,7 @@ jobs:
         if: github.event.release.prerelease == false || matrix.channel.pre-release
         uses: s3krit/matrix-message-action@v0.0.3
         with:
-          room_id: ${{ matrix.channel.name }}
+          room_id: ${{ matrix.channel.room }}
           access_token: ${{ secrets.MATRIX_ACCESS_TOKEN }}
           server: "m.parity.io"
           message: "***Polkadot ${{github.event.release.tag_name}} has been released!***<br/>${{github.event.release.html_url}}<br/><br/>${{github.event.release.body}}<br/>"
