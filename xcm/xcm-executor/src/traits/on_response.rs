@@ -99,14 +99,23 @@ impl VersionChangeNotifier for () {
 	}
 }
 
+#[derive(Debug, PartialEq, Eq)]
+pub enum FinishedQuery<BlockNumber> {
+	Response { response: Response, at: BlockNumber },
+	VersionNotification { origin: MultiLocation, is_active: bool },
+}
+
 /// The possible state of an XCM query response.
+#[derive(Debug, PartialEq, Eq)]
 pub enum QueryResponseStatus<BlockNumber> {
 	/// The response has arrived, and includes the inner Response and the block number it arrived at.
-	Finished { response: Response, at: BlockNumber },
+	Finished(FinishedQuery<BlockNumber>),
 	/// The response has not yet arrived, the XCM might still be executing or the response might be in transit.
 	Pending,
 	/// No response with the given `QueryId` was found, or the response was already queried and removed from local storage.
 	NotFound,
+	/// Got an unexpected XCM version.
+	UnexpectedVersion,
 }
 
 /// Provides methods to expect responses from XCMs and query their status.
@@ -138,6 +147,7 @@ pub trait XcmQueryHandler {
 
 	/// Attempt to remove and return the response of query with ID `query_id`.
 	///
+	/// Returns `Finished` if the response is available and includes inner response.
 	/// Returns `Pending` if the response is not yet available.
 	/// Returns `NotFound` if the response is not available and won't ever be.
 	fn take_response(id: Self::QueryId) -> QueryResponseStatus<Self::BlockNumber>;
