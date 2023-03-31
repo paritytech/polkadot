@@ -281,14 +281,8 @@ impl TestState {
 			)))
 			.await;
 
-		self.handle_sync_queries(
-			virtual_overseer,
-			block_hash,
-			block_number,
-			session,
-			candidate_events,
-		)
-		.await;
+		self.handle_sync_queries(virtual_overseer, block_hash, session, candidate_events)
+			.await;
 	}
 
 	/// Returns any sent `DisputeMessage`s.
@@ -296,7 +290,6 @@ impl TestState {
 		&mut self,
 		virtual_overseer: &mut VirtualOverseer,
 		block_hash: Hash,
-		block_number: BlockNumber,
 		session: SessionIndex,
 		candidate_events: Vec<CandidateEvent>,
 	) -> Vec<DisputeMessage> {
@@ -338,57 +331,18 @@ impl TestState {
 					if self.known_session.is_none() {
 						assert_matches!(
 							overseer_recv(virtual_overseer).await,
-							AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(
-								s_tx,
-							)) => {
-								let _ = s_tx.send(Ok(block_number));
-							}
-						);
-
-						assert_matches!(
-							overseer_recv(virtual_overseer).await,
-							AllMessages::ChainApi(ChainApiMessage::FinalizedBlockHash(
-								number,
-								s_tx,
-							)) => {
-								assert_eq!(block_number, number);
-								let _ = s_tx.send(Ok(Some(block_hash)));
-							}
-						);
-
-						assert_matches!(
-							overseer_recv(virtual_overseer).await,
 							AllMessages::RuntimeApi(RuntimeApiMessage::Request(
 								h,
-								RuntimeApiRequest::SessionIndexForChild(s_tx),
+								RuntimeApiRequest::SessionInfo(session_index, tx),
 							)) => {
 								assert_eq!(h, block_hash);
-								let _ = s_tx.send(Ok(session));
+								assert_eq!(session_index, 1);	// the session of the first leaf
+								let _ = tx.send(Ok(Some(self.session_info())));
 							}
 						);
 					}
 
-					// No queries, if subsystem knows about this session already.
-					if self.known_session == Some(session) {
-						continue
-					}
 					self.known_session = Some(session);
-
-					loop {
-						// answer session info queries until the current session is reached.
-						assert_matches!(
-						overseer_recv(virtual_overseer).await,
-						AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-								h,
-								RuntimeApiRequest::SessionInfo(session_index, tx),
-								)) => {
-							assert_eq!(h, block_hash);
-
-							let _ = tx.send(Ok(Some(self.session_info())));
-							if session_index == session { break }
-						}
-						);
-					}
 				},
 				AllMessages::ChainApi(ChainApiMessage::FinalizedBlockNumber(tx)) => {
 					assert!(
@@ -439,6 +393,13 @@ impl TestState {
 					}
 					let _ = response_channel.send(Ok(response));
 				},
+				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+					_,
+					RuntimeApiRequest::SessionInfo(session_index, tx),
+				)) => {
+					assert_eq!(session_index, 0); // caching session 0
+					let _ = tx.send(Ok(Some(self.session_info())));
+				},
 				msg => {
 					panic!("Received unexpected message in `handle_sync_queries`: {:?}", msg);
 				},
@@ -481,9 +442,8 @@ impl TestState {
 
 			let events = if n == 1 { std::mem::take(&mut initial_events) } else { Vec::new() };
 
-			let mut new_messages = self
-				.handle_sync_queries(virtual_overseer, *leaf, n as BlockNumber, session, events)
-				.await;
+			let mut new_messages =
+				self.handle_sync_queries(virtual_overseer, *leaf, session, events).await;
 			messages.append(&mut new_messages);
 		}
 		messages
