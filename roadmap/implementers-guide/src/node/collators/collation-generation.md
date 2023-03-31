@@ -4,7 +4,7 @@ The collation generation subsystem is executed on collator nodes and produces ca
 
 ## Protocol
 
-Block authoring for Parachains currently works in the following way:
+Collation generation for Parachains currently works in the following way:
 
 1.  A new relay chain block is imported.
 2.  The collation generation subsystem checks if the core associated to
