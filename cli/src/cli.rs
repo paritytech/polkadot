@@ -79,7 +79,11 @@ pub enum Subcommand {
 #[derive(Debug, Parser)]
 pub struct ValidationWorkerCommand {
 	/// The path to the validation host's socket.
+	#[arg(long)]
 	pub socket_path: String,
+	/// Calling node implementation version
+	#[arg(long)]
+	pub node_impl_version: String,
 }
 
 #[allow(missing_docs)]
