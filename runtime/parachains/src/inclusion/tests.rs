@@ -976,7 +976,7 @@ fn candidate_checks() {
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
 			para_id: thread_a,
-			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
+			kind: AssignmentKind::Parathread(Some(thread_collator.clone()), 0),
 			group_idx: GroupIndex::from(2),
 		};
 
@@ -1523,7 +1523,7 @@ fn backing_works() {
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
 			para_id: thread_a,
-			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
+			kind: AssignmentKind::Parathread(Some(thread_collator.clone()), 0),
 			group_idx: GroupIndex::from(2),
 		};
 

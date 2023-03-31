@@ -786,7 +786,7 @@ impl TypeIndex for GroupIndex {
 /// A claim on authoring the next block for a given parathread.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
-pub struct ParathreadClaim(pub Id, pub CollatorId);
+pub struct ParathreadClaim(pub Id, pub Option<CollatorId>);
 
 /// An entry tracking a claim to ensure it does not pass the maximum number of retries.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]

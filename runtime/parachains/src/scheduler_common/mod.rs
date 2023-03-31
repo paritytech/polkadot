@@ -59,14 +59,14 @@ pub enum AssignmentKind {
 	/// A parachain.
 	Parachain,
 	/// A parathread.
-	Parathread(CollatorId, u32), // u32 is retries
+	Parathread(Option<CollatorId>, u32), // u32 is retries
 }
 
 impl AssignmentKind {
 	pub fn get_collator(&self) -> Option<CollatorId> {
 		match self {
 			AssignmentKind::Parachain => None,
-			AssignmentKind::Parathread(collator_id, _) => Some(collator_id.clone()),
+			AssignmentKind::Parathread(collator_id, _) => collator_id.clone(),
 		}
 	}
 }
@@ -85,7 +85,7 @@ impl Assignment {
 		}
 	}
 
-	// This happens on session change. We don't rescheduled pay-as-you-go parachains if they have been tried to run at least once
+	// Note: this happens on session change. We don't rescheduled pay-as-you-go parachains if they have been tried to run at least once
 	pub fn from_core_occupied(co: CoreOccupied) -> Option<Assignment> {
 		match co {
 			CoreOccupied::Parachain(para_id) => Some(Assignment::Parachain(para_id)),
@@ -160,9 +160,9 @@ impl CoreAssignment {
 
 	/// Get the ID of a collator who is required to collate this block.
 	pub fn required_collator(&self) -> Option<&CollatorId> {
-		match self.kind {
+		match &self.kind {
 			AssignmentKind::Parachain => None,
-			AssignmentKind::Parathread(ref id, _) => Some(id),
+			AssignmentKind::Parathread(id, _) => id.as_ref(),
 		}
 	}
 

@@ -401,7 +401,7 @@ impl<T: Config> Pallet<T> {
 				AssignmentKind::Parachain =>
 					Some(ScheduledCore { para_id: ca.para_id, collator: None }),
 				AssignmentKind::Parathread(collator, _) =>
-					Some(ScheduledCore { para_id: ca.para_id, collator: Some(collator) }),
+					Some(ScheduledCore { para_id: ca.para_id, collator }),
 			},
 		}
 	}
@@ -476,8 +476,9 @@ impl<T: Config> Pallet<T> {
 	) -> Vec<CoreAssignment> {
 		let (mut concluded_paras, mut timedout_paras) = Self::free_cores(just_freed_cores);
 
+		// This can only happen on new sessions at which we move all assignnents back to the provider.
+		// Hence, there's nothing we need to do here.
 		if ValidatorGroups::<T>::get().is_empty() {
-			// TODO: what do we do with concluded_paras and timedout_paras here?
 			vec![]
 		} else {
 			let n_lookahead = Self::claimqueue_lookahead();
