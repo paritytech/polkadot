@@ -258,6 +258,10 @@ impl pallet_balances::Config for Runtime {
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<0>;
+	type MaxFreezes = ConstU32<0>;
 }
 
 parameter_types! {
@@ -761,6 +765,7 @@ pub enum ProxyType {
 	IdentityJudgement,
 	CancelProxy,
 	Auction,
+	NominationPools,
 }
 impl Default for ProxyType {
 	fn default() -> Self {
@@ -819,6 +824,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 						RuntimeCall::Session(..) | RuntimeCall::Utility(..) |
 						RuntimeCall::FastUnstake(..)
 				)
+			},
+			ProxyType::NominationPools => {
+				matches!(c, RuntimeCall::NominationPools(..) | RuntimeCall::Utility(..))
 			},
 			ProxyType::SudoBalances => match c {
 				RuntimeCall::Sudo(pallet_sudo::Call::sudo { call: ref x }) => {
@@ -1203,13 +1211,19 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 
 /// All migrations that will run on the next runtime upgrade.
 ///
-/// Should be cleared after every release.
+/// This contains the combined migrations of the last 10 releases. It allows to skip runtime
+/// upgrades in case governance decides to do so.
+#[allow(deprecated)]
 pub type Migrations = (
+	// 0.9.40
 	clean_state_migration::CleanMigrate,
 	pallet_nomination_pools::migration::v4::MigrateToV4<
 		Runtime,
 		NominationPoolsMigrationV4OldPallet,
 	>,
+	// Unreleased - add new migrations here:
+	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
+	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
@@ -1752,8 +1766,8 @@ sp_api::impl_runtime_apis! {
 			impl runtime_parachains::disputes::slashing::benchmarking::Config for Runtime {}
 
 			use xcm::latest::{
-				AssetId::*, Fungibility::*, Junction, Junctions::*, MultiAsset, MultiAssets,
-				MultiLocation, Response,
+				AssetId::*, Fungibility::*, InteriorMultiLocation, Junction, Junctions::*,
+				MultiAsset, MultiAssets, MultiLocation, NetworkId, Response,
 			};
 			use xcm_config::{Westmint, TokenLocation};
 
@@ -1827,6 +1841,12 @@ sp_api::impl_runtime_apis! {
 
 				fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
 					// Westend doesn't support asset locking
+					Err(BenchmarkError::Skip)
+				}
+
+				fn export_message_origin_and_destination(
+				) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError> {
+					// Westend doesn't support exporting messages
 					Err(BenchmarkError::Skip)
 				}
 			}

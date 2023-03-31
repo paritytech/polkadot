@@ -34,6 +34,7 @@ use runtime_common::{
 	paras_registrar, paras_sudo_wrapper, prod_or_fast, slots, BlockHashCount, BlockLength,
 	SlowAdjustingFeeUpdate,
 };
+use scale_info::TypeInfo;
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
 use runtime_parachains::{
@@ -281,6 +282,10 @@ impl pallet_balances::Config for Runtime {
 	type MaxReserves = MaxReserves;
 	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
+	type FreezeIdentifier = ();
+	type MaxFreezes = ConstU32<1>;
+	type HoldIdentifier = HoldReason;
+	type MaxHolds = ConstU32<1>;
 }
 
 parameter_types! {
@@ -1169,7 +1174,6 @@ impl pallet_balances::Config<NisCounterpartInstance> for Runtime {
 	type ExistentialDeposit = ConstU128<10_000_000_000>; // One RTC cent
 	type AccountStore = StorageMapShim<
 		pallet_balances::Account<Runtime, NisCounterpartInstance>,
-		frame_system::Provider<Runtime>,
 		AccountId,
 		pallet_balances::AccountData<u128>,
 	>;
@@ -1177,10 +1181,13 @@ impl pallet_balances::Config<NisCounterpartInstance> for Runtime {
 	type MaxReserves = ConstU32<4>;
 	type ReserveIdentifier = [u8; 8];
 	type WeightInfo = weights::pallet_balances_nis_counterpart_balances::WeightInfo<Runtime>;
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<0>;
+	type MaxFreezes = ConstU32<0>;
 }
 
 parameter_types! {
-	pub IgnoredIssuance: Balance = Treasury::pot();
 	pub const NisBasePeriod: BlockNumber = 30 * DAYS;
 	pub const MinBid: Balance = 100 * UNITS;
 	pub MinReceipt: Perquintill = Perquintill::from_rational(1u64, 10_000_000u64);
@@ -1189,7 +1196,27 @@ parameter_types! {
 	pub const ThawThrottle: (Perquintill, BlockNumber) = (Perquintill::from_percent(25), 5);
 	pub storage NisTarget: Perquintill = Perquintill::zero();
 	pub const NisPalletId: PalletId = PalletId(*b"py/nis  ");
-	pub const NisReserveId: [u8; 8] = *b"py/nis  ";
+	pub const NisHoldReason: HoldReason = HoldReason::Nis(HoldReasonNis::NftReceipt);
+}
+
+/// A reason for placing a hold on funds.
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, MaxEncodedLen, Debug, TypeInfo,
+)]
+pub enum HoldReason {
+	/// Some reason of the NIS pallet.
+	#[codec(index = 38)]
+	Nis(HoldReasonNis),
+}
+
+/// A reason for the NIS pallet placing a hold on funds.
+#[derive(
+	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, MaxEncodedLen, Debug, TypeInfo,
+)]
+pub enum HoldReasonNis {
+	/// The NIS Pallet has reserved it for a non-fungible receipt.
+	#[codec(index = 0)]
+	NftReceipt = 0,
 }
 
 impl pallet_nis::Config for Runtime {
@@ -1201,7 +1228,7 @@ impl pallet_nis::Config for Runtime {
 	type Counterpart = NisCounterpartBalances;
 	type CounterpartAmount = WithMaximumOf<ConstU128<21_000_000_000_000_000_000u128>>;
 	type Deficit = (); // Mint
-	type IgnoredIssuance = IgnoredIssuance;
+	type IgnoredIssuance = ();
 	type Target = NisTarget;
 	type PalletId = NisPalletId;
 	type QueueCount = ConstU32<300>;
@@ -1213,7 +1240,7 @@ impl pallet_nis::Config for Runtime {
 	type IntakePeriod = IntakePeriod;
 	type MaxIntakeWeight = MaxIntakeWeight;
 	type ThawThrottle = ThawThrottle;
-	type ReserveId = NisReserveId;
+	type HoldReason = NisHoldReason;
 }
 
 parameter_types! {
@@ -1466,8 +1493,9 @@ pub type UncheckedExtrinsic =
 
 /// All migrations that will run on the next runtime upgrade.
 ///
-/// Should be cleared after every release.
-pub type Migrations = ();
+/// This contains the combined migrations of the last 10 releases. It allows to skip runtime
+/// upgrades in case governance decides to do so.
+pub type Migrations = parachains_configuration::migration::v5::MigrateToV5<Runtime>;
 
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
@@ -2089,6 +2117,12 @@ sp_api::impl_runtime_apis! {
 
 				fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
 					// Rococo doesn't support asset locking
+					Err(BenchmarkError::Skip)
+				}
+
+				fn export_message_origin_and_destination(
+				) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError> {
+					// Rococo doesn't support exporting messages
 					Err(BenchmarkError::Skip)
 				}
 			}

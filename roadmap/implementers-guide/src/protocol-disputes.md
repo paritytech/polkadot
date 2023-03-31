@@ -62,6 +62,6 @@ Validators are rewarded for providing statements to the chain as well as for par
 
 ## Dispute Conclusion
 
-Disputes, roughly, are over when one side reaches a ⅔ supermajority. They may also conclude after a timeout, without either side witnessing supermajority, which will only happen if the majority of validators are unable to vote for some reason. Furthermore, disputes on-chain will stay open for some fixed amount of time even after concluding, to accept new votes.
+Disputes, roughly, are over when one side reaches a ⅔ supermajority. They may also never conclude without either side witnessing supermajority, which will only happen if the majority of validators are unable to vote for some reason. Furthermore, disputes on-chain will stay open for some fixed amount of time even after concluding, to accept new votes.
 
 Late votes, after the dispute already reached a ⅔ supermajority, must be rewarded (albeit a smaller amount) as well.

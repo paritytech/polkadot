@@ -1701,6 +1701,21 @@ fn verify_upgrade_restriction_signal_is_externally_accessible() {
 }
 
 #[test]
+fn verify_para_head_is_externally_accessible() {
+	use primitives::well_known_keys;
+
+	let a = ParaId::from(2020);
+	let expected_head_data = HeadData(vec![0, 1, 2, 3]);
+
+	new_test_ext(Default::default()).execute_with(|| {
+		Heads::<Test>::insert(&a, expected_head_data.clone());
+		let encoded = sp_io::storage::get(&well_known_keys::para_head(a)).unwrap();
+		let head_data = HeadData::decode(&mut encoded.as_ref());
+		assert_eq!(head_data, Ok(expected_head_data));
+	});
+}
+
+#[test]
 fn parakind_encodes_decodes_to_bool_scale() {
 	let chain_kind = ParaKind::Parachain.encode();
 	let chain_bool = true.encode();
