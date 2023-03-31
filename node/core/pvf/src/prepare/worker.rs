@@ -52,7 +52,13 @@ pub async fn spawn(
 	program_path: &Path,
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	spawn_with_program_path("prepare", program_path, &["prepare-worker"], spawn_timeout).await
+	spawn_with_program_path(
+		"prepare",
+		program_path,
+		&["prepare-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
+		spawn_timeout,
+	)
+	.await
 }
 
 pub enum Outcome {
@@ -321,7 +327,9 @@ async fn recv_response(stream: &mut UnixStream, pid: u32) -> io::Result<PrepareR
 }
 
 /// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host.
+/// the path to the socket used to communicate with the host. The `node_version`, if `Some`,
+/// is checked against the worker version. A mismatch results in immediate worker termination.
+/// `None` is used for tests and in other situations when version check is not necessary.
 ///
 /// # Flow
 ///
@@ -342,10 +350,22 @@ async fn recv_response(stream: &mut UnixStream, pid: u32) -> io::Result<PrepareR
 ///
 ///	7. Send the result of preparation back to the host. If any error occurred in the above steps, we
 ///	   send that in the `PrepareResult`.
-pub fn worker_entrypoint(socket_path: &str) {
+pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	worker_event_loop("prepare", socket_path, |rt_handle, mut stream| async move {
+		let worker_pid = std::process::id();
+		if let Some(version) = node_version {
+			if version != env!("SUBSTRATE_CLI_IMPL_VERSION") {
+				gum::error!(
+					target: LOG_TARGET,
+					%worker_pid,
+					"Node and worker version mismatch, node needs restarting, forcing shutdown",
+				);
+				crate::kill_parent_node_in_emergency();
+				return Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"))
+			}
+		}
+
 		loop {
-			let worker_pid = std::process::id();
 			let (pvf, dest) = recv_request(&mut stream).await?;
 			gum::debug!(
 				target: LOG_TARGET,
