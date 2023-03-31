@@ -216,12 +216,12 @@ fn verify_fee_increment_and_decrement() {
 	let mut genesis = default_genesis_config();
 	genesis.configuration.config.max_downward_message_size = 16777216;
 	new_test_ext(genesis).execute_with(|| {
-		let default = InitialFactor::get();
-		assert_eq!(DeliveryFeeFactor::<Test>::get(a), default);
+		let initial = InitialFactor::get();
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), initial);
 
 		// Under fee limit
 		queue_downward_message(a, vec![1]).unwrap();
-		assert_eq!(DeliveryFeeFactor::<Test>::get(a), default);
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), initial);
 
 		// Limit reached so fee is increased
 		queue_downward_message(a, vec![1]).unwrap();
@@ -229,12 +229,12 @@ fn verify_fee_increment_and_decrement() {
 		assert_eq!(DeliveryFeeFactor::<Test>::get(a), result);
 
 		Dmp::prune_dmq(a, 1);
-		assert_eq!(DeliveryFeeFactor::<Test>::get(a), default);
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), initial);
 
 		// 10 Kb message adds additional 0.001 per KB fee factor
 		let big_message = [0; 10240].to_vec();
 		let msg_len_in_kb = big_message.len().saturating_div(1024) as u32;
-		let result = default.saturating_mul(
+		let result = initial.saturating_mul(
 			EXPONENTIAL_FEE_BASE +
 				MESSAGE_SIZE_FEE_BASE.saturating_mul(FixedU128::from_u32(msg_len_in_kb)),
 		);
@@ -255,7 +255,7 @@ fn verify_fee_increment_and_decrement() {
 		Dmp::prune_dmq(a, 1);
 		queue_downward_message(a, vec![1]).unwrap();
 		Dmp::prune_dmq(a, 1);
-		assert_eq!(DeliveryFeeFactor::<Test>::get(a), default);
+		assert_eq!(DeliveryFeeFactor::<Test>::get(a), initial);
 	});
 }
 
