@@ -1479,12 +1479,12 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 
 // RemovePallet parameter types
 parameter_types! {
-	pub DemocracyStr: &'static str = "Democracy";
-	pub CouncilStr: &'static str = "Council";
-	pub TechnicalCommitteeStr: &'static str = "TechnicalCommittee";
-	pub PhragmenElectionStr: &'static str = "PhragmenElection";
-	pub TechnicalMembershipStr: &'static str = "TechnicalMembership";
-	pub TipsStr: &'static str = "Tips";
+	pub const DemocracyStr: &'static str = "Democracy";
+	pub const CouncilStr: &'static str = "Council";
+	pub const TechnicalCommitteeStr: &'static str = "TechnicalCommittee";
+	pub const PhragmenElectionStr: &'static str = "PhragmenElection";
+	pub const TechnicalMembershipStr: &'static str = "TechnicalMembership";
+	pub const TipsStr: &'static str = "Tips";
 }
 
 /// All migrations that will run on the next runtime upgrade.
@@ -1520,7 +1520,7 @@ pub type Executive = frame_executive::Executive<
 	frame_system::ChainContext<Runtime>,
 	Runtime,
 	AllPalletsWithSystem,
-	Migrations,
+	(RemovePallet<DemocracyStr>,),
 >;
 /// The payload being signed in the transactions.
 pub type SignedPayload = generic::SignedPayload<RuntimeCall, SignedExtra>;
