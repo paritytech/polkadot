@@ -1209,7 +1209,7 @@ impl<T: Config> Pallet<T> {
 		let mut message = Xcm(vec![
 			WithdrawAsset(assets),
 			SetFeesMode { jit_withdraw: true },
-			InitiateTeleport { assets: Wild(All), dest, xcm },
+			InitiateTeleport { assets: Wild(AllCounted(max_assets)), dest, xcm },
 		]);
 		let weight =
 			T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
