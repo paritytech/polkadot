@@ -1831,7 +1831,8 @@ fn check_and_import_assignment(
 	}
 
 	let claimed_core_index = match assignment.cert.kind {
-		// TODO, near future: remove CoreIndex from certificates completely.
+		// TODO: remove CoreIndex from certificates completely.
+		// https://github.com/paritytech/polkadot/issues/6988
 		AssignmentCertKindV2::RelayVRFDelay { .. } => Some(claimed_core_indices[0]),
 		AssignmentCertKindV2::RelayVRFModulo { .. } => Some(claimed_core_indices[0]),
 		// VRelayVRFModuloCompact assignment doesn't need the the claimed cores for checking.
