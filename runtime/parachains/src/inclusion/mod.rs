@@ -551,7 +551,7 @@ impl<T: Config> Pallet<T> {
 				for (i, assignment) in scheduled[skip..].iter().enumerate() {
 					check_assignment_in_order(assignment)?;
 
-					if para_id == assignment.para_id {
+					if para_id == assignment.kind.para_id() {
 						if let Some(required_collator) = assignment.required_collator() {
 							ensure!(
 								required_collator == &backed_candidate.descriptor().collator,
@@ -620,7 +620,7 @@ impl<T: Config> Pallet<T> {
 						}
 
 						core_indices_and_backers.push((
-							(assignment.core, assignment.para_id),
+							(assignment.core, assignment.kind.para_id()),
 							backers,
 							assignment.group_idx,
 						));

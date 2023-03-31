@@ -35,7 +35,7 @@ use crate::{
 		Test,
 	},
 	paras::{ParaGenesisArgs, ParaKind},
-	scheduler_common::AssignmentKind,
+	scheduler_common::Assignment,
 	//scheduler_parathreads::{
 	//	ParathreadClaimIndex, ParathreadClaimQueue, ParathreadQueue, QueuedParathread,
 	//},
@@ -827,8 +827,7 @@ fn schedule_clears_availability_cores() {
 				claimqueue_0,
 				vec![Some(CoreAssignment {
 					core: CoreIndex(0),
-					para_id: chain_a,
-					kind: AssignmentKind::Parachain,
+					kind: Assignment::Parachain(chain_a),
 					group_idx: GroupIndex(0),
 				})]
 			);
@@ -836,8 +835,7 @@ fn schedule_clears_availability_cores() {
 				claimqueue_2,
 				vec![Some(CoreAssignment {
 					core: CoreIndex(2),
-					para_id: chain_c,
-					kind: AssignmentKind::Parachain,
+					kind: Assignment::Parachain(chain_c),
 					group_idx: GroupIndex(2),
 				})]
 			);
@@ -1417,8 +1415,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 				CoreIndex(0),
 				vec![Some(CoreAssignment {
 					core: CoreIndex(0),
-					para_id: chain_a,
-					kind: AssignmentKind::Parachain,
+					kind: Assignment::Parachain(chain_a),
 					group_idx: GroupIndex(0),
 				})]
 				.into_iter()
@@ -1465,8 +1462,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 					CoreIndex(0),
 					vec![Some(CoreAssignment {
 						core: CoreIndex(0),
-						para_id: chain_a,
-						kind: AssignmentKind::Parachain,
+						kind: Assignment::Parachain(chain_a),
 						group_idx: GroupIndex(0),
 					})]
 					.into_iter()
@@ -1476,8 +1472,7 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 					CoreIndex(1),
 					vec![Some(CoreAssignment {
 						core: CoreIndex(1),
-						para_id: chain_b,
-						kind: AssignmentKind::Parachain,
+						kind: Assignment::Parachain(chain_b),
 						group_idx: GroupIndex(1),
 					})]
 					.into_iter()

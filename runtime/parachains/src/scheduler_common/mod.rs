@@ -37,8 +37,7 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{
-	CollatorId, CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ParathreadClaim,
-	ParathreadEntry, ScheduledCore,
+	CollatorId, CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ParathreadEntry, ScheduledCore,
 };
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
@@ -52,36 +51,25 @@ pub enum FreedReason {
 	TimedOut,
 }
 
-/// The assignment type.
-#[derive(Clone, Encode, Decode, Debug, PartialEq, TypeInfo)]
-//#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
-pub enum AssignmentKind {
-	/// A parachain.
-	Parachain,
-	/// A parathread.
-	Parathread(Option<CollatorId>, u32), // u32 is retries
-}
-
-impl AssignmentKind {
-	pub fn get_collator(&self) -> Option<CollatorId> {
-		match self {
-			AssignmentKind::Parachain => None,
-			AssignmentKind::Parathread(collator_id, _) => collator_id.clone(),
-		}
-	}
-}
-
-#[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub enum Assignment {
 	Parachain(ParaId),
-	ParathreadA(ParathreadClaim),
+	ParathreadA(ParathreadEntry),
 }
 
 impl Assignment {
 	pub fn para_id(&self) -> ParaId {
 		match self {
 			Assignment::Parachain(para_id) => *para_id,
-			Assignment::ParathreadA(ParathreadClaim(para_id, _)) => *para_id,
+			Assignment::ParathreadA(entry) => entry.claim.0,
+		}
+	}
+
+	pub fn get_collator(&self) -> Option<CollatorId> {
+		match self {
+			Assignment::Parachain(_) => None,
+			Assignment::ParathreadA(entry) => entry.claim.1.clone(),
 		}
 	}
 
@@ -93,28 +81,18 @@ impl Assignment {
 				if entry.retries > 0 {
 					None
 				} else {
-					Some(Assignment::ParathreadA(entry.claim))
+					Some(Assignment::ParathreadA(entry))
 				},
 			CoreOccupied::Free => None,
 		}
 	}
 
-	pub fn to_core_assignment(&self, core_idx: CoreIndex, group_idx: GroupIndex) -> CoreAssignment {
-		let kind = match self {
-			Assignment::Parachain(_) => AssignmentKind::Parachain,
-			Assignment::ParathreadA(ParathreadClaim(_, collator_id)) =>
-				AssignmentKind::Parathread(collator_id.clone(), 0),
-		};
-
-		CoreAssignment { core: core_idx, group_idx, kind, para_id: self.para_id() }
+	pub fn to_core_assignment(self, core_idx: CoreIndex, group_idx: GroupIndex) -> CoreAssignment {
+		CoreAssignment { core: core_idx, group_idx, kind: self }
 	}
 
 	pub fn from_core_assignment(ca: CoreAssignment) -> Assignment {
-		match ca.kind {
-			AssignmentKind::Parachain => Assignment::Parachain(ca.para_id),
-			AssignmentKind::Parathread(collator_id, _retries) =>
-				Assignment::ParathreadA(ParathreadClaim(ca.para_id, collator_id)),
-		}
+		ca.kind
 	}
 }
 
@@ -135,50 +113,39 @@ pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 }
 
 /// How a free core is scheduled to be assigned.
-#[derive(Clone, Encode, Decode, PartialEq, Debug, TypeInfo)]
-//#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+#[derive(Clone, Encode, Decode, PartialEq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(Debug))]
 pub struct CoreAssignment {
 	/// The core that is assigned.
 	pub core: CoreIndex,
-	/// The unique ID of the para that is assigned to the core.
-	pub para_id: ParaId,
 	/// The kind of the assignment.
-	pub kind: AssignmentKind,
+	pub kind: Assignment,
 	/// The index of the validator group assigned to the core.
 	pub group_idx: GroupIndex,
 }
 
 impl CoreAssignment {
-	pub fn new(
-		core: CoreIndex,
-		para_id: ParaId,
-		kind: AssignmentKind,
-		group_idx: GroupIndex,
-	) -> Self {
-		CoreAssignment { core, para_id, kind, group_idx }
+	pub fn new(core: CoreIndex, kind: Assignment, group_idx: GroupIndex) -> Self {
+		CoreAssignment { core, kind, group_idx }
 	}
 
 	/// Get the ID of a collator who is required to collate this block.
 	pub fn required_collator(&self) -> Option<&CollatorId> {
 		match &self.kind {
-			AssignmentKind::Parachain => None,
-			AssignmentKind::Parathread(id, _) => id.as_ref(),
+			Assignment::Parachain(_) => None,
+			Assignment::ParathreadA(entry) => entry.claim.1.as_ref(),
 		}
 	}
 
 	/// Get the `CoreOccupied` from this.
-	pub fn to_core_occupied(&self) -> CoreOccupied {
+	pub fn to_core_occupied(self) -> CoreOccupied {
 		match self.kind {
-			AssignmentKind::Parachain => CoreOccupied::Parachain(self.para_id),
-			AssignmentKind::Parathread(ref collator, retries) =>
-				CoreOccupied::Parathread(ParathreadEntry {
-					claim: ParathreadClaim(self.para_id, collator.clone()),
-					retries,
-				}),
+			Assignment::Parachain(para_id) => CoreOccupied::Parachain(para_id),
+			Assignment::ParathreadA(entry) => CoreOccupied::Parathread(entry),
 		}
 	}
 
-	pub fn to_scheduled_core(&self) -> ScheduledCore {
-		ScheduledCore { para_id: self.para_id, collator: self.kind.get_collator() }
+	pub fn to_scheduled_core(self) -> ScheduledCore {
+		ScheduledCore { para_id: self.kind.para_id(), collator: self.kind.get_collator() }
 	}
 }

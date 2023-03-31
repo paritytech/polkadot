@@ -487,6 +487,7 @@ impl<T: Config> Pallet<T> {
 		// As a core is only occupied by a single work item, freed and freed_disputed are disjoint by design
 		// and can thus be appended without worrying about overwriting (key, value) pairs in freed.
 		freed.append(&mut freed_disputed.into_iter().collect());
+		log::debug!(target: LOG_TARGET, "update_claimqueue() at {:?} in enter_inner", now);
 		let scheduled = <scheduler::Pallet<T>>::update_claimqueue(freed, now);
 
 		METRICS.on_candidates_processed_total(backed_candidates.len() as u64);
@@ -687,6 +688,11 @@ impl<T: Config> Pallet<T> {
 			// and can thus be appended without worrying about overwriting (key, value) pairs in freed.
 			freed.append(&mut freed_disputed.into_iter().collect());
 			let now = <frame_system::Pallet<T>>::block_number();
+			log::debug!(
+				target: LOG_TARGET,
+				"update_claimqueue() at {:?} in create_inherent_inner",
+				now
+			);
 			let scheduled = <scheduler::Pallet<T>>::update_claimqueue(freed, now);
 
 			let relay_parent_number = now - One::one();
@@ -1102,7 +1108,7 @@ fn sanitize_backed_candidates<
 
 	let scheduled_paras_to_core_idx = scheduled
 		.into_iter()
-		.map(|core_assignment| (core_assignment.para_id, core_assignment.core))
+		.map(|core_assignment| (core_assignment.kind.para_id(), core_assignment.core))
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
 
 	// Assure the backed candidate's `ParaId`'s core is free.
@@ -1156,7 +1162,7 @@ pub(crate) fn assure_sanity_backed_candidates<
 
 	let scheduled_paras_to_core_idx = scheduled
 		.into_iter()
-		.map(|core_assignment| (core_assignment.para_id, core_assignment.core))
+		.map(|core_assignment| (core_assignment.kind.para_id(), core_assignment.core))
 		.collect::<BTreeMap<ParaId, CoreIndex>>();
 
 	if !IsSortedBy::is_sorted_by(backed_candidates, |x, y| {

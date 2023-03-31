@@ -37,8 +37,8 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{
-	CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId, ScheduledCore,
-	ValidatorIndex,
+	CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId, ParathreadEntry,
+	ScheduledCore, ValidatorIndex,
 };
 use sp_runtime::traits::{One, Saturating};
 use sp_std::{
@@ -53,7 +53,7 @@ use crate::{
 	scheduler_common::{CoreAssignment, FreedReason},
 };
 
-use crate::scheduler_common::{Assignment, AssignmentKind, AssignmentProvider};
+use crate::scheduler_common::{Assignment, AssignmentProvider};
 pub use pallet::*;
 
 #[cfg(test)]
@@ -119,7 +119,7 @@ pub mod pallet {
 }
 
 type PositionInClaimqueue = u32;
-type TimedoutParas = BTreeMap<CoreIndex, (ParaId, AssignmentKind)>;
+type TimedoutParas = BTreeMap<CoreIndex, Assignment>;
 type ConcludedParas = BTreeMap<CoreIndex, ParaId>;
 
 impl<T: Config> Pallet<T> {
@@ -223,17 +223,12 @@ impl<T: Config> Pallet<T> {
 								},
 								FreedReason::TimedOut => {
 									if entry.retries < config.parathread_retries {
-										let retries = entry.retries + 1;
-										timedout_paras.insert(
-											freed_index,
-											(
-												entry.claim.0,
-												AssignmentKind::Parathread(
-													entry.claim.1.clone(),
-													retries,
-												),
-											),
-										);
+										let entry = ParathreadEntry {
+											retries: entry.retries + 1,
+											claim: entry.claim.clone(),
+										};
+										timedout_paras
+											.insert(freed_index, Assignment::ParathreadA(entry));
 									} else {
 										// Consider max retried parathreads as concluded for the assignment provider
 										concluded_paras.insert(freed_index, entry.claim.0);
@@ -265,7 +260,8 @@ impl<T: Config> Pallet<T> {
 			.flat_map(|(core_idx, para_id)| match Self::remove_from_claimqueue(core_idx, para_id) {
 				Err(_) => None, // TODO: report back?
 				Ok((pos_in_claimqueue, assignment)) => {
-					availability_cores[assignment.core.0 as usize] = assignment.to_core_occupied();
+					// is this correct?
+					availability_cores[core_idx.0 as usize] = assignment.to_core_occupied();
 
 					Some((core_idx, pos_in_claimqueue))
 				},
@@ -398,10 +394,10 @@ impl<T: Config> Pallet<T> {
 		match ca {
 			None => None,
 			Some(ca) => match ca.kind.clone() {
-				AssignmentKind::Parachain =>
-					Some(ScheduledCore { para_id: ca.para_id, collator: None }),
-				AssignmentKind::Parathread(collator, _) =>
-					Some(ScheduledCore { para_id: ca.para_id, collator }),
+				Assignment::Parachain(_para_id) =>
+					Some(ScheduledCore { para_id: ca.kind.para_id(), collator: None }),
+				Assignment::ParathreadA(entry) =>
+					Some(ScheduledCore { para_id: ca.kind.para_id(), collator: entry.claim.1 }),
 			},
 		}
 	}
@@ -493,8 +489,8 @@ impl<T: Config> Pallet<T> {
 				);
 
 				// add previously timedout paras back into the queue
-				if let Some((para_id, assignment_kind)) = timedout_paras.remove(&core_idx) {
-					let ca = CoreAssignment::new(core_idx, para_id, assignment_kind, group_idx);
+				if let Some(assignment) = timedout_paras.remove(&core_idx) {
+					let ca = assignment.to_core_assignment(core_idx, group_idx);
 					Self::add_to_claimqueue(ca);
 				}
 
@@ -536,7 +532,7 @@ impl<T: Config> Pallet<T> {
 
 		let pos = la_vec
 			.iter()
-			.position(|a| a.as_ref().map_or(false, |v| v.para_id == para_id))
+			.position(|a| a.as_ref().map_or(false, |v| v.kind.para_id() == para_id))
 			.ok_or_else(|| "para id not found at core_idx lookahead")?;
 
 		let ca = la_vec
