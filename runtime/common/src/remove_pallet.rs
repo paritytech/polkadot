@@ -83,7 +83,13 @@ impl<P: Get<&'static str>> frame_support::traits::OnRuntimeUpgrade for RemovePal
 		let hashed_prefix = twox_128(P::get().as_bytes());
 		let keys_removed = match clear_prefix(&hashed_prefix, None) {
 			KillStorageResult::AllRemoved(value) => value,
-			KillStorageResult::SomeRemaining(value) => value,
+			KillStorageResult::SomeRemaining(value) => {
+				log::error!(
+					"`clear_prefix` failed to remove all keys for {}. THIS SHOULD NEVER HAPPEN! 🚨",
+					P::get()
+				);
+				value
+			},
 		} as u64;
 
 		log::info!("Removed {} {} keys 🧹", keys_removed, P::get());
