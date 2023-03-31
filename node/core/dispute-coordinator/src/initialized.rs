@@ -289,28 +289,30 @@ impl Initialized {
 
 			match session_idx {
 				Ok(session_idx) => {
-					// Dummy fetch to ensure the session is cached.
-					match self
-						.runtime_info
-						.get_session_info_by_index(ctx.sender(), new_leaf.hash, session_idx)
-						.await
-					{
-						Ok(_) => {
-							self.error = None;
-						},
-						Err(err) => {
-							gum::warn!(
-								target: LOG_TARGET,
-								session_idx,
-								leaf_hash = ?new_leaf.hash,
-								?err,
-								"Error caching SessionInfo on ActiveLeaves update"
-							);
-							self.error = Some(err);
-						},
-					}
-
 					if session_idx > self.highest_session {
+						// Dummy fetch to ensure the sessions are cached.
+						for idx in self.highest_session + 1..=session_idx {
+							match self
+								.runtime_info
+								.get_session_info_by_index(ctx.sender(), new_leaf.hash, idx)
+								.await
+							{
+								Ok(_) => {
+									self.error = None;
+								},
+								Err(err) => {
+									gum::warn!(
+										target: LOG_TARGET,
+										session_idx,
+										leaf_hash = ?new_leaf.hash,
+										?err,
+										"Error caching SessionInfo on ActiveLeaves update"
+									);
+									self.error = Some(err);
+								},
+							}
+						}
+
 						self.highest_session = session_idx;
 						db::v1::note_earliest_session(
 							overlay_db,
