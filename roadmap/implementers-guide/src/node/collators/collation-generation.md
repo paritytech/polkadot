@@ -19,7 +19,7 @@ Block authoring for Parachains currently works in the following way:
 
 - `ActiveLeaves`
   - Notification of a change in the set of active leaves.
-  - Triggers procedure outlined in "Protocol" section.
+  - Triggers collation generation procedure outlined in "Protocol" section.
 - `CollationGenerationMessage::Initialize`
   - Initializes the subsystem. Carries a config.
   - No more than one initialization message should ever be sent to the collation
