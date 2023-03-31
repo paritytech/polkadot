@@ -34,7 +34,7 @@ use sp_std::{marker::PhantomData, vec::Vec};
 /// `P` can be defined using the `parameter_types!` macro.
 ///
 /// Example usage:
-/// ```
+/// ```ignore
 /// construct_runtime! {
 /// 	pub enum Runtime where
 /// 		Block = Block,
