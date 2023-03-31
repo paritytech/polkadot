@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot. If not, see <http://www.gnu.org/licenses/>.
 
-//! `RemovePallet` implements `OnRuntimeUpgrade` and deletes all storage items of a given pallet.
+//! Contains `RemovePallet`, a tool for deleting all storage items of a given pallet.
 //!
 //! This can be useful for cleaning up the storage of a pallet which has been removed from the
 //! runtime.
