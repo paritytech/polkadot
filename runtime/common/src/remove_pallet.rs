@@ -18,58 +18,65 @@
 //!
 //! This can be useful for cleaning up the storage of a pallet which has been removed from the
 //! runtime.
-//!
-//! Usage:
-//!
-//! ```
-//! construct_runtime! {
-//! 	pub enum Runtime where
-//! 		Block = Block,
-//!			NodeBlock = primitives::Block,
-//! 		UncheckedExtrinsic = UncheckedExtrinsic
-//! 	{
-//! 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
-//!
-//! 		SomePalletToRemove: pallet_something::{Pallet, Call, Storage, Event<T>} = 1,
-//! 		AnotherPalletToRemove: pallet_something_else::{Pallet, Call, Storage, Event<T>} = 2,
-//!
-//! 		YourOtherPallets...
-//! 	}
-//! };
-//!
-//! parameter_types! {
-//!		pub const SomePalletToRemoveStr: &'static str = "SomePalletToRemove";
-//!		pub const AnotherPalletToRemoveStr: &'static str = "AnotherPalletToRemove";
-//! }
-//!
-//! pub type Migrations = (
-//! 	RemovePallet<SomePalletToRemoveStr>,
-//! 	RemovePallet<AnotherPalletToRemoveStr>,
-//! 	AnyOtherMigrations...
-//! );
-//!
-//! pub type Executive = frame_executive::Executive<
-//! 	Runtime,
-//! 	Block,
-//! 	frame_system::ChainContext<Runtime>,
-//! 	Runtime,
-//! 	Migrations
-//! >;
-//! ```
-//!
-//! WARNING: `RemovePallet` has no guard rails preventing it from bricking the chain if the
-//! operation of removing storage for the given pallet would exceed the block weight limit.
-//!
-//! If your pallet has too many keys to be removed in a single block, it is advised to wait for
-//! a multi-block scheduler currently under development which will allow for removal of storage
-//! items (and performing other heavy migrations) over multiple blocks.
-//! (https://github.com/paritytech/substrate/issues/13690)
 
 use frame_support::{storage::unhashed::contains_prefixed_key, weights::constants::RocksDbWeight};
 use sp_core::Get;
 use sp_io::{hashing::twox_128, storage::clear_prefix, KillStorageResult};
 use sp_std::{marker::PhantomData, vec::Vec};
 
+/// Implements a definition of `OnRuntimeUpgrade` which when executed removes all storage items
+/// of a specified pallet.
+///
+/// This can be useful for cleaning up the storage of a pallet which has been removed from the
+/// runtime.
+///
+/// It takes one generic parameter `P`, which is the name of the pallet to remove.
+/// `P` can be defined using the `parameter_types!` macro.
+///
+/// Example usage:
+/// ```
+/// construct_runtime! {
+/// 	pub enum Runtime where
+/// 		Block = Block,
+///		NodeBlock = primitives::Block,
+/// 		UncheckedExtrinsic = UncheckedExtrinsic
+/// 	{
+/// 		System: frame_system::{Pallet, Call, Storage, Config, Event<T>} = 0,
+///
+/// 		SomePalletToRemove: pallet_something::{Pallet, Call, Storage, Event<T>} = 1,
+/// 		AnotherPalletToRemove: pallet_something_else::{Pallet, Call, Storage, Event<T>} = 2,
+///
+/// 		YourOtherPallets...
+/// 	}
+/// };
+///
+/// parameter_types! {
+///		pub const SomePalletToRemoveStr: &'static str = "SomePalletToRemove";
+///		pub const AnotherPalletToRemoveStr: &'static str = "AnotherPalletToRemove";
+/// }
+///
+/// pub type Migrations = (
+/// 	RemovePallet<SomePalletToRemoveStr>,
+/// 	RemovePallet<AnotherPalletToRemoveStr>,
+/// 	AnyOtherMigrations...
+/// );
+///
+/// pub type Executive = frame_executive::Executive<
+/// 	Runtime,
+/// 	Block,
+/// 	frame_system::ChainContext<Runtime>,
+/// 	Runtime,
+/// 	Migrations
+/// >;
+/// ```
+///
+/// WARNING: `RemovePallet` has no guard rails preventing it from bricking the chain if the
+/// operation of removing storage for the given pallet would exceed the block weight limit.
+///
+/// If your pallet has too many keys to be removed in a single block, it is advised to wait for
+/// a multi-block scheduler currently under development which will allow for removal of storage
+/// items (and performing other heavy migrations) over multiple blocks.
+/// (https://github.com/paritytech/substrate/issues/13690)
 pub struct RemovePallet<P: Get<&'static str>>(PhantomData<P>);
 impl<P: Get<&'static str>> frame_support::traits::OnRuntimeUpgrade for RemovePallet<P> {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
