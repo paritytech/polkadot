@@ -67,26 +67,41 @@ pub mod v2 {
 	pub const ASSIGNED_CORE_CONTEXT: &[u8] = b"A&V ASSIGNED v2";
 	/// A static context used for all relay-vrf-modulo VRFs for v2 multi-core assignments.
 	pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD v2";
-	/// A read-only bitvec wrapp to efficiently store candidate or core assignments. Each 1 bit identifies
-	/// a candidate(or core) by the bitfield bit index.
+	/// A read-only bitvec wrapper
 	#[derive(Clone, Debug, Encode, Decode, Hash, PartialEq, Eq)]
-	pub struct AssignmentBitfield(BitVec<u8, bitvec::order::Lsb0>);
+	pub struct Bitfield<T>(BitVec<u8, bitvec::order::Lsb0>, std::marker::PhantomData<T>);
+
+	/// A `read-only`, `non-zero` bitfield.
+	/// Each 1 bit identifies a candidate by the bitfield bit index.
+	pub type CandidateBitfield = Bitfield<CandidateIndex>;
+	/// A bitfield of core assignments.
+	pub type CoreBitfield = Bitfield<CoreIndex>;
 
 	/// Errors that can occur when creating and manipulating bitfields.
 	#[derive(Debug)]
-	pub enum AssignmentBitfieldError {
+	pub enum BitfieldError {
 		/// All bits are zero.
 		NullAssignment,
 	}
 
-	impl AssignmentBitfield {
+	/// A bit index in `Bitfield`.
+	#[cfg_attr(test, derive(PartialEq, Clone))]
+	pub struct BitIndex(pub usize);
+
+	/// Helper trait to convert primitives to `BitIndex`.
+	pub trait AsBitIndex {
+		/// Returns the index of the corresponding bit in `Bitfield`.
+		fn as_bit_index(&self) -> BitIndex;
+	}
+
+	impl<T> Bitfield<T> {
 		/// Returns the bit value at specified `index`. If `index` is greater than bitfield size,
 		/// returns `false`.
-		pub fn bit_at(&self, index: usize) -> bool {
-			if self.0.len() <= index {
+		pub fn bit_at(&self, index: BitIndex) -> bool {
+			if self.0.len() <= index.0 {
 				false
 			} else {
-				self.0[index]
+				self.0[index.0]
 			}
 		}
 
@@ -117,47 +132,64 @@ pub mod v2 {
 		}
 	}
 
-	impl From<CoreIndex> for AssignmentBitfield {
-		fn from(value: CoreIndex) -> Self {
-			Self({
-				let mut bv = bitvec::bitvec![u8, Lsb0; 0; value.0 as usize + 1];
-				bv.set(value.0 as usize, true);
-				bv
-			})
+	impl AsBitIndex for CandidateIndex {
+		fn as_bit_index(&self) -> BitIndex {
+			BitIndex(*self as usize)
 		}
 	}
 
-	impl From<CandidateIndex> for AssignmentBitfield {
-		fn from(value: CandidateIndex) -> Self {
-			Self({
-				let mut bv = bitvec::bitvec![u8, Lsb0; 0; value as usize + 1];
-				bv.set(value as usize, true);
-				bv
-			})
+	impl AsBitIndex for CoreIndex {
+		fn as_bit_index(&self) -> BitIndex {
+			BitIndex(self.0 as usize)
 		}
 	}
 
-	impl<T> TryFrom<Vec<T>> for AssignmentBitfield
+	impl AsBitIndex for usize {
+		fn as_bit_index(&self) -> BitIndex {
+			BitIndex(*self)
+		}
+	}
+
+	impl<T> From<T> for Bitfield<T>
 	where
-		T: Into<AssignmentBitfield>,
+		T: AsBitIndex,
 	{
-		type Error = AssignmentBitfieldError;
+		fn from(value: T) -> Self {
+			Self(
+				{
+					let mut bv = bitvec::bitvec![u8, Lsb0; 0; value.as_bit_index().0 + 1];
+					bv.set(value.as_bit_index().0, true);
+					bv
+				},
+				Default::default(),
+			)
+		}
+	}
+
+	impl<T> TryFrom<Vec<T>> for Bitfield<T>
+	where
+		T: Into<Bitfield<T>>,
+	{
+		type Error = BitfieldError;
 
 		fn try_from(mut value: Vec<T>) -> Result<Self, Self::Error> {
 			if value.is_empty() {
-				return Err(AssignmentBitfieldError::NullAssignment)
+				return Err(BitfieldError::NullAssignment)
 			}
 
 			let initial_bitfield =
 				value.pop().expect("Just checked above it's not empty; qed").into();
 
-			Ok(Self(value.into_iter().fold(initial_bitfield.0, |initial_bitfield, element| {
-				let mut bitfield: AssignmentBitfield = element.into();
-				bitfield
-					.0
-					.resize(std::cmp::max(initial_bitfield.len(), bitfield.0.len()), false);
-				bitfield.0.bitor(initial_bitfield)
-			})))
+			Ok(Self(
+				value.into_iter().fold(initial_bitfield.0, |initial_bitfield, element| {
+					let mut bitfield: Bitfield<T> = element.into();
+					bitfield
+						.0
+						.resize(std::cmp::max(initial_bitfield.len(), bitfield.0.len()), false);
+					bitfield.0.bitor(initial_bitfield)
+				}),
+				Default::default(),
+			))
 		}
 	}
 }
@@ -428,49 +460,54 @@ pub fn babe_unsafe_vrf_info(header: &Header) -> Option<UnsafeVRFOutput> {
 
 #[cfg(test)]
 mod test {
-	use super::{v2::AssignmentBitfield, *};
+	use super::{
+		v2::{BitIndex, Bitfield},
+		*,
+	};
 
 	#[test]
 	fn test_assignment_bitfield_from_vec() {
-		let candidate_indices = vec![1, 7, 3, 10, 45, 8, 200, 2];
-		let bitfield = AssignmentBitfield::try_from(candidate_indices.clone()).unwrap();
-		let max_index = candidate_indices.iter().cloned().max().unwrap();
+		let candidate_indices = vec![1u32, 7, 3, 10, 45, 8, 200, 2];
+		let max_index = *candidate_indices.iter().max().unwrap();
+		let bitfield = Bitfield::try_from(candidate_indices.clone()).unwrap();
+		let candidate_indices =
+			candidate_indices.into_iter().map(|i| BitIndex(i as usize)).collect::<Vec<_>>();
 
 		// Test 1 bits.
 		for index in candidate_indices.clone() {
-			assert!(bitfield.bit_at(index as usize));
+			assert!(bitfield.bit_at(index));
 		}
 
 		// Test 0 bits.
 		for index in 0..max_index {
-			if candidate_indices.contains(&index) {
+			if candidate_indices.contains(&BitIndex(index as usize)) {
 				continue
 			}
-			assert!(!bitfield.bit_at(index as usize));
+			assert!(!bitfield.bit_at(BitIndex(index as usize)));
 		}
 	}
 
 	#[test]
 	fn test_assignment_bitfield_invariant_msb() {
 		let core_indices = vec![CoreIndex(1), CoreIndex(3), CoreIndex(10), CoreIndex(20)];
-		let mut bitfield = AssignmentBitfield::try_from(core_indices.clone()).unwrap();
+		let mut bitfield = Bitfield::try_from(core_indices.clone()).unwrap();
 		assert!(bitfield.inner_mut().pop().unwrap());
 
 		for i in 0..1024 {
-			assert!(AssignmentBitfield::try_from(CoreIndex(i)).unwrap().inner_mut().pop().unwrap());
-			assert!(AssignmentBitfield::try_from(i).unwrap().inner_mut().pop().unwrap());
+			assert!(Bitfield::try_from(CoreIndex(i)).unwrap().inner_mut().pop().unwrap());
+			assert!(Bitfield::try_from(i).unwrap().inner_mut().pop().unwrap());
 		}
 	}
 
 	#[test]
 	fn test_assignment_bitfield_basic() {
-		let bitfield = AssignmentBitfield::try_from(CoreIndex(0)).unwrap();
-		assert!(bitfield.bit_at(0));
-		assert!(!bitfield.bit_at(1));
+		let bitfield = Bitfield::try_from(CoreIndex(0)).unwrap();
+		assert!(bitfield.bit_at(BitIndex(0)));
+		assert!(!bitfield.bit_at(BitIndex(1)));
 		assert_eq!(bitfield.len(), 1);
 
-		let mut bitfield = AssignmentBitfield::try_from(20).unwrap();
-		assert!(bitfield.bit_at(20));
+		let mut bitfield = Bitfield::try_from(20 as CandidateIndex).unwrap();
+		assert!(bitfield.bit_at(BitIndex(20)));
 		assert_eq!(bitfield.inner_mut().count_ones(), 1);
 		assert_eq!(bitfield.len(), 21);
 	}

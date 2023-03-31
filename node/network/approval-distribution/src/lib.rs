@@ -32,7 +32,8 @@ use polkadot_node_network_protocol::{
 	Versioned, View,
 };
 use polkadot_node_primitives::approval::{
-	v2::AssignmentBitfield, BlockApprovalMeta, IndirectAssignmentCertV2, IndirectSignedApprovalVote,
+	v2::{AsBitIndex, CandidateBitfield},
+	BlockApprovalMeta, IndirectAssignmentCertV2, IndirectSignedApprovalVote,
 };
 use polkadot_node_subsystem::{
 	messages::{
@@ -105,7 +106,7 @@ struct ApprovalEntry {
 	// The assignment certificate.
 	assignment: IndirectAssignmentCertV2,
 	// The candidates claimed by the certificate. A mapping between bit index and candidate index.
-	candidates: AssignmentBitfield,
+	candidates: CandidateBitfield,
 	// The approval signatures for each `CandidateIndex` claimed by the assignment certificate.
 	approvals: HashMap<CandidateIndex, IndirectSignedApprovalVote>,
 	// The validator index of the assignment signer.
@@ -125,7 +126,7 @@ enum ApprovalEntryError {
 impl ApprovalEntry {
 	pub fn new(
 		assignment: IndirectAssignmentCertV2,
-		candidates: AssignmentBitfield,
+		candidates: CandidateBitfield,
 		routing_info: ApprovalRouting,
 	) -> ApprovalEntry {
 		Self {
@@ -189,7 +190,7 @@ impl ApprovalEntry {
 			return Err(ApprovalEntryError::CandidateIndexOutOfBounds)
 		}
 
-		if !self.candidates.bit_at(approval.candidate_index as usize) {
+		if !self.candidates.bit_at(approval.candidate_index.as_bit_index()) {
 			return Err(ApprovalEntryError::InvalidCandidateIndex)
 		}
 
@@ -202,7 +203,7 @@ impl ApprovalEntry {
 	}
 
 	// Get the assignment certiticate and claimed candidates.
-	pub fn get_assignment(&self) -> (IndirectAssignmentCertV2, AssignmentBitfield) {
+	pub fn get_assignment(&self) -> (IndirectAssignmentCertV2, CandidateBitfield) {
 		(self.assignment.clone(), self.candidates.clone())
 	}
 
@@ -261,7 +262,7 @@ enum MessageKind {
 // Assignments can span multiple candidates, while approvals refer to only one candidate.
 //
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
-struct MessageSubject(Hash, pub AssignmentBitfield, ValidatorIndex);
+struct MessageSubject(Hash, pub CandidateBitfield, ValidatorIndex);
 
 #[derive(Debug, Clone, Default)]
 struct Knowledge {
@@ -304,17 +305,17 @@ impl Knowledge {
 		// entries for each assigned candidate. This fakes knowledge of individual assignments, but
 		// we need to share the same `MessageSubject` with the followup approval candidate index.
 		if kind == MessageKind::Assignment && success && message.1.count_ones() > 1 {
-			message.1.iter_ones().fold(success, |success, candidate_index| {
-				success &
-					self.insert(
-						MessageSubject(
-							message.0,
-							(candidate_index as CandidateIndex).into(),
-							message.2,
-						),
-						kind,
-					)
-			})
+			message
+				.1
+				.iter_ones()
+				.map(|candidate_index| candidate_index as CandidateIndex)
+				.fold(success, |success, candidate_index| {
+					success &
+						self.insert(
+							MessageSubject(message.0, candidate_index.into(), message.2),
+							kind,
+						)
+				})
 		} else {
 			success
 		}
@@ -353,7 +354,7 @@ struct BlockEntry {
 	pub session: SessionIndex,
 	/// Approval entries for whole block. These also contain all approvals in the cae of multiple candidates
 	/// being claimed by assignments.
-	approval_entries: HashMap<(ValidatorIndex, AssignmentBitfield), ApprovalEntry>,
+	approval_entries: HashMap<(ValidatorIndex, CandidateBitfield), ApprovalEntry>,
 }
 
 impl BlockEntry {
@@ -455,7 +456,7 @@ impl BlockEntry {
 #[derive(Debug, Default)]
 struct CandidateEntry {
 	// The value represents part of the lookup key in `approval_entries` to fetch the assignment and existing votes.
-	messages: HashMap<ValidatorIndex, AssignmentBitfield>,
+	messages: HashMap<ValidatorIndex, CandidateBitfield>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -474,7 +475,7 @@ impl MessageSource {
 }
 
 enum PendingMessage {
-	Assignment(IndirectAssignmentCertV2, AssignmentBitfield),
+	Assignment(IndirectAssignmentCertV2, CandidateBitfield),
 	Approval(IndirectSignedApprovalVote),
 }
 
@@ -700,7 +701,7 @@ impl State {
 		ctx: &mut Context,
 		metrics: &Metrics,
 		peer_id: PeerId,
-		assignments: Vec<(IndirectAssignmentCertV2, AssignmentBitfield)>,
+		assignments: Vec<(IndirectAssignmentCertV2, CandidateBitfield)>,
 		rng: &mut R,
 	) where
 		R: CryptoRng + Rng,
@@ -921,7 +922,7 @@ impl State {
 		metrics: &Metrics,
 		source: MessageSource,
 		assignment: IndirectAssignmentCertV2,
-		claimed_candidate_indices: AssignmentBitfield,
+		claimed_candidate_indices: CandidateBitfield,
 		rng: &mut R,
 	) where
 		R: CryptoRng + Rng,
@@ -1963,7 +1964,7 @@ pub const MAX_APPROVAL_BATCH_SIZE: usize = ensure_size_not_zero(
 // Low level helper for sending assignments.
 async fn send_assignments_batched_inner(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	batch: Vec<(IndirectAssignmentCertV2, AssignmentBitfield)>,
+	batch: Vec<(IndirectAssignmentCertV2, CandidateBitfield)>,
 	peers: &Vec<PeerId>,
 	// TODO: use `ValidationVersion`.
 	peer_version: u32,
@@ -2014,7 +2015,7 @@ async fn send_assignments_batched_inner(
 /// of assignments and can `select!` other tasks.
 pub(crate) async fn send_assignments_batched(
 	sender: &mut impl overseer::ApprovalDistributionSenderTrait,
-	v2_assignments: Vec<(IndirectAssignmentCertV2, AssignmentBitfield)>,
+	v2_assignments: Vec<(IndirectAssignmentCertV2, CandidateBitfield)>,
 	peers: &Vec<(PeerId, ProtocolVersion)>,
 ) {
 	let v1_peers = filter_by_peer_version(peers, ValidationVersion::V1.into());

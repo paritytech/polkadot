@@ -24,7 +24,7 @@
 use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
-		v2::{AssignmentBitfield, AssignmentBitfieldError},
+		v2::{BitfieldError, CandidateBitfield, CoreBitfield},
 		AssignmentCertKindV2, BlockApprovalMeta, DelayTranche, IndirectAssignmentCertV2,
 		IndirectSignedApprovalVote,
 	},
@@ -743,7 +743,7 @@ enum Action {
 		tick: Tick,
 	},
 	LaunchApproval {
-		claimed_core_indices: AssignmentBitfield,
+		claimed_core_indices: CoreBitfield,
 		candidate_hash: CandidateHash,
 		indirect_cert: IndirectAssignmentCertV2,
 		assignment_tranche: DelayTranche,
@@ -1064,9 +1064,9 @@ async fn handle_actions<Context>(
 }
 
 fn cores_to_candidate_indices(
-	core_indices: &AssignmentBitfield,
+	core_indices: &CoreBitfield,
 	block_entry: &BlockEntry,
-) -> Result<AssignmentBitfield, AssignmentBitfieldError> {
+) -> Result<CandidateBitfield, BitfieldError> {
 	let mut candidate_indices = Vec::new();
 
 	// Map from core index to candidate index.
@@ -1080,7 +1080,7 @@ fn cores_to_candidate_indices(
 		}
 	}
 
-	AssignmentBitfield::try_from(candidate_indices)
+	CandidateBitfield::try_from(candidate_indices)
 }
 
 fn distribution_messages_for_activation(
@@ -1757,7 +1757,7 @@ fn check_and_import_assignment(
 	state: &State,
 	db: &mut OverlayedBackend<'_, impl Backend>,
 	assignment: IndirectAssignmentCertV2,
-	candidate_indices: AssignmentBitfield,
+	candidate_indices: CandidateBitfield,
 ) -> SubsystemResult<(AssignmentCheckResult, Vec<Action>)> {
 	let tick_now = state.clock.tick_now();
 

@@ -428,7 +428,7 @@ impl_versioned_try_from!(
 pub mod vstaging {
 	use parity_scale_codec::{Decode, Encode};
 	use polkadot_node_primitives::approval::{
-		v2::AssignmentBitfield, IndirectAssignmentCertV2, IndirectSignedApprovalVote,
+		v2::CandidateBitfield, IndirectAssignmentCertV2, IndirectSignedApprovalVote,
 	};
 
 	// Re-export stuff that has not changed since v1.
@@ -464,7 +464,7 @@ pub mod vstaging {
 		/// Actually checking the assignment may yield a different result.
 		/// TODO: Look at getting rid of bitfield in the future.
 		#[codec(index = 0)]
-		Assignments(Vec<(IndirectAssignmentCertV2, AssignmentBitfield)>),
+		Assignments(Vec<(IndirectAssignmentCertV2, CandidateBitfield)>),
 		/// Approvals for candidates in some recent, unfinalized block.
 		#[codec(index = 1)]
 		Approvals(Vec<IndirectSignedApprovalVote>),

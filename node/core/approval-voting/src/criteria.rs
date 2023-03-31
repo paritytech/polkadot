@@ -18,7 +18,7 @@
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
-	self as approval_types, v2::AssignmentBitfield, AssignmentCert, AssignmentCertKind,
+	self as approval_types, v2::CoreBitfield, AssignmentCert, AssignmentCertKind,
 	AssignmentCertKindV2, AssignmentCertV2, DelayTranche, RelayVRFStory,
 };
 use polkadot_primitives::{
@@ -45,7 +45,7 @@ pub struct OurAssignment {
 	// Whether the assignment has been triggered already.
 	triggered: bool,
 	// The core indices obtained from the VRF output.
-	assignment_bitfield: AssignmentBitfield,
+	assignment_bitfield: CoreBitfield,
 }
 
 impl OurAssignment {
@@ -69,7 +69,7 @@ impl OurAssignment {
 		self.triggered = true;
 	}
 
-	pub(crate) fn assignment_bitfield(&self) -> &AssignmentBitfield {
+	pub(crate) fn assignment_bitfield(&self) -> &CoreBitfield {
 		&self.assignment_bitfield
 	}
 }
@@ -263,7 +263,7 @@ pub(crate) trait AssignmentCriteria {
 		// Backing groups for each "leaving core".
 		backing_groups: Vec<GroupIndex>,
 		// TODO: maybe define record or something else than tuple
-	) -> Result<(AssignmentBitfield, DelayTranche), InvalidAssignment>;
+	) -> Result<(CoreBitfield, DelayTranche), InvalidAssignment>;
 }
 
 pub(crate) struct RealAssignmentCriteria;
@@ -287,7 +287,7 @@ impl AssignmentCriteria for RealAssignmentCriteria {
 		relay_vrf_story: RelayVRFStory,
 		assignment: &AssignmentCertV2,
 		backing_groups: Vec<GroupIndex>,
-	) -> Result<(AssignmentBitfield, DelayTranche), InvalidAssignment> {
+	) -> Result<(CoreBitfield, DelayTranche), InvalidAssignment> {
 		check_assignment_cert(
 			claimed_core_index,
 			validator_index,
@@ -647,7 +647,7 @@ pub(crate) fn check_assignment_cert(
 	relay_vrf_story: RelayVRFStory,
 	assignment: &AssignmentCertV2,
 	backing_groups: Vec<GroupIndex>,
-) -> Result<(AssignmentBitfield, DelayTranche), InvalidAssignment> {
+) -> Result<(CoreBitfield, DelayTranche), InvalidAssignment> {
 	use InvalidAssignmentReason as Reason;
 
 	let validator_public = config
@@ -712,7 +712,7 @@ pub(crate) fn check_assignment_cert(
 				})
 				.collect::<Vec<_>>();
 
-			AssignmentBitfield::try_from(resulting_cores)
+			CoreBitfield::try_from(resulting_cores)
 				.map(|bitfield| (bitfield, 0))
 				.map_err(|_| InvalidAssignment(Reason::NullAssignment))
 		},

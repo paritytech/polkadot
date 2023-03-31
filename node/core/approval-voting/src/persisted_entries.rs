@@ -21,7 +21,7 @@
 //! data and logic are intertwined.
 
 use polkadot_node_primitives::approval::{
-	v2::AssignmentBitfield, AssignmentCertV2, DelayTranche, RelayVRFStory,
+	v2::CoreBitfield, AssignmentCertV2, DelayTranche, RelayVRFStory,
 };
 use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, Hash, SessionIndex,
@@ -118,7 +118,7 @@ impl ApprovalEntry {
 	pub fn trigger_our_assignment(
 		&mut self,
 		tick_now: Tick,
-	) -> Option<(AssignmentBitfield, AssignmentCertV2, ValidatorIndex, DelayTranche)> {
+	) -> Option<(CoreBitfield, AssignmentCertV2, ValidatorIndex, DelayTranche)> {
 		let our = self.our_assignment.as_mut().and_then(|a| {
 			if a.triggered() {
 				return None
