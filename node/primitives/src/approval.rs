@@ -31,24 +31,168 @@ use sp_consensus_babe as babe_primitives;
 /// Earlier tranches of validators check first, with later tranches serving as backup.
 pub type DelayTranche = u32;
 
-/// A static context used to compute the Relay VRF story based on the
-/// VRF output included in the header-chain.
-pub const RELAY_VRF_STORY_CONTEXT: &[u8] = b"A&V RC-VRF";
+/// Static contexts use to generate randomness for v1 assignments.
+pub mod v1 {
+	/// A static context used to compute the Relay VRF story based on the
+	/// VRF output included in the header-chain.
+	pub const RELAY_VRF_STORY_CONTEXT: &[u8] = b"A&V RC-VRF";
 
-/// A static context used for all relay-vrf-modulo VRFs.
-pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD";
+	/// A static context used for all relay-vrf-modulo VRFs.
+	pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD";
 
-/// A static context used for all relay-vrf-modulo VRFs.
-pub const RELAY_VRF_DELAY_CONTEXT: &[u8] = b"A&V DELAY";
+	/// A static context used for all relay-vrf-modulo VRFs.
+	pub const RELAY_VRF_DELAY_CONTEXT: &[u8] = b"A&V DELAY";
 
-/// A static context used for transcripts indicating assigned availability core.
-pub const ASSIGNED_CORE_CONTEXT: &[u8] = b"A&V ASSIGNED";
+	/// A static context used for transcripts indicating assigned availability core.
+	pub const ASSIGNED_CORE_CONTEXT: &[u8] = b"A&V ASSIGNED";
 
-/// A static context associated with producing randomness for a core.
-pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE";
+	/// A static context associated with producing randomness for a core.
+	pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE";
 
-/// A static context associated with producing randomness for a tranche.
-pub const TRANCHE_RANDOMNESS_CONTEXT: &[u8] = b"A&V TRANCHE";
+	/// A static context associated with producing randomness for a tranche.
+	pub const TRANCHE_RANDOMNESS_CONTEXT: &[u8] = b"A&V TRANCHE";
+}
+
+/// A list of primitives introduced by v2.
+pub mod v2 {
+	use parity_scale_codec::{Decode, Encode};
+	use std::ops::BitOr;
+
+	use super::{CandidateIndex, CoreIndex};
+	use bitvec::{prelude::Lsb0, vec::BitVec};
+
+	/// A static context associated with producing randomness for a core.
+	pub const CORE_RANDOMNESS_CONTEXT: &[u8] = b"A&V CORE v2";
+	/// A static context associated with producing randomness for v2 multi-core assignments.
+	pub const ASSIGNED_CORE_CONTEXT: &[u8] = b"A&V ASSIGNED v2";
+	/// A static context used for all relay-vrf-modulo VRFs for v2 multi-core assignments.
+	pub const RELAY_VRF_MODULO_CONTEXT: &[u8] = b"A&V MOD v2";
+	/// A read-only bitvec wrapper
+	#[derive(Clone, Debug, Encode, Decode, Hash, PartialEq, Eq)]
+	pub struct Bitfield<T>(BitVec<u8, bitvec::order::Lsb0>, std::marker::PhantomData<T>);
+
+	/// A `read-only`, `non-zero` bitfield.
+	/// Each 1 bit identifies a candidate by the bitfield bit index.
+	pub type CandidateBitfield = Bitfield<CandidateIndex>;
+	/// A bitfield of core assignments.
+	pub type CoreBitfield = Bitfield<CoreIndex>;
+
+	/// Errors that can occur when creating and manipulating bitfields.
+	#[derive(Debug)]
+	pub enum BitfieldError {
+		/// All bits are zero.
+		NullAssignment,
+	}
+
+	/// A bit index in `Bitfield`.
+	#[cfg_attr(test, derive(PartialEq, Clone))]
+	pub struct BitIndex(pub usize);
+
+	/// Helper trait to convert primitives to `BitIndex`.
+	pub trait AsBitIndex {
+		/// Returns the index of the corresponding bit in `Bitfield`.
+		fn as_bit_index(&self) -> BitIndex;
+	}
+
+	impl<T> Bitfield<T> {
+		/// Returns the bit value at specified `index`. If `index` is greater than bitfield size,
+		/// returns `false`.
+		pub fn bit_at(&self, index: BitIndex) -> bool {
+			if self.0.len() <= index.0 {
+				false
+			} else {
+				self.0[index.0]
+			}
+		}
+
+		/// Returns number of bits.
+		pub fn len(&self) -> usize {
+			self.0.len()
+		}
+
+		/// Returns the number of 1 bits.
+		pub fn count_ones(&self) -> usize {
+			self.0.count_ones()
+		}
+
+		/// Returns the index of the first 1 bit.
+		pub fn first_one(&self) -> Option<usize> {
+			self.0.first_one()
+		}
+
+		/// Returns an iterator over inner bits.
+		pub fn iter_ones(&self) -> bitvec::slice::IterOnes<u8, bitvec::order::Lsb0> {
+			self.0.iter_ones()
+		}
+
+		/// For testing purpose, we want a inner mutable ref.
+		#[cfg(test)]
+		pub fn inner_mut(&mut self) -> &mut BitVec<u8, bitvec::order::Lsb0> {
+			&mut self.0
+		}
+	}
+
+	impl AsBitIndex for CandidateIndex {
+		fn as_bit_index(&self) -> BitIndex {
+			BitIndex(*self as usize)
+		}
+	}
+
+	impl AsBitIndex for CoreIndex {
+		fn as_bit_index(&self) -> BitIndex {
+			BitIndex(self.0 as usize)
+		}
+	}
+
+	impl AsBitIndex for usize {
+		fn as_bit_index(&self) -> BitIndex {
+			BitIndex(*self)
+		}
+	}
+
+	impl<T> From<T> for Bitfield<T>
+	where
+		T: AsBitIndex,
+	{
+		fn from(value: T) -> Self {
+			Self(
+				{
+					let mut bv = bitvec::bitvec![u8, Lsb0; 0; value.as_bit_index().0 + 1];
+					bv.set(value.as_bit_index().0, true);
+					bv
+				},
+				Default::default(),
+			)
+		}
+	}
+
+	impl<T> TryFrom<Vec<T>> for Bitfield<T>
+	where
+		T: Into<Bitfield<T>>,
+	{
+		type Error = BitfieldError;
+
+		fn try_from(mut value: Vec<T>) -> Result<Self, Self::Error> {
+			if value.is_empty() {
+				return Err(BitfieldError::NullAssignment)
+			}
+
+			let initial_bitfield =
+				value.pop().expect("Just checked above it's not empty; qed").into();
+
+			Ok(Self(
+				value.into_iter().fold(initial_bitfield.0, |initial_bitfield, element| {
+					let mut bitfield: Bitfield<T> = element.into();
+					bitfield
+						.0
+						.resize(std::cmp::max(initial_bitfield.len(), bitfield.0.len()), false);
+					bitfield.0.bitor(initial_bitfield)
+				}),
+				Default::default(),
+			))
+		}
+	}
+}
 
 /// random bytes derived from the VRF submitted within the block by the
 /// block author as a credential and used as input to approval assignment criteria.
@@ -84,25 +228,20 @@ pub enum AssignmentCertKindV2 {
 	/// An assignment story based on the VRF that authorized the relay-chain block where the
 	/// candidate was included combined with a sample number.
 	///
-	/// The context used to produce bytes is [`RELAY_VRF_MODULO_CONTEXT`]
+	/// The context used to produce bytes is [`v2::RELAY_VRF_MODULO_CONTEXT`]
 	RelayVRFModulo {
 		/// The sample number used in this cert.
 		sample: u32,
 	},
 	/// Multiple assignment stories based on the VRF that authorized the relay-chain block where the
-	/// candidate was included combined with a sample number.
+	/// candidates were included.
 	///
-	/// The context used to produce bytes is [`RELAY_VRF_MODULO_CONTEXT`]
-	RelayVRFModuloCompact {
-		/// The number of samples.
-		sample: u32,
-		/// The assigned cores.
-		core_indices: Vec<CoreIndex>,
-	},
+	/// The context is [`v2::RELAY_VRF_MODULO_CONTEXT`]
+	RelayVRFModuloCompact,
 	/// An assignment story based on the VRF that authorized the relay-chain block where the
 	/// candidate was included combined with the index of a particular core.
 	///
-	/// The context is [`RELAY_VRF_DELAY_CONTEXT`]
+	/// The context is [`v2::RELAY_VRF_DELAY_CONTEXT`]
 	RelayVRFDelay {
 		/// The core index chosen in this cert.
 		core_index: CoreIndex,
@@ -288,7 +427,7 @@ impl UnsafeVRFOutput {
 			.0
 			.attach_input_hash(&pubkey, transcript)
 			.map_err(ApprovalError::SchnorrkelSignature)?;
-		Ok(RelayVRFStory(inout.make_bytes(RELAY_VRF_STORY_CONTEXT)))
+		Ok(RelayVRFStory(inout.make_bytes(v1::RELAY_VRF_STORY_CONTEXT)))
 	}
 }
 
@@ -317,4 +456,59 @@ pub fn babe_unsafe_vrf_info(header: &Header) -> Option<UnsafeVRFOutput> {
 	}
 
 	None
+}
+
+#[cfg(test)]
+mod test {
+	use super::{
+		v2::{BitIndex, Bitfield},
+		*,
+	};
+
+	#[test]
+	fn test_assignment_bitfield_from_vec() {
+		let candidate_indices = vec![1u32, 7, 3, 10, 45, 8, 200, 2];
+		let max_index = *candidate_indices.iter().max().unwrap();
+		let bitfield = Bitfield::try_from(candidate_indices.clone()).unwrap();
+		let candidate_indices =
+			candidate_indices.into_iter().map(|i| BitIndex(i as usize)).collect::<Vec<_>>();
+
+		// Test 1 bits.
+		for index in candidate_indices.clone() {
+			assert!(bitfield.bit_at(index));
+		}
+
+		// Test 0 bits.
+		for index in 0..max_index {
+			if candidate_indices.contains(&BitIndex(index as usize)) {
+				continue
+			}
+			assert!(!bitfield.bit_at(BitIndex(index as usize)));
+		}
+	}
+
+	#[test]
+	fn test_assignment_bitfield_invariant_msb() {
+		let core_indices = vec![CoreIndex(1), CoreIndex(3), CoreIndex(10), CoreIndex(20)];
+		let mut bitfield = Bitfield::try_from(core_indices.clone()).unwrap();
+		assert!(bitfield.inner_mut().pop().unwrap());
+
+		for i in 0..1024 {
+			assert!(Bitfield::try_from(CoreIndex(i)).unwrap().inner_mut().pop().unwrap());
+			assert!(Bitfield::try_from(i).unwrap().inner_mut().pop().unwrap());
+		}
+	}
+
+	#[test]
+	fn test_assignment_bitfield_basic() {
+		let bitfield = Bitfield::try_from(CoreIndex(0)).unwrap();
+		assert!(bitfield.bit_at(BitIndex(0)));
+		assert!(!bitfield.bit_at(BitIndex(1)));
+		assert_eq!(bitfield.len(), 1);
+
+		let mut bitfield = Bitfield::try_from(20 as CandidateIndex).unwrap();
+		assert!(bitfield.bit_at(BitIndex(20)));
+		assert_eq!(bitfield.inner_mut().count_ones(), 1);
+		assert_eq!(bitfield.len(), 21);
+	}
 }

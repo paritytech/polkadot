@@ -755,7 +755,7 @@ fn update_our_view<Net, Context>(
 			shared
 				.validation_peers
 				.iter()
-				.map(|(peer_id, peer_data)| (peer_id.clone(), peer_data.version))
+				.map(|(peer_id, peer_data)| (*peer_id, peer_data.version))
 				.collect::<Vec<_>>(),
 			shared.collation_peers.keys().cloned().collect::<Vec<_>>(),
 		)

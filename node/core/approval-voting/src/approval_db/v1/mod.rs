@@ -17,7 +17,7 @@
 //! Version 1 of the DB schema.
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_node_primitives::approval::{AssignmentCertV2, DelayTranche};
+use polkadot_node_primitives::approval::{v2::CoreBitfield, AssignmentCertV2, DelayTranche};
 use polkadot_node_subsystem::{SubsystemError, SubsystemResult};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
 use polkadot_primitives::{
@@ -161,11 +161,16 @@ pub struct Config {
 /// Details pertaining to our assignment on a block.
 #[derive(Encode, Decode, Debug, Clone, PartialEq)]
 pub struct OurAssignment {
+	/// Our assignment certificate.
 	pub cert: AssignmentCertV2,
+	/// The tranche for which the assignment refers to.
 	pub tranche: DelayTranche,
+	/// Our validator index for the session in which the candidates were included.
 	pub validator_index: ValidatorIndex,
-	// Whether the assignment has been triggered already.
+	/// Whether the assignment has been triggered already.
 	pub triggered: bool,
+	/// A subset of the core indices obtained from the VRF output.
+	pub assignment_bitfield: CoreBitfield,
 }
 
 /// Metadata regarding a specific tranche of assignments for a specific candidate.
@@ -186,7 +191,7 @@ pub struct ApprovalEntry {
 	pub our_assignment: Option<OurAssignment>,
 	pub our_approval_sig: Option<ValidatorSignature>,
 	// `n_validators` bits.
-	pub assignments: Bitfield,
+	pub assigned_validators: Bitfield,
 	pub approved: bool,
 }
 
