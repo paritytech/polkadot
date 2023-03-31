@@ -253,7 +253,7 @@ mod tests {
 				0,
 			));
 			assert_eq!(
-				parachain::Balances::free_balance(&child_account_id(1)),
+				relay_chain::Balances::free_balance(&child_account_id(1)),
 				INITIAL_BALANCE + withdraw_amount
 			);
 		});

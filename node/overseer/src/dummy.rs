@@ -190,7 +190,6 @@ where
 		.span_per_active_leaf(Default::default())
 		.active_leaves(Default::default())
 		.known_leaves(LruCache::new(KNOWN_LEAVES_CACHE_SIZE))
-		.leaves(Default::default())
 		.spawner(SpawnGlue(spawner))
 		.metrics(metrics)
 		.supports_parachains(supports_parachains);

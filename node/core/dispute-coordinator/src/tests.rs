@@ -45,10 +45,10 @@ use polkadot_node_subsystem::{
 
 use polkadot_node_subsystem_util::TimeoutExt;
 use sc_keystore::LocalKeystore;
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_core::{sr25519::Pair, testing::TaskExecutor, Pair as PairT};
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 
 use ::test_helpers::{dummy_candidate_receipt_bad_sig, dummy_digest, dummy_hash};
 use polkadot_node_primitives::{Timestamp, ACTIVE_DURATION_SECS};
@@ -520,10 +520,9 @@ impl TestState {
 	) -> SignedDisputeStatement {
 		let public = self.validator_public.get(index).unwrap().clone();
 
-		let keystore = self.master_keystore.clone() as SyncCryptoStorePtr;
+		let keystore = self.master_keystore.clone() as KeystorePtr;
 
 		SignedDisputeStatement::sign_explicit(&keystore, valid, candidate_hash, session, public)
-			.await
 			.unwrap()
 			.unwrap()
 	}
@@ -534,7 +533,7 @@ impl TestState {
 		candidate_hash: CandidateHash,
 		session: SessionIndex,
 	) -> SignedDisputeStatement {
-		let keystore = self.master_keystore.clone() as SyncCryptoStorePtr;
+		let keystore = self.master_keystore.clone() as KeystorePtr;
 		let validator_id = self.validators[index.0 as usize].public().into();
 		let context =
 			SigningContext { session_index: session, parent_hash: Hash::repeat_byte(0xac) };
@@ -546,7 +545,6 @@ impl TestState {
 			index,
 			&validator_id,
 		)
-		.await
 		.unwrap()
 		.unwrap()
 		.into_unchecked();
@@ -560,26 +558,22 @@ impl TestState {
 		candidate_hash: CandidateHash,
 		session: SessionIndex,
 	) -> SignedDisputeStatement {
-		let keystore = self.master_keystore.clone() as SyncCryptoStorePtr;
+		let keystore = self.master_keystore.clone() as KeystorePtr;
 		let validator_id = self.validators[index.0 as usize].public();
 
 		let payload = ApprovalVote(candidate_hash).signing_payload(session);
-		let signature = SyncCryptoStore::sign_with(
-			&*keystore,
-			ValidatorId::ID,
-			&validator_id.into(),
-			&payload[..],
-		)
-		.ok()
-		.flatten()
-		.unwrap();
+		let signature = keystore
+			.sr25519_sign(ValidatorId::ID, &validator_id, &payload)
+			.ok()
+			.flatten()
+			.unwrap();
 
 		SignedDisputeStatement::new_unchecked_from_trusted_source(
 			DisputeStatement::Valid(ValidDisputeStatementKind::ApprovalChecking),
 			candidate_hash,
 			session,
 			validator_id.into(),
-			signature.try_into().unwrap(),
+			signature.into(),
 		)
 	}
 
@@ -3339,7 +3333,7 @@ fn informs_chain_selection_when_dispute_concluded_against() {
 				.await;
 
 			let supermajority_threshold =
-				polkadot_primitives::v2::supermajority_threshold(test_state.validators.len());
+				polkadot_primitives::supermajority_threshold(test_state.validators.len());
 
 			let (valid_vote, invalid_vote) = generate_opposing_votes_pair(
 				&test_state,

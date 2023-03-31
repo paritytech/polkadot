@@ -139,3 +139,57 @@ has_runtime_changes() {
     return 1
   fi
 }
+
+# given a bootnode and the path to a chainspec file, this function will create a new chainspec file
+# with only the bootnode specified and test whether that bootnode provides peers
+# The optional third argument is the index of the bootnode in the list of bootnodes, this is just used to pick an ephemeral
+# port for the node to run on. If you're only testing one, it'll just use the first ephemeral port
+# BOOTNODE: /dns/polkadot-connect-0.parity.io/tcp/443/wss/p2p/12D3KooWEPmjoRpDSUuiTjvyNDd8fejZ9eNWH5bE965nyBMDrB4o
+# CHAINSPEC_FILE: /path/to/polkadot.json
+check_bootnode(){
+    BOOTNODE=$1
+    BASE_CHAINSPEC=$2
+    RUNTIME=$(basename "$BASE_CHAINSPEC" | cut -d '.' -f 1)
+    MIN_PEERS=1
+
+    # Generate a temporary chainspec file containing only the bootnode we care about
+    TMP_CHAINSPEC_FILE="$RUNTIME.$(echo "$BOOTNODE" | tr '/' '_').tmp.json"
+    jq ".bootNodes = [\"$BOOTNODE\"] " < "$CHAINSPEC_FILE" > "$TMP_CHAINSPEC_FILE"
+
+    # Grab an unused port by binding to port 0 and then immediately closing the socket
+    # This is a bit of a hack, but it's the only way to do it in the shell
+    RPC_PORT=$(python -c "import socket; s=socket.socket(); s.bind(('', 0)); print(s.getsockname()[1]); s.close()")
+
+    echo "[+] Checking bootnode $BOOTNODE"
+    polkadot --chain "$TMP_CHAINSPEC_FILE" --no-mdns --rpc-port="$RPC_PORT" --tmp > /dev/null 2>&1 &
+    # Wait a few seconds for the node to start up
+    sleep 5
+    POLKADOT_PID=$!
+
+    MAX_POLLS=10
+    TIME_BETWEEN_POLLS=3
+    for _ in $(seq 1 "$MAX_POLLS"); do
+    # Check the health endpoint of the RPC node
+      PEERS="$(curl -s -X POST -H "Content-Type: application/json" --data '{"jsonrpc":"2.0","method":"system_health","params":[],"id":1}' http://localhost:"$RPC_PORT" | jq -r '.result.peers')"
+      # Sometimes due to machine load or other reasons, we don't get a response from the RPC node
+      # If $PEERS is an empty variable, make it 0 so we can still do the comparison
+      if [ -z "$PEERS" ]; then
+        PEERS=0
+      fi
+      if [ "$PEERS" -ge $MIN_PEERS ]; then
+        echo "[+] $PEERS peers found for $BOOTNODE"
+        echo "    Bootnode appears contactable"
+        kill $POLKADOT_PID
+        # Delete the temporary chainspec file now we're done running the node
+        rm "$TMP_CHAINSPEC_FILE"
+        return 0
+      fi
+      sleep "$TIME_BETWEEN_POLLS"
+    done
+    kill $POLKADOT_PID
+    # Delete the temporary chainspec file now we're done running the node
+    rm "$TMP_CHAINSPEC_FILE"
+    echo "[!] No peers found for $BOOTNODE"
+    echo "    Bootnode appears unreachable"
+    return 1
+}

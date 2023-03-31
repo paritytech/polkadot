@@ -39,6 +39,7 @@ async fn execute_good_block_on_parent() {
 				relay_parent_number: 1,
 				relay_parent_storage_root: Default::default(),
 			},
+			Default::default(),
 		)
 		.await
 		.unwrap();
@@ -72,6 +73,7 @@ async fn execute_good_chain_on_parent() {
 					relay_parent_number: number as RelayChainBlockNumber + 1,
 					relay_parent_storage_root: Default::default(),
 				},
+				Default::default(),
 			)
 			.await
 			.unwrap();
@@ -108,6 +110,7 @@ async fn execute_bad_block_on_parent() {
 				relay_parent_number: 1,
 				relay_parent_storage_root: Default::default(),
 			},
+			Default::default(),
 		)
 		.await
 		.unwrap_err();
@@ -129,6 +132,7 @@ async fn stress_spawn() {
 					relay_parent_number: 1,
 					relay_parent_storage_root: Default::default(),
 				},
+				Default::default(),
 			)
 			.await
 			.unwrap();

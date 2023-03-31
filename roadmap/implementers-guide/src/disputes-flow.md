@@ -8,7 +8,6 @@ stateDiagram-v2
     [*] --> WaitForDisputeVote: backing Vote received
     WaitForBackingVote --> Open: negative Vote received
     WaitForDisputeVote --> Open: backing Vote received
-    Open --> Concluded: Timeout without supermajority
     Open --> Concluded: Incoming Vote via Gossip
     Open --> Open: No ⅔ supermajority
     Open --> [*]

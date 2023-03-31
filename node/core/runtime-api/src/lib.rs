@@ -132,6 +132,8 @@ where
 				.cache_candidate_pending_availability((relay_parent, para_id), candidate),
 			CandidateEvents(relay_parent, events) =>
 				self.requests_cache.cache_candidate_events(relay_parent, events),
+			SessionExecutorParams(_relay_parent, session_index, index) =>
+				self.requests_cache.cache_session_executor_params(session_index, index),
 			SessionInfo(_relay_parent, session_index, info) =>
 				if let Some(info) = info {
 					self.requests_cache.cache_session_info(session_index, info);
@@ -229,6 +231,17 @@ where
 					.map(|sender| Request::CandidatePendingAvailability(para, sender)),
 			Request::CandidateEvents(sender) =>
 				query!(candidate_events(), sender).map(|sender| Request::CandidateEvents(sender)),
+			Request::SessionExecutorParams(session_index, sender) => {
+				if let Some(executor_params) =
+					self.requests_cache.session_executor_params(session_index)
+				{
+					self.metrics.on_cached_request();
+					let _ = sender.send(Ok(executor_params.clone()));
+					None
+				} else {
+					Some(Request::SessionExecutorParams(session_index, sender))
+				}
+			},
 			Request::SessionInfo(index, sender) => {
 				if let Some(info) = self.requests_cache.session_info(index) {
 					self.metrics.on_cached_request();
@@ -447,39 +460,14 @@ where
 		),
 		Request::CandidateEvents(sender) =>
 			query!(CandidateEvents, candidate_events(), ver = 1, sender),
-		Request::SessionInfo(index, sender) => {
-			let api_version = client
-				.api_version_parachain_host(relay_parent)
-				.await
-				.unwrap_or_default()
-				.unwrap_or_default();
-
-			let res = if api_version >= 2 {
-				let res = client.session_info(relay_parent, index).await.map_err(|e| {
-					RuntimeApiError::Execution {
-						runtime_api_name: "SessionInfo",
-						source: std::sync::Arc::new(e),
-					}
-				});
-				metrics.on_request(res.is_ok());
-				res
-			} else {
-				#[allow(deprecated)]
-				let res = client.session_info_before_version_2(relay_parent, index).await.map_err(|e| {
-					RuntimeApiError::Execution {
-						runtime_api_name: "SessionInfo",
-						source: std::sync::Arc::new(e),
-					}
-				});
-				metrics.on_request(res.is_ok());
-
-				res.map(|r| r.map(|old| old.into()))
-			};
-
-			let _ = sender.send(res.clone());
-
-			res.ok().map(|res| RequestResult::SessionInfo(relay_parent, index, res))
-		},
+		Request::SessionInfo(index, sender) =>
+			query!(SessionInfo, session_info(index), ver = 2, sender),
+		Request::SessionExecutorParams(session_index, sender) => query!(
+			SessionExecutorParams,
+			session_executor_params(session_index),
+			ver = Request::EXECUTOR_PARAMS_RUNTIME_REQUIREMENT,
+			sender
+		),
 		Request::DmqContents(id, sender) => query!(DmqContents, dmq_contents(id), ver = 1, sender),
 		Request::InboundHrmpChannelsContents(id, sender) =>
 			query!(InboundHrmpChannelsContents, inbound_hrmp_channels_contents(id), ver = 1, sender),

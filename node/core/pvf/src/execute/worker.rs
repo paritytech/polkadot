@@ -28,7 +28,9 @@ use cpu_time::ProcessTime;
 use futures::{pin_mut, select_biased, FutureExt};
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
+
 use polkadot_parachain::primitives::ValidationResult;
+use polkadot_primitives::ExecutorParams;
 use std::{
 	path::{Path, PathBuf},
 	sync::{mpsc::channel, Arc},
@@ -37,13 +39,33 @@ use std::{
 use tokio::{io, net::UnixStream};
 
 /// Spawns a new worker with the given program path that acts as the worker and the spawn timeout.
+/// Sends a handshake message to the worker as soon as it is spawned.
 ///
 /// The program should be able to handle `<program-path> execute-worker <socket-path>` invocation.
 pub async fn spawn(
 	program_path: &Path,
+	executor_params: ExecutorParams,
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	spawn_with_program_path("execute", program_path, &["execute-worker"], spawn_timeout).await
+	let (mut idle_worker, worker_handle) = spawn_with_program_path(
+		"execute",
+		program_path,
+		&["execute-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
+		spawn_timeout,
+	)
+	.await?;
+	send_handshake(&mut idle_worker.stream, Handshake { executor_params })
+		.await
+		.map_err(|error| {
+			gum::warn!(
+				target: LOG_TARGET,
+				worker_pid = %idle_worker.pid,
+				?error,
+				"failed to send a handshake to the spawned worker",
+			);
+			SpawnErr::Handshake
+		})?;
+	Ok((idle_worker, worker_handle))
 }
 
 /// Outcome of PVF execution.
@@ -159,6 +181,21 @@ pub async fn start_work(
 	}
 }
 
+async fn send_handshake(stream: &mut UnixStream, handshake: Handshake) -> io::Result<()> {
+	framed_send(stream, &handshake.encode()).await
+}
+
+async fn recv_handshake(stream: &mut UnixStream) -> io::Result<Handshake> {
+	let handshake_enc = framed_recv(stream).await?;
+	let handshake = Handshake::decode(&mut &handshake_enc[..]).map_err(|_| {
+		io::Error::new(
+			io::ErrorKind::Other,
+			"execute pvf recv_handshake: failed to decode Handshake".to_owned(),
+		)
+	})?;
+	Ok(handshake)
+}
+
 async fn send_request(
 	stream: &mut UnixStream,
 	artifact_path: &Path,
@@ -204,6 +241,11 @@ async fn recv_response(stream: &mut UnixStream) -> io::Result<Response> {
 }
 
 #[derive(Encode, Decode)]
+struct Handshake {
+	executor_params: ExecutorParams,
+}
+
+#[derive(Encode, Decode)]
 pub enum Response {
 	Ok { result_descriptor: ValidationResult, duration: Duration },
 	InvalidCandidate(String),
@@ -222,10 +264,26 @@ impl Response {
 }
 
 /// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host.
-pub fn worker_entrypoint(socket_path: &str) {
+/// the path to the socket used to communicate with the host. The `node_version`, if `Some`,
+/// is checked against the worker version. A mismatch results in immediate worker termination.
+/// `None` is used for tests and in other situations when version check is not necessary.
+pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	worker_event_loop("execute", socket_path, |rt_handle, mut stream| async move {
-		let executor = Arc::new(Executor::new().map_err(|e| {
+		let worker_pid = std::process::id();
+		if let Some(version) = node_version {
+			if version != env!("SUBSTRATE_CLI_IMPL_VERSION") {
+				gum::error!(
+					target: LOG_TARGET,
+					%worker_pid,
+					"Node and worker version mismatch, node needs restarting, forcing shutdown",
+				);
+				crate::kill_parent_node_in_emergency();
+				return Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"))
+			}
+		}
+
+		let handshake = recv_handshake(&mut stream).await?;
+		let executor = Arc::new(Executor::new(handshake.executor_params).map_err(|e| {
 			io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
 		})?);
 
@@ -233,7 +291,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 			let (artifact_path, params, execution_timeout) = recv_request(&mut stream).await?;
 			gum::debug!(
 				target: LOG_TARGET,
-				worker_pid = %std::process::id(),
+				%worker_pid,
 				"worker: validating artifact {}",
 				artifact_path.display(),
 			);
@@ -267,7 +325,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 							// Log if we exceed the timeout and the other thread hasn't finished.
 							gum::warn!(
 								target: LOG_TARGET,
-								worker_pid = %std::process::id(),
+								%worker_pid,
 								"execute job took {}ms cpu time, exceeded execute timeout {}ms",
 								cpu_time_elapsed.as_millis(),
 								execution_timeout.as_millis(),

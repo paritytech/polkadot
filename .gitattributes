@@ -1,0 +1,2 @@
+/.gitlab-ci.yml filter=ci-prettier
+/scripts/ci/gitlab/pipeline/*.yml filter=ci-prettier

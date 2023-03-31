@@ -51,7 +51,7 @@ trait WeighMultiAssets {
 }
 
 // Westend only knows about one asset, the balances pallet.
-const MAX_ASSETS: u32 = 1;
+const MAX_ASSETS: u64 = 1;
 
 impl WeighMultiAssets for MultiAssetFilter {
 	fn weigh_multi_assets(&self, balances_weight: Weight) -> Weight {
@@ -65,9 +65,12 @@ impl WeighMultiAssets for MultiAssetFilter {
 					AssetTypes::Unknown => Weight::MAX,
 				})
 				.fold(Weight::zero(), |acc, x| acc.saturating_add(x)),
+			// We don't support any NFTs on Westend, so these two variants will always match
+			// only 1 kind of fungible asset.
 			Self::Wild(AllOf { .. } | AllOfCounted { .. }) => balances_weight,
-			Self::Wild(AllCounted(count)) => balances_weight.saturating_mul(*count as u64),
-			Self::Wild(All) => balances_weight.saturating_mul(MAX_ASSETS as u64),
+			Self::Wild(AllCounted(count)) =>
+				balances_weight.saturating_mul(MAX_ASSETS.min(*count as u64)),
+			Self::Wild(All) => balances_weight.saturating_mul(MAX_ASSETS),
 		}
 	}
 }
@@ -243,7 +246,7 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for WestendXcmWeight<RuntimeCall> {
 		Weight::MAX
 	}
 	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
-		// Westend does not currently support export message operations
+		// Westend relay should not support export message operations
 		Weight::MAX
 	}
 	fn lock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
@@ -278,4 +281,12 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for WestendXcmWeight<RuntimeCall> {
 	fn unpaid_execution(_: &WeightLimit, _: &Option<MultiLocation>) -> Weight {
 		XcmGeneric::<Runtime>::unpaid_execution()
 	}
+}
+
+#[test]
+fn all_counted_has_a_sane_weight_upper_limit() {
+	let assets = MultiAssetFilter::Wild(AllCounted(4294967295));
+	let weight = Weight::from_parts(1000, 1000);
+
+	assert_eq!(assets.weigh_multi_assets(weight), weight * MAX_ASSETS);
 }

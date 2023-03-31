@@ -529,7 +529,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	availability_store: AvailabilityStore,
 
-	#[subsystem(NetworkBridgeRxMessage, sends: [
+	#[subsystem(blocking, NetworkBridgeRxMessage, sends: [
 		BitfieldDistributionMessage,
 		StatementDistributionMessage,
 		ApprovalDistributionMessage,
@@ -540,7 +540,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	network_bridge_rx: NetworkBridgeRx,
 
-	#[subsystem(NetworkBridgeTxMessage, sends: [])]
+	#[subsystem(blocking, NetworkBridgeTxMessage, sends: [])]
 	network_bridge_tx: NetworkBridgeTx,
 
 	#[subsystem(blocking, ChainApiMessage, sends: [])]
@@ -559,7 +559,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(ApprovalDistributionMessage, sends: [
+	#[subsystem(blocking, message_capacity: 64000, ApprovalDistributionMessage, sends: [
 		NetworkBridgeTxMessage,
 		ApprovalVotingMessage,
 	])]
@@ -584,7 +584,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	gossip_support: GossipSupport,
 
-	#[subsystem(blocking, DisputeCoordinatorMessage, sends: [
+	#[subsystem(blocking, message_capacity: 32000, DisputeCoordinatorMessage, sends: [
 		RuntimeApiMessage,
 		ChainApiMessage,
 		DisputeDistributionMessage,
@@ -611,11 +611,6 @@ pub struct Overseer<SupportsParachains> {
 
 	/// Stores the [`jaeger::Span`] per active leaf.
 	pub span_per_active_leaf: HashMap<Hash, Arc<jaeger::Span>>,
-
-	/// A set of leaves that `Overseer` starts working with.
-	///
-	/// Drained at the beginning of `run` and never used again.
-	pub leaves: Vec<(Hash, BlockNumber)>,
 
 	/// The set of the "active leaves".
 	pub active_leaves: HashMap<Hash, BlockNumber>,
@@ -727,16 +722,6 @@ where
 	async fn run_inner(mut self) -> SubsystemResult<()> {
 		let metrics = self.metrics.clone();
 		spawn_metronome_metrics(&mut self, metrics)?;
-
-		// Notify about active leaves on startup before starting the loop
-		for (hash, number) in std::mem::take(&mut self.leaves) {
-			let _ = self.active_leaves.insert(hash, number);
-			if let Some((span, status)) = self.on_head_activated(&hash, None).await {
-				let update =
-					ActiveLeavesUpdate::start_work(ActivatedLeaf { hash, number, status, span });
-				self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-			}
-		}
 
 		loop {
 			select! {

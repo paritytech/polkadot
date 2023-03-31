@@ -28,7 +28,7 @@ use polkadot_node_primitives::{
 		AssignmentCertKindV2, BlockApprovalMeta, DelayTranche, IndirectAssignmentCertV2,
 		IndirectSignedApprovalVote,
 	},
-	ValidationResult, APPROVAL_EXECUTION_TIMEOUT,
+	ValidationResult,
 };
 use polkadot_node_subsystem::{
 	errors::RecoveryError,
@@ -52,8 +52,8 @@ use polkadot_node_subsystem_util::{
 };
 use polkadot_primitives::{
 	ApprovalVote, BlockNumber, CandidateHash, CandidateIndex, CandidateReceipt, DisputeStatement,
-	GroupIndex, Hash, SessionIndex, SessionInfo, ValidDisputeStatementKind, ValidatorId,
-	ValidatorIndex, ValidatorPair, ValidatorSignature,
+	GroupIndex, Hash, PvfExecTimeoutKind, SessionIndex, SessionInfo, ValidDisputeStatementKind,
+	ValidatorId, ValidatorIndex, ValidatorPair, ValidatorSignature,
 };
 use sc_keystore::LocalKeystore;
 use sp_application_crypto::Pair;
@@ -2527,7 +2527,7 @@ async fn launch_approval<Context>(
 				validation_code,
 				candidate.clone(),
 				available_data.pov,
-				APPROVAL_EXECUTION_TIMEOUT,
+				PvfExecTimeoutKind::Approval,
 				val_tx,
 			))
 			.await;

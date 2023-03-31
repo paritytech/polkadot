@@ -123,7 +123,7 @@ async fn send_dispute(
 	needs_session_info: bool,
 ) {
 	let before_request = Instant::now();
-	let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+	let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX);
 	gum::trace!(
 		"Passed time for making message: {:#?}",
 		Instant::now().saturating_duration_since(before_request)
@@ -190,7 +190,7 @@ fn received_non_authorities_are_dropped() {
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
-		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX);
 
 		// Non validator request should get dropped:
 		let rx_response =
@@ -222,7 +222,7 @@ fn received_request_triggers_import() {
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
-		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX);
 
 		nested_network_dispute_request(
 			&mut handle,
@@ -250,7 +250,7 @@ fn batching_works() {
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
-		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX);
 
 		// Initial request should get forwarded immediately:
 		nested_network_dispute_request(
@@ -266,27 +266,27 @@ fn batching_works() {
 
 		let mut rx_responses = Vec::new();
 
-		let message = make_dispute_message(candidate.clone(), BOB_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), BOB_INDEX, FERDIE_INDEX);
 		let peer = MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob);
 		rx_responses.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
 
-		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, FERDIE_INDEX);
 		let peer = MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Charlie);
 		rx_responses.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
 		gum::trace!("Imported 3 votes into batch");
 
-		Delay::new(BATCH_COLLECTING_INTERVAL).await;
+		Delay::new(BATCH_COLLECTING_INTERVAL);
 		gum::trace!("Batch should still be alive");
 		// Batch should still be alive (2 new votes):
 		// Let's import two more votes, but fully duplicates - should not extend batch live.
 		gum::trace!("Importing duplicate votes");
 		let mut rx_responses_duplicate = Vec::new();
-		let message = make_dispute_message(candidate.clone(), BOB_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), BOB_INDEX, FERDIE_INDEX);
 		let peer = MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob);
 		rx_responses_duplicate
 			.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
 
-		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, FERDIE_INDEX);
 		let peer = MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Charlie);
 		rx_responses_duplicate
 			.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
@@ -375,7 +375,7 @@ fn receive_rate_limit_is_enforced() {
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
-		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX);
 
 		// Initial request should get forwarded immediately:
 		nested_network_dispute_request(
@@ -393,15 +393,15 @@ fn receive_rate_limit_is_enforced() {
 
 		let peer = MOCK_AUTHORITY_DISCOVERY.get_peer_id_by_authority(Sr25519Keyring::Bob);
 
-		let message = make_dispute_message(candidate.clone(), BOB_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), BOB_INDEX, FERDIE_INDEX);
 		rx_responses.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
 
-		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, FERDIE_INDEX);
 		rx_responses.push(send_network_dispute_request(req_tx, peer, message.clone().into()).await);
 
 		gum::trace!("Import one too much:");
 
-		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, ALICE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), CHARLIE_INDEX, ALICE_INDEX);
 		let rx_response_flood =
 			send_network_dispute_request(req_tx, peer, message.clone().into()).await;
 
@@ -486,7 +486,7 @@ fn send_dispute_gets_cleaned_up() {
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
-		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX);
 		handle
 			.send(FromOrchestra::Communication {
 				msg: DisputeDistributionMessage::SendDispute(message.clone()),
@@ -552,7 +552,7 @@ fn dispute_retries_and_works_across_session_boundaries() {
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
-		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX).await;
+		let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX);
 		handle
 			.send(FromOrchestra::Communication {
 				msg: DisputeDistributionMessage::SendDispute(message.clone()),
