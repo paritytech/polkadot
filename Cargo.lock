@@ -6559,6 +6559,7 @@ dependencies = [
  "env_logger 0.9.0",
  "futures",
  "log",
+ "polkadot-node-jaeger",
  "polkadot-node-metrics",
  "polkadot-node-network-protocol",
  "polkadot-node-primitives",
