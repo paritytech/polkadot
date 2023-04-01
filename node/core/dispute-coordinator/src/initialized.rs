@@ -288,45 +288,43 @@ impl Initialized {
 				self.runtime_info.get_session_index_for_child(ctx.sender(), new_leaf.hash).await;
 
 			match session_idx {
-				Ok(session_idx) => {
-					if session_idx > self.highest_session {
-						// Dummy fetch to ensure the sessions are cached.
-						for idx in self.highest_session + 1..=session_idx {
-							match self
-								.runtime_info
-								.get_session_info_by_index(ctx.sender(), new_leaf.hash, idx)
-								.await
-							{
-								Ok(_) => {
-									self.error = None;
-								},
-								Err(err) => {
-									gum::warn!(
-										target: LOG_TARGET,
-										session_idx,
-										leaf_hash = ?new_leaf.hash,
-										?err,
-										"Error caching SessionInfo on ActiveLeaves update"
-									);
-									self.error = Some(err);
-								},
-							}
+				Ok(session_idx) if session_idx > self.highest_session => {
+					// There is a new sesion. Perform a dummy fetch to cache it.
+					for idx in self.highest_session + 1..=session_idx {
+						match self
+							.runtime_info
+							.get_session_info_by_index(ctx.sender(), new_leaf.hash, idx)
+							.await
+						{
+							Ok(_) => {
+								self.error = None;
+							},
+							Err(err) => {
+								gum::warn!(
+									target: LOG_TARGET,
+									session_idx,
+									leaf_hash = ?new_leaf.hash,
+									?err,
+									"Error caching SessionInfo on ActiveLeaves update"
+								);
+								self.error = Some(err);
+							},
 						}
-
-						self.highest_session = session_idx;
-						db::v1::note_earliest_session(
-							overlay_db,
-							session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1),
-						)?;
-						self.spam_slots
-							.prune_old(session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1));
 					}
+
+					self.highest_session = session_idx;
+					db::v1::note_earliest_session(
+						overlay_db,
+						session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1),
+					)?;
+					self.spam_slots.prune_old(session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1));
 				},
+				Ok(_) => { /* no new session => nothing to cache */ },
 				Err(err) => {
 					gum::warn!(
 						target: LOG_TARGET,
 						?err,
-						"Failed to update session cache for disputes",
+						"Failed to update session cache for disputes - can't fetch session index",
 					);
 				},
 			}
@@ -379,11 +377,22 @@ impl Initialized {
 		for (candidate_receipt, backers) in backing_validators_per_candidate {
 			// Obtain the session info, for sake of `ValidatorId`s
 			let relay_parent = candidate_receipt.descriptor.relay_parent;
-			let session_info = &self
+			let session_info = match self
 				.runtime_info
-				.get_session_info_by_index(ctx.sender(), relay_parent, session) // TODO: is it correct to use `relay_parent` here??
-				.await?
-				.session_info;
+				.get_session_info_by_index(ctx.sender(), relay_parent, session)
+				.await
+			{
+				Ok(extended_session_info) => &extended_session_info.session_info,
+				Err(err) => {
+					gum::warn!(
+						target: LOG_TARGET,
+						?session,
+						?err,
+						"Could not retrieve session info from RuntimeInfo",
+					);
+					return Ok(())
+				},
+			};
 
 			let candidate_hash = candidate_receipt.hash();
 			gum::trace!(
