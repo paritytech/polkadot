@@ -43,7 +43,9 @@ use polkadot_node_subsystem_util::{
 	database::Database,
 	runtime::{Config as RuntimeInfoConfig, RuntimeInfo},
 };
-use polkadot_primitives::{DisputeStatement, ScrapedOnChainVotes, SessionInfo, ValidatorIndex};
+use polkadot_primitives::{
+	DisputeStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorIndex,
+};
 
 use crate::{
 	error::{FatalResult, Result},
@@ -228,7 +230,7 @@ impl DisputeCoordinatorSubsystem {
 					.expect("DISPUTE_WINDOW can't be 0; qed."),
 			});
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
-			let (participations, votes, spam_slots, ordering_provider) = match self
+			let (participations, votes, spam_slots, ordering_provider, highest_session) = match self
 				.handle_startup(ctx, first_leaf.clone(), &mut runtime_info, &mut overlay_db, clock)
 				.await
 			{
@@ -241,44 +243,6 @@ impl DisputeCoordinatorSubsystem {
 			if !overlay_db.is_empty() {
 				let ops = overlay_db.into_write_ops();
 				backend.write(ops)?;
-			}
-
-			// We assume the highest session is the passed leaf. If we can't get the session index
-			// we can't initialize the subsystem so we'll wait for a new leaf
-			let highest_session =
-				match runtime_info.get_session_index_for_child(ctx.sender(), first_leaf.hash).await
-				{
-					Ok(session_idx) => session_idx,
-					Err(e) => {
-						gum::warn!(
-							target: LOG_TARGET,
-							leaf_hash = ?first_leaf.hash,
-							err = ?e,
-							"Can't get session index during subsystem initialization. Retrying."
-						);
-						continue // the initialization loop
-					},
-				};
-
-			// Cache the sessions. A failure to fetch a session here is not that critical so we
-			// won't abort the initialization
-			for idx in highest_session.saturating_sub(DISPUTE_WINDOW.get() - 1)..highest_session {
-				match runtime_info
-					.get_session_info_by_index(ctx.sender(), first_leaf.hash, idx)
-					.await
-				{
-					Ok(_) => { /* do nothing */ },
-					Err(e) => {
-						gum::warn!(
-							target: LOG_TARGET,
-							leaf_hash = ?first_leaf.hash,
-							session_idx = idx,
-							err = ?e,
-							"Can't cache SessionInfo during subsystem initialization. Skipping session."
-						);
-						continue // the caching loop
-					},
-				}
 			}
 
 			return Ok(Some((
@@ -314,6 +278,7 @@ impl DisputeCoordinatorSubsystem {
 		Vec<ScrapedOnChainVotes>,
 		SpamSlots,
 		ChainScraper,
+		SessionIndex,
 	)> {
 		let now = clock.now();
 
@@ -328,14 +293,37 @@ impl DisputeCoordinatorSubsystem {
 			},
 		};
 
-		let session_idx = runtime_info
+		// We assume the highest session is the passed leaf. If we can't get the session index
+		// we can't initialize the subsystem so we'll wait for a new leaf
+		let highest_session = runtime_info
 			.get_session_index_for_child(ctx.sender(), initial_head.hash)
 			.await?;
+
+		// Cache the sessions. A failure to fetch a session here is not that critical so we
+		// won't abort the initialization
+		for idx in highest_session.saturating_sub(DISPUTE_WINDOW.get() - 1)..=highest_session {
+			match runtime_info
+				.get_session_info_by_index(ctx.sender(), initial_head.hash, idx)
+				.await
+			{
+				Ok(_) => { /* do nothing */ },
+				Err(e) => {
+					gum::warn!(
+						target: LOG_TARGET,
+						leaf_hash = ?initial_head.hash,
+						session_idx = idx,
+						err = ?e,
+						"Can't cache SessionInfo during subsystem initialization. Skipping session."
+					);
+					continue
+				},
+			}
+		}
 
 		// Prune obsolete disputes:
 		db::v1::note_earliest_session(
 			overlay_db,
-			session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1),
+			highest_session.saturating_sub(DISPUTE_WINDOW.get() - 1),
 		)?;
 
 		let mut participation_requests = Vec::new();
@@ -347,7 +335,7 @@ impl DisputeCoordinatorSubsystem {
 				&self.keystore,
 				ctx,
 				runtime_info,
-				session_idx,
+				highest_session,
 				leaf_hash,
 			)
 			.await
@@ -424,7 +412,13 @@ impl DisputeCoordinatorSubsystem {
 			}
 		}
 
-		Ok((participation_requests, votes, SpamSlots::recover_from_state(spam_disputes), scraper))
+		Ok((
+			participation_requests,
+			votes,
+			SpamSlots::recover_from_state(spam_disputes),
+			scraper,
+			highest_session,
+		))
 	}
 }
 

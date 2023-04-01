@@ -327,19 +327,21 @@ impl TestState {
 					assert_eq!(h, block_hash);
 					let _ = tx.send(Ok(session));
 
-					// Queries for fetching earliest unfinalized block session. See `RollingSessionWindow`.
+					// Queries for session caching - see `handle_startup`
 					if self.known_session.is_none() {
-						assert_matches!(
-							overseer_recv(virtual_overseer).await,
-							AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-								h,
-								RuntimeApiRequest::SessionInfo(session_index, tx),
-							)) => {
-								assert_eq!(h, block_hash);
-								assert_eq!(session_index, 1);	// the session of the first leaf
-								let _ = tx.send(Ok(Some(self.session_info())));
-							}
-						);
+						for i in 0..=session {
+							assert_matches!(
+								overseer_recv(virtual_overseer).await,
+								AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+									h,
+									RuntimeApiRequest::SessionInfo(session_index, tx),
+								)) => {
+									assert_eq!(h, block_hash);
+									assert_eq!(session_index, i);
+									let _ = tx.send(Ok(Some(self.session_info())));
+								}
+							);
+						}
 					}
 
 					self.known_session = Some(session);
@@ -392,13 +394,6 @@ impl TestState {
 						);
 					}
 					let _ = response_channel.send(Ok(response));
-				},
-				AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-					_,
-					RuntimeApiRequest::SessionInfo(session_index, tx),
-				)) => {
-					assert_eq!(session_index, 0); // caching session 0
-					let _ = tx.send(Ok(Some(self.session_info())));
 				},
 				msg => {
 					panic!("Received unexpected message in `handle_sync_queries`: {:?}", msg);
