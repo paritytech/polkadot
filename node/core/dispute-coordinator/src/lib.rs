@@ -331,10 +331,6 @@ impl DisputeCoordinatorSubsystem {
 		let session_idx = runtime_info
 			.get_session_index_for_child(ctx.sender(), initial_head.hash)
 			.await?;
-		let session_info = &runtime_info
-			.get_session_info_by_index(ctx.sender(), initial_head.hash, session_idx)
-			.await?
-			.session_info;
 
 		// Prune obsolete disputes:
 		db::v1::note_earliest_session(
@@ -344,9 +340,18 @@ impl DisputeCoordinatorSubsystem {
 
 		let mut participation_requests = Vec::new();
 		let mut spam_disputes: UnconfirmedDisputes = UnconfirmedDisputes::new();
+		let leaf_hash = initial_head.hash;
 		let (scraper, votes) = ChainScraper::new(ctx.sender(), initial_head).await?;
 		for ((session, ref candidate_hash), _) in active_disputes {
-			let env = match CandidateEnvironment::new(&self.keystore, &session_info, session) {
+			let env = match CandidateEnvironment::new(
+				&self.keystore,
+				ctx,
+				runtime_info,
+				session_idx,
+				leaf_hash,
+			)
+			.await
+			{
 				None => {
 					gum::warn!(
 						target: LOG_TARGET,

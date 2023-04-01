@@ -739,13 +739,15 @@ impl Initialized {
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
-		let session_info = &self
-			.runtime_info
-			.get_session_info_by_index(ctx.sender(), block_hash, session)
-			.await?
-			.session_info;
-
-		let env = match CandidateEnvironment::new(&self.keystore, session_info, session) {
+		let env = match CandidateEnvironment::new(
+			&self.keystore,
+			ctx,
+			&mut self.runtime_info,
+			session,
+			block_hash,
+		)
+		.await
+		{
 			None => {
 				gum::warn!(
 					target: LOG_TARGET,
@@ -1139,17 +1141,17 @@ impl Initialized {
 			?now,
 			"Issuing local statement for candidate!"
 		);
-		let session_info = &self
-			.runtime_info
-			.get_session_info_by_index(
-				ctx.sender(),
-				candidate_receipt.descriptor.relay_parent,
-				session,
-			)
-			.await?
-			.session_info;
+
 		// Load environment:
-		let env = match CandidateEnvironment::new(&self.keystore, session_info, session) {
+		let env = match CandidateEnvironment::new(
+			&self.keystore,
+			ctx,
+			&mut self.runtime_info,
+			session,
+			candidate_receipt.descriptor.relay_parent,
+		)
+		.await
+		{
 			None => {
 				gum::warn!(
 					target: LOG_TARGET,
