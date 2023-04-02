@@ -36,7 +36,7 @@ variables:
   BUILDAH_IMAGE: "quay.io/buildah/stable:v1.27"
   DOCKER_OS: "debian:stretch"
   ARCH: "x86_64"
-  ZOMBIENET_IMAGE: "docker.io/paritytech/zombienet:v1.3.37"
+  ZOMBIENET_IMAGE: "docker.io/paritytech/zombienet:v1.3.43"
 
 default:
   cache: {}
