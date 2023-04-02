@@ -181,7 +181,7 @@ pub fn worker_event_loop<F, Fut>(
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
 	let worker_pid = std::process::id();
-	gum::debug!(target: LOG_TARGET, %worker_pid, "starting pvf worker ({})", debug_id,);
+	gum::debug!(target: LOG_TARGET, %worker_pid, "starting pvf worker ({})", debug_id);
 
 	// Check for a mismatch between the node and worker versions.
 	if let Some(version) = node_version {

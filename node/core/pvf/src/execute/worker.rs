@@ -261,6 +261,13 @@ impl Response {
 			Self::InvalidCandidate(format!("{}: {}", ctx, msg))
 		}
 	}
+	fn format_internal(ctx: &'static str, msg: &str) -> Self {
+		if msg.is_empty() {
+			Self::InternalError(ctx.to_string())
+		} else {
+			Self::InternalError(format!("{}: {}", ctx, msg))
+		}
+	}
 }
 
 /// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
@@ -290,7 +297,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor.
-			let thread_fut = rt_handle
+			let cpu_time_monitor_fut = rt_handle
 				.spawn_blocking(move || {
 					cpu_time_monitor_loop(cpu_time_start, execution_timeout, finished_rx)
 				})
@@ -302,14 +309,14 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				})
 				.fuse();
 
-			pin_mut!(thread_fut);
+			pin_mut!(cpu_time_monitor_fut);
 			pin_mut!(execute_fut);
 
 			let response = select_biased! {
 				// If this future is not selected, the join handle is dropped and the thread will
 				// finish in the background.
-				join_res = thread_fut => {
-					match join_res {
+				cpu_time_monitor_res = cpu_time_monitor_fut => {
+					match cpu_time_monitor_res {
 						Ok(Some(cpu_time_elapsed)) => {
 							// Log if we exceed the timeout and the other thread hasn't finished.
 							gum::warn!(
@@ -322,12 +329,12 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 							Response::TimedOut
 						},
 						Ok(None) => Response::InternalError("error communicating over finished channel".into()),
-						Err(e) => Response::InternalError(format!("{}", e)),
+						Err(e) => Response::format_internal("cpu time monitor thread error", &e.to_string()),
 					}
 				},
 				execute_res = execute_fut => {
 					let _ = finished_tx.send(());
-					execute_res.unwrap_or_else(|e| Response::InternalError(format!("{}", e)))
+					execute_res.unwrap_or_else(|e| Response::format_internal("execute thread error", &e.to_string()))
 				},
 			};
 
@@ -356,7 +363,7 @@ fn validate_using_artifact(
 
 	let result_descriptor = match ValidationResult::decode(&mut &descriptor_bytes[..]) {
 		Err(err) =>
-			return Response::InvalidCandidate(format!("validation result decoding failed: {}", err)),
+			return Response::format_invalid("validation result decoding failed", &err.to_string()),
 		Ok(r) => r,
 	};
 
