@@ -19,6 +19,8 @@ use super::memory_stats::max_rss_stat::{extract_max_rss_stat, get_max_rss_thread
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 use super::memory_stats::memory_tracker::{get_memory_tracker_loop_stats, memory_tracker_loop};
 use super::memory_stats::MemoryStats;
+#[cfg(target_os = "linux")]
+use crate::worker_common::sandbox;
 use crate::{
 	artifacts::CompiledArtifact,
 	error::{PrepareError, PrepareResult},
@@ -326,10 +328,20 @@ async fn recv_response(stream: &mut UnixStream, pid: u32) -> io::Result<PrepareR
 	Ok(result)
 }
 
-/// The entrypoint that the spawned prepare worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host. The `node_version`, if `Some`,
-/// is checked against the worker version. A mismatch results in immediate worker termination.
-/// `None` is used for tests and in other situations when version check is not necessary.
+/// The entrypoint that the spawned prepare worker should start with.
+///
+/// # Parameters
+///
+/// The `socket_path` specifies the path to the socket used to communicate with the host. The
+/// `node_version`, if `Some`, is checked against the worker version. A mismatch results in
+/// immediate worker termination. `None` is used for tests and in other situations when version
+/// check is not necessary.
+///
+/// # Threads / Tasks
+///
+/// Spawns three threads: the PVF preparation thread, a CPU time monitor thread, and a memory stats
+/// measurer thread. On Linux, also runs a task in the main thread that handles the `SIGSYS` signal,
+/// sent on seccomp breaches (see `sandbox` module).
 ///
 /// # Flow
 ///
@@ -381,6 +393,14 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			// Spawn another thread for preparation.
 			let prepare_fut = rt_handle
 				.spawn_blocking(move || {
+					#[cfg(target_os = "linux")]
+					if let Err(err) = sandbox::seccomp_execute_thread() {
+						return Err(PrepareError::IoErr(format!(
+							"sandboxing the thread failed: {}",
+							err.to_string(),
+						)))
+					}
+
 					let result = prepare_artifact(pvf);
 
 					// Get the `ru_maxrss` stat. If supported, call getrusage for the thread.
@@ -397,8 +417,8 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let result = select_biased! {
 				// If this future is not selected, the join handle is dropped and the thread will
 				// finish in the background.
-				join_res = cpu_time_monitor_fut => {
-					match join_res {
+				cpu_time_monitor_res = cpu_time_monitor_fut => {
+					match cpu_time_monitor_res {
 						Ok(Some(cpu_time_elapsed)) => {
 							// Log if we exceed the timeout and the other thread hasn't finished.
 							gum::warn!(

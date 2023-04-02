@@ -443,3 +443,72 @@ fn kill_parent_node_in_emergency() {
 		}
 	}
 }
+
+// TODO: Document how to get the allowed set of syscalls.
+/// This module provides utilities for sandboxing PVF jobs. This is necessary because jobs are
+/// compiling or executing untrusted code, and in the case of an arbitrary code escalation we do not
+/// want an attacker to gain access to the rest of the machine.
+///
+/// We are currently sandboxing by putting the PVF jobs in a "seccomp jail". We run `seccomp` (only
+/// on the thread that does preparation/execution) and have it block all syscalls, except for the
+/// minimum required by a legitimate job.
+///
+/// Systems like MacOS do not support `seccomp`, so a validator cannot currently run on them
+/// securely.
+#[cfg(target_os = "linux")]
+pub mod sandbox {
+	use seccompiler::*;
+
+	// New error type to avoid extra `map_err`s.
+	#[derive(thiserror::Error, Debug)]
+	pub enum SandboxError {
+		#[error(transparent)]
+		Seccomp(#[from] seccompiler::Error),
+
+		#[error(transparent)]
+		Backend(#[from] seccompiler::BackendError),
+	}
+
+	// TODO: Should be tested on multiple allowed architectures in case some use different syscalls.
+	// TODO: Compile the filter at build-time rather than runtime.
+	// TODO: Have a separate ruleset for preparation?
+	//
+	// NOTE: the use of SECCOMP_RET_KILL_THREAD to kill a single thread in a multithreaded process
+	// is likely to leave the process in a permanently inconsistent and possibly corrupt state.
+	//
+	/// Applies a `seccomp` filter to sandbox the execute thread. Whitelists the minimum number of
+	/// syscalls necessary to allow execution to run. When a disallowed syscall is caught, we
+	/// trigger the `SIGSYS` signal which is handled in the main thread.
+	pub fn seccomp_execute_thread() -> std::result::Result<(), SandboxError> {
+		// Build the filter.
+		let rules = std::collections::BTreeMap::default();
+		let filter = SeccompFilter::new(
+			rules,
+			// Mismatch action: what to do if not in whitelist.
+			SeccompAction::KillProcess,
+			// Match action: what to do if in whitelist.
+			SeccompAction::Allow,
+			std::env::consts::ARCH.try_into().unwrap(),
+		)?;
+
+		// TODO: Check if action available.
+		// TODO: Only needs to be done once, can be e.g. a OnceCell.
+		// if 0 != syscalls::syscall3(
+		// 	syscalls::Sysno::seccomp,
+		// 	libc::SECCOMP_GET_ACTION_AVAIL,
+		// 	// Must be 0 for `SECCOMP_GET_ACTION_AVAIL`.
+		// 	0,
+		// 	// Must be a pointer to the	filter-return action.
+		// 	&libc::SECCOMP_RET_KILL_THREADfilter,
+		// ) {
+		// 	return Err("could not execute seccomp syscall")
+		// }
+
+		let bpf_prog: BpfProgram = filter.try_into()?;
+
+		// Execute filter (run seccomp).
+		seccompiler::apply_filter(&bpf_prog)?;
+
+		Ok(())
+	}
+}

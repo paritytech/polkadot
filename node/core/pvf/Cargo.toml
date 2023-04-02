@@ -46,6 +46,8 @@ sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master
 substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
+seccompiler = "0.3.0" # TODO: Could use an audit of this dependency...
+thiserror = "1.0.31"
 tikv-jemalloc-ctl = "0.5.0"
 
 [dev-dependencies]

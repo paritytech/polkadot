@@ -7179,6 +7179,7 @@ dependencies = [
  "sc-executor",
  "sc-executor-common",
  "sc-executor-wasmtime",
+ "seccompiler",
  "slotmap",
  "sp-core",
  "sp-externalities",
@@ -7190,6 +7191,7 @@ dependencies = [
  "tempfile",
  "test-parachain-adder",
  "test-parachain-halt",
+ "thiserror",
  "tikv-jemalloc-ctl",
  "tokio",
  "tracing-gum",
@@ -10417,6 +10419,15 @@ dependencies = [
  "pkcs8 0.10.1",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "seccompiler"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f6575e3c2b3a0fe2ef3e53855b6a8dead7c29f783da5e123d378c8c6a89017e"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

@@ -14,6 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+#[cfg(target_os = "linux")]
+use crate::worker_common::sandbox;
 use crate::{
 	artifacts::ArtifactPathId,
 	executor_intf::Executor,
@@ -270,10 +272,20 @@ impl Response {
 	}
 }
 
-/// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host. The `node_version`, if `Some`,
-/// is checked against the worker version. A mismatch results in immediate worker termination.
-/// `None` is used for tests and in other situations when version check is not necessary.
+/// The entrypoint that the spawned execute worker should start with.
+///
+/// # Parameters
+///
+/// The `socket_path` specifies the path to the socket used to communicate with the host. The
+/// `node_version`, if `Some`, is checked against the worker version. A mismatch results in
+/// immediate worker termination. `None` is used for tests and in other situations when version
+/// check is not necessary.
+///
+/// # Threads / Tasks
+///
+/// Spawns two threads: the PVF execution thread and a CPU time monitor thread. On Linux, also runs
+/// a task in the main thread that handles the `SIGSYS` signal, sent on seccomp breaches (see
+/// `sandbox` module).
 pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	worker_event_loop("execute", socket_path, node_version, |rt_handle, mut stream| async move {
 		let worker_pid = std::process::id();
@@ -305,6 +317,14 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let executor_2 = executor.clone();
 			let execute_fut = rt_handle
 				.spawn_blocking(move || {
+					#[cfg(target_os = "linux")]
+					if let Err(err) = sandbox::seccomp_execute_thread() {
+						return Response::format_internal(
+							"sandboxing the thread failed",
+							&err.to_string(),
+						)
+					}
+
 					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
 				})
 				.fuse();
