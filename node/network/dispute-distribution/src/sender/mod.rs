@@ -370,7 +370,7 @@ async fn get_active_session_indices<Context>(
 		if let Err(err) =
 			runtime.get_session_info_by_index(ctx.sender(), *head, session_index).await
 		{
-			gum::warn!(target: LOG_TARGET, ?err, ?session_index, "Can't cache SessionInfo");
+			gum::debug!(target: LOG_TARGET, ?err, ?session_index, "Can't cache SessionInfo");
 		}
 		indeces.insert(session_index, *head);
 	}
