@@ -743,12 +743,19 @@ impl Initialized {
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
-		let relay_parent = match &candidate_receipt {
+		// At this point we should either have a `CandidateReceipt` or have the relay parent stored
+		// in the database. It's extracted here so that we can obtain `SessionInfo` from the runtime.
+		// In case we do query the database we'll save the result in `maybe_votes_in_db` which is
+		// `Option<Option<CandidateVotes>>`. We need nested option to differentiate later if the db
+		// call was made and it returned `None` (`Some(None)`/`Some(Some(votes))`) or the db call was
+		// not made at all (`None`).
+		let (relay_parent, maybe_votes_in_db) = match &candidate_receipt {
 			MaybeCandidateReceipt::Provides(candidate_receipt) =>
-				candidate_receipt.descriptor().relay_parent,
+				(candidate_receipt.descriptor().relay_parent, None),
 			MaybeCandidateReceipt::AssumeBackingVotePresent(candidate_hash) => {
 				match overlay_db.load_candidate_votes(session, &candidate_hash)? {
-					Some(votes) => votes.candidate_receipt.descriptor().relay_parent,
+					Some(votes) =>
+						(votes.candidate_receipt.descriptor().relay_parent, Some(Some(votes))),
 					None => {
 						gum::warn!(
 							target: LOG_TARGET,
@@ -793,6 +800,12 @@ impl Initialized {
 			"Number of validators"
 		);
 
+		// If we have already fetched the votes - use them here.
+		let votes_in_db = match maybe_votes_in_db {
+			Some(votes) => votes,
+			None => overlay_db.load_candidate_votes(session, &candidate_hash)?,
+		};
+
 		// In case we are not provided with a candidate receipt
 		// we operate under the assumption, that a previous vote
 		// which included a `CandidateReceipt` was seen.
@@ -801,10 +814,7 @@ impl Initialized {
 		// There is one exception: A sufficiently sophisticated attacker could prevent
 		// us from seeing the backing votes by withholding arbitrary blocks, and hence we do
 		// not have a `CandidateReceipt` available.
-		let old_state = match overlay_db
-			.load_candidate_votes(session, &candidate_hash)?
-			.map(CandidateVotes::from)
-		{
+		let old_state = match votes_in_db.map(CandidateVotes::from) {
 			Some(votes) => CandidateVoteState::new(votes, &env, now),
 			None =>
 				if let MaybeCandidateReceipt::Provides(candidate_receipt) = candidate_receipt {
