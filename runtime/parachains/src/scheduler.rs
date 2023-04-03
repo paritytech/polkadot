@@ -560,10 +560,10 @@ impl<T: Config> Pallet<T> {
 		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).sum()
 	}
 
-	#[cfg(any(feature = "try-runtime", test))]
-	pub(crate) fn claimqueue_is_empty() -> bool {
-		Self::claimqueue_len() == 0
-	}
+	//#[cfg(any(feature = "try-runtime", test))]
+	//pub(crate) fn claimqueue_is_empty() -> bool {
+	//	Self::claimqueue_len() == 0
+	//}
 
 	#[cfg(test)]
 	pub(crate) fn claimqueue_contains_only_none() -> bool {
