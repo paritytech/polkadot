@@ -37,3 +37,38 @@ update_rococo_weights:
   <<: *update-weights
   variables:
     RUNTIME: rococo
+
+verify_polkadot_weights: &verify-weights
+  stage: check
+  needs:
+    - job: update_polkadot_weights
+      artifacts: false
+  image: $CI_IMAGE
+  variables:
+    RUNTIME: polkadot
+  script:
+    - ./scripts/ci/gitlab/verify_weights.sh $RUNTIME
+
+verify_kusama_weights:
+  <<: *verify-weights
+  needs:
+    - job: update_kusama_weights
+      artifacts: false
+  variables:
+    RUNTIME: kusama
+
+verify_westend_weights:
+  <<: *verify-weights
+  needs:
+    - job: update_westend_weights
+      artifacts: false
+  variables:
+    RUNTIME: westend
+
+verify_rococo_weights:
+  <<: *verify-weights
+  needs:
+    - job: update_rococo_weights
+      artifacts: false
+  variables:
+    RUNTIME: rococo
