@@ -560,7 +560,7 @@ impl<T: Config> Pallet<T> {
 		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).sum()
 	}
 
-	#[cfg(test)]
+	#[cfg(all(not(feature = "runtime-benchmarks"), test))]
 	pub(crate) fn claimqueue_is_empty() -> bool {
 		Self::claimqueue_len() == 0
 	}
