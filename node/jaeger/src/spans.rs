@@ -149,6 +149,7 @@ pub enum Stage {
 	AvailabilityRecovery = 6,
 	BitfieldDistribution = 7,
 	ApprovalChecking = 8,
+	ApprovalDistribution = 9,
 	// Expand as needed, numbers should be ascending according to the stage
 	// through the inclusion pipeline, or according to the descriptions
 	// in [the path of a para chain block]
@@ -281,6 +282,13 @@ impl Span {
 			Self::Enabled(inner) => Self::Enabled(inner.child(name)),
 			Self::Disabled => Self::Disabled,
 		}
+	}
+
+	/// Attach a 'traceID' tag set to the decimal representation of the candidate hash.
+	#[inline(always)]
+	pub fn with_trace_id(mut self, candidate_hash: CandidateHash) -> Self {
+		self.add_string_tag("traceID", hash_to_trace_identifier(candidate_hash.0));
+		self
 	}
 
 	#[inline(always)]

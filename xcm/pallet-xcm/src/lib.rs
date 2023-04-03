@@ -1203,8 +1203,10 @@ impl<T: Config> Pallet<T> {
 			BuyExecution { fees, weight_limit },
 			DepositAsset { assets: Wild(AllCounted(max_assets)), beneficiary },
 		]);
-		let mut message =
-			Xcm(vec![WithdrawAsset(assets), InitiateTeleport { assets: Wild(All), dest, xcm }]);
+		let mut message = Xcm(vec![
+			WithdrawAsset(assets),
+			InitiateTeleport { assets: Wild(AllCounted(max_assets)), dest, xcm },
+		]);
 		let weight =
 			T::Weigher::weight(&mut message).map_err(|()| Error::<T>::UnweighableMessage)?;
 		let hash = message.using_encoded(sp_io::hashing::blake2_256);
