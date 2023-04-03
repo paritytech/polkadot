@@ -86,6 +86,10 @@ const DEFAULT_CONFIG: Config = Config {
 		// On the one hand, it simplifies the code, on the other, however, slows down compile times
 		// for execute requests. This behavior may change in future.
 		parallel_compilation: false,
+		wasm_reference_types: false,
+		wasm_simd: false,
+		wasm_bulk_memory: false,
+		wasm_multi_value: false,
 	},
 };
 
