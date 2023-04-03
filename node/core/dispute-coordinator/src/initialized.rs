@@ -460,7 +460,6 @@ impl Initialized {
 					session,
 					statements,
 					now,
-					block_hash,
 				)
 				.await?;
 			match import_result {
@@ -549,7 +548,6 @@ impl Initialized {
 					session,
 					statements,
 					now,
-					block_hash,
 				)
 				.await?;
 			match import_result {
@@ -591,7 +589,6 @@ impl Initialized {
 					?session,
 					"DisputeCoordinatorMessage::ImportStatements"
 				);
-				let parent_hash = candidate_receipt.descriptor.relay_parent;
 				let outcome = self
 					.handle_import_statements(
 						ctx,
@@ -600,7 +597,6 @@ impl Initialized {
 						session,
 						statements,
 						now,
-						parent_hash,
 					)
 					.await?;
 				let report = move || match pending_confirmation {
@@ -740,7 +736,6 @@ impl Initialized {
 		session: SessionIndex,
 		statements: Vec<(SignedDisputeStatement, ValidatorIndex)>,
 		now: Timestamp,
-		block_hash: Hash,
 	) -> FatalResult<ImportStatementsResult> {
 		gum::trace!(target: LOG_TARGET, ?statements, "In handle import statements");
 		if self.session_is_ancient(session) {
@@ -748,12 +743,31 @@ impl Initialized {
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
+		let relay_parent = match &candidate_receipt {
+			MaybeCandidateReceipt::Provides(candidate_receipt) =>
+				candidate_receipt.descriptor().relay_parent,
+			MaybeCandidateReceipt::AssumeBackingVotePresent(candidate_hash) => {
+				match overlay_db.load_candidate_votes(session, &candidate_hash)? {
+					Some(votes) => votes.candidate_receipt.descriptor().relay_parent,
+					None => {
+						gum::warn!(
+							target: LOG_TARGET,
+							session,
+							?candidate_hash,
+							"Cannot import votes, without `CandidateReceipt` available!"
+						);
+						return Ok(ImportStatementsResult::InvalidImport)
+					},
+				}
+			},
+		};
+
 		let env = match CandidateEnvironment::new(
 			&self.keystore,
 			ctx,
 			&mut self.runtime_info,
 			session,
-			block_hash,
+			relay_parent,
 		)
 		.await
 		{
@@ -1235,7 +1249,6 @@ impl Initialized {
 		}
 
 		// Do import
-		let relay_parent = candidate_receipt.descriptor.relay_parent;
 		if !statements.is_empty() {
 			match self
 				.handle_import_statements(
@@ -1245,7 +1258,6 @@ impl Initialized {
 					session,
 					statements,
 					now,
-					relay_parent,
 				)
 				.await?
 			{
