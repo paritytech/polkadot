@@ -472,7 +472,7 @@ impl<T: Config> Pallet<T> {
 	) -> Vec<CoreAssignment> {
 		let (mut concluded_paras, mut timedout_paras) = Self::free_cores(just_freed_cores);
 
-		// This can only happen on new sessions at which we move all assignnents back to the provider.
+		// This can only happen on new sessions at which we move all assignments back to the provider.
 		// Hence, there's nothing we need to do here.
 		if ValidatorGroups::<T>::get().is_empty() {
 			vec![]
@@ -560,10 +560,10 @@ impl<T: Config> Pallet<T> {
 		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).sum()
 	}
 
-	//#[cfg(test)]
-	//pub(crate) fn claimqueue_is_empty() -> bool {
-	//	Self::claimqueue_len() == 0
-	//}
+	#[cfg(test)]
+	pub(crate) fn claimqueue_is_empty() -> bool {
+		Self::claimqueue_len() == 0
+	}
 
 	#[cfg(test)]
 	pub(crate) fn claimqueue_contains_only_none() -> bool {
@@ -573,5 +573,21 @@ impl<T: Config> Pallet<T> {
 		}
 
 		cq.iter().map(|(_, v)| v.len()).sum::<usize>() == 0
+	}
+
+	#[cfg(test)]
+	pub(crate) fn claimqueue_contains_para_ids(pids: Vec<ParaId>) -> bool {
+		use sp_std::collections::btree_set::BTreeSet;
+
+		let set: BTreeSet<ParaId> = ClaimQueue::<T>::get()
+			.into_iter()
+			.flat_map(|(_, assignments)| {
+				assignments
+					.into_iter()
+					.filter_map(|assignment| assignment.and_then(|ca| Some(ca.kind.para_id())))
+			})
+			.collect();
+
+		pids.into_iter().all(|pid| set.contains(&pid))
 	}
 }
