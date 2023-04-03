@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 //! To prevent Out of Memory errors on the `DownwardMessageQueue`,
-//! an exponential fee factor (`DeliveryFeeFactor`) is set
+//! an exponential fee factor (`DeliveryFeeFactor`) is set.
 //! The fee factor increments exponentially after the number of messages in the `DownwardMessageQueue`
 //! pass a threshold. This threshold is set as:
 //! ```ignore
