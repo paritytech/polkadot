@@ -29,8 +29,7 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use kusama_runtime_constants::currency::CENTS;
 use runtime_common::{
-	crowdloan,
-	paras_registrar,
+	crowdloan, paras_registrar,
 	xcm_sender::{ChildParachainRouter, ExponentialPrice},
 	ToAuthor,
 };

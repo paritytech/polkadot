@@ -32,8 +32,7 @@ use polkadot_runtime_constants::{
 	currency::CENTS, system_parachain::*, xcm::body::FELLOWSHIP_ADMIN_INDEX,
 };
 use runtime_common::{
-	crowdloan,
-	paras_registrar,
+	crowdloan, paras_registrar,
 	xcm_sender::{ChildParachainRouter, ExponentialPrice},
 	ToAuthor,
 };
