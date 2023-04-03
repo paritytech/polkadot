@@ -340,8 +340,10 @@ async fn recv_response(stream: &mut UnixStream, pid: u32) -> io::Result<PrepareR
 /// # Threads / Tasks
 ///
 /// Spawns three threads: the PVF preparation thread, a CPU time monitor thread, and a memory stats
-/// measurer thread. On Linux, also runs a task in the main thread that handles the `SIGSYS` signal,
-/// sent on seccomp breaches (see `sandbox` module).
+/// measurer thread.
+///
+/// On Linux, also runs a task in the main thread that handles the `SIGSYS` signal, sent on seccomp
+/// breaches (see `sandbox` module).
 ///
 /// # Flow
 ///
@@ -393,13 +395,13 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			// Spawn another thread for preparation.
 			let prepare_fut = rt_handle
 				.spawn_blocking(move || {
-					#[cfg(target_os = "linux")]
-					if let Err(err) = sandbox::seccomp_execute_thread() {
-						return Err(PrepareError::IoErr(format!(
-							"sandboxing the thread failed: {}",
-							err.to_string(),
-						)))
-					}
+					// #[cfg(target_os = "linux")]
+					// if let Err(err) = sandbox::seccomp_execute_thread() {
+					// 	return Err(PrepareError::IoErr(format!(
+					// 		"sandboxing the thread failed: {}",
+					// 		err.to_string(),
+					// 	)))
+					// }
 
 					let result = prepare_artifact(pvf);
 

@@ -449,15 +449,27 @@ fn kill_parent_node_in_emergency() {
 /// compiling or executing untrusted code, and in the case of an arbitrary code escalation we do not
 /// want an attacker to gain access to the rest of the machine.
 ///
+/// # Details
+///
 /// We are currently sandboxing by putting the PVF jobs in a "seccomp jail". We run `seccomp` (only
 /// on the thread that does preparation/execution) and have it block all syscalls, except for the
 /// minimum required by a legitimate job.
+///
+/// ## Action on Blocked Syscall
+///
+/// We configure `seccomp` to terminate the process on a blocked syscall.
+///
+/// TODO: Explain why.
+///
+/// # Compatibility
 ///
 /// Systems like MacOS do not support `seccomp`, so a validator cannot currently run on them
 /// securely.
 #[cfg(target_os = "linux")]
 pub mod sandbox {
 	use seccompiler::*;
+	use std::collections::BTreeMap;
+	use tokio::signal::unix::{signal, SignalKind, Signal};
 
 	// New error type to avoid extra `map_err`s.
 	#[derive(thiserror::Error, Debug)]
@@ -467,29 +479,23 @@ pub mod sandbox {
 
 		#[error(transparent)]
 		Backend(#[from] seccompiler::BackendError),
+
+		#[error(transparent)]
+		Io(#[from] std::io::Error),
 	}
+
+	pub type SandboxResult<T> = std::result::Result<T, SandboxError>;
 
 	// TODO: Should be tested on multiple allowed architectures in case some use different syscalls.
 	// TODO: Compile the filter at build-time rather than runtime.
 	// TODO: Have a separate ruleset for preparation?
-	//
-	// NOTE: the use of SECCOMP_RET_KILL_THREAD to kill a single thread in a multithreaded process
-	// is likely to leave the process in a permanently inconsistent and possibly corrupt state.
-	//
 	/// Applies a `seccomp` filter to sandbox the execute thread. Whitelists the minimum number of
 	/// syscalls necessary to allow execution to run. When a disallowed syscall is caught, we
 	/// trigger the `SIGSYS` signal which is handled in the main thread.
-	pub fn seccomp_execute_thread() -> std::result::Result<(), SandboxError> {
+	pub fn seccomp_execute_thread() -> SandboxResult<()> {
 		// Build the filter.
-		let rules = std::collections::BTreeMap::default();
-		let filter = SeccompFilter::new(
-			rules,
-			// Mismatch action: what to do if not in whitelist.
-			SeccompAction::KillProcess,
-			// Match action: what to do if in whitelist.
-			SeccompAction::Allow,
-			std::env::consts::ARCH.try_into().unwrap(),
-		)?;
+		let rules = BTreeMap::default();
+		let filter = make_filter(rules)?;
 
 		// TODO: Check if action available.
 		// TODO: Only needs to be done once, can be e.g. a OnceCell.
@@ -510,5 +516,18 @@ pub mod sandbox {
 		seccompiler::apply_filter(&bpf_prog)?;
 
 		Ok(())
+	}
+
+	/// Makes a `seccomp` filter which by default blocks all syscalls except those allowed in the
+	/// whitelist.
+	fn make_filter(whitelisted_rules: BTreeMap<i64, Vec<SeccompRule>>) -> std::result::Result<SeccompFilter, BackendError> {
+		SeccompFilter::new(
+			whitelisted_rules,
+			// Mismatch action: what to do if not in whitelist.
+			SeccompAction::Log,
+			// Match action: what to do if in whitelist.
+			SeccompAction::Allow,
+			std::env::consts::ARCH.try_into().unwrap(),
+		)
 	}
 }

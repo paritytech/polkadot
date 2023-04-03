@@ -283,9 +283,10 @@ impl Response {
 ///
 /// # Threads / Tasks
 ///
-/// Spawns two threads: the PVF execution thread and a CPU time monitor thread. On Linux, also runs
-/// a task in the main thread that handles the `SIGSYS` signal, sent on seccomp breaches (see
-/// `sandbox` module).
+/// Spawns two threads: the PVF execution thread and a CPU time monitor thread.
+///
+/// On Linux, also runs a task in the main thread that handles the `SIGSYS` signal, sent on seccomp
+/// breaches (see `sandbox` module).
 pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	worker_event_loop("execute", socket_path, node_version, |rt_handle, mut stream| async move {
 		let worker_pid = std::process::id();
