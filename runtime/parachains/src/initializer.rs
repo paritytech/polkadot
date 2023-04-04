@@ -20,7 +20,6 @@
 //! This module can throw fatal errors if session-change notifications are received after initialization.
 
 use crate::{
-	assigner_on_demand,
 	configuration::{self, HostConfiguration},
 	disputes::{self, DisputesHandler as _, SlashingHandler as _},
 	dmp, hrmp, inclusion, paras, scheduler, session_info, shared, ump,
@@ -116,7 +115,6 @@ pub mod pallet {
 		+ dmp::Config
 		+ ump::Config
 		+ hrmp::Config
-		+ assigner_on_demand::Config
 	{
 		/// A randomness beacon.
 		type Randomness: Randomness<Self::Hash, Self::BlockNumber>;
@@ -171,8 +169,7 @@ pub mod pallet {
 				T::SlashingHandler::initializer_initialize(now) +
 				dmp::Pallet::<T>::initializer_initialize(now) +
 				ump::Pallet::<T>::initializer_initialize(now) +
-				hrmp::Pallet::<T>::initializer_initialize(now) +
-				assigner_on_demand::Pallet::<T>::initializer_initialize(now);
+				hrmp::Pallet::<T>::initializer_initialize(now);
 
 			HasInitialized::<T>::set(Some(()));
 
@@ -181,7 +178,6 @@ pub mod pallet {
 
 		fn on_finalize(now: T::BlockNumber) {
 			// reverse initialization order.
-			assigner_on_demand::Pallet::<T>::initializer_finalize();
 			hrmp::Pallet::<T>::initializer_finalize();
 			ump::Pallet::<T>::initializer_finalize();
 			dmp::Pallet::<T>::initializer_finalize();
@@ -274,7 +270,6 @@ impl<T: Config> Pallet<T> {
 		dmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		ump::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
 		hrmp::Pallet::<T>::initializer_on_new_session(&notification, &outgoing_paras);
-		assigner_on_demand::Pallet::<T>::initializer_on_new_session(&notification);
 	}
 
 	/// Should be called when a new session occurs. Buffers the session notification to be applied

@@ -17,9 +17,7 @@
 //! The parachain on demand assignment module.
 
 use crate::{
-	configuration,
-	initializer::SessionChangeNotification,
-	paras,
+	configuration, paras,
 	scheduler_common::{Assignment, AssignmentProvider},
 };
 use frame_support::{
@@ -153,6 +151,30 @@ pub mod pallet {
 		SpotTrafficNotAvailable,
 	}
 
+	#[pallet::hooks]
+	impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {
+		fn on_initialize(_now: T::BlockNumber) -> Weight {
+			let config = <configuration::Pallet<T>>::config();
+			// Calculate spot price multiplier and store it.
+			let traffic = SpotTraffic::<T>::get();
+			let spot_traffic = Self::calculate_spot_traffic(
+				traffic,
+				config.on_demand_queue_max_size,
+				Self::queue_size(),
+				config.on_demand_target_queue_utilization,
+				config.on_demand_fee_variability,
+			);
+
+			if let Some(new_traffic) = spot_traffic {
+				SpotTraffic::<T>::set(new_traffic);
+			}
+			//TODO this has some weight
+			Weight::zero()
+		}
+
+		fn on_finalize(_now: T::BlockNumber) {}
+	}
+
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
 		/// Create a single parathread core order.
@@ -223,31 +245,6 @@ impl<T: Config> Pallet<T>
 where
 	BalanceOf<T>: FixedPointOperand,
 {
-	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
-		let config = <configuration::Pallet<T>>::config();
-		// Calculate spot price multiplier and store it.
-		let traffic = SpotTraffic::<T>::get();
-		let spot_traffic = Self::calculate_spot_traffic(
-			traffic,
-			config.on_demand_queue_max_size,
-			Self::queue_size(),
-			config.on_demand_target_queue_utilization,
-			config.on_demand_fee_variability,
-		);
-
-		if let Some(new_traffic) = spot_traffic {
-			SpotTraffic::<T>::set(new_traffic);
-		}
-		Weight::zero()
-	}
-
-	pub(crate) fn initializer_finalize() {}
-
-	pub(crate) fn initializer_on_new_session(
-		_notification: &SessionChangeNotification<T::BlockNumber>,
-	) {
-	}
-
 	/// The spot price multiplier. This is based on the transaction fee calculations defined in:
 	/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#setting-transaction-fees
 	///
