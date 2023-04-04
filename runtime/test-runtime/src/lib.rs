@@ -542,7 +542,7 @@ impl pallet_test_notifier::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 }
 
-#[frame_support::pallet]
+#[frame_support::pallet(dev_mode)]
 pub mod pallet_test_notifier {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;
