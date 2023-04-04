@@ -26,6 +26,7 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::EnsureRoot;
+use kusama_runtime_constants::system_parachain::*;
 use runtime_common::{crowdloan, paras_registrar, xcm_sender, ToAuthor};
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
@@ -114,7 +115,7 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Ksm: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const Statemine: MultiLocation = Parachain(1000).into_location();
+	pub const Statemine: MultiLocation = Parachain(STATEMINE_ID).into_location();
 	pub const Encointer: MultiLocation = Parachain(1001).into_location();
 	pub const KsmForStatemine: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Statemine::get());
 	pub const KsmForEncointer: (MultiAssetFilter, MultiLocation) = (Ksm::get(), Encointer::get());
@@ -128,7 +129,7 @@ match_types! {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
 	};
 	pub type SystemParachains: impl Contains<MultiLocation> = {
-		MultiLocation { parents: 0, interior: X1(Parachain(1000)) }
+		MultiLocation { parents: 0, interior: X1(Parachain(STATEMINE_ID)) }
 	}
 }
 
@@ -357,7 +358,7 @@ parameter_types! {
 
 #[cfg(feature = "runtime-benchmarks")]
 parameter_types! {
-	pub ReachableDest: Option<MultiLocation> = Some(Parachain(1000).into());
+	pub ReachableDest: Option<MultiLocation> = Some(Parachain(STATEMINE_ID).into());
 }
 
 /// Type to convert an `Origin` type value into a `MultiLocation` value which represents an interior location

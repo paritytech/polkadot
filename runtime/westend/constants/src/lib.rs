@@ -96,6 +96,14 @@ pub mod fee {
 	}
 }
 
+/// System Parachains.
+pub mod system_parachain {
+	/// Westmint parachain ID.
+	pub const WESTMINT_ID: u32 = 1000;
+	/// Collectives parachain ID.
+	pub const COLLECTIVES_ID: u32 = 1001;
+}
+
 #[cfg(test)]
 mod tests {
 	use super::{

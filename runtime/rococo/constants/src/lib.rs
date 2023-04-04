@@ -99,6 +99,14 @@ pub mod fee {
 	}
 }
 
+/// System Parachains.
+pub mod system_parachain {
+	/// Statemine parachain ID.
+	pub const STATEMINE_ID: u32 = 1000;
+	/// Contracts parachain ID.
+	pub const CONTRACTS_ID: u32 = 1002;
+}
+
 #[cfg(test)]
 mod tests {
 	use super::{
