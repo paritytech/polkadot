@@ -101,6 +101,8 @@ pub mod fee {
 pub mod system_parachain {
 	/// Statemine parachain ID.
 	pub const STATEMINE_ID: u32 = 1000;
+	/// Encointer parachain ID.
+	pub const ENCOINTER_ID: u32 = 1001;
 }
 
 #[cfg(test)]

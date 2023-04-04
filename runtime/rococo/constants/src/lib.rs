@@ -105,6 +105,8 @@ pub mod system_parachain {
 	pub const STATEMINE_ID: u32 = 1000;
 	/// Contracts parachain ID.
 	pub const CONTRACTS_ID: u32 = 1002;
+	/// Encointer parachain ID.
+	pub const ENCOINTER_ID: u32 = 1003;
 }
 
 #[cfg(test)]

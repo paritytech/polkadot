@@ -96,7 +96,7 @@ parameter_types! {
 	pub const Roc: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
 	pub const Statemine: MultiLocation = Parachain(STATEMINE_ID).into_location();
 	pub const Contracts: MultiLocation = Parachain(CONTRACTS_ID).into_location();
-	pub const Encointer: MultiLocation = Parachain(1003).into_location();
+	pub const Encointer: MultiLocation = Parachain(ENCOINTER_ID).into_location();
 	pub const Tick: MultiLocation = Parachain(100).into_location();
 	pub const Trick: MultiLocation = Parachain(110).into_location();
 	pub const Track: MultiLocation = Parachain(120).into_location();
@@ -123,7 +123,7 @@ match_types! {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
 	};
 	pub type SystemParachains: impl Contains<MultiLocation> = {
-		MultiLocation { parents: 0, interior: X1(Parachain(STATEMINE_ID | CONTRACTS_ID)) }
+		MultiLocation { parents: 0, interior: X1(Parachain(STATEMINE_ID | CONTRACTS_ID | ENCOINTER_ID)) }
 	};
 }
 
