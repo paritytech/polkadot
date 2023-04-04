@@ -729,8 +729,8 @@ pub fn run() -> Result<()> {
 
 	#[cfg(feature = "pyroscope")]
 	if let Some(mut pyroscope_agent) = pyroscope_agent_maybe.take() {
-		pyroscope_agent.stop()?;
-		pyroscope_agent.shutdown();
+		let agent = pyroscope_agent.stop()?;
+		agent.shutdown();
 	}
 	Ok(())
 }
