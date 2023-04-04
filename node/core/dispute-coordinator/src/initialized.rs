@@ -289,7 +289,7 @@ impl Initialized {
 
 			match session_idx {
 				Ok(session_idx) if session_idx > self.highest_session => {
-					// There is a new sesion. Perform a dummy fetch to cache it.
+					// There is a new session. Perform a dummy fetch to cache it.
 					for idx in self.highest_session + 1..=session_idx {
 						match self
 							.runtime_info
@@ -300,7 +300,7 @@ impl Initialized {
 								self.error = None;
 							},
 							Err(err) => {
-								gum::warn!(
+								gum::debug!(
 									target: LOG_TARGET,
 									session_idx,
 									leaf_hash = ?new_leaf.hash,
@@ -321,7 +321,7 @@ impl Initialized {
 				},
 				Ok(_) => { /* no new session => nothing to cache */ },
 				Err(err) => {
-					gum::warn!(
+					gum::debug!(
 						target: LOG_TARGET,
 						?err,
 						"Failed to update session cache for disputes - can't fetch session index",

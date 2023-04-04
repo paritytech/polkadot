@@ -306,7 +306,7 @@ impl DisputeCoordinatorSubsystem {
 				.get_session_info_by_index(ctx.sender(), initial_head.hash, idx)
 				.await
 			{
-				gum::warn!(
+				gum::debug!(
 					target: LOG_TARGET,
 					leaf_hash = ?initial_head.hash,
 					session_idx = idx,
