@@ -379,7 +379,7 @@ pub fn run() -> Result<()> {
 			.next()
 			.ok_or_else(|| Error::AddressResolutionMissing)?;
 		// The pyroscope agent requires a `http://` prefix, so we just do that.
-		let mut agent = pyro::PyroscopeAgent::builder(
+		let agent = pyro::PyroscopeAgent::builder(
 			"http://".to_owned() + address.to_string().as_str(),
 			"polkadot".to_owned(),
 		)
