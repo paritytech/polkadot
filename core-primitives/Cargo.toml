@@ -5,9 +5,9 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 parity-scale-codec = { version = "3.3.0", default-features = false, features = [ "derive" ] }
 

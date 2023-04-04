@@ -11,18 +11,18 @@ parity-scale-codec = { version = "3.3.0", default-features = false, features = [
 scale-info = { version = "2.1.2", default-features = false, features = ["bit-vec", "derive"] }
 serde = { version = "1.0.137", optional = true, features = ["derive"] }
 
-application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-sp-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.40" }
-sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
-sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.40" }
+application-crypto = { package = "sp-application-crypto", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+inherents = { package = "sp-inherents", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+primitives = { package = "sp-core", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+runtime_primitives = { package = "sp-runtime", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+sp-api = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+sp-authority-discovery = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+sp-consensus-slots = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+sp-keystore = { git = "https://github.com/paritytech/substrate", optional = true , branch = "polkadot-v0.9.41" }
+sp-staking = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
+sp-std = { package = "sp-std", git = "https://github.com/paritytech/substrate", default-features = false , branch = "polkadot-v0.9.41" }
 
 polkadot-core-primitives = { path = "../core-primitives", default-features = false }
 polkadot-parachain = { path = "../parachain", default-features = false }
