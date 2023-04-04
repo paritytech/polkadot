@@ -35,22 +35,12 @@ jobs:
         shell: bash
         run: |
           cargo install --git https://github.com/ggwpez/substrate-weight-compare swc
-          scripts/ci/github/check_weights_swc.sh | tee ./swc_output_${{ matrix.runtime }}.txt
-          pwd
-          ls
-      - name: Upload weight changes
-        id: upload_weight_changes
-        uses: actions/upload-artifact@v2
-        with:
-          name: swc_output_${{ matrix.runtime }}
-          path: ./swc_output_${{ matrix.runtime }}.txt
-          if-no-files-found: error
+          echo "${{ matrix.runtime }} changes:" > ./swc_output_${{ matrix.runtime }}.txt
+          echo '```' >> ./swc_output_${{ matrix.runtime }}.txt
+          scripts/ci/github/check_weights_swc.sh | tee -a ./swc_output_${{ matrix.runtime }}.txt
+          echo '```' >> ./swc_output_${{ matrix.runtime }}.txt
       - name: Add comment
         uses: thollander/actions-comment-pull-request@v2
         with:
-          message: |
-            Weight changes for runtime ${{ matrix.runtime }}:
-            ```
-            ${{ steps.upload_weight_changes.outputs.weight_changes }}
-            ```
+          filePath: ./swc_output_${{ matrix.runtime }}.txt
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
