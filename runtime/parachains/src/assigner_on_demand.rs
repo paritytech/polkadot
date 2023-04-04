@@ -384,6 +384,9 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 			Some(prev_para_id) => {
 				if let Some(prev_para_affinity) = ParaIdAffinity::<T>::get(prev_para_id) {
 					let mut queue: BoundedVec<SpotClaim, T::MaxClaims> = OnDemandQueue::<T>::get();
+
+					// Get the position of the next `ParaId`. Select either a `ParaId` that has an affinity
+					// to the same `CoreIndex` as the previously processed `ParaId` or a `ParaId` with no affinity yet.
 					let pos = queue.iter().position(|elem| {
 						let queue_elem = ParaIdAffinity::<T>::get(&elem.para_id);
 						match queue_elem {
@@ -392,13 +395,12 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 						}
 					});
 
+					// Decrease the affinity of the previously processed `ParaId`.
+					Pallet::<T>::decrease_affinity(prev_para_id, core_idx);
+
 					if let Some(i) = pos {
 						let claim = queue.remove(i);
-
-						// Equivalent to decreasing the affinity if the claim `ParaId` matches the previous `ParaId`
-						if claim.para_id != prev_para_id {
-							Pallet::<T>::increase_affinity(claim.para_id, core_idx);
-						}
+						Pallet::<T>::increase_affinity(claim.para_id, core_idx);
 						return Some(Assignment::ParathreadA(claim.into()))
 					}
 				}
