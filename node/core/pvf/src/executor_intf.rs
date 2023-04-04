@@ -135,7 +135,6 @@ fn params_to_wasmtime_semantics(par: &ExecutorParams) -> Result<Semantics, Strin
 
 pub struct Executor {
 	thread_pool: rayon::ThreadPool,
-	spawner: TaskSpawner,
 	config: Config,
 }
 
@@ -184,13 +183,10 @@ impl Executor {
 			.build()
 			.map_err(|e| format!("Failed to create thread pool: {:?}", e))?;
 
-		let spawner =
-			TaskSpawner::new().map_err(|e| format!("cannot create task spawner: {}", e))?;
-
 		let mut config = DEFAULT_CONFIG.clone();
 		config.semantics = params_to_wasmtime_semantics(&params)?;
 
-		Ok(Self { thread_pool, spawner, config })
+		Ok(Self { thread_pool, config })
 	}
 
 	/// Executes the given PVF in the form of a compiled artifact and returns the result of execution
@@ -211,7 +207,6 @@ impl Executor {
 		compiled_artifact_path: &Path,
 		params: &[u8],
 	) -> Result<Vec<u8>, String> {
-		let spawner = self.spawner.clone();
 		let mut result = None;
 		self.thread_pool.scope({
 			let result = &mut result;
@@ -219,7 +214,7 @@ impl Executor {
 				s.spawn(move |_| {
 					// spawn does not return a value, so we need to use a variable to pass the result.
 					*result = Some(
-						do_execute(compiled_artifact_path, self.config.clone(), params, spawner)
+						do_execute(compiled_artifact_path, self.config.clone(), params)
 							.map_err(|err| format!("execute error: {:?}", err)),
 					);
 				});
@@ -233,11 +228,9 @@ unsafe fn do_execute(
 	compiled_artifact_path: &Path,
 	config: Config,
 	params: &[u8],
-	spawner: impl sp_core::traits::SpawnNamed + 'static,
 ) -> Result<Vec<u8>, sc_executor_common::error::Error> {
 	let mut extensions = sp_externalities::Extensions::new();
 
-	extensions.register(sp_core::traits::TaskExecutorExt::new(spawner));
 	extensions.register(sp_core::traits::ReadRuntimeVersionExt::new(ReadRuntimeVersion));
 
 	let mut ext = ValidationExternalities(extensions);
@@ -403,43 +396,6 @@ impl sp_externalities::ExtensionStore for ValidationExternalities {
 		} else {
 			Err(sp_externalities::Error::ExtensionIsNotRegistered(type_id))
 		}
-	}
-}
-
-/// An implementation of `SpawnNamed` on top of a futures' thread pool.
-///
-/// This is a light handle meaning it will only clone the handle not create a new thread pool.
-#[derive(Clone)]
-pub(crate) struct TaskSpawner(futures::executor::ThreadPool);
-
-impl TaskSpawner {
-	pub(crate) fn new() -> Result<Self, String> {
-		futures::executor::ThreadPoolBuilder::new()
-			.pool_size(4)
-			.name_prefix("pvf-task-executor")
-			.create()
-			.map_err(|e| e.to_string())
-			.map(Self)
-	}
-}
-
-impl sp_core::traits::SpawnNamed for TaskSpawner {
-	fn spawn_blocking(
-		&self,
-		_task_name: &'static str,
-		_subsystem_name: Option<&'static str>,
-		future: futures::future::BoxFuture<'static, ()>,
-	) {
-		self.0.spawn_ok(future);
-	}
-
-	fn spawn(
-		&self,
-		_task_name: &'static str,
-		_subsystem_name: Option<&'static str>,
-		future: futures::future::BoxFuture<'static, ()>,
-	) {
-		self.0.spawn_ok(future);
 	}
 }
 

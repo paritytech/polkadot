@@ -366,6 +366,12 @@ async fn get_active_session_indices<Context>(
 	// Iterate all heads we track as active and fetch the child' session indices.
 	for head in active_heads {
 		let session_index = runtime.get_session_index_for_child(ctx.sender(), *head).await?;
+		// Cache session info
+		if let Err(err) =
+			runtime.get_session_info_by_index(ctx.sender(), *head, session_index).await
+		{
+			gum::debug!(target: LOG_TARGET, ?err, ?session_index, "Can't cache SessionInfo");
+		}
 		indeces.insert(session_index, *head);
 	}
 	Ok(indeces)
