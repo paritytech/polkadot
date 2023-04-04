@@ -745,13 +745,6 @@ impl Initialized {
 
 		let candidate_hash = candidate_receipt.hash();
 		let votes_in_db = overlay_db.load_candidate_votes(session, &candidate_hash)?;
-
-		// At this point we should either have a `CandidateReceipt` or have the relay parent stored
-		// in the database. It's extracted here so that we can obtain `SessionInfo` from the runtime.
-		// In case we do query the database we'll save the result in `maybe_votes_in_db` which is
-		// `Option<Option<CandidateVotes>>`. We need nested option to differentiate later if the db
-		// call was made and it returned `None` (`Some(None)`/`Some(Some(votes))`) or the db call was
-		// not made at all (`None`).
 		let relay_parent = match &candidate_receipt {
 			MaybeCandidateReceipt::Provides(candidate_receipt) =>
 				candidate_receipt.descriptor().relay_parent,
