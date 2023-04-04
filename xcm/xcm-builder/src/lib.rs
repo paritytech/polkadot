@@ -57,6 +57,9 @@ pub use barriers::{
 mod currency_adapter;
 pub use currency_adapter::CurrencyAdapter;
 
+mod fee_handling;
+pub use fee_handling::XcmFeesToAccount;
+
 mod fungibles_adapter;
 pub use fungibles_adapter::{
 	AssetChecking, DualMint, FungiblesAdapter, FungiblesMutateAdapter, FungiblesTransferAdapter,

@@ -18,7 +18,7 @@
 
 use super::{
 	parachains_origin, AccountId, AllPalletsWithSystem, Balances, Fellows, ParaId, Runtime,
-	RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin, WeightToFee, XcmPallet,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, StakingAdmin, Treasury, WeightToFee, XcmPallet,
 };
 use frame_support::{
 	match_types, parameter_types,
@@ -36,7 +36,7 @@ use xcm_builder::{
 	CurrencyAdapter as XcmCurrencyAdapter, FixedWeightBounds, IsChildSystemParachain, IsConcrete,
 	MintLocation, OriginToPluralityVoice, SignedAccountId32AsNative, SignedToAccountId32,
 	SovereignSignedViaLocation, TakeWeightCredit, UsingComponents, WeightInfoBounds,
-	WithComputedOrigin,
+	WithComputedOrigin, XcmFeesToAccount,
 };
 use xcm_executor::traits::WithOriginFilter;
 
@@ -55,6 +55,8 @@ parameter_types! {
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 	/// The check account that is allowed to mint assets locally.
 	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
+	/// The treasury account where XCM fees would be sent to.
+	pub TreasuryAccount: Option<AccountId> = Some(Treasury::account_id());
 }
 
 /// The canonical means of converting a `MultiLocation` into an `AccountId`, used when we want to determine
@@ -125,6 +127,9 @@ match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
 	};
+	pub type SystemParachains: impl Contains<MultiLocation> = {
+		MultiLocation { parents: 0, interior: X1(Parachain(1000)) }
+	}
 }
 
 /// The barriers one of which must be passed for an XCM message to be executed.
@@ -335,7 +340,7 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
-	type FeeManager = ();
+	type FeeManager = XcmFeesToAccount<Self, SystemParachains, AccountId, TreasuryAccount>;
 	// No bridges yet...
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
