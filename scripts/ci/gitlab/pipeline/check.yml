@@ -74,7 +74,8 @@ check-try-runtime:
             -lruntime=debug \
             --chain=${NETWORK}-dev \
             on-runtime-upgrade live --uri wss://${NETWORK}-try-runtime-node.parity-chains.parity.io:443
-      else
+        time cargo run --release --features try-runtime try-runtime --runtime existing fast-forward --n-blocks 30 live \
+          --uri wss://${NETWORK}-try-runtime-node.parity-chains.parity.io:443
         echo "runtime_migration label not found. Skipping"
       fi
 
