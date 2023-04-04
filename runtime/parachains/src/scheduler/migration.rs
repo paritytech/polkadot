@@ -67,11 +67,13 @@ pub mod v1 {
 				"Storage version should be less than `1` before the migration",
 			);
 
-			Ok(Vec::new())
+			let bytes = u32::to_be_bytes(Scheduled::<T>::get().len() as u32);
+
+			Ok(bytes.to_vec())
 		}
 
 		#[cfg(feature = "try-runtime")]
-		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
+		fn post_upgrade(state: Vec<u8>) -> Result<(), &'static str> {
 			log::trace!(target: crate::scheduler::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
@@ -80,6 +82,12 @@ pub mod v1 {
 			ensure!(
 				Scheduled::<T>::get().len() == 0,
 				"Scheduled should be empty after the migration"
+			);
+
+			let sched_len = u32::from_be_bytes(state.try_into().unwrap());
+			ensure!(
+				Pallet::<T>::claimqueue_len() as u32 == sched_len,
+				"Scheduled completely moved to ClaimQueue after migration"
 			);
 
 			Ok(())

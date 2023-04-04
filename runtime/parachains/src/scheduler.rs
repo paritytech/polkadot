@@ -37,8 +37,8 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{
-	CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId, ScheduledCore,
-	ValidatorIndex,
+	CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId, ParathreadEntry,
+	ScheduledCore, ValidatorIndex,
 };
 use sp_runtime::traits::{One, Saturating};
 use sp_std::{
@@ -53,7 +53,7 @@ use crate::{
 	scheduler_common::{CoreAssignment, FreedReason},
 };
 
-use crate::scheduler_common::{Assignment, AssignmentKind, AssignmentProvider};
+use crate::scheduler_common::{Assignment, AssignmentProvider};
 pub use pallet::*;
 
 #[cfg(test)]
@@ -111,6 +111,7 @@ pub mod pallet {
 	#[pallet::getter(fn session_start_block)]
 	pub(crate) type SessionStartBlock<T: Config> = StorageValue<_, T::BlockNumber, ValueQuery>;
 
+	/// One entry for each availability core. The `VecDeque` represents the assignments to be scheduled on that core.
 	#[pallet::storage]
 	#[pallet::getter(fn claimqueue)]
 	pub(crate) type ClaimQueue<T> =
@@ -118,6 +119,9 @@ pub mod pallet {
 }
 
 type PositionInClaimqueue = u32;
+type TimedoutParas = BTreeMap<CoreIndex, Assignment>;
+type ConcludedParas = BTreeMap<CoreIndex, ParaId>;
+
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the scheduler pallet.
 	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
@@ -197,7 +201,7 @@ impl<T: Config> Pallet<T> {
 	/// for them being freed.
 	fn free_cores(
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
-	) -> (BTreeMap<CoreIndex, ParaId>, BTreeMap<CoreIndex, (ParaId, AssignmentKind)>) {
+	) -> (ConcludedParas, TimedoutParas) {
 		let mut timedout_paras = BTreeMap::new();
 		let mut concluded_paras = BTreeMap::new();
 		let config = <configuration::Pallet<T>>::config();
@@ -219,17 +223,12 @@ impl<T: Config> Pallet<T> {
 								},
 								FreedReason::TimedOut => {
 									if entry.retries < config.parathread_retries {
-										let retries = entry.retries + 1;
-										timedout_paras.insert(
-											freed_index,
-											(
-												entry.claim.0,
-												AssignmentKind::Parathread(
-													entry.claim.1.clone(),
-													retries,
-												),
-											),
-										);
+										let entry = ParathreadEntry {
+											retries: entry.retries + 1,
+											claim: entry.claim.clone(),
+										};
+										timedout_paras
+											.insert(freed_index, Assignment::ParathreadA(entry));
 									} else {
 										// Consider max retried parathreads as concluded for the assignment provider
 										concluded_paras.insert(freed_index, entry.claim.0);
@@ -261,7 +260,8 @@ impl<T: Config> Pallet<T> {
 			.flat_map(|(core_idx, para_id)| match Self::remove_from_claimqueue(core_idx, para_id) {
 				Err(_) => None, // TODO: report back?
 				Ok((pos_in_claimqueue, assignment)) => {
-					availability_cores[assignment.core.0 as usize] = assignment.to_core_occupied();
+					// is this correct?
+					availability_cores[core_idx.0 as usize] = assignment.to_core_occupied();
 
 					Some((core_idx, pos_in_claimqueue))
 				},
@@ -394,10 +394,10 @@ impl<T: Config> Pallet<T> {
 		match ca {
 			None => None,
 			Some(ca) => match ca.kind.clone() {
-				AssignmentKind::Parachain =>
-					Some(ScheduledCore { para_id: ca.para_id, collator: None }),
-				AssignmentKind::Parathread(collator, _) =>
-					Some(ScheduledCore { para_id: ca.para_id, collator: Some(collator) }),
+				Assignment::Parachain(_para_id) =>
+					Some(ScheduledCore { para_id: ca.kind.para_id(), collator: None }),
+				Assignment::ParathreadA(entry) =>
+					Some(ScheduledCore { para_id: ca.kind.para_id(), collator: entry.claim.1 }),
 			},
 		}
 	}
@@ -472,9 +472,10 @@ impl<T: Config> Pallet<T> {
 	) -> Vec<CoreAssignment> {
 		let (mut concluded_paras, mut timedout_paras) = Self::free_cores(just_freed_cores);
 
+		// This can only happen on new sessions at which we move all assignments back to the provider.
+		// Hence, there's nothing we need to do here.
 		if ValidatorGroups::<T>::get().is_empty() {
-			// TODO: what do we do with concluded_paras and timedout_paras here?
-			Self::scheduled_claimqueue()
+			vec![]
 		} else {
 			let n_lookahead = Self::claimqueue_lookahead();
 			let n_session_cores = T::AssignmentProvider::session_core_count();
@@ -488,13 +489,8 @@ impl<T: Config> Pallet<T> {
 				);
 
 				// add previously timedout paras back into the queue
-				if let Some((para_id, assignment_kind)) = timedout_paras.remove(&core_idx) {
-					let ca = CoreAssignment {
-						core: core_idx,
-						para_id,
-						kind: assignment_kind,
-						group_idx,
-					};
+				if let Some(assignment) = timedout_paras.remove(&core_idx) {
+					let ca = assignment.to_core_assignment(core_idx, group_idx);
 					Self::add_to_claimqueue(ca);
 				}
 
@@ -536,13 +532,14 @@ impl<T: Config> Pallet<T> {
 
 		let pos = la_vec
 			.iter()
-			.position(|a| a.as_ref().map_or(false, |v| v.para_id == para_id))
+			.position(|a| a.as_ref().map_or(false, |v| v.kind.para_id() == para_id))
 			.ok_or_else(|| "para id not found at core_idx lookahead")?;
 
 		let ca = la_vec
 			.remove(pos)
 			.expect("position() above tells us this element exist.")
 			.expect("position() above tells us this element exist.");
+
 		// Since the core is now occupied, the next entry in the claimqueue in order to achieve 12 second block times needs to be None
 		if la_vec.front() != Some(&None) {
 			la_vec.push_front(None);
@@ -552,20 +549,21 @@ impl<T: Config> Pallet<T> {
 		Ok((pos as u32, ca))
 	}
 
+	// Temporary to imitate the old schedule() call. Will disappear when we make the scheduler AB ready
 	pub(crate) fn scheduled_claimqueue() -> Vec<CoreAssignment> {
 		let claimqueue = ClaimQueue::<T>::get();
 		claimqueue.into_iter().flat_map(|(_, v)| v.front().cloned()).flatten().collect()
 	}
 
-	//#[cfg(test)]
-	//fn claimqueue_sizes() -> Vec<usize> {
-	//	ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).collect()
-	//}
+	#[cfg(any(feature = "try-runtime", test))]
+	fn claimqueue_len() -> usize {
+		ClaimQueue::<T>::get().iter().map(|la_vec| la_vec.1.len()).sum()
+	}
 
-	//#[cfg(test)]
-	//pub(crate) fn claimqueue_is_empty() -> bool {
-	//	Self::claimqueue_sizes().iter().sum::<usize>() == 0
-	//}
+	#[cfg(all(not(feature = "runtime-benchmarks"), test))]
+	pub(crate) fn claimqueue_is_empty() -> bool {
+		Self::claimqueue_len() == 0
+	}
 
 	#[cfg(test)]
 	pub(crate) fn claimqueue_contains_only_none() -> bool {
@@ -575,5 +573,21 @@ impl<T: Config> Pallet<T> {
 		}
 
 		cq.iter().map(|(_, v)| v.len()).sum::<usize>() == 0
+	}
+
+	#[cfg(test)]
+	pub(crate) fn claimqueue_contains_para_ids(pids: Vec<ParaId>) -> bool {
+		use sp_std::collections::btree_set::BTreeSet;
+
+		let set: BTreeSet<ParaId> = ClaimQueue::<T>::get()
+			.into_iter()
+			.flat_map(|(_, assignments)| {
+				assignments
+					.into_iter()
+					.filter_map(|assignment| assignment.and_then(|ca| Some(ca.kind.para_id())))
+			})
+			.collect();
+
+		pids.into_iter().all(|pid| set.contains(&pid))
 	}
 }

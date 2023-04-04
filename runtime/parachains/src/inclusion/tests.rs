@@ -24,16 +24,16 @@ use crate::{
 	},
 	paras::{ParaGenesisArgs, ParaKind},
 	paras_inherent::DisputedBitfield,
-	scheduler_common::AssignmentKind,
+	scheduler_common::Assignment,
 };
 use assert_matches::assert_matches;
 use frame_support::assert_noop;
 use keyring::Sr25519Keyring;
 use primitives::{
 	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
-	CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
-	UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,
-	PARACHAIN_KEY_TYPE_ID,
+	CompactStatement as Statement, Hash, ParathreadClaim, ParathreadEntry,
+	SignedAvailabilityBitfield, SignedStatement, UncheckedSignedAvailabilityBitfield,
+	ValidationCode, ValidatorId, ValidityAttestation, PARACHAIN_KEY_TYPE_ID,
 };
 use sc_keystore::LocalKeystore;
 use sp_keystore::{Keystore, KeystorePtr};
@@ -961,22 +961,22 @@ fn candidate_checks() {
 
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
-			para_id: chain_a,
-			kind: AssignmentKind::Parachain,
+			kind: Assignment::Parachain(chain_a),
 			group_idx: GroupIndex::from(0),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
-			para_id: chain_b,
-			kind: AssignmentKind::Parachain,
+			kind: Assignment::Parachain(chain_b),
 			group_idx: GroupIndex::from(1),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
-			para_id: thread_a,
-			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
+			kind: Assignment::ParathreadA(ParathreadEntry {
+				claim: ParathreadClaim(thread_a, Some(thread_collator.clone())),
+				retries: 0,
+			}),
 			group_idx: GroupIndex::from(2),
 		};
 
@@ -1508,22 +1508,22 @@ fn backing_works() {
 
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
-			para_id: chain_a,
-			kind: AssignmentKind::Parachain,
+			kind: Assignment::Parachain(chain_a),
 			group_idx: GroupIndex::from(0),
 		};
 
 		let chain_b_assignment = CoreAssignment {
 			core: CoreIndex::from(1),
-			para_id: chain_b,
-			kind: AssignmentKind::Parachain,
+			kind: Assignment::Parachain(chain_b),
 			group_idx: GroupIndex::from(1),
 		};
 
 		let thread_a_assignment = CoreAssignment {
 			core: CoreIndex::from(2),
-			para_id: thread_a,
-			kind: AssignmentKind::Parathread(thread_collator.clone(), 0),
+			kind: Assignment::ParathreadA(ParathreadEntry {
+				claim: ParathreadClaim(thread_a, Some(thread_collator.clone())),
+				retries: 0,
+			}),
 			group_idx: GroupIndex::from(2),
 		};
 
@@ -1788,8 +1788,7 @@ fn can_include_candidate_with_ok_code_upgrade() {
 
 		let chain_a_assignment = CoreAssignment {
 			core: CoreIndex::from(0),
-			para_id: chain_a,
-			kind: AssignmentKind::Parachain,
+			kind: Assignment::Parachain(chain_a),
 			group_idx: GroupIndex::from(0),
 		};
 
