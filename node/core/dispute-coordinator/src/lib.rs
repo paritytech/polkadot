@@ -302,22 +302,19 @@ impl DisputeCoordinatorSubsystem {
 		// Cache the sessions. A failure to fetch a session here is not that critical so we
 		// won't abort the initialization
 		for idx in highest_session.saturating_sub(DISPUTE_WINDOW.get() - 1)..=highest_session {
-			match runtime_info
+			if let Err(e) = runtime_info
 				.get_session_info_by_index(ctx.sender(), initial_head.hash, idx)
 				.await
 			{
-				Ok(_) => { /* do nothing */ },
-				Err(e) => {
-					gum::warn!(
-						target: LOG_TARGET,
-						leaf_hash = ?initial_head.hash,
-						session_idx = idx,
-						err = ?e,
-						"Can't cache SessionInfo during subsystem initialization. Skipping session."
-					);
-					continue
-				},
-			}
+				gum::warn!(
+					target: LOG_TARGET,
+					leaf_hash = ?initial_head.hash,
+					session_idx = idx,
+					err = ?e,
+					"Can't cache SessionInfo during subsystem initialization. Skipping session."
+				);
+				continue
+			};
 		}
 
 		// Prune obsolete disputes:
