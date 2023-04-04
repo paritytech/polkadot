@@ -163,8 +163,8 @@ impl generic::Config for Test {
 		Ok(Default::default())
 	}
 
-	fn universal_alias() -> Result<Junction, BenchmarkError> {
-		Ok(GlobalConsensus(ByGenesis([0; 32])))
+	fn universal_alias() -> Result<(MultiLocation, Junction), BenchmarkError> {
+		Ok((Here.into(), GlobalConsensus(ByGenesis([0; 32]))))
 	}
 
 	fn transact_origin_and_runtime_call(

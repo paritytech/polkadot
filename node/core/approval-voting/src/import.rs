@@ -329,13 +329,17 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
-
-	let mut span = jaeger::Span::new(head, "approval-checking-import");
+	let _handle_new_head_span = state
+		.spans
+		.get(&head)
+		.map(|span| span.child("handle-new-head"))
+		.unwrap_or_else(|| jaeger::Span::new(head, "handle-new-head"))
+		.with_string_tag("head", format!("{:?}", head))
+		.with_stage(jaeger::Stage::ApprovalChecking);
 
 	let header = {
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
-
 		match h_rx.await? {
 			Err(e) => {
 				gum::debug!(
@@ -343,11 +347,12 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					"Chain API subsystem temporarily unreachable {}",
 					e,
 				);
-
+				// May be a better way of handling errors here.
 				return Ok(Vec::new())
 			},
 			Ok(None) => {
 				gum::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
+				// May be a better way of handling warnings here.
 				return Ok(Vec::new())
 			},
 			Ok(Some(h)) => h,
@@ -363,7 +368,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				?e,
 				"Could not cache session info when processing head.",
 			);
-
 			return Ok(Vec::new())
 		},
 		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
@@ -390,8 +394,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	)
 	.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 	.await?;
-
-	span.add_uint_tag("new-blocks", new_blocks.len() as u64);
 
 	if new_blocks.is_empty() {
 		return Ok(Vec::new())
@@ -473,6 +475,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			);
 			(block_tick, no_show_duration)
 		};
+
 		let needed_approvals = session_info.needed_approvals;
 		let validator_group_lens: Vec<usize> =
 			session_info.validator_groups.iter().map(|v| v.len()).collect();
@@ -507,11 +510,9 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 						result.len(),
 					);
 				}
-
 				result
 			}
 		};
-
 		// If all bits are already set, then send an approve message.
 		if approved_bitfield.count_ones() == approved_bitfield.len() {
 			ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
@@ -602,7 +603,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	);
 
 	ctx.send_unbounded_message(ApprovalDistributionMessage::NewBlocks(approval_meta));
-
 	Ok(imported_candidates)
 }
 
@@ -661,6 +661,7 @@ pub(crate) mod tests {
 			assignment_criteria: Box::new(MockAssignmentCriteria),
 			db,
 			db_config: TEST_CONFIG,
+			spans: HashMap::new(),
 		}
 	}
 
