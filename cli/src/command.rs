@@ -30,6 +30,8 @@ use std::net::ToSocketAddrs;
 pub use crate::{error::Error, service::BlockId};
 #[cfg(feature = "hostperfcheck")]
 pub use polkadot_performance_test::PerfCheckError;
+#[cfg(feature = "pyroscope")]
+use pyroscope_pprofrs::{pprof_backend, PprofConfig};
 
 impl From<String> for Error {
 	fn from(s: String) -> Self {
@@ -381,7 +383,7 @@ pub fn run() -> Result<()> {
 			"http://".to_owned() + address.to_string().as_str(),
 			"polkadot".to_owned(),
 		)
-		.backend(pyroscope_pprofrs::PprofConfig::new().sample_rate(113))
+		.backend(pprof_backend(PprofConfig::new().sample_rate(113)))
 		.build()?;
 		Some(agent.start()?)
 	} else {
@@ -728,6 +730,7 @@ pub fn run() -> Result<()> {
 	#[cfg(feature = "pyroscope")]
 	if let Some(mut pyroscope_agent) = pyroscope_agent_maybe.take() {
 		pyroscope_agent.stop()?;
+		pyroscope_agent.shutdown();
 	}
 	Ok(())
 }
