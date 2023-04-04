@@ -743,29 +743,29 @@ impl Initialized {
 			return Ok(ImportStatementsResult::InvalidImport)
 		}
 
+		let candidate_hash = candidate_receipt.hash();
+		let votes_in_db = overlay_db.load_candidate_votes(session, &candidate_hash)?;
+
 		// At this point we should either have a `CandidateReceipt` or have the relay parent stored
 		// in the database. It's extracted here so that we can obtain `SessionInfo` from the runtime.
 		// In case we do query the database we'll save the result in `maybe_votes_in_db` which is
 		// `Option<Option<CandidateVotes>>`. We need nested option to differentiate later if the db
 		// call was made and it returned `None` (`Some(None)`/`Some(Some(votes))`) or the db call was
 		// not made at all (`None`).
-		let (relay_parent, maybe_votes_in_db) = match &candidate_receipt {
+		let relay_parent = match &candidate_receipt {
 			MaybeCandidateReceipt::Provides(candidate_receipt) =>
-				(candidate_receipt.descriptor().relay_parent, None),
-			MaybeCandidateReceipt::AssumeBackingVotePresent(candidate_hash) => {
-				match overlay_db.load_candidate_votes(session, &candidate_hash)? {
-					Some(votes) =>
-						(votes.candidate_receipt.descriptor().relay_parent, Some(Some(votes))),
-					None => {
-						gum::warn!(
-							target: LOG_TARGET,
-							session,
-							?candidate_hash,
-							"Cannot import votes, without `CandidateReceipt` available!"
-						);
-						return Ok(ImportStatementsResult::InvalidImport)
-					},
-				}
+				candidate_receipt.descriptor().relay_parent,
+			MaybeCandidateReceipt::AssumeBackingVotePresent(candidate_hash) => match &votes_in_db {
+				Some(votes) => votes.candidate_receipt.descriptor().relay_parent,
+				None => {
+					gum::warn!(
+						target: LOG_TARGET,
+						session,
+						?candidate_hash,
+						"Cannot obtain relay parent without `CandidateReceipt` available!"
+					);
+					return Ok(ImportStatementsResult::InvalidImport)
+				},
 			},
 		};
 
@@ -790,8 +790,6 @@ impl Initialized {
 			Some(env) => env,
 		};
 
-		let candidate_hash = candidate_receipt.hash();
-
 		gum::trace!(
 			target: LOG_TARGET,
 			?candidate_hash,
@@ -799,12 +797,6 @@ impl Initialized {
 			num_validators = ?env.session_info().validators.len(),
 			"Number of validators"
 		);
-
-		// If we have already fetched the votes - use them here.
-		let votes_in_db = match maybe_votes_in_db {
-			Some(votes) => votes,
-			None => overlay_db.load_candidate_votes(session, &candidate_hash)?,
-		};
 
 		// In case we are not provided with a candidate receipt
 		// we operate under the assumption, that a previous vote
