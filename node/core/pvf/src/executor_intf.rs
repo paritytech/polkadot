@@ -86,6 +86,14 @@ const DEFAULT_CONFIG: Config = Config {
 		// On the one hand, it simplifies the code, on the other, however, slows down compile times
 		// for execute requests. This behavior may change in future.
 		parallel_compilation: false,
+
+		// WASM extensions. Only those that are meaningful to us may be controlled here. By default,
+		// we're using WASM MVP, which means all the extensions are disabled. Nevertheless, some
+		// extensions (e.g., sign extension ops) are enabled by Wasmtime and cannot be disabled.
+		wasm_reference_types: false,
+		wasm_simd: false,
+		wasm_bulk_memory: false,
+		wasm_multi_value: false,
 	},
 };
 
