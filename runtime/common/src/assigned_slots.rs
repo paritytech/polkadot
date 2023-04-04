@@ -104,14 +104,6 @@ pub mod pallet {
 		#[pallet::constant]
 		type TemporarySlotLeasePeriodLength: Get<u32>;
 
-		/// The max number of permanent slots that can be assigned.
-		#[pallet::constant]
-		type MaxPermanentSlots: Get<u32>;
-
-		/// The max number of temporary slots that can be assigned.
-		#[pallet::constant]
-		type MaxTemporarySlots: Get<u32>;
-
 		/// The max number of temporary slots to be scheduled per lease periods.
 		#[pallet::constant]
 		type MaxTemporarySlotPerLeasePeriod: Get<u32>;
@@ -149,6 +141,16 @@ pub mod pallet {
 	#[pallet::getter(fn active_temporary_slot_count)]
 	pub type ActiveTemporarySlotCount<T: Config> = StorageValue<_, u32, ValueQuery>;
 
+	/// Assigned max temporary slots storage.
+	#[pallet::storage]
+	#[pallet::getter(fn max_temporary_slots)]
+	pub type MaxTemporarySlots<T: Config> = StorageValue<_, u32, ValueQuery>;
+
+	/// Assigned max permanent slots storage.
+	#[pallet::storage]
+	#[pallet::getter(fn max_permanent_slots)]
+	pub type MaxPermanentSlots<T: Config> = StorageValue<_, u32, ValueQuery>;
+
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
@@ -156,6 +158,10 @@ pub mod pallet {
 		PermanentSlotAssigned(ParaId),
 		/// A para was assigned a temporary parachain slot
 		TemporarySlotAssigned(ParaId),
+		/// A maximum number of permanent slots has been assigned
+		MaxPermanentSlotsAssigned {slots: u32},
+		/// A maximum number of temporary slots has been assigned
+		MaxTemporarySlotsAssigned {slots: u32},
 	}
 
 	#[pallet::error]
@@ -228,7 +234,7 @@ pub mod pallet {
 			);
 
 			ensure!(
-				PermanentSlotCount::<T>::get() < T::MaxPermanentSlots::get(),
+				PermanentSlotCount::<T>::get() < MaxPermanentSlots::<T>::get(),
 				Error::<T>::MaxPermanentSlotsExceeded
 			);
 
@@ -291,7 +297,7 @@ pub mod pallet {
 			);
 
 			ensure!(
-				TemporarySlotCount::<T>::get() < T::MaxTemporarySlots::get(),
+				TemporarySlotCount::<T>::get() < MaxTemporarySlots::<T>::get(),
 				Error::<T>::MaxTemporarySlotsExceeded
 			);
 
@@ -386,6 +392,37 @@ pub mod pallet {
 
 			Ok(())
 		}
+
+		// TODO: Benchmark this
+		/// Assign a max permanent slot number.
+		#[pallet::call_index(3)]
+		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		pub fn set_max_permanent_slots(origin: OriginFor<T>, slots: u32) -> DispatchResultWithPostInfo {
+			ensure_root(origin)?;
+
+			<MaxPermanentSlots<T>>::put(slots);
+
+			// Emit an event.
+			Self::deposit_event(Event::<T>::MaxPermanentSlotsAssigned {slots});
+			// Return a successful DispatchResultWithPostInfo
+			Ok(().into())
+		}
+
+		// TODO: Benchmark this
+		/// Assign a max temporary slot number.
+		#[pallet::call_index(4)]
+		#[pallet::weight(((MAXIMUM_BLOCK_WEIGHT / 10) as Weight, DispatchClass::Operational))]
+		pub fn set_max_temporary_slots(origin: OriginFor<T>, slots: u32) -> DispatchResultWithPostInfo {
+			ensure_root(origin)?;
+
+			<MaxTemporarySlots<T>>::put(slots);
+
+			// Emit an event.
+			Self::deposit_event(Event::<T>::MaxTemporarySlotsAssigned {slots});
+			// Return a successful DispatchResultWithPostInfo
+			Ok(().into())
+		}	
+	
 	}
 }
 
@@ -673,8 +710,6 @@ mod tests {
 	parameter_types! {
 		pub const PermanentSlotLeasePeriodLength: u32 = 3;
 		pub const TemporarySlotLeasePeriodLength: u32 = 2;
-		pub const MaxPermanentSlots: u32 = 2;
-		pub const MaxTemporarySlots: u32 = 6;
 		pub const MaxTemporarySlotPerLeasePeriod: u32 = 2;
 	}
 
@@ -684,8 +719,6 @@ mod tests {
 		type Leaser = Slots;
 		type PermanentSlotLeasePeriodLength = PermanentSlotLeasePeriodLength;
 		type TemporarySlotLeasePeriodLength = TemporarySlotLeasePeriodLength;
-		type MaxPermanentSlots = MaxPermanentSlots;
-		type MaxTemporarySlots = MaxTemporarySlots;
 		type MaxTemporarySlotPerLeasePeriod = MaxTemporarySlotPerLeasePeriod;
 	}
 
@@ -724,6 +757,9 @@ mod tests {
 			Slots::on_initialize(block);
 			AssignedSlots::on_initialize(block);
 		}
+		//Set the testing MaxTemporarySlots and MaxPermanentSlots values
+		AssignedSlots::set_max_temporary_slots(RuntimeOrigin::root(), 6).unwrap();
+		AssignedSlots::set_max_permanent_slots(RuntimeOrigin::root(), 2).unwrap();
 	}
 
 	#[test]
@@ -1322,6 +1358,65 @@ mod tests {
 			assert_eq!(AssignedSlots::temporary_slots(ParaId::from(1_u32)), None);
 
 			assert_eq!(Slots::already_leased(ParaId::from(1_u32), 0, 1), false);
+		});
+	}
+	#[test]
+	fn set_max_permanent_slots_fails_for_no_root_origin() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_noop!(
+				AssignedSlots::set_max_permanent_slots(
+					RuntimeOrigin::signed(1),
+					5
+				),
+				BadOrigin
+			);
+		});
+	}
+	#[test]
+	fn set_max_permanent_slots_succeeds() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_eq!(AssignedSlots::max_permanent_slots(), 2);
+			assert_ok!(
+				AssignedSlots::set_max_permanent_slots(
+					RuntimeOrigin::root(),
+					10
+				),
+			);
+			assert_eq!(AssignedSlots::max_permanent_slots(), 10);
+		});
+	}
+
+	#[test]
+	fn set_max_temporary_slots_fails_for_no_root_origin() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_noop!(
+				AssignedSlots::set_max_temporary_slots(
+					RuntimeOrigin::signed(1),
+					5
+				),
+				BadOrigin
+			);
+		});
+	}
+	#[test]
+	fn set_max_temporary_slots_succeeds() {
+		new_test_ext().execute_with(|| {
+			run_to_block(1);
+
+			assert_eq!(AssignedSlots::max_temporary_slots(), 6);
+			assert_ok!(
+				AssignedSlots::set_max_temporary_slots(
+					RuntimeOrigin::root(),
+					12
+				),
+			);
+			assert_eq!(AssignedSlots::max_temporary_slots(), 12);
 		});
 	}
 }
