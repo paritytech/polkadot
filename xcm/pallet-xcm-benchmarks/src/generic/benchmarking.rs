@@ -482,9 +482,9 @@ benchmarks! {
 	}
 
 	universal_origin {
-		let alias = T::universal_alias().map_err(|_| BenchmarkError::Skip)?;
+		let (origin, alias) = T::universal_alias().map_err(|_| BenchmarkError::Skip)?;
 
-		let mut executor = new_executor::<T>(Here.into_location());
+		let mut executor = new_executor::<T>(origin);
 
 		let instruction = Instruction::UniversalOrigin(alias.clone());
 		let xcm = Xcm(vec![instruction]);

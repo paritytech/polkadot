@@ -16,12 +16,12 @@
 
 //! Runtime declaration of the parachain metrics.
 
-use polkadot_runtime_metrics::{Counter, CounterVec};
+use polkadot_runtime_metrics::{Counter, CounterVec, Histogram};
 use primitives::metric_definitions::{
 	PARACHAIN_CREATE_INHERENT_BITFIELDS_SIGNATURE_CHECKS,
 	PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED, PARACHAIN_INHERENT_DATA_CANDIDATES_PROCESSED,
 	PARACHAIN_INHERENT_DATA_DISPUTE_SETS_INCLUDED, PARACHAIN_INHERENT_DATA_DISPUTE_SETS_PROCESSED,
-	PARACHAIN_INHERENT_DATA_WEIGHT,
+	PARACHAIN_INHERENT_DATA_WEIGHT, PARACHAIN_VERIFY_DISPUTE_SIGNATURE,
 };
 
 pub struct Metrics {
@@ -37,6 +37,9 @@ pub struct Metrics {
 	disputes_included: Counter,
 	/// Counts bitfield signature checks in `enter_inner`.
 	bitfields_signature_checks: CounterVec,
+
+	/// Histogram with the time spent checking a validator signature of a dispute statement
+	signature_timings: Histogram,
 }
 
 impl Metrics {
@@ -98,11 +101,15 @@ impl Metrics {
 	}
 
 	pub fn on_valid_bitfield_signature(&self) {
-		self.bitfields_signature_checks.with_label_values(&["valid"]).inc();
+		self.bitfields_signature_checks.with_label_values(&["valid"]).inc_by(1);
 	}
 
 	pub fn on_invalid_bitfield_signature(&self) {
-		self.bitfields_signature_checks.with_label_values(&["invalid"]).inc();
+		self.bitfields_signature_checks.with_label_values(&["invalid"]).inc_by(1);
+	}
+
+	pub fn on_signature_check_complete(&self, val: u128) {
+		self.signature_timings.observe(val);
 	}
 }
 
@@ -115,4 +122,5 @@ pub const METRICS: Metrics = Metrics {
 	bitfields_signature_checks: CounterVec::new(
 		PARACHAIN_CREATE_INHERENT_BITFIELDS_SIGNATURE_CHECKS,
 	),
+	signature_timings: Histogram::new(PARACHAIN_VERIFY_DISPUTE_SIGNATURE),
 };

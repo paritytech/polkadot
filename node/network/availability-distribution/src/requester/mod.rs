@@ -33,6 +33,7 @@ use futures::{
 };
 
 use polkadot_node_subsystem::{
+	jaeger,
 	messages::{ChainApiMessage, RuntimeApiMessage},
 	overseer, ActivatedLeaf, ActiveLeavesUpdate, LeafStatus,
 };
@@ -100,14 +101,22 @@ impl Requester {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		update: ActiveLeavesUpdate,
+		spans: &HashMap<Hash, jaeger::PerLeafSpan>,
 	) -> Result<()> {
 		gum::trace!(target: LOG_TARGET, ?update, "Update fetching heads");
 		let ActiveLeavesUpdate { activated, deactivated } = update;
 		// Stale leaves happen after a reversion - we don't want to re-run availability there.
 		if let Some(leaf) = activated.filter(|leaf| leaf.status == LeafStatus::Fresh) {
+			let span = spans
+				.get(&leaf.hash)
+				.map(|span| span.child("update-fetching-heads"))
+				.unwrap_or_else(|| jaeger::Span::new(&leaf.hash, "update-fetching-heads"))
+				.with_string_tag("leaf", format!("{:?}", leaf.hash))
+				.with_stage(jaeger::Stage::AvailabilityDistribution);
+
 			// Order important! We need to handle activated, prior to deactivated, otherwise we might
 			// cancel still needed jobs.
-			self.start_requesting_chunks(ctx, runtime, leaf).await?;
+			self.start_requesting_chunks(ctx, runtime, leaf, &span).await?;
 		}
 
 		self.stop_requesting_chunks(deactivated.into_iter());
@@ -123,7 +132,13 @@ impl Requester {
 		ctx: &mut Context,
 		runtime: &mut RuntimeInfo,
 		new_head: ActivatedLeaf,
+		span: &jaeger::Span,
 	) -> Result<()> {
+		let mut span = span
+			.child("request-chunks-new-head")
+			.with_string_tag("leaf", format!("{:?}", new_head.hash))
+			.with_stage(jaeger::Stage::AvailabilityDistribution);
+
 		let sender = &mut ctx.sender().clone();
 		let ActivatedLeaf { hash: leaf, .. } = new_head;
 		let (leaf_session_index, ancestors_in_session) = get_block_ancestors_in_same_session(
@@ -133,8 +148,15 @@ impl Requester {
 			Self::LEAF_ANCESTRY_LEN_WITHIN_SESSION,
 		)
 		.await?;
+		span.add_uint_tag("ancestors-in-session", ancestors_in_session.len() as u64);
+
 		// Also spawn or bump tasks for candidates in ancestry in the same session.
 		for hash in std::iter::once(leaf).chain(ancestors_in_session) {
+			let span = span
+				.child("request-chunks-ancestor")
+				.with_string_tag("leaf", format!("{:?}", hash.clone()))
+				.with_stage(jaeger::Stage::AvailabilityDistribution);
+
 			let cores = get_occupied_cores(sender, hash).await?;
 			gum::trace!(
 				target: LOG_TARGET,
@@ -148,7 +170,7 @@ impl Requester {
 			// The next time the subsystem receives leaf update, some of spawned task will be bumped
 			// to be live in fresh relay parent, while some might get dropped due to the current leaf
 			// being deactivated.
-			self.add_cores(ctx, runtime, leaf, leaf_session_index, cores).await?;
+			self.add_cores(ctx, runtime, leaf, leaf_session_index, cores, span).await?;
 		}
 
 		Ok(())
@@ -178,15 +200,24 @@ impl Requester {
 		leaf: Hash,
 		leaf_session_index: SessionIndex,
 		cores: impl IntoIterator<Item = OccupiedCore>,
+		span: jaeger::Span,
 	) -> Result<()> {
 		for core in cores {
+			let mut span = span
+				.child("check-fetch-candidate")
+				.with_trace_id(core.candidate_hash)
+				.with_string_tag("leaf", format!("{:?}", leaf))
+				.with_candidate(core.candidate_hash)
+				.with_stage(jaeger::Stage::AvailabilityDistribution);
 			match self.fetches.entry(core.candidate_hash) {
 				Entry::Occupied(mut e) =>
 				// Just book keeping - we are already requesting that chunk:
 				{
+					span.add_string_tag("already-requested-chunk", "true");
 					e.get_mut().add_leaf(leaf);
 				},
 				Entry::Vacant(e) => {
+					span.add_string_tag("already-requested-chunk", "false");
 					let tx = self.tx.clone();
 					let metrics = self.metrics.clone();
 
@@ -201,7 +232,7 @@ impl Requester {
 							// be fetchable by the state trie.
 							leaf,
 							leaf_session_index,
-							|info| FetchTaskConfig::new(leaf, &core, tx, metrics, info),
+							|info| FetchTaskConfig::new(leaf, &core, tx, metrics, info, span),
 						)
 						.await
 						.map_err(|err| {
