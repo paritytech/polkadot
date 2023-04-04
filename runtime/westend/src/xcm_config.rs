@@ -18,10 +18,10 @@
 
 use super::{
 	parachains_origin, weights, AccountId, AllPalletsWithSystem, Balances, ParaId, Runtime,
-	RuntimeCall, RuntimeEvent, RuntimeOrigin, Treasury, WeightToFee, XcmPallet,
+	RuntimeCall, RuntimeEvent, RuntimeOrigin, WeightToFee, XcmPallet,
 };
 use frame_support::{
-	match_types, parameter_types,
+	parameter_types,
 	traits::{Contains, Everything, Nothing},
 };
 use frame_system::EnsureRoot;
@@ -35,7 +35,7 @@ use xcm_builder::{
 	ChildParachainConvertsVia, ChildSystemParachainAsSuperuser,
 	CurrencyAdapter as XcmCurrencyAdapter, IsChildSystemParachain, IsConcrete, MintLocation,
 	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation, TakeWeightCredit,
-	UsingComponents, WeightInfoBounds, WithComputedOrigin, XcmFeesToAccount,
+	UsingComponents, WeightInfoBounds, WithComputedOrigin,
 };
 use xcm_executor::{traits::WithOriginFilter, XcmExecutor};
 
@@ -45,7 +45,6 @@ parameter_types! {
 	pub UniversalLocation: InteriorMultiLocation = ThisNetwork::get().into();
 	pub CheckAccount: AccountId = XcmPallet::check_account();
 	pub LocalCheckAccount: (AccountId, MintLocation) = (CheckAccount::get(), MintLocation::Local);
-	pub TreasuryAccount: Option<AccountId> = Some(Treasury::account_id());
 }
 
 pub type LocationConverter =
@@ -230,12 +229,6 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 	}
 }
 
-match_types! {
-	pub type SystemParachains: impl Contains<MultiLocation> = {
-		MultiLocation { parents: 0, interior: X1(Parachain(WESTMINT_ID | COLLECTIVES_ID)) }
-	};
-}
-
 pub struct XcmConfig;
 impl xcm_executor::Config for XcmConfig {
 	type RuntimeCall = RuntimeCall;
@@ -258,7 +251,7 @@ impl xcm_executor::Config for XcmConfig {
 	type SubscriptionService = XcmPallet;
 	type PalletInstancesInfo = AllPalletsWithSystem;
 	type MaxAssetsIntoHolding = MaxAssetsIntoHolding;
-	type FeeManager = XcmFeesToAccount<Self, SystemParachains, AccountId, TreasuryAccount>;
+	type FeeManager = ();
 	type MessageExporter = ();
 	type UniversalAliases = Nothing;
 	type CallDispatcher = WithOriginFilter<SafeCallFilter>;
