@@ -35,13 +35,16 @@ jobs:
         shell: bash
         run: |
           cargo install --git https://github.com/ggwpez/substrate-weight-compare swc
-          scripts/ci/github/check_weights_swc.sh
+          scripts/ci/github/check_weights_swc.sh | tee ./swc_output_${{ matrix.runtime }}.txt
+          pwd
+          ls
       - name: Upload weight changes
         id: upload_weight_changes
         uses: actions/upload-artifact@v2
         with:
           name: swc_output_${{ matrix.runtime }}
-          path: swc_output_${{ matrix.runtime }}.txt
+          path: ./swc_output_${{ matrix.runtime }}.txt
+          if-no-files-found: error
       - name: Add comment
         uses: thollander/actions-comment-pull-request@v2
         with:
