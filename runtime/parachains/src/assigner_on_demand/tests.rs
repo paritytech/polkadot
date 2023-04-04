@@ -16,6 +16,7 @@
 
 use super::*;
 use crate::{
+	initializer::SessionChangeNotification
 	assigner_on_demand::Error,
 	mock::{
 		new_test_ext, MockGenesisConfig, OnDemandAssigner, Paras, ParasShared, RuntimeOrigin,
