@@ -18,22 +18,29 @@
 //!
 //! This can be useful for cleaning up the storage of a pallet which has been removed from the
 //! runtime.
-
-use frame_support::{storage::unhashed::contains_prefixed_key, weights::constants::RocksDbWeight};
+#[cfg(feature = "try-runtime")]
+use frame_support::storage::unhashed::contains_prefixed_key;
+use frame_support::weights::RuntimeDbWeight;
 use sp_core::Get;
 use sp_io::{hashing::twox_128, storage::clear_prefix, KillStorageResult};
-use sp_std::{marker::PhantomData, vec::Vec};
+use sp_std::marker::PhantomData;
+#[cfg(feature = "try-runtime")]
+use sp_std::vec::Vec;
 
-/// Implements a definition of `OnRuntimeUpgrade` which when executed removes all storage items
-/// of a specified pallet.
+/// `RemovePallet` is a utility struct used to remove all storage items associated with a specific
+/// pallet.
 ///
-/// This can be useful for cleaning up the storage of a pallet which has been removed from the
-/// runtime.
+/// This struct is generic over two parameters:
+/// - `P` is a type that implements the `Get` trait for a static string, representing the pallet's name.
+/// - `DbWeight` is a type that implements the `Get` trait for `RuntimeDbWeight`, providing the weight
+///   for database operations.
 ///
-/// It takes one generic parameter `P`, which is the name of the pallet to remove.
-/// `P` can be defined using the `parameter_types!` macro.
+/// On runtime upgrade, the `on_runtime_upgrade` function will clear all storage items associated with
+/// the specified pallet, logging the number of keys removed. If the `try-runtime` feature is enabled,
+/// the `pre_upgrade` and `post_upgrade` functions can be used to verify the storage removal before and
+/// after the upgrade.
 ///
-/// Example usage:
+/// # Examples:
 /// ```ignore
 /// construct_runtime! {
 /// 	pub enum Runtime where
@@ -56,8 +63,8 @@ use sp_std::{marker::PhantomData, vec::Vec};
 /// }
 ///
 /// pub type Migrations = (
-/// 	RemovePallet<SomePalletToRemoveStr>,
-/// 	RemovePallet<AnotherPalletToRemoveStr>,
+/// 	RemovePallet<SomePalletToRemoveStr, RocksDbWeight>,
+/// 	RemovePallet<AnotherPalletToRemoveStr, RocksDbWeight>,
 /// 	AnyOtherMigrations...
 /// );
 ///
@@ -77,8 +84,12 @@ use sp_std::{marker::PhantomData, vec::Vec};
 /// a multi-block scheduler currently under development which will allow for removal of storage
 /// items (and performing other heavy migrations) over multiple blocks.
 /// (https://github.com/paritytech/substrate/issues/13690)
-pub struct RemovePallet<P: Get<&'static str>>(PhantomData<P>);
-impl<P: Get<&'static str>, DbWeight: Get<DbWeight>> frame_support::traits::OnRuntimeUpgrade for RemovePallet<P> {
+pub struct RemovePallet<P: Get<&'static str>, DbWeight: Get<RuntimeDbWeight>>(
+	PhantomData<(P, DbWeight)>,
+);
+impl<P: Get<&'static str>, DbWeight: Get<RuntimeDbWeight>> frame_support::traits::OnRuntimeUpgrade
+	for RemovePallet<P, DbWeight>
+{
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		let hashed_prefix = twox_128(P::get().as_bytes());
 		let keys_removed = match clear_prefix(&hashed_prefix, None) {
@@ -94,7 +105,7 @@ impl<P: Get<&'static str>, DbWeight: Get<DbWeight>> frame_support::traits::OnRun
 
 		log::info!("Removed {} {} keys 🧹", keys_removed, P::get());
 
-		DbWeights::get().reads_writes(keys_removed + 1, keys_removed)
+		DbWeight::get().reads_writes(keys_removed + 1, keys_removed)
 	}
 
 	#[cfg(feature = "try-runtime")]
