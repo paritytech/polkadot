@@ -78,7 +78,7 @@ use sp_std::{marker::PhantomData, vec::Vec};
 /// items (and performing other heavy migrations) over multiple blocks.
 /// (https://github.com/paritytech/substrate/issues/13690)
 pub struct RemovePallet<P: Get<&'static str>>(PhantomData<P>);
-impl<P: Get<&'static str>> frame_support::traits::OnRuntimeUpgrade for RemovePallet<P> {
+impl<P: Get<&'static str>, DbWeight: Get<DbWeight>> frame_support::traits::OnRuntimeUpgrade for RemovePallet<P> {
 	fn on_runtime_upgrade() -> frame_support::weights::Weight {
 		let hashed_prefix = twox_128(P::get().as_bytes());
 		let keys_removed = match clear_prefix(&hashed_prefix, None) {
