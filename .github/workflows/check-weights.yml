@@ -20,6 +20,9 @@ jobs:
         shell: bash
         run: |
           scripts/ci/github/verify_updated_weights.sh ${{ matrix.runtime }}
+
+  # This job uses https://github.com/ggwpez/substrate-weight-compare to compare the weights of the current
+  # release with the last release, then adds them as a comment to the PR.
   check_weight_changes:
     strategy:
       fail-fast: false
@@ -27,20 +30,28 @@ jobs:
         runtime: [westend, kusama, polkadot, rococo]
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout sources
+      - name: Get latest release
+        run: |
+          # LAST_RELEASE=$(curl -s https://api.github.com/repos/paritytech/polkadot/releases/latest | jq -r .tag_name)
+          # TODO: remove this line and uncomment the one above before merging
+          LAST_RELEASE=v0.9.39
+          echo "LAST_RELEASE=$LAST_RELEASE" >> $GITHUB_ENV
+      - name: Checkout current sources
         uses: actions/checkout@v3
         with:
-          fetch-depth: 0
+          path: polkadot-current
+      - name: Checkout latest release sources
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ env.LAST_RELEASE }}
+          path: polkadot-latest
       - name: Check weight changes
         shell: bash
         run: |
           cargo install --git https://github.com/ggwpez/substrate-weight-compare swc
-          echo "${{ matrix.runtime }} changes:" > ./swc_output_${{ matrix.runtime }}.txt
-          echo '```' >> ./swc_output_${{ matrix.runtime }}.txt
-          scripts/ci/github/check_weights_swc.sh | tee -a ./swc_output_${{ matrix.runtime }}.txt
-          echo '```' >> ./swc_output_${{ matrix.runtime }}.txt
+          ./polkadot-current/scripts/ci/github/check_weights_swc.sh ${{ matrix.runtime }} polkadot-old polkadot-new > swc_output_${{ matrix.runtime }}.md
       - name: Add comment
         uses: thollander/actions-comment-pull-request@v2
         with:
-          filePath: ./swc_output_${{ matrix.runtime }}.txt
+          filePath: ./swc_output_${{ matrix.runtime }}.md
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

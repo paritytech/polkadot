@@ -1,9 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Need to set globstar for ** magic
+shopt -s globstar
 
 RUNTIME=$1
-# Get last release from github
-# Remove before merging, and uncomment the line below
-RELEASE="v0.9.38"
-# RELEASE=$(curl -s https://api.github.com/repos/paritytech/polkadot/releases/latest | jq -r .tag_name)
-
-swc compare commits --method asymptotic --path-pattern "./runtime/$RUNTIME/src/weights/**/*.rs" "$RELEASE"
+OLD=$2
+NEW=$3
+echo -e "$RUNTIME changes since $LAST_RELEASE:\n"
+echo '```'
+swc compare files \
+    --old $(pwd)/$OLD/runtime/$RUNTIME/src/weights/**/*.rs \
+    --new $(pwd)/$NEW/runtime/$RUNTIME/src/weights/**/*.rs \
+    --method asymptotic \
+    --ignore-errors
+echo '```'
