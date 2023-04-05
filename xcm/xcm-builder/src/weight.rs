@@ -130,6 +130,7 @@ impl TakeRevenue for () {
 ///
 /// The constant `Get` type parameter should be the fungible ID, the amount of it required for one
 /// second of weight and the amount required for 1 MB of proof.
+#[derive(Clone)]
 pub struct FixedRateOfFungible<T: Get<(AssetId, u128, u128)>, R: TakeRevenue>(
 	Weight,
 	u128,
@@ -257,6 +258,6 @@ where
 	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
 {
 	fn clone(&self) -> UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> {
-		Self(self.0.clone(), self.1.clone(), PhantomData)
+		Self(self.0, self.1, PhantomData)
 	}
 }

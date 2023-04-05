@@ -83,19 +83,19 @@ impl<Config: config::Config> Clone for XcmExecutor<Config> {
 	fn clone(&self) -> XcmExecutor<Config> {
 		Self {
 			holding: self.holding.clone(),
-			holding_limit: self.holding_limit.clone(),
+			holding_limit: self.holding_limit,
 			context: self.context.clone(),
-			original_origin: self.original_origin.clone(),
+			original_origin: self.original_origin,
 			trader: self.trader.clone(),
-			error: self.error.clone(),
-			total_surplus: self.total_surplus.clone(),
-			total_refunded: self.total_refunded.clone(),
+			error: self.error,
+			total_surplus: self.total_surplus,
+			total_refunded: self.total_refunded,
 			error_handler: self.error_handler.clone(),
-			error_handler_weight: self.error_handler_weight.clone(),
+			error_handler_weight: self.error_handler_weight,
 			appendix: self.appendix.clone(),
-			appendix_weight: self.appendix_weight.clone(),
+			appendix_weight: self.appendix_weight,
 			transact_status: self.transact_status.clone(),
-			fees_mode: self.fees_mode.clone(),
+			fees_mode: self.fees_mode,
 			_config: PhantomData,
 		}
 	}
