@@ -43,8 +43,13 @@ impl<
 		if let Some(receiver) = ReceiverAccount::get() {
 			let dest = AccountId32 { network: None, id: receiver.into() }.into();
 			for asset in fees.into_inner() {
-				let ok = XcmConfig::AssetTransactor::deposit_asset(&asset, &dest, context).is_ok();
-				debug_assert!(ok, "`deposit_asset` cannot generally fail");
+				if let Err(e) = XcmConfig::AssetTransactor::deposit_asset(&asset, &dest, context) {
+					log::warn!(
+						target: "xcm::fees",
+						"`AssetTransactor::deposit_asset` returned error: {:?}, burning fees: {:?}",
+						e, asset,
+					);
+				}
 			}
 		}
 	}
