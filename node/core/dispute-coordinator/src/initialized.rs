@@ -75,7 +75,7 @@ pub struct InitialData {
 /// After the first active leaves update we transition to `Initialized` state.
 ///
 /// Before the first active leaves update we can't really do much. We cannot check incoming
-/// statements for validity, we cannot query orderings, we have no valid `RollingSessionWindow`,
+/// statements for validity, we cannot query orderings, we have no valid `SessionInfo`,
 /// ...
 pub(crate) struct Initialized {
 	keystore: Arc<LocalKeystore>,
