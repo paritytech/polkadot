@@ -43,9 +43,7 @@ use polkadot_node_subsystem_util::{
 	database::Database,
 	runtime::{Config as RuntimeInfoConfig, RuntimeInfo},
 };
-use polkadot_primitives::{
-	DisputeStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorIndex,
-};
+use polkadot_primitives::{DisputeStatement, ScrapedOnChainVotes, SessionInfo, ValidatorIndex};
 
 use crate::{
 	error::{FatalResult, Result},
@@ -68,7 +66,9 @@ pub(crate) mod error;
 
 /// Subsystem after receiving the first active leaf.
 mod initialized;
-use initialized::{InitialData, Initialized};
+use initialized::{
+	HighestSeenSessionIndex, InitialData, Initialized, LastConsecutiveCachedSessionIndex,
+};
 
 /// Provider of data scraped from chain.
 ///
@@ -230,7 +230,14 @@ impl DisputeCoordinatorSubsystem {
 					.expect("DISPUTE_WINDOW can't be 0; qed."),
 			});
 			let mut overlay_db = OverlayedBackend::new(&mut backend);
-			let (participations, votes, spam_slots, ordering_provider, highest_session) = match self
+			let (
+				participations,
+				votes,
+				spam_slots,
+				ordering_provider,
+				highest_session_seen,
+				last_consecutive_cached_session,
+			) = match self
 				.handle_startup(ctx, first_leaf.clone(), &mut runtime_info, &mut overlay_db, clock)
 				.await
 			{
@@ -254,7 +261,8 @@ impl DisputeCoordinatorSubsystem {
 					runtime_info,
 					spam_slots,
 					ordering_provider,
-					highest_session,
+					highest_session_seen,
+					last_consecutive_cached_session,
 				),
 				backend,
 			)))
@@ -278,7 +286,8 @@ impl DisputeCoordinatorSubsystem {
 		Vec<ScrapedOnChainVotes>,
 		SpamSlots,
 		ChainScraper,
-		SessionIndex,
+		HighestSeenSessionIndex,
+		LastConsecutiveCachedSessionIndex,
 	)> {
 		let now = clock.now();
 
@@ -299,6 +308,8 @@ impl DisputeCoordinatorSubsystem {
 			.get_session_index_for_child(ctx.sender(), initial_head.hash)
 			.await?;
 
+		let mut last_consecutive_cached_session = 0;
+		let mut gap_in_cache = false;
 		// Cache the sessions. A failure to fetch a session here is not that critical so we
 		// won't abort the initialization
 		for idx in highest_session.saturating_sub(DISPUTE_WINDOW.get() - 1)..=highest_session {
@@ -313,8 +324,12 @@ impl DisputeCoordinatorSubsystem {
 					err = ?e,
 					"Can't cache SessionInfo during subsystem initialization. Skipping session."
 				);
+				gap_in_cache = true;
 				continue
 			};
+			if !gap_in_cache {
+				last_consecutive_cached_session = idx;
+			}
 		}
 
 		// Prune obsolete disputes:
@@ -414,7 +429,8 @@ impl DisputeCoordinatorSubsystem {
 			votes,
 			SpamSlots::recover_from_state(spam_disputes),
 			scraper,
-			highest_session,
+			HighestSeenSessionIndex::from(highest_session),
+			LastConsecutiveCachedSessionIndex::from(last_consecutive_cached_session),
 		))
 	}
 }

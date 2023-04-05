@@ -72,6 +72,20 @@ pub struct InitialData {
 	pub leaf: ActivatedLeaf,
 }
 
+// Wrapper types used in `new()` to avoid wrong initialization
+pub(crate) struct LastConsecutiveCachedSessionIndex(SessionIndex);
+impl From<SessionIndex> for LastConsecutiveCachedSessionIndex {
+	fn from(session: SessionIndex) -> Self {
+		LastConsecutiveCachedSessionIndex(session)
+	}
+}
+pub(crate) struct HighestSeenSessionIndex(SessionIndex);
+impl From<SessionIndex> for HighestSeenSessionIndex {
+	fn from(session: SessionIndex) -> Self {
+		HighestSeenSessionIndex(session)
+	}
+}
+
 /// After the first active leaves update we transition to `Initialized` state.
 ///
 /// Before the first active leaves update we can't really do much. We cannot check incoming
@@ -80,7 +94,16 @@ pub struct InitialData {
 pub(crate) struct Initialized {
 	keystore: Arc<LocalKeystore>,
 	runtime_info: RuntimeInfo,
-	highest_session: SessionIndex,
+	/// This is the highest `SessionIndex` seen via `ActiveLeavesUpdate`. It doen't matter if it was
+	/// cached successfully or not. It is used to detect ancient disputes.
+	highest_session_seen: SessionIndex,
+	/// This is the `SessionIndex` up to which the cache contains no gaps. For we have seen session 5
+	/// and we managed successfully to cache sessions 1, 2, 3 and 5 (caching session 4 failed for
+	/// some reason). In this case we have got `highest_session_seen == 5` and
+	/// `last_consecutive_cached_session == 3`.
+	/// On each `ActiveLeavesUpdate` we'll start fetching sessions from
+	/// `last_consecutive_cached_session + 1` up to the session index of the leaf.
+	last_consecutive_cached_session: SessionIndex,
 	spam_slots: SpamSlots,
 	participation: Participation,
 	scraper: ChainScraper,
@@ -96,7 +119,8 @@ impl Initialized {
 		runtime_info: RuntimeInfo,
 		spam_slots: SpamSlots,
 		scraper: ChainScraper,
-		highest_session: SessionIndex,
+		highest_session_seen: HighestSeenSessionIndex,
+		last_consecutive_cached_session: LastConsecutiveCachedSessionIndex,
 	) -> Self {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
@@ -106,7 +130,8 @@ impl Initialized {
 		Self {
 			keystore,
 			runtime_info,
-			highest_session,
+			highest_session_seen: highest_session_seen.0,
+			last_consecutive_cached_session: last_consecutive_cached_session.0,
 			spam_slots,
 			scraper,
 			participation,
@@ -284,28 +309,32 @@ impl Initialized {
 				self.runtime_info.get_session_index_for_child(ctx.sender(), new_leaf.hash).await;
 
 			match session_idx {
-				Ok(session_idx) if session_idx > self.highest_session => {
+				Ok(session_idx) if session_idx > self.last_consecutive_cached_session => {
 					// There is a new session. Perform a dummy fetch to cache it.
-					for idx in self.highest_session + 1..=session_idx {
-						match self
+					let mut gap_in_cache = false;
+					for idx in self.last_consecutive_cached_session + 1..=session_idx {
+						if let Err(err) = self
 							.runtime_info
 							.get_session_info_by_index(ctx.sender(), new_leaf.hash, idx)
 							.await
 						{
-							Ok(_) => {},
-							Err(err) => {
-								gum::debug!(
-									target: LOG_TARGET,
-									session_idx,
-									leaf_hash = ?new_leaf.hash,
-									?err,
-									"Error caching SessionInfo on ActiveLeaves update"
-								);
-							},
+							gum::debug!(
+								target: LOG_TARGET,
+								session_idx,
+								leaf_hash = ?new_leaf.hash,
+								?err,
+								"Error caching SessionInfo on ActiveLeaves update"
+							);
+							gap_in_cache = true;
+						}
+
+						if !gap_in_cache {
+							self.last_consecutive_cached_session = idx;
 						}
 					}
 
-					self.highest_session = session_idx;
+					self.highest_session_seen = session_idx;
+
 					db::v1::note_earliest_session(
 						overlay_db,
 						session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1),
@@ -1251,7 +1280,7 @@ impl Initialized {
 	}
 
 	fn session_is_ancient(&self, session_idx: SessionIndex) -> bool {
-		return session_idx < self.highest_session.saturating_sub(DISPUTE_WINDOW.get() - 1)
+		return session_idx < self.highest_session_seen.saturating_sub(DISPUTE_WINDOW.get() - 1)
 	}
 }
 
