@@ -76,12 +76,11 @@ We currently know of at least two specific cases that will lead to a retried
 execution request:
 
 1. **OOM:** The host might have been temporarily low on memory due to other
-   processes running on the same machine.
+   processes running on the same machine. **NOTE:** This case will lead to
+   voting against the candidate (and possibly a dispute) if the retry is still
+   not successful.
 2. **Artifact missing:** The prepared artifact might have been deleted due to
    operator error or some bug in the system. We will re-create it on retry.
-
-**NOTE:** Both cases will lead to voting against the candidate (and possibly a
-dispute) if the retry is still not successful.
 
 #### Preparation timeouts
 
