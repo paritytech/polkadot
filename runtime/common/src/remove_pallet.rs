@@ -94,7 +94,7 @@ impl<P: Get<&'static str>, DbWeight: Get<DbWeight>> frame_support::traits::OnRun
 
 		log::info!("Removed {} {} keys 🧹", keys_removed, P::get());
 
-		RocksDbWeight::get().reads_writes(keys_removed + 1, keys_removed)
+		DbWeights::get().reads_writes(keys_removed + 1, keys_removed)
 	}
 
 	#[cfg(feature = "try-runtime")]
