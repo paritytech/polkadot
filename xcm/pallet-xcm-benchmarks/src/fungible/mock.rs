@@ -30,7 +30,7 @@ use sp_runtime::{
 	BuildStorage,
 };
 use xcm::latest::prelude::*;
-use xcm_builder::{AllowUnpaidExecutionFrom, MintLocation};
+use xcm_builder::{AllowUnpaidExecutionFrom, FrameTransactionalProcessor, MintLocation};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -160,6 +160,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
+	type TransactionalProcessor = FrameTransactionalProcessor;
 }
 
 impl crate::Config for Test {

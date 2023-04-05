@@ -31,8 +31,8 @@ use sp_runtime::{
 };
 use xcm_builder::{
 	test_utils::{
-		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,
-		TestUniversalAliases,
+		Assets, FrameTransactionalProcessor, TestAssetExchanger, TestAssetLocker, TestAssetTrap,
+		TestSubscriptionService, TestUniversalAliases,
 	},
 	AllowUnpaidExecutionFrom,
 };
@@ -132,6 +132,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = TestUniversalAliases;
 	type CallDispatcher = RuntimeCall;
 	type SafeCallFilter = Everything;
+	type TransactionalProcessor = FrameTransactionalProcessor;
 }
 
 impl crate::Config for Test {

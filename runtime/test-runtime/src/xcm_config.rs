@@ -22,8 +22,8 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use xcm::latest::prelude::*;
 use xcm_builder::{
-	AllowUnpaidExecutionFrom, EnsureXcmOrigin, FixedWeightBounds, SignedAccountId32AsNative,
-	SignedToAccountId32,
+	AllowUnpaidExecutionFrom, EnsureXcmOrigin, FixedWeightBounds, FrameTransactionalProcessor,
+	SignedAccountId32AsNative, SignedToAccountId32,
 };
 use xcm_executor::{
 	traits::{TransactAsset, WeightTrader},
@@ -115,6 +115,7 @@ impl xcm_executor::Config for XcmConfig {
 	type UniversalAliases = Nothing;
 	type CallDispatcher = super::RuntimeCall;
 	type SafeCallFilter = Everything;
+	type TransactionalProcessor = FrameTransactionalProcessor;
 }
 
 #[cfg(feature = "runtime-benchmarks")]
