@@ -49,7 +49,7 @@ jobs:
         shell: bash
         run: |
           cargo install --git https://github.com/ggwpez/substrate-weight-compare swc
-          ./polkadot-current/scripts/ci/github/check_weights_swc.sh ${{ matrix.runtime }} polkadot-old polkadot-new > swc_output_${{ matrix.runtime }}.md
+          ./polkadot-current/scripts/ci/github/check_weights_swc.sh ${{ matrix.runtime }} ./polkadot-old ./polkadot-new | tee swc_output_${{ matrix.runtime }}.md
       - name: Add comment
         uses: thollander/actions-comment-pull-request@v2
         with:
