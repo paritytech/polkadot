@@ -81,7 +81,7 @@ fn send_dispute_sends_dispute() {
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
-		send_dispute(&mut handle, candidate, true).await;
+		send_dispute(&mut handle, candidate).await;
 		conclude(&mut handle).await;
 	};
 	test_harness(test);
@@ -96,7 +96,7 @@ fn send_honors_rate_limit() {
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
 		let before_request = Instant::now();
-		send_dispute(&mut handle, candidate, true).await;
+		send_dispute(&mut handle, candidate).await;
 		// First send should not be rate limited:
 		gum::trace!("Passed time: {:#?}", Instant::now().saturating_duration_since(before_request));
 		// This test would likely be flaky on CI:
@@ -104,7 +104,7 @@ fn send_honors_rate_limit() {
 
 		let relay_parent = Hash::random();
 		let candidate = make_candidate_receipt(relay_parent);
-		send_dispute(&mut handle, candidate, false).await;
+		send_dispute(&mut handle, candidate).await;
 		// Second send should be rate limited:
 		gum::trace!(
 			"Passed time for send_dispute: {:#?}",
@@ -120,7 +120,6 @@ fn send_honors_rate_limit() {
 async fn send_dispute(
 	handle: &mut TestSubsystemContextHandle<DisputeDistributionMessage>,
 	candidate: CandidateReceipt,
-	needs_session_info: bool,
 ) {
 	let before_request = Instant::now();
 	let message = make_dispute_message(candidate.clone(), ALICE_INDEX, FERDIE_INDEX);
@@ -138,25 +137,6 @@ async fn send_dispute(
 		"Passed time for sending message: {:#?}",
 		Instant::now().saturating_duration_since(before_request)
 	);
-	if needs_session_info {
-		// Requests needed session info:
-		assert_matches!(
-		handle.recv().await,
-		AllMessages::RuntimeApi(
-			RuntimeApiMessage::Request(
-				hash,
-				RuntimeApiRequest::SessionInfo(session_index, tx)
-				)
-			) => {
-			assert_eq!(session_index, MOCK_SESSION_INDEX);
-			assert_eq!(
-				hash,
-				message.candidate_receipt().descriptor.relay_parent
-				);
-			tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
-		}
-		);
-	}
 
 	let expected_receivers = {
 		let info = &MOCK_SESSION_INFO;
@@ -492,23 +472,6 @@ fn send_dispute_gets_cleaned_up() {
 				msg: DisputeDistributionMessage::SendDispute(message.clone()),
 			})
 			.await;
-		// Requests needed session info:
-		assert_matches!(
-			handle.recv().await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					hash,
-					RuntimeApiRequest::SessionInfo(session_index, tx)
-				)
-			) => {
-				assert_eq!(session_index, MOCK_SESSION_INDEX);
-				assert_eq!(
-					hash,
-					message.candidate_receipt().descriptor.relay_parent
-				);
-				tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
-			}
-		);
 
 		let expected_receivers = {
 			let info = &MOCK_SESSION_INFO;
@@ -558,23 +521,6 @@ fn dispute_retries_and_works_across_session_boundaries() {
 				msg: DisputeDistributionMessage::SendDispute(message.clone()),
 			})
 			.await;
-		// Requests needed session info:
-		assert_matches!(
-			handle.recv().await,
-			AllMessages::RuntimeApi(
-				RuntimeApiMessage::Request(
-					hash,
-					RuntimeApiRequest::SessionInfo(session_index, tx)
-				)
-			) => {
-				assert_eq!(session_index, MOCK_SESSION_INDEX);
-				assert_eq!(
-					hash,
-					message.candidate_receipt().descriptor.relay_parent
-				);
-				tx.send(Ok(Some(MOCK_SESSION_INFO.clone()))).expect("Receiver should stay alive.");
-			}
-		);
 
 		let expected_receivers: HashSet<_> = {
 			let info = &MOCK_SESSION_INFO;
@@ -776,7 +722,6 @@ async fn activate_leaf(
 	// Currently active disputes to send to the subsystem.
 	active_disputes: Vec<(SessionIndex, CandidateHash, DisputeStatus)>,
 ) {
-	let has_active_disputes = !active_disputes.is_empty();
 	handle
 		.send(FromOrchestra::Signal(OverseerSignal::ActiveLeaves(ActiveLeavesUpdate {
 			activated: Some(ActivatedLeaf {
@@ -798,27 +743,24 @@ async fn activate_leaf(
 			tx.send(Ok(session_index)).expect("Receiver should stay alive.");
 		}
 	);
+
+	if let Some(session_info) = new_session {
+		assert_matches!(
+		handle.recv().await,
+		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+			h,
+			RuntimeApiRequest::SessionInfo(session_idx, tx)
+		)) => {
+			assert_eq!(h, activate);
+			assert_eq!(session_index, session_idx);
+			tx.send(Ok(Some(session_info))).expect("Receiver should stay alive.");
+		});
+	}
+
 	assert_matches!(
 		handle.recv().await,
 		AllMessages::DisputeCoordinator(DisputeCoordinatorMessage::ActiveDisputes(tx)) => {
 			tx.send(active_disputes).expect("Receiver should stay alive.");
-		}
-	);
-
-	let new_session = match (new_session, has_active_disputes) {
-		(Some(new_session), true) => new_session,
-		_ => return,
-	};
-
-	assert_matches!(
-		handle.recv().await,
-		AllMessages::RuntimeApi(RuntimeApiMessage::Request(
-				h,
-				RuntimeApiRequest::SessionInfo(i, tx)
-		)) => {
-			assert_eq!(h, activate);
-			assert_eq!(i, session_index);
-			tx.send(Ok(Some(new_session))).expect("Receiver should stay alive.");
 		}
 	);
 }

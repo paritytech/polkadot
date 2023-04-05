@@ -52,10 +52,10 @@ pub mod pallet {
 		/// If set to `Err`, benchmarks which rely on an `exchange_asset` will be skipped.
 		fn worst_case_asset_exchange() -> Result<(MultiAssets, MultiAssets), BenchmarkError>;
 
-		/// A `Junction` that is one of the `UniversalAliases` configured by the XCM executor.
+		/// A `(MultiLocation, Junction)` that is one of the `UniversalAliases` configured by the XCM executor.
 		///
 		/// If set to `Err`, benchmarks which rely on a universal alias will be skipped.
-		fn universal_alias() -> Result<Junction, BenchmarkError>;
+		fn universal_alias() -> Result<(MultiLocation, Junction), BenchmarkError>;
 
 		/// The `MultiLocation` and `RuntimeCall` used for successful transaction XCMs.
 		///
