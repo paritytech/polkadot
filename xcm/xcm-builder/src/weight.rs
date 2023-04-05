@@ -247,3 +247,16 @@ impl<
 		OnUnbalanced::on_unbalanced(Currency::issue(self.1));
 	}
 }
+
+impl<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> Clone
+	for UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced>
+where
+	WeightToFee: WeightToFeeT<Balance = Currency::Balance>,
+	AssetId: Get<MultiLocation>,
+	Currency: CurrencyT<AccountId>,
+	OnUnbalanced: OnUnbalancedT<Currency::NegativeImbalance>,
+{
+	fn clone(&self) -> UsingComponents<WeightToFee, AssetId, AccountId, Currency, OnUnbalanced> {
+		Self(self.0.clone(), self.1.clone(), PhantomData)
+	}
+}

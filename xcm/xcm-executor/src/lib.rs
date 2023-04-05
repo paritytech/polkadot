@@ -79,6 +79,28 @@ pub struct XcmExecutor<Config: config::Config> {
 	_config: PhantomData<Config>,
 }
 
+impl<Config: config::Config> Clone for XcmExecutor<Config> {
+	fn clone(&self) -> XcmExecutor<Config> {
+		Self {
+			holding: self.holding.clone(),
+			holding_limit: self.holding_limit.clone(),
+			context: self.context.clone(),
+			original_origin: self.original_origin.clone(),
+			trader: self.trader.clone(),
+			error: self.error.clone(),
+			total_surplus: self.total_surplus.clone(),
+			total_refunded: self.total_refunded.clone(),
+			error_handler: self.error_handler.clone(),
+			error_handler_weight: self.error_handler_weight.clone(),
+			appendix: self.appendix.clone(),
+			appendix_weight: self.appendix_weight.clone(),
+			transact_status: self.transact_status.clone(),
+			fees_mode: self.fees_mode.clone(),
+			_config: PhantomData,
+		}
+	}
+}
+
 #[cfg(feature = "runtime-benchmarks")]
 impl<Config: config::Config> XcmExecutor<Config> {
 	pub fn holding(&self) -> &Assets {
@@ -309,6 +331,7 @@ impl<Config: config::Config> XcmExecutor<Config> {
 		);
 		let mut result = Ok(());
 		for (i, instr) in xcm.0.into_iter().enumerate() {
+			let vm_clone = self.clone();
 			match &mut result {
 				r @ Ok(()) => {
 					// Initialize the recursion count only the first time we hit this code in our
@@ -343,10 +366,12 @@ impl<Config: config::Config> XcmExecutor<Config> {
 						});
 					}
 				},
-				Err(ref mut error) =>
+				Err(ref mut error) => {
 					if let Ok(x) = Config::Weigher::instr_weight(&instr) {
 						error.weight.saturating_accrue(x)
-					},
+					}
+					*self = vm_clone;
+				}
 			}
 		}
 		result
