@@ -31,6 +31,7 @@ use frame_support::{
 	weights::Weight,
 };
 use primitives::v4::{well_known_keys, Id as ParaId, UpwardMessage};
+use sp_core::twox_64;
 use sp_runtime::traits::{Bounded, Hash};
 use sp_std::prelude::*;
 
@@ -402,6 +403,25 @@ fn relay_dispatch_queue_size_is_updated() {
 			assert_eq!(para_queue_size, 0, "size wrong for para: {}", p);
 		}
 	});
+}
+
+/// Assert that the old and the new way of accessing `relay_dispatch_queue_size` is the same.
+#[test]
+fn relay_dispatch_queue_size_key_is_correct() {
+	#![allow(deprecated)]
+	// Storage alias to the old way of accessing the queue size.
+	#[frame_support::storage_alias]
+	type RelayDispatchQueueSize = StorageMap<Ump, Twox64Concat, ParaId, (u32, u32), ValueQuery>;
+
+	for i in 0..1024 {
+		// A "random" para id.
+		let para: ParaId = u32::from_ne_bytes(twox_64(&i.encode())[..4].try_into().unwrap()).into();
+
+		let well_known = primitives::well_known_keys::relay_dispatch_queue_size(para);
+		let aliased = RelayDispatchQueueSize::hashed_key_for(para);
+
+		assert_eq!(well_known, aliased, "Old and new key must match");
+	}
 }
 
 #[test]
