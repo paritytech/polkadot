@@ -359,7 +359,13 @@ fn validate_using_artifact(
 		//         [`executor_intf::prepare`].
 		executor.execute(artifact_path.as_ref(), params)
 	} {
-		Err(err) => return Response::format_invalid("execute", &err),
+		Err(err) =>
+			return if err.contains("failed to open file: No such file or directory") {
+				// Raise an internal error if the file is missing.
+				Response::InternalError(err)
+			} else {
+				Response::format_invalid("execute", &err)
+			},
 		Ok(d) => d,
 	};
 
