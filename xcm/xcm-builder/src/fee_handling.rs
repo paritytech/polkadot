@@ -23,7 +23,9 @@ use xcm_executor::traits::{FeeManager, FeeReason, TransactAsset};
 /// `ReceiverAccount`.
 ///
 /// It reuses the `AssetTransactor` configured on the XCM executor to deposit fee assets, and also
-/// permits specifying `WaivedLocations` for locations that are privileged to not pay for fees.
+/// permits specifying `WaivedLocations` for locations that are privileged to not pay for fees. If
+/// the `AssetTransactor` returns an error while calling `deposit_asset`, then a warning will be
+/// logged.
 pub struct XcmFeesToAccount<XcmConfig, WaivedLocations, AccountId, ReceiverAccount>(
 	PhantomData<(XcmConfig, WaivedLocations, AccountId, ReceiverAccount)>,
 );
