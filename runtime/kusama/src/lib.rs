@@ -31,8 +31,8 @@ use primitives::{
 };
 use runtime_common::{
 	auctions, claims, crowdloan, impl_runtime_weights, impls::DealWithFees, paras_registrar,
-	prod_or_fast, remove_pallet::RemovePallet, slots, BalanceToU256, BlockHashCount, BlockLength,
-	CurrencyToVote, SlowAdjustingFeeUpdate, U256ToBalance,
+	prod_or_fast, slots, BalanceToU256, BlockHashCount, BlockLength, CurrencyToVote,
+	SlowAdjustingFeeUpdate, U256ToBalance,
 };
 use scale_info::TypeInfo;
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
@@ -1477,16 +1477,6 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 	}
 }
 
-// RemovePallet parameter types
-parameter_types! {
-	pub const DemocracyStr: &'static str = "Democracy";
-	pub const CouncilStr: &'static str = "Council";
-	pub const TechnicalCommitteeStr: &'static str = "TechnicalCommittee";
-	pub const PhragmenElectionStr: &'static str = "PhragmenElection";
-	pub const TechnicalMembershipStr: &'static str = "TechnicalMembership";
-	pub const TipsStr: &'static str = "Tips";
-}
-
 /// All migrations that will run on the next runtime upgrade.
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
@@ -1501,13 +1491,6 @@ pub type Migrations = (
 	// Unreleased - add new migrations here:
 	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
-	// Deprecated Gov V1 pallets
-	RemovePallet<DemocracyStr>,
-	RemovePallet<CouncilStr>,
-	RemovePallet<TechnicalCommitteeStr>,
-	RemovePallet<PhragmenElectionStr>,
-	RemovePallet<TechnicalMembershipStr>,
-	RemovePallet<TipsStr>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
@@ -2110,7 +2093,7 @@ sp_api::impl_runtime_apis! {
 					Err(BenchmarkError::Skip)
 				}
 
-				fn universal_alias() -> Result<(MultiLocation, Junction), BenchmarkError> {
+				fn universal_alias() -> Result<Junction, BenchmarkError> {
 					// The XCM executor of Kusama doesn't have a configured `UniversalAliases`
 					Err(BenchmarkError::Skip)
 				}
