@@ -261,6 +261,13 @@ impl Response {
 			Self::InvalidCandidate(format!("{}: {}", ctx, msg))
 		}
 	}
+	fn format_internal(ctx: &'static str, msg: &str) -> Self {
+		if msg.is_empty() {
+			Self::InternalError(ctx.to_string())
+		} else {
+			Self::InternalError(format!("{}: {}", ctx, msg))
+		}
+	}
 }
 
 /// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
@@ -362,7 +369,7 @@ fn validate_using_artifact(
 		Err(err) =>
 			return if err.contains("failed to open file: No such file or directory") {
 				// Raise an internal error if the file is missing.
-				Response::InternalError(err)
+				Response::format_internal("execute: missing file", &err)
 			} else {
 				Response::format_invalid("execute", &err)
 			},
