@@ -18,8 +18,7 @@ use xcm::latest::prelude::*;
 
 /// Handles transactional processing of XCM instructions.
 pub trait ProcessTransaction {
-
-	/// The `process_transaction` method takes a closure as an argument. 
+	/// The `process_transaction` method takes a closure as an argument.
 	/// Responsible for processing an XCM instruction in a transaction.
 	fn process_transaction<F>(f: F) -> Result<(), XcmError>
 	where

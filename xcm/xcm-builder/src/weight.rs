@@ -130,7 +130,6 @@ impl TakeRevenue for () {
 ///
 /// The constant `Get` type parameter should be the fungible ID, the amount of it required for one
 /// second of weight and the amount required for 1 MB of proof.
-#[derive(Clone)]
 pub struct FixedRateOfFungible<T: Get<(AssetId, u128, u128)>, R: TakeRevenue>(
 	Weight,
 	u128,
@@ -183,6 +182,16 @@ impl<T: Get<(AssetId, u128, u128)>, R: TakeRevenue> Drop for FixedRateOfFungible
 		if self.1 > 0 {
 			R::take_revenue((T::get().0, self.1).into());
 		}
+	}
+}
+
+impl<T, R> Clone for FixedRateOfFungible<T, R>
+where
+	T: Get<(AssetId, u128, u128)>,
+	R: TakeRevenue,
+{
+	fn clone(&self) -> FixedRateOfFungible<T, R> {
+		Self(self.0, self.1, PhantomData)
 	}
 }
 
