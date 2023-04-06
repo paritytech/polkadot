@@ -1196,7 +1196,7 @@ parameter_types! {
 	pub const ThawThrottle: (Perquintill, BlockNumber) = (Perquintill::from_percent(25), 5);
 	pub storage NisTarget: Perquintill = Perquintill::zero();
 	pub const NisPalletId: PalletId = PalletId(*b"py/nis  ");
-	pub const NisHoldReason: RuntimeHoldReason = pallet_nis::HoldReason::NftReceipt.into();
+	pub const NisHoldReason: RuntimeHoldReason = RuntimeHoldReason::Nis(pallet_nis::HoldReason::NftReceipt);
 }
 
 impl pallet_nis::Config for Runtime {
