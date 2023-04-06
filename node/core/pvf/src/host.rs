@@ -473,9 +473,9 @@ async fn handle_execute_pvf(
 	if let Some(state) = artifacts.artifact_state_mut(&artifact_id) {
 		match state {
 			ArtifactState::Prepared { last_time_needed, .. } => {
-				let metadata = std::fs::metadata(artifact_id.path(cache_path));
+				let file_metadata = std::fs::metadata(artifact_id.path(cache_path));
 
-				if metadata.is_ok() {
+				if file_metadata.is_ok() {
 					*last_time_needed = SystemTime::now();
 
 					// This artifact has already been prepared, send it to the execute queue.

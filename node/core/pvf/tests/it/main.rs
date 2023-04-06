@@ -276,7 +276,7 @@ async fn deleting_prepared_artifact_does_not_dispute() {
 		std::fs::remove_file(artifact_path.path()).unwrap();
 	}
 
-	// Try to validate again, should not dispute.
+	// Try to validate again, artifact should get recreated.
 	let result = host
 		.validate_candidate(
 			halt::wasm_binary_unwrap(),

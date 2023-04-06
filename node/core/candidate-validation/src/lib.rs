@@ -708,7 +708,7 @@ trait ValidationBackend {
 		let mut validation_result =
 			self.validate_candidate(pvf.clone(), exec_timeout, params.encode()).await;
 
-		// Allow one retry for each kind of error.
+		// Allow limited retries for each kind of error.
 		let mut num_internal_retries_left = 1;
 		let mut num_awd_retries_left = 1;
 		loop {

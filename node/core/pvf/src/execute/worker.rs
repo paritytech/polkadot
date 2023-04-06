@@ -360,19 +360,18 @@ fn validate_using_artifact(
 	executor: Arc<Executor>,
 	cpu_time_start: ProcessTime,
 ) -> Response {
+	let file_metadata = std::fs::metadata(artifact_path);
+	if let Err(err) = file_metadata {
+		return Response::format_internal("execute: could not find or open file", &err.to_string())
+	}
+
 	let descriptor_bytes = match unsafe {
 		// SAFETY: this should be safe since the compiled artifact passed here comes from the
 		//         file created by the prepare workers. These files are obtained by calling
 		//         [`executor_intf::prepare`].
 		executor.execute(artifact_path.as_ref(), params)
 	} {
-		Err(err) =>
-			return if err.contains("failed to open file: No such file or directory") {
-				// Raise an internal error if the file is missing.
-				Response::format_internal("execute: missing file", &err)
-			} else {
-				Response::format_invalid("execute", &err)
-			},
+		Err(err) => return Response::format_invalid("execute", &err),
 		Ok(d) => d,
 	};
 
