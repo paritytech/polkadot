@@ -6,7 +6,7 @@ authors.workspace = true
 edition.workspace = true
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.3.0" }
+codec = { package = "parity-scale-codec", version = "3.4.0" }
 paste = "1.0.7"
 
 frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }

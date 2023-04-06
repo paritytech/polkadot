@@ -941,6 +941,7 @@ pub enum ProxyType {
 	CancelProxy,
 	Auction,
 	Society,
+	NominationPools,
 }
 
 impl Default for ProxyType {
@@ -1024,6 +1025,9 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
 						RuntimeCall::Session(..) | RuntimeCall::Utility(..) |
 						RuntimeCall::FastUnstake(..)
 				)
+			},
+			ProxyType::NominationPools => {
+				matches!(c, RuntimeCall::NominationPools(..) | RuntimeCall::Utility(..))
 			},
 			ProxyType::IdentityJudgement => matches!(
 				c,
@@ -1513,14 +1517,20 @@ impl Get<Perbill> for NominationPoolsMigrationV4OldPallet {
 
 /// All migrations that will run on the next runtime upgrade.
 ///
-/// Should be cleared after every release.
+/// This contains the combined migrations of the last 10 releases. It allows to skip runtime
+/// upgrades in case governance decides to do so.
+#[allow(deprecated)]
 pub type Migrations = (
-	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-	parachains_configuration::migration::MigrateV4ToV5<Runtime>,
+	// 0.9.40
 	pallet_nomination_pools::migration::v4::MigrateToV4<
 		Runtime,
 		NominationPoolsMigrationV4OldPallet,
 	>,
+	// Unreleased - add new migrations here:
+	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
+	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
+	parachains_configuration::migration::MigrateV4ToV5<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
@@ -2120,7 +2130,7 @@ sp_api::impl_runtime_apis! {
 					Err(BenchmarkError::Skip)
 				}
 
-				fn universal_alias() -> Result<Junction, BenchmarkError> {
+				fn universal_alias() -> Result<(MultiLocation, Junction), BenchmarkError> {
 					// The XCM executor of Kusama doesn't have a configured `UniversalAliases`
 					Err(BenchmarkError::Skip)
 				}
@@ -2142,6 +2152,12 @@ sp_api::impl_runtime_apis! {
 
 				fn unlockable_asset() -> Result<(MultiLocation, MultiLocation, MultiAsset), BenchmarkError> {
 					// Kusama doesn't support asset locking
+					Err(BenchmarkError::Skip)
+				}
+
+				fn export_message_origin_and_destination(
+				) -> Result<(MultiLocation, NetworkId, InteriorMultiLocation), BenchmarkError> {
+					// Kusama doesn't support exporting messages
 					Err(BenchmarkError::Skip)
 				}
 			}

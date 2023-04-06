@@ -27,6 +27,8 @@ pub enum RuntimeMetricOp {
 	IncrementCounterVec(u64, RuntimeMetricLabelValues),
 	/// Increment a counter metric by value.
 	IncrementCounter(u64),
+	/// Observe histogram value
+	ObserveHistogram(u128),
 }
 
 /// Runtime metric update event.
@@ -127,6 +129,16 @@ pub mod metric_definitions {
 		pub labels: &'a [&'static str],
 	}
 
+	/// `Histogram` metric definition
+	pub struct HistogramDefinition<'a> {
+		/// The name of the metric.
+		pub name: &'static str,
+		/// The description of the metric.
+		pub description: &'static str,
+		/// The buckets for the histogram
+		pub buckets: &'a [f64],
+	}
+
 	/// Counts parachain inherent data weights. Use `before` and `after` labels to differentiate
 	/// between the weight before and after filtering.
 	pub const PARACHAIN_INHERENT_DATA_WEIGHT: CounterVecDefinition = CounterVecDefinition {
@@ -176,4 +188,12 @@ pub mod metric_definitions {
 			description: "Counts the number of bitfields signature checked in `enter_inner`.",
 			labels: &["validity"],
 		};
+
+	/// Measures how much time does it take to verify a single validator signature of a dispute statement
+	pub const PARACHAIN_VERIFY_DISPUTE_SIGNATURE: HistogramDefinition =
+		HistogramDefinition {
+			name: "polkadot_parachain_verify_dispute_signature",
+			description: "How much time does it take to verify a single validator signature of a dispute statement, in seconds",
+			buckets: &[0.0, 0.00005, 0.00006, 0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.3, 0.5, 1.0],
+	};
 }
