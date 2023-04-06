@@ -16,7 +16,7 @@
 
 use std::{
 	collections::{BTreeMap, HashSet},
-	num::NonZeroUsize,
+	num::{NonZeroU32, NonZeroUsize},
 };
 
 use futures::channel::oneshot;
@@ -177,6 +177,17 @@ impl ChainScraper {
 	/// As long as we have `MAX_FINALITY_LAG` this makes sense as a value.
 	pub(crate) const ANCESTRY_SIZE_LIMIT: u32 = MAX_FINALITY_LAG;
 
+	/// How many finalized block the scraper should process.
+	///
+	/// Initialize this value with `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION`
+	/// If  `SCRAPED_FINALIZED_BLOCKS_COUNT` > `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION`
+	/// scraper's job will be undone on pruning.
+	pub(crate) const SCRAPED_FINALIZED_BLOCKS_COUNT: NonZeroU32 =
+		match NonZeroU32::new(DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION) {
+			Some(cap) => cap,
+			None => panic!("Scraped finalized blocks count must be non-zero"),
+		};
+
 	/// Create a properly initialized `OrderingProvider`.
 	///
 	/// Returns: `Self` and any scraped votes.
@@ -230,7 +241,7 @@ impl ChainScraper {
 
 		// Fetch ancestry up to last finalized block.
 		let ancestors = self
-			.get_unfinalized_block_ancestors(sender, activated.hash, activated.number)
+			.get_relevant_block_ancestors(sender, activated.hash, activated.number)
 			.await?;
 
 		// Ancestors block numbers are consecutive in the descending order.
@@ -330,10 +341,11 @@ impl ChainScraper {
 	}
 
 	/// Returns ancestors of `head` in the descending order, stopping
-	/// either at the block present in cache or at the last finalized block.
+	/// either at the block present in cache or at `SCRAPED_FINALIZED_BLOCKS_COUNT -1` blocks after
+	/// the last finalized one (called `target_ancestor`).
 	///
-	/// Both `head` and the latest finalized block are **not** included in the result.
-	async fn get_unfinalized_block_ancestors<Sender>(
+	/// Both `head` and the `target_ancestor` blocks are **not** included in the result.
+	async fn get_relevant_block_ancestors<Sender>(
 		&mut self,
 		sender: &mut Sender,
 		mut head: Hash,
@@ -342,7 +354,9 @@ impl ChainScraper {
 	where
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
-		let target_ancestor = get_finalized_block_number(sender).await?;
+		let target_ancestor = get_finalized_block_number(sender)
+			.await?
+			.saturating_sub(Self::SCRAPED_FINALIZED_BLOCKS_COUNT.get() - 1);
 
 		let mut ancestors = Vec::new();
 
