@@ -28,7 +28,7 @@ use frame_support::{
 };
 use frame_system::EnsureRoot;
 use pallet_xcm::XcmPassthrough;
-use polkadot_runtime_constants::{system_parachain::*, xcm::body::FELLOWSHIP_ADMIN_INDEX};
+use polkadot_runtime_constants::{system_parachain::SystemParachains, xcm::body::FELLOWSHIP_ADMIN_INDEX};
 use runtime_common::{crowdloan, paras_registrar, xcm_sender, ToAuthor};
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
@@ -136,9 +136,6 @@ match_types! {
 	pub type CollectivesOrFellows: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(COLLECTIVES_ID)) } |
 		MultiLocation { parents: 0, interior: X2(Parachain(COLLECTIVES_ID), Plurality { id: BodyId::Technical, .. }) }
-	};
-	pub type SystemParachains: impl Contains<MultiLocation> = {
-		MultiLocation { parents: 0, interior: X1(Parachain(STATEMINT_ID | COLLECTIVES_ID)) }
 	};
 }
 

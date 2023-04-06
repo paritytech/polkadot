@@ -2038,7 +2038,7 @@ sp_api::impl_runtime_apis! {
 			use frame_benchmarking::baseline::Pallet as Baseline;
 			use xcm::latest::prelude::*;
 			use xcm_config::{
-				LocalCheckAccount, LocationConverter, Statemine, TokenLocation, XcmConfig,
+				LocalCheckAccount, LocationConverter, Rockmine, TokenLocation, XcmConfig,
 			};
 
 			impl frame_system_benchmarking::Config for Runtime {}

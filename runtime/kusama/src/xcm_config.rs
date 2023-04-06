@@ -26,7 +26,7 @@ use frame_support::{
 	weights::Weight,
 };
 use frame_system::EnsureRoot;
-use kusama_runtime_constants::system_parachain::*;
+use kusama_runtime_constants::system_parachain::SystemParachains;
 use runtime_common::{crowdloan, paras_registrar, xcm_sender, ToAuthor};
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
@@ -127,9 +127,6 @@ pub type TrustedTeleporters =
 match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
 		MultiLocation { parents: 0, interior: X1(Parachain(_)) }
-	};
-	pub type SystemParachains: impl Contains<MultiLocation> = {
-		MultiLocation { parents: 0, interior: X1(Parachain(STATEMINE_ID | ENCOINTER_ID)) }
 	};
 }
 

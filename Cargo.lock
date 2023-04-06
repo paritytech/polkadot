@@ -3781,6 +3781,7 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "sp-weights",
+ "xcm",
 ]
 
 [[package]]
@@ -7704,6 +7705,7 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "sp-weights",
+ "xcm",
 ]
 
 [[package]]
@@ -8954,6 +8956,7 @@ dependencies = [
  "sp-core",
  "sp-runtime",
  "sp-weights",
+ "xcm",
 ]
 
 [[package]]

@@ -113,10 +113,18 @@ pub mod xcm {
 
 /// System Parachains.
 pub mod system_parachain {
+	use xcm::latest::prelude::*;
+
 	/// Statemint parachain ID.
 	pub const STATEMINT_ID: u32 = 1000;
 	/// Collectives parachain ID.
 	pub const COLLECTIVES_ID: u32 = 1001;
+
+	frame_support::match_types! {
+		pub type SystemParachains: impl Contains<MultiLocation> = {
+			MultiLocation { parents: 0, interior: X1(Parachain(STATEMINT_ID | COLLECTIVES_ID)) }
+		};
+	}
 }
 
 #[cfg(test)]
