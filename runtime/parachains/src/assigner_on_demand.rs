@@ -119,14 +119,12 @@ pub mod pallet {
 		BoundedVec::truncate_from(Vec::new())
 	}
 
-	// TODO getters are on the way out, remove this one preemptively
 	#[pallet::storage]
 	pub(super) type SpotTraffic<T: Config> =
 		StorageValue<_, FixedU128, ValueQuery, SpotTrafficOnEmpty<T>>;
 
 	/// The order storage. A simple bounded vec will do for now but this can be changed to a
 	/// message queue at a later point if needed.
-	// TODO naming is hard
 	#[pallet::storage]
 	pub type OnDemandQueue<T: Config> =
 		StorageValue<_, BoundedVec<SpotClaim, T::MaxClaims>, ValueQuery, OnDemandQueueOnEmpty<T>>;
@@ -215,8 +213,6 @@ pub mod pallet {
 			// Is the current price higher than `max_amount`
 			ensure!(spot_price.le(&max_amount), Error::<T>::SpotPriceHigherThanMaxAmount);
 
-			// TODO session change para lifecycle throw away upgraded parathread
-
 			// Charge the sending account the spot price
 			// TODO should liveness be exposed to the user. i.e. should a spot price bid be able to reap the account?
 			T::Currency::withdraw(
@@ -240,6 +236,8 @@ pub mod pallet {
 		}
 	}
 }
+
+// TODO session change para lifecycle throw away upgraded parathread
 
 impl<T: Config> Pallet<T>
 where
