@@ -31,10 +31,10 @@ use sp_runtime::{
 };
 use xcm_builder::{
 	test_utils::{
-		Assets, FrameTransactionalProcessor, TestAssetExchanger, TestAssetLocker, TestAssetTrap,
-		TestSubscriptionService, TestUniversalAliases,
+		Assets, TestAssetExchanger, TestAssetLocker, TestAssetTrap, TestSubscriptionService,
+		TestUniversalAliases,
 	},
-	AllowUnpaidExecutionFrom,
+	AllowUnpaidExecutionFrom, FrameTransactionalProcessor,
 };
 use xcm_executor::traits::ConvertOrigin;
 

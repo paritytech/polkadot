@@ -74,6 +74,7 @@ impl TransactAsset for DummyAssetTransactor {
 	}
 }
 
+#[derive(Clone)]
 pub struct DummyWeightTrader;
 impl WeightTrader for DummyWeightTrader {
 	fn new() -> Self {
