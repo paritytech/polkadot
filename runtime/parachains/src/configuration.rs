@@ -35,8 +35,6 @@ mod benchmarking;
 
 pub use pallet::*;
 
-pub mod migration;
-
 const LOG_TARGET: &str = "runtime::configuration";
 
 /// All configuration of the runtime with respect to parachains and parathreads.
