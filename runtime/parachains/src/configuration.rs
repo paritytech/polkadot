@@ -36,6 +36,9 @@ mod tests;
 #[cfg(feature = "runtime-benchmarks")]
 mod benchmarking;
 
+pub mod migration;
+pub mod migration_ump;
+
 pub use pallet::*;
 
 const LOG_TARGET: &str = "runtime::configuration";
