@@ -17,7 +17,8 @@
 use crate::{barriers::AllowSubscriptionsFrom, test_utils::*};
 pub use crate::{
 	AllowExplicitUnpaidExecutionFrom, AllowKnownQueryResponses, AllowTopLevelPaidExecutionFrom,
-	AllowUnpaidExecutionFrom, FixedRateOfFungible, FixedWeightBounds, FrameTransactionalProcessor, TakeWeightCredit,
+	AllowUnpaidExecutionFrom, FixedRateOfFungible, FixedWeightBounds, FrameTransactionalProcessor,
+	TakeWeightCredit,
 };
 use frame_support::traits::{ContainsPair, Everything};
 pub use frame_support::{
