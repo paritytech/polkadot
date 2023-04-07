@@ -21,8 +21,8 @@ use std::collections::{
 
 use parity_scale_codec::{Decode, Encode};
 
-use sp_application_crypto::AppKey;
-use sp_keystore::{Error as KeystoreError, Keystore, KeystorePtr};
+use sp_application_crypto::AppCrypto;
+use sp_keystore::{Error as KeystoreError, KeystorePtr};
 
 use super::{Statement, UncheckedSignedFullStatement};
 use polkadot_primitives::{
@@ -221,26 +221,16 @@ impl SignedDisputeStatement {
 		};
 
 		let data = dispute_statement.payload_data(candidate_hash, session_index);
-		let signature = Keystore::sign_with(
-			&**keystore,
-			ValidatorId::ID,
-			&validator_public.clone().into(),
-			&data,
-		)?;
-
-		let signature = match signature {
-			Some(sig) =>
-				sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?,
-			None => return Ok(None),
-		};
-
-		Ok(Some(Self {
-			dispute_statement,
-			candidate_hash,
-			validator_public,
-			validator_signature: signature,
-			session_index,
-		}))
+		let signature = keystore
+			.sr25519_sign(ValidatorId::ID, validator_public.as_ref(), &data)?
+			.map(|sig| Self {
+				dispute_statement,
+				candidate_hash,
+				validator_public,
+				validator_signature: sig.into(),
+				session_index,
+			});
+		Ok(signature)
 	}
 
 	/// Access the underlying dispute statement
