@@ -1708,6 +1708,7 @@ impl PvfCheckStatement {
 
 /// Type discriminator for PVF preparation timeouts
 #[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum PvfPrepTimeoutKind {
 	/// For prechecking requests, the time period after which the preparation worker is considered
 	/// unresponsive and will be killed.
@@ -1721,6 +1722,7 @@ pub enum PvfPrepTimeoutKind {
 
 /// Type discriminator for PVF execution timeouts
 #[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum PvfExecTimeoutKind {
 	/// The amount of time to spend on execution during backing.
 	Backing,

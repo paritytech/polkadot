@@ -157,6 +157,8 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_channel_max_message_size: u32,
+	/// The executor environment parameters
+	pub executor_params: ExecutorParams,
 
 	/**
 	 * Parameters that will unlikely be needed by parachains.
@@ -296,6 +298,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
+			executor_params: Default::default(),
 		}
 	}
 }
@@ -516,13 +519,6 @@ pub mod pallet {
 	/// is meant to be used only as the last resort.
 	#[pallet::storage]
 	pub(crate) type BypassConsistencyCheck<T: Config> = StorageValue<_, bool, ValueQuery>;
-
-	/// Execution environment parameters (changes are applied on the initialization of the next
-	/// session by `session_info` pallet)
-	#[pallet::storage]
-	#[pallet::getter(fn next_session_executor_params)]
-	pub(crate) type NextSessionExecutorParams<T: Config> =
-		StorageValue<_, ExecutorParams, OptionQuery>;
 
 	#[pallet::genesis_config]
 	pub struct GenesisConfig<T: Config> {
@@ -1177,13 +1173,14 @@ pub mod pallet {
 			Weight::from_parts(0, 0), // FIXME: Benchmark weights
 			DispatchClass::Operational,
 		))]
-		pub fn set_next_session_executor_params(
+		pub fn set_executor_params(
 			origin: OriginFor<T>,
 			new: ExecutorParams,
 		) -> DispatchResult {
 			ensure_root(origin)?;
-			<NextSessionExecutorParams<T>>::put(new);
-			Ok(())
+			Self::schedule_config_update(|config| {
+				config.executor_params = new;
+			})
 		}
 	}
 

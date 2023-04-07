@@ -191,9 +191,7 @@ impl<T: Config> Pallet<T> {
 		};
 		Sessions::<T>::insert(&new_session_index, &new_session_info);
 
-		let new_executor_params =
-			<configuration::Pallet<T>>::next_session_executor_params().unwrap_or_default();
-		SessionExecutorParams::<T>::insert(&new_session_index, new_executor_params);
+		SessionExecutorParams::<T>::insert(&new_session_index, config.executor_params);
 	}
 
 	/// Called by the initializer to initialize the session info pallet.
