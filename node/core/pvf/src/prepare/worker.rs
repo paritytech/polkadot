@@ -351,19 +351,8 @@ async fn recv_response(stream: &mut UnixStream, pid: u32) -> io::Result<PrepareR
 ///	7. Send the result of preparation back to the host. If any error occurred in the above steps, we
 ///	   send that in the `PrepareResult`.
 pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
-	worker_event_loop("prepare", socket_path, |rt_handle, mut stream| async move {
+	worker_event_loop("prepare", socket_path, node_version, |rt_handle, mut stream| async move {
 		let worker_pid = std::process::id();
-		if let Some(version) = node_version {
-			if version != env!("SUBSTRATE_CLI_IMPL_VERSION") {
-				gum::error!(
-					target: LOG_TARGET,
-					%worker_pid,
-					"Node and worker version mismatch, node needs restarting, forcing shutdown",
-				);
-				crate::kill_parent_node_in_emergency();
-				return Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"))
-			}
-		}
 
 		loop {
 			let (pvf, dest) = recv_request(&mut stream).await?;

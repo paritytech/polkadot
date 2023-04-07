@@ -171,18 +171,35 @@ pub async fn tmpfile(prefix: &str) -> io::Result<PathBuf> {
 	tmpfile_in(prefix, &temp_dir).await
 }
 
-pub fn worker_event_loop<F, Fut>(debug_id: &'static str, socket_path: &str, mut event_loop: F)
-where
+pub fn worker_event_loop<F, Fut>(
+	debug_id: &'static str,
+	socket_path: &str,
+	node_version: Option<&str>,
+	mut event_loop: F,
+) where
 	F: FnMut(Handle, UnixStream) -> Fut,
 	Fut: futures::Future<Output = io::Result<Never>>,
 {
-	gum::debug!(
-		target: LOG_TARGET,
-		worker_pid = %std::process::id(),
-		"starting pvf worker ({})",
-		debug_id,
-	);
+	let worker_pid = std::process::id();
+	gum::debug!(target: LOG_TARGET, %worker_pid, "starting pvf worker ({})", debug_id);
 
+	// Check for a mismatch between the node and worker versions.
+	if let Some(version) = node_version {
+		if version != env!("SUBSTRATE_CLI_IMPL_VERSION") {
+			gum::error!(
+				target: LOG_TARGET,
+				%worker_pid,
+				"Node and worker version mismatch, node needs restarting, forcing shutdown",
+			);
+			kill_parent_node_in_emergency();
+			let err: io::Result<Never> =
+				Err(io::Error::new(io::ErrorKind::Unsupported, "Version mismatch"));
+			gum::debug!(target: LOG_TARGET, %worker_pid, "quitting pvf worker({}): {:?}", debug_id, err);
+			return
+		}
+	}
+
+	// Run the main worker loop.
 	let rt = Runtime::new().expect("Creates tokio runtime. If this panics the worker will die and the host will detect that and deal with it.");
 	let handle = rt.handle();
 	let err = rt
@@ -197,13 +214,7 @@ where
 		// It's never `Ok` because it's `Ok(Never)`.
 		.unwrap_err();
 
-	gum::debug!(
-		target: LOG_TARGET,
-		worker_pid = %std::process::id(),
-		"quitting pvf worker ({}): {:?}",
-		debug_id,
-		err,
-	);
+	gum::debug!(target: LOG_TARGET, %worker_pid, "quitting pvf worker ({}): {:?}", debug_id, err);
 
 	// We don't want tokio to wait for the tasks to finish. We want to bring down the worker as fast
 	// as possible and not wait for stalled validation to finish. This isn't strictly necessary now,
@@ -422,7 +433,7 @@ pub async fn framed_recv(r: &mut (impl AsyncRead + Unpin)) -> io::Result<Vec<u8>
 /// get closed by the OS and other workers receive error on socket read and also exit. Preparation
 /// jobs are written to the temporary files that are renamed to real artifacts on the node side, so
 /// no leftover artifacts are possible.
-pub(crate) fn kill_parent_node_in_emergency() {
+fn kill_parent_node_in_emergency() {
 	unsafe {
 		// SAFETY: `getpid()` never fails but may return "no-parent" (0) or "parent-init" (1) in
 		// some corner cases, which is checked. `kill()` never fails.

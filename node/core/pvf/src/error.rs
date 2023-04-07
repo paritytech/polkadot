@@ -29,12 +29,11 @@ pub enum PrepareError {
 	Prevalidation(String),
 	/// Compilation failed for the given PVF.
 	Preparation(String),
-	/// An unexpected panic has occured in the preparation worker.
+	/// An unexpected panic has occurred in the preparation worker.
 	Panic(String),
 	/// Failed to prepare the PVF due to the time limit.
 	TimedOut,
-	/// An IO error occurred while receiving the result from the worker process. This state is reported by the
-	/// validation host (not by the worker).
+	/// An IO error occurred. This state is reported by either the validation host or by the worker.
 	IoErr(String),
 	/// The temporary file for the artifact could not be created at the given cache path. This state is reported by the
 	/// validation host (not by the worker).
