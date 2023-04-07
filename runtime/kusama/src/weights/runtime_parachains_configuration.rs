@@ -19,7 +19,7 @@
 //! DATE: 2023-04-07, STEPS: `50`, REPEAT: `20`, LOW RANGE: `[]`, HIGH RANGE: `[]`
 //! WORST CASE MAP SIZE: `1000000`
 //! HOSTNAME: `bm3`, CPU: `Intel(R) Core(TM) i7-7700K CPU @ 4.20GHz`
-//! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("polkadot-dev"), DB CACHE: 1024
+//! EXECUTION: Some(Wasm), WASM-EXECUTION: Compiled, CHAIN: Some("kusama-dev"), DB CACHE: 1024
 
 // Executed Command:
 // target/production/polkadot
@@ -33,9 +33,9 @@
 // --heap-pages=4096
 // --json-file=/var/lib/gitlab-runner/builds/zyw4fam_/0/parity/mirrors/polkadot/.git/.artifacts/bench.json
 // --pallet=runtime_parachains::configuration
-// --chain=polkadot-dev
+// --chain=kusama-dev
 // --header=./file_header.txt
-// --output=./runtime/polkadot/src/weights/
+// --output=./runtime/kusama/src/weights/
 
 #![cfg_attr(rustfmt, rustfmt_skip)]
 #![allow(unused_parens)]
@@ -49,74 +49,66 @@ pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for WeightInfo<T> {
 	/// Storage: Configuration PendingConfigs (r:1 w:1)
 	/// Proof Skipped: Configuration PendingConfigs (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: Configuration ActiveConfig (r:1 w:0)
-	/// Proof Skipped: Configuration ActiveConfig (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	/// Proof Skipped: Configuration BypassConsistencyCheck (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	/// Proof Skipped: ParasShared CurrentSessionIndex (max_values: Some(1), max_size: None, mode: Measured)
 	fn set_config_with_block_number() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `393`
-		//  Estimated: `7512`
-		// Minimum execution time: 13_232_000 picoseconds.
-		Weight::from_parts(13_585_000, 0)
-			.saturating_add(Weight::from_parts(0, 7512))
-			.saturating_add(T::DbWeight::get().reads(4))
+		//  Measured:  `90`
+		//  Estimated: `4725`
+		// Minimum execution time: 9_394_000 picoseconds.
+		Weight::from_parts(9_686_000, 0)
+			.saturating_add(Weight::from_parts(0, 4725))
+			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Configuration PendingConfigs (r:1 w:1)
 	/// Proof Skipped: Configuration PendingConfigs (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: Configuration ActiveConfig (r:1 w:0)
-	/// Proof Skipped: Configuration ActiveConfig (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	/// Proof Skipped: Configuration BypassConsistencyCheck (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	/// Proof Skipped: ParasShared CurrentSessionIndex (max_values: Some(1), max_size: None, mode: Measured)
 	fn set_config_with_u32() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `393`
-		//  Estimated: `7512`
-		// Minimum execution time: 13_436_000 picoseconds.
-		Weight::from_parts(13_919_000, 0)
-			.saturating_add(Weight::from_parts(0, 7512))
-			.saturating_add(T::DbWeight::get().reads(4))
+		//  Measured:  `90`
+		//  Estimated: `4725`
+		// Minimum execution time: 9_379_000 picoseconds.
+		Weight::from_parts(9_700_000, 0)
+			.saturating_add(Weight::from_parts(0, 4725))
+			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Configuration PendingConfigs (r:1 w:1)
 	/// Proof Skipped: Configuration PendingConfigs (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: Configuration ActiveConfig (r:1 w:0)
-	/// Proof Skipped: Configuration ActiveConfig (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	/// Proof Skipped: Configuration BypassConsistencyCheck (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	/// Proof Skipped: ParasShared CurrentSessionIndex (max_values: Some(1), max_size: None, mode: Measured)
 	fn set_config_with_option_u32() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `393`
-		//  Estimated: `7512`
-		// Minimum execution time: 13_053_000 picoseconds.
-		Weight::from_parts(13_330_000, 0)
-			.saturating_add(Weight::from_parts(0, 7512))
-			.saturating_add(T::DbWeight::get().reads(4))
+		//  Measured:  `90`
+		//  Estimated: `4725`
+		// Minimum execution time: 9_612_000 picoseconds.
+		Weight::from_parts(16_194_000, 0)
+			.saturating_add(Weight::from_parts(0, 4725))
+			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Configuration PendingConfigs (r:1 w:1)
 	/// Proof Skipped: Configuration PendingConfigs (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: Configuration ActiveConfig (r:1 w:0)
-	/// Proof Skipped: Configuration ActiveConfig (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	/// Proof Skipped: Configuration BypassConsistencyCheck (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	/// Proof Skipped: ParasShared CurrentSessionIndex (max_values: Some(1), max_size: None, mode: Measured)
 	fn set_config_with_weight() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `393`
-		//  Estimated: `7512`
-		// Minimum execution time: 12_931_000 picoseconds.
-		Weight::from_parts(13_349_000, 0)
-			.saturating_add(Weight::from_parts(0, 7512))
-			.saturating_add(T::DbWeight::get().reads(4))
+		//  Measured:  `90`
+		//  Estimated: `4725`
+		// Minimum execution time: 9_533_000 picoseconds.
+		Weight::from_parts(9_745_000, 0)
+			.saturating_add(Weight::from_parts(0, 4725))
+			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Benchmark Override (r:0 w:0)
@@ -131,38 +123,34 @@ impl<T: frame_system::Config> runtime_parachains::configuration::WeightInfo for 
 	}
 	/// Storage: Configuration PendingConfigs (r:1 w:1)
 	/// Proof Skipped: Configuration PendingConfigs (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: Configuration ActiveConfig (r:1 w:0)
-	/// Proof Skipped: Configuration ActiveConfig (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	/// Proof Skipped: Configuration BypassConsistencyCheck (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	/// Proof Skipped: ParasShared CurrentSessionIndex (max_values: Some(1), max_size: None, mode: Measured)
 	fn set_config_with_balance() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `393`
-		//  Estimated: `7512`
-		// Minimum execution time: 12_861_000 picoseconds.
-		Weight::from_parts(13_341_000, 0)
-			.saturating_add(Weight::from_parts(0, 7512))
-			.saturating_add(T::DbWeight::get().reads(4))
+		//  Measured:  `90`
+		//  Estimated: `4725`
+		// Minimum execution time: 9_463_000 picoseconds.
+		Weight::from_parts(9_852_000, 0)
+			.saturating_add(Weight::from_parts(0, 4725))
+			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 	/// Storage: Configuration PendingConfigs (r:1 w:1)
 	/// Proof Skipped: Configuration PendingConfigs (max_values: Some(1), max_size: None, mode: Measured)
-	/// Storage: Configuration ActiveConfig (r:1 w:0)
-	/// Proof Skipped: Configuration ActiveConfig (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: Configuration BypassConsistencyCheck (r:1 w:0)
 	/// Proof Skipped: Configuration BypassConsistencyCheck (max_values: Some(1), max_size: None, mode: Measured)
 	/// Storage: ParasShared CurrentSessionIndex (r:1 w:0)
 	/// Proof Skipped: ParasShared CurrentSessionIndex (max_values: Some(1), max_size: None, mode: Measured)
 	fn set_config_with_executor_params() -> Weight {
 		// Proof Size summary in bytes:
-		//  Measured:  `393`
-		//  Estimated: `7512`
-		// Minimum execution time: 13_678_000 picoseconds.
-		Weight::from_parts(14_093_000, 0)
-			.saturating_add(Weight::from_parts(0, 7512))
-			.saturating_add(T::DbWeight::get().reads(4))
+		//  Measured:  `90`
+		//  Estimated: `4725`
+		// Minimum execution time: 10_405_000 picoseconds.
+		Weight::from_parts(10_693_000, 0)
+			.saturating_add(Weight::from_parts(0, 4725))
+			.saturating_add(T::DbWeight::get().reads(3))
 			.saturating_add(T::DbWeight::get().writes(1))
 	}
 }
