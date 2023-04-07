@@ -239,7 +239,8 @@ impl ChainScraper {
 			None => return Ok(ScrapedUpdates::new()),
 		};
 
-		// Fetch ancestry up to last finalized block.
+		// Fetch ancestry up to `SCRAPED_FINALIZED_BLOCKS_COUNT` blocks beyond
+		// the last finalized one
 		let ancestors = self
 			.get_relevant_block_ancestors(sender, activated.hash, activated.number)
 			.await?;
@@ -356,7 +357,7 @@ impl ChainScraper {
 	{
 		let target_ancestor = get_finalized_block_number(sender)
 			.await?
-			.saturating_sub(Self::SCRAPED_FINALIZED_BLOCKS_COUNT.get() - 1);
+			.saturating_sub(Self::SCRAPED_FINALIZED_BLOCKS_COUNT.get());
 
 		let mut ancestors = Vec::new();
 
