@@ -1173,10 +1173,7 @@ pub mod pallet {
 			Weight::from_parts(0, 0), // FIXME: Benchmark weights
 			DispatchClass::Operational,
 		))]
-		pub fn set_executor_params(
-			origin: OriginFor<T>,
-			new: ExecutorParams,
-		) -> DispatchResult {
+		pub fn set_executor_params(origin: OriginFor<T>, new: ExecutorParams) -> DispatchResult {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.executor_params = new;
