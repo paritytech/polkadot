@@ -16,7 +16,7 @@
 
 use std::{
 	collections::{BTreeMap, HashSet},
-	num::{NonZeroU32, NonZeroUsize},
+	num::NonZeroUsize,
 };
 
 use futures::channel::oneshot;
@@ -151,7 +151,10 @@ impl Inclusions {
 /// `process_active_leaves_update` any scraped votes.
 ///
 /// Scraped candidates are available `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` more blocks
-/// after finalization as a precaution not to prune them prematurely.
+/// after finalization as a precaution not to prune them prematurely. Besides the newly scraped
+/// candidates `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` finalized blocks are parsed as
+/// another precaution to have their `CandidateReceipts` available in case a dispute is raised on
+/// them,
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
 	included_candidates: candidates::ScrapedCandidates,
@@ -176,17 +179,6 @@ impl ChainScraper {
 	///
 	/// As long as we have `MAX_FINALITY_LAG` this makes sense as a value.
 	pub(crate) const ANCESTRY_SIZE_LIMIT: u32 = MAX_FINALITY_LAG;
-
-	/// How many finalized block the scraper should process.
-	///
-	/// Initialize this value with `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION`
-	/// If  `SCRAPED_FINALIZED_BLOCKS_COUNT` > `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION`
-	/// scraper's job will be undone on pruning.
-	pub(crate) const SCRAPED_FINALIZED_BLOCKS_COUNT: NonZeroU32 =
-		match NonZeroU32::new(DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION) {
-			Some(cap) => cap,
-			None => panic!("Scraped finalized blocks count must be non-zero"),
-		};
 
 	/// Create a properly initialized `OrderingProvider`.
 	///
@@ -357,7 +349,7 @@ impl ChainScraper {
 	{
 		let target_ancestor = get_finalized_block_number(sender)
 			.await?
-			.saturating_sub(Self::SCRAPED_FINALIZED_BLOCKS_COUNT.get());
+			.saturating_sub(DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION);
 
 		let mut ancestors = Vec::new();
 
