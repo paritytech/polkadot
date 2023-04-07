@@ -50,6 +50,9 @@ pub enum ExecutorParam {
 	/// PVF execution timeouts, millisec
 	#[codec(index = 6)]
 	PvfExecTimeout(PvfExecTimeoutKind, u64),
+	/// Enables WASM bulk memory proposal
+	#[codec(index = 7)]
+	WasmExtBulkMemory,
 }
 
 /// Unit type wrapper around [`type@Hash`] that represents an execution parameter set hash.
