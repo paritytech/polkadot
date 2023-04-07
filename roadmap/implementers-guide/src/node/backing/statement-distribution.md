@@ -170,7 +170,10 @@ backing subsystem itself.
   - Handled by `handle_backed_candidate_message`
 - `StatementDistributionMessage::NetworkBridgeUpdate`
   - Handled by `handle_network_update`
-  - v1 compatibility
+
+#### Network bridge events
+
+- v1 compatibility
 - `Statement`
   - Notification of a signed statement.
   - Handled by `handle_incoming_statement`
@@ -448,13 +451,8 @@ description of the flow. See module-docs for full details.
   - **Backable** is when the necessary backing statements have been acquired but
     those statements and the parablock candidate haven't been backed in a relay
     chain block yet.
-- **Fragment:** A prospective para block (that is, a block not yet referenced by
-  the relay-chain). Fragments are anchored to the relay-chain at a particular
-  relay-parent.
-- **Fragment tree:**
-  - A tree of fragments. Together, these fragments define one or more
-    prospective paths a parachain's state may transition through.
-  - See the "Fragment Tree" section.
+- **Fragment tree:** A parachain fragment not referenced by the relay-chain.
+  It is a tree of prospective parachain blocks.
 - **Manifest:** A message about a known backed candidate, along with a
   description of the statements backing it. There are two kinds of manifest, 
   `Acknowledgement` and `Announcement`. See "Manifests" section.
