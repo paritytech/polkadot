@@ -453,6 +453,7 @@ pub trait WeightInfo {
 	fn set_config_with_weight() -> Weight;
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
+	fn set_config_with_executor_params() -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -473,6 +474,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn set_hrmp_open_request_ttl() -> Weight {
+		Weight::MAX
+	}
+	fn set_config_with_executor_params() -> Weight {
 		Weight::MAX
 	}
 }
