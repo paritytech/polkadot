@@ -151,7 +151,10 @@ impl Inclusions {
 /// `process_active_leaves_update` any scraped votes.
 ///
 /// Scraped candidates are available `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` more blocks
-/// after finalization as a precaution not to prune them prematurely.
+/// after finalization as a precaution not to prune them prematurely. Besides the newly scraped
+/// candidates `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION` finalized blocks are parsed as
+/// another precaution to have their `CandidateReceipts` available in case a dispute is raised on
+/// them,
 pub struct ChainScraper {
 	/// All candidates we have seen included, which not yet have been finalized.
 	included_candidates: candidates::ScrapedCandidates,
@@ -228,9 +231,10 @@ impl ChainScraper {
 			None => return Ok(ScrapedUpdates::new()),
 		};
 
-		// Fetch ancestry up to last finalized block.
+		// Fetch ancestry up to `SCRAPED_FINALIZED_BLOCKS_COUNT` blocks beyond
+		// the last finalized one
 		let ancestors = self
-			.get_unfinalized_block_ancestors(sender, activated.hash, activated.number)
+			.get_relevant_block_ancestors(sender, activated.hash, activated.number)
 			.await?;
 
 		// Ancestors block numbers are consecutive in the descending order.
@@ -330,10 +334,11 @@ impl ChainScraper {
 	}
 
 	/// Returns ancestors of `head` in the descending order, stopping
-	/// either at the block present in cache or at the last finalized block.
+	/// either at the block present in cache or at `SCRAPED_FINALIZED_BLOCKS_COUNT -1` blocks after
+	/// the last finalized one (called `target_ancestor`).
 	///
-	/// Both `head` and the latest finalized block are **not** included in the result.
-	async fn get_unfinalized_block_ancestors<Sender>(
+	/// Both `head` and the `target_ancestor` blocks are **not** included in the result.
+	async fn get_relevant_block_ancestors<Sender>(
 		&mut self,
 		sender: &mut Sender,
 		mut head: Hash,
@@ -342,7 +347,9 @@ impl ChainScraper {
 	where
 		Sender: overseer::DisputeCoordinatorSenderTrait,
 	{
-		let target_ancestor = get_finalized_block_number(sender).await?;
+		let target_ancestor = get_finalized_block_number(sender)
+			.await?
+			.saturating_sub(DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION);
 
 		let mut ancestors = Vec::new();
 
