@@ -1764,6 +1764,7 @@ impl ApprovalDistribution {
 					);
 				}
 			},
+			ApprovalDistributionMessage::ApprovalCheckingLagUpdate(_) => {},
 		}
 	}
 }
