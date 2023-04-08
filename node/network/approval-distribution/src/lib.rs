@@ -1913,6 +1913,7 @@ impl ApprovalDistribution {
 				// This is due to the fact that we call this on wakeup, and we do have a wakeup for each candidate index, but
 				let _span = state
 					.spans
+					.get(&cert.block_hash)
 					.map(|span| span.child("import-and-distribute-assignment"))
 					.unwrap_or_else(|| jaeger::Span::new(&cert.block_hash, "distribute-assignment"))
 					.with_string_tag("block-hash", format!("{:?}", cert.block_hash))
@@ -1920,8 +1921,9 @@ impl ApprovalDistribution {
 
 				gum::debug!(
 					target: LOG_TARGET,
-					"Distributing our assignment on candidate (block={}, indices={:?})",
-					candidate_indices,
+					?candidate_indices,
+					block_hash = ?cert.block_hash,
+					"Distributing our assignment on candidates",
 				);
 
 				state

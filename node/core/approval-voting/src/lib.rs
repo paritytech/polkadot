@@ -1503,7 +1503,6 @@ async fn handle_approved_ancestor<Context>(
 	let mut span = span
 		.child("handle-approved-ancestor")
 		.with_stage(jaeger::Stage::ApprovalChecking);
-	use bitvec::{order::Lsb0, vec::BitVec};
 
 	let mut all_approved_max = None;
 
@@ -1839,8 +1838,12 @@ fn check_and_import_assignment(
 		.map(|span| span.child("check-and-import-assignment"))
 		.unwrap_or_else(|| jaeger::Span::new(assignment.block_hash, "check-and-import-assignment"))
 		.with_relay_parent(assignment.block_hash)
-		.with_uint_tag("candidate-index", candidate_index as u64)
+		// .with_uint_tag("candidate-index", candidate_index as u64)
 		.with_stage(jaeger::Stage::ApprovalChecking);
+
+	for candidate_index in candidate_indices.iter_ones() {
+		check_and_import_assignment_span.add_uint_tag("candidate-index", candidate_index as u64);
+	}
 
 	let block_entry = match db.load_block_entry(&assignment.block_hash)? {
 		Some(b) => b,
@@ -1900,15 +1903,6 @@ fn check_and_import_assignment(
 			"traceID",
 			format!("{:?}", jaeger::hash_to_trace_identifier(assigned_candidate_hash.0)),
 		);
-
-		let mut candidate_entry = match db.load_candidate_entry(&assigned_candidate_hash)? {
-			Some(c) => c,
-			None =>
-				return Ok(AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCandidate(
-					candidate_index,
-					assigned_candidate_hash,
-				))),
-		};
 
 		let approval_entry = match candidate_entry.approval_entry_mut(&assignment.block_hash) {
 			Some(a) => a,
@@ -2001,6 +1995,7 @@ fn check_and_import_assignment(
 			};
 			is_duplicate |= approval_entry.is_assigned(assignment.validator);
 			approval_entry.import_assignment(tranche, assignment.validator, tick_now);
+			check_and_import_assignment_span.add_uint_tag("tranche", tranche as u64);
 
 			// We've imported a new assignment, so we need to schedule a wake-up for when that might no-show.
 			if let Some((approval_entry, status)) =
@@ -2020,10 +2015,6 @@ fn check_and_import_assignment(
 			// We also write the candidate entry as it now contains the new candidate.
 			db.write_candidate_entry(candidate_entry.into());
 		}
-		check_and_import_assignment_span.add_uint_tag("tranche", tranche as u64);
-
-		let is_duplicate = approval_entry.is_assigned(assignment.validator);
-		approval_entry.import_assignment(tranche, assignment.validator, tick_now);
 
 		if is_duplicate {
 			AssignmentCheckResult::AcceptedDuplicate
