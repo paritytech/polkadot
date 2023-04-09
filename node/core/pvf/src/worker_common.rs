@@ -469,9 +469,8 @@ fn kill_parent_node_in_emergency() {
 pub mod sandbox {
 	use seccompiler::*;
 	use std::collections::BTreeMap;
-	use tokio::signal::unix::{signal, SignalKind, Signal};
+	use tokio::signal::unix::{signal, Signal, SignalKind};
 
-	// New error type to avoid extra `map_err`s.
 	#[derive(thiserror::Error, Debug)]
 	pub enum SandboxError {
 		#[error(transparent)]
@@ -512,7 +511,7 @@ pub mod sandbox {
 
 		let bpf_prog: BpfProgram = filter.try_into()?;
 
-		// Execute filter (run seccomp).
+		// Applies filter (runs seccomp) to the calling thread.
 		seccompiler::apply_filter(&bpf_prog)?;
 
 		Ok(())
@@ -520,7 +519,9 @@ pub mod sandbox {
 
 	/// Makes a `seccomp` filter which by default blocks all syscalls except those allowed in the
 	/// whitelist.
-	fn make_filter(whitelisted_rules: BTreeMap<i64, Vec<SeccompRule>>) -> std::result::Result<SeccompFilter, BackendError> {
+	fn make_filter(
+		whitelisted_rules: BTreeMap<i64, Vec<SeccompRule>>,
+	) -> std::result::Result<SeccompFilter, BackendError> {
 		SeccompFilter::new(
 			whitelisted_rules,
 			// Mismatch action: what to do if not in whitelist.

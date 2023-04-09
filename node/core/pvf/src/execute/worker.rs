@@ -283,7 +283,10 @@ impl Response {
 ///
 /// # Threads / Tasks
 ///
-/// Spawns two threads: the PVF execution thread and a CPU time monitor thread.
+/// Spawns two threads:
+///
+/// 1. the PVF execution thread
+/// 2. a CPU time monitor thread
 ///
 /// On Linux, also runs a task in the main thread that handles the `SIGSYS` signal, sent on seccomp
 /// breaches (see `sandbox` module).

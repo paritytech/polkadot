@@ -339,8 +339,11 @@ async fn recv_response(stream: &mut UnixStream, pid: u32) -> io::Result<PrepareR
 ///
 /// # Threads / Tasks
 ///
-/// Spawns three threads: the PVF preparation thread, a CPU time monitor thread, and a memory stats
-/// measurer thread.
+/// Spawns three threads:
+///
+/// 1. the PVF preparation thread
+/// 2. a CPU time monitor thread
+/// 3. a memory stats measurer thread
 ///
 /// On Linux, also runs a task in the main thread that handles the `SIGSYS` signal, sent on seccomp
 /// breaches (see `sandbox` module).
