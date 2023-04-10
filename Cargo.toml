@@ -237,3 +237,4 @@ polkadot-core-primitives = { path = "core-primitives" }
 polkadot-parachain = { path = "parachain" }
 xcm = { path = "xcm" }
 xcm-executor = { path = "xcm/xcm-executor" }
+xcm-builder = { path = "xcm/xcm-builder" }
