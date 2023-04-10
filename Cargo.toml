@@ -65,6 +65,8 @@ members = [
 	"xcm/xcm-simulator/example",
 	"xcm/xcm-simulator/fuzzer",
 	"xcm/xcm-emulator",
+	"xcm/xcm-emulator/example",
+	"xcm/xcm-emulator/yayoi",
 	"xcm/pallet-xcm",
 	"xcm/pallet-xcm-benchmarks",
 	"xcm/procedural",
@@ -228,3 +230,10 @@ conf-files = [
 
 [package.metadata.spellcheck]
 config = "./scripts/ci/gitlab/spellcheck.toml"
+
+# Make sure xcm-emulator cumuls deps work as otherwise they depend on polkadot master/other branch.
+[patch.'https://github.com/paritytech/polkadot']
+polkadot-core-primitives = { path = "core-primitives" }
+polkadot-parachain = { path = "parachain" }
+xcm = { path = "xcm" }
+xcm-executor = { path = "xcm/xcm-executor" }

@@ -1,0 +1,66 @@
+[package]
+name = "yayoi"
+description = "A simple runtime for cross-chain messages tests."
+license = "Apache-2.0"
+version = "0.1.0"
+authors = ["Shaun Wang <spxwang@gmail.com>"]
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0.137", optional = true }
+codec = { package = "parity-scale-codec", version = "3.0.0", default-features = false }
+scale-info = { version = "2.1", default-features = false, features = ["derive"] }
+
+sp-runtime = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+sp-core = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-support = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", default-features = false , branch = "master" }
+
+cumulus-pallet-dmp-queue = { git = "https://github.com/paritytech/cumulus", default-features = false , branch = "master" }
+cumulus-pallet-xcmp-queue = { git = "https://github.com/paritytech/cumulus", default-features = false , branch = "master" }
+cumulus-pallet-xcm = { git = "https://github.com/paritytech/cumulus", default-features = false , branch = "master" }
+cumulus-pallet-parachain-system = { git = "https://github.com/paritytech/cumulus", default-features = false , branch = "master" }
+parachain-info = { git = "https://github.com/paritytech/cumulus", default-features = false , branch = "master" }
+cumulus-primitives-utility = { git = "https://github.com/paritytech/cumulus", default-features = false , branch = "master" }
+
+xcm = { path = "../.." }
+xcm-executor = { path = "../../xcm-executor", default-features = false }
+polkadot-parachain = { path = "../../../parachain", default-features = false }
+xcm-builder = { path = "../../xcm-builder", default-features = false }
+pallet-xcm = { path = "../../pallet-xcm", default-features = false  }
+polkadot-runtime-parachains = { path = "../../../runtime/parachains", default-features = false }
+
+
+[features]
+default = ["std"]
+no_std = []
+std = [
+	"serde/std",
+	"codec/std",
+	"scale-info/std",
+
+	"sp-runtime/std",
+	"sp-io/std",
+	"sp-std/std",
+	"sp-core/std",
+	"pallet-balances/std",
+	"frame-support/std",
+	"frame-system/std",
+
+	"cumulus-pallet-dmp-queue/std",
+	"cumulus-pallet-xcmp-queue/std",
+	"cumulus-pallet-xcm/std",
+	"cumulus-pallet-parachain-system/std",
+	"parachain-info/std",
+	"cumulus-primitives-utility/std",
+
+	"xcm/std",
+	"xcm-executor/std",
+	"polkadot-parachain/std",
+	"xcm-builder/std",
+	"pallet-xcm/std",
+	"polkadot-runtime-parachains/std",
+]
