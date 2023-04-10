@@ -73,9 +73,7 @@ macro_rules! decl_test_relay_chain {
 				use $crate::{TestExt, UmpSink};
 
 				Self::execute_with(|| {
-					$crate::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(
-										origin, msg, max_weight,
-									)
+					$crate::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(origin, msg, max_weight)
 				})
 			}
 		}
