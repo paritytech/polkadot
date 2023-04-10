@@ -482,8 +482,8 @@ where
 				.await;
 		};
 
-		// TODO: Send feedback to approval distribution regarding approval checking lag.
-		// Spawn task for sending the message.
+		// Messages sent to `approval-distrbution` are known to have high `ToF`, we need to spawn a task for sending
+		// the message to not block here and delay finality.
 		self.spawn_handle.spawn(
 			"approval-checking-lag-update",
 			Some("relay-chain-selection"),
