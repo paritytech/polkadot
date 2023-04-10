@@ -232,6 +232,7 @@ conf-files = [
 config = "./scripts/ci/gitlab/spellcheck.toml"
 
 # Make sure xcm-emulator cumuls deps work as otherwise they depend on polkadot master/other branch.
+# This will also override any other polkadot transitive dependencies.
 [patch.'https://github.com/paritytech/polkadot']
 polkadot-core-primitives = { path = "core-primitives" }
 polkadot-parachain = { path = "parachain" }
