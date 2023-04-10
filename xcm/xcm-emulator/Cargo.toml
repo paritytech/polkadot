@@ -1,0 +1,30 @@
+[package]
+name = "xcm-emulator"
+description = "Test kit to emulate cross-chain message passing and XCM execution"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+
+[dependencies]
+codec = { package = "parity-scale-codec", version = "3.0.0" }
+paste = "1.0.5"
+quote = "1.0.23"
+
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master" }
+
+cumulus-primitives-core = { git = "https://github.com/paritytech/cumulus", branch = "master"}
+cumulus-pallet-xcmp-queue = { git = "https://github.com/paritytech/cumulus", branch = "master" }
+cumulus-pallet-dmp-queue = { git = "https://github.com/paritytech/cumulus", branch = "master" }
+cumulus-pallet-parachain-system = { git = "https://github.com/paritytech/cumulus", branch = "master" }
+parachain-info = { git = "https://github.com/paritytech/cumulus", branch = "master" }
+cumulus-primitives-parachain-inherent = { git = "https://github.com/paritytech/cumulus", branch = "master" }
+cumulus-test-relay-sproof-builder = { git = "https://github.com/paritytech/cumulus", branch = "master" }
+
+xcm = { path = "../" }
+xcm-executor = { path = "../xcm-executor" }
+polkadot-primitives = { path = "../../primitives"}
+polkadot-runtime-parachains = { path = "../../runtime/parachains" }
