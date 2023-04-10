@@ -1,3 +1,19 @@
+// Copyright 2023 Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
 pub use codec::Encode;
 pub use paste;
 
@@ -14,8 +30,8 @@ pub use cumulus_pallet_dmp_queue;
 pub use cumulus_pallet_parachain_system;
 pub use cumulus_pallet_xcmp_queue;
 pub use cumulus_primitives_core::{
-	self, relay_chain::BlockNumber as RelayBlockNumber, DmpMessageHandler, ParaId, PersistedValidationData,
-	XcmpMessageHandler,
+	self, relay_chain::BlockNumber as RelayBlockNumber, DmpMessageHandler, ParaId,
+	PersistedValidationData, XcmpMessageHandler,
 };
 pub use cumulus_primitives_parachain_inherent::ParachainInherentData;
 pub use cumulus_test_relay_sproof_builder::RelayStateSproofBuilder;
@@ -58,8 +74,8 @@ macro_rules! decl_test_relay_chain {
 
 				Self::execute_with(|| {
 					$crate::XcmSink::<$crate::XcmExecutor<$xcm_config>, $runtime>::process_upward_message(
-						origin, msg, max_weight,
-					)
+								origin, msg, max_weight,
+							)
 				})
 			}
 		}
@@ -82,13 +98,18 @@ macro_rules! decl_test_parachain {
 		$crate::__impl_ext_for_parachain!($name, $runtime, $origin, $new_ext);
 
 		impl $crate::XcmpMessageHandler for $name {
-			fn handle_xcmp_messages<'a, I: Iterator<Item = ($crate::ParaId, $crate::RelayBlockNumber, &'a [u8])>>(
+			fn handle_xcmp_messages<
+				'a,
+				I: Iterator<Item = ($crate::ParaId, $crate::RelayBlockNumber, &'a [u8])>,
+			>(
 				iter: I,
 				max_weight: $crate::Weight,
 			) -> $crate::Weight {
 				use $crate::{TestExt, XcmpMessageHandler};
 
-				$name::execute_with(|| <$xcmp_message_handler>::handle_xcmp_messages(iter, max_weight))
+				$name::execute_with(|| {
+					<$xcmp_message_handler>::handle_xcmp_messages(iter, max_weight)
+				})
 			}
 		}
 
@@ -99,7 +120,9 @@ macro_rules! decl_test_parachain {
 			) -> $crate::Weight {
 				use $crate::{DmpMessageHandler, TestExt};
 
-				$name::execute_with(|| <$dmp_message_handler>::handle_dmp_messages(iter, max_weight))
+				$name::execute_with(|| {
+					<$dmp_message_handler>::handle_dmp_messages(iter, max_weight)
+				})
 			}
 		}
 	};
