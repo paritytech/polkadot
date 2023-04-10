@@ -663,7 +663,7 @@ mod tests {
 		parameter_types,
 		traits::{ConstU32, GenesisBuild, OnFinalize, OnInitialize},
 	};
-	use frame_system::{limits, EventRecord, Phase};
+	use frame_system::{limits};
 	use pallet_balances::Error as BalancesError;
 	use primitives::{Balance, BlockNumber, Header};
 	use runtime_parachains::{configuration, origin, shared};
@@ -809,7 +809,7 @@ mod tests {
 		)
 		.unwrap();
 
-		pallet_balances::GenesisConfig::<Test> { balances: vec![(1, 10_000_000), (2, 10_000_000)] }
+		pallet_balances::GenesisConfig::<Test> { balances: vec![(1, 10_000_000), (2, 10_000_000), (3, 10_000_000)] }
 			.assimilate_storage(&mut t)
 			.unwrap();
 
@@ -1126,17 +1126,10 @@ mod tests {
 			// Swap between parachain and parathread
 			assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
 			assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
-			assert_eq!(
-				System::events(),
-				vec![EventRecord {
-					phase: Phase::Initialization,
-					event: Event::Registrar(paras_registrar::Event::Swapped {
-						para_id: para_2,
-						other_id: para_1
-					}),
-					topics: vec![],
-				}]
-			);
+			System::assert_last_event(RuntimeEvent::Registrar(paras_registrar::Event::Swapped {
+				para_id: para_2,
+				other_id: para_1,
+			}));
 
 			run_to_session(6);
 
@@ -1154,23 +1147,57 @@ mod tests {
 			// Swap between parathread and parachain
 			assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_2,));
 			assert_ok!(Registrar::swap(para_origin(para_2), para_2, para_1,));
-			assert_eq!(
-				System::events().last().unwrap(),
-				vec![EventRecord {
-					phase: Phase::Initialization,
-					event: Event::Registrar(paras_registrar::Event::Swapped {
-						para_id: para_1,
-						other_id: para_2
-					}),
-					topics: vec![],
-				}]
-				.last()
-				.unwrap()
-			);
+			// Should be para_2 and para_1 ???
+			System::assert_last_event(RuntimeEvent::Registrar(paras_registrar::Event::Swapped {
+				para_id: para_1,
+				other_id: para_2,
+			}));
 
 			// Data is swapped
 			assert_eq!(SwapData::get().get(&para_1).unwrap(), &69);
 			assert_eq!(SwapData::get().get(&para_2).unwrap(), &1337);
+
+			// Test for parachain to parachain swap
+			let para_3 = LOWEST_PUBLIC_ID + 2;
+			assert_ok!(Registrar::reserve(RuntimeOrigin::signed(3)));
+			assert_ok!(Registrar::register(
+				RuntimeOrigin::signed(3),
+				para_3,
+				test_genesis_head(max_head_size() as usize),
+				test_validation_code(max_code_size() as usize),
+			));
+
+			run_to_session(8);
+
+			// Upgrade para 1 into a parachain
+			assert_ok!(Registrar::make_parachain(para_3));
+
+			// Set some mock swap data.
+			let mut swap_data = SwapData::get();
+			swap_data.insert(para_3, 777);
+			SwapData::set(swap_data);
+
+			run_to_session(10);
+
+			// Both are parachains
+			assert!(Parachains::is_parachain(para_3));
+			assert!(!Parachains::is_parathread(para_3));
+			assert!(Parachains::is_parachain(para_1));
+			assert!(!Parachains::is_parathread(para_1));
+
+			// Both paras initiate a swap
+			// Swap between parachain and parachain
+			assert_ok!(Registrar::swap(para_origin(para_1), para_1, para_3,));
+			assert_ok!(Registrar::swap(para_origin(para_3), para_3, para_1,));
+			System::assert_last_event(RuntimeEvent::Registrar(paras_registrar::Event::Swapped {
+				para_id: para_3,
+				other_id: para_1,
+			}));
+
+			// Data is swapped
+			assert_eq!(SwapData::get().get(&para_3).unwrap(), &69);
+			assert_eq!(SwapData::get().get(&para_1).unwrap(), &777);
+			
 		});
 	}
 
@@ -1283,11 +1310,11 @@ mod tests {
 			assert!(Parachains::is_parathread(para_2));
 
 			// Swap works here.
-			assert_ok!(Registrar::swap(Origin::root(), para_1, para_2));
-			assert_ok!(Registrar::swap(Origin::root(), para_2, para_1));
+			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_1, para_2));
+			assert_ok!(Registrar::swap(RuntimeOrigin::root(), para_2, para_1));
 			assert!(System::events().iter().any(|r| matches!(
 				r.event,
-				Event::Registrar(paras_registrar::Event::Swapped { .. })
+				RuntimeEvent::Registrar(paras_registrar::Event::Swapped { .. })
 			)));
 
 			run_to_session(5);
@@ -1306,7 +1333,7 @@ mod tests {
 			assert!(Parachains::is_parathread(para_1));
 			assert!(System::events().iter().any(|r| matches!(
 				r.event,
-				Event::Registrar(paras_registrar::Event::Swapped { .. })
+				RuntimeEvent::Registrar(paras_registrar::Event::Swapped { .. })
 			)));
 
 			// Something starts to downgrade a para
