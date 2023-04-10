@@ -52,13 +52,13 @@ pub mod v1 {
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
 		fn on_runtime_upgrade() -> Weight {
-			let mut weight: Weight = Weight::zero();
+			let mut weight: Weight = T::DbWeight::get().reads(1);
 
 			if StorageVersion::get::<Pallet<T>>() < STORAGE_VERSION {
 				log::info!(target: scheduler::LOG_TARGET, "Migrating scheduler storage to v1");
 				weight = weight
 					.saturating_add(migrate::<T>())
-					.saturating_add(T::DbWeight::get().reads_writes(1, 1));
+					.saturating_add(T::DbWeight::get().writes(1));
 				STORAGE_VERSION.put::<Pallet<T>>();
 			} else {
 				log::info!(
