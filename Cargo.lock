@@ -2128,7 +2128,6 @@ dependencies = [
  "fs-err",
  "proc-macro2",
  "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -12531,7 +12530,7 @@ name = "tracing-gum-proc-macro"
 version = "0.9.39"
 dependencies = [
  "assert_matches",
- "expander 0.0.6",
+ "expander 1.0.0",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
