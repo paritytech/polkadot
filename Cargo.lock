@@ -364,13 +364,13 @@ dependencies = [
 
 [[package]]
 name = "async-trait"
-version = "0.1.58"
+version = "0.1.68"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1e805d94e6b5001b651426cf4cd446b1ab5f319d27bab5c644f61de0a804360c"
+checksum = "b9ccdd8f2a161be9bd5c023df56f1b2a0bd1d83872ae53b71a84a12c9bf6e842"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -383,7 +383,7 @@ dependencies = [
  "futures-sink",
  "futures-util",
  "memchr",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
 ]
 
 [[package]]
@@ -1433,6 +1433,153 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "049bb91fb4aaf0e3c7efa6cd5ef877dbbbd15b39dad06d9948de4ec8a75761ea"
 dependencies = [
  "cipher 0.3.0",
+]
+
+[[package]]
+name = "cumulus-pallet-dmp-queue"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=master#a5a79db4f81725d10e0f1dd339fe7d9b9e837d9f"
+dependencies = [
+ "cumulus-primitives-core",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xcm 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+]
+
+[[package]]
+name = "cumulus-pallet-parachain-system"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=master#a5a79db4f81725d10e0f1dd339fe7d9b9e837d9f"
+dependencies = [
+ "bytes",
+ "cumulus-pallet-parachain-system-proc-macro",
+ "cumulus-primitives-core",
+ "cumulus-primitives-parachain-inherent",
+ "environmental",
+ "frame-support",
+ "frame-system",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
+ "polkadot-parachain 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "scale-info",
+ "sp-core",
+ "sp-externalities",
+ "sp-inherents",
+ "sp-io",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-trie",
+ "sp-version",
+ "xcm 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+]
+
+[[package]]
+name = "cumulus-pallet-parachain-system-proc-macro"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=master#a5a79db4f81725d10e0f1dd339fe7d9b9e837d9f"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.13",
+]
+
+[[package]]
+name = "cumulus-pallet-xcmp-queue"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=master#a5a79db4f81725d10e0f1dd339fe7d9b9e837d9f"
+dependencies = [
+ "cumulus-primitives-core",
+ "frame-support",
+ "frame-system",
+ "log",
+ "parity-scale-codec",
+ "polkadot-runtime-common 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "rand_chacha 0.3.1",
+ "scale-info",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "xcm 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "xcm-executor 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+]
+
+[[package]]
+name = "cumulus-primitives-core"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=master#a5a79db4f81725d10e0f1dd339fe7d9b9e837d9f"
+dependencies = [
+ "parity-scale-codec",
+ "polkadot-core-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-parachain 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "sp-api",
+ "sp-runtime",
+ "sp-std",
+ "sp-trie",
+ "xcm 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+]
+
+[[package]]
+name = "cumulus-primitives-parachain-inherent"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=master#a5a79db4f81725d10e0f1dd339fe7d9b9e837d9f"
+dependencies = [
+ "async-trait",
+ "cumulus-primitives-core",
+ "cumulus-relay-chain-interface",
+ "cumulus-test-relay-sproof-builder",
+ "parity-scale-codec",
+ "sc-client-api",
+ "scale-info",
+ "sp-api",
+ "sp-core",
+ "sp-inherents",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
+ "sp-storage",
+ "sp-trie",
+ "tracing",
+]
+
+[[package]]
+name = "cumulus-relay-chain-interface"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=master#a5a79db4f81725d10e0f1dd339fe7d9b9e837d9f"
+dependencies = [
+ "async-trait",
+ "cumulus-primitives-core",
+ "futures",
+ "jsonrpsee-core",
+ "parity-scale-codec",
+ "polkadot-overseer 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "sc-client-api",
+ "sp-api",
+ "sp-blockchain",
+ "sp-state-machine",
+ "thiserror",
+]
+
+[[package]]
+name = "cumulus-test-relay-sproof-builder"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=master#a5a79db4f81725d10e0f1dd339fe7d9b9e837d9f"
+dependencies = [
+ "cumulus-primitives-core",
+ "parity-scale-codec",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "sp-runtime",
+ "sp-state-machine",
+ "sp-std",
 ]
 
 [[package]]
@@ -2731,9 +2878,9 @@ checksum = "e6d5a32815ae3f33302d95fdcb2ce17862f8c65363dcfd29360480ba1001fc9c"
 
 [[package]]
 name = "futures"
-version = "0.3.25"
+version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38390104763dc37a5145a53c29c63c1290b5d316d6086ec32c293f6736051bb0"
+checksum = "23342abe12aba583913b2e62f22225ff9c950774065e4bfb61a19cd9770fec40"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -2746,9 +2893,9 @@ dependencies = [
 
 [[package]]
 name = "futures-channel"
-version = "0.3.25"
+version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52ba265a92256105f45b719605a571ffe2d1f0fea3807304b522c1d778f79eed"
+checksum = "955518d47e09b25bbebc7a18df10b81f0c766eaf4c4f1cccef2fca5f2a4fb5f2"
 dependencies = [
  "futures-core",
  "futures-sink",
@@ -2756,15 +2903,15 @@ dependencies = [
 
 [[package]]
 name = "futures-core"
-version = "0.3.25"
+version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "04909a7a7e4633ae6c4a9ab280aeb86da1236243a77b694a49eacd659a4bd3ac"
+checksum = "4bca583b7e26f571124fe5b7561d49cb2868d79116cfa0eefce955557c6fee8c"
 
 [[package]]
 name = "futures-executor"
-version = "0.3.25"
+version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7acc85df6714c176ab5edf386123fafe217be88c0840ec11f199441134a074e2"
+checksum = "ccecee823288125bd88b4d7f565c9e58e41858e47ab72e8ea2d64e93624386e0"
 dependencies = [
  "futures-core",
  "futures-task",
@@ -2774,9 +2921,9 @@ dependencies = [
 
 [[package]]
 name = "futures-io"
-version = "0.3.25"
+version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "00f5fb52a06bdcadeb54e8d3671f8888a39697dcb0b81b23b55174030427f4eb"
+checksum = "4fff74096e71ed47f8e023204cfd0aa1289cd54ae5430a9523be060cdb849964"
 
 [[package]]
 name = "futures-lite"
@@ -2789,19 +2936,19 @@ dependencies = [
  "futures-io",
  "memchr",
  "parking",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
  "waker-fn",
 ]
 
 [[package]]
 name = "futures-macro"
-version = "0.3.25"
+version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdfb8ce053d86b91919aad980c220b1fb8401a9394410e1c289ed7e66b61835d"
+checksum = "89ca545a94061b6365f2c7355b4b32bd20df3ff95f02da9329b34ccc3bd6ee72"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 1.0.109",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -2817,15 +2964,15 @@ dependencies = [
 
 [[package]]
 name = "futures-sink"
-version = "0.3.25"
+version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "39c15cf1a4aa79df40f1bb462fb39676d0ad9e366c2a33b590d7c66f4f81fcf9"
+checksum = "f43be4fe21a13b9781a69afa4985b0f6ee0e1afab2c6f454a8cf30e2b2237b6e"
 
 [[package]]
 name = "futures-task"
-version = "0.3.25"
+version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ffb393ac5d9a6eaa9d3fdf37ae2776656b706e200c8e16b1bdb227f5198e6ea"
+checksum = "76d3d132be6c0e6aa1534069c705a74a5997a356c0dc2f86a47765e5617c5b65"
 
 [[package]]
 name = "futures-timer"
@@ -2835,9 +2982,9 @@ checksum = "e64b03909df88034c26dc1547e8970b91f98bdb65165d6a4e9110d94263dbb2c"
 
 [[package]]
 name = "futures-util"
-version = "0.3.25"
+version = "0.3.28"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "197676987abd2f9cadff84926f410af1c183608d36641465df73ae8211dc65d6"
+checksum = "26b01e40b772d54cf6c6d721c1d1abd0647a0106a12ecaa1c186273392a69533"
 dependencies = [
  "futures-channel",
  "futures-core",
@@ -2846,7 +2993,7 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "memchr",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
  "pin-utils",
  "slab",
 ]
@@ -3217,7 +3364,7 @@ checksum = "d5f38f16d184e36f2408a55281cd658ecbd3ca05cce6d6510a176eca393e26d1"
 dependencies = [
  "bytes",
  "http",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
 ]
 
 [[package]]
@@ -3269,7 +3416,7 @@ dependencies = [
  "httparse",
  "httpdate",
  "itoa",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
  "socket2",
  "tokio",
  "tower-service",
@@ -3731,9 +3878,9 @@ dependencies = [
  "pallet-xcm",
  "pallet-xcm-benchmarks",
  "parity-scale-codec",
- "polkadot-primitives",
- "polkadot-runtime-common",
- "polkadot-runtime-parachains",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-common 0.9.39",
+ "polkadot-runtime-parachains 0.9.39",
  "rustc-hex",
  "scale-info",
  "separator",
@@ -3766,9 +3913,9 @@ dependencies = [
  "substrate-wasm-builder",
  "tiny-keccak",
  "tokio",
- "xcm",
+ "xcm 0.9.39",
  "xcm-builder",
- "xcm-executor",
+ "xcm-executor 0.9.39",
 ]
 
 [[package]]
@@ -3776,8 +3923,8 @@ name = "kusama-runtime-constants"
 version = "0.9.39"
 dependencies = [
  "frame-support",
- "polkadot-primitives",
- "polkadot-runtime-common",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-common 0.9.39",
  "smallvec",
  "sp-core",
  "sp-runtime",
@@ -6224,17 +6371,17 @@ dependencies = [
  "log",
  "pallet-balances",
  "parity-scale-codec",
- "polkadot-parachain",
- "polkadot-runtime-parachains",
+ "polkadot-parachain 0.9.39",
+ "polkadot-runtime-parachains 0.9.39",
  "scale-info",
  "serde",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
- "xcm",
+ "xcm 0.9.39",
  "xcm-builder",
- "xcm-executor",
+ "xcm-executor 0.9.39",
 ]
 
 [[package]]
@@ -6249,17 +6396,29 @@ dependencies = [
  "pallet-balances",
  "pallet-xcm",
  "parity-scale-codec",
- "polkadot-primitives",
- "polkadot-runtime-common",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-common 0.9.39",
  "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
  "sp-tracing",
- "xcm",
+ "xcm 0.9.39",
  "xcm-builder",
- "xcm-executor",
+ "xcm-executor 0.9.39",
+]
+
+[[package]]
+name = "parachain-info"
+version = "0.1.0"
+source = "git+https://github.com/paritytech/cumulus?branch=master#a5a79db4f81725d10e0f1dd339fe7d9b9e837d9f"
+dependencies = [
+ "cumulus-primitives-core",
+ "frame-support",
+ "frame-system",
+ "parity-scale-codec",
+ "scale-info",
 ]
 
 [[package]]
@@ -6510,9 +6669,9 @@ checksum = "257b64915a082f7811703966789728173279bdebb956b143dbcd23f6f970a777"
 
 [[package]]
 name = "pin-project-lite"
-version = "0.2.7"
+version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d31d11c69a6b52a174b42bdc0c30e5e11670f90788b2c471c31c1d17d449443"
+checksum = "e0a7ae3ac2f1173085d398531c705756c94a4c56843785df85a60c1a0afac116"
 
 [[package]]
 name = "pin-utils"
@@ -6566,9 +6725,9 @@ dependencies = [
  "color-eyre",
  "nix 0.26.2",
  "polkadot-cli",
- "polkadot-core-primitives",
+ "polkadot-core-primitives 0.9.39",
  "polkadot-node-core-pvf",
- "polkadot-overseer",
+ "polkadot-overseer 0.9.39",
  "substrate-rpc-client",
  "tempfile",
  "tikv-jemallocator",
@@ -6583,14 +6742,14 @@ dependencies = [
  "env_logger 0.9.0",
  "futures",
  "log",
- "polkadot-node-jaeger",
- "polkadot-node-metrics",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
+ "polkadot-node-jaeger 0.9.39",
+ "polkadot-node-metrics 0.9.39",
+ "polkadot-node-network-protocol 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
@@ -6598,7 +6757,7 @@ dependencies = [
  "schnorrkel",
  "sp-authority-discovery",
  "sp-core",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -6611,11 +6770,11 @@ dependencies = [
  "futures",
  "log",
  "maplit",
- "polkadot-node-network-protocol",
+ "polkadot-node-network-protocol 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "sp-application-crypto",
@@ -6623,7 +6782,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "sp-keystore",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -6638,12 +6797,12 @@ dependencies = [
  "lru 0.9.0",
  "parity-scale-codec",
  "polkadot-erasure-coding",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
+ "polkadot-node-network-protocol 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "rand 0.8.5",
  "sc-network",
@@ -6652,7 +6811,7 @@ dependencies = [
  "sp-keystore",
  "sp-tracing",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -6668,12 +6827,12 @@ dependencies = [
  "lru 0.9.0",
  "parity-scale-codec",
  "polkadot-erasure-coding",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
+ "polkadot-node-network-protocol 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "rand 0.8.5",
  "sc-network",
@@ -6681,7 +6840,7 @@ dependencies = [
  "sp-core",
  "sp-keyring",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -6694,7 +6853,7 @@ dependencies = [
  "log",
  "polkadot-client",
  "polkadot-node-core-pvf",
- "polkadot-node-metrics",
+ "polkadot-node-metrics 0.9.39",
  "polkadot-performance-test",
  "polkadot-service",
  "pyroscope",
@@ -6725,11 +6884,11 @@ dependencies = [
  "kusama-runtime",
  "pallet-transaction-payment",
  "pallet-transaction-payment-rpc-runtime-api",
- "polkadot-core-primitives",
+ "polkadot-core-primitives 0.9.39",
  "polkadot-node-core-parachains-inherent",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-runtime",
- "polkadot-runtime-common",
+ "polkadot-runtime-common 0.9.39",
  "rococo-runtime",
  "sc-client-api",
  "sc-consensus",
@@ -6769,12 +6928,12 @@ dependencies = [
  "futures-timer",
  "log",
  "parity-scale-codec",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
+ "polkadot-node-network-protocol 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "sc-network",
  "sp-core",
@@ -6782,12 +6941,24 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
 name = "polkadot-core-primitives"
 version = "0.9.39"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "polkadot-core-primitives"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -6811,12 +6982,12 @@ dependencies = [
  "lru 0.9.0",
  "parity-scale-codec",
  "polkadot-erasure-coding",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
+ "polkadot-node-network-protocol 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "sc-keystore",
  "sc-network",
@@ -6825,7 +6996,7 @@ dependencies = [
  "sp-keystore",
  "sp-tracing",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -6834,8 +7005,8 @@ version = "0.9.39"
 dependencies = [
  "criterion",
  "parity-scale-codec",
- "polkadot-node-primitives",
- "polkadot-primitives",
+ "polkadot-node-primitives 0.9.39",
+ "polkadot-primitives 0.9.39",
  "reed-solomon-novelpoly",
  "sp-core",
  "sp-trie",
@@ -6851,11 +7022,11 @@ dependencies = [
  "futures",
  "futures-timer",
  "lazy_static",
- "polkadot-node-network-protocol",
+ "polkadot-node-network-protocol 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "sc-network",
@@ -6866,7 +7037,7 @@ dependencies = [
  "sp-keyring",
  "sp-keystore",
  "sp-tracing",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -6882,20 +7053,20 @@ dependencies = [
  "futures-timer",
  "parity-scale-codec",
  "parking_lot 0.12.1",
- "polkadot-node-metrics",
- "polkadot-node-network-protocol",
+ "polkadot-node-metrics 0.9.39",
+ "polkadot-node-network-protocol 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-overseer",
- "polkadot-primitives",
+ "polkadot-overseer 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "sc-network",
  "sp-consensus",
  "sp-core",
  "sp-keyring",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -6905,16 +7076,16 @@ dependencies = [
  "futures",
  "parity-scale-codec",
  "polkadot-erasure-coding",
- "polkadot-node-primitives",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "sp-core",
  "sp-maybe-compressed-blob",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -6933,13 +7104,13 @@ dependencies = [
  "merlin",
  "parity-scale-codec",
  "parking_lot 0.12.1",
- "polkadot-node-jaeger",
- "polkadot-node-primitives",
+ "polkadot-node-jaeger 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-overseer",
- "polkadot-primitives",
+ "polkadot-overseer 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "rand_core 0.5.1",
  "sc-keystore",
@@ -6953,7 +7124,7 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -6971,18 +7142,18 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.12.1",
  "polkadot-erasure-coding",
- "polkadot-node-primitives",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-overseer",
- "polkadot-primitives",
+ "polkadot-overseer 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "sp-consensus",
  "sp-core",
  "sp-keyring",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -6994,13 +7165,13 @@ dependencies = [
  "fatality",
  "futures",
  "polkadot-erasure-coding",
- "polkadot-node-primitives",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
- "polkadot-statement-table",
+ "polkadot-statement-table 0.9.39",
  "sc-keystore",
  "sp-application-crypto",
  "sp-core",
@@ -7008,7 +7179,7 @@ dependencies = [
  "sp-keystore",
  "sp-tracing",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7019,11 +7190,11 @@ dependencies = [
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "sp-keystore",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
  "wasm-timer",
 ]
 
@@ -7037,18 +7208,18 @@ dependencies = [
  "futures-timer",
  "parity-scale-codec",
  "polkadot-node-core-pvf",
- "polkadot-node-metrics",
- "polkadot-node-primitives",
+ "polkadot-node-metrics 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-parachain",
- "polkadot-primitives",
+ "polkadot-parachain 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "sp-core",
  "sp-keyring",
  "sp-maybe-compressed-blob",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7058,16 +7229,16 @@ dependencies = [
  "futures",
  "maplit",
  "parity-scale-codec",
- "polkadot-node-metrics",
- "polkadot-node-primitives",
+ "polkadot-node-metrics 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "sc-client-api",
  "sc-consensus-babe",
  "sp-blockchain",
  "sp-core",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7081,14 +7252,14 @@ dependencies = [
  "kvdb-memorydb",
  "parity-scale-codec",
  "parking_lot 0.12.1",
- "polkadot-node-primitives",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "sp-core",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7103,11 +7274,11 @@ dependencies = [
  "kvdb-memorydb",
  "lru 0.9.0",
  "parity-scale-codec",
- "polkadot-node-primitives",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "sc-keystore",
  "sp-application-crypto",
@@ -7116,7 +7287,7 @@ dependencies = [
  "sp-keystore",
  "sp-tracing",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7127,12 +7298,12 @@ dependencies = [
  "futures",
  "futures-timer",
  "polkadot-node-subsystem",
- "polkadot-overseer",
- "polkadot-primitives",
+ "polkadot-overseer 0.9.39",
+ "polkadot-primitives 0.9.39",
  "sp-blockchain",
  "sp-inherents",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7143,17 +7314,17 @@ dependencies = [
  "fatality",
  "futures",
  "futures-timer",
- "polkadot-node-primitives",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "rand 0.8.5",
  "sp-application-crypto",
  "sp-keystore",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7169,11 +7340,11 @@ dependencies = [
  "libc",
  "parity-scale-codec",
  "pin-project",
- "polkadot-core-primitives",
- "polkadot-node-metrics",
- "polkadot-node-primitives",
- "polkadot-parachain",
- "polkadot-primitives",
+ "polkadot-core-primitives 0.9.39",
+ "polkadot-node-metrics 0.9.39",
+ "polkadot-node-primitives 0.9.39",
+ "polkadot-parachain 0.9.39",
+ "polkadot-primitives 0.9.39",
  "rand 0.8.5",
  "rayon",
  "sc-executor",
@@ -7192,7 +7363,7 @@ dependencies = [
  "test-parachain-halt",
  "tikv-jemalloc-ctl",
  "tokio",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7201,12 +7372,12 @@ version = "0.9.39"
 dependencies = [
  "futures",
  "futures-timer",
- "polkadot-node-primitives",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-overseer",
- "polkadot-primitives",
+ "polkadot-overseer 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "sc-keystore",
  "sp-application-crypto",
@@ -7215,7 +7386,7 @@ dependencies = [
  "sp-keystore",
  "sp-runtime",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7224,19 +7395,19 @@ version = "0.9.39"
 dependencies = [
  "futures",
  "lru 0.9.0",
- "polkadot-node-metrics",
- "polkadot-node-primitives",
+ "polkadot-node-metrics 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-types",
- "polkadot-primitives",
+ "polkadot-node-subsystem-types 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "sp-api",
  "sp-authority-discovery",
  "sp-consensus-babe",
  "sp-core",
  "sp-keyring",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7248,8 +7419,26 @@ dependencies = [
  "mick-jaeger",
  "parity-scale-codec",
  "parking_lot 0.12.1",
- "polkadot-node-primitives",
- "polkadot-primitives",
+ "polkadot-node-primitives 0.9.39",
+ "polkadot-primitives 0.9.39",
+ "sc-network",
+ "sp-core",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
+name = "polkadot-node-jaeger"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "lazy_static",
+ "log",
+ "mick-jaeger",
+ "parity-scale-codec",
+ "parking_lot 0.12.1",
+ "polkadot-node-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
  "sc-network",
  "sp-core",
  "thiserror",
@@ -7267,7 +7456,7 @@ dependencies = [
  "hyper",
  "log",
  "parity-scale-codec",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-test-service",
  "prioritized-metered-channel",
  "prometheus-parse",
@@ -7280,7 +7469,26 @@ dependencies = [
  "substrate-test-utils",
  "tempfile",
  "tokio",
- "tracing-gum",
+ "tracing-gum 0.9.39",
+]
+
+[[package]]
+name = "polkadot-node-metrics"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "bs58",
+ "futures",
+ "futures-timer",
+ "log",
+ "parity-scale-codec",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "prioritized-metered-channel",
+ "sc-cli",
+ "sc-service",
+ "sc-tracing",
+ "substrate-prometheus-endpoint",
+ "tracing-gum 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
 ]
 
 [[package]]
@@ -7293,16 +7501,38 @@ dependencies = [
  "futures",
  "hex",
  "parity-scale-codec",
- "polkadot-node-jaeger",
- "polkadot-node-primitives",
- "polkadot-primitives",
+ "polkadot-node-jaeger 0.9.39",
+ "polkadot-node-primitives 0.9.39",
+ "polkadot-primitives 0.9.39",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "sc-authority-discovery",
  "sc-network",
  "strum",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
+]
+
+[[package]]
+name = "polkadot-node-network-protocol"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "async-trait",
+ "derive_more",
+ "fatality",
+ "futures",
+ "hex",
+ "parity-scale-codec",
+ "polkadot-node-jaeger 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-node-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "rand 0.8.5",
+ "sc-authority-discovery",
+ "sc-network",
+ "strum",
+ "thiserror",
+ "tracing-gum 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
 ]
 
 [[package]]
@@ -7313,8 +7543,31 @@ dependencies = [
  "futures",
  "parity-scale-codec",
  "polkadot-erasure-coding",
- "polkadot-parachain",
- "polkadot-primitives",
+ "polkadot-parachain 0.9.39",
+ "polkadot-primitives 0.9.39",
+ "schnorrkel",
+ "serde",
+ "sp-application-crypto",
+ "sp-consensus-babe",
+ "sp-consensus-vrf",
+ "sp-core",
+ "sp-keystore",
+ "sp-maybe-compressed-blob",
+ "sp-runtime",
+ "thiserror",
+ "zstd",
+]
+
+[[package]]
+name = "polkadot-node-primitives"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "bounded-vec",
+ "futures",
+ "parity-scale-codec",
+ "polkadot-parachain 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
  "schnorrkel",
  "serde",
  "sp-application-crypto",
@@ -7332,9 +7585,9 @@ dependencies = [
 name = "polkadot-node-subsystem"
 version = "0.9.39"
 dependencies = [
- "polkadot-node-jaeger",
- "polkadot-node-subsystem-types",
- "polkadot-overseer",
+ "polkadot-node-jaeger 0.9.39",
+ "polkadot-node-subsystem-types 0.9.39",
+ "polkadot-overseer 0.9.39",
 ]
 
 [[package]]
@@ -7346,8 +7599,8 @@ dependencies = [
  "parking_lot 0.12.1",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-util",
- "polkadot-overseer",
- "polkadot-primitives",
+ "polkadot-overseer 0.9.39",
+ "polkadot-primitives 0.9.39",
  "sc-keystore",
  "sp-application-crypto",
  "sp-core",
@@ -7363,11 +7616,34 @@ dependencies = [
  "derive_more",
  "futures",
  "orchestra",
- "polkadot-node-jaeger",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
- "polkadot-primitives",
- "polkadot-statement-table",
+ "polkadot-node-jaeger 0.9.39",
+ "polkadot-node-network-protocol 0.9.39",
+ "polkadot-node-primitives 0.9.39",
+ "polkadot-primitives 0.9.39",
+ "polkadot-statement-table 0.9.39",
+ "sc-network",
+ "smallvec",
+ "sp-api",
+ "sp-authority-discovery",
+ "sp-consensus-babe",
+ "substrate-prometheus-endpoint",
+ "thiserror",
+]
+
+[[package]]
+name = "polkadot-node-subsystem-types"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "async-trait",
+ "derive_more",
+ "futures",
+ "orchestra",
+ "polkadot-node-jaeger 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-node-network-protocol 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-node-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-statement-table 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
  "sc-network",
  "smallvec",
  "sp-api",
@@ -7399,14 +7675,14 @@ dependencies = [
  "parity-scale-codec",
  "parking_lot 0.11.2",
  "pin-project",
- "polkadot-node-jaeger",
- "polkadot-node-metrics",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
+ "polkadot-node-jaeger 0.9.39",
+ "polkadot-node-metrics 0.9.39",
+ "polkadot-node-network-protocol 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
- "polkadot-overseer",
- "polkadot-primitives",
+ "polkadot-overseer 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "prioritized-metered-channel",
  "rand 0.8.5",
@@ -7415,7 +7691,7 @@ dependencies = [
  "sp-keystore",
  "tempfile",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7430,18 +7706,41 @@ dependencies = [
  "lru 0.9.0",
  "orchestra",
  "parking_lot 0.12.1",
- "polkadot-node-metrics",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
- "polkadot-node-subsystem-types",
- "polkadot-primitives",
+ "polkadot-node-metrics 0.9.39",
+ "polkadot-node-network-protocol 0.9.39",
+ "polkadot-node-primitives 0.9.39",
+ "polkadot-node-subsystem-types 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "prioritized-metered-channel",
  "sc-client-api",
  "sp-api",
  "sp-core",
  "tikv-jemalloc-ctl",
- "tracing-gum",
+ "tracing-gum 0.9.39",
+]
+
+[[package]]
+name = "polkadot-overseer"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "async-trait",
+ "futures",
+ "futures-timer",
+ "lru 0.9.0",
+ "orchestra",
+ "parking_lot 0.12.1",
+ "polkadot-node-metrics 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-node-network-protocol 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-node-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-node-subsystem-types 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "sc-client-api",
+ "sp-api",
+ "sp-core",
+ "tikv-jemalloc-ctl",
+ "tracing-gum 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
 ]
 
 [[package]]
@@ -7452,7 +7751,24 @@ dependencies = [
  "derive_more",
  "frame-support",
  "parity-scale-codec",
- "polkadot-core-primitives",
+ "polkadot-core-primitives 0.9.39",
+ "scale-info",
+ "serde",
+ "sp-core",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "polkadot-parachain"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "bounded-collections",
+ "derive_more",
+ "frame-support",
+ "parity-scale-codec",
+ "polkadot-core-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
  "scale-info",
  "serde",
  "sp-core",
@@ -7469,8 +7785,8 @@ dependencies = [
  "log",
  "polkadot-erasure-coding",
  "polkadot-node-core-pvf",
- "polkadot-node-primitives",
- "polkadot-primitives",
+ "polkadot-node-primitives 0.9.39",
+ "polkadot-primitives 0.9.39",
  "quote",
  "thiserror",
 ]
@@ -7482,8 +7798,34 @@ dependencies = [
  "bitvec",
  "hex-literal",
  "parity-scale-codec",
- "polkadot-core-primitives",
- "polkadot-parachain",
+ "polkadot-core-primitives 0.9.39",
+ "polkadot-parachain 0.9.39",
+ "scale-info",
+ "serde",
+ "sp-api",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-authority-discovery",
+ "sp-consensus-slots",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-staking",
+ "sp-std",
+]
+
+[[package]]
+name = "polkadot-primitives"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "bitvec",
+ "hex-literal",
+ "parity-scale-codec",
+ "polkadot-core-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-parachain 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
  "scale-info",
  "serde",
  "sp-api",
@@ -7504,7 +7846,7 @@ dependencies = [
 name = "polkadot-primitives-test-helpers"
 version = "0.9.39"
 dependencies = [
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "rand 0.8.5",
  "sp-application-crypto",
  "sp-core",
@@ -7519,7 +7861,7 @@ dependencies = [
  "jsonrpsee",
  "mmr-rpc",
  "pallet-transaction-payment-rpc",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "sc-chain-spec",
  "sc-client-api",
  "sc-consensus-babe",
@@ -7603,10 +7945,10 @@ dependencies = [
  "pallet-whitelist",
  "pallet-xcm",
  "parity-scale-codec",
- "polkadot-primitives",
- "polkadot-runtime-common",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-common 0.9.39",
  "polkadot-runtime-constants",
- "polkadot-runtime-parachains",
+ "polkadot-runtime-parachains 0.9.39",
  "rustc-hex",
  "scale-info",
  "separator",
@@ -7639,9 +7981,9 @@ dependencies = [
  "substrate-wasm-builder",
  "tiny-keccak",
  "tokio",
- "xcm",
+ "xcm 0.9.39",
  "xcm-builder",
- "xcm-executor",
+ "xcm-executor 0.9.39",
 ]
 
 [[package]]
@@ -7671,15 +8013,15 @@ dependencies = [
  "pallet-treasury",
  "pallet-vesting",
  "parity-scale-codec",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
- "polkadot-runtime-parachains",
+ "polkadot-runtime-parachains 0.9.39",
  "rustc-hex",
  "scale-info",
  "serde",
  "serde_derive",
  "serde_json",
- "slot-range-helper",
+ "slot-range-helper 0.9.39",
  "sp-api",
  "sp-core",
  "sp-inherents",
@@ -7691,7 +8033,51 @@ dependencies = [
  "sp-staking",
  "sp-std",
  "static_assertions",
- "xcm",
+ "xcm 0.9.39",
+]
+
+[[package]]
+name = "polkadot-runtime-common"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "bitvec",
+ "frame-election-provider-support",
+ "frame-support",
+ "frame-system",
+ "impl-trait-for-tuples",
+ "libsecp256k1",
+ "log",
+ "pallet-authorship",
+ "pallet-balances",
+ "pallet-election-provider-multi-phase",
+ "pallet-fast-unstake",
+ "pallet-session",
+ "pallet-staking",
+ "pallet-staking-reward-fn",
+ "pallet-timestamp",
+ "pallet-transaction-payment",
+ "pallet-treasury",
+ "pallet-vesting",
+ "parity-scale-codec",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-runtime-parachains 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "rustc-hex",
+ "scale-info",
+ "serde",
+ "serde_derive",
+ "slot-range-helper 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "sp-api",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-npos-elections",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "static_assertions",
+ "xcm 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
 ]
 
 [[package]]
@@ -7699,8 +8085,8 @@ name = "polkadot-runtime-constants"
 version = "0.9.39"
 dependencies = [
  "frame-support",
- "polkadot-primitives",
- "polkadot-runtime-common",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-common 0.9.39",
  "smallvec",
  "sp-core",
  "sp-runtime",
@@ -7714,7 +8100,19 @@ dependencies = [
  "bs58",
  "frame-benchmarking",
  "parity-scale-codec",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
+ "sp-std",
+ "sp-tracing",
+]
+
+[[package]]
+name = "polkadot-runtime-metrics"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "bs58",
+ "parity-scale-codec",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
  "sp-std",
  "sp-tracing",
 ]
@@ -7743,10 +8141,10 @@ dependencies = [
  "pallet-timestamp",
  "pallet-vesting",
  "parity-scale-codec",
- "polkadot-parachain",
- "polkadot-primitives",
+ "polkadot-parachain 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
- "polkadot-runtime-metrics",
+ "polkadot-runtime-metrics 0.9.39",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rustc-hex",
@@ -7768,8 +8166,49 @@ dependencies = [
  "sp-tracing",
  "static_assertions",
  "thousands",
- "xcm",
- "xcm-executor",
+ "xcm 0.9.39",
+ "xcm-executor 0.9.39",
+]
+
+[[package]]
+name = "polkadot-runtime-parachains"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "bitflags",
+ "bitvec",
+ "derive_more",
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-authority-discovery",
+ "pallet-authorship",
+ "pallet-babe",
+ "pallet-balances",
+ "pallet-session",
+ "pallet-staking",
+ "pallet-timestamp",
+ "pallet-vesting",
+ "parity-scale-codec",
+ "polkadot-parachain 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-runtime-metrics 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "rustc-hex",
+ "scale-info",
+ "serde",
+ "sp-api",
+ "sp-core",
+ "sp-inherents",
+ "sp-io",
+ "sp-keystore",
+ "sp-runtime",
+ "sp-session",
+ "sp-staking",
+ "sp-std",
+ "xcm 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "xcm-executor 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
 ]
 
 [[package]]
@@ -7818,19 +8257,19 @@ dependencies = [
  "polkadot-node-core-provisioner",
  "polkadot-node-core-pvf-checker",
  "polkadot-node-core-runtime-api",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
+ "polkadot-node-network-protocol 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-types",
+ "polkadot-node-subsystem-types 0.9.39",
  "polkadot-node-subsystem-util",
- "polkadot-overseer",
- "polkadot-parachain",
- "polkadot-primitives",
+ "polkadot-overseer 0.9.39",
+ "polkadot-parachain 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-rpc",
  "polkadot-runtime",
  "polkadot-runtime-constants",
- "polkadot-runtime-parachains",
+ "polkadot-runtime-parachains 0.9.39",
  "polkadot-statement-distribution",
  "polkadot-test-client",
  "rococo-runtime",
@@ -7883,7 +8322,7 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "tempfile",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
  "westend-runtime",
  "westend-runtime-constants",
 ]
@@ -7899,12 +8338,12 @@ dependencies = [
  "futures-timer",
  "indexmap",
  "parity-scale-codec",
- "polkadot-node-network-protocol",
- "polkadot-node-primitives",
+ "polkadot-node-network-protocol 0.9.39",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-primitives-test-helpers",
  "sc-keystore",
  "sc-network",
@@ -7916,7 +8355,7 @@ dependencies = [
  "sp-staking",
  "sp-tracing",
  "thiserror",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -7924,7 +8363,17 @@ name = "polkadot-statement-table"
 version = "0.9.39"
 dependencies = [
  "parity-scale-codec",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
+ "sp-core",
+]
+
+[[package]]
+name = "polkadot-statement-table"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "parity-scale-codec",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
  "sp-core",
 ]
 
@@ -7935,7 +8384,7 @@ dependencies = [
  "futures",
  "parity-scale-codec",
  "polkadot-node-subsystem",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "polkadot-test-runtime",
  "polkadot-test-service",
  "sc-block-builder",
@@ -7970,16 +8419,16 @@ dependencies = [
  "polkadot-node-core-candidate-validation",
  "polkadot-node-core-dispute-coordinator",
  "polkadot-node-core-pvf",
- "polkadot-node-primitives",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
  "polkadot-node-subsystem-test-helpers",
- "polkadot-node-subsystem-types",
+ "polkadot-node-subsystem-types 0.9.39",
  "polkadot-node-subsystem-util",
- "polkadot-primitives",
+ "polkadot-primitives 0.9.39",
  "rand 0.8.5",
  "sp-core",
  "sp-keystore",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -8011,10 +8460,10 @@ dependencies = [
  "pallet-vesting",
  "pallet-xcm",
  "parity-scale-codec",
- "polkadot-parachain",
- "polkadot-primitives",
- "polkadot-runtime-common",
- "polkadot-runtime-parachains",
+ "polkadot-parachain 0.9.39",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-common 0.9.39",
+ "polkadot-runtime-parachains 0.9.39",
  "rustc-hex",
  "scale-info",
  "serde",
@@ -8042,9 +8491,9 @@ dependencies = [
  "substrate-wasm-builder",
  "test-runtime-constants",
  "tiny-keccak",
- "xcm",
+ "xcm 0.9.39",
  "xcm-builder",
- "xcm-executor",
+ "xcm-executor 0.9.39",
 ]
 
 [[package]]
@@ -8058,14 +8507,14 @@ dependencies = [
  "pallet-balances",
  "pallet-staking",
  "pallet-transaction-payment",
- "polkadot-node-primitives",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
- "polkadot-overseer",
- "polkadot-parachain",
- "polkadot-primitives",
+ "polkadot-overseer 0.9.39",
+ "polkadot-parachain 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-rpc",
- "polkadot-runtime-common",
- "polkadot-runtime-parachains",
+ "polkadot-runtime-common 0.9.39",
+ "polkadot-runtime-parachains 0.9.39",
  "polkadot-service",
  "polkadot-test-runtime",
  "rand 0.8.5",
@@ -8098,7 +8547,7 @@ dependencies = [
  "tempfile",
  "test-runtime-constants",
  "tokio",
- "tracing-gum",
+ "tracing-gum 0.9.39",
 ]
 
 [[package]]
@@ -8304,9 +8753,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.53"
+version = "1.0.56"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba466839c78239c09faf015484e5cc04860f88242cff4d03eb038f04b4699b73"
+checksum = "2b63bdb0cd06f1f4dedf69b254734f9b45af66e4a031e42a7480257d9898b435"
 dependencies = [
  "unicode-ident",
 ]
@@ -8792,7 +9241,7 @@ dependencies = [
  "mime",
  "native-tls",
  "percent-encoding",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
  "serde",
  "serde_json",
  "serde_urlencoded",
@@ -8916,10 +9365,10 @@ dependencies = [
  "pallet-xcm",
  "pallet-xcm-benchmarks",
  "parity-scale-codec",
- "polkadot-parachain",
- "polkadot-primitives",
- "polkadot-runtime-common",
- "polkadot-runtime-parachains",
+ "polkadot-parachain 0.9.39",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-common 0.9.39",
+ "polkadot-runtime-parachains 0.9.39",
  "rococo-runtime-constants",
  "scale-info",
  "separator",
@@ -8950,9 +9399,9 @@ dependencies = [
  "substrate-wasm-builder",
  "tiny-keccak",
  "tokio",
- "xcm",
+ "xcm 0.9.39",
  "xcm-builder",
- "xcm-executor",
+ "xcm-executor 0.9.39",
 ]
 
 [[package]]
@@ -8960,8 +9409,8 @@ name = "rococo-runtime-constants"
 version = "0.9.39"
 dependencies = [
  "frame-support",
- "polkadot-primitives",
- "polkadot-runtime-common",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-common 0.9.39",
  "smallvec",
  "sp-core",
  "sp-runtime",
@@ -10284,9 +10733,9 @@ dependencies = [
 
 [[package]]
 name = "scale-info"
-version = "2.1.2"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c46be926081c9f4dd5dd9b6f1d3e3229f2360bc6502dd8836f84a93b7c75e99a"
+checksum = "0cfdffd972d76b22f3d7f81c8be34b2296afd3a25e0a547bd9abe340a4dbbe97"
 dependencies = [
  "bitvec",
  "cfg-if",
@@ -10298,9 +10747,9 @@ dependencies = [
 
 [[package]]
 name = "scale-info-derive"
-version = "2.1.2"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "50e334bb10a245e28e5fd755cabcafd96cfcd167c99ae63a46924ca8d8703a3c"
+checksum = "61fa974aea2d63dd18a4ec3a49d59af9f34178c73a4f56d2f18205628d00681e"
 dependencies = [
  "proc-macro-crate",
  "proc-macro2",
@@ -10516,7 +10965,7 @@ checksum = "e801c1712f48475582b7696ac71e0ca34ebb30e09338425384269d9717c62cad"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.8",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -10733,6 +11182,18 @@ checksum = "03b634d87b960ab1a38c4fe143b508576f075e7c978bfad18217645ebfdfa2ec"
 [[package]]
 name = "slot-range-helper"
 version = "0.9.39"
+dependencies = [
+ "enumn",
+ "parity-scale-codec",
+ "paste",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
+name = "slot-range-helper"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
 dependencies = [
  "enumn",
  "parity-scale-codec",
@@ -11579,9 +12040,9 @@ dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
  "paste",
- "polkadot-core-primitives",
+ "polkadot-core-primitives 0.9.39",
  "polkadot-runtime",
- "polkadot-runtime-common",
+ "polkadot-runtime-common 0.9.39",
  "sc-transaction-pool-api",
  "serde",
  "serde_json",
@@ -11921,9 +12382,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.8"
+version = "2.0.13"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bcc02725fd69ab9f26eab07fad303e2497fad6fb9eba4f96c4d1687bdf704ad9"
+checksum = "4c9da457c5285ac1f936ebd076af6dac17a61cfe7826f2076b4d015cf47bc8ec"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -12010,7 +12471,7 @@ version = "0.9.39"
 dependencies = [
  "dlmalloc",
  "parity-scale-codec",
- "polkadot-parachain",
+ "polkadot-parachain 0.9.39",
  "sp-io",
  "sp-std",
  "substrate-wasm-builder",
@@ -12028,10 +12489,10 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-cli",
  "polkadot-node-core-pvf",
- "polkadot-node-primitives",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
- "polkadot-parachain",
- "polkadot-primitives",
+ "polkadot-parachain 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-service",
  "polkadot-test-service",
  "sc-cli",
@@ -12058,7 +12519,7 @@ dependencies = [
  "dlmalloc",
  "log",
  "parity-scale-codec",
- "polkadot-parachain",
+ "polkadot-parachain 0.9.39",
  "sp-io",
  "sp-std",
  "substrate-wasm-builder",
@@ -12076,10 +12537,10 @@ dependencies = [
  "parity-scale-codec",
  "polkadot-cli",
  "polkadot-node-core-pvf",
- "polkadot-node-primitives",
+ "polkadot-node-primitives 0.9.39",
  "polkadot-node-subsystem",
- "polkadot-parachain",
- "polkadot-primitives",
+ "polkadot-parachain 0.9.39",
+ "polkadot-primitives 0.9.39",
  "polkadot-service",
  "polkadot-test-service",
  "sc-cli",
@@ -12107,8 +12568,8 @@ name = "test-runtime-constants"
 version = "0.9.39"
 dependencies = [
  "frame-support",
- "polkadot-primitives",
- "polkadot-runtime-common",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-common 0.9.39",
  "smallvec",
  "sp-core",
  "sp-runtime",
@@ -12138,7 +12599,7 @@ checksum = "f9456a42c5b0d803c8cd86e73dd7cc9edd429499f37a3550d286d5e86720569f"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.8",
+ "syn 2.0.13",
 ]
 
 [[package]]
@@ -12314,7 +12775,7 @@ dependencies = [
  "mio",
  "num_cpus",
  "parking_lot 0.12.1",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
  "signal-hook-registry",
  "socket2",
  "tokio-macros",
@@ -12360,7 +12821,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "df54d54117d6fdc4e4fea40fe1e4e566b3505700e148a6827e59b34b0d2600d9"
 dependencies = [
  "futures-core",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
  "tokio",
  "tokio-util 0.7.1",
 ]
@@ -12387,7 +12848,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "log",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
  "tokio",
 ]
 
@@ -12401,7 +12862,7 @@ dependencies = [
  "futures-core",
  "futures-io",
  "futures-sink",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
  "tokio",
 ]
 
@@ -12455,7 +12916,7 @@ dependencies = [
  "http",
  "http-body",
  "http-range-header",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
  "tower-layer",
  "tower-service",
 ]
@@ -12474,22 +12935,22 @@ checksum = "360dfd1d6d30e05fda32ace2c8c70e9c0a9da713275777f5a4dbb8a1893930c6"
 
 [[package]]
 name = "tracing"
-version = "0.1.35"
+version = "0.1.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a400e31aa60b9d44a52a8ee0343b5b18566b03a8321e0d321f695cf56e940160"
+checksum = "8ce8c33a8d48bd45d624a6e523445fd21ec13d3653cd51f681abf67418f54eb8"
 dependencies = [
  "cfg-if",
  "log",
- "pin-project-lite 0.2.7",
+ "pin-project-lite 0.2.9",
  "tracing-attributes",
  "tracing-core",
 ]
 
 [[package]]
 name = "tracing-attributes"
-version = "0.1.20"
+version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e65ce065b4b5c53e73bb28912318cb8c9e9ad3921f1d669eb0e68b4c8143a2b"
+checksum = "4017f8f45139870ca7e672686113917c71c7a6e02d4924eda67186083c03081a"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -12498,9 +12959,9 @@ dependencies = [
 
 [[package]]
 name = "tracing-core"
-version = "0.1.28"
+version = "0.1.30"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b7358be39f2f274f322d2aaed611acc57f382e8eb1e5b48cb9ae30933495ce7"
+checksum = "24eb03ba0eab1fd845050058ce5e616558e8f8d8fca633e6b163fe25c797213a"
 dependencies = [
  "once_cell",
  "valuable",
@@ -12520,10 +12981,21 @@ dependencies = [
 name = "tracing-gum"
 version = "0.9.39"
 dependencies = [
- "polkadot-node-jaeger",
- "polkadot-primitives",
+ "polkadot-node-jaeger 0.9.39",
+ "polkadot-primitives 0.9.39",
  "tracing",
- "tracing-gum-proc-macro",
+ "tracing-gum-proc-macro 0.9.39",
+]
+
+[[package]]
+name = "tracing-gum"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "polkadot-node-jaeger 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "polkadot-primitives 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "tracing",
+ "tracing-gum-proc-macro 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
 ]
 
 [[package]]
@@ -12531,6 +13003,18 @@ name = "tracing-gum-proc-macro"
 version = "0.9.39"
 dependencies = [
  "assert_matches",
+ "expander 0.0.6",
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "tracing-gum-proc-macro"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
  "expander 0.0.6",
  "proc-macro-crate",
  "proc-macro2",
@@ -13676,10 +14160,10 @@ dependencies = [
  "pallet-xcm",
  "pallet-xcm-benchmarks",
  "parity-scale-codec",
- "polkadot-parachain",
- "polkadot-primitives",
- "polkadot-runtime-common",
- "polkadot-runtime-parachains",
+ "polkadot-parachain 0.9.39",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-common 0.9.39",
+ "polkadot-runtime-parachains 0.9.39",
  "rustc-hex",
  "scale-info",
  "serde",
@@ -13709,9 +14193,9 @@ dependencies = [
  "tiny-keccak",
  "tokio",
  "westend-runtime-constants",
- "xcm",
+ "xcm 0.9.39",
  "xcm-builder",
- "xcm-executor",
+ "xcm-executor 0.9.39",
 ]
 
 [[package]]
@@ -13719,8 +14203,8 @@ name = "westend-runtime-constants"
 version = "0.9.39"
 dependencies = [
  "frame-support",
- "polkadot-primitives",
- "polkadot-runtime-common",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-common 0.9.39",
  "smallvec",
  "sp-core",
  "sp-runtime",
@@ -14038,7 +14522,23 @@ dependencies = [
  "serde",
  "sp-io",
  "sp-weights",
- "xcm-procedural",
+ "xcm-procedural 0.9.39",
+]
+
+[[package]]
+name = "xcm"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "bounded-collections",
+ "derivative",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+ "sp-weights",
+ "xcm-procedural 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
 ]
 
 [[package]]
@@ -14054,16 +14554,41 @@ dependencies = [
  "pallet-transaction-payment",
  "pallet-xcm",
  "parity-scale-codec",
- "polkadot-parachain",
- "polkadot-runtime-parachains",
+ "polkadot-parachain 0.9.39",
+ "polkadot-runtime-parachains 0.9.39",
  "primitive-types",
  "scale-info",
  "sp-arithmetic",
  "sp-io",
  "sp-runtime",
  "sp-std",
- "xcm",
- "xcm-executor",
+ "xcm 0.9.39",
+ "xcm-executor 0.9.39",
+]
+
+[[package]]
+name = "xcm-emulator"
+version = "0.9.39"
+dependencies = [
+ "cumulus-pallet-dmp-queue",
+ "cumulus-pallet-parachain-system",
+ "cumulus-pallet-xcmp-queue",
+ "cumulus-primitives-core",
+ "cumulus-primitives-parachain-inherent",
+ "cumulus-test-relay-sproof-builder",
+ "frame-support",
+ "frame-system",
+ "parachain-info",
+ "parity-scale-codec",
+ "paste",
+ "polkadot-primitives 0.9.39",
+ "polkadot-runtime-parachains 0.9.39",
+ "quote",
+ "sp-arithmetic",
+ "sp-io",
+ "sp-std",
+ "xcm 0.9.39",
+ "xcm-executor 0.9.39",
 ]
 
 [[package]]
@@ -14082,7 +14607,26 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "sp-weights",
- "xcm",
+ "xcm 0.9.39",
+]
+
+[[package]]
+name = "xcm-executor"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
+dependencies = [
+ "environmental",
+ "frame-support",
+ "impl-trait-for-tuples",
+ "log",
+ "parity-scale-codec",
+ "sp-arithmetic",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+ "sp-weights",
+ "xcm 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
 ]
 
 [[package]]
@@ -14101,13 +14645,24 @@ dependencies = [
  "sp-runtime",
  "sp-state-machine",
  "sp-tracing",
- "xcm",
- "xcm-executor",
+ "xcm 0.9.39",
+ "xcm-executor 0.9.39",
 ]
 
 [[package]]
 name = "xcm-procedural"
 version = "0.9.39"
+dependencies = [
+ "Inflector",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "xcm-procedural"
+version = "0.9.39"
+source = "git+https://github.com/paritytech/polkadot?branch=master#7b6ea485f568f836e2b6e0099f5f53c04d7d1c18"
 dependencies = [
  "Inflector",
  "proc-macro2",
@@ -14122,13 +14677,13 @@ dependencies = [
  "frame-support",
  "parity-scale-codec",
  "paste",
- "polkadot-core-primitives",
- "polkadot-parachain",
- "polkadot-runtime-parachains",
+ "polkadot-core-primitives 0.9.39",
+ "polkadot-parachain 0.9.39",
+ "polkadot-runtime-parachains 0.9.39",
  "sp-io",
  "sp-std",
- "xcm",
- "xcm-executor",
+ "xcm 0.9.39",
+ "xcm-executor 0.9.39",
 ]
 
 [[package]]
@@ -14142,18 +14697,18 @@ dependencies = [
  "pallet-uniques",
  "pallet-xcm",
  "parity-scale-codec",
- "polkadot-core-primitives",
- "polkadot-parachain",
- "polkadot-runtime-parachains",
+ "polkadot-core-primitives 0.9.39",
+ "polkadot-parachain 0.9.39",
+ "polkadot-runtime-parachains 0.9.39",
  "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
  "sp-tracing",
- "xcm",
+ "xcm 0.9.39",
  "xcm-builder",
- "xcm-executor",
+ "xcm-executor 0.9.39",
  "xcm-simulator",
 ]
 
@@ -14168,17 +14723,17 @@ dependencies = [
  "pallet-balances",
  "pallet-xcm",
  "parity-scale-codec",
- "polkadot-core-primitives",
- "polkadot-parachain",
- "polkadot-runtime-parachains",
+ "polkadot-core-primitives 0.9.39",
+ "polkadot-parachain 0.9.39",
+ "polkadot-runtime-parachains 0.9.39",
  "scale-info",
  "sp-core",
  "sp-io",
  "sp-runtime",
  "sp-std",
- "xcm",
+ "xcm 0.9.39",
  "xcm-builder",
- "xcm-executor",
+ "xcm-executor 0.9.39",
  "xcm-simulator",
 ]
 
@@ -14239,7 +14794,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-tungstenite",
- "tracing-gum",
+ "tracing-gum 0.9.39",
  "url",
 ]
 

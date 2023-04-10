@@ -64,6 +64,7 @@ members = [
 	"xcm/xcm-simulator",
 	"xcm/xcm-simulator/example",
 	"xcm/xcm-simulator/fuzzer",
+	"xcm/xcm-emulator",
 	"xcm/pallet-xcm",
 	"xcm/pallet-xcm-benchmarks",
 	"xcm/procedural",
