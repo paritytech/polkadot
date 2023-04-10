@@ -26,6 +26,11 @@ use separator::Separatable;
 use sp_runtime::FixedPointNumber;
 
 #[test]
+fn nis_hold_reason_encoding_is_correct() {
+	assert_eq!(NisHoldReason::get().encode(), [38, 0]);
+}
+
+#[test]
 fn remove_keys_weight_is_sensible() {
 	use runtime_common::crowdloan::WeightInfo;
 	let max_weight = <Runtime as crowdloan::Config>::WeightInfo::refund(RemoveKeysLimit::get());

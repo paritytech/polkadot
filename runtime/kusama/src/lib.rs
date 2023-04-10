@@ -2135,16 +2135,6 @@ sp_api::impl_runtime_apis! {
 }
 
 #[cfg(test)]
-mod encoding_tests {
-	use super::*;
-
-	#[test]
-	fn nis_hold_reason_encoding_is_correct() {
-		assert_eq!(NisHoldReason::get().encode(), [38, 0]);
-	}
-}
-
-#[cfg(test)]
 mod fees_tests {
 	use super::*;
 	use sp_runtime::assert_eq_error_rate;
