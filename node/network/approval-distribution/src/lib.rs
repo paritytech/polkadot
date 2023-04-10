@@ -1434,13 +1434,18 @@ impl State {
 			return
 		}
 
-		let min_age = self.blocks_by_number.iter().next().map(|(num, _)| num);
 		let max_age = self.blocks_by_number.iter().rev().next().map(|(num, _)| num);
 
-		let (min_age, max_age) = match (min_age, max_age) {
-			(Some(min), Some(max)) => (min, max),
+		let max_age = match max_age {
+			Some(max) => *max,
 			_ => return, // empty.
 		};
+
+		// Since we have the approval checking lag, we need to set the `min_age` accordingly to
+		// enable aggresion for the oldest block that is not approved.
+		//
+		// Alternatively we could remove blocks that have been approved based on the `approval_checking_lag` value.
+		let min_age = max_age.saturating_sub(self.approval_checking_lag);
 
 		adjust_required_routing_and_propagate(
 			ctx,
@@ -1479,7 +1484,7 @@ impl State {
 				// its descendants from being finalized. Waste minimal bandwidth
 				// this way. Also, disputes might prevent finality - again, nothing
 				// to waste bandwidth on newer blocks for.
-				&block_entry.number == min_age
+				block_entry.number == min_age
 			},
 			|required_routing, local, _| {
 				// It's a bit surprising not to have a topology at this age.
