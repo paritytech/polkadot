@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -79,7 +79,11 @@ pub enum Subcommand {
 #[derive(Debug, Parser)]
 pub struct ValidationWorkerCommand {
 	/// The path to the validation host's socket.
+	#[arg(long)]
 	pub socket_path: String,
+	/// Calling node implementation version
+	#[arg(long)]
+	pub node_impl_version: String,
 }
 
 #[allow(missing_docs)]

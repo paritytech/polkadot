@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -1493,7 +1493,8 @@ pub type UncheckedExtrinsic =
 
 /// All migrations that will run on the next runtime upgrade.
 ///
-/// Should be cleared after every release.
+/// This contains the combined migrations of the last 10 releases. It allows to skip runtime
+/// upgrades in case governance decides to do so.
 pub type Migrations = parachains_configuration::migration::v5::MigrateToV5<Runtime>;
 
 /// Executive: handles dispatch to the various modules.
@@ -2094,7 +2095,7 @@ sp_api::impl_runtime_apis! {
 					Err(BenchmarkError::Skip)
 				}
 
-				fn universal_alias() -> Result<Junction, BenchmarkError> {
+				fn universal_alias() -> Result<(MultiLocation, Junction), BenchmarkError> {
 					// The XCM executor of Rococo doesn't have a configured `UniversalAliases`
 					Err(BenchmarkError::Skip)
 				}

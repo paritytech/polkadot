@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -281,6 +281,10 @@ fn consistency_bypass_works() {
 fn setting_pending_config_members() {
 	new_test_ext(Default::default()).execute_with(|| {
 		let new_config = HostConfiguration {
+			async_backing_params: primitives::vstaging::AsyncBackingParams {
+				allowed_ancestry_len: 0,
+				max_candidate_depth: 0,
+			},
 			validation_upgrade_cooldown: 100,
 			validation_upgrade_delay: 10,
 			code_retention_period: 5,
