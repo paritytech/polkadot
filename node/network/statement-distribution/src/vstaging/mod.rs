@@ -125,7 +125,7 @@ const BENEFIT_VALID_STATEMENT_FIRST: Rep =
 	Rep::BenefitMajorFirst("Peer was the first to provide a given valid statement");
 
 /// The amount of time to wait before retrying when the node sends a request and it is dropped.
-pub const REQUEST_RETRY_DELAY: Duration = Duration::from_secs(1);
+pub(crate) const REQUEST_RETRY_DELAY: Duration = Duration::from_secs(1);
 
 struct PerRelayParentState {
 	local_validator: Option<LocalValidatorState>,
@@ -206,8 +206,8 @@ pub(crate) struct State {
 	peers: HashMap<PeerId, PeerState>,
 	keystore: SyncCryptoStorePtr,
 	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
-	pub request_manager: RequestManager,
-	pub response_manager: ResponseManager,
+	pub(crate) request_manager: RequestManager,
+	pub(crate) response_manager: ResponseManager,
 }
 
 impl State {
@@ -2642,7 +2642,7 @@ pub(crate) fn answer_request(state: &mut State, message: ResponderMessage) {
 }
 
 /// Messages coming from the background respond task.
-pub struct ResponderMessage {
+pub(crate) struct ResponderMessage {
 	request: IncomingRequest<AttestedCandidateRequest>,
 	sent_feedback: oneshot::Sender<()>,
 }
@@ -2650,7 +2650,7 @@ pub struct ResponderMessage {
 /// A fetching task, taking care of fetching candidates via request/response.
 ///
 /// Runs in a background task and feeds request to [`answer_request`] through [`MuxedMessage`].
-pub async fn respond_task(
+pub(crate) async fn respond_task(
 	mut receiver: IncomingRequestReceiver<AttestedCandidateRequest>,
 	mut sender: mpsc::Sender<ResponderMessage>,
 ) {
