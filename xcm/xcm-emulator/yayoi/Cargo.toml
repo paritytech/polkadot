@@ -64,3 +64,8 @@ std = [
 	"pallet-xcm/std",
 	"polkadot-runtime-parachains/std",
 ]
+
+runtime-benchmarks = [
+	"pallet-xcm/runtime-benchmarks",
+	"xcm-builder/runtime-benchmarks",
+]

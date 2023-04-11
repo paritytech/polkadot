@@ -203,6 +203,11 @@ impl cumulus_pallet_xcm::Config for Runtime {
 	type XcmExecutor = XcmExecutor<XcmConfig>;
 }
 
+#[cfg(feature = "runtime-benchmarks")]
+parameter_types! {
+	pub ReachableDest: Option<MultiLocation> = Some(Parent.into());
+}
+
 pub type LocalOriginToLocation = SignedToAccountId32<RuntimeOrigin, AccountId, RelayNetwork>;
 
 impl pallet_xcm::Config for Runtime {
@@ -227,6 +232,8 @@ impl pallet_xcm::Config for Runtime {
 	type MaxLockers = ConstU32<8>;
 	type WeightInfo = pallet_xcm::TestWeightInfo;
 	type AdminOrigin = EnsureRoot<Self::AccountId>;
+	#[cfg(feature = "runtime-benchmarks")]
+	type ReachableDest = ReachableDest;
 }
 
 pub struct AccountIdToMultiLocation;
