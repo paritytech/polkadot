@@ -37,6 +37,11 @@ use runtime_common::{
 use scale_info::TypeInfo;
 use sp_std::{cmp::Ordering, collections::btree_map::BTreeMap, prelude::*};
 
+use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
+use beefy_primitives::{
+	crypto::{AuthorityId as BeefyId, Signature as BeefySignature},
+	mmr::{BeefyDataProvider, MmrLeafVersion},
+};
 use runtime_parachains::{
 	configuration as parachains_configuration, disputes as parachains_disputes,
 	disputes::slashing as parachains_slashing, dmp as parachains_dmp, hrmp as parachains_hrmp,
@@ -46,15 +51,10 @@ use runtime_parachains::{
 	runtime_api_impl::v4 as parachains_runtime_api_impl, scheduler as parachains_scheduler,
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
-
-use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
-use beefy_primitives::{
-	crypto::{AuthorityId as BeefyId, Signature as BeefySignature},
-	mmr::{BeefyDataProvider, MmrLeafVersion},
-};
+use sp_runtime::traits::AccountIdConversion;
 
 use frame_support::{
-	construct_runtime, parameter_types,
+	construct_runtime, ord_parameter_types, parameter_types,
 	traits::{
 		Contains, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		PrivilegeCmp, StorageMapShim, WithdrawReasons,
@@ -83,12 +83,15 @@ use sp_staking::SessionIndex;
 use sp_version::NativeVersion;
 use sp_version::RuntimeVersion;
 use static_assertions::const_assert;
+use xcm_builder::PayOverXcm;
 
 pub use frame_system::Call as SystemCall;
 pub use pallet_balances::Call as BalancesCall;
 
 /// Constant values used within the runtime.
 use rococo_runtime_constants::{currency::*, fee::*, time::*};
+
+use crate::xcm_config::Statemine;
 
 // Weights used in the runtime.
 mod weights;
@@ -547,6 +550,9 @@ parameter_types! {
 	pub const MaxKeys: u32 = 10_000;
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
+	// PayOverXcmTimeout is set to 3 x the spend period to provide buffer before status messages
+	// are deleted from storage
+	pub const PayOverXcmTimeout: BlockNumber = 6 * 3 * DAYS;
 }
 
 type ApproveOrigin = EitherOfDiverse<
@@ -554,8 +560,23 @@ type ApproveOrigin = EitherOfDiverse<
 	pallet_collective::EnsureProportionAtLeast<AccountId, CouncilCollective, 3, 5>,
 >;
 
+ord_parameter_types! {
+	pub const TreasuryAccountId: AccountId = AccountIdConversion::<AccountId>::into_account_truncating(&TreasuryPalletId::get());
+}
+
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
+	type AssetKind = xcm::latest::AssetId;
+	type Paymaster = PayOverXcm<
+		Statemine,
+		TreasuryAccountId,
+		xcm_config::XcmRouter,
+		XcmPallet,
+		PayOverXcmTimeout,
+		Self::AccountId,
+		Self::AssetKind,
+	>;
+	type BalanceConverter = ();
 	type Currency = Balances;
 	type ApproveOrigin = ApproveOrigin;
 	type RejectOrigin = MoreThanHalfCouncil;

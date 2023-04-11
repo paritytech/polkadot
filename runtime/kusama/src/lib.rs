@@ -53,7 +53,7 @@ use frame_election_provider_support::{
 	generate_solution_type, onchain, NposSolution, SequentialPhragmen,
 };
 use frame_support::{
-	construct_runtime, parameter_types,
+	construct_runtime, ord_parameter_types, parameter_types,
 	traits::{
 		ConstU32, Contains, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem,
 		PrivilegeCmp, StorageMapShim, WithdrawReasons,
@@ -71,8 +71,8 @@ use sp_mmr_primitives as mmr;
 use sp_runtime::{
 	create_runtime_str, generic, impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT,
-		OpaqueKeys, SaturatedConversion, Verify,
+		AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
+		Extrinsic as ExtrinsicT, OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
@@ -110,6 +110,13 @@ use governance::{
 	pallet_custom_origins, AuctionAdmin, Fellows, GeneralAdmin, LeaseAdmin, StakingAdmin,
 	Treasurer, TreasurySpender,
 };
+use xcm::{
+	latest::{InteriorMultiLocation, MultiLocation},
+	v3::Junction,
+};
+
+use crate::xcm_config::Statemine;
+use xcm_builder::PayOverXcm;
 
 #[cfg(test)]
 mod tests;
@@ -599,6 +606,8 @@ impl pallet_fast_unstake::Config for Runtime {
 	type WeightInfo = weights::pallet_fast_unstake::WeightInfo<Runtime>;
 }
 
+use xcm::opaque::lts::Junctions;
+
 parameter_types! {
 	pub const ProposalBond: Permill = Permill::from_percent(5);
 	pub const ProposalBondMinimum: Balance = 2000 * CENTS;
@@ -616,10 +625,28 @@ parameter_types! {
 	pub const MaxKeys: u32 = 10_000;
 	pub const MaxPeerInHeartbeats: u32 = 10_000;
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
+	// PayOverXcmTimeout is set to 3 x the spend period to provide buffer before status messages
+	// are deleted from storage
+	pub const PayOverXcmTimeout: BlockNumber = 6 * 3 * DAYS;
+}
+
+ord_parameter_types! {
+	pub const TreasuryAccountId: AccountId = AccountIdConversion::<AccountId>::into_account_truncating(&TreasuryPalletId::get());
 }
 
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
+	type AssetKind = xcm::latest::AssetId;
+	type Paymaster = PayOverXcm<
+		Statemine,
+		TreasuryAccountId,
+		xcm_config::XcmRouter,
+		XcmPallet,
+		PayOverXcmTimeout,
+		Self::AccountId,
+		Self::AssetKind,
+	>;
+	type BalanceConverter = ();
 	type Currency = Balances;
 	type ApproveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
 	type RejectOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
