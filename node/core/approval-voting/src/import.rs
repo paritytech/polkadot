@@ -1227,7 +1227,7 @@ pub(crate) mod tests {
 		let mut state = single_session_state(session, session_info);
 		overlay_db.write_block_entry(
 			v1::BlockEntry {
-				block_hash: parent_hash.clone(),
+				block_hash: parent_hash,
 				parent_hash: Default::default(),
 				block_number: 4,
 				session,
