@@ -204,7 +204,6 @@ impl<T: Config> Pallet<T> {
 	) -> (ConcludedParas, TimedoutParas) {
 		let mut timedout_paras = BTreeMap::new();
 		let mut concluded_paras = BTreeMap::new();
-		let config = <configuration::Pallet<T>>::config();
 
 		AvailabilityCores::<T>::mutate(|cores| {
 			let c_len = cores.len();
@@ -222,7 +221,9 @@ impl<T: Config> Pallet<T> {
 									concluded_paras.insert(freed_index, entry.claim.0);
 								},
 								FreedReason::TimedOut => {
-									if entry.retries < config.parathread_retries {
+									if entry.retries <
+										T::AssignmentProvider::get_max_retries(freed_index)
+									{
 										let entry = ParathreadEntry {
 											retries: entry.retries + 1,
 											claim: entry.claim.clone(),

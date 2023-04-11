@@ -98,4 +98,15 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 			//<crate::scheduler_parathreads::Pallet<T>>::get_availability_period(core_idx)
 		}
 	}
+
+	fn get_max_retries(core_idx: CoreIndex) -> u32 {
+		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
+		if (0..parachains_cores).contains(&core_idx.0) {
+			<crate::scheduler_parachains::Pallet<T>>::get_max_retries(core_idx)
+		} else {
+			let _core_idx = CoreIndex(core_idx.0 - parachains_cores);
+			todo!()
+			//<crate::scheduler_parathreads::Pallet<T>>::get_max_retries(core_idx)
+		}
+	}
 }

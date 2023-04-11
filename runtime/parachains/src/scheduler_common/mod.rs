@@ -110,6 +110,8 @@ pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
 	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment);
 
 	fn get_availability_period(core_idx: CoreIndex) -> T::BlockNumber;
+
+	fn get_max_retries(core_idx: CoreIndex) -> u32;
 }
 
 /// How a free core is scheduled to be assigned.
