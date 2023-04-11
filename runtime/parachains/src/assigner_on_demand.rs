@@ -242,8 +242,6 @@ pub mod pallet {
 	}
 }
 
-// TODO session change para lifecycle throw away upgraded parathread
-
 impl<T: Config> Pallet<T>
 where
 	BalanceOf<T>: FixedPointOperand,
@@ -252,7 +250,7 @@ where
 	/// https://research.web3.foundation/en/latest/polkadot/overview/2-token-economics.html#setting-transaction-fees
 	///
 	/// Returns:
-	/// - An `Option<FixedU128>` in the range of `1.0`- `FixedU128::MAX`
+	/// - An `Option<FixedU128>` in the range of 1.0 - `FixedU128::MAX`
 	/// Parameters:
 	/// - `traffic`: The previously calculated multiplier, can never go below 1.0.
 	/// - `queue_capacity`: The max size of the order book.
