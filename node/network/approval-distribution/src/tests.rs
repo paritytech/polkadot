@@ -1817,6 +1817,9 @@ fn originator_aggression_l1() {
 					session: 1,
 				};
 
+				let msg = ApprovalDistributionMessage::ApprovalCheckingLagUpdate(level + 1);
+				overseer_send(overseer, msg).await;
+
 				let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 				overseer_send(overseer, msg).await;
 
@@ -2071,6 +2074,9 @@ fn non_originator_aggression_l2() {
 					session: 1,
 				};
 
+				let msg = ApprovalDistributionMessage::ApprovalCheckingLagUpdate(level + 1);
+				overseer_send(overseer, msg).await;
+
 				let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 				overseer_send(overseer, msg).await;
 
@@ -2097,6 +2103,10 @@ fn non_originator_aggression_l2() {
 					session: 1,
 				};
 
+				let msg = ApprovalDistributionMessage::ApprovalCheckingLagUpdate(
+					aggression_l1_threshold + level + 1,
+				);
+				overseer_send(overseer, msg).await;
 				let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 				overseer_send(overseer, msg).await;
 
@@ -2241,6 +2251,8 @@ fn resends_messages_periodically() {
 						session: 1,
 					};
 
+					let msg = ApprovalDistributionMessage::ApprovalCheckingLagUpdate(2);
+					overseer_send(overseer, msg).await;
 					let msg = ApprovalDistributionMessage::NewBlocks(vec![meta]);
 					overseer_send(overseer, msg).await;
 

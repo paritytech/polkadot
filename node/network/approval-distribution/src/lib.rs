@@ -1431,6 +1431,11 @@ impl State {
 		let config = self.aggression_config.clone();
 
 		if !self.aggression_config.should_trigger_aggression(self.approval_checking_lag) {
+			gum::trace!(
+				target: LOG_TARGET,
+				approval_checking_lag = self.approval_checking_lag,
+				"Aggression not enabled",
+			);
 			return
 		}
 
@@ -1443,9 +1448,9 @@ impl State {
 
 		// Since we have the approval checking lag, we need to set the `min_age` accordingly to
 		// enable aggresion for the oldest block that is not approved.
-		//
-		// Alternatively we could remove blocks that have been approved based on the `approval_checking_lag` value.
 		let min_age = max_age.saturating_sub(self.approval_checking_lag);
+
+		gum::debug!(target: LOG_TARGET, min_age, max_age, "Aggression enabled",);
 
 		adjust_required_routing_and_propagate(
 			ctx,
