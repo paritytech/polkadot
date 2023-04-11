@@ -18,25 +18,25 @@
 //! exponential fee factor (`DeliveryFeeFactor`) is set. The fee factor
 //! increments exponentially after the number of messages in the
 //! `DownwardMessageQueue` pass a threshold. This threshold is set as:
-//! 
+//!
 //! ```ignore
-//! // Maximum max sized messages that can be send to 
+//! // Maximum max sized messages that can be send to
 //! // the DownwardMessageQueue before it runs out of memory
 //! max_messsages = MAX_POSSIBLE_ALLOCATION / max_downward_message_size
 //! threshold = max_messages / THRESHOLD_FACTOR
 //! ```
 //! Based on the THRESHOLD_FACTOR, the threshold is set as a fraction of the
 //! total messages. The DeliveryFeeFactor increases for a message over the
-//! threshold by: 
-//! 
-//! `DeliveryFeeFactor = DeliveryFeeFactor * 
+//! threshold by:
+//!
+//! `DeliveryFeeFactor = DeliveryFeeFactor *
 //! (EXPONENTIAL_FEE_BASE + MESSAGE_SIZE_FEE_BASE * encoded_message_size_in_KB)`
-//! 
+//!
 //! And decreases when the number of messages in the `DownwardMessageQueue` fall
-//! below the threshold by: 
-//! 
-//! `DeliveryFeeFactor = DeliveryFeeFactor / EXPONENTIAL_FEE_BASE` 
-//! 
+//! below the threshold by:
+//!
+//! `DeliveryFeeFactor = DeliveryFeeFactor / EXPONENTIAL_FEE_BASE`
+//!
 //! As an extra defensive measure, a `max_messages` hard
 //! limit is set to the number of messages in the DownwardMessageQueue. Messages
 //! that would increase the number of messages in the queue above this hard
