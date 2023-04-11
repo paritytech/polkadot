@@ -309,13 +309,13 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			);
 
 			// Used to signal to the cpu time monitor thread that it can finish.
-			let (finished_tx, finished_rx) = channel::<()>();
+			let (cpu_time_monitor_tx, cpu_time_monitor_rx) = channel::<()>();
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor.
 			let cpu_time_monitor_fut = rt_handle
 				.spawn_blocking(move || {
-					cpu_time_monitor_loop(cpu_time_start, execution_timeout, finished_rx)
+					cpu_time_monitor_loop(cpu_time_start, execution_timeout, cpu_time_monitor_rx)
 				})
 				.fuse();
 			let executor_2 = executor.clone();
@@ -323,13 +323,20 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				.spawn_blocking(move || {
 					#[cfg(target_os = "linux")]
 					if let Err(err) = sandbox::seccomp_execute_thread() {
-						return Response::format_internal(
+						return Err(Response::format_internal(
 							"sandboxing the thread failed",
 							&err.to_string(),
-						)
+						))
 					}
 
-					validate_using_artifact(&artifact_path, &params, executor_2, cpu_time_start)
+					unsafe {
+						// SAFETY: this should be safe since the compiled artifact passed here comes from the
+						//         file created by the prepare workers. These files are obtained by calling
+						//         [`executor_intf::prepare`].
+						executor_2
+							.execute(artifact_path.as_ref(), &params)
+							.map_err(|err| Response::format_invalid("execute", &err))
+					}
 				})
 				.fuse();
 
@@ -357,8 +364,14 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 					}
 				},
 				execute_res = execute_fut => {
-					let _ = finished_tx.send(());
-					execute_res.unwrap_or_else(|e| Response::format_internal("execute thread error", &e.to_string()))
+					let cpu_time_elapsed = cpu_time_start.elapsed();
+					let _ = cpu_time_monitor_tx.send(());
+
+					match execute_res {
+						Ok(res) => handle_execute_response(res, cpu_time_elapsed),
+						// Handle the error (including any panics) from `join`.
+						Err(e) => Response::format_internal("execute thread error", &e.to_string()),
+					}
 				},
 			};
 
@@ -367,23 +380,13 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 	});
 }
 
-fn validate_using_artifact(
-	artifact_path: &Path,
-	params: &[u8],
-	executor: Arc<Executor>,
-	cpu_time_start: ProcessTime,
-) -> Response {
-	let descriptor_bytes = match unsafe {
-		// SAFETY: this should be safe since the compiled artifact passed here comes from the
-		//         file created by the prepare workers. These files are obtained by calling
-		//         [`executor_intf::prepare`].
-		executor.execute(artifact_path.as_ref(), params)
-	} {
-		Err(err) => return Response::format_invalid("execute", &err),
+/// Helper function to handle the response. This should not run in the sandboxed execute thread, to
+/// keep it as self-contained as possible (making it easier to instrument/sandbox).
+fn handle_execute_response(execute_res: Result<Vec<u8>, Response>, duration: Duration) -> Response {
+	let descriptor_bytes = match execute_res {
+		Err(response) => return response,
 		Ok(d) => d,
 	};
-
-	let duration = cpu_time_start.elapsed();
 
 	let result_descriptor = match ValidationResult::decode(&mut &descriptor_bytes[..]) {
 		Err(err) =>

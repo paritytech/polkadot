@@ -416,8 +416,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 				})
 				.fuse();
 
-			pin_mut!(cpu_time_monitor_fut);
-			pin_mut!(prepare_fut);
+			pin_mut!(cpu_time_monitor_fut, prepare_fut);
 
 			let result = select_biased! {
 				// If this future is not selected, the join handle is dropped and the thread will
