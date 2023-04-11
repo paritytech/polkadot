@@ -45,6 +45,9 @@ use sp_std::marker::PhantomData;
 /// Weight functions for `pallet_message_queue`.
 pub struct WeightInfo<T>(PhantomData<T>);
 impl<T: frame_system::Config> pallet_message_queue::WeightInfo for WeightInfo<T> {
+	fn discard_overweight_page_removed() -> Weight { Weight::MAX } // FAIL-CI
+	fn discard_overweight_page_updated() -> Weight { Weight::MAX } // FAIL-CI
+
 	/// Storage: MessageQueue ServiceHead (r:1 w:0)
 	/// Proof: MessageQueue ServiceHead (max_values: Some(1), max_size: Some(5), added: 500, mode: MaxEncodedLen)
 	/// Storage: MessageQueue BookStateFor (r:2 w:2)
