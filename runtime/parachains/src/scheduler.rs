@@ -121,6 +121,7 @@ pub mod pallet {
 type PositionInClaimqueue = u32;
 type TimedoutParas = BTreeMap<CoreIndex, Assignment>;
 type ConcludedParas = BTreeMap<CoreIndex, ParaId>;
+pub type ClaimQueueValues = BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>>;
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the scheduler pallet.
@@ -446,7 +447,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn update_claimqueue(
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
 		now: T::BlockNumber,
-	) -> Vec<CoreAssignment> {
+	) -> ClaimQueueValues {
 		Self::move_claimqueue_forward();
 		Self::fill_claimqueue(just_freed_cores, now)
 	}
@@ -469,13 +470,13 @@ impl<T: Config> Pallet<T> {
 	fn fill_claimqueue(
 		just_freed_cores: BTreeMap<CoreIndex, FreedReason>,
 		now: T::BlockNumber,
-	) -> Vec<CoreAssignment> {
+	) -> ClaimQueueValues {
 		let (mut concluded_paras, mut timedout_paras) = Self::free_cores(just_freed_cores);
 
 		// This can only happen on new sessions at which we move all assignments back to the provider.
 		// Hence, there's nothing we need to do here.
 		if ValidatorGroups::<T>::get().is_empty() {
-			vec![]
+			BTreeMap::new()
 		} else {
 			let n_lookahead = Self::claimqueue_lookahead();
 			let n_session_cores = T::AssignmentProvider::session_core_count();
@@ -509,7 +510,7 @@ impl<T: Config> Pallet<T> {
 			assert!(timedout_paras.is_empty());
 			assert!(concluded_paras.is_empty());
 
-			Self::scheduled_claimqueue()
+			ClaimQueue::<T>::get()
 		}
 	}
 

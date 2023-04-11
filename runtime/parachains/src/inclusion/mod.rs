@@ -35,7 +35,10 @@ use primitives::{
 };
 use scale_info::TypeInfo;
 use sp_runtime::{traits::One, DispatchError};
-use sp_std::{collections::btree_set::BTreeSet, prelude::*};
+use sp_std::{
+	collections::{btree_map::BTreeMap, btree_set::BTreeSet, vec_deque::VecDeque},
+	prelude::*,
+};
 
 pub use pallet::*;
 
@@ -467,20 +470,26 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn process_candidates<GV>(
 		parent_storage_root: T::Hash,
 		candidates: Vec<BackedCandidate<T::Hash>>,
-		scheduled: Vec<CoreAssignment>,
+		claimqueue: BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>>,
 		group_validators: GV,
 	) -> Result<ProcessedCandidates<T::Hash>, DispatchError>
 	where
 		GV: Fn(GroupIndex) -> Option<Vec<ValidatorIndex>>,
 	{
-		ensure!(candidates.len() <= scheduled.len(), Error::<T>::UnscheduledCandidate);
+		ensure!(candidates.len() <= claimqueue.len(), Error::<T>::UnscheduledCandidate);
 
-		if scheduled.is_empty() {
+		if claimqueue.is_empty() {
 			return Ok(ProcessedCandidates::default())
 		}
 
 		let validators = shared::Pallet::<T>::active_validator_keys();
 		let parent_hash = <frame_system::Pallet<T>>::parent_hash();
+
+		// We make sure the candidates are all valid with regards to the claimqueue
+		let para_assignment_map = match Self::is_subset_of(&candidates, claimqueue) {
+			Ok(x) => x,
+			Err(err) => return Err(err.into()),
+		};
 
 		// At the moment we assume (and in fact enforce, below) that the relay-parent is always one
 		// before of the block where we include a candidate (i.e. this code path).
@@ -494,20 +503,7 @@ impl<T: Config> Pallet<T> {
 
 		// Do all checks before writing storage.
 		let core_indices_and_backers = {
-			let mut skip = 0;
 			let mut core_indices_and_backers = Vec::with_capacity(candidates.len());
-			let mut last_core = None;
-
-			let mut check_assignment_in_order = |assignment: &CoreAssignment| -> DispatchResult {
-				ensure!(
-					last_core.map_or(true, |core| assignment.core > core),
-					Error::<T>::ScheduledOutOfOrder,
-				);
-
-				last_core = Some(assignment.core);
-				Ok(())
-			};
-
 			let signing_context =
 				SigningContext { parent_hash, session_index: shared::Pallet::<T>::session_index() };
 
@@ -521,9 +517,7 @@ impl<T: Config> Pallet<T> {
 			//
 			// In the meantime, we do certain sanity checks on the candidates and on the scheduled
 			// list.
-			'next_backed_candidate: for (candidate_idx, backed_candidate) in
-				candidates.iter().enumerate()
-			{
+			for (candidate_idx, backed_candidate) in candidates.iter().enumerate() {
 				match check_ctx.verify_backed_candidate(
 					parent_hash,
 					parent_storage_root,
@@ -547,96 +541,78 @@ impl<T: Config> Pallet<T> {
 
 				let para_id = backed_candidate.descriptor().para_id;
 				let mut backers = bitvec::bitvec![u8, BitOrderLsb0; 0; validators.len()];
+				let assignment = para_assignment_map
+					.get(&para_id)
+					.expect("is_subset guarantees this element exists.");
 
-				for (i, assignment) in scheduled[skip..].iter().enumerate() {
-					check_assignment_in_order(assignment)?;
-
-					if para_id == assignment.kind.para_id() {
-						if let Some(required_collator) = assignment.required_collator() {
-							ensure!(
-								required_collator == &backed_candidate.descriptor().collator,
-								Error::<T>::WrongCollator,
-							);
-						}
-
-						ensure!(
-							<PendingAvailability<T>>::get(&para_id).is_none() &&
-								<PendingAvailabilityCommitments<T>>::get(&para_id).is_none(),
-							Error::<T>::CandidateScheduledBeforeParaFree,
-						);
-
-						// account for already skipped, and then skip this one.
-						skip = i + skip + 1;
-
-						let group_vals = group_validators(assignment.group_idx)
-							.ok_or_else(|| Error::<T>::InvalidGroupIndex)?;
-
-						// check the signatures in the backing and that it is a majority.
-						{
-							let maybe_amount_validated = primitives::check_candidate_backing(
-								&backed_candidate,
-								&signing_context,
-								group_vals.len(),
-								|intra_group_vi| {
-									group_vals
-										.get(intra_group_vi)
-										.and_then(|vi| validators.get(vi.0 as usize))
-										.map(|v| v.clone())
-								},
-							);
-
-							match maybe_amount_validated {
-								Ok(amount_validated) => ensure!(
-									amount_validated >= minimum_backing_votes(group_vals.len()),
-									Error::<T>::InsufficientBacking,
-								),
-								Err(()) => {
-									Err(Error::<T>::InvalidBacking)?;
-								},
-							}
-
-							let mut backer_idx_and_attestation =
-								Vec::<(ValidatorIndex, ValidityAttestation)>::with_capacity(
-									backed_candidate.validator_indices.count_ones(),
-								);
-							let candidate_receipt = backed_candidate.receipt();
-
-							for ((bit_idx, _), attestation) in backed_candidate
-								.validator_indices
-								.iter()
-								.enumerate()
-								.filter(|(_, signed)| **signed)
-								.zip(backed_candidate.validity_votes.iter().cloned())
-							{
-								let val_idx = group_vals
-									.get(bit_idx)
-									.expect("this query succeeded above; qed");
-								backer_idx_and_attestation.push((*val_idx, attestation));
-
-								backers.set(val_idx.0 as _, true);
-							}
-							candidate_receipt_with_backing_validator_indices
-								.push((candidate_receipt, backer_idx_and_attestation));
-						}
-
-						core_indices_and_backers.push((
-							(assignment.core, assignment.kind.para_id()),
-							backers,
-							assignment.group_idx,
-						));
-						continue 'next_backed_candidate
-					}
+				if let Some(required_collator) = assignment.required_collator() {
+					ensure!(
+						required_collator == &backed_candidate.descriptor().collator,
+						Error::<T>::WrongCollator,
+					);
 				}
 
-				// end of loop reached means that the candidate didn't appear in the non-traversed
-				// section of the `scheduled` slice. either it was not scheduled or didn't appear in
-				// `candidates` in the correct order.
-				ensure!(false, Error::<T>::UnscheduledCandidate);
-			}
+				ensure!(
+					<PendingAvailability<T>>::get(&para_id).is_none() &&
+						<PendingAvailabilityCommitments<T>>::get(&para_id).is_none(),
+					Error::<T>::CandidateScheduledBeforeParaFree,
+				);
 
-			// check remainder of scheduled cores, if any.
-			for assignment in scheduled[skip..].iter() {
-				check_assignment_in_order(assignment)?;
+				let group_vals = group_validators(assignment.group_idx)
+					.ok_or_else(|| Error::<T>::InvalidGroupIndex)?;
+
+				// check the signatures in the backing and that it is a majority.
+				{
+					let maybe_amount_validated = primitives::check_candidate_backing(
+						&backed_candidate,
+						&signing_context,
+						group_vals.len(),
+						|intra_group_vi| {
+							group_vals
+								.get(intra_group_vi)
+								.and_then(|vi| validators.get(vi.0 as usize))
+								.map(|v| v.clone())
+						},
+					);
+
+					match maybe_amount_validated {
+						Ok(amount_validated) => ensure!(
+							amount_validated >= minimum_backing_votes(group_vals.len()),
+							Error::<T>::InsufficientBacking,
+						),
+						Err(()) => {
+							Err(Error::<T>::InvalidBacking)?;
+						},
+					}
+
+					let mut backer_idx_and_attestation =
+						Vec::<(ValidatorIndex, ValidityAttestation)>::with_capacity(
+							backed_candidate.validator_indices.count_ones(),
+						);
+					let candidate_receipt = backed_candidate.receipt();
+
+					for ((bit_idx, _), attestation) in backed_candidate
+						.validator_indices
+						.iter()
+						.enumerate()
+						.filter(|(_, signed)| **signed)
+						.zip(backed_candidate.validity_votes.iter().cloned())
+					{
+						let val_idx =
+							group_vals.get(bit_idx).expect("this query succeeded above; qed");
+						backer_idx_and_attestation.push((*val_idx, attestation));
+
+						backers.set(val_idx.0 as _, true);
+					}
+					candidate_receipt_with_backing_validator_indices
+						.push((candidate_receipt, backer_idx_and_attestation));
+				}
+
+				core_indices_and_backers.push((
+					(assignment.core, para_id),
+					backers,
+					assignment.group_idx,
+				));
 			}
 
 			core_indices_and_backers
@@ -685,6 +661,40 @@ impl<T: Config> Pallet<T> {
 			core_indices,
 			candidate_receipt_with_backing_validator_indices,
 		})
+	}
+
+	fn is_subset_of(
+		candidates: &[BackedCandidate<T::Hash>],
+		claimqueue: BTreeMap<CoreIndex, VecDeque<Option<CoreAssignment>>>,
+	) -> Result<BTreeMap<ParaId, CoreAssignment>, Error<T>> {
+		let candidates_set: BTreeSet<(CoreIndex, ParaId)> = candidates
+			.iter()
+			.enumerate()
+			.map(|(idx, bc)| (CoreIndex::from(idx as u32), bc.descriptor().para_id))
+			.collect();
+
+		let (claimqueue_set, para_core_map): (
+			BTreeSet<(CoreIndex, ParaId)>,
+			BTreeMap<ParaId, CoreAssignment>,
+		) = claimqueue
+			.into_iter()
+			.flat_map(|(idx, assignments)| {
+				assignments.into_iter().filter_map(move |core_assigment| {
+					core_assigment.map(|ca| ((idx, ca.kind.para_id()), (ca.kind.para_id(), ca)))
+				})
+			})
+			.unzip();
+
+		if candidates_set.is_subset(&claimqueue_set) {
+			Ok(para_core_map)
+		} else {
+			for candidate in candidates_set {
+				if !claimqueue_set.contains(&candidate) {
+					return Err(Error::UnscheduledCandidate)
+				}
+			}
+			Err(Error::ScheduledOutOfOrder)
+		}
 	}
 
 	/// Run the acceptance criteria checks on the given candidate commitments.
