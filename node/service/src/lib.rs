@@ -522,7 +522,7 @@ where
 		babe::block_import(babe_config.clone(), beefy_block_import, client.clone())?;
 
 	let slot_duration = babe_link.config().slot_duration();
-	let import_queue = babe::import_queue(
+	let (import_queue, babe_worker_handle) = babe::import_queue(
 		babe_link.clone(),
 		block_import.clone(),
 		Some(Box::new(justification_import)),
@@ -552,9 +552,6 @@ where
 		Some(shared_authority_set.clone()),
 	);
 
-	let shared_epoch_changes = babe_link.epoch_changes().clone();
-	let slot_duration = babe_config.slot_duration();
-
 	let import_setup = (block_import, grandpa_link, babe_link, beefy_voter_links);
 	let rpc_setup = shared_voter_state.clone();
 
@@ -576,8 +573,7 @@ where
 				chain_spec: chain_spec.cloned_box(),
 				deny_unsafe,
 				babe: polkadot_rpc::BabeDeps {
-					babe_config: babe_config.clone(),
-					shared_epoch_changes: shared_epoch_changes.clone(),
+					babe_worker_handle: babe_worker_handle.clone(),
 					keystore: keystore.clone(),
 				},
 				grandpa: polkadot_rpc::GrandpaDeps {
