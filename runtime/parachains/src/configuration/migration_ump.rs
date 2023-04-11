@@ -19,6 +19,7 @@
 use crate::configuration::{self, ActiveConfig, Config, Pallet, LOG_TARGET};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
+use primitives::vstaging::AsyncBackingParams;
 
 pub use v5::MigrateV4ToV5;
 
@@ -212,7 +213,6 @@ max_validators_per_core                  : pre.max_validators_per_core,
 max_validators                           : pre.max_validators,
 dispute_period                           : pre.dispute_period,
 dispute_post_conclusion_acceptance_period: pre.dispute_post_conclusion_acceptance_period,
-dispute_conclusion_by_time_out_period    : pre.dispute_conclusion_by_time_out_period,
 no_show_slots                            : pre.no_show_slots,
 n_delay_tranches                         : pre.n_delay_tranches,
 zeroth_delay_tranche_width               : pre.zeroth_delay_tranche_width,
@@ -221,6 +221,9 @@ relay_vrf_modulo_samples                 : pre.relay_vrf_modulo_samples,
 pvf_checking_enabled                     : pre.pvf_checking_enabled,
 pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
+
+// Default values are zeroes, thus it's ensured allowed ancestry never crosses the upgrade block.
+async_backing_params                     : AsyncBackingParams { max_candidate_depth: 0, allowed_ancestry_len: 0 },
 		}
 	};
 
@@ -353,7 +356,6 @@ mod tests {
 				assert_eq!(v4.max_validators                           , v5.max_validators);
 				assert_eq!(v4.dispute_period                           , v5.dispute_period);
 				assert_eq!(v4.dispute_post_conclusion_acceptance_period, v5.dispute_post_conclusion_acceptance_period);
-				assert_eq!(v4.dispute_conclusion_by_time_out_period    , v5.dispute_conclusion_by_time_out_period);
 				assert_eq!(v4.no_show_slots                            , v5.no_show_slots);
 				assert_eq!(v4.n_delay_tranches                         , v5.n_delay_tranches);
 				assert_eq!(v4.zeroth_delay_tranche_width               , v5.zeroth_delay_tranche_width);

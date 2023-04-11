@@ -197,7 +197,6 @@ validation_upgrade_cooldown              : pre.validation_upgrade_cooldown,
 validation_upgrade_delay                 : pre.validation_upgrade_delay,
 max_pov_size                             : pre.max_pov_size,
 max_downward_message_size                : pre.max_downward_message_size,
-ump_service_total_weight                 : pre.ump_service_total_weight,
 hrmp_max_parachain_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
 hrmp_max_parathread_outbound_channels    : pre.hrmp_max_parathread_outbound_channels,
 hrmp_sender_deposit                      : pre.hrmp_sender_deposit,
@@ -223,7 +222,6 @@ n_delay_tranches                         : pre.n_delay_tranches,
 zeroth_delay_tranche_width               : pre.zeroth_delay_tranche_width,
 needed_approvals                         : pre.needed_approvals,
 relay_vrf_modulo_samples                 : pre.relay_vrf_modulo_samples,
-ump_max_individual_weight                : pre.ump_max_individual_weight,
 pvf_checking_enabled                     : pre.pvf_checking_enabled,
 pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
@@ -357,7 +355,6 @@ mod tests {
 					assert_eq!(v4.validation_upgrade_delay                 , v5.validation_upgrade_delay);
 					assert_eq!(v4.max_pov_size                             , v5.max_pov_size);
 					assert_eq!(v4.max_downward_message_size                , v5.max_downward_message_size);
-					assert_eq!(v4.ump_service_total_weight                 , v5.ump_service_total_weight);
 					assert_eq!(v4.hrmp_max_parachain_outbound_channels     , v5.hrmp_max_parachain_outbound_channels);
 					assert_eq!(v4.hrmp_max_parathread_outbound_channels    , v5.hrmp_max_parathread_outbound_channels);
 					assert_eq!(v4.hrmp_sender_deposit                      , v5.hrmp_sender_deposit);
@@ -382,7 +379,6 @@ mod tests {
 					assert_eq!(v4.zeroth_delay_tranche_width               , v5.zeroth_delay_tranche_width);
 					assert_eq!(v4.needed_approvals                         , v5.needed_approvals);
 					assert_eq!(v4.relay_vrf_modulo_samples                 , v5.relay_vrf_modulo_samples);
-					assert_eq!(v4.ump_max_individual_weight                , v5.ump_max_individual_weight);
 					assert_eq!(v4.pvf_checking_enabled                     , v5.pvf_checking_enabled);
 					assert_eq!(v4.pvf_voting_ttl                           , v5.pvf_voting_ttl);
 					assert_eq!(v4.minimum_validation_upgrade_delay         , v5.minimum_validation_upgrade_delay);

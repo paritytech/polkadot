@@ -1534,9 +1534,9 @@ pub type UncheckedExtrinsic =
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so.
 pub type Migrations = (
-	parachains_configuration::migration::v5::MigrateToV5<Runtime>
+	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-	parachains_configuration::migration::MigrateV4ToV5<Runtime>,
+	parachains_configuration::migration_ump::MigrateV4ToV5<Runtime>,
 );
 
 /// Executive: handles dispatch to the various modules.
