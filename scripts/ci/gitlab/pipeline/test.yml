@@ -99,10 +99,8 @@ cargo-clippy:
   needs:
     - job: job-starter
       artifacts: false
-  variables:
-    RUSTY_CACHIER_TOOLCHAIN: nightly
   extends:
     - .docker-env
     - .test-refs
   script:
-    - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo +nightly clippy --all-targets
+    - SKIP_WASM_BUILD=1 env -u RUSTFLAGS cargo clippy --all-targets
