@@ -2144,6 +2144,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "expander"
+version = "2.0.0"
+source = "git+https://github.com/drahnr/expander.git#bff5f0812113192e2874a1d86943b90e2ed5ba4d"
+dependencies = [
+ "blake2",
+ "fs-err",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.13",
+]
+
+[[package]]
 name = "eyre"
 version = "0.6.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12530,7 +12542,7 @@ name = "tracing-gum-proc-macro"
 version = "0.9.39"
 dependencies = [
  "assert_matches",
- "expander 1.0.0",
+ "expander 2.0.0",
  "proc-macro-crate",
  "proc-macro2",
  "quote",
