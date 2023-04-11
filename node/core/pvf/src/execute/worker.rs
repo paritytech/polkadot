@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@ use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode};
 
 use polkadot_parachain::primitives::ValidationResult;
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::ExecutorParams;
 use std::{
 	path::{Path, PathBuf},
 	sync::{mpsc::channel, Arc},
@@ -47,9 +47,13 @@ pub async fn spawn(
 	executor_params: ExecutorParams,
 	spawn_timeout: Duration,
 ) -> Result<(IdleWorker, WorkerHandle), SpawnErr> {
-	let (mut idle_worker, worker_handle) =
-		spawn_with_program_path("execute", program_path, &["execute-worker"], spawn_timeout)
-			.await?;
+	let (mut idle_worker, worker_handle) = spawn_with_program_path(
+		"execute",
+		program_path,
+		&["execute-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
+		spawn_timeout,
+	)
+	.await?;
 	send_handshake(&mut idle_worker.stream, Handshake { executor_params })
 		.await
 		.map_err(|error| {
@@ -257,14 +261,24 @@ impl Response {
 			Self::InvalidCandidate(format!("{}: {}", ctx, msg))
 		}
 	}
+	fn format_internal(ctx: &'static str, msg: &str) -> Self {
+		if msg.is_empty() {
+			Self::InternalError(ctx.to_string())
+		} else {
+			Self::InternalError(format!("{}: {}", ctx, msg))
+		}
+	}
 }
 
 /// The entrypoint that the spawned execute worker should start with. The `socket_path` specifies
-/// the path to the socket used to communicate with the host.
-pub fn worker_entrypoint(socket_path: &str) {
-	worker_event_loop("execute", socket_path, |rt_handle, mut stream| async move {
-		let handshake = recv_handshake(&mut stream).await?;
+/// the path to the socket used to communicate with the host. The `node_version`, if `Some`,
+/// is checked against the worker version. A mismatch results in immediate worker termination.
+/// `None` is used for tests and in other situations when version check is not necessary.
+pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
+	worker_event_loop("execute", socket_path, node_version, |rt_handle, mut stream| async move {
+		let worker_pid = std::process::id();
 
+		let handshake = recv_handshake(&mut stream).await?;
 		let executor = Arc::new(Executor::new(handshake.executor_params).map_err(|e| {
 			io::Error::new(io::ErrorKind::Other, format!("cannot create executor: {}", e))
 		})?);
@@ -273,7 +287,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 			let (artifact_path, params, execution_timeout) = recv_request(&mut stream).await?;
 			gum::debug!(
 				target: LOG_TARGET,
-				worker_pid = %std::process::id(),
+				%worker_pid,
 				"worker: validating artifact {}",
 				artifact_path.display(),
 			);
@@ -283,7 +297,7 @@ pub fn worker_entrypoint(socket_path: &str) {
 			let cpu_time_start = ProcessTime::now();
 
 			// Spawn a new thread that runs the CPU time monitor.
-			let thread_fut = rt_handle
+			let cpu_time_monitor_fut = rt_handle
 				.spawn_blocking(move || {
 					cpu_time_monitor_loop(cpu_time_start, execution_timeout, finished_rx)
 				})
@@ -295,19 +309,19 @@ pub fn worker_entrypoint(socket_path: &str) {
 				})
 				.fuse();
 
-			pin_mut!(thread_fut);
+			pin_mut!(cpu_time_monitor_fut);
 			pin_mut!(execute_fut);
 
 			let response = select_biased! {
 				// If this future is not selected, the join handle is dropped and the thread will
 				// finish in the background.
-				join_res = thread_fut => {
-					match join_res {
+				cpu_time_monitor_res = cpu_time_monitor_fut => {
+					match cpu_time_monitor_res {
 						Ok(Some(cpu_time_elapsed)) => {
 							// Log if we exceed the timeout and the other thread hasn't finished.
 							gum::warn!(
 								target: LOG_TARGET,
-								worker_pid = %std::process::id(),
+								%worker_pid,
 								"execute job took {}ms cpu time, exceeded execute timeout {}ms",
 								cpu_time_elapsed.as_millis(),
 								execution_timeout.as_millis(),
@@ -315,12 +329,12 @@ pub fn worker_entrypoint(socket_path: &str) {
 							Response::TimedOut
 						},
 						Ok(None) => Response::InternalError("error communicating over finished channel".into()),
-						Err(e) => Response::InternalError(format!("{}", e)),
+						Err(e) => Response::format_internal("cpu time monitor thread error", &e.to_string()),
 					}
 				},
 				execute_res = execute_fut => {
 					let _ = finished_tx.send(());
-					execute_res.unwrap_or_else(|e| Response::InternalError(format!("{}", e)))
+					execute_res.unwrap_or_else(|e| Response::format_internal("execute thread error", &e.to_string()))
 				},
 			};
 
@@ -349,7 +363,7 @@ fn validate_using_artifact(
 
 	let result_descriptor = match ValidationResult::decode(&mut &descriptor_bytes[..]) {
 		Err(err) =>
-			return Response::InvalidCandidate(format!("validation result decoding failed: {}", err)),
+			return Response::format_invalid("validation result decoding failed", &err.to_string()),
 		Ok(r) => r,
 	};
 

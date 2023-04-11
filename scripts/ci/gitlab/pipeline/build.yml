@@ -129,7 +129,7 @@ build-rustdoc:
   script:
     # FIXME: it fails with `RUSTDOCFLAGS="-Dwarnings"` and `--all-features`
     # FIXME: return to stable when https://github.com/rust-lang/rust/issues/96937 gets into stable
-    - time cargo +nightly doc --workspace --verbose --no-deps
+    - time cargo doc --workspace --verbose --no-deps
     - rm -f ./target/doc/.lock
     - mv ./target/doc ./crate-docs
     # FIXME: remove me after CI image gets nonroot
@@ -169,6 +169,6 @@ build-short-benchmark:
     - .test-refs
     - .collect-artifacts
   script:
-    - cargo +nightly build --profile release --locked --features=runtime-benchmarks
+    - cargo build --profile release --locked --features=runtime-benchmarks
     - mkdir artifacts
     - cp ./target/release/polkadot ./artifacts/

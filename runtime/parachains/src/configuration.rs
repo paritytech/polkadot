@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -23,7 +23,10 @@ use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_REF_TIME_PER_M
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
-use primitives::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
+use primitives::{
+	vstaging::AsyncBackingParams, Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE,
+	MAX_POV_SIZE,
+};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
@@ -118,6 +121,8 @@ pub struct HostConfiguration<BlockNumber> {
 	 * The parameters that are not essential, but still may be of interest for parachains.
 	 */
 
+	/// Asynchronous backing parameters.
+	pub async_backing_params: AsyncBackingParams,
 	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
@@ -193,8 +198,6 @@ pub struct HostConfiguration<BlockNumber> {
 	pub dispute_period: SessionIndex,
 	/// How long after dispute conclusion to accept statements.
 	pub dispute_post_conclusion_acceptance_period: BlockNumber,
-	/// How long it takes for a dispute to conclude by time-out, if no supermajority is reached.
-	pub dispute_conclusion_by_time_out_period: BlockNumber,
 	/// The amount of consensus slots that must pass between submitting an assignment and
 	/// submitting an approval vote before a validator is considered a no-show.
 	///
@@ -245,6 +248,10 @@ pub struct HostConfiguration<BlockNumber> {
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
 	fn default() -> Self {
 		Self {
+			async_backing_params: AsyncBackingParams {
+				max_candidate_depth: 0,
+				allowed_ancestry_len: 0,
+			},
 			group_rotation_frequency: 1u32.into(),
 			chain_availability_period: 1u32.into(),
 			thread_availability_period: 1u32.into(),
@@ -262,7 +269,6 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			max_validators: None,
 			dispute_period: 6,
 			dispute_post_conclusion_acceptance_period: 100.into(),
-			dispute_conclusion_by_time_out_period: 200.into(),
 			n_delay_tranches: Default::default(),
 			zeroth_delay_tranche_width: Default::default(),
 			needed_approvals: Default::default(),
@@ -473,7 +479,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::storage_version(migration::STORAGE_VERSION)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
@@ -763,22 +768,6 @@ pub mod pallet {
 			ensure_root(origin)?;
 			Self::schedule_config_update(|config| {
 				config.dispute_post_conclusion_acceptance_period = new;
-			})
-		}
-
-		/// Set the dispute conclusion by time out period.
-		#[pallet::call_index(17)]
-		#[pallet::weight((
-			T::WeightInfo::set_config_with_block_number(),
-			DispatchClass::Operational,
-		))]
-		pub fn set_dispute_conclusion_by_time_out_period(
-			origin: OriginFor<T>,
-			new: T::BlockNumber,
-		) -> DispatchResult {
-			ensure_root(origin)?;
-			Self::schedule_config_update(|config| {
-				config.dispute_conclusion_by_time_out_period = new;
 			})
 		}
 
@@ -1155,8 +1144,24 @@ pub mod pallet {
 		))]
 		pub fn set_bypass_consistency_check(origin: OriginFor<T>, new: bool) -> DispatchResult {
 			ensure_root(origin)?;
-			<Self as Store>::BypassConsistencyCheck::put(new);
+			BypassConsistencyCheck::<T>::put(new);
 			Ok(())
+		}
+
+		/// Set the asynchronous backing parameters.
+		#[pallet::call_index(45)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			DispatchClass::Operational,
+		))]
+		pub fn set_async_backing_params(
+			origin: OriginFor<T>,
+			new: AsyncBackingParams,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.async_backing_params = new;
+			})
 		}
 	}
 
@@ -1200,7 +1205,7 @@ impl<T: Config> Pallet<T> {
 		session_index: &SessionIndex,
 	) -> SessionChangeOutcome<T::BlockNumber> {
 		let pending_configs = <PendingConfigs<T>>::get();
-		let prev_config = <Self as Store>::ActiveConfig::get();
+		let prev_config = ActiveConfig::<T>::get();
 
 		// No pending configuration changes, so we're done.
 		if pending_configs.is_empty() {
@@ -1223,7 +1228,7 @@ impl<T: Config> Pallet<T> {
 		let new_config = past_and_present.pop().map(|(_, config)| config);
 		if let Some(ref new_config) = new_config {
 			// Apply the new configuration.
-			<Self as Store>::ActiveConfig::put(new_config);
+			ActiveConfig::<T>::put(new_config);
 		}
 
 		<PendingConfigs<T>>::put(future);
@@ -1240,7 +1245,7 @@ impl<T: Config> Pallet<T> {
 	/// only when enabling parachains runtime pallets for the first time on a chain which has
 	/// been running without them.
 	pub fn force_set_active_config(config: HostConfiguration<T::BlockNumber>) {
-		<Self as Store>::ActiveConfig::set(config);
+		ActiveConfig::<T>::set(config);
 	}
 
 	/// This function should be used to update members of the configuration.
@@ -1292,7 +1297,7 @@ impl<T: Config> Pallet<T> {
 		// First, we need to decide what we should use as the base configuration.
 		let mut base_config = pending_configs
 			.last()
-			.map(|&(_, ref config)| config.clone())
+			.map(|(_, config)| config.clone())
 			.unwrap_or_else(Self::config);
 		let base_config_consistent = base_config.check_consistency().is_ok();
 
@@ -1302,7 +1307,7 @@ impl<T: Config> Pallet<T> {
 		updater(&mut base_config);
 		let new_config = base_config;
 
-		if <Self as Store>::BypassConsistencyCheck::get() {
+		if BypassConsistencyCheck::<T>::get() {
 			// This will emit a warning each configuration update if the consistency check is
 			// bypassed. This is an attempt to make sure the bypass is not accidentally left on.
 			log::warn!(

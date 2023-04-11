@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -21,24 +21,37 @@
 //! by the first element of the vector). Decoding to a usable semantics structure is
 //! done in `polkadot-node-core-pvf`.
 
-use crate::{BlakeTwo256, HashT as _};
+use crate::{BlakeTwo256, HashT as _, PvfExecTimeoutKind, PvfPrepTimeoutKind};
 use parity_scale_codec::{Decode, Encode};
 use polkadot_core_primitives::Hash;
 use scale_info::TypeInfo;
-use sp_std::{ops::Deref, vec, vec::Vec};
+use sp_std::{ops::Deref, time::Duration, vec, vec::Vec};
 
 /// The different executor parameters for changing the execution environment semantics.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
 pub enum ExecutorParam {
 	/// Maximum number of memory pages (64KiB bytes per page) the executor can allocate.
+	#[codec(index = 1)]
 	MaxMemoryPages(u32),
 	/// Wasm logical stack size limit (max. number of Wasm values on stack)
+	#[codec(index = 2)]
 	StackLogicalMax(u32),
 	/// Executor machine stack size limit, in bytes
+	#[codec(index = 3)]
 	StackNativeMax(u32),
 	/// Max. amount of memory the preparation worker is allowed to use during
 	/// pre-checking, in bytes
+	#[codec(index = 4)]
 	PrecheckingMaxMemory(u64),
+	/// PVF preparation timeouts, millisec
+	#[codec(index = 5)]
+	PvfPrepTimeout(PvfPrepTimeoutKind, u64),
+	/// PVF execution timeouts, millisec
+	#[codec(index = 6)]
+	PvfExecTimeout(PvfExecTimeoutKind, u64),
+	/// Enables WASM bulk memory proposal
+	#[codec(index = 7)]
+	WasmExtBulkMemory,
 }
 
 /// Unit type wrapper around [`type@Hash`] that represents an execution parameter set hash.
@@ -91,6 +104,30 @@ impl ExecutorParams {
 	/// Returns hash of the set of execution environment parameters
 	pub fn hash(&self) -> ExecutorParamsHash {
 		ExecutorParamsHash(BlakeTwo256::hash(&self.encode()))
+	}
+
+	/// Returns a PVF preparation timeout, if any
+	pub fn pvf_prep_timeout(&self, kind: PvfPrepTimeoutKind) -> Option<Duration> {
+		for param in &self.0 {
+			if let ExecutorParam::PvfPrepTimeout(k, timeout) = param {
+				if kind == *k {
+					return Some(Duration::from_millis(*timeout))
+				}
+			}
+		}
+		None
+	}
+
+	/// Returns a PVF execution timeout, if any
+	pub fn pvf_exec_timeout(&self, kind: PvfExecTimeoutKind) -> Option<Duration> {
+		for param in &self.0 {
+			if let ExecutorParam::PvfExecTimeout(k, timeout) = param {
+				if kind == *k {
+					return Some(Duration::from_millis(*timeout))
+				}
+			}
+		}
+		None
 	}
 }
 

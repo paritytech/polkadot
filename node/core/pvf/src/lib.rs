@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -110,7 +110,7 @@ pub use sp_tracing;
 pub use error::{InvalidCandidate, PrepareError, PrepareResult, ValidationError};
 pub use prepare::PrepareStats;
 pub use priority::Priority;
-pub use pvf::PvfWithExecutorParams;
+pub use pvf::PvfPrepData;
 
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;

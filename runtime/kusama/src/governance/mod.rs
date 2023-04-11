@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,9 +22,6 @@ use frame_support::{
 	traits::{ConstU16, EitherOf},
 };
 use frame_system::EnsureRootWithSuccess;
-
-// Old governance configurations.
-pub mod old;
 
 mod origins;
 pub use origins::{

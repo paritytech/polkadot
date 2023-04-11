@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@ use futures::{executor, future, Future};
 
 use polkadot_node_network_protocol::request_response::{IncomingRequest, ReqProtocolNames};
 use polkadot_primitives::{CoreState, Hash};
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 
 use polkadot_node_subsystem_test_helpers as test_helpers;
 
@@ -34,7 +34,7 @@ use state::{TestHarness, TestState};
 pub(crate) mod mock;
 
 fn test_harness<T: Future<Output = ()>>(
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	test_fx: impl FnOnce(TestHarness) -> T,
 ) {
 	sp_tracing::try_init_simple();

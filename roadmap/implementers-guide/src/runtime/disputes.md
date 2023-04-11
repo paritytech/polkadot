@@ -56,7 +56,7 @@ Frozen: Option<BlockNumber>,
 
 ## Block Initialization
 
-1. Iterate through all disputes. If any have not concluded and started more than `config.dispute_conclusion_by_timeout_period` blocks ago, set them to `Concluded` and mildly punish all validators associated, as they have failed to distribute available data.
+This is currently a `no op`.
 
 ## Routines
 

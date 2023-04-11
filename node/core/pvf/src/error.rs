@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -29,12 +29,11 @@ pub enum PrepareError {
 	Prevalidation(String),
 	/// Compilation failed for the given PVF.
 	Preparation(String),
-	/// An unexpected panic has occured in the preparation worker.
+	/// An unexpected panic has occurred in the preparation worker.
 	Panic(String),
 	/// Failed to prepare the PVF due to the time limit.
 	TimedOut,
-	/// An IO error occurred while receiving the result from the worker process. This state is reported by the
-	/// validation host (not by the worker).
+	/// An IO error occurred. This state is reported by either the validation host or by the worker.
 	IoErr(String),
 	/// The temporary file for the artifact could not be created at the given cache path. This state is reported by the
 	/// validation host (not by the worker).
@@ -120,12 +119,6 @@ impl From<PrepareError> for ValidationError {
 	fn from(error: PrepareError) -> Self {
 		// Here we need to classify the errors into two errors: deterministic and non-deterministic.
 		// See [`PrepareError::is_deterministic`].
-		//
-		// We treat the deterministic errors as `InvalidCandidate`. Should those occur they could
-		// potentially trigger disputes.
-		//
-		// All non-deterministic errors are qualified as `InternalError`s and will not trigger
-		// disputes.
 		if error.is_deterministic() {
 			ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
 		} else {

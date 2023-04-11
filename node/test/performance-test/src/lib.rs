@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 use polkadot_erasure_coding::{obtain_chunks, reconstruct};
 use polkadot_node_core_pvf::{sc_executor_common, sp_maybe_compressed_blob};
-use polkadot_primitives::vstaging::ExecutorParams;
+use polkadot_primitives::ExecutorParams;
 use std::time::{Duration, Instant};
 
 mod constants;
