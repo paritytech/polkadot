@@ -175,8 +175,8 @@ pub mod pallet {
 
 	#[pallet::call]
 	impl<T: Config> Pallet<T> {
-		/// Create a single parathread core order.
-		/// Will use the current spot price for the block.
+		/// Create a single on demand core order.
+		/// Will use the spot price for the current block and can be set to reap the account if needed.
 		///
 		/// Parameters:
 		/// - `origin`: The sender of the call, funds will be withdrawn from this account.
@@ -197,6 +197,7 @@ pub mod pallet {
 			max_amount: BalanceOf<T>,
 			para_id: ParaId,
 			scheduled_collator: CollatorId,
+			keep_alive: bool,
 		) -> DispatchResult {
 			// Is tx signed
 			let sender = ensure_signed(origin)?;
@@ -213,13 +214,17 @@ pub mod pallet {
 			// Is the current price higher than `max_amount`
 			ensure!(spot_price.le(&max_amount), Error::<T>::SpotPriceHigherThanMaxAmount);
 
+			let existence_requirement = match keep_alive {
+				true => ExistenceRequirement::KeepAlive,
+				false => ExistenceRequirement::AllowDeath,
+			};
+
 			// Charge the sending account the spot price
-			// TODO should liveness be exposed to the user. i.e. should a spot price bid be able to reap the account?
 			T::Currency::withdraw(
 				&sender,
 				spot_price,
 				WithdrawReasons::FEE,
-				ExistenceRequirement::KeepAlive,
+				existence_requirement,
 			)?;
 
 			let claim = SpotClaim { para_id, collator_id: scheduled_collator };
