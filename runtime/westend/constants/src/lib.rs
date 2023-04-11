@@ -102,6 +102,8 @@ pub mod system_parachain {
 	pub const WESTMINT_ID: u32 = 1000;
 	/// Collectives parachain ID.
 	pub const COLLECTIVES_ID: u32 = 1001;
+	/// BridgeHub parachain ID.
+	pub const BRIDGE_HUB_ID: u32 = 1002;
 }
 
 #[cfg(test)]

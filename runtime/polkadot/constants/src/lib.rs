@@ -119,10 +119,12 @@ pub mod system_parachain {
 	pub const STATEMINT_ID: u32 = 1000;
 	/// Collectives parachain ID.
 	pub const COLLECTIVES_ID: u32 = 1001;
+	/// BridgeHub parachain ID.
+	pub const BRIDGE_HUB_ID: u32 = 1002;
 
 	frame_support::match_types! {
 		pub type SystemParachains: impl Contains<MultiLocation> = {
-			MultiLocation { parents: 0, interior: X1(Parachain(STATEMINT_ID | COLLECTIVES_ID)) }
+			MultiLocation { parents: 0, interior: X1(Parachain(STATEMINT_ID | COLLECTIVES_ID | BRIDGE_HUB_ID)) }
 		};
 	}
 }

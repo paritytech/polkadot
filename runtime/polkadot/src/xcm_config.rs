@@ -122,12 +122,16 @@ parameter_types! {
 	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(STATEMINT_ID).into_location());
 	pub const CollectivesLocation: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
 	pub const DotForCollectives: (MultiAssetFilter, MultiLocation) = (Dot::get(), CollectivesLocation::get());
+	pub const DotForBridgeHub: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(BRIDGE_HUB_ID).into_location());
 	pub const MaxAssetsIntoHolding: u32 = 64;
 }
 
 /// Polkadot Relay recognizes/respects the Statemint chain as a teleporter.
-pub type TrustedTeleporters =
-	(xcm_builder::Case<DotForStatemint>, xcm_builder::Case<DotForCollectives>);
+pub type TrustedTeleporters = (
+	xcm_builder::Case<DotForStatemint>,
+	xcm_builder::Case<DotForCollectives>,
+	xcm_builder::Case<DotForBridgeHub>,
+);
 
 match_types! {
 	pub type OnlyParachains: impl Contains<MultiLocation> = {
