@@ -74,22 +74,19 @@ pub const INITIAL_BALANCE: u128 = 1_000_000_000_000;
 pub fn yayoi_ext(para_id: u32) -> sp_io::TestExternalities {
 	use yayoi::{Runtime, System};
 
-	let mut t = frame_system::GenesisConfig::default()
-		.build_storage::<Runtime>()
-		.unwrap();
+	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
-	let parachain_info_config = parachain_info::GenesisConfig {
-		parachain_id: para_id.into(),
-	};
+	let parachain_info_config = parachain_info::GenesisConfig { parachain_id: para_id.into() };
 
-	<parachain_info::GenesisConfig as GenesisBuild<Runtime, _>>::assimilate_storage(&parachain_info_config, &mut t)
-		.unwrap();
-
-	pallet_balances::GenesisConfig::<Runtime> {
-		balances: vec![(ALICE, INITIAL_BALANCE)],
-	}
-	.assimilate_storage(&mut t)
+	<parachain_info::GenesisConfig as GenesisBuild<Runtime, _>>::assimilate_storage(
+		&parachain_info_config,
+		&mut t,
+	)
 	.unwrap();
+
+	pallet_balances::GenesisConfig::<Runtime> { balances: vec![(ALICE, INITIAL_BALANCE)] }
+		.assimilate_storage(&mut t)
+		.unwrap();
 
 	let mut ext = sp_io::TestExternalities::new(t);
 	ext.execute_with(|| System::set_block_number(1));
@@ -97,7 +94,9 @@ pub fn yayoi_ext(para_id: u32) -> sp_io::TestExternalities {
 }
 
 fn default_parachains_host_configuration(
-) -> polkadot_runtime_parachains::configuration::HostConfiguration<polkadot_primitives::v4::BlockNumber> {
+) -> polkadot_runtime_parachains::configuration::HostConfiguration<
+	polkadot_primitives::v4::BlockNumber,
+> {
 	use polkadot_primitives::v4::{MAX_CODE_SIZE, MAX_POV_SIZE};
 
 	polkadot_runtime_parachains::configuration::HostConfiguration {
@@ -140,15 +139,11 @@ fn default_parachains_host_configuration(
 pub fn kusama_ext() -> sp_io::TestExternalities {
 	use kusama_runtime::{Runtime, System};
 
-	let mut t = frame_system::GenesisConfig::default()
-		.build_storage::<Runtime>()
-		.unwrap();
+	let mut t = frame_system::GenesisConfig::default().build_storage::<Runtime>().unwrap();
 
-	pallet_balances::GenesisConfig::<Runtime> {
-		balances: vec![(ALICE, INITIAL_BALANCE)],
-	}
-	.assimilate_storage(&mut t)
-	.unwrap();
+	pallet_balances::GenesisConfig::<Runtime> { balances: vec![(ALICE, INITIAL_BALANCE)] }
+		.assimilate_storage(&mut t)
+		.unwrap();
 
 	polkadot_runtime_parachains::configuration::GenesisConfig::<Runtime> {
 		config: default_parachains_host_configuration(),
@@ -176,9 +171,10 @@ mod tests {
 	fn dmp() {
 		Network::reset();
 
-		let remark = yayoi::RuntimeCall::System(frame_system::Call::<yayoi::Runtime>::remark_with_event {
-			remark: "Hello from Kusama!".as_bytes().to_vec(),
-		});
+		let remark =
+			yayoi::RuntimeCall::System(frame_system::Call::<yayoi::Runtime>::remark_with_event {
+				remark: "Hello from Kusama!".as_bytes().to_vec(),
+			});
 		KusamaNet::execute_with(|| {
 			assert_ok!(kusama_runtime::XcmPallet::force_default_xcm_version(
 				kusama_runtime::RuntimeOrigin::root(),
@@ -221,10 +217,11 @@ mod tests {
 			);
 		});
 
-		let remark =
-			kusama_runtime::RuntimeCall::System(frame_system::Call::<kusama_runtime::Runtime>::remark_with_event {
-				remark: "Hello from Pumpkin!".as_bytes().to_vec(),
-			});
+		let remark = kusama_runtime::RuntimeCall::System(frame_system::Call::<
+			kusama_runtime::Runtime,
+		>::remark_with_event {
+			remark: "Hello from Pumpkin!".as_bytes().to_vec(),
+		});
 		YayoiPumpkin::execute_with(|| {
 			assert_ok!(yayoi::PolkadotXcm::force_default_xcm_version(
 				yayoi::RuntimeOrigin::root(),
@@ -234,13 +231,13 @@ mod tests {
 				Here,
 				Parent,
 				Xcm(vec![
-					UnpaidExecution {
-						weight_limit: Unlimited,
-						check_origin: None,
-					},
+					UnpaidExecution { weight_limit: Unlimited, check_origin: None },
 					Transact {
 						origin_kind: OriginKind::SovereignAccount,
-						require_weight_at_most: Weight::from_parts(INITIAL_BALANCE as u64, 1024 * 1024),
+						require_weight_at_most: Weight::from_parts(
+							INITIAL_BALANCE as u64,
+							1024 * 1024
+						),
 						call: remark.encode().into(),
 					}
 				]),
@@ -269,9 +266,10 @@ mod tests {
 	fn xcmp() {
 		Network::reset();
 
-		let remark = yayoi::RuntimeCall::System(frame_system::Call::<yayoi::Runtime>::remark_with_event {
-			remark: "Hello from Pumpkin!".as_bytes().to_vec(),
-		});
+		let remark =
+			yayoi::RuntimeCall::System(frame_system::Call::<yayoi::Runtime>::remark_with_event {
+				remark: "Hello from Pumpkin!".as_bytes().to_vec(),
+			});
 		YayoiPumpkin::execute_with(|| {
 			assert_ok!(yayoi::PolkadotXcm::send_xcm(
 				Here,
@@ -333,9 +331,10 @@ mod tests {
 			use yayoi::{RuntimeEvent, System};
 			System::events().iter().for_each(|r| println!(">>> {:?}", r.event));
 
-			assert!(System::events()
-				.iter()
-				.any(|r| matches!(r.event, RuntimeEvent::PolkadotXcm(pallet_xcm::Event::Sent(_, _, _)))));
+			assert!(System::events().iter().any(|r| matches!(
+				r.event,
+				RuntimeEvent::PolkadotXcm(pallet_xcm::Event::Sent(_, _, _))
+			)));
 		});
 
 		YayoiOctopus::execute_with(|| {
@@ -391,9 +390,10 @@ mod tests {
 	}
 
 	fn kusama_send_rmrk(msg: &str, count: u32) {
-		let remark = yayoi::RuntimeCall::System(frame_system::Call::<yayoi::Runtime>::remark_with_event {
-			remark: msg.as_bytes().to_vec(),
-		});
+		let remark =
+			yayoi::RuntimeCall::System(frame_system::Call::<yayoi::Runtime>::remark_with_event {
+				remark: msg.as_bytes().to_vec(),
+			});
 		KusamaNet::execute_with(|| {
 			for _ in 0..count {
 				assert_ok!(kusama_runtime::XcmPallet::send_xcm(
@@ -401,7 +401,10 @@ mod tests {
 					Parachain(1),
 					Xcm(vec![Transact {
 						origin_kind: OriginKind::SovereignAccount,
-						require_weight_at_most: Weight::from_parts(INITIAL_BALANCE as u64, 1024 * 1024),
+						require_weight_at_most: Weight::from_parts(
+							INITIAL_BALANCE as u64,
+							1024 * 1024
+						),
 						call: remark.encode().into(),
 					}]),
 				));
