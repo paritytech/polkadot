@@ -14,10 +14,9 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use frame_support::traits::ConstU32;
 use frame_support::{
 	construct_runtime, parameter_types,
-	traits::{Everything, Nothing},
+	traits::{ConstU32, Everything, Nothing},
 	weights::{constants::WEIGHT_REF_TIME_PER_SECOND, Weight},
 };
 use frame_system::EnsureRoot;
@@ -31,9 +30,9 @@ use sp_runtime::{
 };
 use xcm::v3::prelude::*;
 use xcm_builder::{
-	AccountId32Aliases, AllowUnpaidExecutionFrom, EnsureXcmOrigin, FixedWeightBounds, ParentIsPreset,
-	RelayChainAsNative, SiblingParachainAsNative, SiblingParachainConvertsVia, SignedAccountId32AsNative,
-	SignedToAccountId32, SovereignSignedViaLocation,
+	AccountId32Aliases, AllowUnpaidExecutionFrom, EnsureXcmOrigin, FixedWeightBounds,
+	ParentIsPreset, RelayChainAsNative, SiblingParachainAsNative, SiblingParachainConvertsVia,
+	SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
 };
 use xcm_executor::{Config, XcmExecutor};
 
@@ -239,11 +238,7 @@ impl pallet_xcm::Config for Runtime {
 pub struct AccountIdToMultiLocation;
 impl Convert<AccountId, MultiLocation> for AccountIdToMultiLocation {
 	fn convert(account: AccountId) -> MultiLocation {
-		X1(Junction::AccountId32 {
-			network: None,
-			id: account.into(),
-		})
-		.into()
+		X1(Junction::AccountId32 { network: None, id: account.into() }).into()
 	}
 }
 
