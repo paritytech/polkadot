@@ -418,7 +418,7 @@ where
 		.with_runtime_cache_size(config.runtime_cache_size)
 		.build();
 
-	let executor = NativeElseWasmExecutor::<ExecutorDispatch>::new(wasm);
+	let executor = NativeElseWasmExecutor::<ExecutorDispatch>::new_with_wasm_executor(wasm);
 
 	let (client, backend, keystore_container, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, _>(
