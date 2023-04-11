@@ -1581,7 +1581,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "xcm",
- "xcm-builder 0.9.39 (git+https://github.com/paritytech/polkadot?branch=master)",
+ "xcm-builder",
  "xcm-executor",
 ]
 
@@ -3948,7 +3948,7 @@ dependencies = [
  "tiny-keccak",
  "tokio",
  "xcm",
- "xcm-builder 0.9.39",
+ "xcm-builder",
  "xcm-executor",
 ]
 
@@ -6414,7 +6414,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "xcm",
- "xcm-builder 0.9.39",
+ "xcm-builder",
  "xcm-executor",
 ]
 
@@ -6439,7 +6439,7 @@ dependencies = [
  "sp-std",
  "sp-tracing",
  "xcm",
- "xcm-builder 0.9.39",
+ "xcm-builder",
  "xcm-executor",
 ]
 
@@ -7987,7 +7987,7 @@ dependencies = [
  "tiny-keccak",
  "tokio",
  "xcm",
- "xcm-builder 0.9.39",
+ "xcm-builder",
  "xcm-executor",
 ]
 
@@ -8497,7 +8497,7 @@ dependencies = [
  "test-runtime-constants",
  "tiny-keccak",
  "xcm",
- "xcm-builder 0.9.39",
+ "xcm-builder",
  "xcm-executor",
 ]
 
@@ -9405,7 +9405,7 @@ dependencies = [
  "tiny-keccak",
  "tokio",
  "xcm",
- "xcm-builder 0.9.39",
+ "xcm-builder",
  "xcm-executor",
 ]
 
@@ -14199,7 +14199,7 @@ dependencies = [
  "tokio",
  "westend-runtime-constants",
  "xcm",
- "xcm-builder 0.9.39",
+ "xcm-builder",
  "xcm-executor",
 ]
 
@@ -14556,27 +14556,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "xcm-builder"
-version = "0.9.39"
-source = "git+https://github.com/paritytech/polkadot?branch=master#dbae30efe080a1d41fe54ef4da8af47614c9ca93"
-dependencies = [
- "frame-support",
- "frame-system",
- "impl-trait-for-tuples",
- "log",
- "pallet-transaction-payment",
- "parity-scale-codec",
- "polkadot-parachain",
- "scale-info",
- "sp-arithmetic",
- "sp-io",
- "sp-runtime",
- "sp-std",
- "xcm",
- "xcm-executor",
-]
-
-[[package]]
 name = "xcm-emulator"
 version = "0.9.39"
 dependencies = [
@@ -14712,7 +14691,7 @@ dependencies = [
  "sp-std",
  "sp-tracing",
  "xcm",
- "xcm-builder 0.9.39",
+ "xcm-builder",
  "xcm-executor",
  "xcm-simulator",
 ]
@@ -14737,7 +14716,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "xcm",
- "xcm-builder 0.9.39",
+ "xcm-builder",
  "xcm-executor",
  "xcm-simulator",
 ]
@@ -14789,7 +14768,7 @@ dependencies = [
  "sp-runtime",
  "sp-std",
  "xcm",
- "xcm-builder 0.9.39",
+ "xcm-builder",
  "xcm-executor",
 ]
 
