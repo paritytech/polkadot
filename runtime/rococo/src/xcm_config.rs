@@ -22,11 +22,15 @@ use super::{
 };
 use frame_support::{
 	match_types, parameter_types,
-	traits::{Contains, Everything, Nothing},
+	traits::{
+		AsEnsureOriginWithContains, Contains, EitherOfWithArg, EnsureOriginWithArg, Everything,
+		Nothing,
+	},
 	weights::Weight,
 };
-use frame_system::EnsureRoot;
+use frame_system::{ensure_signed, EnsureRoot};
 use runtime_common::{crowdloan, paras_registrar, xcm_sender, ToAuthor};
+use runtime_parachains::inclusion::AggregateMessageOrigin;
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -37,7 +41,10 @@ use xcm_builder::{
 	MintLocation, SignedAccountId32AsNative, SignedToAccountId32, SovereignSignedViaLocation,
 	TakeWeightCredit, UsingComponents, WeightInfoBounds, WithComputedOrigin,
 };
-use xcm_executor::{traits::WithOriginFilter, XcmExecutor};
+use xcm_executor::{
+	traits::{Convert, WithOriginFilter},
+	XcmExecutor,
+};
 
 parameter_types! {
 	pub const TokenLocation: MultiLocation = Here.into_location();
@@ -141,6 +148,40 @@ pub type Barrier = (
 		ConstU32<8>,
 	>,
 );
+
+/// Either root for all queues or a parachain for its own queue.
+pub type MqDiscardOverweightOrigin = EitherOfWithArg<
+	AsEnsureOriginWithContains<EnsureRoot<AccountId>, Everything>,
+	ParaAsUmpQueueManager<LocationConverter>,
+>;
+
+/// Each parachain can control its own UMP queue through its sovereign account.
+pub struct ParaAsUmpQueueManager<ParaToSovereign>(core::marker::PhantomData<ParaToSovereign>);
+impl<ParaToSovereign> EnsureOriginWithArg<RuntimeOrigin, AggregateMessageOrigin>
+	for ParaAsUmpQueueManager<ParaToSovereign>
+where
+	ParaToSovereign: Convert<MultiLocation, AccountId>,
+{
+	type Success = ();
+
+	fn try_origin(
+		o: RuntimeOrigin,
+		queue: &AggregateMessageOrigin,
+	) -> Result<Self::Success, RuntimeOrigin> {
+		let para: ParaId = match queue {
+			AggregateMessageOrigin::Ump(para) => *para,
+		};
+		let owner = Junction::Parachain(para.into());
+		let sovereign = ParaToSovereign::convert_ref(&owner.into()).map_err(|()| o.clone())?; // FAIL-CI remove clones
+
+		let signer = ensure_signed(o.clone()).map_err(|_| o.clone())?; // TODO why no `ensure_signed_by`?
+		if signer == sovereign {
+			Ok(())
+		} else {
+			Err(o)
+		}
+	}
+}
 
 /// A call filter for the XCM Transact instruction. This is a temporary measure until we
 /// properly account for proof size weights.
