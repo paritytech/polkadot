@@ -1,0 +1,22 @@
+FROM ubuntu:22.04
+
+WORKDIR /bin
+
+# Install root certs, see: https://github.com/paritytech/substrate/issues/9984
+RUN apt update && \
+    apt install -y ca-certificates && \
+    update-ca-certificates && \
+    apt remove ca-certificates -y && \
+    rm -rf /var/lib/apt/lists/*
+
+ADD --chown=777  polkadot .
+
+# Fail on build, if unable to run node
+RUN polkadot --version
+
+# Add Aura and Grandpa keys to keystore
+CMD [ "SEED=$(cat /config/node_key) && \
+./polkadot key insert --base-path=/config/node/ --chain=/chain-specs/relay-chain-spec.json --scheme=sr25519 --suri="0x$SEED" --key-type=aura && \
+./polkadot key insert --base-path=/config/node/ --chain=/chain-specs/relay-chain-spec.json --scheme=ed25519 --suri="0x$SEED" --key-type=gran" ]
+
+VOLUME [ "/config" ]
