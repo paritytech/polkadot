@@ -379,52 +379,32 @@ impl<T: Config> AssignmentProvider<T::BlockNumber> for Pallet<T> {
 		core_idx: CoreIndex,
 		previous_para: Option<ParaId>,
 	) -> Option<Assignment> {
-		// If there's no previous `ParaId` coming from the scheduler we can grab the next `ParaId` in the queue with no affinity.
-		// The assumption being that this only happens when the core has never popped a claim in this session.
-		match previous_para {
-			Some(prev_para_id) => {
-				if let Some(prev_para_affinity) = ParaIdAffinity::<T>::get(prev_para_id) {
-					let mut queue: BoundedVec<SpotClaim, T::MaxClaims> = OnDemandQueue::<T>::get();
-
-					// Get the position of the next `ParaId`. Select either a `ParaId` that has an affinity
-					// to the same `CoreIndex` as the previously processed `ParaId` or a `ParaId` with no affinity yet.
-					let pos = queue.iter().position(|elem| {
-						let queue_elem = ParaIdAffinity::<T>::get(&elem.para_id);
-						match queue_elem {
-							Some(a) => return a.core_idx == prev_para_affinity.core_idx,
-							None => return true,
-						}
-					});
-
-					// Decrease the affinity of the previously processed `ParaId`.
-					Pallet::<T>::decrease_affinity(prev_para_id, core_idx);
-
-					if let Some(i) = pos {
-						let claim = queue.remove(i);
-						Pallet::<T>::increase_affinity(claim.para_id, core_idx);
-						return Some(Assignment::ParathreadA(claim.into()))
-					}
-				}
-
-				return None
-			},
-			None => {
-				let mut queue: BoundedVec<SpotClaim, T::MaxClaims> = OnDemandQueue::<T>::get();
-				let pos =
-					queue.iter().position(|elem| ParaIdAffinity::<T>::get(&elem.para_id).is_none());
-				// Add claim to affinity maps and remove from queue.
-				if let Some(i) = pos {
-					let claim = queue.remove(i);
-					Pallet::<T>::increase_affinity(claim.para_id, core_idx);
-					// Write changes to storage.
-					OnDemandQueue::<T>::set(queue);
-
-					return Some(Assignment::ParathreadA(claim.into()))
-				}
-
-				return None
-			},
+		// Only decrease the affinity of the previous para if it exists.
+		// A nonexistant `ParaId` indicates that the scheduler has not processed any
+		// `ParaId` this session.
+		if let Some(previous_para_id) = previous_para {
+			Pallet::<T>::decrease_affinity(previous_para_id, core_idx)
 		}
+
+		let mut queue: BoundedVec<SpotClaim, T::MaxClaims> = OnDemandQueue::<T>::get();
+
+		// Get the position of the next `ParaId`. Select either a `ParaId` that has an affinity
+		// to the same `CoreIndex` as the scheduler asks for or a `ParaId` with no affinity at all.
+		let pos = queue.iter().position(|elem| match ParaIdAffinity::<T>::get(&elem.para_id) {
+			Some(affinity) => return affinity.core_idx == core_idx,
+			None => return true,
+		});
+
+		if let Some(i) = pos {
+			let claim = queue.remove(i);
+			Pallet::<T>::increase_affinity(claim.para_id, core_idx);
+			// Write changes to storage.
+			OnDemandQueue::<T>::set(queue);
+
+			return Some(Assignment::ParathreadA(claim.into()))
+		}
+
+		return None
 	}
 
 	/// Pushes assignment back to the queue
