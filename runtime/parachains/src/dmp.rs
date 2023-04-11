@@ -14,22 +14,33 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! To prevent Out of Memory errors on the `DownwardMessageQueue`,
-//! an exponential fee factor (`DeliveryFeeFactor`) is set.
-//! The fee factor increments exponentially after the number of messages in the `DownwardMessageQueue`
-//! pass a threshold. This threshold is set as:
+//! To prevent Out of Memory errors on the `DownwardMessageQueue`, an
+//! exponential fee factor (`DeliveryFeeFactor`) is set. The fee factor
+//! increments exponentially after the number of messages in the
+//! `DownwardMessageQueue` pass a threshold. This threshold is set as:
+//! 
 //! ```ignore
-//! //Maximum max sized messages that can be send to the DownwardMessageQueue before it runs out of memory
+//! // Maximum max sized messages that can be send to 
+//! // the DownwardMessageQueue before it runs out of memory
 //! max_messsages = MAX_POSSIBLE_ALLOCATION / max_downward_message_size
 //! threshold = max_messages / THRESHOLD_FACTOR
 //! ```
-//! Based on the THRESHOLD_FACTOR, the threshold is set as a fraction of the total messages.
-//! The DeliveryFeeFactor increases for a message over the threshold by:
-//! `DeliveryFeeFactor = DeliveryFeeFactor * (EXPONENTIAL_FEE_BASE + MESSAGE_SIZE_FEE_BASE * encoded_message_size_in_KB)
-//! And decreases when the number of messages in the `DownwardMessageQueue` fall below the threshold by:
-//! `DeliveryFeeFactor = DeliveryFeeFactor / EXPONENTIAL_FEE_BASE`
-//! As an extra defensive measure, a `max_messages` hard limit is set to the number of messages in the DownwardMessageQueue.
-//! Messages that would increase the number of messages in the queue above this hard limit are dropped.
+//! Based on the THRESHOLD_FACTOR, the threshold is set as a fraction of the
+//! total messages. The DeliveryFeeFactor increases for a message over the
+//! threshold by: 
+//! 
+//! `DeliveryFeeFactor = DeliveryFeeFactor * 
+//! (EXPONENTIAL_FEE_BASE + MESSAGE_SIZE_FEE_BASE * encoded_message_size_in_KB)`
+//! 
+//! And decreases when the number of messages in the `DownwardMessageQueue` fall
+//! below the threshold by: 
+//! 
+//! `DeliveryFeeFactor = DeliveryFeeFactor / EXPONENTIAL_FEE_BASE` 
+//! 
+//! As an extra defensive measure, a `max_messages` hard
+//! limit is set to the number of messages in the DownwardMessageQueue. Messages
+//! that would increase the number of messages in the queue above this hard
+//! limit are dropped.
 
 use crate::{
 	configuration::{self, HostConfiguration},
@@ -133,7 +144,6 @@ pub mod pallet {
 
 	/// The number to multiply the base delivery fee by.
 	#[pallet::storage]
-	#[pallet::getter(fn delivery_fee_factor)]
 	pub(crate) type DeliveryFeeFactor<T: Config> =
 		StorageMap<_, Twox64Concat, ParaId, FixedU128, ValueQuery, InitialFactor>;
 }
@@ -335,6 +345,6 @@ impl<T: Config> Pallet<T> {
 
 impl<T: Config> FeeTracker for Pallet<T> {
 	fn get_fee_factor(para: ParaId) -> FixedU128 {
-		Pallet::<T>::delivery_fee_factor(para)
+		DeliveryFeeFactor::<T>::get(para)
 	}
 }
