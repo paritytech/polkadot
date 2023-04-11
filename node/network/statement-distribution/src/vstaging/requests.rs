@@ -90,7 +90,7 @@ pub struct RequestedCandidate {
 	known_by: VecDeque<PeerId>,
 	/// Has the request been sent out and a response not yet received?
 	in_flight: bool,
-	/// The timestamp for the next time we should retry if we the response failed.
+	/// The timestamp for the next time we should retry, if the response failed.
 	next_retry_time: Option<Instant>,
 }
 
