@@ -35,11 +35,12 @@ use runtime_parachains::{
 	session_info as parachains_session_info, shared as parachains_shared, ump as parachains_ump,
 };
 
+use crate::xcm_config::Statemint;
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
 use frame_election_provider_support::{generate_solution_type, onchain, SequentialPhragmen};
 use frame_support::{
-	construct_runtime, parameter_types,
+	construct_runtime, ord_parameter_types, parameter_types,
 	traits::{
 		ConstU32, EitherOf, EitherOfDiverse, InstanceFilter, KeyOwnerProofSystem, LockIdentifier,
 		PrivilegeCmp, WithdrawReasons,
@@ -67,8 +68,8 @@ use sp_runtime::{
 	curve::PiecewiseLinear,
 	generic, impl_opaque_keys,
 	traits::{
-		AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto, Extrinsic as ExtrinsicT,
-		OpaqueKeys, SaturatedConversion, Verify,
+		AccountIdConversion, AccountIdLookup, BlakeTwo256, Block as BlockT, ConvertInto,
+		Extrinsic as ExtrinsicT, OpaqueKeys, SaturatedConversion, Verify,
 	},
 	transaction_validity::{TransactionPriority, TransactionSource, TransactionValidity},
 	ApplyExtrinsicResult, FixedU128, KeyTypeId, Perbill, Percent, Permill,
@@ -105,6 +106,7 @@ use governance::{
 	old::CouncilCollective, pallet_custom_origins, AuctionAdmin, FellowshipAdmin, GeneralAdmin,
 	LeaseAdmin, StakingAdmin, Treasurer, TreasurySpender,
 };
+use xcm_builder::PayOverXcm;
 
 pub mod xcm_config;
 
@@ -653,10 +655,28 @@ parameter_types! {
 	pub const MaxPeerDataEncodingSize: u32 = 1_000;
 	pub const RootSpendOriginMaxAmount: Balance = Balance::MAX;
 	pub const CouncilSpendOriginMaxAmount: Balance = Balance::MAX;
+	// PayOverXcmTimeout is set to 3 x the spend period to provide buffer before status messages
+	// are deleted from storage
+	pub const PayOverXcmTimeout: BlockNumber = 6 * 3 * DAYS;
+}
+
+ord_parameter_types! {
+	pub const TreasuryAccountId: AccountId = AccountIdConversion::<AccountId>::into_account_truncating(&TreasuryPalletId::get());
 }
 
 impl pallet_treasury::Config for Runtime {
 	type PalletId = TreasuryPalletId;
+	type AssetKind = xcm::latest::AssetId;
+	type Paymaster = PayOverXcm<
+		Statemint,
+		TreasuryAccountId,
+		xcm_config::XcmRouter,
+		XcmPallet,
+		PayOverXcmTimeout,
+		Self::AccountId,
+		Self::AssetKind,
+	>;
+	type BalanceConverter = ();
 	type Currency = Balances;
 	type ApproveOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
 	type RejectOrigin = EitherOfDiverse<EnsureRoot<AccountId>, Treasurer>;
