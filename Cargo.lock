@@ -7883,7 +7883,6 @@ dependencies = [
  "substrate-prometheus-endpoint",
  "tempfile",
  "thiserror",
- "tokio",
  "tracing-gum",
  "westend-runtime",
  "westend-runtime-constants",

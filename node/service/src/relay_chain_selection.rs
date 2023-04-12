@@ -168,7 +168,7 @@ where
 		backend: Arc<B>,
 		overseer: Handle,
 		metrics: Metrics,
-		spawn_handle: SpawnTaskHandle,
+		spawn_handle: Option<SpawnTaskHandle>,
 	) -> Self {
 		gum::debug!(target: LOG_TARGET, "Using dispute aware relay-chain selection algorithm",);
 
@@ -229,7 +229,7 @@ pub struct SelectRelayChainInner<B, OH> {
 	backend: Arc<B>,
 	overseer: OH,
 	metrics: Metrics,
-	spawn_handle: SpawnTaskHandle,
+	spawn_handle: Option<SpawnTaskHandle>,
 }
 
 impl<B, OH> SelectRelayChainInner<B, OH>
@@ -243,7 +243,7 @@ where
 		backend: Arc<B>,
 		overseer: OH,
 		metrics: Metrics,
-		spawn_handle: SpawnTaskHandle,
+		spawn_handle: Option<SpawnTaskHandle>,
 	) -> Self {
 		SelectRelayChainInner { backend, overseer, metrics, spawn_handle }
 	}
@@ -472,23 +472,25 @@ where
 		let lag = initial_leaf_number.saturating_sub(subchain_number);
 		self.metrics.note_approval_checking_finality_lag(lag);
 
-		let mut overseer_handle = self.overseer.clone();
-		let lag_update_task = async move {
-			overseer_handle
-				.send_msg(
-					ApprovalDistributionMessage::ApprovalCheckingLagUpdate(lag),
-					std::any::type_name::<Self>(),
-				)
-				.await;
-		};
-
 		// Messages sent to `approval-distrbution` are known to have high `ToF`, we need to spawn a task for sending
 		// the message to not block here and delay finality.
-		self.spawn_handle.spawn(
-			"approval-checking-lag-update",
-			Some("relay-chain-selection"),
-			Box::pin(lag_update_task),
-		);
+		if let Some(spawn_handle) = &self.spawn_handle {
+			let mut overseer_handle = self.overseer.clone();
+			let lag_update_task = async move {
+				overseer_handle
+					.send_msg(
+						ApprovalDistributionMessage::ApprovalCheckingLagUpdate(lag),
+						std::any::type_name::<Self>(),
+					)
+					.await;
+			};
+
+			spawn_handle.spawn(
+				"approval-checking-lag-update",
+				Some("relay-chain-selection"),
+				Box::pin(lag_update_task),
+			);
+		}
 
 		let (lag, subchain_head) = {
 			// Prevent sending flawed data to the dispute-coordinator.

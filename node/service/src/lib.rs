@@ -763,7 +763,7 @@ where
 			basics.backend.clone(),
 			overseer_handle.clone(),
 			metrics,
-			basics.task_manager.spawn_handle(),
+			Some(basics.task_manager.spawn_handle()),
 		)
 	} else {
 		SelectRelayChain::new_longest_chain(basics.backend.clone())
