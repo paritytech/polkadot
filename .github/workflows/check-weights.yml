@@ -32,9 +32,7 @@ jobs:
     steps:
       - name: Get latest release
         run: |
-          # LAST_RELEASE=$(curl -s https://api.github.com/repos/paritytech/polkadot/releases/latest | jq -r .tag_name)
-          # TODO: remove this line and uncomment the one above before merging
-          LAST_RELEASE=v0.9.39
+          LAST_RELEASE=$(curl -s https://api.github.com/repos/paritytech/polkadot/releases/latest | jq -r .tag_name)
           echo "LAST_RELEASE=$LAST_RELEASE" >> $GITHUB_ENV
       - name: Checkout current sources
         uses: actions/checkout@v3
