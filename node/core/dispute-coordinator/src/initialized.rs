@@ -103,7 +103,8 @@ pub(crate) struct Initialized {
 	/// `last_consecutive_cached_session == 3`.
 	/// On each `ActiveLeavesUpdate` we'll start fetching sessions from
 	/// `last_consecutive_cached_session + 1` up to the session index of the leaf.
-	last_consecutive_cached_session: SessionIndex,
+	/// None means that the cache is empty.
+	last_consecutive_cached_session: Option<SessionIndex>,
 	spam_slots: SpamSlots,
 	participation: Participation,
 	scraper: ChainScraper,
@@ -120,7 +121,7 @@ impl Initialized {
 		spam_slots: SpamSlots,
 		scraper: ChainScraper,
 		highest_session_seen: HighestSeenSessionIndex,
-		last_consecutive_cached_session: LastConsecutiveCachedSessionIndex,
+		last_consecutive_cached_session: Option<LastConsecutiveCachedSessionIndex>,
 	) -> Self {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
@@ -131,7 +132,7 @@ impl Initialized {
 			keystore,
 			runtime_info,
 			highest_session_seen: highest_session_seen.0,
-			last_consecutive_cached_session: last_consecutive_cached_session.0,
+			last_consecutive_cached_session: last_consecutive_cached_session.map(|v| v.0),
 			spam_slots,
 			scraper,
 			participation,
@@ -309,10 +310,20 @@ impl Initialized {
 				self.runtime_info.get_session_index_for_child(ctx.sender(), new_leaf.hash).await;
 
 			match session_idx {
-				Ok(session_idx) if session_idx > self.last_consecutive_cached_session => {
+				Ok(session_idx)
+					if self.last_consecutive_cached_session.is_none() ||
+						session_idx >
+							self.last_consecutive_cached_session.expect(
+								"The first clause explicitly handles `None` case. qed.",
+							) =>
+				{
 					// There is a new session. Perform a dummy fetch to cache it.
 					let mut gap_in_cache = false;
-					for idx in self.last_consecutive_cached_session + 1..=session_idx {
+					for idx in self
+						.last_consecutive_cached_session
+						.unwrap_or(session_idx.saturating_sub(DISPUTE_WINDOW.get() - 2)) +
+						1..=session_idx
+					{
 						if let Err(err) = self
 							.runtime_info
 							.get_session_info_by_index(ctx.sender(), new_leaf.hash, idx)
@@ -329,7 +340,7 @@ impl Initialized {
 						}
 
 						if !gap_in_cache {
-							self.last_consecutive_cached_session = idx;
+							self.last_consecutive_cached_session = Some(idx);
 						}
 					}
 

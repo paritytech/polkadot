@@ -287,7 +287,7 @@ impl DisputeCoordinatorSubsystem {
 		SpamSlots,
 		ChainScraper,
 		HighestSeenSessionIndex,
-		LastConsecutiveCachedSessionIndex,
+		Option<LastConsecutiveCachedSessionIndex>,
 	)> {
 		let now = clock.now();
 
@@ -308,7 +308,9 @@ impl DisputeCoordinatorSubsystem {
 			.get_session_index_for_child(ctx.sender(), initial_head.hash)
 			.await?;
 
-		let mut last_consecutive_cached_session = 0;
+		// `Option` because caching might fail. In that case an actual value will be populated on the
+		// next leaf update.
+		let mut last_consecutive_cached_session = None;
 		let mut gap_in_cache = false;
 		// Cache the sessions. A failure to fetch a session here is not that critical so we
 		// won't abort the initialization
@@ -328,7 +330,8 @@ impl DisputeCoordinatorSubsystem {
 				continue
 			};
 			if !gap_in_cache {
-				last_consecutive_cached_session = idx;
+				last_consecutive_cached_session =
+					Some(LastConsecutiveCachedSessionIndex::from(idx));
 			}
 		}
 
@@ -430,7 +433,7 @@ impl DisputeCoordinatorSubsystem {
 			SpamSlots::recover_from_state(spam_disputes),
 			scraper,
 			HighestSeenSessionIndex::from(highest_session),
-			LastConsecutiveCachedSessionIndex::from(last_consecutive_cached_session),
+			last_consecutive_cached_session,
 		))
 	}
 }
