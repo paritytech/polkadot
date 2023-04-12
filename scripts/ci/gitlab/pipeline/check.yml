@@ -48,7 +48,7 @@ check-try-runtime:
     - .compiler-info
   script:
     # Check that everything compiles with `try-runtime` feature flag.
-    - cargo check --features try-runtime --all
+    - cargo check --locked --features try-runtime --all
 
 # More info can be found here: https://github.com/paritytech/polkadot/pull/5865
 # Works only in PRs with E1 label
@@ -68,8 +68,8 @@ check-try-runtime:
         echo "Found label runtime_migration. Running tests"
         export RUST_LOG=remote-ext=debug,runtime=debug
         echo "---------- Running try-runtime for ${NETWORK} ----------"
-        time cargo build --release -p "$NETWORK"-runtime
-        time cargo run --release --features try-runtime try-runtime \
+        time cargo build --locked --release -p "$NETWORK"-runtime
+        time cargo run ---locked -release --features try-runtime try-runtime \
             --runtime ./target/release/wbuild/"$NETWORK"-runtime/target/wasm32-unknown-unknown/release/"$NETWORK"_runtime.wasm \
             -lruntime=debug \
             --chain=${NETWORK}-dev \
@@ -118,8 +118,8 @@ check-no-default-features:
     - .compiler-info
   script:
     # Check that polkadot-cli will compile no default features.
-    - pushd ./node/service && cargo check --no-default-features && popd
-    - pushd ./cli && cargo check --no-default-features --features "service" && popd
+    - pushd ./node/service && cargo check --locked --no-default-features && popd
+    - pushd ./cli && cargo check --locked --no-default-features --features "service" && popd
     - exit 0
 
 # this is artificial job to run some build and tests using DAG

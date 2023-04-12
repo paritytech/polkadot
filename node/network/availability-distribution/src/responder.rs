@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -186,7 +186,10 @@ where
 {
 	let span = jaeger::Span::new(req.payload.candidate_hash, "answer-chunk-request");
 
-	let _child_span = span.child("answer-chunk-request").with_chunk_index(req.payload.index.0);
+	let _child_span = span
+		.child("answer-chunk-request")
+		.with_trace_id(req.payload.candidate_hash)
+		.with_chunk_index(req.payload.index.0);
 
 	let chunk = query_chunk(sender, req.payload.candidate_hash, req.payload.index).await?;
 
