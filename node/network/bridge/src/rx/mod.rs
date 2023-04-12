@@ -568,7 +568,7 @@ where
 				// using unbounded send to avoid cycles
 				// the messages are sent only once per session up to one per peer
 				dispatch_collation_event_to_all_unbounded(
-					NetworkBridgeEvent::UpdatedAuthorityIds(*peer_id, authority_ids.clone()),
+					NetworkBridgeEvent::UpdatedAuthorityIds(peer_id, authority_ids.clone()),
 					ctx.sender(),
 				);
 				dispatch_validation_event_to_all_unbounded(
