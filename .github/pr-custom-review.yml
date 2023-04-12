@@ -6,7 +6,9 @@ action-review-team: ci
 rules:
   - name: Runtime files
     check_type: changed_files
-    condition: ^runtime/(kusama|polkadot)/src/[^/]+\.rs$
+    condition:
+      include: ^runtime\/(kusama|polkadot)\/src\/.+\.rs$
+      exclude: ^runtime\/(kusama|polkadot)\/src\/weights\/.+\.rs$
     all_distinct:
       - min_approvals: 1
         teams:

@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -49,6 +49,9 @@ pub enum ExecutorParam {
 	/// PVF execution timeouts, millisec
 	#[codec(index = 6)]
 	PvfExecTimeout(PvfExecTimeoutKind, u64),
+	/// Enables WASM bulk memory proposal
+	#[codec(index = 7)]
+	WasmExtBulkMemory,
 }
 
 /// Unit type wrapper around [`type@Hash`] that represents an execution parameter set hash.
