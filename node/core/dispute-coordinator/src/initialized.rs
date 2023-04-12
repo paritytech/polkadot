@@ -72,20 +72,6 @@ pub struct InitialData {
 	pub leaf: ActivatedLeaf,
 }
 
-// Wrapper types used in `new()` to avoid wrong initialization
-pub(crate) struct LastConsecutiveCachedSessionIndex(SessionIndex);
-impl From<SessionIndex> for LastConsecutiveCachedSessionIndex {
-	fn from(session: SessionIndex) -> Self {
-		LastConsecutiveCachedSessionIndex(session)
-	}
-}
-pub(crate) struct HighestSeenSessionIndex(SessionIndex);
-impl From<SessionIndex> for HighestSeenSessionIndex {
-	fn from(session: SessionIndex) -> Self {
-		HighestSeenSessionIndex(session)
-	}
-}
-
 /// After the first active leaves update we transition to `Initialized` state.
 ///
 /// Before the first active leaves update we can't really do much. We cannot check incoming
@@ -104,7 +90,7 @@ pub(crate) struct Initialized {
 	/// On each `ActiveLeavesUpdate` we'll start fetching sessions from
 	/// `last_consecutive_cached_session + 1` up to the session index of the leaf.
 	/// None means that the cache is empty.
-	last_consecutive_cached_session: Option<SessionIndex>,
+	gaps_in_cache: bool,
 	spam_slots: SpamSlots,
 	participation: Participation,
 	scraper: ChainScraper,
@@ -120,8 +106,8 @@ impl Initialized {
 		runtime_info: RuntimeInfo,
 		spam_slots: SpamSlots,
 		scraper: ChainScraper,
-		highest_session_seen: HighestSeenSessionIndex,
-		last_consecutive_cached_session: Option<LastConsecutiveCachedSessionIndex>,
+		highest_session_seen: SessionIndex,
+		gaps_in_cache: bool,
 	) -> Self {
 		let DisputeCoordinatorSubsystem { config: _, store: _, keystore, metrics } = subsystem;
 
@@ -131,8 +117,8 @@ impl Initialized {
 		Self {
 			keystore,
 			runtime_info,
-			highest_session_seen: highest_session_seen.0,
-			last_consecutive_cached_session: last_consecutive_cached_session.map(|v| v.0),
+			highest_session_seen,
+			gaps_in_cache,
 			spam_slots,
 			scraper,
 			participation,
@@ -311,19 +297,18 @@ impl Initialized {
 
 			match session_idx {
 				Ok(session_idx)
-					if self.last_consecutive_cached_session.is_none() ||
-						session_idx >
-							self.last_consecutive_cached_session.expect(
-								"The first clause explicitly handles `None` case. qed.",
-							) =>
+					if self.gaps_in_cache || session_idx > self.highest_session_seen =>
 				{
+					// If error has occurred during last session caching - fetch the whole window
+					// Otherwise - cache only the new sessions
+					let lower_bound = if self.gaps_in_cache {
+						session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)
+					} else {
+						self.highest_session_seen
+					};
+
 					// There is a new session. Perform a dummy fetch to cache it.
-					let mut gap_in_cache = false;
-					for idx in self
-						.last_consecutive_cached_session
-						.unwrap_or(session_idx.saturating_sub(DISPUTE_WINDOW.get())) +
-						1..=session_idx
-					{
+					for idx in lower_bound..=session_idx {
 						if let Err(err) = self
 							.runtime_info
 							.get_session_info_by_index(ctx.sender(), new_leaf.hash, idx)
@@ -336,11 +321,7 @@ impl Initialized {
 								?err,
 								"Error caching SessionInfo on ActiveLeaves update"
 							);
-							gap_in_cache = true;
-						}
-
-						if !gap_in_cache {
-							self.last_consecutive_cached_session = Some(idx);
+							self.gaps_in_cache = true;
 						}
 					}
 

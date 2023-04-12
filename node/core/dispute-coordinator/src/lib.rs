@@ -43,7 +43,9 @@ use polkadot_node_subsystem_util::{
 	database::Database,
 	runtime::{Config as RuntimeInfoConfig, RuntimeInfo},
 };
-use polkadot_primitives::{DisputeStatement, ScrapedOnChainVotes, SessionInfo, ValidatorIndex};
+use polkadot_primitives::{
+	DisputeStatement, ScrapedOnChainVotes, SessionIndex, SessionInfo, ValidatorIndex,
+};
 
 use crate::{
 	error::{FatalResult, Result},
@@ -66,9 +68,7 @@ pub(crate) mod error;
 
 /// Subsystem after receiving the first active leaf.
 mod initialized;
-use initialized::{
-	HighestSeenSessionIndex, InitialData, Initialized, LastConsecutiveCachedSessionIndex,
-};
+use initialized::{InitialData, Initialized};
 
 /// Provider of data scraped from chain.
 ///
@@ -236,7 +236,7 @@ impl DisputeCoordinatorSubsystem {
 				spam_slots,
 				ordering_provider,
 				highest_session_seen,
-				last_consecutive_cached_session,
+				gaps_in_cache,
 			) = match self
 				.handle_startup(ctx, first_leaf.clone(), &mut runtime_info, &mut overlay_db, clock)
 				.await
@@ -262,7 +262,7 @@ impl DisputeCoordinatorSubsystem {
 					spam_slots,
 					ordering_provider,
 					highest_session_seen,
-					last_consecutive_cached_session,
+					gaps_in_cache,
 				),
 				backend,
 			)))
@@ -286,8 +286,8 @@ impl DisputeCoordinatorSubsystem {
 		Vec<ScrapedOnChainVotes>,
 		SpamSlots,
 		ChainScraper,
-		HighestSeenSessionIndex,
-		Option<LastConsecutiveCachedSessionIndex>,
+		SessionIndex,
+		bool,
 	)> {
 		let now = clock.now();
 
@@ -308,9 +308,6 @@ impl DisputeCoordinatorSubsystem {
 			.get_session_index_for_child(ctx.sender(), initial_head.hash)
 			.await?;
 
-		// `Option` because caching might fail. In that case an actual value will be populated on the
-		// next leaf update.
-		let mut last_consecutive_cached_session = None;
 		let mut gap_in_cache = false;
 		// Cache the sessions. A failure to fetch a session here is not that critical so we
 		// won't abort the initialization
@@ -329,10 +326,6 @@ impl DisputeCoordinatorSubsystem {
 				gap_in_cache = true;
 				continue
 			};
-			if !gap_in_cache {
-				last_consecutive_cached_session =
-					Some(LastConsecutiveCachedSessionIndex::from(idx));
-			}
 		}
 
 		// Prune obsolete disputes:
@@ -432,8 +425,8 @@ impl DisputeCoordinatorSubsystem {
 			votes,
 			SpamSlots::recover_from_state(spam_disputes),
 			scraper,
-			HighestSeenSessionIndex::from(highest_session),
-			last_consecutive_cached_session,
+			highest_session,
+			gap_in_cache,
 		))
 	}
 }
