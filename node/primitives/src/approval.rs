@@ -16,7 +16,7 @@
 
 //! Types relevant for approval.
 
-pub use sp_consensus_babe::{Randomness, Slot, VrfOutput, VrfProof, BABE_ENGINE_ID};
+pub use sp_consensus_babe::{Randomness, Slot, VrfOutput, VrfProof};
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::{
