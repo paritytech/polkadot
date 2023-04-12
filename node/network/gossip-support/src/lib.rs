@@ -35,8 +35,7 @@ use futures_timer::Delay;
 use rand::{seq::SliceRandom as _, SeedableRng};
 use rand_chacha::ChaCha20Rng;
 
-use sc_network::Multiaddr;
-use sc_network_common::config::parse_addr;
+use sc_network::{config::parse_addr, Multiaddr};
 use sp_application_crypto::{AppCrypto, ByteArray};
 use sp_keystore::{Keystore, KeystorePtr};
 

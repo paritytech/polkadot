@@ -105,7 +105,7 @@ impl<M> NetworkBridgeEvent<M> {
 			NetworkBridgeEvent::OurViewChange(ref view) =>
 				NetworkBridgeEvent::OurViewChange(view.clone()),
 			NetworkBridgeEvent::UpdatedAuthorityIds(ref peer, ref authority_ids) =>
-				NetworkBridgeEvent::UpdatedAuthorityIds(peer.clone(), authority_ids.clone()),
+				NetworkBridgeEvent::UpdatedAuthorityIds(*peer, authority_ids.clone()),
 		})
 	}
 }
