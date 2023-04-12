@@ -33,7 +33,6 @@ use std::{
 };
 
 use assert_matches::assert_matches;
-use service::TaskManager;
 use std::{sync::Arc, time::Duration};
 
 use futures::{channel::oneshot, prelude::*};
