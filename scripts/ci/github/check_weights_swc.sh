@@ -3,13 +3,13 @@
 shopt -s globstar
 
 RUNTIME=$1
-OLD=$2
-NEW=$3
-echo -e "$RUNTIME changes since $LAST_RELEASE:\n"
+VERSION=$2
+echo -e "$RUNTIME changes since $VERSION:\n"
 echo '```'
-swc compare files \
-    --old $(pwd)/$OLD/runtime/$RUNTIME/src/weights/**/*.rs \
-    --new $(pwd)/$NEW/runtime/$RUNTIME/src/weights/**/*.rs \
+swc compare commits \
     --method asymptotic \
-    --ignore-errors
+    --offline \
+    --path-pattern "./runtime/$RUNTIME/src/weights/**/*.rs" \
+    "$VERSION"
+    #--ignore-errors
 echo '```'

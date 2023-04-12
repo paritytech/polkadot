@@ -39,17 +39,12 @@ jobs:
       - name: Checkout current sources
         uses: actions/checkout@v3
         with:
-          path: polkadot-current
-      - name: Checkout latest release sources
-        uses: actions/checkout@v3
-        with:
-          ref: ${{ env.LAST_RELEASE }}
-          path: polkadot-latest
+          fetch-depth: 0
       - name: Check weight changes
         shell: bash
         run: |
           cargo install --git https://github.com/ggwpez/substrate-weight-compare swc
-          ./polkadot-current/scripts/ci/github/check_weights_swc.sh ${{ matrix.runtime }} ./polkadot-old ./polkadot-new | tee swc_output_${{ matrix.runtime }}.md
+          ./scripts/ci/github/check_weights_swc.sh ${{ matrix.runtime }} "$LAST_RELEASE" | tee swc_output_${{ matrix.runtime }}.md
       - name: Add comment
         uses: thollander/actions-comment-pull-request@v2
         with:
