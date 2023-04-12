@@ -2146,7 +2146,8 @@ dependencies = [
 [[package]]
 name = "expander"
 version = "2.0.0"
-source = "git+https://github.com/drahnr/expander.git#bff5f0812113192e2874a1d86943b90e2ed5ba4d"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5f86a749cf851891866c10515ef6c299b5c69661465e9c3bbe7e07a2b77fb0f7"
 dependencies = [
  "blake2",
  "fs-err",
