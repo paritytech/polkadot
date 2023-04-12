@@ -105,10 +105,12 @@ pub mod system_parachain {
 	pub const STATEMINE_ID: u32 = 1000;
 	/// Encointer parachain ID.
 	pub const ENCOINTER_ID: u32 = 1001;
+	/// BridgeHub parachain ID.
+	pub const BRIDGE_HUB_ID: u32 = 1002;
 
 	frame_support::match_types! {
 		pub type SystemParachains: impl Contains<MultiLocation> = {
-			MultiLocation { parents: 0, interior: X1(Parachain(STATEMINE_ID | ENCOINTER_ID)) }
+			MultiLocation { parents: 0, interior: X1(Parachain(STATEMINE_ID | ENCOINTER_ID | BRIDGE_HUB_ID)) }
 		};
 	}
 }
