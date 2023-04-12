@@ -33,6 +33,7 @@ use std::{
 };
 
 use assert_matches::assert_matches;
+use service::TaskManager;
 use std::{sync::Arc, time::Duration};
 
 use futures::{channel::oneshot, prelude::*};
@@ -75,6 +76,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		.try_init();
 
 	let pool = sp_core::testing::TaskExecutor::new();
+	let task_manager = TaskManager::new(tokio::runtime::Handle::current(), None).unwrap();
 	let (mut context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
 
 	let (finality_target_tx, finality_target_rx) = oneshot::channel::<Option<Hash>>();
@@ -83,6 +85,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		Arc::new(case_vars.chain.clone()),
 		context.sender().clone(),
 		Default::default(),
+		task_manager.spawn_handle(),
 	);
 
 	let target_hash = case_vars.target_block.clone();
