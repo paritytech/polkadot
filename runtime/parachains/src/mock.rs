@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -25,12 +25,12 @@ use crate::{
 
 use frame_support::{
 	parameter_types,
-	traits::{GenesisBuild, KeyOwnerProofSystem, ValidatorSet, ValidatorSetWithIdentification},
+	traits::{ConstU32, GenesisBuild, ValidatorSet, ValidatorSetWithIdentification},
 	weights::Weight,
 };
 use frame_support_test::TestRandomness;
 use parity_scale_codec::Decode;
-use primitives::v2::{
+use primitives::{
 	AuthorityDiscoveryId, Balance, BlockNumber, CandidateHash, Header, Moment, SessionIndex,
 	UpwardMessage, ValidatorIndex,
 };
@@ -39,7 +39,7 @@ use sp_io::TestExternalities;
 use sp_runtime::{
 	traits::{BlakeTwo256, IdentityLookup},
 	transaction_validity::TransactionPriority,
-	KeyTypeId, Permill,
+	Permill,
 };
 use std::{cell::RefCell, collections::HashMap};
 
@@ -83,7 +83,7 @@ parameter_types! {
 	pub const BlockHashCount: u32 = 250;
 	pub BlockWeights: frame_system::limits::BlockWeights =
 		frame_system::limits::BlockWeights::simple_max(
-			Weight::from_ref_time(4 * 1024 * 1024).set_proof_size(u64::MAX),
+			Weight::from_parts(4 * 1024 * 1024, u64::MAX),
 		);
 }
 
@@ -113,11 +113,11 @@ impl frame_system::Config for Test {
 	type SystemWeightInfo = ();
 	type SS58Prefix = ();
 	type OnSetCode = ();
-	type MaxConsumers = frame_support::traits::ConstU32<16>;
+	type MaxConsumers = ConstU32<16>;
 }
 
 parameter_types! {
-	pub static ExistentialDeposit: u64 = 0;
+	pub static ExistentialDeposit: u64 = 1;
 }
 
 impl pallet_balances::Config for Test {
@@ -130,6 +130,10 @@ impl pallet_balances::Config for Test {
 	type ExistentialDeposit = ExistentialDeposit;
 	type AccountStore = System;
 	type WeightInfo = ();
+	type HoldIdentifier = ();
+	type FreezeIdentifier = ();
+	type MaxHolds = ConstU32<0>;
+	type MaxFreezes = ConstU32<0>;
 }
 
 parameter_types! {
@@ -148,23 +152,13 @@ impl pallet_babe::Config for Test {
 
 	type DisabledValidators = ();
 
-	type KeyOwnerProof = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::Proof;
-
-	type KeyOwnerIdentification = <Self::KeyOwnerProofSystem as KeyOwnerProofSystem<(
-		KeyTypeId,
-		pallet_babe::AuthorityId,
-	)>>::IdentificationTuple;
-
-	type KeyOwnerProofSystem = ();
-
-	type HandleEquivocation = ();
-
 	type WeightInfo = ();
 
 	type MaxAuthorities = MaxAuthorities;
+
+	type KeyOwnerProof = sp_core::Void;
+
+	type EquivocationReportSystem = ();
 }
 
 parameter_types! {
@@ -253,6 +247,7 @@ thread_local! {
 	pub static REWARD_VALIDATORS: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 	pub static PUNISH_VALIDATORS_AGAINST: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
+	pub static PUNISH_BACKERS_FOR: RefCell<Vec<(SessionIndex, Vec<ValidatorIndex>)>> = RefCell::new(Vec::new());
 }
 
 impl crate::disputes::RewardValidators for Test {
@@ -269,14 +264,18 @@ impl crate::disputes::SlashingHandler<BlockNumber> for Test {
 		session: SessionIndex,
 		_: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
-		PUNISH_VALIDATORS_FOR.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
+		PUNISH_VALIDATORS_FOR
+			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())));
+		PUNISH_BACKERS_FOR.with(|r| r.borrow_mut().push((session, backers.into_iter().collect())));
 	}
 
 	fn punish_against_valid(
 		session: SessionIndex,
 		_: CandidateHash,
 		losers: impl IntoIterator<Item = ValidatorIndex>,
+		_backers: impl IntoIterator<Item = ValidatorIndex>,
 	) {
 		PUNISH_VALIDATORS_AGAINST
 			.with(|r| r.borrow_mut().push((session, losers.into_iter().collect())))
@@ -394,7 +393,7 @@ impl UmpSink for TestUmpSink {
 		max_weight: Weight,
 	) -> Result<Weight, (MessageId, Weight)> {
 		let weight = match u32::decode(&mut &actual_msg[..]) {
-			Ok(w) => Weight::from_ref_time(w as u64),
+			Ok(w) => Weight::from_parts(w as u64, w as u64),
 			Err(_) => return Ok(Weight::zero()), // same as the real `UmpSink`
 		};
 		if weight.any_gt(max_weight) {
@@ -432,7 +431,7 @@ impl inclusion::RewardValidators for TestRewardValidators {
 
 /// Create a new set of test externalities.
 pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
-	use sp_keystore::{testing::KeyStore, KeystoreExt, SyncCryptoStorePtr};
+	use sp_keystore::{testing::MemoryKeystore, KeystoreExt, KeystorePtr};
 	use sp_std::sync::Arc;
 
 	sp_tracing::try_init_simple();
@@ -445,7 +444,7 @@ pub fn new_test_ext(state: MockGenesisConfig) -> TestExternalities {
 	GenesisBuild::<Test>::assimilate_storage(&state.paras, &mut t).unwrap();
 
 	let mut ext: TestExternalities = t.into();
-	ext.register_extension(KeystoreExt(Arc::new(KeyStore::new()) as SyncCryptoStorePtr));
+	ext.register_extension(KeystoreExt(Arc::new(MemoryKeystore::new()) as KeystorePtr));
 
 	ext
 }

@@ -1,6 +1,6 @@
 // This file is part of Substrate.
 
-// Copyright (C) 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // SPDX-License-Identifier: Apache-2.0
 
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -24,7 +24,7 @@ pub mod constants {
 	parameter_types! {
 		/// Importing a block with 0 Extrinsics.
 		pub const BlockExecutionWeight: Weight =
-			Weight::from_ref_time(constants::WEIGHT_REF_TIME_PER_NANOS.saturating_mul(5_000_000));
+			Weight::from_parts(constants::WEIGHT_REF_TIME_PER_NANOS.saturating_mul(5_000_000), 0);
 	}
 
 	#[cfg(test)]

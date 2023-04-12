@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -437,7 +437,7 @@ mod tests {
 	use futures::executor::block_on;
 	use polkadot_node_subsystem::messages::CollatorProtocolMessage;
 	use polkadot_overseer::{dummy::dummy_overseer_builder, Handle, HeadSupportsParachains};
-	use polkadot_primitives::v2::Hash;
+	use polkadot_primitives::Hash;
 	use sp_core::traits::SpawnNamed;
 
 	struct AlwaysSupportsParachains;
@@ -457,7 +457,6 @@ mod tests {
 			dummy_overseer_builder(spawner.clone(), AlwaysSupportsParachains, None)
 				.unwrap()
 				.replace_collator_protocol(|_| ForwardSubsystem(tx))
-				.leaves(vec![])
 				.build()
 				.unwrap();
 

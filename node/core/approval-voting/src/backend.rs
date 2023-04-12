@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@
 //! before any commit to the underlying storage is made.
 
 use polkadot_node_subsystem::SubsystemResult;
-use polkadot_primitives::v2::{BlockNumber, CandidateHash, Hash};
+use polkadot_primitives::{BlockNumber, CandidateHash, Hash};
 
 use std::collections::HashMap;
 

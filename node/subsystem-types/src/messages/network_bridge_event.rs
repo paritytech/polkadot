@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use polkadot_node_network_protocol::{
 	grid_topology::SessionGridTopology, peer_set::ProtocolVersion, ObservedRole, OurView, View,
 	WrongVariant,
 };
-use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
+use polkadot_primitives::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
 
 /// A struct indicating new gossip topology.
 #[derive(Debug, Clone, PartialEq)]

@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -25,7 +25,7 @@ use crate::{
 	util::take_active_subset,
 };
 use keyring::Sr25519Keyring;
-use primitives::v2::{BlockNumber, ValidatorId, ValidatorIndex};
+use primitives::{BlockNumber, ValidatorId, ValidatorIndex};
 
 fn run_to_block(
 	to: BlockNumber,

@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -23,7 +23,7 @@ use sp_runtime::traits::{Block as BlockT, Header as _, NumberFor};
 use crate::HeaderProvider;
 
 #[cfg(feature = "full-node")]
-use polkadot_primitives::v2::{Block, Hash};
+use polkadot_primitives::{Block, Hash};
 
 /// Returns the block hash of the block at the given `target_number` by walking
 /// backwards from the given `current_header`.

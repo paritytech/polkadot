@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@ use parity_scale_codec::{Decode, Encode};
 use polkadot_node_primitives::approval::{
 	self as approval_types, AssignmentCert, AssignmentCertKind, DelayTranche, RelayVRFStory,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AssignmentId, AssignmentPair, CandidateHash, CoreIndex, GroupIndex, IndexedVec, SessionInfo,
 	ValidatorIndex,
 };
@@ -274,7 +274,7 @@ pub(crate) fn compute_assignments(
 	// Ignore any cores where the assigned group is our own.
 	let leaving_cores = leaving_cores
 		.into_iter()
-		.filter(|&(_, _, ref g)| !is_in_backing_group(&config.validator_groups, index, *g))
+		.filter(|(_, _, g)| !is_in_backing_group(&config.validator_groups, index, *g))
 		.map(|(c_hash, core, _)| (c_hash, core))
 		.collect::<Vec<_>>();
 
@@ -496,7 +496,7 @@ pub(crate) fn check_assignment_cert(
 		return Err(InvalidAssignment(Reason::IsInBackingGroup))
 	}
 
-	let &(ref vrf_output, ref vrf_proof) = &assignment.vrf;
+	let (vrf_output, vrf_proof) = &assignment.vrf;
 	match assignment.kind {
 		AssignmentCertKind::RelayVRFModulo { sample } => {
 			if sample >= config.relay_vrf_modulo_samples {
@@ -553,21 +553,18 @@ fn is_in_backing_group(
 mod tests {
 	use super::*;
 	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
-	use polkadot_primitives::v2::{Hash, ASSIGNMENT_KEY_TYPE_ID};
+	use polkadot_primitives::{Hash, ASSIGNMENT_KEY_TYPE_ID};
 	use sp_application_crypto::sr25519;
 	use sp_core::crypto::Pair as PairT;
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
-	use sp_keystore::CryptoStore;
+	use sp_keystore::Keystore;
 
 	// sets up a keystore with the given keyring accounts.
-	async fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
+	fn make_keystore(accounts: &[Sr25519Keyring]) -> LocalKeystore {
 		let store = LocalKeystore::in_memory();
 
 		for s in accounts.iter().copied().map(|k| k.to_seed()) {
-			store
-				.sr25519_generate_new(ASSIGNMENT_KEY_TYPE_ID, Some(s.as_str()))
-				.await
-				.unwrap();
+			store.sr25519_generate_new(ASSIGNMENT_KEY_TYPE_ID, Some(s.as_str())).unwrap();
 		}
 
 		store
@@ -620,7 +617,7 @@ mod tests {
 
 	#[test]
 	fn assignments_produced_for_non_backing() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let c_a = CandidateHash(Hash::repeat_byte(0));
 		let c_b = CandidateHash(Hash::repeat_byte(1));
@@ -655,7 +652,7 @@ mod tests {
 
 	#[test]
 	fn assign_to_nonzero_core() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let c_a = CandidateHash(Hash::repeat_byte(0));
 		let c_b = CandidateHash(Hash::repeat_byte(1));
@@ -688,7 +685,7 @@ mod tests {
 
 	#[test]
 	fn succeeds_empty_for_0_cores() {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let relay_vrf_story = RelayVRFStory([42u8; 32]);
 		let assignments = compute_assignments(
@@ -728,7 +725,7 @@ mod tests {
 		rotation_offset: usize,
 		f: impl Fn(&mut MutatedAssignment) -> Option<bool>, // None = skip
 	) {
-		let keystore = futures::executor::block_on(make_keystore(&[Sr25519Keyring::Alice]));
+		let keystore = make_keystore(&[Sr25519Keyring::Alice]);
 
 		let group_for_core = |i| GroupIndex(((i + rotation_offset) % n_cores) as _);
 

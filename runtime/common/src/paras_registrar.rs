@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -24,7 +24,7 @@ use frame_support::{
 	traits::{Currency, Get, ReservableCurrency},
 };
 use frame_system::{self, ensure_root, ensure_signed};
-use primitives::v2::{HeadData, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID};
+use primitives::{HeadData, Id as ParaId, ValidationCode, LOWEST_PUBLIC_ID};
 use runtime_parachains::{
 	configuration, ensure_parachain,
 	paras::{self, ParaGenesisArgs},
@@ -97,7 +97,6 @@ pub mod pallet {
 	use frame_system::pallet_prelude::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -659,11 +658,11 @@ mod tests {
 		assert_noop, assert_ok,
 		error::BadOrigin,
 		parameter_types,
-		traits::{GenesisBuild, OnFinalize, OnInitialize},
+		traits::{ConstU32, GenesisBuild, OnFinalize, OnInitialize},
 	};
 	use frame_system::limits;
 	use pallet_balances::Error as BalancesError;
-	use primitives::v2::{Balance, BlockNumber, Header};
+	use primitives::{Balance, BlockNumber, Header};
 	use runtime_parachains::{configuration, origin, shared};
 	use sp_core::H256;
 	use sp_io::TestExternalities;
@@ -705,9 +704,7 @@ mod tests {
 	parameter_types! {
 		pub const BlockHashCount: u32 = 250;
 		pub BlockWeights: limits::BlockWeights =
-			frame_system::limits::BlockWeights::simple_max(
-				Weight::from_ref_time(1024).set_proof_size(u64::MAX),
-			);
+			frame_system::limits::BlockWeights::simple_max(Weight::from_parts(1024, u64::MAX));
 		pub BlockLength: limits::BlockLength =
 			limits::BlockLength::max_with_normal_ratio(4 * 1024 * 1024, NORMAL_RATIO);
 	}
@@ -753,6 +750,10 @@ mod tests {
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
 		type WeightInfo = ();
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	impl shared::Config for Test {}
@@ -1289,7 +1290,7 @@ mod benchmarking {
 	use crate::traits::Registrar as RegistrarT;
 	use frame_support::assert_ok;
 	use frame_system::RawOrigin;
-	use primitives::v2::{MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
+	use primitives::{MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE};
 	use runtime_parachains::{paras, shared, Origin as ParaOrigin};
 	use sp_runtime::traits::Bounded;
 

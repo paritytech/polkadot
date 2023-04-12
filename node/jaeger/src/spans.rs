@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 //! Polkadot Jaeger span definitions.
 //!
 //! ```rust
-//! # use polkadot_primitives::v2::{CandidateHash, Hash};
+//! # use polkadot_primitives::{CandidateHash, Hash};
 //! # fn main() {
 //! use polkadot_node_jaeger as jaeger;
 //!
@@ -51,7 +51,7 @@
 //! over the course of a function, for this purpose use the non-consuming
 //! `fn` variants, i.e.
 //! ```rust
-//! # use polkadot_primitives::v2::{CandidateHash, Hash};
+//! # use polkadot_primitives::{CandidateHash, Hash};
 //! # fn main() {
 //! # use polkadot_node_jaeger as jaeger;
 //!
@@ -85,9 +85,7 @@
 
 use parity_scale_codec::Encode;
 use polkadot_node_primitives::PoV;
-use polkadot_primitives::v2::{
-	BlakeTwo256, CandidateHash, Hash, HashT, Id as ParaId, ValidatorIndex,
-};
+use polkadot_primitives::{BlakeTwo256, CandidateHash, Hash, HashT, Id as ParaId, ValidatorIndex};
 use sc_network::PeerId;
 
 use std::{fmt, sync::Arc};
@@ -151,6 +149,7 @@ pub enum Stage {
 	AvailabilityRecovery = 6,
 	BitfieldDistribution = 7,
 	ApprovalChecking = 8,
+	ApprovalDistribution = 9,
 	// Expand as needed, numbers should be ascending according to the stage
 	// through the inclusion pipeline, or according to the descriptions
 	// in [the path of a para chain block]
@@ -283,6 +282,13 @@ impl Span {
 			Self::Enabled(inner) => Self::Enabled(inner.child(name)),
 			Self::Disabled => Self::Disabled,
 		}
+	}
+
+	/// Attach a 'traceID' tag set to the decimal representation of the candidate hash.
+	#[inline(always)]
+	pub fn with_trace_id(mut self, candidate_hash: CandidateHash) -> Self {
+		self.add_string_tag("traceID", hash_to_trace_identifier(candidate_hash.0));
+		self
 	}
 
 	#[inline(always)]

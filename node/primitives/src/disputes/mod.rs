@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -21,11 +21,11 @@ use std::collections::{
 
 use parity_scale_codec::{Decode, Encode};
 
-use sp_application_crypto::AppKey;
-use sp_keystore::{CryptoStore, Error as KeystoreError, SyncCryptoStorePtr};
+use sp_application_crypto::AppCrypto;
+use sp_keystore::{Error as KeystoreError, KeystorePtr};
 
 use super::{Statement, UncheckedSignedFullStatement};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, CandidateReceipt, DisputeStatement, InvalidDisputeStatementKind, SessionIndex,
 	SigningContext, ValidDisputeStatementKind, ValidatorId, ValidatorIndex, ValidatorSignature,
 };
@@ -207,8 +207,8 @@ impl SignedDisputeStatement {
 
 	/// Sign this statement with the given keystore and key. Pass `valid = true` to
 	/// indicate validity of the candidate, and `valid = false` to indicate invalidity.
-	pub async fn sign_explicit(
-		keystore: &SyncCryptoStorePtr,
+	pub fn sign_explicit(
+		keystore: &KeystorePtr,
 		valid: bool,
 		candidate_hash: CandidateHash,
 		session_index: SessionIndex,
@@ -221,27 +221,16 @@ impl SignedDisputeStatement {
 		};
 
 		let data = dispute_statement.payload_data(candidate_hash, session_index);
-		let signature = CryptoStore::sign_with(
-			&**keystore,
-			ValidatorId::ID,
-			&validator_public.clone().into(),
-			&data,
-		)
-		.await?;
-
-		let signature = match signature {
-			Some(sig) =>
-				sig.try_into().map_err(|_| KeystoreError::KeyNotSupported(ValidatorId::ID))?,
-			None => return Ok(None),
-		};
-
-		Ok(Some(Self {
-			dispute_statement,
-			candidate_hash,
-			validator_public,
-			validator_signature: signature,
-			session_index,
-		}))
+		let signature = keystore
+			.sr25519_sign(ValidatorId::ID, validator_public.as_ref(), &data)?
+			.map(|sig| Self {
+				dispute_statement,
+				candidate_hash,
+				validator_public,
+				validator_signature: sig.into(),
+				session_index,
+			});
+		Ok(signature)
 	}
 
 	/// Access the underlying dispute statement

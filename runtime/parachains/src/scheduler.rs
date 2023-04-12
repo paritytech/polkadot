@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -36,7 +36,7 @@
 //! over time.
 
 use frame_support::pallet_prelude::*;
-use primitives::v2::{
+use primitives::{
 	CollatorId, CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId,
 	ParathreadClaim, ParathreadEntry, ScheduledCore, ValidatorIndex,
 };
@@ -158,7 +158,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -236,7 +235,7 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn initializer_on_new_session(
 		notification: &SessionChangeNotification<T::BlockNumber>,
 	) {
-		let &SessionChangeNotification { ref validators, ref new_config, .. } = notification;
+		let SessionChangeNotification { validators, new_config, .. } = notification;
 		let config = new_config;
 
 		let mut thread_queue = ParathreadQueue::<T>::get();

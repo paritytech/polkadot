@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@ use frame_support::{
 	dispatch::DispatchResult,
 	traits::{Currency, ReservableCurrency},
 };
-use primitives::v2::{HeadData, Id as ParaId, ValidationCode};
+use primitives::{HeadData, Id as ParaId, ValidationCode};
 use sp_std::vec::*;
 
 /// Parachain registration API.

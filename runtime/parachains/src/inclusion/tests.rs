@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -28,16 +28,15 @@ use crate::{
 };
 use assert_matches::assert_matches;
 use frame_support::assert_noop;
-use futures::executor::block_on;
 use keyring::Sr25519Keyring;
-use primitives::v2::{
+use primitives::{
 	BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
 	CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
 	UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,
 	PARACHAIN_KEY_TYPE_ID,
 };
 use sc_keystore::LocalKeystore;
-use sp_keystore::{SyncCryptoStore, SyncCryptoStorePtr};
+use sp_keystore::{Keystore, KeystorePtr};
 use std::sync::Arc;
 use test_helpers::{
 	dummy_candidate_receipt, dummy_collator, dummy_collator_signature, dummy_hash,
@@ -91,7 +90,7 @@ pub(crate) fn collator_sign_candidate(
 ) {
 	candidate.descriptor.collator = collator.public().into();
 
-	let payload = primitives::v2::collator_signature_payload(
+	let payload = primitives::collator_signature_payload(
 		&candidate.descriptor.relay_parent,
 		&candidate.descriptor.para_id,
 		&candidate.descriptor.persisted_validation_data_hash,
@@ -103,11 +102,11 @@ pub(crate) fn collator_sign_candidate(
 	assert!(candidate.descriptor().check_collator_signature().is_ok());
 }
 
-pub(crate) async fn back_candidate(
+pub(crate) fn back_candidate(
 	candidate: CommittedCandidateReceipt,
 	validators: &[Sr25519Keyring],
 	group: &[ValidatorIndex],
-	keystore: &SyncCryptoStorePtr,
+	keystore: &KeystorePtr,
 	signing_context: &SigningContext,
 	kind: BackingKind,
 ) -> BackedCandidate {
@@ -134,7 +133,6 @@ pub(crate) async fn back_candidate(
 			*val_idx,
 			&key.public().into(),
 		)
-		.await
 		.unwrap()
 		.unwrap()
 		.signature()
@@ -146,7 +144,7 @@ pub(crate) async fn back_candidate(
 	let backed = BackedCandidate { candidate, validity_votes, validator_indices };
 
 	let successfully_backed =
-		primitives::v2::check_candidate_backing(&backed, signing_context, group.len(), |i| {
+		primitives::check_candidate_backing(&backed, signing_context, group.len(), |i| {
 			Some(validators[group[i].0 as usize].public().into())
 		})
 		.ok()
@@ -222,8 +220,8 @@ pub(crate) fn validator_pubkeys(val_ids: &[Sr25519Keyring]) -> Vec<ValidatorId> 
 	val_ids.iter().map(|v| v.public().into()).collect()
 }
 
-pub(crate) async fn sign_bitfield(
-	keystore: &SyncCryptoStorePtr,
+pub(crate) fn sign_bitfield(
+	keystore: &KeystorePtr,
 	key: &Sr25519Keyring,
 	validator_index: ValidatorIndex,
 	bitfield: AvailabilityBitfield,
@@ -236,7 +234,6 @@ pub(crate) async fn sign_bitfield(
 		validator_index,
 		&key.public().into(),
 	)
-	.await
 	.unwrap()
 	.unwrap()
 }
@@ -384,9 +381,9 @@ fn bitfield_checks() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
@@ -434,13 +431,13 @@ fn bitfield_checks() {
 		{
 			let mut bare_bitfield = default_bitfield();
 			bare_bitfield.0.push(false);
-			let signed = block_on(sign_bitfield(
+			let signed = sign_bitfield(
 				&keystore,
 				&validators[0],
 				ValidatorIndex(0),
 				bare_bitfield,
 				&signing_context,
-			));
+			);
 
 			assert_matches!(
 				ParaInclusion::process_bitfields(
@@ -457,13 +454,13 @@ fn bitfield_checks() {
 		// not enough bits
 		{
 			let bare_bitfield = default_bitfield();
-			let signed = block_on(sign_bitfield(
+			let signed = sign_bitfield(
 				&keystore,
 				&validators[0],
 				ValidatorIndex(0),
 				bare_bitfield,
 				&signing_context,
-			));
+			);
 
 			assert_matches!(
 				ParaInclusion::process_bitfields(
@@ -485,13 +482,13 @@ fn bitfield_checks() {
 				b.0.set(0, true);
 				b
 			};
-			let signed: UncheckedSignedAvailabilityBitfield = block_on(sign_bitfield(
+			let signed: UncheckedSignedAvailabilityBitfield = sign_bitfield(
 				&keystore,
 				&validators[0],
 				ValidatorIndex(0),
 				back_core_0_bitfield,
 				&signing_context,
-			))
+			)
 			.into();
 
 			assert_eq!(
@@ -536,22 +533,22 @@ fn bitfield_checks() {
 				b.0.set(0, true);
 				b
 			};
-			let signed_0 = block_on(sign_bitfield(
+			let signed_0 = sign_bitfield(
 				&keystore,
 				&validators[0],
 				ValidatorIndex(0),
 				back_core_0_bitfield.clone(),
 				&signing_context,
-			))
+			)
 			.into();
 
-			let signed_1 = block_on(sign_bitfield(
+			let signed_1 = sign_bitfield(
 				&keystore,
 				&validators[1],
 				ValidatorIndex(1),
 				back_core_0_bitfield,
 				&signing_context,
-			))
+			)
 			.into();
 
 			assert_eq!(
@@ -591,13 +588,13 @@ fn bitfield_checks() {
 		{
 			let mut bare_bitfield = default_bitfield();
 			*bare_bitfield.0.get_mut(0).unwrap() = true;
-			let signed = block_on(sign_bitfield(
+			let signed = sign_bitfield(
 				&keystore,
 				&validators[0],
 				ValidatorIndex(0),
 				bare_bitfield,
 				&signing_context,
-			));
+			);
 
 			assert_matches!(ParaInclusion::process_bitfields(
 				expected_bits(),
@@ -611,13 +608,13 @@ fn bitfield_checks() {
 		// empty bitfield signed: always ok, but kind of useless.
 		{
 			let bare_bitfield = default_bitfield();
-			let signed = block_on(sign_bitfield(
+			let signed = sign_bitfield(
 				&keystore,
 				&validators[0],
 				ValidatorIndex(0),
 				bare_bitfield,
 				&signing_context,
-			));
+			);
 
 			assert_matches!(ParaInclusion::process_bitfields(
 				expected_bits(),
@@ -651,13 +648,13 @@ fn bitfield_checks() {
 			PendingAvailabilityCommitments::<Test>::insert(chain_a, default_candidate.commitments);
 
 			*bare_bitfield.0.get_mut(0).unwrap() = true;
-			let signed = block_on(sign_bitfield(
+			let signed = sign_bitfield(
 				&keystore,
 				&validators[0],
 				ValidatorIndex(0),
 				bare_bitfield,
 				&signing_context,
-			));
+			);
 
 			assert_matches!(ParaInclusion::process_bitfields(
 				expected_bits(),
@@ -693,13 +690,13 @@ fn bitfield_checks() {
 			);
 
 			*bare_bitfield.0.get_mut(0).unwrap() = true;
-			let signed = block_on(sign_bitfield(
+			let signed = sign_bitfield(
 				&keystore,
 				&validators[0],
 				ValidatorIndex(0),
 				bare_bitfield,
 				&signing_context,
-			));
+			);
 
 			// no core is freed
 			assert_matches!(ParaInclusion::process_bitfields(
@@ -711,6 +708,13 @@ fn bitfield_checks() {
 			), Ok(v) => { assert!(v.is_empty()) });
 		}
 	});
+}
+
+#[test]
+fn availability_threshold_is_supermajority() {
+	assert_eq!(3, availability_threshold(4));
+	assert_eq!(5, availability_threshold(6));
+	assert_eq!(7, availability_threshold(9));
 }
 
 #[test]
@@ -731,9 +735,9 @@ fn supermajority_bitfields_trigger_availability() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
@@ -836,13 +840,13 @@ fn supermajority_bitfields_trigger_availability() {
 				};
 
 				Some(
-					block_on(sign_bitfield(
+					sign_bitfield(
 						&keystore,
 						key,
 						ValidatorIndex(i as _),
 						to_sign,
 						&signing_context,
-					))
+					)
 					.into(),
 				)
 			})
@@ -923,9 +927,9 @@ fn candidate_checks() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
@@ -989,14 +993,14 @@ fn candidate_checks() {
 			.build();
 			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = block_on(back_candidate(
+			let backed = back_candidate(
 				candidate,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
@@ -1034,23 +1038,23 @@ fn candidate_checks() {
 
 			collator_sign_candidate(Sr25519Keyring::Two, &mut candidate_b);
 
-			let backed_a = block_on(back_candidate(
+			let backed_a = back_candidate(
 				candidate_a,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
-			let backed_b = block_on(back_candidate(
+			let backed_b = back_candidate(
 				candidate_b,
 				&validators,
 				group_validators(GroupIndex::from(1)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
 			// out-of-order manifests as unscheduled.
 			assert_noop!(
@@ -1077,14 +1081,14 @@ fn candidate_checks() {
 			.build();
 			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = block_on(back_candidate(
+			let backed = back_candidate(
 				candidate,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Lacking,
-			));
+			);
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
@@ -1112,14 +1116,14 @@ fn candidate_checks() {
 			.build();
 			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = block_on(back_candidate(
+			let backed = back_candidate(
 				candidate,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
@@ -1147,14 +1151,14 @@ fn candidate_checks() {
 			assert!(CollatorId::from(Sr25519Keyring::One.public()) != thread_collator);
 			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = block_on(back_candidate(
+			let backed = back_candidate(
 				candidate,
 				&validators,
 				group_validators(GroupIndex::from(2)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
@@ -1189,14 +1193,14 @@ fn candidate_checks() {
 			// change the candidate after signing.
 			candidate.descriptor.pov_hash = Hash::repeat_byte(2);
 
-			let backed = block_on(back_candidate(
+			let backed = back_candidate(
 				candidate,
 				&validators,
 				group_validators(GroupIndex::from(2)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
@@ -1223,14 +1227,14 @@ fn candidate_checks() {
 
 			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = block_on(back_candidate(
+			let backed = back_candidate(
 				candidate,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
 			let candidate = TestCandidateBuilder::default().build();
 			<PendingAvailability<Test>>::insert(
@@ -1279,14 +1283,14 @@ fn candidate_checks() {
 			// this is not supposed to happen
 			<PendingAvailabilityCommitments<Test>>::insert(&chain_a, candidate.commitments.clone());
 
-			let backed = block_on(back_candidate(
+			let backed = back_candidate(
 				candidate,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
@@ -1316,14 +1320,14 @@ fn candidate_checks() {
 
 			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = block_on(back_candidate(
+			let backed = back_candidate(
 				candidate,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
 			{
 				let cfg = Configuration::config();
@@ -1357,14 +1361,14 @@ fn candidate_checks() {
 
 			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = block_on(back_candidate(
+			let backed = back_candidate(
 				candidate,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
 			assert_eq!(
 				ParaInclusion::process_candidates(
@@ -1392,14 +1396,14 @@ fn candidate_checks() {
 
 			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = block_on(back_candidate(
+			let backed = back_candidate(
 				candidate,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
@@ -1427,14 +1431,14 @@ fn candidate_checks() {
 
 			collator_sign_candidate(Sr25519Keyring::One, &mut candidate);
 
-			let backed = block_on(back_candidate(
+			let backed = back_candidate(
 				candidate,
 				&validators,
 				group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 				&keystore,
 				&signing_context,
 				BackingKind::Threshold,
-			));
+			);
 
 			assert_noop!(
 				ParaInclusion::process_candidates(
@@ -1470,9 +1474,9 @@ fn backing_works() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
@@ -1556,32 +1560,32 @@ fn backing_works() {
 		.build();
 		collator_sign_candidate(Sr25519Keyring::Two, &mut candidate_c);
 
-		let backed_a = block_on(back_candidate(
+		let backed_a = back_candidate(
 			candidate_a.clone(),
 			&validators,
 			group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 			&keystore,
 			&signing_context,
 			BackingKind::Threshold,
-		));
+		);
 
-		let backed_b = block_on(back_candidate(
+		let backed_b = back_candidate(
 			candidate_b.clone(),
 			&validators,
 			group_validators(GroupIndex::from(1)).unwrap().as_ref(),
 			&keystore,
 			&signing_context,
 			BackingKind::Threshold,
-		));
+		);
 
-		let backed_c = block_on(back_candidate(
+		let backed_c = back_candidate(
 			candidate_c.clone(),
 			&validators,
 			group_validators(GroupIndex::from(2)).unwrap().as_ref(),
 			&keystore,
 			&signing_context,
 			BackingKind::Threshold,
-		));
+		);
 
 		let backed_candidates = vec![backed_a, backed_b, backed_c];
 		let get_backing_group_idx = {
@@ -1750,9 +1754,9 @@ fn can_include_candidate_with_ok_code_upgrade() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),
@@ -1797,14 +1801,14 @@ fn can_include_candidate_with_ok_code_upgrade() {
 		.build();
 		collator_sign_candidate(Sr25519Keyring::One, &mut candidate_a);
 
-		let backed_a = block_on(back_candidate(
+		let backed_a = back_candidate(
 			candidate_a.clone(),
 			&validators,
 			group_validators(GroupIndex::from(0)).unwrap().as_ref(),
 			&keystore,
 			&signing_context,
 			BackingKind::Threshold,
-		));
+		);
 
 		let ProcessedCandidates { core_indices: occupied_cores, .. } =
 			ParaInclusion::process_candidates(
@@ -1859,9 +1863,9 @@ fn session_change_wipes() {
 		Sr25519Keyring::Dave,
 		Sr25519Keyring::Ferdie,
 	];
-	let keystore: SyncCryptoStorePtr = Arc::new(LocalKeystore::in_memory());
+	let keystore: KeystorePtr = Arc::new(LocalKeystore::in_memory());
 	for validator in validators.iter() {
-		SyncCryptoStore::sr25519_generate_new(
+		Keystore::sr25519_generate_new(
 			&*keystore,
 			PARACHAIN_KEY_TYPE_ID,
 			Some(&validator.to_seed()),

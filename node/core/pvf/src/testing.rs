@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,6 +19,8 @@
 //! N.B. This is not guarded with some feature flag. Overexposing items here may affect the final
 //!      artifact even for production builds.
 
+use polkadot_primitives::ExecutorParams;
+
 pub mod worker_common {
 	pub use crate::worker_common::{spawn_with_program_path, SpawnErr};
 }
@@ -35,12 +37,12 @@ pub fn validate_candidate(
 		.expect("Decompressing code failed");
 
 	let blob = prevalidate(&code)?;
-	let artifact = prepare(blob)?;
+	let artifact = prepare(blob, &ExecutorParams::default())?;
 	let tmpdir = tempfile::tempdir()?;
 	let artifact_path = tmpdir.path().join("blob");
 	std::fs::write(&artifact_path, &artifact)?;
 
-	let executor = Executor::new()?;
+	let executor = Executor::new(ExecutorParams::default())?;
 	let result = unsafe {
 		// SAFETY: This is trivially safe since the artifact is obtained by calling `prepare`
 		//         and is written into a temporary directory in an unmodified state.
@@ -59,22 +61,34 @@ macro_rules! decl_puppet_worker_main {
 			$crate::sp_tracing::try_init_simple();
 
 			let args = std::env::args().collect::<Vec<_>>();
-			if args.len() < 2 {
+			if args.len() < 3 {
 				panic!("wrong number of arguments");
+			}
+
+			let mut version = None;
+			let mut socket_path: &str = "";
+
+			for i in 2..args.len() {
+				match args[i].as_ref() {
+					"--socket-path" => socket_path = args[i + 1].as_str(),
+					"--node-version" => version = Some(args[i + 1].as_str()),
+					_ => (),
+				}
 			}
 
 			let subcommand = &args[1];
 			match subcommand.as_ref() {
+				"exit" => {
+					std::process::exit(1);
+				},
 				"sleep" => {
 					std::thread::sleep(std::time::Duration::from_secs(5));
 				},
 				"prepare-worker" => {
-					let socket_path = &args[2];
-					$crate::prepare_worker_entrypoint(socket_path);
+					$crate::prepare_worker_entrypoint(&socket_path, version);
 				},
 				"execute-worker" => {
-					let socket_path = &args[2];
-					$crate::execute_worker_entrypoint(socket_path);
+					$crate::execute_worker_entrypoint(&socket_path, version);
 				},
 				other => panic!("unknown subcommand: {}", other),
 			}

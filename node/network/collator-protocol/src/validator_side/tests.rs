@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@ use assert_matches::assert_matches;
 use futures::{executor, future, Future};
 use sp_core::{crypto::Pair, Encode};
 use sp_keyring::Sr25519Keyring;
-use sp_keystore::{testing::KeyStore as TestKeyStore, SyncCryptoStore};
+use sp_keystore::{testing::MemoryKeystore, Keystore};
 use std::{iter, sync::Arc, task::Poll, time::Duration};
 
 use polkadot_node_network_protocol::{
@@ -32,7 +32,7 @@ use polkadot_node_primitives::BlockData;
 use polkadot_node_subsystem::messages::{AllMessages, RuntimeApiMessage, RuntimeApiRequest};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CollatorPair, CoreState, GroupIndex, GroupRotationInfo, OccupiedCore, ScheduledCore,
 	ValidatorId, ValidatorIndex,
 };
@@ -130,10 +130,10 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(test: impl FnOnce(TestHarne
 
 	let (context, virtual_overseer) = test_helpers::make_subsystem_context(pool.clone());
 
-	let keystore = TestKeyStore::new();
+	let keystore = MemoryKeystore::new();
 	keystore
 		.sr25519_generate_new(
-			polkadot_primitives::v2::PARACHAIN_KEY_TYPE_ID,
+			polkadot_primitives::PARACHAIN_KEY_TYPE_ID,
 			Some(&Sr25519Keyring::Alice.to_seed()),
 		)
 		.unwrap();

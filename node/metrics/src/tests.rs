@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Substrate.
 
 // Substrate is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 
 use hyper::{Client, Uri};
 use polkadot_test_service::{node_config, run_validator_node, test_prometheus_config};
-use primitives::v2::metric_definitions::PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED;
+use primitives::metric_definitions::PARACHAIN_INHERENT_DATA_BITFIELDS_PROCESSED;
 use sc_client_api::{execution_extensions::ExecutionStrategies, ExecutionStrategy};
 use sp_keyring::AccountKeyring::*;
 use std::collections::HashMap;

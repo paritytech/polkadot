@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@ pub use sp_consensus_babe::Slot;
 pub use sp_consensus_vrf::schnorrkel::{Randomness, VRFOutput, VRFProof};
 
 use parity_scale_codec::{Decode, Encode};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, CandidateHash, CandidateIndex, CoreIndex, Hash, Header, SessionIndex,
 	ValidatorIndex, ValidatorSignature,
 };

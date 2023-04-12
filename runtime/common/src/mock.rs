@@ -1,4 +1,4 @@
-// Copyright 2019-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use frame_support::{
 	weights::Weight,
 };
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{HeadData, Id as ParaId, ValidationCode};
+use primitives::{HeadData, Id as ParaId, ValidationCode};
 use sp_runtime::{traits::SaturatedConversion, Permill};
 use std::{cell::RefCell, collections::HashMap};
 

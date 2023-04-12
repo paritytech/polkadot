@@ -1,4 +1,4 @@
-// Copyright 2017-2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -37,7 +37,7 @@ use std::{
 
 use bitvec::{bitvec, vec::BitVec};
 
-use polkadot_primitives::v2::{AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex};
+use polkadot_primitives::{AuthorityDiscoveryId, GroupIndex, Hash, SessionIndex};
 
 /// The ring buffer stores at most this many unique validator groups.
 ///

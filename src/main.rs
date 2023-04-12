@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,6 +22,7 @@ use color_eyre::eyre;
 
 /// Global allocator. Changing it to another allocator will require changing
 /// `memory_stats::MemoryAllocationTracker`.
+#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 #[global_allocator]
 pub static ALLOC: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 

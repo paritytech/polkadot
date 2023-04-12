@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use async_trait::async_trait;
 
 use sc_authority_discovery::Service as AuthorityDiscoveryService;
 
-use polkadot_primitives::v2::AuthorityDiscoveryId;
+use polkadot_primitives::AuthorityDiscoveryId;
 use sc_network::{Multiaddr, PeerId};
 
 /// An abstraction over the authority discovery service.

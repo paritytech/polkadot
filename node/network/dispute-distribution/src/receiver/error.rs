@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use fatality::Nested;
 use gum::CandidateHash;
 use polkadot_node_network_protocol::{request_response::incoming, PeerId};
 use polkadot_node_subsystem_util::runtime;
-use polkadot_primitives::v2::AuthorityDiscoveryId;
+use polkadot_primitives::AuthorityDiscoveryId;
 
 use crate::LOG_TARGET;
 

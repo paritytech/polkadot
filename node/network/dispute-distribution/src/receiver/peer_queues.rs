@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@ use std::collections::{hash_map::Entry, HashMap, VecDeque};
 use futures::future::pending;
 use futures_timer::Delay;
 use polkadot_node_network_protocol::request_response::{v1::DisputeRequest, IncomingRequest};
-use polkadot_primitives::v2::AuthorityDiscoveryId;
+use polkadot_primitives::AuthorityDiscoveryId;
 
 use crate::RECEIVE_RATE_LIMIT;
 

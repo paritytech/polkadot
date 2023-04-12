@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -24,11 +24,11 @@ use thiserror::Error;
 use parity_scale_codec::{Decode, Encode};
 
 use super::{InvalidDisputeVote, SignedDisputeStatement, ValidDisputeVote};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateReceipt, DisputeStatement, SessionIndex, SessionInfo, ValidatorIndex,
 };
 
-/// A dispute initiating/participating message that is guaranteed to have been built from signed
+/// A dispute initiating/participating message that have been built from signed
 /// statements.
 ///
 /// And most likely has been constructed correctly. This is used with

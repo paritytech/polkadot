@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -45,7 +45,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, PerLeafSpan, SpawnedSubsystem,
 	SubsystemError,
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	AuthorityDiscoveryId, CandidateHash, CommittedCandidateReceipt, CompactStatement, Hash,
 	IndexedVec, SignedStatement, SigningContext, UncheckedSignedStatement, ValidatorId,
 	ValidatorIndex, ValidatorSignature,
@@ -57,7 +57,7 @@ use futures::{
 	prelude::*,
 };
 use indexmap::{map::Entry as IEntry, IndexMap};
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 use util::runtime::RuntimeInfo;
 
 use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
@@ -119,7 +119,7 @@ const MAX_LARGE_STATEMENTS_PER_SENDER: usize = 20;
 /// The statement distribution subsystem.
 pub struct StatementDistributionSubsystem<R> {
 	/// Pointer to a keystore, which is required for determining this node's validator index.
-	keystore: SyncCryptoStorePtr,
+	keystore: KeystorePtr,
 	/// Receiver for incoming large statement requests.
 	req_receiver: Option<IncomingRequestReceiver<request_v1::StatementFetchingRequest>>,
 	/// Prometheus metrics
@@ -1773,7 +1773,7 @@ async fn handle_network_update<Context, R>(
 impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 	/// Create a new Statement Distribution Subsystem
 	pub fn new(
-		keystore: SyncCryptoStorePtr,
+		keystore: KeystorePtr,
 		req_receiver: IncomingRequestReceiver<request_v1::StatementFetchingRequest>,
 		metrics: Metrics,
 		rng: R,

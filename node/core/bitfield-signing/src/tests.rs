@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 use super::*;
 use futures::{executor::block_on, pin_mut, StreamExt};
 use polkadot_node_subsystem::messages::AllMessages;
-use polkadot_primitives::v2::{CandidateHash, OccupiedCore};
+use polkadot_primitives::{CandidateHash, OccupiedCore};
 use test_helpers::dummy_candidate_descriptor;
 
 fn occupied_core(para_id: u32, candidate_hash: CandidateHash) -> CoreState {

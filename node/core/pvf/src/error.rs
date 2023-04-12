@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,12 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::prepare::PrepareStats;
 use parity_scale_codec::{Decode, Encode};
-use std::{any::Any, fmt, time::Duration};
+use std::{any::Any, fmt};
 
-/// Result of PVF preparation performed by the validation host. Contains the elapsed CPU time if
+/// Result of PVF preparation performed by the validation host. Contains stats about the preparation if
 /// successful
-pub type PrepareResult = Result<Duration, PrepareError>;
+pub type PrepareResult = Result<PrepareStats, PrepareError>;
 
 /// An error that occurred during the prepare part of the PVF pipeline.
 #[derive(Debug, Clone, Encode, Decode)]
@@ -28,13 +29,12 @@ pub enum PrepareError {
 	Prevalidation(String),
 	/// Compilation failed for the given PVF.
 	Preparation(String),
-	/// An unexpected panic has occured in the preparation worker.
+	/// An unexpected panic has occurred in the preparation worker.
 	Panic(String),
 	/// Failed to prepare the PVF due to the time limit.
 	TimedOut,
-	/// An IO error occurred while receiving the result from the worker process. This state is reported by the
-	/// validation host (not by the worker).
-	IoErr,
+	/// An IO error occurred. This state is reported by either the validation host or by the worker.
+	IoErr(String),
 	/// The temporary file for the artifact could not be created at the given cache path. This state is reported by the
 	/// validation host (not by the worker).
 	CreateTmpFileErr(String),
@@ -54,7 +54,7 @@ impl PrepareError {
 		use PrepareError::*;
 		match self {
 			Prevalidation(_) | Preparation(_) | Panic(_) => true,
-			TimedOut | IoErr | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
+			TimedOut | IoErr(_) | CreateTmpFileErr(_) | RenameTmpFileErr(_) => false,
 		}
 	}
 }
@@ -67,7 +67,7 @@ impl fmt::Display for PrepareError {
 			Preparation(err) => write!(f, "preparation: {}", err),
 			Panic(err) => write!(f, "panic: {}", err),
 			TimedOut => write!(f, "prepare: timeout"),
-			IoErr => write!(f, "prepare: io error while receiving response"),
+			IoErr(err) => write!(f, "prepare: io error while receiving response: {}", err),
 			CreateTmpFileErr(err) => write!(f, "prepare: error creating tmp file: {}", err),
 			RenameTmpFileErr(err) => write!(f, "prepare: error renaming tmp file: {}", err),
 		}
@@ -119,12 +119,6 @@ impl From<PrepareError> for ValidationError {
 	fn from(error: PrepareError) -> Self {
 		// Here we need to classify the errors into two errors: deterministic and non-deterministic.
 		// See [`PrepareError::is_deterministic`].
-		//
-		// We treat the deterministic errors as `InvalidCandidate`. Should those occur they could
-		// potentially trigger disputes.
-		//
-		// All non-deterministic errors are qualified as `InternalError`s and will not trigger
-		// disputes.
 		if error.is_deterministic() {
 			ValidationError::InvalidCandidate(InvalidCandidate::PrepareError(error.to_string()))
 		} else {

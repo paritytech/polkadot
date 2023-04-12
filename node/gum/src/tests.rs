@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -15,7 +15,7 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-pub use polkadot_primitives::v2::{CandidateHash, Hash};
+pub use polkadot_primitives::{CandidateHash, Hash};
 
 #[derive(Default, Debug)]
 struct Y {

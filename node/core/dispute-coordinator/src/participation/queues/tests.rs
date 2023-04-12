@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -14,10 +14,10 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use crate::ParticipationPriority;
+use crate::{metrics::Metrics, ParticipationPriority};
 use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 use assert_matches::assert_matches;
-use polkadot_primitives::v2::{BlockNumber, Hash};
+use polkadot_primitives::{BlockNumber, Hash};
 
 use super::{CandidateComparator, ParticipationRequest, QueueError, Queues};
 
@@ -26,7 +26,8 @@ fn make_participation_request(hash: Hash) -> ParticipationRequest {
 	let mut receipt = dummy_candidate_receipt(dummy_hash());
 	// make it differ:
 	receipt.commitments_hash = hash;
-	ParticipationRequest::new(receipt, 1)
+	let request_timer = Metrics::default().time_participation_pipeline();
+	ParticipationRequest::new(receipt, 1, request_timer)
 }
 
 /// Make dummy comparator for request, based on the given block number.
@@ -37,6 +38,18 @@ fn make_dummy_comparator(
 	CandidateComparator::new_dummy(relay_parent, *req.candidate_hash())
 }
 
+/// Make a partial clone of the given ParticipationRequest, just missing
+/// the request_timer field. We prefer this helper to implementing Clone
+/// for ParticipationRequest, since we only clone requests in tests.
+fn clone_request(request: &ParticipationRequest) -> ParticipationRequest {
+	ParticipationRequest {
+		candidate_receipt: request.candidate_receipt.clone(),
+		candidate_hash: request.candidate_hash.clone(),
+		session: request.session,
+		request_timer: None,
+	}
+}
+
 /// Check that dequeuing acknowledges order.
 ///
 /// Any priority item will be dequeued before any best effort items, priority and best effort with
@@ -44,7 +57,8 @@ fn make_dummy_comparator(
 /// block number should be treated with lowest priority.
 #[test]
 fn ordering_works_as_expected() {
-	let mut queue = Queues::new();
+	let metrics = Metrics::default();
+	let mut queue = Queues::new(metrics.clone());
 	let req1 = make_participation_request(Hash::repeat_byte(0x01));
 	let req_prio = make_participation_request(Hash::repeat_byte(0x02));
 	let req3 = make_participation_request(Hash::repeat_byte(0x03));
@@ -56,42 +70,42 @@ fn ordering_works_as_expected() {
 		.queue_with_comparator(
 			make_dummy_comparator(&req1, Some(1)),
 			ParticipationPriority::BestEffort,
-			req1.clone(),
+			clone_request(&req1),
 		)
 		.unwrap();
 	queue
 		.queue_with_comparator(
 			make_dummy_comparator(&req_prio, Some(1)),
 			ParticipationPriority::Priority,
-			req_prio.clone(),
+			clone_request(&req_prio),
 		)
 		.unwrap();
 	queue
 		.queue_with_comparator(
 			make_dummy_comparator(&req3, Some(2)),
 			ParticipationPriority::BestEffort,
-			req3.clone(),
+			clone_request(&req3),
 		)
 		.unwrap();
 	queue
 		.queue_with_comparator(
 			make_dummy_comparator(&req_prio_2, Some(2)),
 			ParticipationPriority::Priority,
-			req_prio_2.clone(),
+			clone_request(&req_prio_2),
 		)
 		.unwrap();
 	queue
 		.queue_with_comparator(
 			make_dummy_comparator(&req5_unknown_parent, None),
 			ParticipationPriority::BestEffort,
-			req5_unknown_parent.clone(),
+			clone_request(&req5_unknown_parent),
 		)
 		.unwrap();
 	assert_matches!(
 		queue.queue_with_comparator(
 			make_dummy_comparator(&req_prio_full, Some(3)),
 			ParticipationPriority::Priority,
-			req_prio_full
+			req_prio_full,
 		),
 		Err(QueueError::PriorityFull)
 	);
@@ -99,7 +113,7 @@ fn ordering_works_as_expected() {
 		queue.queue_with_comparator(
 			make_dummy_comparator(&req_full, Some(3)),
 			ParticipationPriority::BestEffort,
-			req_full
+			req_full,
 		),
 		Err(QueueError::BestEffortFull)
 	);
@@ -118,7 +132,8 @@ fn ordering_works_as_expected() {
 /// No matter how often a candidate gets queued, it should only ever get dequeued once.
 #[test]
 fn candidate_is_only_dequeued_once() {
-	let mut queue = Queues::new();
+	let metrics = Metrics::default();
+	let mut queue = Queues::new(metrics.clone());
 	let req1 = make_participation_request(Hash::repeat_byte(0x01));
 	let req_prio = make_participation_request(Hash::repeat_byte(0x02));
 	let req_best_effort_then_prio = make_participation_request(Hash::repeat_byte(0x03));
@@ -128,14 +143,14 @@ fn candidate_is_only_dequeued_once() {
 		.queue_with_comparator(
 			make_dummy_comparator(&req1, None),
 			ParticipationPriority::BestEffort,
-			req1.clone(),
+			clone_request(&req1),
 		)
 		.unwrap();
 	queue
 		.queue_with_comparator(
 			make_dummy_comparator(&req_prio, Some(1)),
 			ParticipationPriority::Priority,
-			req_prio.clone(),
+			clone_request(&req_prio),
 		)
 		.unwrap();
 	// Insert same best effort again:
@@ -143,7 +158,7 @@ fn candidate_is_only_dequeued_once() {
 		.queue_with_comparator(
 			make_dummy_comparator(&req1, None),
 			ParticipationPriority::BestEffort,
-			req1.clone(),
+			clone_request(&req1),
 		)
 		.unwrap();
 	// insert same prio again:
@@ -151,16 +166,15 @@ fn candidate_is_only_dequeued_once() {
 		.queue_with_comparator(
 			make_dummy_comparator(&req_prio, Some(1)),
 			ParticipationPriority::Priority,
-			req_prio.clone(),
+			clone_request(&req_prio),
 		)
 		.unwrap();
-
 	// Insert first as best effort:
 	queue
 		.queue_with_comparator(
 			make_dummy_comparator(&req_best_effort_then_prio, Some(2)),
 			ParticipationPriority::BestEffort,
-			req_best_effort_then_prio.clone(),
+			clone_request(&req_best_effort_then_prio),
 		)
 		.unwrap();
 	// Then as prio:
@@ -168,7 +182,7 @@ fn candidate_is_only_dequeued_once() {
 		.queue_with_comparator(
 			make_dummy_comparator(&req_best_effort_then_prio, Some(2)),
 			ParticipationPriority::Priority,
-			req_best_effort_then_prio.clone(),
+			clone_request(&req_best_effort_then_prio),
 		)
 		.unwrap();
 
@@ -180,7 +194,7 @@ fn candidate_is_only_dequeued_once() {
 		.queue_with_comparator(
 			make_dummy_comparator(&req_prio_then_best_effort, Some(3)),
 			ParticipationPriority::Priority,
-			req_prio_then_best_effort.clone(),
+			clone_request(&req_prio_then_best_effort),
 		)
 		.unwrap();
 	// Then as best effort:
@@ -188,12 +202,12 @@ fn candidate_is_only_dequeued_once() {
 		.queue_with_comparator(
 			make_dummy_comparator(&req_prio_then_best_effort, Some(3)),
 			ParticipationPriority::BestEffort,
-			req_prio_then_best_effort.clone(),
+			clone_request(&req_prio_then_best_effort),
 		)
 		.unwrap();
 
 	assert_eq!(queue.dequeue(), Some(req_best_effort_then_prio));
 	assert_eq!(queue.dequeue(), Some(req_prio_then_best_effort));
 	assert_eq!(queue.dequeue(), Some(req1));
-	assert_eq!(queue.dequeue(), None);
+	assert_matches!(queue.dequeue(), None);
 }

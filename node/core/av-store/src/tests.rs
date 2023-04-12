@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@ use polkadot_node_subsystem::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::{database::Database, TimeoutExt};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, CandidateReceipt, CoreIndex, GroupIndex, HeadData, Header,
 	PersistedValidationData, ValidatorId,
 };
@@ -103,6 +103,18 @@ impl Default for TestState {
 	}
 }
 
+struct NoSyncOracle;
+
+impl sp_consensus::SyncOracle for NoSyncOracle {
+	fn is_major_syncing(&self) -> bool {
+		false
+	}
+
+	fn is_offline(&self) -> bool {
+		unimplemented!("not used")
+	}
+}
+
 fn test_harness<T: Future<Output = VirtualOverseer>>(
 	state: TestState,
 	store: Arc<dyn Database>,
@@ -122,6 +134,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		TEST_CONFIG,
 		state.pruning_config.clone(),
 		Box::new(state.clock),
+		Box::new(NoSyncOracle),
 		Metrics::default(),
 	);
 
@@ -732,8 +745,49 @@ fn we_dont_miss_anything_if_import_notifications_are_missed() {
 	let test_state = TestState::default();
 
 	test_harness(test_state.clone(), store.clone(), |mut virtual_overseer| async move {
-		overseer_signal(&mut virtual_overseer, OverseerSignal::BlockFinalized(Hash::zero(), 1))
-			.await;
+		let block_hash = Hash::repeat_byte(1);
+		overseer_signal(&mut virtual_overseer, OverseerSignal::BlockFinalized(block_hash, 1)).await;
+
+		let header = Header {
+			parent_hash: Hash::repeat_byte(0),
+			number: 1,
+			state_root: Hash::zero(),
+			extrinsics_root: Hash::zero(),
+			digest: Default::default(),
+		};
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::ChainApi(ChainApiMessage::BlockHeader(
+				relay_parent,
+				tx,
+			)) => {
+				assert_eq!(relay_parent, block_hash);
+				tx.send(Ok(Some(header))).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::CandidateEvents(tx),
+			)) => {
+				assert_eq!(relay_parent, block_hash);
+				tx.send(Ok(Vec::new())).unwrap();
+			}
+		);
+
+		assert_matches!(
+			overseer_recv(&mut virtual_overseer).await,
+			AllMessages::RuntimeApi(RuntimeApiMessage::Request(
+				relay_parent,
+				RuntimeApiRequest::Validators(tx),
+			)) => {
+				assert_eq!(relay_parent, Hash::zero());
+				tx.send(Ok(Vec::new())).unwrap();
+			}
+		);
 
 		let header = Header {
 			parent_hash: Hash::repeat_byte(3),

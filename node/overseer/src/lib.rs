@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -72,7 +72,7 @@ use futures::{channel::oneshot, future::BoxFuture, select, Future, FutureExt, St
 use lru::LruCache;
 
 use client::{BlockImportNotification, BlockchainEvents, FinalityNotification};
-use polkadot_primitives::v2::{Block, BlockNumber, Hash};
+use polkadot_primitives::{Block, BlockNumber, Hash};
 
 use self::messages::{BitfieldSigningMessage, PvfCheckerMessage};
 use polkadot_node_subsystem_types::messages::{
@@ -117,13 +117,12 @@ pub const KNOWN_LEAVES_CACHE_SIZE: NonZeroUsize = match NonZeroUsize::new(2 * 24
 	None => panic!("Known leaves cache size must be non-zero"),
 };
 
+#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 mod memory_stats;
 #[cfg(test)]
 mod tests;
 
 use sp_core::traits::SpawnNamed;
-
-use memory_stats::MemoryAllocationTracker;
 
 /// Glue to connect `trait orchestra::Spawner` and `SpawnNamed` from `substrate`.
 pub struct SpawnGlue<S>(pub S);
@@ -370,7 +369,7 @@ pub async fn forward_events<P: BlockchainEvents<Block>>(client: Arc<P>, mut hand
 /// # use std::time::Duration;
 /// # use futures::{executor, pin_mut, select, FutureExt};
 /// # use futures_timer::Delay;
-/// # use polkadot_primitives::v2::Hash;
+/// # use polkadot_primitives::Hash;
 /// # use polkadot_overseer::{
 /// # 	self as overseer,
 /// #   OverseerSignal,
@@ -530,7 +529,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	availability_store: AvailabilityStore,
 
-	#[subsystem(NetworkBridgeRxMessage, sends: [
+	#[subsystem(blocking, NetworkBridgeRxMessage, sends: [
 		BitfieldDistributionMessage,
 		StatementDistributionMessage,
 		ApprovalDistributionMessage,
@@ -541,7 +540,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	network_bridge_rx: NetworkBridgeRx,
 
-	#[subsystem(NetworkBridgeTxMessage, sends: [])]
+	#[subsystem(blocking, NetworkBridgeTxMessage, sends: [])]
 	network_bridge_tx: NetworkBridgeTx,
 
 	#[subsystem(blocking, ChainApiMessage, sends: [])]
@@ -560,7 +559,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	collator_protocol: CollatorProtocol,
 
-	#[subsystem(ApprovalDistributionMessage, sends: [
+	#[subsystem(blocking, message_capacity: 64000, ApprovalDistributionMessage, sends: [
 		NetworkBridgeTxMessage,
 		ApprovalVotingMessage,
 	])]
@@ -585,7 +584,7 @@ pub struct Overseer<SupportsParachains> {
 	])]
 	gossip_support: GossipSupport,
 
-	#[subsystem(blocking, DisputeCoordinatorMessage, sends: [
+	#[subsystem(blocking, message_capacity: 32000, DisputeCoordinatorMessage, sends: [
 		RuntimeApiMessage,
 		ChainApiMessage,
 		DisputeDistributionMessage,
@@ -593,6 +592,7 @@ pub struct Overseer<SupportsParachains> {
 		ApprovalVotingMessage,
 		AvailabilityStoreMessage,
 		AvailabilityRecoveryMessage,
+		ChainSelectionMessage,
 	])]
 	dispute_coordinator: DisputeCoordinator,
 
@@ -611,11 +611,6 @@ pub struct Overseer<SupportsParachains> {
 
 	/// Stores the [`jaeger::Span`] per active leaf.
 	pub span_per_active_leaf: HashMap<Hash, Arc<jaeger::Span>>,
-
-	/// A set of leaves that `Overseer` starts working with.
-	///
-	/// Drained at the beginning of `run` and never used again.
-	pub leaves: Vec<(Hash, BlockNumber)>,
 
 	/// The set of the "active leaves".
 	pub active_leaves: HashMap<Hash, BlockNumber>,
@@ -653,8 +648,9 @@ where
 	}
 	let subsystem_meters = overseer.map_subsystems(ExtractNameAndMeters);
 
+	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> =
-		match MemoryAllocationTracker::new() {
+		match memory_stats::MemoryAllocationTracker::new() {
 			Ok(memory_stats) =>
 				Box::new(move |metrics: &OverseerMetrics| match memory_stats.snapshot() {
 					Ok(memory_stats_snapshot) => {
@@ -677,6 +673,9 @@ where
 				Box::new(|_| {})
 			},
 		};
+
+	#[cfg(not(any(target_os = "linux", feature = "jemalloc-allocator")))]
+	let collect_memory_stats: Box<dyn Fn(&OverseerMetrics) + Send> = Box::new(|_| {});
 
 	let metronome = Metronome::new(std::time::Duration::from_millis(950)).for_each(move |_| {
 		collect_memory_stats(&metronome_metrics);
@@ -723,16 +722,6 @@ where
 	async fn run_inner(mut self) -> SubsystemResult<()> {
 		let metrics = self.metrics.clone();
 		spawn_metronome_metrics(&mut self, metrics)?;
-
-		// Notify about active leaves on startup before starting the loop
-		for (hash, number) in std::mem::take(&mut self.leaves) {
-			let _ = self.active_leaves.insert(hash, number);
-			if let Some((span, status)) = self.on_head_activated(&hash, None).await {
-				let update =
-					ActiveLeavesUpdate::start_work(ActivatedLeaf { hash, number, status, span });
-				self.broadcast_signal(OverseerSignal::ActiveLeaves(update)).await?;
-			}
-		}
 
 		loop {
 			select! {

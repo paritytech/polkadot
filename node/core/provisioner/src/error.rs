@@ -1,4 +1,4 @@
-// Copyright 2017-2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@ use fatality::Nested;
 use futures::channel::{mpsc, oneshot};
 use polkadot_node_subsystem::errors::{ChainApiError, RuntimeApiError, SubsystemError};
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v2::Hash;
+use polkadot_primitives::Hash;
 
 pub type FatalResult<T> = std::result::Result<T, FatalError>;
 pub type Result<T> = std::result::Result<T, Error>;
@@ -75,6 +75,10 @@ pub enum Error {
 
 	#[error(transparent)]
 	SubsystemError(#[from] SubsystemError),
+
+	#[fatal]
+	#[error(transparent)]
+	OverseerExited(SubsystemError),
 }
 
 /// Used by `get_onchain_disputes` to represent errors related to fetching on-chain disputes from the Runtime

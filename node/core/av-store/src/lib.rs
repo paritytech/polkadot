@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -30,6 +30,7 @@ use futures::{channel::oneshot, future, select, FutureExt};
 use futures_timer::Delay;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use polkadot_node_subsystem_util::database::{DBTransaction, Database};
+use sp_consensus::SyncOracle;
 
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use polkadot_node_primitives::{AvailableData, ErasureChunk};
@@ -39,7 +40,7 @@ use polkadot_node_subsystem::{
 	overseer, ActiveLeavesUpdate, FromOrchestra, OverseerSignal, SpawnedSubsystem, SubsystemError,
 };
 use polkadot_node_subsystem_util as util;
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, Hash, Header, ValidatorIndex,
 };
 
@@ -451,16 +452,23 @@ pub struct AvailabilityStoreSubsystem {
 	finalized_number: Option<BlockNumber>,
 	metrics: Metrics,
 	clock: Box<dyn Clock>,
+	sync_oracle: Box<dyn SyncOracle + Send + Sync>,
 }
 
 impl AvailabilityStoreSubsystem {
 	/// Create a new `AvailabilityStoreSubsystem` with a given config on disk.
-	pub fn new(db: Arc<dyn Database>, config: Config, metrics: Metrics) -> Self {
+	pub fn new(
+		db: Arc<dyn Database>,
+		config: Config,
+		sync_oracle: Box<dyn SyncOracle + Send + Sync>,
+		metrics: Metrics,
+	) -> Self {
 		Self::with_pruning_config_and_clock(
 			db,
 			config,
 			PruningConfig::default(),
 			Box::new(SystemClock),
+			sync_oracle,
 			metrics,
 		)
 	}
@@ -471,6 +479,7 @@ impl AvailabilityStoreSubsystem {
 		config: Config,
 		pruning_config: PruningConfig,
 		clock: Box<dyn Clock>,
+		sync_oracle: Box<dyn SyncOracle + Send + Sync>,
 		metrics: Metrics,
 	) -> Self {
 		Self {
@@ -480,6 +489,7 @@ impl AvailabilityStoreSubsystem {
 			metrics,
 			clock,
 			known_blocks: KnownUnfinalizedBlocks::default(),
+			sync_oracle,
 			finalized_number: None,
 		}
 	}
@@ -570,6 +580,19 @@ async fn run_iteration<Context>(
 				FromOrchestra::Signal(OverseerSignal::BlockFinalized(hash, number)) => {
 					let _timer = subsystem.metrics.time_process_block_finalized();
 
+					if !subsystem.known_blocks.is_known(&hash) {
+						// If we haven't processed this block yet,
+						// make sure we write the metadata about the
+						// candidates backed in this finalized block.
+						// Otherwise, we won't be able to store our chunk
+						// for these candidates.
+						if !subsystem.sync_oracle.is_major_syncing() {
+							// If we're major syncing, processing finalized
+							// blocks might take quite a very long time
+							// and make the subsystem unresponsive.
+							process_block_activated(ctx, subsystem, hash).await?;
+						}
+					}
 					subsystem.finalized_number = Some(number);
 					subsystem.known_blocks.prune_finalized(number);
 					process_block_finalized(

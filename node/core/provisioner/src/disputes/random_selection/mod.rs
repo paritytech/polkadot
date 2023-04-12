@@ -1,4 +1,4 @@
-// Copyright 2017-2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -24,7 +24,7 @@
 use crate::{metrics, LOG_TARGET};
 use futures::channel::oneshot;
 use polkadot_node_subsystem::{messages::DisputeCoordinatorMessage, overseer};
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	CandidateHash, DisputeStatement, DisputeStatementSet, MultiDisputeStatementSet, SessionIndex,
 };
 use std::collections::HashSet;

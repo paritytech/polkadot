@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use crate::{
 	ops::{add_block_entry, canonicalize, force_approve, NewCandidateInfo},
 };
 use polkadot_node_subsystem_util::database::Database;
-use polkadot_primitives::v2::Id as ParaId;
+use polkadot_primitives::Id as ParaId;
 use std::{collections::HashMap, sync::Arc};
 
 use ::test_helpers::{dummy_candidate_receipt, dummy_candidate_receipt_bad_sig, dummy_hash};
@@ -401,7 +401,7 @@ fn canonicalize_works() {
 			assert_eq!(entry.candidates.len(), with_candidates.len());
 
 			for x in with_candidates {
-				assert!(entry.candidates.iter().position(|&(_, ref c)| c == &x).is_some());
+				assert!(entry.candidates.iter().any(|(_, c)| c == &x));
 			}
 		}
 	};

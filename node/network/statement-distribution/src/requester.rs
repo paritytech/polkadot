@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // Polkadot is free software: you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
@@ -30,7 +30,7 @@ use polkadot_node_network_protocol::{
 };
 use polkadot_node_subsystem::{Span, Stage};
 use polkadot_node_subsystem_util::TimeoutExt;
-use polkadot_primitives::v2::{CandidateHash, CommittedCandidateReceipt, Hash};
+use polkadot_primitives::{CandidateHash, CommittedCandidateReceipt, Hash};
 
 use crate::{metrics::Metrics, COST_WRONG_HASH, LOG_TARGET};
 

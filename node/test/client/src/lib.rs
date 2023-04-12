@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -20,7 +20,7 @@
 
 mod block_builder;
 
-use polkadot_primitives::v2::Block;
+use polkadot_primitives::Block;
 use sc_service::client;
 use sp_core::storage::Storage;
 use sp_runtime::BuildStorage;

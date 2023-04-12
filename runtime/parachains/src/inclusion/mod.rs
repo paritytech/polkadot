@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -27,11 +27,11 @@ use crate::{
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
-use primitives::v2::{
-	AvailabilityBitfield, BackedCandidate, CandidateCommitments, CandidateDescriptor,
-	CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex, GroupIndex, Hash,
-	HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields, ValidatorId,
-	ValidatorIndex, ValidityAttestation,
+use primitives::{
+	supermajority_threshold, AvailabilityBitfield, BackedCandidate, CandidateCommitments,
+	CandidateDescriptor, CandidateHash, CandidateReceipt, CommittedCandidateReceipt, CoreIndex,
+	GroupIndex, Hash, HeadData, Id as ParaId, SigningContext, UncheckedSignedAvailabilityBitfields,
+	ValidatorId, ValidatorIndex, ValidityAttestation,
 };
 use scale_info::TypeInfo;
 use sp_runtime::{traits::One, DispatchError};
@@ -184,7 +184,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -574,7 +573,7 @@ impl<T: Config> Pallet<T> {
 
 						// check the signatures in the backing and that it is a majority.
 						{
-							let maybe_amount_validated = primitives::v2::check_candidate_backing(
+							let maybe_amount_validated = primitives::check_candidate_backing(
 								&backed_candidate,
 								&signing_context,
 								group_vals.len(),
@@ -644,7 +643,7 @@ impl<T: Config> Pallet<T> {
 		};
 
 		// one more sweep for actually writing to storage.
-		let core_indices = core_indices_and_backers.iter().map(|&(ref c, _, _)| *c).collect();
+		let core_indices = core_indices_and_backers.iter().map(|(c, _, _)| *c).collect();
 		for (candidate, (core, backers, group)) in
 			candidates.into_iter().zip(core_indices_and_backers)
 		{
@@ -691,7 +690,7 @@ impl<T: Config> Pallet<T> {
 	/// Run the acceptance criteria checks on the given candidate commitments.
 	pub(crate) fn check_validation_outputs_for_runtime_api(
 		para_id: ParaId,
-		validation_outputs: primitives::v2::CandidateCommitments,
+		validation_outputs: primitives::CandidateCommitments,
 	) -> bool {
 		// This function is meant to be called from the runtime APIs against the relay-parent, hence
 		// `relay_parent_number` is equal to `now`.
@@ -900,9 +899,7 @@ impl<T: Config> Pallet<T> {
 }
 
 const fn availability_threshold(n_validators: usize) -> usize {
-	let mut threshold = (n_validators * 2) / 3;
-	threshold += (n_validators * 2) % 3;
-	threshold
+	supermajority_threshold(n_validators)
 }
 
 #[derive(derive_more::From, Debug)]
@@ -1037,11 +1034,11 @@ impl<T: Config> CandidateCheckContext<T> {
 		&self,
 		para_id: ParaId,
 		head_data: &HeadData,
-		new_validation_code: &Option<primitives::v2::ValidationCode>,
+		new_validation_code: &Option<primitives::ValidationCode>,
 		processed_downward_messages: u32,
-		upward_messages: &[primitives::v2::UpwardMessage],
+		upward_messages: &[primitives::UpwardMessage],
 		hrmp_watermark: T::BlockNumber,
-		horizontal_messages: &[primitives::v2::OutboundHrmpMessage<ParaId>],
+		horizontal_messages: &[primitives::OutboundHrmpMessage<ParaId>],
 	) -> Result<(), AcceptanceCheckErr<T::BlockNumber>> {
 		ensure!(
 			head_data.0.len() <= self.config.max_head_data_size as _,

@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -31,7 +31,7 @@ use frame_support::{
 };
 use frame_system::pallet_prelude::*;
 pub use pallet::*;
-use primitives::v2::Id as ParaId;
+use primitives::Id as ParaId;
 use sp_runtime::traits::{CheckedConversion, CheckedSub, Saturating, Zero};
 use sp_std::prelude::*;
 
@@ -67,7 +67,6 @@ pub mod pallet {
 	use super::*;
 
 	#[pallet::pallet]
-	#[pallet::generate_store(pub(super) trait Store)]
 	#[pallet::without_storage_info]
 	pub struct Pallet<T>(_);
 
@@ -506,7 +505,7 @@ mod tests {
 	use frame_support::{assert_noop, assert_ok, parameter_types};
 	use frame_system::EnsureRoot;
 	use pallet_balances;
-	use primitives::v2::{BlockNumber, Header};
+	use primitives::{BlockNumber, Header};
 	use sp_core::H256;
 	use sp_runtime::traits::{BlakeTwo256, IdentityLookup};
 
@@ -569,6 +568,10 @@ mod tests {
 		type MaxLocks = ();
 		type MaxReserves = ();
 		type ReserveIdentifier = [u8; 8];
+		type HoldIdentifier = ();
+		type FreezeIdentifier = ();
+		type MaxHolds = ConstU32<1>;
+		type MaxFreezes = ConstU32<1>;
 	}
 
 	parameter_types! {
@@ -845,9 +848,9 @@ mod tests {
 			// max_num different people are reserved for leases to Para ID 1
 			for i in 1u32..=max_num {
 				let j: u64 = i.into();
-				assert_ok!(Slots::lease_out(1.into(), &j, j * 10, i * i, i));
-				assert_eq!(Slots::deposit_held(1.into(), &j), j * 10);
-				assert_eq!(Balances::reserved_balance(j), j * 10);
+				assert_ok!(Slots::lease_out(1.into(), &j, j * 10 - 1, i * i, i));
+				assert_eq!(Slots::deposit_held(1.into(), &j), j * 10 - 1);
+				assert_eq!(Balances::reserved_balance(j), j * 10 - 1);
 			}
 
 			assert_ok!(Slots::clear_all_leases(RuntimeOrigin::root(), 1.into()));
@@ -987,7 +990,7 @@ mod benchmarking {
 	use frame_system::RawOrigin;
 	use sp_runtime::traits::{Bounded, One};
 
-	use frame_benchmarking::{account, benchmarks, whitelisted_caller};
+	use frame_benchmarking::{account, benchmarks, whitelisted_caller, BenchmarkError};
 
 	use crate::slots::Pallet as Slots;
 
@@ -1027,7 +1030,8 @@ mod benchmarking {
 			let amount = T::Currency::minimum_balance();
 			let period_begin = 69u32.into();
 			let period_count = 3u32.into();
-			let origin = T::ForceOrigin::successful_origin();
+			let origin =
+				T::ForceOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 		}: _<T::RuntimeOrigin>(origin, para, leaser.clone(), amount, period_begin, period_count)
 		verify {
 			assert_last_event::<T>(Event::<T>::Leased {
@@ -1061,7 +1065,8 @@ mod benchmarking {
 			// T parathread are upgrading to parachains
 			for (para, leaser) in paras_info {
 				let amount = T::Currency::minimum_balance();
-				let origin = T::ForceOrigin::successful_origin();
+				let origin = T::ForceOrigin::try_successful_origin()
+					.expect("ForceOrigin has no successful origin required for the benchmark");
 				Slots::<T>::force_lease(origin, para, leaser, amount, period_begin, period_count)?;
 			}
 
@@ -1112,7 +1117,8 @@ mod benchmarking {
 				// Average slot has 4 lease periods.
 				let period_count: LeasePeriodOf<T> = 4u32.into();
 				let period_begin = period_count * i.into();
-				let origin = T::ForceOrigin::successful_origin();
+				let origin = T::ForceOrigin::try_successful_origin()
+					.expect("ForceOrigin has no successful origin required for the benchmark");
 				Slots::<T>::force_lease(origin, para, leaser, amount, period_begin, period_count)?;
 			}
 
@@ -1121,7 +1127,8 @@ mod benchmarking {
 				assert_eq!(T::Currency::reserved_balance(&leaser), T::Currency::minimum_balance());
 			}
 
-			let origin = T::ForceOrigin::successful_origin();
+			let origin =
+				T::ForceOrigin::try_successful_origin().map_err(|_| BenchmarkError::Weightless)?;
 		}: _<T::RuntimeOrigin>(origin, para)
 		verify {
 			for i in 0 .. max_people {

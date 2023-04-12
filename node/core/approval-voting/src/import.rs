@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -44,7 +44,7 @@ use polkadot_node_subsystem_util::{
 	determine_new_blocks,
 	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate},
 };
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
 	GroupIndex, Hash, Header, SessionIndex,
 };
@@ -329,13 +329,17 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
-
-	let mut span = jaeger::Span::new(head, "approval-checking-import");
+	let _handle_new_head_span = state
+		.spans
+		.get(&head)
+		.map(|span| span.child("handle-new-head"))
+		.unwrap_or_else(|| jaeger::Span::new(head, "handle-new-head"))
+		.with_string_tag("head", format!("{:?}", head))
+		.with_stage(jaeger::Stage::ApprovalChecking);
 
 	let header = {
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
-
 		match h_rx.await? {
 			Err(e) => {
 				gum::debug!(
@@ -343,11 +347,12 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					"Chain API subsystem temporarily unreachable {}",
 					e,
 				);
-
+				// May be a better way of handling errors here.
 				return Ok(Vec::new())
 			},
 			Ok(None) => {
 				gum::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
+				// May be a better way of handling warnings here.
 				return Ok(Vec::new())
 			},
 			Ok(Some(h)) => h,
@@ -363,7 +368,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				?e,
 				"Could not cache session info when processing head.",
 			);
-
 			return Ok(Vec::new())
 		},
 		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
@@ -390,8 +394,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	)
 	.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 	.await?;
-
-	span.add_uint_tag("new-blocks", new_blocks.len() as u64);
 
 	if new_blocks.is_empty() {
 		return Ok(Vec::new())
@@ -473,6 +475,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			);
 			(block_tick, no_show_duration)
 		};
+
 		let needed_approvals = session_info.needed_approvals;
 		let validator_group_lens: Vec<usize> =
 			session_info.validator_groups.iter().map(|v| v.len()).collect();
@@ -507,11 +510,9 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 						result.len(),
 					);
 				}
-
 				result
 			}
 		};
-
 		// If all bits are already set, then send an approve message.
 		if approved_bitfield.count_ones() == approved_bitfield.len() {
 			ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
@@ -602,7 +603,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	);
 
 	ctx.send_unbounded_message(ApprovalDistributionMessage::NewBlocks(approval_meta));
-
 	Ok(imported_candidates)
 }
 
@@ -617,9 +617,7 @@ pub(crate) mod tests {
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
-	use polkadot_primitives::v2::{
-		Id as ParaId, IndexedVec, SessionInfo, ValidatorId, ValidatorIndex,
-	};
+	use polkadot_primitives::{Id as ParaId, IndexedVec, SessionInfo, ValidatorId, ValidatorIndex};
 	pub(crate) use sp_consensus_babe::{
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
@@ -663,6 +661,7 @@ pub(crate) mod tests {
 			assignment_criteria: Box::new(MockAssignmentCriteria),
 			db,
 			db_config: TEST_CONFIG,
+			spans: HashMap::new(),
 		}
 	}
 
@@ -683,21 +682,21 @@ pub(crate) mod tests {
 			_config: &criteria::Config,
 			_leaving_cores: Vec<(
 				CandidateHash,
-				polkadot_primitives::v2::CoreIndex,
-				polkadot_primitives::v2::GroupIndex,
+				polkadot_primitives::CoreIndex,
+				polkadot_primitives::GroupIndex,
 			)>,
-		) -> HashMap<polkadot_primitives::v2::CoreIndex, criteria::OurAssignment> {
+		) -> HashMap<polkadot_primitives::CoreIndex, criteria::OurAssignment> {
 			HashMap::new()
 		}
 
 		fn check_assignment_cert(
 			&self,
-			_claimed_core_index: polkadot_primitives::v2::CoreIndex,
-			_validator_index: polkadot_primitives::v2::ValidatorIndex,
+			_claimed_core_index: polkadot_primitives::CoreIndex,
+			_validator_index: polkadot_primitives::ValidatorIndex,
 			_config: &criteria::Config,
 			_relay_vrf_story: polkadot_node_primitives::approval::RelayVRFStory,
 			_assignment: &polkadot_node_primitives::approval::AssignmentCert,
-			_backing_group: polkadot_primitives::v2::GroupIndex,
+			_backing_group: polkadot_primitives::GroupIndex,
 		) -> Result<polkadot_node_primitives::approval::DelayTranche, criteria::InvalidAssignment> {
 			Ok(0)
 		}
@@ -1228,7 +1227,7 @@ pub(crate) mod tests {
 		let mut state = single_session_state(session, session_info);
 		overlay_db.write_block_entry(
 			v1::BlockEntry {
-				block_hash: parent_hash.clone(),
+				block_hash: parent_hash,
 				parent_hash: Default::default(),
 				block_number: 4,
 				session,

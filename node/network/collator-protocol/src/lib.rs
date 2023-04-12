@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -28,13 +28,13 @@ use futures::{
 	FutureExt, TryFutureExt,
 };
 
-use sp_keystore::SyncCryptoStorePtr;
+use sp_keystore::KeystorePtr;
 
 use polkadot_node_network_protocol::{
 	request_response::{v1 as request_v1, IncomingRequestReceiver},
 	PeerId, UnifiedReputationChange as Rep,
 };
-use polkadot_primitives::v2::CollatorPair;
+use polkadot_primitives::CollatorPair;
 
 use polkadot_node_subsystem::{
 	errors::SubsystemError, messages::NetworkBridgeTxMessage, overseer, SpawnedSubsystem,
@@ -70,7 +70,7 @@ pub enum ProtocolSide {
 	/// Validators operate on the relay chain.
 	Validator {
 		/// The keystore holding validator keys.
-		keystore: SyncCryptoStorePtr,
+		keystore: KeystorePtr,
 		/// An eviction policy for inactive peers or validators.
 		eviction_policy: CollatorEvictionPolicy,
 		/// Prometheus metrics for validators.

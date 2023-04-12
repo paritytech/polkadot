@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use std::{
 use futures::future::pending;
 
 use polkadot_node_network_protocol::request_response::DISPUTE_REQUEST_TIMEOUT;
-use polkadot_primitives::v2::{CandidateHash, CandidateReceipt};
+use polkadot_primitives::{CandidateHash, CandidateReceipt};
 
 use crate::{
 	receiver::batches::{batch::TickResult, waiting_queue::PendingWake},

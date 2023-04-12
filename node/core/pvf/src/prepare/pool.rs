@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,16 +18,21 @@ use super::worker::{self, Outcome};
 use crate::{
 	error::{PrepareError, PrepareResult},
 	metrics::Metrics,
+	pvf::PvfPrepData,
 	worker_common::{IdleWorker, WorkerHandle},
 	LOG_TARGET,
 };
 use always_assert::never;
-use async_std::path::{Path, PathBuf};
 use futures::{
 	channel::mpsc, future::BoxFuture, stream::FuturesUnordered, Future, FutureExt, StreamExt,
 };
 use slotmap::HopSlotMap;
-use std::{fmt, sync::Arc, task::Poll, time::Duration};
+use std::{
+	fmt,
+	path::{Path, PathBuf},
+	task::Poll,
+	time::Duration,
+};
 
 slotmap::new_key_type! { pub struct Worker; }
 
@@ -60,12 +65,7 @@ pub enum ToPool {
 	///
 	/// In either case, the worker is considered busy and no further `StartWork` messages should be
 	/// sent until either `Concluded` or `Rip` message is received.
-	StartWork {
-		worker: Worker,
-		code: Arc<Vec<u8>>,
-		artifact_path: PathBuf,
-		preparation_timeout: Duration,
-	},
+	StartWork { worker: Worker, pvf: PvfPrepData, artifact_path: PathBuf },
 }
 
 /// A message sent from pool to its client.
@@ -209,18 +209,18 @@ fn handle_to_pool(
 			metrics.prepare_worker().on_begin_spawn();
 			mux.push(spawn_worker_task(program_path.to_owned(), spawn_timeout).boxed());
 		},
-		ToPool::StartWork { worker, code, artifact_path, preparation_timeout } => {
+		ToPool::StartWork { worker, pvf, artifact_path } => {
 			if let Some(data) = spawned.get_mut(worker) {
 				if let Some(idle) = data.idle.take() {
 					let preparation_timer = metrics.time_preparation();
 					mux.push(
 						start_work_task(
+							metrics.clone(),
 							worker,
 							idle,
-							code,
+							pvf,
 							cache_path.to_owned(),
 							artifact_path,
-							preparation_timeout,
 							preparation_timer,
 						)
 						.boxed(),
@@ -263,16 +263,15 @@ async fn spawn_worker_task(program_path: PathBuf, spawn_timeout: Duration) -> Po
 }
 
 async fn start_work_task<Timer>(
+	metrics: Metrics,
 	worker: Worker,
 	idle: IdleWorker,
-	code: Arc<Vec<u8>>,
+	pvf: PvfPrepData,
 	cache_path: PathBuf,
 	artifact_path: PathBuf,
-	preparation_timeout: Duration,
 	_preparation_timer: Option<Timer>,
 ) -> PoolEvent {
-	let outcome =
-		worker::start_work(idle, code, &cache_path, artifact_path, preparation_timeout).await;
+	let outcome = worker::start_work(&metrics, idle, pvf, &cache_path, artifact_path).await;
 	PoolEvent::StartWork(worker, outcome)
 }
 
@@ -322,14 +321,14 @@ fn handle_mux(
 
 					Ok(())
 				},
-				Outcome::IoErr => {
+				Outcome::IoErr(err) => {
 					if attempt_retire(metrics, spawned, worker) {
 						reply(
 							from_pool,
 							FromPool::Concluded {
 								worker,
 								rip: true,
-								result: Err(PrepareError::IoErr),
+								result: Err(PrepareError::IoErr(err)),
 							},
 						)?;
 					}

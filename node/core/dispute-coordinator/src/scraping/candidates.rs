@@ -1,4 +1,20 @@
-use polkadot_primitives::v2::{BlockNumber, CandidateHash};
+// Copyright (C) Parity Technologies (UK) Ltd.
+// This file is part of Polkadot.
+
+// Polkadot is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+
+// Polkadot is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+
+// You should have received a copy of the GNU General Public License
+// along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+use polkadot_primitives::{BlockNumber, CandidateHash};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 /// Keeps `CandidateHash` in reference counted way.
@@ -44,7 +60,7 @@ impl RefCountedCandidates {
 #[cfg(test)]
 mod ref_counted_candidates_tests {
 	use super::*;
-	use polkadot_primitives::v2::{BlakeTwo256, HashT};
+	use polkadot_primitives::{BlakeTwo256, HashT};
 
 	#[test]
 	fn element_is_removed_when_refcount_reaches_zero() {
@@ -102,15 +118,18 @@ impl ScrapedCandidates {
 	}
 
 	// Removes all candidates up to a given height. The candidates at the block height are NOT removed.
-	pub fn remove_up_to_height(&mut self, height: &BlockNumber) {
+	pub fn remove_up_to_height(&mut self, height: &BlockNumber) -> HashSet<CandidateHash> {
+		let mut candidates_modified: HashSet<CandidateHash> = HashSet::new();
 		let not_stale = self.candidates_by_block_number.split_off(&height);
 		let stale = std::mem::take(&mut self.candidates_by_block_number);
 		self.candidates_by_block_number = not_stale;
 		for candidates in stale.values() {
 			for c in candidates {
 				self.candidates.remove(c);
+				candidates_modified.insert(*c);
 			}
 		}
+		candidates_modified
 	}
 
 	pub fn insert(&mut self, block_number: BlockNumber, candidate_hash: CandidateHash) {
@@ -131,7 +150,7 @@ impl ScrapedCandidates {
 #[cfg(test)]
 mod scraped_candidates_tests {
 	use super::*;
-	use polkadot_primitives::v2::{BlakeTwo256, HashT};
+	use polkadot_primitives::{BlakeTwo256, HashT};
 
 	#[test]
 	fn stale_candidates_are_removed() {

@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@
 //!
 
 use crate::PeerId;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
+use polkadot_primitives::{AuthorityDiscoveryId, SessionIndex, ValidatorIndex};
 use rand::{CryptoRng, Rng};
 use std::{
 	collections::{hash_map, HashMap, HashSet},

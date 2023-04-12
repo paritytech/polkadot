@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -34,12 +34,12 @@ pub(super) struct GenesisConfigBuilder {
 impl Default for GenesisConfigBuilder {
 	fn default() -> Self {
 		Self {
-			max_upward_message_size: 16,
+			max_upward_message_size: 32,
 			max_upward_message_num_per_candidate: 2,
 			max_upward_queue_count: 4,
 			max_upward_queue_size: 64,
-			ump_service_total_weight: Weight::from_ref_time(1000).set_proof_size(1000),
-			ump_max_individual_weight: Weight::from_ref_time(100).set_proof_size(100),
+			ump_service_total_weight: Weight::from_parts(1000, 1000),
+			ump_max_individual_weight: Weight::from_parts(100, 100),
 		}
 	}
 }
@@ -72,20 +72,20 @@ fn default_genesis_config() -> MockGenesisConfig {
 }
 
 fn queue_upward_msg(para: ParaId, msg: UpwardMessage) {
-	let msgs = vec![msg];
+	let msgs: UpwardMessages = vec![msg].try_into().unwrap();
 	assert!(Ump::check_upward_messages(&Configuration::config(), para, &msgs).is_ok());
 	let _ = Ump::receive_upward_messages(para, msgs);
 }
 
 fn assert_storage_consistency_exhaustive() {
 	// check that empty queues don't clutter the storage.
-	for (_para, queue) in <Ump as Store>::RelayDispatchQueues::iter() {
+	for (_para, queue) in RelayDispatchQueues::<Test>::iter() {
 		assert!(!queue.is_empty());
 	}
 
 	// actually count the counts and sizes in queues and compare them to the bookkept version.
-	for (para, queue) in <Ump as Store>::RelayDispatchQueues::iter() {
-		let (expected_count, expected_size) = <Ump as Store>::RelayDispatchQueueSize::get(para);
+	for (para, queue) in RelayDispatchQueues::<Test>::iter() {
+		let (expected_count, expected_size) = RelayDispatchQueueSize::<Test>::get(para);
 		let (actual_count, actual_size) = queue
 			.into_iter()
 			.fold((0, 0), |(acc_count, acc_size), x| (acc_count + 1, acc_size + x.len() as u32));
@@ -96,24 +96,22 @@ fn assert_storage_consistency_exhaustive() {
 
 	// since we wipe the empty queues the sets of paras in queue contents, queue sizes and
 	// need dispatch set should all be equal.
-	let queue_contents_set = <Ump as Store>::RelayDispatchQueues::iter()
+	let queue_contents_set =
+		RelayDispatchQueues::<Test>::iter().map(|(k, _)| k).collect::<HashSet<ParaId>>();
+	let queue_sizes_set = RelayDispatchQueueSize::<Test>::iter()
 		.map(|(k, _)| k)
 		.collect::<HashSet<ParaId>>();
-	let queue_sizes_set = <Ump as Store>::RelayDispatchQueueSize::iter()
-		.map(|(k, _)| k)
-		.collect::<HashSet<ParaId>>();
-	let needs_dispatch_set =
-		<Ump as Store>::NeedsDispatch::get().into_iter().collect::<HashSet<ParaId>>();
+	let needs_dispatch_set = NeedsDispatch::<Test>::get().into_iter().collect::<HashSet<ParaId>>();
 	assert_eq!(queue_contents_set, queue_sizes_set);
 	assert_eq!(queue_contents_set, needs_dispatch_set);
 
 	// `NextDispatchRoundStartWith` should point into a para that is tracked.
-	if let Some(para) = <Ump as Store>::NextDispatchRoundStartWith::get() {
+	if let Some(para) = NextDispatchRoundStartWith::<Test>::get() {
 		assert!(queue_contents_set.contains(&para));
 	}
 
 	// `NeedsDispatch` is always sorted.
-	assert!(<Ump as Store>::NeedsDispatch::get().windows(2).all(|xs| xs[0] <= xs[1]));
+	assert!(NeedsDispatch::<Test>::get().windows(2).all(|xs| xs[0] <= xs[1]));
 }
 
 #[test]
@@ -156,7 +154,7 @@ fn dispatch_resume_after_exceeding_dispatch_stage_weight() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(500).set_proof_size(500),
+			ump_service_total_weight: Weight::from_parts(500, 500),
 			..Default::default()
 		}
 		.build(),
@@ -203,8 +201,8 @@ fn dispatch_keeps_message_after_weight_exhausted() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(500).set_proof_size(500),
-			ump_max_individual_weight: Weight::from_ref_time(300).set_proof_size(300),
+			ump_service_total_weight: Weight::from_parts(500, 500),
+			ump_max_individual_weight: Weight::from_parts(300, 300),
 			..Default::default()
 		}
 		.build(),
@@ -243,7 +241,7 @@ fn dispatch_correctly_handle_remove_of_latest() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(900).set_proof_size(900),
+			ump_service_total_weight: Weight::from_parts(900, 900),
 			..Default::default()
 		}
 		.build(),
@@ -269,7 +267,7 @@ fn verify_relay_dispatch_queue_size_is_externally_accessible() {
 	// keys and is decodable into a (u32, u32).
 
 	use parity_scale_codec::Decode as _;
-	use primitives::v2::well_known_keys;
+	use primitives::well_known_keys;
 
 	let a = ParaId::from(228);
 	let msg = vec![1, 2, 3];
@@ -296,7 +294,7 @@ fn service_overweight_unknown() {
 	// the next test.
 	new_test_ext(GenesisConfigBuilder::default().build()).execute_with(|| {
 		assert_noop!(
-			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(1000)),
+			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_parts(1000, 1000)),
 			Error::<Test>::UnknownMessageIndex
 		);
 	});
@@ -312,8 +310,8 @@ fn overweight_queue_works() {
 
 	new_test_ext(
 		GenesisConfigBuilder {
-			ump_service_total_weight: Weight::from_ref_time(900).set_proof_size(900),
-			ump_max_individual_weight: Weight::from_ref_time(300).set_proof_size(300),
+			ump_service_total_weight: Weight::from_parts(900, 900),
+			ump_max_individual_weight: Weight::from_parts(300, 300),
 			..Default::default()
 		}
 		.build(),
@@ -338,7 +336,7 @@ fn overweight_queue_works() {
 				para_a,
 				upward_message_id(&a_msg_3[..]),
 				0,
-				Weight::from_ref_time(500),
+				Weight::from_parts(500, 500),
 			)
 			.into(),
 		);
@@ -346,18 +344,18 @@ fn overweight_queue_works() {
 		// Now verify that if we wanted to service this overweight message with less than enough
 		// weight it will fail.
 		assert_noop!(
-			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(499)),
+			Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_parts(499, 499)),
 			Error::<Test>::WeightOverLimit
 		);
 
 		// ... and if we try to service it with just enough weight it will succeed as well.
-		assert_ok!(Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_ref_time(500)));
-		assert_last_event(Event::OverweightServiced(0, Weight::from_ref_time(500)).into());
+		assert_ok!(Ump::service_overweight(RuntimeOrigin::root(), 0, Weight::from_parts(500, 500)));
+		assert_last_event(Event::OverweightServiced(0, Weight::from_parts(500, 500)).into());
 
 		// ... and if we try to service a message with index that doesn't exist it will error
 		// out.
 		assert_noop!(
-			Ump::service_overweight(RuntimeOrigin::root(), 1, Weight::from_ref_time(1000)),
+			Ump::service_overweight(RuntimeOrigin::root(), 1, Weight::from_parts(1000, 1000)),
 			Error::<Test>::UnknownMessageIndex
 		);
 	});

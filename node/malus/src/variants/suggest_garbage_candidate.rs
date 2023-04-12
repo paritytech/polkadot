@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -33,7 +33,7 @@ use polkadot_cli::{
 };
 use polkadot_node_core_candidate_validation::find_validation_data;
 use polkadot_node_primitives::{AvailableData, BlockData, PoV};
-use polkadot_primitives::v2::CandidateDescriptor;
+use polkadot_primitives::{CandidateDescriptor, CandidateReceipt};
 
 use polkadot_node_subsystem_util::request_validators;
 use sp_core::traits::SpawnNamed;
@@ -53,7 +53,6 @@ use crate::{
 // Import extra types relevant to the particular
 // subsystem.
 use polkadot_node_subsystem::{messages::CandidateBackingMessage, SpawnGlue};
-use polkadot_primitives::v2::CandidateReceipt;
 
 use std::sync::Arc;
 
@@ -166,11 +165,11 @@ where
 					};
 
 					let (collator_id, collator_signature) = {
-						use polkadot_primitives::v2::CollatorPair;
+						use polkadot_primitives::CollatorPair;
 						use sp_core::crypto::Pair;
 
 						let collator_pair = CollatorPair::generate().0;
-						let signature_payload = polkadot_primitives::v2::collator_signature_payload(
+						let signature_payload = polkadot_primitives::collator_signature_payload(
 							&relay_parent,
 							&candidate.descriptor().para_id,
 							&validation_data_hash,

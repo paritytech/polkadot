@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,7 +18,7 @@ use super::*;
 
 use frame_support::assert_ok;
 use keyring::Sr25519Keyring;
-use primitives::v2::{BlockNumber, CollatorId, SessionIndex, ValidatorId};
+use primitives::{BlockNumber, CollatorId, SessionIndex, ValidatorId};
 
 use crate::{
 	configuration::HostConfiguration,
@@ -865,7 +865,7 @@ fn schedule_rotates_groups() {
 			_ => None,
 		});
 
-		let session_start_block = <Scheduler as Store>::SessionStartBlock::get();
+		let session_start_block = SessionStartBlock::<Test>::get();
 		assert_eq!(session_start_block, 1);
 
 		Scheduler::add_parathread_claim(ParathreadClaim(thread_a, collator.clone()));

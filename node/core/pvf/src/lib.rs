@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -108,11 +108,13 @@ pub mod testing;
 pub use sp_tracing;
 
 pub use error::{InvalidCandidate, PrepareError, PrepareResult, ValidationError};
+pub use prepare::PrepareStats;
 pub use priority::Priority;
-pub use pvf::Pvf;
+pub use pvf::PvfPrepData;
 
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
+pub use worker_common::JOB_TIMEOUT_WALL_CLOCK_FACTOR;
 
 pub use execute::worker_entrypoint as execute_worker_entrypoint;
 pub use prepare::worker_entrypoint as prepare_worker_entrypoint;

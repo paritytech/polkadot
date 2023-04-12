@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,7 +19,7 @@
 
 use fatality::Nested;
 use polkadot_node_network_protocol::request_response::outgoing::RequestError;
-use polkadot_primitives::v2::SessionIndex;
+use polkadot_primitives::SessionIndex;
 
 use futures::channel::oneshot;
 

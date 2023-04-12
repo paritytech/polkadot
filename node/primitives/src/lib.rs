@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,24 +22,24 @@
 
 #![deny(missing_docs)]
 
-use std::{pin::Pin, time::Duration};
+use std::pin::Pin;
 
 use bounded_vec::BoundedVec;
 use futures::Future;
 use parity_scale_codec::{Decode, Encode, Error as CodecError, Input};
 use serde::{de, Deserialize, Deserializer, Serialize, Serializer};
 
-use polkadot_primitives::v2::{
+use polkadot_primitives::{
 	BlakeTwo256, BlockNumber, CandidateCommitments, CandidateHash, CollatorPair,
 	CommittedCandidateReceipt, CompactStatement, EncodeAs, Hash, HashT, HeadData, Id as ParaId,
-	OutboundHrmpMessage, PersistedValidationData, SessionIndex, Signed, UncheckedSigned,
-	UpwardMessage, ValidationCode, ValidatorIndex, MAX_CODE_SIZE, MAX_POV_SIZE,
+	PersistedValidationData, SessionIndex, Signed, UncheckedSigned, ValidationCode, ValidatorIndex,
+	MAX_CODE_SIZE, MAX_POV_SIZE,
 };
 pub use sp_consensus_babe::{
 	AllowedSlots as BabeAllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 };
 
-pub use polkadot_parachain::primitives::BlockData;
+pub use polkadot_parachain::primitives::{BlockData, HorizontalMessages, UpwardMessages};
 
 pub mod approval;
 
@@ -64,22 +64,8 @@ pub const VALIDATION_CODE_BOMB_LIMIT: usize = (MAX_CODE_SIZE * 4u32) as usize;
 /// The bomb limit for decompressing PoV blobs.
 pub const POV_BOMB_LIMIT: usize = (MAX_POV_SIZE * 4u32) as usize;
 
-/// The amount of time to spend on execution during backing.
-pub const BACKING_EXECUTION_TIMEOUT: Duration = Duration::from_secs(2);
-
-/// The amount of time to spend on execution during approval or disputes.
-///
-/// This is deliberately much longer than the backing execution timeout to
-/// ensure that in the absence of extremely large disparities between hardware,
-/// blocks that pass backing are considered executable by approval checkers or
-/// dispute participants.
-///
-/// NOTE: If this value is increased significantly, also check the dispute coordinator to consider
-/// candidates longer into finalization: `DISPUTE_CANDIDATE_LIFETIME_AFTER_FINALIZATION`.
-pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
-
 /// How many blocks after finalization an information about backed/included candidate should be
-/// kept.
+/// pre-loaded (when scraoing onchain votes) and kept locally (when pruning).
 ///
 /// We don't want to remove scraped candidates on finalization because we want to
 /// be sure that disputes will conclude on abandoned forks.
@@ -87,6 +73,12 @@ pub const APPROVAL_EXECUTION_TIMEOUT: Duration = Duration::from_secs(12);
 /// avoid slashing. If a bad fork is abandoned too quickly because another
 /// better one gets finalized the entries for the bad fork will be pruned and we
 /// might never participate in a dispute for it.
+///
+/// Why pre-load finalized blocks? I dispute might be raised against finalized candidate. In most
+/// of the cases it will conclude valid (otherwise we are in big trouble) but never the less the
+/// node must participate. It's possible to see a vote for such dispute onchain before we have it
+/// imported by `dispute-distribution`. In this case we won't have `CandidateReceipt` and the import
+/// will fail unless we keep them preloaded.
 ///
 /// This value should consider the timeout we allow for participation in approval-voting. In
 /// particular, the following condition should hold:
@@ -227,7 +219,7 @@ pub type UncheckedSignedFullStatement = UncheckedSigned<Statement, CompactStatem
 /// Candidate invalidity details
 #[derive(Debug)]
 pub enum InvalidCandidate {
-	/// Failed to execute.`validate_block`. This includes function panicking.
+	/// Failed to execute `validate_block`. This includes function panicking.
 	ExecutionError(String),
 	/// Validation outputs check doesn't pass.
 	InvalidOutputs,
@@ -237,8 +229,6 @@ pub enum InvalidCandidate {
 	ParamsTooLarge(u64),
 	/// Code size is over the limit.
 	CodeTooLarge(u64),
-	/// Code does not decompress correctly.
-	CodeDecompressionFailure,
 	/// PoV does not decompress correctly.
 	PoVDecompressionFailure,
 	/// Validation function returned invalid data.
@@ -312,11 +302,11 @@ impl MaybeCompressedPoV {
 /// - contains a proof of validity.
 #[derive(Clone, Encode, Decode)]
 #[cfg(not(target_os = "unknown"))]
-pub struct Collation<BlockNumber = polkadot_primitives::v2::BlockNumber> {
+pub struct Collation<BlockNumber = polkadot_primitives::BlockNumber> {
 	/// Messages destined to be interpreted by the Relay chain itself.
-	pub upward_messages: Vec<UpwardMessage>,
+	pub upward_messages: UpwardMessages,
 	/// The horizontal messages sent by the parachain.
-	pub horizontal_messages: Vec<OutboundHrmpMessage<ParaId>>,
+	pub horizontal_messages: HorizontalMessages,
 	/// New validation code.
 	pub new_validation_code: Option<ValidationCode>,
 	/// The head-data produced as a result of execution.

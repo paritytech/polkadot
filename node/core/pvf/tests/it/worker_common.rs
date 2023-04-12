@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,7 +18,16 @@ use crate::PUPPET_EXE;
 use polkadot_node_core_pvf::testing::worker_common::{spawn_with_program_path, SpawnErr};
 use std::time::Duration;
 
-#[async_std::test]
+// Test spawning a program that immediately exits with a failure code.
+#[tokio::test]
+async fn spawn_immediate_exit() {
+	let result =
+		spawn_with_program_path("integration-test", PUPPET_EXE, &["exit"], Duration::from_secs(2))
+			.await;
+	assert!(matches!(result, Err(SpawnErr::AcceptTimeout)));
+}
+
+#[tokio::test]
 async fn spawn_timeout() {
 	let result =
 		spawn_with_program_path("integration-test", PUPPET_EXE, &["sleep"], Duration::from_secs(2))
@@ -26,7 +35,7 @@ async fn spawn_timeout() {
 	assert!(matches!(result, Err(SpawnErr::AcceptTimeout)));
 }
 
-#[async_std::test]
+#[tokio::test]
 async fn should_connect() {
 	let _ = spawn_with_program_path(
 		"integration-test",

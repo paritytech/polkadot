@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,7 +22,7 @@ use polkadot_node_network_protocol::{
 	PeerId,
 };
 use polkadot_node_primitives::SignedDisputeStatement;
-use polkadot_primitives::v2::{CandidateReceipt, ValidatorIndex};
+use polkadot_primitives::{CandidateReceipt, ValidatorIndex};
 
 use crate::receiver::{BATCH_COLLECTING_INTERVAL, MIN_KEEP_BATCH_ALIVE_VOTES};
 

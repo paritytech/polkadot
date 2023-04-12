@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 
 use std::collections::{BTreeSet, HashMap};
 
-use polkadot_primitives::v2::{CandidateHash, SessionIndex, ValidatorIndex};
+use polkadot_primitives::{CandidateHash, SessionIndex, ValidatorIndex};
 
 use crate::LOG_TARGET;
 

@@ -19,7 +19,7 @@ jobs:
           # Get last rc tag if exists, else set it to {version}-rc1
           version=${GITHUB_REF#refs/heads/release-}
           echo "$version"
-          echo "::set-output name=version::$version"
+          echo "version=$version" >> $GITHUB_OUTPUT
           git tag -l
           last_rc=$(git tag -l "$version-rc*" | sort -V | tail -n 1)
           if [ -n "$last_rc" ]; then
@@ -27,11 +27,11 @@ jobs:
             echo $suffix
             ((suffix++))
             echo $suffix
-            echo "::set-output name=new_tag::$version-rc$suffix"
-            echo "::set-output name=first_rc::false"
+            echo "new_tag=$version-rc$suffix" >> $GITHUB_OUTPUT
+            echo "first_rc=false" >> $GITHUB_OUTPUT
           else
-            echo "::set-output name=new_tag::$version-rc1"
-            echo "::set-output name=first_rc::true"
+            echo "new_tag=$version-rc1" >> $GITHUB_OUTPUT
+            echo "first_rc=true" >> $GITHUB_OUTPUT
           fi
       - name: Apply new tag
         uses: tvdias/github-tagger@ed7350546e3e503b5e942dffd65bc8751a95e49d # v0.0.2
@@ -42,7 +42,7 @@ jobs:
           repo-token: "${{ secrets.RELEASE_BRANCH_TOKEN }}"
           tag: ${{ steps.compute_tag.outputs.new_tag }}
       - id: create-issue
-        uses: JasonEtco/create-an-issue@9e6213aec58987fa7d2f4deb8b256b99e63107a2 # v2.6.0
+        uses: JasonEtco/create-an-issue@e27dddc79c92bc6e4562f268fffa5ed752639abd # v2.9.1
         # Only create the issue if it's the first release candidate
         if: steps.compute_tag.outputs.first_rc == 'true'
         env:

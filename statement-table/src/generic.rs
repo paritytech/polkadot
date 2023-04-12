@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -30,7 +30,7 @@ use std::{
 	hash::Hash,
 };
 
-use primitives::v2::{ValidatorSignature, ValidityAttestation as PrimitiveValidityAttestation};
+use primitives::{ValidatorSignature, ValidityAttestation as PrimitiveValidityAttestation};
 
 use parity_scale_codec::{Decode, Encode};
 

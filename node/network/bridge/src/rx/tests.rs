@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -46,7 +46,7 @@ use polkadot_node_subsystem_test_helpers::{
 	SingleItemSink, SingleItemStream, TestSubsystemContextHandle,
 };
 use polkadot_node_subsystem_util::metered;
-use polkadot_primitives::v2::{AuthorityDiscoveryId, Hash};
+use polkadot_primitives::{AuthorityDiscoveryId, Hash};
 
 use sc_network::Multiaddr;
 use sp_keyring::Sr25519Keyring;
@@ -195,6 +195,7 @@ impl TestNetworkHandle {
 			protocol: self.protocol_names.get_main_name(peer_set),
 			negotiated_fallback: None,
 			role: role.into(),
+			received_handshake: vec![],
 		})
 		.await;
 	}

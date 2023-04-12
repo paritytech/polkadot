@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -22,9 +22,6 @@ use frame_support::{
 	traits::{ConstU16, EitherOf},
 };
 use frame_system::EnsureRootWithSuccess;
-
-// Old governance configurations.
-pub mod old;
 
 mod origins;
 pub use origins::{
@@ -82,8 +79,8 @@ impl pallet_referenda::Config for Runtime {
 	type Scheduler = Scheduler;
 	type Currency = Balances;
 	type SubmitOrigin = frame_system::EnsureSigned<AccountId>;
-	type CancelOrigin = ReferendumCanceller;
-	type KillOrigin = ReferendumKiller;
+	type CancelOrigin = EitherOf<EnsureRoot<AccountId>, ReferendumCanceller>;
+	type KillOrigin = EitherOf<EnsureRoot<AccountId>, ReferendumKiller>;
 	type Slash = Treasury;
 	type Votes = pallet_conviction_voting::VotesOf<Runtime>;
 	type Tally = pallet_conviction_voting::TallyOf<Runtime>;
