@@ -321,7 +321,7 @@ impl Initialized {
 					let mut gap_in_cache = false;
 					for idx in self
 						.last_consecutive_cached_session
-						.unwrap_or(session_idx.saturating_sub(DISPUTE_WINDOW.get() - 2)) +
+						.unwrap_or(session_idx.saturating_sub(DISPUTE_WINDOW.get())) +
 						1..=session_idx
 					{
 						if let Err(err) = self
