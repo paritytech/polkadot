@@ -117,14 +117,15 @@ impl MuxedMessage {
 		from_v1_responder: &mut mpsc::Receiver<V1ResponderMessage>,
 		from_responder: &mut mpsc::Receiver<vstaging::ResponderMessage>,
 	) -> MuxedMessage {
+		let (request_manager, response_manager) = state.request_and_response_managers();
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
 		let from_orchestra = ctx.recv().fuse();
 		let from_v1_requester = from_v1_requester.next();
 		let from_v1_responder = from_v1_responder.next();
 		let from_responder = from_responder.next();
-		let receive_response = vstaging::receive_response(&mut state.response_manager).fuse();
-		let retry_request = vstaging::next_retry(&mut state.request_manager).fuse();
+		let receive_response = vstaging::receive_response(response_manager).fuse();
+		let retry_request = vstaging::next_retry(request_manager).fuse();
 		futures::pin_mut!(
 			from_orchestra,
 			from_v1_requester,

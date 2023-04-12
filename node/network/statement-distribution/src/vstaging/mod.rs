@@ -206,8 +206,8 @@ pub(crate) struct State {
 	peers: HashMap<PeerId, PeerState>,
 	keystore: SyncCryptoStorePtr,
 	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
-	pub(crate) request_manager: RequestManager,
-	pub(crate) response_manager: ResponseManager,
+	request_manager: RequestManager,
+	response_manager: ResponseManager,
 }
 
 impl State {
@@ -224,6 +224,12 @@ impl State {
 			request_manager: RequestManager::new(),
 			response_manager: ResponseManager::new(),
 		}
+	}
+
+	pub(crate) fn request_and_response_managers(
+		&mut self,
+	) -> (&mut RequestManager, &mut ResponseManager) {
+		(&mut self.request_manager, &mut self.response_manager)
 	}
 }
 
