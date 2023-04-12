@@ -83,13 +83,7 @@ pub(crate) struct Initialized {
 	/// This is the highest `SessionIndex` seen via `ActiveLeavesUpdate`. It doen't matter if it was
 	/// cached successfully or not. It is used to detect ancient disputes.
 	highest_session_seen: SessionIndex,
-	/// This is the `SessionIndex` up to which the cache contains no gaps. For example, we have seen session 5
-	/// and we managed successfully to cache sessions 1, 2, 3 and 5 (caching session 4 failed for
-	/// some reason). In this case we have got `highest_session_seen == 5` and
-	/// `last_consecutive_cached_session == 3`.
-	/// On each `ActiveLeavesUpdate` we'll start fetching sessions from
-	/// `last_consecutive_cached_session + 1` up to the session index of the leaf.
-	/// None means that the cache is empty.
+	/// Will be set to `true` if an error occured during the last caching attempt
 	gaps_in_cache: bool,
 	spam_slots: SpamSlots,
 	participation: Participation,
