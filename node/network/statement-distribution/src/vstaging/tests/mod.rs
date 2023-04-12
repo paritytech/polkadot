@@ -31,6 +31,7 @@ use polkadot_node_subsystem::messages::{
 };
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_types::{jaeger, ActivatedLeaf, LeafStatus};
+use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_primitives::vstaging::{
 	AssignmentPair, AsyncBackingParams, BlockNumber, CommittedCandidateReceipt, CoreState,
 	GroupRotationInfo, HeadData, Header, IndexedVec, PersistedValidationData, ScheduledCore,
@@ -582,6 +583,14 @@ async fn send_new_topology(virtual_overseer: &mut VirtualOverseer, topology: New
 			),
 		})
 		.await;
+}
+
+async fn overseer_recv_with_timeout(
+	overseer: &mut VirtualOverseer,
+	timeout: Duration,
+) -> Option<AllMessages> {
+	gum::trace!("waiting for message...");
+	overseer.recv().timeout(timeout).await
 }
 
 fn next_group_index(

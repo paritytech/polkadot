@@ -58,9 +58,12 @@ use futures::{
 	SinkExt, StreamExt,
 };
 
-use std::collections::{
-	hash_map::{Entry, HashMap},
-	HashSet,
+use std::{
+	collections::{
+		hash_map::{Entry, HashMap},
+		HashSet,
+	},
+	time::{Duration, Instant},
 };
 
 use crate::{
@@ -74,7 +77,7 @@ use groups::Groups;
 use requests::{CandidateIdentifier, RequestProperties};
 use statement_store::{StatementOrigin, StatementStore};
 
-pub use requests::{RequestManager, UnhandledResponse};
+pub use requests::{RequestManager, ResponseManager, UnhandledResponse};
 
 mod candidates;
 mod cluster;
@@ -120,6 +123,9 @@ const BENEFIT_VALID_RESPONSE: Rep = Rep::BenefitMajor("Peer Answered Candidate R
 const BENEFIT_VALID_STATEMENT: Rep = Rep::BenefitMajor("Peer provided a valid statement");
 const BENEFIT_VALID_STATEMENT_FIRST: Rep =
 	Rep::BenefitMajorFirst("Peer was the first to provide a given valid statement");
+
+/// The amount of time to wait before retrying when the node sends a request and it is dropped.
+pub(crate) const REQUEST_RETRY_DELAY: Duration = Duration::from_secs(1);
 
 struct PerRelayParentState {
 	local_validator: Option<LocalValidatorState>,
@@ -200,6 +206,7 @@ pub(crate) struct State {
 	keystore: KeystorePtr,
 	authorities: HashMap<AuthorityDiscoveryId, PeerId>,
 	request_manager: RequestManager,
+	response_manager: ResponseManager,
 }
 
 impl State {
@@ -214,7 +221,14 @@ impl State {
 			keystore,
 			authorities: HashMap::new(),
 			request_manager: RequestManager::new(),
+			response_manager: ResponseManager::new(),
 		}
+	}
+
+	pub(crate) fn request_and_response_managers(
+		&mut self,
+	) -> (&mut RequestManager, &mut ResponseManager) {
+		(&mut self.request_manager, &mut self.response_manager)
 	}
 }
 
@@ -2312,6 +2326,10 @@ async fn apply_post_confirmation<Context>(
 /// Dispatch pending requests for candidate data & statements.
 #[overseer::contextbounds(StatementDistribution, prefix=self::overseer)]
 pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut State) {
+	if !state.request_manager.has_pending_requests() {
+		return
+	}
+
 	let peers = &state.peers;
 	let peer_advertised = |identifier: &CandidateIdentifier, peer: &_| {
 		let peer_data = peers.get(peer)?;
@@ -2373,7 +2391,11 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 		})
 	};
 
-	while let Some(request) = state.request_manager.next_request(request_props, peer_advertised) {
+	while let Some(request) = state.request_manager.next_request(
+		&mut state.response_manager,
+		request_props,
+		peer_advertised,
+	) {
 		// Peer is supposedly connected.
 		ctx.send_message(NetworkBridgeTxMessage::SendRequests(
 			vec![Requests::AttestedCandidateVStaging(request)],
@@ -2386,9 +2408,20 @@ pub(crate) async fn dispatch_requests<Context>(ctx: &mut Context, state: &mut St
 /// Wait on the next incoming response. If there are no requests pending, this
 /// future never resolves. It is the responsibility of the user of this API
 /// to interrupt the future.
-pub(crate) async fn receive_response(state: &mut State) -> UnhandledResponse {
-	match state.request_manager.await_incoming().await {
+pub(crate) async fn receive_response(response_manager: &mut ResponseManager) -> UnhandledResponse {
+	match response_manager.incoming().await {
 		Some(r) => r,
+		None => futures::future::pending().await,
+	}
+}
+
+/// Wait on the next soonest retry on a pending request. If there are no retries pending, this
+/// future never resolves. Note that this only signals that a request is ready to retry; the user of
+/// this API must call `dispatch_requests`.
+pub(crate) async fn next_retry(request_manager: &mut RequestManager) {
+	match request_manager.next_retry_time() {
+		Some(instant) =>
+			futures_timer::Delay::new(instant.saturating_duration_since(Instant::now())).await,
 		None => futures::future::pending().await,
 	}
 }
@@ -2614,7 +2647,7 @@ pub(crate) fn answer_request(state: &mut State, message: ResponderMessage) {
 }
 
 /// Messages coming from the background respond task.
-pub struct ResponderMessage {
+pub(crate) struct ResponderMessage {
 	request: IncomingRequest<AttestedCandidateRequest>,
 	sent_feedback: oneshot::Sender<()>,
 }
@@ -2622,7 +2655,7 @@ pub struct ResponderMessage {
 /// A fetching task, taking care of fetching candidates via request/response.
 ///
 /// Runs in a background task and feeds request to [`answer_request`] through [`MuxedMessage`].
-pub async fn respond_task(
+pub(crate) async fn respond_task(
 	mut receiver: IncomingRequestReceiver<AttestedCandidateRequest>,
 	mut sender: mpsc::Sender<ResponderMessage>,
 ) {
