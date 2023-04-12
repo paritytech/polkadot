@@ -44,9 +44,24 @@ jobs:
         shell: bash
         run: |
           cargo install --git https://github.com/ggwpez/substrate-weight-compare swc
-          ./scripts/ci/github/check_weights_swc.sh ${{ matrix.runtime }} "$LAST_RELEASE" | tee swc_output_${{ matrix.runtime }}.md
+          pip install csv2md
+          ./scripts/ci/github/check_weights_swc.sh ${{ matrix.runtime }} "$LAST_RELEASE" | tee swc_output_${{ matrix.runtime }}.csv
+      - name: Read CSV
+        id: csv
+        uses: juliangruber/read-file-action@v1
+        with:
+          path: ./swc_output_${{ matrix.runtime }}.csv
+      - name: Create MD
+        uses: petems/csv-to-md-table-action@master
+        id: csv-table-output
+        with:
+          csvinput: ${{ steps.csv.outputs.content }}
       - name: Add comment
         uses: thollander/actions-comment-pull-request@v2
         with:
-          filePath: ./swc_output_${{ matrix.runtime }}.md
+          message: |
+            <details>
+            <summary>Weight changes for ${{ matrix.runtime }}</summary>
+            ${{ steps.csv-table-output.outputs.mdtable }}
+            </details>
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
