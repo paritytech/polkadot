@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -763,6 +763,7 @@ where
 			basics.backend.clone(),
 			overseer_handle.clone(),
 			metrics,
+			Some(basics.task_manager.spawn_handle()),
 		)
 	} else {
 		SelectRelayChain::new_longest_chain(basics.backend.clone())
