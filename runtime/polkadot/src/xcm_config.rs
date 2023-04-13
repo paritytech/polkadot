@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -244,13 +244,11 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			) |
 			RuntimeCall::Council(
 				pallet_collective::Call::vote { .. } |
-				pallet_collective::Call::close_old_weight { .. } |
 				pallet_collective::Call::disapprove_proposal { .. } |
 				pallet_collective::Call::close { .. },
 			) |
 			RuntimeCall::TechnicalCommittee(
 				pallet_collective::Call::vote { .. } |
-				pallet_collective::Call::close_old_weight { .. } |
 				pallet_collective::Call::disapprove_proposal { .. } |
 				pallet_collective::Call::close { .. },
 			) |

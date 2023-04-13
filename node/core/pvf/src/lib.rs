@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -114,7 +114,6 @@ pub use pvf::PvfPrepData;
 
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
-pub(crate) use worker_common::kill_parent_node_in_emergency;
 pub use worker_common::JOB_TIMEOUT_WALL_CLOCK_FACTOR;
 
 pub use execute::worker_entrypoint as execute_worker_entrypoint;
