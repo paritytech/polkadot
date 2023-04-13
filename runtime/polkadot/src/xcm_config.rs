@@ -117,7 +117,8 @@ pub type XcmRouter = (
 
 parameter_types! {
 	pub const Dot: MultiAssetFilter = Wild(AllOf { fun: WildFungible, id: Concrete(TokenLocation::get()) });
-	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), Parachain(STATEMINT_ID).into_location());
+	pub const StatemintLocation: MultiLocation = Parachain(STATEMINT_ID).into_location();
+	pub const DotForStatemint: (MultiAssetFilter, MultiLocation) = (Dot::get(), StatemintLocation::get());
 	pub const CollectivesLocation: MultiLocation = Parachain(COLLECTIVES_ID).into_location();
 	pub const DotForCollectives: (MultiAssetFilter, MultiLocation) = (Dot::get(), CollectivesLocation::get());
 	pub const MaxAssetsIntoHolding: u32 = 64;

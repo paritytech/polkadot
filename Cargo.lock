@@ -7615,6 +7615,7 @@ dependencies = [
  "pallet-vesting",
  "pallet-whitelist",
  "pallet-xcm",
+ "pallet-xcm-benchmarks",
  "parity-scale-codec",
  "polkadot-primitives",
  "polkadot-runtime-common",
