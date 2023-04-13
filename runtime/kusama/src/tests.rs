@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -24,6 +24,11 @@ use parity_scale_codec::Encode;
 use runtime_common::MinimumMultiplier;
 use separator::Separatable;
 use sp_runtime::FixedPointNumber;
+
+#[test]
+fn nis_hold_reason_encoding_is_correct() {
+	assert_eq!(NisHoldReason::get().encode(), [38, 0]);
+}
 
 #[test]
 fn remove_keys_weight_is_sensible() {

@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -824,6 +824,8 @@ pub enum ApprovalDistributionMessage {
 		HashSet<(Hash, CandidateIndex)>,
 		oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
 	),
+	/// Approval checking lag update measured in blocks.
+	ApprovalCheckingLagUpdate(BlockNumber),
 }
 
 /// Message to the Gossip Support subsystem.
