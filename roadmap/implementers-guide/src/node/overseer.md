@@ -59,7 +59,8 @@ Subsystems are essential tasks meant to run as long as the node does.The subsyst
 
 ## Communication Between Subsystems
 
-When a subsystem wants to communicate with another subsystem, or, more typically, a job within a subsystem wants to communicate with its counterpart under another subsystem, that communication must happen via the overseer. Consider this example where a job on subsystem A wants to send a message to its counterpart under subsystem B. This is a realistic scenario.
+When a subsystem wants to communicate with another subsystem, that communication must happen via the overseer. 
+
 
 
 ```text
