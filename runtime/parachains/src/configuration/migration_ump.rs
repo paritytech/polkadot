@@ -141,7 +141,6 @@ pub mod v6 {
 				StorageVersion::new(6).put::<Pallet<T>>();
 
 				weight_consumed
-				
 			} else {
 				log::warn!(target: LOG_TARGET, "MigrateV5ToV6 should be removed.");
 				T::DbWeight::get().reads(1)
@@ -156,7 +155,8 @@ pub mod v6 {
 				"Storage version should be 6 after the migration"
 			);
 			ensure!(
-				StorageVersion::get::<Pallet<T>>() == crate::configuration::migration::STORAGE_VERSION,
+				StorageVersion::get::<Pallet<T>>() ==
+					crate::configuration::migration::STORAGE_VERSION,
 				"Storage version should be STORAGE_VERSION after the migration"
 			);
 
