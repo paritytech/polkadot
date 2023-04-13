@@ -1174,7 +1174,7 @@ pub mod pallet {
 		/// Set executor parameters for the next session
 		#[pallet::call_index(46)]
 		#[pallet::weight((
-			Weight::from_parts(0, 0), // FIXME: Benchmark weights
+			T::WeightInfo::set_config_with_executor_params(),
 			DispatchClass::Operational,
 		))]
 		pub fn set_executor_params(origin: OriginFor<T>, new: ExecutorParams) -> DispatchResult {
