@@ -98,12 +98,23 @@ pub mod fee {
 
 /// System Parachains.
 pub mod system_parachain {
+	use xcm::latest::prelude::*;
+
 	/// Westmint parachain ID.
 	pub const WESTMINT_ID: u32 = 1000;
 	/// Collectives parachain ID.
 	pub const COLLECTIVES_ID: u32 = 1001;
 	/// BridgeHub parachain ID.
 	pub const BRIDGE_HUB_ID: u32 = 1002;
+
+	frame_support::match_types! {
+		pub type SystemParachain: impl Contains<MultiLocation> = {
+			MultiLocation {
+				parents: 0,
+				interior: X1(Parachain(WESTMINT_ID | COLLECTIVES_ID | BRIDGE_HUB_ID)),
+			}
+		};
+	}
 }
 
 #[cfg(test)]
