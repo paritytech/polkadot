@@ -94,7 +94,7 @@ TODO: Where is this done?
   - Informs the subsystem that a previously introduced candidate has
     been backed.
   - Sent by the Backing Subsystem after it successfully imports a
-    statement for the first time.
+    statement giving a candidate the necessary quorum of backing votes.
 - `ProspectiveParachainsMessage::GetBackableCandidate`
   - Get a backable candidate hash for a given parachain, under a given
     relay-parent hash, which is a descendant of given candidate hashes.
