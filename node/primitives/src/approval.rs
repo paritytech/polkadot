@@ -16,7 +16,7 @@
 
 //! Types relevant for approval.
 
-pub use sp_consensus_babe::{Randomness, Slot, VrfOutput, VrfProof};
+pub use sp_consensus_babe::{Randomness, Slot, VrfOutput, VrfProof, VrfSignature};
 
 use parity_scale_codec::{Decode, Encode};
 use polkadot_primitives::{
@@ -81,8 +81,8 @@ pub enum AssignmentCertKind {
 pub struct AssignmentCert {
 	/// The criterion which is claimed to be met by this cert.
 	pub kind: AssignmentCertKind,
-	/// The VRF showing the criterion is met.
-	pub vrf: (VrfOutput, VrfProof),
+	/// The VRF signature showing the criterion is met.
+	pub vrf: VrfSignature,
 }
 
 /// An assignment criterion which refers to the candidate under which the assignment is

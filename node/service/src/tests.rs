@@ -17,14 +17,14 @@
 use super::{relay_chain_selection::*, *};
 
 use futures::channel::oneshot::Receiver;
-use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
+use polkadot_node_primitives::approval::{VrfOutput, VrfProof, VrfSignature};
 use polkadot_node_subsystem::messages::{AllMessages, BlockDescription};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
 use polkadot_test_client::Sr25519Keyring;
 use sp_consensus_babe::{
 	digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
-	Transcript,
+	VrfTranscript,
 };
 use sp_runtime::{testing::*, DigestItem};
 use std::{
@@ -129,12 +129,13 @@ async fn overseer_recv_with_timeout(
 const TIMEOUT: Duration = Duration::from_millis(2000);
 
 // used for generating assignments where the validity of the VRF doesn't matter.
-fn garbage_vrf() -> (VRFOutput, VRFProof) {
+fn garbage_vrf_signature() -> VrfSignature {
 	let key = Sr25519Keyring::Alice.pair();
 	let key = key.as_ref();
 
-	let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
-	(VRFOutput(o.to_output()), VRFProof(p))
+	let transcript = VrfTranscript::new(b"test-garbage", &[]);
+	let (o, p, _) = key.vrf_sign(transcript.clone());
+	VrfSignature { output: VrfOutput(o.to_output()), proof: VrfProof(p) }
 }
 
 /// Representation of a local representation
@@ -316,13 +317,12 @@ impl ChainBuilder {
 	fn make_header(parent_hash: Hash, number: u32) -> Header {
 		let digest = {
 			let mut digest = Digest::default();
-			let (vrf_output, vrf_proof) = garbage_vrf();
+			let vrf_signature = garbage_vrf_signature();
 			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
 				SecondaryVRFPreDigest {
 					authority_index: 0,
 					slot: 1.into(), // slot, unused
-					vrf_output,
-					vrf_proof,
+					vrf_signature,
 				},
 			)));
 			digest

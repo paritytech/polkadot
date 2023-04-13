@@ -24,7 +24,7 @@ use polkadot_node_network_protocol::{
 	view, ObservedRole,
 };
 use polkadot_node_primitives::approval::{
-	AssignmentCertKind, VRFOutput, VRFProof, RELAY_VRF_MODULO_CONTEXT,
+	AssignmentCertKind, VrfOutput, VrfProof, VrfSignature, RELAY_VRF_MODULO_CONTEXT,
 };
 use polkadot_node_subsystem::messages::{network_bridge_event, AllMessages, ApprovalCheckError};
 use polkadot_node_subsystem_test_helpers as test_helpers;
@@ -265,7 +265,7 @@ fn fake_assignment_cert(block_hash: Hash, validator: ValidatorIndex) -> Indirect
 		validator,
 		cert: AssignmentCert {
 			kind: AssignmentCertKind::RelayVRFModulo { sample: 1 },
-			vrf: (VRFOutput(out), VRFProof(proof)),
+			vrf: VrfSignature { output: VrfOutput(out), proof: VrfProof(proof) },
 		},
 	}
 }
