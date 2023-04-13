@@ -824,6 +824,8 @@ pub enum ApprovalDistributionMessage {
 		HashSet<(Hash, CandidateIndex)>,
 		oneshot::Sender<HashMap<ValidatorIndex, ValidatorSignature>>,
 	),
+	/// Approval checking lag update measured in blocks.
+	ApprovalCheckingLagUpdate(BlockNumber),
 }
 
 /// Message to the Gossip Support subsystem.
