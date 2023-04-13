@@ -29,6 +29,8 @@ mod adder;
 mod worker_common;
 
 const PUPPET_EXE: &str = env!("CARGO_BIN_EXE_puppet_worker");
+const PREPARE_EXE: &str = env!("CARGO_BIN_EXE_prepare_worker");
+const EXECUTE_EXE: &str = env!("CARGO_BIN_EXE_execute_worker");
 const TEST_EXECUTION_TIMEOUT: Duration = Duration::from_secs(3);
 const TEST_PREPARATION_TIMEOUT: Duration = Duration::from_secs(3);
 
@@ -47,8 +49,10 @@ impl TestHost {
 		F: FnOnce(&mut Config),
 	{
 		let cache_dir = tempfile::tempdir().unwrap();
-		let program_path = std::path::PathBuf::from(PUPPET_EXE);
-		let mut config = Config::new(cache_dir.path().to_owned(), program_path);
+		let prepare_worker_path = std::path::PathBuf::from(PREPARE_EXE);
+		let execute_worker_path = std::path::PathBuf::from(EXECUTE_EXE);
+		let mut config =
+			Config::new(cache_dir.path().to_owned(), prepare_worker_path, execute_worker_path);
 		f(&mut config);
 		let (host, task) = start(config, Metrics::default());
 		let _ = tokio::task::spawn(task);

@@ -125,3 +125,40 @@ pub use sc_executor_common;
 pub use sp_maybe_compressed_blob;
 
 const LOG_TARGET: &str = "parachain::pvf";
+
+/// Use this macro to declare a `fn main() {}` that will create an executable that can be used for
+/// spawning the desired worker.
+#[macro_export(local_inner_macros)]
+macro_rules! decl_worker_main {
+	($command:tt) => {
+		fn main() {
+			$crate::sp_tracing::try_init_simple();
+
+			let args = std::env::args().collect::<Vec<_>>();
+
+			let mut version = None;
+			let mut socket_path: &str = "";
+
+			for i in 1..args.len() {
+				match args[i].as_ref() {
+					"--socket-path" => socket_path = args[i + 1].as_str(),
+					"--node-version" => version = Some(args[i + 1].as_str()),
+					_ => (),
+				}
+			}
+
+			decl_worker_main_command!($command, socket_path, version)
+		}
+	};
+}
+
+#[macro_export]
+#[doc(hidden)]
+macro_rules! decl_worker_main_command {
+	(prepare, $socket_path:expr, $version: expr) => {
+		$crate::prepare_worker_entrypoint(&$socket_path, $version)
+	};
+	(execute, $socket_path:expr, $version: expr) => {
+		$crate::execute_worker_entrypoint(&$socket_path, $version)
+	};
+}

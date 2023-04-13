@@ -160,18 +160,23 @@ pub struct Config {
 
 impl Config {
 	/// Create a new instance of the configuration.
-	pub fn new(cache_path: std::path::PathBuf, program_path: std::path::PathBuf) -> Self {
+	pub fn new(
+		cache_path: std::path::PathBuf,
+		prepare_worker_path: std::path::PathBuf,
+		execute_worker_path: std::path::PathBuf,
+	) -> Self {
 		// Do not contaminate the other parts of the codebase with the types from `tokio`.
 		let cache_path = PathBuf::from(cache_path);
-		let program_path = PathBuf::from(program_path);
+		let prepare_worker_path = PathBuf::from(prepare_worker_path);
+		let execute_worker_path = PathBuf::from(execute_worker_path);
 
 		Self {
 			cache_path,
-			prepare_worker_program_path: program_path.clone(),
+			prepare_worker_program_path: prepare_worker_path.clone(),
 			prepare_worker_spawn_timeout: Duration::from_secs(3),
 			prepare_workers_soft_max_num: 1,
 			prepare_workers_hard_max_num: 1,
-			execute_worker_program_path: program_path,
+			execute_worker_program_path: execute_worker_path,
 			execute_worker_spawn_timeout: Duration::from_secs(3),
 			execute_workers_max_num: 2,
 		}

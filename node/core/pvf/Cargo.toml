@@ -5,6 +5,14 @@ authors.workspace = true
 edition.workspace = true
 
 [[bin]]
+name = "prepare_worker"
+path = "bin/prepare_worker.rs"
+
+[[bin]]
+name = "execute_worker"
+path = "bin/execute_worker.rs"
+
+[[bin]]
 name = "puppet_worker"
 path = "bin/puppet_worker.rs"
 
