@@ -7,7 +7,7 @@ async function run(_, networkInfo, nodeNames) {
   );
 
   // generate proof on arbitrary node
-  const proof = await apis[Math.floor(Math.random(0, apis.length - 1))].rpc.mmr.generateProof([1]);
+  const proof = await apis[Math.floor(Math.random(0, apis.length - 1))].rpc.mmr.generateProof([1, 9, 20]);
 
   const root = await apis[Math.floor(Math.random(0, apis.length - 1))].rpc.mmr.root()
 
