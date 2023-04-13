@@ -55,7 +55,7 @@ pub async fn spawn(
 	spawn_with_program_path(
 		"prepare",
 		program_path,
-		&["prepare-worker", "--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
+		&["--node-impl-version", env!("SUBSTRATE_CLI_IMPL_VERSION")],
 		spawn_timeout,
 	)
 	.await
