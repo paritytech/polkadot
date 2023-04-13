@@ -118,6 +118,10 @@ pub struct RunCmd {
 	#[arg(long)]
 	pub beefy: bool,
 
+	/// Allows the validator to run insecurely if they know what they're doing.
+	#[arg(long = "insecure-validator-i-know-what-i-do", requires = "validator")]
+	pub insecure_validator: bool,
+
 	/// Add the destination address to the jaeger agent.
 	///
 	/// Must be valid socket address, of format `IP:Port`
