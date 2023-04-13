@@ -170,12 +170,10 @@ impl UnsafeVRFOutput {
 			.map_err(ApprovalError::SchnorrkelSignature)?;
 
 		let transcript = sp_consensus_babe::make_transcript(randomness, self.slot, epoch_index);
-		let transcript = sp_core::sr25519::vrf::make_schnorrkel_transcript(&transcript);
 
 		let inout = self
 			.vrf_output
-			.0
-			.attach_input_hash(&pubkey, transcript)
+			.attach_input_hash(&pubkey, transcript.clone())
 			.map_err(ApprovalError::SchnorrkelSignature)?;
 		Ok(RelayVRFStory(inout.make_bytes(RELAY_VRF_STORY_CONTEXT)))
 	}
