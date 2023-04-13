@@ -1516,7 +1516,7 @@ pub type UncheckedExtrinsic =
 pub type Migrations = (
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-	parachains_configuration::migration_ump::MigrateV4ToV5<Runtime>,
+	parachains_configuration::migration::MigrateV5ToV6<Runtime>,
 );
 
 /// Executive: handles dispatch to the various modules.

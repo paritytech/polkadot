@@ -21,18 +21,7 @@ use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
 use primitives::vstaging::AsyncBackingParams;
 
-pub use v5::MigrateV4ToV5;
-
-/// The current storage version.
-///
-/// v0-v1: <https://github.com/paritytech/polkadot/pull/3575>
-/// v1-v2: <https://github.com/paritytech/polkadot/pull/4420>
-/// v2-v3: <https://github.com/paritytech/polkadot/pull/6091> (remove weights)
-/// v3-v4: <https://github.com/paritytech/polkadot/pull/6345> (remove spam slots)
-/// v4-v5: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
-
-pub mod v5 {
+pub mod v6 {
 	use super::*;
 	use frame_support::traits::OnRuntimeUpgrade;
 	use primitives::{Balance, SessionIndex};
@@ -40,7 +29,7 @@ pub mod v5 {
 	use sp_std::prelude::*;
 
 	#[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug)]
-	pub struct V4HostConfiguration<BlockNumber> {
+	pub struct OldHostConfiguration<BlockNumber> {
 		pub max_code_size: u32,
 		pub max_head_data_size: u32,
 		pub max_upward_queue_count: u32,
@@ -85,7 +74,7 @@ pub mod v5 {
 		pub minimum_validation_upgrade_delay: BlockNumber,
 	}
 
-	impl<BlockNumber: Default + From<u32>> Default for V4HostConfiguration<BlockNumber> {
+	impl<BlockNumber: Default + From<u32>> Default for OldHostConfiguration<BlockNumber> {
 		fn default() -> Self {
 			Self {
 				group_rotation_frequency: 1u32.into(),
@@ -134,26 +123,26 @@ pub mod v5 {
 		}
 	}
 
-	pub struct MigrateV4ToV5<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Config> OnRuntimeUpgrade for MigrateV4ToV5<T> {
+	pub struct MigrateV5ToV6<T>(sp_std::marker::PhantomData<T>);
+	impl<T: Config> OnRuntimeUpgrade for MigrateV5ToV6<T> {
 		#[cfg(feature = "try-runtime")]
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-			ensure!(StorageVersion::get::<Pallet<T>>() == 4, "The migration requires version 4");
+			ensure!(StorageVersion::get::<Pallet<T>>() == 5, "The migration requires version 5");
 			log::trace!(target: LOG_TARGET, "Going to upgraded parachain config...");
 
 			Ok(Vec::new())
 		}
 
 		fn on_runtime_upgrade() -> Weight {
-			if StorageVersion::get::<Pallet<T>>() == 4 {
-				let weight_consumed = migrate_v4_to_v5::<T>();
+			if StorageVersion::get::<Pallet<T>>() == 5 {
+				let weight_consumed = migrate_v5_to_v6::<T>();
 
-				log::info!(target: LOG_TARGET, "MigrateV4ToV5 executed successfully");
-				STORAGE_VERSION.put::<Pallet<T>>();
+				log::info!(target: LOG_TARGET, "MigrateV5ToV6 executed successfully");
+				StorageVersion::new(6).put::<Pallet<T>>();
 
 				weight_consumed
 			} else {
-				log::warn!(target: LOG_TARGET, "MigrateV4ToV5 should be removed.");
+				log::warn!(target: LOG_TARGET, "MigrateV5ToV6 should be removed.");
 				T::DbWeight::get().reads(1)
 			}
 		}
@@ -162,8 +151,12 @@ pub mod v5 {
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
 			log::trace!(target: LOG_TARGET, "Running post_upgrade()");
 			ensure!(
-				StorageVersion::get::<Pallet<T>>() == 5,
-				"Storage version should be 5 after the migration"
+				StorageVersion::get::<Pallet<T>>() == 6,
+				"Storage version should be 6 after the migration"
+			);
+			ensure!(
+				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
+				"Storage version should be STORAGE_VERSION after the migration"
 			);
 
 			Ok(())
@@ -171,14 +164,14 @@ pub mod v5 {
 	}
 }
 
-fn migrate_v4_to_v5<T: Config>() -> Weight {
+fn migrate_v5_to_v6<T: Config>() -> Weight {
 	// Unusual formatting is justified:
 	// - make it easier to verify that fields assign what they supposed to assign.
 	// - this code is transient and will be removed after all migrations are done.
 	// - this code is important enough to optimize for legibility sacrificing consistency.
 	#[rustfmt::skip]
 	let translate =
-		|pre: v5::V4HostConfiguration<BlockNumberFor<T>>| ->
+		|pre: v6::OldHostConfiguration<BlockNumberFor<T>>| ->
 configuration::HostConfiguration<BlockNumberFor<T>>
 	{
 		super::HostConfiguration {
@@ -243,16 +236,15 @@ async_backing_params                     : AsyncBackingParams { max_candidate_de
 mod tests {
 	use frame_support::weights::constants::{WEIGHT_PROOF_SIZE_PER_MB, WEIGHT_REF_TIME_PER_MILLIS};
 
-	use super::*;
+	use super::{v6::*, *};
 	use crate::mock::{new_test_ext, Test};
 	use frame_support::traits::OnRuntimeUpgrade;
 
-	/// The old V4 config can be decoded from actual on-chain data.
+	/// The old config can be decoded from actual on-chain data.
 	#[test]
-	fn v4_deserialized_from_actual_data() {
+	fn v5_deserialized_from_actual_data() {
 		// Example how to get new `raw_config`:
-		// We'll obtain the raw_config for block
-		// 16,832,711 (0x2e3d78b87f0811f18a8b8469596aa7d8c9ef10d622b90d647f10ceebee3e380c) on Kusama.
+		// We'll obtain the raw_config for block on Kusama.
 		// Steps:
 		// 1. Go to Polkadot.js -> Developer -> Chain state -> Storage: https://polkadot.js.org/apps/#/chainstate
 		// 2. Set these parameters:
@@ -263,31 +255,39 @@ mod tests {
 		// 3. Go to Polkadot.js -> Developer -> Chain state -> Raw storage
 		//   3.1 Enter the encoded storage key and you get the raw config.
 
-		// Fetched at Kusama 16,832,711 (0x2e3d78b87f0811f18a8b8469596aa7d8c9ef10d622b90d647f10ceebee3e380c)
+		// Fetched at Kusama 17,467,443
 		//
 		// This exceeds the maximal line width length, but that's fine, since this is not code and
 		// doesn't need to be read and also leaving it as one line allows to easily copy it.
-		let raw_config = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c800000700e8764817020040011e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c80000000600000058020000580200000200000059000000000000001e000000280000000700c817a80402004001010200000014000000"];
+		let raw_ksm = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c800000700e8764817020040011e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c80000000600000058020000580200000200000059000000000000001e000000280000000700c817a80402004001010200000014000000"];
 
-		let v4 = v5::V4HostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_config[..])
-			.unwrap();
+		// Same for Polkadot block 15,075,732
+		let raw_dot = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a00000040380000580200000000500000c800000700e8764817020040011e0000000000000000e8764817000000000000000000000000e87648170000000000000000000000e8030000009001001e00000000000000009001004038000000000000000000000a0000000a0000000a00000001000000010500000001c80000000600000058020000580200000200000059000000000000001e000000280000000700c817a80402004001010200000014000000"];
 
-		// We check only a sample of the values here. If we missed any fields or messed up data types
-		// that would skew all the fields coming after.
-		assert_eq!(v4.max_code_size, 10_485_760);
-		assert_eq!(v4.validation_upgrade_cooldown, 3600);
-		assert_eq!(v4.max_pov_size, 5_242_880);
-		assert_eq!(v4.hrmp_channel_max_message_size, 102_400);
-		assert_eq!(v4.n_delay_tranches, 89);
-		assert_eq!(
-			v4.ump_max_individual_weight,
-			Weight::from_parts(20 * WEIGHT_REF_TIME_PER_MILLIS, 5 * WEIGHT_PROOF_SIZE_PER_MB)
-		);
-		assert_eq!(v4.minimum_validation_upgrade_delay, 20);
+		let check = |old: v6::OldHostConfiguration<primitives::BlockNumber>, cd: u32| {
+			assert_eq!(old.max_code_size, 10_485_760);
+			assert_eq!(old.validation_upgrade_cooldown, cd);
+			assert_eq!(old.max_pov_size, 5_242_880);
+			assert_eq!(old.hrmp_channel_max_message_size, 102_400);
+			assert_eq!(old.n_delay_tranches, 89);
+			assert_eq!(
+				old.ump_max_individual_weight,
+				Weight::from_parts(20 * WEIGHT_REF_TIME_PER_MILLIS, 5 * WEIGHT_PROOF_SIZE_PER_MB)
+			);
+			assert_eq!(old.minimum_validation_upgrade_delay, 20);
+		};
+
+		let old_ksm =
+			v6::OldHostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_ksm[..]).unwrap();
+		check(old_ksm, 3_600);
+
+		let old_dot =
+			v6::OldHostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_dot[..]).unwrap();
+		check(old_dot, 14_400);
 	}
 
 	#[test]
-	fn test_migrate_v4_to_v5() {
+	fn test_migrate_v5_to_v6() {
 		// Host configuration has lots of fields. However, in this migration we add only a couple of
 		// fields. The most important part to check are a couple of the last fields. We also pick
 		// extra fields to check arbitrarily, e.g. depending on their position (i.e. the middle) and
@@ -296,7 +296,7 @@ mod tests {
 		// We specify only the picked fields and the rest should be provided by the `Default`
 		// implementation. That implementation is copied over between the two types and should work
 		// fine.
-		let v4 = v5::V4HostConfiguration::<primitives::BlockNumber> {
+		let old = v6::OldHostConfiguration::<primitives::BlockNumber> {
 			ump_max_individual_weight: Weight::from_parts(0x71616e6f6e0au64, 0x71616e6f6e0au64),
 			needed_approvals: 69,
 			thread_availability_period: 55,
@@ -308,62 +308,62 @@ mod tests {
 		};
 
 		new_test_ext(Default::default()).execute_with(|| {
-			// Implant the v4 version in the state.
+			// Implant the old version in the state.
 			frame_support::storage::unhashed::put_raw(
 				&configuration::ActiveConfig::<Test>::hashed_key(),
-				&v4.encode(),
+				&old.encode(),
 			);
-			StorageVersion::new(4).put::<Pallet<Test>>();
+			StorageVersion::new(5).put::<Pallet<Test>>();
 
 			#[cfg(feature = "try-runtime")]
-			MigrateV4ToV5::<Test>::pre_upgrade().unwrap();
-			let _weight = MigrateV4ToV5::<Test>::on_runtime_upgrade();
+			MigrateV5ToV6::<Test>::pre_upgrade().unwrap();
+			let _weight = MigrateV5ToV6::<Test>::on_runtime_upgrade();
 			#[cfg(feature = "try-runtime")]
-			MigrateV4ToV5::<Test>::post_upgrade(vec![]).unwrap();
+			MigrateV5ToV6::<Test>::post_upgrade(vec![]).unwrap();
 
 			let v5 = configuration::ActiveConfig::<Test>::get();
 
 			#[rustfmt::skip]
 			{
-				assert_eq!(v4.max_code_size                            , v5.max_code_size);
-				assert_eq!(v4.max_head_data_size                       , v5.max_head_data_size);
-				assert_eq!(v4.max_upward_queue_count                   , v5.max_upward_queue_count);
-				assert_eq!(v4.max_upward_queue_size                    , v5.max_upward_queue_size);
-				assert_eq!(v4.max_upward_message_size                  , v5.max_upward_message_size);
-				assert_eq!(v4.max_upward_message_num_per_candidate     , v5.max_upward_message_num_per_candidate);
-				assert_eq!(v4.hrmp_max_message_num_per_candidate       , v5.hrmp_max_message_num_per_candidate);
-				assert_eq!(v4.validation_upgrade_cooldown              , v5.validation_upgrade_cooldown);
-				assert_eq!(v4.validation_upgrade_delay                 , v5.validation_upgrade_delay);
-				assert_eq!(v4.max_pov_size                             , v5.max_pov_size);
-				assert_eq!(v4.max_downward_message_size                , v5.max_downward_message_size);
-				assert_eq!(v4.hrmp_max_parachain_outbound_channels     , v5.hrmp_max_parachain_outbound_channels);
-				assert_eq!(v4.hrmp_max_parathread_outbound_channels    , v5.hrmp_max_parathread_outbound_channels);
-				assert_eq!(v4.hrmp_sender_deposit                      , v5.hrmp_sender_deposit);
-				assert_eq!(v4.hrmp_recipient_deposit                   , v5.hrmp_recipient_deposit);
-				assert_eq!(v4.hrmp_channel_max_capacity                , v5.hrmp_channel_max_capacity);
-				assert_eq!(v4.hrmp_channel_max_total_size              , v5.hrmp_channel_max_total_size);
-				assert_eq!(v4.hrmp_max_parachain_inbound_channels      , v5.hrmp_max_parachain_inbound_channels);
-				assert_eq!(v4.hrmp_max_parathread_inbound_channels     , v5.hrmp_max_parathread_inbound_channels);
-				assert_eq!(v4.hrmp_channel_max_message_size            , v5.hrmp_channel_max_message_size);
-				assert_eq!(v4.code_retention_period                    , v5.code_retention_period);
-				assert_eq!(v4.parathread_cores                         , v5.parathread_cores);
-				assert_eq!(v4.parathread_retries                       , v5.parathread_retries);
-				assert_eq!(v4.group_rotation_frequency                 , v5.group_rotation_frequency);
-				assert_eq!(v4.chain_availability_period                , v5.chain_availability_period);
-				assert_eq!(v4.thread_availability_period               , v5.thread_availability_period);
-				assert_eq!(v4.scheduling_lookahead                     , v5.scheduling_lookahead);
-				assert_eq!(v4.max_validators_per_core                  , v5.max_validators_per_core);
-				assert_eq!(v4.max_validators                           , v5.max_validators);
-				assert_eq!(v4.dispute_period                           , v5.dispute_period);
-				assert_eq!(v4.dispute_post_conclusion_acceptance_period, v5.dispute_post_conclusion_acceptance_period);
-				assert_eq!(v4.no_show_slots                            , v5.no_show_slots);
-				assert_eq!(v4.n_delay_tranches                         , v5.n_delay_tranches);
-				assert_eq!(v4.zeroth_delay_tranche_width               , v5.zeroth_delay_tranche_width);
-				assert_eq!(v4.needed_approvals                         , v5.needed_approvals);
-				assert_eq!(v4.relay_vrf_modulo_samples                 , v5.relay_vrf_modulo_samples);
-				assert_eq!(v4.pvf_checking_enabled                     , v5.pvf_checking_enabled);
-				assert_eq!(v4.pvf_voting_ttl                           , v5.pvf_voting_ttl);
-				assert_eq!(v4.minimum_validation_upgrade_delay         , v5.minimum_validation_upgrade_delay);
+				assert_eq!(old.max_code_size                            , v5.max_code_size);
+				assert_eq!(old.max_head_data_size                       , v5.max_head_data_size);
+				assert_eq!(old.max_upward_queue_count                   , v5.max_upward_queue_count);
+				assert_eq!(old.max_upward_queue_size                    , v5.max_upward_queue_size);
+				assert_eq!(old.max_upward_message_size                  , v5.max_upward_message_size);
+				assert_eq!(old.max_upward_message_num_per_candidate     , v5.max_upward_message_num_per_candidate);
+				assert_eq!(old.hrmp_max_message_num_per_candidate       , v5.hrmp_max_message_num_per_candidate);
+				assert_eq!(old.validation_upgrade_cooldown              , v5.validation_upgrade_cooldown);
+				assert_eq!(old.validation_upgrade_delay                 , v5.validation_upgrade_delay);
+				assert_eq!(old.max_pov_size                             , v5.max_pov_size);
+				assert_eq!(old.max_downward_message_size                , v5.max_downward_message_size);
+				assert_eq!(old.hrmp_max_parachain_outbound_channels     , v5.hrmp_max_parachain_outbound_channels);
+				assert_eq!(old.hrmp_max_parathread_outbound_channels    , v5.hrmp_max_parathread_outbound_channels);
+				assert_eq!(old.hrmp_sender_deposit                      , v5.hrmp_sender_deposit);
+				assert_eq!(old.hrmp_recipient_deposit                   , v5.hrmp_recipient_deposit);
+				assert_eq!(old.hrmp_channel_max_capacity                , v5.hrmp_channel_max_capacity);
+				assert_eq!(old.hrmp_channel_max_total_size              , v5.hrmp_channel_max_total_size);
+				assert_eq!(old.hrmp_max_parachain_inbound_channels      , v5.hrmp_max_parachain_inbound_channels);
+				assert_eq!(old.hrmp_max_parathread_inbound_channels     , v5.hrmp_max_parathread_inbound_channels);
+				assert_eq!(old.hrmp_channel_max_message_size            , v5.hrmp_channel_max_message_size);
+				assert_eq!(old.code_retention_period                    , v5.code_retention_period);
+				assert_eq!(old.parathread_cores                         , v5.parathread_cores);
+				assert_eq!(old.parathread_retries                       , v5.parathread_retries);
+				assert_eq!(old.group_rotation_frequency                 , v5.group_rotation_frequency);
+				assert_eq!(old.chain_availability_period                , v5.chain_availability_period);
+				assert_eq!(old.thread_availability_period               , v5.thread_availability_period);
+				assert_eq!(old.scheduling_lookahead                     , v5.scheduling_lookahead);
+				assert_eq!(old.max_validators_per_core                  , v5.max_validators_per_core);
+				assert_eq!(old.max_validators                           , v5.max_validators);
+				assert_eq!(old.dispute_period                           , v5.dispute_period);
+				assert_eq!(old.dispute_post_conclusion_acceptance_period, v5.dispute_post_conclusion_acceptance_period);
+				assert_eq!(old.no_show_slots                            , v5.no_show_slots);
+				assert_eq!(old.n_delay_tranches                         , v5.n_delay_tranches);
+				assert_eq!(old.zeroth_delay_tranche_width               , v5.zeroth_delay_tranche_width);
+				assert_eq!(old.needed_approvals                         , v5.needed_approvals);
+				assert_eq!(old.relay_vrf_modulo_samples                 , v5.relay_vrf_modulo_samples);
+				assert_eq!(old.pvf_checking_enabled                     , v5.pvf_checking_enabled);
+				assert_eq!(old.pvf_voting_ttl                           , v5.pvf_voting_ttl);
+				assert_eq!(old.minimum_validation_upgrade_delay         , v5.minimum_validation_upgrade_delay);
 			}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
 		});
 	}

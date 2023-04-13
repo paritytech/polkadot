@@ -29,7 +29,11 @@ use sp_std::vec::Vec;
 /// v2-v3: <https://github.com/paritytech/polkadot/pull/6091>
 /// v3-v4: <https://github.com/paritytech/polkadot/pull/6345>
 /// v4-v5: <https://github.com/paritytech/polkadot/pull/6937> + <https://github.com/paritytech/polkadot/pull/6961>
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
+/// v5-v6: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(6);
+
+// The V6 migration is in its own file to avoid merge conflicts.
+pub use crate::configuration::migration_ump::v6::MigrateV5ToV6;
 
 pub mod v5 {
 	use super::*;

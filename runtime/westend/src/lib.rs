@@ -1267,7 +1267,7 @@ pub type Migrations = (
 	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-	parachains_configuration::migration::MigrateV4ToV5<Runtime>,
+	parachains_configuration::migration::MigrateV5ToV6<Runtime>,
 );
 
 /// Unchecked extrinsic type as expected by this runtime.
