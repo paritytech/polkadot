@@ -2,8 +2,9 @@ name: Check updated weights
 
 on:
   pull_request:
-    paths:
-      - 'runtime/*/src/weights/**'
+    # uncomment before merging
+    # paths:
+      # - 'runtime/*/src/weights/'
 
 jobs:
   check_weights_files:
