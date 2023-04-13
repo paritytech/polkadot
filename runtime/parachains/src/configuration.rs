@@ -1171,7 +1171,7 @@ pub mod pallet {
 			})
 		}
 
-		/// Set executor parameters for the next session
+		/// Set PVF executor parameters.
 		#[pallet::call_index(46)]
 		#[pallet::weight((
 			T::WeightInfo::set_config_with_executor_params(),
