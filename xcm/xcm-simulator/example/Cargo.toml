@@ -7,7 +7,7 @@ version.workspace = true
 
 [dependencies]
 codec = { package = "parity-scale-codec", version = "3.4.0" }
-scale-info = { version = "2.1.2", features = ["derive"] }
+scale-info = { version = "2.5.0", features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 
 frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
