@@ -8,7 +8,7 @@ version.workspace = true
 targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
-codec = { package = "parity-scale-codec", version = "3.3.0", default-features = false }
+codec = { package = "parity-scale-codec", version = "3.4.0", default-features = false }
 scale-info = { version = "2.1.2", default-features = false, features = ["derive"] }
 frame-support = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }
 frame-system = { default-features = false, branch = "master", git = "https://github.com/paritytech/substrate" }

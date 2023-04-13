@@ -103,6 +103,9 @@ enum MuxedMessage {
 	Responder(Option<vstaging::ResponderMessage>),
 	/// Messages from answered requests.
 	Response(vstaging::UnhandledResponse),
+	/// Message that a request is ready to be retried. This just acts as a signal that we should
+	/// dispatch all pending requests again.
+	RetryRequest(()),
 }
 
 #[overseer::contextbounds(StatementDistribution, prefix = self::overseer)]
@@ -114,19 +117,22 @@ impl MuxedMessage {
 		from_v1_responder: &mut mpsc::Receiver<V1ResponderMessage>,
 		from_responder: &mut mpsc::Receiver<vstaging::ResponderMessage>,
 	) -> MuxedMessage {
+		let (request_manager, response_manager) = state.request_and_response_managers();
 		// We are only fusing here to make `select` happy, in reality we will quit if one of those
 		// streams end:
 		let from_orchestra = ctx.recv().fuse();
 		let from_v1_requester = from_v1_requester.next();
 		let from_v1_responder = from_v1_responder.next();
 		let from_responder = from_responder.next();
-		let receive_response = vstaging::receive_response(state).fuse();
+		let receive_response = vstaging::receive_response(response_manager).fuse();
+		let retry_request = vstaging::next_retry(request_manager).fuse();
 		futures::pin_mut!(
 			from_orchestra,
 			from_v1_requester,
 			from_v1_responder,
 			from_responder,
-			receive_response
+			receive_response,
+			retry_request,
 		);
 		futures::select! {
 			msg = from_orchestra => MuxedMessage::Subsystem(msg.map_err(FatalError::SubsystemReceive)),
@@ -134,6 +140,7 @@ impl MuxedMessage {
 			msg = from_v1_responder => MuxedMessage::V1Responder(msg),
 			msg = from_responder => MuxedMessage::Responder(msg),
 			msg = receive_response => MuxedMessage::Response(msg),
+			msg = retry_request => MuxedMessage::RetryRequest(msg),
 		}
 	}
 }
@@ -190,6 +197,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 		.map_err(FatalError::SpawnTask)?;
 
 		loop {
+			// Wait for the next message.
 			let message = MuxedMessage::receive(
 				&mut ctx,
 				&mut state,
@@ -198,6 +206,7 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				&mut res_receiver,
 			)
 			.await;
+
 			match message {
 				MuxedMessage::Subsystem(result) => {
 					let result = self
@@ -243,6 +252,11 @@ impl<R: rand::Rng> StatementDistributionSubsystem<R> {
 				},
 				MuxedMessage::Response(result) => {
 					vstaging::handle_response(&mut ctx, &mut state, result).await;
+				},
+				MuxedMessage::RetryRequest(()) => {
+					// A pending request is ready to retry. This is only a signal to call
+					// `dispatch_requests` again.
+					()
 				},
 			};
 

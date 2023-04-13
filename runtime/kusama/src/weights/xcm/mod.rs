@@ -243,7 +243,8 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for KusamaXcmWeight<RuntimeCall> {
 		Weight::MAX
 	}
 	fn export_message(_: &NetworkId, _: &Junctions, _: &Xcm<()>) -> Weight {
-		Weight::MAX // todo fix
+		// Kusama relay should not support export message operations
+		Weight::MAX
 	}
 	fn lock_asset(_: &MultiAsset, _: &MultiLocation) -> Weight {
 		// Kusama does not currently support asset locking operations

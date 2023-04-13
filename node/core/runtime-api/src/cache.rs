@@ -66,7 +66,7 @@ pub(crate) struct RequestResultCache {
 	disputes: LruCache<Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>>,
 
 	staging_para_backing_state: LruCache<(Hash, ParaId), Option<vstaging_primitives::BackingState>>,
-	staging_async_backing_parameters: LruCache<Hash, vstaging_primitives::AsyncBackingParameters>,
+	staging_async_backing_params: LruCache<Hash, vstaging_primitives::AsyncBackingParams>,
 }
 
 impl Default for RequestResultCache {
@@ -96,7 +96,7 @@ impl Default for RequestResultCache {
 			disputes: LruCache::new(DEFAULT_CACHE_CAP),
 
 			staging_para_backing_state: LruCache::new(DEFAULT_CACHE_CAP),
-			staging_async_backing_parameters: LruCache::new(DEFAULT_CACHE_CAP),
+			staging_async_backing_params: LruCache::new(DEFAULT_CACHE_CAP),
 		}
 	}
 }
@@ -408,19 +408,19 @@ impl RequestResultCache {
 		self.staging_para_backing_state.put(key, value);
 	}
 
-	pub(crate) fn staging_async_backing_parameters(
+	pub(crate) fn staging_async_backing_params(
 		&mut self,
 		key: &Hash,
-	) -> Option<&vstaging_primitives::AsyncBackingParameters> {
-		self.staging_async_backing_parameters.get(key)
+	) -> Option<&vstaging_primitives::AsyncBackingParams> {
+		self.staging_async_backing_params.get(key)
 	}
 
-	pub(crate) fn cache_staging_async_backing_parameters(
+	pub(crate) fn cache_staging_async_backing_params(
 		&mut self,
 		key: Hash,
-		value: vstaging_primitives::AsyncBackingParameters,
+		value: vstaging_primitives::AsyncBackingParams,
 	) {
-		self.staging_async_backing_parameters.put(key, value);
+		self.staging_async_backing_params.put(key, value);
 	}
 }
 
@@ -461,5 +461,5 @@ pub(crate) enum RequestResult {
 	Disputes(Hash, Vec<(SessionIndex, CandidateHash, DisputeState<BlockNumber>)>),
 
 	StagingParaBackingState(Hash, ParaId, Option<vstaging_primitives::BackingState>),
-	StagingAsyncBackingParameters(Hash, vstaging_primitives::AsyncBackingParameters),
+	StagingAsyncBackingParams(Hash, vstaging_primitives::AsyncBackingParams),
 }

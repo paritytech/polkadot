@@ -19,7 +19,7 @@
 use crate::{configuration, dmp, hrmp, initializer, paras, shared, ump};
 use primitives::{
 	vstaging::{
-		AsyncBackingParameters, BackingState, CandidatePendingAvailability, Constraints,
+		AsyncBackingParams, BackingState, CandidatePendingAvailability, Constraints,
 		InboundHrmpLimitations, OutboundHrmpChannelLimitations,
 	},
 	Id as ParaId,
@@ -38,10 +38,7 @@ pub fn backing_state<T: initializer::Config>(
 	// Thus, minimum relay parent is ensured to have asynchronous backing enabled.
 	let now = <frame_system::Pallet<T>>::block_number();
 	let min_relay_parent_number = <shared::Pallet<T>>::allowed_relay_parents()
-		.hypothetical_earliest_block_number(
-			now,
-			config.async_backing_parameters.allowed_ancestry_len,
-		);
+		.hypothetical_earliest_block_number(now, config.async_backing_params.allowed_ancestry_len);
 
 	let required_parent = <paras::Pallet<T>>::para_head(para_id)?;
 	let validation_code_hash = <paras::Pallet<T>>::current_code_hash(para_id)?;
@@ -115,7 +112,7 @@ pub fn backing_state<T: initializer::Config>(
 	Some(BackingState { constraints, pending_availability })
 }
 
-/// Implementation for `StagingAsyncBackingParameters` function from the runtime API
-pub fn async_backing_parameters<T: configuration::Config>() -> AsyncBackingParameters {
-	<configuration::Pallet<T>>::config().async_backing_parameters
+/// Implementation for `StagingAsyncBackingParams` function from the runtime API
+pub fn async_backing_params<T: configuration::Config>() -> AsyncBackingParams {
+	<configuration::Pallet<T>>::config().async_backing_params
 }

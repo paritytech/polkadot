@@ -13,9 +13,6 @@
 
 //! The implementation of the inclusion emulator for the 'staging' runtime version.
 //!
-//! This is currently `v1` (`v2`?), but will evolve to `v3`.
-// TODO https://github.com/paritytech/polkadot/issues/4803
-//!
 //! # Overview
 //!
 //! A set of utilities for node-side code to emulate the logic the runtime uses for checking
