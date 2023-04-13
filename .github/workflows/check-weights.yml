@@ -37,11 +37,13 @@ jobs:
         uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      - name: Check weight changes
-        shell: bash
-        run: |
-          cargo install --git https://github.com/ggwpez/substrate-weight-compare swc
-          ./scripts/ci/github/check_weights_swc.sh ${{ matrix.runtime }} "$LAST_RELEASE" | tee swc_output_${{ matrix.runtime }}.md
+      - uses: addnab/docker-run-action@v3
+        with:
+          registry: gcr.io
+          image: ggwpez/swc:sha-1e66f1b
+          options: -v ${{ github.workspace }}:/polkadot -w /polkadot
+          run: |
+            /polkadot/scripts/ci/github/check_weights_swc.sh ${{ matrix.runtime }} "$LAST_RELEASE" | tee /polkadot/swc_output_${{ matrix.runtime }}.md
       - name: Add comment
         uses: thollander/actions-comment-pull-request@v2
         with:
