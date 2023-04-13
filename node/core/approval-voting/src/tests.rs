@@ -568,7 +568,7 @@ where
 }
 
 fn make_candidate(para_id: ParaId, hash: &Hash) -> CandidateReceipt {
-	let mut r = dummy_candidate_receipt_bad_sig(hash.clone(), Some(Default::default()));
+	let mut r = dummy_candidate_receipt_bad_sig(*hash, Some(Default::default()));
 	r.descriptor.para_id = para_id;
 	r
 }
@@ -662,13 +662,13 @@ impl ChainBuilder {
 		builder
 	}
 
-	pub fn add_block<'a>(
-		&'a mut self,
+	pub fn add_block(
+		&mut self,
 		hash: Hash,
 		parent_hash: Hash,
 		number: u32,
 		config: BlockConfig,
-	) -> &'a mut Self {
+	) -> &mut Self {
 		assert!(number != 0, "cannot add duplicate genesis block");
 		assert!(hash != Self::GENESIS_HASH, "cannot add block with genesis hash");
 		assert!(
@@ -679,13 +679,13 @@ impl ChainBuilder {
 		self.add_block_inner(hash, parent_hash, number, config)
 	}
 
-	fn add_block_inner<'a>(
-		&'a mut self,
+	fn add_block_inner(
+		&mut self,
 		hash: Hash,
 		parent_hash: Hash,
 		number: u32,
 		config: BlockConfig,
-	) -> &'a mut Self {
+	) -> &mut Self {
 		let header = ChainBuilder::make_header(parent_hash, config.slot, number);
 		assert!(
 			self.blocks_by_hash.insert(hash, (header, config)).is_none(),
@@ -1108,7 +1108,7 @@ fn blank_subsystem_act_on_bad_block() {
 			FromOrchestra::Communication {
 				msg: ApprovalVotingMessage::CheckAndImportAssignment(
 					IndirectAssignmentCert {
-						block_hash: bad_block_hash.clone(),
+						block_hash: bad_block_hash,
 						validator: 0u32.into(),
 						cert: garbage_assignment_cert(AssignmentCertKind::RelayVRFModulo {
 							sample: 0,
@@ -2605,11 +2605,7 @@ where
 				candidate_hash,
 				1,
 				expect_chain_approved,
-				Some(sign_approval(
-					validators[validator_index as usize].clone(),
-					candidate_hash,
-					1,
-				)),
+				Some(sign_approval(validators[validator_index as usize], candidate_hash, 1)),
 			)
 			.await;
 			assert_eq!(rx.await, Ok(ApprovalCheckResult::Accepted));

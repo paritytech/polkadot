@@ -304,7 +304,7 @@ impl pallet_balances::Config for Runtime {
 	type WeightInfo = weights::pallet_balances::WeightInfo<Runtime>;
 	type FreezeIdentifier = ();
 	type MaxFreezes = ();
-	type HoldIdentifier = HoldReason;
+	type HoldIdentifier = RuntimeHoldReason;
 	type MaxHolds = ConstU32<1>;
 }
 
@@ -930,7 +930,7 @@ parameter_types! {
 	Decode,
 	RuntimeDebug,
 	MaxEncodedLen,
-	scale_info::TypeInfo,
+	TypeInfo,
 )]
 pub enum ProxyType {
 	Any,
@@ -1296,27 +1296,7 @@ parameter_types! {
 	pub const ThawThrottle: (Perquintill, BlockNumber) = (Perquintill::from_percent(25), 5);
 	pub storage NisTarget: Perquintill = Perquintill::zero();
 	pub const NisPalletId: PalletId = PalletId(*b"py/nis  ");
-	pub const NisHoldReason: HoldReason = HoldReason::Nis(HoldReasonNis::NftReceipt);
-}
-
-/// A reason for placing a hold on funds.
-#[derive(
-	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, MaxEncodedLen, Debug, TypeInfo,
-)]
-pub enum HoldReason {
-	/// Some reason of the NIS pallet.
-	#[codec(index = 38)]
-	Nis(HoldReasonNis),
-}
-
-/// A reason for the NIS pallet placing a hold on funds.
-#[derive(
-	Copy, Clone, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, MaxEncodedLen, Debug, TypeInfo,
-)]
-pub enum HoldReasonNis {
-	/// The NIS Pallet has reserved it for a non-fungible receipt.
-	#[codec(index = 0)]
-	NftReceipt = 0,
+	pub const NisHoldReason: RuntimeHoldReason = RuntimeHoldReason::Nis(pallet_nis::HoldReason::NftReceipt);
 }
 
 impl pallet_nis::Config for Runtime {
@@ -1446,7 +1426,7 @@ construct_runtime! {
 		ElectionProviderMultiPhase: pallet_election_provider_multi_phase::{Pallet, Call, Storage, Event<T>, ValidateUnsigned} = 37,
 
 		// NIS pallet.
-		Nis: pallet_nis::{Pallet, Call, Storage, Event<T>} = 38,
+		Nis: pallet_nis::{Pallet, Call, Storage, Event<T>, HoldReason} = 38,
 //		pub type NisCounterpartInstance = pallet_balances::Instance2;
 		NisCounterpartBalances: pallet_balances::<Instance2> = 45,
 
@@ -2192,7 +2172,7 @@ sp_api::impl_runtime_apis! {
 }
 
 #[cfg(test)]
-mod tests_fess {
+mod fees_tests {
 	use super::*;
 	use sp_runtime::assert_eq_error_rate;
 
