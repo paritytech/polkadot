@@ -1,4 +1,4 @@
-async function run(nodeName, networkInfo, nodeNames) {
+async function run(_, networkInfo, nodeNames) {
   const apis = await Promise.all(
     nodeNames.map(async (nodeName) => {
       const { wsUri, userDefinedTypes } = networkInfo.nodesByName[nodeName];
