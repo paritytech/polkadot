@@ -316,12 +316,6 @@ impl pallet_message_queue::WeightInfo for TestMessageQueueWeight {
 	fn execute_overweight_page_updated() -> Weight {
 		Weight::zero()
 	}
-	fn discard_overweight_page_removed() -> Weight {
-		Weight::zero()
-	}
-	fn discard_overweight_page_updated() -> Weight {
-		Weight::zero()
-	}
 }
 parameter_types! {
 	pub const MessageQueueServiceWeight: Weight = Weight::from_all(500);
@@ -334,10 +328,6 @@ impl pallet_message_queue::Config for Test {
 	type RuntimeEvent = RuntimeEvent;
 	type WeightInfo = TestMessageQueueWeight;
 	type MessageProcessor = TestProcessMessage;
-	type DiscardOverweightOrigin = frame_support::traits::AsEnsureOriginWithContains<
-		frame_system::EnsureRoot<AccountId>,
-		frame_support::traits::Everything,
-	>;
 	type QueueChangeHandler = ParaInclusion;
 	type HeapSize = ConstU32<65536>;
 	type MaxStale = ConstU32<8>;
