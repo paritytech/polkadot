@@ -40,8 +40,7 @@ jobs:
           fetch-depth: 0
       - uses: addnab/docker-run-action@v3
         with:
-          registry: gcr.io
-          image: ggwpez/swc:sha-1e66f1b
+          image: ghcr.io/ggwpez/swc:sha-30d1cd6
           options: -v ${{ github.workspace }}:/polkadot -w /polkadot
           run: |
             /polkadot/scripts/ci/github/check_weights_swc.sh ${{ matrix.runtime }} "$LAST_RELEASE" | tee /polkadot/swc_output_${{ matrix.runtime }}.md
