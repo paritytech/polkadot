@@ -24,12 +24,8 @@ handles concerns such as:
 
 - the relay-chain being forkful
 - session changes
-- predicting validator group assignments
 
 See the following sections for more details.
-
-TODO: move these sections the mod docs if there are too many implementation
-details?
 
 ### Fragment Trees
 
@@ -49,7 +45,7 @@ para. These fragment trees are used for:
 For example, here is a tree with several possible paths:
 
 ```
-Para Head registered by the relay chain:     committed_head
+Para Head registered by the relay chain:     included_head
                                                   ↲  ↳
 depth 0:                                  head_0_a    head_0_b
                                              ↲            ↳
@@ -66,12 +62,13 @@ how we reference candidates to save space.
 
 ### Session Changes
 
-TODO: Is this about ensuring that trees don't span multiple sessions? I don't
-see where this is done.
+Allowed ancestry doesn't cross session boundary. That is, you can only build on
+top of the freshest relay parent when the session starts. This is a current
+limitation that may be lifted in the future.
 
-### Predicting Validator Group Assignments
-
-TODO: Where is this done?
+Also, runtime configuration values needed for constraints (such as
+`max_pov_size`) are constant within a session. This is important when building
+prospective validation data. This is unlikely to change.
 
 ## Messages
 
@@ -155,8 +152,6 @@ TODO: Where is this done?
   - See the "Fragment Tree" section.
 - **Inclusion emulation:** Emulation of the logic that the runtime uses
   for checking parachain blocks.
-- **Prospective parachains:** Trees of potential (but likely) future
-  parachain blocks.
 - **Relay-parent:** A particular relay-chain block that a fragment is
   anchored to.
 - **Scope:** The scope of a fragment tree, defining limits on nodes
