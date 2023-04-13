@@ -8,7 +8,7 @@ version.workspace = true
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "1.0.43"
-quote = "1.0.20"
-syn = "1.0.95"
+proc-macro2 = "1.0.56"
+quote = "1.0.26"
+syn = "2.0.14"
 Inflector = "0.11.4"
