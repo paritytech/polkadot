@@ -40,10 +40,7 @@ use polkadot_node_subsystem::{
 	},
 	overseer, RuntimeApiError, SubsystemError, SubsystemResult,
 };
-use polkadot_node_subsystem_util::{
-	determine_new_blocks,
-	rolling_session_window::{RollingSessionWindow, SessionWindowUpdate},
-};
+use polkadot_node_subsystem_util::determine_new_blocks;
 use polkadot_primitives::{
 	BlockNumber, CandidateEvent, CandidateHash, CandidateReceipt, ConsensusLog, CoreIndex,
 	GroupIndex, Hash, Header, SessionIndex,
@@ -62,6 +59,7 @@ use crate::{
 	criteria::{AssignmentCriteria, OurAssignment},
 	persisted_entries::CandidateEntry,
 	time::{slot_number_to_tick, Tick},
+	SessionInfoProvider,
 };
 
 use super::{State, LOG_TARGET};
@@ -78,7 +76,7 @@ struct ImportedBlockInfo {
 }
 
 struct ImportedBlockInfoEnv<'a> {
-	session_window: &'a Option<RollingSessionWindow>,
+	runtime_info: &'a mut Option<SessionInfoProvider>, // this is required just for the `earliest_session()`
 	assignment_criteria: &'a (dyn AssignmentCriteria + Send + Sync),
 	keystore: &'a LocalKeystore,
 }
@@ -160,11 +158,7 @@ async fn imported_block_info<Context>(
 				return Err(ImportedBlockInfoError::FutureCancelled("SessionIndexForChild", error)),
 		};
 
-		if env
-			.session_window
-			.as_ref()
-			.map_or(true, |s| session_index < s.earliest_session())
-		{
+		if env.runtime_info.as_ref().map_or(true, |s| session_index < s.earliest_session) {
 			gum::debug!(
 				target: LOG_TARGET,
 				"Block {} is from ancient session {}. Skipping",
@@ -212,10 +206,21 @@ async fn imported_block_info<Context>(
 		}
 	};
 
-	let session_info = match env.session_window.as_ref().and_then(|s| s.session_info(session_index))
-	{
-		Some(s) => s,
-		None => {
+	// todo: refactor this
+	let session_info = if let Some(session_info_provider) = env.runtime_info {
+		session_info_provider
+			.runtime_info
+			.get_session_info_by_index(ctx.sender(), block_hash, session_index)
+			.await
+			.map_err(|_| ImportedBlockInfoError::SessionInfoUnavailable)
+	} else {
+		gum::debug!(target: LOG_TARGET, "SessionInfoProvider unavailable for block {}", block_hash,);
+		return Err(ImportedBlockInfoError::SessionInfoUnavailable)
+	};
+
+	let session_info = match session_info {
+		Ok(extended_session_info) => &extended_session_info.session_info,
+		Err(_) => {
 			gum::debug!(target: LOG_TARGET, "Session info unavailable for block {}", block_hash,);
 
 			return Err(ImportedBlockInfoError::SessionInfoUnavailable)
@@ -360,25 +365,24 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	};
 
 	// Update session info based on most recent head.
-	match state.cache_session_info_for_head(ctx, head).await {
-		Err(e) => {
-			gum::debug!(
-				target: LOG_TARGET,
-				?head,
-				?e,
-				"Could not cache session info when processing head.",
-			);
-			return Ok(Vec::new())
-		},
-		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
-			gum::info!(
-				target: LOG_TARGET,
-				update = ?a,
-				"Advanced session window for approvals",
-			);
-		},
-		Ok(_) => {},
-	}
+	state.cache_session_info_for_head(ctx, head).await;
+	// Err(e) => {
+	// 	gum::debug!(
+	// 		target: LOG_TARGET,
+	// 		?head,
+	// 		?e,
+	// 		"Could not cache session info when processing head.",
+	// 	);
+	// 	return Ok(Vec::new())
+	// },
+	// Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
+	// 	gum::info!(
+	// 		target: LOG_TARGET,
+	// 		update = ?a,
+	// 		"Advanced session window for approvals",
+	// 	);
+	// },
+	// Ok(_) => {},s
 
 	// If we've just started the node and are far behind,
 	// import at most `MAX_HEADS_LOOK_BACK` blocks.
@@ -407,7 +411,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 		let mut imported_blocks_and_info = Vec::with_capacity(new_blocks.len());
 		for (block_hash, block_header) in new_blocks.into_iter().rev() {
 			let env = ImportedBlockInfoEnv {
-				session_window: &state.session_window,
+				runtime_info: &mut state.session_info,
 				assignment_criteria: &*state.assignment_criteria,
 				keystore: &state.keystore,
 			};
@@ -461,11 +465,16 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			force_approve,
 		} = imported_block_info;
 
-		let session_info = state
-			.session_window
-			.as_ref()
-			.and_then(|s| s.session_info(session_index))
-			.expect("imported_block_info requires session info to be available; qed");
+		// todo: refactor this
+		let session_info = &state
+			.session_info
+			.as_mut()
+			.map(|s| &mut s.runtime_info)
+			.expect("imported_block_info requires session info to be available; qed")
+			.get_session_info_by_index(ctx.sender(), head, session_index)
+			.await
+			.map_err(|e| SubsystemError::FromOrigin { origin: "", source: e.into() })?
+			.session_info;
 
 		let (block_tick, no_show_duration) = {
 			let block_tick = slot_number_to_tick(state.slot_duration_millis, slot);
@@ -782,7 +791,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &Some(session_window),
+					runtime_info: &Some(session_window),
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -888,7 +897,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &Some(session_window),
+					runtime_info: &Some(session_window),
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -987,7 +996,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &session_window,
+					runtime_info: &session_window,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
@@ -1083,7 +1092,7 @@ pub(crate) mod tests {
 			let header = header.clone();
 			Box::pin(async move {
 				let env = ImportedBlockInfoEnv {
-					session_window: &session_window,
+					runtime_info: &session_window,
 					assignment_criteria: &MockAssignmentCriteria,
 					keystore: &LocalKeystore::in_memory(),
 				};
