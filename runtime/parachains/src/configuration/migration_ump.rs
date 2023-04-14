@@ -218,6 +218,9 @@ minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 
 // Default values are zeroes, thus it's ensured allowed ancestry never crosses the upgrade block.
 async_backing_params                     : AsyncBackingParams { max_candidate_depth: 0, allowed_ancestry_len: 0 },
+
+// Default executor parameters set is empty
+executor_params                          : Default::default(),
 		}
 	};
 
