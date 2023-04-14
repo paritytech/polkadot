@@ -102,7 +102,7 @@ type LocalOriginConverter = (
 
 parameter_types! {
 	/// The amount of weight an XCM operation takes. This is a safe overestimate.
-	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000_000_000, 64 * 1024);
+	pub const BaseXcmWeight: Weight = Weight::from_parts(1_000_000_000, 1024);
 	/// Maximum number of instructions in a single XCM fragment. A sanity check against weight
 	/// calculations getting too crazy.
 	pub const MaxInstructions: u32 = 100;
