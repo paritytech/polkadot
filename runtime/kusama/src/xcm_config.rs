@@ -425,5 +425,5 @@ fn karura_liquid_staking_xcm_has_sane_weight_upper_limt() {
 	let weight = <XcmConfig as xcm_executor::Config>::Weigher::weight(&mut xcm)
 		.expect("weighing XCM failed");
 
-	assert_eq!(weight, Weight::from_parts(20_313_281_000, 65536));
+	assert_eq!(weight, Weight::from_parts(20_317_677_000, 72_722));
 }
