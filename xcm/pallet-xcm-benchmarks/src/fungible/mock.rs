@@ -188,6 +188,10 @@ parameter_types! {
 		ChildTeleporter::get(),
 		MultiAsset { id: Concrete(Here.into_location()), fun: Fungible(100) },
 	));
+	pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
+		ChildTeleporter::get(),
+		MultiAsset { id: Concrete(Here.into_location()), fun: Fungible(100) },
+	));
 	pub const TeleportConcreteFungible: (MultiAssetFilter, MultiLocation) =
 		(Wild(AllOf { fun: WildFungible, id: Concrete(Here.into_location()) }), ChildTeleporter::get());
 	pub const ReserveConcreteFungible: (MultiAssetFilter, MultiLocation) =
@@ -198,6 +202,7 @@ impl xcm_balances_benchmark::Config for Test {
 	type TransactAsset = Balances;
 	type CheckedAccount = CheckingAccount;
 	type TrustedTeleporter = TrustedTeleporter;
+	type TrustedReserve = TrustedReserve;
 
 	fn get_multi_asset() -> MultiAsset {
 		let amount =
