@@ -51,6 +51,7 @@ impl<T: frame_system::Config> WeightInfo<T> {
 			.saturating_add(T::DbWeight::get().reads(1 as u64))
 			.saturating_add(T::DbWeight::get().writes(1 as u64))
 	}
+	// FAIL-CI update me
 	// Storage: System Account (r:2 w:2)
 	pub(crate) fn transfer_asset() -> Weight {
 		Weight::from_parts(32_756_000 as u64, 0)
