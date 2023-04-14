@@ -166,7 +166,7 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for KusamaXcmWeight<RuntimeCall> {
 		_reserve: &MultiLocation,
 		_xcm: &Xcm<()>,
 	) -> Weight {
-		assets.weigh_multi_assets(XcmGeneric::<Runtime>::initiate_reserve_withdraw())
+		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::initiate_reserve_withdraw())
 	}
 	fn initiate_teleport(
 		assets: &MultiAssetFilter,

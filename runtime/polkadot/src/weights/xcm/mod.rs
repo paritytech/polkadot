@@ -90,10 +90,8 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for PolkadotXcmWeight<RuntimeCall> 
 	fn withdraw_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::withdraw_asset())
 	}
-	fn reserve_asset_deposited(_assets: &MultiAssets) -> Weight {
-		// TODO: The reserve asset deposited benchmark was removed
-		// assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::reserve_asset_deposited())
-		Weight::MAX
+	fn reserve_asset_deposited(assets: &MultiAssets) -> Weight {
+		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::reserve_asset_deposited())
 	}
 	fn receive_teleported_asset(assets: &MultiAssets) -> Weight {
 		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::receive_teleported_asset())
@@ -168,7 +166,7 @@ impl<RuntimeCall> XcmWeightInfo<RuntimeCall> for PolkadotXcmWeight<RuntimeCall> 
 		_reserve: &MultiLocation,
 		_xcm: &Xcm<()>,
 	) -> Weight {
-		assets.weigh_multi_assets(XcmGeneric::<Runtime>::initiate_reserve_withdraw())
+		assets.weigh_multi_assets(XcmBalancesWeight::<Runtime>::initiate_reserve_withdraw())
 	}
 	fn initiate_teleport(
 		assets: &MultiAssetFilter,
