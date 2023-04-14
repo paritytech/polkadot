@@ -142,6 +142,7 @@ benchmarks_instance_pallet! {
 		let xcm = Xcm(vec![instruction]);
 	}: {
 		executor.bench_process(xcm).map_err(|_| {
+			// In case the runtime being benchmarked does not trust any reserve
 			BenchmarkError::Override(
 				BenchmarkResult::from_weight(T::BlockWeights::get().max_block)
 			)
