@@ -37,8 +37,7 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{
-	v4::ParasEntry, CollatorId, CoreIndex, CoreOccupied, GroupIndex, Id as ParaId, ParathreadEntry,
-	ScheduledCore,
+	v4::ParasEntry, CollatorId, CoreIndex, GroupIndex, Id as ParaId, ParathreadEntry,
 };
 use scale_info::TypeInfo;
 use sp_std::prelude::*;
@@ -57,26 +56,6 @@ pub enum FreedReason {
 pub enum Assignment {
 	Parachain(ParaId),
 	ParathreadA(ParathreadEntry),
-}
-
-impl Assignment {
-	pub fn para_id(&self) -> ParaId {
-		match self {
-			Assignment::Parachain(para_id) => *para_id,
-			Assignment::ParathreadA(entry) => entry.claim.0,
-		}
-	}
-
-	pub fn get_collator(&self) -> Option<CollatorId> {
-		match self {
-			Assignment::Parachain(_) => None,
-			Assignment::ParathreadA(entry) => entry.claim.1.clone(),
-		}
-	}
-
-	//pub fn to_core_assignment(self, core_idx: CoreIndex, group_idx: GroupIndex) -> CoreAssignment {
-	//	CoreAssignment { core: core_idx, group_idx, kind: self }
-	//}
 }
 
 pub trait AssignmentProvider<T: crate::scheduler::pallet::Config> {
@@ -117,14 +96,5 @@ impl CoreAssignment {
 	/// Get the ID of a collator who is required to collate this block.
 	pub fn required_collator(&self) -> Option<CollatorId> {
 		self.paras_entry.collator.clone()
-	}
-
-	/// Get the `CoreOccupied` from this.
-	pub fn to_core_occupied(self) -> CoreOccupied {
-		CoreOccupied::Paras(self.paras_entry)
-	}
-
-	pub fn to_scheduled_core(self) -> ScheduledCore {
-		ScheduledCore { para_id: self.paras_entry.para_id, collator: self.paras_entry.collator }
 	}
 }

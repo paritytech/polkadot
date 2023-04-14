@@ -55,7 +55,7 @@ use crate::{
 
 use crate::scheduler_common::AssignmentProvider;
 pub use pallet::*;
-use primitives::vstaging::ParasEntry;
+use primitives::v4::ParasEntry;
 
 #[cfg(test)]
 mod tests;
@@ -378,11 +378,11 @@ impl<T: Config> Pallet<T> {
 		ClaimQueue::<T>::get().get(&core).and_then(|a| {
 			a.iter()
 				.position(|e| e.is_some())
-				.and_then(|pos| Self::assignment_to_scheduled_core(&a[pos]))
+				.and_then(|pos| Self::paras_entry_to_scheduled_core(&a[pos]))
 		})
 	}
 
-	fn assignment_to_scheduled_core(pe: &Option<ParasEntry>) -> Option<ScheduledCore> {
+	fn paras_entry_to_scheduled_core(pe: &Option<ParasEntry>) -> Option<ScheduledCore> {
 		match pe {
 			None => None,
 			Some(pe) => Some(ScheduledCore { para_id: pe.para_id, collator: pe.collator.clone() }),
