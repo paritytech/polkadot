@@ -26,7 +26,6 @@ sp-io = { git = "https://github.com/paritytech/substrate", branch = "master", de
 sp-mmr-primitives = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-staking = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
-sp-arithmetic = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-core = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-session = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
 sp-version = { git = "https://github.com/paritytech/substrate", branch = "master", default-features = false }
@@ -121,7 +120,6 @@ std = [
 	"parity-scale-codec/std",
 	"scale-info/std",
 	"inherents/std",
-	"sp-arithmetic/std",
 	"sp-core/std",
 	"polkadot-parachain/std",
 	"sp-api/std",
