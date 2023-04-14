@@ -1,0 +1,21 @@
+FROM ubuntu:22.04
+
+WORKDIR /bin
+
+# Install root certs, see: https://github.com/paritytech/substrate/issues/9984
+RUN apt update && \
+    apt install -y ca-certificates && \
+    update-ca-certificates && \
+    apt remove ca-certificates -y && \
+    rm -rf /var/lib/apt/lists/*
+
+ADD --chown=777  polkadot .
+ADD --chown=777  initialize_keystore.sh .
+
+# Fail on build, if unable to run polkadot or script
+RUN polkadot --version
+RUN initialize_keystore.sh -v
+
+VOLUME [ "/config" ]
+
+ENTRYPOINT [ "initialize_keystore.sh" ]

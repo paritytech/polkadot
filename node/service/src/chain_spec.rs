@@ -1225,7 +1225,7 @@ pub fn versi_staging_testnet_config() -> Result<RococoChainSpec, String> {
 
 /// Helper function to generate a crypto pair from seed
 pub fn get_from_seed<TPublic: Public>(seed: &str) -> <TPublic::Pair as Pair>::Public {
-	TPublic::Pair::from_string(&format!("//{}", seed), None)
+	TPublic::Pair::from_string(&format!("{}", seed), None)
 		.expect("static values are valid; qed")
 		.public()
 }
@@ -1270,7 +1270,7 @@ pub fn get_authority_keys_from_seed_no_beefy(
 	AuthorityDiscoveryId,
 ) {
 	(
-		get_account_id_from_seed::<sr25519::Public>(&format!("{}//stash", seed)),
+		get_account_id_from_seed::<sr25519::Public>(seed),
 		get_account_id_from_seed::<sr25519::Public>(seed),
 		get_from_seed::<BabeId>(seed),
 		get_from_seed::<GrandpaId>(seed),
@@ -1283,18 +1283,12 @@ pub fn get_authority_keys_from_seed_no_beefy(
 
 fn testnet_accounts() -> Vec<AccountId> {
 	vec![
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
-		get_account_id_from_seed::<sr25519::Public>("Bob"),
-		get_account_id_from_seed::<sr25519::Public>("Charlie"),
-		get_account_id_from_seed::<sr25519::Public>("Dave"),
-		get_account_id_from_seed::<sr25519::Public>("Eve"),
-		get_account_id_from_seed::<sr25519::Public>("Ferdie"),
-		get_account_id_from_seed::<sr25519::Public>("Alice//stash"),
-		get_account_id_from_seed::<sr25519::Public>("Bob//stash"),
-		get_account_id_from_seed::<sr25519::Public>("Charlie//stash"),
-		get_account_id_from_seed::<sr25519::Public>("Dave//stash"),
-		get_account_id_from_seed::<sr25519::Public>("Eve//stash"),
-		get_account_id_from_seed::<sr25519::Public>("Ferdie//stash"),
+		get_account_id_from_seed::<sr25519::Public>("0x517855455234a0291f2cddcfb26f1056688cd2bec147fb94ad6ac8a0bbc0220a"),
+		get_account_id_from_seed::<sr25519::Public>("0x0a8d732b270e78e688addf59219c6828eb1057a5eb589d016dfb2ea7ddaecfa6"),
+		get_account_id_from_seed::<sr25519::Public>("0x64c491e11d4a1baaf46dd2578e6ad39af8dcfbcec7d368124145cb2b6cf8a44f"),
+		get_account_id_from_seed::<sr25519::Public>("0x601e6406c5e966f202d8c5a6a8a5d368273d5cb437e7ee2fcb8cc249a103c15d"),
+		get_account_id_from_seed::<sr25519::Public>("0xc1a59805551162ee6a00f79406e36dc5b9ec44ca36709e5dc5994d31c5889844"),
+		get_account_id_from_seed::<sr25519::Public>("0xb273f373039d0ecb62e04926a52c1406080a4aef07f512f62463353a26dc75d5"),
 	]
 }
 
@@ -1672,8 +1666,8 @@ fn westend_development_config_genesis(wasm_binary: &[u8]) -> westend::GenesisCon
 fn rococo_development_config_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
 	rococo_testnet_genesis(
 		wasm_binary,
-		vec![get_authority_keys_from_seed("Alice")],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		vec![get_authority_keys_from_seed("0x517855455234a0291f2cddcfb26f1056688cd2bec147fb94ad6ac8a0bbc0220a")],
+		get_account_id_from_seed::<sr25519::Public>("0x517855455234a0291f2cddcfb26f1056688cd2bec147fb94ad6ac8a0bbc0220a"),
 		None,
 	)
 }
@@ -1905,8 +1899,8 @@ pub fn westend_local_testnet_config() -> Result<WestendChainSpec, String> {
 fn rococo_local_testnet_genesis(wasm_binary: &[u8]) -> rococo_runtime::GenesisConfig {
 	rococo_testnet_genesis(
 		wasm_binary,
-		vec![get_authority_keys_from_seed("Alice"), get_authority_keys_from_seed("Bob")],
-		get_account_id_from_seed::<sr25519::Public>("Alice"),
+		vec![get_authority_keys_from_seed("0x517855455234a0291f2cddcfb26f1056688cd2bec147fb94ad6ac8a0bbc0220a"), get_authority_keys_from_seed("0x0a8d732b270e78e688addf59219c6828eb1057a5eb589d016dfb2ea7ddaecfa6")],
+		get_account_id_from_seed::<sr25519::Public>("0x517855455234a0291f2cddcfb26f1056688cd2bec147fb94ad6ac8a0bbc0220a"),
 		None,
 	)
 }
