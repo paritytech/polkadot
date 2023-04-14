@@ -29,6 +29,7 @@
 use super::{
 	BENEFIT_VALID_RESPONSE, BENEFIT_VALID_STATEMENT, COST_IMPROPERLY_DECODED_RESPONSE,
 	COST_INVALID_RESPONSE, COST_INVALID_SIGNATURE, COST_UNREQUESTED_RESPONSE_STATEMENT,
+	REQUEST_RETRY_DELAY,
 };
 use crate::LOG_TARGET;
 
@@ -49,9 +50,12 @@ use polkadot_primitives::vstaging::{
 
 use futures::{future::BoxFuture, prelude::*, stream::FuturesUnordered};
 
-use std::collections::{
-	hash_map::{Entry as HEntry, HashMap},
-	HashSet, VecDeque,
+use std::{
+	collections::{
+		hash_map::{Entry as HEntry, HashMap},
+		HashSet, VecDeque,
+	},
+	time::Instant,
 };
 
 /// An identifier for a candidate.
@@ -84,7 +88,27 @@ struct TaggedResponse {
 pub struct RequestedCandidate {
 	priority: Priority,
 	known_by: VecDeque<PeerId>,
+	/// Has the request been sent out and a response not yet received?
 	in_flight: bool,
+	/// The timestamp for the next time we should retry, if the response failed.
+	next_retry_time: Option<Instant>,
+}
+
+impl RequestedCandidate {
+	fn is_pending(&self) -> bool {
+		if self.in_flight {
+			return false
+		}
+
+		if let Some(next_retry_time) = self.next_retry_time {
+			let can_retry = Instant::now() >= next_retry_time;
+			if !can_retry {
+				return false
+			}
+		}
+
+		true
+	}
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -130,7 +154,6 @@ impl<'a> Entry<'a> {
 
 /// A manager for outgoing requests.
 pub struct RequestManager {
-	pending_responses: FuturesUnordered<BoxFuture<'static, TaggedResponse>>,
 	requests: HashMap<CandidateIdentifier, RequestedCandidate>,
 	// sorted by priority.
 	by_priority: Vec<(Priority, CandidateIdentifier)>,
@@ -142,7 +165,6 @@ impl RequestManager {
 	/// Create a new [`RequestManager`].
 	pub fn new() -> Self {
 		RequestManager {
-			pending_responses: FuturesUnordered::new(),
 			requests: HashMap::new(),
 			by_priority: Vec::new(),
 			unique_identifiers: HashMap::new(),
@@ -166,6 +188,7 @@ impl RequestManager {
 					priority: Priority { attempts: 0, origin: Origin::Unspecified },
 					known_by: VecDeque::new(),
 					in_flight: false,
+					next_retry_time: None,
 				}),
 				true,
 			),
@@ -241,6 +264,30 @@ impl RequestManager {
 		}
 	}
 
+	/// Returns true if there are pending requests that are dispatchable.
+	pub fn has_pending_requests(&self) -> bool {
+		for (_id, entry) in &self.requests {
+			if entry.is_pending() {
+				return true
+			}
+		}
+
+		false
+	}
+
+	/// Returns an instant at which the next request to be retried will be ready.
+	pub fn next_retry_time(&mut self) -> Option<Instant> {
+		let mut next = None;
+		for (_id, request) in &self.requests {
+			if let Some(next_retry_time) = request.next_retry_time {
+				if next.map_or(true, |next| next_retry_time < next) {
+					next = Some(next_retry_time);
+				}
+			}
+		}
+		next
+	}
+
 	/// Yields the next request to dispatch, if there is any.
 	///
 	/// This function accepts two closures as an argument.
@@ -254,10 +301,11 @@ impl RequestManager {
 	/// threshold and returns `None` if the peer is no longer connected.
 	pub fn next_request(
 		&mut self,
+		response_manager: &mut ResponseManager,
 		request_props: impl Fn(&CandidateIdentifier) -> Option<RequestProperties>,
 		peer_advertised: impl Fn(&CandidateIdentifier, &PeerId) -> Option<StatementFilter>,
 	) -> Option<OutgoingRequest<AttestedCandidateRequest>> {
-		if self.pending_responses.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
+		if response_manager.len() >= MAX_PARALLEL_ATTESTED_CANDIDATE_REQUESTS as usize {
 			return None
 		}
 
@@ -282,7 +330,7 @@ impl RequestManager {
 				Some(e) => e,
 			};
 
-			if entry.in_flight {
+			if !entry.is_pending() {
 				continue
 			}
 
@@ -313,7 +361,7 @@ impl RequestManager {
 			);
 
 			let stored_id = id.clone();
-			self.pending_responses.push(Box::pin(async move {
+			response_manager.push(Box::pin(async move {
 				TaggedResponse {
 					identifier: stored_id,
 					requested_peer: target,
@@ -343,14 +391,33 @@ impl RequestManager {
 
 		res
 	}
+}
+
+/// A manager for pending responses.
+pub struct ResponseManager {
+	pending_responses: FuturesUnordered<BoxFuture<'static, TaggedResponse>>,
+}
+
+impl ResponseManager {
+	pub fn new() -> Self {
+		Self { pending_responses: FuturesUnordered::new() }
+	}
 
 	/// Await the next incoming response to a sent request, or immediately
 	/// return `None` if there are no pending responses.
-	pub async fn await_incoming(&mut self) -> Option<UnhandledResponse> {
+	pub async fn incoming(&mut self) -> Option<UnhandledResponse> {
 		self.pending_responses
 			.next()
 			.await
 			.map(|response| UnhandledResponse { response })
+	}
+
+	fn len(&self) -> usize {
+		self.pending_responses.len()
+	}
+
+	fn push(&mut self, response: BoxFuture<'static, TaggedResponse>) {
+		self.pending_responses.push(response);
 	}
 }
 
@@ -484,6 +551,8 @@ impl UnhandledResponse {
 			Err(_) => unreachable!("requested candidates always have a priority entry; qed"),
 		};
 
+		// Set the next retry time before clearing the `in_flight` flag.
+		entry.next_retry_time = Some(Instant::now() + REQUEST_RETRY_DELAY);
 		entry.in_flight = false;
 		entry.priority.attempts += 1;
 
@@ -884,6 +953,7 @@ mod tests {
 	#[test]
 	fn handle_outdated_response_due_to_requests_for_different_identifiers() {
 		let mut request_manager = RequestManager::new();
+		let mut response_manager = ResponseManager::new();
 
 		let relay_parent = Hash::from_low_u64_le(1);
 		let mut candidate_receipt = test_helpers::dummy_committed_candidate_receipt(relay_parent);
@@ -924,9 +994,13 @@ mod tests {
 			let peer_advertised = |_identifier: &CandidateIdentifier, _peer: &_| {
 				Some(StatementFilter::full(group_size))
 			};
-			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			let outgoing = request_manager
+				.next_request(&mut response_manager, request_props, peer_advertised)
+				.unwrap();
 			assert_eq!(outgoing.payload.candidate_hash, candidate);
-			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			let outgoing = request_manager
+				.next_request(&mut response_manager, request_props, peer_advertised)
+				.unwrap();
 			assert_eq!(outgoing.payload.candidate_hash, candidate);
 		}
 
@@ -1009,6 +1083,7 @@ mod tests {
 	#[test]
 	fn handle_outdated_response_due_to_garbage_collection() {
 		let mut request_manager = RequestManager::new();
+		let mut response_manager = ResponseManager::new();
 
 		let relay_parent = Hash::from_low_u64_le(1);
 		let mut candidate_receipt = test_helpers::dummy_committed_candidate_receipt(relay_parent);
@@ -1038,7 +1113,9 @@ mod tests {
 		{
 			let request_props =
 				|_identifier: &CandidateIdentifier| Some((&request_properties).clone());
-			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			let outgoing = request_manager
+				.next_request(&mut response_manager, request_props, peer_advertised)
+				.unwrap();
 			assert_eq!(outgoing.payload.candidate_hash, candidate);
 		}
 
@@ -1083,6 +1160,7 @@ mod tests {
 	#[test]
 	fn should_clean_up_after_successful_requests() {
 		let mut request_manager = RequestManager::new();
+		let mut response_manager = ResponseManager::new();
 
 		let relay_parent = Hash::from_low_u64_le(1);
 		let mut candidate_receipt = test_helpers::dummy_committed_candidate_receipt(relay_parent);
@@ -1115,7 +1193,9 @@ mod tests {
 		{
 			let request_props =
 				|_identifier: &CandidateIdentifier| Some((&request_properties).clone());
-			let outgoing = request_manager.next_request(request_props, peer_advertised).unwrap();
+			let outgoing = request_manager
+				.next_request(&mut response_manager, request_props, peer_advertised)
+				.unwrap();
 			assert_eq!(outgoing.payload.candidate_hash, candidate);
 		}
 

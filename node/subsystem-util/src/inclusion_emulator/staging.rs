@@ -13,6 +13,8 @@
 
 //! The implementation of the inclusion emulator for the 'staging' runtime version.
 //!
+//! # Overview
+//!
 //! A set of utilities for node-side code to emulate the logic the runtime uses for checking
 //! parachain blocks in order to build prospective parachains that are produced ahead of the
 //! relay chain. These utilities allow the node-side to predict, with high accuracy, what
@@ -22,6 +24,8 @@
 //! define the set of valid inputs and outputs to parachain execution. A [`Fragment`] indicates
 //! a parachain block, anchored to the relay-chain at a particular relay-chain block, known as the
 //! relay-parent.
+//!
+//! ## Fragment Validity
 //!
 //! Every relay-parent is implicitly associated with a unique set of [`Constraints`] that describe
 //! the properties that must be true for a block to be included in a direct child of that block,

@@ -24,8 +24,7 @@
 //! This is primarily an implementation of "Fragment Trees", as described in
 //! [`polkadot_node_subsystem_util::inclusion_emulator::staging`].
 //!
-//! This also handles concerns such as the relay-chain being forkful,
-//! session changes, predicting validator group assignments.
+//! This subsystem also handles concerns such as the relay-chain being forkful and session changes.
 
 use std::{
 	borrow::Cow,

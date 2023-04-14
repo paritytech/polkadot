@@ -16,16 +16,33 @@
 
 //! A tree utility for managing parachain fragments not referenced by the relay-chain.
 //!
-//! This module exposes two main types: [`FragmentTree`] and [`CandidateStorage`]
-//! which are meant to be used in close conjunction. Each tree is associated with a particular
-//! relay-parent, and it's expected that higher-level code will have a tree for each
-//! relay-chain block which might reasonably have blocks built upon it.
+//! # Overview
 //!
-//! Trees only store indices into the [`CandidateStorage`] and the storage is meant to
-//! be pruned when trees are dropped by higher-level code.
+//! This module exposes two main types: [`FragmentTree`] and [`CandidateStorage`] which are meant to
+//! be used in close conjunction. Each fragment tree is associated with a particular relay-parent
+//! and each node in the tree represents a candidate. Each parachain has a single candidate storage,
+//! but can have multiple trees for each relay chain block in the view.
 //!
-//! Each node in the tree represents a candidate. Nodes do not uniquely refer to a parachain
-//! block for two reasons.
+//! A tree has an associated [`Scope`] which defines limits on candidates within the tree.
+//! Candidates themselves have their own [`Constraints`] which are either the constraints from the
+//! scope, or, if there are previous nodes in the tree, a modified version of the previous
+//! candidate's constraints.
+//!
+//! This module also makes use of types provided by the Inclusion Emulator module, such as
+//! [`Fragment`] and [`Constraints`]. These perform the actual job of checking for validity of
+//! prospective fragments.
+//!
+//! # Usage
+//!
+//! It's expected that higher-level code will have a tree for each relay-chain block which might
+//! reasonably have blocks built upon it.
+//!
+//! Because a para only has a single candidate storage, trees only store indices into the storage.
+//! The storage is meant to be pruned when trees are dropped by higher-level code.
+//!
+//! # Cycles
+//!
+//! Nodes do not uniquely refer to a parachain block for two reasons.
 //!   1. There's no requirement that head-data is unique
 //!      for a parachain. Furthermore, a parachain is under no obligation to be acyclic, and this is mostly
 //!      just because it's totally inefficient to enforce it. Practical use-cases are acyclic, but there is
@@ -43,7 +60,21 @@
 //!
 //! As an extreme example, a candidate which produces head-data which is the same as its parent
 //! can correspond to multiple nodes within the same [`FragmentTree`]. Such cycles are bounded
-//! by the maximum depth allowed by the tree.
+//! by the maximum depth allowed by the tree. An example with `max_depth: 4`:
+//!
+//! ```text
+//!           committed head
+//!                  |
+//! depth 0:      head_a
+//!                  |
+//! depth 1:      head_b
+//!                  |
+//! depth 2:      head_a
+//!                  |
+//! depth 3:      head_b
+//!                  |
+//! depth 4:      head_a
+//! ```
 //!
 //! As long as the [`CandidateStorage`] has bounded input on the number of candidates supplied,
 //! [`FragmentTree`] complexity is bounded. This means that higher-level code needs to be selective
@@ -82,6 +113,8 @@ pub enum CandidateStorageInsertionError {
 	CandidateAlreadyKnown(CandidateHash),
 }
 
+/// Stores candidates and information about them such as their relay-parents and their backing
+/// states.
 pub(crate) struct CandidateStorage {
 	// Index from head data hash to candidate hashes with that head data as a parent.
 	by_parent_head: HashMap<Hash, HashSet<CandidateHash>>,
@@ -421,8 +454,10 @@ impl<'a> HypotheticalCandidate<'a> {
 	}
 }
 
-/// This is a tree of candidates based on some underlying storage of candidates
-/// and a scope.
+/// This is a tree of candidates based on some underlying storage of candidates and a scope.
+///
+/// All nodes in the tree must be either pending availability or within the scope. Within the scope
+/// means it's built off of the relay-parent or an ancestor.
 pub(crate) struct FragmentTree {
 	scope: Scope,
 
@@ -436,8 +471,10 @@ pub(crate) struct FragmentTree {
 }
 
 impl FragmentTree {
-	/// Create a new [`FragmentTree`] with given scope and populated from the
-	/// storage.
+	/// Create a new [`FragmentTree`] with given scope and populated from the storage.
+	///
+	/// Can be populated recursively (i.e. `populate` will pick up candidates that build on other
+	/// candidates).
 	pub fn populate(scope: Scope, storage: &CandidateStorage) -> Self {
 		gum::trace!(
 			target: LOG_TARGET,
@@ -529,6 +566,8 @@ impl FragmentTree {
 	}
 
 	/// Add a candidate and recursively populate from storage.
+	///
+	/// Candidates can be added either as children of the root or children of other candidates.
 	pub(crate) fn add_and_populate(&mut self, hash: CandidateHash, storage: &CandidateStorage) {
 		let candidate_entry = match storage.get(&hash) {
 			None => return,
