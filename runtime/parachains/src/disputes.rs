@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -16,11 +16,14 @@
 
 //! Runtime component for handling disputes of parachain candidates.
 
-use crate::{configuration, initializer::SessionChangeNotification, session_info};
+use crate::{
+	configuration, initializer::SessionChangeNotification, metrics::METRICS, session_info,
+};
 use bitvec::{bitvec, order::Lsb0 as BitOrderLsb0};
-use frame_support::{ensure, traits::Get, weights::Weight};
+use frame_support::{ensure, weights::Weight};
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
+use polkadot_runtime_metrics::get_current_time;
 use primitives::{
 	byzantine_threshold, supermajority_threshold, ApprovalVote, CandidateHash,
 	CheckedDisputeStatementSet, CheckedMultiDisputeStatementSet, CompactStatement, ConsensusLog,
@@ -503,9 +506,6 @@ pub mod pallet {
 		/// A dispute has concluded for or against a candidate.
 		/// `\[para id, candidate hash, dispute result\]`
 		DisputeConcluded(CandidateHash, DisputeResult),
-		/// A dispute has timed out due to insufficient participation.
-		/// `\[para id, candidate hash\]`
-		DisputeTimedOut(CandidateHash),
 		/// A dispute has concluded with supermajority against a candidate.
 		/// Block authors should no longer build on top of this head and should
 		/// instead revert the block at the given height. This should be the
@@ -911,26 +911,8 @@ impl StatementSetFilter {
 
 impl<T: Config> Pallet<T> {
 	/// Called by the initializer to initialize the disputes module.
-	pub(crate) fn initializer_initialize(now: T::BlockNumber) -> Weight {
-		let config = <configuration::Pallet<T>>::config();
-
-		let mut weight = Weight::zero();
-		for (session_index, candidate_hash, mut dispute) in <Disputes<T>>::iter() {
-			weight += T::DbWeight::get().reads_writes(1, 0);
-
-			if dispute.concluded_at.is_none() &&
-				dispute.start + config.dispute_conclusion_by_time_out_period < now
-			{
-				Self::deposit_event(Event::DisputeTimedOut(candidate_hash));
-
-				dispute.concluded_at = Some(now);
-				<Disputes<T>>::insert(session_index, candidate_hash, &dispute);
-
-				weight += T::DbWeight::get().writes(1);
-			}
-		}
-
-		weight
+	pub(crate) fn initializer_initialize(_now: T::BlockNumber) -> Weight {
+		Weight::zero()
 	}
 
 	/// Called by the initializer to finalize the disputes pallet.
@@ -1357,9 +1339,14 @@ fn check_signature(
 			ExplicitDisputeStatement { valid: false, candidate_hash, session }.signing_payload(),
 	};
 
-	if validator_signature.verify(&payload[..], &validator_public) {
-		Ok(())
-	} else {
-		Err(())
-	}
+	let start = get_current_time();
+
+	let res =
+		if validator_signature.verify(&payload[..], &validator_public) { Ok(()) } else { Err(()) };
+
+	let end = get_current_time();
+
+	METRICS.on_signature_check_complete(end.saturating_sub(start)); // ns
+
+	res
 }

@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -21,7 +21,7 @@ use std::num::NonZeroUsize;
 use lru::LruCache;
 
 use parity_scale_codec::Encode;
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_core::crypto::ByteArray;
 use sp_keystore::{Keystore, KeystorePtr};
 

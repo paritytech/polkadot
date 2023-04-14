@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -29,7 +29,7 @@ use frame_support::{
 use frame_system::EnsureRoot;
 use pallet_xcm::XcmPassthrough;
 use polkadot_runtime_constants::{system_parachain::*, xcm::body::FELLOWSHIP_ADMIN_INDEX};
-use runtime_common::{paras_registrar, xcm_sender, ToAuthor};
+use runtime_common::{crowdloan, paras_registrar, xcm_sender, ToAuthor};
 use sp_core::ConstU32;
 use xcm::latest::prelude::*;
 use xcm_builder::{
@@ -182,6 +182,16 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			RuntimeCall::Timestamp(..) |
 			RuntimeCall::Indices(..) |
 			RuntimeCall::Balances(..) |
+			RuntimeCall::Crowdloan(
+				crowdloan::Call::create { .. } |
+				crowdloan::Call::contribute { .. } |
+				crowdloan::Call::withdraw { .. } |
+				crowdloan::Call::refund { .. } |
+				crowdloan::Call::dissolve { .. } |
+				crowdloan::Call::edit { .. } |
+				crowdloan::Call::poke { .. } |
+				crowdloan::Call::contribute_all { .. },
+			) |
 			RuntimeCall::Staking(
 				pallet_staking::Call::bond { .. } |
 				pallet_staking::Call::bond_extra { .. } |
@@ -228,13 +238,11 @@ impl Contains<RuntimeCall> for SafeCallFilter {
 			) |
 			RuntimeCall::Council(
 				pallet_collective::Call::vote { .. } |
-				pallet_collective::Call::close_old_weight { .. } |
 				pallet_collective::Call::disapprove_proposal { .. } |
 				pallet_collective::Call::close { .. },
 			) |
 			RuntimeCall::TechnicalCommittee(
 				pallet_collective::Call::vote { .. } |
-				pallet_collective::Call::close_old_weight { .. } |
 				pallet_collective::Call::disapprove_proposal { .. } |
 				pallet_collective::Call::close { .. },
 			) |
