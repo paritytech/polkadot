@@ -15,7 +15,6 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use super::*;
-use crate::scheduler_common;
 
 // In order to facilitate benchmarks as tests we have a benchmark feature gated `WeightInfo` impl
 // that uses 0 for all the weights. Because all the weights are 0, the tests that rely on
@@ -885,7 +884,7 @@ mod sanitizers {
 
 	use crate::mock::Test;
 	use keyring::Sr25519Keyring;
-	use primitives::PARACHAIN_KEY_TYPE_ID;
+	use primitives::{v4::ParasEntry, PARACHAIN_KEY_TYPE_ID};
 	use sc_keystore::LocalKeystore;
 	use sp_keystore::{Keystore, KeystorePtr};
 	use std::sync::Arc;
@@ -1168,7 +1167,11 @@ mod sanitizers {
 			.map(|idx| {
 				let core_idx = CoreIndex::from(idx as u32);
 				let ca = CoreAssignment {
-					kind: scheduler_common::Assignment::Parachain(ParaId::from(1_u32 + idx as u32)),
+					paras_entry: ParasEntry {
+						para_id: ParaId::from(1_u32 + idx as u32),
+						collator: None,
+						retries: 0,
+					},
 					group_idx: GroupIndex::from(idx as u32),
 					core: core_idx,
 				};

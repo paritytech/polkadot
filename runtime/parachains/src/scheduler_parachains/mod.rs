@@ -16,9 +16,10 @@
 
 use primitives::{CoreIndex, Id as ParaId};
 
-use crate::{configuration, paras, scheduler_common::Assignment};
+use crate::{configuration, paras};
 
 pub use pallet::*;
+use primitives::v4::ParasEntry;
 
 use crate::scheduler_common::AssignmentProvider;
 
@@ -50,14 +51,14 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 	fn pop_assignment_for_core(
 		core_idx: CoreIndex,
 		_concluded_para: Option<ParaId>,
-	) -> Option<Assignment> {
+	) -> Option<ParasEntry> {
 		<paras::Pallet<T>>::parachains()
 			.get(core_idx.0 as usize)
 			.copied()
-			.map(Assignment::Parachain)
+			.map(|para_id| ParasEntry { para_id, collator: None, retries: 0 })
 	}
 
-	fn push_assignment_for_core(_: CoreIndex, _: Assignment) {}
+	fn push_parasentry_for_core(_: CoreIndex, _: ParasEntry) {}
 
 	fn get_availability_period(_: CoreIndex) -> T::BlockNumber {
 		<configuration::Pallet<T>>::config().chain_availability_period

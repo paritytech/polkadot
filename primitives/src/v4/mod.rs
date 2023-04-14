@@ -796,16 +796,25 @@ pub struct ParathreadEntry {
 	pub retries: u32,
 }
 
+/// An entry tracking a paras
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
+pub struct ParasEntry {
+	/// The ID.
+	pub para_id: Id,
+	/// The collator.
+	pub collator: Option<CollatorId>,
+	/// Number of retries.
+	pub retries: u32,
+}
+
 /// What is occupying a specific availability core.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreOccupied {
 	/// The core is not occupied.
 	Free,
-	/// A parathread.
-	Parathread(ParathreadEntry),
-	/// A parachain.
-	Parachain(Id),
+	/// A paras.
+	Paras(ParasEntry),
 }
 
 impl CoreOccupied {
@@ -813,8 +822,7 @@ impl CoreOccupied {
 	pub fn is_free(&self) -> bool {
 		match self {
 			Self::Free => true,
-			Self::Parachain(_) => false,
-			Self::Parathread(_) => false,
+			Self::Paras(_) => false,
 		}
 	}
 }

@@ -18,7 +18,7 @@ use super::*;
 
 use frame_support::assert_ok;
 use keyring::Sr25519Keyring;
-use primitives::{BlockNumber, CollatorId, ParathreadClaim, SessionIndex, ValidatorId};
+use primitives::{BlockNumber, CollatorId, SessionIndex, ValidatorId};
 
 use crate::{
 	configuration::HostConfiguration,
@@ -35,7 +35,6 @@ use crate::{
 		Test,
 	},
 	paras::{ParaGenesisArgs, ParaKind},
-	scheduler_common::Assignment,
 	//scheduler_parathreads::{
 	//	ParathreadClaimIndex, ParathreadClaimQueue, ParathreadQueue, QueuedParathread,
 	//},
@@ -134,7 +133,6 @@ fn add_parathread_claim_works() {
 	let thread_id = ParaId::from(10);
 	let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 	let core_index = CoreIndex::from(0);
-	let group_index = GroupIndex::from(0);
 
 	new_test_ext(genesis_config).execute_with(|| {
 		schedule_blank_para(thread_id, ParaKind::Parathread);
@@ -145,20 +143,16 @@ fn add_parathread_claim_works() {
 
 		assert!(Paras::is_parathread(thread_id));
 
-		let assignment = Assignment::ParathreadA(ParathreadEntry {
-			claim: ParathreadClaim(thread_id, Some(collator.clone())),
-			retries: 0,
-		});
-		let ca = assignment.to_core_assignment(core_index, group_index);
-		Scheduler::add_to_claimqueue(ca.clone());
+		let pe = ParasEntry { para_id: thread_id, collator: Some(collator), retries: 0 };
+		Scheduler::add_to_claimqueue(core_index, pe.clone());
 
 		let cq = Scheduler::claimqueue();
 		assert_eq!(Scheduler::claimqueue_len(), 1);
-		assert_eq!(*(cq.get(&core_index).unwrap().front().unwrap()), Some(ca));
+		assert_eq!(*(cq.get(&core_index).unwrap().front().unwrap()), Some(pe));
 	})
 }
 
-/// MOVE TO polkadot provider
+/// TODO: MOVE TO polkadot provider
 //#[test]
 //fn cannot_add_claim_when_no_parathread_cores() {
 //	let config = {
@@ -758,36 +752,28 @@ fn schedule_clears_availability_cores() {
 
 		run_to_block(3, |_| None);
 
+		println!("WE GOOD");
 		// now note that cores 0 and 2 were freed.
 		Scheduler::fill_claimqueue(
 			vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)]
 				.into_iter()
-				.collect(),
+				.collect::<Vec<_>>(),
 			3,
 		);
 
 		{
 			let claimqueue = Scheduler::claimqueue();
-
 			let claimqueue_0 = claimqueue.get(&CoreIndex(0)).unwrap().clone();
 			let claimqueue_2 = claimqueue.get(&CoreIndex(2)).unwrap().clone();
 			assert_eq!(claimqueue_0.len(), 1);
 			assert_eq!(claimqueue_2.len(), 1);
 			assert_eq!(
 				claimqueue_0,
-				vec![Some(CoreAssignment {
-					core: CoreIndex(0),
-					kind: Assignment::Parachain(chain_a),
-					group_idx: GroupIndex(0),
-				})]
+				vec![Some(ParasEntry { para_id: chain_a, collator: None, retries: 0 })]
 			);
 			assert_eq!(
 				claimqueue_2,
-				vec![Some(CoreAssignment {
-					core: CoreIndex(2),
-					kind: Assignment::Parachain(chain_c),
-					group_idx: GroupIndex(2),
-				})]
+				vec![Some(ParasEntry { para_id: chain_c, collator: None, retries: 0 })]
 			);
 
 			// The freed cores should be `Free` in `AvailabilityCores`.
@@ -979,7 +965,11 @@ fn availability_predicate_works() {
 		// assign some availability cores.
 		{
 			AvailabilityCores::<Test>::mutate(|cores| {
-				cores[0] = CoreOccupied::Parachain(chain_a);
+				cores[0] = CoreOccupied::Paras(ParasEntry {
+					para_id: chain_a,
+					collator: None,
+					retries: 0,
+				});
 				//	cores[1] = CoreOccupied::Parathread(ParathreadEntry {
 				//		claim: ParathreadClaim(thread_a, Some(collator)),
 				//		retries: 0,
@@ -1228,7 +1218,7 @@ fn next_up_on_available_is_parachain_always() {
 
 			let cores = Scheduler::availability_cores();
 			match cores[0] {
-				CoreOccupied::Parachain(_) => {},
+				CoreOccupied::Paras(ParasEntry { para_id, .. }) if para_id == chain_a => {},
 				_ => panic!("with no threads, only core should be a chain core"),
 			}
 
@@ -1282,7 +1272,7 @@ fn next_up_on_time_out_is_parachain_always() {
 
 			let cores = Scheduler::availability_cores();
 			match cores[0] {
-				CoreOccupied::Parachain(_) => {},
+				CoreOccupied::Paras(ParasEntry { para_id, .. }) if para_id == chain_a => {},
 				_ => panic!("with no threads, only core should be a chain core"),
 			}
 
@@ -1363,13 +1353,9 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			Scheduler::claimqueue(),
 			vec![(
 				CoreIndex(0),
-				vec![Some(CoreAssignment {
-					core: CoreIndex(0),
-					kind: Assignment::Parachain(chain_a),
-					group_idx: GroupIndex(0),
-				})]
-				.into_iter()
-				.collect()
+				vec![Some(ParasEntry { para_id: chain_a, collator: None, retries: 0 })]
+					.into_iter()
+					.collect()
 			)]
 			.into_iter()
 			.collect()
@@ -1410,23 +1396,15 @@ fn session_change_requires_reschedule_dropping_removed_paras() {
 			vec![
 				(
 					CoreIndex(0),
-					vec![Some(CoreAssignment {
-						core: CoreIndex(0),
-						kind: Assignment::Parachain(chain_a),
-						group_idx: GroupIndex(0),
-					})]
-					.into_iter()
-					.collect()
+					vec![Some(ParasEntry { para_id: chain_a, collator: None, retries: 0 })]
+						.into_iter()
+						.collect()
 				),
 				(
 					CoreIndex(1),
-					vec![Some(CoreAssignment {
-						core: CoreIndex(1),
-						kind: Assignment::Parachain(chain_b),
-						group_idx: GroupIndex(1),
-					})]
-					.into_iter()
-					.collect()
+					vec![Some(ParasEntry { para_id: chain_b, collator: None, retries: 0 })]
+						.into_iter()
+						.collect()
 				),
 			]
 			.into_iter()

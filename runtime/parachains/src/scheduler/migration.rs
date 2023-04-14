@@ -4,10 +4,10 @@ const STORAGE_VERSION: StorageVersion = StorageVersion::new(1);
 
 pub mod v1 {
 	use super::*;
-	use crate::scheduler_common::CoreAssignment;
 	use frame_support::{
 		pallet_prelude::ValueQuery, storage_alias, traits::OnRuntimeUpgrade, weights::Weight,
 	};
+	use primitives::CollatorId;
 
 	#[storage_alias]
 	pub(super) type Scheduled<T: Config> = StorageValue<Pallet<T>, Vec<CoreAssignment>, ValueQuery>;
@@ -31,6 +31,40 @@ pub mod v1 {
 	#[storage_alias]
 	pub(super) type ParathreadClaimIndex<T: Config> =
 		StorageValue<Pallet<T>, Vec<ParaId>, ValueQuery>;
+
+	/// The assignment type.
+	#[derive(Clone, Encode, Decode, TypeInfo)]
+	#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+	pub enum AssignmentKind {
+		/// A parachain.
+		Parachain,
+		/// A parathread.
+		Parathread(CollatorId, u32),
+	}
+
+	/// How a free core is scheduled to be assigned.
+	#[derive(Clone, Encode, Decode, TypeInfo)]
+	#[cfg_attr(feature = "std", derive(PartialEq, Debug))]
+	pub struct CoreAssignment {
+		/// The core that is assigned.
+		pub core: CoreIndex,
+		/// The unique ID of the para that is assigned to the core.
+		pub para_id: ParaId,
+		/// The kind of the assignment.
+		pub kind: AssignmentKind,
+		/// The index of the validator group assigned to the core.
+		pub group_idx: GroupIndex,
+	}
+
+	impl CoreAssignment {
+		/// Get the ID of a collator who is required to collate this block.
+		pub fn required_collator(self) -> Option<CollatorId> {
+			match self.kind {
+				AssignmentKind::Parachain => None,
+				AssignmentKind::Parathread(id, _) => Some(id),
+			}
+		}
+	}
 
 	pub struct MigrateToV1<T>(sp_std::marker::PhantomData<T>);
 	impl<T: Config> OnRuntimeUpgrade for MigrateToV1<T> {
@@ -106,7 +140,13 @@ pub mod v1 {
 		let scheduled = Scheduled::<T>::take();
 		let sched_len = scheduled.len() as u64;
 		for core_assignment in scheduled {
-			Pallet::<T>::add_to_claimqueue(core_assignment);
+			let core_idx = core_assignment.core;
+			let pe = ParasEntry {
+				para_id: core_assignment.para_id,
+				collator: core_assignment.required_collator(),
+				retries: 0,
+			};
+			Pallet::<T>::add_to_claimqueue(core_idx, pe);
 		}
 
 		// 2x as once for Scheduled and once for Claimqueue
