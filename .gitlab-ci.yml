@@ -15,6 +15,7 @@
 # moment of time.
 
 stages:
+  - .pre
   - weights
   - check
   - test
@@ -184,6 +185,23 @@ default:
     - buildah push --format=v2s2 "$IMAGE_NAME:$EXTRATAG"
   after_script:
     - buildah logout --all
+
+#### stage:                       .pre
+
+# By default our pipelines are interruptible, but some special pipelines shouldn't be interrupted:
+# * multi-project pipelines such as the ones triggered by the scripts repo
+#
+# In those cases, we add an uninterruptible .pre job; once that one has started,
+# the entire pipeline becomes uninterruptible.
+uninterruptible-pipeline:
+  extends: .kubernetes-env
+  variables:
+    CI_IMAGE: "paritytech/tools:latest"
+  stage: .pre
+  interruptible: false
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "pipeline"
+  script: "true"
 
 include:
   # weights jobs
