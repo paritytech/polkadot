@@ -1996,6 +1996,10 @@ sp_api::impl_runtime_apis! {
 					StatemintLocation::get(),
 					MultiAsset { id: Concrete(TokenLocation::get()), fun: Fungible(1 * UNITS) }
 				));
+				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
+					StatemintLocation::get(),
+					MultiAsset { id: Concrete(TokenLocation::get()), fun: Fungible(1 * UNITS) }
+				));
 			}
 
 			impl pallet_xcm_benchmarks::fungible::Config for Runtime {
@@ -2003,6 +2007,8 @@ sp_api::impl_runtime_apis! {
 
 				type CheckedAccount = LocalCheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
+				type TrustedReserve = TrustedReserve;
+
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {
 						id: Concrete(TokenLocation::get()),

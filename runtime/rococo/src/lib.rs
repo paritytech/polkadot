@@ -2018,7 +2018,7 @@ sp_api::impl_runtime_apis! {
 			use frame_benchmarking::baseline::Pallet as Baseline;
 			use xcm::latest::prelude::*;
 			use xcm_config::{
-				LocalCheckAccount, LocationConverter, Statemine, TokenLocation, XcmConfig,
+				LocalCheckAccount, LocationConverter, Rockmine, TokenLocation, XcmConfig,
 			};
 
 			impl frame_system_benchmarking::Config for Runtime {}
@@ -2027,7 +2027,7 @@ sp_api::impl_runtime_apis! {
 				type XcmConfig = XcmConfig;
 				type AccountIdConverter = LocationConverter;
 				fn valid_destination() -> Result<MultiLocation, BenchmarkError> {
-					Ok(Statemine::get())
+					Ok(Rockmine::get())
 				}
 				fn worst_case_holding(_depositable_count: u32) -> MultiAssets {
 					// Rococo only knows about ROC
@@ -2040,11 +2040,11 @@ sp_api::impl_runtime_apis! {
 
 			parameter_types! {
 				pub const TrustedTeleporter: Option<(MultiLocation, MultiAsset)> = Some((
-					Statemine::get(),
+					Rockmine::get(),
 					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
 				pub const TrustedReserve: Option<(MultiLocation, MultiAsset)> = Some((
-					Statemine::get(),
+					Rockmine::get(),
 					MultiAsset { fun: Fungible(1 * UNITS), id: Concrete(TokenLocation::get()) },
 				));
 			}
@@ -2054,6 +2054,7 @@ sp_api::impl_runtime_apis! {
 
 				type CheckedAccount = LocalCheckAccount;
 				type TrustedTeleporter = TrustedTeleporter;
+				type TrustedReserve = TrustedReserve;
 
 				fn get_multi_asset() -> MultiAsset {
 					MultiAsset {
@@ -2081,15 +2082,15 @@ sp_api::impl_runtime_apis! {
 				}
 
 				fn transact_origin_and_runtime_call() -> Result<(MultiLocation, RuntimeCall), BenchmarkError> {
-					Ok((Statemine::get(), frame_system::Call::remark_with_event { remark: vec![] }.into()))
+					Ok((Rockmine::get(), frame_system::Call::remark_with_event { remark: vec![] }.into()))
 				}
 
 				fn subscribe_origin() -> Result<MultiLocation, BenchmarkError> {
-					Ok(Statemine::get())
+					Ok(Rockmine::get())
 				}
 
 				fn claimable_asset() -> Result<(MultiLocation, MultiLocation, MultiAssets), BenchmarkError> {
-					let origin = Statemine::get();
+					let origin = Rockmine::get();
 					let assets: MultiAssets = (Concrete(TokenLocation::get()), 1_000 * UNITS).into();
 					let ticket = MultiLocation { parents: 0, interior: Here };
 					Ok((origin, ticket, assets))
