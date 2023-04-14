@@ -752,7 +752,6 @@ fn schedule_clears_availability_cores() {
 
 		run_to_block(3, |_| None);
 
-		println!("WE GOOD");
 		// now note that cores 0 and 2 were freed.
 		Scheduler::fill_claimqueue(
 			vec![(CoreIndex(0), FreedReason::Concluded), (CoreIndex(2), FreedReason::Concluded)]
