@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 use std::sync::Arc;
 
 use sc_keystore::LocalKeystore;
-use sp_application_crypto::AppKey;
+use sp_application_crypto::AppCrypto;
 use sp_keyring::Sr25519Keyring;
 use sp_keystore::{Keystore, KeystorePtr};
 

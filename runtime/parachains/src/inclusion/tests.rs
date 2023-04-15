@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -708,6 +708,13 @@ fn bitfield_checks() {
 			), Ok(v) => { assert!(v.is_empty()) });
 		}
 	});
+}
+
+#[test]
+fn availability_threshold_is_supermajority() {
+	assert_eq!(3, availability_threshold(4));
+	assert_eq!(5, availability_threshold(6));
+	assert_eq!(7, availability_threshold(9));
 }
 
 #[test]

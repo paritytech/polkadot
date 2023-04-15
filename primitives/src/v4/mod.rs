@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -186,6 +186,23 @@ pub mod well_known_keys {
 	/// The storage entry should be accessed as an `AbridgedHostConfiguration` encoded value.
 	pub const ACTIVE_CONFIG: &[u8] =
 		&hex!["06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385"];
+
+	/// Hash of the committed head data for a given registered para.
+	///
+	/// The storage entry stores wrapped `HeadData(Vec<u8>)`.
+	pub fn para_head(para_id: Id) -> Vec<u8> {
+		let prefix = hex!["cd710b30bd2eab0352ddcc26417aa1941b3c252fcb29d88eff4f3de5de4476c3"];
+
+		para_id.using_encoded(|para_id: &[u8]| {
+			prefix
+				.as_ref()
+				.iter()
+				.chain(twox_64(para_id).iter())
+				.chain(para_id.iter())
+				.cloned()
+				.collect()
+		})
+	}
 
 	/// The upward message dispatch queue for the given para id.
 	///
@@ -1592,13 +1609,13 @@ where
 /// The maximum number of validators `f` which may safely be faulty.
 ///
 /// The total number of validators is `n = 3f + e` where `e in { 1, 2, 3 }`.
-pub fn byzantine_threshold(n: usize) -> usize {
+pub const fn byzantine_threshold(n: usize) -> usize {
 	n.saturating_sub(1) / 3
 }
 
 /// The supermajority threshold of validators which represents a subset
 /// guaranteed to have at least f+1 honest validators.
-pub fn supermajority_threshold(n: usize) -> usize {
+pub const fn supermajority_threshold(n: usize) -> usize {
 	n - byzantine_threshold(n)
 }
 
@@ -1691,6 +1708,7 @@ impl PvfCheckStatement {
 
 /// Type discriminator for PVF preparation timeouts
 #[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum PvfPrepTimeoutKind {
 	/// For prechecking requests, the time period after which the preparation worker is considered
 	/// unresponsive and will be killed.
@@ -1704,6 +1722,7 @@ pub enum PvfPrepTimeoutKind {
 
 /// Type discriminator for PVF execution timeouts
 #[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum PvfExecTimeoutKind {
 	/// The amount of time to spend on execution during backing.
 	Backing,

@@ -1,4 +1,4 @@
-// Copyright 2017-2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -104,8 +104,10 @@ pub use polkadot_client::{
 pub use polkadot_primitives::{Block, BlockId, BlockNumber, CollatorPair, Hash, Id as ParaId};
 pub use sc_client_api::{Backend, CallExecutor, ExecutionStrategy};
 pub use sc_consensus::{BlockImport, LongestChain};
-use sc_executor::NativeElseWasmExecutor;
 pub use sc_executor::NativeExecutionDispatch;
+use sc_executor::{
+	HeapAllocStrategy, NativeElseWasmExecutor, WasmExecutor, DEFAULT_HEAP_ALLOC_STRATEGY,
+};
 pub use service::{
 	config::{DatabaseSource, PrometheusConfig},
 	ChainSpec, Configuration, Error as SubstrateServiceError, PruningMode, Role, RuntimeGenesis,
@@ -404,12 +406,19 @@ where
 		})
 		.transpose()?;
 
-	let executor = NativeElseWasmExecutor::<ExecutorDispatch>::new(
-		config.wasm_method,
-		config.default_heap_pages,
-		config.max_runtime_instances,
-		config.runtime_cache_size,
-	);
+	let heap_pages = config
+		.default_heap_pages
+		.map_or(DEFAULT_HEAP_ALLOC_STRATEGY, |h| HeapAllocStrategy::Static { extra_pages: h as _ });
+
+	let wasm = WasmExecutor::builder()
+		.with_execution_method(config.wasm_method)
+		.with_onchain_heap_alloc_strategy(heap_pages)
+		.with_offchain_heap_alloc_strategy(heap_pages)
+		.with_max_runtime_instances(config.max_runtime_instances)
+		.with_runtime_cache_size(config.runtime_cache_size)
+		.build();
+
+	let executor = NativeElseWasmExecutor::<ExecutorDispatch>::new_with_wasm_executor(wasm);
 
 	let (client, backend, keystore_container, task_manager) =
 		service::new_full_parts::<Block, RuntimeApi, _>(
@@ -751,13 +760,11 @@ where
 
 	let chain_spec = config.chain_spec.cloned_box();
 
-	let local_keystore = basics.keystore_container.local_keystore();
+	let keystore = basics.keystore_container.local_keystore();
 	let auth_or_collator = role.is_authority() || is_collator.is_collator();
-	let requires_overseer_for_chain_sel = local_keystore.is_some() && auth_or_collator;
-
 	let pvf_checker_enabled = role.is_authority() && !is_collator.is_collator();
 
-	let select_chain = if requires_overseer_for_chain_sel {
+	let select_chain = if auth_or_collator {
 		let metrics =
 			polkadot_node_subsystem_util::metrics::Metrics::register(prometheus_registry.as_ref())?;
 
@@ -765,6 +772,7 @@ where
 			basics.backend.clone(),
 			overseer_handle.clone(),
 			metrics,
+			Some(basics.task_manager.spawn_handle()),
 		)
 	} else {
 		SelectRelayChain::new_longest_chain(basics.backend.clone())
@@ -1000,14 +1008,7 @@ where
 		None
 	};
 
-	if local_keystore.is_none() {
-		gum::info!("Cannot run as validator without local keystore.");
-	}
-
-	let maybe_params =
-		local_keystore.and_then(move |k| authority_discovery_service.map(|a| (a, k)));
-
-	let overseer_handle = if let Some((authority_discovery_service, keystore)) = maybe_params {
+	let overseer_handle = if let Some(authority_discovery_service) = authority_discovery_service {
 		let (overseer, overseer_handle) = overseer_gen
 			.generate::<service::SpawnTaskHandle, FullClient<RuntimeApi, ExecutorDispatch>>(
 				overseer_connector,
@@ -1071,7 +1072,7 @@ where
 		Some(handle)
 	} else {
 		assert!(
-			!requires_overseer_for_chain_sel,
+			!auth_or_collator,
 			"Precondition congruence (false) is guaranteed by manual checking. qed"
 		);
 		None

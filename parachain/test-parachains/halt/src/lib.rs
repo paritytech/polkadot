@@ -1,4 +1,4 @@
-// Copyright 2019-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -17,10 +17,7 @@
 //! Basic parachain that executes forever.
 
 #![no_std]
-#![cfg_attr(
-	not(feature = "std"),
-	feature(core_intrinsics, lang_items, core_panic_info, alloc_error_handler)
-)]
+#![cfg_attr(enable_alloc_error_handler, feature(alloc_error_handler))]
 
 // Make the WASM binary available.
 #[cfg(feature = "std")]
@@ -39,10 +36,10 @@ pub fn wasm_binary_unwrap() -> &'static [u8] {
 #[panic_handler]
 #[no_mangle]
 pub fn panic(_info: &core::panic::PanicInfo) -> ! {
-	core::intrinsics::abort()
+	core::arch::wasm32::unreachable();
 }
 
-#[cfg(not(feature = "std"))]
+#[cfg(enable_alloc_error_handler)]
 #[alloc_error_handler]
 #[no_mangle]
 pub fn oom(_: core::alloc::Layout) -> ! {

@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,6 +19,7 @@ use frame_support::{
 	traits::{Everything, Nothing},
 	weights::Weight,
 };
+use frame_system::EnsureRoot;
 use xcm::latest::prelude::*;
 use xcm_builder::{
 	AllowUnpaidExecutionFrom, EnsureXcmOrigin, FixedWeightBounds, SignedAccountId32AsNative,
@@ -146,4 +147,5 @@ impl pallet_xcm::Config for crate::Runtime {
 	type WeightInfo = pallet_xcm::TestWeightInfo;
 	#[cfg(feature = "runtime-benchmarks")]
 	type ReachableDest = ReachableDest;
+	type AdminOrigin = EnsureRoot<crate::AccountId>;
 }
