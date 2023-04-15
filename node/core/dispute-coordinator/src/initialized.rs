@@ -298,7 +298,7 @@ impl Initialized {
 					let lower_bound = if self.gaps_in_cache {
 						session_idx.saturating_sub(DISPUTE_WINDOW.get() - 1)
 					} else {
-						self.highest_session_seen
+						self.highest_session_seen + 1
 					};
 
 					// There is a new session. Perform a dummy fetch to cache it.
