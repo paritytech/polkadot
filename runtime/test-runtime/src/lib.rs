@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -202,7 +202,7 @@ impl pallet_indices::Config for Runtime {
 }
 
 parameter_types! {
-	pub storage ExistentialDeposit: Balance = 1 * CENTS;
+	pub const ExistentialDeposit: Balance = 1 * CENTS;
 	pub storage MaxLocks: u32 = 50;
 	pub const MaxReserves: u32 = 50;
 }
@@ -544,7 +544,7 @@ impl pallet_test_notifier::Config for Runtime {
 	type RuntimeCall = RuntimeCall;
 }
 
-#[frame_support::pallet]
+#[frame_support::pallet(dev_mode)]
 pub mod pallet_test_notifier {
 	use frame_support::pallet_prelude::*;
 	use frame_system::pallet_prelude::*;

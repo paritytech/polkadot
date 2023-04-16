@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -23,7 +23,10 @@ use frame_support::{pallet_prelude::*, weights::constants::WEIGHT_REF_TIME_PER_M
 use frame_system::pallet_prelude::*;
 use parity_scale_codec::{Decode, Encode};
 use polkadot_parachain::primitives::{MAX_HORIZONTAL_MESSAGE_NUM, MAX_UPWARD_MESSAGE_NUM};
-use primitives::{Balance, SessionIndex, MAX_CODE_SIZE, MAX_HEAD_DATA_SIZE, MAX_POV_SIZE};
+use primitives::{
+	vstaging::AsyncBackingParams, Balance, ExecutorParams, SessionIndex, MAX_CODE_SIZE,
+	MAX_HEAD_DATA_SIZE, MAX_POV_SIZE,
+};
 use sp_runtime::traits::Zero;
 use sp_std::prelude::*;
 
@@ -118,6 +121,8 @@ pub struct HostConfiguration<BlockNumber> {
 	 * The parameters that are not essential, but still may be of interest for parachains.
 	 */
 
+	/// Asynchronous backing parameters.
+	pub async_backing_params: AsyncBackingParams,
 	/// The maximum POV block size, in bytes.
 	pub max_pov_size: u32,
 	/// The maximum size of a message that can be put in a downward message queue.
@@ -152,6 +157,8 @@ pub struct HostConfiguration<BlockNumber> {
 	///
 	/// This parameter affects the upper bound of size of `CandidateCommitments`.
 	pub hrmp_channel_max_message_size: u32,
+	/// The executor environment parameters
+	pub executor_params: ExecutorParams,
 
 	/**
 	 * Parameters that will unlikely be needed by parachains.
@@ -243,6 +250,10 @@ pub struct HostConfiguration<BlockNumber> {
 impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber> {
 	fn default() -> Self {
 		Self {
+			async_backing_params: AsyncBackingParams {
+				max_candidate_depth: 0,
+				allowed_ancestry_len: 0,
+			},
 			group_rotation_frequency: 1u32.into(),
 			chain_availability_period: 1u32.into(),
 			thread_availability_period: 1u32.into(),
@@ -287,6 +298,7 @@ impl<BlockNumber: Default + From<u32>> Default for HostConfiguration<BlockNumber
 			pvf_checking_enabled: false,
 			pvf_voting_ttl: 2u32.into(),
 			minimum_validation_upgrade_delay: 2.into(),
+			executor_params: Default::default(),
 		}
 	}
 }
@@ -441,6 +453,7 @@ pub trait WeightInfo {
 	fn set_config_with_weight() -> Weight;
 	fn set_config_with_balance() -> Weight;
 	fn set_hrmp_open_request_ttl() -> Weight;
+	fn set_config_with_executor_params() -> Weight;
 }
 
 pub struct TestWeightInfo;
@@ -461,6 +474,9 @@ impl WeightInfo for TestWeightInfo {
 		Weight::MAX
 	}
 	fn set_hrmp_open_request_ttl() -> Weight {
+		Weight::MAX
+	}
+	fn set_config_with_executor_params() -> Weight {
 		Weight::MAX
 	}
 }
@@ -1137,6 +1153,35 @@ pub mod pallet {
 			ensure_root(origin)?;
 			BypassConsistencyCheck::<T>::put(new);
 			Ok(())
+		}
+
+		/// Set the asynchronous backing parameters.
+		#[pallet::call_index(45)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_option_u32(), // The same size in bytes.
+			DispatchClass::Operational,
+		))]
+		pub fn set_async_backing_params(
+			origin: OriginFor<T>,
+			new: AsyncBackingParams,
+		) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.async_backing_params = new;
+			})
+		}
+
+		/// Set PVF executor parameters.
+		#[pallet::call_index(46)]
+		#[pallet::weight((
+			T::WeightInfo::set_config_with_executor_params(),
+			DispatchClass::Operational,
+		))]
+		pub fn set_executor_params(origin: OriginFor<T>, new: ExecutorParams) -> DispatchResult {
+			ensure_root(origin)?;
+			Self::schedule_config_update(|config| {
+				config.executor_params = new;
+			})
 		}
 	}
 

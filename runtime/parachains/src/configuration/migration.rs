@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -19,6 +19,7 @@
 use crate::configuration::{self, ActiveConfig, Config, Pallet, PendingConfigs, MAX_POV_SIZE};
 use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
 use frame_system::pallet_prelude::BlockNumberFor;
+use primitives::vstaging::AsyncBackingParams;
 use sp_std::vec::Vec;
 
 /// The current storage version.
@@ -28,6 +29,8 @@ use sp_std::vec::Vec;
 /// v2-v3: <https://github.com/paritytech/polkadot/pull/6091>
 /// v3-v4: <https://github.com/paritytech/polkadot/pull/6345>
 /// v4-v5: <https://github.com/paritytech/polkadot/pull/6937>
+///        + <https://github.com/paritytech/polkadot/pull/6961>
+///        + <https://github.com/paritytech/polkadot/pull/6934>
 pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
 
 pub mod v5 {
@@ -143,7 +146,7 @@ pub mod v5 {
 		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
 			log::trace!(target: crate::configuration::LOG_TARGET, "Running pre_upgrade()");
 
-			ensure!(StorageVersion::get::<Pallet<T>>() == 3, "The migration requires version 3");
+			ensure!(StorageVersion::get::<Pallet<T>>() == 4, "The migration requires version 4");
 			Ok(Vec::new())
 		}
 
@@ -226,6 +229,12 @@ ump_max_individual_weight                : pre.ump_max_individual_weight,
 pvf_checking_enabled                     : pre.pvf_checking_enabled,
 pvf_voting_ttl                           : pre.pvf_voting_ttl,
 minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
+
+// Default values are zeroes, thus it's ensured allowed ancestry never crosses the upgrade block.
+async_backing_params                     : AsyncBackingParams { max_candidate_depth: 0, allowed_ancestry_len: 0 },
+
+// Default executor parameters set is empty
+executor_params                          : Default::default(),
 		}
 	};
 
@@ -264,6 +273,7 @@ minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
 mod tests {
 	use super::*;
 	use crate::mock::{new_test_ext, Test};
+	use primitives::ExecutorParams;
 
 	#[test]
 	fn v4_deserialized_from_actual_data() {
@@ -383,6 +393,11 @@ mod tests {
 					assert_eq!(v4.pvf_voting_ttl                           , v5.pvf_voting_ttl);
 					assert_eq!(v4.minimum_validation_upgrade_delay         , v5.minimum_validation_upgrade_delay);
 				}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
+
+				// additional checks for async backing.
+				assert_eq!(v5.async_backing_params.allowed_ancestry_len, 0);
+				assert_eq!(v5.async_backing_params.max_candidate_depth, 0);
+				assert_eq!(v5.executor_params, ExecutorParams::new());
 			}
 		});
 	}

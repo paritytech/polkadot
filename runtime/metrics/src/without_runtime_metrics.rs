@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -18,12 +18,17 @@
 //! provide a dummy implementation for the native runtime to avoid cluttering the runtime code
 //! with `#[cfg(feature = "runtime-metrics")]`.
 
-use primitives::metric_definitions::{CounterDefinition, CounterVecDefinition};
+use primitives::metric_definitions::{
+	CounterDefinition, CounterVecDefinition, HistogramDefinition,
+};
 
 /// A dummy `Counter`.
 pub struct Counter;
 /// A dummy `CounterVec`.
 pub struct CounterVec;
+
+/// A dummy `Histogram`
+pub struct Histogram;
 
 /// Dummy implementation.
 impl CounterVec {
@@ -51,4 +56,21 @@ impl Counter {
 	pub fn inc_by(&self, _: u64) {}
 	/// Increment counter, implementation is a `no op`.
 	pub fn inc(&self) {}
+}
+
+/// Dummy implementation
+impl Histogram {
+	/// Create a new histogram as specified by `definition`. This metric needs to be registered
+	/// in the client before it can be used.
+	pub const fn new(_definition: HistogramDefinition) -> Self {
+		Histogram
+	}
+
+	// Observe a value in the histogram
+	pub fn observe(&self, _value: u128) {}
+}
+
+/// Dummy implementation - always 0
+pub fn get_current_time() -> u128 {
+	0
 }
