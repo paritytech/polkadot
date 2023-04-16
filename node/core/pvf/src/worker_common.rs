@@ -469,7 +469,6 @@ fn kill_parent_node_in_emergency() {
 pub mod sandbox {
 	use seccompiler::*;
 	use std::collections::BTreeMap;
-	use tokio::signal::unix::{signal, Signal, SignalKind};
 
 	#[derive(thiserror::Error, Debug)]
 	pub enum SandboxError {
@@ -487,27 +486,22 @@ pub mod sandbox {
 
 	// TODO: Should be tested on multiple allowed architectures in case some use different syscalls.
 	// TODO: Compile the filter at build-time rather than runtime.
-	// TODO: Have a separate ruleset for preparation?
 	/// Applies a `seccomp` filter to sandbox the execute thread. Whitelists the minimum number of
-	/// syscalls necessary to allow execution to run. When a disallowed syscall is caught, we
-	/// trigger the `SIGSYS` signal which is handled in the main thread.
+	/// syscalls necessary to allow execution to run. See the module-level docs for more details.
 	pub fn seccomp_execute_thread() -> SandboxResult<()> {
-		// Build the filter.
-		let rules = BTreeMap::default();
-		let filter = make_filter(rules)?;
+		// Build a `seccomp` filter which by default blocks all syscalls except those allowed in the
+		// whitelist.
+		let whitelisted_rules = BTreeMap::default();
+		let filter = SeccompFilter::new(
+			whitelisted_rules,
+			// Mismatch action: what to do if not in whitelist.
+			SeccompAction::Log,
+			// Match action: what to do if in whitelist.
+			SeccompAction::Allow,
+			std::env::consts::ARCH.try_into().unwrap(),
+		)?;
 
-		// TODO: Check if action available.
-		// TODO: Only needs to be done once, can be e.g. a OnceCell.
-		// if 0 != syscalls::syscall3(
-		// 	syscalls::Sysno::seccomp,
-		// 	libc::SECCOMP_GET_ACTION_AVAIL,
-		// 	// Must be 0 for `SECCOMP_GET_ACTION_AVAIL`.
-		// 	0,
-		// 	// Must be a pointer to the	filter-return action.
-		// 	&libc::SECCOMP_RET_KILL_THREADfilter,
-		// ) {
-		// 	return Err("could not execute seccomp syscall")
-		// }
+		// TODO: Check if action available?
 
 		let bpf_prog: BpfProgram = filter.try_into()?;
 
@@ -517,18 +511,28 @@ pub mod sandbox {
 		Ok(())
 	}
 
-	/// Makes a `seccomp` filter which by default blocks all syscalls except those allowed in the
-	/// whitelist.
-	fn make_filter(
-		whitelisted_rules: BTreeMap<i64, Vec<SeccompRule>>,
-	) -> std::result::Result<SeccompFilter, BackendError> {
-		SeccompFilter::new(
+	/// Applies a `seccomp` filter to sandbox the prepare thread. Whitelists the minimum number of
+	/// syscalls necessary to allow preparation to run. See the module-level docs for more details.
+	pub fn seccomp_prepare_thread() -> SandboxResult<()> {
+		// Build a `seccomp` filter which by default blocks all syscalls except those allowed in the
+		// whitelist.
+		let whitelisted_rules = BTreeMap::default();
+		let filter = SeccompFilter::new(
 			whitelisted_rules,
 			// Mismatch action: what to do if not in whitelist.
 			SeccompAction::Log,
 			// Match action: what to do if in whitelist.
 			SeccompAction::Allow,
 			std::env::consts::ARCH.try_into().unwrap(),
-		)
+		)?;
+
+		// TODO: Check if action available?
+
+		let bpf_prog: BpfProgram = filter.try_into()?;
+
+		// Applies filter (runs seccomp) to the calling thread.
+		seccompiler::apply_filter(&bpf_prog)?;
+
+		Ok(())
 	}
 }

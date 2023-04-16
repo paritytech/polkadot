@@ -399,7 +399,7 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			let prepare_fut = rt_handle
 				.spawn_blocking(move || {
 					// #[cfg(target_os = "linux")]
-					// if let Err(err) = sandbox::seccomp_execute_thread() {
+					// if let Err(err) = sandbox::seccomp_prepare_thread() {
 					// 	return Err(PrepareError::IoErr(format!(
 					// 		"sandboxing the thread failed: {}",
 					// 		err.to_string(),
