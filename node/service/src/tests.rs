@@ -83,6 +83,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		Arc::new(case_vars.chain.clone()),
 		context.sender().clone(),
 		Default::default(),
+		None,
 	);
 
 	let target_hash = case_vars.target_block.clone();
@@ -99,7 +100,6 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 
 	futures::pin_mut!(test_fut);
 	futures::pin_mut!(selection_process);
-
 	futures::executor::block_on(future::join(
 		async move {
 			let _overseer = test_fut.await;

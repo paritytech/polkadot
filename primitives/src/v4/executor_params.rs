@@ -29,6 +29,7 @@ use sp_std::{ops::Deref, time::Duration, vec, vec::Vec};
 
 /// The different executor parameters for changing the execution environment semantics.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum ExecutorParam {
 	/// Maximum number of memory pages (64KiB bytes per page) the executor can allocate.
 	#[codec(index = 1)]
@@ -93,6 +94,7 @@ impl sp_std::fmt::LowerHex for ExecutorParamsHash {
 // new entries and removing old ones. At the moment, there's no mandatory parameters defined. If
 // they show up, they must be clearly documented as mandatory ones.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, TypeInfo)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExecutorParams(Vec<ExecutorParam>);
 
 impl ExecutorParams {

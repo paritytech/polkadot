@@ -491,7 +491,7 @@ impl Wakeups {
 			.collect();
 
 		let mut pruned_wakeups = BTreeMap::new();
-		self.reverse_wakeups.retain(|&(ref h, ref c_h), tick| {
+		self.reverse_wakeups.retain(|(h, c_h), tick| {
 			let live = !pruned_blocks.contains(h);
 			if !live {
 				pruned_wakeups.entry(*tick).or_insert_with(HashSet::new).insert((*h, *c_h));

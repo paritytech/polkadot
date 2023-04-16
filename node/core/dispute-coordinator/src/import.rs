@@ -97,7 +97,7 @@ pub enum OwnVoteState {
 }
 
 impl OwnVoteState {
-	fn new<'a>(votes: &CandidateVotes, env: &CandidateEnvironment<'a>) -> Self {
+	fn new(votes: &CandidateVotes, env: &CandidateEnvironment<'_>) -> Self {
 		let controlled_indices = env.controlled_indices();
 		if controlled_indices.is_empty() {
 			return Self::CannotVote

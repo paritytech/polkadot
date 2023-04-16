@@ -401,7 +401,7 @@ fn canonicalize_works() {
 			assert_eq!(entry.candidates.len(), with_candidates.len());
 
 			for x in with_candidates {
-				assert!(entry.candidates.iter().position(|&(_, ref c)| c == &x).is_some());
+				assert!(entry.candidates.iter().any(|(_, c)| c == &x));
 			}
 		}
 	};
