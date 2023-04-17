@@ -160,8 +160,7 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		// export for free. Common-good chains will typically be afforded this.
 		let message =
 			Xcm(vec![ExportMessage { network: remote_network, destination: remote_location, xcm }]);
-		let (v, cost) = validate_send::<Router>(bridge, message)?;
-		Ok((v, cost))
+		validate_send::<Router>(bridge, message)
 	}
 
 	fn deliver(validation: Router::Ticket) -> Result<XcmHash, SendError> {
