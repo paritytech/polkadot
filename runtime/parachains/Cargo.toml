@@ -50,7 +50,7 @@ polkadot-runtime-metrics = { path = "../metrics", default-features = false}
 
 [dev-dependencies]
 futures = "0.3.21"
-hex-literal = "0.3.4"
+hex-literal = "0.4.1"
 keyring = { package = "sp-keyring", git = "https://github.com/paritytech/substrate", branch = "master" }
 frame-support-test = { git = "https://github.com/paritytech/substrate", branch = "master" }
 sc-keystore = { git = "https://github.com/paritytech/substrate", branch = "master" }
