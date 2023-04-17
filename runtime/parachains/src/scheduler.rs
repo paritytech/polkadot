@@ -377,22 +377,27 @@ impl<T: Config> Pallet<T> {
 	pub(crate) fn next_up_on_available(core: CoreIndex) -> Option<ScheduledCore> {
 		ClaimQueue::<T>::get().get(&core).and_then(|a| {
 			a.iter()
-				.position(|e| e.is_some())
-				.and_then(|pos| Self::paras_entry_to_scheduled_core(&a[pos]))
+				.find_map(|e| e.as_ref())
+				.and_then(|pe| Some(Self::paras_entry_to_scheduled_core(pe)))
 		})
 	}
 
-	fn paras_entry_to_scheduled_core(pe: &Option<ParasEntry>) -> Option<ScheduledCore> {
-		match pe {
-			None => None,
-			Some(pe) => Some(ScheduledCore { para_id: pe.para_id, collator: pe.collator.clone() }),
-		}
+	fn paras_entry_to_scheduled_core(pe: &ParasEntry) -> ScheduledCore {
+		ScheduledCore { para_id: pe.para_id, collator: pe.collator.clone() }
 	}
 
 	/// Return the next thing that will be scheduled on this core assuming it is currently
 	/// occupied and the candidate occupying it times out.
 	pub(crate) fn next_up_on_time_out(core: CoreIndex) -> Option<ScheduledCore> {
-		Self::next_up_on_available(core)
+		Self::next_up_on_available(core).or_else(|| {
+			// Or, if none, the claim currently occupying the core,
+			// as it would be put back on the queue after timing out.
+			let cores = AvailabilityCores::<T>::get();
+			cores.get(core.0 as usize).and_then(|c| match c {
+				CoreOccupied::Free => None,
+				CoreOccupied::Paras(pe) => Some(Self::paras_entry_to_scheduled_core(pe)),
+			})
+		})
 	}
 
 	// on new session
