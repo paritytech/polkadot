@@ -159,7 +159,7 @@ pub mod v5 {
 				let weight_consumed = migrate_to_v5::<T>();
 
 				log::info!(target: configuration::LOG_TARGET, "MigrateToV5 executed successfully");
-				STORAGE_VERSION.put::<Pallet<T>>();
+				StorageVersion::new(5).put::<Pallet<T>>();
 
 				weight_consumed
 			} else {
@@ -172,7 +172,7 @@ pub mod v5 {
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
 			log::trace!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
-				StorageVersion::get::<Pallet<T>>() == STORAGE_VERSION,
+				StorageVersion::get::<Pallet<T>>() == StorageVersion::new(5),
 				"Storage version should be 5 after the migration"
 			);
 
