@@ -431,10 +431,7 @@ impl<T: Config> Pallet<T> {
 	//  ClaimQueue related functions
 	//
 	fn claimqueue_lookahead() -> u32 {
-		match <configuration::Pallet<T>>::config().scheduling_lookahead {
-			0 => 1,
-			n => n,
-		}
+		<configuration::Pallet<T>>::config().scheduling_lookahead
 	}
 
 	// on new session

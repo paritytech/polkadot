@@ -69,7 +69,10 @@ mod enter {
 	// becoming fully available, the backed candidates will not be filtered out in `create_inherent` and
 	// will not cause `enter` to early.
 	fn include_backed_candidates() {
-		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let default = MockGenesisConfig::default();
+		assert!(default.configuration.config.scheduling_lookahead > 0);
+
+		new_test_ext(default).execute_with(|| {
 			let dispute_statements = BTreeMap::new();
 
 			let mut backed_and_concluding = BTreeMap::new();
@@ -735,7 +738,10 @@ mod enter {
 	#[test]
 	// Ensure that when a block is over weight due to disputes and bitfields, we abort
 	fn limit_candidates_over_weight_1() {
-		new_test_ext(MockGenesisConfig::default()).execute_with(|| {
+		let default = MockGenesisConfig::default();
+		assert!(default.configuration.config.scheduling_lookahead > 0);
+
+		new_test_ext(default).execute_with(|| {
 			// Create the inherent data for this block
 			let mut dispute_statements = BTreeMap::new();
 			// Control the number of statements per dispute to ensure we have enough space
