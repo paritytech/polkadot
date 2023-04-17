@@ -161,9 +161,6 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		let message =
 			Xcm(vec![ExportMessage { network: remote_network, destination: remote_location, xcm }]);
 		let (v, mut cost) = validate_send::<Router>(bridge, message)?;
-		if let Some(payment) = maybe_payment {
-			cost.push(payment);
-		}
 		Ok((v, cost))
 	}
 
