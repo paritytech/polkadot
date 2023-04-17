@@ -110,13 +110,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("rococo"),
 	impl_name: create_runtime_str!("parity-rococo-v2.0"),
 	authoring_version: 0,
-	spec_version: 9390,
+	spec_version: 9410,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 19,
+	transaction_version: 20,
 	state_version: 1,
 };
 
@@ -1475,7 +1475,10 @@ pub type UncheckedExtrinsic =
 ///
 /// This contains the combined migrations of the last 10 releases. It allows to skip runtime
 /// upgrades in case governance decides to do so.
-pub type Migrations = parachains_configuration::migration::v5::MigrateToV5<Runtime>;
+pub type Migrations = (
+	// Unreleased - add new migrations here:
+	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
+);
 
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
