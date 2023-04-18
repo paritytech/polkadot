@@ -173,7 +173,8 @@ impl UnsafeVRFOutput {
 
 		let inout = self
 			.vrf_output
-			.attach_input_hash(&pubkey, transcript.clone())
+			.0
+			.attach_input_hash(&pubkey, transcript.0)
 			.map_err(ApprovalError::SchnorrkelSignature)?;
 		Ok(RelayVRFStory(inout.make_bytes(RELAY_VRF_STORY_CONTEXT)))
 	}

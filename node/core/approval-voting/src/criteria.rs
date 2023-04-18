@@ -506,8 +506,8 @@ pub(crate) fn check_assignment_cert(
 			let (vrf_in_out, _) = public
 				.vrf_verify_extra(
 					relay_vrf_modulo_transcript(relay_vrf_story, sample),
-					&vrf_signature.output,
-					&vrf_signature.proof,
+					&vrf_signature.output.0,
+					&vrf_signature.proof.0,
 					assigned_core_transcript(claimed_core_index),
 				)
 				.map_err(|_| InvalidAssignment(Reason::VRFModuloOutputMismatch))?;
@@ -527,8 +527,8 @@ pub(crate) fn check_assignment_cert(
 			let (vrf_in_out, _) = public
 				.vrf_verify(
 					relay_vrf_delay_transcript(relay_vrf_story, core_index),
-					&vrf_signature.output,
-					&vrf_signature.proof,
+					&vrf_signature.output.0,
+					&vrf_signature.proof.0,
 				)
 				.map_err(|_| InvalidAssignment(Reason::VRFDelayOutputMismatch))?;
 
