@@ -26,7 +26,7 @@ use sp_consensus_babe::{
 	digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 	VrfTranscript,
 };
-use sp_core::crypto::VrfSigner;
+use sp_core::{crypto::VrfSigner, testing::TaskExecutor};
 use sp_runtime::{testing::*, DigestItem};
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
@@ -75,7 +75,7 @@ fn test_harness<T: Future<Output = VirtualOverseer>>(
 		.filter_level(log::LevelFilter::Trace)
 		.try_init();
 
-	let pool = sp_core::testing::TaskExecutor::new();
+	let pool = TaskExecutor::new();
 	let (mut context, virtual_overseer) = test_helpers::make_subsystem_context(pool);
 
 	let (finality_target_tx, finality_target_rx) = oneshot::channel::<Option<Hash>>();

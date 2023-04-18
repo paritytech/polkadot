@@ -612,8 +612,7 @@ pub(crate) mod tests {
 	use crate::approval_db::v1::DbBackend;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
-	use merlin::Transcript;
-	use polkadot_node_primitives::approval::{VrfOutput, VrfProof, VrfSignature};
+	use polkadot_node_primitives::approval::{VrfSignature, VrfTranscript};
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
@@ -622,7 +621,7 @@ pub(crate) mod tests {
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 	};
-	use sp_core::testing::TaskExecutor;
+	use sp_core::{crypto::VrfSigner, testing::TaskExecutor};
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	pub(crate) use sp_runtime::{Digest, DigestItem};
 	use std::{pin::Pin, sync::Arc};
@@ -704,11 +703,8 @@ pub(crate) mod tests {
 
 	// used for generating assignments where the validity of the VRF doesn't matter.
 	pub(crate) fn garbage_vrf_signature() -> VrfSignature {
-		let key = Sr25519Keyring::Alice.pair();
-		let key: &schnorrkel::Keypair = key.as_ref();
-
-		let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
-		VrfSignature { output: VrfOutput(o.to_output()), proof: VrfProof(p) }
+		let transcript = VrfTranscript::new(b"test-garbage", &[]);
+		Sr25519Keyring::Alice.pair().vrf_sign(&transcript)
 	}
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {

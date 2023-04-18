@@ -552,10 +552,10 @@ fn is_in_backing_group(
 #[cfg(test)]
 mod tests {
 	use super::*;
-	use polkadot_node_primitives::approval::{VrfOutput, VrfProof, VrfSignature};
+	use polkadot_node_primitives::approval::{VrfSignature, VrfTranscript};
 	use polkadot_primitives::{Hash, ASSIGNMENT_KEY_TYPE_ID};
 	use sp_application_crypto::sr25519;
-	use sp_core::crypto::Pair as PairT;
+	use sp_core::crypto::{Pair as PairT, VrfSigner};
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	use sp_keystore::Keystore;
 
@@ -608,11 +608,8 @@ mod tests {
 
 	// used for generating assignments where the validity of the VRF doesn't matter.
 	fn garbage_vrf_signature() -> VrfSignature {
-		let key = Sr25519Keyring::Alice.pair();
-		let key: &schnorrkel::Keypair = key.as_ref();
-
-		let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
-		VrfSignature { output: VrfOutput(o.to_output()), proof: VrfProof(p) }
+		let transcript = VrfTranscript::new(b"test-garbage", &[]);
+		Sr25519Keyring::Alice.pair().vrf_sign(&transcript)
 	}
 
 	#[test]
