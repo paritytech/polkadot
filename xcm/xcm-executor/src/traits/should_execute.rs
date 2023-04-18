@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use frame_support::traits::ProcessMessageError;
 use sp_std::result::Result;
 use xcm::latest::{Instruction, MultiLocation, Weight};
 
@@ -35,7 +36,7 @@ pub trait ShouldExecute {
 		instructions: &mut [Instruction<RuntimeCall>],
 		max_weight: Weight,
 		weight_credit: &mut Weight,
-	) -> Result<(), ()>;
+	) -> Result<(), ProcessMessageError>;
 }
 
 #[impl_trait_for_tuples::impl_for_tuples(30)]
@@ -45,7 +46,7 @@ impl ShouldExecute for Tuple {
 		instructions: &mut [Instruction<RuntimeCall>],
 		max_weight: Weight,
 		weight_credit: &mut Weight,
-	) -> Result<(), ()> {
+	) -> Result<(), ProcessMessageError> {
 		for_tuples!( #(
 			match Tuple::should_execute(origin, instructions, max_weight, weight_credit) {
 				Ok(()) => return Ok(()),
@@ -60,6 +61,6 @@ impl ShouldExecute for Tuple {
 			max_weight,
 			weight_credit,
 		);
-		Err(())
+		Err(ProcessMessageError::Unsupported)
 	}
 }

@@ -17,6 +17,7 @@
 //! XCM matcher API, used primarily for writing barrier conditions.
 
 use core::ops::ControlFlow;
+use frame_support::traits::ProcessMessageError;
 use xcm::latest::{Instruction, MultiLocation};
 
 /// Creates an instruction matcher from an XCM. Since XCM versions differ, we need to make a trait
@@ -47,6 +48,7 @@ impl<'a, Call> CreateMatcher for &'a mut [Instruction<Call>] {
 ///
 /// Example:
 /// ```rust
+/// use frame_support::traits::ProcessMessageError;
 /// use xcm::latest::Instruction;
 /// use xcm_builder::{CreateMatcher, MatchXcm};
 ///
@@ -56,11 +58,11 @@ impl<'a, Call> CreateMatcher for &'a mut [Instruction<Call>] {
 /// 	.assert_remaining_insts(1)?
 /// 	.match_next_inst(|inst| match inst {
 /// 		Instruction::<()>::ClearOrigin => Ok(()),
-/// 		_ => Err(()),
+/// 		_ => Err(ProcessMessageError::BadFormat),
 /// 	});
 /// assert!(res.is_ok());
 ///
-/// Ok::<(), ()>(())
+/// Ok::<(), ProcessMessageError>(())
 /// ```
 pub trait MatchXcm {
 	/// The concrete instruction type. Necessary to specify as it changes between XCM versions.
@@ -121,7 +123,7 @@ pub struct Matcher<'a, Call> {
 }
 
 impl<'a, Call> MatchXcm for Matcher<'a, Call> {
-	type Error = ();
+	type Error = ProcessMessageError;
 	type Inst = Instruction<Call>;
 	type Loc = MultiLocation;
 
@@ -130,7 +132,7 @@ impl<'a, Call> MatchXcm for Matcher<'a, Call> {
 		Self: Sized,
 	{
 		if self.total_inst - self.current_idx != n {
-			return Err(())
+			return Err(ProcessMessageError::BadFormat)
 		}
 
 		Ok(self)
@@ -146,7 +148,7 @@ impl<'a, Call> MatchXcm for Matcher<'a, Call> {
 			self.current_idx += 1;
 			Ok(self)
 		} else {
-			Err(())
+			Err(ProcessMessageError::BadFormat)
 		}
 	}
 
@@ -157,7 +159,7 @@ impl<'a, Call> MatchXcm for Matcher<'a, Call> {
 		F: FnMut(&mut Self::Inst) -> Result<ControlFlow<()>, Self::Error>,
 	{
 		if self.current_idx >= self.total_inst {
-			return Err(())
+			return Err(ProcessMessageError::BadFormat)
 		}
 
 		while self.current_idx < self.total_inst && cond(&self.xcm[self.current_idx]) {
