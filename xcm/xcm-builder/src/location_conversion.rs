@@ -187,7 +187,7 @@ impl<UniversalLocation, AccountId>
 	GlobalConsensusParachainConvertsFor<UniversalLocation, AccountId>
 {
 	fn from_params(network: &NetworkId, para_id: &u32) -> [u8; 32] {
-		(network, para_id).using_encoded(blake2_256)
+		(b"glblcnsnss/prchn_", network, para_id).using_encoded(blake2_256)
 	}
 }
 
