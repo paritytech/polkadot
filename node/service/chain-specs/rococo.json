@@ -11,14 +11,14 @@
     "/dns/rococo-bootnode-5.parity-testnet.parity.io/tcp/30333/p2p/12D3KooWAVV9DZfvJp2brvs5zcQDTBFxNmEFJKy2dsvezWL4Bmy8",
     "/dns/rococo-bootnode-6.parity-testnet.parity.io/tcp/30333/p2p/12D3KooWM3hvXvaShyp7drQCavFHuwobkYdnCp2uHU5iRRAQwsw2",
     "/dns/rococo-bootnode-7.parity-testnet.parity.io/tcp/30333/p2p/12D3KooWSbGtxfWCwn1tdmfZYESbmxzbTG2LKwKUrioDaZBcdMY4",
-    "/dns/rococo-bootnode-0.parity-testnet.parity.io/tcp/30334/ws/p2p/12D3KooWGikJMBmRiG5ofCqn8aijCijgfmZR5H9f53yUF3srm6Nm",
-    "/dns/rococo-bootnode-1.parity-testnet.parity.io/tcp/30334/ws/p2p/12D3KooWLDfH9mHRCidrd5NfQjp7rRMUcJSEUwSvEKyu7xU2cG3d",
-    "/dns/rococo-bootnode-2.parity-testnet.parity.io/tcp/30334/ws/p2p/12D3KooWSikgbrcWjVgSed7r1uXk4TeAieDnHKtrPDVZBu5XkQha",
-    "/dns/rococo-bootnode-3.parity-testnet.parity.io/tcp/30334/ws/p2p/12D3KooWPeKuW1BBPv4pNr8xqEv7jqy7rQnS3oq9U7xTCvj9qt2k",
-    "/dns/rococo-bootnode-4.parity-testnet.parity.io/tcp/30334/ws/p2p/12D3KooWNy7K8TNaP2Whcp3tsjBVUg2HcKMUvAArsimjvd1g31w4",
-    "/dns/rococo-bootnode-5.parity-testnet.parity.io/tcp/30334/ws/p2p/12D3KooWAVV9DZfvJp2brvs5zcQDTBFxNmEFJKy2dsvezWL4Bmy8",
-    "/dns/rococo-bootnode-6.parity-testnet.parity.io/tcp/30334/ws/p2p/12D3KooWM3hvXvaShyp7drQCavFHuwobkYdnCp2uHU5iRRAQwsw2",
-    "/dns/rococo-bootnode-7.parity-testnet.parity.io/tcp/30334/ws/p2p/12D3KooWSbGtxfWCwn1tdmfZYESbmxzbTG2LKwKUrioDaZBcdMY4"
+    "/dns/rococo-bootnode-0.polkadot.io/tcp/443/wss/p2p/12D3KooWGikJMBmRiG5ofCqn8aijCijgfmZR5H9f53yUF3srm6Nm",
+    "/dns/rococo-bootnode-1.polkadot.io/tcp/443/wss/p2p/12D3KooWLDfH9mHRCidrd5NfQjp7rRMUcJSEUwSvEKyu7xU2cG3d",
+    "/dns/rococo-bootnode-2.polkadot.io/tcp/443/wss/p2p/12D3KooWSikgbrcWjVgSed7r1uXk4TeAieDnHKtrPDVZBu5XkQha",
+    "/dns/rococo-bootnode-3.polkadot.io/tcp/443/wss/p2p/12D3KooWPeKuW1BBPv4pNr8xqEv7jqy7rQnS3oq9U7xTCvj9qt2k",
+    "/dns/rococo-bootnode-4.polkadot.io/tcp/443/wss/p2p/12D3KooWNy7K8TNaP2Whcp3tsjBVUg2HcKMUvAArsimjvd1g31w4",
+    "/dns/rococo-bootnode-5.polkadot.io/tcp/443/wss/p2p/12D3KooWAVV9DZfvJp2brvs5zcQDTBFxNmEFJKy2dsvezWL4Bmy8",
+    "/dns/rococo-bootnode-6.polkadot.io/tcp/443/wss/p2p/12D3KooWM3hvXvaShyp7drQCavFHuwobkYdnCp2uHU5iRRAQwsw2",
+    "/dns/rococo-bootnode-7.polkadot.io/tcp/443/wss/p2p/12D3KooWSbGtxfWCwn1tdmfZYESbmxzbTG2LKwKUrioDaZBcdMY4"
   ],
   "telemetryEndpoints": [
     [
