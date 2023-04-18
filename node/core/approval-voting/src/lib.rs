@@ -26,8 +26,7 @@ use polkadot_node_jaeger as jaeger;
 use polkadot_node_primitives::{
 	approval::{
 		v2::{BitfieldError, CandidateBitfield, CoreBitfield},
-		AssignmentCertKindV2, BlockApprovalMeta, DelayTranche, IndirectAssignmentCertV2,
-		IndirectSignedApprovalVote,
+		BlockApprovalMeta, DelayTranche, IndirectAssignmentCertV2, IndirectSignedApprovalVote,
 	},
 	ValidationResult,
 };
@@ -95,6 +94,7 @@ mod time;
 use crate::{
 	approval_db::v1::{Config as DatabaseConfig, DbBackend},
 	backend::{Backend, OverlayedBackend},
+	criteria::InvalidAssignmentReason,
 };
 
 #[cfg(test)]
@@ -1921,18 +1921,20 @@ fn check_and_import_assignment(
 		assigned_candidate_hashes.push(assigned_candidate_hash);
 	}
 
-	let claimed_core_index = match assignment.cert.kind {
-		// TODO: remove CoreIndex from certificates completely.
-		// https://github.com/paritytech/polkadot/issues/6988
-		AssignmentCertKindV2::RelayVRFDelay { .. } => Some(claimed_core_indices[0]),
-		AssignmentCertKindV2::RelayVRFModulo { .. } => Some(claimed_core_indices[0]),
-		// VRelayVRFModuloCompact assignment doesn't need the the claimed cores for checking.
-		AssignmentCertKindV2::RelayVRFModuloCompact => None,
-	};
+	// Error on null assignments.
+	if claimed_core_indices.is_empty() {
+		return Ok((
+			AssignmentCheckResult::Bad(AssignmentCheckError::InvalidCert(
+				assignment.validator,
+				format!("{:?}", InvalidAssignmentReason::NullAssignment),
+			)),
+			Vec::new(),
+		))
+	}
 
 	// Check the assignment certificate.
 	let res = state.assignment_criteria.check_assignment_cert(
-		claimed_core_index,
+		claimed_core_indices.try_into().expect("Checked for null assignment above; qed"),
 		assignment.validator,
 		&criteria::Config::from(session_info),
 		block_entry.relay_vrf_story(),

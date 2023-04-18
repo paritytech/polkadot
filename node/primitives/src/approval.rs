@@ -237,7 +237,10 @@ pub enum AssignmentCertKindV2 {
 	/// candidates were included.
 	///
 	/// The context is [`v2::RELAY_VRF_MODULO_CONTEXT`]
-	RelayVRFModuloCompact,
+	RelayVRFModuloCompact {
+		/// A bitfield representing the core indices claimed by this assignment.
+		core_bitfield: super::approval::v2::CoreBitfield,
+	},
 	/// An assignment story based on the VRF that authorized the relay-chain block where the
 	/// candidate was included combined with the index of a particular core.
 	///
