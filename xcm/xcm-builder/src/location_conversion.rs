@@ -374,12 +374,12 @@ mod tests {
 			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_ref(
 				MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([4; 32])), Parachain(1000))),
 			)
-				.expect("conversion is ok");
+			.expect("conversion is ok");
 		let res_gc_b_p1001 =
 			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_ref(
 				MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([4; 32])), Parachain(1001))),
 			)
-				.expect("conversion is ok");
+			.expect("conversion is ok");
 		assert_ne!(res_gc_a_p1000, res_gc_a_p1001);
 		assert_ne!(res_gc_a_p1000, res_gc_b_p1000);
 		assert_ne!(res_gc_a_p1000, res_gc_b_p1001);
