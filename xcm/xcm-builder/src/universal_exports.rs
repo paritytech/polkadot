@@ -158,8 +158,10 @@ impl<Bridges: ExporterFor, Router: SendXcm, UniversalLocation: Get<InteriorMulti
 		// We then send a normal message to the bridge asking it to export the prepended
 		// message to the remote chain. This will only work if the bridge will do the message
 		// export for free. Common-good chains will typically be afforded this.
-		let message =
-			Xcm(vec![ExportMessage { network: remote_network, destination: remote_location, xcm }]);
+		let message = Xcm(vec![
+			UnpaidExecution { weight_limit: Unlimited, check_origin: None },
+			ExportMessage { network: remote_network, destination: remote_location, xcm },
+		]);
 		validate_send::<Router>(bridge, message)
 	}
 
