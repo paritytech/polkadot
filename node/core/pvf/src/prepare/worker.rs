@@ -398,13 +398,13 @@ pub fn worker_entrypoint(socket_path: &str, node_version: Option<&str>) {
 			// Spawn another thread for preparation.
 			let prepare_fut = rt_handle
 				.spawn_blocking(move || {
-					// #[cfg(target_os = "linux")]
-					// if let Err(err) = sandbox::seccomp_prepare_thread() {
-					// 	return Err(PrepareError::IoErr(format!(
-					// 		"sandboxing the thread failed: {}",
-					// 		err.to_string(),
-					// 	)))
-					// }
+					#[cfg(target_os = "linux")]
+					if let Err(err) = sandbox::seccomp_prepare_thread() {
+						return Err(PrepareError::IoErr(format!(
+							"sandboxing the thread failed: {}",
+							err.to_string(),
+						)))
+					}
 
 					let result = prepare_artifact(pvf);
 

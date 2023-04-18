@@ -99,6 +99,8 @@ mod metrics;
 mod prepare;
 mod priority;
 mod pvf;
+#[cfg(target_os = "linux")]
+mod sandbox;
 mod worker_common;
 
 #[doc(hidden)]
