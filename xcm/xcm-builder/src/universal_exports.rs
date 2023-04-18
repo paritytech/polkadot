@@ -23,7 +23,7 @@ use xcm::prelude::*;
 use xcm_executor::traits::{validate_export, ExportXcm};
 use SendError::*;
 
-fn ensure_is_remote(
+pub fn ensure_is_remote(
 	universal_local: impl Into<InteriorMultiLocation>,
 	dest: impl Into<MultiLocation>,
 ) -> Result<(NetworkId, InteriorMultiLocation), MultiLocation> {

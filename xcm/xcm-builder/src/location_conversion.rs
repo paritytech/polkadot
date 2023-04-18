@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::universal_exports::ensure_is_remote;
 use frame_support::traits::Get;
 use parity_scale_codec::{Decode, Encode};
 use sp_io::hashing::blake2_256;
@@ -150,17 +151,29 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 /// Tries to convert global consensus parachain to accountId.
 ///
 /// (E.g.: can be used for sovereign account conversion)
-pub struct GlobalConsensusParachainConvert<AccountId>(PhantomData<AccountId>);
-impl<AccountId: From<[u8; 32]> + Clone> Convert<MultiLocation, AccountId>
-	for GlobalConsensusParachainConvert<AccountId>
+pub struct GlobalConsensusParachainConvertsFor<UniversalLocation, AccountId>(
+	PhantomData<(UniversalLocation, AccountId)>,
+);
+impl<UniversalLocation: Get<InteriorMultiLocation>, AccountId: From<[u8; 32]> + Clone>
+	Convert<MultiLocation, AccountId>
+	for GlobalConsensusParachainConvertsFor<UniversalLocation, AccountId>
 {
 	fn convert_ref(location: impl Borrow<MultiLocation>) -> Result<AccountId, ()> {
-		match location.borrow() {
-			MultiLocation {
-				interior: X2(GlobalConsensus(network), Parachain(para_id)), ..
-			} => Ok(AccountId::from(GlobalConsensusParachainConvert::<AccountId>::from_params(
-				network, para_id,
-			))),
+		let universal_source = UniversalLocation::get();
+		log::trace!(
+			target: "xcm::location_conversion",
+			"GlobalConsensusParachainConvertsFor universal_source: {:?}, location: {:?}",
+			universal_source, location.borrow(),
+		);
+		let devolved = ensure_is_remote(universal_source, *location.borrow()).map_err(|_| ())?;
+		let (remote_network, remote_location) = devolved;
+
+		match remote_location {
+			X1(Parachain(remote_network_para_id)) =>
+				Ok(AccountId::from(GlobalConsensusParachainConvertsFor::<
+					UniversalLocation,
+					AccountId,
+				>::from_params(&remote_network, &remote_network_para_id))),
 			_ => Err(()),
 		}
 	}
@@ -170,7 +183,9 @@ impl<AccountId: From<[u8; 32]> + Clone> Convert<MultiLocation, AccountId>
 		Err(())
 	}
 }
-impl<AccountId> GlobalConsensusParachainConvert<AccountId> {
+impl<UniversalLocation, AccountId>
+	GlobalConsensusParachainConvertsFor<UniversalLocation, AccountId>
+{
 	fn from_params(network: &NetworkId, para_id: &u32) -> [u8; 32] {
 		(network, para_id).using_encoded(blake2_256)
 	}
@@ -256,7 +271,11 @@ mod tests {
 	}
 
 	#[test]
-	fn global_consensus_parachain_convert_works() {
+	fn global_consensus_parachain_converts_for_works() {
+		parameter_types! {
+			pub UniversalLocation: InteriorMultiLocation = X2(GlobalConsensus(ByGenesis([9; 32])), Parachain(1234));
+		}
+
 		let test_data = vec![
 			(MultiLocation::parent(), false),
 			(MultiLocation::new(0, X1(Parachain(1000))), false),
@@ -273,15 +292,30 @@ mod tests {
 				false,
 			),
 			(MultiLocation::new(2, X1(GlobalConsensus(ByGenesis([0; 32])))), false),
-			(MultiLocation::new(0, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))), true),
-			(MultiLocation::new(1, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))), true),
+			(
+				MultiLocation::new(0, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))),
+				false,
+			),
+			(
+				MultiLocation::new(1, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))),
+				false,
+			),
 			(MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))), true),
-			(MultiLocation::new(3, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))), true),
-			(MultiLocation::new(9, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))), true),
+			(
+				MultiLocation::new(3, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))),
+				false,
+			),
+			(
+				MultiLocation::new(9, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))),
+				false,
+			),
 		];
 
 		for (location, expected_result) in test_data {
-			let result = GlobalConsensusParachainConvert::<[u8; 32]>::convert_ref(&location);
+			let result =
+				GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_ref(
+					&location,
+				);
 			match result {
 				Ok(account) => {
 					assert_eq!(
@@ -293,7 +327,7 @@ mod tests {
 						MultiLocation { interior: X2(GlobalConsensus(network), Parachain(para_id)), .. } =>
 							assert_eq!(
 								account,
-								GlobalConsensusParachainConvert::<[u8; 32]>::from_params(network, para_id),
+								GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::from_params(network, para_id),
 								"expected_result: {}, but conversion passed: {:?}, location: {:?}", expected_result, account, location
 							),
 						_ => assert_eq!(
@@ -314,29 +348,16 @@ mod tests {
 		}
 
 		// all success
-		let res_2_1000 = GlobalConsensusParachainConvert::<[u8; 32]>::convert_ref(
-			MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))),
-		)
-		.expect("conversion is ok");
-		let res_2_1001 = GlobalConsensusParachainConvert::<[u8; 32]>::convert_ref(
-			MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1001))),
-		)
-		.expect("conversion is ok");
-		let res_3_1000 = GlobalConsensusParachainConvert::<[u8; 32]>::convert_ref(
-			MultiLocation::new(3, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))),
-		)
-		.expect("conversion is ok");
-		let res_3_1001 = GlobalConsensusParachainConvert::<[u8; 32]>::convert_ref(
-			MultiLocation::new(3, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1001))),
-		)
-		.expect("conversion is ok");
+		let res_2_1000 =
+			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_ref(
+				MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1000))),
+			)
+			.expect("conversion is ok");
+		let res_2_1001 =
+			GlobalConsensusParachainConvertsFor::<UniversalLocation, [u8; 32]>::convert_ref(
+				MultiLocation::new(2, X2(GlobalConsensus(ByGenesis([0; 32])), Parachain(1001))),
+			)
+			.expect("conversion is ok");
 		assert_ne!(res_2_1000, res_2_1001);
-		assert_ne!(res_3_1000, res_3_1001);
-
-		assert_ne!(res_2_1000, res_3_1001);
-		assert_ne!(res_2_1001, res_3_1000);
-
-		assert_eq!(res_2_1000, res_3_1000);
-		assert_eq!(res_2_1001, res_3_1001);
 	}
 }
