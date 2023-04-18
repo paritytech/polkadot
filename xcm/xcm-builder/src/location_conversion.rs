@@ -148,9 +148,21 @@ impl<Network: Get<Option<NetworkId>>, AccountId: From<[u8; 20]> + Into<[u8; 20]>
 	}
 }
 
-/// Tries to convert global consensus parachain to accountId.
+/// Converts a location which is a top-level parachain (i.e. a parachain held on a
+/// Relay-chain which provides its own consensus) into a 32-byte `AccountId`.
 ///
-/// (E.g.: can be used for sovereign account conversion)
+/// This will always result in the *same account ID* being returned for the same
+/// parachain index under the same Relay-chain, regardless of the relative security of
+/// this Relay-chain compared to the local chain.
+///
+/// Note: No distinction is made when the local chain happens to be the parachain in
+/// question or its Relay-chain.
+///
+/// WARNING: This results in the same `AccountId` value being generated regardless
+/// of the relative security of the local chain and the Relay-chain of the input
+/// location. This may not have any immediate security risks, however since it creates
+/// commonalities between chains with different security characteristics, it could
+/// possibly form part of a more sophisticated attack scenario.
 pub struct GlobalConsensusParachainConvertsFor<UniversalLocation, AccountId>(
 	PhantomData<(UniversalLocation, AccountId)>,
 );
