@@ -30,7 +30,7 @@ use xcm::latest::{
 	MultiLocation, Weight,
 	WeightLimit::*,
 };
-use xcm_executor::traits::{OnResponse, ShouldExecute};
+use xcm_executor::traits::{CheckSuspension, OnResponse, ShouldExecute};
 
 /// Execution barrier that just takes `max_weight` from `weight_credit`.
 ///
@@ -207,6 +207,28 @@ impl<
 			max_weight,
 			weight_credit,
 		)
+	}
+}
+
+/// Barrier condition that allows for a `SuspensionChecker` that controls whether or not the XCM
+/// executor will be suspended from executing the given XCM.
+pub struct RespectSuspension<Inner, SuspensionChecker>(PhantomData<(Inner, SuspensionChecker)>);
+impl<Inner, SuspensionChecker> ShouldExecute for RespectSuspension<Inner, SuspensionChecker>
+where
+	Inner: ShouldExecute,
+	SuspensionChecker: CheckSuspension,
+{
+	fn should_execute<Call>(
+		origin: &MultiLocation,
+		instructions: &mut [Instruction<Call>],
+		max_weight: Weight,
+		weight_credit: &mut Weight,
+	) -> Result<(), ProcessMessageError> {
+		if SuspensionChecker::is_suspended(origin, instructions, max_weight, weight_credit) {
+			Err(ProcessMessageError::Yield)
+		} else {
+			Inner::should_execute(origin, instructions, max_weight, weight_credit)
+		}
 	}
 }
 

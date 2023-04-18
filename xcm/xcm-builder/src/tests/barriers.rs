@@ -276,3 +276,30 @@ fn allow_paid_should_work() {
 	);
 	assert_eq!(r, Ok(()))
 }
+
+#[test]
+fn suspension_should_work() {
+	TestSuspender::set_suspended(true);
+	AllowUnpaidFrom::set(vec![Parent.into()]);
+
+	let mut message =
+		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
+	let r = RespectSuspension::<AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>, TestSuspender>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		Weight::from_parts(10, 10),
+		&mut Weight::zero(),
+	);
+	assert_eq!(r, Err(ProcessMessageError::Yield));
+
+	TestSuspender::set_suspended(false);
+	let mut message =
+		Xcm::<()>(vec![TransferAsset { assets: (Parent, 100).into(), beneficiary: Here.into() }]);
+	let r = RespectSuspension::<AllowUnpaidExecutionFrom::<IsInVec<AllowUnpaidFrom>>, TestSuspender>::should_execute(
+		&Parent.into(),
+		message.inner_mut(),
+		Weight::from_parts(10, 10),
+		&mut Weight::zero(),
+	);
+	assert_eq!(r, Ok(()));
+}
