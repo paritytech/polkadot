@@ -1,8 +1,6 @@
 # Provisioner
 
-Relay chain block authorship authority is governed by BABE and is beyond the scope of the Overseer and the rest of the subsystems. That said, ultimately the block author needs to select a set of backable parachain candidates and other consensus data, and assemble a block from them. This subsystem is responsible for providing the necessary data to all potential block authors.
-
-A major feature of the provisioner: this subsystem is responsible for ensuring that parachain block candidates are sufficiently available before sending them to potential block authors.
+Relay chain block authorship authority is governed by BABE and is beyond the scope of the Overseer and the rest of the subsystems. That said, ultimately the block author needs to select a set of backable parachain candidates and other consensus data, and assemble a block from them. This subsystem is responsible for providing the necessary data to all potential block authors. Due to the potentially forkful nature of the chain the provisioner must maintain separate states and perform its duties per active leaf.
 
 ## Provisionable Data
 
@@ -10,7 +8,7 @@ There are several distinct types of provisionable data, but they share this prop
 
 ### Backed Candidates
 
-The block author can choose 0 or 1 backed parachain candidates per parachain; the only constraint is that each backed candidate has the appropriate relay parent. However, the choice of a backed candidate must be the block author's; the provisioner must ensure that block authors are aware of all available [`BackedCandidate`s](../../types/backing.md#backed-candidate).
+The block author can choose 0 or 1 backed parachain candidates per parachain; the only constraint is that each backable candidate has the appropriate relay parent. However, the choice of a backed candidate must be the block author's.
 
 ### Signed Bitfields
 
@@ -56,7 +54,24 @@ Our goal with respect to bitfields is simple: maximize availability. However, it
 
 Beyond that, a semi-arbitrary selection policy is fine. In order to meet the goal of maximizing availability, a heuristic of picking the bitfield with the greatest number of 1 bits set in the event of conflict is useful.
 
-### Candidate Selection
+### Prospective Parachains Mode
+
+The state of the provisioner `PerRelayParent` tracks an important setting, `ProspectiveParachainsMode`. This setting determines which backable candidate selection method the provisioner uses.
+
+`ProspectiveParachainsMode::Disabled` - The provisioner uses its own internal legacy candidate selection. 
+`ProspectiveParachainsMode::Enabled` - The provisioner requests a selection of candidates from [prospective parachains](../backing/prospective-parachains.md).
+
+Candidates selected with `ProspectiveParachainsMode::Enabled` are able to benefit from the increased block production time asynchronous backing allows. For this reason, once asynchronous backing has been sufficiently tested the code related to legacy candidate selection will be removed.
+
+### Prospective Parachains Candidate Selection
+
+Prospective parachains candidate selection has two 
+
+The end result of this process is a vector of `CandidateHash`s, sorted in order of their core index.
+
+### Legacy Candidate Selection 
+
+Legacy candidate selection takes place in the provisioner. Thus the provisioner needs to keep an up to date record of all [backed_candidates](../../types/backing.md#backed-candidate) `PerRelayParent` to pick from. 
 
 The goal of candidate selection is to determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
 
@@ -74,7 +89,13 @@ To determine availability:
     - There are two constraints: `backed_candidate.candidate.descriptor.para_id == scheduled_core.para_id && candidate.candidate.descriptor.validation_data_hash == computed_validation_data_hash`.
     - In the event that more than one candidate meets the constraints, selection between the candidates is arbitrary. However, not more than one candidate can be selected per core.
 
-The end result of this process is a vector of `BackedCandidate`s, sorted in order of their core index. Furthermore, this process should select at maximum one candidate which upgrades the runtime validation code.
+The end result of this process is a vector of `CandidateHash`s, sorted in order of their core index.
+
+### Retrieving Full BackedCandidate's for Selected Hashes
+
+Legacy candidate selection and prospective parachains candidate selection both leave us with a vector of `CandidateHash`s. These are passed to the backing subsystem with `CandidateBackingMessage::GetBackedCandidates`.
+
+We receive back a vector of `BackedCandidate`s, sorted in order of their core index and ready to be provisioned to block authoring. The candidate selection and retrieval process should select at maximum one candidate which upgrades the runtime validation code.
 
 ### Dispute Statement Selection
 
