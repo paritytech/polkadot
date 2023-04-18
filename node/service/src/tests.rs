@@ -17,7 +17,7 @@
 use super::{relay_chain_selection::*, *};
 
 use futures::channel::oneshot::Receiver;
-use polkadot_node_primitives::approval::{VrfOutput, VrfProof, VrfSignature};
+use polkadot_node_primitives::approval::VrfSignature;
 use polkadot_node_subsystem::messages::{AllMessages, BlockDescription};
 use polkadot_node_subsystem_test_helpers as test_helpers;
 use polkadot_node_subsystem_util::TimeoutExt;
@@ -26,6 +26,7 @@ use sp_consensus_babe::{
 	digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 	VrfTranscript,
 };
+use sp_core::crypto::VrfSigner;
 use sp_runtime::{testing::*, DigestItem};
 use std::{
 	collections::{BTreeMap, HashMap, HashSet},
@@ -130,12 +131,8 @@ const TIMEOUT: Duration = Duration::from_millis(2000);
 
 // used for generating assignments where the validity of the VRF doesn't matter.
 fn garbage_vrf_signature() -> VrfSignature {
-	let key = Sr25519Keyring::Alice.pair();
-	let key = key.as_ref();
-
 	let transcript = VrfTranscript::new(b"test-garbage", &[]);
-	let (o, p, _) = key.vrf_sign(transcript.clone());
-	VrfSignature { output: VrfOutput(o.to_output()), proof: VrfProof(p) }
+	Sr25519Keyring::Alice.pair().vrf_sign(&transcript)
 }
 
 /// Representation of a local representation
