@@ -10,15 +10,15 @@ codec = { package = "parity-scale-codec", version = "3.4.0" }
 scale-info = { version = "2.5.0", features = ["derive"] }
 log = { version = "0.4.14", default-features = false }
 
-frame-system = { git = "https://github.com/paritytech/substrate", branch = "master" }
-frame-support = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "master" }
-pallet-uniques = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-std = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+frame-system = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+frame-support = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+pallet-balances = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+pallet-uniques = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sp-std = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sp-runtime = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
 
 xcm = { path = "../../" }
 xcm-simulator = { path = "../" }

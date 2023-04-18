@@ -32,18 +32,18 @@ polkadot-node-metrics = { path = "../../metrics" }
 polkadot-node-primitives = { path = "../../primitives" }
 
 polkadot-primitives = { path = "../../../primitives" }
-sc-executor = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-io = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-core = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "master" }
-sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "master" }
+sc-executor = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sc-executor-wasmtime = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sc-executor-common = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sp-externalities = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sp-io = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sp-core = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sp-wasm-interface = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sp-maybe-compressed-blob = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
+sp-tracing = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
 
 [build-dependencies]
-substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "master" }
+substrate-build-script-utils = { git = "https://github.com/paritytech/substrate", branch = "sync-evict-idle-peers" }
 
 [target.'cfg(target_os = "linux")'.dependencies]
 tikv-jemalloc-ctl = "0.5.0"
