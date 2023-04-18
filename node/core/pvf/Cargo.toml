@@ -51,7 +51,7 @@ tikv-jemalloc-ctl = "0.5.0"
 [dev-dependencies]
 adder = { package = "test-parachain-adder", path = "../../../parachain/test-parachains/adder" }
 halt = { package = "test-parachain-halt", path = "../../../parachain/test-parachains/halt" }
-hex-literal = "0.3.4"
+hex-literal = "0.4.1"
 tempfile = "3.3.0"
 
 [features]
