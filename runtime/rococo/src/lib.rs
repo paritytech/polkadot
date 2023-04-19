@@ -1046,8 +1046,8 @@ parameter_types! {
 	///
 	/// This is not a good value for para-chains since the `Scheduler` already uses up to 80% block weight.
 	pub MessageQueueServiceWeight: Weight = Perbill::from_percent(40) * BlockWeights::get().max_block;
-	pub const MessageQueueHeapSize: u32 = 65_536;
-	pub const MessageQueueMaxStale: u32 = 8;
+	pub const MessageQueueHeapSize: u32 = 32 * 1024;
+	pub const MessageQueueMaxStale: u32 = 96;
 }
 
 /// Message processor to handle any messages that were enqueued into the `MessageQueue` pallet.
@@ -1516,8 +1516,25 @@ pub type UncheckedExtrinsic =
 pub type Migrations = (
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-	parachains_configuration::migration::MigrateV5ToV6<Runtime>,
 );
+
+/// Helpers to configure all migrations.
+pub mod migrations {
+	use runtime_parachains::configuration::migration_ump;
+
+	pub const MAX_UPWARD_QUEUE_SIZE: u32 = 8 * 1024 * 1024;
+	pub const MAX_UPWARD_QUEUE_COUNT: u32 = 1398101;
+	pub const MAX_UPWARD_MESSAGE_SIZE: u32 = (1 << 15) - 5; // Checked in test `max_upward_message_size`.
+	pub const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32 = 1024;
+
+	pub type UpdateUmpLimits = migration_ump::latest::ForceUpdateUmpLimits<
+		super::Runtime,
+		MAX_UPWARD_QUEUE_SIZE,
+		MAX_UPWARD_QUEUE_COUNT,
+		MAX_UPWARD_MESSAGE_SIZE,
+		MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE,
+	>;
+}
 
 /// Executive: handles dispatch to the various modules.
 pub type Executive = frame_executive::Executive<
@@ -2178,6 +2195,20 @@ mod encoding_tests {
 	#[test]
 	fn nis_hold_reason_encoding_is_correct() {
 		assert_eq!(NisHoldReason::get().encode(), [38, 0]);
+	}
+}
+
+#[cfg(test)]
+mod test {
+	use super::*;
+
+	#[test]
+	fn max_upward_message_size() {
+		use sp_core::Get;
+		assert_eq!(
+			migrations::MAX_UPWARD_MESSAGE_SIZE,
+			pallet_message_queue::MaxMessageLenOf::<Runtime>::get()
+		);
 	}
 }
 

@@ -14,361 +14,108 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! A module that is responsible for migration of storage.
+//! A module that is responsible for migration of UMP storage.
 
-use crate::configuration::{self, ActiveConfig, Config, Pallet, LOG_TARGET};
-use frame_support::{pallet_prelude::*, traits::StorageVersion, weights::Weight};
-use frame_system::pallet_prelude::BlockNumberFor;
-use primitives::vstaging::AsyncBackingParams;
+use crate::configuration::{
+	self, ActiveConfig, Config, PendingConfigs, WeightInfo, LOG_TARGET,
+};
+use frame_support::{pallet_prelude::*};
 
-pub mod v6 {
+pub mod latest {
 	use super::*;
-	use frame_support::traits::OnRuntimeUpgrade;
-	use primitives::{Balance, SessionIndex};
-	#[cfg(feature = "try-runtime")]
-	use sp_std::prelude::*;
+	use frame_support::{pallet_prelude::Weight, traits::OnRuntimeUpgrade};
 
-	#[derive(parity_scale_codec::Encode, parity_scale_codec::Decode, Debug)]
-	pub struct OldHostConfiguration<BlockNumber> {
-		pub max_code_size: u32,
-		pub max_head_data_size: u32,
-		pub max_upward_queue_count: u32,
-		pub max_upward_queue_size: u32,
-		pub max_upward_message_size: u32,
-		pub max_upward_message_num_per_candidate: u32,
-		pub hrmp_max_message_num_per_candidate: u32,
-		pub validation_upgrade_cooldown: BlockNumber,
-		pub validation_upgrade_delay: BlockNumber,
-		pub max_pov_size: u32,
-		pub max_downward_message_size: u32,
-		pub ump_service_total_weight: Weight,
-		pub hrmp_max_parachain_outbound_channels: u32,
-		pub hrmp_max_parathread_outbound_channels: u32,
-		pub hrmp_sender_deposit: Balance,
-		pub hrmp_recipient_deposit: Balance,
-		pub hrmp_channel_max_capacity: u32,
-		pub hrmp_channel_max_total_size: u32,
-		pub hrmp_max_parachain_inbound_channels: u32,
-		pub hrmp_max_parathread_inbound_channels: u32,
-		pub hrmp_channel_max_message_size: u32,
-		pub code_retention_period: BlockNumber,
-		pub parathread_cores: u32,
-		pub parathread_retries: u32,
-		pub group_rotation_frequency: BlockNumber,
-		pub chain_availability_period: BlockNumber,
-		pub thread_availability_period: BlockNumber,
-		pub scheduling_lookahead: u32,
-		pub max_validators_per_core: Option<u32>,
-		pub max_validators: Option<u32>,
-		pub dispute_period: SessionIndex,
-		pub dispute_post_conclusion_acceptance_period: BlockNumber,
-		pub dispute_conclusion_by_time_out_period: BlockNumber,
-		pub no_show_slots: u32,
-		pub n_delay_tranches: u32,
-		pub zeroth_delay_tranche_width: u32,
-		pub needed_approvals: u32,
-		pub relay_vrf_modulo_samples: u32,
-		pub ump_max_individual_weight: Weight,
-		pub pvf_checking_enabled: bool,
-		pub pvf_voting_ttl: SessionIndex,
-		pub minimum_validation_upgrade_delay: BlockNumber,
-	}
+	/// Force update the UMP limits in the parachain host config.
+	///
+	/// **Should only be used when there are no pending migrations for the configuration pallet.**
+	// NOTE: `OnRuntimeUpgrade` does not have a `self`, so everything must be compile time.
+	pub struct ForceUpdateUmpLimits<
+		T,
+		const MAX_UPWARD_QUEUE_SIZE: u32,
+		const MAX_UPWARD_QUEUE_COUNT: u32,
+		const MAX_UPWARD_MESSAGE_SIZE: u32,
+		const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32,
+	>(core::marker::PhantomData<T>);
 
-	impl<BlockNumber: Default + From<u32>> Default for OldHostConfiguration<BlockNumber> {
-		fn default() -> Self {
-			Self {
-				group_rotation_frequency: 1u32.into(),
-				chain_availability_period: 1u32.into(),
-				thread_availability_period: 1u32.into(),
-				no_show_slots: 1u32.into(),
-				validation_upgrade_cooldown: Default::default(),
-				validation_upgrade_delay: Default::default(),
-				code_retention_period: Default::default(),
-				max_code_size: Default::default(),
-				max_pov_size: Default::default(),
-				max_head_data_size: Default::default(),
-				parathread_cores: Default::default(),
-				parathread_retries: Default::default(),
-				scheduling_lookahead: Default::default(),
-				max_validators_per_core: Default::default(),
-				max_validators: None,
-				dispute_period: 6,
-				dispute_post_conclusion_acceptance_period: 100.into(),
-				dispute_conclusion_by_time_out_period: 200.into(),
-				n_delay_tranches: Default::default(),
-				zeroth_delay_tranche_width: Default::default(),
-				needed_approvals: Default::default(),
-				relay_vrf_modulo_samples: Default::default(),
-				max_upward_queue_count: Default::default(),
-				max_upward_queue_size: Default::default(),
-				max_downward_message_size: Default::default(),
-				ump_service_total_weight: Weight::zero(),
-				max_upward_message_size: Default::default(),
-				max_upward_message_num_per_candidate: Default::default(),
-				hrmp_sender_deposit: Default::default(),
-				hrmp_recipient_deposit: Default::default(),
-				hrmp_channel_max_capacity: Default::default(),
-				hrmp_channel_max_total_size: Default::default(),
-				hrmp_max_parachain_inbound_channels: Default::default(),
-				hrmp_max_parathread_inbound_channels: Default::default(),
-				hrmp_channel_max_message_size: Default::default(),
-				hrmp_max_parachain_outbound_channels: Default::default(),
-				hrmp_max_parathread_outbound_channels: Default::default(),
-				hrmp_max_message_num_per_candidate: Default::default(),
-				ump_max_individual_weight: Weight::zero(),
-				pvf_checking_enabled: false,
-				pvf_voting_ttl: 2u32.into(),
-				minimum_validation_upgrade_delay: 2.into(),
-			}
-		}
-	}
-
-	pub struct MigrateV5ToV6<T>(sp_std::marker::PhantomData<T>);
-	impl<T: Config> OnRuntimeUpgrade for MigrateV5ToV6<T> {
+	impl<
+			T: Config,
+			const MAX_UPWARD_QUEUE_SIZE: u32,
+			const MAX_UPWARD_QUEUE_COUNT: u32,
+			const MAX_UPWARD_MESSAGE_SIZE: u32,
+			const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32,
+		> OnRuntimeUpgrade
+		for ForceUpdateUmpLimits<
+			T,
+			MAX_UPWARD_QUEUE_SIZE,
+			MAX_UPWARD_QUEUE_COUNT,
+			MAX_UPWARD_MESSAGE_SIZE,
+			MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE,
+		>
+	{
 		#[cfg(feature = "try-runtime")]
-		fn pre_upgrade() -> Result<Vec<u8>, &'static str> {
-			ensure!(StorageVersion::get::<Pallet<T>>() == 5, "The migration requires version 5");
-			log::trace!(target: LOG_TARGET, "Going to upgraded parachain config...");
+		fn pre_upgrade() -> Result<sp_std::vec::Vec<u8>, &'static str> {
+			log::info!(target: LOG_TARGET, "pre_upgrade");
+			let mut pending = PendingConfigs::<T>::get();
+			pending.sort_by_key(|(s, _)| *s);
+			pending.last().map(|(_, cfg)| cfg.panic_if_not_consistent());
 
-			Ok(Vec::new())
+			log::info!(
+				target: LOG_TARGET,
+				"Active HostConfig:\n\n{:#?}\n",
+				ActiveConfig::<T>::get()
+			);
+			log::info!(
+				target: LOG_TARGET,
+				"Last pending HostConfig upgrade:\n\n{:#?}\n",
+				pending.last()
+			);
+
+			Ok((pending.len() as u32).encode())
 		}
 
 		fn on_runtime_upgrade() -> Weight {
-			if StorageVersion::get::<Pallet<T>>() == 5 {
-				let weight_consumed = migrate_v5_to_v6::<T>();
-
-				log::info!(target: LOG_TARGET, "MigrateV5ToV6 executed successfully");
-				StorageVersion::new(6).put::<Pallet<T>>();
-
-				weight_consumed
-			} else {
-				log::warn!(target: LOG_TARGET, "MigrateV5ToV6 should be removed.");
-				T::DbWeight::get().reads(1)
+			if let Err(e) = configuration::Pallet::<T>::schedule_config_update(|cfg| {
+				cfg.max_upward_queue_size = MAX_UPWARD_QUEUE_SIZE;
+				cfg.max_upward_queue_count = MAX_UPWARD_QUEUE_COUNT;
+				cfg.max_upward_message_size = MAX_UPWARD_MESSAGE_SIZE;
+				cfg.max_upward_message_num_per_candidate = MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE;
+			}) {
+				log::error!(
+					target: LOG_TARGET,
+					"\n!!!!!!!!!!!!!!!!!!!!!!!!\nFailed to schedule HostConfig upgrade: {:?}\n!!!!!!!!!!!!!!!!!!!!!!!!\n",
+					e,
+				);
 			}
+
+			T::WeightInfo::set_config_with_block_number()
 		}
 
 		#[cfg(feature = "try-runtime")]
-		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
-			log::trace!(target: LOG_TARGET, "Running post_upgrade()");
-			ensure!(
-				StorageVersion::get::<Pallet<T>>() == 6,
-				"Storage version should be 6 after the migration"
+		fn post_upgrade(state: sp_std::vec::Vec<u8>) -> Result<(), &'static str> {
+			log::info!(target: LOG_TARGET, "post_upgrade");
+			let old_pending: u32 = Decode::decode(&mut &state[..]).expect("Known good");
+			let mut pending = PendingConfigs::<T>::get();
+			pending.sort_by_key(|(s, _)| *s);
+
+			log::info!(
+				target: LOG_TARGET,
+				"Last pending HostConfig upgrade:\n\n{:#?}\n",
+				pending.last()
 			);
-			ensure!(
-				StorageVersion::get::<Pallet<T>>() ==
-					crate::configuration::migration::STORAGE_VERSION,
-				"Storage version should be STORAGE_VERSION after the migration"
+			assert_eq!(
+				pending.len(),
+				old_pending as usize + 1,
+				"There must be a new pending upgrade enqueued"
 			);
+
+			log::info!(target: LOG_TARGET, "Checking active config");
+			ActiveConfig::<T>::get().panic_if_not_consistent();
+			PendingConfigs::<T>::get().iter().for_each(|(s, cfg)| {
+				log::info!(target: LOG_TARGET, "Checking config s={}", s);
+				cfg.panic_if_not_consistent();
+			});
 
 			Ok(())
 		}
-	}
-}
-
-fn migrate_v5_to_v6<T: Config>() -> Weight {
-	// Unusual formatting is justified:
-	// - make it easier to verify that fields assign what they supposed to assign.
-	// - this code is transient and will be removed after all migrations are done.
-	// - this code is important enough to optimize for legibility sacrificing consistency.
-	#[rustfmt::skip]
-	let translate =
-		|pre: v6::OldHostConfiguration<BlockNumberFor<T>>| ->
-configuration::HostConfiguration<BlockNumberFor<T>>
-	{
-		super::HostConfiguration {
-max_code_size                            : pre.max_code_size,
-max_head_data_size                       : pre.max_head_data_size,
-max_upward_queue_count                   : pre.max_upward_queue_count,
-max_upward_queue_size                    : pre.max_upward_queue_size,
-max_upward_message_size                  : pre.max_upward_message_size,
-max_upward_message_num_per_candidate     : pre.max_upward_message_num_per_candidate,
-hrmp_max_message_num_per_candidate       : pre.hrmp_max_message_num_per_candidate,
-validation_upgrade_cooldown              : pre.validation_upgrade_cooldown,
-validation_upgrade_delay                 : pre.validation_upgrade_delay,
-max_pov_size                             : pre.max_pov_size,
-max_downward_message_size                : pre.max_downward_message_size,
-hrmp_max_parachain_outbound_channels     : pre.hrmp_max_parachain_outbound_channels,
-hrmp_max_parathread_outbound_channels    : pre.hrmp_max_parathread_outbound_channels,
-hrmp_sender_deposit                      : pre.hrmp_sender_deposit,
-hrmp_recipient_deposit                   : pre.hrmp_recipient_deposit,
-hrmp_channel_max_capacity                : pre.hrmp_channel_max_capacity,
-hrmp_channel_max_total_size              : pre.hrmp_channel_max_total_size,
-hrmp_max_parachain_inbound_channels      : pre.hrmp_max_parachain_inbound_channels,
-hrmp_max_parathread_inbound_channels     : pre.hrmp_max_parathread_inbound_channels,
-hrmp_channel_max_message_size            : pre.hrmp_channel_max_message_size,
-code_retention_period                    : pre.code_retention_period,
-parathread_cores                         : pre.parathread_cores,
-parathread_retries                       : pre.parathread_retries,
-group_rotation_frequency                 : pre.group_rotation_frequency,
-chain_availability_period                : pre.chain_availability_period,
-thread_availability_period               : pre.thread_availability_period,
-scheduling_lookahead                     : pre.scheduling_lookahead,
-max_validators_per_core                  : pre.max_validators_per_core,
-max_validators                           : pre.max_validators,
-dispute_period                           : pre.dispute_period,
-dispute_post_conclusion_acceptance_period: pre.dispute_post_conclusion_acceptance_period,
-no_show_slots                            : pre.no_show_slots,
-n_delay_tranches                         : pre.n_delay_tranches,
-zeroth_delay_tranche_width               : pre.zeroth_delay_tranche_width,
-needed_approvals                         : pre.needed_approvals,
-relay_vrf_modulo_samples                 : pre.relay_vrf_modulo_samples,
-pvf_checking_enabled                     : pre.pvf_checking_enabled,
-pvf_voting_ttl                           : pre.pvf_voting_ttl,
-minimum_validation_upgrade_delay         : pre.minimum_validation_upgrade_delay,
-
-// Default values are zeroes, thus it's ensured allowed ancestry never crosses the upgrade block.
-async_backing_params                     : AsyncBackingParams { max_candidate_depth: 0, allowed_ancestry_len: 0 },
-
-// Default executor parameters set is empty
-executor_params                          : Default::default(),
-		}
-	};
-
-	if let Err(err) = ActiveConfig::<T>::translate(|pre| pre.map(translate)) {
-		// `Err` is returned when the pre-migration type cannot be deserialized. This
-		// cannot happen if the migration runs correctly, i.e. against the expected version.
-		//
-		// This happening almost surely will lead to a panic somewhere else. Corruption seems
-		// to be unlikely to be caused by this. So we just log. Maybe it'll work out still?
-		log::error!(target: LOG_TARGET, "Could not translate ActiveConfig object: {:?}", err);
-	}
-
-	T::DbWeight::get().reads_writes(1, 1)
-}
-
-#[cfg(test)]
-mod tests {
-	use frame_support::weights::constants::{WEIGHT_PROOF_SIZE_PER_MB, WEIGHT_REF_TIME_PER_MILLIS};
-
-	use super::{v6::*, *};
-	use crate::mock::{new_test_ext, Test};
-	use frame_support::traits::OnRuntimeUpgrade;
-
-	/// The old config can be decoded from actual on-chain data.
-	#[test]
-	fn v5_deserialized_from_actual_data() {
-		// Example how to get new `raw_config`:
-		// We'll obtain the raw_config for block on Kusama.
-		// Steps:
-		// 1. Go to Polkadot.js -> Developer -> Chain state -> Storage: https://polkadot.js.org/apps/#/chainstate
-		// 2. Set these parameters:
-		//   2.1. selected state query: configuration; activeConfig(): PolkadotRuntimeParachainsConfigurationHostConfiguration
-		//   2.2. blockhash to query at from above.
-		//   2.3. Note the value of encoded storage key -> 0x06de3d8a54d27e44a9d5ce189618f22db4b49d95320d9021994c850f25b8e385 for the referenced block.
-		//   2.4. You'll also need the decoded values to update the test.
-		// 3. Go to Polkadot.js -> Developer -> Chain state -> Raw storage
-		//   3.1 Enter the encoded storage key and you get the raw config.
-
-		// Fetched at Kusama 17,467,443
-		//
-		// This exceeds the maximal line width length, but that's fine, since this is not code and
-		// doesn't need to be read and also leaving it as one line allows to easily copy it.
-		let raw_ksm = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a000000100e0000580200000000500000c800000700e8764817020040011e00000000000000005039278c0400000000000000000000005039278c0400000000000000000000e8030000009001001e00000000000000009001008070000000000000000000000a0000000a0000000a00000001000000010500000001c80000000600000058020000580200000200000059000000000000001e000000280000000700c817a80402004001010200000014000000"];
-
-		// Same for Polkadot block 15,075,732
-		let raw_dot = hex_literal::hex!["0000a000005000000a00000000c8000000c800000a0000000a00000040380000580200000000500000c800000700e8764817020040011e0000000000000000e8764817000000000000000000000000e87648170000000000000000000000e8030000009001001e00000000000000009001004038000000000000000000000a0000000a0000000a00000001000000010500000001c80000000600000058020000580200000200000059000000000000001e000000280000000700c817a80402004001010200000014000000"];
-
-		let check = |old: v6::OldHostConfiguration<primitives::BlockNumber>, cd: u32| {
-			assert_eq!(old.max_code_size, 10_485_760);
-			assert_eq!(old.validation_upgrade_cooldown, cd);
-			assert_eq!(old.max_pov_size, 5_242_880);
-			assert_eq!(old.hrmp_channel_max_message_size, 102_400);
-			assert_eq!(old.n_delay_tranches, 89);
-			assert_eq!(
-				old.ump_max_individual_weight,
-				Weight::from_parts(20 * WEIGHT_REF_TIME_PER_MILLIS, 5 * WEIGHT_PROOF_SIZE_PER_MB)
-			);
-			assert_eq!(old.minimum_validation_upgrade_delay, 20);
-		};
-
-		let old_ksm =
-			v6::OldHostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_ksm[..]).unwrap();
-		check(old_ksm, 3_600);
-
-		let old_dot =
-			v6::OldHostConfiguration::<primitives::BlockNumber>::decode(&mut &raw_dot[..]).unwrap();
-		check(old_dot, 14_400);
-	}
-
-	#[test]
-	fn test_migrate_v5_to_v6() {
-		// Host configuration has lots of fields. However, in this migration we add only a couple of
-		// fields. The most important part to check are a couple of the last fields. We also pick
-		// extra fields to check arbitrarily, e.g. depending on their position (i.e. the middle) and
-		// also their type.
-		//
-		// We specify only the picked fields and the rest should be provided by the `Default`
-		// implementation. That implementation is copied over between the two types and should work
-		// fine.
-		let old = v6::OldHostConfiguration::<primitives::BlockNumber> {
-			ump_max_individual_weight: Weight::from_parts(0x71616e6f6e0au64, 0x71616e6f6e0au64),
-			needed_approvals: 69,
-			thread_availability_period: 55,
-			hrmp_recipient_deposit: 1337,
-			max_pov_size: 1111,
-			chain_availability_period: 33,
-			minimum_validation_upgrade_delay: 20,
-			..Default::default()
-		};
-
-		new_test_ext(Default::default()).execute_with(|| {
-			// Implant the old version in the state.
-			frame_support::storage::unhashed::put_raw(
-				&configuration::ActiveConfig::<Test>::hashed_key(),
-				&old.encode(),
-			);
-			StorageVersion::new(5).put::<Pallet<Test>>();
-
-			#[cfg(feature = "try-runtime")]
-			MigrateV5ToV6::<Test>::pre_upgrade().unwrap();
-			let _weight = MigrateV5ToV6::<Test>::on_runtime_upgrade();
-			#[cfg(feature = "try-runtime")]
-			MigrateV5ToV6::<Test>::post_upgrade(vec![]).unwrap();
-
-			let v5 = configuration::ActiveConfig::<Test>::get();
-
-			#[rustfmt::skip]
-			{
-				assert_eq!(old.max_code_size                            , v5.max_code_size);
-				assert_eq!(old.max_head_data_size                       , v5.max_head_data_size);
-				assert_eq!(old.max_upward_queue_count                   , v5.max_upward_queue_count);
-				assert_eq!(old.max_upward_queue_size                    , v5.max_upward_queue_size);
-				assert_eq!(old.max_upward_message_size                  , v5.max_upward_message_size);
-				assert_eq!(old.max_upward_message_num_per_candidate     , v5.max_upward_message_num_per_candidate);
-				assert_eq!(old.hrmp_max_message_num_per_candidate       , v5.hrmp_max_message_num_per_candidate);
-				assert_eq!(old.validation_upgrade_cooldown              , v5.validation_upgrade_cooldown);
-				assert_eq!(old.validation_upgrade_delay                 , v5.validation_upgrade_delay);
-				assert_eq!(old.max_pov_size                             , v5.max_pov_size);
-				assert_eq!(old.max_downward_message_size                , v5.max_downward_message_size);
-				assert_eq!(old.hrmp_max_parachain_outbound_channels     , v5.hrmp_max_parachain_outbound_channels);
-				assert_eq!(old.hrmp_max_parathread_outbound_channels    , v5.hrmp_max_parathread_outbound_channels);
-				assert_eq!(old.hrmp_sender_deposit                      , v5.hrmp_sender_deposit);
-				assert_eq!(old.hrmp_recipient_deposit                   , v5.hrmp_recipient_deposit);
-				assert_eq!(old.hrmp_channel_max_capacity                , v5.hrmp_channel_max_capacity);
-				assert_eq!(old.hrmp_channel_max_total_size              , v5.hrmp_channel_max_total_size);
-				assert_eq!(old.hrmp_max_parachain_inbound_channels      , v5.hrmp_max_parachain_inbound_channels);
-				assert_eq!(old.hrmp_max_parathread_inbound_channels     , v5.hrmp_max_parathread_inbound_channels);
-				assert_eq!(old.hrmp_channel_max_message_size            , v5.hrmp_channel_max_message_size);
-				assert_eq!(old.code_retention_period                    , v5.code_retention_period);
-				assert_eq!(old.parathread_cores                         , v5.parathread_cores);
-				assert_eq!(old.parathread_retries                       , v5.parathread_retries);
-				assert_eq!(old.group_rotation_frequency                 , v5.group_rotation_frequency);
-				assert_eq!(old.chain_availability_period                , v5.chain_availability_period);
-				assert_eq!(old.thread_availability_period               , v5.thread_availability_period);
-				assert_eq!(old.scheduling_lookahead                     , v5.scheduling_lookahead);
-				assert_eq!(old.max_validators_per_core                  , v5.max_validators_per_core);
-				assert_eq!(old.max_validators                           , v5.max_validators);
-				assert_eq!(old.dispute_period                           , v5.dispute_period);
-				assert_eq!(old.dispute_post_conclusion_acceptance_period, v5.dispute_post_conclusion_acceptance_period);
-				assert_eq!(old.no_show_slots                            , v5.no_show_slots);
-				assert_eq!(old.n_delay_tranches                         , v5.n_delay_tranches);
-				assert_eq!(old.zeroth_delay_tranche_width               , v5.zeroth_delay_tranche_width);
-				assert_eq!(old.needed_approvals                         , v5.needed_approvals);
-				assert_eq!(old.relay_vrf_modulo_samples                 , v5.relay_vrf_modulo_samples);
-				assert_eq!(old.pvf_checking_enabled                     , v5.pvf_checking_enabled);
-				assert_eq!(old.pvf_voting_ttl                           , v5.pvf_voting_ttl);
-				assert_eq!(old.minimum_validation_upgrade_delay         , v5.minimum_validation_upgrade_delay);
-			}; // ; makes this a statement. `rustfmt::skip` cannot be put on an expression.
-		});
 	}
 }

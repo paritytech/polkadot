@@ -77,7 +77,7 @@ impl WeightInfo for () {
 ///
 /// This is used for benchmarking sanely bounding relevant storage items. It is expected from the `configuration`
 /// pallet to check these values before setting.
-pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 50 * 1024;
+pub const MAX_UPWARD_MESSAGE_SIZE_BOUND: u32 = 64 * 1024;
 
 /// A bitfield signed by a validator indicating that it is keeping its piece of the erasure-coding
 /// for any backed candidates referred to by a `1` bit available.

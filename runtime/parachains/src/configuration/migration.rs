@@ -31,11 +31,8 @@ use sp_std::vec::Vec;
 /// v4-v5: <https://github.com/paritytech/polkadot/pull/6937>
 ///        + <https://github.com/paritytech/polkadot/pull/6961>
 ///        + <https://github.com/paritytech/polkadot/pull/6934>
-/// v5-v6: <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
-pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(6);
-
-// The V6 migration is in its own file to avoid merge conflicts.
-pub use crate::configuration::migration_ump::v6::MigrateV5ToV6;
+/// 	   + <https://github.com/paritytech/polkadot/pull/6271> (remove UMP dispatch queue)
+pub const STORAGE_VERSION: StorageVersion = StorageVersion::new(5);
 
 pub mod v5 {
 	use super::*;
@@ -170,11 +167,18 @@ pub mod v5 {
 
 		#[cfg(feature = "try-runtime")]
 		fn post_upgrade(_state: Vec<u8>) -> Result<(), &'static str> {
-			log::trace!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
+			log::info!(target: crate::configuration::LOG_TARGET, "Running post_upgrade()");
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() == StorageVersion::new(5),
 				"Storage version should be 5 after the migration"
 			);
+
+			log::info!(target: crate::configuration::LOG_TARGET, "Checking active config");
+			ActiveConfig::<T>::get().panic_if_not_consistent();
+			PendingConfigs::<T>::get().iter().for_each(|(s, cfg)| {
+				log::info!(target: crate::configuration::LOG_TARGET, "Checking config s={}", s);
+				cfg.panic_if_not_consistent();
+			});
 
 			Ok(())
 		}

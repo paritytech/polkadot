@@ -429,7 +429,7 @@ where
 	/// This function panics if the configuration is inconsistent.
 	pub fn panic_if_not_consistent(&self) {
 		if let Err(err) = self.check_consistency() {
-			panic!("Host configuration is inconsistent: {:?}", err);
+			panic!("Host configuration is inconsistent: {:?}\nCfg:\n{:#?}", err, self);
 		}
 	}
 }
@@ -1247,7 +1247,7 @@ impl<T: Config> Pallet<T> {
 	// duplicated code (making this function to show up in the top of heaviest functions) only for
 	// the sake of essentially avoiding an indirect call. Doesn't worth it.
 	#[inline(never)]
-	fn schedule_config_update(
+	pub(crate) fn schedule_config_update(
 		updater: impl FnOnce(&mut HostConfiguration<T::BlockNumber>),
 	) -> DispatchResult {
 		let mut pending_configs = <PendingConfigs<T>>::get();

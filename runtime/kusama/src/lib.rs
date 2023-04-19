@@ -1113,7 +1113,7 @@ parameter_types! {
 	/// This is not a good value for para-chains since the `Scheduler` already uses up to 80% block weight.
 	pub MessageQueueServiceWeight: Weight = Perbill::from_percent(40) * BlockWeights::get().max_block;
 	pub const MessageQueueHeapSize: u32 = 65_536;
-	pub const MessageQueueMaxStale: u32 = 8;
+	pub const MessageQueueMaxStale: u32 = 16;
 }
 
 /// Message processor to handle any messages that were enqueued into the `MessageQueue` pallet.
@@ -1510,8 +1510,26 @@ pub type Migrations = (
 	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 	// Remove UMP dispatch queue <https://github.com/paritytech/polkadot/pull/6271>
-	parachains_configuration::migration::MigrateV5ToV6<Runtime>,
+	migrations::UpdateUmpLimits,
 );
+
+/// Helpers to configure all migrations.
+pub mod migrations {
+	use runtime_parachains::configuration::migration_ump;
+
+	pub const MAX_UPWARD_QUEUE_SIZE: u32 = 4 * 1024 * 1024;
+	pub const MAX_UPWARD_QUEUE_COUNT: u32 = 838860;
+	pub const MAX_UPWARD_MESSAGE_SIZE: u32 = (1 << 16) - 5; // Checked in test `max_upward_message_size`.
+	pub const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32 = 128;
+
+	pub type UpdateUmpLimits = migration_ump::latest::ForceUpdateUmpLimits<
+		super::Runtime,
+		MAX_UPWARD_QUEUE_SIZE,
+		MAX_UPWARD_QUEUE_COUNT,
+		MAX_UPWARD_MESSAGE_SIZE,
+		MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE,
+	>;
+}
 
 /// Unchecked extrinsic type as expected by this runtime.
 pub type UncheckedExtrinsic =
