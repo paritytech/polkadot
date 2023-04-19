@@ -1192,7 +1192,7 @@ impl<Call> TryFrom<OldXcm<Call>> for Xcm<Call> {
 }
 
 /// Default value for the proof size weight component. Set at 0 KB.
-/// NOTE: Make sure this is set back to 64 KB after we properly account for PoV weights.
+/// NOTE: Make sure this is removed after we properly account for PoV weights.
 const DEFAULT_PROOF_SIZE: u64 = 0;
 
 // Convert from a v2 instruction to a v3 instruction.
