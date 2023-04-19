@@ -14,14 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Execution part of the pipeline.
-//!
-//! The validation host [runs the queue][`start`] communicating with it by sending [`ToQueue`]
-//! messages. The queue will spawn workers in new processes. Those processes should jump to
-//! `polkadot_node_core_pvf_worker::execute_worker_entrypoint`.
+//! Prepare worker.
+// TODO: Build with musl.
+// TODO: Embed into polkadot binary.
 
-mod queue;
-mod worker;
-
-pub use queue::{start, ToQueue};
-pub use worker::{Handshake as ExecuteHandshake, Response as ExecuteResponse};
+polkadot_node_core_pvf_worker::decl_worker_main!(prepare);

@@ -14,8 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-//! Prepare worker.
+//! Execute worker.
 // TODO: Build with musl.
 // TODO: Embed into polkadot binary.
 
-polkadot_node_core_pvf::decl_worker_main!(prepare);
+polkadot_node_core_pvf_worker::decl_worker_main!(execute);

@@ -27,38 +27,14 @@
 //! <https://github.com/paritytech/polkadot/issues/6472#issuecomment-1381941762> for more
 //! background.
 
-use parity_scale_codec::{Decode, Encode};
-
-/// Helper struct to contain all the memory stats, including [`MemoryAllocationStats`] and, if
-/// supported by the OS, `ru_maxrss`.
-#[derive(Clone, Debug, Default, Encode, Decode)]
-pub struct MemoryStats {
-	/// Memory stats from `tikv_jemalloc_ctl`.
-	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
-	pub memory_tracker_stats: Option<MemoryAllocationStats>,
-	/// `ru_maxrss` from `getrusage`. A string error since `io::Error` is not `Encode`able.
-	#[cfg(target_os = "linux")]
-	pub max_rss: Option<i64>,
-}
-
-/// Statistics of collected memory metrics.
-#[non_exhaustive]
-#[derive(Clone, Debug, Default, Encode, Decode)]
-pub struct MemoryAllocationStats {
-	/// Total resident memory, in bytes.
-	pub resident: u64,
-	/// Total allocated memory, in bytes.
-	pub allocated: u64,
-}
-
 /// Module for the memory tracker. The memory tracker runs in its own thread, where it polls memory
 /// usage at an interval.
 ///
 /// NOTE: Requires jemalloc enabled.
 #[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 pub mod memory_tracker {
-	use super::*;
 	use crate::LOG_TARGET;
+	use polkadot_node_core_pvf::MemoryAllocationStats;
 	use std::{
 		sync::mpsc::{Receiver, RecvTimeoutError, Sender},
 		time::Duration,
