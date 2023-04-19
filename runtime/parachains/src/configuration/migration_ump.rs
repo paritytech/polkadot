@@ -17,11 +17,11 @@
 //! A module that is responsible for migration of UMP storage.
 
 use crate::configuration::{self, ActiveConfig, Config, PendingConfigs, WeightInfo, LOG_TARGET};
-use frame_support::pallet_prelude::*;
 
 pub mod latest {
 	use super::*;
 	use frame_support::{pallet_prelude::Weight, traits::OnRuntimeUpgrade};
+	use parity_scale_codec::{Decode, Encode};
 
 	/// Force update the UMP limits in the parachain host config.
 	///
