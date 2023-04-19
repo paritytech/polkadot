@@ -13,11 +13,7 @@ async function run(_, networkInfo, nodeNames) {
   );
 
   // check that the finalized heads are the same
-  if (finalizedHeads.every((finalizedHead) => finalizedHead.toString() === finalizedHeads[0].toString())) {
-    return 1;
-  } else {
-    return 0;
-  }
+  return finalizedHeads.every((finalizedHead) => finalizedHead.eq(finalizedHeads[0]))
 }
 
 module.exports = { run };
