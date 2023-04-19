@@ -7,10 +7,14 @@ pub mod v1 {
 	use frame_support::{
 		pallet_prelude::ValueQuery, storage_alias, traits::OnRuntimeUpgrade, weights::Weight,
 	};
-	use primitives::CollatorId;
+	use primitives::{v4, CollatorId};
 
 	#[storage_alias]
 	pub(super) type Scheduled<T: Config> = StorageValue<Pallet<T>, Vec<CoreAssignment>, ValueQuery>;
+
+	#[storage_alias]
+	pub(crate) type AvailabilityCores<T: Config> =
+		StorageValue<Pallet<T>, Vec<Option<primitives::v4::CoreOccupied>>, ValueQuery>;
 
 	#[derive(Encode, Decode)]
 	pub struct QueuedParathread {
@@ -149,6 +153,36 @@ pub mod v1 {
 			Pallet::<T>::add_to_claimqueue(core_idx, pe);
 		}
 
+		let cores = AvailabilityCores::<T>::take();
+		let cores_len = cores.len() as u64;
+		let parachains = <paras::Pallet<T>>::parachains();
+		let new_cores = cores
+			.iter()
+			.enumerate()
+			.map(|(idx, core)| match core {
+				None => CoreOccupied::Free,
+				Some(v4::CoreOccupied::Parachain) => {
+					let para_id = parachains[idx];
+					let pe = ParasEntry { para_id, collator: None, retries: 0 };
+
+					CoreOccupied::Paras(pe)
+				},
+				Some(v4::CoreOccupied::Parathread(entry)) => {
+					let pe = ParasEntry {
+						para_id: entry.claim.0,
+						collator: entry.claim.1.clone(),
+						retries: entry.retries,
+					};
+					CoreOccupied::Paras(pe)
+				},
+			})
+			.collect();
+
+		Pallet::<T>::set_availability_cores(new_cores);
+
+		// 2x as once for reading AvailabilityCores and for writing new ones
+		weight =
+			weight.saturating_add(T::DbWeight::get().reads_writes(2 * cores_len, 2 * cores_len));
 		// 2x as once for Scheduled and once for Claimqueue
 		weight =
 			weight.saturating_add(T::DbWeight::get().reads_writes(2 * sched_len, 2 * sched_len));

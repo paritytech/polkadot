@@ -890,7 +890,7 @@ mod sanitizers {
 
 	use crate::mock::Test;
 	use keyring::Sr25519Keyring;
-	use primitives::{v4::ParasEntry, PARACHAIN_KEY_TYPE_ID};
+	use primitives::{vstaging::ParasEntry, PARACHAIN_KEY_TYPE_ID};
 	use sc_keystore::LocalKeystore;
 	use sp_keystore::{Keystore, KeystorePtr};
 	use std::sync::Arc;

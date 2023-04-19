@@ -37,8 +37,8 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{
-	CoreIndex, CoreOccupied, GroupIndex, GroupRotationInfo, Id as ParaId, ScheduledCore,
-	ValidatorIndex,
+	vstaging::{CoreOccupied, ParasEntry},
+	CoreIndex, GroupIndex, GroupRotationInfo, Id as ParaId, ScheduledCore, ValidatorIndex,
 };
 use sp_runtime::traits::{One, Saturating};
 use sp_std::{
@@ -55,7 +55,6 @@ use crate::{
 
 use crate::scheduler_common::AssignmentProvider;
 pub use pallet::*;
-use primitives::v4::ParasEntry;
 
 #[cfg(test)]
 mod tests;
@@ -519,6 +518,11 @@ impl<T: Config> Pallet<T> {
 			let la_deque = la.entry(core_idx).or_insert_with(|| VecDeque::new());
 			la_deque.push_back(Some(pe));
 		});
+	}
+
+	// Only used for migration
+	fn set_availability_cores(cores: Vec<CoreOccupied>) {
+		AvailabilityCores::<T>::set(cores);
 	}
 
 	/// Returns `ParasEntry` with `para_id` at `core_idx` if found.

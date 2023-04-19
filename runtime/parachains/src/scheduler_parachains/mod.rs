@@ -14,14 +14,11 @@
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
-use primitives::{CoreIndex, Id as ParaId};
+use primitives::{vstaging::ParasEntry, CoreIndex, Id as ParaId};
 
-use crate::{configuration, paras};
+use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 
 pub use pallet::*;
-use primitives::v4::ParasEntry;
-
-use crate::scheduler_common::AssignmentProvider;
 
 #[frame_support::pallet]
 pub mod pallet {

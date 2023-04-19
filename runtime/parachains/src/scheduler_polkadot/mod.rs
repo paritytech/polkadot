@@ -15,12 +15,11 @@
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
 
 use frame_support::pallet_prelude::*;
-use primitives::{CoreIndex, Id as ParaId};
+use primitives::{vstaging::ParasEntry, CoreIndex, Id as ParaId};
 
 use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 
 pub use pallet::*;
-use primitives::v4::ParasEntry;
 
 #[frame_support::pallet]
 pub mod pallet {

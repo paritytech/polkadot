@@ -37,7 +37,7 @@
 
 use frame_support::pallet_prelude::*;
 use primitives::{
-	v4::ParasEntry, CollatorId, CoreIndex, GroupIndex, Id as ParaId, ParathreadEntry,
+	vstaging::ParasEntry, CollatorId, CoreIndex, GroupIndex, Id as ParaId, ParathreadEntry,
 };
 use scale_info::TypeInfo;
 use sp_std::prelude::*;

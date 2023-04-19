@@ -29,7 +29,7 @@ use assert_matches::assert_matches;
 use frame_support::assert_noop;
 use keyring::Sr25519Keyring;
 use primitives::{
-	v4::ParasEntry, BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
+	vstaging::ParasEntry, BlockNumber, CandidateCommitments, CandidateDescriptor, CollatorId,
 	CompactStatement as Statement, Hash, SignedAvailabilityBitfield, SignedStatement,
 	UncheckedSignedAvailabilityBitfield, ValidationCode, ValidatorId, ValidityAttestation,
 	PARACHAIN_KEY_TYPE_ID,
