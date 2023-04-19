@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -97,7 +97,7 @@ pub enum OwnVoteState {
 }
 
 impl OwnVoteState {
-	fn new(votes: &CandidateVotes, env: &CandidateEnvironment) -> Self {
+	fn new(votes: &CandidateVotes, env: &CandidateEnvironment<'_>) -> Self {
 		let controlled_indices = env.controlled_indices();
 		if controlled_indices.is_empty() {
 			return Self::CannotVote

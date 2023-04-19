@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -329,13 +329,17 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	finalized_number: &Option<BlockNumber>,
 ) -> SubsystemResult<Vec<BlockImportedCandidates>> {
 	const MAX_HEADS_LOOK_BACK: BlockNumber = MAX_FINALITY_LAG;
-
-	let mut span = jaeger::Span::new(head, "approval-checking-import");
+	let _handle_new_head_span = state
+		.spans
+		.get(&head)
+		.map(|span| span.child("handle-new-head"))
+		.unwrap_or_else(|| jaeger::Span::new(head, "handle-new-head"))
+		.with_string_tag("head", format!("{:?}", head))
+		.with_stage(jaeger::Stage::ApprovalChecking);
 
 	let header = {
 		let (h_tx, h_rx) = oneshot::channel();
 		ctx.send_message(ChainApiMessage::BlockHeader(head, h_tx)).await;
-
 		match h_rx.await? {
 			Err(e) => {
 				gum::debug!(
@@ -343,11 +347,12 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 					"Chain API subsystem temporarily unreachable {}",
 					e,
 				);
-
+				// May be a better way of handling errors here.
 				return Ok(Vec::new())
 			},
 			Ok(None) => {
 				gum::warn!(target: LOG_TARGET, "Missing header for new head {}", head);
+				// May be a better way of handling warnings here.
 				return Ok(Vec::new())
 			},
 			Ok(Some(h)) => h,
@@ -363,7 +368,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 				?e,
 				"Could not cache session info when processing head.",
 			);
-
 			return Ok(Vec::new())
 		},
 		Ok(Some(a @ SessionWindowUpdate::Advanced { .. })) => {
@@ -390,8 +394,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	)
 	.map_err(|e| SubsystemError::with_origin("approval-voting", e))
 	.await?;
-
-	span.add_uint_tag("new-blocks", new_blocks.len() as u64);
 
 	if new_blocks.is_empty() {
 		return Ok(Vec::new())
@@ -473,6 +475,7 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 			);
 			(block_tick, no_show_duration)
 		};
+
 		let needed_approvals = session_info.needed_approvals;
 		let validator_group_lens: Vec<usize> =
 			session_info.validator_groups.iter().map(|v| v.len()).collect();
@@ -507,11 +510,9 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 						result.len(),
 					);
 				}
-
 				result
 			}
 		};
-
 		// If all bits are already set, then send an approve message.
 		if approved_bitfield.count_ones() == approved_bitfield.len() {
 			ctx.send_message(ChainSelectionMessage::Approved(block_hash)).await;
@@ -602,7 +603,6 @@ pub(crate) async fn handle_new_head<Context, B: Backend>(
 	);
 
 	ctx.send_unbounded_message(ApprovalDistributionMessage::NewBlocks(approval_meta));
-
 	Ok(imported_candidates)
 }
 
@@ -612,8 +612,7 @@ pub(crate) mod tests {
 	use crate::approval_db::v1::DbBackend;
 	use ::test_helpers::{dummy_candidate_receipt, dummy_hash};
 	use assert_matches::assert_matches;
-	use merlin::Transcript;
-	use polkadot_node_primitives::approval::{VRFOutput, VRFProof};
+	use polkadot_node_primitives::approval::{VrfSignature, VrfTranscript};
 	use polkadot_node_subsystem::messages::{AllMessages, ApprovalVotingMessage};
 	use polkadot_node_subsystem_test_helpers::make_subsystem_context;
 	use polkadot_node_subsystem_util::database::Database;
@@ -622,7 +621,7 @@ pub(crate) mod tests {
 		digests::{CompatibleDigestItem, PreDigest, SecondaryVRFPreDigest},
 		AllowedSlots, BabeEpochConfiguration, Epoch as BabeEpoch,
 	};
-	use sp_core::testing::TaskExecutor;
+	use sp_core::{crypto::VrfSigner, testing::TaskExecutor};
 	use sp_keyring::sr25519::Keyring as Sr25519Keyring;
 	pub(crate) use sp_runtime::{Digest, DigestItem};
 	use std::{pin::Pin, sync::Arc};
@@ -661,6 +660,7 @@ pub(crate) mod tests {
 			assignment_criteria: Box::new(MockAssignmentCriteria),
 			db,
 			db_config: TEST_CONFIG,
+			spans: HashMap::new(),
 		}
 	}
 
@@ -702,12 +702,9 @@ pub(crate) mod tests {
 	}
 
 	// used for generating assignments where the validity of the VRF doesn't matter.
-	pub(crate) fn garbage_vrf() -> (VRFOutput, VRFProof) {
-		let key = Sr25519Keyring::Alice.pair();
-		let key: &schnorrkel::Keypair = key.as_ref();
-
-		let (o, p, _) = key.vrf_sign(Transcript::new(b"test-garbage"));
-		(VRFOutput(o.to_output()), VRFProof(p))
+	pub(crate) fn garbage_vrf_signature() -> VrfSignature {
+		let transcript = VrfTranscript::new(b"test-garbage", &[]);
+		Sr25519Keyring::Alice.pair().vrf_sign(&transcript)
 	}
 
 	fn dummy_session_info(index: SessionIndex) -> SessionInfo {
@@ -742,9 +739,9 @@ pub(crate) mod tests {
 		let header = Header {
 			digest: {
 				let mut d = Digest::default();
-				let (vrf_output, vrf_proof) = garbage_vrf();
+				let vrf_signature = garbage_vrf_signature();
 				d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-					SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
+					SecondaryVRFPreDigest { authority_index: 0, slot, vrf_signature },
 				)));
 
 				d
@@ -1041,9 +1038,9 @@ pub(crate) mod tests {
 		let header = Header {
 			digest: {
 				let mut d = Digest::default();
-				let (vrf_output, vrf_proof) = garbage_vrf();
+				let vrf_signature = garbage_vrf_signature();
 				d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-					SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
+					SecondaryVRFPreDigest { authority_index: 0, slot, vrf_signature },
 				)));
 
 				d.push(ConsensusLog::ForceApprove(3).into());
@@ -1193,9 +1190,9 @@ pub(crate) mod tests {
 		let header = Header {
 			digest: {
 				let mut d = Digest::default();
-				let (vrf_output, vrf_proof) = garbage_vrf();
+				let vrf_signature = garbage_vrf_signature();
 				d.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-					SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
+					SecondaryVRFPreDigest { authority_index: 0, slot, vrf_signature },
 				)));
 
 				d
@@ -1226,7 +1223,7 @@ pub(crate) mod tests {
 		let mut state = single_session_state(session, session_info);
 		overlay_db.write_block_entry(
 			v1::BlockEntry {
-				block_hash: parent_hash.clone(),
+				block_hash: parent_hash,
 				parent_hash: Default::default(),
 				block_number: 4,
 				session,

@@ -1,4 +1,4 @@
-// Copyright 2022 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -13,6 +13,8 @@
 
 // You should have received a copy of the GNU General Public License
 // along with Polkadot.  If not, see <http://www.gnu.org/licenses/>.
+
+use std::collections::HashMap;
 
 use std::{future::Future, sync::Arc};
 
@@ -196,7 +198,7 @@ fn check_ancestry_lookup_in_same_session() {
 
 	test_harness(test_state.clone(), |mut ctx| async move {
 		let chain = &test_state.relay_chain;
-
+		let spans: HashMap<Hash, jaeger::PerLeafSpan> = HashMap::new();
 		let block_number = 1;
 		let update = ActiveLeavesUpdate {
 			activated: Some(ActivatedLeaf {
@@ -209,7 +211,7 @@ fn check_ancestry_lookup_in_same_session() {
 		};
 
 		requester
-			.update_fetching_heads(&mut ctx, &mut runtime, update)
+			.update_fetching_heads(&mut ctx, &mut runtime, update, &spans)
 			.await
 			.expect("Leaf processing failed");
 		let fetch_tasks = &requester.fetches;
@@ -229,7 +231,7 @@ fn check_ancestry_lookup_in_same_session() {
 		};
 
 		requester
-			.update_fetching_heads(&mut ctx, &mut runtime, update)
+			.update_fetching_heads(&mut ctx, &mut runtime, update, &spans)
 			.await
 			.expect("Leaf processing failed");
 		let fetch_tasks = &requester.fetches;
@@ -255,7 +257,7 @@ fn check_ancestry_lookup_in_same_session() {
 			deactivated: vec![chain[1], chain[2]].into(),
 		};
 		requester
-			.update_fetching_heads(&mut ctx, &mut runtime, update)
+			.update_fetching_heads(&mut ctx, &mut runtime, update, &spans)
 			.await
 			.expect("Leaf processing failed");
 		let fetch_tasks = &requester.fetches;
@@ -283,7 +285,7 @@ fn check_ancestry_lookup_in_different_sessions() {
 
 	test_harness(test_state.clone(), |mut ctx| async move {
 		let chain = &test_state.relay_chain;
-
+		let spans: HashMap<Hash, jaeger::PerLeafSpan> = HashMap::new();
 		let block_number = 3;
 		let update = ActiveLeavesUpdate {
 			activated: Some(ActivatedLeaf {
@@ -296,7 +298,7 @@ fn check_ancestry_lookup_in_different_sessions() {
 		};
 
 		requester
-			.update_fetching_heads(&mut ctx, &mut runtime, update)
+			.update_fetching_heads(&mut ctx, &mut runtime, update, &spans)
 			.await
 			.expect("Leaf processing failed");
 		let fetch_tasks = &requester.fetches;
@@ -314,7 +316,7 @@ fn check_ancestry_lookup_in_different_sessions() {
 		};
 
 		requester
-			.update_fetching_heads(&mut ctx, &mut runtime, update)
+			.update_fetching_heads(&mut ctx, &mut runtime, update, &spans)
 			.await
 			.expect("Leaf processing failed");
 		let fetch_tasks = &requester.fetches;
@@ -332,7 +334,7 @@ fn check_ancestry_lookup_in_different_sessions() {
 		};
 
 		requester
-			.update_fetching_heads(&mut ctx, &mut runtime, update)
+			.update_fetching_heads(&mut ctx, &mut runtime, update, &spans)
 			.await
 			.expect("Leaf processing failed");
 		let fetch_tasks = &requester.fetches;
