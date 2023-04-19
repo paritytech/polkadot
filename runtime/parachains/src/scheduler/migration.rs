@@ -102,7 +102,7 @@ pub mod v1 {
 			);
 			ensure!(
 				StorageVersion::get::<Pallet<T>>() == 0,
-				"Storage version should be less than `1` before the migration",
+				"Storage version should be `0` before the migration",
 			);
 
 			let bytes = u32::to_be_bytes(Scheduled::<T>::get().len() as u32);
