@@ -121,13 +121,13 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
 	spec_name: create_runtime_str!("polkadot"),
 	impl_name: create_runtime_str!("parity-polkadot"),
 	authoring_version: 0,
-	spec_version: 9390,
+	spec_version: 9410,
 	impl_version: 0,
 	#[cfg(not(feature = "disable-runtime-api"))]
 	apis: RUNTIME_API_VERSIONS,
 	#[cfg(feature = "disable-runtime-api")]
 	apis: sp_version::create_apis_vec![[]],
-	transaction_version: 21,
+	transaction_version: 22,
 	state_version: 0,
 };
 
@@ -1424,8 +1424,8 @@ pub type Migrations = (
 		Runtime,
 		NominationPoolsMigrationV4OldPallet,
 	>,
-	// Unreleased - add new migrations here:
 	pallet_nomination_pools::migration::v5::MigrateToV5<Runtime>,
+	// Unreleased - add new migrations here:
 	parachains_configuration::migration::v5::MigrateToV5<Runtime>,
 );
 
