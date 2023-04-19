@@ -16,10 +16,8 @@
 
 //! A module that is responsible for migration of UMP storage.
 
-use crate::configuration::{
-	self, ActiveConfig, Config, PendingConfigs, WeightInfo, LOG_TARGET,
-};
-use frame_support::{pallet_prelude::*};
+use crate::configuration::{self, ActiveConfig, Config, PendingConfigs, WeightInfo, LOG_TARGET};
+use frame_support::pallet_prelude::*;
 
 pub mod latest {
 	use super::*;
