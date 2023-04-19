@@ -29,6 +29,7 @@ use crate::{
 };
 use bitvec::{order::Lsb0 as BitOrderLsb0, vec::BitVec};
 use frame_support::{
+	defensive,
 	pallet_prelude::*,
 	traits::{Defensive, EnqueueMessage},
 	BoundedSlice,
@@ -1017,7 +1018,10 @@ impl<T: Config> Pallet<T> {
 			.iter()
 			.filter_map(|d| {
 				BoundedSlice::try_from(&d[..])
-					.defensive_proof("Too long inbound upward message in accepted candidate.")
+					.map_err(|e| {
+						defensive!("Too long inbound upward message (l={}) in accepted candidate. Ignoring.", d.len());
+						e
+					})
 					.ok()
 			})
 			.collect();
