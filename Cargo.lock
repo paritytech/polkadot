@@ -6712,7 +6712,7 @@ dependencies = [
  "futures",
  "log",
  "polkadot-client",
- "polkadot-node-core-pvf",
+ "polkadot-node-core-pvf-worker",
  "polkadot-node-metrics",
  "polkadot-performance-test",
  "polkadot-service",
@@ -7180,6 +7180,7 @@ name = "polkadot-node-core-pvf"
 version = "0.9.41"
 dependencies = [
  "always-assert",
+ "assert_matches",
  "futures",
  "futures-timer",
  "hex-literal 0.3.4",
@@ -7198,6 +7199,7 @@ dependencies = [
  "sp-tracing",
  "sp-wasm-interface",
  "substrate-build-script-utils",
+ "tempfile",
  "tokio",
  "tracing-gum",
 ]
