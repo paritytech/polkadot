@@ -22,7 +22,7 @@
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
-use frame_election_provider_support::{onchain, ElectionBoundsBuilder, SequentialPhragmen};
+use frame_election_provider_support::{bounds::ElectionBoundsBuilder, onchain, SequentialPhragmen};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{ConstU32, InstanceFilter, KeyOwnerProofSystem, WithdrawReasons},
@@ -355,7 +355,7 @@ parameter_types! {
 	/// We take the top 22500 nominators as electing voters and all of the validators as electable
 	/// targets. Whilst this is the case, we cannot and shall not increase the size of the
 	/// validator intentions.
-	pub ElectionBounds: frame_election_provider_support::ElectionBounds =
+	pub ElectionBounds: frame_election_provider_support::bounds::ElectionBounds =
 		ElectionBoundsBuilder::new().voters_count(MaxElectingVoters::get().into()).build();
 	// Maximum winners that can be chosen as active validators
 	pub const MaxActiveValidators: u32 = 1000;

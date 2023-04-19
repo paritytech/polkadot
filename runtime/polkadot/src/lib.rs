@@ -38,7 +38,7 @@ use runtime_parachains::{
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
 use frame_election_provider_support::{
-	generate_solution_type, onchain, ElectionBoundsBuilder, SequentialPhragmen,
+	bounds::ElectionBoundsBuilder, generate_solution_type, onchain, SequentialPhragmen,
 };
 use frame_support::{
 	construct_runtime, parameter_types,
@@ -394,7 +394,7 @@ parameter_types! {
 	/// We take the top 22500 nominators as electing voters and all of the validators as electable
 	/// targets. Whilst this is the case, we cannot and shall not increase the size of the
 	/// validator intentions.
-	pub ElectionBounds: frame_election_provider_support::ElectionBounds =
+	pub ElectionBounds: frame_election_provider_support::bounds::ElectionBounds =
 		ElectionBoundsBuilder::new().voters_count(MaxElectingVoters::get().into()).build();
 	/// Setup election pallet to support maximum winners upto 1200. This will mean Staking Pallet
 	/// cannot have active validators higher than this count.

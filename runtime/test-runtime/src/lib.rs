@@ -35,7 +35,10 @@ use polkadot_runtime_parachains::{
 
 use authority_discovery_primitives::AuthorityId as AuthorityDiscoveryId;
 use beefy_primitives::crypto::{AuthorityId as BeefyId, Signature as BeefySignature};
-use frame_election_provider_support::{onchain, SequentialPhragmen};
+use frame_election_provider_support::{
+	bounds::{ElectionBounds, ElectionBoundsBuilder},
+	onchain, SequentialPhragmen,
+};
 use frame_support::{
 	construct_runtime, parameter_types,
 	traits::{Everything, WithdrawReasons},
