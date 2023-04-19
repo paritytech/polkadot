@@ -56,11 +56,11 @@ impl<T: frame_system::Config> runtime_parachains::initializer::WeightInfo for We
 		// Proof Size summary in bytes:
 		//  Measured:  `0 + d * (11 ±0)`
 		//  Estimated: `1480 + d * (11 ±0)`
-		// Minimum execution time: 3_720_000 picoseconds.
-		Weight::from_parts(3_835_000, 0)
+		// Minimum execution time: 3_776_000 picoseconds.
+		Weight::from_parts(3_844_000, 0)
 			.saturating_add(Weight::from_parts(0, 1480))
-			// Standard Error: 14
-			.saturating_add(Weight::from_parts(2_282, 0).saturating_mul(d.into()))
+			// Standard Error: 15
+			.saturating_add(Weight::from_parts(2_261, 0).saturating_mul(d.into()))
 			.saturating_add(T::DbWeight::get().reads(1))
 			.saturating_add(T::DbWeight::get().writes(1))
 			.saturating_add(Weight::from_parts(0, 11).saturating_mul(d.into()))

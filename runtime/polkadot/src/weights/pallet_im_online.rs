@@ -64,17 +64,17 @@ impl<T: frame_system::Config> pallet_im_online::WeightInfo for WeightInfo<T> {
 	fn validate_unsigned_and_then_heartbeat(k: u32, e: u32, ) -> Weight {
 		// Proof Size summary in bytes:
 		//  Measured:  `361 + k * (32 ±0)`
-		//  Estimated: `10349676 + k * (64 ±0) + e * (35 ±0)`
-		// Minimum execution time: 127_244_000 picoseconds.
-		Weight::from_parts(101_343_264, 0)
+		//  Estimated: `10349676 + e * (35 ±0) + k * (64 ±0)`
+		// Minimum execution time: 127_982_000 picoseconds.
+		Weight::from_parts(90_462_988, 0)
 			.saturating_add(Weight::from_parts(0, 10349676))
-			// Standard Error: 421
-			.saturating_add(Weight::from_parts(33_175, 0).saturating_mul(k.into()))
-			// Standard Error: 4_246
-			.saturating_add(Weight::from_parts(467_539, 0).saturating_mul(e.into()))
+			// Standard Error: 352
+			.saturating_add(Weight::from_parts(41_058, 0).saturating_mul(k.into()))
+			// Standard Error: 3_550
+			.saturating_add(Weight::from_parts(504_242, 0).saturating_mul(e.into()))
 			.saturating_add(T::DbWeight::get().reads(4))
 			.saturating_add(T::DbWeight::get().writes(1))
-			.saturating_add(Weight::from_parts(0, 64).saturating_mul(k.into()))
 			.saturating_add(Weight::from_parts(0, 35).saturating_mul(e.into()))
+			.saturating_add(Weight::from_parts(0, 64).saturating_mul(k.into()))
 	}
 }
