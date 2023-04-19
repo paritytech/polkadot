@@ -17,8 +17,9 @@
 //! A module that is responsible for migration of UMP storage.
 
 #![allow(unused_imports)] // Since we use features.
+
 use crate::configuration::{self, ActiveConfig, Config, PendingConfigs, WeightInfo, LOG_TARGET};
-use parity_scale_codec::Decode;
+use parity_scale_codec::{Decode, Encode};
 
 pub mod latest {
 	use super::*;
