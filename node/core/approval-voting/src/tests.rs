@@ -19,7 +19,7 @@ use crate::tests::test_constants::TEST_CONFIG;
 use super::*;
 use polkadot_node_primitives::{
 	approval::{
-		AssignmentCert, AssignmentCertKind, DelayTranche, VRFOutput, VRFProof,
+		AssignmentCert, AssignmentCertKind, DelayTranche, VrfOutput, VrfProof, VrfSignature,
 		RELAY_VRF_MODULO_CONTEXT,
 	},
 	AvailableData, BlockData, PoV,
@@ -56,8 +56,8 @@ use super::{
 	approval_db::v1::StoredBlockRange,
 	backend::BackendWriteOp,
 	import::tests::{
-		garbage_vrf, AllowedSlots, BabeEpoch, BabeEpochConfiguration, CompatibleDigestItem, Digest,
-		DigestItem, PreDigest, SecondaryVRFPreDigest,
+		garbage_vrf_signature, AllowedSlots, BabeEpoch, BabeEpochConfiguration,
+		CompatibleDigestItem, Digest, DigestItem, PreDigest, SecondaryVRFPreDigest,
 	},
 };
 
@@ -392,7 +392,7 @@ fn garbage_assignment_cert(kind: AssignmentCertKind) -> AssignmentCert {
 	let (inout, proof, _) = keypair.vrf_sign(ctx.bytes(msg));
 	let out = inout.to_output();
 
-	AssignmentCert { kind, vrf: (VRFOutput(out), VRFProof(proof)) }
+	AssignmentCert { kind, vrf: VrfSignature { output: VrfOutput(out), proof: VrfProof(proof) } }
 }
 
 fn sign_approval(
@@ -721,9 +721,9 @@ impl ChainBuilder {
 	fn make_header(parent_hash: Hash, slot: Slot, number: u32) -> Header {
 		let digest = {
 			let mut digest = Digest::default();
-			let (vrf_output, vrf_proof) = garbage_vrf();
+			let vrf_signature = garbage_vrf_signature();
 			digest.push(DigestItem::babe_pre_digest(PreDigest::SecondaryVRF(
-				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_output, vrf_proof },
+				SecondaryVRFPreDigest { authority_index: 0, slot, vrf_signature },
 			)));
 			digest
 		};
