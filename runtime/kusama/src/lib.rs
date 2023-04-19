@@ -398,7 +398,7 @@ parameter_types! {
 	/// targets. Whilst this is the case, we cannot and shall not increase the size of the
 	/// validator intentions.
 	pub ElectionBounds: frame_election_provider_support::bounds::ElectionBounds =
-		ElectionBoundsBuilder::new().voters_count(MaxElectingVoters::get().into()).build();
+		ElectionBoundsBuilder::default().voters_count(MaxElectingVoters::get().into()).build();
 	pub NposSolutionPriority: TransactionPriority =
 		Perbill::from_percent(90) * TransactionPriority::max_value();
 	/// Setup election pallet to support maximum winners upto 2000. This will mean Staking Pallet
