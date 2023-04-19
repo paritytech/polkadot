@@ -57,8 +57,8 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 		// Proof Size summary in bytes:
 		//  Measured:  `4`
 		//  Estimated: `2982`
-		// Minimum execution time: 14_181_000 picoseconds.
-		Weight::from_parts(14_873_000, 0)
+		// Minimum execution time: 13_386_000 picoseconds.
+		Weight::from_parts(14_555_000, 0)
 			.saturating_add(Weight::from_parts(0, 2982))
 			.saturating_add(T::DbWeight::get().reads(2))
 			.saturating_add(T::DbWeight::get().writes(2))
@@ -81,8 +81,8 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 		// Proof Size summary in bytes:
 		//  Measured:  `661`
 		//  Estimated: `26272`
-		// Minimum execution time: 86_039_000 picoseconds.
-		Weight::from_parts(90_428_000, 0)
+		// Minimum execution time: 85_753_000 picoseconds.
+		Weight::from_parts(89_756_000, 0)
 			.saturating_add(Weight::from_parts(0, 26272))
 			.saturating_add(T::DbWeight::get().reads(8))
 			.saturating_add(T::DbWeight::get().writes(4))
@@ -115,8 +115,8 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 		// Proof Size summary in bytes:
 		//  Measured:  `6947662`
 		//  Estimated: `50786970`
-		// Minimum execution time: 7_551_799_000 picoseconds.
-		Weight::from_parts(7_705_025_000, 0)
+		// Minimum execution time: 7_382_981_000 picoseconds.
+		Weight::from_parts(7_613_582_000, 0)
 			.saturating_add(Weight::from_parts(0, 50786970))
 			.saturating_add(T::DbWeight::get().reads(3688))
 			.saturating_add(T::DbWeight::get().writes(3683))
@@ -133,8 +133,8 @@ impl<T: frame_system::Config> runtime_common::auctions::WeightInfo for WeightInf
 		// Proof Size summary in bytes:
 		//  Measured:  `177732`
 		//  Estimated: `16012473`
-		// Minimum execution time: 5_772_048_000 picoseconds.
-		Weight::from_parts(5_957_591_000, 0)
+		// Minimum execution time: 5_651_825_000 picoseconds.
+		Weight::from_parts(5_791_781_000, 0)
 			.saturating_add(Weight::from_parts(0, 16012473))
 			.saturating_add(T::DbWeight::get().reads(3673))
 			.saturating_add(T::DbWeight::get().writes(3673))
