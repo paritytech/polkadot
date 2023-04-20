@@ -1,4 +1,4 @@
-// Copyright 2021 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -72,14 +72,12 @@
 //! ## Artifacts
 //!
 //! An artifact is the final product of preparation. If the preparation succeeded, then the artifact
-//! will contain the compiled code usable for quick execution by a worker later on.
-//!
-//! If the preparation failed, then the worker will still write the artifact with the error message.
-//! We save the artifact with the error so that we don't try to prepare the artifacts that are broken
-//! repeatedly.
+//! will contain the compiled code usable for quick execution by a worker later on. If the
+//! preparation failed, then no artifact is created.
 //!
 //! The artifact is saved on disk and is also tracked by an in memory table. This in memory table
-//! doesn't contain the artifact contents though, only a flag that the given artifact is compiled.
+//! doesn't contain the artifact contents though, only a flag for the state of the given artifact
+//! and some associated data. If the artifact failed to process, this also includes the error.
 //!
 //! A pruning task will run at a fixed interval of time. This task will remove all artifacts that
 //! weren't used or received a heads up signal for a while.
@@ -114,7 +112,6 @@ pub use pvf::PvfPrepData;
 
 pub use host::{start, Config, ValidationHost};
 pub use metrics::Metrics;
-pub(crate) use worker_common::kill_parent_node_in_emergency;
 pub use worker_common::JOB_TIMEOUT_WALL_CLOCK_FACTOR;
 
 pub use execute::worker_entrypoint as execute_worker_entrypoint;
