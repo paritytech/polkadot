@@ -1279,7 +1279,7 @@ pub mod migrations {
 	pub const MAX_UPWARD_MESSAGE_SIZE: u32 = (1 << 17) - 5; // Checked in test `max_upward_message_size`.
 	pub const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32 = 512;
 
-	pub type UpdateUmpLimits = migration_ump::latest::ForceUpdateUmpLimits<
+	pub type UpdateUmpLimits = migration_ump::latest::ScheduleConfigUpdate<
 		super::Runtime,
 		MAX_UPWARD_QUEUE_SIZE,
 		MAX_UPWARD_QUEUE_COUNT,

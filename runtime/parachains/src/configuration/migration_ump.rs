@@ -26,10 +26,8 @@ pub mod latest {
 	use frame_support::{pallet_prelude::Weight, traits::OnRuntimeUpgrade};
 
 	/// Force update the UMP limits in the parachain host config.
-	///
-	/// **Should only be used when there are no pending migrations for the configuration pallet.**
 	// NOTE: `OnRuntimeUpgrade` does not have a `self`, so everything must be compile time.
-	pub struct ForceUpdateUmpLimits<
+	pub struct ScheduleConfigUpdate<
 		T,
 		const MAX_UPWARD_QUEUE_SIZE: u32,
 		const MAX_UPWARD_QUEUE_COUNT: u32,
@@ -44,7 +42,7 @@ pub mod latest {
 			const MAX_UPWARD_MESSAGE_SIZE: u32,
 			const MAX_UPWARD_MESSAGE_NUM_PER_CANDIDATE: u32,
 		> OnRuntimeUpgrade
-		for ForceUpdateUmpLimits<
+		for ScheduleConfigUpdate<
 			T,
 			MAX_UPWARD_QUEUE_SIZE,
 			MAX_UPWARD_QUEUE_COUNT,
