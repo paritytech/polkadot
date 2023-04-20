@@ -1,6 +1,6 @@
 # Provisioner
 
-Relay chain block authorship authority is governed by BABE and is beyond the scope of the Overseer and the rest of the subsystems. That said, ultimately the block author needs to select a set of backable parachain candidates and other consensus data, and assemble a block from them. This subsystem is responsible for providing the necessary data to all potential block authors. Due to the potentially forkful nature of the chain the provisioner must maintain separate states and perform its duties per active leaf.
+Relay chain block authorship authority is governed by BABE and is beyond the scope of the Overseer and the rest of the subsystems. That said, ultimately the block author needs to select a set of backable parachain candidates and other consensus data, and assemble a block from them. This subsystem is responsible for providing the necessary data to all potential block authors.
 
 ## Provisionable Data
 
@@ -54,49 +54,6 @@ Our goal with respect to bitfields is simple: maximize availability. However, it
 
 Beyond that, a semi-arbitrary selection policy is fine. In order to meet the goal of maximizing availability, a heuristic of picking the bitfield with the greatest number of 1 bits set in the event of conflict is useful.
 
-### Prospective Parachains Mode
-
-The state of the provisioner `PerRelayParent` tracks an important setting, `ProspectiveParachainsMode`. This setting determines which backable candidate selection method the provisioner uses.
-
-`ProspectiveParachainsMode::Disabled` - The provisioner uses its own internal legacy candidate selection. 
-`ProspectiveParachainsMode::Enabled` - The provisioner requests a selection of candidates from [prospective parachains](../backing/prospective-parachains.md).
-
-Candidates selected with `ProspectiveParachainsMode::Enabled` are able to benefit from the increased block production time asynchronous backing allows. For this reason, once asynchronous backing has been sufficiently tested the code related to legacy candidate selection will be removed.
-
-### Prospective Parachains Candidate Selection
-
-Prospective parachains candidate selection has two 
-
-The end result of this process is a vector of `CandidateHash`s, sorted in order of their core index.
-
-### Legacy Candidate Selection 
-
-Legacy candidate selection takes place in the provisioner. Thus the provisioner needs to keep an up to date record of all [backed_candidates](../../types/backing.md#backed-candidate) `PerRelayParent` to pick from. 
-
-The goal of candidate selection is to determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
-
-To determine availability:
-
-- Get the list of core states from the runtime API
-- For each core state:
-  - On `CoreState::Scheduled`, then we can make an `OccupiedCoreAssumption::Free`.
-  - On `CoreState::Occupied`, then we may be able to make an assumption:
-    - If the bitfields indicate availability and there is a scheduled `next_up_on_available`, then we can make an `OccupiedCoreAssumption::Included`.
-    - If the bitfields do not indicate availability, and there is a scheduled `next_up_on_time_out`, and `occupied_core.time_out_at == block_number_under_production`, then we can make an `OccupiedCoreAssumption::TimedOut`.
-  - If we did not make an `OccupiedCoreAssumption`, then continue on to the next core.
-  - Now compute the core's `validation_data_hash`: get the `PersistedValidationData` from the runtime, given the known `ParaId` and `OccupiedCoreAssumption`;
-  - Find an appropriate candidate for the core.
-    - There are two constraints: `backed_candidate.candidate.descriptor.para_id == scheduled_core.para_id && candidate.candidate.descriptor.validation_data_hash == computed_validation_data_hash`.
-    - In the event that more than one candidate meets the constraints, selection between the candidates is arbitrary. However, not more than one candidate can be selected per core.
-
-The end result of this process is a vector of `CandidateHash`s, sorted in order of their core index.
-
-### Retrieving Full BackedCandidate's for Selected Hashes
-
-Legacy candidate selection and prospective parachains candidate selection both leave us with a vector of `CandidateHash`s. These are passed to the backing subsystem with `CandidateBackingMessage::GetBackedCandidates`.
-
-We receive back a vector of `BackedCandidate`s, sorted in order of their core index and ready to be provisioned to block authoring. The candidate selection and retrieval process should select at maximum one candidate which upgrades the runtime validation code.
-
 ### Dispute Statement Selection
 
 This is the point at which the block author provides further votes to active disputes or initiates new disputes in the runtime state.
@@ -121,6 +78,80 @@ To compute bitfield availability, then:
   - Update the availability. Conceptually, assuming bit vectors: `availability[validator_index] |= bitfield[core_idx]`
 - Availability has a 2/3 threshold. Therefore: `3 * availability.count_ones() >= 2 * availability.len()`
 
+### Candidate Selection: Prospective Parachains Mode
+
+The state of the provisioner `PerRelayParent` tracks an important setting, `ProspectiveParachainsMode`. This setting determines which backable candidate selection method the provisioner uses.
+
+`ProspectiveParachainsMode::Disabled` - The provisioner uses its own internal legacy candidate selection. 
+`ProspectiveParachainsMode::Enabled` - The provisioner requests that [prospective parachains](../backing/prospective-parachains.md) provide selected candidates.
+
+Candidates selected with `ProspectiveParachainsMode::Enabled` are able to benefit from the increased block production time asynchronous backing allows. For this reason, once asynchronous backing has been sufficiently tested the code related to legacy candidate selection will be removed.
+
+### Prospective Parachains Candidate Selection
+
+The goal of candidate selection is to determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core. In prospective parachains candidate selection the provisioner handles the former process while [prospective parachains](../backing/prospective-parachains.md) handles the latter.
+
+To select backable candidates:
+
+- Get the list of core states from the runtime API
+- For each core state:
+  - On `CoreState::Free`
+    - The core is unscheduled and doesn’t need to be provisioned with a candidate
+  - On `CoreState::Scheduled`
+    - The availability core is scheduled to secure availability for the next block for a particular `para_id`. Also the core is not currently occupied by a candidate pending availability.
+    - The provisioner requests a backable candidate from [prospective parachains](../backing/prospective-parachains.md) with the desired relay parent, the core’s scheduled `para_id`, and an empty required path. 
+  - On `CoreState::Occupied`
+    - The availability core is occupied by a parachain block candidate pending availability. A further candidate need not be provided by the provisioner unless the core will be vacated this block. This is the case when either bitfields indicate the current core occupant has been made available or a timeout is reached.
+    - If `bitfields_indicate_availability`
+      - If `Some(scheduled_core) = occupied_core.next_up_on_available`, the core will be vacated and in need of a provisioned candidate. The provisioner requests a backable candidate from [prospective parachains](../backing/prospective-parachains.md) with the core’s scheduled `para_id` and a required path with one entry. This entry corresponds to the parablock candidate previously occupying this core, which was made available and can be built upon even though it hasn’t been seen as included in a relay chain block yet. See the Required Path section below for more detail.
+      - If `occupied_core.next_up_on_available` is `None`, then the core being vacated is unscheduled and doesn’t need to be provisioned with a candidate.
+    - Else-if `occupied_core.time_out_at == block_number`
+      - If `Some(scheduled_core) = occupied_core.next_up_on_timeout`, the core will be vacated and in need of a provisioned candidate. A candidate is requested in exactly the same way as with `CoreState::Scheduled`.
+      - Else the core being vacated is unscheduled and doesn’t need to be provisioned with a candidate
+
+
+The end result of this process is a vector of `CandidateHash`s, sorted in order of their core index.
+
+Required Path:
+
+Required path is a parameter for `ProspectiveParachainsMessage::GetBackableCandidate`, which the provisioner sends in candidate selection. 
+
+An empty required path indicates that the requested candidate should be a direct child of the most recent parablock for the given `para_id` as of the given relay parent. 
+
+In contrast, a required path with one or more entries prompts [prospective parachains](../backing/prospective-parachains.md) to step forward through its fragment tree for the given `para_id` and relay parent until the desired parablock is reached. We then select a direct child of that parablock to pass to the provisioner. 
+
+The parablocks making up a required path do not need to have been previously seen as included in relay chain blocks. Thus the ability to provision backable candidates based on a required path effectively decouples backing from inclusion, resulting in the tremendous performance increase of Asynchronous Backing.
+
+> TODO: The provisioner’s use of `required_path` doesn't work for parathreads, since no candidate will be provided if `scheduled_core.para_id != occupied_core.candidate_descriptor.para_id`. We lean hard on the assumption that cores are fixed to specific parachains within a session. https://github.com/paritytech/polkadot/issues/5492 
+
+### Legacy Candidate Selection 
+
+Legacy candidate selection takes place in the provisioner. Thus the provisioner needs to keep an up to date record of all [backed_candidates](../../types/backing.md#backed-candidate) `PerRelayParent` to pick from. 
+
+The goal of candidate selection is to determine which cores are free, and then to the degree possible, pick a candidate appropriate to each free core.
+
+To determine availability:
+
+- Get the list of core states from the runtime API
+- For each core state:
+  - On `CoreState::Scheduled`, then we can make an `OccupiedCoreAssumption::Free`.
+  - On `CoreState::Occupied`, then we may be able to make an assumption:
+    - If the bitfields indicate availability and there is a scheduled `next_up_on_available`, then we can make an `OccupiedCoreAssumption::Included`.
+    - If the bitfields do not indicate availability, and there is a scheduled `next_up_on_time_out`, and `occupied_core.time_out_at == block_number_under_production`, then we can make an `OccupiedCoreAssumption::TimedOut`.
+  - If we did not make an `OccupiedCoreAssumption`, then continue on to the next core.
+  - Now compute the core's `validation_data_hash`: get the `PersistedValidationData` from the runtime, given the known `ParaId` and `OccupiedCoreAssumption`;
+  - Find an appropriate candidate for the core.
+    - There are two constraints: `backed_candidate.candidate.descriptor.para_id == scheduled_core.para_id && candidate.candidate.descriptor.validation_data_hash == computed_validation_data_hash`.
+    - In the event that more than one candidate meets the constraints, selection between the candidates is arbitrary. However, not more than one candidate can be selected per core.
+
+The end result of this process is a vector of `CandidateHash`s, sorted in order of their core index.
+
+### Retrieving Full `BackedCandidate`s for Selected Hashes
+
+Legacy candidate selection and prospective parachains candidate selection both leave us with a vector of `CandidateHash`s. These are passed to the backing subsystem with `CandidateBackingMessage::GetBackedCandidates`.
+
+The response is a vector of `BackedCandidate`s, sorted in order of their core index and ready to be provisioned to block authoring. The candidate selection and retrieval process should select at maximum one candidate which upgrades the runtime validation code.
+
 ### Notes
 
 See also: [Scheduler Module: Availability Cores](../../runtime/scheduler.md#availability-cores).
@@ -142,6 +173,26 @@ The subsystem should maintain a set of handles to Block Authorship Provisioning 
 
 Forward the message to the appropriate Block Authorship Provisioning Job, or discard if no appropriate job is currently active.
 
-## Block Authorship Provisioning Job
+### Block Authorship Provisioning Job
 
 Maintain the set of channels to block authors. On receiving provisionable data, send a copy over each channel.
+
+## Glossary
+
+- **Relay-parent:** 
+  - A particular relay-chain block to which a process, perspective, and/or subset of state is linked.
+- **Active Leaf:** 
+  - A relay chain block which is the head of an active fork of the relay chain. 
+  - Block authorship provisioning jobs are spawned per active leaf and concluded for any leaves which become inactive.
+- **Candidate Selection:** 
+  - The process by which the provisioner selects backable parachain block candidates to pass to block authoring.
+  - Two versions, prospective parachains candidate selection and legacy candidate selection. See their respective protocol sections for details.
+- **Availability Core:** 
+  - Often referred to simply as "cores", availability cores are an abstraction used for resource management. For the provisioner, availability cores are most relevant in that core states determine which `para_id`s to provision backable candidates for.
+  - For more on availability cores see [scheduler](../../runtime/scheduler.md)
+- **Availability Bitfield:**
+  - Often referred to simply as a "bitfield", an availability bitfield represents the view of parablock candidate availability from a particular validator's perspective. Each bit in the bitfield corresponds to a single [availability core](../runtime-api/availability-cores.md).
+  - For more on availability bitfields see [availability](../../types/availability.md)
+- **Backable vs. Backed:**
+  - Note that we sometimes use "backed" to refer to candidates that are "backable", but not yet backed on chain.
+  - Backable means that a quorum of the candidate's assigned backing group have provided signed affirming statements.
