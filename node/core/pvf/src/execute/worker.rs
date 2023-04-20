@@ -349,6 +349,13 @@ fn validate_using_artifact(
 	executor: Arc<Executor>,
 	cpu_time_start: ProcessTime,
 ) -> Response {
+	// Check here if the file exists, because the error from Substrate is not match-able.
+	// TODO: Re-evaluate after <https://github.com/paritytech/substrate/issues/13860>.
+	let file_metadata = std::fs::metadata(artifact_path);
+	if let Err(err) = file_metadata {
+		return Response::format_internal("execute: could not find or open file", &err.to_string())
+	}
+
 	let descriptor_bytes = match unsafe {
 		// SAFETY: this should be safe since the compiled artifact passed here comes from the
 		//         file created by the prepare workers. These files are obtained by calling
