@@ -693,6 +693,11 @@ pub(crate) fn check_assignment_cert(
 	let &(ref vrf_output, ref vrf_proof) = &assignment.vrf;
 	match &assignment.kind {
 		AssignmentCertKindV2::RelayVRFModuloCompact { core_bitfield } => {
+			// Check that claimed core bitfield match the one from certificate.
+			if claimed_core_indices != core_bitfield {
+				return Err(InvalidAssignment(Reason::VRFModuloCoreIndexMismatch))
+			}
+
 			let (vrf_in_out, _) = public
 				.vrf_verify_extra(
 					relay_vrf_modulo_transcript_v2(relay_vrf_story),
