@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -547,7 +547,7 @@ impl<T: Config> Pallet<T> {
 
 				if let Some(required_collator) = assignment.required_collator() {
 					ensure!(
-						required_collator == &backed_candidate.descriptor().collator,
+						required_collator == backed_candidate.descriptor().collator,
 						Error::<T>::WrongCollator,
 					);
 				}
@@ -680,7 +680,8 @@ impl<T: Config> Pallet<T> {
 			.into_iter()
 			.flat_map(|(idx, assignments)| {
 				assignments.into_iter().filter_map(move |core_assigment| {
-					core_assigment.map(|ca| ((idx, ca.kind.para_id()), (ca.kind.para_id(), ca)))
+					core_assigment
+						.map(|ca| ((idx, ca.paras_entry.para_id), (ca.paras_entry.para_id, ca)))
 				})
 			})
 			.unzip();

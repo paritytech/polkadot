@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -484,8 +484,12 @@ impl<T: Config> Pallet<T> {
 
 		METRICS.on_candidates_included(freed_concluded.len() as u64);
 		let mut freed = collect_all_freed_cores::<T, _>(freed_concluded.iter().cloned());
-		// As a core is only occupied by a single work item, freed and freed_disputed are disjoint by design
-		// and can thus be appended without worrying about overwriting (key, value) pairs in freed.
+		// Values in freed might be overwritten by values in free_disputed.
+		// That's fine though as disputed cores are always marked as concluded
+		// whereas freed cores might have concluded or timedout.
+		// If the core in freed concluded, overwriting is a no-op.
+		// If is timedout, overwriting it as concluded is fine since timeouts
+		// are only relevant for retries but disputed cores should not be retried
 		freed.append(&mut freed_disputed.into_iter().collect());
 		log::debug!(target: LOG_TARGET, "update_claimqueue() at {:?} in enter_inner", now);
 		let claimqueue = <scheduler::Pallet<T>>::update_claimqueue(freed, now);
@@ -1139,9 +1143,9 @@ fn claimqueue_to_paras_core_idx_map(
 		.into_iter()
 		.flat_map(|(_core_index, deque)| {
 			deque.into_iter().filter_map(|core_assignment| {
-				core_assignment
-					.clone()
-					.map(|core_assignment| (core_assignment.kind.para_id(), core_assignment.core))
+				core_assignment.clone().map(|core_assignment| {
+					(core_assignment.paras_entry.para_id, core_assignment.core)
+				})
 			})
 		})
 		.collect()

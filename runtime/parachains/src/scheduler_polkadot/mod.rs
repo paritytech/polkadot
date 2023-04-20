@@ -17,12 +17,10 @@
 use frame_support::pallet_prelude::*;
 use primitives::{CoreIndex, Id as ParaId};
 
-use crate::{
-	configuration, paras,
-	scheduler_common::{Assignment, AssignmentProvider},
-};
+use crate::{configuration, paras, scheduler_common::AssignmentProvider};
 
 pub use pallet::*;
+use primitives::v4::ParasEntry;
 
 #[frame_support::pallet]
 pub mod pallet {
@@ -60,7 +58,7 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 	fn pop_assignment_for_core(
 		core_idx: CoreIndex,
 		concluded_para: Option<ParaId>,
-	) -> Option<Assignment> {
+	) -> Option<ParasEntry> {
 		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
 		if (0..parachains_cores).contains(&core_idx.0) {
 			<crate::scheduler_parachains::Pallet<T>>::pop_assignment_for_core(
@@ -74,17 +72,19 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 		}
 	}
 
-	fn push_assignment_for_core(core_idx: CoreIndex, assignment: Assignment) {
-		let parachain_cores = NumParachains::<T>::get()
-			.unwrap_or_else(|| <crate::scheduler_parachains::Pallet<T>>::session_core_count());
-		if (0..parachain_cores).contains(&core_idx.0) {
-			<crate::scheduler_parachains::Pallet<T>>::push_assignment_for_core(core_idx, assignment)
-		} else {
-			let _core_idx = CoreIndex(core_idx.0 - parachain_cores);
-			todo!()
-			//<crate::scheduler_parathreads::Pallet<T>>::push_assignment_for_core(
-			//	core_idx, assignment,
-			//)
+	fn push_parasentry_for_core(core_idx: CoreIndex, entry: ParasEntry) {
+		if entry.retries == 0 {
+			let parachain_cores = NumParachains::<T>::get()
+				.unwrap_or_else(|| <crate::scheduler_parachains::Pallet<T>>::session_core_count());
+			if (0..parachain_cores).contains(&core_idx.0) {
+				<crate::scheduler_parachains::Pallet<T>>::push_parasentry_for_core(core_idx, entry)
+			} else {
+				let _core_idx = CoreIndex(core_idx.0 - parachain_cores);
+				todo!()
+				//<crate::scheduler_parathreads::Pallet<T>>::push_assignment_for_core(
+				//	core_idx, entry,
+				//)
+			}
 		}
 	}
 
@@ -96,6 +96,17 @@ impl<T: Config> AssignmentProvider<T> for Pallet<T> {
 			let _core_idx = CoreIndex(core_idx.0 - parachains_cores);
 			todo!()
 			//<crate::scheduler_parathreads::Pallet<T>>::get_availability_period(core_idx)
+		}
+	}
+
+	fn get_max_retries(core_idx: CoreIndex) -> u32 {
+		let parachains_cores = <crate::scheduler_parachains::Pallet<T>>::session_core_count();
+		if (0..parachains_cores).contains(&core_idx.0) {
+			<crate::scheduler_parachains::Pallet<T>>::get_max_retries(core_idx)
+		} else {
+			let _core_idx = CoreIndex(core_idx.0 - parachains_cores);
+			todo!()
+			//<crate::scheduler_parathreads::Pallet<T>>::get_max_retries(core_idx)
 		}
 	}
 }

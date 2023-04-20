@@ -1,4 +1,4 @@
-// Copyright 2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -95,9 +95,10 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 		.into_iter()
 		.enumerate()
 		.map(|(i, core)| match core {
-			CoreOccupied::Parachain(para_id) => {
-				let pending_availability = <inclusion::Pallet<T>>::pending_availability(para_id)
-					.expect("Occupied core always has pending availability; qed");
+			CoreOccupied::Paras(entry) => {
+				let pending_availability =
+					<inclusion::Pallet<T>>::pending_availability(entry.para_id)
+						.expect("Occupied core always has pending availability; qed");
 
 				let backed_in_number = *pending_availability.backed_in_number();
 				CoreState::Occupied(OccupiedCore {
@@ -118,38 +119,14 @@ pub fn availability_cores<T: initializer::Config>() -> Vec<CoreState<T::Hash, T:
 					candidate_descriptor: pending_availability.candidate_descriptor().clone(),
 				})
 			},
-			CoreOccupied::Parathread(p) => {
-				let para_id = p.claim.0;
-				let pending_availability = <inclusion::Pallet<T>>::pending_availability(para_id)
-					.expect("Occupied core always has pending availability; qed");
-
-				let backed_in_number = *pending_availability.backed_in_number();
-				CoreState::Occupied(OccupiedCore {
-					next_up_on_available: <scheduler::Pallet<T>>::next_up_on_available(CoreIndex(
-						i as u32,
-					)),
-					occupied_since: backed_in_number,
-					time_out_at: time_out_at(backed_in_number, config.thread_availability_period),
-					next_up_on_time_out: <scheduler::Pallet<T>>::next_up_on_time_out(CoreIndex(
-						i as u32,
-					)),
-					availability: pending_availability.availability_votes().clone(),
-					group_responsible: group_responsible_for(
-						backed_in_number,
-						pending_availability.core_occupied(),
-					),
-					candidate_hash: pending_availability.candidate_hash(),
-					candidate_descriptor: pending_availability.candidate_descriptor().clone(),
-				})
-			},
 			CoreOccupied::Free => CoreState::Free,
 		})
 		.collect();
 
 	// This will overwrite only `Free` cores if the scheduler module is working as intended.
-	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue() {
+	for scheduled in <scheduler::Pallet<T>>::scheduled_claimqueue(now) {
 		core_states[scheduled.core.0 as usize] = CoreState::Scheduled(primitives::ScheduledCore {
-			para_id: scheduled.kind.para_id(),
+			para_id: scheduled.paras_entry.para_id,
 			collator: scheduled.required_collator().map(|c| c.clone()),
 		});
 	}

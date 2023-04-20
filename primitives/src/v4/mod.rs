@@ -1,4 +1,4 @@
-// Copyright 2017-2020 Parity Technologies (UK) Ltd.
+// Copyright (C) Parity Technologies (UK) Ltd.
 // This file is part of Polkadot.
 
 // Polkadot is free software: you can redistribute it and/or modify
@@ -796,16 +796,25 @@ pub struct ParathreadEntry {
 	pub retries: u32,
 }
 
+/// An entry tracking a paras
+#[derive(Clone, Encode, Decode, TypeInfo, PartialEq, RuntimeDebug)]
+pub struct ParasEntry {
+	/// The ID.
+	pub para_id: Id,
+	/// The collator.
+	pub collator: Option<CollatorId>,
+	/// Number of retries.
+	pub retries: u32,
+}
+
 /// What is occupying a specific availability core.
 #[derive(Clone, Encode, Decode, TypeInfo, RuntimeDebug)]
 #[cfg_attr(feature = "std", derive(PartialEq))]
 pub enum CoreOccupied {
 	/// The core is not occupied.
 	Free,
-	/// A parathread.
-	Parathread(ParathreadEntry),
-	/// A parachain.
-	Parachain(Id),
+	/// A paras.
+	Paras(ParasEntry),
 }
 
 impl CoreOccupied {
@@ -813,8 +822,7 @@ impl CoreOccupied {
 	pub fn is_free(&self) -> bool {
 		match self {
 			Self::Free => true,
-			Self::Parachain(_) => false,
-			Self::Parathread(_) => false,
+			Self::Paras(_) => false,
 		}
 	}
 }
@@ -1719,6 +1727,7 @@ impl PvfCheckStatement {
 
 /// Type discriminator for PVF preparation timeouts
 #[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum PvfPrepTimeoutKind {
 	/// For prechecking requests, the time period after which the preparation worker is considered
 	/// unresponsive and will be killed.
@@ -1732,6 +1741,7 @@ pub enum PvfPrepTimeoutKind {
 
 /// Type discriminator for PVF execution timeouts
 #[derive(Encode, Decode, TypeInfo, Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum PvfExecTimeoutKind {
 	/// The amount of time to spend on execution during backing.
 	Backing,
