@@ -47,7 +47,7 @@ pub struct MemoryStats {
 	/// Memory stats from `tikv_jemalloc_ctl`.
 	#[cfg(any(target_os = "linux", feature = "jemalloc-allocator"))]
 	pub memory_tracker_stats: Option<MemoryAllocationStats>,
-	/// `ru_maxrss` from `getrusage`. A string error since `io::Error` is not `Encode`able.
+	/// `ru_maxrss` from `getrusage`. `None` if an error occurred.
 	#[cfg(target_os = "linux")]
 	pub max_rss: Option<i64>,
 }
