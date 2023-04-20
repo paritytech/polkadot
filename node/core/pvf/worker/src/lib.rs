@@ -32,6 +32,7 @@ pub use prepare::worker_entrypoint as prepare_worker_entrypoint;
 pub use executor_intf::{prepare, prevalidate};
 
 // TODO: Does logging in the worker have any effect?
+//       See <https://github.com/paritytech/polkadot/issues/7112>.
 const LOG_TARGET: &str = "parachain::pvf-worker";
 
 /// Use this macro to declare a `fn main() {}` that will create an executable that can be used for
