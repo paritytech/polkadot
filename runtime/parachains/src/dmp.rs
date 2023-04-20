@@ -26,7 +26,7 @@
 //! threshold = max_messages / THRESHOLD_FACTOR
 //! ```
 //! Based on the THRESHOLD_FACTOR, the threshold is set as a fraction of the
-//! total messages. The DeliveryFeeFactor increases for a message over the
+//! total messages. The `DeliveryFeeFactor` increases for a message over the
 //! threshold by:
 //!
 //! `DeliveryFeeFactor = DeliveryFeeFactor *
