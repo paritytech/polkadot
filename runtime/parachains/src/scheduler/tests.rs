@@ -957,8 +957,8 @@ fn availability_predicate_works() {
 	//let collator = CollatorId::from(Sr25519Keyring::Alice.public());
 
 	assert!(
-		chain_availability_period < thread_availability_period
-			&& thread_availability_period < group_rotation_frequency
+		chain_availability_period < thread_availability_period &&
+			thread_availability_period < group_rotation_frequency
 	);
 
 	let chain_a = ParaId::from(1_u32);
