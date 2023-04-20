@@ -24,11 +24,7 @@ async function run(_, networkInfo, nodeNames) {
   );
 
   // check that all nodes accepted the proof
-  if (proofVerifications.every((proofVerification) => proofVerification) && proofVerificationsStateless.every((proofVerification) => proofVerification)) {
-    return 1;
-  } else {
-    return 0;
-  }
+  return proofVerifications.every((proofVerification) => proofVerification) && proofVerificationsStateless.every((proofVerification) => proofVerification)
 }
 
 module.exports = { run };
