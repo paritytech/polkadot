@@ -599,7 +599,7 @@ mod select_candidates {
 				validator_indices: default_bitvec(MOCK_GROUP_SIZE),
 			})
 			.collect();
-		
+
 		test_harness(
 			|r| {
 				mock_overseer(
